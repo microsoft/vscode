@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancelablePromise, TimeoutTimer, createCancelablePromise } from 'vs/base/common/async';
 import { RGBA } from 'vs/base/common/color';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { hash } from 'vs/base/common/hash';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Range } from 'vs/editor/common/core/range';
-import { Position } from 'vs/editor/common/core/position';
-import { ColorProviderRegistry } from 'vs/editor/common/modes';
+import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { getColors, IColorData } from 'vs/editor/contrib/colorPicker/color';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { TimeoutTimer, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { ColorProviderRegistry } from 'vs/editor/common/modes';
+import { IColorData, getColors } from 'vs/editor/contrib/colorPicker/color';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const MAX_DECORATORS = 500;
 

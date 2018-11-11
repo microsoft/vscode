@@ -14,7 +14,6 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { ICodeEditor, IEditorMouseEvent, IViewZone, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
@@ -25,7 +24,7 @@ import { ConfigurationTarget } from 'vs/platform/configuration/common/configurat
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { activeContrastBorder, badgeBackground, badgeForeground, contrastBorder, errorForeground, focusBorder } from 'vs/platform/theme/common/colorRegistry';
+import { activeContrastBorder, badgeBackground, badgeForeground, contrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -172,6 +171,11 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 	}
 
 	public render() {
+		if (!this.settingsGroup.range) {
+			// #61352
+			return;
+		}
+
 		this._afterLineNumber = this.settingsGroup.range.startLineNumber - 2;
 		this.editor.changeViewZones(accessor => {
 			this.id = accessor.addZone(this);
@@ -411,7 +415,7 @@ export class FolderSettingsActionItem extends BaseActionItem {
 	private showMenu(): void {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => this.container,
-			getActions: () => TPromise.as(this.getDropdownMenuActions()),
+			getActions: () => this.getDropdownMenuActions(),
 			getActionItem: () => null,
 			onHide: () => {
 				this.anchorElement.blur();
@@ -544,13 +548,13 @@ export class SettingsTargetsWidget extends Widget {
 		}
 	}
 
-	public updateTarget(settingsTarget: SettingsTarget): TPromise<void> {
+	public updateTarget(settingsTarget: SettingsTarget): Promise<void> {
 		const isSameTarget = this.settingsTarget === settingsTarget || settingsTarget instanceof URI && this.settingsTarget instanceof URI && this.settingsTarget.toString() === settingsTarget.toString();
 		if (!isSameTarget) {
 			this.settingsTarget = settingsTarget;
 			this._onDidTargetChange.fire(this.settingsTarget);
 		}
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	private update(): void {
@@ -609,7 +613,8 @@ export class SearchWidget extends Widget {
 				this.countElement.style.borderStyle = border ? 'solid' : null;
 				this.countElement.style.borderColor = border;
 
-				this.styleCountElementForeground();
+				const color = this.themeService.getTheme().getColor(badgeForeground);
+				this.countElement.style.color = color ? color.toString() : null;
 			}));
 		}
 
@@ -640,21 +645,13 @@ export class SearchWidget extends Widget {
 		return box;
 	}
 
-	public showMessage(message: string, count: number): void {
+	public showMessage(message: string): void {
 		// Avoid setting the aria-label unnecessarily, the screenreader will read the count every time it's set, since it's aria-live:assertive. #50968
 		if (this.countElement && message !== this.countElement.textContent) {
 			this.countElement.textContent = message;
 			this.inputBox.inputElement.setAttribute('aria-label', message);
-			DOM.toggleClass(this.countElement, 'no-results', count === 0);
 			this.inputBox.inputElement.style.paddingRight = this.getControlsWidth() + 'px';
-			this.styleCountElementForeground();
 		}
-	}
-
-	private styleCountElementForeground() {
-		const colorId = DOM.hasClass(this.countElement, 'no-results') ? errorForeground : badgeForeground;
-		const color = this.themeService.getTheme().getColor(colorId);
-		this.countElement.style.color = color ? color.toString() : null;
 	}
 
 	public layout(dimension: DOM.Dimension) {

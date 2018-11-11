@@ -10,6 +10,6 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } fr
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 export function registerContributions(): void {
-	registerSingleton(IReplaceService, ReplaceService);
+	registerSingleton(IReplaceService, ReplaceService, true);
 	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ReplacePreviewContentProvider, LifecyclePhase.Starting);
 }

@@ -4,14 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'path';
+import { mapArrayOrNot } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import * as glob from 'vs/base/common/glob';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { toCanonicalName } from 'vs/base/node/encoding';
 import * as extfs from 'vs/base/node/extfs';
-import { IFileMatch, IFolderQuery, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchResult, IExtendedExtensionSearchOptions } from 'vs/platform/search/common/search';
+import { IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchMatch, ITextSearchContext, ITextSearchResult } from 'vs/platform/search/common/search';
 import { QueryGlobTester, resolvePatternsForProvider } from 'vs/workbench/services/search/node/search';
 import * as vscode from 'vscode';
 
@@ -22,15 +23,15 @@ export class TextSearchManager {
 	private isLimitHit: boolean;
 	private resultCount = 0;
 
-	constructor(private query: ITextQuery, private provider: vscode.TextSearchProvider, private _extfs: typeof extfs) {
+	constructor(private query: ITextQuery, private provider: vscode.TextSearchProvider, private _extfs: typeof extfs = extfs) {
 	}
 
-	public search(onProgress: (matches: IFileMatch[]) => void, token: CancellationToken): TPromise<ISearchCompleteStats> {
-		const folderQueries = this.query.folderQueries;
+	public search(onProgress: (matches: IFileMatch[]) => void, token: CancellationToken): Promise<ISearchCompleteStats> {
+		const folderQueries = this.query.folderQueries || [];
 		const tokenSource = new CancellationTokenSource();
 		token.onCancellationRequested(() => tokenSource.cancel());
 
-		return new TPromise<ISearchCompleteStats>((resolve, reject) => {
+		return new Promise<ISearchCompleteStats>((resolve, reject) => {
 			this.collector = new TextSearchResultsCollector(onProgress);
 
 			let isCanceled = false;
@@ -39,7 +40,7 @@ export class TextSearchManager {
 					return;
 				}
 
-				if (this.resultCount >= this.query.maxResults) {
+				if (typeof this.query.maxResults === 'number' && this.resultCount >= this.query.maxResults) {
 					this.isLimitHit = true;
 					isCanceled = true;
 					tokenSource.cancel();
@@ -52,38 +53,39 @@ export class TextSearchManager {
 			};
 
 			// For each root folder
-			TPromise.join(folderQueries.map((fq, i) => {
+			Promise.all(folderQueries.map((fq, i) => {
 				return this.searchInFolder(fq, r => onResult(r, i), tokenSource.token);
 			})).then(results => {
 				tokenSource.dispose();
 				this.collector.flush();
 
-				const someFolderHitLImit = results.some(result => result && result.limitHit);
+				const someFolderHitLImit = results.some(result => !!result && !!result.limitHit);
 				resolve({
 					limitHit: this.isLimitHit || someFolderHitLImit,
 					stats: {
 						type: 'textSearchProvider'
 					}
 				});
-			}, (errs: Error[]) => {
+			}, (err: Error) => {
 				tokenSource.dispose();
-				const errMsg = errs
-					.map(err => toErrorMessage(err))
-					.filter(msg => !!msg)[0];
-
+				const errMsg = toErrorMessage(err);
 				reject(new Error(errMsg));
 			});
 		});
 	}
 
-	private searchInFolder(folderQuery: IFolderQuery<URI>, onResult: (result: vscode.TextSearchResult) => void, token: CancellationToken): TPromise<vscode.TextSearchComplete> {
+	private searchInFolder(folderQuery: IFolderQuery<URI>, onResult: (result: vscode.TextSearchResult) => void, token: CancellationToken): Promise<vscode.TextSearchComplete | null | undefined> {
 		const queryTester = new QueryGlobTester(this.query, folderQuery);
-		const testingPs: TPromise<void>[] = [];
+		const testingPs: Promise<void>[] = [];
 		const progress = {
 			report: (result: vscode.TextSearchResult) => {
-				const hasSibling = folderQuery.folder.scheme === 'file' && glob.hasSiblingPromiseFn(() => {
-					return this.readdir(path.dirname(result.uri.fsPath));
-				});
+				// TODO: validate result.ranges vs result.preview.matches
+
+				const hasSibling = folderQuery.folder.scheme === 'file' ?
+					glob.hasSiblingPromiseFn(() => {
+						return this.readdir(path.dirname(result.uri.fsPath));
+					}) :
+					undefined;
 
 				const relativePath = path.relative(folderQuery.folder.fsPath, result.uri.fsPath);
 				testingPs.push(
@@ -97,16 +99,16 @@ export class TextSearchManager {
 		};
 
 		const searchOptions = this.getSearchOptionsForFolder(folderQuery);
-		return new TPromise(resolve => process.nextTick(resolve))
+		return new Promise(resolve => process.nextTick(resolve))
 			.then(() => this.provider.provideTextSearchResults(patternInfoToQuery(this.query.contentPattern), searchOptions, progress, token))
 			.then(result => {
-				return TPromise.join(testingPs)
+				return Promise.all(testingPs)
 					.then(() => result);
 			});
 	}
 
-	private readdir(dirname: string): TPromise<string[]> {
-		return new TPromise((resolve, reject) => {
+	private readdir(dirname: string): Promise<string[]> {
+		return new Promise((resolve, reject) => {
 			this._extfs.readdir(dirname, (err, files) => {
 				if (err) {
 					return reject(err);
@@ -121,17 +123,19 @@ export class TextSearchManager {
 		const includes = resolvePatternsForProvider(this.query.includePattern, fq.includePattern);
 		const excludes = resolvePatternsForProvider(this.query.excludePattern, fq.excludePattern);
 
-		const options = {
+		const options = <vscode.TextSearchOptions>{
 			folder: URI.from(fq.folder),
 			excludes,
 			includes,
 			useIgnoreFiles: !fq.disregardIgnoreFiles,
 			useGlobalIgnoreFiles: !fq.disregardGlobalIgnoreFiles,
 			followSymlinks: !fq.ignoreSymlinks,
-			encoding: fq.fileEncoding,
+			encoding: fq.fileEncoding && toCanonicalName(fq.fileEncoding),
 			maxFileSize: this.query.maxFileSize,
 			maxResults: this.query.maxResults,
-			previewOptions: this.query.previewOptions
+			previewOptions: this.query.previewOptions,
+			afterContext: this.query.afterContext,
+			beforeContext: this.query.beforeContext
 		};
 		(<IExtendedExtensionSearchOptions>options).usePCRE2 = this.query.usePCRE2;
 		return options;
@@ -153,7 +157,7 @@ export class TextSearchResultsCollector {
 
 	private _currentFolderIdx: number;
 	private _currentUri: URI;
-	private _currentFileMatch: IFileMatch;
+	private _currentFileMatch: IFileMatch | null = null;
 
 	constructor(private _onResult: (result: IFileMatch[]) => void) {
 		this._batchedCollector = new BatchedCollector<IFileMatch>(512, items => this.sendItems(items));
@@ -172,18 +176,18 @@ export class TextSearchResultsCollector {
 			this._currentFolderIdx = folderIdx;
 			this._currentFileMatch = {
 				resource: data.uri,
-				matches: []
+				results: []
 			};
 		}
 
-		this._currentFileMatch.matches.push(extensionResultToFrontendResult(data));
+		this._currentFileMatch.results!.push(extensionResultToFrontendResult(data));
 	}
 
 	private pushToCollector(): void {
-		const size = this._currentFileMatch ?
-			this._currentFileMatch.matches.length :
+		const size = this._currentFileMatch && this._currentFileMatch.results ?
+			this._currentFileMatch.results.length :
 			0;
-		this._batchedCollector.addItem(this._currentFileMatch, size);
+		this._batchedCollector.addItem(this._currentFileMatch!, size);
 	}
 
 	flush(): void {
@@ -198,23 +202,34 @@ export class TextSearchResultsCollector {
 
 function extensionResultToFrontendResult(data: vscode.TextSearchResult): ITextSearchResult {
 	// Warning: result from RipgrepTextSearchEH has fake vscode.Range. Don't depend on any other props beyond these...
-	return {
-		preview: {
-			match: {
-				startLineNumber: data.preview.match.start.line,
-				startColumn: data.preview.match.start.character,
-				endLineNumber: data.preview.match.end.line,
-				endColumn: data.preview.match.end.character
+	if (extensionResultIsMatch(data)) {
+		return <ITextSearchMatch>{
+			preview: {
+				matches: mapArrayOrNot(data.preview.matches, m => ({
+					startLineNumber: m.start.line,
+					startColumn: m.start.character,
+					endLineNumber: m.end.line,
+					endColumn: m.end.character
+				})),
+				text: data.preview.text
 			},
-			text: data.preview.text
-		},
-		range: {
-			startLineNumber: data.range.start.line,
-			startColumn: data.range.start.character,
-			endLineNumber: data.range.end.line,
-			endColumn: data.range.end.character
-		}
-	};
+			ranges: mapArrayOrNot(data.ranges, r => ({
+				startLineNumber: r.start.line,
+				startColumn: r.start.character,
+				endLineNumber: r.end.line,
+				endColumn: r.end.character
+			}))
+		};
+	} else {
+		return <ITextSearchContext>{
+			text: data.text,
+			lineNumber: data.lineNumber
+		};
+	}
+}
+
+export function extensionResultIsMatch(data: vscode.TextSearchResult): data is vscode.TextSearchMatch {
+	return !!(<vscode.TextSearchMatch>data).preview;
 }
 
 /**

@@ -5,10 +5,8 @@
 
 import { Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { IFileSearchStats, IFolderQuery, IProgress, ISearchEngineStats, ISearchQuery, ITextSearchResult, ITextSearchStats, IRawTextQuery } from 'vs/platform/search/common/search';
+import { IFileSearchStats, IFolderQuery, IProgress, IRawFileQuery, IRawTextQuery, ISearchEngineStats, ISearchQuery, ITextSearchMatch, ITextSearchStats, ITextSearchResult } from 'vs/platform/search/common/search';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { IRawSearch } from 'vs/workbench/services/search/node/legacy/search';
 
 export interface ITelemetryEvent {
 	eventName: string;
@@ -16,9 +14,9 @@ export interface ITelemetryEvent {
 }
 
 export interface IRawSearchService {
-	fileSearch(search: IRawSearch): Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
+	fileSearch(search: IRawFileQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
 	textSearch(search: IRawTextQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
-	clearCache(cacheKey: string): TPromise<void>;
+	clearCache(cacheKey: string): Promise<void>;
 }
 
 export interface IRawFileMatch {
@@ -36,7 +34,7 @@ export interface ISearchEngine<T> {
 export interface ISerializedSearchSuccess {
 	type: 'success';
 	limitHit: boolean;
-	stats: IFileSearchStats | ITextSearchStats;
+	stats: IFileSearchStats | ITextSearchStats | null;
 }
 
 export interface ISearchEngineSuccess {
@@ -73,8 +71,8 @@ export function isSerializedFileMatch(arg: ISerializedSearchProgressItem): arg i
 }
 
 export interface ISerializedFileMatch {
-	path: string;
-	matches?: ITextSearchResult[];
+	path?: string;
+	results?: ITextSearchResult[];
 	numMatches?: number;
 }
 
@@ -85,22 +83,22 @@ export type IFileSearchProgressItem = IRawFileMatch | IRawFileMatch[] | IProgres
 
 export class FileMatch implements ISerializedFileMatch {
 	path: string;
-	matches: ITextSearchResult[];
+	results: ITextSearchMatch[];
 
 	constructor(path: string) {
 		this.path = path;
-		this.matches = [];
+		this.results = [];
 	}
 
-	addMatch(match: ITextSearchResult): void {
-		this.matches.push(match);
+	addMatch(match: ITextSearchMatch): void {
+		this.results.push(match);
 	}
 
 	serialize(): ISerializedFileMatch {
 		return {
 			path: this.path,
-			matches: this.matches,
-			numMatches: this.matches.length
+			results: this.results,
+			numMatches: this.results.length
 		};
 	}
 }
@@ -108,7 +106,7 @@ export class FileMatch implements ISerializedFileMatch {
 /**
  *  Computes the patterns that the provider handles. Discards sibling clauses and 'false' patterns
  */
-export function resolvePatternsForProvider(globalPattern: glob.IExpression, folderPattern: glob.IExpression): string[] {
+export function resolvePatternsForProvider(globalPattern: glob.IExpression | undefined, folderPattern: glob.IExpression | undefined): string[] {
 	const merged = {
 		...(globalPattern || {}),
 		...(folderPattern || {})
@@ -171,10 +169,10 @@ export class QueryGlobTester {
 	/**
 	 * Guaranteed async.
 	 */
-	public includedInQuery(testPath: string, basename?: string, hasSibling?: (name: string) => boolean | TPromise<boolean>): TPromise<boolean> {
+	public includedInQuery(testPath: string, basename?: string, hasSibling?: (name: string) => boolean | Promise<boolean>): Promise<boolean> {
 		const excludeP = this._parsedExcludeExpression ?
-			TPromise.as(this._parsedExcludeExpression(testPath, basename, hasSibling)).then(result => !!result) :
-			TPromise.wrap(false);
+			Promise.resolve(this._parsedExcludeExpression(testPath, basename, hasSibling)).then(result => !!result) :
+			Promise.resolve(false);
 
 		return excludeP.then(excluded => {
 			if (excluded) {
@@ -182,8 +180,8 @@ export class QueryGlobTester {
 			}
 
 			return this._parsedIncludeExpression ?
-				TPromise.as(this._parsedIncludeExpression(testPath, basename, hasSibling)).then(result => !!result) :
-				TPromise.wrap(true);
+				Promise.resolve(this._parsedIncludeExpression(testPath, basename, hasSibling)).then(result => !!result) :
+				Promise.resolve(true);
 		}).then(included => {
 			return included;
 		});

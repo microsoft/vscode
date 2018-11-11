@@ -36,6 +36,7 @@ export interface ICommonQueryBuilderOptions {
 	extraFileResources?: uri[];
 
 	maxResults?: number;
+	maxFileSize?: number;
 	useRipgrep?: boolean;
 	disregardIgnoreFiles?: boolean;
 	disregardGlobalIgnoreFiles?: boolean;
@@ -53,7 +54,8 @@ export interface IFileQueryBuilderOptions extends ICommonQueryBuilderOptions {
 export interface ITextQueryBuilderOptions extends ICommonQueryBuilderOptions {
 	previewOptions?: ITextSearchPreviewOptions;
 	fileEncoding?: string;
-	maxFileSize?: number;
+	beforeContext?: number;
+	afterContext?: number;
 }
 
 export class QueryBuilder {
@@ -64,7 +66,7 @@ export class QueryBuilder {
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) { }
 
-	text(contentPattern: IPatternInfo, folderResources?: uri[], options?: ITextQueryBuilderOptions): ITextQuery {
+	text(contentPattern: IPatternInfo, folderResources?: uri[], options: ITextQueryBuilderOptions = {}): ITextQuery {
 		contentPattern.isCaseSensitive = this.isCaseSensitive(contentPattern);
 		contentPattern.isMultiline = this.isMultiline(contentPattern);
 		const searchConfig = this.configurationService.getValue<ISearchConfiguration>();
@@ -80,13 +82,16 @@ export class QueryBuilder {
 			...commonQuery,
 			type: QueryType.Text,
 			contentPattern,
-			previewOptions: options && options.previewOptions,
-			maxFileSize: options && options.maxFileSize,
-			usePCRE2: searchConfig.search.usePCRE2 || fallbackToPCRE || false
+			previewOptions: options.previewOptions,
+			maxFileSize: options.maxFileSize,
+			usePCRE2: searchConfig.search.usePCRE2 || fallbackToPCRE || false,
+			beforeContext: options.beforeContext,
+			afterContext: options.afterContext,
+			userDisabledExcludesAndIgnoreFiles: options.disregardExcludeSettings && options.disregardIgnoreFiles
 		};
 	}
 
-	file(folderResources?: uri[], options?: IFileQueryBuilderOptions): IFileQuery {
+	file(folderResources: uri[] | undefined, options: IFileQueryBuilderOptions = {}): IFileQuery {
 		const commonQuery = this.commonQuery(folderResources, options);
 		return <IFileQuery>{
 			...commonQuery,
@@ -101,22 +106,17 @@ export class QueryBuilder {
 	}
 
 	private commonQuery(folderResources?: uri[], options: ICommonQueryBuilderOptions = {}): ICommonQueryProps<uri> {
-		let { searchPaths, pattern: includePattern } = this.parseSearchPaths(options.includePattern);
-		let excludePattern = this.parseExcludePattern(options.excludePattern);
+		let { searchPaths, pattern: includePattern } = this.parseSearchPaths(options.includePattern || '');
+		let excludePattern = this.parseExcludePattern(options.excludePattern || '');
 
 		// Build folderQueries from searchPaths, if given, otherwise folderResources
-		let folderQueries = folderResources && folderResources.map(uri => this.getFolderQueryForRoot(uri, options));
-		if (searchPaths && searchPaths.length) {
-			const allRootExcludes = folderQueries && this.mergeExcludesFromFolderQueries(folderQueries);
-			folderQueries = searchPaths.map(searchPath => this.getFolderQueryForSearchPath(searchPath)); // TODO Rob
-			if (allRootExcludes) {
-				excludePattern = objects.mixin(excludePattern || Object.create(null), allRootExcludes);
-			}
-		}
+		const folderQueries = searchPaths && searchPaths.length ?
+			searchPaths.map(searchPath => this.getFolderQueryForSearchPath(searchPath, options)) :
+			folderResources && folderResources.map(uri => this.getFolderQueryForRoot(uri, options));
 
 		const useRipgrep = !folderResources || folderResources.every(folder => {
 			const folderConfig = this.configurationService.getValue<ISearchConfiguration>({ resource: folder });
-			return !folderConfig.search.disableRipgrep;
+			return !folderConfig.search.useLegacySearch;
 		});
 
 		const queryProps: ICommonQueryProps<uri> = {
@@ -153,7 +153,7 @@ export class QueryBuilder {
 			}
 		}
 
-		return contentPattern.isCaseSensitive;
+		return !!contentPattern.isCaseSensitive;
 	}
 
 	private isMultiline(contentPattern: IPatternInfo): boolean {
@@ -234,31 +234,6 @@ export class QueryBuilder {
 		return Object.keys(excludeExpression).length ? excludeExpression : undefined;
 	}
 
-	private mergeExcludesFromFolderQueries(folderQueries: IFolderQuery[]): glob.IExpression | undefined {
-		const mergedExcludes = folderQueries.reduce((merged: glob.IExpression, fq: IFolderQuery) => {
-			if (fq.excludePattern) {
-				objects.mixin(merged, this.getAbsoluteIExpression(fq.excludePattern, fq.folder.fsPath));
-			}
-
-			return merged;
-		}, Object.create(null));
-
-		// Don't return an empty IExpression
-		return Object.keys(mergedExcludes).length ? mergedExcludes : undefined;
-	}
-
-	private getAbsoluteIExpression(expr: glob.IExpression, root: string): glob.IExpression {
-		return Object.keys(expr)
-			.reduce((absExpr: glob.IExpression, key: string) => {
-				if (expr[key] && !paths.isAbsolute(key)) {
-					const absPattern = paths.join(root, key);
-					absExpr[absPattern] = expr[key];
-				}
-
-				return absExpr;
-			}, Object.create(null));
-	}
-
 	private getExcludesForFolder(folderConfig: ISearchConfiguration, options: ICommonQueryBuilderOptions): glob.IExpression | undefined {
 		return options.disregardExcludeSettings ?
 			undefined :
@@ -327,13 +302,38 @@ export class QueryBuilder {
 		return [];
 	}
 
-	private getFolderQueryForSearchPath(searchPath: ISearchPathPattern): IFolderQuery {
-		const folder = searchPath.searchPath;
-		const folderConfig = this.configurationService.getValue<ISearchConfiguration>({ resource: folder });
-		return <IFolderQuery>{
-			folder,
-			includePattern: searchPath.pattern && patternListToIExpression([searchPath.pattern]),
-			fileEncoding: folderConfig.files && folderConfig.files.encoding
+	private getFolderQueryForSearchPath(searchPath: ISearchPathPattern, options: ICommonQueryBuilderOptions): IFolderQuery {
+		const searchPathWorkspaceFolder = this.workspaceContextService.getWorkspaceFolder(searchPath.searchPath);
+		const searchPathRelativePath = searchPathWorkspaceFolder && searchPath.searchPath.path.substr(searchPathWorkspaceFolder.uri.path.length + 1);
+
+		const rootConfig = this.getFolderQueryForRoot(searchPath.searchPath, options);
+		let resolvedExcludes: glob.IExpression = {};
+		if (searchPathWorkspaceFolder && rootConfig.excludePattern) {
+			// Resolve excludes relative to the search path
+			for (let excludePattern in rootConfig.excludePattern) {
+				const { pathPortion, globPortion } = splitSimpleGlob(excludePattern);
+				if (!pathPortion) { // **/foo
+					if (globPortion) {
+						resolvedExcludes[globPortion] = rootConfig.excludePattern[excludePattern];
+					}
+				} else if (strings.startsWith(pathPortion, searchPathRelativePath)) { // searchPathRelativePath/something/**/foo
+					// Strip `searchPathRelativePath/`
+					const resolvedPathPortion = pathPortion.substr(searchPathRelativePath.length + 1);
+					const resolvedPattern = globPortion ?
+						resolvedPathPortion + globPortion :
+						resolvedPathPortion;
+
+					resolvedExcludes[resolvedPattern] = rootConfig.excludePattern[excludePattern];
+				}
+			}
+		}
+
+		return {
+			...rootConfig,
+			...{
+				includePattern: searchPath.pattern ? patternListToIExpression([searchPath.pattern]) : undefined,
+				excludePattern: Object.keys(resolvedExcludes).length ? resolvedExcludes : undefined
+			}
 		};
 	}
 
@@ -358,18 +358,34 @@ function splitGlobFromPath(searchPath: string): { pathPortion: string, globPorti
 		if (lastSlashMatch) {
 			let pathPortion = searchPath.substr(0, lastSlashMatch.index);
 			if (!pathPortion.match(/[/\\]/)) {
-				// If the last slash was the only slash, then we now have '' or 'C:'. Append a slash.
+				// If the last slash was the only slash, then we now have '' or 'C:' or '.'. Append a slash.
 				pathPortion += '/';
 			}
 
 			return {
 				pathPortion,
-				globPortion: searchPath.substr(lastSlashMatch.index + 1)
+				globPortion: searchPath.substr((lastSlashMatch.index || 0) + 1)
 			};
 		}
 	}
 
 	// No glob char, or malformed
+	return {
+		pathPortion: searchPath
+	};
+}
+
+function splitSimpleGlob(searchPath: string): { pathPortion: string, globPortion?: string } {
+	const globCharMatch = searchPath.match(/[\*\{\}\(\)\[\]\?]/);
+	if (globCharMatch) {
+		const globCharIdx = globCharMatch.index || 0;
+		return {
+			pathPortion: searchPath.substr(0, globCharIdx),
+			globPortion: searchPath.substr(globCharIdx)
+		};
+	}
+
+	// No glob char
 	return {
 		pathPortion: searchPath
 	};

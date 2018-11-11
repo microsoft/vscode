@@ -17,7 +17,7 @@ export interface ICreateData {
 }
 
 export interface IResourceCreator {
-	toResource: (folderRelativePath: string) => URI;
+	toResource: (folderRelativePath: string) => URI | null;
 }
 
 export class OutputLinkComputer {
@@ -43,7 +43,7 @@ export class OutputLinkComputer {
 		});
 	}
 
-	private getModel(uri: string): IMirrorModel {
+	private getModel(uri: string): IMirrorModel | null {
 		const models = this.ctx.getMirrorModels();
 		for (let i = 0; i < models.length; i++) {
 			const model = models[i];
@@ -58,7 +58,7 @@ export class OutputLinkComputer {
 	public computeLinks(uri: string): Promise<ILink[]> {
 		const model = this.getModel(uri);
 		if (!model) {
-			return void 0;
+			return Promise.resolve([]);
 		}
 
 		const links: ILink[] = [];
@@ -67,7 +67,7 @@ export class OutputLinkComputer {
 		// For each workspace root patterns
 		this.patterns.forEach((folderPatterns, folderUri) => {
 			const resourceCreator: IResourceCreator = {
-				toResource: (folderRelativePath: string): URI => {
+				toResource: (folderRelativePath: string): URI | null => {
 					if (typeof folderRelativePath === 'string') {
 						return resources.joinPath(folderUri, folderRelativePath);
 					}
@@ -130,15 +130,18 @@ export class OutputLinkComputer {
 		patterns.forEach(pattern => {
 			pattern.lastIndex = 0; // the holy grail of software development
 
-			let match: RegExpExecArray;
+			let match: RegExpExecArray | null;
 			let offset = 0;
 			while ((match = pattern.exec(line)) !== null) {
 
 				// Convert the relative path information to a resource that we can use in links
 				const folderRelativePath = strings.rtrim(match[1], '.').replace(/\\/g, '/'); // remove trailing "." that likely indicate end of sentence
-				let resource: string;
+				let resourceString: string | undefined;
 				try {
-					resource = resourceCreator.toResource(folderRelativePath).toString();
+					const resource = resourceCreator.toResource(folderRelativePath);
+					if (resource) {
+						resourceString = resource.toString();
+					}
 				} catch (error) {
 					continue; // we might find an invalid URI and then we dont want to loose all other links
 				}
@@ -149,9 +152,9 @@ export class OutputLinkComputer {
 
 					if (match[5]) {
 						const columnNumber = match[5];
-						resource = strings.format('{0}#{1},{2}', resource, lineNumber, columnNumber);
+						resourceString = strings.format('{0}#{1},{2}', resourceString, lineNumber, columnNumber);
 					} else {
-						resource = strings.format('{0}#{1}', resource, lineNumber);
+						resourceString = strings.format('{0}#{1}', resourceString, lineNumber);
 					}
 				}
 
@@ -173,7 +176,7 @@ export class OutputLinkComputer {
 
 				links.push({
 					range: linkRange,
-					url: resource
+					url: resourceString
 				});
 			}
 		});

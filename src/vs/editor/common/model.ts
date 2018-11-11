@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { URI } from 'vs/base/common/uri';
-import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
-import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { Position, IPosition } from 'vs/editor/common/core/position';
-import { Range, IRange } from 'vs/editor/common/core/range';
+import { URI } from 'vs/base/common/uri';
+import { LineTokens } from 'vs/editor/common/core/lineTokens';
+import { IPosition, Position } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { ModelRawContentChangedEvent, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelOptionsChangedEvent, IModelLanguageConfigurationChangedEvent, IModelTokensChangedEvent, IModelContentChange } from 'vs/editor/common/model/textModelEvents';
-import { ThemeColor } from 'vs/platform/theme/common/themeService';
-import { ITextSnapshot } from 'vs/platform/files/common/files';
+import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, ModelRawContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { SearchData } from 'vs/editor/common/model/textModelSearch';
+import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
+import { ITextSnapshot } from 'vs/platform/files/common/files';
+import { ThemeColor } from 'vs/platform/theme/common/themeService';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -145,7 +145,7 @@ export interface IModelDecoration {
 	 */
 	readonly id: string;
 	/**
-	 * Identifier for a decoration's owener.
+	 * Identifier for a decoration's owner.
 	 */
 	readonly ownerId: number;
 	/**
@@ -188,7 +188,7 @@ export interface IModelDecorationsChangeAccessor {
 	 */
 	removeDecoration(id: string): void;
 	/**
-	 * Perform a minimum ammount of operations, in order to transform the decorations
+	 * Perform a minimum amount of operations, in order to transform the decorations
 	 * identified by `oldDecorations` to the decorations described by `newDecorations`
 	 * and returns the new identifiers associated with the resulting decorations.
 	 *
@@ -220,7 +220,7 @@ export interface IWordAtPosition {
 /**
  * End of line character preference.
  */
-export enum EndOfLinePreference {
+export const enum EndOfLinePreference {
 	/**
 	 * Use the end of line character identified in the text buffer.
 	 */
@@ -238,7 +238,7 @@ export enum EndOfLinePreference {
 /**
  * The default end of line to use when instantiating models.
  */
-export enum DefaultEndOfLine {
+export const enum DefaultEndOfLine {
 	/**
 	 * Use line feed (\n) as the end of line character.
 	 */
@@ -252,7 +252,7 @@ export enum DefaultEndOfLine {
 /**
  * End of line character preference.
  */
-export enum EndOfLineSequence {
+export const enum EndOfLineSequence {
 	/**
 	 * Use line feed (\n) as the end of line character.
 	 */
@@ -437,7 +437,7 @@ export interface IFoundBracket {
  * Describes the behavior of decorations when typing/editing near their edges.
  * Note: Please do not edit the values, as they very carefully match `DecorationRangeBehavior`
  */
-export enum TrackedRangeStickiness {
+export const enum TrackedRangeStickiness {
 	AlwaysGrowsWhenTypingAtEdges = 0,
 	NeverGrowsWhenTypingAtEdges = 1,
 	GrowsOnlyWhenTypingBefore = 2,
@@ -623,13 +623,13 @@ export interface ITextModel {
 	validatePosition(position: IPosition): Position;
 
 	/**
-	 * Advances the given position by the given offest (negative offsets are also accepted)
+	 * Advances the given position by the given offset (negative offsets are also accepted)
 	 * and returns it as a new valid position.
 	 *
 	 * If the offset and position are such that their combination goes beyond the beginning or
 	 * end of the model, throws an exception.
 	 *
-	 * If the ofsset is such that the new position would be in the middle of a multi-byte
+	 * If the offset is such that the new position would be in the middle of a multi-byte
 	 * line terminator, throws an exception.
 	 */
 	modifyPosition(position: IPosition, offset: number): Position;
@@ -851,7 +851,7 @@ export interface ITextModel {
 	changeDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T, ownerId?: number): T | null;
 
 	/**
-	 * Perform a minimum ammount of operations, in order to transform the decorations
+	 * Perform a minimum amount of operations, in order to transform the decorations
 	 * identified by `oldDecorations` to the decorations described by `newDecorations`
 	 * and returns the new identifiers associated with the resulting decorations.
 	 *
@@ -903,7 +903,7 @@ export interface ITextModel {
 	getLinesDecorations(startLineNumber: number, endLineNumber: number, ownerId?: number, filterOutValidation?: boolean): IModelDecoration[];
 
 	/**
-	 * Gets all the deocorations in a range as an array. Only `startLineNumber` and `endLineNumber` from `range` are used for filtering.
+	 * Gets all the decorations in a range as an array. Only `startLineNumber` and `endLineNumber` from `range` are used for filtering.
 	 * So for now it returns all the decorations on the same line as `range`.
 	 * @param range The range to search in
 	 * @param ownerId If set, it will ignore decorations belonging to other owners.
@@ -970,7 +970,7 @@ export interface ITextModel {
 	/**
 	 * Push edit operations, basically editing the model. This is the preferred way
 	 * of editing the model. The edit operations will land on the undo stack.
-	 * @param beforeCursorState The cursor state before the edit operaions. This cursor state will be returned when `undo` or `redo` are invoked.
+	 * @param beforeCursorState The cursor state before the edit operations. This cursor state will be returned when `undo` or `redo` are invoked.
 	 * @param editOperations The edit operations.
 	 * @param cursorStateComputer A callback that can compute the resulting cursors state after the edit operations have been executed.
 	 * @return The cursor state returned by the `cursorStateComputer`.

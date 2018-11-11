@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import { IStringBuilder, createStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { createStringBuilder, IStringBuilder } from 'vs/editor/common/core/stringBuilder';
+import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 
 /**
  * Represents a visible line

@@ -15,7 +15,7 @@ import { ITextBufferFactory } from 'vs/editor/common/model';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 /**
- * The save error handler can be installed on the text text file editor model to install code that executes when save errors occur.
+ * The save error handler can be installed on the text file editor model to install code that executes when save errors occur.
  */
 export interface ISaveErrorHandler {
 
@@ -34,7 +34,7 @@ export interface ISaveParticipant {
 }
 
 /**
- * States the text text file editor model can be in.
+ * States the text file editor model can be in.
  */
 export const enum ModelState {
 	SAVED,

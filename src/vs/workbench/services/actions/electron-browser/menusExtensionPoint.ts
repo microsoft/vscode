@@ -24,7 +24,7 @@ namespace schema {
 		group?: string;
 	}
 
-	export function parseMenuId(value: string): MenuId {
+	export function parseMenuId(value: string): MenuId | undefined {
 		switch (value) {
 			case 'commandPalette': return MenuId.CommandPalette;
 			case 'touchBar': return MenuId.TouchBarContext;
@@ -326,7 +326,7 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyM
 			}
 
 			const menu = schema.parseMenuId(entry.key);
-			if (!menu) {
+			if (typeof menu !== 'number') {
 				collector.warn(localize('menuId.invalid', "`{0}` is not a valid menu identifier", entry.key));
 				return;
 			}

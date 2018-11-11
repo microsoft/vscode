@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import * as env from 'vs/base/common/platform';
@@ -95,7 +94,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		this.toggleExceptionWidget();
 	}
 
-	private getContextMenuActions(breakpoints: ReadonlyArray<IBreakpoint>, uri: uri, lineNumber: number): TPromise<(IAction | ContextSubMenu)[]> {
+	private getContextMenuActions(breakpoints: ReadonlyArray<IBreakpoint>, uri: uri, lineNumber: number): (IAction | ContextSubMenu)[] {
 		const actions: (IAction | ContextSubMenu)[] = [];
 		if (breakpoints.length === 1) {
 			const breakpointType = breakpoints[0].logMessage ? nls.localize('logPoint', "Logpoint") : nls.localize('breakpoint', "Breakpoint");
@@ -148,7 +147,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				nls.localize('addBreakpoint', "Add Breakpoint"),
 				null,
 				true,
-				() => this.debugService.addBreakpoints(uri, [{ lineNumber }])
+				() => this.debugService.addBreakpoints(uri, [{ lineNumber }], `debugEditorContextMenu`)
 			));
 			actions.push(new Action(
 				'addConditionalBreakpoint',
@@ -166,7 +165,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			));
 		}
 
-		return Promise.resolve(actions);
+		return actions;
 	}
 
 	private registerListeners(): void {
@@ -230,7 +229,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 						breakpoints.forEach(bp => this.debugService.removeBreakpoints(bp.getId()));
 					}
 				} else if (canSetBreakpoints) {
-					this.debugService.addBreakpoints(uri, [{ lineNumber }]);
+					this.debugService.addBreakpoints(uri, [{ lineNumber }], `debugEditorGutter`);
 				}
 			}
 		}));
@@ -321,7 +320,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		return EDITOR_CONTRIBUTION_ID;
 	}
 
-	public showHover(range: Range, focus: boolean): TPromise<void> {
+	public showHover(range: Range, focus: boolean): Promise<void> {
 		const sf = this.debugService.getViewModel().focusedStackFrame;
 		const model = this.editor.getModel();
 		if (sf && model && sf.source.uri.toString() === model.uri.toString()) {
@@ -524,14 +523,14 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		if (this.configurationWidget) {
 			this.configurationWidget.dispose();
 		}
-		if (model && LAUNCH_JSON_REGEX.test(model.uri.toString())) {
+		if (model && LAUNCH_JSON_REGEX.test(model.uri.toString()) && !this.editor.getConfiguration().readOnly) {
 			this.configurationWidget = this.instantiationService.createInstance(FloatingClickWidget, this.editor, nls.localize('addConfiguration', "Add Configuration..."), null);
 			this.configurationWidget.render();
 			this.toDispose.push(this.configurationWidget.onClick(() => this.addLaunchConfiguration()));
 		}
 	}
 
-	public addLaunchConfiguration(): TPromise<any> {
+	public addLaunchConfiguration(): Promise<any> {
 		/* __GDPR__
 			"debug/addLaunchConfiguration" : {}
 		*/
@@ -561,7 +560,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			return Promise.resolve(undefined);
 		}
 
-		const insertLine = (position: Position): TPromise<any> => {
+		const insertLine = (position: Position): Promise<any> => {
 			// Check if there are more characters on a line after a "configurations": [, if yes enter a newline
 			if (this.editor.getModel().getLineLastNonWhitespaceColumn(position.lineNumber) > position.column) {
 				this.editor.setPosition(position);

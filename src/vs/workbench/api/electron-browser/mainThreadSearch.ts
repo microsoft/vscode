@@ -78,7 +78,7 @@ class SearchOperation {
 	addMatch(match: IFileMatch): void {
 		if (this.matches.has(match.resource.toString())) {
 			// Merge with previous IFileMatches
-			this.matches.get(match.resource.toString()).matches.push(...match.matches);
+			this.matches.get(match.resource.toString()).results.push(...match.results);
 		} else {
 			this.matches.set(match.resource.toString(), match);
 		}
@@ -149,10 +149,10 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 
 		const searchOp = this._searches.get(session);
 		dataOrUri.forEach(result => {
-			if ((<IRawFileMatch2>result).matches) {
+			if ((<IRawFileMatch2>result).results) {
 				searchOp.addMatch({
 					resource: URI.revive((<IRawFileMatch2>result).resource),
-					matches: (<IRawFileMatch2>result).matches
+					results: (<IRawFileMatch2>result).results
 				});
 			} else {
 				searchOp.addMatch({

@@ -297,13 +297,12 @@ export class OpenEditorsView extends ViewletPanel {
 		}
 	}
 
-	public setVisible(visible: boolean): TPromise<void> {
-		return super.setVisible(visible).then(() => {
-			this.updateListVisibility(visible && this.isExpanded());
-			if (visible && this.needsRefresh) {
-				this.listRefreshScheduler.schedule(0);
-			}
-		});
+	public setVisible(visible: boolean): void {
+		super.setVisible(visible);
+		this.updateListVisibility(visible && this.isExpanded());
+		if (visible && this.needsRefresh) {
+			this.listRefreshScheduler.schedule(0);
+		}
 	}
 
 	public focus(): void {
@@ -393,7 +392,7 @@ export class OpenEditorsView extends ViewletPanel {
 			getActions: () => {
 				const actions: IAction[] = [];
 				fillInContextMenuActions(this.contributedContextMenu, { shouldForwardArgs: true, arg: element instanceof OpenEditor ? element.editor.getResource() : {} }, actions, this.contextMenuService);
-				return Promise.resolve(actions);
+				return actions;
 			},
 			getActionsContext: () => element instanceof OpenEditor ? { groupId: element.groupId, editorIndex: element.editorIndex } : { groupId: element.id }
 		});

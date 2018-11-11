@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
+import * as arrays from 'vs/base/common/arrays';
+import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { Constants } from 'vs/editor/common/core/uint';
 import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
-import * as arrays from 'vs/base/common/arrays';
-import * as objects from 'vs/base/common/objects';
 
 /**
  * Configuration options for editor scrollbars
@@ -326,6 +326,11 @@ export interface IEditorOptions {
 	 * @internal
 	 */
 	mouseStyle?: 'text' | 'default' | 'copy';
+	/**
+	 * Enable smooth caret animation.
+	 * Defaults to false.
+	 */
+	cursorSmoothCaretAnimation?: boolean;
 	/**
 	 * Control the cursor style, either 'block' or 'line'.
 	 * Defaults to 'line'.
@@ -705,7 +710,7 @@ export interface IDiffEditorOptions extends IEditorOptions {
 	originalEditable?: boolean;
 }
 
-export enum RenderMinimap {
+export const enum RenderMinimap {
 	None = 0,
 	Small = 1,
 	Large = 2,
@@ -716,7 +721,7 @@ export enum RenderMinimap {
 /**
  * Describes how to indent wrapped lines.
  */
-export enum WrappingIndent {
+export const enum WrappingIndent {
 	/**
 	 * No indentation => wrapped lines begin at column 1.
 	 */
@@ -738,7 +743,7 @@ export enum WrappingIndent {
 /**
  * The kind of animation in which the editor's cursor should be rendered.
  */
-export enum TextEditorCursorBlinkingStyle {
+export const enum TextEditorCursorBlinkingStyle {
 	/**
 	 * Hidden
 	 */
@@ -939,6 +944,7 @@ export interface InternalEditorViewOptions {
 	readonly overviewRulerBorder: boolean;
 	readonly cursorBlinking: TextEditorCursorBlinkingStyle;
 	readonly mouseWheelZoom: boolean;
+	readonly cursorSmoothCaretAnimation: boolean;
 	readonly cursorStyle: TextEditorCursorStyle;
 	readonly cursorWidth: number;
 	readonly hideCursorInOverviewRuler: boolean;
@@ -1245,6 +1251,7 @@ export class InternalEditorOptions {
 			&& a.overviewRulerBorder === b.overviewRulerBorder
 			&& a.cursorBlinking === b.cursorBlinking
 			&& a.mouseWheelZoom === b.mouseWheelZoom
+			&& a.cursorSmoothCaretAnimation === b.cursorSmoothCaretAnimation
 			&& a.cursorStyle === b.cursorStyle
 			&& a.cursorWidth === b.cursorWidth
 			&& a.hideCursorInOverviewRuler === b.hideCursorInOverviewRuler
@@ -1970,6 +1977,7 @@ export class EditorOptionsValidator {
 			overviewRulerBorder: _boolean(opts.overviewRulerBorder, defaults.overviewRulerBorder),
 			cursorBlinking: _cursorBlinkingStyleFromString(opts.cursorBlinking, defaults.cursorBlinking),
 			mouseWheelZoom: _boolean(opts.mouseWheelZoom, defaults.mouseWheelZoom),
+			cursorSmoothCaretAnimation: _boolean(opts.cursorSmoothCaretAnimation, defaults.cursorSmoothCaretAnimation),
 			cursorStyle: _cursorStyleFromString(opts.cursorStyle, defaults.cursorStyle),
 			cursorWidth: _clampedInt(opts.cursorWidth, defaults.cursorWidth, 0, Number.MAX_VALUE),
 			hideCursorInOverviewRuler: _boolean(opts.hideCursorInOverviewRuler, defaults.hideCursorInOverviewRuler),
@@ -2089,6 +2097,7 @@ export class InternalEditorOptionsFactory {
 				overviewRulerBorder: opts.viewInfo.overviewRulerBorder,
 				cursorBlinking: opts.viewInfo.cursorBlinking,
 				mouseWheelZoom: opts.viewInfo.mouseWheelZoom,
+				cursorSmoothCaretAnimation: opts.viewInfo.cursorSmoothCaretAnimation,
 				cursorStyle: opts.viewInfo.cursorStyle,
 				cursorWidth: opts.viewInfo.cursorWidth,
 				hideCursorInOverviewRuler: opts.viewInfo.hideCursorInOverviewRuler,
@@ -2550,6 +2559,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		overviewRulerBorder: true,
 		cursorBlinking: TextEditorCursorBlinkingStyle.Blink,
 		mouseWheelZoom: false,
+		cursorSmoothCaretAnimation: false,
 		cursorStyle: TextEditorCursorStyle.Line,
 		cursorWidth: 0,
 		hideCursorInOverviewRuler: false,

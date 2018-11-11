@@ -7,7 +7,7 @@ import { ISpliceable } from 'vs/base/common/sequence';
 import { Iterator, ISequence } from 'vs/base/common/iterator';
 import { Emitter, Event, EventBufferer } from 'vs/base/common/event';
 import { tail2 } from 'vs/base/common/arrays';
-import { ITreeFilterDataResult, TreeVisibility, ITreeFilter, ITreeModel, ITreeNode, ITreeElement } from 'vs/base/browser/ui/tree/tree';
+import { ITreeFilterDataResult, TreeVisibility, ITreeFilter, ITreeModel, ITreeNode, ITreeElement, ITreeModelOptions } from 'vs/base/browser/ui/tree/tree';
 
 interface IMutableTreeNode<T, TFilterData> extends ITreeNode<T, TFilterData> {
 	readonly parent: IMutableTreeNode<T, TFilterData> | undefined;
@@ -30,25 +30,19 @@ function treeNodeToElement<T>(node: IMutableTreeNode<T, any>): ITreeElement<T> {
 	return { element, children, collapsed };
 }
 
-function getVisibleState(visibility: boolean | TreeVisibility): boolean | undefined {
+function getVisibleState(visibility: boolean | TreeVisibility): TreeVisibility {
 	switch (visibility) {
-		case true: return true;
-		case false: return false;
-		case TreeVisibility.Hidden: return false;
-		case TreeVisibility.Visible: return true;
-		case TreeVisibility.Recurse: return undefined;
+		case true: return TreeVisibility.Visible;
+		case false: return TreeVisibility.Hidden;
+		default: return visibility;
 	}
-}
-
-export interface IIndexTreeModelOptions<T, TFilterData> {
-	filter?: ITreeFilter<T, TFilterData>;
 }
 
 export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFilterData, number[]> {
 
 	private root: IMutableTreeNode<T, TFilterData> = {
 		parent: undefined,
-		element: undefined,
+		element: undefined!,
 		children: [],
 		depth: 0,
 		collapsible: false,
@@ -68,7 +62,7 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 
 	private filter?: ITreeFilter<T, TFilterData>;
 
-	constructor(private list: ISpliceable<ITreeNode<T, TFilterData>>, options: IIndexTreeModelOptions<T, TFilterData> = {}) {
+	constructor(private list: ISpliceable<ITreeNode<T, TFilterData>>, options: ITreeModelOptions<T, TFilterData> = {}) {
 		this.filter = options.filter;
 	}
 
@@ -85,7 +79,7 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 
 		const { parentNode, listIndex, revealed } = this.getParentNodeWithListIndex(location);
 		const treeListElementsToInsert: ITreeNode<T, TFilterData>[] = [];
-		const nodesToInsertIterator = Iterator.map(Iterator.from(toInsert), el => this.createTreeNode(el, parentNode, revealed, treeListElementsToInsert, onDidCreateNode));
+		const nodesToInsertIterator = Iterator.map(Iterator.from(toInsert), el => this.createTreeNode(el, parentNode, parentNode.visible ? TreeVisibility.Visible : TreeVisibility.Hidden, revealed, treeListElementsToInsert, onDidCreateNode));
 
 		const nodesToInsert: IMutableTreeNode<T, TFilterData>[] = [];
 		let renderNodeCount = 0;
@@ -137,7 +131,7 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 
 		this.eventBufferer.bufferEvents(() => {
 			while (queue.length > 0) {
-				const node = queue.shift();
+				const node = queue.shift()!;
 				const revealed = listIndex < this.root.children.length;
 				this._setCollapsed(node, listIndex, revealed, true);
 
@@ -186,6 +180,7 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 	private createTreeNode(
 		treeElement: ITreeElement<T>,
 		parent: IMutableTreeNode<T, TFilterData>,
+		parentVisibility: TreeVisibility,
 		revealed: boolean,
 		treeListElements: ITreeNode<T, TFilterData>[],
 		onDidCreateNode?: (node: ITreeNode<T, TFilterData>) => void
@@ -202,15 +197,15 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 			filterData: undefined
 		};
 
-		const visible = this._filterNode(node);
+		const visibility = this._filterNode(node, parentVisibility);
 
 		if (revealed) {
 			treeListElements.push(node);
 		}
 
 		const childElements = Iterator.from(treeElement.children);
-		const childRevealed = revealed && visible !== false && !node.collapsed;
-		const childNodes = Iterator.map(childElements, el => this.createTreeNode(el, node, childRevealed, treeListElements, onDidCreateNode));
+		const childRevealed = revealed && visibility !== TreeVisibility.Hidden && !node.collapsed;
+		const childNodes = Iterator.map(childElements, el => this.createTreeNode(el, node, visibility, childRevealed, treeListElements, onDidCreateNode));
 
 		let hasVisibleDescendants = false;
 		let renderNodeCount = 1;
@@ -222,7 +217,7 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 		});
 
 		node.collapsible = node.collapsible || node.children.length > 0;
-		node.visible = typeof visible === 'undefined' ? hasVisibleDescendants : visible;
+		node.visible = visibility === TreeVisibility.Recurse ? hasVisibleDescendants : (visibility === TreeVisibility.Visible);
 
 		if (!node.visible) {
 			node.renderNodeCount = 0;
@@ -273,19 +268,19 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 		const previousRenderNodeCount = node.renderNodeCount;
 		const result: ITreeNode<T, TFilterData>[] = [];
 
-		this._updateNodeAfterFilterChange(node, result);
+		this._updateNodeAfterFilterChange(node, node.visible ? TreeVisibility.Visible : TreeVisibility.Hidden, result);
 		this._updateAncestorsRenderNodeCount(node.parent, result.length - previousRenderNodeCount);
 
 		return result;
 	}
 
-	private _updateNodeAfterFilterChange(node: IMutableTreeNode<T, TFilterData>, result: ITreeNode<T, TFilterData>[], revealed = true): boolean {
-		let visible: boolean | undefined;
+	private _updateNodeAfterFilterChange(node: IMutableTreeNode<T, TFilterData>, parentVisibility: TreeVisibility, result: ITreeNode<T, TFilterData>[], revealed = true): boolean {
+		let visibility: TreeVisibility;
 
 		if (node !== this.root) {
-			visible = this._filterNode(node);
+			visibility = this._filterNode(node, parentVisibility);
 
-			if (visible === false) {
+			if (visibility === TreeVisibility.Hidden) {
 				node.visible = false;
 				return false;
 			}
@@ -299,14 +294,14 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 		node.renderNodeCount = node === this.root ? 0 : 1;
 
 		let hasVisibleDescendants = false;
-		if (visible !== false || !node.collapsed) {
+		if (!node.collapsed || visibility! !== TreeVisibility.Hidden) {
 			for (const child of node.children) {
-				hasVisibleDescendants = this._updateNodeAfterFilterChange(child, result, revealed && !node.collapsed) || hasVisibleDescendants;
+				hasVisibleDescendants = this._updateNodeAfterFilterChange(child, visibility!, result, revealed && !node.collapsed) || hasVisibleDescendants;
 			}
 		}
 
 		if (node !== this.root) {
-			node.visible = typeof visible === 'undefined' ? hasVisibleDescendants : visible;
+			node.visible = visibility! === TreeVisibility.Recurse ? hasVisibleDescendants : (visibility! === TreeVisibility.Visible);
 		}
 
 		if (!node.visible) {
@@ -323,7 +318,7 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 		return node.visible;
 	}
 
-	private _updateAncestorsRenderNodeCount(node: IMutableTreeNode<T, TFilterData>, diff: number): void {
+	private _updateAncestorsRenderNodeCount(node: IMutableTreeNode<T, TFilterData> | undefined, diff: number): void {
 		if (diff === 0) {
 			return;
 		}
@@ -335,12 +330,12 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 		}
 	}
 
-	private _filterNode(node: IMutableTreeNode<T, TFilterData>): boolean | undefined {
-		const result = this.filter ? this.filter.filter(node.element) : TreeVisibility.Visible;
+	private _filterNode(node: IMutableTreeNode<T, TFilterData>, parentVisibility: TreeVisibility): TreeVisibility {
+		const result = this.filter ? this.filter.filter(node.element, parentVisibility) : TreeVisibility.Visible;
 
 		if (typeof result === 'boolean') {
 			node.filterData = undefined;
-			return result;
+			return TreeVisibility.Visible;
 		} else if (isFilterResult<TFilterData>(result)) {
 			node.filterData = result.data;
 			return getVisibleState(result.visibility);
@@ -351,8 +346,8 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 	}
 
 	// cheap
-	private getTreeNode(location: number[], node: IMutableTreeNode<T, TFilterData> = this.root): IMutableTreeNode<T, TFilterData> {
-		if (location.length === 0) {
+	private getTreeNode(location: number[] | null, node: IMutableTreeNode<T, TFilterData> = this.root): IMutableTreeNode<T, TFilterData> {
+		if (!location || location.length === 0) {
 			return node;
 		}
 
@@ -418,7 +413,7 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 
 	getParentNodeLocation(location: number[]): number[] | null {
 		if (location.length <= 1) {
-			return null;
+			return [];
 		}
 
 		return tail2(location)[0];

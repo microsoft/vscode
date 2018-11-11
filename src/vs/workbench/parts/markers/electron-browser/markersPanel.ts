@@ -6,7 +6,6 @@
 import 'vs/css!./media/markers';
 
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
 import { IAction, IActionItem, Action } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -157,18 +156,16 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		}
 	}
 
-	public setVisible(visible: boolean): Promise<void> {
+	public setVisible(visible: boolean): void {
 		const wasVisible = this.isVisible();
-		return super.setVisible(visible)
-			.then(() => {
-				if (this.isVisible()) {
-					if (!wasVisible) {
-						this.refreshPanel();
-					}
-				} else {
-					this.rangeHighlightDecorations.removeHighlightRange();
-				}
-			});
+		super.setVisible(visible);
+		if (this.isVisible()) {
+			if (!wasVisible) {
+				this.refreshPanel();
+			}
+		} else {
+			this.rangeHighlightDecorations.removeHighlightRange();
+		}
 	}
 
 	public getActions(): IAction[] {
@@ -204,7 +201,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		return false;
 	}
 
-	private refreshPanel(): TPromise<any> {
+	private refreshPanel(): void {
 		if (this.isVisible()) {
 			this.cachedFilterStats = undefined;
 			this.tree.setChildren(null, createModelIterator(this.markersWorkbenchService.markersModel));
@@ -214,7 +211,6 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 			this.renderMessage();
 			this._onDidFilter.fire();
 		}
-		return TPromise.as(null);
 	}
 
 	private updateFilter() {
@@ -223,6 +219,9 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		this.filter.options = new FilterOptions(this.filterAction.filterText, excludeExpression);
 		this.tree.refilter();
 		this._onDidFilter.fire();
+
+		const { total, filtered } = this.getFilterStats();
+		dom.toggleClass(this.treeContainer, 'hidden', total > 0 && filtered === 0);
 		this.renderMessage();
 	}
 
@@ -296,7 +295,8 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 			renderers,
 			{
 				filter: this.filter,
-				accessibilityProvider
+				accessibilityProvider,
+				identityProvider: (element: TreeElement) => element.hash
 			}
 		) as any as WorkbenchObjectTree<TreeElement, FilterData>;
 
@@ -550,21 +550,23 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		e.browserEvent.preventDefault();
 		e.browserEvent.stopPropagation();
 
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => e.anchor,
-			getActions: () => TPromise.wrap(this._getMenuActions(e.element.element)),
-			getActionItem: (action) => {
-				const keybinding = this.keybindingService.lookupKeybinding(action.id);
-				if (keybinding) {
-					return new ActionItem(action, action, { label: true, keybinding: keybinding.getLabel() });
+		this._getMenuActions(e.element.element).then(actions => {
+			this.contextMenuService.showContextMenu({
+				getAnchor: () => e.anchor,
+				getActions: () => actions,
+				getActionItem: (action) => {
+					const keybinding = this.keybindingService.lookupKeybinding(action.id);
+					if (keybinding) {
+						return new ActionItem(action, action, { label: true, keybinding: keybinding.getLabel() });
+					}
+					return null;
+				},
+				onHide: (wasCancelled?: boolean) => {
+					if (wasCancelled) {
+						this.tree.domFocus();
+					}
 				}
-				return null;
-			},
-			onHide: (wasCancelled?: boolean) => {
-				if (wasCancelled) {
-					this.tree.domFocus();
-				}
-			}
+			});
 		});
 	}
 

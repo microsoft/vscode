@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ITextModel } from 'vs/editor/common/model';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { Selection } from 'vs/editor/common/core/selection';
 import { registerEditorCommand } from 'vs/editor/browser/editorExtensions';
-import { Range } from 'vs/editor/common/core/range';
 import { WordNavigationType, WordPartOperations } from 'vs/editor/common/controller/cursorWordOperations';
 import { WordCharacterClassifier } from 'vs/editor/common/controller/wordCharacterClassifier';
-import { DeleteWordCommand, MoveWordCommand } from '../wordOperations/wordOperations';
 import { Position } from 'vs/editor/common/core/position';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { ITextModel } from 'vs/editor/common/model';
+import { DeleteWordCommand, MoveWordCommand } from 'vs/editor/contrib/wordOperations/wordOperations';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export class DeleteWordPartLeft extends DeleteWordCommand {
 	constructor() {

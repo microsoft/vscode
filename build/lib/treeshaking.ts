@@ -126,7 +126,9 @@ function createTypeScriptLanguageService(options: ITreeShakingOptions): ts.Langu
 		RESOLVED_LIBS[`defaultLib:${filename}`] = fs.readFileSync(filepath).toString();
 	});
 
-	const host = new TypeScriptLanguageServiceHost(RESOLVED_LIBS, FILES, ts.convertCompilerOptionsFromJson(options.compilerOptions, ``).options);
+	const compilerOptions = ts.convertCompilerOptionsFromJson(options.compilerOptions, options.sourcesRoot).options;
+
+	const host = new TypeScriptLanguageServiceHost(RESOLVED_LIBS, FILES, compilerOptions);
 	return ts.createLanguageService(host);
 }
 

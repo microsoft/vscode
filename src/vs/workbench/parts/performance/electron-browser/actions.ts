@@ -33,6 +33,9 @@ class Info {
 		table['window.loadUrl() => begin to require(workbench.main.js)'] = new Info(metrics.timers.ellapsedWindowLoadToRequire, '[main->renderer]', StartupKindToString(metrics.windowKind));
 		table['require(workbench.main.js)'] = new Info(metrics.timers.ellapsedRequire, '[renderer]', `cached data: ${(metrics.didUseCachedData ? 'YES' : 'NO')}${nodeModuleLoadTime ? `, node_modules took ${nodeModuleLoadTime}ms` : ''}`);
 
+		table['require workspace storage'] = new Info(metrics.timers.ellapsedWorkspaceStorageRequire, '[renderer]');
+		table['require & init workspace storage'] = new Info(metrics.timers.ellapsedWorkspaceStorageInit, '[renderer]');
+
 		table['register extensions & spawn extension host'] = new Info(metrics.timers.ellapsedExtensions, '[renderer]');
 		table['restore viewlet'] = new Info(metrics.timers.ellapsedViewletRestore, '[renderer]', metrics.viewletId);
 		table['restore panel'] = new Info(metrics.timers.ellapsedPanelRestore, '[renderer]', metrics.panelId);
@@ -262,29 +265,27 @@ export class ReportPerformanceIssueAction extends Action {
 		}
 
 
-		const osVersion = `${os.type()} ${os.arch()} ${os.release()} `;
+		const osVersion = `${os.type()} ${os.arch()} ${os.release()}`;
 		const queryStringPrefix = baseUrl.indexOf('?') === -1 ? '?' : '&';
 		const body = encodeURIComponent(
 			`- VSCode Version: <code>${name} ${version} ${isPure ? '' : ' **[Unsupported]**'} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})</code>
-	- OS Version: <code>${ osVersion} </code>
-		- CPUs: <code>${ metrics.cpus.model} (${metrics.cpus.count} x ${metrics.cpus.speed})</code>
-			- Memory(System): <code>${ (metrics.totalmem / (1024 * 1024 * 1024)).toFixed(2)} GB(${(metrics.freemem / (1024 * 1024 * 1024)).toFixed(2)}GB free) < /code>
-				- Memory(Process): <code>${ (metrics.meminfo.workingSetSize / 1024).toFixed(2)} MB working set(${(metrics.meminfo.peakWorkingSetSize / 1024).toFixed(2)}MB peak, ${(metrics.meminfo.privateBytes / 1024).toFixed(2)}MB private, ${(metrics.meminfo.sharedBytes / 1024).toFixed(2)}MB shared) < /code>
-					- Load(avg): <code>${ metrics.loadavg.map(l => Math.round(l)).join(', ')} </code>
-						- VM: <code>${ metrics.isVMLikelyhood}% </code>
-							- Initial Startup: <code>${ metrics.initialStartup ? 'yes' : 'no'} </code>
-								- Screen Reader: <code>${ metrics.hasAccessibilitySupport ? 'yes' : 'no'} </code>
-									- Empty Workspace: <code>${ metrics.emptyWorkbench ? 'yes' : 'no'} </code>
-										- Timings:
+- OS Version: <code>${ osVersion} </code>
+- CPUs: <code>${ metrics.cpus.model} (${metrics.cpus.count} x ${metrics.cpus.speed})</code>
+- Memory(System): <code>${ (metrics.totalmem / (1024 * 1024 * 1024)).toFixed(2)} GB(${(metrics.freemem / (1024 * 1024 * 1024)).toFixed(2)}GB free) </code>
+- Memory(Process): <code>${ (metrics.meminfo.workingSetSize / 1024).toFixed(2)} MB working set(${(metrics.meminfo.peakWorkingSetSize / 1024).toFixed(2)}MB peak, ${(metrics.meminfo.privateBytes / 1024).toFixed(2)}MB private, ${(metrics.meminfo.sharedBytes / 1024).toFixed(2)}MB shared) </code>
+- Load(avg): <code>${ metrics.loadavg.map(l => Math.round(l)).join(', ')} </code>
+- VM: <code>${ metrics.isVMLikelyhood}% </code>
+- Initial Startup: <code>${ metrics.initialStartup ? 'yes' : 'no'} </code>
+- Screen Reader: <code>${ metrics.hasAccessibilitySupport ? 'yes' : 'no'} </code>
+- Empty Workspace: <code>${ metrics.emptyWorkbench ? 'yes' : 'no'} </code>
+- Timings:
 
-${ this.generatePerformanceTable(metrics, nodeModuleLoadTime)}
-
+${this.generatePerformanceTable(metrics, nodeModuleLoadTime)}
 ---
 
-	${ appendix} `
-		);
+${appendix}`);
 
-		return `${baseUrl} ${queryStringPrefix} body = ${body} `;
+		return `${baseUrl}${queryStringPrefix}body=${body}`;
 	}
 
 	private generatePerformanceTable(metrics: IStartupMetrics, nodeModuleLoadTime?: number): string {

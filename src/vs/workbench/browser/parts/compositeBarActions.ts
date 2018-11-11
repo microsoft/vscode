@@ -250,10 +250,14 @@ export class ActivityActionItem extends BaseActionItem {
 			if (badge instanceof NumberBadge) {
 				if (badge.number) {
 					let number = badge.number.toString();
-					if (badge.number > 9999) {
-						number = nls.localize('largeNumberBadge', '10k+');
-					} else if (badge.number > 999) {
-						number = number.charAt(0) + 'k';
+					if (badge.number > 999) {
+						const noOfThousands = badge.number / 1000;
+						const floor = Math.floor(noOfThousands);
+						if (noOfThousands > floor) {
+							number = nls.localize('largeNumberBadge1', '{0}k+', floor);
+						} else {
+							number = nls.localize('largeNumberBadge2', '{0}k', noOfThousands);
+						}
 					}
 					this.badgeContent.textContent = number;
 					dom.show(this.badge);
@@ -369,7 +373,7 @@ export class CompositeOverflowActivityActionItem extends ActivityActionItem {
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => this.element,
-			getActions: () => Promise.resolve(this.actions),
+			getActions: () => this.actions,
 			onHide: () => dispose(this.actions)
 		});
 	}
@@ -594,7 +598,7 @@ export class CompositeActionItem extends ActivityActionItem {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActionsContext: () => this.activity.id,
-			getActions: () => Promise.resolve(actions)
+			getActions: () => actions
 		});
 	}
 

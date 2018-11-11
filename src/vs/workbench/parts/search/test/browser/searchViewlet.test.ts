@@ -7,7 +7,7 @@ import { URI as uri } from 'vs/base/common/uri';
 import { Match, FileMatch, SearchResult } from 'vs/workbench/parts/search/common/searchModel';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { SearchDataSource, SearchSorter } from 'vs/workbench/parts/search/browser/searchResultsView';
-import { IFileMatch, TextSearchResult, OneLineRange, ITextSearchResult } from 'vs/platform/search/common/search';
+import { IFileMatch, TextSearchMatch, OneLineRange, ITextSearchMatch, QueryType } from 'vs/platform/search/common/search';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
@@ -28,9 +28,15 @@ suite('Search - Viewlet', () => {
 	test('Data Source', function () {
 		let ds = instantiation.createInstance(SearchDataSource);
 		let result: SearchResult = instantiation.createInstance(SearchResult, null);
-		result.query = { type: 1, folderQueries: [{ folder: uri.parse('file://c:/') }] };
+		result.query = {
+			type: QueryType.Text,
+			contentPattern: { pattern: 'foo' },
+			folderQueries: [{
+				folder: uri.parse('file://c:/')
+			}]
+		};
 
-		const range = {
+		const ranges = {
 			startLineNumber: 1,
 			startColumn: 0,
 			endLineNumber: 1,
@@ -38,12 +44,12 @@ suite('Search - Viewlet', () => {
 		};
 		result.add([{
 			resource: uri.parse('file:///c:/foo'),
-			matches: [{
+			results: [{
 				preview: {
 					text: 'bar',
-					match: range
+					matches: ranges
 				},
-				range
+				ranges
 			}]
 		}]);
 
@@ -51,8 +57,8 @@ suite('Search - Viewlet', () => {
 		let lineMatch = fileMatch.matches()[0];
 
 		assert.equal(ds.getId(null, result), 'root');
-		assert.equal(ds.getId(null, fileMatch), 'file:///c:/foo');
-		assert.equal(ds.getId(null, lineMatch), 'file:///c:/foo>[2,1 -> 2,2]b');
+		assert.equal(ds.getId(null, fileMatch), 'file:///c%3A/foo');
+		assert.equal(ds.getId(null, lineMatch), 'file:///c%3A/foo>[2,1 -> 2,2]b');
 
 		assert(!ds.hasChildren(null, 'foo'));
 		assert(ds.hasChildren(null, result));
@@ -64,9 +70,9 @@ suite('Search - Viewlet', () => {
 		let fileMatch1 = aFileMatch('C:\\foo');
 		let fileMatch2 = aFileMatch('C:\\with\\path');
 		let fileMatch3 = aFileMatch('C:\\with\\path\\foo');
-		let lineMatch1 = new Match(fileMatch1, new TextSearchResult('bar', new OneLineRange(0, 1, 1)));
-		let lineMatch2 = new Match(fileMatch1, new TextSearchResult('bar', new OneLineRange(2, 1, 1)));
-		let lineMatch3 = new Match(fileMatch1, new TextSearchResult('bar', new OneLineRange(2, 1, 1)));
+		let lineMatch1 = new Match(fileMatch1, new TextSearchMatch('bar', new OneLineRange(0, 1, 1)));
+		let lineMatch2 = new Match(fileMatch1, new TextSearchMatch('bar', new OneLineRange(2, 1, 1)));
+		let lineMatch3 = new Match(fileMatch1, new TextSearchMatch('bar', new OneLineRange(2, 1, 1)));
 
 		let s = new SearchSorter();
 
@@ -80,10 +86,10 @@ suite('Search - Viewlet', () => {
 		assert(s.compare(null, lineMatch2, lineMatch3) === 0);
 	});
 
-	function aFileMatch(path: string, searchResult?: SearchResult, ...lineMatches: ITextSearchResult[]): FileMatch {
+	function aFileMatch(path: string, searchResult?: SearchResult, ...lineMatches: ITextSearchMatch[]): FileMatch {
 		let rawMatch: IFileMatch = {
 			resource: uri.file('C:\\' + path),
-			matches: lineMatches
+			results: lineMatches
 		};
 		return instantiation.createInstance(FileMatch, null, null, null, searchResult, rawMatch);
 	}

@@ -3,23 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { join } from 'path';
-import { mkdirp, dirExists, realpath, writeFile } from 'vs/base/node/pfs';
-import Severity from 'vs/base/common/severity';
-import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtHostStorage } from 'vs/workbench/api/node/extHostStorage';
-import { createApiFactory, initializeExtensionApi } from 'vs/workbench/api/node/extHost.api.impl';
-import { MainContext, MainThreadExtensionServiceShape, IWorkspaceData, IEnvironment, IInitData, ExtHostExtensionServiceShape, MainThreadTelemetryShape, IMainContext } from './extHost.protocol';
-import { IExtensionMemento, ExtensionsActivator, ActivatedExtension, IExtensionAPI, IExtensionContext, EmptyExtension, IExtensionModule, ExtensionActivationTimesBuilder, ExtensionActivationTimes, ExtensionActivationReason, ExtensionActivatedByEvent, ExtensionActivatedByAPI } from 'vs/workbench/api/node/extHostExtensionActivator';
-import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
-import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
-import { TernarySearchTree } from 'vs/base/common/map';
 import { Barrier } from 'vs/base/common/async';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { TernarySearchTree } from 'vs/base/common/map';
+import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
+import { dirExists, mkdirp, realpath, writeFile } from 'vs/base/node/pfs';
+import { ILogService } from 'vs/platform/log/common/log';
+import { createApiFactory, initializeExtensionApi } from 'vs/workbench/api/node/extHost.api.impl';
+import { ExtHostExtensionServiceShape, IEnvironment, IInitData, IMainContext, IWorkspaceData, MainContext, MainThreadExtensionServiceShape, MainThreadTelemetryShape } from 'vs/workbench/api/node/extHost.protocol';
+import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
+import { ActivatedExtension, EmptyExtension, ExtensionActivatedByAPI, ExtensionActivatedByEvent, ExtensionActivationReason, ExtensionActivationTimes, ExtensionActivationTimesBuilder, ExtensionsActivator, IExtensionAPI, IExtensionContext, IExtensionMemento, IExtensionModule } from 'vs/workbench/api/node/extHostExtensionActivator';
+import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
+import { ExtHostStorage } from 'vs/workbench/api/node/extHostStorage';
+import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
+import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
+import { connectProxyResolver } from 'vs/workbench/node/proxyResolver';
 
 class ExtensionMemento implements IExtensionMemento {
 
@@ -129,7 +130,6 @@ class ExtensionStoragePath {
 		}
 	}
 }
-
 export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 
 	private readonly _barrier: Barrier;
@@ -148,12 +148,13 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		extHostContext: IMainContext,
 		extHostWorkspace: ExtHostWorkspace,
 		extHostConfiguration: ExtHostConfiguration,
-		extHostLogService: ExtHostLogService
+		extHostLogService: ExtHostLogService,
+		mainThreadTelemetry: MainThreadTelemetryShape
 	) {
 		this._barrier = new Barrier();
 		this._registry = new ExtensionDescriptionRegistry(initData.extensions);
 		this._extHostLogService = extHostLogService;
-		this._mainThreadTelemetry = extHostContext.getProxy(MainContext.MainThreadTelemetry);
+		this._mainThreadTelemetry = mainThreadTelemetry;
 		this._storage = new ExtHostStorage(extHostContext);
 		this._storagePath = new ExtensionStoragePath(initData.workspace, initData.environment);
 		this._proxy = extHostContext.getProxy(MainContext.MainThreadExtensionService);
@@ -163,6 +164,9 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		const apiFactory = createApiFactory(initData, extHostContext, extHostWorkspace, extHostConfiguration, this, this._extHostLogService, this._storage);
 
 		initializeExtensionApi(this, apiFactory).then(() => {
+			// Do this when extension service exists, but extensions are not being activated yet.
+			return connectProxyResolver(extHostWorkspace, extHostConfiguration, this, this._extHostLogService, this._mainThreadTelemetry);
+		}).then(() => {
 
 			this._activator = new ExtensionsActivator(this._registry, {
 				showMessage: (severity: Severity, message: string): void => {
@@ -309,10 +313,30 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 			const activationTimes = activatedExtension.activationTimes;
 			let activationEvent = (reason instanceof ExtensionActivatedByEvent ? reason.activationEvent : null);
 			this._proxy.$onExtensionActivated(extensionDescription.id, activationTimes.startup, activationTimes.codeLoadingTime, activationTimes.activateCallTime, activationTimes.activateResolvedTime, activationEvent);
+			this._logExtensionActivationTimes(extensionDescription, reason, 'success', activationTimes);
 			return activatedExtension;
 		}, (err) => {
 			this._proxy.$onExtensionActivationFailed(extensionDescription.id);
+			this._logExtensionActivationTimes(extensionDescription, reason, 'failure');
 			throw err;
+		});
+	}
+
+	private _logExtensionActivationTimes(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason, outcome: string, activationTimes?: ExtensionActivationTimes) {
+		let event = getTelemetryActivationEvent(extensionDescription, reason);
+		/* __GDPR__
+			"extensionActivationTimes" : {
+				"${include}": [
+					"${TelemetryActivationEvent}",
+					"${ExtensionActivationTimes}"
+				],
+				"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
+		this._mainThreadTelemetry.$publicLog('extensionActivationTimes', {
+			...event,
+			...(activationTimes || {}),
+			outcome,
 		});
 	}
 

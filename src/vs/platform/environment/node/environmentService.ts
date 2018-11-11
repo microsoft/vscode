@@ -110,6 +110,9 @@ export class EnvironmentService implements IEnvironmentService {
 	get appSettingsPath(): string { return path.join(this.appSettingsHome, 'settings.json'); }
 
 	@memoize
+	get workspaceStorageHome(): string { return path.join(this.appSettingsHome, 'workspaceStorage'); }
+
+	@memoize
 	get settingsSearchBuildId(): number { return product.settingsSearchBuildId; }
 
 	@memoize
@@ -208,7 +211,6 @@ export class EnvironmentService implements IEnvironmentService {
 	get wait(): boolean { return this._args.wait; }
 
 	get logExtensionHostCommunication(): boolean { return this._args.logExtensionHostCommunication; }
-	get logStorage(): boolean { return this._args.logStorage; }
 
 	get performance(): boolean { return this._args.performance; }
 	get status(): boolean { return this._args.status; }

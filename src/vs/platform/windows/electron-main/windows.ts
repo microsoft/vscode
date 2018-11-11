@@ -38,6 +38,8 @@ export interface ICodeWindow {
 	openedWorkspace: IWorkspaceIdentifier;
 	backupPath: string;
 
+	remoteAuthority: string;
+
 	isExtensionDevelopmentHost: boolean;
 	isExtensionTestHost: boolean;
 
@@ -60,6 +62,7 @@ export interface ICodeWindow {
 	sendWhenReady(channel: string, ...args: any[]): void;
 
 	toggleFullScreen(): void;
+	isFullScreen(): boolean;
 	hasHiddenTitleBarStyle(): boolean;
 	setRepresentedFilename(name: string): void;
 	getRepresentedFilename(): string;

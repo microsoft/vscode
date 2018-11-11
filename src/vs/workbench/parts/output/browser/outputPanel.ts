@@ -5,7 +5,6 @@
 
 import 'vs/css!./media/output';
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Action, IAction } from 'vs/base/common/actions';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -116,7 +115,7 @@ export class OutputPanel extends AbstractTextResourceEditor {
 	public setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
 		this._focus = !options.preserveFocus;
 		if (input.matches(this.input)) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		if (this.input) {

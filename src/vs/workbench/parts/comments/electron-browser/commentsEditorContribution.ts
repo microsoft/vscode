@@ -13,7 +13,7 @@ import { ICodeEditor, IEditorMouseEvent, IViewZone, MouseTargetType } from 'vs/e
 import { registerEditorContribution, EditorAction, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IEditorContribution, IModelChangedEvent } from 'vs/editor/common/editorCommon';
 import { IRange } from 'vs/editor/common/core/range';
 import * as modes from 'vs/editor/common/modes';
 import { peekViewResultsBackground, peekViewResultsSelectionBackground, peekViewTitleBackground } from 'vs/editor/contrib/referenceSearch/referencesWidget';
@@ -24,7 +24,7 @@ import { editorForeground, registerColor } from 'vs/platform/theme/common/colorR
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { CommentThreadCollapsibleState } from 'vs/workbench/api/node/extHostTypes';
 import { ReviewZoneWidget, COMMENTEDITOR_DECORATION_KEY } from 'vs/workbench/parts/comments/electron-browser/commentThreadWidget';
-import { ICommentService } from 'vs/workbench/parts/comments/electron-browser/commentService';
+import { ICommentService, ICommentInfo } from 'vs/workbench/parts/comments/electron-browser/commentService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -34,6 +34,7 @@ import { Color, RGBA } from 'vs/base/common/color';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 
 export const ctxReviewPanelVisible = new RawContextKey<boolean>('reviewPanelVisible', false);
 
@@ -63,11 +64,11 @@ export const overviewRulerCommentingRangeForeground = registerColor('editorGutte
 class CommentingRangeDecoration {
 	private _decorationId: string;
 
-	get id(): string {
+	public get id(): string {
 		return this._decorationId;
 	}
 
-	constructor(private _editor: ICodeEditor, private _ownerId: number, private _range: IRange, private _reply: modes.Command, commentingOptions: ModelDecorationOptions) {
+	constructor(private _editor: ICodeEditor, private _ownerId: string, private _range: IRange, private _reply: modes.Command, commentingOptions: ModelDecorationOptions) {
 		const startLineNumber = _range.startLineNumber;
 		const endLineNumber = _range.endLineNumber;
 		let commentingRangeDecorations = [{
@@ -84,18 +85,18 @@ class CommentingRangeDecoration {
 		}
 	}
 
-	getCommentAction(): { replyCommand: modes.Command, ownerId: number } {
+	public getCommentAction(): { replyCommand: modes.Command, ownerId: string } {
 		return {
 			replyCommand: this._reply,
 			ownerId: this._ownerId
 		};
 	}
 
-	getOriginalRange() {
+	public getOriginalRange() {
 		return this._range;
 	}
 
-	getActiveRange() {
+	public getActiveRange() {
 		return this._editor.getModel().getDecorationRange(this._decorationId);
 	}
 }
@@ -122,7 +123,7 @@ class CommentingRangeDecorator {
 		this.commentsOptions = CommentingRangeDecorator.createDecoration('comment-thread', overviewRulerCommentingRangeForeground, options);
 	}
 
-	update(editor: ICodeEditor, commentInfos: modes.CommentInfo[]) {
+	public update(editor: ICodeEditor, commentInfos: ICommentInfo[]) {
 		let model = editor.getModel();
 		if (!model) {
 			return;
@@ -142,7 +143,7 @@ class CommentingRangeDecorator {
 		this.commentingRangeDecorations = commentingRangeDecorations;
 	}
 
-	getMatchedCommentAction(line: number) {
+	public getMatchedCommentAction(line: number) {
 		for (let i = 0; i < this.commentingRangeDecorations.length; i++) {
 			let range = this.commentingRangeDecorations[i].getActiveRange();
 
@@ -154,7 +155,7 @@ class CommentingRangeDecorator {
 		return null;
 	}
 
-	dispose(): void {
+	public dispose(): void {
 		this.disposables = dispose(this.disposables);
 		this.commentingRangeDecorations = [];
 	}
@@ -167,12 +168,14 @@ export class ReviewController implements IEditorContribution {
 	private _newCommentWidget: ReviewZoneWidget;
 	private _commentWidgets: ReviewZoneWidget[];
 	private _reviewPanelVisible: IContextKey<boolean>;
-	private _commentInfos: modes.CommentInfo[];
-	// private _hasSetComments: boolean;
+	private _commentInfos: ICommentInfo[];
 	private _commentingRangeDecorator: CommentingRangeDecorator;
 	private mouseDownInfo: { lineNumber: number } | null = null;
 	private _commentingRangeSpaceReserved = false;
+	private _computePromise: CancelablePromise<ICommentInfo[]> | null;
 
+	private _pendingCommentCache: { [key: number]: { [key: string]: string } };
+	private _pendingNewCommentCache: { [key: string]: { lineNumber: number, replyCommand: modes.Command, ownerId: string, pendingComment: string } };
 
 	constructor(
 		editor: ICodeEditor,
@@ -192,21 +195,25 @@ export class ReviewController implements IEditorContribution {
 		this.localToDispose = [];
 		this._commentInfos = [];
 		this._commentWidgets = [];
+		this._pendingCommentCache = {};
+		this._pendingNewCommentCache = {};
 		this._newCommentWidget = null;
-		// this._hasSetComments = false;
+		this._computePromise = null;
 
 		this._reviewPanelVisible = ctxReviewPanelVisible.bindTo(contextKeyService);
 		this._commentingRangeDecorator = new CommentingRangeDecorator();
 
-		this.globalToDispose.push(this.commentService.onDidDeleteDataProvider(e => {
+		this.globalToDispose.push(this.commentService.onDidDeleteDataProvider(ownerId => {
 			// Remove new comment widget and glyph, refresh comments
-			if (this._newCommentWidget) {
+			if (this._newCommentWidget && this._newCommentWidget.owner === ownerId) {
 				this._newCommentWidget.dispose();
 				this._newCommentWidget = null;
 			}
 
-			this.getComments();
+			delete this._pendingCommentCache[ownerId];
+			this.beginCompute();
 		}));
+		this.globalToDispose.push(this.commentService.onDidSetDataProvider(_ => this.beginCompute()));
 
 		this.globalToDispose.push(this.commentService.onDidSetResourceCommentInfos(e => {
 			const editorURI = this.editor && this.editor.getModel() && this.editor.getModel().uri;
@@ -215,30 +222,40 @@ export class ReviewController implements IEditorContribution {
 			}
 		}));
 
-		this.globalToDispose.push(this.commentService.onDidSetDataProvider(_ => this.getComments()));
-
-		this.globalToDispose.push(this.editor.onDidChangeModel(() => this.onModelChanged()));
+		this.globalToDispose.push(this.editor.onDidChangeModel(e => this.onModelChanged(e)));
 		this.codeEditorService.registerDecorationType(COMMENTEDITOR_DECORATION_KEY, {});
+		this.beginCompute();
 	}
 
-	private getComments(): void {
-		const editorURI = this.editor && this.editor.getModel() && this.editor.getModel().uri;
+	private beginCompute(): Promise<void> {
+		this._computePromise = createCancelablePromise(token => {
+			const editorURI = this.editor && this.editor.getModel() && this.editor.getModel().uri;
 
-		if (editorURI) {
-			this.commentService.getComments(editorURI).then(commentInfos => {
-				this.setComments(commentInfos.filter(commentInfo => commentInfo !== null));
-			}, error => console.log(error));
-		}
+			if (editorURI) {
+				return this.commentService.getComments(editorURI);
+			}
+
+			return Promise.resolve([]);
+		});
+
+		return this._computePromise.then(commentInfos => {
+			this.setComments(commentInfos.filter(commentInfo => commentInfo !== null));
+			this._computePromise = null;
+		}, error => console.log(error));
 	}
 
 	public static get(editor: ICodeEditor): ReviewController {
 		return editor.getContribution<ReviewController>(ID);
 	}
 
-	public revealCommentThread(threadId: string, commentId?: string): void {
+	public revealCommentThread(threadId: string, commentId: string, fetchOnceIfNotExist: boolean): void {
 		const commentThreadWidget = this._commentWidgets.filter(widget => widget.commentThread.threadId === threadId);
 		if (commentThreadWidget.length === 1) {
 			commentThreadWidget[0].reveal(commentId);
+		} else if (fetchOnceIfNotExist) {
+			this.beginCompute().then(_ => {
+				this.revealCommentThread(threadId, commentId, false);
+			});
 		}
 	}
 
@@ -292,11 +309,11 @@ export class ReviewController implements IEditorContribution {
 		}
 	}
 
-	getId(): string {
+	public getId(): string {
 		return ID;
 	}
 
-	dispose(): void {
+	public dispose(): void {
 		this.globalToDispose = dispose(this.globalToDispose);
 		this.localToDispose = dispose(this.localToDispose);
 
@@ -309,18 +326,44 @@ export class ReviewController implements IEditorContribution {
 		this.editor = null;
 	}
 
-	public onModelChanged(): void {
+	public onModelChanged(e: IModelChangedEvent): void {
 		this.localToDispose = dispose(this.localToDispose);
 		if (this._newCommentWidget) {
-			// todo@peng store view state.
+			let pendingNewComment = this._newCommentWidget.getPendingComment();
+
+			if (e.oldModelUrl) {
+				if (pendingNewComment) {
+					// we can't fetch zone widget's position as the model is already gone
+					const position = this._newCommentWidget.getPosition();
+					if (position) {
+						this._pendingNewCommentCache[e.oldModelUrl.toString()] = {
+							lineNumber: position.lineNumber,
+							ownerId: this._newCommentWidget.owner,
+							replyCommand: this._newCommentWidget.commentThread.reply,
+							pendingComment: pendingNewComment
+						};
+					}
+				} else {
+					// clear cache if it is empty
+					delete this._pendingNewCommentCache[e.oldModelUrl.toString()];
+				}
+			}
+
 			this._newCommentWidget.dispose();
 			this._newCommentWidget = null;
+		} else {
+			if (e.oldModelUrl) {
+				// remove pending new comment cache as there is no newCommentWidget anymore
+				delete this._pendingNewCommentCache[e.oldModelUrl.toString()];
+			}
 		}
 
-		this._commentWidgets.forEach(zone => {
-			zone.dispose();
-		});
-		this._commentWidgets = [];
+		this.removeCommentWidgetsAndStoreCache();
+
+		if (e.newModelUrl && this._pendingNewCommentCache[e.newModelUrl.toString()]) {
+			let newCommentCache = this._pendingNewCommentCache[e.newModelUrl.toString()];
+			this.addComment(newCommentCache.lineNumber, newCommentCache.replyCommand, newCommentCache.ownerId, newCommentCache.pendingComment);
+		}
 
 		this.localToDispose.push(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
 		this.localToDispose.push(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
@@ -357,28 +400,24 @@ export class ReviewController implements IEditorContribution {
 				}
 			});
 			added.forEach(thread => {
-				let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.openerService, this.dialogService, this.notificationService, this.editor, e.owner, thread, {});
+				let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.openerService, this.dialogService, this.notificationService, this.editor, e.owner, thread, null, {});
 				zoneWidget.display(thread.range.startLineNumber, this._commentingRangeDecorator.commentsOptions);
 				this._commentWidgets.push(zoneWidget);
 				this._commentInfos.filter(info => info.owner === e.owner)[0].threads.push(thread);
 			});
 		}));
+
+		this.beginCompute();
 	}
 
-	private addComment(lineNumber: number) {
+	private addComment(lineNumber: number, replyCommand: modes.Command, ownerId: string, pendingComment: string) {
 		if (this._newCommentWidget !== null) {
 			this.notificationService.warn(`Please submit the comment at line ${this._newCommentWidget.position.lineNumber} before creating a new one.`);
 			return;
 		}
 
-		let newCommentInfo = this._commentingRangeDecorator.getMatchedCommentAction(lineNumber);
-		if (!newCommentInfo) {
-			return;
-		}
-
 		// add new comment
 		this._reviewPanelVisible.set(true);
-		const { replyCommand, ownerId } = newCommentInfo;
 		this._newCommentWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.openerService, this.dialogService, this.notificationService, this.editor, ownerId, {
 			threadId: null,
 			resource: null,
@@ -391,7 +430,7 @@ export class ReviewController implements IEditorContribution {
 			},
 			reply: replyCommand,
 			collapsibleState: CommentThreadCollapsibleState.Expanded,
-		}, {});
+		}, pendingComment, {});
 
 		this.localToDispose.push(this._newCommentWidget.onDidClose(e => {
 			this._newCommentWidget = null;
@@ -459,11 +498,21 @@ export class ReviewController implements IEditorContribution {
 
 		if (e.target.element.className.indexOf('comment-diff-added') >= 0) {
 			const lineNumber = e.target.position.lineNumber;
-			this.addComment(lineNumber);
+			let newCommentInfo = this._commentingRangeDecorator.getMatchedCommentAction(lineNumber);
+			if (!newCommentInfo) {
+				return;
+			}
+			const { replyCommand, ownerId } = newCommentInfo;
+			this.addComment(lineNumber, replyCommand, ownerId, null);
 		}
 	}
 
-	setComments(commentInfos: modes.CommentInfo[]): void {
+
+	private setComments(commentInfos: ICommentInfo[]): void {
+		if (!this.editor) {
+			return;
+		}
+
 		this._commentInfos = commentInfos;
 		let lineDecorationsWidth: number = this.editor.getConfiguration().layoutInfo.decorationsWidth;
 
@@ -495,18 +544,22 @@ export class ReviewController implements IEditorContribution {
 			}
 		}
 
-		// this._hasSetComments = true;
-
 		// create viewzones
-		this._commentWidgets.forEach(zone => {
-			zone.dispose();
-		});
-
-		this._commentWidgets = [];
+		this.removeCommentWidgetsAndStoreCache();
 
 		this._commentInfos.forEach(info => {
+			let providerCacheStore = this._pendingCommentCache[info.owner];
 			info.threads.forEach(thread => {
-				let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.openerService, this.dialogService, this.notificationService, this.editor, info.owner, thread, {});
+				let pendingComment: string = null;
+				if (providerCacheStore) {
+					pendingComment = providerCacheStore[thread.threadId];
+				}
+
+				if (pendingComment) {
+					thread.collapsibleState = modes.CommentThreadCollapsibleState.Expanded;
+				}
+
+				let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.openerService, this.dialogService, this.notificationService, this.editor, info.owner, thread, pendingComment, {});
 				zoneWidget.display(thread.range.startLineNumber, this._commentingRangeDecorator.commentsOptions);
 				this._commentWidgets.push(zoneWidget);
 			});
@@ -533,6 +586,31 @@ export class ReviewController implements IEditorContribution {
 
 		this.editor.focus();
 		this.editor.revealRangeInCenter(this.editor.getSelection());
+	}
+
+	private removeCommentWidgetsAndStoreCache() {
+		if (this._commentWidgets) {
+			this._commentWidgets.forEach(zone => {
+				let pendingComment = zone.getPendingComment();
+				let providerCacheStore = this._pendingCommentCache[zone.owner];
+
+				if (pendingComment) {
+					if (!providerCacheStore) {
+						this._pendingCommentCache[zone.owner] = {};
+					}
+
+					this._pendingCommentCache[zone.owner][zone.commentThread.threadId] = pendingComment;
+				} else {
+					if (providerCacheStore) {
+						delete providerCacheStore[zone.commentThread.threadId];
+					}
+				}
+
+				zone.dispose();
+			});
+		}
+
+		this._commentWidgets = [];
 	}
 }
 

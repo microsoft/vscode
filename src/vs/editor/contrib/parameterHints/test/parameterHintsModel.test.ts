@@ -93,7 +93,8 @@ suite('ParameterHintsModel', () => {
 					editor.trigger('keyboard', Handler.Type, { text: triggerChar });
 				} else {
 					assert.strictEqual(invokeCount, 2);
-					assert.strictEqual(context.triggerReason, modes.SignatureHelpTriggerReason.Retrigger);
+					assert.strictEqual(context.triggerReason, modes.SignatureHelpTriggerReason.TriggerCharacter);
+					assert.ok(context.isRetrigger);
 					assert.strictEqual(context.triggerCharacter, triggerChar);
 					done();
 				}
@@ -149,7 +150,8 @@ suite('ParameterHintsModel', () => {
 
 			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelp | Thenable<modes.SignatureHelp> {
 				++invokeCount;
-				assert.strictEqual(context.triggerReason, modes.SignatureHelpTriggerReason.Retrigger);
+				assert.strictEqual(context.triggerReason, modes.SignatureHelpTriggerReason.TriggerCharacter);
+				assert.ok(context.isRetrigger);
 				assert.strictEqual(context.triggerCharacter, 'c');
 
 				// Give some time to allow for later triggers
@@ -185,7 +187,8 @@ suite('ParameterHintsModel', () => {
 					// retrigger after delay for widget to show up
 					setTimeout(() => editor.trigger('keyboard', Handler.Type, { text: 'b' }), 50);
 				} else if (invokeCount === 2) {
-					assert.strictEqual(context.triggerReason, modes.SignatureHelpTriggerReason.Retrigger);
+					assert.strictEqual(context.triggerReason, modes.SignatureHelpTriggerReason.TriggerCharacter);
+					assert.ok(context.isRetrigger);
 					assert.strictEqual(context.triggerCharacter, 'b');
 					done();
 				} else {
@@ -272,7 +275,8 @@ suite('ParameterHintsModel', () => {
 					// retrigger after delay for widget to show up
 					setTimeout(() => editor.trigger('keyboard', Handler.Type, { text: retriggerChar }), 50);
 				} else if (invokeCount === 2) {
-					assert.strictEqual(context.triggerReason, modes.SignatureHelpTriggerReason.Retrigger);
+					assert.strictEqual(context.triggerReason, modes.SignatureHelpTriggerReason.TriggerCharacter);
+					assert.ok(context.isRetrigger);
 					assert.strictEqual(context.triggerCharacter, retriggerChar);
 					done();
 				} else {

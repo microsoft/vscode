@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 import * as Filters from 'vs/base/common/filters';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as Quickopen from 'vs/workbench/browser/quickopen';
 import * as QuickOpen from 'vs/base/parts/quickopen/common/quickOpen';
 import * as Model from 'vs/base/parts/quickopen/browser/quickOpenModel';
@@ -93,7 +92,7 @@ export class DebugQuickOpenHandler extends Quickopen.QuickOpenHandler {
 		return nls.localize('debugAriaLabel', "Type a name of a launch configuration to run.");
 	}
 
-	public getResults(input: string, token: CancellationToken): TPromise<Model.QuickOpenModel> {
+	public getResults(input: string, token: CancellationToken): Promise<Model.QuickOpenModel> {
 		const configurations: Model.QuickOpenEntry[] = [];
 
 		const configManager = this.debugService.getConfigurationManager();

@@ -122,6 +122,13 @@ export class StorageLegacyService implements IStorageLegacyService {
 		// which is only possible if a id property is provided that we can check on
 		if (types.isNumber(legacyWorkspaceId)) {
 			this.cleanupWorkspaceScope(legacyWorkspaceId);
+		} else {
+			// ensure that we always store a workspace identifier because this key
+			// is used to migrate data out as needed
+			const workspaceIdentifier = this.getInteger(StorageLegacyService.WORKSPACE_IDENTIFIER, StorageLegacyScope.WORKSPACE);
+			if (!workspaceIdentifier) {
+				this.store(StorageLegacyService.WORKSPACE_IDENTIFIER, 42, StorageLegacyScope.WORKSPACE);
+			}
 		}
 	}
 

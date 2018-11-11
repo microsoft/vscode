@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { URI, UriComponents } from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { Position, IPosition } from 'vs/editor/common/core/position';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import { Selection, ISelection } from 'vs/editor/common/core/selection';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
+import { IPosition, Position } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import { ISelection, Selection } from 'vs/editor/common/core/selection';
+import { IIdentifiedSingleEditOperation, IModelDecorationsChangeAccessor, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
-import { ITextModel, IModelDecorationsChangeAccessor, TrackedRangeStickiness, OverviewRulerLane, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 
 /**
  * A builder and helper for edit operations for a command.
@@ -39,7 +39,7 @@ export interface IEditOperationBuilder {
 	 * @param selection The selection to track.
 	 * @param trackPreviousOnEmpty If set, and the selection is empty, indicates whether the selection
 	 *           should clamp to the previous or the next character.
-	 * @return A unique identifer.
+	 * @return A unique identifier.
 	 */
 	trackSelection(selection: Selection, trackPreviousOnEmpty?: boolean): string;
 }
@@ -80,7 +80,7 @@ export interface ICommand {
 
 	/**
 	 * Compute the cursor state after the edit operations were applied.
-	 * @param model The model the commad has executed on.
+	 * @param model The model the command has executed on.
 	 * @param helper A helper to get inverse edit operations and to get previously tracked selections.
 	 * @return The cursor state after the command executed.
 	 */
@@ -534,10 +534,10 @@ export interface IThemeDecorationRenderOptions {
 	textDecoration?: string;
 	cursor?: string;
 	color?: string | ThemeColor;
-	opacity?: number;
+	opacity?: string;
 	letterSpacing?: string;
 
-	gutterIconPath?: string | UriComponents;
+	gutterIconPath?: UriComponents;
 	gutterIconSize?: string;
 
 	overviewRulerColor?: string | ThemeColor;
@@ -551,7 +551,7 @@ export interface IThemeDecorationRenderOptions {
  */
 export interface IContentDecorationRenderOptions {
 	contentText?: string;
-	contentIconPath?: string | UriComponents;
+	contentIconPath?: UriComponents;
 
 	border?: string;
 	borderColor?: string | ThemeColor;

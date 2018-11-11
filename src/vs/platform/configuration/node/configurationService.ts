@@ -67,8 +67,8 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 	inspect<T>(key: string): {
 		default: T,
 		user: T,
-		workspace: T,
-		workspaceFolder: T
+		workspace?: T,
+		workspaceFolder?: T
 		value: T
 	} {
 		return this.configuration.inspect<T>(key, {}, null);

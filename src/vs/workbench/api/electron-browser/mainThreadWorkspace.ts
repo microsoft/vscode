@@ -40,6 +40,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IWorkspaceEditingService private readonly _workspaceEditingService: IWorkspaceEditingService,
 		@IStatusbarService private readonly _statusbarService: IStatusbarService,
+		@IWindowService private readonly _windowService: IWindowService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILabelService private readonly _labelService: ILabelService
 	) {
@@ -182,7 +183,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		query._reason = 'startTextSearch';
 
 		const onProgress = (p: ISearchProgressItem) => {
-			if (p.matches) {
+			if (p.results) {
 				this._proxy.$handleTextSearchResult(p, requestId);
 			}
 		};
@@ -230,6 +231,10 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		return this._textFileService.saveAll(includeUntitled).then(result => {
 			return result.results.every(each => each.success === true);
 		});
+	}
+
+	$resolveProxy(url: string): Thenable<string> {
+		return this._windowService.resolveProxy(url);
 	}
 }
 

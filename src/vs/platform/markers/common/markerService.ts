@@ -50,7 +50,7 @@ class MarkerStats implements MarkerStatistics {
 	warnings: number = 0;
 	unknowns: number = 0;
 
-	private _data: { [resource: string]: MarkerStatistics } = Object.create(null);
+	private _data?: { [resource: string]: MarkerStatistics } = Object.create(null);
 	private _service: IMarkerService;
 	private _subscription: IDisposable;
 
@@ -65,6 +65,10 @@ class MarkerStats implements MarkerStatistics {
 	}
 
 	private _update(resources: URI[]): void {
+		if (!this._data) {
+			return;
+		}
+
 		for (const resource of resources) {
 			const key = resource.toString();
 			const oldStats = this._data[key];
@@ -191,7 +195,6 @@ export class MarkerService implements IMarkerService {
 		}
 
 		// santize data
-		code = code || null;
 		startLineNumber = startLineNumber > 0 ? startLineNumber : 1;
 		startColumn = startColumn > 0 ? startColumn : 1;
 		endLineNumber = endLineNumber >= startLineNumber ? endLineNumber : startLineNumber;
@@ -200,7 +203,7 @@ export class MarkerService implements IMarkerService {
 		return {
 			resource,
 			owner,
-			code,
+			code: code || undefined,
 			severity,
 			message,
 			source,
@@ -221,13 +224,16 @@ export class MarkerService implements IMarkerService {
 		if (map) {
 			delete this._byOwner[owner];
 			for (const resource in map) {
-				// remeber what we remove
-				const [first] = MapMap.get(this._byResource, resource, owner);
-				if (first) {
-					changes.push(first.resource);
+				const entry = MapMap.get(this._byResource, resource, owner);
+				if (entry) {
+					// remeber what we remove
+					const [first] = entry;
+					if (first) {
+						changes.push(first.resource);
+					}
+					// actual remove
+					MapMap.remove(this._byResource, resource, owner);
 				}
-				// actual remove
-				MapMap.remove(this._byResource, resource, owner);
 			}
 		}
 
@@ -308,9 +314,9 @@ export class MarkerService implements IMarkerService {
 
 		} else {
 			// of one resource OR owner
-			const map: { [key: string]: IMarker[] } = owner
+			const map: { [key: string]: IMarker[] } | undefined = owner
 				? this._byOwner[owner]
-				: this._byResource[resource.toString()];
+				: resource ? this._byResource[resource.toString()] : undefined;
 
 			if (!map) {
 				return [];

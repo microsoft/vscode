@@ -25,17 +25,17 @@ declare namespace monaco {
 		dispose(): void;
 	}
 
+
 	export enum MarkerTag {
-		Unnecessary = 1,
+		Unnecessary = 1
 	}
 
 	export enum MarkerSeverity {
 		Hint = 1,
 		Info = 2,
 		Warning = 4,
-		Error = 8,
+		Error = 8
 	}
-
 
 
 	export class Promise<T = any> {
@@ -151,7 +151,7 @@ declare namespace monaco {
 		 *
 		 * @param value A string which represents an Uri (see `Uri#toString`).
 		 */
-		static parse(value: string): Uri;
+		static parse(value: string, _strict?: boolean): Uri;
 		/**
 		 * Creates a new Uri from a file system path, e.g. `c:\my\files`,
 		 * `/usr/home`, or `\\server\share\some\path`.
@@ -385,7 +385,6 @@ declare namespace monaco {
 		 */
 		MAX_VALUE = 112
 	}
-
 	export class KeyMod {
 		static readonly CtrlCmd: number;
 		static readonly Shift: number;
@@ -393,9 +392,13 @@ declare namespace monaco {
 		static readonly WinCtrl: number;
 		static chord(firstPart: number, secondPart: number): number;
 	}
+
 	export interface IMarkdownString {
 		value: string;
 		isTrusted?: boolean;
+		uris?: {
+			[href: string]: UriComponents;
+		};
 	}
 
 	export interface IKeyboardEvent {
@@ -932,7 +935,7 @@ declare namespace monaco.editor {
 	export function tokenize(text: string, languageId: string): Token[][];
 
 	/**
-	 * Define a new theme or updte an existing theme.
+	 * Define a new theme or update an existing theme.
 	 */
 	export function defineTheme(themeName: string, themeData: IStandaloneThemeData): void;
 
@@ -1037,7 +1040,7 @@ declare namespace monaco.editor {
 		contextMenuOrder?: number;
 		/**
 		 * Method that will be executed when the action is triggered.
-		 * @param editor The editor instance is passed in as a convinience
+		 * @param editor The editor instance is passed in as a convenience
 		 */
 		run(editor: ICodeEditor): void | Promise<void>;
 	}
@@ -1297,7 +1300,7 @@ declare namespace monaco.editor {
 		 */
 		readonly id: string;
 		/**
-		 * Identifier for a decoration's owener.
+		 * Identifier for a decoration's owner.
 		 */
 		readonly ownerId: number;
 		/**
@@ -1568,13 +1571,13 @@ declare namespace monaco.editor {
 		 */
 		validatePosition(position: IPosition): Position;
 		/**
-		 * Advances the given position by the given offest (negative offsets are also accepted)
+		 * Advances the given position by the given offset (negative offsets are also accepted)
 		 * and returns it as a new valid position.
 		 *
 		 * If the offset and position are such that their combination goes beyond the beginning or
 		 * end of the model, throws an exception.
 		 *
-		 * If the ofsset is such that the new position would be in the middle of a multi-byte
+		 * If the offset is such that the new position would be in the middle of a multi-byte
 		 * line terminator, throws an exception.
 		 */
 		modifyPosition(position: IPosition, offset: number): Position;
@@ -1669,7 +1672,7 @@ declare namespace monaco.editor {
 		 */
 		getWordUntilPosition(position: IPosition): IWordAtPosition;
 		/**
-		 * Perform a minimum ammount of operations, in order to transform the decorations
+		 * Perform a minimum amount of operations, in order to transform the decorations
 		 * identified by `oldDecorations` to the decorations described by `newDecorations`
 		 * and returns the new identifiers associated with the resulting decorations.
 		 *
@@ -1709,7 +1712,7 @@ declare namespace monaco.editor {
 		 */
 		getLinesDecorations(startLineNumber: number, endLineNumber: number, ownerId?: number, filterOutValidation?: boolean): IModelDecoration[];
 		/**
-		 * Gets all the deocorations in a range as an array. Only `startLineNumber` and `endLineNumber` from `range` are used for filtering.
+		 * Gets all the decorations in a range as an array. Only `startLineNumber` and `endLineNumber` from `range` are used for filtering.
 		 * So for now it returns all the decorations on the same line as `range`.
 		 * @param range The range to search in
 		 * @param ownerId If set, it will ignore decorations belonging to other owners.
@@ -1754,7 +1757,7 @@ declare namespace monaco.editor {
 		/**
 		 * Push edit operations, basically editing the model. This is the preferred way
 		 * of editing the model. The edit operations will land on the undo stack.
-		 * @param beforeCursorState The cursor state before the edit operaions. This cursor state will be returned when `undo` or `redo` are invoked.
+		 * @param beforeCursorState The cursor state before the edit operations. This cursor state will be returned when `undo` or `redo` are invoked.
 		 * @param editOperations The edit operations.
 		 * @param cursorStateComputer A callback that can compute the resulting cursors state after the edit operations have been executed.
 		 * @return The cursor state returned by the `cursorStateComputer`.
@@ -1838,7 +1841,7 @@ declare namespace monaco.editor {
 		 * @param selection The selection to track.
 		 * @param trackPreviousOnEmpty If set, and the selection is empty, indicates whether the selection
 		 *           should clamp to the previous or the next character.
-		 * @return A unique identifer.
+		 * @return A unique identifier.
 		 */
 		trackSelection(selection: Selection, trackPreviousOnEmpty?: boolean): string;
 	}
@@ -1871,7 +1874,7 @@ declare namespace monaco.editor {
 		getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void;
 		/**
 		 * Compute the cursor state after the edit operations were applied.
-		 * @param model The model the commad has executed on.
+		 * @param model The model the command has executed on.
 		 * @param helper A helper to get inverse edit operations and to get previously tracked selections.
 		 * @return The cursor state after the command executed.
 		 */
@@ -1999,7 +2002,7 @@ declare namespace monaco.editor {
 	 */
 	export type IEditorViewState = ICodeEditorViewState | IDiffEditorViewState;
 
-	export const enum ScrollType {
+	export enum ScrollType {
 		Smooth = 0,
 		Immediate = 1
 	}
@@ -2677,6 +2680,11 @@ declare namespace monaco.editor {
 		 */
 		mouseWheelZoom?: boolean;
 		/**
+		 * Enable smooth caret animation.
+		 * Defaults to false.
+		 */
+		cursorSmoothCaretAnimation?: boolean;
+		/**
 		 * Control the cursor style, either 'block' or 'line'.
 		 * Defaults to 'line'.
 		 */
@@ -3206,7 +3214,7 @@ declare namespace monaco.editor {
 		readonly wordWrapBreakObtrusiveCharacters: string;
 	}
 
-	export const enum RenderLineNumbersType {
+	export enum RenderLineNumbersType {
 		Off = 0,
 		On = 1,
 		Relative = 2,
@@ -3229,6 +3237,7 @@ declare namespace monaco.editor {
 		readonly overviewRulerBorder: boolean;
 		readonly cursorBlinking: TextEditorCursorBlinkingStyle;
 		readonly mouseWheelZoom: boolean;
+		readonly cursorSmoothCaretAnimation: boolean;
 		readonly cursorStyle: TextEditorCursorStyle;
 		readonly cursorWidth: number;
 		readonly hideCursorInOverviewRuler: boolean;
@@ -3972,7 +3981,7 @@ declare namespace monaco.editor {
 		 */
 		executeEdits(source: string, edits: IIdentifiedSingleEditOperation[], endCursorState?: Selection[]): boolean;
 		/**
-		 * Execute multiple (concommitent) commands on the editor.
+		 * Execute multiple (concomitant) commands on the editor.
 		 * @param source The source of the call.
 		 * @param command The commands to execute
 		 */
@@ -4013,7 +4022,7 @@ declare namespace monaco.editor {
 		addContentWidget(widget: IContentWidget): void;
 		/**
 		 * Layout/Reposition a content widget. This is a ping to the editor to call widget.getPosition()
-		 * and update appropiately.
+		 * and update appropriately.
 		 */
 		layoutContentWidget(widget: IContentWidget): void;
 		/**
@@ -4026,7 +4035,7 @@ declare namespace monaco.editor {
 		addOverlayWidget(widget: IOverlayWidget): void;
 		/**
 		 * Layout/Reposition an overlay widget. This is a ping to the editor to call widget.getPosition()
-		 * and update appropiately.
+		 * and update appropriately.
 		 */
 		layoutOverlayWidget(widget: IOverlayWidget): void;
 		/**
@@ -4059,7 +4068,7 @@ declare namespace monaco.editor {
 		 * The result position takes scrolling into account and is relative to the top left corner of the editor.
 		 * Explanation 1: the results of this method will change for the same `position` if the user scrolls the editor.
 		 * Explanation 2: the results of this method will not change if the container of the editor gets repositioned.
-		 * Warning: the results of this method are innacurate for positions that are outside the current editor viewport.
+		 * Warning: the results of this method are inaccurate for positions that are outside the current editor viewport.
 		 */
 		getScrolledVisiblePosition(position: IPosition): {
 			top: number;
@@ -4292,7 +4301,7 @@ declare namespace monaco.languages {
 	export function registerRenameProvider(languageId: string, provider: RenameProvider): IDisposable;
 
 	/**
-	 * Register a signature help provider (used by e.g. paremeter hints).
+	 * Register a signature help provider (used by e.g. parameter hints).
 	 */
 	export function registerSignatureHelpProvider(languageId: string, provider: SignatureHelpProvider): IDisposable;
 
@@ -4477,7 +4486,7 @@ declare namespace monaco.languages {
 	 */
 	export interface IndentationRule {
 		/**
-		 * If a line matches this pattern, then all the lines after it should be unindendented once (until another rule matches).
+		 * If a line matches this pattern, then all the lines after it should be unindented once (until another rule matches).
 		 */
 		decreaseIndentPattern: RegExp;
 		/**
@@ -4510,7 +4519,7 @@ declare namespace monaco.languages {
 	 */
 	export interface FoldingRules {
 		/**
-		 * Used by the indentation based strategy to decide wheter empty lines belong to the previous or the next block.
+		 * Used by the indentation based strategy to decide whether empty lines belong to the previous or the next block.
 		 * A language adheres to the off-side rule if blocks in that language are expressed by their indentation.
 		 * See [wikipedia](https://en.wikipedia.org/wiki/Off-side_rule) for more information.
 		 * If not set, `false` is used and empty lines belong to the previous block.
@@ -4609,10 +4618,6 @@ declare namespace monaco.languages {
 		 * Describe what to do with the indentation.
 		 */
 		indentAction: IndentAction;
-		/**
-		 * Describe whether to outdent current line.
-		 */
-		outdentCurrentLine?: boolean;
 		/**
 		 * Describes text to be appended after the new line and after the indentation.
 		 */
@@ -4922,12 +4927,13 @@ declare namespace monaco.languages {
 	export enum SignatureHelpTriggerReason {
 		Invoke = 1,
 		TriggerCharacter = 2,
-		Retrigger = 3
+		ContentChange = 3
 	}
 
 	export interface SignatureHelpContext {
-		triggerReason: SignatureHelpTriggerReason;
-		triggerCharacter?: string;
+		readonly triggerReason: SignatureHelpTriggerReason;
+		readonly triggerCharacter?: string;
+		readonly isRetrigger: boolean;
 	}
 
 	/**
@@ -5354,7 +5360,7 @@ declare namespace monaco.languages {
 	}
 
 	export interface WorkspaceEdit {
-		edits: Array<ResourceTextEdit | ResourceFileEdit>;
+		edits?: Array<ResourceTextEdit | ResourceFileEdit>;
 	}
 
 	export interface Rejection {
@@ -5495,7 +5501,7 @@ declare namespace monaco.languages {
 		 */
 		bracket?: string;
 		/**
-		 * switch to embedded language (useing the mimetype) or get out using "@pop"
+		 * switch to embedded language (using the mimetype) or get out using "@pop"
 		 */
 		nextEmbedded?: string;
 		/**
@@ -5515,7 +5521,7 @@ declare namespace monaco.languages {
 		 */
 		open: string;
 		/**
-		 * closeing bracket
+		 * closing bracket
 		 */
 		close: string;
 		/**
@@ -5543,3 +5549,5 @@ declare namespace monaco.worker {
 	}
 
 }
+
+//dtsv=2

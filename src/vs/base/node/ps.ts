@@ -137,14 +137,14 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 					windowsProcessTree.getProcessCpuUsage(processList, (completeProcessList) => {
 						const processItems: Map<number, ProcessItem> = new Map();
 						completeProcessList.forEach(process => {
-							const commandLine = cleanUNCPrefix(process.commandLine);
+							const commandLine = cleanUNCPrefix(process.commandLine || '');
 							processItems.set(process.pid, {
 								name: findName(commandLine),
 								cmd: commandLine,
 								pid: process.pid,
 								ppid: process.ppid,
-								load: process.cpu,
-								mem: process.memory
+								load: process.cpu || 0,
+								mem: process.memory || 0
 							});
 						});
 
@@ -197,9 +197,11 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 						const pids: number[] = [];
 						while (processes.length) {
 							const process = processes.shift();
-							pids.push(process.pid);
-							if (process.children) {
-								processes = processes.concat(process.children);
+							if (process) {
+								pids.push(process.pid);
+								if (process.children) {
+									processes = processes.concat(process.children);
+								}
 							}
 						}
 

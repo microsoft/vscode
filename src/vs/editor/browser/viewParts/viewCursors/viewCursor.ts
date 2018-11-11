@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
+import * as strings from 'vs/base/common/strings';
+import { Configuration } from 'vs/editor/browser/config/configuration';
+import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
-import { Configuration } from 'vs/editor/browser/config/configuration';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import * as dom from 'vs/base/browser/dom';
-import * as strings from 'vs/base/common/strings';
 
 export interface IViewCursorRenderData {
 	domNode: HTMLElement;

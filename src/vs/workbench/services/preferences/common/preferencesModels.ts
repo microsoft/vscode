@@ -722,6 +722,10 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	}
 
 	protected update(): IFilterResult {
+		if (this._model.isDisposed()) {
+			return null;
+		}
+
 		// Grab current result groups, only render non-empty groups
 		const resultGroups = map
 			.values(this._currentResultGroups)
@@ -1082,12 +1086,12 @@ export function createValidator(prop: IConfigurationPropertySchema): ((value: an
 			{
 				enabled: prop.maxLength !== undefined,
 				isValid: (value => value.length <= prop.maxLength),
-				message: nls.localize('validations.maxLength', "Value must be fewer than {0} characters long.", prop.maxLength)
+				message: nls.localize('validations.maxLength', "Value must be {0} or fewer characters long.", prop.maxLength)
 			},
 			{
 				enabled: prop.minLength !== undefined,
 				isValid: (value => value.length >= prop.minLength),
-				message: nls.localize('validations.minLength', "Value must be more than {0} characters long.", prop.minLength)
+				message: nls.localize('validations.minLength', "Value must be {0} or more characters long.", prop.minLength)
 			},
 			{
 				enabled: patternRegex !== undefined,

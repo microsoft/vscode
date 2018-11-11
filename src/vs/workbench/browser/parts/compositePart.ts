@@ -6,11 +6,9 @@
 import 'vs/css!./media/compositepart';
 import * as nls from 'vs/nls';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { Emitter } from 'vs/base/common/event';
-import * as types from 'vs/base/common/types';
 import * as errors from 'vs/base/common/errors';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IActionItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -49,7 +47,7 @@ export interface ICompositeTitleLabel {
 
 export abstract class CompositePart<T extends Composite> extends Part {
 
-	protected _onDidCompositeOpen = this._register(new Emitter<IComposite>());
+	protected _onDidCompositeOpen = this._register(new Emitter<{ composite: IComposite, focus: boolean }>());
 	protected _onDidCompositeClose = this._register(new Emitter<IComposite>());
 
 	protected toolBar: ToolBar;
@@ -96,7 +94,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		this.lastActiveCompositeId = storageService.get(activeCompositeSettingsKey, StorageScope.WORKSPACE, this.defaultCompositeId);
 	}
 
-	protected openComposite(id: string, focus?: boolean): TPromise<Composite> {
+	protected openComposite(id: string, focus?: boolean): Composite {
 		// Check if composite already visible and just focus in that case
 		if (this.activeComposite && this.activeComposite.getId() === id) {
 			if (focus) {
@@ -104,66 +102,57 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			}
 
 			// Fullfill promise with composite that is being opened
-			return Promise.resolve(this.activeComposite);
+			return this.activeComposite;
 		}
 
 		// Open
 		return this.doOpenComposite(id, focus);
 	}
 
-	private doOpenComposite(id: string, focus?: boolean): TPromise<Composite> {
+	private doOpenComposite(id: string, focus?: boolean): Composite {
 
 		// Use a generated token to avoid race conditions from long running promises
 		const currentCompositeOpenToken = defaultGenerator.nextId();
 		this.currentCompositeOpenToken = currentCompositeOpenToken;
 
 		// Hide current
-		let hidePromise: TPromise<Composite>;
 		if (this.activeComposite) {
-			hidePromise = this.hideActiveComposite();
-		} else {
-			hidePromise = Promise.resolve(null);
+			this.hideActiveComposite();
 		}
 
-		return hidePromise.then(() => {
+		// Update Title
+		this.updateTitle(id);
 
-			// Update Title
-			this.updateTitle(id);
+		// Create composite
+		const composite = this.createComposite(id, true);
 
-			// Create composite
-			const composite = this.createComposite(id, true);
+		// Check if another composite opened meanwhile and return in that case
+		if ((this.currentCompositeOpenToken !== currentCompositeOpenToken) || (this.activeComposite && this.activeComposite.getId() !== composite.getId())) {
+			return undefined;
+		}
 
-			// Check if another composite opened meanwhile and return in that case
-			if ((this.currentCompositeOpenToken !== currentCompositeOpenToken) || (this.activeComposite && this.activeComposite.getId() !== composite.getId())) {
-				return Promise.resolve(null);
+		// Check if composite already visible and just focus in that case
+		if (this.activeComposite && this.activeComposite.getId() === composite.getId()) {
+			if (focus) {
+				composite.focus();
 			}
 
-			// Check if composite already visible and just focus in that case
-			if (this.activeComposite && this.activeComposite.getId() === composite.getId()) {
-				if (focus) {
-					composite.focus();
-				}
-
-				// Fullfill promise with composite that is being opened
-				return Promise.resolve(composite);
-			}
-
-			// Show Composite and Focus
-			return this.showComposite(composite).then(() => {
-				if (focus) {
-					composite.focus();
-				}
-
-				// Fullfill promise with composite that is being opened
-				return composite;
-			});
-		}).then(composite => {
-			if (composite) {
-				this._onDidCompositeOpen.fire(composite);
-			}
-
+			this._onDidCompositeOpen.fire({ composite, focus });
 			return composite;
-		});
+		}
+
+		// Show Composite and Focus
+		this.showComposite(composite);
+		if (focus) {
+			composite.focus();
+		}
+
+		// Return with the composite that is being opened
+		if (composite) {
+			this._onDidCompositeOpen.fire({ composite, focus });
+		}
+
+		return composite;
 	}
 
 	protected createComposite(id: string, isActive?: boolean): Composite {
@@ -196,7 +185,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		throw new Error(strings.format('Unable to find composite with id {0}', id));
 	}
 
-	protected showComposite(composite: Composite): TPromise<void> {
+	protected showComposite(composite: Composite): void {
 
 		// Remember Composite
 		this.activeComposite = composite;
@@ -287,18 +276,17 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		});
 
 		// Indicate to composite that it is now visible
-		return composite.setVisible(true).then(() => {
+		composite.setVisible(true);
 
-			// Make sure that the user meanwhile did not open another composite or closed the part containing the composite
-			if (!this.activeComposite || composite.getId() !== this.activeComposite.getId()) {
-				return;
-			}
+		// Make sure that the user meanwhile did not open another composite or closed the part containing the composite
+		if (!this.activeComposite || composite.getId() !== this.activeComposite.getId()) {
+			return;
+		}
 
-			// Make sure the composite is layed out
-			if (this.contentAreaSize) {
-				composite.layout(this.contentAreaSize);
-			}
-		}, error => this.onError(error));
+		// Make sure the composite is layed out
+		if (this.contentAreaSize) {
+			composite.layout(this.contentAreaSize);
+		}
 	}
 
 	protected onTitleAreaUpdate(compositeId: string): void {
@@ -360,9 +348,9 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		return this.lastActiveCompositeId;
 	}
 
-	protected hideActiveComposite(): TPromise<Composite> {
+	protected hideActiveComposite(): Composite {
 		if (!this.activeComposite) {
-			return Promise.resolve(null); // Nothing to do
+			return undefined; // Nothing to do
 		}
 
 		const composite = this.activeComposite;
@@ -371,21 +359,20 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		const compositeContainer = this.mapCompositeToCompositeContainer[composite.getId()];
 
 		// Indicate to Composite
-		return composite.setVisible(false).then(() => {
+		composite.setVisible(false);
 
-			// Take Container Off-DOM and hide
-			compositeContainer.remove();
-			hide(compositeContainer);
+		// Take Container Off-DOM and hide
+		compositeContainer.remove();
+		hide(compositeContainer);
 
-			// Clear any running Progress
-			this.progressBar.stop().hide();
+		// Clear any running Progress
+		this.progressBar.stop().hide();
 
-			// Empty Actions
-			this.toolBar.setActions([])();
-			this._onDidCompositeClose.fire(composite);
+		// Empty Actions
+		this.toolBar.setActions([])();
+		this._onDidCompositeClose.fire(composite);
 
-			return composite;
-		});
+		return composite;
 	}
 
 	createTitleArea(parent: HTMLElement): HTMLElement {
@@ -452,10 +439,6 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		this.progressBar.hide();
 
 		return contentContainer;
-	}
-
-	private onError(error: any): void {
-		this.notificationService.error(types.isString(error) ? new Error(error) : error);
 	}
 
 	getProgressIndicator(id: string): IProgressService {

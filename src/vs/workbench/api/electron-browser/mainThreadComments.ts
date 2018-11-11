@@ -5,7 +5,6 @@
 
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ICodeEditor, isCodeEditor, isDiffEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import * as modes from 'vs/editor/common/modes';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { keys } from 'vs/base/common/map';
@@ -16,110 +15,78 @@ import { ICommentService } from 'vs/workbench/parts/comments/electron-browser/co
 import { COMMENTS_PANEL_ID } from 'vs/workbench/parts/comments/electron-browser/commentsPanel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { URI } from 'vs/base/common/uri';
-import { ReviewController } from 'vs/workbench/parts/comments/electron-browser/commentsEditorContribution';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { generateUuid } from 'vs/base/common/uuid';
 
+export class ExtensionCommentProviderHandler implements modes.DocumentCommentProvider {
+	private _proxy: ExtHostCommentsShape;
+	private _handle: number;
+
+	constructor(proxy: ExtHostCommentsShape, handle: number) {
+		this._proxy = proxy;
+		this._handle = handle;
+	}
+
+	async provideDocumentComments(uri, token) {
+		return this._proxy.$provideDocumentComments(this._handle, uri);
+	}
+
+	async createNewCommentThread(uri, range, text, token) {
+		return this._proxy.$createNewCommentThread(this._handle, uri, range, text);
+	}
+
+	async replyToCommentThread(uri, range, thread, text, token) {
+		return this._proxy.$replyToCommentThread(this._handle, uri, range, thread, text);
+	}
+
+	async editComment(uri, comment, text, token) {
+		return this._proxy.$editComment(this._handle, uri, comment, text);
+	}
+
+	async deleteComment(uri, comment, token) {
+		return this._proxy.$deleteComment(this._handle, uri, comment);
+	}
+
+	onDidChangeCommentThreads = null;
+}
 @extHostNamedCustomer(MainContext.MainThreadComments)
 export class MainThreadComments extends Disposable implements MainThreadCommentsShape {
 	private _disposables: IDisposable[];
 	private _proxy: ExtHostCommentsShape;
 	private _documentProviders = new Map<number, IDisposable>();
 	private _workspaceProviders = new Map<number, IDisposable>();
+	private _handlers = new Map<number, string>();
 	private _firstSessionStart: boolean;
 
-	private _visibleModels: { [key /** editor widget id */: string]: string /** model id */ };
 	constructor(
 		extHostContext: IExtHostContext,
 		@IEditorService private _editorService: IEditorService,
 		@ICommentService private _commentService: ICommentService,
 		@IPanelService private _panelService: IPanelService,
-		@ICodeEditorService private _codeEditorService: ICodeEditorService
+		@ITelemetryService private _telemetryService: ITelemetryService
 	) {
 		super();
 		this._disposables = [];
 		this._firstSessionStart = true;
-		this._visibleModels = {};
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostComments);
-		this._disposables.push(this._editorService.onDidVisibleEditorsChange(e => {
-			const editors = this.getFocusedEditors();
-			const visibleEditors = this.getVisibleEditors();
-
-			const _visibleEditors = {};
-			visibleEditors.forEach(editor => {
-				if (!editor.hasModel()) {
-					return; // we need a model
-				}
-				const id = editor.getId();
-				const model = editor.getModel();
-				if (editors.filter(ed => ed.getId() === id).length > 0) {
-					// it's an active editor, we are going to update this editor's comments anyways
-				} else {
-					if (this._visibleModels[id]) {
-						// it's the same active editor, but we may want to check if the model is still the same
-						let modelId = model.getModeId();
-						if (modelId !== this._visibleModels[id]) {
-							editors.push(editor);
-						}
-					} else {
-						// update
-						editors.push(editor);
-					}
-				}
-
-				_visibleEditors[id] = model.getModeId();
-			});
-
-			this._visibleModels = _visibleEditors;
-
-			if (!editors || !editors.length) {
-				return;
-			}
-
-			editors.forEach(editor => {
-				const controller = ReviewController.get(editor);
-				if (!controller) {
-					return;
-				}
-
-				if (!editor.getModel()) {
-					return;
-				}
-
-				const outerEditorURI = editor.getModel().uri;
-				this.provideDocumentComments(outerEditorURI).then(commentInfos => {
-					this._commentService.setDocumentComments(outerEditorURI, commentInfos.filter(info => info !== null));
-				});
-			});
-		}));
 	}
 
 	$registerDocumentCommentProvider(handle: number): void {
 		this._documentProviders.set(handle, undefined);
+		const handler = new ExtensionCommentProviderHandler(this._proxy, handle);
 
-		this._commentService.registerDataProvider(
-			handle,
-			{
-				provideDocumentComments: async (uri, token) => {
-					return this._proxy.$provideDocumentComments(handle, uri);
-				},
-				onDidChangeCommentThreads: null,
-				createNewCommentThread: async (uri, range, text, token) => {
-					return this._proxy.$createNewCommentThread(handle, uri, range, text);
-				},
-				replyToCommentThread: async (uri, range, thread, text, token) => {
-					return this._proxy.$replyToCommentThread(handle, uri, range, thread, text);
-				},
-				editComment: async (uri, comment, text, token) => {
-					return this._proxy.$editComment(handle, uri, comment, text);
-				},
-				deleteComment: async (uri, comment, token) => {
-					return this._proxy.$deleteComment(handle, uri, comment);
-				}
-			}
-		);
+		const providerId = generateUuid();
+		this._handlers.set(handle, providerId);
+
+		this._commentService.registerDataProvider(providerId, handler);
 	}
 
-	$registerWorkspaceCommentProvider(handle: number): void {
+	$registerWorkspaceCommentProvider(handle: number, extensionId: string): void {
 		this._workspaceProviders.set(handle, undefined);
+
+		const providerId = generateUuid();
+		this._handlers.set(handle, providerId);
+
 		this._panelService.setPanelEnablement(COMMENTS_PANEL_ID, true);
 		if (this._firstSessionStart) {
 			this._panelService.openPanel(COMMENTS_PANEL_ID);
@@ -127,14 +94,25 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		}
 		this._proxy.$provideWorkspaceComments(handle).then(commentThreads => {
 			if (commentThreads) {
-				this._commentService.setWorkspaceComments(handle, commentThreads);
+				this._commentService.setWorkspaceComments(providerId, commentThreads);
 			}
+		});
+
+		/* __GDPR__
+			"comments:registerWorkspaceCommentProvider" : {
+				"extensionId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
+		this._telemetryService.publicLog('comments:registerWorkspaceCommentProvider', {
+			extensionId: extensionId
 		});
 	}
 
 	$unregisterDocumentCommentProvider(handle: number): void {
 		this._documentProviders.delete(handle);
-		this._commentService.unregisterDataProvider(handle);
+		const handlerId = this._handlers.get(handle);
+		this._commentService.unregisterDataProvider(handlerId);
+		this._handlers.delete(handle);
 	}
 
 	$unregisterWorkspaceCommentProvider(handle: number): void {
@@ -142,12 +120,15 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		if (this._workspaceProviders.size === 0) {
 			this._panelService.setPanelEnablement(COMMENTS_PANEL_ID, false);
 		}
-		this._commentService.removeWorkspaceComments(handle);
+		const handlerId = this._handlers.get(handle);
+		this._commentService.removeWorkspaceComments(handlerId);
+		this._handlers.delete(handle);
 	}
 
 	$onDidCommentThreadsChange(handle: number, event: modes.CommentThreadChangedEvent) {
 		// notify comment service
-		this._commentService.updateComments(event);
+		const providerId = this._handlers.get(handle);
+		this._commentService.updateComments(providerId, event);
 	}
 
 	getVisibleEditors(): ICodeEditor[] {
@@ -165,27 +146,6 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		});
 
 		return ret;
-	}
-
-	getFocusedEditors(): ICodeEditor[] {
-		let activeControl = this._editorService.activeControl;
-		if (activeControl) {
-			if (isCodeEditor(activeControl.getControl())) {
-				return [this._editorService.activeControl.getControl() as ICodeEditor];
-			}
-
-			if (isDiffEditor(activeControl.getControl())) {
-				let diffEditor = activeControl.getControl() as IDiffEditor;
-				return [diffEditor.getOriginalEditor(), diffEditor.getModifiedEditor()];
-			}
-		}
-
-		let editor = this._codeEditorService.getFocusedCodeEditor();
-
-		if (editor) {
-			return [editor];
-		}
-		return [];
 	}
 
 	async provideWorkspaceComments(): Promise<modes.CommentThread[]> {
@@ -210,6 +170,5 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		this._workspaceProviders.clear();
 		this._documentProviders.forEach(value => dispose(value));
 		this._documentProviders.clear();
-		this._visibleModels = {};
 	}
 }

@@ -39,7 +39,6 @@ import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { ExtensionService } from 'vs/workbench/services/extensions/electron-browser/extensionService';
-import { IStorageLegacyService } from 'vs/platform/storage/common/storageLegacyService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/node/instantiationService';
@@ -76,7 +75,7 @@ import { HashService } from 'vs/workbench/services/hash/node/hashService';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { DelegatingStorageService } from 'vs/platform/storage/electron-browser/storageService';
+import { DelegatingStorageService } from 'vs/platform/storage/node/storageService';
 import { Event, Emitter } from 'vs/base/common/event';
 import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { ILocalizationsChannel, LocalizationsChannelClient } from 'vs/platform/localizations/node/localizationsIpc';
@@ -88,7 +87,9 @@ import { NotificationService } from 'vs/workbench/services/notification/common/n
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { DialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogService';
 import { DialogChannel } from 'vs/platform/dialogs/node/dialogIpc';
-import { EventType, addDisposableListener, addClass } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, addClass, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/node/remoteAgentService';
+import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { SearchHistoryService } from 'vs/workbench/services/search/node/searchHistoryService';
@@ -100,6 +101,8 @@ import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadService } from 'vs/platform/download/node/downloadService';
 import { runWhenIdle } from 'vs/base/common/async';
 import { TextResourcePropertiesService } from 'vs/workbench/services/textfile/electron-browser/textResourcePropertiesService';
+import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { RemoteAuthorityResolverChannelClient, IRemoteAuthorityResolverChannel } from 'vs/platform/remote/node/remoteAuthorityResolverChannel';
 
 /**
  * Services that we require for the Shell
@@ -109,7 +112,6 @@ export interface ICoreServices {
 	configurationService: IConfigurationService;
 	environmentService: IEnvironmentService;
 	logService: ILogService;
-	storageLegacyService: IStorageLegacyService;
 	storageService: DelegatingStorageService;
 }
 
@@ -122,7 +124,9 @@ export class WorkbenchShell extends Disposable {
 	private readonly _onShutdown = this._register(new Emitter<ShutdownEvent>());
 	get onShutdown(): Event<ShutdownEvent> { return this._onShutdown.event; }
 
-	private storageLegacyService: IStorageLegacyService;
+	private readonly _onRunning = this._register(new Emitter<void>());
+	get onRunning(): Event<void> { return this._onRunning.event; }
+
 	private storageService: DelegatingStorageService;
 	private environmentService: IEnvironmentService;
 	private logService: ILogService;
@@ -153,7 +157,6 @@ export class WorkbenchShell extends Disposable {
 		this.configurationService = coreServices.configurationService;
 		this.environmentService = coreServices.environmentService;
 		this.logService = coreServices.logService;
-		this.storageLegacyService = coreServices.storageLegacyService;
 		this.storageService = coreServices.storageService;
 
 		this.mainProcessServices = mainProcessServices;
@@ -212,8 +215,10 @@ export class WorkbenchShell extends Disposable {
 			// Startup Workbench
 			workbench.startup().then(startupInfos => {
 
-				// Set lifecycle phase to `Runnning` so that other contributions can now do something
+				// Set lifecycle phase to `Runnning` so that other contributions can
+				// now do something we also emit this as event to interested parties outside
 				this.lifecycleService.phase = LifecyclePhase.Running;
+				this._onRunning.fire();
 
 				// Startup Telemetry
 				this.logStartupTelemetry(startupInfos);
@@ -284,13 +289,17 @@ export class WorkbenchShell extends Disposable {
 	}
 
 	private logStorageTelemetry(): void {
-		const globalStorageInitDuration = perf.getDuration('willInitGlobalStorage', 'didInitGlobalStorage');
-		const workspaceStorageInitDuration = perf.getDuration('willInitWorkspaceStorage', 'didInitWorkspaceStorage');
-		const workbenchLoadDuration = perf.getDuration('willLoadWorkbenchMain', 'didLoadWorkbenchMain');
-		const localStorageAccessDuration = perf.getDuration('willAccessLocalStorage', 'didAccessLocalStorage');
-		const localStorageReadDuration = perf.getDuration('willReadLocalStorage', 'didReadLocalStorage');
+		const initialStartup = !!this.configuration.isInitialStartup;
 
-		let workspaceIntegrity: string;
+		const appReadyDuration = initialStartup ? perf.getDuration('main:started', 'main:appReady') : 0;
+		const workbenchReadyDuration = perf.getDuration(initialStartup ? 'main:started' : 'main:loadWindow', 'didStartWorkbench');
+		const workspaceStorageRequireDuration = perf.getDuration('willRequireSQLite', 'didRequireSQLite');
+		const workspaceStorageSchemaDuration = perf.getDuration('willSetupSQLiteSchema', 'didSetupSQLiteSchema');
+		const workspaceStorageInitDuration = perf.getDuration('willInitWorkspaceStorage', 'didInitWorkspaceStorage');
+		const workspaceStorageFileExistsDuration = perf.getDuration('willCheckWorkspaceStorageExists', 'didCheckWorkspaceStorageExists');
+		const workspaceStorageMigrationDuration = perf.getDuration('willMigrateWorkspaceStorageKeys', 'didMigrateWorkspaceStorageKeys');
+		const workbenchLoadDuration = perf.getDuration('willLoadWorkbenchMain', 'didLoadWorkbenchMain');
+		const localStorageDuration = perf.getDuration('willReadLocalStorage', 'didReadLocalStorage');
 
 		// Handle errors (avoid duplicates to reduce spam)
 		const loggedStorageErrors = new Set<string>();
@@ -301,67 +310,75 @@ export class WorkbenchShell extends Disposable {
 				loggedStorageErrors.add(errorStr);
 
 				/* __GDPR__
-					"sqliteStorageError" : {
-						"globalReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"sqliteStorageError3" : {
+						"appReadyTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"workbenchReadyTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"workspaceExistsTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"workspaceRequireTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"workspaceSchemaTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"workspaceReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"localStorageAccessTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"localStorageReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"workspaceMigrationTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"localStorageTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"workbenchRequireTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"globalKeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"workspaceKeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"startupKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"workspaceIntegrity" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"storageError": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+						"storageError": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 					}
 				*/
-				this.telemetryService.publicLog('sqliteStorageError', {
-					'globalReadTime': globalStorageInitDuration,
+				this.telemetryService.publicLog('sqliteStorageError3', {
+					'appReadyTime': appReadyDuration,
+					'workbenchReadyTime': workbenchReadyDuration,
+					'workspaceExistsTime': workspaceStorageFileExistsDuration,
+					'workspaceMigrationTime': workspaceStorageMigrationDuration,
+					'workspaceRequireTime': workspaceStorageRequireDuration,
+					'workspaceSchemaTime': workspaceStorageSchemaDuration,
 					'workspaceReadTime': workspaceStorageInitDuration,
-					'localStorageAccessTime': localStorageAccessDuration,
-					'localStorageReadTime': localStorageReadDuration,
+					'localStorageTime': localStorageDuration,
 					'workbenchRequireTime': workbenchLoadDuration,
-					'globalKeys': this.storageService.storage.getSize(StorageScope.GLOBAL),
 					'workspaceKeys': this.storageService.storage.getSize(StorageScope.WORKSPACE),
 					'startupKind': this.lifecycleService.startupKind,
-					'workspaceIntegrity': workspaceIntegrity,
 					'storageError': errorStr
 				});
 			}
 		}));
 
-		perf.mark('willCheckWorkspaceStorageIntegrity');
-		this.storageService.storage.checkIntegrity(StorageScope.WORKSPACE, false).then(integrity => {
-			perf.mark('didCheckWorkspaceStorageIntegrity');
 
-			workspaceIntegrity = integrity;
+		if (this.storageService.storage.hasErrors) {
+			return; // do not log performance numbers when errors occured
+		}
 
-			/* __GDPR__
-				"sqliteStorageTimers" : {
-					"globalReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-					"workspaceReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-					"localStorageAccessTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-					"localStorageReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-					"workspaceIntegrity" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-					"workspaceIntegrityCheckTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-					"workbenchRequireTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-					"globalKeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-					"workspaceKeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-					"startupKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-				}
-			*/
-			this.telemetryService.publicLog('sqliteStorageTimers', {
-				'globalReadTime': globalStorageInitDuration,
-				'workspaceReadTime': workspaceStorageInitDuration,
-				'localStorageAccessTime': localStorageAccessDuration,
-				'localStorageReadTime': localStorageReadDuration,
-				'workspaceIntegrity': workspaceIntegrity,
-				'workspaceIntegrityCheckTime': perf.getDuration('willCheckWorkspaceStorageIntegrity', 'didCheckWorkspaceStorageIntegrity'),
-				'workbenchRequireTime': workbenchLoadDuration,
-				'globalKeys': this.storageService.storage.getSize(StorageScope.GLOBAL),
-				'workspaceKeys': this.storageService.storage.getSize(StorageScope.WORKSPACE),
-				'startupKind': this.lifecycleService.startupKind
-			});
-		}, error => errors.onUnexpectedError(error));
+		if (this.environmentService.verbose) {
+			return; // do not log when running in verbose mode
+		}
+
+		/* __GDPR__
+			"sqliteStorageTimers3" : {
+				"appReadyTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"workbenchReadyTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"workspaceExistsTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"workspaceMigrationTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"workspaceRequireTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"workspaceSchemaTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"workspaceReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"localStorageTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"workbenchRequireTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"workspaceKeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"startupKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+			}
+		*/
+		this.telemetryService.publicLog('sqliteStorageTimers3', {
+			'appReadyTime': appReadyDuration,
+			'workbenchReadyTime': workbenchReadyDuration,
+			'workspaceExistsTime': workspaceStorageFileExistsDuration,
+			'workspaceMigrationTime': workspaceStorageMigrationDuration,
+			'workspaceRequireTime': workspaceStorageRequireDuration,
+			'workspaceSchemaTime': workspaceStorageSchemaDuration,
+			'workspaceReadTime': workspaceStorageInitDuration,
+			'localStorageTime': localStorageDuration,
+			'workbenchRequireTime': workbenchLoadDuration,
+			'workspaceKeys': this.storageService.storage.getSize(StorageScope.WORKSPACE),
+			'startupKind': this.lifecycleService.startupKind
+		});
 	}
 
 	private initServiceCollection(container: HTMLElement): [IInstantiationService, ServiceCollection] {
@@ -371,7 +388,6 @@ export class WorkbenchShell extends Disposable {
 		serviceCollection.set(IEnvironmentService, this.environmentService);
 		serviceCollection.set(ILabelService, new SyncDescriptor(LabelService));
 		serviceCollection.set(ILogService, this._register(this.logService));
-		serviceCollection.set(IStorageLegacyService, this.storageLegacyService);
 		serviceCollection.set(IStorageService, this.storageService);
 
 		this.mainProcessServices.forEach((serviceIdentifier, serviceInstance) => {
@@ -386,7 +402,7 @@ export class WorkbenchShell extends Disposable {
 		this.broadcastService = instantiationService.createInstance(BroadcastService, this.configuration.windowId);
 		serviceCollection.set(IBroadcastService, this.broadcastService);
 
-		serviceCollection.set(IWindowService, new SyncDescriptor(WindowService, this.configuration.windowId, this.configuration));
+		serviceCollection.set(IWindowService, new SyncDescriptor(WindowService, [this.configuration.windowId, this.configuration]));
 
 		const sharedProcess = (<IWindowsService>serviceCollection.get(IWindowsService)).whenSharedProcessReady()
 			.then(() => connectNet(this.environmentService.sharedIPCHandle, `window:${this.configuration.windowId}`));
@@ -437,9 +453,16 @@ export class WorkbenchShell extends Disposable {
 		serviceCollection.set(IDownloadService, new SyncDescriptor(DownloadService));
 		serviceCollection.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
 
+		const remoteAuthorityResolverChannel = getDelayedChannel<IRemoteAuthorityResolverChannel>(sharedProcess.then(c => c.getChannel('remoteAuthorityResolver')));
+		const remoteAuthorityResolverService = new RemoteAuthorityResolverChannelClient(remoteAuthorityResolverChannel);
+		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
+
+		const remoteAgentService = new RemoteAgentService(this.configuration, this.notificationService, this.environmentService, remoteAuthorityResolverService);
+		serviceCollection.set(IRemoteAgentService, remoteAgentService);
+
 		const extensionManagementChannel = getDelayedChannel<IExtensionManagementChannel>(sharedProcess.then(c => c.getChannel('extensions')));
 		const extensionManagementChannelClient = new ExtensionManagementChannelClient(extensionManagementChannel, DefaultURITransformer);
-		serviceCollection.set(IExtensionManagementServerService, new SyncDescriptor(ExtensionManagementServerService, extensionManagementChannelClient));
+		serviceCollection.set(IExtensionManagementServerService, new SyncDescriptor(ExtensionManagementServerService, [extensionManagementChannelClient]));
 		serviceCollection.set(IExtensionManagementService, extensionManagementChannelClient);
 
 		const extensionEnablementService = this._register(instantiationService.createInstance(ExtensionEnablementService));
@@ -481,7 +504,7 @@ export class WorkbenchShell extends Disposable {
 		serviceCollection.set(IIntegrityService, new SyncDescriptor(IntegrityServiceImpl));
 
 		const localizationsChannel = getDelayedChannel<ILocalizationsChannel>(sharedProcess.then(c => c.getChannel('localizations')));
-		serviceCollection.set(ILocalizationsService, new SyncDescriptor(LocalizationsChannelClient, localizationsChannel));
+		serviceCollection.set(ILocalizationsService, new SyncDescriptor(LocalizationsChannelClient, [localizationsChannel]));
 
 		return [instantiationService, serviceCollection];
 	}
@@ -517,13 +540,25 @@ export class WorkbenchShell extends Disposable {
 	}
 
 	private registerListeners(): void {
+		this._register(addDisposableListener(window, EventType.RESIZE, e => this.onWindowResize(e, true)));
+	}
 
-		// Resize
-		this._register(addDisposableListener(window, EventType.RESIZE, e => {
-			if (e.target === window) {
-				this.layout();
+	private onWindowResize(e: any, retry: boolean): void {
+		if (e.target === window) {
+			if (window.document && window.document.body && window.document.body.clientWidth === 0) {
+				// TODO@Ben this is an electron issue on macOS when simple fullscreen is enabled
+				// where for some reason the window clientWidth is reported as 0 when switching
+				// between simple fullscreen and normal screen. In that case we schedule the layout
+				// call at the next animation frame once, in the hope that the dimensions are
+				// proper then.
+				if (retry) {
+					scheduleAtNextAnimationFrame(() => this.onWindowResize(e, false));
+				}
+				return;
 			}
-		}));
+
+			this.layout();
+		}
 	}
 
 	onUnexpectedError(error: any): void {

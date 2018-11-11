@@ -487,8 +487,8 @@ export class TerminalInstance implements ITerminalInstance {
 			// Discard first frame time as it's normal to take longer
 			frameTimes.shift();
 
-			const averageTime = frameTimes.reduce((p, c) => p + c) / frameTimes.length;
-			if (averageTime > SLOW_CANVAS_RENDER_THRESHOLD) {
+			const medianTime = frameTimes.sort()[Math.floor(frameTimes.length / 2)];
+			if (medianTime > SLOW_CANVAS_RENDER_THRESHOLD) {
 				const promptChoices: IPromptChoice[] = [
 					{
 						label: nls.localize('yes', "Yes"),
@@ -513,7 +513,6 @@ export class TerminalInstance implements ITerminalInstance {
 					nls.localize('terminal.slowRendering', 'The standard renderer for the integrated terminal appears to be slow on your computer. Would you like to switch to the alternative DOM-based renderer which may improve performance? [Read more about terminal settings](https://code.visualstudio.com/docs/editor/integrated-terminal#_changing-how-the-terminal-is-rendered).'),
 					promptChoices
 				);
-				console.warn('The standard renderer for the integrated terminal appears to be slow, frame times follow:', frameTimes);
 			}
 		};
 

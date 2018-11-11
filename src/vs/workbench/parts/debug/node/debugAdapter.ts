@@ -13,7 +13,6 @@ import * as strings from 'vs/base/common/strings';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { Emitter, Event } from 'vs/base/common/event';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtensionsChannelId } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
@@ -42,44 +41,41 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 		this._onExit = new Emitter<number>();
 	}
 
-	abstract startSession(): TPromise<void>;
-	abstract stopSession(): TPromise<void>;
-
-	public dispose(): void {
-	}
+	abstract startSession(): Promise<void>;
+	abstract stopSession(): Promise<void>;
 
 	abstract sendMessage(message: DebugProtocol.ProtocolMessage): void;
 
-	public get onError(): Event<Error> {
+	get onError(): Event<Error> {
 		return this._onError.event;
 	}
 
-	public get onExit(): Event<number> {
+	get onExit(): Event<number> {
 		return this._onExit.event;
 	}
 
-	public onMessage(callback: (message: DebugProtocol.ProtocolMessage) => void): void {
+	onMessage(callback: (message: DebugProtocol.ProtocolMessage) => void): void {
 		if (this.eventCallback) {
 			this._onError.fire(new Error(`attempt to set more than one 'Message' callback`));
 		}
 		this.messageCallback = callback;
 	}
 
-	public onEvent(callback: (event: DebugProtocol.Event) => void): void {
+	onEvent(callback: (event: DebugProtocol.Event) => void): void {
 		if (this.eventCallback) {
 			this._onError.fire(new Error(`attempt to set more than one 'Event' callback`));
 		}
 		this.eventCallback = callback;
 	}
 
-	public onRequest(callback: (request: DebugProtocol.Request) => void): void {
+	onRequest(callback: (request: DebugProtocol.Request) => void): void {
 		if (this.requestCallback) {
 			this._onError.fire(new Error(`attempt to set more than one 'Request' callback`));
 		}
 		this.requestCallback = callback;
 	}
 
-	public sendResponse(response: DebugProtocol.Response): void {
+	sendResponse(response: DebugProtocol.Response): void {
 		if (response.seq > 0) {
 			this._onError.fire(new Error(`attempt to send more than one response for command ${response.command}`));
 		} else {
@@ -87,7 +83,7 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 		}
 	}
 
-	public sendRequest(command: string, args: any, clb: (result: DebugProtocol.Response) => void, timeout?: number): void {
+	sendRequest(command: string, args: any, clb: (result: DebugProtocol.Response) => void, timeout?: number): void {
 
 		const request: any = {
 			command: command
@@ -123,7 +119,7 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 		}
 	}
 
-	public acceptMessage(message: DebugProtocol.ProtocolMessage): void {
+	acceptMessage(message: DebugProtocol.ProtocolMessage): void {
 		if (this.messageCallback) {
 			this.messageCallback(message);
 		} else {
@@ -175,6 +171,10 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 			});
 		}, 1000);
 	}
+
+	dispose(): void {
+		this.cancelPending();
+	}
 }
 
 /**
@@ -203,7 +203,7 @@ export abstract class StreamDebugAdapter extends AbstractDebugAdapter {
 		readable.on('data', (data: Buffer) => this.handleData(data));
 	}
 
-	public sendMessage(message: DebugProtocol.ProtocolMessage): void {
+	sendMessage(message: DebugProtocol.ProtocolMessage): void {
 
 		if (this.outputStream) {
 			const json = JSON.stringify(message);
@@ -261,7 +261,7 @@ export class SocketDebugAdapter extends StreamDebugAdapter {
 		super();
 	}
 
-	startSession(): TPromise<void> {
+	startSession(): Promise<void> {
 		return new Promise<void>((resolve, reject) => {
 			let connected = false;
 			this.socket = net.createConnection(this.adapterServer.port, this.adapterServer.host || '127.0.0.1', () => {
@@ -286,7 +286,7 @@ export class SocketDebugAdapter extends StreamDebugAdapter {
 		});
 	}
 
-	stopSession(): TPromise<void> {
+	stopSession(): Promise<void> {
 
 		// Cancel all sent promises on disconnect so debug trees are not left in a broken state #3666.
 		this.cancelPending();
@@ -310,7 +310,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 		super();
 	}
 
-	startSession(): TPromise<void> {
+	startSession(): Promise<void> {
 
 		return new Promise<void>((resolve, reject) => {
 
@@ -401,7 +401,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 		});
 	}
 
-	stopSession(): TPromise<void> {
+	stopSession(): Promise<void> {
 
 		// Cancel all sent promises on disconnect so debug trees are not left in a broken state #3666.
 		this.cancelPending();
@@ -474,7 +474,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 		return result;
 	}
 
-	public static platformAdapterExecutable(extensionDescriptions: IExtensionDescription[], debugType: string): IDebugAdapterExecutable {
+	static platformAdapterExecutable(extensionDescriptions: IExtensionDescription[], debugType: string): IDebugAdapterExecutable {
 		const result: IDebuggerContribution = Object.create(null);
 		debugType = debugType.toLowerCase();
 

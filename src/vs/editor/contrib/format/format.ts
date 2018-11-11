@@ -22,11 +22,13 @@ export class NoProviderError extends Error {
 	constructor(message?: string) {
 		super();
 		this.name = NoProviderError.Name;
-		this.message = message;
+		if (message) {
+			this.message = message;
+		}
 	}
 }
 
-export function getDocumentRangeFormattingEdits(model: ITextModel, range: Range, options: FormattingOptions, token: CancellationToken): Promise<TextEdit[]> {
+export function getDocumentRangeFormattingEdits(model: ITextModel, range: Range, options: FormattingOptions, token: CancellationToken): Promise<TextEdit[] | undefined | null> {
 
 	const providers = DocumentRangeFormattingEditProviderRegistry.ordered(model);
 
@@ -40,7 +42,7 @@ export function getDocumentRangeFormattingEdits(model: ITextModel, range: Range,
 	}), result => !isFalsyOrEmpty(result));
 }
 
-export function getDocumentFormattingEdits(model: ITextModel, options: FormattingOptions, token: CancellationToken): Promise<TextEdit[]> {
+export function getDocumentFormattingEdits(model: ITextModel, options: FormattingOptions, token: CancellationToken): Promise<TextEdit[] | null | undefined> {
 	const providers = DocumentFormattingEditProviderRegistry.ordered(model);
 
 	// try range formatters when no document formatter is registered
@@ -54,7 +56,7 @@ export function getDocumentFormattingEdits(model: ITextModel, options: Formattin
 	}), result => !isFalsyOrEmpty(result));
 }
 
-export function getOnTypeFormattingEdits(model: ITextModel, position: Position, ch: string, options: FormattingOptions): Promise<TextEdit[]> {
+export function getOnTypeFormattingEdits(model: ITextModel, position: Position, ch: string, options: FormattingOptions): Promise<TextEdit[] | null | undefined> {
 	const [support] = OnTypeFormattingEditProviderRegistry.ordered(model);
 	if (!support) {
 		return Promise.resolve(undefined);

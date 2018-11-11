@@ -9,7 +9,6 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
@@ -58,7 +57,7 @@ import { SearchViewLocationUpdater } from 'vs/workbench/parts/search/browser/sea
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
-registerSingleton(ISearchWorkbenchService, SearchWorkbenchService);
+registerSingleton(ISearchWorkbenchService, SearchWorkbenchService, true);
 replaceContributions();
 searchWidgetContributions();
 
@@ -430,7 +429,7 @@ class ShowAllSymbolsAction extends Action {
 		this.enabled = !!this.quickOpenService;
 	}
 
-	public run(context?: any): TPromise<void> {
+	public run(context?: any): Promise<void> {
 
 		let prefix = ShowAllSymbolsAction.ALL_SYMBOLS_PREFIX;
 		let inputSelection: { start: number; end: number; } = void 0;
@@ -443,7 +442,7 @@ class ShowAllSymbolsAction extends Action {
 
 		this.quickOpenService.show(prefix, { inputSelection });
 
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }
 
@@ -586,14 +585,13 @@ configurationRegistry.registerConfiguration({
 		},
 		'search.useRipgrep': {
 			type: 'boolean',
-			description: nls.localize('useRipgrep', "Deprecated. This setting now falls back on \"search.usePCRE2\"."),
+			description: nls.localize('useRipgrep', "This setting is deprecated and now falls back on \"search.usePCRE2\"."),
 			deprecationMessage: nls.localize('useRipgrepDeprecated', "Deprecated. Consider \"search.usePCRE2\" for advanced regex feature support."),
 			default: true
 		},
-		'search.disableRipgrep': {
+		'search.useLegacySearch': {
 			type: 'boolean',
-			description: nls.localize('disableRipgrep', "Deprecated. Controls whether to use ripgrep in text and file search."),
-			deprecationMessage: nls.localize('disableRipgrepDeprecated', "Deprecated. Consider \"search.usePCRE2\" for advanced regex feature support."),
+			description: nls.localize('useLegacySearch', "Controls whether to use the deprecated legacy mode for text and file search. It supports some text encodings that are not supported by the standard ripgrep-based search."),
 			default: false
 		},
 		'search.useIgnoreFiles': {
@@ -675,7 +673,7 @@ configurationRegistry.registerConfiguration({
 		'search.usePCRE2': {
 			type: 'boolean',
 			default: false,
-			description: nls.localize('search.usePCRE2', "Whether to use the PCRE2 regex engine in text search. This enables using some advaned regex features like lookbehind and backreferences.")
+			description: nls.localize('search.usePCRE2', "Whether to use the PCRE2 regex engine in text search. This enables using some advanced regex features like lookbehind and backreferences. However, not all PCRE2 features are supported - only features that are also supported by JavaScript.")
 		}
 	}
 });

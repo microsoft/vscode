@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditorWorkerClient } from 'vs/editor/common/services/editorWorkerServiceImpl';
+import { IModelService } from 'vs/editor/common/services/modelService';
 
 /**
  * Create a new web worker that has model syncing capabilities built in.

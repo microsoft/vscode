@@ -29,7 +29,7 @@ import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import product from 'vs/platform/node/product';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IProgressService2, ProgressLocation } from 'vs/workbench/services/progress/common/progress';
+import { IProgressService2, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { groupBy } from 'vs/base/common/collections';
@@ -956,7 +956,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 
 	private onEnablementChanged(identifier: IExtensionIdentifier) {
 		const [extension] = this.local.filter(e => areSameExtensions(e, identifier));
-		if (extension) {
+		if (extension && extension.local) {
 			const enablementState = this.extensionEnablementService.getEnablementState(extension.local);
 			if (enablementState !== extension.enablementState) {
 				extension.enablementState = enablementState;

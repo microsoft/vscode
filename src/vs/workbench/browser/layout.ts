@@ -25,7 +25,6 @@ import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
 import { StatusbarPart } from 'vs/workbench/browser/parts/statusbar/statusbarPart';
 import { getZoomFactor } from 'vs/base/browser/browser';
-import { RunOnceScheduler } from 'vs/base/common/async';
 import * as perf from 'vs/base/common/performance';
 
 const TITLE_BAR_HEIGHT = isMacintosh ? 22 : 30;
@@ -69,8 +68,6 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 	private _panelHeight: number;
 	private _panelWidth: number;
 
-	private saveStateScheduler: RunOnceScheduler;
-
 	constructor(
 		private parent: HTMLElement,
 		private workbenchContainer: HTMLElement,
@@ -103,9 +100,6 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 		this.sashXTwo = new Sash(this.workbenchContainer, this);
 		this.sashY = new Sash(this.workbenchContainer, this, { orientation: Orientation.HORIZONTAL });
 
-		// State scheduler
-		this.saveStateScheduler = this._register(new RunOnceScheduler(() => this.saveState(), 800));
-
 		this.registerListeners();
 	}
 
@@ -122,10 +116,6 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 	private registerListeners(): void {
 		this._register(this.themeService.onThemeChange(_ => this.layout()));
 		this._register(this.parts.editor.onDidSizeConstraintsChange(() => this.onDidEditorSizeConstraintsChange()));
-		this._register(this.storageService.onWillSaveState(() => {
-			this.saveStateScheduler.dispose();
-			this.saveState();
-		}));
 
 		this.registerSashListeners();
 	}
@@ -271,7 +261,6 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 			let sidebarPosition = this.partService.getSideBarPosition();
 			let isSidebarVisible = this.partService.isVisible(Parts.SIDEBAR_PART);
 			let newSashWidth = (sidebarPosition === Position.LEFT) ? startSidebarWidth + e.currentX - startX : startSidebarWidth - e.currentX + startX;
-			let promise: Thenable<void> = Promise.resolve<void>(null);
 
 			// Sidebar visible
 			if (isSidebarVisible) {
@@ -279,7 +268,7 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 				// Automatically hide side bar when a certain threshold is met
 				if (newSashWidth + HIDE_SIDEBAR_WIDTH_THRESHOLD < this.partLayoutInfo.sidebar.minWidth) {
 					let dragCompensation = this.partLayoutInfo.sidebar.minWidth - HIDE_SIDEBAR_WIDTH_THRESHOLD;
-					promise = this.partService.setSideBarHidden(true);
+					this.partService.setSideBarHidden(true);
 					startX = (sidebarPosition === Position.LEFT) ? Math.max(this.activitybarWidth, e.currentX - dragCompensation) : Math.min(e.currentX + dragCompensation, this.workbenchSize.width - this.activitybarWidth);
 					this.sidebarWidth = startSidebarWidth; // when restoring sidebar, restore to the sidebar width we started from
 				}
@@ -297,12 +286,12 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 					(sidebarPosition === Position.RIGHT && startX - e.currentX >= this.partLayoutInfo.sidebar.minWidth)) {
 					startSidebarWidth = this.partLayoutInfo.sidebar.minWidth - (sidebarPosition === Position.LEFT ? e.currentX - startX : startX - e.currentX);
 					this.sidebarWidth = this.partLayoutInfo.sidebar.minWidth;
-					promise = this.partService.setSideBarHidden(false);
+					this.partService.setSideBarHidden(false);
 				}
 			}
 
 			if (doLayout) {
-				promise.then(() => this.layout({ source: Parts.SIDEBAR_PART }));
+				this.layout({ source: Parts.SIDEBAR_PART });
 			}
 		}));
 
@@ -310,7 +299,6 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 			let doLayout = false;
 			let isPanelVisible = this.partService.isVisible(Parts.PANEL_PART);
 			let newSashHeight = startPanelHeight - (e.currentY - startY);
-			let promise: Thenable<void> = Promise.resolve<void>(null);
 
 			// Panel visible
 			if (isPanelVisible) {
@@ -318,7 +306,7 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 				// Automatically hide panel when a certain threshold is met
 				if (newSashHeight + HIDE_PANEL_HEIGHT_THRESHOLD < this.partLayoutInfo.panel.minHeight) {
 					let dragCompensation = this.partLayoutInfo.panel.minHeight - HIDE_PANEL_HEIGHT_THRESHOLD;
-					promise = this.partService.setPanelHidden(true);
+					this.partService.setPanelHidden(true);
 					startY = Math.min(this.sidebarHeight - this.statusbarHeight - this.titlebarHeight, e.currentY + dragCompensation);
 					this.panelHeight = startPanelHeight; // when restoring panel, restore to the panel height we started from
 				}
@@ -335,12 +323,12 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 				if (startY - e.currentY >= this.partLayoutInfo.panel.minHeight) {
 					startPanelHeight = 0;
 					this.panelHeight = this.partLayoutInfo.panel.minHeight;
-					promise = this.partService.setPanelHidden(false);
+					this.partService.setPanelHidden(false);
 				}
 			}
 
 			if (doLayout) {
-				promise.then(() => this.layout({ source: Parts.PANEL_PART }));
+				this.layout({ source: Parts.PANEL_PART });
 			}
 		}));
 
@@ -348,7 +336,6 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 			let doLayout = false;
 			let isPanelVisible = this.partService.isVisible(Parts.PANEL_PART);
 			let newSashWidth = startPanelWidth - (e.currentX - startXTwo);
-			let promise: Thenable<void> = Promise.resolve<void>(null);
 
 			// Panel visible
 			if (isPanelVisible) {
@@ -356,7 +343,7 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 				// Automatically hide panel when a certain threshold is met
 				if (newSashWidth + HIDE_PANEL_WIDTH_THRESHOLD < this.partLayoutInfo.panel.minWidth) {
 					let dragCompensation = this.partLayoutInfo.panel.minWidth - HIDE_PANEL_WIDTH_THRESHOLD;
-					promise = this.partService.setPanelHidden(true);
+					this.partService.setPanelHidden(true);
 					startXTwo = Math.min(this.workbenchSize.width - this.activitybarWidth, e.currentX + dragCompensation);
 					this.panelWidth = startPanelWidth; // when restoring panel, restore to the panel height we started from
 				}
@@ -373,31 +360,30 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 				if (startXTwo - e.currentX >= this.partLayoutInfo.panel.minWidth) {
 					startPanelWidth = 0;
 					this.panelWidth = this.partLayoutInfo.panel.minWidth;
-					promise = this.partService.setPanelHidden(false);
+					this.partService.setPanelHidden(false);
 				}
 			}
 
 			if (doLayout) {
-				promise.then(() => this.layout({ source: Parts.PANEL_PART }));
+				this.layout({ source: Parts.PANEL_PART });
 			}
 		}));
 
 		this._register(this.sashXOne.onDidEnd(() => {
-			this.saveStateScheduler.schedule();
+			this.storageService.store(WorkbenchLayout.sashXOneWidthSettingsKey, this.sidebarWidth, StorageScope.GLOBAL);
 		}));
 
 		this._register(this.sashY.onDidEnd(() => {
-			this.saveStateScheduler.schedule();
+			this.storageService.store(WorkbenchLayout.sashYHeightSettingsKey, this.panelHeight, StorageScope.GLOBAL);
 		}));
 
 		this._register(this.sashXTwo.onDidEnd(() => {
-			this.saveStateScheduler.schedule();
+			this.storageService.store(WorkbenchLayout.sashXTwoWidthSettingsKey, this.panelWidth, StorageScope.GLOBAL);
 		}));
 
 		this._register(this.sashY.onDidReset(() => {
 			this.panelHeight = this.sidebarHeight * DEFAULT_PANEL_SIZE_COEFFICIENT;
-
-			this.saveStateScheduler.schedule();
+			this.storageService.store(WorkbenchLayout.sashYHeightSettingsKey, this.panelHeight, StorageScope.GLOBAL);
 
 			this.layout();
 		}));
@@ -406,22 +392,21 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 			let activeViewlet = this.viewletService.getActiveViewlet();
 			let optimalWidth = activeViewlet && activeViewlet.getOptimalWidth();
 			this.sidebarWidth = Math.max(optimalWidth, DEFAULT_SIDEBAR_PART_WIDTH);
+			this.storageService.store(WorkbenchLayout.sashXOneWidthSettingsKey, this.sidebarWidth, StorageScope.GLOBAL);
 
-			this.saveStateScheduler.schedule();
-
-			this.partService.setSideBarHidden(false).then(() => this.layout());
+			this.partService.setSideBarHidden(false);
+			this.layout();
 		}));
 
 		this._register(this.sashXTwo.onDidReset(() => {
 			this.panelWidth = (this.workbenchSize.width - this.sidebarWidth - this.activitybarWidth) * DEFAULT_PANEL_SIZE_COEFFICIENT;
-
-			this.saveStateScheduler.schedule();
+			this.storageService.store(WorkbenchLayout.sashXTwoWidthSettingsKey, this.panelWidth, StorageScope.GLOBAL);
 
 			this.layout();
 		}));
 	}
 
-	layout(options?: ILayoutOptions): void { //
+	layout(options?: ILayoutOptions): void {
 		this.workbenchSize = getClientArea(this.parent);
 
 		const isActivityBarHidden = !this.partService.isVisible(Parts.ACTIVITYBAR_PART);
@@ -490,6 +475,8 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 			}
 		}
 
+		this.storageService.store(WorkbenchLayout.panelSizeBeforeMaximizedKey, this.panelSizeBeforeMaximized, StorageScope.GLOBAL);
+
 		const panelDimension = new Dimension(panelWidth, panelHeight);
 
 		// Editor
@@ -544,13 +531,16 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 
 		if (!isSidebarHidden) {
 			this.sidebarWidth = sidebarSize.width;
+			this.storageService.store(WorkbenchLayout.sashXOneWidthSettingsKey, this.sidebarWidth, StorageScope.GLOBAL);
 		}
 
 		if (!isPanelHidden) {
 			if (panelPosition === Position.BOTTOM) {
 				this.panelHeight = panelDimension.height;
+				this.storageService.store(WorkbenchLayout.sashYHeightSettingsKey, this.panelHeight, StorageScope.GLOBAL);
 			} else {
 				this.panelWidth = panelDimension.width;
+				this.storageService.store(WorkbenchLayout.sashXTwoWidthSettingsKey, this.panelWidth, StorageScope.GLOBAL);
 			}
 		}
 
@@ -670,9 +660,6 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 
 		// Propagate to Context View
 		this.contextViewService.layout();
-
-		// Schedule save state
-		this.saveStateScheduler.schedule();
 	}
 
 	getVerticalSashTop(sash: Sash): number {
@@ -773,14 +760,5 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 		if (doLayout) {
 			this.layout();
 		}
-	}
-
-	private saveState(): void {
-		this.storageService.store(WorkbenchLayout.sashXOneWidthSettingsKey, this.sidebarWidth, StorageScope.GLOBAL);
-
-		this.storageService.store(WorkbenchLayout.sashYHeightSettingsKey, this.panelHeight, StorageScope.GLOBAL);
-		this.storageService.store(WorkbenchLayout.sashXTwoWidthSettingsKey, this.panelWidth, StorageScope.GLOBAL);
-
-		this.storageService.store(WorkbenchLayout.panelSizeBeforeMaximizedKey, this.panelSizeBeforeMaximized, StorageScope.GLOBAL);
 	}
 }

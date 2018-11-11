@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as Platform from 'vs/base/common/platform';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import * as platform from 'vs/base/common/platform';
 
 class WindowManager {
 
@@ -74,11 +74,11 @@ class WindowManager {
 	}
 
 	// --- Accessibility
-	private _accessibilitySupport = Platform.AccessibilitySupport.Unknown;
+	private _accessibilitySupport = platform.AccessibilitySupport.Unknown;
 	private readonly _onDidChangeAccessibilitySupport: Emitter<void> = new Emitter<void>();
 
 	public readonly onDidChangeAccessibilitySupport: Event<void> = this._onDidChangeAccessibilitySupport.event;
-	public setAccessibilitySupport(accessibilitySupport: Platform.AccessibilitySupport): void {
+	public setAccessibilitySupport(accessibilitySupport: platform.AccessibilitySupport): void {
 		if (this._accessibilitySupport === accessibilitySupport) {
 			return;
 		}
@@ -86,7 +86,7 @@ class WindowManager {
 		this._accessibilitySupport = accessibilitySupport;
 		this._onDidChangeAccessibilitySupport.fire();
 	}
-	public getAccessibilitySupport(): Platform.AccessibilitySupport {
+	public getAccessibilitySupport(): platform.AccessibilitySupport {
 		return this._accessibilitySupport;
 	}
 }
@@ -126,10 +126,10 @@ export function isFullscreen(): boolean {
 }
 export const onDidChangeFullscreen = WindowManager.INSTANCE.onDidChangeFullscreen;
 
-export function setAccessibilitySupport(accessibilitySupport: Platform.AccessibilitySupport): void {
+export function setAccessibilitySupport(accessibilitySupport: platform.AccessibilitySupport): void {
 	WindowManager.INSTANCE.setAccessibilitySupport(accessibilitySupport);
 }
-export function getAccessibilitySupport(): Platform.AccessibilitySupport {
+export function getAccessibilitySupport(): platform.AccessibilitySupport {
 	return WindowManager.INSTANCE.getAccessibilitySupport();
 }
 export function onDidChangeAccessibilitySupport(callback: () => void): IDisposable {

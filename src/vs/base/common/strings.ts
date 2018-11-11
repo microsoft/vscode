@@ -78,7 +78,7 @@ export function escapeRegExpCharacters(value: string): string {
  * @param haystack string to trim
  * @param needle the thing to trim (default is a blank)
  */
-export function trim(haystack: string, needle: string = ' '): string | undefined {
+export function trim(haystack: string, needle: string = ' '): string {
 	let trimmed = ltrim(haystack, needle);
 	return rtrim(trimmed, needle);
 }

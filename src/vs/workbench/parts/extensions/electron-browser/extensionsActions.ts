@@ -16,7 +16,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet, AutoUpdateConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/parts/extensions/common/extensionsFileTemplate';
-import { LocalExtensionType, IExtensionEnablementService, IExtensionTipsService, EnablementState, ExtensionsLabel, IExtensionRecommendation, IGalleryExtension, IExtensionsConfigContent, IExtensionManagementServerService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { LocalExtensionType, IExtensionEnablementService, IExtensionTipsService, EnablementState, ExtensionsLabel, IExtensionRecommendation, IGalleryExtension, IExtensionsConfigContent, IExtensionManagementServerService, INSTALL_ERROR_MALICIOUS, INSTALL_ERROR_INCOMPATIBLE } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ShowViewletAction } from 'vs/workbench/browser/viewlet';
@@ -50,28 +50,34 @@ import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensions
 import product from 'vs/platform/node/product';
 import { IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { clipboard } from 'electron';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 
-const promptDownloadManually = (extension: IGalleryExtension, message: string, instantiationService: IInstantiationService, notificationService: INotificationService, openerService: IOpenerService) => {
-	const downloadUrl = `${product.extensionsGallery.serviceUrl}/publishers/${extension.publisher}/vsextensions/${extension.name}/${extension.version}/vspackage`;
-	notificationService.prompt(Severity.Error, message, [{
-		label: localize('download', "Download Manually"),
-		run: () => openerService.open(URI.parse(downloadUrl)).then(() => {
-			notificationService.prompt(
-				Severity.Info,
-				localize('install vsix', 'Once downloaded, please manually install the downloaded VSIX of \'{0}\'.', extension.identifier.id),
-				[{
-					label: InstallVSIXAction.LABEL,
-					run: () => {
-						const action = instantiationService.createInstance(InstallVSIXAction, InstallVSIXAction.ID, InstallVSIXAction.LABEL);
-						action.run();
-						action.dispose();
-					}
-				}]
-			);
-		})
-	}]);
+const promptDownloadManually = (extension: IGalleryExtension, message: string, error: Error, instantiationService: IInstantiationService, notificationService: INotificationService, openerService: IOpenerService) => {
+	if (error.name === INSTALL_ERROR_INCOMPATIBLE || error.name === INSTALL_ERROR_MALICIOUS) {
+		return Promise.reject(error);
+	} else {
+		const downloadUrl = `${product.extensionsGallery.serviceUrl}/publishers/${extension.publisher}/vsextensions/${extension.name}/${extension.version}/vspackage`;
+		notificationService.prompt(Severity.Error, message, [{
+			label: localize('download', "Download Manually"),
+			run: () => openerService.open(URI.parse(downloadUrl)).then(() => {
+				notificationService.prompt(
+					Severity.Info,
+					localize('install vsix', 'Once downloaded, please manually install the downloaded VSIX of \'{0}\'.', extension.identifier.id),
+					[{
+						label: InstallVSIXAction.LABEL,
+						run: () => {
+							const action = instantiationService.createInstance(InstallVSIXAction, InstallVSIXAction.ID, InstallVSIXAction.LABEL);
+							action.run();
+							action.dispose();
+						}
+					}]
+				);
+			})
+		}]);
+		return Promise.resolve();
+	}
 };
 
 export interface IExtensionAction extends IAction {
@@ -147,7 +153,7 @@ export class InstallAction extends Action {
 
 			console.error(err);
 
-			promptDownloadManually(extension.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", extension.id), this.instantiationService, this.notificationService, this.openerService);
+			return promptDownloadManually(extension.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", extension.id), err, this.instantiationService, this.notificationService, this.openerService);
 		});
 	}
 
@@ -374,7 +380,7 @@ export class UpdateAction extends Action {
 
 			console.error(err);
 
-			promptDownloadManually(extension.gallery, localize('failedToUpdate', "Failed to update \'{0}\'.", extension.id), this.instantiationService, this.notificationService, this.openerService);
+			return promptDownloadManually(extension.gallery, localize('failedToUpdate', "Failed to update \'{0}\'.", extension.id), err, this.instantiationService, this.notificationService, this.openerService);
 		});
 	}
 
@@ -447,7 +453,7 @@ export class DropDownMenuActionItem extends ExtensionActionItem {
 		const anchor = { x: elementPosition.left, y: elementPosition.top + elementPosition.height + 10 };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => Promise.resolve(actions),
+			getActions: () => actions,
 			actionRunner: this.actionRunner
 		});
 	}
@@ -515,6 +521,7 @@ export class ManageExtensionAction extends Action {
 			this.instantiationService.createInstance(DisableForWorkspaceAction, DisableForWorkspaceAction.LABEL)
 		]);
 		groups.push([this.instantiationService.createInstance(UninstallAction)]);
+		groups.push([this.instantiationService.createInstance(ExtensionInfoAction)]);
 		return groups;
 	}
 
@@ -547,6 +554,36 @@ export class ManageExtensionAction extends Action {
 	}
 }
 
+export class ExtensionInfoAction extends Action implements IExtensionAction {
+	static readonly ID = 'extensions.extensionInfo';
+	static readonly LABEL = localize('extensionInfoAction', "Copy Extension information");
+
+	private _extension: IExtension;
+
+	get extension(): IExtension { return this._extension; }
+	set extension(extension: IExtension) { this._extension = extension; }
+
+	constructor() {
+		super(ExtensionInfoAction.ID, ExtensionInfoAction.LABEL);
+	}
+
+	run(): Promise<any> {
+		const { description, version, publisherDisplayName, id, displayName } = this.extension;
+
+		const localizedExtension = localize('extensionInfoName', 'Name') + ': ' + displayName;
+		const localizedExtensionId = localize('extensionInfoId', 'Id') + ': ' + id;
+		const localizedDescription = localize('extensionInfoDescription', 'Description') + ': ' + description;
+		const localizedVersion = localize('extensionInfoVersion', 'Version') + ': ' + version;
+		const localizedPublisher = localize('extensionInfoPublisher', 'Publisher') + ': ' + publisherDisplayName;
+		const localizedVSMarketplaceLink = localize('extensionInfoVSMarketplaceLink', 'VS Marketplace Link') + ': https://marketplace.visualstudio.com/items?itemName=' + id;
+
+		const clipboardStr = `${localizedExtension}\n${localizedExtensionId}\n${localizedDescription}\n${localizedVersion}\n${localizedPublisher}\n${localizedVSMarketplaceLink}`;
+
+		clipboard.writeText(clipboardStr);
+		return Promise.resolve(null);
+	}
+}
+
 export class EnableForWorkspaceAction extends Action implements IExtensionAction {
 
 	static readonly ID = 'extensions.enableForWorkspace';
@@ -572,7 +609,7 @@ export class EnableForWorkspaceAction extends Action implements IExtensionAction
 	private update(): void {
 		this.enabled = false;
 		if (this.extension) {
-			this.enabled = (this.extension.enablementState === EnablementState.Disabled || this.extension.enablementState === EnablementState.WorkspaceDisabled) && this.extension.local && this.extensionEnablementService.canChangeEnablement(this.extension.local);
+			this.enabled = this.extension.state === ExtensionState.Installed && (this.extension.enablementState === EnablementState.Disabled || this.extension.enablementState === EnablementState.WorkspaceDisabled) && this.extension.local && this.extensionEnablementService.canChangeEnablement(this.extension.local);
 		}
 	}
 
@@ -609,7 +646,7 @@ export class EnableGloballyAction extends Action implements IExtensionAction {
 	private update(): void {
 		this.enabled = false;
 		if (this.extension) {
-			this.enabled = (this.extension.enablementState === EnablementState.Disabled || this.extension.enablementState === EnablementState.WorkspaceDisabled) && this.extension.local && this.extensionEnablementService.canChangeEnablement(this.extension.local);
+			this.enabled = this.extension.state === ExtensionState.Installed && this.extension.enablementState === EnablementState.Disabled && this.extension.local && this.extensionEnablementService.canChangeEnablement(this.extension.local);
 		}
 	}
 
@@ -626,13 +663,11 @@ export class EnableGloballyAction extends Action implements IExtensionAction {
 export class EnableAction extends Action {
 
 	static readonly ID = 'extensions.enable';
-	private static readonly EnabledClass = 'extension-action prominent enable';
+	private static readonly EnabledClass = 'extension-action enable';
+	private static readonly EnabledDropDownClass = 'extension-action dropdown enable';
 	private static readonly DisabledClass = `${EnableAction.EnabledClass} disabled`;
 
 	private disposables: IDisposable[] = [];
-
-	private _enableActions: IExtensionAction[];
-
 	private _actionItem: DropDownMenuActionItem;
 	get actionItem(): IActionItem { return this._actionItem; }
 
@@ -640,18 +675,16 @@ export class EnableAction extends Action {
 	get extension(): IExtension { return this._extension; }
 	set extension(extension: IExtension) { this._extension = extension; this.update(); }
 
-
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
 		super(EnableAction.ID, localize('enableAction', "Enable"), EnableAction.DisabledClass, false);
 
-		this._enableActions = [
+		this._actionItem = this.instantiationService.createInstance(DropDownMenuActionItem, this, [[
 			instantiationService.createInstance(EnableGloballyAction, EnableGloballyAction.LABEL),
 			instantiationService.createInstance(EnableForWorkspaceAction, EnableForWorkspaceAction.LABEL)
-		];
-		this._actionItem = this.instantiationService.createInstance(DropDownMenuActionItem, this, [this._enableActions], false);
+		]], false);
 		this.disposables.push(this._actionItem);
 
 		this.disposables.push(this.extensionsWorkbenchService.onChange(extension => {
@@ -673,18 +706,27 @@ export class EnableAction extends Action {
 			}
 		}
 
-		if (!this.extension) {
-			this.enabled = false;
+		const enabledActions = this._actionItem.getActions().filter(a => a.enabled);
+		this.enabled = enabledActions.length > 0;
+		if (this.enabled) {
+			if (enabledActions.length === 1) {
+				this.label = enabledActions[0].label;
+				this.class = EnableAction.EnabledClass;
+			} else {
+				this.class = EnableAction.EnabledDropDownClass;
+			}
+		} else {
 			this.class = EnableAction.DisabledClass;
-			return;
 		}
-
-		this.enabled = this.extension.state === ExtensionState.Installed && this._enableActions.some(e => e.enabled);
-		this.class = this.enabled ? EnableAction.EnabledClass : EnableAction.DisabledClass;
 	}
 
 	public run(): Promise<any> {
-		this._actionItem.showMenu();
+		const enabledActions = this._actionItem.getActions().filter(a => a.enabled);
+		if (enabledActions.length === 1) {
+			enabledActions[0].run();
+		} else {
+			this._actionItem.showMenu();
+		}
 		return Promise.resolve(null);
 	}
 
@@ -720,7 +762,7 @@ export class DisableForWorkspaceAction extends Action implements IExtensionActio
 	private update(): void {
 		this.enabled = false;
 		if (this.extension && this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
-			this.enabled = (this.extension.enablementState === EnablementState.Enabled || this.extension.enablementState === EnablementState.WorkspaceEnabled) && this.extension.local && this.extensionEnablementService.canChangeEnablement(this.extension.local);
+			this.enabled = this.extension.state === ExtensionState.Installed && (this.extension.enablementState === EnablementState.Enabled || this.extension.enablementState === EnablementState.WorkspaceEnabled) && this.extension.local && this.extensionEnablementService.canChangeEnablement(this.extension.local);
 		}
 	}
 
@@ -757,7 +799,7 @@ export class DisableGloballyAction extends Action implements IExtensionAction {
 	private update(): void {
 		this.enabled = false;
 		if (this.extension) {
-			this.enabled = (this.extension.enablementState === EnablementState.Enabled || this.extension.enablementState === EnablementState.WorkspaceEnabled) && this.extension.local && this.extensionEnablementService.canChangeEnablement(this.extension.local);
+			this.enabled = this.extension.state === ExtensionState.Installed && (this.extension.enablementState === EnablementState.Enabled || this.extension.enablementState === EnablementState.WorkspaceEnabled) && this.extension.local && this.extensionEnablementService.canChangeEnablement(this.extension.local);
 		}
 	}
 
@@ -776,10 +818,10 @@ export class DisableAction extends Action {
 	static readonly ID = 'extensions.disable';
 
 	private static readonly EnabledClass = 'extension-action disable';
+	private static readonly EnabledDropDownClass = 'extension-action dropdown enable';
 	private static readonly DisabledClass = `${DisableAction.EnabledClass} disabled`;
 
 	private disposables: IDisposable[] = [];
-	private _disableActions: IExtensionAction[];
 	private _actionItem: DropDownMenuActionItem;
 	get actionItem(): IActionItem { return this._actionItem; }
 
@@ -787,17 +829,16 @@ export class DisableAction extends Action {
 	get extension(): IExtension { return this._extension; }
 	set extension(extension: IExtension) { this._extension = extension; this.update(); }
 
-
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 	) {
 		super(DisableAction.ID, localize('disableAction', "Disable"), DisableAction.DisabledClass, false);
-		this._disableActions = [
+
+		this._actionItem = this.instantiationService.createInstance(DropDownMenuActionItem, this, [[
 			instantiationService.createInstance(DisableGloballyAction, DisableGloballyAction.LABEL),
 			instantiationService.createInstance(DisableForWorkspaceAction, DisableForWorkspaceAction.LABEL)
-		];
-		this._actionItem = this.instantiationService.createInstance(DropDownMenuActionItem, this, [this._disableActions], false);
+		]], false);
 		this.disposables.push(this._actionItem);
 
 		this.disposables.push(this.extensionsWorkbenchService.onChange(extension => {
@@ -819,18 +860,27 @@ export class DisableAction extends Action {
 			}
 		}
 
-		if (!this.extension) {
-			this.enabled = false;
+		const enabledActions = this._actionItem.getActions().filter(a => a.enabled);
+		this.enabled = enabledActions.length > 0;
+		if (this.enabled) {
+			if (enabledActions.length === 1) {
+				this.label = enabledActions[0].label;
+				this.class = DisableAction.EnabledClass;
+			} else {
+				this.class = DisableAction.EnabledDropDownClass;
+			}
+		} else {
 			this.class = DisableAction.DisabledClass;
-			return;
 		}
-
-		this.enabled = this.extension.state === ExtensionState.Installed && this._disableActions.some(a => a.enabled);
-		this.class = this.enabled ? DisableAction.EnabledClass : DisableAction.DisabledClass;
 	}
 
 	public run(): Promise<any> {
-		this._actionItem.showMenu();
+		const enabledActions = this._actionItem.getActions().filter(a => a.enabled);
+		if (enabledActions.length === 1) {
+			enabledActions[0].run();
+		} else {
+			this._actionItem.showMenu();
+		}
 		return Promise.resolve(null);
 	}
 
@@ -984,7 +1034,7 @@ export class UpdateAllAction extends Action {
 
 			console.error(err);
 
-			promptDownloadManually(extension.gallery, localize('failedToUpdate', "Failed to update \'{0}\'.", extension.id), this.instantiationService, this.notificationService, this.openerService);
+			return promptDownloadManually(extension.gallery, localize('failedToUpdate', "Failed to update \'{0}\'.", extension.id), err, this.instantiationService, this.notificationService, this.openerService);
 		});
 	}
 
@@ -1075,9 +1125,8 @@ export class ReloadAction extends Action {
 				}
 			} else {
 				const extensionServer = this.extensionManagementServerService.getExtensionManagementServer(installed.local.location);
-				const localServer = this.extensionManagementServerService.getLocalExtensionManagementServer();
 				// Only extension from local server requires reload if it is not running on the server
-				if (extensionServer && extensionServer.authority === localServer.authority && !isDisabled) {
+				if (extensionServer && extensionServer.authority === this.extensionManagementServerService.localExtensionManagementServer.authority && !isDisabled) {
 					// Requires reload to enable the extension
 					this.enabled = true;
 					this.tooltip = localize('postEnableTooltip', "Reload to Activate");
@@ -1355,7 +1404,7 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 						installPromises.push(model.resolve(i, CancellationToken.None).then(e => {
 							return this.extensionWorkbenchService.install(e).then(null, err => {
 								console.error(err);
-								promptDownloadManually(e.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", e.id), this.instantiationService, this.notificationService, this.openerService);
+								return promptDownloadManually(e.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", e.id), err, this.instantiationService, this.notificationService, this.openerService);
 							});
 						}));
 					}
@@ -1397,7 +1446,7 @@ export class InstallRecommendedExtensionAction extends Action {
 							return this.extensionWorkbenchService.install(extension)
 								.then(() => null, err => {
 									console.error(err);
-									promptDownloadManually(extension.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", extension.id), this.instantiationService, this.notificationService, this.openerService);
+									return promptDownloadManually(extension.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", extension.id), err, this.instantiationService, this.notificationService, this.openerService);
 								});
 						}
 						return null;
@@ -2180,10 +2229,13 @@ export class DisabledStatusLabelAction extends Action {
 			.then(runningExtensions => {
 				this.class = `${DisabledStatusLabelAction.Class} hide`;
 				this.tooltip = '';
-				if (this.extension && !this.extension.isMalicious && !runningExtensions.some(e => e.id === this.extension.id)) {
-					if (this.extension.enablementState === EnablementState.Disabled || this.extension.enablementState === EnablementState.WorkspaceDisabled) {
+				if (this.extension && this.extension.local && !this.extension.isMalicious && !runningExtensions.some(e => e.id === this.extension.id)) {
+					if (this.extension.enablementState === EnablementState.Disabled) {
 						this.class = `${DisabledStatusLabelAction.Class}`;
-						this.tooltip = this.extension.enablementState === EnablementState.Disabled ? localize('disabled globally', "Disabled") : localize('disabled workspace', "Disabled for this Workspace");
+						this.label = localize('disabled globally', "Disabled for all Windows.");
+					} else if (this.extension.enablementState === EnablementState.WorkspaceDisabled) {
+						this.class = `${DisabledStatusLabelAction.Class}`;
+						this.label = localize('disabled workspace', "Disabled for this Workspace.");
 					}
 				}
 			}));

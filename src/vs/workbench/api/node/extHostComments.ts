@@ -31,11 +31,12 @@ export class ExtHostComments implements ExtHostCommentsShape {
 	}
 
 	registerWorkspaceCommentProvider(
+		extensionId: string,
 		provider: vscode.WorkspaceCommentProvider
 	): vscode.Disposable {
 		const handle = ExtHostComments.handlePool++;
 		this._workspaceProviders.set(handle, provider);
-		this._proxy.$registerWorkspaceCommentProvider(handle);
+		this._proxy.$registerWorkspaceCommentProvider(handle, extensionId);
 		this.registerListeners(handle, provider);
 
 		return {
@@ -145,7 +146,6 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		provider.onDidChangeCommentThreads(event => {
 
 			this._proxy.$onDidCommentThreadsChange(handle, {
-				owner: handle,
 				changed: event.changed.map(thread => convertToCommentThread(provider, thread, this._commandsConverter)),
 				added: event.added.map(thread => convertToCommentThread(provider, thread, this._commandsConverter)),
 				removed: event.removed.map(thread => convertToCommentThread(provider, thread, this._commandsConverter))
@@ -156,7 +156,6 @@ export class ExtHostComments implements ExtHostCommentsShape {
 
 function convertCommentInfo(owner: number, provider: vscode.DocumentCommentProvider, vscodeCommentInfo: vscode.CommentInfo, commandsConverter: CommandsConverter): modes.CommentInfo {
 	return {
-		owner: owner,
 		threads: vscodeCommentInfo.threads.map(x => convertToCommentThread(provider, x, commandsConverter)),
 		commentingRanges: vscodeCommentInfo.commentingRanges ? vscodeCommentInfo.commentingRanges.map(range => extHostTypeConverter.Range.from(range)) : []
 	};

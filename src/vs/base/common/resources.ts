@@ -14,7 +14,7 @@ export function getComparisonKey(resource: URI): string {
 	return hasToIgnoreCase(resource) ? resource.toString().toLowerCase() : resource.toString();
 }
 
-export function hasToIgnoreCase(resource: URI): boolean {
+export function hasToIgnoreCase(resource: URI | undefined): boolean {
 	// A file scheme resource is in the same platform as code, so ignore case for non linux platforms
 	// Resource can be from another platform. Lowering the case as an hack. Should come from File system provider
 	return resource && resource.scheme === Schemas.file ? !isLinux : true;
@@ -25,7 +25,7 @@ export function basenameOrAuthority(resource: URI): string {
 }
 
 /**
- * Tests wheter a `candidate` URI is a parent or equal of a given `base` URI.
+ * Tests whether a `candidate` URI is a parent or equal of a given `base` URI.
  * @param base A uri which is "longer"
  * @param parentCandidate A uri which is "shorter" then `base`
  */
@@ -45,7 +45,7 @@ function isEqualAuthority(a1: string, a2: string, ignoreCase?: boolean) {
 	return a1 === a2 || ignoreCase && a1 && a2 && equalsIgnoreCase(a1, a2);
 }
 
-export function isEqual(first: URI, second: URI, ignoreCase = hasToIgnoreCase(first)): boolean {
+export function isEqual(first: URI | undefined, second: URI | undefined, ignoreCase = hasToIgnoreCase(first)): boolean {
 	const identityEquals = (first === second);
 	if (identityEquals) {
 		return true;
@@ -73,6 +73,9 @@ export function basename(resource: URI): string {
  * @returns The URI representing the directory of the input URI.
  */
 export function dirname(resource: URI): URI | null {
+	if (resource.scheme === Schemas.file) {
+		return URI.file(paths.dirname(fsPath(resource)));
+	}
 	let dirname = paths.dirname(resource.path, '/');
 	if (resource.authority && dirname.length && dirname.charCodeAt(0) !== CharCode.Slash) {
 		return null; // If a URI contains an authority component, then the path component must either be empty or begin with a CharCode.Slash ("/") character
@@ -173,7 +176,7 @@ export function distinctParents<T>(items: T[], resourceAccessor: (item: T) => UR
 }
 
 /**
- * Tests wheter the given URL is a file URI created by `URI.parse` instead of `URI.file`.
+ * Tests whether the given URL is a file URI created by `URI.parse` instead of `URI.file`.
  * Such URI have no scheme or scheme that consist of a single letter (windows drive letter)
  * @param candidate The URI to test
  * @returns A corrected, real file URI if the input seems to be malformed.

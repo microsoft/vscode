@@ -13,10 +13,10 @@
     "onLanguage:json",
     "onLanguage:jsonc"
   ],
-  "enableProposedApi": true,
   "main": "./client/out/jsonMain",
   "scripts": {
-    "compile": "gulp compile-extension:json-language-features-client && gulp compile-extension:json-language-features-server",
+    "compile": "gulp compile-extension:json-language-features-client compile-extension:json-language-features-server",
+    "watch": "gulp watch-extension:json-language-features-client watch-extension:json-language-features-server",
     "postinstall": "cd server && yarn install",
     "install-client-next": "yarn add vscode-languageclient@next"
   },

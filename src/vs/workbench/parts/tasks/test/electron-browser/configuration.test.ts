@@ -83,7 +83,7 @@ class PresentationBuilder {
 	public result: Tasks.PresentationOptions;
 
 	constructor(public parent: CommandConfigurationBuilder) {
-		this.result = { echo: false, reveal: Tasks.RevealKind.Always, focus: false, panel: Tasks.PanelKind.Shared, showReuseMessage: true };
+		this.result = { echo: false, reveal: Tasks.RevealKind.Always, focus: false, panel: Tasks.PanelKind.Shared, showReuseMessage: true, clear: false };
 	}
 
 	public echo(value: boolean): PresentationBuilder {
@@ -185,7 +185,7 @@ class CustomTaskBuilder {
 			_id: name,
 			_source: { kind: Tasks.TaskSourceKind.Workspace, label: 'workspace', config: { workspaceFolder: workspaceFolder, element: undefined, index: -1, file: '.vscode/tasks.json' } },
 			_label: name,
-			type: 'custom',
+			type: Tasks.CUSTOMIZED_TASK_TYPE,
 			identifier: name,
 			name: name,
 			command: this.commandBuilder.result,

@@ -15,7 +15,7 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
 import * as model from 'vs/editor/common/model';
-import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
+import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureRegistry';
 import { TokenizationRegistryImpl } from 'vs/editor/common/modes/tokenizationRegistry';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 
@@ -254,7 +254,7 @@ export interface HoverProvider {
 	provideHover(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<Hover>;
 }
 
-export enum CompletionItemKind {
+export const enum CompletionItemKind {
 	Method,
 	Function,
 	Constructor,
@@ -357,7 +357,7 @@ export let completionKindFromLegacyString = (function () {
 	};
 })();
 
-export enum CompletionItemInsertTextRule {
+export const enum CompletionItemInsertTextRule {
 	/**
 	 * Adjust whitespace/indentation of multiline insert texts to
 	 * match the current line indentation.
@@ -468,7 +468,7 @@ export interface CompletionList {
 /**
  * How a suggest provider was triggered.
  */
-export enum CompletionTriggerKind {
+export const enum CompletionTriggerKind {
 	Invoke = 0,
 	TriggerCharacter = 1,
 	TriggerForIncompleteCompletions = 2
@@ -618,12 +618,13 @@ export interface SignatureHelp {
 export enum SignatureHelpTriggerReason {
 	Invoke = 1,
 	TriggerCharacter = 2,
-	Retrigger = 3,
+	ContentChange = 3,
 }
 
 export interface SignatureHelpContext {
-	triggerReason: SignatureHelpTriggerReason;
-	triggerCharacter?: string;
+	readonly triggerReason: SignatureHelpTriggerReason;
+	readonly triggerCharacter?: string;
+	readonly isRetrigger: boolean;
 }
 
 /**
@@ -771,7 +772,7 @@ export interface TypeDefinitionProvider {
 /**
  * A symbol kind.
  */
-export enum SymbolKind {
+export const enum SymbolKind {
 	File = 0,
 	Module = 1,
 	Namespace = 2,
@@ -1101,7 +1102,7 @@ export interface ResourceTextEdit {
 }
 
 export interface WorkspaceEdit {
-	edits: Array<ResourceTextEdit | ResourceFileEdit>;
+	edits?: Array<ResourceTextEdit | ResourceFileEdit>;
 }
 
 export interface Rejection {
@@ -1129,7 +1130,6 @@ export interface Command {
  * @internal
  */
 export interface CommentInfo {
-	owner: number;
 	threads: CommentThread[];
 	commentingRanges?: IRange[];
 	reply?: Command;
@@ -1186,7 +1186,6 @@ export interface Comment {
  * @internal
  */
 export interface CommentThreadChangedEvent {
-	readonly owner: number;
 	/**
 	 * Added comment threads.
 	 */

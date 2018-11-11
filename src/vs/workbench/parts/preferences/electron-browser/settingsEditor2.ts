@@ -4,25 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
-import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { Action } from 'vs/base/common/actions';
 import * as arrays from 'vs/base/common/arrays';
-import { isArray } from 'vs/base/common/types';
 import { Delayer, ThrottledDelayer } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as collections from 'vs/base/common/collections';
 import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
+import { isArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { collapseAll, expandAll } from 'vs/base/parts/tree/browser/treeUtils';
 import 'vs/css!./media/settingsEditor2';
 import { localize } from 'vs/nls';
-import { ConfigurationTarget, IConfigurationOverrides, IConfigurationService, ConfigurationTargetToString } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationOverrides, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
@@ -36,18 +32,17 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditor, IEditorMemento } from 'vs/workbench/common/editor';
 import { attachSuggestEnabledInputBoxStyler, SuggestEnabledInput } from 'vs/workbench/parts/codeEditor/electron-browser/suggestEnabledInput';
-import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 import { SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { commonlyUsedData, tocData } from 'vs/workbench/parts/preferences/browser/settingsLayout';
-import { ISettingLinkClickEvent, resolveExtensionsSettings, resolveSettingsTree, SettingsDataSource, SettingsRenderer, SettingsTree, SimplePagedDataSource, ISettingOverrideClickEvent } from 'vs/workbench/parts/preferences/browser/settingsTree';
-import { ISettingsEditorViewState, MODIFIED_SETTING_TAG, ONLINE_SERVICES_SETTING_TAG, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
+import { ISettingLinkClickEvent, ISettingOverrideClickEvent, resolveExtensionsSettings, resolveSettingsTree, SettingsDataSource, SettingsRenderer, SettingsTree, SimplePagedDataSource } from 'vs/workbench/parts/preferences/browser/settingsTree';
+import { parseQuery, ISettingsEditorViewState, SearchResultIdx, SearchResultModel, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
 import { settingsTextInputBorder } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
 import { TOCRenderer, TOCTree, TOCTreeModel } from 'vs/workbench/parts/preferences/browser/tocTree';
-import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, IPreferencesSearchService, ISearchProvider, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/parts/preferences/common/preferences';
+import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, IPreferencesSearchService, ISearchProvider, MODIFIED_SETTING_TAG, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/parts/preferences/common/preferences';
+import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IPreferencesService, ISearchResult, ISettingsEditorModel, ISettingsEditorOptions, SettingsEditorOptions, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
-import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 
 const $ = DOM.$;
 
@@ -60,7 +55,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private static SETTING_UPDATE_SLOW_DEBOUNCE: number = 1000;
 
 	private static readonly SUGGESTIONS: string[] = [
-		'@modified', '@tag:usesOnlineServices'
+		`@${MODIFIED_SETTING_TAG}`, '@tag:usesOnlineServices'
 	];
 
 	private static shouldSettingUpdateFast(type: SettingValueType | SettingValueType[]): boolean {
@@ -129,7 +124,6 @@ export class SettingsEditor2 extends BaseEditor {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPreferencesSearchService private preferencesSearchService: IPreferencesSearchService,
 		@ILogService private logService: ILogService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IStorageService private storageService: IStorageService,
@@ -211,7 +205,7 @@ export class SettingsEditor2 extends BaseEditor {
 				}
 				this._setOptions(options);
 
-				this.render(token);
+				return this.render(token);
 			})
 			.then(() => {
 				// Init TOC selection
@@ -416,31 +410,6 @@ export class SettingsEditor2 extends BaseEditor {
 			actionRunner: this.actionRunner
 		}));
 
-		const actions: Action[] = [
-			this.instantiationService.createInstance(FilterByTagAction,
-				localize('filterModifiedLabel', "Show modified settings"),
-				MODIFIED_SETTING_TAG,
-				this)
-		];
-		if (this.environmentService.appQuality !== 'stable') {
-			actions.push(
-				this.instantiationService.createInstance(
-					FilterByTagAction,
-					localize('filterOnlineServicesLabel', "Show settings for online services"),
-					ONLINE_SERVICES_SETTING_TAG,
-					this));
-			actions.push(new Separator());
-		}
-		actions.push(new Action('settings.openSettingsJson', localize('openSettingsJsonLabel', "Open settings.json"), undefined, undefined, () => {
-			return this.openSettingsFile().then(editor => {
-				const currentQuery = parseQuery(this.searchWidget.getValue());
-				if (editor instanceof PreferencesEditor && currentQuery) {
-					editor.focusSearch(currentQuery.query);
-				}
-			});
-		}));
-
-		this.toolbar.setActions([], actions)();
 		this.toolbar.context = <ISettingsToolbarContext>{ target: this.settingsTargetsWidget.settingsTarget };
 	}
 
@@ -471,7 +440,12 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 	}
 
-	private openSettingsFile(query?: string): TPromise<IEditor> {
+	public switchToSettingsFile(): Thenable<IEditor> {
+		const query = parseQuery(this.searchWidget.getValue());
+		return this.openSettingsFile(query.query);
+	}
+
+	private openSettingsFile(query?: string): Thenable<IEditor> {
 		const currentSettingsTarget = this.settingsTargetsWidget.settingsTarget;
 
 		const options: ISettingsEditorOptions = { query };
@@ -592,7 +566,7 @@ export class SettingsEditor2 extends BaseEditor {
 			}
 
 			if (element && (!e.payload || !e.payload.fromScroll)) {
-				let refreshP = TPromise.wrap(null);
+				let refreshP: Thenable<void> = Promise.resolve(null);
 				if (this.settingsTreeDataSource.pageTo(element.index, true)) {
 					refreshP = this.renderTree();
 				}
@@ -724,7 +698,7 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 	}
 
-	private updateChangedSetting(key: string, value: any): TPromise<void> {
+	private updateChangedSetting(key: string, value: any): Thenable<void> {
 		// ConfigurationService displays the error if this fails.
 		// Force a render afterwards because onDidConfigurationUpdate doesn't fire if the update doesn't result in an effective setting value change
 		const settingsTarget = this.settingsTargetsWidget.settingsTarget;
@@ -815,7 +789,7 @@ export class SettingsEditor2 extends BaseEditor {
 		this.telemetryService.publicLog('settingsEditor.settingModified', data);
 	}
 
-	private render(token: CancellationToken): TPromise<any> {
+	private render(token: CancellationToken): Thenable<any> {
 		if (this.input) {
 			return this.input.resolve()
 				.then((model: Settings2EditorModel) => {
@@ -828,7 +802,7 @@ export class SettingsEditor2 extends BaseEditor {
 					return this.onConfigUpdate();
 				});
 		}
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	private onSearchModeToggled(): void {
@@ -863,7 +837,7 @@ export class SettingsEditor2 extends BaseEditor {
 		});
 	}
 
-	private onConfigUpdate(keys?: string[], forceRefresh = false): TPromise<void> {
+	private onConfigUpdate(keys?: string[], forceRefresh = false): Thenable<void> {
 		if (keys && this.settingsTreeModel) {
 			return this.updateElementsByKey(keys);
 		}
@@ -916,10 +890,10 @@ export class SettingsEditor2 extends BaseEditor {
 			}
 		}
 
-		return TPromise.wrap(null);
+		return Promise.resolve(null);
 	}
 
-	private updateElementsByKey(keys: string[]): TPromise<void> {
+	private updateElementsByKey(keys: string[]): Thenable<void> {
 		if (keys.length) {
 			if (this.searchResultModel) {
 				keys.forEach(key => this.searchResultModel.updateElementsByName(key));
@@ -929,7 +903,7 @@ export class SettingsEditor2 extends BaseEditor {
 				keys.forEach(key => this.settingsTreeModel.updateElementsByName(key));
 			}
 
-			return TPromise.join(
+			return Promise.all(
 				keys.map(key => this.renderTree(key)))
 				.then(() => { });
 		} else {
@@ -943,10 +917,10 @@ export class SettingsEditor2 extends BaseEditor {
 			null;
 	}
 
-	private renderTree(key?: string, force = false): TPromise<void> {
+	private renderTree(key?: string, force = false): Thenable<void> {
 		if (!force && key && this.scheduledRefreshes.has(key)) {
 			this.updateModifiedLabelForKey(key);
-			return TPromise.wrap(null);
+			return Promise.resolve(null);
 		}
 
 		// If a setting control is currently focused, schedule a refresh for later
@@ -960,24 +934,24 @@ export class SettingsEditor2 extends BaseEditor {
 
 					this.updateModifiedLabelForKey(key);
 					this.scheduleRefresh(focusedSetting, key);
-					return TPromise.wrap(null);
+					return Promise.resolve(null);
 				}
 			} else {
 				this.scheduleRefresh(focusedSetting);
-				return TPromise.wrap(null);
+				return Promise.resolve(null);
 			}
 		}
 
-		let refreshP: TPromise<any>;
+		let refreshP: Thenable<any>;
 		if (key) {
 			const elements = this.currentSettingsModel.getElementsByName(key);
 			if (elements && elements.length) {
 				// TODO https://github.com/Microsoft/vscode/issues/57360
-				// refreshP = TPromise.join(elements.map(e => this.settingsTree.refresh(e)));
+				// refreshP = Promise.join(elements.map(e => this.settingsTree.refresh(e)));
 				refreshP = this.settingsTree.refresh();
 			} else {
 				// Refresh requested for a key that we don't know about
-				return TPromise.wrap(null);
+				return Promise.resolve(null);
 			}
 		} else {
 			refreshP = this.settingsTree.refresh();
@@ -1019,7 +993,7 @@ export class SettingsEditor2 extends BaseEditor {
 		return match && match[1];
 	}
 
-	private triggerSearch(query: string): TPromise<void> {
+	private triggerSearch(query: string): Thenable<void> {
 		this.viewState.tagFilters = new Set<string>();
 		if (query) {
 			const parsedQuery = parseQuery(query);
@@ -1126,7 +1100,7 @@ export class SettingsEditor2 extends BaseEditor {
 		this.telemetryService.publicLog('settingsEditor.filter', data);
 	}
 
-	private triggerFilterPreferences(query: string): TPromise<void> {
+	private triggerFilterPreferences(query: string): Thenable<void> {
 		if (this.searchInProgress) {
 			this.searchInProgress.cancel();
 			this.searchInProgress = null;
@@ -1141,26 +1115,26 @@ export class SettingsEditor2 extends BaseEditor {
 						this.remoteSearchThrottle.trigger(() => {
 							return searchInProgress && !searchInProgress.token.isCancellationRequested ?
 								this.remoteSearchPreferences(query, this.searchInProgress.token) :
-								TPromise.wrap(null);
+								Promise.resolve(null);
 						});
 					}
 				});
 			} else {
-				return TPromise.wrap(null);
+				return Promise.resolve(null);
 			}
 		});
 	}
 
-	private localFilterPreferences(query: string, token?: CancellationToken): TPromise<ISearchResult> {
+	private localFilterPreferences(query: string, token?: CancellationToken): Thenable<ISearchResult> {
 		const localSearchProvider = this.preferencesSearchService.getLocalSearchProvider(query);
 		return this.filterOrSearchPreferences(query, SearchResultIdx.Local, localSearchProvider, token);
 	}
 
-	private remoteSearchPreferences(query: string, token?: CancellationToken): TPromise<void> {
+	private remoteSearchPreferences(query: string, token?: CancellationToken): Thenable<void> {
 		const remoteSearchProvider = this.preferencesSearchService.getRemoteSearchProvider(query);
 		const newExtSearchProvider = this.preferencesSearchService.getRemoteSearchProvider(query, true);
 
-		return TPromise.join([
+		return Promise.all([
 			this.filterOrSearchPreferences(query, SearchResultIdx.Remote, remoteSearchProvider, token),
 			this.filterOrSearchPreferences(query, SearchResultIdx.NewExtensions, newExtSearchProvider, token)
 		]).then(() => {
@@ -1168,7 +1142,7 @@ export class SettingsEditor2 extends BaseEditor {
 		});
 	}
 
-	private filterOrSearchPreferences(query: string, type: SearchResultIdx, searchProvider: ISearchProvider, token?: CancellationToken): TPromise<ISearchResult> {
+	private filterOrSearchPreferences(query: string, type: SearchResultIdx, searchProvider: ISearchProvider, token?: CancellationToken): Thenable<ISearchResult> {
 		return this._filterOrSearchPreferencesModel(query, this.defaultSettingsEditorModel, searchProvider, token).then(result => {
 			if (token && token.isCancellationRequested) {
 				// Handle cancellation like this because cancellation is lost inside the search provider due to async/await
@@ -1215,12 +1189,12 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 	}
 
-	private _filterOrSearchPreferencesModel(filter: string, model: ISettingsEditorModel, provider: ISearchProvider, token?: CancellationToken): TPromise<ISearchResult> {
-		const searchP = provider ? provider.searchModel(model, token) : TPromise.wrap(null);
+	private _filterOrSearchPreferencesModel(filter: string, model: ISettingsEditorModel, provider: ISearchProvider, token?: CancellationToken): Thenable<ISearchResult> {
+		const searchP = provider ? provider.searchModel(model, token) : Promise.resolve(null);
 		return searchP
 			.then<ISearchResult>(null, err => {
 				if (isPromiseCanceledError(err)) {
-					return TPromise.wrapError(err);
+					return Promise.reject(err);
 				} else {
 					/* __GDPR__
 						"settingsEditor.searchError" : {
@@ -1271,21 +1245,4 @@ interface ISettingsEditor2State {
 
 interface ISettingsToolbarContext {
 	target: SettingsTarget;
-}
-
-class FilterByTagAction extends Action {
-	static readonly ID = 'settings.filterByTag';
-
-	constructor(
-		label: string,
-		private tag: string,
-		private settingsEditor: SettingsEditor2
-	) {
-		super(FilterByTagAction.ID, label, 'toggle-filter-tag');
-	}
-
-	run(): TPromise<void> {
-		this.settingsEditor.focusSearch(this.tag === MODIFIED_SETTING_TAG ? `@${this.tag} ` : `@tag:${this.tag} `, false);
-		return TPromise.as(null);
-	}
 }

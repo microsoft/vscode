@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IPanel } from 'vs/workbench/common/panel';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
@@ -19,14 +18,14 @@ export interface IPanelIdentifier {
 export interface IPanelService {
 	_serviceBrand: ServiceIdentifier<any>;
 
-	onDidPanelOpen: Event<IPanel>;
+	onDidPanelOpen: Event<{ panel: IPanel, focus: boolean }>;
 
 	onDidPanelClose: Event<IPanel>;
 
 	/**
 	 * Opens a panel with the given identifier and pass keyboard focus to it if specified.
 	 */
-	openPanel(id: string, focus?: boolean): TPromise<IPanel>;
+	openPanel(id: string, focus?: boolean): IPanel;
 
 	/**
 	 * Returns the current active panel or null if none

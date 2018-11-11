@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILink } from 'vs/editor/common/modes';
 import { CharCode } from 'vs/base/common/charCode';
 import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
 import { Uint8Matrix } from 'vs/editor/common/core/uint';
+import { ILink } from 'vs/editor/common/modes';
 
 export interface ILinkComputerTarget {
 	getLineCount(): number;
@@ -249,7 +249,15 @@ class LinkComputer {
 						resetStateMachine = true;
 					}
 				} else if (state === State.End) {
-					const chClass = classifier.get(chCode);
+
+					let chClass: CharacterClass;
+					if (chCode === CharCode.OpenSquareBracket) {
+						// Allow for the authority part to contain ipv6 addresses which contain [ and ]
+						hasOpenSquareBracket = true;
+						chClass = CharacterClass.None;
+					} else {
+						chClass = classifier.get(chCode);
+					}
 
 					// Check if character terminates link
 					if (chClass === CharacterClass.ForceTermination) {

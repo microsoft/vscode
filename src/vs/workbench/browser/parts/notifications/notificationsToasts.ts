@@ -44,9 +44,9 @@ export class NotificationsToasts extends Themable {
 
 	private static PURGE_TIMEOUT: { [severity: number]: number } = (() => {
 		const intervals = Object.create(null);
-		intervals[Severity.Info] = 10000;
-		intervals[Severity.Warning] = 12000;
-		intervals[Severity.Error] = 15000;
+		intervals[Severity.Info] = 15000;
+		intervals[Severity.Warning] = 18000;
+		intervals[Severity.Error] = 20000;
 
 		return intervals;
 	})();
@@ -209,24 +209,31 @@ export class NotificationsToasts extends Themable {
 		disposables.push(addDisposableListener(notificationToastContainer, EventType.MOUSE_OVER, () => isMouseOverToast = true));
 		disposables.push(addDisposableListener(notificationToastContainer, EventType.MOUSE_OUT, () => isMouseOverToast = false));
 
-		// Install Timers
+		// Install Timers to Purge Notification
 		let purgeTimeoutHandle: any;
-		let pendingPurgeTimeoutHandle: any;
 		const hideAfterTimeout = () => {
 			purgeTimeoutHandle = setTimeout(() => {
-				if (
-					item.sticky ||					// never hide sticky notifications
-					notificationList.hasFocus() ||	// never hide notifications with focus
-					isMouseOverToast ||				// never hide notifications under mouse
-					!this.windowHasFocus			// never hide when window has no focus
+
+				// If the notification is sticky or prompting and the window does not have
+				// focus, we wait for the window to gain focus again before triggering
+				// the timeout again. This prevents an issue where focussing the window
+				// could immediately hide the notification because the timeout was triggered
+				// again.
+				if ((item.sticky || item.hasPrompt()) && !this.windowHasFocus) {
+					disposables.push(this.windowService.onDidChangeFocus(focus => {
+						if (focus) {
+							hideAfterTimeout();
+						}
+					}));
+				}
+
+				// Otherwise...
+				else if (
+					item.sticky ||								// never hide sticky notifications
+					notificationList.hasFocus() ||				// never hide notifications with focus
+					isMouseOverToast							// never hide notifications under mouse
 				) {
-					// If the notification should not be hidden yet for the reasons outlined
-					// above, we delay an additional check by at least PURGE_TIMEOUT so that
-					// if the condition changes to hide the notification, the timeout will
-					// be at least PURGE_TIMEOUT (+ the time it took to change the state)
-					pendingPurgeTimeoutHandle = setTimeout(() => {
-						hideAfterTimeout();
-					}, NotificationsToasts.PURGE_TIMEOUT[item.severity]);
+					hideAfterTimeout();
 				} else {
 					this.removeToast(item);
 				}
@@ -236,7 +243,6 @@ export class NotificationsToasts extends Themable {
 		hideAfterTimeout();
 
 		disposables.push(toDisposable(() => clearTimeout(purgeTimeoutHandle)));
-		disposables.push(toDisposable(() => clearTimeout(pendingPurgeTimeoutHandle)));
 	}
 
 	private removeToast(item: INotificationViewItem): void {

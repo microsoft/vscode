@@ -14,7 +14,6 @@ import * as UUID from 'vs/base/common/uuid';
 import * as Platform from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ValidationStatus, ValidationState, IProblemReporter, Parser } from 'vs/base/common/parsers';
 import { IStringDictionary } from 'vs/base/common/collections';
@@ -1099,7 +1098,7 @@ let problemPatternExtPoint = ExtensionsRegistry.registerExtensionPoint<Config.Na
 });
 
 export interface IProblemPatternRegistry {
-	onReady(): TPromise<void>;
+	onReady(): Promise<void>;
 
 	get(key: string): ProblemPattern | MultiLineProblemPattern;
 }
@@ -1107,12 +1106,12 @@ export interface IProblemPatternRegistry {
 class ProblemPatternRegistryImpl implements IProblemPatternRegistry {
 
 	private patterns: IStringDictionary<ProblemPattern | ProblemPattern[]>;
-	private readyPromise: TPromise<void>;
+	private readyPromise: Promise<void>;
 
 	constructor() {
 		this.patterns = Object.create(null);
 		this.fillDefaults();
-		this.readyPromise = new TPromise<void>((resolve, reject) => {
+		this.readyPromise = new Promise<void>((resolve, reject) => {
 			problemPatternExtPoint.setHandler((extensions) => {
 				// We get all statically know extension during startup in one batch
 				try {
@@ -1149,7 +1148,7 @@ class ProblemPatternRegistryImpl implements IProblemPatternRegistry {
 		});
 	}
 
-	public onReady(): TPromise<void> {
+	public onReady(): Promise<void> {
 		return this.readyPromise;
 	}
 
@@ -1317,7 +1316,7 @@ export class ProblemMatcherParser extends Parser {
 	private createProblemMatcher(description: Config.ProblemMatcher): ProblemMatcher | null {
 		let result: ProblemMatcher | null = null;
 
-		let owner = description.owner ? description.owner : UUID.generateUuid();
+		let owner = Types.isString(description.owner) ? description.owner : UUID.generateUuid();
 		let source = Types.isString(description.source) ? description.source : undefined;
 		let applyTo = Types.isString(description.applyTo) ? ApplyToKind.fromString(description.applyTo) : ApplyToKind.allDocuments;
 		if (!applyTo) {
@@ -1352,9 +1351,6 @@ export class ProblemMatcherParser extends Parser {
 		}
 
 		let pattern = description.pattern ? this.createProblemPattern(description.pattern) : undefined;
-		if (!pattern) {
-			return null;
-		}
 
 		let severity = description.severity ? Severity.fromValue(description.severity) : undefined;
 		if (severity === Severity.Ignore) {
@@ -1368,30 +1364,28 @@ export class ProblemMatcherParser extends Parser {
 				let base = ProblemMatcherRegistry.get(variableName.substring(1));
 				if (base) {
 					result = Objects.deepClone(base);
-					if (description.owner) {
+					if (description.owner !== void 0 && owner !== void 0) {
 						result.owner = owner;
 					}
-					if (source) {
+					if (description.source !== void 0 && source !== void 0) {
 						result.source = source;
 					}
-					if (fileLocation) {
+					if (description.fileLocation !== void 0 && fileLocation !== void 0) {
 						result.fileLocation = fileLocation;
-					}
-					if (filePrefix) {
 						result.filePrefix = filePrefix;
 					}
-					if (description.pattern) {
+					if (description.pattern !== void 0 && pattern !== void 0 && pattern !== null) {
 						result.pattern = pattern;
 					}
-					if (description.severity) {
+					if (description.severity !== void 0 && severity !== void 0) {
 						result.severity = severity;
 					}
-					if (description.applyTo) {
+					if (description.applyTo !== void 0 && applyTo !== void 0) {
 						result.applyTo = applyTo;
 					}
 				}
 			}
-		} else if (fileLocation) {
+		} else if (fileLocation && pattern) {
 			result = {
 				owner: owner,
 				applyTo: applyTo,
@@ -1672,7 +1666,7 @@ let problemMatchersExtPoint = ExtensionsRegistry.registerExtensionPoint<Config.N
 });
 
 export interface IProblemMatcherRegistry {
-	onReady(): TPromise<void>;
+	onReady(): Promise<void>;
 	get(name: string): NamedProblemMatcher;
 	keys(): string[];
 }
@@ -1680,12 +1674,12 @@ export interface IProblemMatcherRegistry {
 class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 
 	private matchers: IStringDictionary<NamedProblemMatcher>;
-	private readyPromise: TPromise<void>;
+	private readyPromise: Promise<void>;
 
 	constructor() {
 		this.matchers = Object.create(null);
 		this.fillDefaults();
-		this.readyPromise = new TPromise<void>((resolve, reject) => {
+		this.readyPromise = new Promise<void>((resolve, reject) => {
 			problemMatchersExtPoint.setHandler((extensions) => {
 				try {
 					extensions.forEach(extension => {
@@ -1709,7 +1703,7 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 		});
 	}
 
-	public onReady(): TPromise<void> {
+	public onReady(): Promise<void> {
 		ProblemPatternRegistry.onReady();
 		return this.readyPromise;
 	}

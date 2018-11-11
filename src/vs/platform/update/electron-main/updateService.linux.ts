@@ -16,6 +16,9 @@ import { asJson } from 'vs/base/node/request';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { shell } from 'electron';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import * as path from 'path';
+import { spawn } from 'child_process';
+import { realpath } from 'fs';
 
 export class LinuxUpdateService extends AbstractUpdateService {
 
@@ -43,33 +46,58 @@ export class LinuxUpdateService extends AbstractUpdateService {
 
 		this.setState(State.CheckingForUpdates(context));
 
-		this.requestService.request({ url: this.url }, CancellationToken.None)
-			.then<IUpdate>(asJson)
-			.then(update => {
-				if (!update || !update.url || !update.version || !update.productVersion) {
+		if (process.env.SNAP && process.env.SNAP_REVISION) {
+			this.checkForSnapUpdate();
+		} else {
+			this.requestService.request({ url: this.url }, CancellationToken.None)
+				.then<IUpdate>(asJson)
+				.then(update => {
+					if (!update || !update.url || !update.version || !update.productVersion) {
+						/* __GDPR__
+								"update:notAvailable" : {
+									"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+								}
+							*/
+						this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
+
+						this.setState(State.Idle(UpdateType.Archive));
+					} else {
+						this.setState(State.AvailableForDownload(update));
+					}
+				})
+				.then(null, err => {
+					this.logService.error(err);
+
 					/* __GDPR__
-							"update:notAvailable" : {
-								"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-							}
+						"update:notAvailable" : {
+							"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+						}
 						*/
 					this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
+					this.setState(State.Idle(UpdateType.Archive, err.message || err));
+				});
+		}
+	}
 
-					this.setState(State.Idle(UpdateType.Archive));
-				} else {
-					this.setState(State.AvailableForDownload(update));
-				}
-			})
-			.then(null, err => {
-				this.logService.error(err);
+	private checkForSnapUpdate(): void {
+		// If the application was installed as a snap, updates happen in the
+		// background automatically, we just need to check to see if an update
+		// has already happened.
+		realpath(`/snap/${product.applicationName}/current`, (err, resolvedCurrentSnapPath) => {
+			if (err) {
+				this.logService.error('update#checkForSnapUpdate(): Could not get realpath of application.');
+				return;
+			}
 
-				/* __GDPR__
-					"update:notAvailable" : {
-						"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-					}
-					*/
-				this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
-				this.setState(State.Idle(UpdateType.Archive, err.message || err));
-			});
+			const currentRevision = path.basename(resolvedCurrentSnapPath);
+
+			if (process.env.SNAP_REVISION !== currentRevision) {
+				// TODO@joao: snap
+				this.setState(State.Ready({ version: '', productVersion: '' }));
+			} else {
+				this.setState(State.Idle(UpdateType.Archive));
+			}
+		});
 	}
 
 	protected doDownloadUpdate(state: AvailableForDownload): TPromise<void> {
@@ -77,11 +105,28 @@ export class LinuxUpdateService extends AbstractUpdateService {
 		// installed and the website download page is more useful than the tarball generally.
 		if (product.downloadUrl && product.downloadUrl.length > 0) {
 			shell.openExternal(product.downloadUrl);
-		} else {
+		} else if (state.update.url) {
 			shell.openExternal(state.update.url);
 		}
 
 		this.setState(State.Idle(UpdateType.Archive));
-		return TPromise.as(null);
+		return TPromise.as(void 0);
+	}
+
+	protected doQuitAndInstall(): void {
+		this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
+
+		const snap = process.env.SNAP;
+
+		// TODO@joao what to do?
+		if (!snap) {
+			return;
+		}
+
+		// Allow 3 seconds for VS Code to close
+		spawn('bash', ['-c', path.join(snap, `usr/share/${product.applicationName}/snapUpdate.sh`)], {
+			detached: true,
+			stdio: ['ignore', 'ignore', 'ignore']
+		});
 	}
 }

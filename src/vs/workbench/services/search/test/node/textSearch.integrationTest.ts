@@ -9,13 +9,8 @@ import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as glob from 'vs/base/common/glob';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { IFolderQuery, ITextQuery, QueryType } from 'vs/platform/search/common/search';
-import { FileWalker } from 'vs/workbench/services/search/node/fileSearch';
-import { IRawSearch } from 'vs/workbench/services/search/node/legacy/search';
-import { Engine as TextSearchEngine } from 'vs/workbench/services/search/node/legacy/textSearch';
-import { TextSearchWorkerProvider } from 'vs/workbench/services/search/node/legacy/textSearchWorkerProvider';
-import { rawSearchQuery } from 'vs/workbench/services/search/node/rawSearchService';
+import { IFolderQuery, ISearchRange, ITextQuery, ITextSearchMatch, QueryType, ITextSearchContext, deserializeSearchError, SearchErrorCode } from 'vs/platform/search/common/search';
+import { LegacyTextSearchService } from 'vs/workbench/services/search/node/legacy/rawLegacyTextSearchService';
 import { ISerializedFileMatch } from 'vs/workbench/services/search/node/search';
 import { TextSearchEngineAdapter } from 'vs/workbench/services/search/node/textSearchAdapter';
 
@@ -36,55 +31,46 @@ const MULTIROOT_QUERIES: IFolderQuery[] = [
 	{ folder: URI.file(MORE_FIXTURES) }
 ];
 
-const textSearchWorkerProvider = new TextSearchWorkerProvider();
+function doLegacySearchTest(config: ITextQuery, expectedResultCount: number | Function): Promise<void> {
+	const engine = new LegacyTextSearchService();
 
-function doLegacySearchTest(config: IRawSearch, expectedResultCount: number | Function): TPromise<void> {
-	return new TPromise<void>((resolve, reject) => {
-		let engine = new TextSearchEngine(config, new FileWalker({ ...config, useRipgrep: false }), textSearchWorkerProvider);
-
-		let c = 0;
-		engine.search((result) => {
-			if (result) {
-				c += countAll(result);
-			}
-		}, () => { }, (error) => {
-			try {
-				assert.ok(!error);
-				if (typeof expectedResultCount === 'function') {
-					assert(expectedResultCount(c));
-				} else {
-					assert.equal(c, expectedResultCount, 'legacy');
-				}
-			} catch (e) {
-				reject(e);
-			}
-
-			resolve(undefined);
-		});
+	let c = 0;
+	return engine.textSearch(config, (result) => {
+		if (result && Array.isArray(result)) {
+			c += countAll(result);
+		}
+	}, null).then(() => {
+		if (typeof expectedResultCount === 'function') {
+			assert(expectedResultCount(c));
+		} else {
+			assert.equal(c, expectedResultCount, 'legacy');
+		}
 	});
 }
 
-function doRipgrepSearchTest(query: ITextQuery, expectedResultCount: number | Function): TPromise<void> {
+function doRipgrepSearchTest(query: ITextQuery, expectedResultCount: number | Function): Promise<ISerializedFileMatch[]> {
 	let engine = new TextSearchEngineAdapter(query);
 
 	let c = 0;
-	return engine.search(new CancellationTokenSource().token, (results) => {
-		if (results) {
-			c += results.reduce((acc, cur) => acc + cur.numMatches, 0);
+	const results: ISerializedFileMatch[] = [];
+	return engine.search(new CancellationTokenSource().token, _results => {
+		if (_results) {
+			c += _results.reduce((acc, cur) => acc + cur.numMatches, 0);
+			results.push(..._results);
 		}
-	}, () => { }).then(
-		() => {
-			if (typeof expectedResultCount === 'function') {
-				assert(expectedResultCount(c));
-			} else {
-				assert.equal(c, expectedResultCount, `rg ${c} !== ${expectedResultCount}`);
-			}
-		});
+	}, () => { }).then(() => {
+		if (typeof expectedResultCount === 'function') {
+			assert(expectedResultCount(c));
+		} else {
+			assert.equal(c, expectedResultCount, `rg ${c} !== ${expectedResultCount}`);
+		}
+
+		return results;
+	});
 }
 
 function doSearchTest(query: ITextQuery, expectedResultCount: number) {
-	const legacyQuery = rawSearchQuery(query);
-	return doLegacySearchTest(legacyQuery, expectedResultCount)
+	return doLegacySearchTest(query, expectedResultCount)
 		.then(() => doRipgrepSearchTest(query, expectedResultCount));
 }
 
@@ -256,7 +242,7 @@ suite('Search-integration', function () {
 
 		// (Legacy) search can go over the maxResults because it doesn't trim the results from its worker processes to the exact max size.
 		// But the worst-case scenario should be 2*max-1
-		return doLegacySearchTest(rawSearchQuery(config), count => count < maxResults * 2)
+		return doLegacySearchTest(config, count => count < maxResults * 2)
 			.then(() => doRipgrepSearchTest(config, maxResults));
 	});
 
@@ -325,6 +311,60 @@ suite('Search-integration', function () {
 		return doSearchTest(config, 286);
 	});
 
+	test('Text: 语', () => {
+		const config = <ITextQuery>{
+			type: QueryType.Text,
+			folderQueries: ROOT_FOLDER_QUERY,
+			contentPattern: { pattern: '语' }
+		};
+
+		return doRipgrepSearchTest(config, 1).then(results => {
+			const matchRange = (<ITextSearchMatch>results[0].results[0]).ranges;
+			assert.deepEqual(matchRange, [{
+				startLineNumber: 0,
+				startColumn: 1,
+				endLineNumber: 0,
+				endColumn: 2
+			}]);
+		});
+	});
+
+	test('Multiple matches on line: h\\d,', () => {
+		const config = <ITextQuery>{
+			type: QueryType.Text,
+			folderQueries: ROOT_FOLDER_QUERY,
+			contentPattern: { pattern: 'h\\d,', isRegExp: true }
+		};
+
+		return doRipgrepSearchTest(config, 15).then(results => {
+			assert.equal(results.length, 3);
+			assert.equal(results[0].results.length, 1);
+			const match = <ITextSearchMatch>results[0].results[0];
+			assert.equal((<ISearchRange[]>match.ranges).length, 5);
+		});
+	});
+
+	test('Search with context matches', () => {
+		const config = <ITextQuery>{
+			type: QueryType.Text,
+			folderQueries: ROOT_FOLDER_QUERY,
+			contentPattern: { pattern: 'compiler.typeCheck();' },
+			beforeContext: 1,
+			afterContext: 2
+		};
+
+		return doRipgrepSearchTest(config, 4).then(results => {
+			assert.equal(results.length, 4);
+			assert.equal((<ITextSearchContext>results[0].results[0]).lineNumber, 25);
+			assert.equal((<ITextSearchContext>results[0].results[0]).text, '        compiler.addUnit(prog,"input.ts");');
+			// assert.equal((<ITextSearchMatch>results[1].results[0]).preview.text, '        compiler.typeCheck();\n'); // See https://github.com/BurntSushi/ripgrep/issues/1095
+			assert.equal((<ITextSearchContext>results[2].results[0]).lineNumber, 27);
+			assert.equal((<ITextSearchContext>results[2].results[0]).text, '        compiler.emit();');
+			assert.equal((<ITextSearchContext>results[3].results[0]).lineNumber, 28);
+			assert.equal((<ITextSearchContext>results[3].results[0]).text, '');
+		});
+	});
+
 	suite('error messages', () => {
 		test('invalid encoding', () => {
 			const config = <ITextQuery>{
@@ -341,7 +381,9 @@ suite('Search-integration', function () {
 			return doRipgrepSearchTest(config, 0).then(() => {
 				throw new Error('expected fail');
 			}, err => {
-				assert.equal(err.message, 'Unknown encoding: invalidEncoding');
+				const searchError = deserializeSearchError(err.message);
+				assert.equal(searchError.message, 'Unknown encoding: invalidEncoding');
+				assert.equal(searchError.code, SearchErrorCode.unknownEncoding);
 			});
 		});
 
@@ -355,7 +397,9 @@ suite('Search-integration', function () {
 			return doRipgrepSearchTest(config, 0).then(() => {
 				throw new Error('expected fail');
 			}, err => {
-				assert.equal(err.message, 'Regex parse error');
+				const searchError = deserializeSearchError(err.message);
+				assert.equal(searchError.message, 'Regex parse error');
+				assert.equal(searchError.code, SearchErrorCode.regexParseError);
 			});
 		});
 
@@ -372,7 +416,9 @@ suite('Search-integration', function () {
 			return doRipgrepSearchTest(config, 0).then(() => {
 				throw new Error('expected fail');
 			}, err => {
-				assert.equal(err.message, 'Error parsing glob \'***\': invalid use of **; must be one path component');
+				const searchError = deserializeSearchError(err.message);
+				assert.equal(searchError.message, 'Error parsing glob \'***\': invalid use of **; must be one path component');
+				assert.equal(searchError.code, SearchErrorCode.globParseError);
 			});
 		});
 
@@ -386,7 +432,9 @@ suite('Search-integration', function () {
 			return doRipgrepSearchTest(config, 0).then(() => {
 				throw new Error('expected fail');
 			}, err => {
-				assert.equal(err.message, 'The literal \'"\\n"\' is not allowed in a regex');
+				const searchError = deserializeSearchError(err.message);
+				assert.equal(searchError.message, 'The literal \'"\\n"\' is not allowed in a regex');
+				assert.equal(searchError.code, SearchErrorCode.invalidLiteral);
 			});
 		});
 	});

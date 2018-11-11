@@ -217,7 +217,7 @@ export class ExplorerViewlet extends ViewContainerViewlet implements IExplorerVi
 			});
 
 			const explorerInstantiator = this.instantiationService.createChild(new ServiceCollection([IEditorService, delegatingEditorService]));
-			return explorerInstantiator.createInstance(ExplorerView, <IExplorerViewOptions>{ ...options, viewletState: this.fileViewletState });
+			return explorerInstantiator.createInstance(ExplorerView, <IExplorerViewOptions>{ ...options, fileViewletState: this.fileViewletState });
 		}
 		return super.createView(viewDescriptor, options);
 	}
@@ -234,9 +234,9 @@ export class ExplorerViewlet extends ViewContainerViewlet implements IExplorerVi
 		return <EmptyView>this.getView(EmptyView.ID);
 	}
 
-	public setVisible(visible: boolean): Promise<void> {
+	public setVisible(visible: boolean): void {
 		this.viewletVisibleContextKey.set(visible);
-		return super.setVisible(visible);
+		super.setVisible(visible);
 	}
 
 	public getActionRunner(): IActionRunner {

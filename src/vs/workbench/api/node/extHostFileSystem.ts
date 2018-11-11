@@ -7,7 +7,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { MainContext, IMainContext, ExtHostFileSystemShape, MainThreadFileSystemShape, IFileChangeDto } from './extHost.protocol';
 import * as vscode from 'vscode';
 import * as files from 'vs/platform/files/common/files';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
 import { values } from 'vs/base/common/map';
 import { Range, FileChangeType } from 'vs/workbench/api/node/extHostTypes';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
@@ -64,9 +64,10 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 	private readonly _usedSchemes = new Set<string>();
 	private readonly _watches = new Map<number, IDisposable>();
 
+	private _linkProviderRegistration: IDisposable;
 	private _handlePool: number = 0;
 
-	constructor(mainContext: IMainContext, extHostLanguageFeatures: ExtHostLanguageFeatures) {
+	constructor(mainContext: IMainContext, private _extHostLanguageFeatures: ExtHostLanguageFeatures) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadFileSystem);
 		this._usedSchemes.add(Schemas.file);
 		this._usedSchemes.add(Schemas.untitled);
@@ -77,8 +78,16 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		this._usedSchemes.add(Schemas.https);
 		this._usedSchemes.add(Schemas.mailto);
 		this._usedSchemes.add(Schemas.data);
+	}
 
-		extHostLanguageFeatures.registerDocumentLinkProvider('*', this._linkProvider);
+	dispose(): void {
+		dispose(this._linkProviderRegistration);
+	}
+
+	private _registerLinkProviderIfNotYetRegistered(): void {
+		if (!this._linkProviderRegistration) {
+			this._linkProviderRegistration = this._extHostLanguageFeatures.registerDocumentLinkProvider(undefined, '*', this._linkProvider);
+		}
 	}
 
 	registerFileSystemProvider(scheme: string, provider: vscode.FileSystemProvider, options: { isCaseSensitive?: boolean, isReadonly?: boolean } = {}) {
@@ -86,6 +95,9 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		if (this._usedSchemes.has(scheme)) {
 			throw new Error(`a provider for the scheme '${scheme}' is already registered`);
 		}
+
+		//
+		this._registerLinkProviderIfNotYetRegistered();
 
 		const handle = this._handlePool++;
 		this._linkProvider.add(scheme);

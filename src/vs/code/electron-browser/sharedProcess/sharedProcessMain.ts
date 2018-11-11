@@ -43,6 +43,9 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { DownloadService } from 'vs/platform/download/node/downloadService';
 import { IDownloadService } from 'vs/platform/download/common/download';
+import { RemoteAuthorityResolverService } from 'vs/platform/remote/node/remoteAuthorityResolverService';
+import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { RemoteAuthorityResolverChannel } from 'vs/platform/remote/node/remoteAuthorityResolverChannel';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
@@ -62,8 +65,14 @@ const eventPrefix = 'monacoworkbench';
 
 function main(server: Server, initData: ISharedProcessInitData, configuration: ISharedProcessConfiguration): void {
 	const services = new ServiceCollection();
+
 	const disposables: IDisposable[] = [];
-	process.once('exit', () => dispose(disposables));
+
+	const onExit = () => dispose(disposables);
+	process.once('exit', onExit);
+	ipcRenderer.once('handshake:goodbye', onExit);
+
+	disposables.push(server);
 
 	const environmentService = new EnvironmentService(initData.args, process.execPath);
 	const mainRoute = () => TPromise.as('main');
@@ -100,31 +109,36 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 		telemetryLogService.info('===========================================================');
 
 		let appInsightsAppender: ITelemetryAppender | null = NullAppender;
-		if (product.aiConfig && product.aiConfig.asimovKey && isBuilt) {
-			appInsightsAppender = new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey, telemetryLogService);
-			disposables.push(appInsightsAppender); // Ensure the AI appender is disposed so that it flushes remaining data
-		}
-		server.registerChannel('telemetryAppender', new TelemetryAppenderChannel(appInsightsAppender));
-
 		if (!extensionDevelopmentLocationURI && !environmentService.args['disable-telemetry'] && product.enableTelemetry) {
+			if (product.aiConfig && product.aiConfig.asimovKey && isBuilt) {
+				appInsightsAppender = new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey, telemetryLogService);
+				disposables.push(appInsightsAppender); // Ensure the AI appender is disposed so that it flushes remaining data
+			}
 			const config: ITelemetryServiceConfig = {
 				appender: combinedAppender(appInsightsAppender, new LogAppender(logService)),
 				commonProperties: resolveCommonProperties(product.commit, pkg.version, configuration.machineId, installSourcePath),
 				piiPaths: [appRoot, extensionsPath]
 			};
 
-			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, config));
+			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, [config]));
 		} else {
 			services.set(ITelemetryService, NullTelemetryService);
 		}
+		server.registerChannel('telemetryAppender', new TelemetryAppenderChannel(appInsightsAppender));
 
 		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
 		services.set(ILocalizationsService, new SyncDescriptor(LocalizationsService));
+		services.set(IRemoteAuthorityResolverService, new SyncDescriptor(RemoteAuthorityResolverService));
 
 		const instantiationService2 = instantiationService.createChild(services);
 
 		instantiationService2.invokeFunction(accessor => {
+
+			const remoteAuthorityResolverService = accessor.get(IRemoteAuthorityResolverService);
+			const remoteAuthorityResolverChannel = new RemoteAuthorityResolverChannel(remoteAuthorityResolverService);
+			server.registerChannel('remoteAuthorityResolver', remoteAuthorityResolverChannel);
+
 			const extensionManagementService = accessor.get(IExtensionManagementService);
 			const channel = new ExtensionManagementChannel(extensionManagementService);
 			server.registerChannel('extensions', channel);
@@ -138,6 +152,7 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 
 			createSharedProcessContributions(instantiationService2);
 			disposables.push(extensionManagementService as ExtensionManagementService);
+			disposables.push(remoteAuthorityResolverService as RemoteAuthorityResolverService);
 		});
 	});
 }

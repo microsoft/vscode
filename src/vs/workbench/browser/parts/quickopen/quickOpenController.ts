@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/quickopen';
-import { TPromise, ValueCallback } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import * as browser from 'vs/base/browser/browser';
 import * as strings from 'vs/base/common/strings';
@@ -54,6 +53,8 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 
 const HELP_PREFIX = '?';
 
+type ValueCallback<T = any> = (value: T | Thenable<T>) => void;
+
 export class QuickOpenController extends Component implements IQuickOpenService {
 
 	private static readonly MAX_SHORT_RESPONSE_TIME = 500;
@@ -73,7 +74,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	private lastSubmittedInputValue: string;
 	private quickOpenWidget: QuickOpenWidget;
 	private dimension: Dimension;
-	private mapResolvedHandlersToPrefix: { [prefix: string]: TPromise<QuickOpenHandler>; } = Object.create(null);
+	private mapResolvedHandlersToPrefix: { [prefix: string]: Promise<QuickOpenHandler>; } = Object.create(null);
 	private mapContextKeyToContext: { [id: string]: IContextKey<boolean>; } = Object.create(null);
 	private handlerOnOpenCalled: { [prefix: string]: boolean; } = Object.create(null);
 	private promisesToCompleteOnHide: ValueCallback[] = [];
@@ -153,12 +154,12 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		}
 	}
 
-	show(prefix?: string, options?: IShowOptions): TPromise<void> {
+	show(prefix?: string, options?: IShowOptions): Promise<void> {
 		let quickNavigateConfiguration = options ? options.quickNavigateConfiguration : void 0;
 		let inputSelection = options ? options.inputSelection : void 0;
 		let autoFocus = options ? options.autoFocus : void 0;
 
-		const promiseCompletedOnHide = new TPromise<void>(c => {
+		const promiseCompletedOnHide = new Promise<void>(c => {
 			this.promisesToCompleteOnHide.push(c);
 		});
 
@@ -381,7 +382,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 			return;
 		}
 
-		let resultPromise: TPromise<void>;
+		let resultPromise: Promise<void>;
 		let resultPromiseDone = false;
 
 		if (handlerDescriptor) {
@@ -426,7 +427,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		});
 	}
 
-	private handleDefaultHandler(handler: QuickOpenHandlerDescriptor, value: string, token: CancellationToken): TPromise<void> {
+	private handleDefaultHandler(handler: QuickOpenHandlerDescriptor, value: string, token: CancellationToken): Promise<void> {
 
 		// Fill in history results if matching and we are configured to search in history
 		let matchingHistoryEntries: QuickOpenEntry[];
@@ -514,7 +515,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		}
 	}
 
-	private handleSpecificHandler(handlerDescriptor: QuickOpenHandlerDescriptor, value: string, token: CancellationToken): TPromise<void> {
+	private handleSpecificHandler(handlerDescriptor: QuickOpenHandlerDescriptor, value: string, token: CancellationToken): Promise<void> {
 		return this.resolveHandler(handlerDescriptor).then((resolvedHandler: QuickOpenHandler) => {
 
 			// Remove handler prefix from search value
@@ -585,7 +586,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		return mapEntryToPath;
 	}
 
-	private resolveHandler(handler: QuickOpenHandlerDescriptor): TPromise<QuickOpenHandler> {
+	private resolveHandler(handler: QuickOpenHandlerDescriptor): Promise<QuickOpenHandler> {
 		let result = this._resolveHandler(handler);
 
 		const id = handler.getId();
@@ -603,11 +604,11 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		return result.then<QuickOpenHandler>(null, (error) => {
 			delete this.mapResolvedHandlersToPrefix[id];
 
-			return TPromise.wrapError(new Error(`Unable to instantiate quick open handler ${handler.getId()}: ${JSON.stringify(error)}`));
+			return Promise.reject(new Error(`Unable to instantiate quick open handler ${handler.getId()}: ${JSON.stringify(error)}`));
 		});
 	}
 
-	private _resolveHandler(handler: QuickOpenHandlerDescriptor): TPromise<QuickOpenHandler> {
+	private _resolveHandler(handler: QuickOpenHandlerDescriptor): Promise<QuickOpenHandler> {
 		const id = handler.getId();
 
 		// Return Cached
@@ -835,7 +836,7 @@ export class RemoveFromEditorHistoryAction extends Action {
 		super(id, label);
 	}
 
-	run(): TPromise<any> {
+	run(): Thenable<any> {
 		interface IHistoryPickEntry extends IQuickPickItem {
 			input: IEditorInput | IResourceInput;
 		}

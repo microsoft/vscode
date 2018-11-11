@@ -143,6 +143,10 @@ export class CodeWindow implements ICodeWindow {
 
 		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 
+		if (isMacintosh && !this.useNativeFullScreen()) {
+			options.fullscreenable = false; // enables simple fullscreen mode
+		}
+
 		if (isMacintosh) {
 			options.acceptFirstMouse = true; // enabled by default
 
@@ -189,7 +193,7 @@ export class CodeWindow implements ICodeWindow {
 		this._win = new BrowserWindow(options);
 		this._id = this._win.id;
 
-		if (useCustomTitleStyle) {
+		if (isMacintosh && useCustomTitleStyle) {
 			this._win.setSheetOffset(22); // offset dialogs by the height of the custom title bar if we have any
 		}
 
@@ -197,7 +201,7 @@ export class CodeWindow implements ICodeWindow {
 			this._win.maximize();
 
 			if (this.windowState.mode === WindowMode.Fullscreen) {
-				this._win.setFullScreen(true);
+				this.setFullScreen(true);
 			}
 
 			if (!this._win.isVisible()) {
@@ -278,6 +282,10 @@ export class CodeWindow implements ICodeWindow {
 
 	get openedFolderUri(): URI {
 		return this.currentConfig ? this.currentConfig.folderUri : void 0;
+	}
+
+	get remoteAuthority(): string {
+		return this.currentConfig ? this.currentConfig.remoteAuthority : void 0;
 	}
 
 	setReady(): void {
@@ -372,6 +380,14 @@ export class CodeWindow implements ICodeWindow {
 			this._lastFocusTime = Date.now();
 		});
 
+		// Simple fullscreen doesn't resize automatically when the resolution changes
+		screen.on('display-metrics-changed', () => {
+			if (isMacintosh && this.isFullScreen() && !this.useNativeFullScreen()) {
+				this.setFullScreen(false);
+				this.setFullScreen(true);
+			}
+		});
+
 		// Window (Un)Maximize
 		this._win.on('maximize', (e) => {
 			if (this.currentConfig) {
@@ -408,6 +424,34 @@ export class CodeWindow implements ICodeWindow {
 
 		// Handle Workspace events
 		this.toDispose.push(this.workspacesMainService.onUntitledWorkspaceDeleted(e => this.onUntitledWorkspaceDeleted(e)));
+
+		// TODO@Ben workaround for https://github.com/Microsoft/vscode/issues/13612
+		// It looks like smooth scrolling disappears as soon as the window is minimized
+		// and maximized again. Touching some window properties "fixes" it, like toggling
+		// the visibility of the menu.
+		if (isWindows) {
+			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
+			if (windowConfig && windowConfig.smoothScrollingWorkaround === true) {
+				let minimized = false;
+
+				const restoreSmoothScrolling = () => {
+					if (minimized) {
+						const visibility = this.getMenuBarVisibility();
+						const temporaryVisibility: MenuBarVisibility = (visibility === 'hidden' || visibility === 'toggle') ? 'default' : 'hidden';
+						setTimeout(() => {
+							this.doSetMenuBarVisibility(temporaryVisibility);
+							this.doSetMenuBarVisibility(visibility);
+						}, 0);
+					}
+
+					minimized = false;
+				};
+
+				this._win.on('minimize', () => minimized = true);
+				this._win.on('restore', () => restoreSmoothScrolling());
+				this._win.on('maximize', () => restoreSmoothScrolling());
+			}
+		}
 	}
 
 	private onUntitledWorkspaceDeleted(workspace: IWorkspaceIdentifier): void {
@@ -558,7 +602,7 @@ export class CodeWindow implements ICodeWindow {
 		}
 
 		// Set fullscreen state
-		windowConfiguration.fullscreen = this._win.isFullScreen();
+		windowConfiguration.fullscreen = this.isFullScreen();
 
 		// Set Accessibility Config
 		let autoDetectHighContrast = true;
@@ -612,7 +656,7 @@ export class CodeWindow implements ICodeWindow {
 		}
 
 		// fullscreen gets special treatment
-		if (this._win.isFullScreen()) {
+		if (this.isFullScreen()) {
 			const display = screen.getDisplayMatching(this.getBounds());
 
 			const defaultState = defaultWindowState();
@@ -778,13 +822,53 @@ export class CodeWindow implements ICodeWindow {
 	}
 
 	toggleFullScreen(): void {
-		const willBeFullScreen = !this._win.isFullScreen();
+		this.setFullScreen(!this.isFullScreen());
+	}
 
-		// set fullscreen flag on window
-		this._win.setFullScreen(willBeFullScreen);
+	private setFullScreen(fullscreen: boolean): void {
 
-		// respect configured menu bar visibility or default to toggle if not set
+		// Set fullscreen state
+		if (this.useNativeFullScreen()) {
+			this.setNativeFullScreen(fullscreen);
+		} else {
+			this.setSimpleFullScreen(fullscreen);
+		}
+
+		// Events
+		this.sendWhenReady(fullscreen ? 'vscode:enterFullScreen' : 'vscode:leaveFullScreen');
+
+		// Respect configured menu bar visibility or default to toggle if not set
 		this.setMenuBarVisibility(this.currentMenuBarVisibility, false);
+	}
+
+	isFullScreen(): boolean {
+		return this._win.isFullScreen() || this._win.isSimpleFullScreen();
+	}
+
+	private setNativeFullScreen(fullscreen: boolean): void {
+		if (this._win.isSimpleFullScreen()) {
+			this._win.setSimpleFullScreen(false);
+		}
+
+		this._win.setFullScreen(fullscreen);
+	}
+
+	private setSimpleFullScreen(fullscreen: boolean): void {
+		if (this._win.isFullScreen()) {
+			this._win.setFullScreen(false);
+		}
+
+		this._win.setSimpleFullScreen(fullscreen);
+		this._win.webContents.focus(); // workaround issue where focus is not going into window
+	}
+
+	private useNativeFullScreen(): boolean {
+		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
+		if (!windowConfig || typeof windowConfig.nativeFullScreen !== 'boolean') {
+			return true; // default
+		}
+
+		return windowConfig.nativeFullScreen !== false;
 	}
 
 	private getMenuBarVisibility(): MenuBarVisibility {
@@ -827,7 +911,7 @@ export class CodeWindow implements ICodeWindow {
 	}
 
 	private doSetMenuBarVisibility(visibility: MenuBarVisibility): void {
-		const isFullscreen = this._win.isFullScreen();
+		const isFullscreen = this.isFullScreen();
 
 		switch (visibility) {
 			case ('default'):

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Command } from 'vs/editor/common/modes';
 import { UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -17,6 +16,7 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { values } from 'vs/base/common/map';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IAction } from 'vs/base/common/actions';
 
 export const TEST_VIEW_CONTAINER_ID = 'workbench.view.extension.test';
 
@@ -218,7 +218,7 @@ export interface IView {
 
 export interface IViewsViewlet extends IViewlet {
 
-	openView(id: string, focus?: boolean): TPromise<IView>;
+	openView(id: string, focus?: boolean): IView;
 
 }
 
@@ -227,7 +227,7 @@ export const IViewsService = createDecorator<IViewsService>('viewsService');
 export interface IViewsService {
 	_serviceBrand: any;
 
-	openView(id: string, focus?: boolean): TPromise<IView>;
+	openView(id: string, focus?: boolean): Thenable<IView>;
 
 	getViewDescriptors(container: ViewContainer): IViewDescriptorCollection;
 }
@@ -238,6 +238,10 @@ export interface ITreeViewer extends IDisposable {
 
 	dataProvider: ITreeViewDataProvider;
 
+	showCollapseAllAction: boolean;
+
+	readonly visible: boolean;
+
 	readonly onDidExpandItem: Event<ITreeItem>;
 
 	readonly onDidCollapseItem: Event<ITreeItem>;
@@ -246,9 +250,9 @@ export interface ITreeViewer extends IDisposable {
 
 	readonly onDidChangeVisibility: Event<boolean>;
 
-	readonly visible: boolean;
+	readonly onDidChangeActions: Event<void>;
 
-	refresh(treeItems?: ITreeItem[]): TPromise<void>;
+	refresh(treeItems?: ITreeItem[]): Promise<void>;
 
 	setVisibility(visible: boolean): void;
 
@@ -260,7 +264,27 @@ export interface ITreeViewer extends IDisposable {
 
 	getOptimalWidth(): number;
 
-	reveal(item: ITreeItem, parentChain: ITreeItem[], options: { select?: boolean }): TPromise<void>;
+	reveal(item: ITreeItem): Thenable<void>;
+
+	expand(itemOrItems: ITreeItem | ITreeItem[]): Thenable<void>;
+
+	setSelection(items: ITreeItem[]): void;
+
+	setFocus(item: ITreeItem): void;
+
+	getPrimaryActions(): IAction[];
+
+	getSecondaryActions(): IAction[];
+}
+
+export interface IRevealOptions {
+
+	select?: boolean;
+
+	focus?: boolean;
+
+	expand?: boolean | number;
+
 }
 
 export interface ICustomViewDescriptor extends IViewDescriptor {
@@ -280,6 +304,14 @@ export enum TreeItemCollapsibleState {
 	Expanded = 2
 }
 
+export interface ITreeItemLabel {
+
+	label: string;
+
+	highlights?: [number, number][];
+
+}
+
 export interface ITreeItem {
 
 	handle: string;
@@ -288,7 +320,7 @@ export interface ITreeItem {
 
 	collapsibleState: TreeItemCollapsibleState;
 
-	label?: string;
+	label?: ITreeItemLabel;
 
 	icon?: UriComponents;
 
@@ -309,6 +341,6 @@ export interface ITreeItem {
 
 export interface ITreeViewDataProvider {
 
-	getChildren(element?: ITreeItem): TPromise<ITreeItem[]>;
+	getChildren(element?: ITreeItem): Promise<ITreeItem[]>;
 
 }

@@ -8,11 +8,11 @@ import * as types from './extHostTypes';
 import * as search from 'vs/workbench/parts/search/common/search';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
-import { IDecorationOptions } from 'vs/editor/common/editorCommon';
-import { EndOfLineSequence } from 'vs/editor/common/model';
+import { IDecorationOptions, IThemeDecorationRenderOptions, IDecorationRenderOptions, IContentDecorationRenderOptions } from 'vs/editor/common/editorCommon';
+import { EndOfLineSequence, TrackedRangeStickiness } from 'vs/editor/common/model';
 import * as vscode from 'vscode';
 import { URI } from 'vs/base/common/uri';
-import { ProgressLocation as MainProgressLocation } from 'vs/workbench/services/progress/common/progress';
+import { ProgressLocation as MainProgressLocation } from 'vs/platform/progress/common/progress';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
@@ -24,6 +24,7 @@ import { MarkerSeverity, IRelatedInformation, IMarkerData, MarkerTag } from 'vs/
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
 import { isString, isNumber } from 'vs/base/common/types';
+import * as marked from 'vs/base/common/marked/marked';
 
 export interface PositionLike {
 	line: number;
@@ -209,17 +210,34 @@ export namespace MarkdownString {
 	}
 
 	export function from(markup: vscode.MarkdownString | vscode.MarkedString): htmlContent.IMarkdownString {
+		let res: htmlContent.IMarkdownString;
 		if (isCodeblock(markup)) {
 			const { language, value } = markup;
-			return { value: '```' + language + '\n' + value + '\n```\n' };
+			res = { value: '```' + language + '\n' + value + '\n```\n' };
 		} else if (htmlContent.isMarkdownString(markup)) {
-			return markup;
+			res = markup;
 		} else if (typeof markup === 'string') {
-			return { value: <string>markup };
+			res = { value: <string>markup };
 		} else {
-			return { value: '' };
+			res = { value: '' };
 		}
+
+		// extract uris into a separate object
+		res.uris = Object.create(null);
+		let renderer = new marked.Renderer();
+		renderer.image = renderer.link = (href: string): string => {
+			try {
+				res.uris[href] = URI.parse(href, true);
+			} catch (e) {
+				// ignore
+			}
+			return '';
+		};
+		marked(res.value, { renderer });
+
+		return res;
 	}
+
 	export function to(value: htmlContent.IMarkdownString): vscode.MarkdownString {
 		const ret = new htmlContent.MarkdownString(value.value);
 		ret.isTrusted = value.isTrusted;
@@ -249,6 +267,126 @@ export function fromRangeOrRangeWithMessage(ranges: vscode.Range[] | vscode.Deco
 				range: Range.from(r)
 			};
 		});
+	}
+}
+
+function pathOrURIToURI(value: string | URI): URI {
+	if (typeof value === 'undefined') {
+		return value;
+	}
+	if (typeof value === 'string') {
+		return URI.file(value);
+	} else {
+		return value;
+	}
+}
+
+export namespace ThemableDecorationAttachmentRenderOptions {
+	export function from(options: vscode.ThemableDecorationAttachmentRenderOptions): IContentDecorationRenderOptions {
+		if (typeof options === 'undefined') {
+			return options;
+		}
+		return {
+			contentText: options.contentText,
+			contentIconPath: pathOrURIToURI(options.contentIconPath),
+			border: options.border,
+			borderColor: <string | types.ThemeColor>options.borderColor,
+			fontStyle: options.fontStyle,
+			fontWeight: options.fontWeight,
+			textDecoration: options.textDecoration,
+			color: <string | types.ThemeColor>options.color,
+			backgroundColor: <string | types.ThemeColor>options.backgroundColor,
+			margin: options.margin,
+			width: options.width,
+			height: options.height,
+		};
+	}
+}
+
+export namespace ThemableDecorationRenderOptions {
+	export function from(options: vscode.ThemableDecorationRenderOptions): IThemeDecorationRenderOptions {
+		if (typeof options === 'undefined') {
+			return options;
+		}
+		return {
+			backgroundColor: <string | types.ThemeColor>options.backgroundColor,
+			outline: options.outline,
+			outlineColor: <string | types.ThemeColor>options.outlineColor,
+			outlineStyle: options.outlineStyle,
+			outlineWidth: options.outlineWidth,
+			border: options.border,
+			borderColor: <string | types.ThemeColor>options.borderColor,
+			borderRadius: options.borderRadius,
+			borderSpacing: options.borderSpacing,
+			borderStyle: options.borderStyle,
+			borderWidth: options.borderWidth,
+			fontStyle: options.fontStyle,
+			fontWeight: options.fontWeight,
+			textDecoration: options.textDecoration,
+			cursor: options.cursor,
+			color: <string | types.ThemeColor>options.color,
+			opacity: options.opacity,
+			letterSpacing: options.letterSpacing,
+			gutterIconPath: pathOrURIToURI(options.gutterIconPath),
+			gutterIconSize: options.gutterIconSize,
+			overviewRulerColor: <string | types.ThemeColor>options.overviewRulerColor,
+			before: ThemableDecorationAttachmentRenderOptions.from(options.before),
+			after: ThemableDecorationAttachmentRenderOptions.from(options.after),
+		};
+	}
+}
+
+export namespace DecorationRangeBehavior {
+	export function from(value: types.DecorationRangeBehavior): TrackedRangeStickiness {
+		if (typeof value === 'undefined') {
+			return value;
+		}
+		switch (value) {
+			case types.DecorationRangeBehavior.OpenOpen:
+				return TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
+			case types.DecorationRangeBehavior.ClosedClosed:
+				return TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
+			case types.DecorationRangeBehavior.OpenClosed:
+				return TrackedRangeStickiness.GrowsOnlyWhenTypingBefore;
+			case types.DecorationRangeBehavior.ClosedOpen:
+				return TrackedRangeStickiness.GrowsOnlyWhenTypingAfter;
+		}
+	}
+}
+
+export namespace DecorationRenderOptions {
+	export function from(options: vscode.DecorationRenderOptions): IDecorationRenderOptions {
+		return {
+			isWholeLine: options.isWholeLine,
+			rangeBehavior: DecorationRangeBehavior.from(options.rangeBehavior),
+			overviewRulerLane: options.overviewRulerLane,
+			light: ThemableDecorationRenderOptions.from(options.light),
+			dark: ThemableDecorationRenderOptions.from(options.dark),
+
+			backgroundColor: <string | types.ThemeColor>options.backgroundColor,
+			outline: options.outline,
+			outlineColor: <string | types.ThemeColor>options.outlineColor,
+			outlineStyle: options.outlineStyle,
+			outlineWidth: options.outlineWidth,
+			border: options.border,
+			borderColor: <string | types.ThemeColor>options.borderColor,
+			borderRadius: options.borderRadius,
+			borderSpacing: options.borderSpacing,
+			borderStyle: options.borderStyle,
+			borderWidth: options.borderWidth,
+			fontStyle: options.fontStyle,
+			fontWeight: options.fontWeight,
+			textDecoration: options.textDecoration,
+			cursor: options.cursor,
+			color: <string | types.ThemeColor>options.color,
+			opacity: options.opacity,
+			letterSpacing: options.letterSpacing,
+			gutterIconPath: pathOrURIToURI(options.gutterIconPath),
+			gutterIconSize: options.gutterIconSize,
+			overviewRulerColor: <string | types.ThemeColor>options.overviewRulerColor,
+			before: ThemableDecorationAttachmentRenderOptions.from(options.before),
+			after: ThemableDecorationAttachmentRenderOptions.from(options.after),
+		};
 	}
 }
 
@@ -340,7 +478,7 @@ export namespace SymbolKind {
 	_fromMapping[types.SymbolKind.TypeParameter] = modes.SymbolKind.TypeParameter;
 
 	export function from(kind: vscode.SymbolKind): modes.SymbolKind {
-		return _fromMapping[kind] || modes.SymbolKind.Property;
+		return typeof _fromMapping[kind] === 'number' ? _fromMapping[kind] : modes.SymbolKind.Property;
 	}
 
 	export function to(kind: modes.SymbolKind): vscode.SymbolKind {

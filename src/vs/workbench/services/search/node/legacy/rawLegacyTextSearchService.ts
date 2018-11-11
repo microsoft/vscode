@@ -7,12 +7,12 @@ import * as fs from 'fs';
 import * as gracefulFs from 'graceful-fs';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { MAX_FILE_SIZE } from 'vs/platform/files/node/files';
+import { ITextQuery, QueryType } from 'vs/platform/search/common/search';
 import { FileWalker } from 'vs/workbench/services/search/node/fileSearch';
-import { IRawSearch } from 'vs/workbench/services/search/node/legacy/search';
-import { BatchedCollector } from 'vs/workbench/services/search/node/textSearchManager';
-import { TextSearchWorkerProvider } from 'vs/workbench/services/search/node/legacy/textSearchWorkerProvider';
-import { ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess } from '../search';
 import { Engine } from 'vs/workbench/services/search/node/legacy/textSearch';
+import { TextSearchWorkerProvider } from 'vs/workbench/services/search/node/legacy/textSearchWorkerProvider';
+import { BatchedCollector } from 'vs/workbench/services/search/node/textSearchManager';
+import { ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess } from '../search';
 
 gracefulFs.gracefulify(fs);
 
@@ -23,7 +23,7 @@ export class LegacyTextSearchService {
 
 	private textSearchWorkerProvider: TextSearchWorkerProvider;
 
-	textSearch(config: IRawSearch, progressCallback: IProgressCallback, token: CancellationToken): Promise<ISerializedSearchComplete> {
+	textSearch(config: ITextQuery, progressCallback: IProgressCallback, token?: CancellationToken): Promise<ISerializedSearchComplete> {
 		if (!this.textSearchWorkerProvider) {
 			this.textSearchWorkerProvider = new TextSearchWorkerProvider();
 		}
@@ -31,21 +31,22 @@ export class LegacyTextSearchService {
 		let engine = new Engine(
 			config,
 			new FileWalker({
+				type: QueryType.File,
 				folderQueries: config.folderQueries,
-				extraFiles: config.extraFiles,
+				extraFileResources: config.extraFileResources,
 				includePattern: config.includePattern,
 				excludePattern: config.excludePattern,
-				filePattern: config.filePattern,
-				useRipgrep: false,
-				maxFilesize: MAX_FILE_SIZE
-			}),
+				useRipgrep: false
+			}, MAX_FILE_SIZE),
 			this.textSearchWorkerProvider);
 
 		return this.doTextSearch(engine, progressCallback, LegacyTextSearchService.BATCH_SIZE, token);
 	}
 
-	private doTextSearch(engine: Engine, progressCallback: IProgressCallback, batchSize: number, token: CancellationToken): Promise<ISerializedSearchSuccess> {
-		token.onCancellationRequested(() => engine.cancel());
+	private doTextSearch(engine: Engine, progressCallback: IProgressCallback, batchSize: number, token?: CancellationToken): Promise<ISerializedSearchSuccess> {
+		if (token) {
+			token.onCancellationRequested(() => engine.cancel());
+		}
 
 		return new Promise<ISerializedSearchSuccess>((c, e) => {
 			// Use BatchedCollector to get new results to the frontend every 2s at least, until 50 results have been returned

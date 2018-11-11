@@ -22,7 +22,13 @@ import * as errors from 'vs/base/common/errors';
 export class Server extends IPCServer {
 	constructor() {
 		super({
-			send: r => { try { process.send(r.toString('base64')); } catch (e) { /* not much to do */ } },
+			send: r => {
+				try {
+					if (process.send) {
+						process.send(r.toString('base64'));
+					}
+				} catch (e) { /* not much to do */ }
+			},
 			onMessage: fromNodeEventEmitter(process, 'message', msg => Buffer.from(msg, 'base64'))
 		});
 
@@ -81,8 +87,8 @@ export class Client implements IChannelClient, IDisposable {
 
 	private disposeDelayer: Delayer<void>;
 	private activeRequests = new Set<IDisposable>();
-	private child: ChildProcess;
-	private _client: IPCClient;
+	private child: ChildProcess | null;
+	private _client: IPCClient | null;
 	private channels = new Map<string, IChannel>();
 
 	private _onDidProcessExit = new Emitter<{ code: number, signal: string }>();
@@ -200,7 +206,7 @@ export class Client implements IChannelClient, IDisposable {
 				// Handle remote console logs specially
 				if (isRemoteConsoleLog(msg)) {
 					log(msg, `IPC Library: ${this.options.serverName}`);
-					return null;
+					return;
 				}
 
 				// Anything else goes to the outside
@@ -253,8 +259,10 @@ export class Client implements IChannelClient, IDisposable {
 
 	private disposeClient() {
 		if (this._client) {
-			this.child.kill();
-			this.child = null;
+			if (this.child) {
+				this.child.kill();
+				this.child = null;
+			}
 			this._client = null;
 			this.channels.clear();
 		}
@@ -263,7 +271,7 @@ export class Client implements IChannelClient, IDisposable {
 	dispose() {
 		this._onDidProcessExit.dispose();
 		this.disposeDelayer.cancel();
-		this.disposeDelayer = null;
+		this.disposeDelayer = null!; // StrictNullOverride: nulling out ok in dispose
 		this.disposeClient();
 		this.activeRequests.clear();
 	}

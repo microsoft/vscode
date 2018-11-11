@@ -6,6 +6,7 @@
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { URI } from 'vs/base/common/uri';
+import * as perf from 'vs/base/common/performance';
 import { ThrottledDelayer, Delayer } from 'vs/base/common/async';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
@@ -44,7 +45,7 @@ import { IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelView
 import { ILabelService } from 'vs/platform/label/common/label';
 
 export interface IExplorerViewOptions extends IViewletViewOptions {
-	viewletState: FileViewletState;
+	fileViewletState: FileViewletState;
 }
 
 export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView {
@@ -60,7 +61,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 	private explorerViewer: WorkbenchTree;
 	private filter: FileFilter;
-	private viewletState: FileViewletState;
+	private fileViewletState: FileViewletState;
 
 	private explorerRefreshDelayer: ThrottledDelayer<void>;
 
@@ -99,7 +100,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService);
 
 		this.viewState = options.viewletState;
-		this.viewletState = options.viewletState;
+		this.fileViewletState = options.fileViewletState;
 		this.autoReveal = true;
 
 		this.explorerRefreshDelayer = new ThrottledDelayer<void>(ExplorerView.EXPLORER_FILE_CHANGES_REFRESH_DELAY);
@@ -322,57 +323,54 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		}
 	}
 
-	public setVisible(visible: boolean): TPromise<void> {
-		return super.setVisible(visible).then(() => {
+	public setVisible(visible: boolean): void {
+		super.setVisible(visible);
 
-			// Show
-			if (visible) {
+		// Show
+		if (visible) {
 
-				// If a refresh was requested and we are now visible, run it
-				let refreshPromise: Thenable<void> = TPromise.as(null);
-				if (this.shouldRefresh) {
-					refreshPromise = this.doRefresh();
-					this.shouldRefresh = false; // Reset flag
-				}
-
-				if (!this.autoReveal) {
-					return refreshPromise; // do not react to setVisible call if autoReveal === false
-				}
-
-				// Always select the current navigated file in explorer if input is file editor input
-				// unless autoReveal is set to false
-				const activeFile = this.getActiveFile();
-				if (activeFile) {
-					return refreshPromise.then(() => {
-						return this.select(activeFile);
-					});
-				}
-
-				// Return now if the workbench has not yet been created - in this case the workbench takes care of restoring last used editors
-				if (!this.partService.isCreated()) {
-					return Promise.resolve(null);
-				}
-
-				// Otherwise restore last used file: By lastActiveFileResource
-				let lastActiveFileResource: URI;
-				if (this.viewState[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE]) {
-					lastActiveFileResource = URI.parse(this.viewState[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE]);
-				}
-
-				if (lastActiveFileResource && this.isCreated && this.model.findClosest(lastActiveFileResource)) {
-					this.editorService.openEditor({ resource: lastActiveFileResource, options: { revealIfVisible: true } });
-
-					return refreshPromise;
-				}
-
-				// Otherwise restore last used file: By Explorer selection
-				return refreshPromise.then(() => {
-					this.openFocusedElement();
-				});
+			// If a refresh was requested and we are now visible, run it
+			let refreshPromise: Thenable<void> = TPromise.as(null);
+			if (this.shouldRefresh) {
+				refreshPromise = this.doRefresh();
+				this.shouldRefresh = false; // Reset flag
 			}
 
-			return void 0;
-		});
+			if (!this.autoReveal) {
+				return; // do not react to setVisible call if autoReveal === false
+			}
+
+			// Always select the current navigated file in explorer if input is file editor input
+			// unless autoReveal is set to false
+			const activeFile = this.getActiveFile();
+			if (activeFile) {
+				refreshPromise.then(() => {
+					this.select(activeFile);
+				});
+				return;
+			}
+
+			// Return now if the workbench has not yet been created - in this case the workbench takes care of restoring last used editors
+			if (!this.partService.isCreated()) {
+				return;
+			}
+
+			// Otherwise restore last used file: By lastActiveFileResource
+			let lastActiveFileResource: URI;
+			if (this.viewState[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE]) {
+				lastActiveFileResource = URI.parse(this.viewState[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE]);
+			}
+
+			if (lastActiveFileResource && this.isCreated && this.model.findClosest(lastActiveFileResource)) {
+				this.editorService.openEditor({ resource: lastActiveFileResource, options: { revealIfVisible: true } });
+				return;
+			}
+
+			// Otherwise restore last used file: By Explorer selection
+			refreshPromise.then(() => {
+				this.openFocusedElement();
+			});
+		}
 	}
 
 	private openFocusedElement(preserveFocus?: boolean): void {
@@ -408,7 +406,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 	private createViewer(container: HTMLElement): WorkbenchTree {
 		const dataSource = this.instantiationService.createInstance(FileDataSource);
-		const renderer = this.instantiationService.createInstance(FileRenderer, this.viewletState);
+		const renderer = this.instantiationService.createInstance(FileRenderer, this.fileViewletState);
 		const controller = this.instantiationService.createInstance(FileController);
 		this.disposables.push(controller);
 		const sorter = this.instantiationService.createInstance(FileSorter);
@@ -806,6 +804,9 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 		// Display roots only when multi folder workspace
 		let input = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? this.model.roots[0] : this.model;
+		if (input !== this.explorerViewer.getInput()) {
+			perf.mark('willResolveExplorer');
+		}
 
 		const errorRoot = (resource: URI, root: ExplorerItem) => {
 			if (input === this.model.roots[0]) {
@@ -828,7 +829,8 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 				statsToExpand = this.model.roots.concat(statsToExpand);
 			}
 
-			return this.explorerViewer.setInput(input).then(() => this.explorerViewer.expandAll(statsToExpand));
+			return this.explorerViewer.setInput(input).then(() => this.explorerViewer.expandAll(statsToExpand))
+				.then(() => perf.mark('didResolveExplorer'));
 		};
 
 		if (targetsToResolve.every(t => t.root.resource.scheme === 'file')) {

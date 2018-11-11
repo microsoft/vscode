@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import * as dom from 'vs/base/browser/dom';
 import { GlobalMouseMoveMonitor } from 'vs/base/browser/globalMouseMoveMonitor';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 
 /**
  * Coordinates relative to the whole document (e.g. mouse event's pageX and pageY)
