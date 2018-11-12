@@ -5059,18 +5059,6 @@ declare namespace monaco.languages {
 	}
 
 	/**
-	 * The definition provider interface defines the contract between extensions and
-	 * the [go to definition](https://code.visualstudio.com/docs/editor/editingevolved#_go-to-definition)
-	 * and peek definition features.
-	 */
-	export interface DeclarationProvider {
-		/**
-		 * Provide the declaration of the symbol at the given position and document.
-		 */
-		provideDeclaration(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | DefinitionLink[]>;
-	}
-
-	/**
 	 * The implementation provider interface defines the contract between extensions and
 	 * the go to implementation feature.
 	 */
