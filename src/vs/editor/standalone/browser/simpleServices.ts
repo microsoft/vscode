@@ -490,7 +490,7 @@ export class SimpleMenuService implements IMenuService {
 	}
 
 	public createMenu(id: MenuId, contextKeyService: IContextKeyService): IMenu {
-		return new Menu(id, Promise.resolve(true), this._commandService, contextKeyService);
+		return new Menu(id, TPromise.as(true), this._commandService, contextKeyService);
 	}
 }
 
