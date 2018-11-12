@@ -32,9 +32,9 @@ export class Menu implements IMenu {
 
 			for (let item of menuItems) {
 				// group by groupId
-				const groupName = item.group;
+				const groupName = item.group || '';
 				if (!group || group[0] !== groupName) {
-					group = [groupName || '', []];
+					group = [groupName, []];
 					this._menuGroups.push(group);
 				}
 				group![1].push(item);
