@@ -123,6 +123,7 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	opacity: 0.7;
+	max-height: 18px;
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .type-label > .monaco-tokenized-source {
@@ -221,7 +222,7 @@
 }
 
 .monaco-editor .suggest-widget.docs-below .details {
-	border-top-width: 0px;
+	border-top-width: 0;
 }
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element {
