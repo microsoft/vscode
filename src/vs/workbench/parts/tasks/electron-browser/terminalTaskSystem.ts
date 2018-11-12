@@ -235,7 +235,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		return new TPromise<TaskTerminateResponse>((resolve, reject) => {
 			// For extension command tasks, there is no associated terminal.
 			if (ContributedTask.is(task) && task.command.runtime === RuntimeType.ExtensionCommand) {
-				resolve({ success: true, task: task });
+				resolve({ success: false, task: task });
 			} else {
 				let terminal = activeTerminal.terminal;
 				const onExit = terminal.onExit(() => {
