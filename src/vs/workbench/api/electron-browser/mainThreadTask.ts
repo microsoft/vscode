@@ -203,24 +203,40 @@ namespace ExtensionCommandExecutionDTO {
 			return undefined;
 		}
 
-		return {
+		let result: ExtensionCommandExecutionDTO = {
 			command: value.name,
-			args: value.args
 		};
+
+		if (value.options !== void 0 && value.options !== null &&
+			value.options.extensionCommand !== void 0 && value.options.extensionCommand !== null) {
+			result.options = {
+				args: value.options.extensionCommand.args
+			};
+		}
+
+		return result;
 	}
 
 	export function to(value: ExtensionCommandExecutionDTO): CommandConfiguration {
 		if (value === void 0 || value === null) {
 			return undefined;
 		}
-		return {
+
+		let result: CommandConfiguration = {
 			runtime: RuntimeType.ExtensionCommand,
 			name: value.command,
-			options: {
-				extensionCommandArguments: value.args
-			},
-			presentation: undefined,
+			presentation: undefined
 		};
+
+		if (value.options !== void 0 && value.options !== null) {
+			result.options = {
+				extensionCommand: {
+					args: value.options.args
+				}
+			};
+		}
+
+		return result;
 	}
 }
 

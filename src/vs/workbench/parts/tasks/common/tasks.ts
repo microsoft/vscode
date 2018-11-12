@@ -89,11 +89,18 @@ export interface ShellConfiguration {
 	quoting?: ShellQuotingOptions;
 }
 
+export interface ExtensionCommandConfiguration {
+	/**
+	 * Arguments for executing the command.
+	 */
+	args?: any[];
+}
+
 export interface CommandOptions {
 	/**
 	 * Configuration information when the task is a extension command.
 	 */
-	extensionCommandArguments?: any;
+	extensionCommand?: ExtensionCommandConfiguration;
 
 	/**
 	 * The shell to use if the task is a shell command.

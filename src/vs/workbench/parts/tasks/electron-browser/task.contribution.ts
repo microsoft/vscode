@@ -2356,8 +2356,7 @@ class TaskService extends Disposable implements ITaskService {
 					}
 				}
 				if (defaultTask) {
-					// TODO: Why were we wiping out this array?
-					// tasks = [];
+					tasks = [];
 					defaultEntry = {
 						label: nls.localize('TaskService.defaultBuildTaskExists', '{0} is already marked as the default build task', Task.getQualifiedLabel(defaultTask)),
 						task: defaultTask
@@ -2375,10 +2374,8 @@ class TaskService extends Disposable implements ITaskService {
 								this.openConfig(selectedTask);
 							}
 
-							for (let modifyTask of tasks) {
-								if (!InMemoryTask.is(modifyTask)) {
-									this.customize(modifyTask, { group: { kind: 'build', isDefault: modifyTask === selectedTask } }, true);
-								}
+							if (!InMemoryTask.is(selectedTask)) {
+								this.customize(selectedTask, { group: { kind: 'build', isDefault: true } }, true);
 							}
 						});
 				});

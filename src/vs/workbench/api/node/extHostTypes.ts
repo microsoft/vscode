@@ -1495,19 +1495,19 @@ export class ProcessExecution implements vscode.ProcessExecution {
 
 export class ExtensionCommandExecution implements vscode.ExtensionCommandExecution {
 	private readonly _command: string;
-	private _args?: any;
+	private _options?: vscode.ExtensionCommandExecutionOptions;
 
-	public constructor(command: string, ...args: any[]) {
+	public constructor(command: string, options?: vscode.ExtensionCommandExecutionOptions) {
 		this._command = command;
-		this._args = args;
+		this._options = options;
 	}
 
-	public get args(): any {
-		return this._args;
+	public get options(): vscode.ExtensionCommandExecutionOptions {
+		return this._options;
 	}
 
-	public set args(value: any) {
-		this._args = value;
+	public set options(value: vscode.ExtensionCommandExecutionOptions) {
+		this._options = value;
 	}
 
 	public get command(): string {
@@ -1518,10 +1518,10 @@ export class ExtensionCommandExecution implements vscode.ExtensionCommandExecuti
 		const hash = crypto.createHash('md5');
 		hash.update('extensionCommand');
 		hash.update(this.command);
-		if (this._args !== void 0) {
+		if (this._options !== void 0) {
 			// Use best effort attempt to has the arguments.
 			try {
-				const jsonValue: string = JSON.stringify(this._args);
+				const jsonValue: string = JSON.stringify(this._options);
 				hash.update(jsonValue);
 			} catch (e) {
 			}

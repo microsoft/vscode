@@ -60,9 +60,13 @@ export interface ShellExecutionDTO {
 	options?: ShellExecutionOptionsDTO;
 }
 
+export interface ExtensionCommandExecutionOptionsDTO {
+	args: any[];
+}
+
 export interface ExtensionCommandExecutionDTO {
 	command: string;
-	args: any;
+	options?: ExtensionCommandExecutionOptionsDTO;
 }
 
 export interface TaskSourceDTO {

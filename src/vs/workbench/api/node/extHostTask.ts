@@ -420,7 +420,9 @@ namespace Tasks {
 			name: value.command,
 			presentation: undefined,
 			options: {
-				extensionCommandArguments: value.args
+				extensionCommand: {
+					args: value.options && value.options.args
+				}
 			}
 		};
 	}
@@ -556,10 +558,17 @@ namespace ExtensionCallbackExecutionDTO {
 			return undefined;
 		}
 
-		return {
+		let result: ExtensionCommandExecutionDTO = {
 			command: value.command,
-			args: value.args
 		};
+
+		if (value.options !== void 0 && value.options !== null) {
+			result.options = {
+				args: value.options.args
+			};
+		}
+
+		return result;
 	}
 
 	export function to(value: ExtensionCommandExecutionDTO): types.ExtensionCommandExecution {
@@ -567,7 +576,11 @@ namespace ExtensionCallbackExecutionDTO {
 			return undefined;
 		}
 
-		return new types.ExtensionCommandExecution(value.command, value.args);
+		if (value.options !== void 0 && value.options !== null) {
+			return new types.ExtensionCommandExecution(value.command, { args: value.options.args });
+		}
+
+		return new types.ExtensionCommandExecution(value.command);
 	}
 }
 

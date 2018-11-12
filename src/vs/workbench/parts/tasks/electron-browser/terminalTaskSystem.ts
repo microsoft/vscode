@@ -304,25 +304,45 @@ export class TerminalTaskSystem implements ITaskSystem {
 	}
 
 	private executeExtensionCommand(task: CustomTask | ContributedTask, trigger: string): TPromise<ITaskSummary> {
-		return new TPromise<ITaskSummary>((resolve) => {
+		const taskPromise: TPromise<ITaskSummary> = new TPromise<ITaskSummary>((resolve, reject) => {
+			let commandPromise: Promise<any> = undefined;
 			if (Types.isString(task.command.name)) {
-				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
-				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task));
-				if (task.command.options && task.command.options.extensionCommandArguments) {
-					this._commandService.executeCommand(task.command.name, task.command.options.extensionCommandArguments).then(() => {
-						resolve({ exitCode: 0 });
-						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.End, task));
-					});
+				if (task.command.options && task.command.options.extensionCommand) {
+					commandPromise = this._commandService.executeCommand(task.command.name, ...task.command.options.extensionCommand.args);
 				} else {
-					this._commandService.executeCommand(task.command.name).then(() => {
-						resolve({ exitCode: 0 });
-						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.End, task));
-					});
+					commandPromise = this._commandService.executeCommand(task.command.name);
 				}
+			}
+
+			if (commandPromise) {
+				commandPromise.then(() => {
+					resolve({ exitCode: 0 });
+				}, ((error: any) => {
+					reject(error);
+				}));
 			} else {
 				resolve({ exitCode: 0 });
 			}
 		});
+
+		this.activeTasks[Task.getMapKey(task)] =
+			{
+				terminal: undefined,
+				task: task,
+				promise: taskPromise
+			};
+
+		this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task));
+		this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
+		taskPromise.then(() => {
+			delete this.activeTasks[Task.getMapKey(task)];
+			this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.End, task));
+		}, () => {
+			delete this.activeTasks[Task.getMapKey(task)];
+			this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Terminated, task));
+		});
+
+		return taskPromise;
 	}
 
 	private executeCommand(task: CustomTask | ContributedTask, trigger: string): TPromise<ITaskSummary> {

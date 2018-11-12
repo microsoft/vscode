@@ -4945,13 +4945,20 @@ declare module 'vscode' {
 		options?: ShellExecutionOptions;
 	}
 
+	export interface ExtensionCommandExecutionOptions {
+		/**
+		 * Arguments for executing the command.
+		 */
+		args?: any[];
+	}
+
 	export class ExtensionCommandExecution {
 		/**
 		 * Creates an extension command execution to be invoked through a task.
 		 * @param command The command identifier to invoke.
-		 * @param args Arguments for executing the command.
+		 * @param options Options for executing the command.
 		 */
-		constructor(command: string, ...args: any[]);
+		constructor(command: string, options?: ExtensionCommandExecutionOptions);
 
 		/**
 		 * The command identifier to execute.
@@ -4960,9 +4967,9 @@ declare module 'vscode' {
 		command: string;
 
 		/**
-		 * Arguments for executing the command.
+		 * Options used to execute the extension command.
 		 */
-		args?: any;
+		options?: ExtensionCommandExecutionOptions;
 	}
 
 	/**
