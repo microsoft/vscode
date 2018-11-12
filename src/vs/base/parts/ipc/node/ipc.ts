@@ -99,53 +99,112 @@ export interface IRoutingChannelClient {
 	getChannel<T extends IChannel>(channelName: string, router: IClientRouter): T;
 }
 
-enum BodyType {
-	Undefined,
-	String,
-	Buffer,
-	Object
+interface IReader {
+	read(bytes: number): Buffer;
 }
 
-const empty = Buffer.allocUnsafe(0);
+interface IWriter {
+	write(buffer: Buffer): void;
+}
 
-function serializeBody(body: any): { buffer: Buffer, type: BodyType } {
-	if (typeof body === 'undefined') {
-		return { buffer: empty, type: BodyType.Undefined };
-	} else if (typeof body === 'string') {
-		return { buffer: Buffer.from(body), type: BodyType.String };
-	} else if (Buffer.isBuffer(body)) {
-		return { buffer: body, type: BodyType.Buffer };
+class BufferReader implements IReader {
+
+	private pos = 0;
+
+	constructor(private buffer: Buffer) { }
+
+	read(bytes: number): Buffer {
+		const result = this.buffer.slice(this.pos, this.pos + bytes);
+		this.pos += result.length;
+		return result;
+	}
+}
+
+class BufferWriter implements IWriter {
+
+	private buffers: Buffer[] = [];
+
+	get buffer(): Buffer {
+		return Buffer.concat(this.buffers);
+	}
+
+	write(buffer: Buffer): void {
+		this.buffers.push(buffer);
+	}
+}
+
+enum DataType {
+	Undefined = 0,
+	String = 1,
+	Buffer = 2,
+	Array = 3,
+	Object = 4
+}
+
+function createSizeBuffer(size: number): Buffer {
+	const result = Buffer.allocUnsafe(4);
+	result.writeUInt32BE(size, 0);
+	return result;
+}
+
+function readSizeBuffer(reader: IReader): number {
+	return reader.read(4).readUInt32BE(0);
+}
+
+const BufferPresets = {
+	Undefined: Buffer.alloc(1, DataType.Undefined),
+	String: Buffer.alloc(1, DataType.String),
+	Buffer: Buffer.alloc(1, DataType.Buffer),
+	Array: Buffer.alloc(1, DataType.Array),
+	Object: Buffer.alloc(1, DataType.Object)
+};
+
+function serialize(writer: IWriter, data: any): void {
+	if (typeof data === 'undefined') {
+		writer.write(BufferPresets.Undefined);
+	} else if (typeof data === 'string') {
+		const buffer = Buffer.from(data);
+		writer.write(BufferPresets.String);
+		writer.write(createSizeBuffer(buffer.length));
+		writer.write(buffer);
+	} else if (Buffer.isBuffer(data)) {
+		writer.write(BufferPresets.Buffer);
+		writer.write(createSizeBuffer(data.length));
+		writer.write(data);
+	} else if (Array.isArray(data)) {
+		writer.write(BufferPresets.Array);
+		writer.write(createSizeBuffer(data.length));
+
+		for (const el of data) {
+			serialize(writer, el);
+		}
 	} else {
-		return { buffer: Buffer.from(JSON.stringify(body)), type: BodyType.Object };
+		const buffer = Buffer.from(JSON.stringify(data));
+		writer.write(BufferPresets.Object);
+		writer.write(createSizeBuffer(buffer.length));
+		writer.write(buffer);
 	}
 }
 
-function serialize(header: any, body: any = undefined): Buffer {
-	const headerSizeBuffer = Buffer.allocUnsafe(4);
-	const { buffer: bodyBuffer, type: bodyType } = serializeBody(body);
-	const headerBuffer = Buffer.from(JSON.stringify([header, bodyType]));
-	headerSizeBuffer.writeUInt32BE(headerBuffer.byteLength, 0);
+function deserialize(reader: IReader): any {
+	const type = reader.read(1).readUInt8(0);
 
-	return Buffer.concat([headerSizeBuffer, headerBuffer, bodyBuffer]);
-}
+	switch (type) {
+		case DataType.Undefined: return undefined;
+		case DataType.String: return reader.read(readSizeBuffer(reader)).toString();
+		case DataType.Buffer: return reader.read(readSizeBuffer(reader));
+		case DataType.Array: {
+			const length = readSizeBuffer(reader);
+			const result: any[] = [];
 
-function deserializeBody(bodyBuffer: Buffer, bodyType: BodyType): any {
-	switch (bodyType) {
-		case BodyType.Undefined: return undefined;
-		case BodyType.String: return bodyBuffer.toString();
-		case BodyType.Buffer: return bodyBuffer;
-		case BodyType.Object: return JSON.parse(bodyBuffer.toString());
+			for (let i = 0; i < length; i++) {
+				result.push(deserialize(reader));
+			}
+
+			return result;
+		}
+		case DataType.Object: return JSON.parse(reader.read(readSizeBuffer(reader)).toString());
 	}
-}
-
-function deserialize(buffer: Buffer): { header: any, body: any } {
-	const headerSize = buffer.readUInt32BE(0);
-	const headerBuffer = buffer.slice(4, 4 + headerSize);
-	const bodyBuffer = buffer.slice(4 + headerSize);
-	const [header, bodyType] = JSON.parse(headerBuffer.toString());
-	const body = deserializeBody(bodyBuffer, bodyType);
-
-	return { header, body };
 }
 
 export class ChannelServer implements IChannelServer, IDisposable {
@@ -166,14 +225,21 @@ export class ChannelServer implements IChannelServer, IDisposable {
 	private sendResponse(response: IRawResponse): void {
 		switch (response.type) {
 			case ResponseType.Initialize:
-				return this.sendBuffer(serialize([response.type]));
+				return this.send([response.type]);
 
 			case ResponseType.PromiseSuccess:
 			case ResponseType.PromiseError:
 			case ResponseType.EventFire:
 			case ResponseType.PromiseErrorObj:
-				return this.sendBuffer(serialize([response.type, response.id], response.data));
+				return this.send([response.type, response.id], response.data);
 		}
+	}
+
+	private send(header: any, body: any = undefined): void {
+		const writer = new BufferWriter();
+		serialize(writer, header);
+		serialize(writer, body);
+		this.sendBuffer(writer.buffer);
 	}
 
 	private sendBuffer(message: Buffer): void {
@@ -185,7 +251,9 @@ export class ChannelServer implements IChannelServer, IDisposable {
 	}
 
 	private onRawMessage(message: Buffer): void {
-		const { header, body } = deserialize(message);
+		const reader = new BufferReader(message);
+		const header = deserialize(reader);
+		const body = deserialize(reader);
 		const type = header[0] as RequestType;
 
 		switch (type) {
@@ -397,12 +465,19 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		switch (request.type) {
 			case RequestType.Promise:
 			case RequestType.EventListen:
-				return this.sendBuffer(serialize([request.type, request.id, request.channelName, request.name], request.arg));
+				return this.send([request.type, request.id, request.channelName, request.name], request.arg);
 
 			case RequestType.PromiseCancel:
 			case RequestType.EventDispose:
-				return this.sendBuffer(serialize([request.type, request.id]));
+				return this.send([request.type, request.id]);
 		}
+	}
+
+	private send(header: any, body: any = undefined): void {
+		const writer = new BufferWriter();
+		serialize(writer, header);
+		serialize(writer, body);
+		this.sendBuffer(writer.buffer);
 	}
 
 	private sendBuffer(message: Buffer): void {
@@ -414,7 +489,9 @@ export class ChannelClient implements IChannelClient, IDisposable {
 	}
 
 	private onBuffer(message: Buffer): void {
-		const { header, body } = deserialize(message);
+		const reader = new BufferReader(message);
+		const header = deserialize(reader);
+		const body = deserialize(reader);
 		const type: ResponseType = header[0];
 
 		switch (type) {

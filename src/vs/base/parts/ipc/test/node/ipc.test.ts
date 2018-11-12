@@ -99,6 +99,7 @@ interface ITestService {
 	error(message: string): Thenable<void>;
 	neverComplete(): Thenable<void>;
 	neverCompleteCT(cancellationToken: CancellationToken): Thenable<void>;
+	buffersLength(buffers: Buffer[]): Thenable<number>;
 
 	pong: Event<string>;
 }
@@ -128,6 +129,10 @@ class TestService implements ITestService {
 		return new Promise((_, e) => cancellationToken.onCancellationRequested(() => e(canceled())));
 	}
 
+	buffersLength(buffers: Buffer[]): Thenable<number> {
+		return Promise.resolve(buffers.reduce((r, b) => r + b.length, 0));
+	}
+
 	ping(msg: string): void {
 		this._pong.fire(msg);
 	}
@@ -138,6 +143,7 @@ interface ITestChannel extends IChannel {
 	call(command: 'error'): Thenable<void>;
 	call(command: 'neverComplete'): Thenable<void>;
 	call(command: 'neverCompleteCT', arg: undefined, cancellationToken: CancellationToken): Thenable<void>;
+	call(command: 'buffersLength', arg: [Buffer, Buffer]): Thenable<void>;
 	call<T>(command: string, arg?: any, cancellationToken?: CancellationToken): Thenable<T>;
 
 	listen(event: 'pong'): Event<string>;
@@ -154,6 +160,7 @@ class TestChannel implements ITestChannel {
 			case 'error': return this.service.error(arg);
 			case 'neverComplete': return this.service.neverComplete();
 			case 'neverCompleteCT': return this.service.neverCompleteCT(cancellationToken);
+			case 'buffersLength': return this.service.buffersLength(arg);
 			default: return Promise.reject(new Error('not implemented'));
 		}
 	}
@@ -188,6 +195,10 @@ class TestChannelClient implements ITestService {
 
 	neverCompleteCT(cancellationToken: CancellationToken): Thenable<void> {
 		return this.channel.call('neverCompleteCT', undefined, cancellationToken);
+	}
+
+	buffersLength(buffers: Buffer[]): Thenable<number> {
+		return this.channel.call('buffersLength', buffers);
 	}
 }
 
@@ -293,6 +304,11 @@ suite('Base IPC', function () {
 			await timeout(0);
 
 			assert.deepEqual(messages, ['hello', 'world']);
+		});
+
+		test('buffers in arrays', async function () {
+			const r = await ipcService.buffersLength([Buffer.allocUnsafe(2), Buffer.allocUnsafe(3)]);
+			return assert.equal(r, 5);
 		});
 	});
 });
