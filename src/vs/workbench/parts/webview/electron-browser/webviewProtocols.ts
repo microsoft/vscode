@@ -52,5 +52,5 @@ const webviewMimeTypes = {
 
 function getMimeType(normalizedPath: URI) {
 	const ext = extname(normalizedPath.fsPath).toLowerCase();
-	return webviewMimeTypes[ext] || getMediaMime(normalizedPath.fsPath) || guessMimeTypes(normalizedPath.fsPath)[0];
+	return webviewMimeTypes[ext] || getMediaMime(normalizedPath.fsPath) || guessMimeTypes(normalizedPath.fsPath, undefined, true)[0];
 }
