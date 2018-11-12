@@ -183,7 +183,9 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 	clearRepl(): void {
 		const session: IDebugSession = this.tree.getInput();
-		session.removeReplExpressions();
+		if (session) {
+			session.removeReplExpressions();
+		}
 		this.replInput.focus();
 	}
 
