@@ -418,7 +418,7 @@ export interface CompletionItem {
 	 * this completion. When `falsy` the [label](#CompletionItem.label)
 	 * is used.
 	 */
-	insertText: string;
+	insertText?: string;
 	/**
 	 * Addition rules (as bitmask) that should be applied when inserting
 	 * this completion.
@@ -633,8 +633,8 @@ export interface SignatureHelpContext {
  */
 export interface SignatureHelpProvider {
 
-	readonly signatureHelpTriggerCharacters: ReadonlyArray<string>;
-	readonly signatureHelpRetriggerCharacters: ReadonlyArray<string>;
+	readonly signatureHelpTriggerCharacters?: ReadonlyArray<string>;
+	readonly signatureHelpRetriggerCharacters?: ReadonlyArray<string>;
 
 	/**
 	 * Provide help for the signature at the given position and document.

@@ -23,16 +23,14 @@ export interface IEditorScrollbarOptions {
 	arrowSize?: number;
 	/**
 	 * Render vertical scrollbar.
-	 * Accepted values: 'auto', 'visible', 'hidden'.
 	 * Defaults to 'auto'.
 	 */
-	vertical?: string;
+	vertical?: 'auto' | 'visible' | 'hidden';
 	/**
 	 * Render horizontal scrollbar.
-	 * Accepted values: 'auto', 'visible', 'hidden'.
 	 * Defaults to 'auto'.
 	 */
-	horizontal?: string;
+	horizontal?: 'auto' | 'visible' | 'hidden';
 	/**
 	 * Cast horizontal and vertical shadows when the content is scrolled.
 	 * Defaults to true.
