@@ -37,7 +37,7 @@ export class DownloadServiceChannel implements IDownloadServiceChannel {
 		switch (event) {
 			case 'upload': return buffer(upload(URI.revive(arg)));
 		}
-		return undefined;
+		throw new Error(`Call not found: ${event}`);
 	}
 
 	call(command: string, arg?: any): TPromise<any> {
@@ -59,7 +59,7 @@ export class DownloadServiceChannelClient implements IDownloadService {
 			return mkdirp(dirName)
 				.then(() => {
 					out = fs.createWriteStream(to);
-					out.once('close', () => c(null));
+					out.once('close', () => c());
 					out.once('error', e);
 					const uploadStream = this.channel.listen('upload', from);
 					const disposable = uploadStream((result: UploadResponse) => {
