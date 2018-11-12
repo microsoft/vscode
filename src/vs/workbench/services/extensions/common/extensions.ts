@@ -132,7 +132,12 @@ export interface IWillActivateEvent {
 	readonly activation: Thenable<void>;
 }
 
-export interface IExtensionService {
+export interface IResponsiveStateChangeEvent {
+	target: ICpuProfilerTarget;
+	isResponsive: boolean;
+}
+
+export interface IExtensionService extends ICpuProfilerTarget {
 	_serviceBrand: any;
 
 	/**
@@ -155,6 +160,12 @@ export interface IExtensionService {
 	 * An event that is fired when activation happens.
 	 */
 	onWillActivateByEvent: Event<IWillActivateEvent>;
+
+	/**
+	 * An event that is fired when an extension host changes its
+	 * responsive-state.
+	 */
+	onDidChangeResponsiveChange: Event<IResponsiveStateChangeEvent>;
 
 	/**
 	 * Send an activation event and activate interested extensions.
@@ -183,16 +194,6 @@ export interface IExtensionService {
 	getExtensionsStatus(): { [id: string]: IExtensionsStatus };
 
 	/**
-	 * Check if the extension host can be profiled.
-	 */
-	canProfileExtensionHost(): boolean;
-
-	/**
-	 * Begin an extension host process profile session.
-	 */
-	startExtensionHostProfile(): Promise<ProfileSession>;
-
-	/**
 	 * Return the inspect port or 0.
 	 */
 	getInspectPort(): number;
@@ -211,6 +212,19 @@ export interface IExtensionService {
 	 * Stops the extension host.
 	 */
 	stopExtensionHost(): void;
+}
+
+export interface ICpuProfilerTarget {
+
+	/**
+	 * Check if the extension host can be profiled.
+	 */
+	canProfileExtensionHost(): boolean;
+
+	/**
+	 * Begin an extension host process profile session.
+	 */
+	startExtensionHostProfile(): Promise<ProfileSession>;
 }
 
 export interface ProfileSession {

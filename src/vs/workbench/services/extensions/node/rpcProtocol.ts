@@ -128,7 +128,7 @@ const noop = () => { };
 
 export class RPCProtocol extends Disposable implements IRPCProtocol {
 
-	private static UNRESPONSIVE_TIME = 10 * 1000; // 10s
+	private static UNRESPONSIVE_TIME = 3 * 1000; // 3s
 
 	private readonly _onDidChangeResponsiveState: Emitter<ResponsiveState> = this._register(new Emitter<ResponsiveState>());
 	public readonly onDidChangeResponsiveState: Event<ResponsiveState> = this._onDidChangeResponsiveState.event;

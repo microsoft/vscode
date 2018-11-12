@@ -36,7 +36,7 @@ import { IWindowService, IWindowsService } from 'vs/platform/windows/common/wind
 import { ExtHostCustomersRegistry } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ExtHostContext, ExtHostExtensionServiceShape, IExtHostContext, MainContext } from 'vs/workbench/api/node/extHost.protocol';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ActivationTimes, ExtensionPointContribution, IExtensionDescription, IExtensionService, IExtensionsStatus, IMessage, ProfileSession, IWillActivateEvent } from 'vs/workbench/services/extensions/common/extensions';
+import { ActivationTimes, ExtensionPointContribution, IExtensionDescription, IExtensionService, IExtensionsStatus, IMessage, ProfileSession, IWillActivateEvent, IResponsiveStateChangeEvent } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionMessageCollector, ExtensionPoint, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser, schema } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ExtensionHostProcessWorker, IExtensionHostStarter } from 'vs/workbench/services/extensions/electron-browser/extensionHost';
 import { ExtensionHostProfiler } from 'vs/workbench/services/extensions/electron-browser/extensionHostProfiler';
@@ -281,6 +281,9 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	private _onWillActivateByEvent = new Emitter<IWillActivateEvent>();
 	readonly onWillActivateByEvent: Event<IWillActivateEvent> = this._onWillActivateByEvent.event;
 
+	private readonly _onDidChangeResponsiveChange = new Emitter<IResponsiveStateChangeEvent>();
+	readonly onDidChangeResponsiveChange: Event<IResponsiveStateChangeEvent> = this._onDidChangeResponsiveChange.event;
+
 	private _unresponsiveNotificationHandle: INotificationHandle;
 
 	// --- Members used per extension host process
@@ -347,6 +350,8 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 	public dispose(): void {
 		super.dispose();
+		this._onWillActivateByEvent.dispose();
+		this._onDidChangeResponsiveChange.dispose();
 	}
 
 	public get onDidRegisterExtensions(): Event<void> {
@@ -387,7 +392,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		const extHostProcessWorker = this._instantiationService.createInstance(ExtensionHostProcessWorker, this.getExtensions(), this._extensionHostLogsLocation);
 		const extHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, extHostProcessWorker, null, initialActivationEvents);
 		extHostProcessManager.onDidCrash(([code, signal]) => this._onExtensionHostCrashed(code, signal));
-		extHostProcessManager.onDidChangeResponsiveState((responsiveState) => this._onResponsiveStateChanged(responsiveState));
+		extHostProcessManager.onDidChangeResponsiveState((responsiveState) => this._onResponsiveStateChanged(responsiveState, extHostProcessManager));
 		this._extensionHostProcessManagers.push(extHostProcessManager);
 	}
 
@@ -429,7 +434,15 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		);
 	}
 
-	private _onResponsiveStateChanged(state: ResponsiveState): void {
+	private _onResponsiveStateChanged(state: ResponsiveState, manager: ExtensionHostProcessManager): void {
+
+		// fire an event when an extension host is changing its state.
+		this._onDidChangeResponsiveChange.fire({
+			target: manager,
+			isResponsive: state === ResponsiveState.Responsive
+		});
+
+
 		// Do not show the notification anymore
 		// See https://github.com/Microsoft/vscode/issues/60318
 		const DISABLE_PROMPT = true;
