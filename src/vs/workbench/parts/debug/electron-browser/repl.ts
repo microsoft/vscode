@@ -49,6 +49,7 @@ import { transparent, editorForeground } from 'vs/platform/theme/common/colorReg
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { FocusSessionActionItem } from 'vs/workbench/parts/debug/browser/debugActionItems';
 import { CompletionContext, CompletionList, CompletionProviderRegistry } from 'vs/editor/common/modes';
+import { first } from 'vs/base/common/arrays';
 
 const $ = dom.$;
 
@@ -69,6 +70,7 @@ export interface IPrivateReplService {
 	clearRepl(): void;
 }
 
+const sessionsToIgnore = new Set<IDebugSession>();
 export class Repl extends Panel implements IPrivateReplService, IHistoryNavigationWidget {
 	_serviceBrand: any;
 
@@ -112,6 +114,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 	private registerListeners(): void {
 		this._register(this.debugService.getViewModel().onDidFocusSession(session => {
+			sessionsToIgnore.delete(session);
 			this.selectSession(session);
 		}));
 		this._register(this.debugService.onDidNewSession(() => this.updateTitleArea()));
@@ -185,6 +188,14 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		const session: IDebugSession = this.tree.getInput();
 		if (session) {
 			session.removeReplExpressions();
+			if (session.state === State.Inactive) {
+				// Ignore inactive sessions which got cleared - so they are not shown any more
+				sessionsToIgnore.add(session);
+				const focusedSession = this.debugService.getViewModel().focusedSession;
+				// If there is a focusedSession focus on that one, otherwise just show any other not ignored session
+				this.selectSession(focusedSession || first(this.debugService.getModel().getSessions(true), s => !sessionsToIgnore.has(s)));
+				this.updateTitleArea();
+			}
 		}
 		this.replInput.focus();
 	}
@@ -242,7 +253,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 	getActions(): IAction[] {
 		const result: IAction[] = [];
-		if (this.debugService.getModel().getSessions(true).length > 1) {
+		if (this.debugService.getModel().getSessions(true).filter(s => !sessionsToIgnore.has(s)).length > 1) {
 			result.push(this.selectReplAction);
 		}
 		result.push(this.clearReplAction);
@@ -482,7 +493,7 @@ registerEditorCommand(new SuggestCommand({
 
 class SelectReplActionItem extends FocusSessionActionItem {
 	protected getSessions(): ReadonlyArray<IDebugSession> {
-		return this.debugService.getModel().getSessions(true);
+		return this.debugService.getModel().getSessions(true).filter(s => !sessionsToIgnore.has(s));
 	}
 }
 
