@@ -502,6 +502,7 @@
 		"./vs/platform/search/common/search.ts",
 		"./vs/platform/search/test/common/replace.test.ts",
 		"./vs/platform/state/common/state.ts",
+		"./vs/platform/state/node/stateService.ts",
 		"./vs/platform/statusbar/common/statusbar.ts",
 		"./vs/platform/storage/common/storage.ts",
 		"./vs/platform/storage/common/storageLegacyService.ts",
