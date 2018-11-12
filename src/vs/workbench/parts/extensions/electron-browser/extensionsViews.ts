@@ -166,7 +166,7 @@ export class ExtensionsListView extends ViewletPanel {
 			if (manageExtensionAction.enabled) {
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => e.anchor,
-					getActions: () => manageExtensionAction.actionItem.getActions()
+					getActions: () => manageExtensionAction.createActionItem().getActions()
 				});
 			}
 		}

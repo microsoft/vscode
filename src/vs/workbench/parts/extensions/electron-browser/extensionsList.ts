@@ -91,7 +91,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			animated: false,
 			actionItemProvider: (action: Action) => {
 				if (action.id === ManageExtensionAction.ID) {
-					return (<ManageExtensionAction>action).actionItem;
+					return (<ManageExtensionAction>action).createActionItem();
 				}
 				return new ExtensionActionItem(null, action, actionOptions);
 			}
