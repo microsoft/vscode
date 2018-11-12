@@ -479,6 +479,7 @@
 		"./vs/platform/node/minimalTranslations.ts",
 		"./vs/platform/node/package.ts",
 		"./vs/platform/node/product.ts",
+		"./vs/platform/node/zip.ts",
 		"./vs/platform/notification/common/notification.ts",
 		"./vs/platform/notification/test/common/testNotificationService.ts",
 		"./vs/platform/opener/common/opener.ts",
