@@ -47,10 +47,13 @@ export class Debugger implements IDebugger {
 		} else {
 			return this.getAdapterDescriptor(session, root, config).then(adapterDescriptor => {
 				switch (adapterDescriptor.type) {
-					case 'server':
-						return new SocketDebugAdapter(adapterDescriptor);
 					case 'executable':
 						return new ExecutableDebugAdapter(adapterDescriptor, this.type, outputService);
+					case 'server':
+						return new SocketDebugAdapter(adapterDescriptor);
+					case 'implementation':
+						// TODO@AW: this.inExtHost() should now return true
+						return Promise.resolve(this.configurationManager.createDebugAdapter(session, root, config));
 					default:
 						throw new Error('Cannot create debug adapter.');
 				}

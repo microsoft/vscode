@@ -5,7 +5,7 @@
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { URI as uri } from 'vs/base/common/uri';
-import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, ITerminalSettings, IDebugAdapter, IDebugAdapterProvider, IDebugSession } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, ITerminalSettings, IDebugAdapter, IDebugAdapterProvider, IDebugSession, IDebugAdapterFactory } from 'vs/workbench/parts/debug/common/debug';
 import {
 	ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext,
 	IExtHostContext, IBreakpointsDeltaDto, ISourceMultiBreakpointDto, ISourceBreakpointDto, IFunctionBreakpointDto, IDebugSessionDto
@@ -17,7 +17,7 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { convertToVSCPaths, convertToDAPaths, stringToUri, uriToString } from 'vs/workbench/parts/debug/common/debugUtils';
 
 @extHostNamedCustomer(MainContext.MainThreadDebugService)
-export class MainThreadDebugService implements MainThreadDebugServiceShape, IDebugAdapterProvider {
+export class MainThreadDebugService implements MainThreadDebugServiceShape, IDebugAdapterFactory {
 
 	private _proxy: ExtHostDebugServiceShape;
 	private _toDispose: IDisposable[];
@@ -25,6 +25,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	private _debugAdapters: Map<number, ExtensionHostDebugAdapter>;
 	private _debugAdaptersHandleCounter = 1;
 	private _debugConfigurationProviders: Map<number, IDebugConfigurationProvider>;
+	private _debugAdapterProviders: Map<number, IDebugAdapterProvider>;
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -48,6 +49,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 
 		this._debugAdapters = new Map();
 		this._debugConfigurationProviders = new Map();
+		this._debugAdapterProviders = new Map();
 	}
 
 	public dispose(): void {
@@ -74,7 +76,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	// RPC methods (MainThreadDebugServiceShape)
 
 	public $registerDebugTypes(debugTypes: string[]) {
-		this._toDispose.push(this.debugService.getConfigurationManager().registerDebugAdapterProvider(debugTypes, this));
+		this._toDispose.push(this.debugService.getConfigurationManager().registerDebugAdapterFactory(debugTypes, this));
 	}
 
 	public $startBreakpointEvents(): void {
@@ -161,8 +163,8 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			};
 		}
 		if (hasProvideDebugAdapter) {
-			provider.provideDebugAdapter = (session, folder, config) => {
-				return Promise.resolve(this._proxy.$provideDebugAdapter(handle, this.getSessionDto(session), folder, config));
+			provider.debugAdapterExecutable = (folder) => {
+				return Promise.resolve(this._proxy.$legacyDebugAdapterExecutable(handle, folder));
 			};
 		}
 		this._debugConfigurationProviders.set(handle, provider);
@@ -178,6 +180,29 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			this.debugService.getConfigurationManager().unregisterDebugConfigurationProvider(provider);
 		}
 	}
+
+	public $registerDebugAdapterProvider(debugType: string, handle: number): Thenable<void> {
+
+		const provider = <IDebugAdapterProvider>{
+			type: debugType,
+			provideDebugAdapter: (session, folder, config) => {
+				return Promise.resolve(this._proxy.$provideDebugAdapter(handle, this.getSessionDto(session), folder, config));
+			}
+		};
+		this._debugAdapterProviders.set(handle, provider);
+		this._toDispose.push(this.debugService.getConfigurationManager().registerDebugAdapterProvider(provider));
+
+		return Promise.resolve(undefined);
+	}
+
+	public $unregisterDebugAdapterProvider(handle: number): void {
+		const provider = this._debugAdapterProviders.get(handle);
+		if (provider) {
+			this._debugAdapterProviders.delete(handle);
+			this.debugService.getConfigurationManager().unregisterDebugAdapterProvider(provider);
+		}
+	}
+
 
 	public $startDebugging(_folderUri: uri | undefined, nameOrConfiguration: string | IConfig): Thenable<boolean> {
 		const folderUri = _folderUri ? uri.revive(_folderUri) : undefined;

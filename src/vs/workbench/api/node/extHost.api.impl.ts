@@ -678,6 +678,9 @@ export function createApiFactory(
 			registerDebugConfigurationProvider(debugType: string, provider: vscode.DebugConfigurationProvider) {
 				return extHostDebugService.registerDebugConfigurationProvider(extension, debugType, provider);
 			},
+			registerDebugAdapterProvider(debugType: string, provider: vscode.DebugAdapterProvider) {
+				return extHostDebugService.registerDebugAdapterProvider(extension, debugType, provider);
+			},
 			startDebugging(folder: vscode.WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration) {
 				return extHostDebugService.startDebugging(folder, nameOrConfig);
 			},
