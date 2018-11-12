@@ -24,7 +24,7 @@ import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumen
 import { getDocumentSymbols } from 'vs/editor/contrib/quickOpen/quickOpen';
 import * as modes from 'vs/editor/common/modes';
 import { getCodeLensData } from 'vs/editor/contrib/codelens/codelens';
-import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition } from 'vs/editor/contrib/goToDefinition/goToDefinition';
+import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition, getDeclarationsAtPosition } from 'vs/editor/contrib/goToDefinition/goToDefinition';
 import { getHover } from 'vs/editor/contrib/hover/getHover';
 import { getOccurrencesAtPosition } from 'vs/editor/contrib/wordHighlighter/wordHighlighter';
 import { provideReferences } from 'vs/editor/contrib/referenceSearch/referenceSearch';
@@ -342,6 +342,27 @@ suite('ExtHostLanguageFeatures', function () {
 
 			return getDefinitionsAtPosition(model, new EditorPosition(1, 1), CancellationToken.None).then(value => {
 				assert.equal(value.length, 1);
+			});
+		});
+	});
+
+	// -- declaration
+
+	test('Declaration, data conversion', function () {
+
+		disposables.push(extHost.registerDeclarationProvider(defaultExtension, defaultSelector, <vscode.DeclarationProvider>{
+			provideDeclaration(): any {
+				return [new types.Location(model.uri, new types.Range(1, 2, 3, 4))];
+			}
+		}));
+
+		return rpcProtocol.sync().then(() => {
+
+			return getDeclarationsAtPosition(model, new EditorPosition(1, 1), CancellationToken.None).then(value => {
+				assert.equal(value.length, 1);
+				let [entry] = value;
+				assert.deepEqual(entry.range, { startLineNumber: 2, startColumn: 3, endLineNumber: 4, endColumn: 5 });
+				assert.equal(entry.uri.toString(), model.uri.toString());
 			});
 		});
 	});

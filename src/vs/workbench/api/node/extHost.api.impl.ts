@@ -299,6 +299,9 @@ export function createApiFactory(
 			registerDefinitionProvider(selector: vscode.DocumentSelector, provider: vscode.DefinitionProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerDefinitionProvider(extension, checkSelector(selector), provider);
 			},
+			registerDeclarationProvider(selector: vscode.DocumentSelector, provider: vscode.DeclarationProvider): vscode.Disposable {
+				return extHostLanguageFeatures.registerDeclarationProvider(extension, checkSelector(selector), provider);
+			},
 			registerImplementationProvider(selector: vscode.DocumentSelector, provider: vscode.ImplementationProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerImplementationProvider(extension, checkSelector(selector), provider);
 			},
