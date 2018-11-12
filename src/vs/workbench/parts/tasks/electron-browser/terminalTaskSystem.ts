@@ -159,10 +159,16 @@ export class TerminalTaskSystem implements ITaskSystem {
 		if (terminalData && terminalData.promise) {
 			let reveal = RevealKind.Always;
 			let focus = false;
-			if (CustomTask.is(task) || ContributedTask.is(task)) {
+
+			// For extension command tasks, there is no associated terminal.
+			// So, don't try to reveal it.
+			if (ContributedTask.is(task) && task.command.runtime === RuntimeType.ExtensionCommand) {
+				reveal = RevealKind.Never;
+			} else if (CustomTask.is(task) || ContributedTask.is(task)) {
 				reveal = task.command.presentation.reveal;
 				focus = task.command.presentation.focus;
 			}
+
 			if (reveal === RevealKind.Always || focus) {
 				this.terminalService.setActiveInstance(terminalData.terminal);
 				this.terminalService.showPanel(focus);
@@ -191,6 +197,12 @@ export class TerminalTaskSystem implements ITaskSystem {
 		if (!terminalData) {
 			return false;
 		}
+
+		// For extension command tasks, there is no associated terminal.
+		if (ContributedTask.is(task) && task.command.runtime === RuntimeType.ExtensionCommand) {
+			return false;
+		}
+
 		this.terminalService.setActiveInstance(terminalData.terminal);
 		if (CustomTask.is(task) || ContributedTask.is(task)) {
 			this.terminalService.showPanel(task.command.presentation.focus);
@@ -219,19 +231,25 @@ export class TerminalTaskSystem implements ITaskSystem {
 		if (!activeTerminal) {
 			return TPromise.as<TaskTerminateResponse>({ success: false, task: undefined });
 		}
+
 		return new TPromise<TaskTerminateResponse>((resolve, reject) => {
-			let terminal = activeTerminal.terminal;
-			const onExit = terminal.onExit(() => {
-				let task = activeTerminal.task;
-				try {
-					onExit.dispose();
-					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Terminated, task));
-				} catch (error) {
-					// Do nothing.
-				}
+			// For extension command tasks, there is no associated terminal.
+			if (ContributedTask.is(task) && task.command.runtime === RuntimeType.ExtensionCommand) {
 				resolve({ success: true, task: task });
-			});
-			terminal.dispose();
+			} else {
+				let terminal = activeTerminal.terminal;
+				const onExit = terminal.onExit(() => {
+					let task = activeTerminal.task;
+					try {
+						onExit.dispose();
+						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Terminated, task));
+					} catch (error) {
+						// Do nothing.
+					}
+					resolve({ success: true, task: task });
+				});
+				terminal.dispose();
+			}
 		});
 	}
 
@@ -241,16 +259,21 @@ export class TerminalTaskSystem implements ITaskSystem {
 			let terminalData = this.activeTasks[key];
 			let terminal = terminalData.terminal;
 			promises.push(new TPromise<TaskTerminateResponse>((resolve, reject) => {
-				const onExit = terminal.onExit(() => {
-					let task = terminalData.task;
-					try {
-						onExit.dispose();
-						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Terminated, task));
-					} catch (error) {
-						// Do nothing.
-					}
-					resolve({ success: true, task: terminalData.task });
-				});
+				// For extension command tasks, there is no associated terminal.
+				if (ContributedTask.is(key) && key.command.runtime === RuntimeType.ExtensionCommand) {
+					resolve({ success: true, task: key });
+				} else {
+					const onExit = terminal.onExit(() => {
+						let task = terminalData.task;
+						try {
+							onExit.dispose();
+							this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Terminated, task));
+						} catch (error) {
+							// Do nothing.
+						}
+						resolve({ success: true, task: terminalData.task });
+					});
+				}
 			}));
 			terminal.dispose();
 		});
@@ -346,8 +369,8 @@ export class TerminalTaskSystem implements ITaskSystem {
 	}
 
 	private executeCommand(task: CustomTask | ContributedTask, trigger: string): TPromise<ITaskSummary> {
-		// TODO: Figure out how to do this correctly.
-		if (task.command.runtime === RuntimeType.ExtensionCommand) {
+		// For extension command tasks, shortcut the terminal logic and execute them directly.
+		if (ContributedTask.is(task) && task.command.runtime === RuntimeType.ExtensionCommand) {
 			return this.executeExtensionCommand(task, trigger);
 		}
 

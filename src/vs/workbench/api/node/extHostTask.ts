@@ -415,16 +415,21 @@ namespace Tasks {
 			return undefined;
 		}
 
-		return {
+		let result: tasks.CommandConfiguration = {
 			runtime: tasks.RuntimeType.ExtensionCommand,
 			name: value.command,
-			presentation: undefined,
-			options: {
-				extensionCommand: {
-					args: value.options && value.options.args
-				}
-			}
+			presentation: undefined
 		};
+
+		if (value.options !== void 0 && value.options !== null) {
+			result.options = {
+				extensionCommand: {
+					args: value.options.args
+				}
+			};
+		}
+
+		return result;
 	}
 
 	function getProcessCommand(value: vscode.ProcessExecution): tasks.CommandConfiguration {
