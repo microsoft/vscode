@@ -418,6 +418,7 @@
 		"./vs/platform/dialogs/node/dialogIpc.ts",
 		"./vs/platform/dialogs/node/dialogService.ts",
 		"./vs/platform/download/common/download.ts",
+		"./vs/platform/download/node/downloadIpc.ts",
 		"./vs/platform/download/node/downloadService.ts",
 		"./vs/platform/driver/electron-main/driver.ts",
 		"./vs/platform/driver/node/driver.ts",
@@ -644,6 +645,7 @@
 		"./vs/workbench/parts/welcome/gettingStarted/electron-browser/gettingStarted.ts",
 		"./vs/workbench/parts/welcome/page/electron-browser/vs_code_welcome_page.ts",
 		"./vs/workbench/parts/welcome/walkThrough/node/walkThroughUtils.ts",
+		"./vs/workbench/services/actions/electron-browser/menusExtensionPoint.ts",
 		"./vs/workbench/services/activity/common/activity.ts",
 		"./vs/workbench/services/backup/common/backup.ts",
 		"./vs/workbench/services/backup/node/backupFileService.ts",
@@ -716,8 +718,7 @@
 		"./vs/workbench/services/themes/common/workbenchThemeService.ts",
 		"./vs/workbench/services/title/common/titleService.ts",
 		"./vs/workbench/services/workspace/common/workspaceEditing.ts",
-		"./vs/workbench/test/electron-browser/api/mock.ts",
-		"./vs/platform/download/node/downloadIpc.ts"
+		"./vs/workbench/test/electron-browser/api/mock.ts"
 	],
 	"exclude": [
 		"./typings/require-monaco.d.ts"
