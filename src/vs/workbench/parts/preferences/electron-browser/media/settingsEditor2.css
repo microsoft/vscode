@@ -51,6 +51,10 @@
 	opacity: 0.9;
 }
 
+.settings-editor .settings-tabs-widget > .monaco-action-bar .action-item .action-details {
+	opacity: 0.9;
+}
+
 .settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget .action-label:hover {
 	opacity: 1;
 }
