@@ -128,14 +128,22 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 		this.tree.onDidChangeCollapseState(this.onDidChangeCollapseState, this, this.disposables);
 	}
 
+	layout(height?: number): void {
+		this.tree.layout(height);
+	}
+
 	refresh(element: T | null): Thenable<void> {
+		return this.refreshNode(this.getNode(element));
+	}
+
+	private getNode(element: T | null): IDataTreeNode<T> {
 		const node: IDataTreeNode<T> = this.nodes.get(element);
 
 		if (typeof node === 'undefined') {
 			throw new Error(`Data tree node not found: ${element}`);
 		}
 
-		return this.refreshNode(node);
+		return node;
 	}
 
 	private refreshNode(node: IDataTreeNode<T>): Thenable<void> {
@@ -194,6 +202,93 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 		if (!treeNode.collapsed && treeNode.element.state === DataTreeNodeState.Uninitialized) {
 			this.refreshNode(treeNode.element);
 		}
+	}
+
+	// Tree
+
+	collapse(element: T): boolean {
+		return this.tree.collapse(this.getNode(element));
+	}
+
+	expand(element: T): boolean {
+		return this.tree.expand(this.getNode(element));
+	}
+
+	toggleCollapsed(element: T): void {
+		this.tree.toggleCollapsed(this.getNode(element));
+	}
+
+	collapseAll(): void {
+		this.tree.collapseAll();
+	}
+
+	isCollapsed(element: T): boolean {
+		return this.tree.isCollapsed(this.getNode(element));
+	}
+
+	isExpanded(element: T): boolean {
+		return this.tree.isExpanded(this.getNode(element));
+	}
+
+	refilter(): void {
+		this.tree.refilter();
+	}
+
+	setSelection(elements: T[], browserEvent?: UIEvent): void {
+		const nodes = elements.map(e => this.getNode(e));
+		this.tree.setSelection(nodes, browserEvent);
+	}
+
+	getSelection(): T[] {
+		const nodes = this.tree.getSelection();
+		return nodes.map(n => n.element);
+	}
+
+	setFocus(elements: T[], browserEvent?: UIEvent): void {
+		const nodes = elements.map(e => this.getNode(e));
+		this.tree.setFocus(nodes, browserEvent);
+	}
+
+	focusNext(n = 1, loop = false, browserEvent?: UIEvent): void {
+		this.tree.focusNext(n, loop, browserEvent);
+	}
+
+	focusPrevious(n = 1, loop = false, browserEvent?: UIEvent): void {
+		this.tree.focusPrevious(n, loop, browserEvent);
+	}
+
+	focusNextPage(browserEvent?: UIEvent): void {
+		this.tree.focusNextPage(browserEvent);
+	}
+
+	focusPreviousPage(browserEvent?: UIEvent): void {
+		this.tree.focusPreviousPage(browserEvent);
+	}
+
+	focusLast(browserEvent?: UIEvent): void {
+		this.tree.focusLast(browserEvent);
+	}
+
+	focusFirst(browserEvent?: UIEvent): void {
+		this.tree.focusFirst(browserEvent);
+	}
+
+	getFocus(): T[] {
+		const nodes = this.tree.getFocus();
+		return nodes.map(n => n.element);
+	}
+
+	open(elements: T[]): void {
+		const nodes = elements.map(e => this.getNode(e));
+		this.tree.open(nodes);
+	}
+
+	reveal(element: T, relativeTop?: number): void {
+		this.tree.reveal(this.getNode(element), relativeTop);
+	}
+
+	getRelativeTop(element: T): number | null {
+		return this.tree.getRelativeTop(this.getNode(element));
 	}
 
 	dispose(): void {
