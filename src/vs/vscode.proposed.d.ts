@@ -47,19 +47,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Joh - clipboard https://github.com/Microsoft/vscode/issues/217
-
-	export interface Clipboard {
-		readText(): Thenable<string>;
-		writeText(value: string): Thenable<void>;
-	}
-
-	export namespace env {
-		export const clipboard: Clipboard;
-	}
-
-	//#endregion
-
 	//#region Joh - read/write in chunks
 
 	export interface FileSystemProvider {

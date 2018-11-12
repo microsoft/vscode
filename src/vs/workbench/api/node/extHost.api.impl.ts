@@ -252,7 +252,6 @@ export function createApiFactory(
 				return extHostLogService.onDidChangeLogLevel;
 			},
 			get clipboard(): vscode.Clipboard {
-				checkProposedApiEnabled(extension);
 				return extHostClipboard;
 			}
 		});
