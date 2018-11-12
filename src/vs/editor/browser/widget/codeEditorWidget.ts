@@ -1639,6 +1639,7 @@ export class EditorModeContext extends Disposable {
 	private _hasCodeActionsProvider: IContextKey<boolean>;
 	private _hasCodeLensProvider: IContextKey<boolean>;
 	private _hasDefinitionProvider: IContextKey<boolean>;
+	private _hasDeclarationProvider: IContextKey<boolean>;
 	private _hasImplementationProvider: IContextKey<boolean>;
 	private _hasTypeDefinitionProvider: IContextKey<boolean>;
 	private _hasHoverProvider: IContextKey<boolean>;
@@ -1663,6 +1664,7 @@ export class EditorModeContext extends Disposable {
 		this._hasCodeActionsProvider = EditorContextKeys.hasCodeActionsProvider.bindTo(contextKeyService);
 		this._hasCodeLensProvider = EditorContextKeys.hasCodeLensProvider.bindTo(contextKeyService);
 		this._hasDefinitionProvider = EditorContextKeys.hasDefinitionProvider.bindTo(contextKeyService);
+		this._hasDeclarationProvider = EditorContextKeys.hasDeclarationProvider.bindTo(contextKeyService);
 		this._hasImplementationProvider = EditorContextKeys.hasImplementationProvider.bindTo(contextKeyService);
 		this._hasTypeDefinitionProvider = EditorContextKeys.hasTypeDefinitionProvider.bindTo(contextKeyService);
 		this._hasHoverProvider = EditorContextKeys.hasHoverProvider.bindTo(contextKeyService);
@@ -1686,6 +1688,7 @@ export class EditorModeContext extends Disposable {
 		this._register(modes.CodeActionProviderRegistry.onDidChange(update));
 		this._register(modes.CodeLensProviderRegistry.onDidChange(update));
 		this._register(modes.DefinitionProviderRegistry.onDidChange(update));
+		this._register(modes.DeclarationProviderRegistry.onDidChange(update));
 		this._register(modes.ImplementationProviderRegistry.onDidChange(update));
 		this._register(modes.TypeDefinitionProviderRegistry.onDidChange(update));
 		this._register(modes.HoverProviderRegistry.onDidChange(update));
@@ -1710,6 +1713,7 @@ export class EditorModeContext extends Disposable {
 		this._hasCodeActionsProvider.reset();
 		this._hasCodeLensProvider.reset();
 		this._hasDefinitionProvider.reset();
+		this._hasDeclarationProvider.reset();
 		this._hasImplementationProvider.reset();
 		this._hasTypeDefinitionProvider.reset();
 		this._hasHoverProvider.reset();
@@ -1734,6 +1738,7 @@ export class EditorModeContext extends Disposable {
 		this._hasCodeActionsProvider.set(modes.CodeActionProviderRegistry.has(model));
 		this._hasCodeLensProvider.set(modes.CodeLensProviderRegistry.has(model));
 		this._hasDefinitionProvider.set(modes.DefinitionProviderRegistry.has(model));
+		this._hasDeclarationProvider.set(modes.DeclarationProviderRegistry.has(model));
 		this._hasImplementationProvider.set(modes.ImplementationProviderRegistry.has(model));
 		this._hasTypeDefinitionProvider.set(modes.TypeDefinitionProviderRegistry.has(model));
 		this._hasHoverProvider.set(modes.HoverProviderRegistry.has(model));

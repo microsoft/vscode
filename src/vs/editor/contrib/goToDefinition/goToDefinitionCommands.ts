@@ -249,6 +249,41 @@ export class PeekDefinitionAction extends DefinitionAction {
 	}
 }
 
+export class GoToDeclarationAction extends DefinitionAction {
+
+	public static readonly ID = 'editor.action.goToDeclaration';
+
+	constructor() {
+		super(new DefinitionActionConfig(), {
+			id: GoToDeclarationAction.ID,
+			label: nls.localize('actions.goToDeclaration.label', "Go to Declaration"),
+			alias: 'Go to Declaration',
+			precondition: ContextKeyExpr.and(
+				EditorContextKeys.hasDeclarationProvider,
+				EditorContextKeys.isInEmbeddedEditor.toNegated()),
+			kbOpts: {
+				kbExpr: EditorContextKeys.editorTextFocus,
+				primary: KeyMod.CtrlCmd | KeyCode.F12,
+				weight: KeybindingWeight.EditorContrib
+			},
+			menuOpts: {
+				group: 'navigation',
+				order: 1.3
+			}
+		});
+	}
+
+	protected _getNoResultFoundMessage(info?: IWordAtPosition): string {
+		return info && info.word
+			? nls.localize('decl.noResultWord', "No declaration found for '{0}'", info.word)
+			: nls.localize('decl.generic.noResults', "No declaration found");
+	}
+
+	protected _getMetaTitle(model: ReferencesModel): string {
+		return model.references.length > 1 && nls.localize('decl.meta.title', " – {0} declarations", model.references.length);
+	}
+}
+
 export class ImplementationAction extends DefinitionAction {
 	protected _getDeclarationsAtPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Thenable<DefinitionLink[]> {
 		return getImplementationsAtPosition(model, position, token);
