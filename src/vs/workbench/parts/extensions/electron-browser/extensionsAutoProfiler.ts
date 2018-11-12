@@ -79,7 +79,8 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 		}
 		data = data.slice(0, anchor + 1);
 
-		let percentage = (profile.endTime - profile.startTime) / 100;
+		const duration = profile.endTime - profile.startTime;
+		const percentage = duration / 100;
 		let top: NamedSlice;
 		for (const slice of data) {
 			slice.percentage = Math.round(slice.total / percentage);
@@ -88,8 +89,17 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 			}
 		}
 
-		this._logService.warn(`UNRESPONSIVE extension host, '${top.id}' took ${top.percentage}% of ${(profile.endTime - profile.startTime) / 1e3}ms`, data);
+		this._logService.warn(`UNRESPONSIVE extension host, '${top.id}' took ${top.percentage}% of ${duration / 1e3}ms`, data);
 
-		this._telemetryService.publicLog('extensionsAutoProfile', data);
+		/* __GDPR__
+			"exthostunresponsive" : {
+				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+				"data": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+			}
+		*/
+		this._telemetryService.publicLog('exthostunresponsive', {
+			duration: duration / 1e3,
+			data
+		});
 	}
 }
