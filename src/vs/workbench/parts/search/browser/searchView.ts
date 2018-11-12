@@ -1109,6 +1109,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	}
 
 	private onQueryTriggered(query: ITextQuery, options: ITextQueryBuilderOptions, excludePatternText: string, includePatternText: string): void {
+		this.searchWidget.searchInput.onSearchSubmit();
 		this.inputPatternExcludes.onSearchSubmit();
 		this.inputPatternIncludes.onSearchSubmit();
 
