@@ -24,7 +24,6 @@
 		"test/smoke/out/**": true,
 		"src/vs/base/test/node/uri.test.data.txt": true
 	},
-	"tslint.enable": true,
 	"lcov.path": [
 		"./.build/coverage/lcov.info",
 		"./.build/coverage-single/lcov.info"
