@@ -37,18 +37,6 @@ $Input = Create-TmpJson @{
 			SigningInfo = @{
 				Operations = @(
 					@{
-						KeyCode = "CP-229803"
-						OperationCode = "SigntoolSign"
-						Parameters = @{
-							OpusName = "VS Code"
-							OpusInfo = "https://code.visualstudio.com/"
-							PageHash = "/NPH"
-							TimeStamp = "/t `"http://ts4096.gtm.microsoft.com/TSS/AuthenticodeTS`""
-						}
-						ToolName = "sign"
-						ToolVersion = "1.0"
-					},
-					@{
 						KeyCode = "CP-230012"
 						OperationCode = "SigntoolSign"
 						Parameters = @{
