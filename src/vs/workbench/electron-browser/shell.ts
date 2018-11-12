@@ -96,11 +96,14 @@ import { SearchHistoryService } from 'vs/workbench/services/search/node/searchHi
 import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
 import { DefaultURITransformer } from 'vs/base/common/uriIpc';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
+import { LogLevelSetterChannel } from 'vs/platform/log/node/logIpc';
 import { ILabelService, LabelService } from 'vs/platform/label/common/label';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadService } from 'vs/platform/download/node/downloadService';
+import { DownloadServiceChannel } from 'vs/platform/download/node/downloadIpc';
 import { runWhenIdle } from 'vs/base/common/async';
 import { TextResourcePropertiesService } from 'vs/workbench/services/textfile/electron-browser/textResourcePropertiesService';
+import { MulitExtensionManagementService } from 'vs/platform/extensionManagement/node/multiExtensionManagement';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { RemoteAuthorityResolverChannelClient, IRemoteAuthorityResolverChannel } from 'vs/platform/remote/node/remoteAuthorityResolverChannel';
 
@@ -460,10 +463,17 @@ export class WorkbenchShell extends Disposable {
 		const remoteAgentService = new RemoteAgentService(this.configuration, this.notificationService, this.environmentService, remoteAuthorityResolverService);
 		serviceCollection.set(IRemoteAgentService, remoteAgentService);
 
+		const remoteAgentConnection = remoteAgentService.getConnection();
+		if (remoteAgentConnection) {
+			remoteAgentConnection.registerChannel('dialog', instantiationService.createInstance(DialogChannel));
+			remoteAgentConnection.registerChannel('download', new DownloadServiceChannel());
+			remoteAgentConnection.registerChannel('loglevel', new LogLevelSetterChannel(this.logService));
+		}
+
 		const extensionManagementChannel = getDelayedChannel<IExtensionManagementChannel>(sharedProcess.then(c => c.getChannel('extensions')));
 		const extensionManagementChannelClient = new ExtensionManagementChannelClient(extensionManagementChannel, DefaultURITransformer);
 		serviceCollection.set(IExtensionManagementServerService, new SyncDescriptor(ExtensionManagementServerService, [extensionManagementChannelClient]));
-		serviceCollection.set(IExtensionManagementService, extensionManagementChannelClient);
+		serviceCollection.set(IExtensionManagementService, new SyncDescriptor(MulitExtensionManagementService));
 
 		const extensionEnablementService = this._register(instantiationService.createInstance(ExtensionEnablementService));
 		serviceCollection.set(IExtensionEnablementService, extensionEnablementService);
