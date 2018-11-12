@@ -630,7 +630,7 @@ export class SaveExtensionHostProfileAction extends Action {
 			// about users. We also append the `.txt` suffix to make it
 			// easier to attach these files to GH issues
 
-			let tmp = profiler.rewriteAbsolutePaths({ profile: dataToWrite }, 'piiRemoved');
+			let tmp = profiler.rewriteAbsolutePaths({ profile: dataToWrite as any }, 'piiRemoved');
 			dataToWrite = tmp.profile;
 
 			picked = picked + '.txt';
