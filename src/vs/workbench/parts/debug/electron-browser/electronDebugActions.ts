@@ -74,10 +74,10 @@ export class CopyAllAction extends Action {
 		const navigator = this.tree.getNavigator();
 		// skip first navigator element - the root node
 		while (navigator.next()) {
-			if (text) {
+			if (text && text.length > 0 && text[text.length - 1] !== lineDelimiter) {
 				text += lineDelimiter;
 			}
-			text += (<IReplElement>navigator.current()).toString().trimRight();
+			text += (<IReplElement>navigator.current()).toString();
 		}
 
 		clipboard.writeText(removeAnsiEscapeCodes(text));
