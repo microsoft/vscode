@@ -19,7 +19,7 @@ import { resolveTerminalEncoding } from 'vs/base/node/encoding';
 import * as iconv from 'iconv-lite';
 import { writeFileAndFlushSync } from 'vs/base/node/extfs';
 import { isWindows } from 'vs/base/common/platform';
-import { ProfilingSession } from 'v8-inspect-profiler';
+import { ProfilingSession, Target } from 'v8-inspect-profiler';
 import { createWaitMarkerFile } from 'vs/code/node/wait';
 
 function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
@@ -262,7 +262,7 @@ export async function main(argv: string[]): Promise<any> {
 			processCallbacks.push(async _child => {
 
 				class Profiler {
-					static async start(name: string, filenamePrefix: string, opts: { port: number, tries?: number, chooseTab?: Function }) {
+					static async start(name: string, filenamePrefix: string, opts: { port: number, tries?: number, target?: (targets: Target[]) => Target }) {
 						const profiler = await import('v8-inspect-profiler');
 
 						let session: ProfilingSession;
@@ -301,8 +301,8 @@ export async function main(argv: string[]): Promise<any> {
 					const rendererProfileRequest = Profiler.start('renderer', filenamePrefix, {
 						port: portRenderer,
 						tries: 200,
-						chooseTab: function (targets) {
-							return targets.find(target => {
+						target: function (targets) {
+							return targets.filter(target => {
 								if (!target.webSocketDebuggerUrl) {
 									return false;
 								}
@@ -311,7 +311,7 @@ export async function main(argv: string[]): Promise<any> {
 								} else {
 									return true;
 								}
-							});
+							})[0];
 						}
 					});
 

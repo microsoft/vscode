@@ -1260,13 +1260,13 @@ chownr@^1.0.1:
   resolved "https://registry.yarnpkg.com/chownr/-/chownr-1.0.1.tgz#e2a75042a9551908bebd25b8523d5f9769d79181"
   integrity sha1-4qdQQqlVGQi+vSW4Uj1fl2nXkYE=
 
-chrome-remote-interface@^0.25.3:
-  version "0.25.3"
-  resolved "https://registry.yarnpkg.com/chrome-remote-interface/-/chrome-remote-interface-0.25.3.tgz#b692ae538cd5af3a6dd285636bfab3d29a7006c1"
-  integrity sha512-+GJLyocWojJbo9ODkRGKkMA/jMgzVZtCUOpYSeVXYlPTWkcjUqsV4PeTgLWbzRy8TIRj69xYm0Gcy2Oo07AkYA==
+chrome-remote-interface@^0.26.1:
+  version "0.26.1"
+  resolved "https://registry.yarnpkg.com/chrome-remote-interface/-/chrome-remote-interface-0.26.1.tgz#6c7d4479742b6d236752d716a9bc2d322d7d8ad2"
+  integrity sha512-ela482aJK0riFu05sl+zdbnb3ezMiqzwsqf/f/27HngWds+Fat3vcZWpIoDoeQuWMid/+LfKAteAYWaWPqsweg==
   dependencies:
     commander "2.11.x"
-    ws "3.3.x"
+    ws "^3.3.3"
 
 chrome-trace-event@^1.0.0:
   version "1.0.0"
@@ -9059,12 +9059,12 @@ v8-compile-cache@^2.0.0:
   resolved "https://registry.yarnpkg.com/v8-compile-cache/-/v8-compile-cache-2.0.2.tgz#a428b28bb26790734c4fc8bc9fa106fccebf6a6c"
   integrity sha512-1wFuMUIM16MDJRCrpbpuEPTUGmM5QMUg0cr3KFwra2XgOgFcPGDQHDh3CszSCD2Zewc/dh/pamNEW8CbfDebUw==
 
-v8-inspect-profiler@^0.0.8:
-  version "0.0.8"
-  resolved "https://registry.yarnpkg.com/v8-inspect-profiler/-/v8-inspect-profiler-0.0.8.tgz#4d6bedb7c3d1bfc69e5bfdc2ded3d6784a5a76a6"
-  integrity sha1-TWvtt8PRv8aeW/3C3tPWeEpadqY=
+v8-inspect-profiler@^0.0.13:
+  version "0.0.13"
+  resolved "https://registry.yarnpkg.com/v8-inspect-profiler/-/v8-inspect-profiler-0.0.13.tgz#4bf4e7d51a9df8ac6f9a1df5487a636cf4ec2c5a"
+  integrity sha512-t6EldtIyV35/AkwFH40Dikhv9ZzySdjFPdnhVlNR4EWA0cVvOXnr1djc35HhG57yFdbFGRb8A2cxAFuccc1uxw==
   dependencies:
-    chrome-remote-interface "^0.25.3"
+    chrome-remote-interface "^0.26.1"
 
 v8flags@^2.0.2:
   version "2.1.1"
@@ -9584,10 +9584,10 @@ write@^0.2.1:
   dependencies:
     mkdirp "^0.5.1"
 
-ws@3.3.x:
-  version "3.3.2"
-  resolved "https://registry.yarnpkg.com/ws/-/ws-3.3.2.tgz#96c1d08b3fefda1d5c1e33700d3bfaa9be2d5608"
-  integrity sha512-t+WGpsNxhMR4v6EClXS8r8km5ZljKJzyGhJf7goJz9k5Ye3+b5Bvno5rjqPuIBn5mnn5GBb7o8IrIWHxX1qOLQ==
+ws@^3.3.3:
+  version "3.3.3"
+  resolved "https://registry.yarnpkg.com/ws/-/ws-3.3.3.tgz#f1cf84fe2d5e901ebce94efaece785f187a228f2"
+  integrity sha512-nnWLa/NwZSt4KQJu51MYlCcSQ5g7INpOrOMt4XV8j4dqTXdmlUmSHQ8/oLC069ckre0fRsgfvsKwbTdtKLCDkA==
   dependencies:
     async-limiter "~1.0.0"
     safe-buffer "~5.1.0"
