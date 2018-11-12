@@ -81,7 +81,7 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 
 		const duration = profile.endTime - profile.startTime;
 		const percentage = duration / 100;
-		let top: NamedSlice;
+		let top: NamedSlice | undefined;
 		for (const slice of data) {
 			slice.percentage = Math.round(slice.total / percentage);
 			if (!top || top.percentage < slice.percentage) {
@@ -89,7 +89,7 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 			}
 		}
 
-		this._logService.warn(`UNRESPONSIVE extension host, '${top.id}' took ${top.percentage}% of ${duration / 1e3}ms`, data);
+		this._logService.warn(`UNRESPONSIVE extension host, '${top ? top.id : 'unknown'}' took ${top ? top.percentage : 'unknown'}% of ${duration / 1e3}ms`, data);
 
 		/* __GDPR__
 			"exthostunresponsive" : {

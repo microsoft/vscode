@@ -598,6 +598,7 @@
 		"./vs/workbench/parts/extensions/common/extensions.ts",
 		"./vs/workbench/parts/extensions/common/extensionsFileTemplate.ts",
 		"./vs/workbench/parts/extensions/electron-browser/extensionsActivationProgress.ts",
+		"./vs/workbench/parts/extensions/electron-browser/extensionsAutoProfiler.ts",
 		"./vs/workbench/parts/extensions/electron-browser/extensionsUtils.ts",
 		"./vs/workbench/parts/logs/common/logConstants.ts",
 		"./vs/workbench/parts/logs/electron-browser/logs.contribution.ts",
