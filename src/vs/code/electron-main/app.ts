@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing } from 'electron';
 import * as platform from 'vs/base/common/platform';
 import { WindowsManager } from 'vs/code/electron-main/windows';
@@ -63,7 +61,6 @@ import { IMenubarService } from 'vs/platform/menubar/common/menubar';
 import { MenubarService } from 'vs/platform/menubar/electron-main/menubarService';
 import { MenubarChannel } from 'vs/platform/menubar/node/menubarIpc';
 import { ILabelService, RegisterFormatterEvent } from 'vs/platform/label/common/label';
-import { CodeMenu } from 'vs/code/electron-main/menus';
 import { hasArgs } from 'vs/platform/environment/node/argv';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
@@ -168,7 +165,7 @@ export class CodeApplication {
 		});
 
 		let macOpenFileURIs: URI[] = [];
-		let runningTimeout: number = null;
+		let runningTimeout: any = null;
 		app.on('open-file', (event: Event, path: string) => {
 			this.logService.trace('App#open-file: ', path);
 			event.preventDefault();
@@ -434,10 +431,10 @@ export class CodeApplication {
 			services.set(IUpdateService, new SyncDescriptor(DarwinUpdateService));
 		}
 
-		services.set(IWindowsMainService, new SyncDescriptor(WindowsManager, machineId));
-		services.set(IWindowsService, new SyncDescriptor(WindowsService, this.sharedProcess));
+		services.set(IWindowsMainService, new SyncDescriptor(WindowsManager, [machineId]));
+		services.set(IWindowsService, new SyncDescriptor(WindowsService, [this.sharedProcess]));
 		services.set(ILaunchService, new SyncDescriptor(LaunchService));
-		services.set(IIssueService, new SyncDescriptor(IssueService, machineId, this.userEnv));
+		services.set(IIssueService, new SyncDescriptor(IssueService, [machineId, this.userEnv]));
 		services.set(IMenubarService, new SyncDescriptor(MenubarService));
 
 		// Telemtry
@@ -448,7 +445,7 @@ export class CodeApplication {
 			const piiPaths = [this.environmentService.appRoot, this.environmentService.extensionsPath];
 			const config: ITelemetryServiceConfig = { appender, commonProperties, piiPaths };
 
-			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, config));
+			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, [config]));
 		} else {
 			services.set(ITelemetryService, NullTelemetryService);
 		}
@@ -559,7 +556,7 @@ export class CodeApplication {
 	private afterWindowOpen(accessor: ServicesAccessor): void {
 		const windowsMainService = accessor.get(IWindowsMainService);
 
-		let windowsMutex: Mutex = null;
+		let windowsMutex: Mutex | null = null;
 		if (platform.isWindows) {
 
 			// Setup Windows mutex
@@ -594,22 +591,6 @@ export class CodeApplication {
 					});
 				}
 			}
-		}
-
-		// TODO@sbatten: Remove when switching back to dynamic menu
-		// Install Menu
-		const instantiationService = accessor.get(IInstantiationService);
-		const configurationService = accessor.get(IConfigurationService);
-
-		let createNativeMenu = true;
-		if (platform.isLinux) {
-			createNativeMenu = configurationService.getValue<string>('window.titleBarStyle') !== 'custom';
-		} else if (platform.isWindows) {
-			createNativeMenu = configurationService.getValue<string>('window.titleBarStyle') === 'native';
-		}
-
-		if (createNativeMenu) {
-			instantiationService.createInstance(CodeMenu);
 		}
 
 		// Jump List

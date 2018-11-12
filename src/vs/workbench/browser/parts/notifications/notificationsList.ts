@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./media/notificationsList';
 import { addClass, isAncestor, trackFocus } from 'vs/base/browser/dom';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
@@ -77,7 +75,10 @@ export class NotificationsList extends Themable {
 			this.listContainer,
 			new NotificationsListDelegate(this.listContainer),
 			[renderer],
-			this.options
+			{
+				...this.options,
+				setRowLineHeight: false
+			}
 		));
 
 		// Context menu to copy message

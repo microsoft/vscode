@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { TimeoutTimer } from 'vs/base/common/async';
@@ -15,7 +14,7 @@ import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/comm
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
-import { ISuggestSupport, StandardTokenType, SuggestContext, SuggestRegistry, SuggestTriggerKind } from 'vs/editor/common/modes';
+import { CompletionItemProvider, StandardTokenType, CompletionContext, CompletionProviderRegistry, CompletionTriggerKind } from 'vs/editor/common/modes';
 import { CompletionModel } from './completionModel';
 import { ISuggestionItem, getSuggestionComparator, provideSuggestionItems, getSnippetSuggestSupport } from './suggest';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
@@ -134,7 +133,7 @@ export class SuggestModel implements IDisposable {
 			this._updateTriggerCharacters();
 			this._updateQuickSuggest();
 		}));
-		this._toDispose.push(SuggestRegistry.onDidChange(() => {
+		this._toDispose.push(CompletionProviderRegistry.onDidChange(() => {
 			this._updateTriggerCharacters();
 			this._updateActiveSuggestSession();
 		}));
@@ -192,8 +191,8 @@ export class SuggestModel implements IDisposable {
 			return;
 		}
 
-		const supportsByTriggerCharacter: { [ch: string]: Set<ISuggestSupport> } = Object.create(null);
-		for (const support of SuggestRegistry.all(this._editor.getModel())) {
+		const supportsByTriggerCharacter: { [ch: string]: Set<CompletionItemProvider> } = Object.create(null);
+		for (const support of CompletionProviderRegistry.all(this._editor.getModel())) {
 			if (isFalsyOrEmpty(support.triggerCharacters)) {
 				continue;
 			}
@@ -248,7 +247,7 @@ export class SuggestModel implements IDisposable {
 
 	private _updateActiveSuggestSession(): void {
 		if (this._state !== State.Idle) {
-			if (!SuggestRegistry.has(this._editor.getModel())) {
+			if (!CompletionProviderRegistry.has(this._editor.getModel())) {
 				this.cancel();
 			} else {
 				this.trigger({ auto: this._state === State.Auto }, true);
@@ -273,7 +272,7 @@ export class SuggestModel implements IDisposable {
 			return;
 		}
 
-		if (!SuggestRegistry.has(this._editor.getModel())) {
+		if (!CompletionProviderRegistry.has(this._editor.getModel())) {
 			return;
 		}
 
@@ -354,7 +353,7 @@ export class SuggestModel implements IDisposable {
 		}
 	}
 
-	trigger(context: SuggestTriggerContext, retrigger: boolean = false, onlyFrom?: ISuggestSupport[], existingItems?: ISuggestionItem[]): void {
+	trigger(context: SuggestTriggerContext, retrigger: boolean = false, onlyFrom?: CompletionItemProvider[], existingItems?: ISuggestionItem[]): void {
 
 		const model = this._editor.getModel();
 
@@ -373,20 +372,22 @@ export class SuggestModel implements IDisposable {
 		this._context = ctx;
 
 		// Build context for request
-		let suggestCtx: SuggestContext;
+		let suggestCtx: CompletionContext;
 		if (context.triggerCharacter) {
 			suggestCtx = {
-				triggerKind: SuggestTriggerKind.TriggerCharacter,
+				triggerKind: CompletionTriggerKind.TriggerCharacter,
 				triggerCharacter: context.triggerCharacter
 			};
 		} else if (onlyFrom && onlyFrom.length) {
-			suggestCtx = { triggerKind: SuggestTriggerKind.TriggerForIncompleteCompletions };
+			suggestCtx = { triggerKind: CompletionTriggerKind.TriggerForIncompleteCompletions };
 		} else {
-			suggestCtx = { triggerKind: SuggestTriggerKind.Invoke };
+			suggestCtx = { triggerKind: CompletionTriggerKind.Invoke };
 		}
 
 		this._requestToken = new CancellationTokenSource();
 
+		// TODO: Remove this workaround - https://github.com/Microsoft/vscode/issues/61917
+		// let wordDistance = Promise.resolve().then(() => WordDistance.create(this._editorWorker, this._editor));
 		let wordDistance = WordDistance.create(this._editorWorker, this._editor);
 
 		let items = provideSuggestionItems(

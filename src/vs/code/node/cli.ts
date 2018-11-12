@@ -20,6 +20,7 @@ import * as iconv from 'iconv-lite';
 import { writeFileAndFlushSync } from 'vs/base/node/extfs';
 import { isWindows } from 'vs/base/common/platform';
 import { ProfilingSession } from 'v8-inspect-profiler';
+import { createWaitMarkerFile } from 'vs/code/node/wait';
 
 function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
 	return !!argv['install-source']
@@ -228,22 +229,9 @@ export async function main(argv: string[]): Promise<any> {
 		// is closed and then exit the waiting process.
 		let waitMarkerFilePath: string;
 		if (args.wait) {
-			let waitMarkerError: Error;
-			const randomTmpFile = paths.join(os.tmpdir(), Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 10));
-			try {
-				fs.writeFileSync(randomTmpFile, '');
-				waitMarkerFilePath = randomTmpFile;
+			waitMarkerFilePath = await createWaitMarkerFile(verbose);
+			if (waitMarkerFilePath) {
 				argv.push('--waitMarkerFilePath', waitMarkerFilePath);
-			} catch (error) {
-				waitMarkerError = error;
-			}
-
-			if (verbose) {
-				if (waitMarkerError) {
-					console.error(`Failed to create marker file for --wait: ${waitMarkerError.toString()}`);
-				} else {
-					console.log(`Marker file for --wait created: ${waitMarkerFilePath}`);
-				}
 			}
 		}
 
@@ -261,7 +249,7 @@ export async function main(argv: string[]): Promise<any> {
 				throw new Error('Failed to find free ports for profiler. Make sure to shutdown all instances of the editor first.');
 			}
 
-			const filenamePrefix = paths.join(os.homedir(), Math.random().toString(16).slice(-4));
+			const filenamePrefix = paths.join(os.homedir(), 'prof-' + Math.random().toString(16).slice(-4));
 
 			argv.push(`--inspect-brk=${portMain}`);
 			argv.push(`--remote-debugging-port=${portRenderer}`);
@@ -300,7 +288,7 @@ export async function main(argv: string[]): Promise<any> {
 									suffix = '.txt';
 								}
 
-								await profiler.writeProfile(profile, `${filenamePrefix}-${name}.cpuprofile${suffix}`);
+								await profiler.writeProfile(profile, `${filenamePrefix}.${name}.cpuprofile${suffix}`);
 							}
 						};
 					}

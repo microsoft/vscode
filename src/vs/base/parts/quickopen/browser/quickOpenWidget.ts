@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import 'vs/css!./quickopen';
 import * as nls from 'vs/nls';
@@ -117,7 +116,7 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 	private inputElement: HTMLElement;
 	private layoutDimensions: DOM.Dimension;
 	private model: IModel<any>;
-	private inputChangingTimeoutHandle: number;
+	private inputChangingTimeoutHandle: any;
 	private styles: IQuickOpenStyles;
 	private renderer: Renderer;
 

@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as paths from 'vs/base/common/paths';
@@ -52,6 +51,11 @@ export interface IFileService {
 	registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable;
 
 	/**
+	 * Tries to activate a provider with the given scheme.
+	 */
+	activateProvider(scheme: string): Thenable<void>;
+
+	/**
 	 * Checks if this file service can handle the given resource.
 	 */
 	canHandleResource(resource: URI): boolean;
@@ -70,7 +74,7 @@ export interface IFileService {
 	resolveFile(resource: URI, options?: IResolveFileOptions): TPromise<IFileStat>;
 
 	/**
-	 * Same as resolveFile but supports resolving mulitple resources in parallel.
+	 * Same as resolveFile but supports resolving multiple resources in parallel.
 	 * If one of the resolve targets fails to resolve returns a fake IFileStat instead of making the whole call fail.
 	 */
 	resolveFiles(toResolve: { resource: URI, options?: IResolveFileOptions }[]): TPromise<IResolveFileResult[]>;
@@ -237,7 +241,7 @@ export class FileOperationEvent {
 		return this._resource;
 	}
 
-	get target(): IFileStat {
+	get target(): IFileStat | undefined {
 		return this._target;
 	}
 
@@ -485,12 +489,15 @@ export interface IStringStream {
  * Will return null when finished.
  */
 export interface ITextSnapshot {
-	read(): string;
+	read(): string | null;
 }
 
 export class StringSnapshot implements ITextSnapshot {
-	constructor(private _value: string) { }
-	read(): string {
+	private _value: string | null;
+	constructor(value: string) {
+		this._value = value;
+	}
+	read(): string | null {
 		let ret = this._value;
 		this._value = null;
 		return ret;
@@ -501,7 +508,7 @@ export class StringSnapshot implements ITextSnapshot {
  */
 export function snapshotToString(snapshot: ITextSnapshot): string {
 	const chunks: string[] = [];
-	let chunk: string;
+	let chunk: string | null;
 	while (typeof (chunk = snapshot.read()) === 'string') {
 		chunks.push(chunk);
 	}

@@ -17,6 +17,7 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { values } from 'vs/base/common/map';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IAction } from 'vs/base/common/actions';
 
 export const TEST_VIEW_CONTAINER_ID = 'workbench.view.extension.test';
 
@@ -133,10 +134,9 @@ export interface IViewsRegistry {
 
 	getViews(loc: ViewContainer): IViewDescriptor[];
 
-	getView(id: string): IViewDescriptor;
+	getView(id: string): IViewDescriptor | null;
 
 	getAllViews(): IViewDescriptor[];
-
 }
 
 export const ViewsRegistry: IViewsRegistry = new class implements IViewsRegistry {
@@ -194,7 +194,7 @@ export const ViewsRegistry: IViewsRegistry = new class implements IViewsRegistry
 		return this._views.get(loc) || [];
 	}
 
-	getView(id: string): IViewDescriptor {
+	getView(id: string): IViewDescriptor | null {
 		for (const viewContainer of this._viewContainer) {
 			const viewDescriptor = (this._views.get(viewContainer) || []).filter(v => v.id === id)[0];
 			if (viewDescriptor) {
@@ -239,6 +239,10 @@ export interface ITreeViewer extends IDisposable {
 
 	dataProvider: ITreeViewDataProvider;
 
+	showCollapseAllAction: boolean;
+
+	readonly visible: boolean;
+
 	readonly onDidExpandItem: Event<ITreeItem>;
 
 	readonly onDidCollapseItem: Event<ITreeItem>;
@@ -247,7 +251,7 @@ export interface ITreeViewer extends IDisposable {
 
 	readonly onDidChangeVisibility: Event<boolean>;
 
-	readonly visible: boolean;
+	readonly onDidChangeActions: Event<void>;
 
 	refresh(treeItems?: ITreeItem[]): TPromise<void>;
 
@@ -261,7 +265,27 @@ export interface ITreeViewer extends IDisposable {
 
 	getOptimalWidth(): number;
 
-	reveal(item: ITreeItem, parentChain: ITreeItem[], options: { select?: boolean }): TPromise<void>;
+	reveal(item: ITreeItem): TPromise<void>;
+
+	expand(itemOrItems: ITreeItem | ITreeItem[]): TPromise<void>;
+
+	setSelection(items: ITreeItem[]): void;
+
+	setFocus(item: ITreeItem): void;
+
+	getPrimaryActions(): IAction[];
+
+	getSecondaryActions(): IAction[];
+}
+
+export interface IRevealOptions {
+
+	select?: boolean;
+
+	focus?: boolean;
+
+	expand?: boolean | number;
+
 }
 
 export interface ICustomViewDescriptor extends IViewDescriptor {
@@ -281,6 +305,14 @@ export enum TreeItemCollapsibleState {
 	Expanded = 2
 }
 
+export interface ITreeItemLabel {
+
+	label: string;
+
+	highlights?: [number, number][];
+
+}
+
 export interface ITreeItem {
 
 	handle: string;
@@ -289,7 +321,7 @@ export interface ITreeItem {
 
 	collapsibleState: TreeItemCollapsibleState;
 
-	label?: string;
+	label?: ITreeItemLabel;
 
 	icon?: UriComponents;
 

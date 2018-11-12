@@ -10,19 +10,19 @@ import { registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensio
 import { Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
 import { DefinitionLink, DefinitionProviderRegistry, ImplementationProviderRegistry, TypeDefinitionProviderRegistry } from 'vs/editor/common/modes';
-import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
+import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureRegistry';
 
 
 function getDefinitions<T>(
 	model: ITextModel,
 	position: Position,
 	registry: LanguageFeatureRegistry<T>,
-	provide: (provider: T, model: ITextModel, position: Position) => DefinitionLink | DefinitionLink[] | Thenable<DefinitionLink | DefinitionLink[]>
+	provide: (provider: T, model: ITextModel, position: Position) => DefinitionLink | DefinitionLink[] | null | undefined | Thenable<DefinitionLink | DefinitionLink[] | null | undefined>
 ): Thenable<DefinitionLink[]> {
 	const provider = registry.ordered(model);
 
 	// get results
-	const promises = provider.map((provider): Thenable<DefinitionLink | DefinitionLink[]> => {
+	const promises = provider.map((provider): Thenable<DefinitionLink | DefinitionLink[] | null | undefined> => {
 		return Promise.resolve(provide(provider, model, position)).then(undefined, err => {
 			onUnexpectedExternalError(err);
 			return null;
@@ -30,7 +30,7 @@ function getDefinitions<T>(
 	});
 	return Promise.all(promises)
 		.then(flatten)
-		.then(references => coalesce(references));
+		.then(coalesce);
 }
 
 

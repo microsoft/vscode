@@ -9,7 +9,6 @@
 	width: 100%;
 	height: 22px;
 	font-size: 12px;
-	padding: 0 10px;
 }
 
 .monaco-workbench > .part.statusbar > .statusbar-item {
@@ -44,6 +43,15 @@
 
 .monaco-workbench > .part.statusbar > .statusbar-item.right > :first-child {
 	margin-left: 5px;
+}
+
+/* adding padding to the most left status bar item */
+.monaco-workbench > .part.statusbar > .statusbar-item.left:first-child, .monaco-workbench > .part.statusbar > .statusbar-item.right + .statusbar-item.left {
+	padding-left: 10px;
+}
+/* adding padding to the most right status bar item */
+.monaco-workbench > .part.statusbar > .statusbar-item.right:first-child {
+	padding-right: 10px;
 }
 
 .monaco-workbench > .part.statusbar > .statusbar-item a {

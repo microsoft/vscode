@@ -38,6 +38,7 @@
 .monaco-split-view2 > .split-view-container > .split-view-view {
 	white-space: initial;
 	flex: none;
+	position: relative;
 }
 
 .monaco-split-view2.vertical > .split-view-container > .split-view-view {
@@ -47,10 +48,6 @@
 .monaco-split-view2.horizontal > .split-view-container > .split-view-view {
 	height: 100%;
 	display: inline-block;
-}
-
-.monaco-split-view2.separator-border > .split-view-container > .split-view-view {
-	position: relative;
 }
 
 .monaco-split-view2.separator-border > .split-view-container > .split-view-view:not(:first-child)::before {

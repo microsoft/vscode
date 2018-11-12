@@ -2,18 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
+import { CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
 import { Cursor } from 'vs/editor/common/controller/cursor';
-import { Position } from 'vs/editor/common/core/position';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { CursorMove } from 'vs/editor/common/controller/cursorMoveCommands';
+import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
+import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 
 suite('Cursor move command test', () => {
 

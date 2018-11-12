@@ -33,7 +33,7 @@ let nonBuiltInLanguages = { // { fileNames, extensions }
 	"stylus": { extensions: ['styl'] },
 	"vala": { extensions: ['vala'] },
 	"todo": { fileNames: ['todo'] }
-}
+};
 
 function getCommitSha(repoId, repoPath) {
 	let commitInfo = 'https://api.github.com/repos/' + repoId + '/commits?path=' + repoPath;

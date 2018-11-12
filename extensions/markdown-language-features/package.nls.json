@@ -24,5 +24,5 @@
 	"markdown.preview.toggleLock.title": "Toggle Preview Locking",
 	"configuration.markdown.preview.openMarkdownLinks.description": "How should clicking on links to markdown files be handled in the preview.",
 	"configuration.markdown.preview.openMarkdownLinks.inEditor": "Try to open links in the editor",
-	"configuration.markdown.preview.openMarkdownLinks.inPreview": "Try to open links in the the markdown preview"
+	"configuration.markdown.preview.openMarkdownLinks.inPreview": "Try to open links in the markdown preview"
 }

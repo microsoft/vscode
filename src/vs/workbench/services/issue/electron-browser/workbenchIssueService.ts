@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { IssueReporterStyles, IIssueService, IssueReporterData, ProcessExplorerData } from 'vs/platform/issue/common/issue';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';

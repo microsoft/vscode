@@ -102,6 +102,8 @@ export interface IEnvironmentService {
 	settingsSearchBuildId: number;
 	settingsSearchUrl: string;
 
+	workspaceStorageHome: string;
+
 	backupHome: string;
 	backupWorkspacesPath: string;
 
@@ -116,7 +118,6 @@ export interface IEnvironmentService {
 
 	debugExtensionHost: IExtensionHostDebugParams;
 	debugSearch: IDebugParams;
-
 
 	logExtensionHostCommunication: boolean;
 

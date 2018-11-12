@@ -12,6 +12,9 @@ import { IDebugService, IBreakpoint, State, IBreakpointUpdateData } from 'vs/wor
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { getBreakpointMessageAndClassName } from 'vs/workbench/parts/debug/browser/breakpointsView';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { localize } from 'vs/nls';
 
 interface IBreakpointDecoration {
 	decorationId: string;
@@ -134,12 +137,6 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 					options: DebugEditorModelManager.TOP_STACK_FRAME_DECORATION,
 					range: columnUntilEOLRange
 				});
-				if (stackFrame.range.endLineNumber && stackFrame.range.endColumn) {
-					result.push({
-						options: { className: 'debug-top-stack-frame-range' },
-						range: stackFrame.range
-					});
-				}
 
 				if (this.modelDataMap.has(modelUriStr)) {
 					const modelData = this.modelDataMap.get(modelUriStr);
@@ -157,12 +154,6 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 				options: DebugEditorModelManager.FOCUSED_STACK_FRAME_MARGIN,
 				range
 			});
-			if (stackFrame.range.endLineNumber && stackFrame.range.endColumn) {
-				result.push({
-					options: { className: 'debug-focused-stack-frame-range' },
-					range: stackFrame.range
-				});
-			}
 
 			result.push({
 				options: DebugEditorModelManager.FOCUSED_STACK_FRAME_DECORATION,
@@ -334,3 +325,19 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		stickiness: DebugEditorModelManager.STICKINESS
 	};
 }
+
+registerThemingParticipant((theme, collector) => {
+	const topStackFrame = theme.getColor(topStackFrameColor);
+	if (topStackFrame) {
+		collector.addRule(`.monaco-editor .view-overlays .debug-top-stack-frame-line { background: ${topStackFrame}; }`);
+		collector.addRule(`.monaco-editor .view-overlays .debug-top-stack-frame-line { background: ${topStackFrame}; }`);
+	}
+
+	const focusedStackFrame = theme.getColor(focusedStackFrameColor);
+	if (focusedStackFrame) {
+		collector.addRule(`.monaco-editor .view-overlays .debug-focused-stack-frame-line { background: ${focusedStackFrame}; }`);
+	}
+});
+
+const topStackFrameColor = registerColor('editor.stackFrameHighlightBackground', { dark: '#ffff0033', light: '#ffff6673', hc: '#fff600' }, localize('topStackFrameLineHighlight', 'Background color for the highlight of line at the top stack frame position.'));
+const focusedStackFrameColor = registerColor('editor.focusedStackFrameHighlightBackground', { dark: '#7abd7a4d', light: '#cee7ce73', hc: '#cee7ce' }, localize('focusedStackFrameLineHighlight', 'Background color for the highlight of line at focused stack frame position.'));

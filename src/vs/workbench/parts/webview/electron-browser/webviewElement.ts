@@ -242,7 +242,10 @@ export class WebviewElement extends Disposable {
 		});
 	}
 
-	public update(value: string, options: WebviewOptions) {
+	public update(value: string, options: WebviewOptions, retainContextWhenHidden: boolean) {
+		if (retainContextWhenHidden && value === this._contents && this._options && areWebviewInputOptionsEqual(options, this._options)) {
+			return;
+		}
 		this._contents = value;
 		this._options = options;
 		this._send('content', {

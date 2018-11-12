@@ -72,7 +72,6 @@
 	background-position: center center;
 	flex-shrink: 0;
 	transition: transform 50ms ease;
-	-webkit-transition: -webkit-transform 50ms ease;
 }
 
 .vs-dark .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .icon,
@@ -93,7 +92,6 @@
 }
 
 .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .icon.active {
-	-webkit-transform: scale(1.272019649, 1.272019649);
 	transform: scale(1.272019649, 1.272019649);
 }
 
@@ -257,6 +255,11 @@
 .debug-viewlet .debug-call-stack .load-more {
 	font-style: italic;
 	text-align: center;
+}
+
+.debug-viewlet .debug-call-stack .show-more {
+	font-style: italic;
+	opacity: 0.35;
 }
 
 .monaco-workbench .debug-viewlet .monaco-tree-row .expression {

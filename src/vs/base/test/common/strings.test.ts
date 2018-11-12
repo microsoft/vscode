@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import * as strings from 'vs/base/common/strings';
 
@@ -392,5 +390,17 @@ suite('Strings', () => {
 		].forEach(([inStr, result]) => {
 			assert.equal(strings.uppercaseFirstLetter(inStr), result, `Wrong result for ${inStr}`);
 		});
+	});
+
+	test('getNLines', () => {
+		assert.equal(strings.getNLines('', 5), '');
+		assert.equal(strings.getNLines('foo', 5), 'foo');
+		assert.equal(strings.getNLines('foo\nbar', 5), 'foo\nbar');
+		assert.equal(strings.getNLines('foo\nbar', 2), 'foo\nbar');
+
+		assert.equal(strings.getNLines('foo\nbar', 1), 'foo');
+		assert.equal(strings.getNLines('foo\nbar'), 'foo');
+		assert.equal(strings.getNLines('foo\nbar\nsomething', 2), 'foo\nbar');
+		assert.equal(strings.getNLines('foo', 0), '');
 	});
 });

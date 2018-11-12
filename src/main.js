@@ -88,10 +88,7 @@ function onReady() {
 			const startup = nlsConfig => {
 				nlsConfig._languagePackSupport = true;
 				process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
-
-				if (cachedDataDir) {
-					process.env['VSCODE_NODE_CACHED_DATA_DIR_' + process.pid] = cachedDataDir;
-				}
+				process.env['VSCODE_NODE_CACHED_DATA_DIR'] = cachedDataDir || '';
 
 				// Load main in AMD
 				require('./bootstrap-amd').load('vs/code/electron-main/main');
@@ -407,7 +404,7 @@ function rimraf(location) {
 	});
 }
 
-// Language tags are case insensitve however an amd loader is case sensitive
+// Language tags are case insensitive however an amd loader is case sensitive
 // To make this work on case preserving & insensitive FS we do the following:
 // the language bundles have lower case language tags and we always lower case
 // the locale we receive from the user or OS.

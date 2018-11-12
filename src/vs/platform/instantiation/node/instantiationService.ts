@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
-'use strict';
 import { IdleValue } from 'vs/base/common/async';
 import { InstantiationService as BaseInstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -18,8 +16,12 @@ export class InstantiationService extends BaseInstantiationService {
 		return new InstantiationService(services, this._strict, this);
 	}
 
-	protected _createServiceInstance<T>(ctor: any, args: any[] = [], _trace): T {
-		return InstantiationService._newIdleProxyService(() => super._createServiceInstance(ctor, args, _trace));
+	protected _createServiceInstance<T>(ctor: any, args: any[] = [], supportsDelayedInstantiation: boolean, _trace): T {
+		if (supportsDelayedInstantiation) {
+			return InstantiationService._newIdleProxyService(() => super._createServiceInstance(ctor, args, supportsDelayedInstantiation, _trace));
+		} else {
+			return super._createServiceInstance(ctor, args, supportsDelayedInstantiation, _trace);
+		}
 	}
 
 	private static _newIdleProxyService<T>(executor: () => T): T {

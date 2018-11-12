@@ -3,11 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./media/extensionEditor';
 import { localize } from 'vs/nls';
-import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import * as marked from 'vs/base/common/marked/marked';
 import { createCancelablePromise } from 'vs/base/common/async';
 import * as arrays from 'vs/base/common/arrays';
@@ -50,6 +47,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionsTree, IExtensionData } from 'vs/workbench/parts/extensions/browser/extensionsViewer';
 import { ShowCurrentReleaseNotesAction } from 'vs/workbench/parts/update/electron-browser/update';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 function renderBody(body: string): string {
 	const styleSheetPath = require.toUrl('./media/markdown.css').replace('file://', 'vscode-core-resource://');
@@ -84,7 +82,7 @@ class NavBar {
 	private _onChange = new Emitter<{ id: string, focus: boolean }>();
 	get onChange(): Event<{ id: string, focus: boolean }> { return this._onChange.event; }
 
-	private currentId: string = null;
+	private currentId: string | null = null;
 	private actions: Action[];
 	private actionbar: ActionBar;
 
@@ -116,11 +114,11 @@ class NavBar {
 		this._update(this.currentId);
 	}
 
-	_update(id: string = this.currentId, focus?: boolean): TPromise<void> {
+	_update(id: string = this.currentId, focus?: boolean): Promise<void> {
 		this.currentId = id;
 		this._onChange.fire({ id, focus });
 		this.actions.forEach(a => a.enabled = a.id !== id);
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	dispose(): void {
@@ -190,8 +188,9 @@ export class ExtensionEditor extends BaseEditor {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IPartService private readonly partService: IPartService,
 		@IExtensionTipsService private readonly extensionTipsService: IExtensionTipsService,
+		@IStorageService storageService: IStorageService
 	) {
-		super(ExtensionEditor.ID, telemetryService, themeService);
+		super(ExtensionEditor.ID, telemetryService, themeService, storageService);
 		this.disposables = [];
 		this.extensionReadme = null;
 		this.extensionChangelog = null;
@@ -380,7 +379,7 @@ export class ExtensionEditor extends BaseEditor {
 		reloadAction.extension = extension;
 
 		this.extensionActionBar.clear();
-		this.extensionActionBar.push([disabledStatusAction, reloadAction, updateAction, enableAction, disableAction, installAction, maliciousStatusAction], { icon: true, label: true });
+		this.extensionActionBar.push([reloadAction, updateAction, enableAction, disableAction, installAction, maliciousStatusAction, disabledStatusAction], { icon: true, label: true });
 		this.transientDisposables.push(enableAction, updateAction, reloadAction, disableAction, installAction, maliciousStatusAction, disabledStatusAction);
 
 		const ignoreAction = this.instantiationService.createInstance(IgnoreExtensionRecommendationAction);
@@ -483,7 +482,7 @@ export class ExtensionEditor extends BaseEditor {
 			case NavbarSection.Dependencies: return this.openDependencies(extension);
 			case NavbarSection.ExtensionPack: return this.openExtensionPack(extension);
 		}
-		return Promise.wrap(null);
+		return Promise.resolve(null);
 	}
 
 	private openMarkdown(cacheResult: CacheResult<string>, noContentCopy: string): Promise<IActiveElement> {
@@ -572,7 +571,7 @@ export class ExtensionEditor extends BaseEditor {
 	private openDependencies(extension: IExtension): Promise<IActiveElement> {
 		if (extension.dependencies.length === 0) {
 			append(this.content, $('p.nocontent')).textContent = localize('noDependencies', "No Dependencies");
-			return TPromise.as(this.content);
+			return Promise.resolve(this.content);
 		}
 
 		return this.loadContents(() => this.extensionDependencies.get())
@@ -623,7 +622,7 @@ export class ExtensionEditor extends BaseEditor {
 			}
 
 			getChildren(): Promise<IExtensionData[]> {
-				return this.extensionDependencies.dependencies ? TPromise.as(this.extensionDependencies.dependencies.map(d => new ExtensionData(d))) : null;
+				return this.extensionDependencies.dependencies ? Promise.resolve(this.extensionDependencies.dependencies.map(d => new ExtensionData(d))) : null;
 			}
 		}
 
@@ -647,7 +646,7 @@ export class ExtensionEditor extends BaseEditor {
 
 		this.contentDisposables.push(extensionsPackTree);
 		scrollableContent.scanDomNode();
-		return Promise.wrap({ focus() { extensionsPackTree.domFocus(); } });
+		return Promise.resolve({ focus() { extensionsPackTree.domFocus(); } });
 	}
 
 	private renderExtensionPack(container: HTMLElement, extension: IExtension): Tree {
@@ -672,7 +671,7 @@ export class ExtensionEditor extends BaseEditor {
 					return extensionsWorkbenchService.queryGallery({ names, pageSize: names.length })
 						.then(result => result.firstPage.map(extension => new ExtensionData(extension, this)));
 				}
-				return TPromise.as(null);
+				return Promise.resolve(null);
 			}
 		}
 
@@ -1082,7 +1081,7 @@ export class ExtensionEditor extends BaseEditor {
 		return this.keybindingService.resolveKeybinding(keyBinding)[0];
 	}
 
-	private loadContents<T>(loadingTask: () => CacheResult<T>): Thenable<T> {
+	private loadContents<T>(loadingTask: () => CacheResult<T>): Promise<T> {
 		addClass(this.content, 'loading');
 
 		const result = loadingTask();

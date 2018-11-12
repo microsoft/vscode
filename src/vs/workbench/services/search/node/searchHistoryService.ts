@@ -2,11 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { ISearchHistoryValues, ISearchHistoryService } from 'vs/platform/search/common/search';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { isEmptyObject } from 'vs/base/common/types';
 
 export class SearchHistoryService implements ISearchHistoryService {
 	public _serviceBrand: any;
@@ -26,7 +26,7 @@ export class SearchHistoryService implements ISearchHistoryService {
 	}
 
 	public load(): ISearchHistoryValues {
-		let result: ISearchHistoryValues;
+		let result: ISearchHistoryValues | undefined;
 		const raw = this.storageService.get(SearchHistoryService.SEARCH_HISTORY_KEY, StorageScope.WORKSPACE);
 
 		if (raw) {
@@ -41,6 +41,10 @@ export class SearchHistoryService implements ISearchHistoryService {
 	}
 
 	public save(history: ISearchHistoryValues): void {
-		this.storageService.store(SearchHistoryService.SEARCH_HISTORY_KEY, JSON.stringify(history), StorageScope.WORKSPACE);
+		if (isEmptyObject(history)) {
+			this.storageService.remove(SearchHistoryService.SEARCH_HISTORY_KEY, StorageScope.WORKSPACE);
+		} else {
+			this.storageService.store(SearchHistoryService.SEARCH_HISTORY_KEY, JSON.stringify(history), StorageScope.WORKSPACE);
+		}
 	}
 }

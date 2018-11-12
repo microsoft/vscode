@@ -2,21 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
+import { ITextModel, DefaultEndOfLine } from 'vs/editor/common/model';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { MainThreadDocumentContentProvidersShape, ExtHostContext, ExtHostDocumentContentProvidersShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
+import { createTextBuffer } from 'vs/editor/common/model/textModel';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IModelService } from 'vs/editor/common/services/modelService';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
-import { ExtHostContext, ExtHostDocumentContentProvidersShape, IExtHostContext, MainContext, MainThreadDocumentContentProvidersShape } from '../node/extHost.protocol';
 
 @extHostNamedCustomer(MainContext.MainThreadDocumentContentProviders)
 export class MainThreadDocumentContentProviders implements MainThreadDocumentContentProvidersShape {
@@ -29,7 +25,6 @@ export class MainThreadDocumentContentProviders implements MainThreadDocumentCon
 		@ITextModelService private readonly _textModelResolverService: ITextModelService,
 		@IModeService private readonly _modeService: IModeService,
 		@IModelService private readonly _modelService: IModelService,
-		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@ICodeEditorService codeEditorService: ICodeEditorService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocumentContentProviders);
@@ -47,8 +42,8 @@ export class MainThreadDocumentContentProviders implements MainThreadDocumentCon
 				return this._proxy.$provideTextDocumentContent(handle, uri).then(value => {
 					if (typeof value === 'string') {
 						const firstLineText = value.substr(0, 1 + value.search(/\r?\n/));
-						const mode = this._modeService.getOrCreateModeByFilepathOrFirstLine(uri.fsPath, firstLineText);
-						return this._modelService.createModel(value, mode, uri);
+						const languageSelection = this._modeService.createByFilepathOrFirstLine(uri.fsPath, firstLineText);
+						return this._modelService.createModel(value, languageSelection, uri);
 					}
 					return undefined;
 				});
@@ -70,11 +65,10 @@ export class MainThreadDocumentContentProviders implements MainThreadDocumentCon
 			return;
 		}
 
-		this._editorWorkerService.computeMoreMinimalEdits(model.uri, [{ text: value, range: model.getFullModelRange() }]).then(edits => {
-			if (edits.length > 0) {
-				// use the evil-edit as these models show in readonly-editor only
-				model.applyEdits(edits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
-			}
-		}, onUnexpectedError);
+		const textBuffer = createTextBuffer(value, DefaultEndOfLine.CRLF);
+
+		if (!model.equalsTextBuffer(textBuffer)) {
+			model.setValueFromTextBuffer(textBuffer);
+		}
 	}
 }

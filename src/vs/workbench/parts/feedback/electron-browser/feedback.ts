@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./media/feedback';
 import * as nls from 'vs/nls';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
@@ -238,7 +236,7 @@ export class FeedbackDropdown extends Dropdown {
 
 		// Remaining Characters
 		const remainingCharacterCountContainer = dom.append(this.feedbackForm, dom.$('h3'));
-		remainingCharacterCountContainer.textContent = nls.localize("tell us why?", "Tell us why?");
+		remainingCharacterCountContainer.textContent = nls.localize("tell us why", "Tell us why?");
 
 		this.remainingCharacterCount = dom.append(remainingCharacterCountContainer, dom.$('span.char-counter'));
 		this.remainingCharacterCount.textContent = this.getCharCountText(0);

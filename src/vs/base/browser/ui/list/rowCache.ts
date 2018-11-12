@@ -3,19 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRenderer } from './list';
+import { IListRenderer } from './list';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { $, removeClass } from 'vs/base/browser/dom';
 
 export interface IRow {
-	domNode: HTMLElement;
+	domNode: HTMLElement | null;
 	templateId: string;
 	templateData: any;
 }
 
 function removeFromParent(element: HTMLElement): void {
 	try {
-		element.parentElement.removeChild(element);
+		if (element.parentElement) {
+			element.parentElement.removeChild(element);
+		}
 	} catch (e) {
 		// this will throw if this happens due to a blur event, nasty business
 	}
@@ -25,7 +27,7 @@ export class RowCache<T> implements IDisposable {
 
 	private cache = new Map<string, IRow[]>();
 
-	constructor(private renderers: Map<string, IRenderer<T, any>>) { }
+	constructor(private renderers: Map<string, IListRenderer<T, any>>) { }
 
 	/**
 	 * Returns a row either by creating a new one or reusing
@@ -57,8 +59,10 @@ export class RowCache<T> implements IDisposable {
 
 	private releaseRow(row: IRow): void {
 		const { domNode, templateId } = row;
-		removeClass(domNode, 'scrolling');
-		removeFromParent(domNode);
+		if (domNode) {
+			removeClass(domNode, 'scrolling');
+			removeFromParent(domNode);
+		}
 
 		const cache = this.getTemplateCache(templateId);
 		cache.push(row);
@@ -95,6 +99,6 @@ export class RowCache<T> implements IDisposable {
 	dispose(): void {
 		this.garbageCollect();
 		this.cache.clear();
-		this.renderers = null;
+		this.renderers = null!; // StrictNullOverride: nulling out ok in dispose
 	}
 }

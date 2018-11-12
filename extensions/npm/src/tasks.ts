@@ -2,11 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import {
 	TaskDefinition, Task, TaskGroup, WorkspaceFolder, RelativePattern, ShellExecution, Uri, workspace,
-	DebugConfiguration, debug, TaskProvider, ExtensionContext, TextDocument, tasks
+	DebugConfiguration, debug, TaskProvider, TextDocument, tasks
 } from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -26,10 +25,8 @@ type AutoDetect = 'on' | 'off';
 let cachedTasks: Task[] | undefined = undefined;
 
 export class NpmTaskProvider implements TaskProvider {
-	private extensionContext: ExtensionContext;
 
-	constructor(context: ExtensionContext) {
-		this.extensionContext = context;
+	constructor() {
 	}
 
 	public provideTasks() {
@@ -373,7 +370,7 @@ async function findAllScripts(buffer: string): Promise<StringMap> {
 			}
 			else if (inScripts && !script) {
 				script = property;
-			} else { // nested object which is invalid, ignore the script 
+			} else { // nested object which is invalid, ignore the script
 				script = undefined;
 			}
 		}
@@ -444,14 +441,14 @@ export function findScriptAtPosition(buffer: string, offset: number): string | u
 				}
 			}
 		},
-		onObjectProperty(property: string, nodeOffset: number, nodeLength: number) {
+		onObjectProperty(property: string, nodeOffset: number) {
 			if (property === 'scripts') {
 				inScripts = true;
 			}
 			else if (inScripts) {
 				scriptStart = nodeOffset;
 				script = property;
-			} else { // nested object which is invalid, ignore the script 
+			} else { // nested object which is invalid, ignore the script
 				script = undefined;
 			}
 		}

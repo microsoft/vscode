@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { IStringDictionary, INumberDictionary } from 'vs/base/common/collections';
 import { URI } from 'vs/base/common/uri';
@@ -37,9 +36,9 @@ export interface IProblemMatcher {
 export class AbstractProblemCollector implements IDisposable {
 
 	private matchers: INumberDictionary<ILineMatcher[]>;
-	private activeMatcher: ILineMatcher;
+	private activeMatcher: ILineMatcher | null;
 	private _numberOfMatches: number;
-	private _maxMarkerSeverity: MarkerSeverity;
+	private _maxMarkerSeverity?: MarkerSeverity;
 	private buffer: string[];
 	private bufferLength: number;
 	private openModels: IStringDictionary<boolean>;
@@ -112,12 +111,12 @@ export class AbstractProblemCollector implements IDisposable {
 		return this._numberOfMatches;
 	}
 
-	public get maxMarkerSeverity(): MarkerSeverity {
+	public get maxMarkerSeverity(): MarkerSeverity | undefined {
 		return this._maxMarkerSeverity;
 	}
 
-	protected tryFindMarker(line: string): ProblemMatch {
-		let result: ProblemMatch = null;
+	protected tryFindMarker(line: string): ProblemMatch | null {
+		let result: ProblemMatch | null = null;
 		if (this.activeMatcher) {
 			result = this.activeMatcher.next(line);
 			if (result) {
@@ -164,7 +163,7 @@ export class AbstractProblemCollector implements IDisposable {
 		return ApplyToKind.allDocuments;
 	}
 
-	private tryMatchers(): ProblemMatch {
+	private tryMatchers(): ProblemMatch | null {
 		this.activeMatcher = null;
 		let length = this.buffer.length;
 		for (let startIndex = 0; startIndex < length; startIndex++) {
@@ -385,8 +384,8 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 	private _activeBackgroundMatchers: Set<string>;
 
 	// Current State
-	private currentOwner: string;
-	private currentResource: string;
+	private currentOwner: string | null;
+	private currentResource: string | null;
 
 	constructor(problemMatchers: ProblemMatcher[], markerService: IMarkerService, modelService: IModelService) {
 		super(problemMatchers, markerService, modelService);
@@ -459,7 +458,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 				this.cleanMarkerCaches();
 				this.resetCurrentResource();
 				let owner = background.matcher.owner;
-				let file = matches[background.begin.file];
+				let file = matches[background.begin.file!];
 				if (file) {
 					let resource = getResource(file, background.matcher);
 					this.recordResourceToClean(owner, resource);

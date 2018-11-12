@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./parameterHints';
 import * as nls from 'vs/nls';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
@@ -30,6 +28,11 @@ import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 
 const $ = dom.$;
 
+export interface TriggerContext {
+	readonly triggerReason: modes.SignatureHelpTriggerReason;
+	readonly triggerCharacter?: string;
+}
+
 export interface IHintEvent {
 	hints: modes.SignatureHelp;
 }
@@ -50,6 +53,7 @@ export class ParameterHintsModel extends Disposable {
 	private active: boolean = false;
 	private pending: boolean = false;
 	private triggerChars = new CharacterSet();
+	private retriggerChars = new CharacterSet();
 
 	private triggerContext: modes.SignatureHelpContext | undefined;
 	private throttledDelayer: RunOnceScheduler;
@@ -96,13 +100,20 @@ export class ParameterHintsModel extends Disposable {
 		}
 	}
 
-	trigger(context: modes.SignatureHelpContext, delay?: number): void {
+	trigger(context: TriggerContext, delay?: number): void {
 		if (!modes.SignatureHelpProviderRegistry.has(this.editor.getModel())) {
 			return;
 		}
 
+		const wasTriggered = this.isTriggered;
 		this.cancel(true);
-		this.triggerContext = context;
+
+		this.triggerContext = {
+			triggerReason: context.triggerReason,
+			triggerCharacter: context.triggerCharacter,
+			isRetrigger: wasTriggered
+		};
+
 		return this.throttledDelayer.schedule(delay);
 	}
 
@@ -113,7 +124,7 @@ export class ParameterHintsModel extends Disposable {
 
 		this.pending = true;
 
-		const triggerContext = this.triggerContext || { triggerReason: modes.SignatureHelpTriggerReason.Invoke };
+		const triggerContext = this.triggerContext || { triggerReason: modes.SignatureHelpTriggerReason.Invoke, isRetrigger: false };
 		this.triggerContext = undefined;
 
 		this.provideSignatureHelpRequest = createCancelablePromise(token =>
@@ -148,6 +159,7 @@ export class ParameterHintsModel extends Disposable {
 
 		// Update trigger characters
 		this.triggerChars = new CharacterSet();
+		this.retriggerChars = new CharacterSet();
 
 		const model = this.editor.getModel();
 		if (!model) {
@@ -158,6 +170,15 @@ export class ParameterHintsModel extends Disposable {
 			if (Array.isArray(support.signatureHelpTriggerCharacters)) {
 				for (const ch of support.signatureHelpTriggerCharacters) {
 					this.triggerChars.add(ch.charCodeAt(0));
+
+					// All trigger characters are also considered retrigger characters
+					this.retriggerChars.add(ch.charCodeAt(0));
+
+				}
+			}
+			if (Array.isArray(support.signatureHelpRetriggerCharacters)) {
+				for (const ch of support.signatureHelpRetriggerCharacters) {
+					this.retriggerChars.add(ch.charCodeAt(0));
 				}
 			}
 		}
@@ -169,12 +190,12 @@ export class ParameterHintsModel extends Disposable {
 		}
 
 		const lastCharIndex = text.length - 1;
-		if (this.triggerChars.has(text.charCodeAt(lastCharIndex))) {
+		const triggerCharCode = text.charCodeAt(lastCharIndex);
+
+		if (this.triggerChars.has(triggerCharCode) || this.isTriggered && this.retriggerChars.has(triggerCharCode)) {
 			this.trigger({
-				triggerReason: this.isTriggered
-					? modes.SignatureHelpTriggerReason.Retrigger
-					: modes.SignatureHelpTriggerReason.TriggerCharacter,
-				triggerCharacter: text.charAt(lastCharIndex)
+				triggerReason: modes.SignatureHelpTriggerReason.TriggerCharacter,
+				triggerCharacter: text.charAt(lastCharIndex),
 			});
 		}
 	}
@@ -183,13 +204,13 @@ export class ParameterHintsModel extends Disposable {
 		if (e.source === 'mouse') {
 			this.cancel();
 		} else if (this.isTriggered) {
-			this.trigger({ triggerReason: modes.SignatureHelpTriggerReason.Retrigger });
+			this.trigger({ triggerReason: modes.SignatureHelpTriggerReason.ContentChange });
 		}
 	}
 
 	private onModelContentChange(): void {
 		if (this.isTriggered) {
-			this.trigger({ triggerReason: modes.SignatureHelpTriggerReason.Retrigger });
+			this.trigger({ triggerReason: modes.SignatureHelpTriggerReason.ContentChange });
 		}
 	}
 
@@ -287,6 +308,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		this.editor.addContentWidget(this);
 		this.hide();
 
+		this.element.style.userSelect = 'text';
 		this.disposables.push(this.editor.onDidChangeCursorSelection(e => {
 			if (this.visible) {
 				this.editor.layoutContentWidget(this);
@@ -417,7 +439,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		this.overloads.textContent = currentOverload;
 
 		if (activeParameter) {
-			const labelToAnnounce = activeParameter.label;
+			const labelToAnnounce = this.getParameterLabel(signature, this.hints.activeParameter);
 			// Select method gets called on every user type while parameter hints are visible.
 			// We do not want to spam the user with same announcements, so we only announce if the current parameter changed.
 
@@ -432,39 +454,43 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 	}
 
 	private renderParameters(parent: HTMLElement, signature: modes.SignatureInformation, currentParameter: number): void {
-		let end = signature.label.length;
-		let idx = 0;
-		let element: HTMLSpanElement;
 
-		for (let i = signature.parameters.length - 1; i >= 0; i--) {
-			const parameter = signature.parameters[i];
-			idx = signature.label.lastIndexOf(parameter.label, end - 1);
+		let [start, end] = this.getParameterLabelOffsets(signature, currentParameter);
 
-			let signatureLabelOffset = 0;
-			let signatureLabelEnd = 0;
+		let beforeSpan = document.createElement('span');
+		beforeSpan.textContent = signature.label.substring(0, start);
 
-			if (idx >= 0) {
-				signatureLabelOffset = idx;
-				signatureLabelEnd = idx + parameter.label.length;
-			}
+		let paramSpan = document.createElement('span');
+		paramSpan.textContent = signature.label.substring(start, end);
+		paramSpan.className = 'parameter active';
 
-			// non parameter part
-			element = document.createElement('span');
-			element.textContent = signature.label.substring(signatureLabelEnd, end);
-			dom.prepend(parent, element);
+		let afterSpan = document.createElement('span');
+		afterSpan.textContent = signature.label.substring(end);
 
-			// parameter part
-			element = document.createElement('span');
-			element.className = `parameter ${i === currentParameter ? 'active' : ''}`;
-			element.textContent = signature.label.substring(signatureLabelOffset, signatureLabelEnd);
-			dom.prepend(parent, element);
+		dom.append(parent, beforeSpan, paramSpan, afterSpan);
+	}
 
-			end = signatureLabelOffset;
+	private getParameterLabel(signature: modes.SignatureInformation, paramIdx: number): string {
+		const param = signature.parameters[paramIdx];
+		if (typeof param.label === 'string') {
+			return param.label;
+		} else {
+			return signature.label.substring(param.label[0], param.label[1]);
 		}
-		// non parameter part
-		element = document.createElement('span');
-		element.textContent = signature.label.substring(0, end);
-		dom.prepend(parent, element);
+	}
+
+	private getParameterLabelOffsets(signature: modes.SignatureInformation, paramIdx: number): [number, number] {
+		const param = signature.parameters[paramIdx];
+		if (!param) {
+			return [0, 0];
+		} else if (Array.isArray(param.label)) {
+			return param.label;
+		} else {
+			const idx = signature.label.lastIndexOf(param.label);
+			return idx >= 0
+				? [idx, idx + param.label.length]
+				: [0, 0];
+		}
 	}
 
 	// private select(position: number): void {
@@ -552,7 +578,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		return ParameterHintsWidget.ID;
 	}
 
-	trigger(context: modes.SignatureHelpContext): void {
+	trigger(context: TriggerContext): void {
 		this.model.trigger(context, 0);
 	}
 
@@ -573,7 +599,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 }
 
 registerThemingParticipant((theme, collector) => {
-	let border = theme.getColor(editorHoverBorder);
+	const border = theme.getColor(editorHoverBorder);
 	if (border) {
 		let borderWidth = theme.type === HIGH_CONTRAST ? 2 : 1;
 		collector.addRule(`.monaco-editor .parameter-hints-widget { border: ${borderWidth}px solid ${border}; }`);
@@ -581,7 +607,7 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-editor .parameter-hints-widget .signature.has-docs { border-bottom: 1px solid ${border.transparent(0.5)}; }`);
 
 	}
-	let background = theme.getColor(editorHoverBackground);
+	const background = theme.getColor(editorHoverBackground);
 	if (background) {
 		collector.addRule(`.monaco-editor .parameter-hints-widget { background-color: ${background}; }`);
 	}
@@ -591,7 +617,7 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-editor .parameter-hints-widget a { color: ${link}; }`);
 	}
 
-	let codeBackground = theme.getColor(textCodeBlockBackground);
+	const codeBackground = theme.getColor(textCodeBlockBackground);
 	if (codeBackground) {
 		collector.addRule(`.monaco-editor .parameter-hints-widget code { background-color: ${codeBackground}; }`);
 	}

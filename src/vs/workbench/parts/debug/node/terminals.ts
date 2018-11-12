@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as cp from 'child_process';
 import * as nls from 'vs/nls';
 import * as env from 'vs/base/common/platform';
@@ -16,7 +14,7 @@ import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 const TERMINAL_TITLE = nls.localize('console.title', "VS Code Console");
 
-let terminalLauncher: ITerminalLauncher = undefined;
+let terminalLauncher: ITerminalLauncher | undefined = undefined;
 
 export function getTerminalLauncher() {
 	if (!terminalLauncher) {
@@ -31,7 +29,7 @@ export function getTerminalLauncher() {
 	return terminalLauncher;
 }
 
-let _DEFAULT_TERMINAL_LINUX_READY: TPromise<string> = null;
+let _DEFAULT_TERMINAL_LINUX_READY: TPromise<string> | null = null;
 export function getDefaultTerminalLinuxReady(): TPromise<string> {
 	if (!_DEFAULT_TERMINAL_LINUX_READY) {
 		_DEFAULT_TERMINAL_LINUX_READY = new Promise<string>(c => {
@@ -60,7 +58,7 @@ export function getDefaultTerminalLinuxReady(): TPromise<string> {
 	return _DEFAULT_TERMINAL_LINUX_READY;
 }
 
-let _DEFAULT_TERMINAL_WINDOWS: string = null;
+let _DEFAULT_TERMINAL_WINDOWS: string | null = null;
 export function getDefaultTerminalWindows(): string {
 	if (!_DEFAULT_TERMINAL_WINDOWS) {
 		const isWoW64 = !!process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');

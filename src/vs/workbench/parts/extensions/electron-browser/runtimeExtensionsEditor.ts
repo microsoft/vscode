@@ -3,14 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./media/runtimeExtensionsEditor';
 import * as nls from 'vs/nls';
 import * as os from 'os';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Action, IAction } from 'vs/base/common/actions';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -19,7 +16,7 @@ import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/parts/exte
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService, IExtensionDescription, IExtensionsStatus, IExtensionHostProfile } from 'vs/workbench/services/extensions/common/extensions';
-import { IVirtualDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { append, $, addClass, toggleClass, Dimension } from 'vs/base/browser/dom';
 import { ActionBar, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -41,6 +38,7 @@ import { IDebugService } from 'vs/workbench/parts/debug/common/debug';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { randomPort } from 'vs/base/node/ports';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export const IExtensionHostProfileService = createDecorator<IExtensionHostProfileService>('extensionHostProfileService');
 export const CONTEXT_PROFILE_SESSION_STATE = new RawContextKey<string>('profileSessionState', 'none');
@@ -113,8 +111,9 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IExtensionHostProfileService private readonly _extensionHostProfileService: IExtensionHostProfileService,
+		@IStorageService storageService: IStorageService
 	) {
-		super(RuntimeExtensionsEditor.ID, telemetryService, themeService);
+		super(RuntimeExtensionsEditor.ID, telemetryService, themeService, storageService);
 
 		this._list = null;
 		this._profileInfo = this._extensionHostProfileService.lastProfile;
@@ -189,7 +188,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		for (let i = 0, len = this._extensionsDescriptions.length; i < len; i++) {
 			const extensionDescription = this._extensionsDescriptions[i];
 
-			let profileInfo: IExtensionProfileInformation = null;
+			let profileInfo: IExtensionProfileInformation | null = null;
 			if (this._profileInfo) {
 				let extensionSegments = segments[extensionDescription.id] || [];
 				let extensionTotalTime = 0;
@@ -233,7 +232,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 		const TEMPLATE_ID = 'runtimeExtensionElementTemplate';
 
-		const delegate = new class implements IVirtualDelegate<IRuntimeExtension>{
+		const delegate = new class implements IListVirtualDelegate<IRuntimeExtension>{
 			getHeight(element: IRuntimeExtension): number {
 				return 62;
 			}
@@ -260,7 +259,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 			elementDisposables: IDisposable[];
 		}
 
-		const renderer: IRenderer<IRuntimeExtension, IRuntimeExtensionTemplateData> = {
+		const renderer: IListRenderer<IRuntimeExtension, IRuntimeExtensionTemplateData> = {
 			templateId: TEMPLATE_ID,
 			renderTemplate: (root: HTMLElement): IRuntimeExtensionTemplateData => {
 				const element = append(root, $('.extension'));
@@ -402,7 +401,8 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		};
 
 		this._list = this._instantiationService.createInstance(WorkbenchList, parent, delegate, [renderer], {
-			multipleSelectionSupport: false
+			multipleSelectionSupport: false,
+			setRowLineHeight: false
 		}) as WorkbenchList<IRuntimeExtension>;
 
 		this._list.splice(0, this._list.length, this._elements);
@@ -410,7 +410,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		this._list.onContextMenu((e) => {
 			const actions: IAction[] = [];
 
-			if (e.element.marketplaceInfo.type === LocalExtensionType.User) {
+			if (e.element.marketplaceInfo && e.element.marketplaceInfo.type === LocalExtensionType.User) {
 				actions.push(this._instantiationService.createInstance(DisableForWorkspaceAction, DisableForWorkspaceAction.LABEL));
 				actions.push(this._instantiationService.createInstance(DisableGloballyAction, DisableGloballyAction.LABEL));
 				actions.forEach((a: DisableForWorkspaceAction | DisableGloballyAction) => a.extension = e.element.marketplaceInfo);
@@ -426,7 +426,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 			this._contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
-				getActions: () => TPromise.as(actions)
+				getActions: () => Promise.resolve(actions)
 			});
 		});
 	}
@@ -453,8 +453,8 @@ export class ShowRuntimeExtensionsAction extends Action {
 		super(id, label);
 	}
 
-	public run(e?: any): TPromise<any> {
-		return this._editorService.openEditor(this._instantiationService.createInstance(RuntimeExtensionsInput), { revealIfOpened: true });
+	public async run(e?: any): Promise<any> {
+		await this._editorService.openEditor(this._instantiationService.createInstance(RuntimeExtensionsInput), { revealIfOpened: true });
 	}
 }
 
@@ -468,11 +468,11 @@ class ReportExtensionIssueAction extends Action {
 		super(id, label, 'extension-action report-issue');
 	}
 
-	run(extension: IRuntimeExtension): TPromise<any> {
+	run(extension: IRuntimeExtension): Promise<any> {
 		clipboard.writeText('```json \n' + JSON.stringify(extension.status, null, '\t') + '\n```');
 		window.open(this.generateNewIssueUrl(extension));
 
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	private generateNewIssueUrl(extension: IRuntimeExtension): string {
@@ -510,21 +510,20 @@ export class DebugExtensionHostAction extends Action {
 		super(DebugExtensionHostAction.ID, DebugExtensionHostAction.LABEL, DebugExtensionHostAction.CSS_CLASS);
 	}
 
-	run(): TPromise<any> {
+	async run(): Promise<any> {
 
 		const inspectPort = this._extensionService.getInspectPort();
 		if (!inspectPort) {
-			return this._dialogService.confirm({
+			const res = await this._dialogService.confirm({
 				type: 'info',
 				message: nls.localize('restart1', "Profile Extensions"),
 				detail: nls.localize('restart2', "In order to profile extensions a restart is required. Do you want to restart '{0}' now?", product.nameLong),
 				primaryButton: nls.localize('restart3', "Restart"),
 				secondaryButton: nls.localize('cancel', "Cancel")
-			}).then(res => {
-				if (res.confirmed) {
-					this._windowsService.relaunch({ addArgs: [`--inspect-extensions=${randomPort()}`] });
-				}
 			});
+			if (res.confirmed) {
+				this._windowsService.relaunch({ addArgs: [`--inspect-extensions=${randomPort()}`] });
+			}
 		}
 
 		return this._debugService.startDebugging(null, {
@@ -546,9 +545,9 @@ export class StartExtensionHostProfileAction extends Action {
 		super(id, label);
 	}
 
-	run(): TPromise<any> {
+	run(): Promise<any> {
 		this._extensionHostProfileService.startProfiling();
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }
 
@@ -563,9 +562,9 @@ export class StopExtensionHostProfileAction extends Action {
 		super(id, label);
 	}
 
-	run(): TPromise<any> {
+	run(): Promise<any> {
 		this._extensionHostProfileService.stopProfiling();
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }
 
@@ -586,8 +585,8 @@ export class SaveExtensionHostProfileAction extends Action {
 		});
 	}
 
-	run(): TPromise<any> {
-		return TPromise.wrap(this._asyncRun());
+	run(): Promise<any> {
+		return Promise.resolve(this._asyncRun());
 	}
 
 	private async _asyncRun(): Promise<any> {

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as path from 'path';
 import * as fs from 'fs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -15,7 +13,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 
 export class FileStorage {
 
-	private database: object = null;
+	private database: object | null = null;
 
 	constructor(private dbPath: string, private onError: (error) => void) { }
 

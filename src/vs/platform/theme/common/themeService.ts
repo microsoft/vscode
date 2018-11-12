@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Color } from 'vs/base/common/color';
@@ -48,18 +47,24 @@ export interface ITheme {
 	readonly type: ThemeType;
 
 	/**
-	 * Resolves the color of the given color identifer. If the theme does not
+	 * Resolves the color of the given color identifier. If the theme does not
 	 * specify the color, the default color is returned unless <code>useDefault</code> is set to false.
 	 * @param color the id of the color
 	 * @param useDefault specifies if the default color should be used. If not set, the default is used.
 	 */
-	getColor(color: ColorIdentifier, useDefault?: boolean): Color;
+	getColor(color: ColorIdentifier, useDefault?: boolean): Color | null;
 
 	/**
-	 * Returns wheter the theme defines a value for the color. If not, that means the
+	 * Returns whether the theme defines a value for the color. If not, that means the
 	 * default color will be used.
 	 */
 	defines(color: ColorIdentifier): boolean;
+}
+
+export interface IIconTheme {
+	readonly hasFileIcons: boolean;
+	readonly hasFolderIcons: boolean;
+	readonly hidesExplorerArrows: boolean;
 }
 
 export interface ICssStyleCollector {
@@ -75,10 +80,11 @@ export interface IThemeService {
 
 	getTheme(): ITheme;
 
-	/**
-	 * Register a theming participant that is invoked after every theme change.
-	 */
-	onThemeChange: Event<ITheme>;
+	readonly onThemeChange: Event<ITheme>;
+
+	getIconTheme(): IIconTheme;
+
+	readonly onIconThemeChange: Event<IIconTheme>;
 
 }
 

@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { toUint32 } from 'vs/editor/common/core/uint';
 
@@ -166,9 +165,9 @@ export class PrefixSumComputer {
 
 		let low = 0;
 		let high = this.values.length - 1;
-		let mid: number;
-		let midStop: number;
-		let midStart: number;
+		let mid = 0;
+		let midStop = 0;
+		let midStart = 0;
 
 		while (low <= high) {
 			mid = low + ((high - low) / 2) | 0;
@@ -193,7 +192,7 @@ export class PrefixSumComputerWithCache {
 
 	private readonly _actual: PrefixSumComputer;
 	private _cacheAccumulatedValueStart: number = 0;
-	private _cache: PrefixSumIndexOfResult[] = null;
+	private _cache: PrefixSumIndexOfResult[] | null = null;
 
 	constructor(values: Uint32Array) {
 		this._actual = new PrefixSumComputer(values);

@@ -19,7 +19,7 @@ loader.config({
 	nodeRequire: require,
 	nodeMain: __filename,
 	'vs/nls': nlsConfig,
-	nodeCachedDataDir: process.env['VSCODE_NODE_CACHED_DATA_DIR_' + process.pid]
+	nodeCachedDataDir: process.env['VSCODE_NODE_CACHED_DATA_DIR']
 });
 
 // Running in Electron

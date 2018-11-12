@@ -46,7 +46,7 @@ export class LinkDetector {
 
 			let match = pattern.exec(text);
 			while (match !== null) {
-				let resource: uri = null;
+				let resource: uri | null = null;
 				if (!resource) {
 					match = pattern.exec(text);
 					continue;

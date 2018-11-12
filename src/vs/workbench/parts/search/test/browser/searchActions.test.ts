@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { TestInstantiationService, stubFunction } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -129,14 +127,14 @@ suite('Search Actions', () => {
 	function aFileMatch(): FileMatch {
 		let rawMatch: IFileMatch = {
 			resource: URI.file('somepath' + ++counter),
-			matches: []
+			results: []
 		};
 		return instantiationService.createInstance(FileMatch, null, null, null, null, rawMatch);
 	}
 
 	function aMatch(fileMatch: FileMatch): Match {
 		const line = ++counter;
-		const range = {
+		const ranges = {
 			startLineNumber: line,
 			startColumn: 0,
 			endLineNumber: line,
@@ -145,9 +143,9 @@ suite('Search Actions', () => {
 		let match = new Match(fileMatch, {
 			preview: {
 				text: 'some match',
-				match: range
+				matches: ranges
 			},
-			range
+			ranges
 		});
 		fileMatch.add(match);
 		return match;

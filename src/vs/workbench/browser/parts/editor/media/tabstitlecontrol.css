@@ -92,28 +92,33 @@
 	display: none; /* hidden by default until a color is provided (see below) */
 }
 
-.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.tab-border-top > .tab-border-top-container {
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.tab-border-top > .tab-border-top-container,
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.tab-border-bottom > .tab-border-bottom-container,
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty-border-top > .tab-border-top-container {
 	display: block;
 	position: absolute;
-	top: 0;
 	left: 0;
 	z-index: 6; /* over possible title border */
 	pointer-events: none;
-	background-color: var(--tab-border-top-color);
 	width: 100%;
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.tab-border-top > .tab-border-top-container {
+	top: 0;
 	height: 1px;
+	background-color: var(--tab-border-top-color);
 }
 
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.tab-border-bottom > .tab-border-bottom-container {
-	display: block;
-	position: absolute;
 	bottom: 0;
-	left: 0;
-	z-index: 6; /* over possible title border */
-	pointer-events: none;
-	background-color: var(--tab-border-bottom-color);
-	width: 100%;
 	height: 1px;
+	background-color: var(--tab-border-bottom-color);
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty-border-top > .tab-border-top-container {
+	top: 0;
+	height: 2px;
+	background-color: var(--tab-dirty-border-top-color);
 }
 
 /* Tab Label */

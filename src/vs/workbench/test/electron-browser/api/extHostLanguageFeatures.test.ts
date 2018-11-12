@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { setUnexpectedErrorHandler, errorHandler } from 'vs/base/common/errors';
@@ -866,7 +864,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		return rpcProtocol.sync().then(() => {
 
-			return provideSignatureHelp(model, new EditorPosition(1, 1), { triggerReason: modes.SignatureHelpTriggerReason.Invoke }, CancellationToken.None).then(value => {
+			return provideSignatureHelp(model, new EditorPosition(1, 1), { triggerReason: modes.SignatureHelpTriggerReason.Invoke, isRetrigger: false }, CancellationToken.None).then(value => {
 				assert.ok(value);
 			});
 		});
@@ -881,7 +879,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		return rpcProtocol.sync().then(() => {
 
-			return provideSignatureHelp(model, new EditorPosition(1, 1), { triggerReason: modes.SignatureHelpTriggerReason.Invoke }, CancellationToken.None).then(value => {
+			return provideSignatureHelp(model, new EditorPosition(1, 1), { triggerReason: modes.SignatureHelpTriggerReason.Invoke, isRetrigger: false }, CancellationToken.None).then(value => {
 				assert.equal(value, undefined);
 			});
 		});

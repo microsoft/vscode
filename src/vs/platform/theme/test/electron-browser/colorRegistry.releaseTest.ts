@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IColorRegistry, Extensions, ColorContribution } from 'vs/platform/theme/common/colorRegistry';
 import { editorMarkerNavigationError } from 'vs/editor/contrib/gotoError/gotoErrorWidget';
@@ -37,7 +35,7 @@ interface DescriptionDiff {
 export const forceColorLoad = [editorMarkerNavigationError, overviewRulerModifiedForeground, STATUS_BAR_DEBUGGING_BACKGROUND,
 	debugExceptionWidgetBackground, debugToolBarBackground, buttonBackground, embeddedEditorBackground];
 
-export const experimental = []; // 'settings.modifiedItemForeground', 'editorUnnecessary.foreground' ];
+export const experimental: string[] = []; // 'settings.modifiedItemForeground', 'editorUnnecessary.foreground' ];
 
 suite('Color Registry', function () {
 

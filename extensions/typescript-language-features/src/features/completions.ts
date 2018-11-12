@@ -180,6 +180,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 			case PConst.Kind.function:
 			case PConst.Kind.memberFunction:
 			case PConst.Kind.keyword:
+			case PConst.Kind.parameter:
 				commitCharacters.push('.', ',', ';');
 				if (this.commitCharactersSettings.enableCallCompletions) {
 					commitCharacters.push('(');
@@ -242,27 +243,20 @@ interface CompletionConfiguration {
 
 namespace CompletionConfiguration {
 	export const useCodeSnippetsOnMethodSuggest = 'suggest.completeFunctionCalls';
-	export const useCodeSnippetsOnMethodSuggest_deprecated = 'useCodeSnippetsOnMethodSuggest';
 	export const nameSuggestions = 'suggest.names';
-	export const nameSuggestions_deprecated = 'nameSuggestions';
 	export const pathSuggestions = 'suggest.paths';
 	export const autoImportSuggestions = 'suggest.autoImports';
-	export const autoImportSuggestions_deprecated = 'autoImportSuggestions.enabled';
 
 	export function getConfigurationForResource(
 		modeId: string,
 		resource: vscode.Uri
 	): CompletionConfiguration {
 		const config = vscode.workspace.getConfiguration(modeId, resource);
-
-		// Deprecated TS settings that were shared by both JS and TS.
-		const typeScriptConfig = vscode.workspace.getConfiguration('typescript', resource);
-
 		return {
-			useCodeSnippetsOnMethodSuggest: config.get<boolean>(CompletionConfiguration.useCodeSnippetsOnMethodSuggest, typeScriptConfig.get<boolean>(CompletionConfiguration.useCodeSnippetsOnMethodSuggest_deprecated, false)),
+			useCodeSnippetsOnMethodSuggest: config.get<boolean>(CompletionConfiguration.useCodeSnippetsOnMethodSuggest, false),
 			pathSuggestions: config.get<boolean>(CompletionConfiguration.pathSuggestions, true),
-			autoImportSuggestions: config.get<boolean>(CompletionConfiguration.autoImportSuggestions, typeScriptConfig.get<boolean>(CompletionConfiguration.autoImportSuggestions_deprecated, true)),
-			nameSuggestions: config.get<boolean>(CompletionConfiguration.nameSuggestions, vscode.workspace.getConfiguration('javascript', resource).get(CompletionConfiguration.nameSuggestions_deprecated, true))
+			autoImportSuggestions: config.get<boolean>(CompletionConfiguration.autoImportSuggestions, true),
+			nameSuggestions: config.get<boolean>(CompletionConfiguration.nameSuggestions, true)
 		};
 	}
 }
@@ -462,14 +456,16 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		document: vscode.TextDocument,
 		position: vscode.Position
 	): boolean {
-		// TODO: Workaround for https://github.com/Microsoft/TypeScript/issues/13456
-		// Only enable dot completions when previous character is an identifier.
-		// Prevents incorrectly completing while typing spread operators.
-		if (position.character > 1) {
-			const preText = document.getText(new vscode.Range(
-				position.line, 0,
-				position.line, position.character));
-			return preText.match(/(^|[a-z_$\(\)\[\]\{\}]|[^.]\.)\s*$/ig) !== null;
+		if (this.client.apiVersion.lt(API.v320)) {
+			// Workaround for https://github.com/Microsoft/TypeScript/issues/27742
+			// Only enable dot completions when previous character not a dot preceeded by whitespace.
+			// Prevents incorrectly completing while typing spread operators.
+			if (position.character > 1) {
+				const preText = document.getText(new vscode.Range(
+					position.line, 0,
+					position.line, position.character));
+				return preText.match(/(\s|^)\.$/ig) === null;
+			}
 		}
 
 		return true;

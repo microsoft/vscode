@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import {
 	ExtensionContext, TextDocument, commands, ProviderResult, CancellationToken,
@@ -29,10 +28,8 @@ export function invalidateHoverScriptsCache(document?: TextDocument) {
 }
 
 export class NpmScriptHoverProvider implements HoverProvider {
-	private extensionContext: ExtensionContext;
 
 	constructor(context: ExtensionContext) {
-		this.extensionContext = context;
 		context.subscriptions.push(commands.registerCommand('npm.runScriptFromHover', this.runScriptFromHover, this));
 		context.subscriptions.push(commands.registerCommand('npm.debugScriptFromHover', this.debugScriptFromHover, this));
 	}

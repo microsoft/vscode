@@ -23,7 +23,7 @@ function normalizeLink(
 	const tempUri = vscode.Uri.parse(`vscode-resource:${link}`);
 
 	let resourcePath = tempUri.path;
-	if (!tempUri.path) {
+	if (!tempUri.path && document.uri.scheme === 'file') {
 		resourcePath = document.uri.path;
 	} else if (tempUri.path[0] === '/') {
 		const root = vscode.workspace.getWorkspaceFolder(document.uri);
@@ -31,7 +31,7 @@ function normalizeLink(
 			resourcePath = path.join(root.uri.fsPath, tempUri.path);
 		}
 	} else {
-		resourcePath = path.join(base, tempUri.path);
+		resourcePath = base ? path.join(base, tempUri.path) : tempUri.path;
 	}
 
 	return OpenDocumentLinkCommand.createCommandUri(resourcePath, tempUri.fragment);
@@ -59,7 +59,7 @@ export default class LinkProvider implements vscode.DocumentLinkProvider {
 		document: vscode.TextDocument,
 		_token: vscode.CancellationToken
 	): vscode.DocumentLink[] {
-		const base = path.dirname(document.uri.fsPath);
+		const base = document.uri.scheme === 'file' ? path.dirname(document.uri.fsPath) : '';
 		const text = document.getText();
 
 		return this.providerInlineLinks(text, document, base)

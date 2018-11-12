@@ -148,7 +148,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				nls.localize('addBreakpoint', "Add Breakpoint"),
 				null,
 				true,
-				() => this.debugService.addBreakpoints(uri, [{ lineNumber }])
+				() => this.debugService.addBreakpoints(uri, [{ lineNumber }], `debugEditorContextMenu`)
 			));
 			actions.push(new Action(
 				'addConditionalBreakpoint',
@@ -203,27 +203,34 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 						const breakpointType = logPoint ? nls.localize('logPoint', "Logpoint") : nls.localize('breakpoint', "Breakpoint");
 						const disable = breakpoints.some(bp => bp.enabled);
 
-						this.dialogService.show(severity.Info, nls.localize('breakpointHasCondition', "This {0} has a {1} that will get lost on remove. Consider {2} the {0} instead.",
+						const enabling = nls.localize('breakpointHasConditionDisabled',
+							"This {0} has a {1} that will get lost on remove. Consider enabling the {0} instead.",
 							breakpointType.toLowerCase(),
-							logPoint ? nls.localize('message', "message") : nls.localize('condition', "condition"),
-							disable ? nls.localize('disabling', "disabling") : nls.localize('enabling', "enabling")
-						), [
-								nls.localize('removeLogPoint', "Remove {0}", breakpointType),
-								nls.localize('disableLogPoint', "{0} {1}", disable ? nls.localize('disable', "Disable") : nls.localize('enable', "Enable"), breakpointType),
-								nls.localize('cancel', "Cancel")
-							], { cancelId: 2 }).then(choice => {
-								if (choice === 0) {
-									breakpoints.forEach(bp => this.debugService.removeBreakpoints(bp.getId()));
-								}
-								if (choice === 1) {
-									breakpoints.forEach(bp => this.debugService.enableOrDisableBreakpoints(!disable, bp));
-								}
-							});
+							logPoint ? nls.localize('message', "message") : nls.localize('condition', "condition")
+						);
+						const disabling = nls.localize('breakpointHasConditionEnabled',
+							"This {0} has a {1} that will get lost on remove. Consider disabling the {0} instead.",
+							breakpointType.toLowerCase(),
+							logPoint ? nls.localize('message', "message") : nls.localize('condition', "condition")
+						);
+
+						this.dialogService.show(severity.Info, disable ? disabling : enabling, [
+							nls.localize('removeLogPoint', "Remove {0}", breakpointType),
+							nls.localize('disableLogPoint', "{0} {1}", disable ? nls.localize('disable', "Disable") : nls.localize('enable', "Enable"), breakpointType),
+							nls.localize('cancel', "Cancel")
+						], { cancelId: 2 }).then(choice => {
+							if (choice === 0) {
+								breakpoints.forEach(bp => this.debugService.removeBreakpoints(bp.getId()));
+							}
+							if (choice === 1) {
+								breakpoints.forEach(bp => this.debugService.enableOrDisableBreakpoints(!disable, bp));
+							}
+						});
 					} else {
 						breakpoints.forEach(bp => this.debugService.removeBreakpoints(bp.getId()));
 					}
 				} else if (canSetBreakpoints) {
-					this.debugService.addBreakpoints(uri, [{ lineNumber }]);
+					this.debugService.addBreakpoints(uri, [{ lineNumber }], `debugEditorGutter`);
 				}
 			}
 		}));
@@ -517,7 +524,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		if (this.configurationWidget) {
 			this.configurationWidget.dispose();
 		}
-		if (model && LAUNCH_JSON_REGEX.test(model.uri.toString())) {
+		if (model && LAUNCH_JSON_REGEX.test(model.uri.toString()) && !this.editor.getConfiguration().readOnly) {
 			this.configurationWidget = this.instantiationService.createInstance(FloatingClickWidget, this.editor, nls.localize('addConfiguration', "Add Configuration..."), null);
 			this.configurationWidget.render();
 			this.toDispose.push(this.configurationWidget.onClick(() => this.addLaunchConfiguration()));
@@ -610,7 +617,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 		stackFrame.getMostSpecificScopes(stackFrame.range)
 			// Get all top level children in the scope chain
-			.then(scopes => TPromise.join(scopes.map(scope => scope.getChildren()
+			.then(scopes => Promise.all(scopes.map(scope => scope.getChildren()
 				.then(children => {
 					let range = new Range(0, 0, stackFrame.range.startLineNumber, stackFrame.range.startColumn);
 					if (scope.range) {

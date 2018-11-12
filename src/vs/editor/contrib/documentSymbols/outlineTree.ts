@@ -2,14 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as dom from 'vs/base/browser/dom';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { values } from 'vs/base/common/collections';
 import { createMatches } from 'vs/base/common/filters';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IDataSource, IFilter, IRenderer, ISorter, ITree } from 'vs/base/parts/tree/browser/tree';
 import 'vs/css!./media/outlineTree';
 import 'vs/css!./media/symbol-icons';
@@ -97,14 +95,14 @@ export class OutlineDataSource implements IDataSource {
 		return false;
 	}
 
-	getChildren(tree: ITree, element: TreeElement): TPromise<TreeElement[]> {
+	getChildren(tree: ITree, element: TreeElement): Promise<TreeElement[]> {
 		let res = values(element.children);
 		// console.log(element.id + ' with children ' + res.length);
-		return TPromise.wrap(res);
+		return Promise.resolve(res);
 	}
 
-	getParent(tree: ITree, element: TreeElement | any): TPromise<TreeElement> {
-		return TPromise.wrap(element && element.parent);
+	getParent(tree: ITree, element: TreeElement | any): Promise<TreeElement> {
+		return Promise.resolve(element && element.parent);
 	}
 
 	shouldAutoexpand(tree: ITree, element: TreeElement): boolean {
@@ -148,13 +146,13 @@ export class OutlineRenderer implements IRenderer {
 			const decoration = dom.$('.outline-element-decoration');
 			dom.addClass(container, 'outline-element');
 			dom.append(container, icon, labelContainer, detail, decoration);
-			return { icon, labelContainer, label: new HighlightedLabel(labelContainer), detail, decoration };
+			return { icon, labelContainer, label: new HighlightedLabel(labelContainer, true), detail, decoration };
 		}
 		if (templateId === 'outline-group') {
 			const labelContainer = dom.$('.outline-element-label');
 			dom.addClass(container, 'outline-element');
 			dom.append(container, labelContainer);
-			return { labelContainer, label: new HighlightedLabel(labelContainer) };
+			return { labelContainer, label: new HighlightedLabel(labelContainer, true) };
 		}
 
 		throw new Error(templateId);
@@ -285,7 +283,7 @@ export class OutlineTreeState {
 	static async restore(tree: ITree, state: OutlineTreeState, eventPayload: any): Promise<void> {
 		let model = <OutlineModel>tree.getInput();
 		if (!state || !(model instanceof OutlineModel)) {
-			return TPromise.as(undefined);
+			return Promise.resolve(undefined);
 		}
 
 		// expansion

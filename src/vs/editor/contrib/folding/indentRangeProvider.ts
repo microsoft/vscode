@@ -3,14 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { ITextModel } from 'vs/editor/common/model';
 import { FoldingMarkers } from 'vs/editor/common/modes/languageConfiguration';
 import { FoldingRegions, MAX_LINE_NUMBER } from 'vs/editor/contrib/folding/foldingRanges';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { RangeProvider } from './folding';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
@@ -31,9 +28,9 @@ export class IndentRangeProvider implements RangeProvider {
 
 	compute(cancelationToken: CancellationToken): Thenable<FoldingRegions> {
 		let foldingRules = LanguageConfigurationRegistry.getFoldingRules(this.editorModel.getLanguageIdentifier().id);
-		let offSide = foldingRules && foldingRules.offSide;
+		let offSide = foldingRules && !!foldingRules.offSide;
 		let markers = foldingRules && foldingRules.markers;
-		return TPromise.as(computeRanges(this.editorModel, offSide, markers));
+		return Promise.resolve(computeRanges(this.editorModel, offSide, markers));
 	}
 }
 
@@ -116,7 +113,7 @@ export function computeRanges(model: ITextModel, offSide: boolean, markers?: Fol
 	const tabSize = model.getOptions().tabSize;
 	let result = new RangesCollector(foldingRangesLimit);
 
-	let pattern = void 0;
+	let pattern: RegExp | undefined = void 0;
 	if (markers) {
 		pattern = new RegExp(`(${markers.start.source})|(?:${markers.end.source})`);
 	}

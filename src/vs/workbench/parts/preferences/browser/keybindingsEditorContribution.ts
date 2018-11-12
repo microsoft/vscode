@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as nls from 'vs/nls';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { MarkdownString } from 'vs/base/common/htmlContent';
@@ -235,7 +233,7 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 				return this._createDecoration(true, null, null, model, value);
 			}
 			const resolvedKeybinding = resolvedKeybindings[0];
-			let usLabel: string = null;
+			let usLabel: string | null = null;
 			if (resolvedKeybinding instanceof WindowsNativeResolvedKeybinding) {
 				usLabel = resolvedKeybinding.getUSLabel();
 			}

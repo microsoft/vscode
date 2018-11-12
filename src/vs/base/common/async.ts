@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -93,9 +91,9 @@ export interface ITask<T> {
  */
 export class Throttler {
 
-	private activePromise: TPromise;
-	private queuedPromise: TPromise;
-	private queuedPromiseFactory: ITask<TPromise>;
+	private activePromise: TPromise | null;
+	private queuedPromise: TPromise | null;
+	private queuedPromiseFactory: ITask<TPromise> | null;
 
 	constructor() {
 		this.activePromise = null;
@@ -111,26 +109,26 @@ export class Throttler {
 				const onComplete = () => {
 					this.queuedPromise = null;
 
-					const result = this.queue(this.queuedPromiseFactory);
+					const result = this.queue(this.queuedPromiseFactory!);
 					this.queuedPromiseFactory = null;
 
 					return result;
 				};
 
 				this.queuedPromise = new TPromise(c => {
-					this.activePromise.then(onComplete, onComplete).then(c);
+					this.activePromise!.then(onComplete, onComplete).then(c);
 				});
 			}
 
 			return new TPromise((c, e) => {
-				this.queuedPromise.then(c, e);
+				this.queuedPromise!.then(c, e);
 			});
 		}
 
 		this.activePromise = promiseFactory();
 
 		return new TPromise((c, e) => {
-			this.activePromise.then((result: any) => {
+			this.activePromise!.then((result: any) => {
 				this.activePromise = null;
 				c(result);
 			}, (err: any) => {
@@ -174,13 +172,13 @@ export class SimpleThrottler {
  * 			delayer.trigger(() => { return makeTheTrip(); });
  * 		}
  */
-export class Delayer<T> {
+export class Delayer<T> implements IDisposable {
 
-	private timeout: number;
-	private completionPromise: TPromise;
-	private doResolve: ValueCallback;
+	private timeout: any;
+	private completionPromise: TPromise | null;
+	private doResolve: ValueCallback | null;
 	private doReject: (err: any) => void;
-	private task: ITask<T | TPromise<T>>;
+	private task: ITask<T | TPromise<T>> | null;
 
 	constructor(public defaultDelay: number) {
 		this.timeout = null;
@@ -189,7 +187,7 @@ export class Delayer<T> {
 		this.task = null;
 	}
 
-	trigger(task: ITask<T | TPromise<T>>, delay: number = this.defaultDelay): TPromise<T> {
+	trigger(task: ITask<T | TPromise<T>>, delay: number = this.defaultDelay): Thenable<T> {
 		this.task = task;
 		this.cancelTimeout();
 
@@ -200,7 +198,7 @@ export class Delayer<T> {
 			}).then(() => {
 				this.completionPromise = null;
 				this.doResolve = null;
-				const task = this.task;
+				const task = this.task!;
 				this.task = null;
 
 				return task();
@@ -209,7 +207,7 @@ export class Delayer<T> {
 
 		this.timeout = setTimeout(() => {
 			this.timeout = null;
-			this.doResolve(null);
+			this.doResolve!(null);
 		}, delay);
 
 		return this.completionPromise;
@@ -234,14 +232,20 @@ export class Delayer<T> {
 			this.timeout = null;
 		}
 	}
+
+	dispose(): void {
+		this.cancelTimeout();
+	}
 }
 
 /**
  * A helper to delay execution of a task that is being requested often, while
  * preventing accumulation of consecutive executions, while the task runs.
  *
- * Simply combine the two mail men's strategies from the Throttler and Delayer
- * helpers, for an analogy.
+ * The mail man is clever and waits for a certain amount of time, before going
+ * out to deliver letters. While the mail man is going out, more letters arrive
+ * and can only be delivered once he is back. Once he is back the mail man will
+ * do one more trip to deliver the letters that have accumulated while he was out.
  */
 export class ThrottledDelayer<T> extends Delayer<TPromise<T>> {
 
@@ -307,6 +311,15 @@ export function timeout(millis: number, token?: CancellationToken): CancelablePr
 	});
 }
 
+export function disposableTimeout(handler: Function, timeout = 0): IDisposable {
+	const timer = setTimeout(handler, timeout);
+	return {
+		dispose() {
+			clearTimeout(timer);
+		}
+	};
+}
+
 /**
  * Returns a new promise that joins the provided promise. Upon completion of
  * the provided promise the provided function will always be called. This
@@ -356,11 +369,11 @@ export function sequence<T>(promiseFactories: ITask<Thenable<T>>[]): Promise<T[]
 	return Promise.resolve(null).then(thenHandler);
 }
 
-export function first<T>(promiseFactories: ITask<Thenable<T>>[], shouldStop: (t: T) => boolean = t => !!t, defaultValue: T = null): Promise<T> {
+export function first<T>(promiseFactories: ITask<Thenable<T>>[], shouldStop: (t: T) => boolean = t => !!t, defaultValue: T | null = null): Promise<T | null> {
 	let index = 0;
 	const len = promiseFactories.length;
 
-	const loop: () => Promise<T> = () => {
+	const loop: () => Promise<T | null> = () => {
 		if (index >= len) {
 			return Promise.resolve(defaultValue);
 		}
@@ -422,7 +435,7 @@ export class Limiter<T> {
 
 	private consume(): void {
 		while (this.outstandingPromises.length && this.runningPromises < this.maxDegreeOfParalellism) {
-			const iLimitedTask = this.outstandingPromises.shift();
+			const iLimitedTask = this.outstandingPromises.shift()!;
 			this.runningPromises++;
 
 			const promise = iLimitedTask.factory();
@@ -484,7 +497,7 @@ export class ResourceQueue {
 }
 
 export class TimeoutTimer extends Disposable {
-	private _token: number;
+	private _token: any;
 
 	constructor();
 	constructor(runner: () => void, timeout: number);
@@ -531,7 +544,7 @@ export class TimeoutTimer extends Disposable {
 
 export class IntervalTimer extends Disposable {
 
-	private _token: number;
+	private _token: any;
 
 	constructor() {
 		super();
@@ -560,9 +573,9 @@ export class IntervalTimer extends Disposable {
 
 export class RunOnceScheduler {
 
-	protected runner: (...args: any[]) => void;
+	protected runner: ((...args: any[]) => void) | null;
 
-	private timeoutToken: number;
+	private timeoutToken: any;
 	private timeout: number;
 	private timeoutHandler: () => void;
 
@@ -614,7 +627,9 @@ export class RunOnceScheduler {
 	}
 
 	protected doRun(): void {
-		this.runner();
+		if (this.runner) {
+			this.runner();
+		}
 	}
 }
 
@@ -637,7 +652,9 @@ export class RunOnceWorker<T> extends RunOnceScheduler {
 		const units = this.units;
 		this.units = [];
 
-		this.runner(units);
+		if (this.runner) {
+			this.runner(units);
+		}
 	}
 
 	dispose(): void {
@@ -647,8 +664,8 @@ export class RunOnceWorker<T> extends RunOnceScheduler {
 	}
 }
 
-export function nfcall(fn: Function, ...args: any[]): TPromise;
-export function nfcall<T>(fn: Function, ...args: any[]): TPromise<T>;
+export function nfcall(fn: Function, ...args: any[]): Promise<any>;
+export function nfcall<T>(fn: Function, ...args: any[]): Promise<T>;
 export function nfcall(fn: Function, ...args: any[]): any {
 	return new TPromise((c, e) => fn(...args, (err: any, result: any) => err ? e(err) : c(result)));
 }
@@ -682,12 +699,30 @@ declare function cancelIdleCallback(handle: number): void;
 		});
 		runWhenIdle = (runner, timeout = 0) => {
 			let handle = setTimeout(() => runner(dummyIdle), timeout);
-			return { dispose() { clearTimeout(handle); handle = undefined; } };
+			let disposed = false;
+			return {
+				dispose() {
+					if (disposed) {
+						return;
+					}
+					disposed = true;
+					clearTimeout(handle);
+				}
+			};
 		};
 	} else {
 		runWhenIdle = (runner, timeout?) => {
-			let handle = requestIdleCallback(runner, typeof timeout === 'number' ? { timeout } : undefined);
-			return { dispose() { cancelIdleCallback(handle); handle = undefined; } };
+			let handle: number = requestIdleCallback(runner, typeof timeout === 'number' ? { timeout } : undefined);
+			let disposed = false;
+			return {
+				dispose() {
+					if (disposed) {
+						return;
+					}
+					disposed = true;
+					cancelIdleCallback(handle);
+				}
+			};
 		};
 	}
 })();

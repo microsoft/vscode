@@ -2,15 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
-import { Position } from 'vs/editor/common/core/position';
-import { FindMatch, EndOfLineSequence } from 'vs/editor/common/model';
-import { Range } from 'vs/editor/common/core/range';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { TextModelSearch, SearchParams, SearchData } from 'vs/editor/common/model/textModelSearch';
 import { getMapForWordSeparators } from 'vs/editor/common/controller/wordCharacterClassifier';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { EndOfLineSequence, FindMatch } from 'vs/editor/common/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { SearchData, SearchParams, TextModelSearch, isMultilineRegexSource } from 'vs/editor/common/model/textModelSearch';
 import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
 
 // --------- Find
@@ -18,7 +17,7 @@ suite('TextModelSearch', () => {
 
 	const usualWordSeparators = getMapForWordSeparators(USUAL_WORD_SEPARATORS);
 
-	function assertFindMatch(actual: FindMatch, expectedRange: Range, expectedMatches: string[] = null): void {
+	function assertFindMatch(actual: FindMatch, expectedRange: Range, expectedMatches: string[] | null = null): void {
 		assert.deepEqual(actual, new FindMatch(expectedRange, expectedMatches));
 	}
 
@@ -721,5 +720,18 @@ suite('TextModelSearch', () => {
 				[1, 16, 3, 1]
 			]
 		);
+	});
+
+	test('isMultilineRegexSource', () => {
+		assert(!isMultilineRegexSource('foo'));
+		assert(!isMultilineRegexSource(''));
+		assert(!isMultilineRegexSource('foo\\sbar'));
+		assert(!isMultilineRegexSource('\\\\notnewline'));
+
+		assert(isMultilineRegexSource('foo\\nbar'));
+		assert(isMultilineRegexSource('foo\\nbar\\s'));
+		assert(isMultilineRegexSource('foo\\r\\n'));
+		assert(isMultilineRegexSource('\\n'));
+		assert(isMultilineRegexSource('foo\\W'));
 	});
 });

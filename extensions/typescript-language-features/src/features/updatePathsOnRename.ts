@@ -78,7 +78,7 @@ class UpdateImportsOnFileRenameHandler {
 		}
 
 		// Make sure TS knows about file
-		this.client.bufferSyncSupport.closeResource(targetResource);
+		this.client.bufferSyncSupport.closeResource(oldResource);
 		this.client.bufferSyncSupport.openTextDocument(document);
 
 		if (this.client.apiVersion.lt(API.v300) && !fs.lstatSync(newResource.fsPath).isDirectory()) {
@@ -149,24 +149,20 @@ class UpdateImportsOnFileRenameHandler {
 		}
 
 		const response = await vscode.window.showInformationMessage<Item>(
-			localize('prompt', "Automatically update imports for moved file: '{0}'?", path.basename(newResource.fsPath)), {
+			localize('prompt', "Update imports for moved file: '{0}'?", path.basename(newResource.fsPath)), {
 				modal: true,
-			},
-			{
+			}, {
 				title: localize('reject.title', "No"),
 				choice: Choice.Reject,
 				isCloseAffordance: true,
-			},
-			{
+			}, {
 				title: localize('accept.title', "Yes"),
 				choice: Choice.Accept,
-			},
-			{
-				title: localize('always.title', "Yes, always update imports"),
+			}, {
+				title: localize('always.title', "Always automatically update imports"),
 				choice: Choice.Always,
-			},
-			{
-				title: localize('never.title', "No, never update imports"),
+			}, {
+				title: localize('never.title', "Never automatically update imports"),
 				choice: Choice.Never,
 			});
 

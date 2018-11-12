@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
@@ -26,8 +25,9 @@ class ToggleZenMode extends Action {
 		this.enabled = !!this.partService;
 	}
 
-	run(): TPromise<any> {
+	run(): Promise<any> {
 		this.partService.toggleZenMode();
+
 		return Promise.resolve(null);
 	}
 }

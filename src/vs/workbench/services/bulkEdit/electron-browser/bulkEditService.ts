@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 
 import { mergeSort } from 'vs/base/common/arrays';
 import { dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
@@ -417,4 +415,4 @@ export class BulkEditService implements IBulkEditService {
 }
 
 
-registerSingleton(IBulkEditService, BulkEditService);
+registerSingleton(IBulkEditService, BulkEditService, true);

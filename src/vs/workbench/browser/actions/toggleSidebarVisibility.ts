@@ -2,9 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
@@ -28,9 +26,11 @@ export class ToggleSidebarVisibilityAction extends Action {
 		this.enabled = !!this.partService;
 	}
 
-	run(): TPromise<any> {
+	run(): Thenable<any> {
 		const hideSidebar = this.partService.isVisible(Parts.SIDEBAR_PART);
-		return this.partService.setSideBarHidden(hideSidebar);
+		this.partService.setSideBarHidden(hideSidebar);
+
+		return Promise.resolve(null);
 	}
 }
 

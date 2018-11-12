@@ -7,7 +7,6 @@ import * as dom from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import { IDataSource, ITree, IRenderer } from 'vs/base/parts/tree/browser/tree';
 import { Action } from 'vs/base/common/actions';
 import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/parts/extensions/common/extensions';
@@ -50,12 +49,12 @@ export class DataSource implements IDataSource {
 		return hasChildren;
 	}
 
-	public getChildren(tree: ITree, extensionData: IExtensionData): Promise {
+	public getChildren(tree: ITree, extensionData: IExtensionData): Promise<any> {
 		return extensionData.getChildren();
 	}
 
-	public getParent(tree: ITree, { parent }: IExtensionData): Promise {
-		return TPromise.as(parent);
+	public getParent(tree: ITree, { parent }: IExtensionData): Promise<any> {
+		return Promise.resolve(parent);
 	}
 }
 
@@ -214,7 +213,7 @@ class OpenExtensionAction extends Action {
 		return this._extensionData;
 	}
 
-	run(sideByside: boolean): TPromise<any> {
+	run(sideByside: boolean): Promise<any> {
 		return this.extensionsWorkdbenchService.open(this.extensionData.extension, sideByside);
 	}
 }

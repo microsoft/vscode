@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/electron-browser/mainThreadDocumentsAndEditors';
 import { SingleProxyRPCProtocol, TestRPCProtocol } from './testRPCProtocol';
@@ -21,8 +19,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { TestFileService, TestEditorService, TestEditorGroupsService, TestEnvironmentService, TestContextService } from 'vs/workbench/test/workbenchTestServices';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { TestFileService, TestEditorService, TestEditorGroupsService, TestEnvironmentService, TestContextService, TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
 import { ResourceTextEdit } from 'vs/editor/common/modes';
 import { BulkEditService } from 'vs/workbench/services/bulkEdit/electron-browser/bulkEditService';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -44,7 +41,7 @@ suite('MainThreadEditors', () => {
 
 	setup(() => {
 		const configService = new TestConfigurationService();
-		modelService = new ModelServiceImpl(null, configService);
+		modelService = new ModelServiceImpl(null, configService, new TestTextResourcePropertiesService(configService));
 		const codeEditorService = new TestCodeEditorService();
 
 		movedResources.clear();
@@ -76,7 +73,7 @@ suite('MainThreadEditors', () => {
 		const workbenchEditorService = new TestEditorService();
 		const editorGroupService = new TestEditorGroupsService();
 		const textModelService = new class extends mock<ITextModelService>() {
-			createModelReference(resource: URI): TPromise<IReference<ITextEditorModel>> {
+			createModelReference(resource: URI): Promise<IReference<ITextEditorModel>> {
 				const textEditorModel: ITextEditorModel = new class extends mock<ITextEditorModel>() {
 					textEditorModel = modelService.getModel(resource);
 				};
@@ -179,7 +176,7 @@ suite('MainThreadEditors', () => {
 			// second edit request fails
 			assert.equal(result, false);
 		});
-		return TPromise.join([p1, p2]);
+		return Promise.all([p1, p2]);
 	});
 
 	test(`applyWorkspaceEdit with only resource edit`, () => {

@@ -9,7 +9,7 @@ import { Selection } from 'vscode';
 import { withRandomFileEditor, closeAllEditors } from './testUtils';
 import { incrementDecrement as incrementDecrementImpl } from '../incrementDecrement';
 
-function incrementDecrement(delta): Thenable<boolean> {
+function incrementDecrement(delta: number): Thenable<boolean> {
 	const result = incrementDecrementImpl(delta);
 	assert.ok(result);
 	return result!;

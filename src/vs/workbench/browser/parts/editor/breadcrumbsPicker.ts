@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { onDidChangeZoomLevel } from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { compareFileNames } from 'vs/base/common/comparers';
@@ -20,7 +18,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IDataSource, IFilter, IRenderer, ISorter, ITree } from 'vs/base/parts/tree/browser/tree';
 import 'vs/css!./media/breadcrumbscontrol';
 import { OutlineElement, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
-import { OutlineDataSource, OutlineItemComparator, OutlineRenderer } from 'vs/editor/contrib/documentSymbols/outlineTree';
+import { OutlineDataSource, OutlineItemComparator, OutlineRenderer, OutlineItemCompareType } from 'vs/editor/contrib/documentSymbols/outlineTree';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { FileKind, IFileService, IFileStat } from 'vs/platform/files/common/files';
@@ -54,6 +52,7 @@ export abstract class BreadcrumbsPicker {
 	protected readonly _treeContainer: HTMLDivElement;
 	protected readonly _tree: HighlightingWorkbenchTree;
 	protected readonly _focus: dom.IFocusTracker;
+	protected readonly _symbolSortOrder: BreadcrumbsConfig<'position' | 'name' | 'type'>;
 	private _layoutInfo: ILayoutInfo;
 
 	private readonly _onDidPickElement = new Emitter<{ target: any, payload: any }>();
@@ -90,14 +89,16 @@ export abstract class BreadcrumbsPicker {
 		this._treeContainer.style.boxShadow = `0px 5px 8px ${this._themeService.getTheme().getColor(widgetShadow)}`;
 		this._domNode.appendChild(this._treeContainer);
 
+		this._symbolSortOrder = BreadcrumbsConfig.SymbolSortOrder.bindTo(this._configurationService);
+
 		const filterConfig = BreadcrumbsConfig.FilterOnType.bindTo(this._configurationService);
 		this._disposables.push(filterConfig);
 
-		const treeConifg = this._completeTreeConfiguration({ dataSource: undefined, renderer: undefined, highlighter: undefined });
+		const treeConfig = this._completeTreeConfiguration({ dataSource: undefined, renderer: undefined, highlighter: undefined });
 		this._tree = this._instantiationService.createInstance(
 			HighlightingWorkbenchTree,
 			this._treeContainer,
-			treeConifg,
+			treeConfig,
 			<IHighlightingTreeOptions>{ useShadows: false, filterOnType: filterConfig.getValue(), showTwistie: false, twistiePixels: 12 },
 			{ placeholder: localize('placeholder', "Find") }
 		);
@@ -146,6 +147,7 @@ export abstract class BreadcrumbsPicker {
 		this._onDidPickElement.dispose();
 		this._tree.dispose();
 		this._focus.dispose();
+		this._symbolSortOrder.dispose();
 	}
 
 	setInput(input: any, maxHeight: number, width: number, arrowSize: number, arrowOffset: number): void {
@@ -321,7 +323,7 @@ export class FileHighlighter implements IHighlighter {
 		return IWorkspaceFolder.isIWorkspaceFolder(element) ? element.uri.toString() : element.resource.toString();
 	}
 	getHighlights(tree: ITree, element: IFileStat | IWorkspaceFolder, pattern: string): FuzzyScore {
-		return fuzzyScore(pattern, element.name, undefined, true);
+		return fuzzyScore(pattern, pattern.toLowerCase(), 0, element.name, element.name.toLowerCase(), 0, true);
 	}
 }
 
@@ -466,7 +468,7 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 	protected _completeTreeConfiguration(config: IHighlightingTreeConfiguration): IHighlightingTreeConfiguration {
 		config.dataSource = this._instantiationService.createInstance(OutlineDataSource);
 		config.renderer = this._instantiationService.createInstance(OutlineRenderer);
-		config.sorter = new OutlineItemComparator();
+		config.sorter = new OutlineItemComparator(this._getOutlineItemComparator());
 		config.highlighter = new OutlineHighlighter();
 		return config;
 	}
@@ -477,6 +479,18 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 		}
 		if (element instanceof OutlineElement) {
 			return element;
+		}
+	}
+
+	private _getOutlineItemComparator(): OutlineItemCompareType {
+		switch (this._symbolSortOrder.getValue()) {
+			case 'name':
+				return OutlineItemCompareType.ByName;
+			case 'type':
+				return OutlineItemCompareType.ByKind;
+			case 'position':
+			default:
+				return OutlineItemCompareType.ByPosition;
 		}
 	}
 }

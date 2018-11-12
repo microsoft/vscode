@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { matchesFuzzy, IMatch } from 'vs/base/common/filters';
 import { ltrim } from 'vs/base/common/strings';
 
@@ -99,7 +97,7 @@ function doParseOcticons(text: string, firstOcticonIndex: number): IParsedOctico
 	return { text: textWithoutOcticons, octiconOffsets };
 }
 
-export function matchesFuzzyOcticonAware(query: string, target: IParsedOcticons, enableSeparateSubstringMatching = false): IMatch[] {
+export function matchesFuzzyOcticonAware(query: string, target: IParsedOcticons, enableSeparateSubstringMatching = false): IMatch[] | null {
 	const { text, octiconOffsets } = target;
 
 	// Return early if there are no octicon markers in the word to match against
