@@ -1130,7 +1130,7 @@ function escapeInvisibleChars(enumValue: string): string {
 }
 
 export function defaultKeybindingsContents(keybindingService: IKeybindingService): string {
-	const defaultsHeader = '// ' + nls.localize('defaultKeybindingsHeader', "Overwrite key bindings by placing them into your key bindings file.");
+	const defaultsHeader = '// ' + nls.localize('defaultKeybindingsHeader', "Override key bindings by placing them into your key bindings file.");
 	return defaultsHeader + '\n' + keybindingService.getDefaultKeybindingsContent();
 }
 

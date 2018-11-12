@@ -245,6 +245,6 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 	}
 
 	private getEmptyContent(EOL: string): string {
-		return '// ' + localize('emptyKeybindingsHeader', "Place your key bindings in this file to overwrite the defaults") + EOL + '[]';
+		return '// ' + localize('emptyKeybindingsHeader', "Place your key bindings in this file to override the defaults") + EOL + '[]';
 	}
 }

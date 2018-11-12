@@ -94,7 +94,7 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 	}
 
 	protected createHeader(): void {
-		this._register(new SettingsHeaderWidget(this.editor, '')).setMessage(nls.localize('emptyUserSettingsHeader', "Place your settings here to overwrite the Default Settings."));
+		this._register(new SettingsHeaderWidget(this.editor, '')).setMessage(nls.localize('emptyUserSettingsHeader', "Place your settings here to override the Default Settings."));
 	}
 
 	public render(): void {
@@ -190,7 +190,7 @@ export class WorkspaceSettingsRenderer extends UserSettingsRenderer implements I
 	}
 
 	protected createHeader(): void {
-		this._register(new SettingsHeaderWidget(this.editor, '')).setMessage(nls.localize('emptyWorkspaceSettingsHeader', "Place your settings here to overwrite the User Settings."));
+		this._register(new SettingsHeaderWidget(this.editor, '')).setMessage(nls.localize('emptyWorkspaceSettingsHeader', "Place your settings here to override the User Settings."));
 	}
 
 	public setAssociatedPreferencesModel(associatedPreferencesModel: IPreferencesEditorModel<ISetting>): void {
@@ -216,7 +216,7 @@ export class FolderSettingsRenderer extends UserSettingsRenderer implements IPre
 	}
 
 	protected createHeader(): void {
-		this._register(new SettingsHeaderWidget(this.editor, '')).setMessage(nls.localize('emptyFolderSettingsHeader', "Place your folder settings here to overwrite those from the Workspace Settings."));
+		this._register(new SettingsHeaderWidget(this.editor, '')).setMessage(nls.localize('emptyFolderSettingsHeader', "Place your folder settings here to override those from the Workspace Settings."));
 	}
 
 }
