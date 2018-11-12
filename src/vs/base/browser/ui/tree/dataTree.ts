@@ -241,7 +241,7 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 
 	getSelection(): T[] {
 		const nodes = this.tree.getSelection();
-		return nodes.map(n => n.element);
+		return nodes.map(n => n.element!);
 	}
 
 	setFocus(elements: T[], browserEvent?: UIEvent): void {
@@ -275,7 +275,7 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 
 	getFocus(): T[] {
 		const nodes = this.tree.getFocus();
-		return nodes.map(n => n.element);
+		return nodes.map(n => n.element!);
 	}
 
 	open(elements: T[]): void {
