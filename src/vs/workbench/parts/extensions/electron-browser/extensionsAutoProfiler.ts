@@ -8,7 +8,6 @@ import { IExtensionService, IResponsiveStateChangeEvent, ICpuProfilerTarget, IEx
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { timeout } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { ILogService } from 'vs/platform/log/common/log';
 
 export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchContribution {
@@ -36,9 +35,11 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 			this._profileNSeconds(target).then(profile => {
 				this._processCpuProfile(profile);
 				this._session.delete(target);
-			}).catch(err => {
-				onUnexpectedError(err);
+			}).catch(_err => {
 				this._session.delete(target);
+				// fail silent as this is often
+				// caused by another party being
+				// connected already
 			});
 		}
 	}
