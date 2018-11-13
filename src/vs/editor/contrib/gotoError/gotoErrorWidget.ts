@@ -45,6 +45,7 @@ class MessageWidget {
 		domNode.setAttribute('role', 'alert');
 
 		this._messageBlock = document.createElement('div');
+		dom.addClass(this._messageBlock, 'message');
 		domNode.appendChild(this._messageBlock);
 
 		this._relatedBlock = document.createElement('div');
@@ -80,28 +81,14 @@ class MessageWidget {
 	update({ source, message, relatedInformation, code }: IMarker): void {
 
 		if (source) {
-			this._lines = 0;
-			this._longestLineLength = 0;
-			const indent = new Array(source.length + 3 + 1).join(' ');
 			const lines = message.split(/\r\n|\r|\n/g);
-			for (let i = 0; i < lines.length; i++) {
-				let line = lines[i];
-				this._lines += 1;
-				if (code && i === lines.length - 1) {
-					line += ` [${code}]`;
-				}
+			this._lines = lines.length;
+			this._longestLineLength = 0;
+			for (const line of lines) {
 				this._longestLineLength = Math.max(line.length, this._longestLineLength);
-				if (i === 0) {
-					message = `[${source}] ${line}`;
-				} else {
-					message += `\n${indent}${line}`;
-				}
 			}
 		} else {
 			this._lines = 1;
-			if (code) {
-				message += ` [${code}]`;
-			}
 			this._longestLineLength = message.length;
 		}
 
@@ -133,8 +120,24 @@ class MessageWidget {
 			}
 		}
 
-		this._messageBlock.innerText = message;
-		this._editor.applyFontInfo(this._messageBlock);
+		dom.clearNode(this._messageBlock);
+		if (source) {
+			const sourceElement = document.createElement('div');
+			sourceElement.innerText = `[${source}] `;
+			dom.addClass(sourceElement, 'source');
+			this._messageBlock.appendChild(sourceElement);
+		}
+		const messageElement = document.createElement('div');
+		messageElement.innerText = message;
+		this._editor.applyFontInfo(messageElement);
+		this._messageBlock.appendChild(messageElement);
+		if (code) {
+			const codeElement = document.createElement('div');
+			codeElement.innerText = ` [${code}]`;
+			dom.addClass(codeElement, 'code');
+			this._messageBlock.appendChild(codeElement);
+		}
+
 		const fontInfo = this._editor.getConfiguration().fontInfo;
 		const scrollWidth = Math.ceil(fontInfo.typicalFullwidthCharacterWidth * this._longestLineLength * 0.75);
 		const scrollHeight = fontInfo.lineHeight * this._lines;
