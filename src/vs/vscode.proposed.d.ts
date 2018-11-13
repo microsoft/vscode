@@ -1278,14 +1278,22 @@ declare module 'vscode' {
 		useEvaulated = 2,
 	}
 
+
+	export interface RunOptions {
+		/**
+		 * Controls the behavior of a task when it is rerun.
+		 */
+		rerunBehavior?: RerunBehavior;
+	}
+
 	/**
 	 * A task to execute
 	 */
 	export class Task2 extends Task {
 		/**
-		 * Controls the behavior of a task when it is rerun.
+		 * Run options for the task
 		 */
-		rerunBehavior?: RerunBehavior;
+		runOptions: RunOptions;
 	}
 	//#endregion
 

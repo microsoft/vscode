@@ -439,6 +439,9 @@ export enum RerunBehavior {
 	useEvaulated = 2,
 }
 
+export interface RunOptions {
+	rerunBehavior?: RerunBehavior;
+}
 export interface CommonTask {
 
 	/**
@@ -453,7 +456,7 @@ export interface CommonTask {
 
 	type: string;
 
-	rerunBehavior: RerunBehavior;
+	runOptions: RunOptions;
 }
 
 export interface CustomTask extends CommonTask, ConfigurationProperties {

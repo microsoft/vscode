@@ -1173,7 +1173,7 @@ class TaskService extends Disposable implements ITaskService {
 				name: id,
 				identifier: id,
 				dependsOn: extensionTasks.map((task) => { return { workspaceFolder: Task.getWorkspaceFolder(task), task: task._id }; }),
-				rerunBehavior: RerunBehavior.reevaluate,
+				runOptions: { rerunBehavior: RerunBehavior.reevaluate },
 			};
 			return { task, resolver };
 		}

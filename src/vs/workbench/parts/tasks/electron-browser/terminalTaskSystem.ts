@@ -219,7 +219,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 
 	public rerun(): ITaskExecuteResult | undefined {
 		if (this.lastTask && this.lastTask.verify()) {
-			if (this.lastTask.task.rerunBehavior === RerunBehavior.useEvaulated) {
+			if (this.lastTask.task.runOptions.rerunBehavior === RerunBehavior.useEvaulated) {
 				this.isRerun = true;
 			}
 			const result = this.run(this.lastTask.task, this.lastTask.resolver);

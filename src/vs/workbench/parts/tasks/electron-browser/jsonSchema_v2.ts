@@ -286,6 +286,14 @@ const rerunBehavior: IJSONSchema = {
 	description: nls.localize('JsonSchema.tasks.rerunBehavior', 'The task\'s behavior on rerun')
 };
 
+const runOptions: IJSONSchema = {
+	type: 'object',
+	properties: {
+		rerunBehavior: Objects.deepClone(rerunBehavior),
+	},
+	description: nls.localize('JsonSchema.tasks.runOptions', 'The task\'s run related options')
+};
+
 const options: IJSONSchema = Objects.deepClone(commonSchema.definitions.options);
 options.properties.shell = Objects.deepClone(commonSchema.definitions.shellConfiguration);
 
@@ -320,7 +328,7 @@ let taskConfiguration: IJSONSchema = {
 			$ref: '#/definitions/problemMatcherType',
 			description: nls.localize('JsonSchema.tasks.matchers', 'The problem matcher(s) to use. Can either be a string or a problem matcher definition or an array of strings and problem matchers.')
 		},
-		rerunBehavior: Objects.deepClone(rerunBehavior),
+		runOptions: Objects.deepClone(runOptions),
 	}
 };
 
@@ -368,7 +376,7 @@ taskDescription.properties.type = Objects.deepClone(taskType);
 taskDescription.properties.presentation = Objects.deepClone(presentation);
 taskDescription.properties.terminal = terminal;
 taskDescription.properties.group = Objects.deepClone(group);
-taskDescription.properties.rerunBehavior = Objects.deepClone(rerunBehavior);
+taskDescription.properties.runOptions = Objects.deepClone(runOptions);
 taskDescription.properties.taskName.deprecationMessage = nls.localize(
 	'JsonSchema.tasks.taskName.deprecated',
 	'The task\'s name property is deprecated. Use the label property instead.'
