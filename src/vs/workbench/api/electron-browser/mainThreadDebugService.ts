@@ -26,6 +26,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	private _debugAdaptersHandleCounter = 1;
 	private _debugConfigurationProviders: Map<number, IDebugConfigurationProvider>;
 	private _debugAdapterProviders: Map<number, IDebugAdapterProvider>;
+	private _sessions: Set<DebugSessionUUID>;
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -50,6 +51,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		this._debugAdapters = new Map();
 		this._debugConfigurationProviders = new Map();
 		this._debugAdapterProviders = new Map();
+		this._sessions = new Set();
 	}
 
 	public dispose(): void {
@@ -58,9 +60,9 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 
 	// interface IDebugAdapterProvider
 
-	createDebugAdapter(session: IDebugSession, config: IConfig): IDebugAdapter {
+	createDebugAdapter(session: IDebugSession): IDebugAdapter {
 		const handle = this._debugAdaptersHandleCounter++;
-		const da = new ExtensionHostDebugAdapter(handle, this._proxy, this.getSessionDto(session), config);
+		const da = new ExtensionHostDebugAdapter(handle, this._proxy, this.getSessionDto(session));
 		this._debugAdapters.set(handle, da);
 		return da;
 	}
@@ -185,8 +187,8 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 
 		const provider = <IDebugAdapterProvider>{
 			type: debugType,
-			provideDebugAdapter: (session, config) => {
-				return Promise.resolve(this._proxy.$provideDebugAdapter(handle, this.getSessionDto(session), config));
+			provideDebugAdapter: session => {
+				return Promise.resolve(this._proxy.$provideDebugAdapter(handle, this.getSessionDto(session)));
 			}
 		};
 		this._debugAdapterProviders.set(handle, provider);
@@ -252,12 +254,19 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 
 	private getSessionDto(session: IDebugSession): IDebugSessionDto {
 		if (session) {
-			return {
-				id: <DebugSessionUUID>session.getId(),
-				type: session.configuration.type,
-				name: session.configuration.name,
-				folderUri: session.root ? session.root.uri : undefined
-			};
+			const sessionID = <DebugSessionUUID>session.getId();
+			if (this._sessions.has(sessionID)) {
+				return sessionID;
+			} else {
+				this._sessions.add(sessionID);
+				return {
+					id: sessionID,
+					type: session.configuration.type,
+					name: session.configuration.name,
+					folderUri: session.root ? session.root.uri : undefined,
+					configuration: session.configuration
+				};
+			}
 		}
 		return undefined;
 	}
@@ -298,7 +307,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
  */
 class ExtensionHostDebugAdapter extends AbstractDebugAdapter {
 
-	constructor(private _handle: number, private _proxy: ExtHostDebugServiceShape, private _sessionDto: IDebugSessionDto, private config: IConfig) {
+	constructor(private _handle: number, private _proxy: ExtHostDebugServiceShape, private _sessionDto: IDebugSessionDto) {
 		super();
 	}
 
@@ -311,7 +320,7 @@ class ExtensionHostDebugAdapter extends AbstractDebugAdapter {
 	}
 
 	public startSession(): Promise<void> {
-		return Promise.resolve(this._proxy.$startDASession(this._handle, this._sessionDto, this.config));
+		return Promise.resolve(this._proxy.$startDASession(this._handle, this._sessionDto));
 	}
 
 	public sendMessage(message: DebugProtocol.ProtocolMessage): void {

@@ -42,11 +42,11 @@ export class Debugger implements IDebugger {
 	}
 
 
-	createDebugAdapter(session: IDebugSession, config: IConfig, outputService: IOutputService): Promise<IDebugAdapter> {
+	createDebugAdapter(session: IDebugSession, outputService: IOutputService): Promise<IDebugAdapter> {
 		if (this.inExtHost()) {
-			return Promise.resolve(this.configurationManager.createDebugAdapter(session, config));
+			return Promise.resolve(this.configurationManager.createDebugAdapter(session));
 		} else {
-			return this.getAdapterDescriptor(session, config).then(adapterDescriptor => {
+			return this.getAdapterDescriptor(session).then(adapterDescriptor => {
 				switch (adapterDescriptor.type) {
 					case 'executable':
 						return new ExecutableDebugAdapter(adapterDescriptor, this.type, outputService);
@@ -54,7 +54,7 @@ export class Debugger implements IDebugger {
 						return new SocketDebugAdapter(adapterDescriptor);
 					case 'implementation':
 						// TODO@AW: this.inExtHost() should now return true
-						return Promise.resolve(this.configurationManager.createDebugAdapter(session, config));
+						return Promise.resolve(this.configurationManager.createDebugAdapter(session));
 					default:
 						throw new Error('Cannot create debug adapter.');
 				}
@@ -62,18 +62,18 @@ export class Debugger implements IDebugger {
 		}
 	}
 
-	private getAdapterDescriptor(session: IDebugSession, config: IConfig): Promise<IAdapterDescriptor> {
+	private getAdapterDescriptor(session: IDebugSession): Promise<IAdapterDescriptor> {
 
 		// a "debugServer" attribute in the launch config takes precedence
-		if (typeof config.debugServer === 'number') {
+		if (typeof session.configuration.debugServer === 'number') {
 			return Promise.resolve(<IDebugAdapterServer>{
 				type: 'server',
-				port: config.debugServer
+				port: session.configuration.debugServer
 			});
 		}
 
 		// try the proposed and the deprecated "provideDebugAdapter" API
-		return this.configurationManager.provideDebugAdapter(session, config).then(adapter => {
+		return this.configurationManager.provideDebugAdapter(session).then(adapter => {
 
 			if (adapter) {
 				return adapter;

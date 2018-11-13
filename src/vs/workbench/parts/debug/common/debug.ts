@@ -110,7 +110,7 @@ export interface IExpression extends IReplElement, IExpressionContainer {
 }
 
 export interface IDebugger {
-	createDebugAdapter(session: IDebugSession, config: IConfig, outputService: IOutputService): Promise<IDebugAdapter>;
+	createDebugAdapter(session: IDebugSession, outputService: IOutputService): Promise<IDebugAdapter>;
 	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<void>;
 	getCustomTelemetryService(): Thenable<TelemetryService>;
 }
@@ -468,7 +468,7 @@ export interface IDebugAdapter extends IDisposable {
 }
 
 export interface IDebugAdapterFactory extends ITerminalLauncher {
-	createDebugAdapter(session: IDebugSession, config: IConfig): IDebugAdapter;
+	createDebugAdapter(session: IDebugSession): IDebugAdapter;
 	substituteVariables(folder: IWorkspaceFolder, config: IConfig): Promise<IConfig>;
 }
 
@@ -535,7 +535,7 @@ export interface IDebugConfigurationProvider {
 
 export interface IDebugAdapterProvider {
 	readonly type: string;
-	provideDebugAdapter(session: IDebugSession, config: IConfig): Promise<IAdapterDescriptor>;
+	provideDebugAdapter(session: IDebugSession): Promise<IAdapterDescriptor>;
 }
 
 export interface ITerminalLauncher {
@@ -592,10 +592,10 @@ export interface IConfigurationManager {
 	unregisterDebugAdapterProvider(debugConfigurationProvider: IDebugAdapterProvider): void;
 
 	resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: any): Thenable<any>;
-	provideDebugAdapter(session: IDebugSession, config: IConfig): Promise<IAdapterDescriptor | undefined>;
+	provideDebugAdapter(session: IDebugSession): Promise<IAdapterDescriptor | undefined>;
 
 	registerDebugAdapterFactory(debugTypes: string[], debugAdapterFactory: IDebugAdapterFactory): IDisposable;
-	createDebugAdapter(session: IDebugSession, config: IConfig): IDebugAdapter;
+	createDebugAdapter(session: IDebugSession): IDebugAdapter;
 
 	substituteVariables(debugType: string, folder: IWorkspaceFolder, config: IConfig): Promise<IConfig>;
 	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<void>;

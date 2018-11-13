@@ -571,9 +571,14 @@ declare module 'vscode' {
 	 */
 	export interface DebugSession {
 		/**
-		 * The workspace folder of this DebugSession or undefined for a folderless setup.
+		 * The workspace folder of this session or undefined for a folderless setup.
 		 */
 		readonly workspaceFolder: WorkspaceFolder | undefined;
+
+		/**
+		 * The resolved debug configuration for the session.
+		 */
+		readonly configuration: DebugConfiguration;
 	}
 
 	/**
@@ -658,11 +663,9 @@ declare module 'vscode' {
 		/**
 		 * The optional method 'provideDebugAdapterTracker' is called at the start of a debug session to provide a tracker that gives access to the communication between VS Code and a Debug Adapter.
 		 * @param session The [debug session](#DebugSession) for which the tracker will be used.
-		 * @param folder The workspace folder from which the configuration originates from or undefined for a folderless setup.
-		 * @param config The resolved debug configuration.
 		 * @param token A cancellation token.
 		 */
-		provideDebugAdapterTracker?(session: DebugSession, config: DebugConfiguration, token?: CancellationToken): ProviderResult<DebugAdapterTracker>;
+		provideDebugAdapterTracker?(session: DebugSession, token?: CancellationToken): ProviderResult<DebugAdapterTracker>;
 	}
 
 	export interface DebugAdapterProvider {
@@ -681,11 +684,10 @@ declare module 'vscode' {
 		 *   }
 		 * @param session The [debug session](#DebugSession) for which the debug adapter will be used.
 		 * @param executable The debug adapter's executable information as specified in the package.json (or undefined if no such information exists).
-		 * @param config The resolved debug configuration.
 		 * @param token A cancellation token.
 		 * @return a [debug adapter's descriptor](#DebugAdapterDescriptor) or undefined.
 		 */
-		provideDebugAdapter(session: DebugSession, executable: DebugAdapterExecutable | undefined, config: DebugConfiguration, token?: CancellationToken): ProviderResult<DebugAdapterDescriptor>;
+		provideDebugAdapter(session: DebugSession, executable: DebugAdapterExecutable | undefined, token?: CancellationToken): ProviderResult<DebugAdapterDescriptor>;
 	}
 
 	/**
