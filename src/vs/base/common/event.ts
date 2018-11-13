@@ -121,7 +121,7 @@ export class Emitter<T> {
 	private static readonly _noop = function () { };
 
 	private readonly _options: EmitterOptions | undefined;
-	private readonly _leakageMon: LeakageMonitor = new LeakageMonitor();
+	private readonly _leakageMon: LeakageMonitor;
 	private _disposed: boolean = false;
 	private _event: Event<T> | undefined;
 	private _deliveryQueue: [Listener, (T | undefined)][] | undefined;
@@ -129,6 +129,7 @@ export class Emitter<T> {
 
 	constructor(options?: EmitterOptions) {
 		this._options = options;
+		this._leakageMon = new LeakageMonitor(this._options && this._options.leakWarningThreshold);
 	}
 
 	/**
