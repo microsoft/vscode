@@ -77,7 +77,7 @@ function fromLocalWebpack(extensionPath, sourceMappingURLBase) {
             return data;
         }))
             .pipe(packageJsonFilter.restore);
-        const webpackStreams = webpackConfigLocations.map(webpackConfigPath => {
+        const webpackStreams = webpackConfigLocations.map(webpackConfigPath => () => {
             const webpackDone = (err, stats) => {
                 util.log(`Bundled extension: ${util.colors.yellow(path.join(path.basename(extensionPath), path.relative(extensionPath, webpackConfigPath)))}...`);
                 if (err) {
@@ -118,7 +118,7 @@ function fromLocalWebpack(extensionPath, sourceMappingURLBase) {
                 this.emit('data', data);
             }));
         });
-        es.merge(...webpackStreams, patchFilesStream)
+        es.merge(sequence(webpackStreams), patchFilesStream)
             // .pipe(es.through(function (data) {
             // 	// debug
             // 	console.log('out', data.path, data.contents.length);
@@ -216,10 +216,10 @@ function packageExtensionsStream(optsIn) {
         .filter(({ name }) => excludedExtensions.indexOf(name) === -1)
         .filter(({ name }) => opts.desiredExtensions ? opts.desiredExtensions.indexOf(name) >= 0 : true)
         .filter(({ name }) => builtInExtensions.every(b => b.name !== name));
-    const localExtensions = () => es.merge(...localExtensionDescriptions.map(extension => {
-        return fromLocal(extension.path, opts.sourceMappingURLBase)
-            .pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
-    }));
+    const localExtensions = () => sequence([...localExtensionDescriptions.map(extension => () => {
+            return fromLocal(extension.path, opts.sourceMappingURLBase)
+                .pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
+        })]);
     const localExtensionDependencies = () => gulp.src('extensions/node_modules/**', { base: '.' });
     const marketplaceExtensions = () => es.merge(...builtInExtensions
         .filter(({ name }) => opts.desiredExtensions ? opts.desiredExtensions.indexOf(name) >= 0 : true)
