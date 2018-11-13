@@ -23,6 +23,11 @@ declare module 'vscode' {
 	//#region Joh
 
 	/**
+	 *
+	 */
+	export type Declaration = Location | Location[] | DefinitionLink[];
+
+	/**
 	 * The declaration provider interface defines the contract between extensions and
 	 * the go to declaration feature.
 	 */
@@ -37,7 +42,7 @@ declare module 'vscode' {
 		 * @return A declaration or a thenable that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined` or `null`.
 		 */
-		provideDeclaration(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Definition | DefinitionLink[]>;
+		provideDeclaration(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Declaration>;
 	}
 
 	export namespace languages {
