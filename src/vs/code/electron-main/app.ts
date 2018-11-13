@@ -57,7 +57,7 @@ import { LogLevelSetterChannel } from 'vs/platform/log/node/logIpc';
 import * as errors from 'vs/base/common/errors';
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
-import { connectRemoteAgentManagement } from 'vs/platform/remote/node/remoteAgentConnection';
+import { connectRemoteAgentManagement, RemoteAgentConnectionContext } from 'vs/platform/remote/node/remoteAgentConnection';
 import { IMenubarService } from 'vs/platform/menubar/common/menubar';
 import { MenubarService } from 'vs/platform/menubar/electron-main/menubarService';
 import { MenubarChannel } from 'vs/platform/menubar/node/menubarIpc';
@@ -174,13 +174,13 @@ export class CodeApplication {
 
 		class ActiveConnection {
 			private _authority: string;
-			private _client: TPromise<Client>;
+			private _client: TPromise<Client<RemoteAgentConnectionContext>>;
 			private _disposeRunner: RunOnceScheduler;
 
 			constructor(authority: string, connectionInfo: TPromise<ResolvedAuthority>) {
 				this._authority = authority;
 				this._client = connectionInfo.then(({ host, port }) => {
-					return connectRemoteAgentManagement(host, port, `main`);
+					return connectRemoteAgentManagement(authority, host, port, `main`);
 				});
 				this._disposeRunner = new RunOnceScheduler(() => this._dispose(), 5000);
 			}
@@ -193,7 +193,7 @@ export class CodeApplication {
 				});
 			}
 
-			public getClient(): TPromise<Client> {
+			public getClient(): TPromise<Client<RemoteAgentConnectionContext>> {
 				this._disposeRunner.schedule();
 				return this._client;
 			}
