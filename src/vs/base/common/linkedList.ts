@@ -19,6 +19,11 @@ export class LinkedList<E> {
 
 	private _first: Node<E> | undefined;
 	private _last: Node<E> | undefined;
+	private _size: number = 0;
+
+	get size(): number {
+		return this._size;
+	}
 
 	isEmpty(): boolean {
 		return !this._first;
@@ -57,6 +62,7 @@ export class LinkedList<E> {
 			newNode.next = oldFirst;
 			oldFirst.prev = newNode;
 		}
+		this._size += 1;
 
 		return () => {
 			let candidate: Node<E> | undefined = this._first;
@@ -88,6 +94,7 @@ export class LinkedList<E> {
 				}
 
 				// done
+				this._size -= 1;
 				break;
 			}
 		};
