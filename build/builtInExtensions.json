@@ -31,7 +31,7 @@
 	},
 	{
 		"name": "ms-vscode.references-view",
-		"version": "0.0.8",
+		"version": "0.0.9",
 		"repo": "https://github.com/Microsoft/vscode-reference-view",
 		"metadata": {
 			"id": "36d19e17-7569-4841-a001-947eb18602b2",
