@@ -5,7 +5,7 @@
 
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
 import { Event, buffer } from 'vs/base/common/event';
-import { ResolvedAuthority, IResolvingProgressEvent, IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { ResolvedAuthority, IResolvingProgressEvent, IRemoteAuthorityResolverService, IRemoteAuthorityResolver } from 'vs/platform/remote/common/remoteAuthorityResolver';
 
 export class RemoteAuthorityResolverChannel implements IServerChannel {
 
@@ -26,7 +26,7 @@ export class RemoteAuthorityResolverChannel implements IServerChannel {
 	call(_, command: string, args?: any): Thenable<any> {
 		switch (command) {
 			case 'resolveAuthority': return this.service.resolveAuthority(args[0]);
-			case 'getLabel': return this.service.getLabel(args[0]);
+			case 'getRemoteAuthorityResolver': return this.service.getRemoteAuthorityResolver(args[0]);
 		}
 
 		throw new Error('Invalid call');
@@ -51,8 +51,8 @@ export class RemoteAuthorityResolverChannelClient implements IRemoteAuthorityRes
 		return this._resolveAuthorityCache[authority];
 	}
 
-	getLabel(authority: string): Thenable<string | null> {
-		return this.channel.call('getLabel', [authority]);
+	getRemoteAuthorityResolver(authority: string): Thenable<IRemoteAuthorityResolver | null> {
+		return this.channel.call('getRemoteAuthorityResolver', [authority]);
 	}
 
 	private _resolveAuthority(authority: string): Thenable<ResolvedAuthority> {
