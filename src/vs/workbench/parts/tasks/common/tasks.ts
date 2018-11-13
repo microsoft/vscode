@@ -479,7 +479,19 @@ export namespace CustomTask {
 	export function getDefinition(task: CustomTask): KeyedTaskIdentifier {
 		let type: string;
 		if (task.command !== void 0) {
-			type = task.command.runtime === RuntimeType.Shell ? 'shell' : 'process';
+			switch (task.command.runtime) {
+				case RuntimeType.Shell:
+					type = 'shell';
+					break;
+
+				case RuntimeType.Process:
+					type = 'process';
+					break;
+
+				case RuntimeType.ExtensionCommand:
+					type = 'extensionCommand';
+					break;
+			}
 		} else {
 			type = '$composite';
 		}

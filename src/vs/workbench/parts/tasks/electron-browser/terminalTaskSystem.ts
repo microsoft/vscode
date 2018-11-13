@@ -33,7 +33,7 @@ import { IOutputService, IOutputChannel } from 'vs/workbench/parts/output/common
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEventKind } from 'vs/workbench/parts/tasks/common/problemCollectors';
 import {
 	Task, CustomTask, ContributedTask, RevealKind, CommandOptions, ShellConfiguration, RuntimeType, PanelKind,
-	TaskEvent, TaskEventKind, ShellQuotingOptions, ShellQuoting, CommandString, CommandConfiguration
+	TaskEvent, TaskEventKind, ShellQuotingOptions, ShellQuoting, CommandString, CommandConfiguration, TaskDefinition
 } from 'vs/workbench/parts/tasks/common/tasks';
 import {
 	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, ITaskResolver,
@@ -162,7 +162,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 
 			// For extension command tasks, there is no associated terminal.
 			// So, don't try to reveal it.
-			if (ContributedTask.is(task) && task.command.runtime === RuntimeType.ExtensionCommand) {
+			if ((ContributedTask.is(task) || CustomTask.is(task)) && task.command.runtime === RuntimeType.ExtensionCommand) {
 				reveal = RevealKind.Never;
 			} else if (CustomTask.is(task) || ContributedTask.is(task)) {
 				reveal = task.command.presentation.reveal;
@@ -199,7 +199,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 
 		// For extension command tasks, there is no associated terminal.
-		if (ContributedTask.is(task) && task.command.runtime === RuntimeType.ExtensionCommand) {
+		if ((ContributedTask.is(task) || CustomTask.is(task)) && task.command.runtime === RuntimeType.ExtensionCommand) {
 			return false;
 		}
 
@@ -234,7 +234,10 @@ export class TerminalTaskSystem implements ITaskSystem {
 
 		return new TPromise<TaskTerminateResponse>((resolve, reject) => {
 			// For extension command tasks, there is no associated terminal.
-			if (ContributedTask.is(task) && task.command.runtime === RuntimeType.ExtensionCommand) {
+			// TODO: We should suport some type of cancellation... Is it possible
+			// to add a "terminate" callback as part of ExtensionCommandExecutionOptions
+			// options? (Would need to figure out how to something like that through the extension host.)
+			if ((ContributedTask.is(task) || CustomTask.is(task)) && task.command.runtime === RuntimeType.ExtensionCommand) {
 				resolve({ success: false, task: task });
 			} else {
 				let terminal = activeTerminal.terminal;
@@ -260,8 +263,8 @@ export class TerminalTaskSystem implements ITaskSystem {
 			let terminal = terminalData.terminal;
 			promises.push(new TPromise<TaskTerminateResponse>((resolve, reject) => {
 				// For extension command tasks, there is no associated terminal.
-				if (ContributedTask.is(key) && key.command.runtime === RuntimeType.ExtensionCommand) {
-					resolve({ success: true, task: key });
+				if ((ContributedTask.is(key) || CustomTask.is(key)) && key.command.runtime === RuntimeType.ExtensionCommand) {
+					resolve({ success: false, task: key });
 				} else {
 					const onExit = terminal.onExit(() => {
 						let task = terminalData.task;
@@ -330,10 +333,20 @@ export class TerminalTaskSystem implements ITaskSystem {
 		const taskPromise: TPromise<ITaskSummary> = new TPromise<ITaskSummary>((resolve, reject) => {
 			let commandPromise: Promise<any> = undefined;
 			if (Types.isString(task.command.name)) {
+				// TODO: It is odd that when using the technique of executing an extension command
+				// as a "task" that the properties of the task definition are essentially the same
+				// as the arguments that can be specified when providing the options for
+				// the ExtensionCommandExecution (.i.e. ExtensionCommandExecutionOptions).
+				// Should we just pass back the task definition to the executed command???
+				// Should we also pass a cancellation token through to the command so a user
+				// has a recourse to cancel a task started this way?
+				// Perhaps commands of this nature have a more rigid argument structure than
+				// regular old extension commands. Hmmm....
+				const taskDefinition = Task.getTaskDefinition(task);
 				if (task.command.options && task.command.options.extensionCommand) {
-					commandPromise = this._commandService.executeCommand(task.command.name, ...task.command.options.extensionCommand.args);
+					commandPromise = this._commandService.executeCommand(task.command.name, ...[...task.command.options.extensionCommand.args, taskDefinition]);
 				} else {
-					commandPromise = this._commandService.executeCommand(task.command.name);
+					commandPromise = this._commandService.executeCommand(task.command.name, taskDefinition);
 				}
 			}
 
@@ -370,7 +383,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 
 	private executeCommand(task: CustomTask | ContributedTask, trigger: string): TPromise<ITaskSummary> {
 		// For extension command tasks, shortcut the terminal logic and execute them directly.
-		if (ContributedTask.is(task) && task.command.runtime === RuntimeType.ExtensionCommand) {
+		if ((ContributedTask.is(task) || CustomTask.is(task)) && task.command.runtime === RuntimeType.ExtensionCommand) {
 			return this.executeExtensionCommand(task, trigger);
 		}
 
