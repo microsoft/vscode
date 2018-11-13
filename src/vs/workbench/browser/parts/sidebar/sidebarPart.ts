@@ -21,24 +21,34 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Event, mapEvent } from 'vs/base/common/event';
+import { Event, mapEvent, Emitter } from 'vs/base/common/event';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { SIDE_BAR_TITLE_FOREGROUND, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND, SIDE_BAR_BORDER } from 'vs/workbench/common/theme';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { Dimension, EventType, addDisposableListener, trackFocus } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, trackFocus } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IView } from 'vs/base/browser/ui/grid/gridview';
 
 const SideBarFocusContextId = 'sideBarFocus';
 export const SidebarFocusContext = new RawContextKey<boolean>(SideBarFocusContextId, false);
 
-export class SidebarPart extends CompositePart<Viewlet> {
+export class SidebarPart extends CompositePart<Viewlet> implements IView {
 
 	static readonly activeViewletSettingsKey = 'workbench.sidebar.activeviewletid';
 
 	private sideBarFocusContextKey: IContextKey<boolean>;
 	private blockOpeningViewlet: boolean;
+
+	element: HTMLElement;
+	minimumWidth: number = 200;
+	maximumWidth: number = Infinity;
+	minimumHeight: number = 0;
+	maximumHeight: number = Infinity;
+
+	private _onDidChange = new Emitter<{ width: number; height: number; }>();
+	readonly onDidChange = this._onDidChange.event;
 
 	constructor(
 		id: string,
@@ -83,6 +93,8 @@ export class SidebarPart extends CompositePart<Viewlet> {
 	}
 
 	create(parent: HTMLElement): void {
+		this.element = parent;
+
 		super.create(parent);
 
 		const focusTracker = trackFocus(parent);
@@ -154,12 +166,12 @@ export class SidebarPart extends CompositePart<Viewlet> {
 		this.hideActiveComposite();
 	}
 
-	layout(dimension: Dimension): Dimension[] {
+	layout(width: number, height: number): void {
 		if (!this.partService.isVisible(Parts.SIDEBAR_PART)) {
-			return [dimension];
+			return;
 		}
 
-		return super.layout(dimension);
+		super.layout(width, height);
 	}
 
 	private onTitleAreaContextMenu(event: StandardMouseEvent): void {

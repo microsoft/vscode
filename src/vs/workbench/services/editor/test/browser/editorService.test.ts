@@ -16,7 +16,6 @@ import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService
 import { EditorService, DelegatingEditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IEditorGroup, IEditorGroupsService, GroupDirection } from 'vs/workbench/services/group/common/editorGroupsService';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
-import { Dimension } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -68,7 +67,7 @@ suite('Editor service', () => {
 
 		const part = partInstantiator.createInstance(EditorPart, 'id', false);
 		part.create(document.createElement('div'));
-		part.layout(new Dimension(400, 300));
+		part.layout(400, 300);
 
 		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([IEditorGroupsService, part]));
 
@@ -137,7 +136,7 @@ suite('Editor service', () => {
 
 		const part = partInstantiator.createInstance(EditorPart, 'id', false);
 		part.create(document.createElement('div'));
-		part.layout(new Dimension(400, 300));
+		part.layout(400, 300);
 
 		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([IEditorGroupsService, part]));
 
@@ -275,7 +274,7 @@ suite('Editor service', () => {
 
 		const part = partInstantiator.createInstance(EditorPart, 'id', false);
 		part.create(document.createElement('div'));
-		part.layout(new Dimension(400, 300));
+		part.layout(400, 300);
 
 		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([IEditorGroupsService, part]));
 
@@ -311,7 +310,7 @@ suite('Editor service', () => {
 
 		const part = partInstantiator.createInstance(EditorPart, 'id', false);
 		part.create(document.createElement('div'));
-		part.layout(new Dimension(400, 300));
+		part.layout(400, 300);
 
 		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([IEditorGroupsService, part]));
 
@@ -343,7 +342,7 @@ suite('Editor service', () => {
 
 		const part = partInstantiator.createInstance(EditorPart, 'id', false);
 		part.create(document.createElement('div'));
-		part.layout(new Dimension(400, 300));
+		part.layout(400, 300);
 
 		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([IEditorGroupsService, part]));
 

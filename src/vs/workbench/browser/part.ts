@@ -22,7 +22,7 @@ export abstract class Part extends Component {
 	private parent: HTMLElement;
 	private titleArea: HTMLElement | null;
 	private contentArea: HTMLElement | null;
-	private partLayout: PartLayout;
+	protected partLayout: PartLayout;
 
 	constructor(
 		id: string,
@@ -90,13 +90,6 @@ export abstract class Part extends Component {
 	 */
 	protected getContentArea(): HTMLElement | null {
 		return this.contentArea;
-	}
-
-	/**
-	 * Layout title and content area in the given dimension.
-	 */
-	layout(dimension: Dimension): Dimension[] {
-		return this.partLayout.layout(dimension);
 	}
 }
 

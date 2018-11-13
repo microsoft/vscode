@@ -453,18 +453,16 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		return [];
 	}
 
-	layout(dimension: Dimension): Dimension[] {
+	layout(width: number, height: number): void {
 
 		// Pass to super
-		const sizes = super.layout(dimension);
+		const sizes = this.partLayout.layout(new Dimension(width, height));
 
 		// Pass Contentsize to composite
 		this.contentAreaSize = sizes[1];
 		if (this.activeComposite) {
 			this.activeComposite.layout(this.contentAreaSize);
 		}
-
-		return sizes;
 	}
 
 	dispose(): void {

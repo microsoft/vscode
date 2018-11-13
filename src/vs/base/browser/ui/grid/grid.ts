@@ -188,7 +188,7 @@ export interface IGridOptions {
 	styles?: IGridStyles;
 }
 
-export class Grid<T extends IView> implements IDisposable {
+export class Grid<T extends IView=IView> implements IDisposable {
 
 	protected gridview: GridView;
 	private views = new Map<T, HTMLElement>();

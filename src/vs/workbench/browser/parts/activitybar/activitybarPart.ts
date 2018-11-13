@@ -6,6 +6,7 @@
 import 'vs/css!./media/activitybarpart';
 import * as nls from 'vs/nls';
 import { illegalArgument } from 'vs/base/common/errors';
+import { Emitter } from 'vs/base/common/event';
 import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { GlobalActivityExtensions, IGlobalActivityRegistry } from 'vs/workbench/common/activity';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -30,13 +31,14 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { URI } from 'vs/base/common/uri';
 import { ToggleCompositePinnedAction, ICompositeBarColors } from 'vs/workbench/browser/parts/compositeBarActions';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
+import { IView } from 'vs/base/browser/ui/grid/gridview';
 
 interface IPlaceholderComposite {
 	id: string;
 	iconUrl: URI;
 }
 
-export class ActivitybarPart extends Part {
+export class ActivitybarPart extends Part implements IView {
 
 	private static readonly ACTION_HEIGHT = 50;
 	private static readonly PINNED_VIEWLETS = 'workbench.activity.pinnedViewlets';
@@ -50,6 +52,15 @@ export class ActivitybarPart extends Part {
 	private placeholderComposites: IPlaceholderComposite[] = [];
 	private compositeBar: CompositeBar;
 	private compositeActions: { [compositeId: string]: { activityAction: ViewletActivityAction, pinnedAction: ToggleCompositePinnedAction } } = Object.create(null);
+
+	element: HTMLElement;
+	minimumWidth: number = 50;
+	maximumWidth: number = 50;
+	minimumHeight: number = 0;
+	maximumHeight: number = Infinity;
+
+	private _onDidChange = new Emitter<{ width: number; height: number; }>();
+	readonly onDidChange = this._onDidChange.event;
 
 	constructor(
 		id: string,
@@ -141,6 +152,7 @@ export class ActivitybarPart extends Part {
 	}
 
 	createContentArea(parent: HTMLElement): HTMLElement {
+		this.element = parent;
 		const content = document.createElement('div');
 		addClass(content, 'content');
 		parent.appendChild(content);
@@ -311,13 +323,13 @@ export class ActivitybarPart extends Part {
 			.map(v => v.id);
 	}
 
-	layout(dimension: Dimension): Dimension[] {
+	layout(width: number, height: number): void {
 		if (!this.partService.isVisible(Parts.ACTIVITYBAR_PART)) {
-			return [dimension];
+			return;
 		}
 
 		// Pass to super
-		const sizes = super.layout(dimension);
+		const sizes = this.partLayout.layout(new Dimension(width, height));
 
 		this.dimension = sizes[1];
 
@@ -326,9 +338,7 @@ export class ActivitybarPart extends Part {
 			// adjust height for global actions showing
 			availableHeight -= (this.globalActionBar.items.length * ActivitybarPart.ACTION_HEIGHT);
 		}
-		this.compositeBar.layout(new Dimension(dimension.width, availableHeight));
-
-		return sizes;
+		this.compositeBar.layout(new Dimension(width, availableHeight));
 	}
 
 	protected saveState(): void {

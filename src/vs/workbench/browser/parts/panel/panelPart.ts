@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/panelpart';
 import { IAction } from 'vs/base/common/actions';
-import { Event, mapEvent } from 'vs/base/common/event';
+import { Event, mapEvent, Emitter } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IPanel } from 'vs/workbench/common/panel';
@@ -30,11 +30,12 @@ import { Dimension, trackFocus } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IView } from 'vs/base/browser/ui/grid/gridview';
 
 export const ActivePanelContext = new RawContextKey<string>('activePanel', '');
 export const PanelFocusContext = new RawContextKey<boolean>('panelFocus', false);
 
-export class PanelPart extends CompositePart<Panel> implements IPanelService {
+export class PanelPart extends CompositePart<Panel> implements IPanelService, IView {
 
 	static readonly activePanelSettingsKey = 'workbench.panelpart.activepanelid';
 
@@ -49,6 +50,15 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	private compositeBar: CompositeBar;
 	private compositeActions: { [compositeId: string]: { activityAction: PanelActivityAction, pinnedAction: ToggleCompositePinnedAction } } = Object.create(null);
 	private dimension: Dimension;
+
+	element: HTMLElement;
+	minimumWidth: number = 0;
+	maximumWidth: number = Infinity;
+	minimumHeight: number = 100;
+	maximumHeight: number = Infinity;
+
+	private _onDidChange = new Emitter<{ width: number; height: number; }>();
+	readonly onDidChange = this._onDidChange.event;
 
 	constructor(
 		id: string,
@@ -120,6 +130,8 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	create(parent: HTMLElement): void {
+		this.element = parent;
+
 		super.create(parent);
 
 		const focusTracker = trackFocus(parent);
@@ -266,21 +278,20 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		};
 	}
 
-	layout(dimension: Dimension): Dimension[] {
+	layout(width: number, height: number): void {
 		if (!this.partService.isVisible(Parts.PANEL_PART)) {
-			return [dimension];
+			return;
 		}
 
 		if (this.partService.getPanelPosition() === Position.RIGHT) {
 			// Take into account the 1px border when layouting
-			this.dimension = new Dimension(dimension.width - 1, dimension.height);
+			this.dimension = new Dimension(width - 1, height);
 		} else {
-			this.dimension = dimension;
+			this.dimension = new Dimension(width, height);
 		}
-		const sizes = super.layout(this.dimension);
-		this.layoutCompositeBar();
 
-		return sizes;
+		super.layout(this.dimension.width, this.dimension.height);
+		this.layoutCompositeBar();
 	}
 
 	private layoutCompositeBar(): void {
@@ -333,9 +344,9 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const panelBackground = theme.getColor(PANEL_BACKGROUND);
 	if (panelBackground && panelBackground !== theme.getColor(editorBackground)) {
 		collector.addRule(`
-			.monaco-workbench > .part.panel > .content .monaco-editor,
-			.monaco-workbench > .part.panel > .content .monaco-editor .margin,
-			.monaco-workbench > .part.panel > .content .monaco-editor .monaco-editor-background {
+			.monaco-workbench .part.panel > .content .monaco-editor,
+			.monaco-workbench .part.panel > .content .monaco-editor .margin,
+			.monaco-workbench .part.panel > .content .monaco-editor .monaco-editor-background {
 				background-color: ${panelBackground};
 			}
 		`);
@@ -346,7 +357,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const titleActiveBorder = theme.getColor(PANEL_ACTIVE_TITLE_BORDER);
 	if (titleActive || titleActiveBorder) {
 		collector.addRule(`
-			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label {
+			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label {
 				color: ${titleActive} !important;
 				border-bottom-color: ${titleActiveBorder} !important;
 			}
@@ -357,14 +368,14 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const focusBorderColor = theme.getColor(focusBorder);
 	if (focusBorderColor) {
 		collector.addRule(`
-			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus .action-label {
+			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus .action-label {
 				color: ${titleActive} !important;
 				border-bottom-color: ${focusBorderColor} !important;
 				border-bottom: 1px solid;
 			}
 			`);
 		collector.addRule(`
-			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus {
+			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus {
 				outline: none;
 			}
 			`);
@@ -376,8 +387,8 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		const outline = theme.getColor(activeContrastBorder);
 
 		collector.addRule(`
-			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked .action-label,
-			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:hover {
+			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked .action-label,
+			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:hover {
 				outline-color: ${outline};
 				outline-width: 1px;
 				outline-style: solid;
@@ -386,7 +397,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 				outline-offset: 1px;
 			}
 
-			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:not(.checked) .action-label:hover {
+			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:not(.checked) .action-label:hover {
 				outline-style: dashed;
 			}
 		`);

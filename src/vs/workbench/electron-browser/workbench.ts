@@ -28,14 +28,13 @@ import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
 import { StatusbarPart } from 'vs/workbench/browser/parts/statusbar/statusbarPart';
 import { TitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
-import { WorkbenchLayout } from 'vs/workbench/browser/layout';
 import { IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs/workbench/browser/actions';
 import { PanelRegistry, Extensions as PanelExtensions } from 'vs/workbench/browser/panel';
 import { QuickOpenController } from 'vs/workbench/browser/parts/quickopen/quickOpenController';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { QuickInputService } from 'vs/workbench/browser/parts/quickinput/quickInput';
 import { getServices } from 'vs/platform/instantiation/common/extensions';
-import { Position, Parts, IPartService, ILayoutOptions, IDimension, PositionToString } from 'vs/workbench/services/part/common/partService';
+import { Position, Parts, IPartService, IDimension, PositionToString } from 'vs/workbench/services/part/common/partService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ContextMenuService as NativeContextMenuService } from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
@@ -115,6 +114,7 @@ import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/work
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { FileDialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogService';
 import { LogStorageAction } from 'vs/platform/storage/node/storageService';
+import { Grid, Sizing, Direction } from 'vs/base/browser/ui/grid/grid';
 
 interface WorkbenchParams {
 	configuration: IWindowConfiguration;
@@ -140,6 +140,8 @@ export interface IWorkbenchStartedInfo {
 type FontAliasingOption = 'default' | 'antialiased' | 'none' | 'auto';
 
 const fontAliasingValues: FontAliasingOption[] = ['antialiased', 'none', 'auto'];
+
+type WorkbenchView = StatusbarPart | TitlebarPart | SidebarPart | EditorPart | ActivitybarPart | PanelPart;
 
 const Identifiers = {
 	WORKBENCH_CONTAINER: 'workbench.main.container',
@@ -202,7 +204,7 @@ export class Workbench extends Disposable implements IPartService {
 	private fileService: IFileService;
 	private quickInput: QuickInputService;
 
-	private workbenchLayout: WorkbenchLayout;
+	private workbenchGrid: Grid<WorkbenchView>;
 
 	private titlebarPart: TitlebarPart;
 	private activitybarPart: ActivitybarPart;
@@ -967,7 +969,8 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Layout
 		if (!skipLayout) {
-			this.workbenchLayout.layout();
+			const size = DOM.getClientArea(this.container);
+			this.workbenchGrid.layout(size.width, size.height);
 		}
 	}
 
@@ -984,23 +987,32 @@ export class Workbench extends Disposable implements IPartService {
 	}
 
 	private createWorkbenchLayout(): void {
-		this.workbenchLayout = this.instantiationService.createInstance(
-			WorkbenchLayout,
-			this.container,
-			this.workbench,
-			{
-				titlebar: this.titlebarPart,
-				activitybar: this.activitybarPart,
-				editor: this.editorPart,
-				sidebar: this.sidebarPart,
-				panel: this.panelPart,
-				statusbar: this.statusbarPart,
-			},
-			this.quickOpen,
-			this.quickInput,
-			this.notificationsCenter,
-			this.notificationsToasts
-		);
+		this.workbenchGrid = new Grid(this.statusbarPart);
+		this.workbenchGrid.addView(this.sidebarPart, Sizing.Split, this.statusbarPart, Direction.Up);
+		this.workbenchGrid.addView(this.titlebarPart, Sizing.Split, this.sidebarPart, Direction.Up);
+		this.workbenchGrid.addView(this.activitybarPart, Sizing.Split, this.sidebarPart, Direction.Left);
+		this.workbenchGrid.addView(this.editorPart, Sizing.Split, this.sidebarPart, Direction.Right);
+		this.workbenchGrid.addView(this.panelPart, Sizing.Split, this.editorPart, Direction.Down);
+
+		this.workbench.appendChild(this.workbenchGrid.element);
+
+		// this.workbenchGrid = this.instantiationService.createInstance(
+		// 	WorkbenchLayout,
+		// 	this.container,
+		// 	this.workbench,
+		// 	{
+		// 		titlebar: this.titlebarPart,
+		// 		activitybar: this.activitybarPart,
+		// 		editor: this.editorPart,
+		// 		sidebar: this.sidebarPart,
+		// 		panel: this.panelPart,
+		// 		statusbar: this.statusbarPart,
+		// 	},
+		// 	this.quickOpen,
+		// 	this.quickInput,
+		// 	this.notificationsCenter,
+		// 	this.notificationsToasts
+		// );
 	}
 
 	private renderWorkbench(): void {
@@ -1234,7 +1246,7 @@ export class Workbench extends Disposable implements IPartService {
 	getTitleBarOffset(): number {
 		let offset = 0;
 		if (this.isVisible(Parts.TITLEBAR_PART)) {
-			offset = this.workbenchLayout.partLayoutInfo.titlebar.height;
+			offset = this.workbenchGrid.getViewSize2(this.titlebarPart).height;
 			if (isMacintosh || this.menubarVisibility === 'hidden') {
 				offset /= browser.getZoomFactor();
 			}
@@ -1318,11 +1330,14 @@ export class Workbench extends Disposable implements IPartService {
 		}
 	}
 
-	layout(options?: ILayoutOptions): void {
+	layout(): void {
 		this.contextViewService.layout();
 
 		if (this.workbenchStarted && !this.workbenchShutdown) {
-			this.workbenchLayout.layout(options);
+			const dimensions = DOM.getClientArea(this.container);
+			DOM.position(this.workbench, 0, 0, 0, 0, 'relative');
+			DOM.size(this.workbench, dimensions.width, dimensions.height);
+			this.workbenchGrid.layout(dimensions.width, dimensions.height);
 		}
 	}
 
@@ -1349,11 +1364,15 @@ export class Workbench extends Disposable implements IPartService {
 	}
 
 	resizePart(part: Parts, sizeChange: number): void {
+		let view: WorkbenchView;
 		switch (part) {
 			case Parts.SIDEBAR_PART:
+				view = this.sidebarPart;
 			case Parts.PANEL_PART:
+				view = this.panelPart;
 			case Parts.EDITOR_PART:
-				this.workbenchLayout.resizePart(part, sizeChange);
+				view = this.editorPart;
+				this.workbenchGrid.resizeView(view, this.workbenchGrid.getViewSize(view) + sizeChange);
 				break;
 			default:
 				return; // Cannot resize other parts
@@ -1365,7 +1384,8 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Layout
 		if (!skipLayout) {
-			this.workbenchLayout.layout();
+			const dimensions = DOM.getClientArea(this.container);
+			this.workbenchGrid.layout(dimensions.width, dimensions.height);
 		}
 	}
 
@@ -1415,7 +1435,8 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Layout
 		if (!skipLayout) {
-			this.workbenchLayout.layout();
+			const dimensions = DOM.getClientArea(this.container);
+			this.workbenchGrid.layout(dimensions.width, dimensions.height);
 		}
 	}
 
@@ -1453,16 +1474,17 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Layout
 		if (!skipLayout) {
-			this.workbenchLayout.layout();
+			const dimensions = DOM.getClientArea(this.container);
+			this.workbenchGrid.layout(dimensions.width, dimensions.height);
 		}
 	}
 
 	toggleMaximizedPanel(): void {
-		this.workbenchLayout.layout({ toggleMaximizedPanel: true, source: Parts.PANEL_PART });
+		this.workbenchGrid.maximizeViewSize(this.panelPart);
 	}
 
 	isPanelMaximized(): boolean {
-		return this.workbenchLayout.isPanelMaximized();
+		return this.workbenchGrid.getViewSize2(this.panelPart).height === this.panelPart.maximumHeight;
 	}
 
 	getSideBarPosition(): Position {
@@ -1489,15 +1511,18 @@ export class Workbench extends Disposable implements IPartService {
 		this.sidebarPart.updateStyles();
 
 		// Layout
-		this.workbenchLayout.layout();
+		const dimensions = DOM.getClientArea(this.container);
+		this.workbenchGrid.layout(dimensions.width, dimensions.height);
 	}
 
 	setMenubarVisibility(visibility: MenuBarVisibility, skipLayout: boolean): void {
 		if (this.menubarVisibility !== visibility) {
 			this.menubarVisibility = visibility;
 
+			// Layout
 			if (!skipLayout) {
-				this.workbenchLayout.layout();
+				const dimensions = DOM.getClientArea(this.container);
+				this.workbenchGrid.layout(dimensions.width, dimensions.height);
 			}
 		}
 	}
@@ -1528,8 +1553,7 @@ export class Workbench extends Disposable implements IPartService {
 		this.panelPart.updateStyles();
 
 		// Layout
-		this.workbenchLayout.layout();
+		const dimensions = DOM.getClientArea(this.container);
+		this.workbenchGrid.layout(dimensions.width, dimensions.height);
 	}
-
-	//#endregion
 }

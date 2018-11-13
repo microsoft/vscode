@@ -80,7 +80,7 @@ class GridWidgetView<T extends IView> implements IView {
 	}
 }
 
-export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditorGroupsAccessor {
+export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditorGroupsAccessor, IView {
 
 	_serviceBrand: any;
 
@@ -132,6 +132,11 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 
 	private _whenRestored: TPromise<void>;
 	private whenRestoredComplete: TValueCallback<void>;
+
+	element: HTMLElement;
+
+	private _onDidChange = new Emitter<{ width: number; height: number; }>();
+	readonly onDidChange = this._onDidChange.event;
 
 	constructor(
 		id: string,
@@ -782,6 +787,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	createContentArea(parent: HTMLElement): HTMLElement {
 
 		// Container
+		this.element = parent;
 		this.container = document.createElement('div');
 		addClass(this.container, 'content');
 		parent.appendChild(this.container);
@@ -809,9 +815,9 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	private doCreateGridControl(): void {
 
 		// Grid Widget (with previous UI state)
-		if (this.restorePreviousState) {
-			this.doCreateGridControlWithPreviousState();
-		}
+		// if (this.restorePreviousState) {
+		// 	this.doCreateGridControlWithPreviousState();
+		// }
 
 		// Grid Widget (no previous UI state or failed to restore)
 		if (!this.gridWidget) {
@@ -949,12 +955,10 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		return this.groupViews.size === 1 && this._activeGroup.isEmpty();
 	}
 
-	layout(dimension: Dimension): Dimension[] {
-		const sizes = super.layout(dimension);
+	layout(width: number, height: number): void {
+		const sizes = this.partLayout.layout(new Dimension(width, height));
 
 		this.doLayout(sizes[1]);
-
-		return sizes;
 	}
 
 	private doLayout(dimension: Dimension): void {
