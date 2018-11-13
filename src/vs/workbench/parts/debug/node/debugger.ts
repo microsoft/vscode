@@ -42,11 +42,11 @@ export class Debugger implements IDebugger {
 	}
 
 
-	createDebugAdapter(session: IDebugSession, root: IWorkspaceFolder, config: IConfig, outputService: IOutputService): Promise<IDebugAdapter> {
+	createDebugAdapter(session: IDebugSession, config: IConfig, outputService: IOutputService): Promise<IDebugAdapter> {
 		if (this.inExtHost()) {
-			return Promise.resolve(this.configurationManager.createDebugAdapter(session, root, config));
+			return Promise.resolve(this.configurationManager.createDebugAdapter(session, config));
 		} else {
-			return this.getAdapterDescriptor(session, root, config).then(adapterDescriptor => {
+			return this.getAdapterDescriptor(session, config).then(adapterDescriptor => {
 				switch (adapterDescriptor.type) {
 					case 'executable':
 						return new ExecutableDebugAdapter(adapterDescriptor, this.type, outputService);
@@ -54,7 +54,7 @@ export class Debugger implements IDebugger {
 						return new SocketDebugAdapter(adapterDescriptor);
 					case 'implementation':
 						// TODO@AW: this.inExtHost() should now return true
-						return Promise.resolve(this.configurationManager.createDebugAdapter(session, root, config));
+						return Promise.resolve(this.configurationManager.createDebugAdapter(session, config));
 					default:
 						throw new Error('Cannot create debug adapter.');
 				}
@@ -62,7 +62,7 @@ export class Debugger implements IDebugger {
 		}
 	}
 
-	private getAdapterDescriptor(session: IDebugSession, root: IWorkspaceFolder, config: IConfig): Promise<IAdapterDescriptor> {
+	private getAdapterDescriptor(session: IDebugSession, config: IConfig): Promise<IAdapterDescriptor> {
 
 		// a "debugServer" attribute in the launch config takes precedence
 		if (typeof config.debugServer === 'number') {
@@ -73,7 +73,7 @@ export class Debugger implements IDebugger {
 		}
 
 		// try the proposed and the deprecated "provideDebugAdapter" API
-		return this.configurationManager.provideDebugAdapter(session, root ? root.uri : undefined, config).then(adapter => {
+		return this.configurationManager.provideDebugAdapter(session, config).then(adapter => {
 
 			if (adapter) {
 				return adapter;
@@ -81,7 +81,7 @@ export class Debugger implements IDebugger {
 
 			// try deprecated command based extension API "adapterExecutableCommand" to determine the executable
 			if (this.debuggerContribution.adapterExecutableCommand) {
-				const rootFolder = root ? root.uri.toString() : undefined;
+				const rootFolder = session.root ? session.root.uri.toString() : undefined;
 				return this.commandService.executeCommand<IDebugAdapterExecutable>(this.debuggerContribution.adapterExecutableCommand, rootFolder).then((ae: { command: string, args: string[] }) => {
 					return <IAdapterDescriptor>{
 						type: 'executable',

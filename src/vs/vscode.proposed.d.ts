@@ -567,6 +567,16 @@ declare module 'vscode' {
 	//#region André: debug
 
 	/**
+	 * A debug session.
+	 */
+	export interface DebugSession {
+		/**
+		 * The workspace folder of this DebugSession or undefined for a folderless setup.
+		 */
+		readonly workspaceFolder: WorkspaceFolder | undefined;
+	}
+
+	/**
 	 * Represents a debug adapter executable and optional arguments passed to it.
 	 */
 	export class DebugAdapterExecutable {
@@ -638,25 +648,10 @@ declare module 'vscode' {
 
 	export type DebugAdapterDescriptor = DebugAdapterExecutable | DebugAdapterServer | DebugAdapterImplementation;
 
-	/**
-	 * A Debug Adapter Tracker is a means to track the communication between VS Code and a Debug Adapter.
-	 */
-	export interface DebugAdapterTracker {
-		// VS Code -> Debug Adapter
-		startDebugAdapter?(): void;
-		toDebugAdapter?(message: any): void;
-		stopDebugAdapter?(): void;
-
-		// Debug Adapter -> VS Code
-		fromDebugAdapter?(message: any): void;
-		debugAdapterError?(error: Error): void;
-		debugAdapterExit?(code?: number, signal?: string): void;
-	}
-
 	export interface DebugConfigurationProvider {
 		/**
-		 * Deprecated, use DebugConfigurationProvider.provideDebugAdapter instead.
-		 * @deprecated Use DebugConfigurationProvider.provideDebugAdapter instead
+		 * Deprecated, use DebugAdapterProvider.provideDebugAdapter instead.
+		 * @deprecated Use DebugAdapterProvider.provideDebugAdapter instead
 		 */
 		debugAdapterExecutable?(folder: WorkspaceFolder | undefined, token?: CancellationToken): ProviderResult<DebugAdapterExecutable>;
 
@@ -667,7 +662,7 @@ declare module 'vscode' {
 		 * @param config The resolved debug configuration.
 		 * @param token A cancellation token.
 		 */
-		provideDebugAdapterTracker?(session: DebugSession, folder: WorkspaceFolder | undefined, config: DebugConfiguration, token?: CancellationToken): ProviderResult<DebugAdapterTracker>;
+		provideDebugAdapterTracker?(session: DebugSession, config: DebugConfiguration, token?: CancellationToken): ProviderResult<DebugAdapterTracker>;
 	}
 
 	export interface DebugAdapterProvider {
@@ -685,21 +680,35 @@ declare module 'vscode' {
 		 * 		return executable;
 		 *   }
 		 * @param session The [debug session](#DebugSession) for which the debug adapter will be used.
-		 * @param folder The workspace folder from which the configuration originates from or undefined for a folderless setup.
 		 * @param executable The debug adapter's executable information as specified in the package.json (or undefined if no such information exists).
 		 * @param config The resolved debug configuration.
 		 * @param token A cancellation token.
 		 * @return a [debug adapter's descriptor](#DebugAdapterDescriptor) or undefined.
 		 */
-		provideDebugAdapter(session: DebugSession, folder: WorkspaceFolder | undefined, executable: DebugAdapterExecutable | undefined, config: DebugConfiguration, token?: CancellationToken): ProviderResult<DebugAdapterDescriptor>;
+		provideDebugAdapter(session: DebugSession, executable: DebugAdapterExecutable | undefined, config: DebugConfiguration, token?: CancellationToken): ProviderResult<DebugAdapterDescriptor>;
+	}
+
+	/**
+	 * A Debug Adapter Tracker is a means to track the communication between VS Code and a Debug Adapter.
+	 */
+	export interface DebugAdapterTracker {
+		// VS Code -> Debug Adapter
+		startDebugAdapter?(): void;
+		toDebugAdapter?(message: any): void;
+		stopDebugAdapter?(): void;
+
+		// Debug Adapter -> VS Code
+		fromDebugAdapter?(message: any): void;
+		debugAdapterError?(error: Error): void;
+		debugAdapterExit?(code?: number, signal?: string): void;
 	}
 
 	export namespace debug {
 		/**
-		 * Register a [debug adapter provider](#DebugConfigurationProvider) for a specific debug type.
+		 * Register a [debug adapter provider](#DebugAdapterProvider) for a specific debug type.
 		 * Only one provider can be registered for the same type.
-		 * An extension is only allowed to register a DebugAdapterProvider with if the extension defines the debug type. Otherwise an error is thrown.
-		 * Registering more than one DebugAdapterProvider for a type results in an error.
+		 * An extension is only allowed to register a DebugAdapterProvider for the debug type defined by the extension. Otherwise an error is thrown.
+		 * Registering more than one DebugAdapterProvider for a debug type results in an error.
 		 *
 		 * @param type The debug type for which the provider is registered.
 		 * @param provider The [debug adapter provider](#DebugAdapterProvider) to register.

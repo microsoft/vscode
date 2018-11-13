@@ -58,9 +58,9 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 
 	// interface IDebugAdapterProvider
 
-	createDebugAdapter(session: IDebugSession, folder: IWorkspaceFolder, config: IConfig): IDebugAdapter {
+	createDebugAdapter(session: IDebugSession, config: IConfig): IDebugAdapter {
 		const handle = this._debugAdaptersHandleCounter++;
-		const da = new ExtensionHostDebugAdapter(handle, this._proxy, this.getSessionDto(session), folder, config);
+		const da = new ExtensionHostDebugAdapter(handle, this._proxy, this.getSessionDto(session), config);
 		this._debugAdapters.set(handle, da);
 		return da;
 	}
@@ -185,8 +185,8 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 
 		const provider = <IDebugAdapterProvider>{
 			type: debugType,
-			provideDebugAdapter: (session, folder, config) => {
-				return Promise.resolve(this._proxy.$provideDebugAdapter(handle, this.getSessionDto(session), folder, config));
+			provideDebugAdapter: (session, config) => {
+				return Promise.resolve(this._proxy.$provideDebugAdapter(handle, this.getSessionDto(session), config));
 			}
 		};
 		this._debugAdapterProviders.set(handle, provider);
@@ -202,7 +202,6 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			this.debugService.getConfigurationManager().unregisterDebugAdapterProvider(provider);
 		}
 	}
-
 
 	public $startDebugging(_folderUri: uri | undefined, nameOrConfiguration: string | IConfig): Thenable<boolean> {
 		const folderUri = _folderUri ? uri.revive(_folderUri) : undefined;
@@ -256,7 +255,8 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			return {
 				id: <DebugSessionUUID>session.getId(),
 				type: session.configuration.type,
-				name: session.configuration.name
+				name: session.configuration.name,
+				folderUri: session.root ? session.root.uri : undefined
 			};
 		}
 		return undefined;
@@ -298,7 +298,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
  */
 class ExtensionHostDebugAdapter extends AbstractDebugAdapter {
 
-	constructor(private _handle: number, private _proxy: ExtHostDebugServiceShape, private _sessionDto: IDebugSessionDto, private folder: IWorkspaceFolder, private config: IConfig) {
+	constructor(private _handle: number, private _proxy: ExtHostDebugServiceShape, private _sessionDto: IDebugSessionDto, private config: IConfig) {
 		super();
 	}
 
@@ -311,7 +311,7 @@ class ExtensionHostDebugAdapter extends AbstractDebugAdapter {
 	}
 
 	public startSession(): Promise<void> {
-		return Promise.resolve(this._proxy.$startDASession(this._handle, this._sessionDto, this.folder ? this.folder.uri : undefined, this.config));
+		return Promise.resolve(this._proxy.$startDASession(this._handle, this._sessionDto, this.config));
 	}
 
 	public sendMessage(message: DebugProtocol.ProtocolMessage): void {

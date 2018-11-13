@@ -968,18 +968,19 @@ export interface IDebugSessionDto {
 	id: DebugSessionUUID;
 	type: string;
 	name: string;
+	folderUri: UriComponents | undefined;
 }
 
 export interface ExtHostDebugServiceShape {
 	$substituteVariables(folder: UriComponents | undefined, config: IConfig): Thenable<IConfig>;
 	$runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Thenable<void>;
-	$startDASession(handle: number, session: IDebugSessionDto, folder: UriComponents | undefined, debugConfiguration: IConfig): Thenable<void>;
+	$startDASession(handle: number, session: IDebugSessionDto, debugConfiguration: IConfig): Thenable<void>;
 	$stopDASession(handle: number): Thenable<void>;
 	$sendDAMessage(handle: number, message: DebugProtocol.ProtocolMessage): void;
 	$resolveDebugConfiguration(handle: number, folder: UriComponents | undefined, debugConfiguration: IConfig): Thenable<IConfig>;
 	$provideDebugConfigurations(handle: number, folder: UriComponents | undefined): Thenable<IConfig[]>;
 	$legacyDebugAdapterExecutable(handle: number, folderUri: UriComponents | undefined): Thenable<IAdapterDescriptor>; // TODO@AW legacy
-	$provideDebugAdapter(handle: number, session: IDebugSessionDto, folderUri: UriComponents | undefined, debugConfiguration: IConfig): Thenable<IAdapterDescriptor>;
+	$provideDebugAdapter(handle: number, session: IDebugSessionDto, debugConfiguration: IConfig): Thenable<IAdapterDescriptor>;
 	$acceptDebugSessionStarted(session: IDebugSessionDto): void;
 	$acceptDebugSessionTerminated(session: IDebugSessionDto): void;
 	$acceptDebugSessionActiveChanged(session: IDebugSessionDto): void;
