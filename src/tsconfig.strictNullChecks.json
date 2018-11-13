@@ -688,6 +688,7 @@
 		"./vs/workbench/services/keybinding/common/macLinuxFallbackKeyboardMapper.ts",
 		"./vs/workbench/services/keybinding/common/macLinuxKeyboardMapper.ts",
 		"./vs/workbench/services/keybinding/common/windowsKeyboardMapper.ts",
+		"./vs/workbench/services/keybinding/test/keyboardMapperTestUtils.ts",
 		"./vs/workbench/services/mode/common/workbenchModeService.ts",
 		"./vs/workbench/services/notification/common/notificationService.ts",
 		"./vs/workbench/services/panel/common/panelService.ts",

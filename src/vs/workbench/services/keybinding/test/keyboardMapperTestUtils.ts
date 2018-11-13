@@ -13,13 +13,13 @@ import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
 
 export interface IResolvedKeybinding {
-	label: string;
-	ariaLabel: string;
-	electronAccelerator: string;
-	userSettingsLabel: string;
+	label: string | null;
+	ariaLabel: string | null;
+	electronAccelerator: string | null;
+	userSettingsLabel: string | null;
 	isWYSIWYG: boolean;
 	isChord: boolean;
-	dispatchParts: [string, string];
+	dispatchParts: [string | null, string | null];
 }
 
 function toIResolvedKeybinding(kb: ResolvedKeybinding): IResolvedKeybinding {
@@ -57,7 +57,7 @@ export function readRawMapping<T>(file: string): Promise<T> {
 		func(function (value: T) {
 			rawMappings = value;
 		});
-		return rawMappings;
+		return rawMappings!;
 	});
 }
 
