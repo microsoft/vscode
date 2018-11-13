@@ -11,7 +11,7 @@ import commonSchema from './jsonSchemaCommon';
 
 import { ProblemMatcherRegistry } from 'vs/workbench/parts/tasks/common/problemMatcher';
 import { TaskDefinitionRegistry } from '../common/taskDefinitionRegistry';
-import { ConfigurationResolverUtils } from 'vs/workbench/services/configurationResolver/common/configurationResolverUtils';
+import * as ConfigurationResolverUtils from 'vs/workbench/services/configurationResolver/common/configurationResolverUtils';
 
 function fixReferences(literal: any) {
 	if (Array.isArray(literal)) {
