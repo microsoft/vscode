@@ -17,6 +17,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { ExecutableDebugAdapter, SocketDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+import * as ConfigurationResolverUtils from 'vs/workbench/services/configurationResolver/common/configurationResolverUtils';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { memoize } from 'vs/base/common/decorators';
@@ -291,9 +292,7 @@ export class Debugger implements IDebugger {
 			};
 			Object.keys(attributes.properties).forEach(name => {
 				// Use schema allOf property to get independent error reporting #21113
-				attributes.properties[name].pattern = attributes.properties[name].pattern || '^(?!.*\\$\\{(env|config|command)\\.)';
-				attributes.properties[name].patternErrorMessage = attributes.properties[name].patternErrorMessage ||
-					nls.localize('deprecatedVariables', "'env.', 'config.' and 'command.' are deprecated, use 'env:', 'config:' and 'command:' instead.");
+				ConfigurationResolverUtils.applyDeprecatedVariableMessage(attributes.properties[name]);
 			});
 
 			return attributes;

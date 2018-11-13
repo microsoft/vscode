@@ -5,12 +5,13 @@
 
 import * as nls from 'vs/nls';
 import * as Objects from 'vs/base/common/objects';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 
 import commonSchema from './jsonSchemaCommon';
 
 import { ProblemMatcherRegistry } from 'vs/workbench/parts/tasks/common/problemMatcher';
 import { TaskDefinitionRegistry } from '../common/taskDefinitionRegistry';
+import * as ConfigurationResolverUtils from 'vs/workbench/services/configurationResolver/common/configurationResolverUtils';
 
 function fixReferences(literal: any) {
 	if (Array.isArray(literal)) {
@@ -458,10 +459,21 @@ const schema: IJSONSchema = {
 
 schema.definitions = definitions;
 
+function deprecatedVariableMessage(schemaMap: IJSONSchemaMap, property: string) {
+	if (schemaMap[property].properties) {
+		Object.keys(schemaMap[property].properties).forEach(name => {
+			deprecatedVariableMessage(schemaMap[property].properties, name);
+		});
+	} else {
+		ConfigurationResolverUtils.applyDeprecatedVariableMessage(schemaMap[property]);
+	}
+}
+
 Object.getOwnPropertyNames(definitions).forEach(key => {
 	let newKey = key + '2';
 	definitions[newKey] = definitions[key];
 	delete definitions[key];
+	deprecatedVariableMessage(definitions, newKey);
 });
 fixReferences(schema);
 
