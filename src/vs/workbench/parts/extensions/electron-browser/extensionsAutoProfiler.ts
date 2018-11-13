@@ -13,7 +13,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 
 export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchContribution {
 
-	private _activeProfilingSessions = new Map<ICpuProfilerTarget, boolean>();
+	private readonly _session = new Map<ICpuProfilerTarget, boolean>();
 
 	constructor(
 		@IExtensionService extensionService: IExtensionService,
@@ -31,14 +31,14 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 			return;
 		}
 
-		if (!this._activeProfilingSessions.has(target)) {
-			this._activeProfilingSessions.set(target, true);
+		if (!this._session.has(target)) {
+			this._session.set(target, true);
 			this._profileNSeconds(target).then(profile => {
 				this._processCpuProfile(profile);
-				this._activeProfilingSessions.delete(target);
+				this._session.delete(target);
 			}).catch(err => {
 				onUnexpectedError(err);
-				this._activeProfilingSessions.delete(target);
+				this._session.delete(target);
 			});
 		}
 	}
@@ -46,8 +46,6 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 	private _profileNSeconds(target: ICpuProfilerTarget, seconds: number = 5): Promise<IExtensionHostProfile> {
 		return target.startExtensionHostProfile().then(session => {
 			return timeout(seconds * 1000).then(() => session.stop());
-		}).catch(err => {
-			return Promise.reject(err);
 		});
 	}
 
