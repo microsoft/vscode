@@ -551,7 +551,6 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 		// Bug on Chrome: Sometimes Chrome wants to scroll the workbench container on layout changes. The fix is to reset scrolling in this case.
 		// uses set time to ensure this happens in th next frame (RAF will be at the end of this JS time slice and we don't want that)
 		setTimeout(() => {
-			perf.mark('willCheckAndFixWorkbenchLayout');
 			const workbenchContainer = this.workbenchContainer;
 			if (workbenchContainer.scrollTop > 0) {
 				workbenchContainer.scrollTop = 0;
@@ -559,7 +558,6 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 			if (workbenchContainer.scrollLeft > 0) {
 				workbenchContainer.scrollLeft = 0;
 			}
-			perf.mark('didCheckAndFixWorkbenchLayout');
 		});
 
 		// Title Part
