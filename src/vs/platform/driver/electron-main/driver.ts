@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IDriver, DriverChannel, IElement, IWindowDriverChannel, WindowDriverChannelClient, IWindowDriverRegistry, WindowDriverRegistryChannel, IWindowDriver, IDriverOptions } from 'vs/platform/driver/node/driver';
+import { IDriver, DriverChannel, IElement, WindowDriverChannelClient, IWindowDriverRegistry, WindowDriverRegistryChannel, IWindowDriver, IDriverOptions } from 'vs/platform/driver/node/driver';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { serve as serveNet } from 'vs/base/parts/ipc/node/ipc.net';
 import { combinedDisposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IPCServer, IClientRouter } from 'vs/base/parts/ipc/node/ipc';
+import { IPCServer, StaticRouter } from 'vs/base/parts/ipc/node/ipc';
 import { SimpleKeybinding, KeyCode } from 'vs/base/common/keyCodes';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { OS } from 'vs/base/common/platform';
@@ -18,19 +18,6 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ScanCodeBinding } from 'vs/base/common/scanCode';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { timeout } from 'vs/base/common/async';
-
-class WindowRouter implements IClientRouter {
-
-	constructor(private windowId: number) { }
-
-	routeCall(): TPromise<string> {
-		return TPromise.as(`window:${this.windowId}`);
-	}
-
-	routeEvent(): TPromise<string> {
-		return TPromise.as(`window:${this.windowId}`);
-	}
-}
 
 function isSilentKeyCode(keyCode: KeyCode) {
 	return keyCode < KeyCode.KEY_0;
@@ -196,8 +183,9 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 
 	private getWindowDriver(windowId: number): TPromise<IWindowDriver> {
 		return this.whenUnfrozen(windowId).then(() => {
-			const router = new WindowRouter(windowId);
-			const windowDriverChannel = this.windowServer.getChannel<IWindowDriverChannel>('windowDriver', router);
+			const id = `window:${windowId}`;
+			const router = new StaticRouter(ctx => ctx === id);
+			const windowDriverChannel = this.windowServer.getChannel('windowDriver', router);
 			return new WindowDriverChannelClient(windowDriverChannel);
 		});
 	}

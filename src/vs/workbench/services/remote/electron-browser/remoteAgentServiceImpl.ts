@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IChannel, getDelayedChannel } from 'vs/base/parts/ipc/node/ipc';
+import { IChannel, getDelayedChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
 import { Client } from 'vs/base/parts/ipc/node/ipc.net';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -70,7 +70,7 @@ class RemoteAgentConnection extends Disposable implements IRemoteAgentConnection
 		return <T>getDelayedChannel(this._getOrCreateConnection().then(c => c.getChannel(channelName)));
 	}
 
-	registerChannel<T extends IChannel>(channelName: string, channel: T): void {
+	registerChannel<T extends IServerChannel>(channelName: string, channel: T): void {
 		this._getOrCreateConnection().then(client => client.registerChannel(channelName, channel));
 	}
 

@@ -3,30 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChannel } from 'vs/base/parts/ipc/node/ipc';
+import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
 import { IExtensionManagementService, ILocalExtension, InstallExtensionEvent, DidInstallExtensionEvent, IGalleryExtension, LocalExtensionType, DidUninstallExtensionEvent, IExtensionIdentifier, IGalleryMetadata, IReportedExtension } from '../common/extensionManagement';
 import { Event, buffer, mapEvent } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 
-export interface IExtensionManagementChannel extends IChannel {
-	listen(event: 'onInstallExtension'): Event<InstallExtensionEvent>;
-	listen(event: 'onDidInstallExtension'): Event<DidInstallExtensionEvent>;
-	listen(event: 'onUninstallExtension'): Event<IExtensionIdentifier>;
-	listen(event: 'onDidUninstallExtension'): Event<DidUninstallExtensionEvent>;
-
-	call(command: 'zip', args: [ILocalExtension]): Thenable<URI>;
-	call(command: 'unzip', args: [URI, LocalExtensionType]): Thenable<IExtensionIdentifier>;
-	call(command: 'install', args: [URI]): Thenable<IExtensionIdentifier>;
-	call(command: 'installFromGallery', args: [IGalleryExtension]): Thenable<void>;
-	call(command: 'uninstall', args: [ILocalExtension, boolean]): Thenable<void>;
-	call(command: 'reinstallFromGallery', args: [ILocalExtension]): Thenable<void>;
-	call(command: 'getInstalled', args: [LocalExtensionType | null]): Thenable<ILocalExtension[]>;
-	call(command: 'getExtensionsReport'): Thenable<IReportedExtension[]>;
-	call(command: 'updateMetadata', args: [ILocalExtension, IGalleryMetadata]): Thenable<ILocalExtension>;
-}
-
-export class ExtensionManagementChannel implements IExtensionManagementChannel {
+export class ExtensionManagementChannel implements IServerChannel {
 
 	onInstallExtension: Event<InstallExtensionEvent>;
 	onDidInstallExtension: Event<DidInstallExtensionEvent>;
@@ -40,7 +23,7 @@ export class ExtensionManagementChannel implements IExtensionManagementChannel {
 		this.onDidUninstallExtension = buffer(service.onDidUninstallExtension, true);
 	}
 
-	listen(event: string): Event<any> {
+	listen(_, event: string): Event<any> {
 		switch (event) {
 			case 'onInstallExtension': return this.onInstallExtension;
 			case 'onDidInstallExtension': return this.onDidInstallExtension;
@@ -51,7 +34,7 @@ export class ExtensionManagementChannel implements IExtensionManagementChannel {
 		throw new Error('Invalid listen');
 	}
 
-	call(command: string, args?: any): Thenable<any> {
+	call(_, command: string, args?: any): Thenable<any> {
 		switch (command) {
 			case 'zip': return this.service.zip(this._transform(args[0]));
 			case 'unzip': return this.service.unzip(URI.revive(args[0]), args[1]);
@@ -76,15 +59,15 @@ export class ExtensionManagementChannelClient implements IExtensionManagementSer
 
 	_serviceBrand: any;
 
-	constructor(private channel: IExtensionManagementChannel, private uriTransformer: IURITransformer) { }
+	constructor(private channel: IChannel, private uriTransformer: IURITransformer) { }
 
 	get onInstallExtension(): Event<InstallExtensionEvent> { return this.channel.listen('onInstallExtension'); }
-	get onDidInstallExtension(): Event<DidInstallExtensionEvent> { return mapEvent(this.channel.listen('onDidInstallExtension'), i => ({ ...i, local: this._transformIncoming(i.local) })); }
+	get onDidInstallExtension(): Event<DidInstallExtensionEvent> { return mapEvent(this.channel.listen<DidInstallExtensionEvent>('onDidInstallExtension'), i => ({ ...i, local: this._transformIncoming(i.local) })); }
 	get onUninstallExtension(): Event<IExtensionIdentifier> { return this.channel.listen('onUninstallExtension'); }
 	get onDidUninstallExtension(): Event<DidUninstallExtensionEvent> { return this.channel.listen('onDidUninstallExtension'); }
 
 	zip(extension: ILocalExtension): Promise<URI> {
-		return Promise.resolve(this.channel.call('zip', [this._transformOutgoing(extension)]).then(result => URI.revive(this.uriTransformer.transformIncoming(result))));
+		return Promise.resolve(this.channel.call<URI>('zip', [this._transformOutgoing(extension)]).then(result => URI.revive(this.uriTransformer.transformIncoming(result))));
 	}
 
 	unzip(zipLocation: URI, type: LocalExtensionType): Promise<IExtensionIdentifier> {
@@ -108,12 +91,12 @@ export class ExtensionManagementChannelClient implements IExtensionManagementSer
 	}
 
 	getInstalled(type: LocalExtensionType | null = null): Promise<ILocalExtension[]> {
-		return Promise.resolve(this.channel.call('getInstalled', [type]))
+		return Promise.resolve(this.channel.call<ILocalExtension[]>('getInstalled', [type]))
 			.then(extensions => extensions.map(extension => this._transformIncoming(extension)));
 	}
 
 	updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension> {
-		return Promise.resolve(this.channel.call('updateMetadata', [this._transformOutgoing(local), metadata]))
+		return Promise.resolve(this.channel.call<ILocalExtension>('updateMetadata', [this._transformOutgoing(local), metadata]))
 			.then(extension => this._transformIncoming(extension));
 	}
 

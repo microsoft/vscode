@@ -19,8 +19,8 @@ import * as errors from 'vs/base/common/errors';
  * We should move all implementations to use named ipc.net, so we stop depending on cp.fork.
  */
 
-export class Server extends IPCServer {
-	constructor() {
+export class Server<TContext extends string> extends IPCServer<TContext> {
+	constructor(ctx: TContext) {
 		super({
 			send: r => {
 				try {
@@ -30,7 +30,7 @@ export class Server extends IPCServer {
 				} catch (e) { /* not much to do */ }
 			},
 			onMessage: fromNodeEventEmitter(process, 'message', msg => Buffer.from(msg, 'base64'))
-		});
+		}, ctx);
 
 		process.once('disconnect', () => this.dispose());
 	}

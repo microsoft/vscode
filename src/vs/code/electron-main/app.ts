@@ -29,10 +29,10 @@ import { IURLService } from 'vs/platform/url/common/url';
 import { URLHandlerChannelClient, URLServiceChannel } from 'vs/platform/url/node/urlIpc';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService, combinedAppender, LogAppender } from 'vs/platform/telemetry/common/telemetryUtils';
-import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
+import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
-import { getDelayedChannel } from 'vs/base/parts/ipc/node/ipc';
+import { getDelayedChannel, StaticRouter } from 'vs/base/parts/ipc/node/ipc';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
 import { ProxyAuthHandler } from 'vs/code/electron-main/auth';
@@ -70,8 +70,8 @@ import { nativeSep, join } from 'vs/base/common/paths';
 import { homedir } from 'os';
 import { localize } from 'vs/nls';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
-import { IRemoteAuthorityResolverChannel, RemoteAuthorityResolverChannelClient } from 'vs/platform/remote/node/remoteAuthorityResolverChannel';
-import { IRemoteAgentFileSystemChannel, REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/platform/remote/node/remoteAgentFileSystemChannel';
+import { RemoteAuthorityResolverChannelClient } from 'vs/platform/remote/node/remoteAuthorityResolverChannel';
+import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/platform/remote/node/remoteAgentFileSystemChannel';
 import { ResolvedAuthority } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { SnapUpdateService } from 'vs/platform/update/electron-main/updateService.snap';
 
@@ -210,7 +210,7 @@ export class CodeApplication {
 				activeConnection = connectionPool.get(uri.authority);
 			} else {
 				if (this.sharedProcessClient) {
-					const remoteAuthorityResolverChannel = getDelayedChannel<IRemoteAuthorityResolverChannel>(this.sharedProcessClient.then(c => c.getChannel('remoteAuthorityResolver')));
+					const remoteAuthorityResolverChannel = getDelayedChannel(this.sharedProcessClient.then(c => c.getChannel('remoteAuthorityResolver')));
 					const remoteAuthorityResolverChannelClient = new RemoteAuthorityResolverChannelClient(remoteAuthorityResolverChannel);
 					activeConnection = new ActiveConnection(uri.authority, remoteAuthorityResolverChannelClient.resolveAuthority(uri.authority));
 					connectionPool.set(uri.authority, activeConnection);
@@ -219,8 +219,10 @@ export class CodeApplication {
 			try {
 				const rawClient = await activeConnection.getClient();
 				if (connectionPool.has(uri.authority)) { // not disposed in the meantime
-					const channel = rawClient.getChannel<IRemoteAgentFileSystemChannel>(REMOTE_FILE_SYSTEM_CHANNEL_NAME);
-					const fileContents = await channel.call('readFile', [uri.authority, uri]);
+					const channel = rawClient.getChannel(REMOTE_FILE_SYSTEM_CHANNEL_NAME);
+
+					// TODO@alex don't use call directly, wrap it around a `RemoteExtensionsFileSystemProvider`
+					const fileContents = await channel.call<Uint8Array>('readFile', [uri.authority, uri]);
 					callback(Buffer.from(fileContents));
 				} else {
 					callback(null);
@@ -510,7 +512,7 @@ export class CodeApplication {
 
 		// Telemtry
 		if (!this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
-			const channel = getDelayedChannel<ITelemetryAppenderChannel>(this.sharedProcessClient.then(c => c.getChannel('telemetryAppender')));
+			const channel = getDelayedChannel(this.sharedProcessClient.then(c => c.getChannel('telemetryAppender')));
 			const appender = combinedAppender(new TelemetryAppenderClient(channel), new LogAppender(this.logService));
 			const commonProperties = resolveCommonProperties(product.commit, pkg.version, machineId, this.environmentService.installSourcePath);
 			const piiPaths = [this.environmentService.appRoot, this.environmentService.extensionsPath];
@@ -573,8 +575,8 @@ export class CodeApplication {
 
 		// Create a URL handler which forwards to the last active window
 		const activeWindowManager = new ActiveWindowManager(windowsService);
-		const route = () => activeWindowManager.getActiveClientId();
-		const urlHandlerChannel = this.electronIpcServer.getChannel('urlHandler', { routeCall: route, routeEvent: route });
+		const activeWindowRouter = new StaticRouter(ctx => activeWindowManager.getActiveClientId().then(id => ctx === id));
+		const urlHandlerChannel = this.electronIpcServer.getChannel('urlHandler', activeWindowRouter);
 		const multiplexURLHandler = new URLHandlerChannelClient(urlHandlerChannel);
 
 		// On Mac, Code can be running without any open windows, so we must create a window to handle urls,

@@ -29,7 +29,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { addContextToEditorMatches, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IRawSearchService, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, isSerializedSearchComplete, isSerializedSearchSuccess } from './search';
-import { ISearchChannel, SearchChannelClient } from './searchIpc';
+import { SearchChannelClient } from './searchIpc';
 
 export class SearchService extends Disposable implements ISearchService {
 	public _serviceBrand: any;
@@ -477,7 +477,7 @@ export class DiskSearch implements ISearchResultProvider {
 			getPathFromAmdModule(require, 'bootstrap-fork'),
 			opts);
 
-		const channel = getNextTickChannel(client.getChannel<ISearchChannel>('search'));
+		const channel = getNextTickChannel(client.getChannel('search'));
 		this.raw = new SearchChannelClient(channel);
 	}
 

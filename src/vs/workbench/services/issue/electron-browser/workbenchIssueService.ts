@@ -57,7 +57,7 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 		});
 	}
 
-	openProcessExplorer(): Promise<void> {
+	openProcessExplorer(): Thenable<void> {
 		const theme = this.themeService.getTheme();
 		const data: ProcessExplorerData = {
 			pid: this.windowService.getConfiguration().mainPid,

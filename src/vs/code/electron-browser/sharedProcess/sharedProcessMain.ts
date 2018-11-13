@@ -46,6 +46,7 @@ import { IDownloadService } from 'vs/platform/download/common/download';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/node/remoteAuthorityResolverService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { RemoteAuthorityResolverChannel } from 'vs/platform/remote/node/remoteAuthorityResolverChannel';
+import { StaticRouter } from 'vs/base/parts/ipc/node/ipc';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
@@ -75,8 +76,9 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 	disposables.push(server);
 
 	const environmentService = new EnvironmentService(initData.args, process.execPath);
-	const mainRoute = () => TPromise.as('main');
-	const logLevelClient = new LogLevelSetterChannelClient(server.getChannel('loglevel', { routeCall: mainRoute, routeEvent: mainRoute }));
+
+	const mainRouter = new StaticRouter(ctx => ctx === 'main');
+	const logLevelClient = new LogLevelSetterChannelClient(server.getChannel('loglevel', mainRouter));
 	const logService = new FollowerLogService(logLevelClient, createSpdLogService('sharedprocess', initData.logLevel, environmentService.logsPath));
 	disposables.push(logService);
 
@@ -88,14 +90,13 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 	services.set(IDownloadService, new SyncDescriptor(DownloadService));
 
-	const windowsChannel = server.getChannel('windows', { routeCall: mainRoute, routeEvent: mainRoute });
+	const windowsChannel = server.getChannel('windows', mainRouter);
 	const windowsService = new WindowsChannelClient(windowsChannel);
 	services.set(IWindowsService, windowsService);
 
 	const activeWindowManager = new ActiveWindowManager(windowsService);
-	const route = () => activeWindowManager.getActiveClientId();
-
-	const dialogChannel = server.getChannel('dialog', { routeCall: route, routeEvent: route });
+	const activeWindowRouter = new StaticRouter(ctx => activeWindowManager.getActiveClientId().then(id => ctx === id));
+	const dialogChannel = server.getChannel('dialog', activeWindowRouter);
 	services.set(IDialogService, new DialogChannelClient(dialogChannel));
 
 	const instantiationService = new InstantiationService(services);

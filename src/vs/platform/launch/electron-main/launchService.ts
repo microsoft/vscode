@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IChannel } from 'vs/base/parts/ipc/node/ipc';
+import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IURLService } from 'vs/platform/url/common/url';
 import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
@@ -67,23 +67,15 @@ export interface ILaunchService {
 	getLogsPath(): TPromise<string>;
 }
 
-export interface ILaunchChannel extends IChannel {
-	call(command: 'start', arg: IStartArguments): TPromise<void>;
-	call(command: 'get-main-process-id', arg: null): TPromise<any>;
-	call(command: 'get-main-process-info', arg: null): TPromise<any>;
-	call(command: 'get-logs-path', arg: null): TPromise<string>;
-	call(command: string, arg: any): TPromise<any>;
-}
-
-export class LaunchChannel implements ILaunchChannel {
+export class LaunchChannel implements IServerChannel {
 
 	constructor(private service: ILaunchService) { }
 
-	listen<T>(event: string): Event<T> {
-		throw new Error('No event found');
+	listen<T>(_, event: string): Event<T> {
+		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(command: string, arg: any): TPromise<any> {
+	call(_, command: string, arg: any): TPromise<any> {
 		switch (command) {
 			case 'start':
 				const { args, userEnv } = arg as IStartArguments;
@@ -107,7 +99,7 @@ export class LaunchChannelClient implements ILaunchService {
 
 	_serviceBrand: any;
 
-	constructor(private channel: ILaunchChannel) { }
+	constructor(private channel: IChannel) { }
 
 	start(args: ParsedArgs, userEnv: IProcessEnvironment): TPromise<void> {
 		return this.channel.call('start', { args, userEnv });

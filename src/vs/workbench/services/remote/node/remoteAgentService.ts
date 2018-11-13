@@ -5,7 +5,7 @@
 
 import { OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { IChannel } from 'vs/base/parts/ipc/node/ipc';
+import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 
@@ -36,5 +36,5 @@ export interface IRemoteAgentConnection {
 	getEnvironment(): Thenable<IRemoteAgentEnvironment | null>;
 
 	getChannel<T extends IChannel>(channelName: string): T;
-	registerChannel<T extends IChannel>(channelName: string, channel: T);
+	registerChannel<T extends IServerChannel>(channelName: string, channel: T);
 }

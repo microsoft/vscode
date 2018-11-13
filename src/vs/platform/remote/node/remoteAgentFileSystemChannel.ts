@@ -17,27 +17,11 @@ export interface IFileChangeDto {
 	type: FileChangeType;
 }
 
-export interface IRemoteAgentFileSystemChannel extends IChannel {
-	call(command: 'stat', arg: [string, UriComponents]): Thenable<IStat>;
-	call(command: 'readdir', arg: [string, UriComponents]): Thenable<[string, FileType][]>;
-	call(command: 'readFile', arg: [string, UriComponents]): Thenable<Buffer>;
-	call(command: 'writeFile', arg: [string, UriComponents, /*base64*/string, FileWriteOptions]): Thenable<void>;
-	call(command: 'rename', arg: [string, UriComponents, UriComponents, FileOverwriteOptions]): Thenable<void>;
-	call(command: 'copy', arg: [string, UriComponents, UriComponents, FileOverwriteOptions]): Thenable<void>;
-	call(command: 'mkdir', arg: [string, UriComponents]): Thenable<void>;
-	call(command: 'delete', arg: [string, UriComponents, FileDeleteOptions]): Thenable<void>;
-	call(command: 'watch', arg: [string, string, number, UriComponents, IWatchOptions]): void;
-	call(command: 'unwatch', arg: [string, number]): void;
-	call(command: 'keepWatching', arg: [string]): void;
-
-	listen<T>(event: 'filechange', arg: [string, string]): Event<T>;
-}
-
 export class RemoteExtensionsFileSystemProvider extends Disposable implements IFileSystemProvider {
 
 	private readonly _session: string;
 	private readonly _remoteAuthority: string;
-	private readonly _channel: IRemoteAgentFileSystemChannel;
+	private readonly _channel: IChannel;
 	private readonly _onDidChange = this._register(new Emitter<IFileChange[]>());
 
 	readonly onDidChangeFile: Event<IFileChange[]> = this._onDidChange.event;
@@ -45,7 +29,7 @@ export class RemoteExtensionsFileSystemProvider extends Disposable implements IF
 
 	constructor(
 		remoteAuthority: string,
-		channel: IRemoteAgentFileSystemChannel,
+		channel: IChannel,
 		isCaseSensitive: boolean
 	) {
 		super();
