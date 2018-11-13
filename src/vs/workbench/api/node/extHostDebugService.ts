@@ -605,7 +605,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 	// private & dto helpers
 
-	private convertToDto(x: vscode.DebugAdapterDescriptor) {
+	private convertToDto(x: vscode.DebugAdapterDescriptor): IAdapterDescriptor {
 		if (x instanceof DebugAdapterExecutable) {
 			return <IDebugAdapterExecutable>{
 				type: 'executable',
@@ -625,6 +625,8 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 				type: 'implementation',
 				implementation: x.implementation
 			};
+		} else if (typeof (<any>x).type === 'string') {
+			return <IAdapterDescriptor>x;
 		} else {
 			throw new Error('unexpected type');
 		}
