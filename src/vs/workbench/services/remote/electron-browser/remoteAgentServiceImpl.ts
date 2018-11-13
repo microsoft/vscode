@@ -61,7 +61,7 @@ class RemoteAgentConnection extends Disposable implements IRemoteAgentConnection
 
 			// Let's cover the case where connecting to fetch the remote extension info fails
 			this._environment = client.getEnvironmentData(this.remoteAuthority, this._environmentService.extensionDevelopmentLocationURI)
-				.then(null, err => { this._notificationService.error(localize('connectionError', "Failed to connect to the remote extension host agent (Error: {0})", err ? err.message : '')); return null; });
+				.then(undefined, err => { this._notificationService.error(localize('connectionError', "Failed to connect to the remote extension host agent (Error: {0})", err ? err.message : '')); return null; });
 		}
 		return this._environment;
 	}
