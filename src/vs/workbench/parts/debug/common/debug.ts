@@ -436,7 +436,7 @@ export interface IConfig extends IEnvConfig {
 	// fundamental attributes
 	type: string;
 	request: string;
-	name?: string;
+	name: string;
 
 	// platform specifics
 	windows?: IEnvConfig;

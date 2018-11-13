@@ -544,6 +544,7 @@ export class DebugExtensionHostAction extends Action {
 
 		return this._debugService.startDebugging(null, {
 			type: 'node',
+			name: nls.localize('debugExtensionHost.launch.name', "Attach Extension Host"),
 			request: 'attach',
 			port: inspectPort
 		});
