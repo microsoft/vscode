@@ -115,7 +115,7 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 			}
 		*/
 		this._telemetryService.publicLog('exthostunresponsive', {
-			duration: duration / 1e3,
+			duration,
 			data
 		});
 	}
