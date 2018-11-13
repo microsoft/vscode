@@ -57,8 +57,8 @@ export class DownloadServiceChannelClient implements IDownloadService {
 					out = fs.createWriteStream(to);
 					out.once('close', () => c());
 					out.once('error', e);
-					const uploadStream = this.channel.listen('upload', from);
-					const disposable = uploadStream((result: UploadResponse) => {
+					const uploadStream = this.channel.listen<UploadResponse>('upload', from);
+					const disposable = uploadStream(result => {
 						if (result === void 0) {
 							disposable.dispose();
 							out.end(c);

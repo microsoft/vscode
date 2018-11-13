@@ -90,7 +90,7 @@ function fromLocalWebpack(extensionPath: string, sourceMappingURLBase: string | 
 			.pipe(packageJsonFilter.restore);
 
 
-		const webpackStreams = webpackConfigLocations.map(webpackConfigPath => {
+		const webpackStreams = webpackConfigLocations.map(webpackConfigPath => () => {
 
 			const webpackDone = (err: any, stats: any) => {
 				util.log(`Bundled extension: ${util.colors.yellow(path.join(path.basename(extensionPath), path.relative(extensionPath, webpackConfigPath)))}...`);
@@ -139,7 +139,7 @@ function fromLocalWebpack(extensionPath: string, sourceMappingURLBase: string | 
 				}));
 		});
 
-		es.merge(...webpackStreams, patchFilesStream)
+		es.merge(sequence(webpackStreams), patchFilesStream)
 			// .pipe(es.through(function (data) {
 			// 	// debug
 			// 	console.log('out', data.path, data.contents.length);
@@ -270,10 +270,10 @@ export function packageExtensionsStream(optsIn?: IPackageExtensionsOptions): Nod
 		.filter(({ name }) => opts.desiredExtensions ? opts.desiredExtensions.indexOf(name) >= 0 : true)
 		.filter(({ name }) => builtInExtensions.every(b => b.name !== name));
 
-	const localExtensions = () => es.merge(...localExtensionDescriptions.map(extension => {
+	const localExtensions = () => sequence([...localExtensionDescriptions.map(extension => () => {
 		return fromLocal(extension.path, opts.sourceMappingURLBase)
 			.pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
-	}));
+	})]);
 
 	const localExtensionDependencies = () => gulp.src('extensions/node_modules/**', { base: '.' });
 

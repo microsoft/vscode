@@ -7,7 +7,12 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Client, Protocol } from 'vs/base/parts/ipc/node/ipc.net';
 import { IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
 
-export function connectRemoteAgentManagement(host: string, port: number, clientId: string): TPromise<Client> {
+export interface RemoteAgentConnectionContext {
+	remoteAuthority: string;
+	clientId: string;
+}
+
+export function connectRemoteAgentManagement(remoteAuthority: string, host: string, port: number, clientId: string): TPromise<Client<RemoteAgentConnectionContext>> {
 	throw new Error(`Not implemented`);
 }
 

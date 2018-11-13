@@ -123,7 +123,7 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	opacity: 0.7;
-	max-height: 18px;
+	white-space: nowrap;
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .type-label > .monaco-tokenized-source {
@@ -173,6 +173,7 @@
 	background-image: url('Misc_16x.svg');
 	background-repeat: no-repeat;
 	background-position: center;
+	background-size: contain;
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.method::before,

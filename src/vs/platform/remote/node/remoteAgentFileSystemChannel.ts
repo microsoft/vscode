@@ -20,7 +20,6 @@ export interface IFileChangeDto {
 export class RemoteExtensionsFileSystemProvider extends Disposable implements IFileSystemProvider {
 
 	private readonly _session: string;
-	private readonly _remoteAuthority: string;
 	private readonly _channel: IChannel;
 	private readonly _onDidChange = this._register(new Emitter<IFileChange[]>());
 
@@ -28,13 +27,11 @@ export class RemoteExtensionsFileSystemProvider extends Disposable implements IF
 	readonly capabilities: FileSystemProviderCapabilities;
 
 	constructor(
-		remoteAuthority: string,
 		channel: IChannel,
 		isCaseSensitive: boolean
 	) {
 		super();
 		this._session = generateUuid();
-		this._remoteAuthority = remoteAuthority;
 		this._channel = channel;
 
 		let capabilities = (
@@ -46,12 +43,9 @@ export class RemoteExtensionsFileSystemProvider extends Disposable implements IF
 		}
 		this.capabilities = capabilities;
 
-		this._channel.listen<IFileChangeDto[]>('filechange', [this._remoteAuthority, this._session])((events) => {
+		this._channel.listen<IFileChangeDto[]>('filechange', [this._session])((events) => {
 			this._onDidChange.fire(events.map(RemoteExtensionsFileSystemProvider._createFileChange));
 		});
-		setInterval(() => {
-			this._channel.call('keepWatching', [this._session]);
-		}, 1000);
 	}
 
 	dispose(): void {
@@ -60,7 +54,7 @@ export class RemoteExtensionsFileSystemProvider extends Disposable implements IF
 
 	watch(resource: URI, opts: IWatchOptions): IDisposable {
 		const req = Math.random();
-		this._channel.call('watch', [this._remoteAuthority, this._session, req, resource, opts]);
+		this._channel.call('watch', [this._session, req, resource, opts]);
 		return toDisposable(() => {
 			this._channel.call('unwatch', [this._session, req]);
 		});
@@ -77,35 +71,35 @@ export class RemoteExtensionsFileSystemProvider extends Disposable implements IF
 	}
 
 	stat(resource: URI): Thenable<IStat> {
-		return this._channel.call('stat', [this._remoteAuthority, resource]);
+		return this._channel.call('stat', [resource]);
 	}
 
 	readFile(resource: URI): Thenable<Uint8Array> {
-		return this._channel.call('readFile', [this._remoteAuthority, resource]);
+		return this._channel.call('readFile', [resource]);
 	}
 
 	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Thenable<void> {
 		const contents = RemoteExtensionsFileSystemProvider._asBuffer(content);
-		return this._channel.call('writeFile', [this._remoteAuthority, resource, contents.toString('base64'), opts]);
+		return this._channel.call('writeFile', [resource, contents, opts]);
 	}
 
 	delete(resource: URI, opts: FileDeleteOptions): Thenable<void> {
-		return this._channel.call('delete', [this._remoteAuthority, resource, opts]);
+		return this._channel.call('delete', [resource, opts]);
 	}
 
 	mkdir(resource: URI): Thenable<void> {
-		return this._channel.call('mkdir', [this._remoteAuthority, resource]);
+		return this._channel.call('mkdir', [resource]);
 	}
 
 	readdir(resource: URI): Thenable<[string, FileType][]> {
-		return this._channel.call('readdir', [this._remoteAuthority, resource]);
+		return this._channel.call('readdir', [resource]);
 	}
 
 	rename(resource: URI, target: URI, opts: FileOverwriteOptions): Thenable<void> {
-		return this._channel.call('rename', [this._remoteAuthority, resource, target, opts]);
+		return this._channel.call('rename', [resource, target, opts]);
 	}
 
 	copy(resource: URI, target: URI, opts: FileOverwriteOptions): Thenable<void> {
-		return this._channel.call('copy', [this._remoteAuthority, resource, target, opts]);
+		return this._channel.call('copy', [resource, target, opts]);
 	}
 }

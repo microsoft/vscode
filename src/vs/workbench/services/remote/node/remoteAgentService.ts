@@ -8,6 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { RemoteAgentConnectionContext } from 'vs/platform/remote/node/remoteAgentConnection';
 
 export const RemoteExtensionLogFileName = 'remoteagent';
 
@@ -36,5 +37,5 @@ export interface IRemoteAgentConnection {
 	getEnvironment(): Thenable<IRemoteAgentEnvironment | null>;
 
 	getChannel<T extends IChannel>(channelName: string): T;
-	registerChannel<T extends IServerChannel>(channelName: string, channel: T);
+	registerChannel<T extends IServerChannel<RemoteAgentConnectionContext>>(channelName: string, channel: T);
 }

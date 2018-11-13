@@ -29,18 +29,16 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
-import { INotificationHandle, INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { ExtHostCustomersRegistry } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ExtHostContext, ExtHostExtensionServiceShape, IExtHostContext, MainContext } from 'vs/workbench/api/node/extHost.protocol';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ActivationTimes, ExtensionPointContribution, IExtensionDescription, IExtensionService, IExtensionsStatus, IMessage, ProfileSession, IWillActivateEvent, IResponsiveStateChangeEvent } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionMessageCollector, ExtensionPoint, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser, schema } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ExtensionHostProcessWorker, IExtensionHostStarter } from 'vs/workbench/services/extensions/electron-browser/extensionHost';
 import { ExtensionHostProfiler } from 'vs/workbench/services/extensions/electron-browser/extensionHostProfiler';
-import { RuntimeExtensionsInput } from 'vs/workbench/services/extensions/electron-browser/runtimeExtensionsInput';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
 import { ExtensionScanner, ExtensionScannerInput, IExtensionReference, IExtensionResolver, ILog, IRelaxedExtensionDescription, Translations } from 'vs/workbench/services/extensions/node/extensionPoints';
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/node/proxyIdentifier';
@@ -284,8 +282,6 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	private readonly _onDidChangeResponsiveChange = new Emitter<IResponsiveStateChangeEvent>();
 	readonly onDidChangeResponsiveChange: Event<IResponsiveStateChangeEvent> = this._onDidChangeResponsiveChange.event;
 
-	private _unresponsiveNotificationHandle: INotificationHandle;
-
 	// --- Members used per extension host process
 	private _extensionHostProcessManagers: ExtensionHostProcessManager[];
 	private _extensionHostProcessActivationTimes: { [id: string]: ActivationTimes; };
@@ -311,8 +307,6 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		this._allRequestedActivateEvents = Object.create(null);
 
 		this._onDidRegisterExtensions = new Emitter<void>();
-
-		this._unresponsiveNotificationHandle = null;
 
 		this._extensionHostProcessManagers = [];
 		this._extensionHostProcessActivationTimes = Object.create(null);
@@ -392,7 +386,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		const extHostProcessWorker = this._instantiationService.createInstance(ExtensionHostProcessWorker, this.getExtensions(), this._extensionHostLogsLocation);
 		const extHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, extHostProcessWorker, null, initialActivationEvents);
 		extHostProcessManager.onDidCrash(([code, signal]) => this._onExtensionHostCrashed(code, signal));
-		extHostProcessManager.onDidChangeResponsiveState((responsiveState) => this._onResponsiveStateChanged(responsiveState, extHostProcessManager));
+		extHostProcessManager.onDidChangeResponsiveState((responsiveState) => { this._onDidChangeResponsiveChange.fire({ target: extHostProcessManager, isResponsive: responsiveState === ResponsiveState.Responsive }); });
 		this._extensionHostProcessManagers.push(extHostProcessManager);
 	}
 
@@ -432,60 +426,6 @@ export class ExtensionService extends Disposable implements IExtensionService {
 				run: () => this._startExtensionHostProcess(Object.keys(this._allRequestedActivateEvents))
 			}]
 		);
-	}
-
-	private _onResponsiveStateChanged(state: ResponsiveState, manager: ExtensionHostProcessManager): void {
-
-		// fire an event when an extension host is changing its state.
-		this._onDidChangeResponsiveChange.fire({
-			target: manager,
-			isResponsive: state === ResponsiveState.Responsive
-		});
-
-
-		// Do not show the notification anymore
-		// See https://github.com/Microsoft/vscode/issues/60318
-		const DISABLE_PROMPT = true;
-		if (this._isDev || DISABLE_PROMPT) {
-			return; // do not show any notification when developing an extension (https://github.com/Microsoft/vscode/issues/59251)
-		}
-
-		if (this._unresponsiveNotificationHandle) {
-			this._unresponsiveNotificationHandle.close();
-			this._unresponsiveNotificationHandle = null;
-		}
-
-		const showRunningExtensions = {
-			keepOpen: true,
-			label: nls.localize('extensionHostProcess.unresponsive.inspect', "Show running extensions"),
-			run: () => {
-				this._instantiationService.invokeFunction((accessor) => {
-					const editorService = accessor.get(IEditorService);
-					editorService.openEditor(this._instantiationService.createInstance(RuntimeExtensionsInput), { revealIfOpened: true });
-				});
-			}
-		};
-
-		const restartExtensionHost = {
-			label: nls.localize('extensionHostProcess.unresponsive.restart', "Restart Extension Host"),
-			run: () => {
-				this.restartExtensionHost();
-			}
-		};
-
-		if (state === ResponsiveState.Unresponsive) {
-			this._unresponsiveNotificationHandle = this._notificationService.prompt(
-				Severity.Warning,
-				nls.localize('extensionHostProcess.unresponsive', "Extension Host is unresponsive."),
-				[showRunningExtensions, restartExtensionHost]
-			);
-		} else {
-			this._unresponsiveNotificationHandle = this._notificationService.prompt(
-				Severity.Info,
-				nls.localize('extensionHostProcess.responsive', "Extension Host is now responsive."),
-				[showRunningExtensions]
-			);
-		}
 	}
 
 	// ---- begin IExtensionService
