@@ -47,6 +47,7 @@ import { RemoteAuthorityResolverService } from 'vs/platform/remote/node/remoteAu
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { RemoteAuthorityResolverChannel } from 'vs/platform/remote/node/remoteAuthorityResolverChannel';
 import { StaticRouter } from 'vs/base/parts/ipc/node/ipc';
+import { DefaultURITransformer } from 'vs/base/common/uriIpc';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
@@ -141,7 +142,7 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 			server.registerChannel('remoteAuthorityResolver', remoteAuthorityResolverChannel);
 
 			const extensionManagementService = accessor.get(IExtensionManagementService);
-			const channel = new ExtensionManagementChannel(extensionManagementService);
+			const channel = new ExtensionManagementChannel(extensionManagementService, () => DefaultURITransformer);
 			server.registerChannel('extensions', channel);
 
 			// clean up deprecated extensions

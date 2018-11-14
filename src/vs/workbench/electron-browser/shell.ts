@@ -94,7 +94,6 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { SearchHistoryService } from 'vs/workbench/services/search/node/searchHistoryService';
 import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
-import { DefaultURITransformer } from 'vs/base/common/uriIpc';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 import { LogLevelSetterChannel } from 'vs/platform/log/node/logIpc';
 import { ILabelService, LabelService } from 'vs/platform/label/common/label';
@@ -471,7 +470,7 @@ export class WorkbenchShell extends Disposable {
 		}
 
 		const extensionManagementChannel = getDelayedChannel(sharedProcess.then(c => c.getChannel('extensions')));
-		const extensionManagementChannelClient = new ExtensionManagementChannelClient(extensionManagementChannel, DefaultURITransformer);
+		const extensionManagementChannelClient = new ExtensionManagementChannelClient(extensionManagementChannel);
 		serviceCollection.set(IExtensionManagementServerService, new SyncDescriptor(ExtensionManagementServerService, [extensionManagementChannelClient]));
 		serviceCollection.set(IExtensionManagementService, new SyncDescriptor(MulitExtensionManagementService));
 
