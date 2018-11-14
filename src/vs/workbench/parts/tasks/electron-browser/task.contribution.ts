@@ -14,6 +14,7 @@ import Severity from 'vs/base/common/severity';
 import * as Objects from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { IStringDictionary } from 'vs/base/common/collections';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { Action } from 'vs/base/common/actions';
 import * as Dom from 'vs/base/browser/dom';
 import { IDisposable, dispose, toDisposable, Disposable } from 'vs/base/common/lifecycle';
@@ -25,7 +26,7 @@ import * as strings from 'vs/base/common/strings';
 import { ValidationStatus, ValidationState } from 'vs/base/common/parsers';
 import * as UUID from 'vs/base/common/uuid';
 import * as Platform from 'vs/base/common/platform';
-import { LinkedMap, Touch } from 'vs/base/common/map';
+import { LRUCache } from 'vs/base/common/map';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -95,6 +96,7 @@ import { TaskDefinitionRegistry } from 'vs/workbench/parts/tasks/common/taskDefi
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 let tasksCategory = nls.localize('tasksCategory', "Tasks");
+const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'tasks.quickOpen.history';
 
 namespace ConfigureTaskAction {
 	export const ID = 'workbench.action.tasks.configureTaskRunner';
@@ -459,7 +461,7 @@ class TaskService extends Disposable implements ITaskService {
 
 	private _taskSystem: ITaskSystem;
 	private _taskSystemListener: IDisposable;
-	private _recentlyUsedTasks: LinkedMap<string, string>;
+	private _recentlyUsedTasks: LRUCache<string, string>;
 
 	private _taskRunningState: IContextKey<boolean>;
 
@@ -526,12 +528,15 @@ class TaskService extends Disposable implements ITaskService {
 			this.updateSetup(folderSetup);
 			this.updateWorkspaceTasks();
 		}));
-		this._register(this.configurationService.onDidChangeConfiguration(() => {
+		this._register(this.configurationService.onDidChangeConfiguration((e) => {
 			if (!this._taskSystem && !this._workspaceTasksPromise) {
 				return;
 			}
 			if (!this._taskSystem || this._taskSystem instanceof TerminalTaskSystem) {
 				this._outputChannel.clear();
+			}
+			if (e.affectsConfiguration(QUICKOPEN_HISTORY_LIMIT_CONFIG)) {
+				this.setTaskLRUCacheLimit();
 			}
 			this.updateWorkspaceTasks();
 		}));
@@ -774,11 +779,12 @@ class TaskService extends Disposable implements ITaskService {
 		return TPromise.as(this._taskSystem.getActiveTasks());
 	}
 
-	public getRecentlyUsedTasks(): LinkedMap<string, string> {
+	public getRecentlyUsedTasks(): LRUCache<string, string> {
 		if (this._recentlyUsedTasks) {
 			return this._recentlyUsedTasks;
 		}
-		this._recentlyUsedTasks = new LinkedMap<string, string>();
+		const quickOpenHistoryLimit = this.configurationService.getValue<number>(QUICKOPEN_HISTORY_LIMIT_CONFIG);
+		this._recentlyUsedTasks = new LRUCache<string, string>(quickOpenHistoryLimit);
 		let storageValue = this.storageService.get(TaskService.RecentlyUsedTasks_Key, StorageScope.WORKSPACE);
 		if (storageValue) {
 			try {
@@ -795,13 +801,25 @@ class TaskService extends Disposable implements ITaskService {
 		return this._recentlyUsedTasks;
 	}
 
+	private setTaskLRUCacheLimit() {
+		const quickOpenHistoryLimit = this.configurationService.getValue<number>(QUICKOPEN_HISTORY_LIMIT_CONFIG);
+		if (this._recentlyUsedTasks) {
+			this._recentlyUsedTasks.limit = quickOpenHistoryLimit;
+		}
+	}
+
 	private saveState(): void {
 		if (!this._taskSystem || !this._recentlyUsedTasks) {
 			return;
 		}
+		const quickOpenHistoryLimit = this.configurationService.getValue<number>(QUICKOPEN_HISTORY_LIMIT_CONFIG);
+		// setting history limit to 0 means no LRU sorting
+		if (quickOpenHistoryLimit === 0) {
+			return;
+		}
 		let values = this._recentlyUsedTasks.values();
-		if (values.length > 30) {
-			values = values.slice(0, 30);
+		if (values.length > quickOpenHistoryLimit) {
+			values = values.slice(0, quickOpenHistoryLimit);
 		}
 		this.storageService.store(TaskService.RecentlyUsedTasks_Key, JSON.stringify(values), StorageScope.WORKSPACE);
 	}
@@ -1221,11 +1239,11 @@ class TaskService extends Disposable implements ITaskService {
 
 	private executeTask(task: Task, resolver: ITaskResolver): TPromise<ITaskSummary> {
 		return ProblemMatcherRegistry.onReady().then(() => {
-			return this.textFileService.saveAll().then((value) => { // make sure all dirty files are saved
+			return this.textFileService.saveAll().then(() => { // make sure all dirty files are saved
 				let executeResult = this.getTaskSystem().run(task, resolver);
 				let key = Task.getRecentlyUsedKey(task);
 				if (key) {
-					this.getRecentlyUsedTasks().set(key, key, Touch.AsOld);
+					this.getRecentlyUsedTasks().set(key, key);
 				}
 				if (executeResult.kind === TaskExecuteKind.Active) {
 					let active = executeResult.active;
@@ -2601,3 +2619,18 @@ schema.oneOf = [...schemaVersion2.oneOf, ...schemaVersion1.oneOf];
 
 let jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
 jsonRegistry.registerSchema(schemaId, schema);
+
+const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+configurationRegistry.registerConfiguration({
+	id: 'tasks',
+	order: 100,
+	title: nls.localize('TasksConfigurationTitle', "Tasks"),
+	type: 'object',
+	properties: {
+		'tasks.quickOpen.history': {
+			type: 'number',
+			default: 30,
+			description: nls.localize('tasks.quickOpen.history', "Controls the number of recent items tracked in task quick open dialog.")
+		},
+	}
+});
