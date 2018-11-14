@@ -253,7 +253,7 @@ export class TypeScriptServer extends Disposable {
 
 	private tryCancelRequest(seq: number, command: string): boolean {
 		try {
-			if (this._requestQueue.tryCancelPendingRequest(seq)) {
+			if (this._requestQueue.tryDeletePendingRequest(seq)) {
 				this._tracer.logTrace(`TypeScript Server: canceled request with sequence number ${seq}`);
 				return true;
 			}
@@ -337,7 +337,7 @@ export class TypeScriptServer extends Disposable {
 		} else {
 			result = Promise.resolve(null);
 		}
-		this._requestQueue.push(requestInfo);
+		this._requestQueue.enqueue(requestInfo);
 		this.sendNextRequests();
 
 		return result;
@@ -369,7 +369,7 @@ export class TypeScriptServer extends Disposable {
 
 	private sendNextRequests(): void {
 		while (this._pendingResponses.size === 0 && this._requestQueue.length > 0) {
-			const item = this._requestQueue.shift();
+			const item = this._requestQueue.dequeue();
 			if (item) {
 				this.sendRequest(item);
 			}

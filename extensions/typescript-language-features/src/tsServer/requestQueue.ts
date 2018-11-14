@@ -19,7 +19,7 @@ export enum RequestQueueingType {
 	/**
 	 * A fence that blocks request reordering.
 	 *
-	 * Fences are not reordered but unlike a normal request, a fence will never jump in front of a low priority request
+	 * Fences are not reordered. Unlike a normal request, a fence will never jump in front of a low priority request
 	 * in the request queue.
 	 */
 	Fence = 3,
@@ -40,7 +40,7 @@ export class RequestQueue {
 		return this.queue.length;
 	}
 
-	public push(item: RequestItem): void {
+	public enqueue(item: RequestItem): void {
 		if (item.queueingType === RequestQueueingType.Normal) {
 			let index = this.queue.length - 1;
 			while (index >= 0) {
@@ -51,16 +51,16 @@ export class RequestQueue {
 			}
 			this.queue.splice(index + 1, 0, item);
 		} else {
-			//if none is low priority just push to end
+			// Only normal priority requests can be reordered. All other requests just go to the end.
 			this.queue.push(item);
 		}
 	}
 
-	public shift(): RequestItem | undefined {
+	public dequeue(): RequestItem | undefined {
 		return this.queue.shift();
 	}
 
-	public tryCancelPendingRequest(seq: number): boolean {
+	public tryDeletePendingRequest(seq: number): boolean {
 		for (let i = 0; i < this.queue.length; i++) {
 			if (this.queue[i].request.seq === seq) {
 				this.queue.splice(i, 1);
