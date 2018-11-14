@@ -15,7 +15,6 @@ import {
 } from 'vs/workbench/api/node/extHost.protocol';
 import * as vscode from 'vscode';
 import { Disposable, Position, Location, SourceBreakpoint, FunctionBreakpoint, DebugAdapterServer, DebugAdapterExecutable, DebugAdapterImplementation } from 'vs/workbench/api/node/extHostTypes';
-import { generateUuid } from 'vs/base/common/uuid';
 import { ExecutableDebugAdapter, SocketDebugAdapter, AbstractDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
@@ -157,23 +156,15 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 		this.startBreakpoints();
 
-		// assign uuids for brand new breakpoints
-		const breakpoints: vscode.Breakpoint[] = [];
-		for (const bp of breakpoints0) {
-			let id = bp['_id'];
-			if (id) {	// has already id
-				if (this._breakpoints.has(id)) {
-					// already there
-				} else {
-					breakpoints.push(bp);
-				}
-			} else {
-				id = generateUuid();
-				bp['_id'] = id;
+		// filter only new breakpoints
+		const breakpoints = breakpoints0.filter(bp => {
+			const id = bp.id;
+			if (!this._breakpoints.has(id)) {
 				this._breakpoints.set(id, bp);
-				breakpoints.push(bp);
+				return true;
 			}
-		}
+			return false;
+		});
 
 		// send notification for added breakpoints
 		this.fireBreakpointChanges(breakpoints, [], []);
@@ -194,7 +185,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 					dtos.push(dto);
 				}
 				dto.lines.push({
-					id: bp['_id'],
+					id: bp.id,
 					enabled: bp.enabled,
 					condition: bp.condition,
 					hitCondition: bp.hitCondition,
@@ -205,7 +196,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 			} else if (bp instanceof FunctionBreakpoint) {
 				dtos.push({
 					type: 'function',
-					id: bp['_id'],
+					id: bp.id,
 					enabled: bp.enabled,
 					hitCondition: bp.hitCondition,
 					logMessage: bp.logMessage,
@@ -224,20 +215,14 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		this.startBreakpoints();
 
 		// remove from array
-		const breakpoints: vscode.Breakpoint[] = [];
-		for (const b of breakpoints0) {
-			let id = b['_id'];
-			if (id && this._breakpoints.delete(id)) {
-				breakpoints.push(b);
-			}
-		}
+		const breakpoints = breakpoints0.filter(b => this._breakpoints.delete(b.id));
 
 		// send notification
 		this.fireBreakpointChanges([], breakpoints, []);
 
 		// unregister with VS Code
-		const ids = breakpoints.filter(bp => bp instanceof SourceBreakpoint).map(bp => bp['_id']);
-		const fids = breakpoints.filter(bp => bp instanceof FunctionBreakpoint).map(bp => bp['_id']);
+		const ids = breakpoints.filter(bp => bp instanceof SourceBreakpoint).map(bp => bp.id);
+		const fids = breakpoints.filter(bp => bp instanceof FunctionBreakpoint).map(bp => bp.id);
 		return this._debugServiceProxy.$unregisterBreakpoints(ids, fids);
 	}
 
@@ -487,7 +472,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 						const uri = URI.revive(bpd.uri);
 						bp = new SourceBreakpoint(new Location(uri, new Position(bpd.line, bpd.character)), bpd.enabled, bpd.condition, bpd.hitCondition, bpd.logMessage);
 					}
-					bp['_id'] = bpd.id;
+					(bp as any)._id = bpd.id;
 					this._breakpoints.set(bpd.id, bp);
 					a.push(bp);
 				}
