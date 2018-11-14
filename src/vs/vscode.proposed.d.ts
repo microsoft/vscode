@@ -23,9 +23,10 @@ declare module 'vscode' {
 	//#region Joh
 
 	/**
-	 *
+	 * The declaration of a symbol representation as one or many [locations](#Location)
+	 * or [location links][#LocationLink].
 	 */
-	export type Declaration = Location | Location[] | DefinitionLink[];
+	export type Declaration = Location | Location[] | LocationLink[];
 
 	/**
 	 * The declaration provider interface defines the contract between extensions and

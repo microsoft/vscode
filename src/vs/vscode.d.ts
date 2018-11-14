@@ -2208,34 +2208,7 @@ declare module 'vscode' {
 	 * Provides additional metadata over normal [location](#Location) definitions, including the range of
 	 * the defining symbol
 	 */
-	export interface DefinitionLink {
-		/**
-		 * Span of the symbol being defined in the source file.
-		 *
-		 * Used as the underlined span for mouse definition hover. Defaults to the word range at
-		 * the definition position.
-		 */
-		originSelectionRange?: Range;
-
-		/**
-		 * The resource identifier of the definition.
-		 */
-		targetUri: Uri;
-
-		/**
-		 * The full range of the definition.
-		 *
-		 * For a class definition for example, this would be the entire body of the class definition.
-		 */
-		targetRange: Range;
-
-		/**
-		 * The span of the symbol definition.
-		 *
-		 * For a class definition, this would be the class name itself in the class definition.
-		 */
-		targetSelectionRange?: Range;
-	}
+	export type DefinitionLink = LocationLink;
 
 	/**
 	 * The definition of a symbol represented as one or many [locations](#Location).
@@ -3991,6 +3964,35 @@ declare module 'vscode' {
 		 * @param rangeOrPosition The range or position. Positions will be converted to an empty range.
 		 */
 		constructor(uri: Uri, rangeOrPosition: Range | Position);
+	}
+
+	/**
+	 * Represents the connection of two locations. Provides additional metadata over normal [locations](#Location),
+	 * including an origin range.
+	 */
+	export interface LocationLink {
+		/**
+		 * Span of the origin of this link.
+		 *
+		 * Used as the underlined span for mouse definition hover. Defaults to the word range at
+		 * the definition position.
+		 */
+		originSelectionRange?: Range;
+
+		/**
+		 * The target resource identifier of this link.
+		 */
+		targetUri: Uri;
+
+		/**
+		 * The full target range of this link.
+		 */
+		targetRange: Range;
+
+		/**
+		 * The span of this link.
+		 */
+		targetSelectionRange?: Range;
 	}
 
 	/**
