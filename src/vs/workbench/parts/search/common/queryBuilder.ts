@@ -174,7 +174,7 @@ export class QueryBuilder {
 	 *
 	 * Public for test.
 	 */
-	public parseSearchPaths(pattern: string): ISearchPathsResult {
+	public parseSearchPaths(pattern: string, expandSearchPaths = true): ISearchPathsResult {
 		const isSearchPath = (segment: string) => {
 			// A segment is a search path if it is an absolute path or starts with ./, ../, .\, or ..\
 			return paths.isAbsolute(segment) || /^\.\.?[\/\\]/.test(segment);
@@ -196,9 +196,15 @@ export class QueryBuilder {
 		const exprSegments = arrays.flatten(expandedExprSegments);
 
 		const result: ISearchPathsResult = {};
-		const searchPaths = this.expandSearchPathPatterns(groups.searchPaths);
-		if (searchPaths && searchPaths.length) {
-			result.searchPaths = searchPaths;
+		if (expandSearchPaths) {
+			const searchPaths = this.expandSearchPathPatterns(groups.searchPaths);
+			if (searchPaths && searchPaths.length) {
+				result.searchPaths = searchPaths;
+			}
+		} else if (groups.searchPaths) {
+			exprSegments.push(...groups.searchPaths
+				.map(p => strings.ltrim(p, './'))
+				.map(p => strings.ltrim(p, '.\\')));
 		}
 
 		const includePattern = patternListToIExpression(exprSegments);
@@ -214,7 +220,7 @@ export class QueryBuilder {
 	 * but the result is a single IExpression that encapsulates all the exclude patterns.
 	 */
 	public parseExcludePattern(pattern: string): glob.IExpression | undefined {
-		const result = this.parseSearchPaths(pattern);
+		const result = this.parseSearchPaths(pattern, false);
 		let excludeExpression = glob.getEmptyExpression();
 		if (result.pattern) {
 			excludeExpression = objects.mixin(excludeExpression, result.pattern);
