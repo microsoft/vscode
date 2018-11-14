@@ -115,9 +115,16 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	private registerListeners(): void {
 		this._register(this.debugService.getViewModel().onDidFocusSession(session => {
 			sessionsToIgnore.delete(session);
-			this.selectSession(session);
+			this.selectSession();
 		}));
-		this._register(this.debugService.onDidNewSession(() => this.updateTitleArea()));
+		this._register(this.debugService.onWillNewSession(() => {
+			// Need to listen to output events for sessions which are not yet fully initialised
+			const input: IDebugSession = this.tree.getInput();
+			if (!input || input.state === State.Inactive) {
+				this.selectSession();
+			}
+			this.updateTitleArea();
+		}));
 		this._register(this.themeService.onThemeChange(() => {
 			if (this.isVisible()) {
 				this.updateInputDecoration();
@@ -166,7 +173,10 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		}
 	}
 
-	selectSession(session: IDebugSession): void {
+	selectSession(): void {
+		const focusedSession = this.debugService.getViewModel().focusedSession;
+		// If there is a focusedSession focus on that one, otherwise just show any other not ignored session
+		const session = focusedSession || first(this.debugService.getModel().getSessions(true), s => !sessionsToIgnore.has(s));
 		if (session) {
 			if (this.replElementsChangeListener) {
 				this.replElementsChangeListener.dispose();
@@ -191,9 +201,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			if (session.state === State.Inactive) {
 				// Ignore inactive sessions which got cleared - so they are not shown any more
 				sessionsToIgnore.add(session);
-				const focusedSession = this.debugService.getViewModel().focusedSession;
-				// If there is a focusedSession focus on that one, otherwise just show any other not ignored session
-				this.selectSession(focusedSession || first(this.debugService.getModel().getSessions(true), s => !sessionsToIgnore.has(s)));
+				this.selectSession();
 				this.updateTitleArea();
 			}
 		}
@@ -307,10 +315,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		}, replTreeOptions);
 
 		// Make sure to select the session if debugging is already active
-		const focusedSession = this.debugService.getViewModel().focusedSession;
-		if (focusedSession) {
-			this.selectSession(focusedSession);
-		}
+		this.selectSession();
 	}
 
 	private createReplInput(container: HTMLElement): void {
