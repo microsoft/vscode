@@ -12,7 +12,8 @@ function editorMatchToTextSearchResult(matches: FindMatch[], model: ITextModel, 
 	const lastLine = matches[matches.length - 1].range.endLineNumber;
 
 	const lineTexts: string[] = [];
-	for (let i = firstLine; i <= lastLine; i++) {
+	const numLines = (previewOptions && matches.length === 1) ? previewOptions.matchLines : Number.MAX_VALUE;
+	for (let i = firstLine; i <= lastLine && (i - firstLine) < numLines; i++) {
 		lineTexts.push(model.getLineContent(i));
 	}
 
