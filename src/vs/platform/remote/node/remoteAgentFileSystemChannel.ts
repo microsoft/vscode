@@ -21,27 +21,20 @@ export class RemoteExtensionsFileSystemProvider extends Disposable implements IF
 
 	private readonly _session: string;
 	private readonly _channel: IChannel;
+
 	private readonly _onDidChange = this._register(new Emitter<IFileChange[]>());
-
 	readonly onDidChangeFile: Event<IFileChange[]> = this._onDidChange.event;
-	readonly capabilities: FileSystemProviderCapabilities;
 
-	constructor(
-		channel: IChannel,
-		isCaseSensitive: boolean
-	) {
+	public capabilities: FileSystemProviderCapabilities;
+	private readonly _onDidChangeCapabilities = this._register(new Emitter<void>());
+	readonly onDidChangeCapabilities: Event<void> = this._onDidChangeCapabilities.event;
+
+	constructor(channel: IChannel) {
 		super();
 		this._session = generateUuid();
 		this._channel = channel;
 
-		let capabilities = (
-			FileSystemProviderCapabilities.FileReadWrite
-			| FileSystemProviderCapabilities.FileFolderCopy
-		);
-		if (isCaseSensitive) {
-			capabilities |= FileSystemProviderCapabilities.PathCaseSensitive;
-		}
-		this.capabilities = capabilities;
+		this.setCaseSensitive(true);
 
 		this._channel.listen<IFileChangeDto[]>('filechange', [this._session])((events) => {
 			this._onDidChange.fire(events.map(RemoteExtensionsFileSystemProvider._createFileChange));
@@ -50,6 +43,18 @@ export class RemoteExtensionsFileSystemProvider extends Disposable implements IF
 
 	dispose(): void {
 		super.dispose();
+	}
+
+	setCaseSensitive(isCaseSensitive: boolean) {
+		let capabilities = (
+			FileSystemProviderCapabilities.FileReadWrite
+			| FileSystemProviderCapabilities.FileFolderCopy
+		);
+		if (isCaseSensitive) {
+			capabilities |= FileSystemProviderCapabilities.PathCaseSensitive;
+		}
+		this.capabilities = capabilities;
+		this._onDidChangeCapabilities.fire(void 0);
 	}
 
 	watch(resource: URI, opts: IWatchOptions): IDisposable {

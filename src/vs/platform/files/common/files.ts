@@ -198,6 +198,7 @@ export const enum FileSystemProviderCapabilities {
 export interface IFileSystemProvider {
 
 	readonly capabilities: FileSystemProviderCapabilities;
+	onDidChangeCapabilities: Event<void>;
 
 	onDidChangeFile: Event<IFileChange[]>;
 	watch(resource: URI, opts: IWatchOptions): IDisposable;
