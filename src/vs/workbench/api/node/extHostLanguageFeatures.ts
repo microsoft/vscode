@@ -678,7 +678,7 @@ class SuggestAdapter {
 			label: item.label,
 			kind: typeConvert.CompletionItemKind.from(item.kind),
 			detail: item.detail,
-			documentation: typeConvert.MarkdownString.from(item.documentation),
+			documentation: typeConvert.MarkdownString.fromStrict(item.documentation),
 			filterText: item.filterText,
 			sortText: item.sortText,
 			preselect: item.preselect,
