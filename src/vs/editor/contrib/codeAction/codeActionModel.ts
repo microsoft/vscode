@@ -81,9 +81,12 @@ export class CodeActionOracle {
 	}
 
 	private _getRangeOfSelectionUnlessWhitespaceEnclosed(trigger: CodeActionTrigger): Selection | undefined {
+		if (!this._editor.hasModel()) {
+			return undefined;
+		}
 		const model = this._editor.getModel();
 		const selection = this._editor.getSelection();
-		if (model && selection && selection.isEmpty() && !(trigger.filter && trigger.filter.includeSourceActions)) {
+		if (selection.isEmpty() && !(trigger.filter && trigger.filter.includeSourceActions)) {
 			const { lineNumber, column } = selection.getPosition();
 			const line = model.getLineContent(lineNumber);
 			if (line.length === 0) {
