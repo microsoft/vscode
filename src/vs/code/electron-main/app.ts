@@ -222,7 +222,7 @@ export class CodeApplication {
 					const channel = rawClient.getChannel(REMOTE_FILE_SYSTEM_CHANNEL_NAME);
 
 					// TODO@alex don't use call directly, wrap it around a `RemoteExtensionsFileSystemProvider`
-					const fileContents = await channel.call<Uint8Array>('readFile', [uri.authority, uri]);
+					const fileContents = await channel.call<Uint8Array>('readFile', [uri]);
 					callback(Buffer.from(fileContents));
 				} else {
 					callback(null);
