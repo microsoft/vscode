@@ -625,8 +625,6 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 				type: 'implementation',
 				implementation: x.implementation
 			};
-		} else if (typeof (<any>x).type === 'string') {
-			return <IAdapterDescriptor>x;
 		} else {
 			throw new Error('unexpected type');
 		}
@@ -718,8 +716,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		}
 
 		if (adapterProvider) {
-			const adapterExecutable = ExecutableDebugAdapter.platformAdapterExecutable(this._extensionService.getAllExtensionDescriptions(), session.type);
-			return asThenable(() => adapterProvider.provideDebugAdapter(session, adapterExecutable, CancellationToken.None));
+			return asThenable(() => adapterProvider.provideDebugAdapter(session, this.daExecutableFromPackage(session), CancellationToken.None));
 		}
 
 		// try deprecated command based extension API "adapterExecutableCommand" to determine the executable
@@ -734,7 +731,12 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		}
 
 		// fallback: use executable information from package.json
-		return Promise.resolve(ExecutableDebugAdapter.platformAdapterExecutable(this._extensionService.getAllExtensionDescriptions(), session.type));
+		return Promise.resolve(this.daExecutableFromPackage(session));
+	}
+
+	private daExecutableFromPackage(session: ExtHostDebugSession): DebugAdapterExecutable {
+		const dae = ExecutableDebugAdapter.platformAdapterExecutable(this._extensionService.getAllExtensionDescriptions(), session.type);
+		return new DebugAdapterExecutable(dae.command, dae.args, dae.env, dae.cwd);
 	}
 
 	private startBreakpoints() {
