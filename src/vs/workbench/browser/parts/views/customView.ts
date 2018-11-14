@@ -365,7 +365,6 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 		this._register(this.tree.onDidExpandItem(e => this._onDidExpandItem.fire(e.item.getElement())));
 		this._register(this.tree.onDidCollapseItem(e => this._onDidCollapseItem.fire(e.item.getElement())));
 		this._register(this.tree.onDidChangeSelection(e => this._onDidChangeSelection.fire(e.selection)));
-		this.tree.setInput(this.root);
 	}
 
 	private showMessage(message: string): void {
@@ -429,6 +428,7 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 	private activate() {
 		this.hideMessage();
 		if (!this.activated) {
+			this.tree.setInput(this.root);
 			this.progressService.withProgress({ location: this.container.id }, () => this.extensionService.activateByEvent(`onView:${this.id}`))
 				.then(() => timeout(2000))
 				.then(() => {
