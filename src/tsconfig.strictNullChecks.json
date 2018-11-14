@@ -658,6 +658,7 @@
 		"./vs/workbench/services/configuration/common/configurationModels.ts",
 		"./vs/workbench/services/configuration/common/jsonEditing.ts",
 		"./vs/workbench/services/configurationResolver/common/configurationResolver.ts",
+		"./vs/workbench/services/configurationResolver/common/configurationResolverUtils.ts",
 		"./vs/workbench/services/crashReporter/electron-browser/crashReporterService.ts",
 		"./vs/workbench/services/decorations/browser/decorations.ts",
 		"./vs/workbench/services/extensions/common/extensions.ts",
