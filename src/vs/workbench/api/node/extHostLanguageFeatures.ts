@@ -973,9 +973,10 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	// --- outline
 
-	registerDocumentSymbolProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentSymbolProvider): vscode.Disposable {
+	registerDocumentSymbolProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentSymbolProvider, metadata?: vscode.DocumentSymbolProviderMetadata): vscode.Disposable {
 		const handle = this._addNewAdapter(new OutlineAdapter(this._documents, provider), extension);
-		this._proxy.$registerOutlineSupport(handle, this._transformDocumentSelector(selector), extension ? extension.displayName || extension.name : undefined);
+		const displayName = (metadata && metadata.displayName) || (extension && (extension.displayName || extension.name)) || undefined;
+		this._proxy.$registerOutlineSupport(handle, this._transformDocumentSelector(selector), displayName);
 		return this._createDisposable(handle);
 	}
 
