@@ -23,8 +23,25 @@ export function getCodeActions(model: ITextModel, rangeOrSelection: Range | Sele
 
 	const promises = CodeActionProviderRegistry.all(model)
 		.filter(provider => {
+			if (!provider.providedCodeActionKinds) {
+				return true;
+			}
+
 			// Avoid calling providers that we know will not return code actions of interest
-			return !provider.providedCodeActionKinds || provider.providedCodeActionKinds.some(providedKind => isValidActionKind(trigger && trigger.filter, providedKind));
+			return provider.providedCodeActionKinds.some(providedKind => {
+				// Filter out actions by kind
+				// The provided kind can be either a subset of a superset of the filtered kind
+				if (trigger && trigger.filter && trigger.filter.kind && !(trigger.filter.kind.contains(providedKind) || new CodeActionKind(providedKind).contains(trigger.filter.kind.value))) {
+					return false;
+				}
+
+				// Don't return source actions unless they are explicitly requested
+				if (trigger && CodeActionKind.Source.contains(providedKind) && (!trigger.filter || !trigger.filter.includeSourceActions)) {
+					return false;
+				}
+
+				return true;
+			});
 		})
 		.map(support => {
 			return Promise.resolve(support.provideCodeActions(model, rangeOrSelection, codeActionContext, token)).then(providedCodeActions => {
