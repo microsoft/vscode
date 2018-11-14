@@ -520,13 +520,9 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 
 	private readonly history: HistoryNavigator<string>;
 
-	private readonly _onInput = this._register(new Emitter<void>());
-	public readonly onInput: Event<void> = this._onInput.event;
-
 	constructor(container: HTMLElement, contextViewProvider: IContextViewProvider, options: IHistoryInputOptions) {
 		super(container, contextViewProvider, options);
 		this.history = new HistoryNavigator<string>(options.history, 100);
-		this.oninput(this.inputElement, (e) => this._onInput.fire());
 	}
 
 	public addToHistory(): void {
