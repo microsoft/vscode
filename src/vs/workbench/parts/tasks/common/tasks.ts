@@ -491,6 +491,10 @@ export namespace CustomTask {
 				case RuntimeType.ExtensionCommand:
 					type = 'extensionCommand';
 					break;
+
+				default:
+					type = 'process';
+					break;
 			}
 		} else {
 			type = '$composite';
