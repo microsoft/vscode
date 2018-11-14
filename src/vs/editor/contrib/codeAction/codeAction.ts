@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten, isFalsyOrEmpty, mergeSort } from 'vs/base/common/arrays';
+import { flatten, mergeSort, isNonEmptyArray } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { illegalArgument, isPromiseCanceledError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
@@ -83,15 +83,13 @@ function isValidActionKind(filter: CodeActionFilter | undefined, kind: string | 
 }
 
 function codeActionsComparator(a: CodeAction, b: CodeAction): number {
-	const aHasDiags = !isFalsyOrEmpty(a.diagnostics);
-	const bHasDiags = !isFalsyOrEmpty(b.diagnostics);
-	if (aHasDiags) {
-		if (bHasDiags) {
-			return a.diagnostics![0].message.localeCompare(b.diagnostics![0].message);
+	if (isNonEmptyArray(a.diagnostics)) {
+		if (isNonEmptyArray(b.diagnostics)) {
+			return a.diagnostics[0].message.localeCompare(b.diagnostics[0].message);
 		} else {
 			return -1;
 		}
-	} else if (bHasDiags) {
+	} else if (isNonEmptyArray(b.diagnostics)) {
 		return 1;
 	} else {
 		return 0;	// both have no diagnostics
