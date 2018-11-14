@@ -295,6 +295,7 @@ export const enum Operation {
 	GetObjectDetails = 'GetObjectDetails',
 	SubmoduleUpdate = 'SubmoduleUpdate',
 	RebaseContinue = 'RebaseContinue',
+	Apply = 'Apply'
 }
 
 function isReadOnly(operation: Operation): boolean {
@@ -705,6 +706,10 @@ export class Repository implements Disposable {
 		await this.run(Operation.Status);
 	}
 
+	diff(cached?: boolean): Promise<string> {
+		return this.run(Operation.Diff, () => this.repository.diff(cached));
+	}
+
 	diffWithHEAD(path: string): Promise<string> {
 		return this.run(Operation.Diff, () => this.repository.diffWithHEAD(path));
 	}
@@ -1048,6 +1053,10 @@ export class Repository implements Disposable {
 
 	detectObjectType(object: string): Promise<{ mimetype: string, encoding?: string }> {
 		return this.run(Operation.Show, () => this.repository.detectObjectType(object));
+	}
+
+	async apply(patch: string, reverse?: boolean): Promise<void> {
+		return await this.run(Operation.Apply, () => this.repository.apply(patch, reverse));
 	}
 
 	async getStashes(): Promise<Stash[]> {
