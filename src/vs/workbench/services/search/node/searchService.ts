@@ -149,7 +149,10 @@ export class SearchService extends Disposable implements ISearchService {
 			.then(completes => {
 				completes = completes.filter(c => !!c);
 				if (!completes.length) {
-					return null;
+					return {
+						limitHit: false,
+						results: []
+					};
 				}
 
 				return <ISearchComplete>{
