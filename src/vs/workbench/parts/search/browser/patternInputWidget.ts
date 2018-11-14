@@ -41,6 +41,9 @@ export class PatternInputWidget extends Widget {
 	private _onSubmit = this._register(new Emitter<boolean>());
 	public onSubmit: CommonEvent<boolean> = this._onSubmit.event;
 
+	private readonly _onInput = this._register(new Emitter<void>());
+	public readonly onInput: CommonEvent<void> = this._onInput.event;
+
 	private _onCancel = this._register(new Emitter<boolean>());
 	public onCancel: CommonEvent<boolean> = this._onCancel.event;
 
@@ -57,6 +60,8 @@ export class PatternInputWidget extends Widget {
 		this.inputBox = null;
 
 		this.render(options);
+
+		this.oninput(this.inputBox.inputElement, (e) => this._onInput.fire());
 
 		parent.appendChild(this.domNode);
 	}

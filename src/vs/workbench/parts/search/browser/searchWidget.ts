@@ -89,7 +89,7 @@ export class SearchWidget extends Widget {
 	private searchInputBoxFocused: IContextKey<boolean>;
 
 	private replaceContainer: HTMLElement;
-	private replaceInput: HistoryInputBox;
+	public replaceInput: HistoryInputBox;
 	private toggleReplaceButton: Button;
 	private replaceAllAction: ReplaceAllAction;
 	private replaceActive: IContextKey<boolean>;

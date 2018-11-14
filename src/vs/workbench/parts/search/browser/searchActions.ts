@@ -317,7 +317,7 @@ export class ClearSearchResultsAction extends Action {
 
 	update(): void {
 		const searchView = getSearchView(this.viewletService, this.panelService);
-		this.enabled = searchView && searchView.isSearchSubmitted();
+		this.enabled = searchView && !searchView.allSearchFieldsClear();//searchView.isSearchSubmitted();
 	}
 
 	public run(): Thenable<void> {
