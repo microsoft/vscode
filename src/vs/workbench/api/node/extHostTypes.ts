@@ -1608,6 +1608,7 @@ export class Task implements vscode.Task2 {
 	private _source: string;
 	private _group: TaskGroup;
 	private _presentationOptions: vscode.TaskPresentationOptions;
+	private _runOptions: vscode.RunOptions;
 
 	constructor(definition: vscode.TaskDefinition, name: string, source: string, execution?: ProcessExecution | ShellExecution, problemMatchers?: string | string[]);
 	constructor(definition: vscode.TaskDefinition, scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder, name: string, source: string, execution?: ProcessExecution | ShellExecution, problemMatchers?: string | string[]);
@@ -1784,6 +1785,18 @@ export class Task implements vscode.Task2 {
 		}
 		this.clear();
 		this._presentationOptions = value;
+	}
+
+	get runOptions(): vscode.RunOptions {
+		return this._runOptions;
+	}
+
+	set runOptions(value: vscode.RunOptions) {
+		if (value === null) {
+			value = undefined;
+		}
+		this.clear();
+		this._runOptions = value;
 	}
 }
 
