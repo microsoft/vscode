@@ -178,7 +178,7 @@ export class TypeScriptServer extends Disposable {
 		private readonly _tracer: Tracer,
 	) {
 		super();
-		this._reader = new Reader<Proto.Response>(this._childProcess.stdout);
+		this._reader = this._register(new Reader<Proto.Response>(this._childProcess.stdout));
 		this._reader.onData(msg => this.dispatchMessage(msg));
 		this._childProcess.on('exit', code => this.handleExit(code));
 		this._childProcess.on('error', error => this.handleError(error));
