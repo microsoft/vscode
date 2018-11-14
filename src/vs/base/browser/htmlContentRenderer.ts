@@ -122,6 +122,12 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 			return text;
 
 		} else {
+			// HTML Encode href
+			href.replace(/&/g, '&amp;')
+				.replace(/</g, '&lt;')
+				.replace(/>/g, '&gt;')
+				.replace(/"/g, '&quot;')
+				.replace(/'/g, '&#39;');
 			return `<a href="#" data-href="${href}" title="${title || href}">${text}</a>`;
 		}
 	};
