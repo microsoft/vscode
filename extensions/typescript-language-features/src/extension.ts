@@ -116,8 +116,6 @@ function createLazyClientHost(
 		const surveyor = new Surveyor(context.globalState);
 		context.subscriptions.push(clientHost.serviceClient.onSurveyReady(e => surveyor.surveyReady(e.surveyId)));
 
-
-
 		clientHost.serviceClient.onReady(() => {
 			context.subscriptions.push(
 				ProjectStatus.create(

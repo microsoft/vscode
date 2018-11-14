@@ -87,7 +87,6 @@ export class TypeScriptVersion {
 	}
 }
 
-
 export class TypeScriptVersionProvider {
 	private readonly relativePathResolver: RelativeWorkspacePathResolver = new RelativeWorkspacePathResolver();
 

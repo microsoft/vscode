@@ -12,9 +12,7 @@ import { isImplicitProjectConfigFile, openOrCreateConfigFile } from './utils/tsc
 import { nulToken } from './utils/cancellation';
 import { PluginConfigProvider } from './typescriptServiceClient';
 
-
 const localize = nls.loadMessageBundle();
-
 
 export class ReloadTypeScriptProjectsCommand implements Command {
 	public readonly id = 'typescript.reloadProjects';
@@ -143,7 +141,7 @@ async function goToProjectConfig(
 		return;
 	}
 
-	let res: protocol.ProjectInfoResponse | undefined = undefined;
+	let res: protocol.ProjectInfoResponse | undefined;
 	try {
 		res = await client.execute('projectInfo', { file, needFileNameList: false }, nulToken);
 	} catch {
@@ -164,7 +162,7 @@ async function goToProjectConfig(
 	enum ProjectConfigAction {
 		None,
 		CreateConfig,
-		LearnMore
+		LearnMore,
 	}
 
 	interface ProjectConfigMessageItem extends vscode.MessageItem {
@@ -179,7 +177,7 @@ async function goToProjectConfig(
 			title: isTypeScriptProject
 				? localize('typescript.configureTsconfigQuickPick', 'Configure tsconfig.json')
 				: localize('typescript.configureJsconfigQuickPick', 'Configure jsconfig.json'),
-			id: ProjectConfigAction.CreateConfig
+			id: ProjectConfigAction.CreateConfig,
 		});
 
 	switch (selected && selected.id) {

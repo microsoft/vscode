@@ -420,7 +420,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 	private serviceStarted(resendModels: boolean): void {
 		const configureOptions: Proto.ConfigureRequestArguments = {
-			hostInfo: 'vscode'
+			hostInfo: 'vscode',
 		};
 		this.executeWithoutWaitingForResponse('configure', configureOptions);
 		this.setCompilerOptionsForInferredProjects(this._configuration);
@@ -485,7 +485,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 						localize('serverDiedAfterStart', 'The TypeScript language service died 5 times right after it got started. The service will not be restarted.'),
 						{
 							title: localize('serverDiedReportIssue', 'Report Issue'),
-							id: MessageAction.reportIssue
+							id: MessageAction.reportIssue,
 						});
 					/* __GDPR__
 						"serviceExited" : {

@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import VsCodeTelemetryReporter from 'vscode-extension-telemetry';
 import { memoize } from './memoize';
 
-interface IPackageInfo {
+interface PackageInfo {
 	readonly name: string;
 	readonly version: string;
 	readonly aiKey: string;
@@ -58,7 +58,7 @@ export default class TelemetryReporter {
 	}
 
 	@memoize
-	private get packageInfo(): IPackageInfo | null {
+	private get packageInfo(): PackageInfo | null {
 		const { packageJSON } = vscode.extensions.getExtension('vscode.typescript-language-features')!;
 		if (packageJSON) {
 			return {

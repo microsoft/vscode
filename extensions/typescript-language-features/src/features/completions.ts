@@ -21,7 +21,6 @@ import FileConfigurationManager from './fileConfigurationManager';
 
 const localize = nls.loadMessageBundle();
 
-
 interface CommitCharactersSettings {
 	readonly isNewIdentifierLocation: boolean;
 	readonly isInValidCommitCharacterContext: boolean;
@@ -223,7 +222,6 @@ class CompositeCommand implements Command {
 	}
 }
 
-
 class CompletionAcceptedCommand implements Command {
 	public static readonly ID = '_typescript.onCompletionAccepted';
 	public readonly id = CompletionAcceptedCommand.ID;
@@ -359,7 +357,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			...typeConverters.Position.toFileLocationRequestArgs(file, position),
 			includeExternalModuleExports: completionConfiguration.autoImportSuggestions,
 			includeInsertTextCompletions: true,
-			triggerCharacter: this.getTsTriggerCharacter(context)
+			triggerCharacter: this.getTsTriggerCharacter(context),
 		};
 
 		let isNewIdentifierLocation = true;

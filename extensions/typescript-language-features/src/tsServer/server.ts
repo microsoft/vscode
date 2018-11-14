@@ -60,7 +60,7 @@ export class TypeScriptServerSpawner {
 
 	private getForkOptions() {
 		const debugPort = TypeScriptServerSpawner.getDebugPort();
-		const tsServerForkOptions: electron.IForkOptions = {
+		const tsServerForkOptions: electron.ForkOptions = {
 			execArgv: debugPort ? [`--inspect=${debugPort}`] : [],
 		};
 		return tsServerForkOptions;
@@ -72,8 +72,8 @@ export class TypeScriptServerSpawner {
 		plugins: ReadonlyArray<TypeScriptServerPlugin>,
 	): { args: string[], cancellationPipeName: string | undefined, tsServerLogFile: string | undefined } {
 		const args: string[] = [];
-		let cancellationPipeName: string | undefined = undefined;
-		let tsServerLogFile: string | undefined = undefined;
+		let cancellationPipeName: string | undefined;
+		let tsServerLogFile: string | undefined;
 
 		const apiVersion = currentVersion.version || API.defaultVersion;
 
@@ -298,7 +298,7 @@ export class TypeScriptServer extends Disposable {
 	public executeImpl(command: string, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean }): Promise<any> {
 		const request = this._requestQueue.createRequest(command, args);
 		const requestInfo: RequestItem = {
-			request: request,
+			request,
 			expectsResponse: executeInfo.expectsResult,
 			isAsync: executeInfo.isAsync,
 			queueingType: getQueueingType(command, executeInfo.lowPriority)

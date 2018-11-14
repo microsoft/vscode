@@ -12,7 +12,7 @@ import Logger from './utils/logger';
 import { TypeScriptServerPlugin } from './utils/plugins';
 
 export class CancelledResponse {
-	readonly type: 'cancelled' = 'cancelled';
+	public readonly type: 'cancelled' = 'cancelled';
 
 	constructor(
 		public readonly reason: string
@@ -20,7 +20,7 @@ export class CancelledResponse {
 }
 
 export class NoContentResponse {
-	readonly type: 'noContent' = 'noContent';
+	public readonly type: 'noContent' = 'noContent';
 }
 
 export type ServerResponse<T extends Proto.Response> = T | CancelledResponse | NoContentResponse;
@@ -56,7 +56,6 @@ interface TypeScriptRequestTypes {
 	'signatureHelp': [Proto.SignatureHelpRequestArgs, Proto.SignatureHelpResponse];
 	'typeDefinition': [Proto.FileLocationRequestArgs, Proto.TypeDefinitionResponse];
 }
-
 
 export interface ITypeScriptServiceClient {
 	/**
