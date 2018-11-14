@@ -1,0 +1,17 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "atom/language-css",
+					"repositoryUrl": "https://github.com/atom/language-css",
+					"commitHash": ""
+				}
+			},
+			"license": "MIT",
+			"version": "0.0.0"
+		}
+	],
+	"version": 1
+}

@@ -1,0 +1,17 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "atom/language-coffee-script",
+					"repositoryUrl": "https://github.com/atom/language-coffee-script",
+					"commitHash": ""
+				}
+			},
+			"license": "MIT",
+			"version": "0.0.0"
+		}
+	],
+	"version": 1
+}

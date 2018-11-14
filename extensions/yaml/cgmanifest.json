@@ -4,18 +4,13 @@
 			"component": {
 				"type": "git",
 				"git": {
-					"name": "Jxck/assert",
-					"repositoryUrl": "https://github.com/Jxck/assert",
+					"name": "textmate/yaml.tmbundle",
+					"repositoryUrl": "https://github.com/textmate/yaml.tmbundle",
 					"commitHash": ""
 				}
 			},
 			"licenseDetail": [
-				"The MIT License (MIT)",
-				"",
-				"Copyright (c) 2011 Jxck",
-				"",
-				"Originally from node.js (http://nodejs.org)",
-				"Copyright Joyent, Inc.",
+				"Copyright (c) 2015 FichteFoll <fichtefoll2@googlemail.com>",
 				"",
 				"Permission is hereby granted, free of charge, to any person obtaining a copy",
 				"of this software and associated documentation files (the \"Software\"), to deal",
@@ -34,8 +29,8 @@
 				"LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,",
 				"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE."
 			],
-			"license": "MIT",
-			"version": "1.0.0"
+			"license": "TextMate Bundle License",
+			"version": "0.0.0"
 		}
 	],
 	"version": 1

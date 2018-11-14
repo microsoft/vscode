@@ -1,0 +1,17 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "davidrios/pug-tmbundle",
+					"repositoryUrl": "https://github.com/davidrios/pug-tmbundle",
+					"commitHash": ""
+				}
+			},
+			"license": "MIT",
+			"version": "0.0.0"
+		}
+	],
+	"version": 1
+}

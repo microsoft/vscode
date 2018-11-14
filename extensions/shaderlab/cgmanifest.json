@@ -1,0 +1,17 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "shaders-tmLanguage",
+					"repositoryUrl": "https://github.com/tgjones/shaders-tmLanguage",
+					"commitHash": ""
+				}
+			},
+			"license": "MIT",
+			"version": "0.1.0"
+		}
+	],
+	"version": 1
+}

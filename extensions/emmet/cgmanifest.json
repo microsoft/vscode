@@ -1,0 +1,17 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "expand-abbreviation",
+					"repositoryUrl": "https://github.com/emmetio/expand-abbreviation",
+					"commitHash": ""
+				}
+			},
+			"license": "MIT",
+			"version": "0.5.8"
+		}
+	],
+	"version": 1
+}

@@ -1,0 +1,17 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "language-rust",
+					"repositoryUrl": "https://github.com/zargony/atom-language-rust",
+					"commitHash": ""
+				}
+			},
+			"license": "MIT",
+			"version": "0.4.9"
+		}
+	],
+	"version": 1
+}

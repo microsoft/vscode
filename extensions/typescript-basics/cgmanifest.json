@@ -1,0 +1,17 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "TypeScript-TmLanguage",
+					"repositoryUrl": "https://github.com/Microsoft/TypeScript-TmLanguage",
+					"commitHash": ""
+				}
+			},
+			"license": "MIT",
+			"version": "0.1.8"
+		}
+	],
+	"version": 1
+}

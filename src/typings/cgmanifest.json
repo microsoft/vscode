@@ -1,0 +1,16 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "definitelytyped",
+					"repositoryUrl": "https://github.com/DefinitelyTyped/DefinitelyTyped",
+					"commitHash": ""
+				}
+			},
+			"license": "MIT"
+		}
+	],
+	"version": 1
+}

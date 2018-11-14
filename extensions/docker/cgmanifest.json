@@ -1,0 +1,17 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "language-docker",
+					"repositoryUrl": "https://github.com/moby/moby",
+					"commitHash": ""
+				}
+			},
+			"license": "Apache2",
+			"version": "0.0.0"
+		}
+	],
+	"version": 1
+}

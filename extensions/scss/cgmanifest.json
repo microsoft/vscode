@@ -1,0 +1,17 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "atom/language-sass",
+					"repositoryUrl": "https://github.com/atom/language-sass",
+					"commitHash": ""
+				}
+			},
+			"license": "MIT",
+			"version": "0.52.0"
+		}
+	],
+	"version": 1
+}
