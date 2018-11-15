@@ -14,7 +14,6 @@ import { Schemas } from 'vs/base/common/network';
 import * as objects from 'vs/base/common/objects';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI as uri } from 'vs/base/common/uri';
-import { Promise } from 'vs/base/common/winjs.base';
 import * as pfs from 'vs/base/node/pfs';
 import { getNextTickChannel } from 'vs/base/parts/ipc/node/ipc';
 import { Client, IIPCOptions } from 'vs/base/parts/ipc/node/ipc.cp';
@@ -122,16 +121,16 @@ export class SearchService extends Disposable implements ISearchService {
 	private doSearch(query: ISearchQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void): Promise<ISearchComplete> {
 		const schemesInQuery = this.getSchemesInQuery(query);
 
-		const providerActivations: Promise<any>[] = [Promise.wrap(null)];
+		const providerActivations: Thenable<any>[] = [Promise.resolve(null)];
 		schemesInQuery.forEach(scheme => providerActivations.push(this.extensionService.activateByEvent(`onSearch:${scheme}`)));
 		providerActivations.push(this.extensionService.activateByEvent('onSearch:file'));
 
-		const providerPromise = Promise.join(providerActivations)
+		const providerPromise = Promise.all(providerActivations)
 			.then(() => this.extensionService.whenInstalledExtensionsRegistered())
 			.then(() => {
 				// Cancel faster if search was canceled while waiting for extensions
 				if (token && token.isCancellationRequested) {
-					return Promise.wrapError(canceled());
+					return Promise.reject(canceled());
 				}
 
 				const progressCallback = (item: ISearchProgressItem) => {
@@ -190,7 +189,7 @@ export class SearchService extends Disposable implements ISearchService {
 		const e2eSW = StopWatch.create(false);
 
 		const diskSearchQueries: IFolderQuery[] = [];
-		const searchPs: Promise<ISearchComplete>[] = [];
+		const searchPs: Thenable<ISearchComplete>[] = [];
 
 		const fqs = this.groupFolderQueriesByScheme(query);
 		keys(fqs).forEach(scheme => {
@@ -233,7 +232,7 @@ export class SearchService extends Disposable implements ISearchService {
 				this.diskSearch.textSearch(diskSearchQuery, onProviderProgress, token));
 		}
 
-		return Promise.join(searchPs).then(completes => {
+		return Promise.all(searchPs).then(completes => {
 			const endToEndTime = e2eSW.elapsed();
 			this.logService.trace(`SearchService#search: ${endToEndTime}ms`);
 			completes.forEach(complete => {
@@ -443,7 +442,7 @@ export class SearchService extends Disposable implements ISearchService {
 			...values(this.fileIndexProviders)
 		].map(provider => provider && provider.clearCache(cacheKey));
 
-		return Promise.join(clearPs)
+		return Promise.all(clearPs)
 			.then(() => { });
 	}
 }
@@ -486,7 +485,7 @@ export class DiskSearch implements ISearchResultProvider {
 
 	textSearch(query: ITextQuery, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): Promise<ISearchComplete> {
 		const folderQueries = query.folderQueries || [];
-		return Promise.join(folderQueries.map(q => q.folder.scheme === Schemas.file && pfs.exists(q.folder.fsPath)))
+		return Promise.all(folderQueries.map(q => q.folder.scheme === Schemas.file && pfs.exists(q.folder.fsPath)))
 			.then(exists => {
 				if (token && token.isCancellationRequested) {
 					throw canceled();
@@ -501,7 +500,7 @@ export class DiskSearch implements ISearchResultProvider {
 
 	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete> {
 		const folderQueries = query.folderQueries || [];
-		return Promise.join(folderQueries.map(q => q.folder.scheme === Schemas.file && pfs.exists(q.folder.fsPath)))
+		return Promise.all(folderQueries.map(q => q.folder.scheme === Schemas.file && pfs.exists(q.folder.fsPath)))
 			.then(exists => {
 				if (token && token.isCancellationRequested) {
 					throw canceled();
@@ -581,7 +580,7 @@ export class DiskSearch implements ISearchResultProvider {
 		return fileMatch;
 	}
 
-	public clearCache(cacheKey: string): Promise<void> {
+	public clearCache(cacheKey: string): Thenable<void> {
 		return this.raw.clearCache(cacheKey);
 	}
 }

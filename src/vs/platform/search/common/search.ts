@@ -12,7 +12,6 @@ import * as objects from 'vs/base/common/objects';
 import * as paths from 'vs/base/common/paths';
 import { getNLines } from 'vs/base/common/strings';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { Promise } from 'vs/base/common/winjs.base';
 import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
@@ -29,7 +28,7 @@ export interface ISearchService {
 	textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete>;
 	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete>;
 	extendQuery(query: ITextQuery | IFileQuery): void;
-	clearCache(cacheKey: string): Promise<void>;
+	clearCache(cacheKey: string): Thenable<void>;
 	registerSearchResultProvider(scheme: string, type: SearchProviderType, provider: ISearchResultProvider): IDisposable;
 }
 
@@ -60,7 +59,7 @@ export const enum SearchProviderType {
 export interface ISearchResultProvider {
 	textSearch(query: ITextQuery, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): Promise<ISearchComplete>;
 	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete>;
-	clearCache(cacheKey: string): Promise<void>;
+	clearCache(cacheKey: string): Thenable<void>;
 }
 
 export interface IFolderQuery<U extends UriComponents=URI> {
