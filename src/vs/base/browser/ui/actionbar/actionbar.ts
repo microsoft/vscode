@@ -726,7 +726,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		for (let i = 0; i < this.items.length; i++) {
 			let item = this.items[i];
 
-			let actionItem = <any>item;
+			let actionItem = item;
 
 			if (i === this.focusedItem) {
 				if (types.isFunction(actionItem.isEnabled)) {
