@@ -464,7 +464,8 @@ export class DiskSearch implements ISearchResultProvider {
 				AMD_ENTRYPOINT: 'vs/workbench/services/search/node/searchApp',
 				PIPE_LOGGING: 'true',
 				VERBOSE_LOGGING: verboseLogging
-			}
+			},
+			useQueue: true
 		};
 
 		if (searchDebug) {
