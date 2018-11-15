@@ -661,6 +661,7 @@
 		"./vs/workbench/services/configurationResolver/common/configurationResolverUtils.ts",
 		"./vs/workbench/services/crashReporter/electron-browser/crashReporterService.ts",
 		"./vs/workbench/services/decorations/browser/decorations.ts",
+		"./vs/workbench/services/decorations/browser/decorationsService.ts",
 		"./vs/workbench/services/extensions/common/extensions.ts",
 		"./vs/workbench/services/extensions/common/extensionsRegistry.ts",
 		"./vs/workbench/services/extensions/electron-browser/inactiveExtensionUrlHandler.ts",

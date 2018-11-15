@@ -118,7 +118,7 @@ class DecorationStyles {
 	asDecoration(data: IDecorationData[], onlyChildren: boolean): IDecoration {
 
 		// sort by weight
-		data.sort((a, b) => b.weight - a.weight);
+		data.sort((a, b) => (b.weight || 0) - (a.weight || 0));
 
 		let key = DecorationRule.keyOf(data);
 		let rule = this._decorationRules.get(key);
@@ -228,7 +228,7 @@ class DecorationDataRequest {
 
 class DecorationProviderWrapper {
 
-	readonly data = TernarySearchTree.forPaths<DecorationDataRequest | IDecorationData>();
+	readonly data = TernarySearchTree.forPaths<DecorationDataRequest | IDecorationData | null>();
 	private readonly _dispoable: IDisposable;
 
 	constructor(
@@ -290,7 +290,7 @@ class DecorationProviderWrapper {
 		}
 	}
 
-	private _fetchData(uri: URI): IDecorationData {
+	private _fetchData(uri: URI): IDecorationData | undefined | null {
 
 		// check for pending request and cancel it
 		const pendingRequest = this.data.get(uri.toString());
@@ -322,9 +322,9 @@ class DecorationProviderWrapper {
 		}
 	}
 
-	private _keepItem(uri: URI, data: IDecorationData): IDecorationData {
-		let deco = data ? data : null;
-		let old = this.data.set(uri.toString(), deco);
+	private _keepItem(uri: URI, data: IDecorationData | null | undefined): IDecorationData | null {
+		const deco = data ? data : null;
+		const old = this.data.set(uri.toString(), deco);
 		if (deco || old) {
 			// only fire event when something changed
 			this._uriEmitter.fire(uri);
@@ -401,9 +401,9 @@ export class FileDecorationsService implements IDecorationsService {
 		});
 	}
 
-	getDecoration(uri: URI, includeChildren: boolean, overwrite?: IDecorationData): IDecoration {
+	getDecoration(uri: URI, includeChildren: boolean, overwrite?: IDecorationData): IDecoration | undefined {
 		let data: IDecorationData[] = [];
-		let containsChildren: boolean;
+		let containsChildren: boolean = false;
 		for (let iter = this._data.iterator(), next = iter.next(); !next.done; next = iter.next()) {
 			next.value.getOrRetrieve(uri, includeChildren, (deco, isChild) => {
 				if (!isChild || deco.bubble) {
