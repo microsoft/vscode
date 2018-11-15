@@ -119,6 +119,7 @@ export interface IViewDescriptor {
 export interface IViewDescriptorCollection {
 	readonly onDidChangeActiveViews: Event<{ added: IViewDescriptor[], removed: IViewDescriptor[] }>;
 	readonly activeViewDescriptors: IViewDescriptor[];
+	readonly allViewDescriptors: IViewDescriptor[];
 }
 
 export interface IViewsRegistry {
