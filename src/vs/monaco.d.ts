@@ -2558,6 +2558,10 @@ declare namespace monaco.editor {
 		 * Favours words that appear close to the cursor.
 		 */
 		localityBonus?: boolean;
+		/**
+		 * Enable using global storage for remembering suggestions.
+		 */
+		useGlobalStorageForSuggestions?: boolean;
 	}
 
 	/**
@@ -3193,6 +3197,7 @@ declare namespace monaco.editor {
 		readonly snippets: 'top' | 'bottom' | 'inline' | 'none';
 		readonly snippetsPreventQuickSuggestions: boolean;
 		readonly localityBonus: boolean;
+		readonly useGlobalStorageForSuggestions: boolean;
 	}
 
 	export interface InternalParameterHintOptions {

@@ -206,12 +206,12 @@ export class SuggestMemories extends Disposable {
 	) {
 		super();
 
-		this._setMode(editor.getConfiguration().contribInfo.suggestSelection);
-		this._register(editor.onDidChangeConfiguration(e => e.contribInfo && this._setMode(editor.getConfiguration().contribInfo.suggestSelection)));
+		this._setMode(editor.getConfiguration().contribInfo.suggestSelection, editor.getConfiguration().contribInfo.suggest.useGlobalStorageForSuggestions);
+		this._register(editor.onDidChangeConfiguration(e => e.contribInfo && this._setMode(editor.getConfiguration().contribInfo.suggestSelection, editor.getConfiguration().contribInfo.suggest.useGlobalStorageForSuggestions)));
 		this._register(_storageService.onWillSaveState(() => this._saveState()));
 	}
 
-	private _setMode(mode: MemMode): void {
+	private _setMode(mode: MemMode, useGlobalStorageForSuggestions: boolean): void {
 		if (this._mode === mode) {
 			return;
 		}
@@ -219,7 +219,7 @@ export class SuggestMemories extends Disposable {
 		this._strategy = mode === 'recentlyUsedByPrefix' ? new PrefixMemory() : mode === 'recentlyUsed' ? new LRUMemory() : new NoMemory();
 
 		try {
-			const raw = this._storageService.get(`${this._storagePrefix}/${this._mode}`, StorageScope.WORKSPACE);
+			const raw = useGlobalStorageForSuggestions ? this._storageService.get(`${this._storagePrefix}/${this._mode}`, StorageScope.GLOBAL) : this._storageService.get(`${this._storagePrefix}/${this._mode}`, StorageScope.WORKSPACE);
 			if (raw) {
 				this._strategy.fromJSON(JSON.parse(raw));
 			}
