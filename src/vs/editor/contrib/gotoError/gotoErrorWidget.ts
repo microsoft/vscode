@@ -125,6 +125,7 @@ class MessageWidget {
 			const sourceElement = document.createElement('div');
 			sourceElement.innerText = `[${source}] `;
 			dom.addClass(sourceElement, 'source');
+			this._editor.applyFontInfo(sourceElement);
 			this._messageBlock.appendChild(sourceElement);
 		}
 		const messageElement = document.createElement('div');
@@ -135,6 +136,7 @@ class MessageWidget {
 			const codeElement = document.createElement('div');
 			codeElement.innerText = ` [${code}]`;
 			dom.addClass(codeElement, 'code');
+			this._editor.applyFontInfo(codeElement);
 			this._messageBlock.appendChild(codeElement);
 		}
 

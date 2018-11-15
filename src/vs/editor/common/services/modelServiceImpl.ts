@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
+import { escape } from 'vs/base/common/strings';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as network from 'vs/base/common/network';
 import { basename } from 'vs/base/common/paths';
@@ -192,36 +192,47 @@ class ModelMarkerHandler {
 		let { message, source, relatedInformation, code } = marker;
 
 		if (typeof message === 'string') {
-			message = message.trim();
 
+			hoverMessage = new MarkdownString();
+			// Disable markdown renderer sanitize to allow html
+			// Hence, escape all input strings
+			hoverMessage.sanitize = false;
 			if (source) {
-				if (/\n/g.test(message)) {
-					if (code) {
-						message = nls.localize('diagAndSourceAndCodeMultiline', "[{0}]\n{1} [{2}]", source, message, code);
-					} else {
-						message = nls.localize('diagAndSourceMultiline', "[{0}]\n{1}", source, message);
-					}
-				} else {
-					if (code) {
-						message = nls.localize('diagAndSourceAndCode', "[{0}] {1} [{2}]", source, message, code);
-					} else {
-						message = nls.localize('diagAndSource', "[{0}] {1}", source, message);
-					}
-				}
+				hoverMessage.appendMarkdown(`<span style='opacity: 0.6'>[${escape(source)}]</span>`);
+				hoverMessage.appendText(' ');
 			}
 
-			hoverMessage = new MarkdownString().appendCodeblock('_', message);
+			message = message.trim();
+			const lines = message.split(/\r\n|\r|\n/g);
+			if (lines.length > 1) {
+				if (source) {
+					hoverMessage.appendMarkdown(`</br>`);
+				}
+				for (const line of lines) {
+					hoverMessage.appendText(line);
+					hoverMessage.appendMarkdown(`</br>`);
+				}
+			} else {
+				hoverMessage.appendText(message);
+			}
+
+			if (code) {
+				if (lines.length === 1) {
+					hoverMessage.appendText(' ');
+				}
+				hoverMessage.appendMarkdown(`<span style='opacity: 0.6'>[${escape(code)}]</span>`);
+			}
 
 			if (isNonEmptyArray(relatedInformation)) {
-				hoverMessage.appendMarkdown('\n');
+				hoverMessage.appendMarkdown(`\n`);
 				for (const { message, resource, startLineNumber, startColumn } of relatedInformation) {
 					hoverMessage.appendMarkdown(
-						`* [${basename(resource.path)}(${startLineNumber}, ${startColumn})](${resource.toString(false)}#${startLineNumber},${startColumn}): `
+						escape(`* [${basename(resource.path)}(${startLineNumber}, ${startColumn})](${resource.toString(false)}#${startLineNumber},${startColumn}): `)
 					);
-					hoverMessage.appendText(`${message}`);
-					hoverMessage.appendMarkdown('\n');
+					hoverMessage.appendText(`${escape(message)}`);
+					hoverMessage.appendMarkdown(`\n`);
 				}
-				hoverMessage.appendMarkdown('\n');
+				hoverMessage.appendMarkdown(`\n`);
 			}
 		}
 
