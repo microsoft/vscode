@@ -8277,6 +8277,10 @@ declare module 'vscode' {
 	 */
 	export class Breakpoint {
 		/**
+		 * The unique ID of the breakpoint.
+		 */
+		readonly id: string;
+		/**
 		 * Is breakpoint enabled.
 		 */
 		readonly enabled: boolean;

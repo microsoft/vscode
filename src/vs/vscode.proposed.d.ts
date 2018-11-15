@@ -567,13 +567,6 @@ declare module 'vscode' {
 
 	//#region André: debug
 
-	export interface Breakpoint {
-		/**
-		 * The id of the breakpoint.
-		 */
-		readonly id: string;
-	}
-
 	/**
 	 * A debug session.
 	 */
