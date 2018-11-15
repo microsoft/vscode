@@ -15,7 +15,7 @@ import { Action } from 'vs/base/common/actions';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { domEvent } from 'vs/base/browser/event';
-import { append, $, addClass, removeClass, finalHandler, join, toggleClass } from 'vs/base/browser/dom';
+import { append, $, addClass, removeClass, finalHandler, join, toggleClass, hide, show } from 'vs/base/browser/dom';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -48,6 +48,7 @@ import { ExtensionsTree, IExtensionData } from 'vs/workbench/parts/extensions/br
 import { ShowCurrentReleaseNotesAction } from 'vs/workbench/parts/update/electron-browser/update';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 
 function renderBody(body: string): string {
 	const styleSheetPath = require.toUrl('./media/markdown.css').replace('file://', 'vscode-core-resource://');
@@ -160,8 +161,8 @@ export class ExtensionEditor extends BaseEditor {
 	private extensionActionBar: ActionBar;
 	private navbar: NavBar;
 	private content: HTMLElement;
-	private recommendation: HTMLElement;
-	private recommendationText: HTMLElement;
+	private subtextContainer: HTMLElement;
+	private subtext: HTMLElement;
 	private ignoreActionbar: ActionBar;
 	private header: HTMLElement;
 
@@ -246,9 +247,9 @@ export class ExtensionEditor extends BaseEditor {
 			}
 		});
 
-		this.recommendation = append(details, $('.recommendation'));
-		this.recommendationText = append(this.recommendation, $('.recommendation-text'));
-		this.ignoreActionbar = new ActionBar(this.recommendation, { animated: false });
+		this.subtextContainer = append(details, $('.subtext-container'));
+		this.subtext = append(this.subtextContainer, $('.subtext'));
+		this.ignoreActionbar = new ActionBar(this.subtextContainer, { animated: false });
 
 		this.disposables.push(this.extensionActionBar);
 		this.disposables.push(this.ignoreActionbar);
@@ -293,21 +294,10 @@ export class ExtensionEditor extends BaseEditor {
 		this.publisher.textContent = extension.publisherDisplayName;
 		this.description.textContent = extension.description;
 
-		removeClass(this.header, 'recommendation-ignored');
-		removeClass(this.header, 'recommended');
-
 		const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
 		let recommendationsData = {};
 		if (extRecommendations[extension.id.toLowerCase()]) {
-			addClass(this.header, 'recommended');
-			this.recommendationText.textContent = extRecommendations[extension.id.toLowerCase()].reasonText;
 			recommendationsData = { recommendationReason: extRecommendations[extension.id.toLowerCase()].reasonId };
-		} else if (this.extensionTipsService.getAllIgnoredRecommendations().global.indexOf(extension.id.toLowerCase()) !== -1) {
-			addClass(this.header, 'recommendation-ignored');
-			this.recommendationText.textContent = localize('recommendationHasBeenIgnored', "You have chosen not to receive recommendations for this extension.");
-		}
-		else {
-			this.recommendationText.textContent = '';
 		}
 
 		/* __GDPR__
@@ -318,7 +308,7 @@ export class ExtensionEditor extends BaseEditor {
 			]
 		}
 		*/
-		this.telemetryService.publicLog('extensionGallery:openExtension', assign(extension.telemetryData, recommendationsData));
+		this.telemetryService.publicLog('extensionGallery:openExtension', recommendationsData);
 
 		toggleClass(this.name, 'clickable', !!extension.url);
 		toggleClass(this.publisher, 'clickable', !!extension.url);
@@ -368,7 +358,7 @@ export class ExtensionEditor extends BaseEditor {
 		const updateAction = this.instantiationService.createInstance(UpdateAction);
 		const enableAction = this.instantiationService.createInstance(EnableAction);
 		const disableAction = this.instantiationService.createInstance(DisableAction);
-		const reloadAction = this.instantiationService.createInstance(ReloadAction, true);
+		const reloadAction = this.instantiationService.createInstance(ReloadAction);
 
 		installAction.extension = extension;
 		maliciousStatusAction.extension = extension;
@@ -382,32 +372,7 @@ export class ExtensionEditor extends BaseEditor {
 		this.extensionActionBar.push([reloadAction, updateAction, enableAction, disableAction, installAction, maliciousStatusAction, disabledStatusAction], { icon: true, label: true });
 		this.transientDisposables.push(enableAction, updateAction, reloadAction, disableAction, installAction, maliciousStatusAction, disabledStatusAction);
 
-		const ignoreAction = this.instantiationService.createInstance(IgnoreExtensionRecommendationAction);
-		const undoIgnoreAction = this.instantiationService.createInstance(UndoIgnoreExtensionRecommendationAction);
-		ignoreAction.extension = extension;
-		undoIgnoreAction.extension = extension;
-
-		this.extensionTipsService.onRecommendationChange(change => {
-			if (change.extensionId.toLowerCase() === extension.id.toLowerCase()) {
-				if (change.isRecommended) {
-					removeClass(this.header, 'recommendation-ignored');
-					const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
-					if (extRecommendations[extension.id.toLowerCase()]) {
-						addClass(this.header, 'recommended');
-						this.recommendationText.textContent = extRecommendations[extension.id.toLowerCase()].reasonText;
-					}
-				} else {
-					addClass(this.header, 'recommendation-ignored');
-					removeClass(this.header, 'recommended');
-					this.recommendationText.textContent = localize('recommendationHasBeenIgnored', "You have chosen not to receive recommendations for this extension.");
-				}
-			}
-		});
-
-		this.ignoreActionbar.clear();
-		this.ignoreActionbar.push([ignoreAction, undoIgnoreAction], { icon: true, label: true });
-		this.transientDisposables.push(ignoreAction, undoIgnoreAction);
-
+		this.setSubText(extension, reloadAction);
 		this.content.innerHTML = ''; // Clear content before setting navbar actions.
 
 		this.navbar.clear();
@@ -435,6 +400,67 @@ export class ExtensionEditor extends BaseEditor {
 			});
 
 		return super.setInput(input, options, token);
+	}
+
+	private setSubText(extension: IExtension, reloadAction: ReloadAction) {
+		if (reloadAction.enabled) {
+			this.subtext.textContent = reloadAction.tooltip;
+			show(this.subtextContainer);
+			return;
+		}
+
+		hide(this.subtextContainer);
+
+		const ignoreAction = this.instantiationService.createInstance(IgnoreExtensionRecommendationAction);
+		const undoIgnoreAction = this.instantiationService.createInstance(UndoIgnoreExtensionRecommendationAction);
+		ignoreAction.extension = extension;
+		undoIgnoreAction.extension = extension;
+		ignoreAction.enabled = false;
+		undoIgnoreAction.enabled = false;
+
+		this.ignoreActionbar.clear();
+		this.ignoreActionbar.push([ignoreAction, undoIgnoreAction], { icon: true, label: true });
+		this.transientDisposables.push(ignoreAction, undoIgnoreAction);
+
+		const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
+		if (extRecommendations[extension.id.toLowerCase()]) {
+			ignoreAction.enabled = true;
+			this.subtext.textContent = extRecommendations[extension.id.toLowerCase()].reasonText;
+			show(this.subtextContainer);
+		} else if (this.extensionTipsService.getAllIgnoredRecommendations().global.indexOf(extension.id.toLowerCase()) !== -1) {
+			undoIgnoreAction.enabled = true;
+			this.subtext.textContent = localize('recommendationHasBeenIgnored', "You have chosen not to receive recommendations for this extension.");
+			show(this.subtextContainer);
+		}
+		else {
+			this.subtext.textContent = '';
+		}
+
+		this.extensionTipsService.onRecommendationChange(change => {
+			if (change.extensionId.toLowerCase() === extension.id.toLowerCase()) {
+				if (change.isRecommended) {
+					undoIgnoreAction.enabled = false;
+					const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
+					if (extRecommendations[extension.id.toLowerCase()]) {
+						ignoreAction.enabled = true;
+						this.subtext.textContent = extRecommendations[extension.id.toLowerCase()].reasonText;
+					}
+				} else {
+					undoIgnoreAction.enabled = true;
+					ignoreAction.enabled = false;
+					this.subtext.textContent = localize('recommendationHasBeenIgnored', "You have chosen not to receive recommendations for this extension.");
+				}
+			}
+		});
+
+		this.extensionsWorkbenchService.onChange(e => {
+			if (areSameExtensions(e, extension) && reloadAction.enabled) {
+				this.subtext.textContent = reloadAction.tooltip;
+				show(this.subtextContainer);
+				ignoreAction.enabled = false;
+				undoIgnoreAction.enabled = false;
+			}
+		});
 	}
 
 	focus(): void {

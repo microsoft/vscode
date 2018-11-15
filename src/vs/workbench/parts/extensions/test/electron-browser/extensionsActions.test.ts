@@ -1070,7 +1070,7 @@ suite('ExtensionsActions Test', () => {
 
 		return new Promise(c => {
 			testObject.onDidChange(() => {
-				if (testObject.enabled && testObject.tooltip === 'Reload to Activate') {
+				if (testObject.enabled && testObject.tooltip === 'Please reload Visual Studio Code to complete the installing of this extension.') {
 					c();
 				}
 			});
@@ -1107,7 +1107,7 @@ suite('ExtensionsActions Test', () => {
 
 		return new Promise(c => {
 			testObject.onDidChange(() => {
-				if (testObject.enabled && testObject.tooltip === 'Reload to Deactivate') {
+				if (testObject.enabled && testObject.tooltip === 'Please reload Visual Studio Code to complete the uninstalling of this extension.') {
 					c();
 				}
 			});
@@ -1147,7 +1147,7 @@ suite('ExtensionsActions Test', () => {
 
 		return new Promise(c => {
 			testObject.onDidChange(() => {
-				if (testObject.enabled && testObject.tooltip === 'Reload to Update') {
+				if (testObject.enabled && testObject.tooltip === 'Please reload Visual Studio Code to complete the updating of this extension.') {
 					c();
 				}
 			});
@@ -1189,7 +1189,7 @@ suite('ExtensionsActions Test', () => {
 			return workbenchService.setEnablement(extensions[0], EnablementState.Disabled)
 				.then(() => {
 					assert.ok(testObject.enabled);
-					assert.equal('Reload to Deactivate', testObject.tooltip);
+					assert.equal('Please reload Visual Studio Code to complete the disabling of this extension.', testObject.tooltip);
 				});
 		});
 	});
@@ -1223,7 +1223,7 @@ suite('ExtensionsActions Test', () => {
 						return workbenchService.setEnablement(extensions[0], EnablementState.Enabled)
 							.then(() => {
 								assert.ok(testObject.enabled);
-								assert.equal('Reload to Activate', testObject.tooltip);
+								assert.equal('Please reload Visual Studio Code to complete the enabling of this extension.', testObject.tooltip);
 							});
 					});
 			});
@@ -1265,7 +1265,7 @@ suite('ExtensionsActions Test', () => {
 						return workbenchService.setEnablement(extensions[0], EnablementState.Enabled)
 							.then(() => {
 								assert.ok(testObject.enabled);
-								assert.equal('Reload to Activate', testObject.tooltip);
+								assert.equal('Please reload Visual Studio Code to complete the enabling of this extension.', testObject.tooltip);
 							});
 
 					});
