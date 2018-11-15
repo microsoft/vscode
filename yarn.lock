@@ -8813,10 +8813,10 @@ typescript-formatter@7.1.0:
     commandpost "^1.0.0"
     editorconfig "^0.15.0"
 
-typescript-tslint-plugin@^0.0.5:
-  version "0.0.5"
-  resolved "https://registry.yarnpkg.com/typescript-tslint-plugin/-/typescript-tslint-plugin-0.0.5.tgz#69243f2cf4f1f99c3f0e2ee456056c6ffc858b38"
-  integrity sha512-OfdDTiaaFBMbyaTSgnGAEGK5ixiMX/5DvggBHVQAjDiJlkPJoBSO47BGMW10CWP6FxIclzA/mvz0qAqK6Kpaag==
+typescript-tslint-plugin@^0.0.7:
+  version "0.0.7"
+  resolved "https://registry.yarnpkg.com/typescript-tslint-plugin/-/typescript-tslint-plugin-0.0.7.tgz#675c26a54b0156aec404abc264d0a87642151d5a"
+  integrity sha512-WH06dLcOjhc6fPwCUwPZKV4Dke7KvsHClZhOfa9WDnWqt08mOXx5h6o6901vakul9r82JFHWz5LSZIijXQZWLQ==
   dependencies:
     minimatch "^3.0.4"
     vscode-languageserver "^5.1.0"

@@ -127,7 +127,7 @@
     "tslint": "^5.9.1",
     "typescript": "3.1.4",
     "typescript-formatter": "7.1.0",
-    "typescript-tslint-plugin": "^0.0.5",
+    "typescript-tslint-plugin": "^0.0.7",
     "uglify-es": "^3.0.18",
     "underscore": "^1.8.2",
     "vinyl": "^0.4.5",
