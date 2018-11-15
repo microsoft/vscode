@@ -634,7 +634,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 					this._tsServerLoading = undefined;
 				}
 
-				const diagnosticEvent: Proto.DiagnosticEvent = event;
+				const diagnosticEvent = event as Proto.DiagnosticEvent;
 				if (diagnosticEvent.body && diagnosticEvent.body.diagnostics) {
 					this._onDiagnosticsReceived.fire({
 						kind: getDignosticsKind(event),
