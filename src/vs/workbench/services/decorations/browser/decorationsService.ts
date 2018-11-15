@@ -55,28 +55,28 @@ class DecorationRule {
 	private _appendForOne(data: IDecorationData, element: HTMLStyleElement, theme: ITheme): void {
 		const { color, letter } = data;
 		// label
-		createCSSRule(`.${this.itemColorClassName}`, `color: ${theme.getColor(color) || 'inherit'};`, element);
+		createCSSRule(`.${this.itemColorClassName}`, `color: ${getColor(theme, color)};`, element);
 		// letter
 		if (letter) {
-			createCSSRule(`.${this.itemBadgeClassName}::after`, `content: "${letter}"; color: ${theme.getColor(color) || 'inherit'};`, element);
+			createCSSRule(`.${this.itemBadgeClassName}::after`, `content: "${letter}"; color: ${getColor(theme, color)};`, element);
 		}
 	}
 
 	private _appendForMany(data: IDecorationData[], element: HTMLStyleElement, theme: ITheme): void {
 		// label
 		const { color } = data[0];
-		createCSSRule(`.${this.itemColorClassName}`, `color: ${theme.getColor(color) || 'inherit'};`, element);
+		createCSSRule(`.${this.itemColorClassName}`, `color: ${getColor(theme, color)};`, element);
 
 		// badge
 		const letters = data.filter(d => !isFalsyOrWhitespace(d.letter)).map(d => d.letter);
 		if (letters.length) {
-			createCSSRule(`.${this.itemBadgeClassName}::after`, `content: "${letters.join(', ')}"; color: ${theme.getColor(color) || 'inherit'};`, element);
+			createCSSRule(`.${this.itemBadgeClassName}::after`, `content: "${letters.join(', ')}"; color: ${getColor(theme, color)};`, element);
 		}
 
 		// bubble badge
 		createCSSRule(
 			`.${this.bubbleBadgeClassName}::after`,
-			`content: "\uf052"; color: ${theme.getColor(color) || 'inherit'}; font-family: octicons; font-size: 14px; padding-right: 14px; opacity: 0.4;`,
+			`content: "\uf052"; color: ${getColor(theme, color)}; font-family: octicons; font-size: 14px; padding-right: 14px; opacity: 0.4;`,
 			element
 		);
 	}
@@ -108,7 +108,11 @@ class DecorationStyles {
 
 	dispose(): void {
 		dispose(this._disposables);
-		this._styleElement.parentElement.removeChild(this._styleElement);
+
+		const parent = this._styleElement.parentElement;
+		if (parent) {
+			parent.removeChild(this._styleElement);
+		}
 	}
 
 	asDecoration(data: IDecorationData[], onlyChildren: boolean): IDecoration {
@@ -174,7 +178,7 @@ class DecorationStyles {
 		this._decorationRules.forEach((value, index) => {
 			const { data } = value;
 			if (value.isUnused()) {
-				let remove: boolean;
+				let remove: boolean = false;
 				if (Array.isArray(data)) {
 					remove = data.some(data => !usedDecorations.has(DecorationRule.keyOf(data)));
 				} else if (!usedDecorations.has(DecorationRule.keyOf(data))) {
@@ -427,3 +431,13 @@ export class FileDecorationsService implements IDecorationsService {
 		}
 	}
 }
+function getColor(theme: ITheme, color: string | undefined) {
+	if (color) {
+		const foundColor = theme.getColor(color);
+		if (foundColor) {
+			return foundColor;
+		}
+	}
+	return 'inherit';
+}
+
