@@ -8176,6 +8176,19 @@ declare module 'vscode' {
 		readonly name: string;
 
 		/**
+		 * The workspace folder of this session or `undefined` for a folderless setup.
+		 */
+		readonly workspaceFolder: WorkspaceFolder | undefined;
+
+		/**
+		 * The "resolved" [debug configuration](#DebugConfiguration) of this session.
+		 * "Resolved" means that
+		 * - all variables have been substituted and
+		 * - platform specific attribute sections have been "flattened" for the matching platform and removed for non-matching platforms.
+		 */
+		readonly configuration: DebugConfiguration;
+
+		/**
 		 * Send a custom request to the debug adapter.
 		 */
 		customRequest(command: string, args?: any): Thenable<any>;

@@ -568,21 +568,6 @@ declare module 'vscode' {
 	//#region André: debug
 
 	/**
-	 * A debug session.
-	 */
-	export interface DebugSession {
-		/**
-		 * The workspace folder of this session or undefined for a folderless setup.
-		 */
-		readonly workspaceFolder: WorkspaceFolder | undefined;
-
-		/**
-		 * The resolved debug configuration for the session.
-		 */
-		readonly configuration: DebugConfiguration;
-	}
-
-	/**
 	 * Represents a debug adapter executable and optional arguments passed to it.
 	 */
 	export class DebugAdapterExecutable {
