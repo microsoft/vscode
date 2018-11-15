@@ -8,48 +8,96 @@ import { MainContext, IMainContext, ExtHostFileSystemShape, MainThreadFileSystem
 import * as vscode from 'vscode';
 import * as files from 'vs/platform/files/common/files';
 import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
-import { values } from 'vs/base/common/map';
-import { Range, FileChangeType } from 'vs/workbench/api/node/extHostTypes';
+import { FileChangeType, DocumentLink } from 'vs/workbench/api/node/extHostTypes';
+import * as typeConverter from 'vs/workbench/api/node/extHostTypeConverters';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
 import { Schemas } from 'vs/base/common/network';
 import { LabelRules } from 'vs/platform/label/common/label';
+import { State, StateMachine, LinkComputer } from 'vs/editor/common/modes/linkComputer';
+import { commonPrefixLength } from 'vs/base/common/strings';
+import { CharCode } from 'vs/base/common/charCode';
 
-class FsLinkProvider implements vscode.DocumentLinkProvider {
+class FsLinkProvider {
 
-	private _schemes = new Set<string>();
-	private _regex: RegExp;
+	private _schemes: string[] = [];
+	private _stateMachine: StateMachine;
 
 	add(scheme: string): void {
-		this._regex = undefined;
-		this._schemes.add(scheme);
+		this._stateMachine = undefined;
+		this._schemes.push(scheme);
 	}
 
 	delete(scheme: string): void {
-		if (this._schemes.delete(scheme)) {
-			this._regex = undefined;
+		let idx = this._schemes.indexOf(scheme);
+		if (idx >= 0) {
+			this._schemes.splice(idx, 1);
+		}
+	}
+
+	private _initStateMachine(): void {
+		if (!this._stateMachine) {
+
+			// sort and compute common prefix with previous scheme
+			// then build state transitions based on the data
+			const schemes = this._schemes.sort();
+			const edges = [];
+			let prevScheme: string;
+			let prevState: State;
+			let nextState = State.LastKnownState;
+			for (const scheme of schemes) {
+
+				// skip the common prefix of the prev scheme
+				// and continue with its last state
+				let pos = !prevScheme ? 0 : commonPrefixLength(prevScheme, scheme);
+				if (pos === 0) {
+					prevState = State.Start;
+				} else {
+					prevState = nextState;
+				}
+
+				for (; pos < scheme.length; pos++) {
+					// keep creating new (next) states until the
+					// end (and the BeforeColon-state) is reached
+					if (pos + 1 === scheme.length) {
+						nextState = State.BeforeColon;
+					} else {
+						nextState += 1;
+					}
+					edges.push([prevState, scheme.toUpperCase().charCodeAt(pos), nextState]);
+					edges.push([prevState, scheme.toLowerCase().charCodeAt(pos), nextState]);
+					prevState = nextState;
+				}
+
+				prevScheme = scheme;
+			}
+
+			// all link must match this pattern `<scheme>:/<more>`
+			edges.push([State.BeforeColon, CharCode.Colon, State.AfterColon]);
+			edges.push([State.AfterColon, CharCode.Slash, State.End]);
+
+			this._stateMachine = new StateMachine(edges);
 		}
 	}
 
 	provideDocumentLinks(document: vscode.TextDocument): vscode.ProviderResult<vscode.DocumentLink[]> {
-		if (this._schemes.size === 0) {
-			return undefined;
-		}
-		if (!this._regex) {
-			this._regex = new RegExp(`(${(values(this._schemes).join('|'))}):[^\\s"']+`, 'gi');
-		}
-		let result: vscode.DocumentLink[] = [];
-		let max = Math.min(document.lineCount, 2500);
-		for (let line = 0; line < max; line++) {
-			this._regex.lastIndex = 0;
-			let textLine = document.lineAt(line);
-			let m: RegExpMatchArray;
-			while (m = this._regex.exec(textLine.text)) {
-				const target = URI.parse(m[0]);
-				if (target.path[0] !== '/') {
-					continue;
-				}
-				const range = new Range(line, this._regex.lastIndex - m[0].length, line, this._regex.lastIndex);
-				result.push({ target, range });
+		this._initStateMachine();
+
+		const result: vscode.DocumentLink[] = [];
+		const links = LinkComputer.computeLinks({
+			getLineContent(lineNumber: number): string {
+				return document.lineAt(lineNumber - 1).text;
+			},
+			getLineCount(): number {
+				return document.lineCount;
+			}
+		}, this._stateMachine);
+
+		for (const link of links) {
+			try {
+				let uri = URI.parse(link.url, true);
+				result.push(new DocumentLink(typeConverter.Range.to(link.range), uri));
+			} catch (err) {
+				// ignore
 			}
 		}
 		return result;
