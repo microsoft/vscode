@@ -471,7 +471,7 @@ export class StartFindWithSelectionAction extends EditorAction {
 				forceRevealReplace: false,
 				seedSearchStringFromSelection: true,
 				seedSearchStringFromGlobalClipboard: false,
-				shouldFocus: FindStartFocusAction.FocusFindInput,
+				shouldFocus: FindStartFocusAction.NoFocusChange,
 				shouldAnimate: true,
 				updateSearchScope: false
 			});
