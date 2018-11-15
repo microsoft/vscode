@@ -6,9 +6,7 @@ steps:
     sudo cp build/tfs/linux/xvfb.init /etc/init.d/xvfb
     sudo chmod +x /etc/init.d/xvfb
     sudo update-rc.d xvfb defaults
-    # sudo ln -sf /bin/dbus-daemon /usr/bin/dbus-daemon
     sudo service xvfb start
-    # sudo service dbus start
 - task: NodeTool@0
   inputs:
     versionSpec: "8.12.0"
