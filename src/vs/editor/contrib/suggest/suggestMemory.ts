@@ -208,7 +208,7 @@ export class SuggestMemories extends Disposable {
 
 		this._setMode(editor.getConfiguration().contribInfo.suggestSelection, editor.getConfiguration().contribInfo.suggest.useGlobalStorageForSuggestions);
 		this._register(editor.onDidChangeConfiguration(e => e.contribInfo && this._setMode(editor.getConfiguration().contribInfo.suggestSelection, editor.getConfiguration().contribInfo.suggest.useGlobalStorageForSuggestions)));
-		this._register(_storageService.onWillSaveState(() => this._saveState()));
+		this._register(_storageService.onWillSaveState(() => this._saveState(editor.getConfiguration().contribInfo.suggest.useGlobalStorageForSuggestions)));
 	}
 
 	private _setMode(mode: MemMode, useGlobalStorageForSuggestions: boolean): void {
@@ -236,8 +236,8 @@ export class SuggestMemories extends Disposable {
 		return this._strategy.select(model, pos, items);
 	}
 
-	private _saveState() {
+	private _saveState(useGlobalStorageForSuggestions: boolean) {
 		const raw = JSON.stringify(this._strategy);
-		this._storageService.store(`${this._storagePrefix}/${this._mode}`, raw, StorageScope.WORKSPACE);
+		useGlobalStorageForSuggestions ? this._storageService.store(`${this._storagePrefix}/${this._mode}`, raw, StorageScope.GLOBAL) : this._storageService.store(`${this._storagePrefix}/${this._mode}`, raw, StorageScope.WORKSPACE);
 	}
 }
