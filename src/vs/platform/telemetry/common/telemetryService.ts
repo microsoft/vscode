@@ -141,11 +141,11 @@ export class TelemetryService implements ITelemetryService {
 				}
 				// Anoynimize user file paths that do not need to be retained or cleaned up.
 				if (!nodeModulesRegex.test(result[0]) && cleanUpIndexes.every(([x, y]) => result.index < x || result.index >= y)) {
-					updatedStack += stack.substring(lastIndex, result.index) + '<user-file-path>';
+					updatedStack += stack.substring(lastIndex, result.index) + '<REDACTED: user-file-path>';
 					lastIndex = fileRegex.lastIndex;
 				}
 			}
-			if (lastIndex < stack.length - 1) {
+			if (lastIndex < stack.length) {
 				updatedStack += stack.substr(lastIndex);
 			}
 		}
