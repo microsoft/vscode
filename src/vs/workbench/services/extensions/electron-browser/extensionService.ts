@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import * as os from 'os';
 import * as path from 'path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Barrier, runWhenIdle } from 'vs/base/common/async';
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -658,7 +658,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	}
 
 	private _updateEnableProposedApi(extension: IExtensionDescription, enableProposedApiForAll: boolean, enableProposedApiFor: string | string[]): IExtensionDescription {
-		if (!isFalsyOrEmpty(product.extensionAllowedProposedApi)
+		if (isNonEmptyArray(product.extensionAllowedProposedApi)
 			&& product.extensionAllowedProposedApi.indexOf(extension.id) >= 0
 		) {
 			// fast lane -> proposed api is available to all extensions

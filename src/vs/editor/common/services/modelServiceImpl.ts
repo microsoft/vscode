@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -212,9 +212,9 @@ class ModelMarkerHandler {
 
 			hoverMessage = new MarkdownString().appendCodeblock('_', message);
 
-			if (!isFalsyOrEmpty(relatedInformation)) {
+			if (isNonEmptyArray(relatedInformation)) {
 				hoverMessage.appendMarkdown('\n');
-				for (const { message, resource, startLineNumber, startColumn } of relatedInformation!) {
+				for (const { message, resource, startLineNumber, startColumn } of relatedInformation) {
 					hoverMessage.appendMarkdown(
 						`* [${basename(resource.path)}(${startLineNumber}, ${startColumn})](${resource.toString(false)}#${startLineNumber},${startColumn}): `
 					);

@@ -29,7 +29,7 @@ import { IWindowService, IWindowsService } from 'vs/platform/windows/common/wind
 import { writeFile } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { memoize } from 'vs/base/common/decorators';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
 import { DisableForWorkspaceAction, DisableGloballyAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -362,7 +362,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 					}, "Activated on {0}", activationTimes.activationEvent);
 				}
 				data.activationTime.title = title;
-				if (!isFalsyOrEmpty(element.status.runtimeErrors)) {
+				if (isNonEmptyArray(element.status.runtimeErrors)) {
 					data.msgIcon.className = 'octicon octicon-bug';
 					data.msgLabel.textContent = nls.localize('errors', "{0} uncaught errors", element.status.runtimeErrors.length);
 				} else if (element.status.messages && element.status.messages.length > 0) {

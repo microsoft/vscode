@@ -19,7 +19,7 @@ import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesSh
 import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range as EditorRange } from 'vs/editor/common/core/range';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { isFalsyOrEmpty, isNonEmptyArray } from 'vs/base/common/arrays';
 import { isObject } from 'vs/base/common/types';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
@@ -433,7 +433,7 @@ class NavigateTypeAdapter {
 	provideWorkspaceSymbols(search: string, token: CancellationToken): Thenable<WorkspaceSymbolsDto> {
 		const result: WorkspaceSymbolsDto = IdObject.mixin({ symbols: [] });
 		return asThenable(() => this._provider.provideWorkspaceSymbols(search, token)).then(value => {
-			if (!isFalsyOrEmpty(value)) {
+			if (isNonEmptyArray(value)) {
 				for (const item of value) {
 					if (!item) {
 						// drop
