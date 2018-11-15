@@ -35,7 +35,7 @@ class FsLinkProvider implements vscode.DocumentLinkProvider {
 			return undefined;
 		}
 		if (!this._regex) {
-			this._regex = new RegExp(`(${(values(this._schemes).join('|'))}):[^\\s]+`, 'gi');
+			this._regex = new RegExp(`(${(values(this._schemes).join('|'))}):[^\\s"']+`, 'gi');
 		}
 		let result: vscode.DocumentLink[] = [];
 		let max = Math.min(document.lineCount, 2500);
