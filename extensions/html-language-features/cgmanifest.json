@@ -6,7 +6,7 @@
 				"git": {
 					"name": "js-beautify",
 					"repositoryUrl": "https://github.com/beautify-web/js-beautify",
-					"commitHash": ""
+					"commitHash": "12e73365f9d0b203843c5b7c22d7017845a7c580"
 				}
 			},
 			"license": "MIT",

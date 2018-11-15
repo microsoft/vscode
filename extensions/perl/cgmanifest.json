@@ -6,7 +6,7 @@
 				"git": {
 					"name": "textmate/perl.tmbundle",
 					"repositoryUrl": "https://github.com/textmate/perl.tmbundle",
-					"commitHash": ""
+					"commitHash": "80826abe75250286c2a1a07958e50e8551d3f50c"
 				}
 			},
 			"licenseDetail": [
@@ -25,6 +25,7 @@
 				"\"tidy\" is accompanied by \"tidy-license.txt\"."
 			],
 			"license": "TextMate Bundle License",
+			"description": "The files syntaxes/perl.tmLanguage.json and syntaxes/perl6.tmLanguage.json were derived from Perl.plist and Perl 6.tmLanguage from https://github.com/textmate/perl.tmbundle.",
 			"version": "0.0.0"
 		}
 	],

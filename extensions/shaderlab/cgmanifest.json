@@ -6,7 +6,7 @@
 				"git": {
 					"name": "shaders-tmLanguage",
 					"repositoryUrl": "https://github.com/tgjones/shaders-tmLanguage",
-					"commitHash": ""
+					"commitHash": "c72c8b39380ba5a86c58ceed053b5d965ebf38b3"
 				}
 			},
 			"license": "MIT",

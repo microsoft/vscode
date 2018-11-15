@@ -6,7 +6,7 @@
 				"git": {
 					"name": "vscode-swift",
 					"repositoryUrl": "https://github.com/owensd/vscode-swift",
-					"commitHash": ""
+					"commitHash": "cec27af6662e3799120b208e64483efdfe5521f5"
 				}
 			},
 			"licenseDetail": [
@@ -32,6 +32,7 @@
 				"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE."
 			],
 			"license": "MIT",
+			"description": "The files in this folder are based on https://github.com/owensd/vscode-swift.",
 			"version": "0.0.1"
 		},
 		{

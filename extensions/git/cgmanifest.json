@@ -6,7 +6,7 @@
 				"git": {
 					"name": "textmate/git.tmbundle",
 					"repositoryUrl": "https://github.com/textmate/git.tmbundle",
-					"commitHash": ""
+					"commitHash": "93897a78c6e52bef13dadc0d4091d203c5facb40"
 				}
 			},
 			"licenseDetail": [
@@ -40,7 +40,7 @@
 				"git": {
 					"name": "textmate/diff.tmbundle",
 					"repositoryUrl": "https://github.com/textmate/diff.tmbundle",
-					"commitHash": ""
+					"commitHash": "0593bb775eab1824af97ef2172fd38822abd97d7"
 				}
 			},
 			"licenseDetail": [

@@ -6,7 +6,7 @@
 				"git": {
 					"name": "Microsoft/vscode-JSON.tmLanguage",
 					"repositoryUrl": "https://github.com/Microsoft/vscode-JSON.tmLanguage",
-					"commitHash": ""
+					"commitHash": "9bd83f1c252b375e957203f21793316203f61f70"
 				}
 			},
 			"license": "MIT",
