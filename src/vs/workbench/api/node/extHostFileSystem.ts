@@ -31,6 +31,7 @@ class FsLinkProvider {
 		let idx = this._schemes.indexOf(scheme);
 		if (idx >= 0) {
 			this._schemes.splice(idx, 1);
+			this._stateMachine = undefined;
 		}
 	}
 
