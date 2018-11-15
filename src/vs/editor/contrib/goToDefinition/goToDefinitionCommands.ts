@@ -249,13 +249,24 @@ export class PeekDefinitionAction extends DefinitionAction {
 	}
 }
 
-export class GoToDeclarationAction extends DefinitionAction {
+export class DeclarationAction extends DefinitionAction {
 
-	public static readonly ID = 'editor.action.goToDeclaration';
+	protected _getNoResultFoundMessage(info?: IWordAtPosition): string {
+		return info && info.word
+			? nls.localize('decl.noResultWord', "No declaration found for '{0}'", info.word)
+			: nls.localize('decl.generic.noResults', "No declaration found");
+	}
+
+	protected _getMetaTitle(model: ReferencesModel): string {
+		return model.references.length > 1 && nls.localize('decl.meta.title', " – {0} declarations", model.references.length);
+	}
+}
+
+export class GoToDeclarationAction extends DeclarationAction {
 
 	constructor() {
 		super(new DefinitionActionConfig(), {
-			id: GoToDeclarationAction.ID,
+			id: 'editor.action.goToDeclaration',
 			label: nls.localize('actions.goToDeclaration.label', "Go to Declaration"),
 			alias: 'Go to Declaration',
 			precondition: ContextKeyExpr.and(
@@ -281,6 +292,30 @@ export class GoToDeclarationAction extends DefinitionAction {
 
 	protected _getMetaTitle(model: ReferencesModel): string {
 		return model.references.length > 1 && nls.localize('decl.meta.title', " – {0} declarations", model.references.length);
+	}
+}
+
+export class PeekDeclarationAction extends DeclarationAction {
+	constructor() {
+		super(new DefinitionActionConfig(void 0, true, false), {
+			id: 'editor.action.peekDeclaration',
+			label: nls.localize('actions.peekDecl.label', "Peek Declaration"),
+			alias: 'Peek Declaration',
+			precondition: ContextKeyExpr.and(
+				EditorContextKeys.hasDefinitionProvider,
+				PeekContext.notInPeekEditor,
+				EditorContextKeys.isInEmbeddedEditor.toNegated()),
+			kbOpts: {
+				kbExpr: EditorContextKeys.editorTextFocus,
+				primary: KeyMod.Alt | KeyCode.F12,
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F10 },
+				weight: KeybindingWeight.EditorContrib
+			},
+			menuOpts: {
+				group: 'navigation',
+				order: 1.31
+			}
+		});
 	}
 }
 
