@@ -261,7 +261,7 @@ export class DebugHoverWidget implements IContentWidget {
 		if (visibleElementsCount === 0) {
 			this.doShow(this.showAtPosition, this.tree.getInput(), false, true);
 		} else {
-			const height = Math.min(visibleElementsCount, MAX_ELEMENTS_SHOWN) * 18;
+			const height = Math.min(visibleElementsCount, MAX_ELEMENTS_SHOWN) * 18 + 10; // add 10 px for the horizontal scroll bar
 
 			if (this.treeContainer.clientHeight !== height) {
 				this.treeContainer.style.height = `${height}px`;
