@@ -9,7 +9,7 @@ import { Disposable } from './dispose';
 export interface TypeScriptServerPlugin {
 	readonly path: string;
 	readonly name: string;
-	readonly languages: string[];
+	readonly languages: ReadonlyArray<string>;
 }
 
 export function getContributedTypeScriptServerPlugins(): TypeScriptServerPlugin[] {
