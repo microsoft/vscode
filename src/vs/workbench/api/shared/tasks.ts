@@ -62,6 +62,8 @@ export interface ShellExecutionDTO {
 
 export interface ExtensionCommandExecutionOptionsDTO {
 	args: any[];
+	showOutput?(): any;
+	terminate?(): any;
 }
 
 export interface ExtensionCommandExecutionDTO {

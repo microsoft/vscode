@@ -1518,10 +1518,10 @@ export class ExtensionCommandExecution implements vscode.ExtensionCommandExecuti
 		const hash = crypto.createHash('md5');
 		hash.update('extensionCommand');
 		hash.update(this.command);
-		if (this._options !== void 0) {
+		if (this._options !== void 0 && this._options.args !== void 0) {
 			// Use best effort attempt to has the arguments.
 			try {
-				const jsonValue: string = JSON.stringify(this._options);
+				const jsonValue: string = JSON.stringify(this._options.args);
 				hash.update(jsonValue);
 			} catch (e) {
 			}

@@ -74,7 +74,7 @@ import { ITaskSystem, ITaskResolver, ITaskSummary, TaskExecuteKind, TaskError, T
 import {
 	Task, CustomTask, ConfiguringTask, ContributedTask, InMemoryTask, TaskEvent,
 	TaskEventKind, TaskSet, TaskGroup, GroupType, ExecutionEngine, JsonSchemaVersion, TaskSourceKind,
-	TaskSorter, TaskIdentifier, KeyedTaskIdentifier, TASK_RUNNING_STATE
+	TaskSorter, TaskIdentifier, KeyedTaskIdentifier, TASK_RUNNING_STATE, RuntimeType
 } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService, ITaskProvider, RunOptions, CustomizationProperties, TaskFilter } from 'vs/workbench/parts/tasks/common/taskService';
 import { getTemplates as getTaskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
@@ -465,6 +465,8 @@ class TaskService extends Disposable implements ITaskService {
 
 	private _outputChannel: IOutputChannel;
 	private readonly _onDidStateChange: Emitter<TaskEvent>;
+	private readonly _onRequestTerminateExtensionCommandTask: Emitter<Task>;
+
 
 	constructor(
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -488,7 +490,7 @@ class TaskService extends Disposable implements ITaskService {
 		@IDialogService private dialogService: IDialogService,
 		@INotificationService private notificationService: INotificationService,
 		@ICommandService private commandService: ICommandService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super();
 
@@ -541,11 +543,16 @@ class TaskService extends Disposable implements ITaskService {
 		this._register(lifecycleService.onWillShutdown(event => event.veto(this.beforeShutdown())));
 		this._register(storageService.onWillSaveState(() => this.saveState()));
 		this._onDidStateChange = this._register(new Emitter());
+		this._onRequestTerminateExtensionCommandTask = this._register(new Emitter());
 		this.registerCommands();
 	}
 
 	public get onDidStateChange(): Event<TaskEvent> {
 		return this._onDidStateChange.event;
+	}
+
+	public get onRequestTerminateExtensionCommandTask(): Event<Task> {
+		return this._onRequestTerminateExtensionCommandTask.event;
 	}
 
 	public get supportsMultipleTaskExecutions(): boolean {
@@ -1276,6 +1283,11 @@ class TaskService extends Disposable implements ITaskService {
 		if (!this._taskSystem) {
 			return TPromise.as({ success: true, task: undefined });
 		}
+
+		if ((ContributedTask.is(task) || CustomTask.is(task)) && task.command.runtime === RuntimeType.ExtensionCommand) {
+			return this._onRequestTerminateExtensionCommandTask.fire(task);
+		}
+
 		return this._taskSystem.terminate(task);
 	}
 

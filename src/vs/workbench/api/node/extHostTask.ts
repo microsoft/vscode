@@ -29,6 +29,8 @@ import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumen
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { CommandOptions } from 'vs/workbench/parts/tasks/node/taskConfiguration';
+import * as crypto from 'crypto';
 
 /*
 namespace ProblemPattern {
@@ -424,7 +426,9 @@ namespace Tasks {
 		if (value.options !== void 0 && value.options !== null) {
 			result.options = {
 				extensionCommand: {
-					args: value.options.args
+					args: value.options.args,
+					terminate: value.options.terminate,
+					showOutput: value.options.showOutput
 				}
 			};
 		}
@@ -552,7 +556,7 @@ namespace ProcessExecutionDTO {
 	}
 }
 
-namespace ExtensionCallbackExecutionDTO {
+namespace ExtensionCommandExecutionDTO {
 	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | ExtensionCommandExecutionDTO): value is ExtensionCommandExecutionDTO {
 		let candidate = value as ExtensionCommandExecutionDTO;
 		return candidate && !!candidate.command;
@@ -569,7 +573,9 @@ namespace ExtensionCallbackExecutionDTO {
 
 		if (value.options !== void 0 && value.options !== null) {
 			result.options = {
-				args: value.options.args
+				args: value.options.args,
+				showOutput: value.options.showOutput,
+				terminate: value.options.terminate
 			};
 		}
 
@@ -582,7 +588,7 @@ namespace ExtensionCallbackExecutionDTO {
 		}
 
 		if (value.options !== void 0 && value.options !== null) {
-			return new types.ExtensionCommandExecution(value.command, { args: value.options.args });
+			return new types.ExtensionCommandExecution(value.command, { args: value.options.args, showOutput: value.options.showOutput, terminate: value.options.terminate });
 		}
 
 		return new types.ExtensionCommandExecution(value.command);
@@ -657,12 +663,15 @@ namespace TaskDTO {
 		if (value === void 0 || value === null) {
 			return undefined;
 		}
-		let execution: ShellExecutionDTO | ProcessExecutionDTO;
+		let execution: ShellExecutionDTO | ProcessExecutionDTO | ExtensionCommandExecutionDTO;
 		if (value.execution instanceof types.ProcessExecution) {
 			execution = ProcessExecutionDTO.from(value.execution);
 		} else if (value.execution instanceof types.ShellExecution) {
 			execution = ShellExecutionDTO.from(value.execution);
+		} else if (value.execution instanceof types.ExtensionCommandExecution) {
+			execution = ExtensionCommandExecutionDTO.from(value.execution);
 		}
+
 		let definition: TaskDefinitionDTO = TaskDefinitionDTO.from(value.definition);
 		let scope: number | UriComponents;
 		if (value.scope) {
@@ -703,8 +712,8 @@ namespace TaskDTO {
 			execution = ProcessExecutionDTO.to(value.execution);
 		} else if (ShellExecutionDTO.is(value.execution)) {
 			execution = ShellExecutionDTO.to(value.execution);
-		} else if (ExtensionCallbackExecutionDTO.is(value.execution)) {
-			execution = ExtensionCallbackExecutionDTO.to(value.execution);
+		} else if (ExtensionCommandExecutionDTO.is(value.execution)) {
+			execution = ExtensionCommandExecutionDTO.to(value.execution);
 		}
 		let definition: vscode.TaskDefinition = TaskDefinitionDTO.to(value.definition);
 		let scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder;
@@ -800,6 +809,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 	private _handleCounter: number;
 	private _handlers: Map<number, HandlerData>;
 	private _taskExecutions: Map<string, TaskExecutionImpl>;
+	private _extensionCommandTaskOptions: Map<string, tasks.CommandOptions>;
 
 	private readonly _onDidExecuteTask: Emitter<vscode.TaskStartEvent> = new Emitter<vscode.TaskStartEvent>();
 	private readonly _onDidTerminateTask: Emitter<vscode.TaskEndEvent> = new Emitter<vscode.TaskEndEvent>();
@@ -875,6 +885,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 		if (!(execution instanceof TaskExecutionImpl)) {
 			throw new Error('No valid task execution provided');
 		}
+
 		return this._proxy.$terminateTask((execution as TaskExecutionImpl)._id);
 	}
 
@@ -933,6 +944,16 @@ export class ExtHostTask implements ExtHostTaskShape {
 		if (!handler) {
 			return Promise.reject(new Error('no handler found'));
 		}
+
+		// We need to store the extension command executions so we can properly
+		// terminate and reveal them.
+		// This is because the main thread has no concept of the callback
+		// functions for "reveal" and "terminate" so the extension host
+		// must maintain them.
+		// NOTE: This relies on the fact that provide tasks is called before
+		// every command execution.
+		this._extensionCommandTaskOptions = new Map<string, tasks.CommandOptions>();
+
 		return asThenable(() => handler.provider.provideTasks(CancellationToken.None)).then(value => {
 			let sanitized: vscode.Task[] = [];
 			for (let task of value) {
@@ -944,10 +965,50 @@ export class ExtHostTask implements ExtHostTaskShape {
 				}
 			}
 			let workspaceFolders = this._workspaceService.getWorkspaceFolders();
-			return {
+			let results = {
 				tasks: Tasks.from(sanitized, workspaceFolders && workspaceFolders.length > 0 ? workspaceFolders[0] : undefined, handler.extension),
 				extension: handler.extension
 			};
+
+			for (let possibleExtensionCommandTask of results.tasks) {
+				if (possibleExtensionCommandTask.command.runtime === tasks.RuntimeType.ExtensionCommand &&
+					possibleExtensionCommandTask.command.options !== void 0) {
+					// Now, for some not so elegant stuff.
+					// We need to create an identifier that tracks this extension command task.
+					// This is actually computed in the main thread. The ID that is present
+					// in the extension host is not the complete ID and cannot be used
+					// to track the extension command tasks options (such as the terminate and reveal callbacks).
+					// TODO: Find a much more elegant way to do this.
+					const hash = crypto.createHash('md5');
+
+					// Add the extension ID.
+					hash.update(possibleExtensionCommandTask._source.extension);
+					if (possibleExtensionCommandTask.command.name !== void 0) {
+						hash.update(tasks.CommandString.value(possibleExtensionCommandTask.command.name));
+					}
+
+					// Add the task definition object. (We cheat and just turn it into a string).
+					let taskDefinition = (possibleExtensionCommandTask._source as any as tasks.ExtensionTaskSourceTransfer).__definition;
+					if (taskDefinition !== void 0) {
+						try {
+							hash.update(JSON.stringify(taskDefinition));
+						} catch {
+						}
+					}
+
+					// If there are any arguments, add those as well.
+					if (possibleExtensionCommandTask.command.options.extensionCommand !== void 0 &&
+						possibleExtensionCommandTask.command.options.extensionCommand.args !== void 0) {
+						try {
+							hash.update(JSON.stringify(possibleExtensionCommandTask.command.options.extensionCommand.args));
+						} catch {
+						}
+					}
+
+					this._extensionCommandTaskOptions.set(hash.digest('hex'), possibleExtensionCommandTask.command.options);
+				}
+			}
+			return results;
 		});
 	}
 
@@ -985,6 +1046,57 @@ export class ExtHostTask implements ExtHostTaskShape {
 			);
 		}
 		return Promise.resolve(result);
+	}
+
+	public $terminateExtensionCommandTask(taskExecutionDTO: TaskExecutionDTO): Thenable<void> {
+		if (!this._extensionCommandTaskOptions) {
+			return Promise.reject(new Error('Do not have any cached extension command executions'));
+		}
+
+		if (!ExtensionCommandExecutionDTO.is(taskExecutionDTO.task.execution)) {
+			return Promise.reject(new Error('Expected extension command executions'));
+		}
+
+		// Now, for some not so elegant stuff.
+		// We need to regenerate the ID that was created above when the task was provided.
+		// The ID passed in TaskExecutionDTO.Id was actually computed on the main thread
+		// and is not the same ID we generated above (perhaps it could be??).
+		// TODO: Find a much more elegant way to do this.
+		const hash = crypto.createHash('md5');
+		hash.update(taskExecutionDTO.task.source.extensionId);
+		if (taskExecutionDTO.task.execution.command !== void 0) {
+			hash.update(tasks.CommandString.value(taskExecutionDTO.task.execution.command));
+		}
+
+		if (taskExecutionDTO.task.definition !== void 0) {
+			try {
+				hash.update(JSON.stringify(taskExecutionDTO.task.definition));
+			} catch {
+			}
+		}
+
+		if (taskExecutionDTO.task.execution.options !== void 0 &&
+			taskExecutionDTO.task.execution.options.args !== void 0) {
+			try {
+				hash.update(JSON.stringify(taskExecutionDTO.task.execution.options.args));
+			} catch {
+			}
+		}
+
+		let id = hash.digest('hex');
+
+		let commandExecution = this._extensionCommandTaskOptions.get(id);
+		if (!commandExecution) {
+			return Promise.reject(new Error('Extension command execution not found'));
+		}
+
+		this._extensionCommandTaskOptions.delete(id);
+
+		if (commandExecution.extensionCommand === void 0 || commandExecution.extensionCommand.terminate === void 0) {
+			return Promise.resolve();
+		}
+
+		return asThenable(() => commandExecution.extensionCommand.terminate());
 	}
 
 	private nextHandle(): number {

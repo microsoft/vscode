@@ -94,6 +94,16 @@ export interface ExtensionCommandConfiguration {
 	 * Arguments for executing the command.
 	 */
 	args?: any[];
+
+	/**
+	 * Called to show the output of the running command.
+	 */
+	showOutput?(): any;
+
+	/**
+	 * Called to terminate the output of a running command.
+	 */
+	terminate?(): any;
 }
 
 export interface CommandOptions {

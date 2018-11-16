@@ -33,7 +33,7 @@ import { IOutputService, IOutputChannel } from 'vs/workbench/parts/output/common
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEventKind } from 'vs/workbench/parts/tasks/common/problemCollectors';
 import {
 	Task, CustomTask, ContributedTask, RevealKind, CommandOptions, ShellConfiguration, RuntimeType, PanelKind,
-	TaskEvent, TaskEventKind, ShellQuotingOptions, ShellQuoting, CommandString, CommandConfiguration, TaskDefinition
+	TaskEvent, TaskEventKind, ShellQuotingOptions, ShellQuoting, CommandString, CommandConfiguration
 } from 'vs/workbench/parts/tasks/common/tasks';
 import {
 	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, ITaskResolver,
@@ -121,15 +121,20 @@ export class TerminalTaskSystem implements ITaskSystem {
 	private readonly _commandService: ICommandService;
 
 	private readonly _onDidStateChange: Emitter<TaskEvent>;
+	private readonly _onRequestTerminateExtensionCommandTask: Emitter<Task>;
 
-	constructor(private terminalService: ITerminalService, private outputService: IOutputService,
-		private markerService: IMarkerService, private modelService: IModelService,
+	constructor(
+		private terminalService: ITerminalService,
+		private outputService: IOutputService,
+		private markerService: IMarkerService,
+		private modelService: IModelService,
 		private configurationResolverService: IConfigurationResolverService,
 		private telemetryService: ITelemetryService,
 		private contextService: IWorkspaceContextService,
 		outputChannelId: string,
 		taskSystemInfoResolver: TaskSystemInfoResovler,
-		commandService: ICommandService) {
+		commandService: ICommandService,
+	) {
 
 		this.outputChannel = this.outputService.getChannel(outputChannelId);
 		this.activeTasks = Object.create(null);
@@ -140,10 +145,15 @@ export class TerminalTaskSystem implements ITaskSystem {
 		this._onDidStateChange = new Emitter();
 		this.taskSystemInfoResolver = taskSystemInfoResolver;
 		this._commandService = commandService;
+		this._onRequestTerminateExtensionCommandTask = new Emitter();
 	}
 
 	public get onDidStateChange(): Event<TaskEvent> {
 		return this._onDidStateChange.event;
+	}
+
+	public get onRequestTerminateExtensionCommandTask(): Event<Task> {
+		return this._onRequestTerminateExtensionCommandTask.event;
 	}
 
 	public log(value: string): void {
@@ -342,11 +352,10 @@ export class TerminalTaskSystem implements ITaskSystem {
 				// has a recourse to cancel a task started this way?
 				// Perhaps commands of this nature have a more rigid argument structure than
 				// regular old extension commands. Hmmm....
-				const taskDefinition = Task.getTaskDefinition(task);
 				if (task.command.options && task.command.options.extensionCommand) {
-					commandPromise = this._commandService.executeCommand(task.command.name, ...[...task.command.options.extensionCommand.args, taskDefinition]);
+					commandPromise = this._commandService.executeCommand(task.command.name, ...task.command.options.extensionCommand.args);
 				} else {
-					commandPromise = this._commandService.executeCommand(task.command.name, taskDefinition);
+					commandPromise = this._commandService.executeCommand(task.command.name);
 				}
 			}
 

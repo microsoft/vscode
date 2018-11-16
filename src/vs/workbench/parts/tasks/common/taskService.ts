@@ -41,6 +41,7 @@ export interface TaskFilter {
 export interface ITaskService {
 	_serviceBrand: any;
 	onDidStateChange: Event<TaskEvent>;
+	onRequestTerminateExtensionCommandTask: Event<Task>;
 	supportsMultipleTaskExecutions: boolean;
 
 	configureAction(): Action;

@@ -210,7 +210,9 @@ namespace ExtensionCommandExecutionDTO {
 		if (value.options !== void 0 && value.options !== null &&
 			value.options.extensionCommand !== void 0 && value.options.extensionCommand !== null) {
 			result.options = {
-				args: value.options.extensionCommand.args
+				args: value.options.extensionCommand.args,
+				showOutput: value.options.extensionCommand.showOutput,
+				terminate: value.options.extensionCommand.terminate,
 			};
 		}
 
@@ -231,7 +233,9 @@ namespace ExtensionCommandExecutionDTO {
 		if (value.options !== void 0 && value.options !== null) {
 			result.options = {
 				extensionCommand: {
-					args: value.options.args
+					args: value.options.args,
+					showOutput: value.options.showOutput,
+					terminate: value.options.terminate
 				}
 			};
 		}
@@ -438,6 +442,10 @@ export class MainThreadTask implements MainThreadTaskShape {
 			} else if (event.kind === TaskEventKind.End) {
 				this._proxy.$OnDidEndTask(TaskExecutionDTO.from(Task.getTaskExecution(task)));
 			}
+		});
+
+		this._taskService.onRequestTerminateExtensionCommandTask((task) => {
+			this._proxy.$terminateExtensionCommandTask(TaskExecutionDTO.from(Task.getTaskExecution(task)));
 		});
 	}
 
