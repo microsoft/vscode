@@ -425,8 +425,8 @@ export abstract class BaseEditorSimpleWorker {
 				lastEol = eol;
 			}
 
-			if (Range.isEmpty(range) && !text) {
-				// empty change
+			if (!range) {
+				// eol-change only
 				continue;
 			}
 
@@ -463,7 +463,7 @@ export abstract class BaseEditorSimpleWorker {
 		}
 
 		if (typeof lastEol === 'number') {
-			result.push({ eol: lastEol, text: '', range: { startLineNumber: 0, startColumn: 0, endLineNumber: 0, endColumn: 0 } });
+			result.push({ eol: lastEol, text: undefined, range: undefined });
 		}
 
 		return Promise.resolve(result);

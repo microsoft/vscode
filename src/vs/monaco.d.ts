@@ -5148,6 +5148,10 @@ declare namespace monaco.languages {
 		range: IRange;
 		text: string;
 		eol?: editor.EndOfLineSequence;
+	} | {
+		range: undefined;
+		text: undefined;
+		eol: editor.EndOfLineSequence;
 	};
 
 	/**
