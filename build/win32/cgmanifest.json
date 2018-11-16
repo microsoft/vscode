@@ -6,7 +6,7 @@
 				"git": {
 					"name": "Amanieu/thread_local-rs",
 					"repositoryUrl": "https://github.com/Amanieu/thread_local-rs",
-					"commitHash": ""
+					"commitHash": "c1c1ac3e15e4698c05b703972b02397f02f0a019"
 				}
 			},
 			"licenseDetail": [
@@ -45,7 +45,7 @@
 				"git": {
 					"name": "BurntSushi/byteorder",
 					"repositoryUrl": "https://github.com/BurntSushi/byteorder",
-					"commitHash": ""
+					"commitHash": "610bf24463cb6ec06e57405b672dea33713689a1"
 				}
 			},
 			"licenseDetail": [
@@ -80,7 +80,7 @@
 				"git": {
 					"name": "Sgeo/take_mut",
 					"repositoryUrl": "https://github.com/Sgeo/take_mut",
-					"commitHash": ""
+					"commitHash": "b8060ab066ef3ce07f1313c780b152e4035649b1"
 				}
 			},
 			"licenseDetail": [
@@ -115,7 +115,7 @@
 				"git": {
 					"name": "Stebalien/term",
 					"repositoryUrl": "https://github.com/Stebalien/term",
-					"commitHash": ""
+					"commitHash": "4ae8f825d79d47a2b681e7fabc7a73a6798b8eae"
 				}
 			},
 			"licenseDetail": [
@@ -154,7 +154,7 @@
 				"git": {
 					"name": "chronotope/chrono",
 					"repositoryUrl": "https://github.com/chronotope/chrono",
-					"commitHash": ""
+					"commitHash": "fe529c801609ea1063d901a17adba229682405ab"
 				}
 			},
 			"licenseDetail": [
@@ -407,7 +407,7 @@
 				"git": {
 					"name": "dtolnay/isatty",
 					"repositoryUrl": "https://github.com/dtolnay/isatty",
-					"commitHash": ""
+					"commitHash": "bd19ce94915a875253cc6b909e13f4907de92556"
 				}
 			},
 			"licenseDetail": [
@@ -446,7 +446,7 @@
 				"git": {
 					"name": "mrhooray/crc-rs",
 					"repositoryUrl": "https://github.com/mrhooray/crc-rs.git",
-					"commitHash": ""
+					"commitHash": "07e9ccfd5d219753d3d2de5d3b59534a6bc0a450"
 				}
 			},
 			"licenseDetail": [
@@ -480,8 +480,8 @@
 				"type": "git",
 				"git": {
 					"name": "redox-os/syscall",
-					"repositoryUrl": "https://github.com/redox-os/termios",
-					"commitHash": ""
+					"repositoryUrl": "https://github.com/redox-os/syscall",
+					"commitHash": "7c805d2a289ec19bf505256eb90395913d9f50b9"
 				}
 			},
 			"licenseDetail": [
@@ -517,7 +517,7 @@
 				"git": {
 					"name": "redox-os/termios",
 					"repositoryUrl": "https://github.com/redox-os/termios",
-					"commitHash": ""
+					"commitHash": "32370940f0fe1607e175c041a89b9f2bd931b7bf"
 				}
 			},
 			"licenseDetail": [
@@ -552,7 +552,7 @@
 				"git": {
 					"name": "reem/rust-unreachable",
 					"repositoryUrl": "https://github.com/reem/rust-unreachable.git",
-					"commitHash": ""
+					"commitHash": "a4bff7446ff946dec7ff45b30868264dcd477c01"
 				}
 			},
 			"licenseDetail": [
@@ -585,7 +585,7 @@
 				"git": {
 					"name": "reem/rust-void",
 					"repositoryUrl": "https://github.com/reem/rust-void.git",
-					"commitHash": ""
+					"commitHash": "ab2f4dbb7c95c144ccba2fa8afd11e155aa91133"
 				}
 			},
 			"licenseDetail": [
@@ -816,7 +816,7 @@
 				"git": {
 					"name": "rust-lang-nursery/lazy-static.rs",
 					"repositoryUrl": "https://github.com/rust-lang-nursery/lazy-static.rs",
-					"commitHash": ""
+					"commitHash": "ecabd81a4140cc24773988c385d45c08b1a72cca"
 				}
 			},
 			"licenseDetail": [
@@ -855,7 +855,7 @@
 				"git": {
 					"name": "rust-lang/libc",
 					"repositoryUrl": "https://github.com/rust-lang/libc",
-					"commitHash": ""
+					"commitHash": "16a0f4a3d6c836f88f50c58f5d0a74a32cbf0193"
 				}
 			},
 			"licenseDetail": [
@@ -894,7 +894,7 @@
 				"git": {
 					"name": "rust-lang/time",
 					"repositoryUrl": "https://github.com/rust-lang/time",
-					"commitHash": ""
+					"commitHash": "b117485f34b268960409ff0325c201636124abee"
 				}
 			},
 			"licenseDetail": [
@@ -933,7 +933,7 @@
 				"git": {
 					"name": "rust-num/num",
 					"repositoryUrl": "https://github.com/rust-num/num",
-					"commitHash": ""
+					"commitHash": "0e1c4c8b658bedbb252b67f112586f688c4b64ad"
 				}
 			},
 			"licenseDetail": [
@@ -972,7 +972,7 @@
 				"git": {
 					"name": "rust-num/num-integer",
 					"repositoryUrl": "https://github.com/rust-num/num-integer",
-					"commitHash": ""
+					"commitHash": "63aa15ae9a6152eb92e96a4969a6ecd11b3252b3"
 				}
 			},
 			"licenseDetail": [
@@ -1011,7 +1011,7 @@
 				"git": {
 					"name": "rust-num/num-iter",
 					"repositoryUrl": "https://github.com/rust-num/num-iter",
-					"commitHash": ""
+					"commitHash": "fe55d1fb4e9766c2606827c2e0574714b2fc6f9f"
 				}
 			},
 			"licenseDetail": [
@@ -1050,7 +1050,7 @@
 				"git": {
 					"name": "rust-num/num-traits",
 					"repositoryUrl": "https://github.com/rust-num/num-traits",
-					"commitHash": ""
+					"commitHash": "3716330128dd5d379d2525bef698eedfede055f6"
 				}
 			},
 			"licenseDetail": [
@@ -1089,7 +1089,7 @@
 				"git": {
 					"name": "slog-rs/async",
 					"repositoryUrl": "https://github.com/slog-rs/async",
-					"commitHash": ""
+					"commitHash": "33c6e0baaa7ee2a04c47d886915686efbed6c492"
 				}
 			},
 			"licenseDetail": [
@@ -1128,7 +1128,7 @@
 				"git": {
 					"name": "slog-rs/slog",
 					"repositoryUrl": "https://github.com/slog-rs/slog",
-					"commitHash": ""
+					"commitHash": "9fb380354061d3ede3299b699c49e2ab3bbca764"
 				}
 			},
 			"licenseDetail": [
@@ -1167,7 +1167,7 @@
 				"git": {
 					"name": "slog-rs/term",
 					"repositoryUrl": "https://github.com/slog-rs/term",
-					"commitHash": ""
+					"commitHash": "02ae4170c4cceab8d84f89df8de272962946ca4b"
 				}
 			},
 			"licenseDetail": [
@@ -1206,7 +1206,7 @@
 				"git": {
 					"name": "ticki/termion",
 					"repositoryUrl": "https://github.com/ticki/termion",
-					"commitHash": ""
+					"commitHash": "3cb1bd4b570f9aba0f952a9b140daec1f7ef4b8b"
 				}
 			},
 			"licenseDetail": [
@@ -1241,7 +1241,7 @@
 				"git": {
 					"name": "vitiral/build_const",
 					"repositoryUrl": "https://github.com/vitiral/build_const",
-					"commitHash": ""
+					"commitHash": "c91631632afb07444f9489a526c658b158c847b0"
 				}
 			},
 			"licenseDetail": [
