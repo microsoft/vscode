@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { Api, getExtensionApi } from './api';
 import { registerCommands } from './commands/index';
 import { LanguageConfigurationManager } from './features/languageConfiguration';
 import TypeScriptTaskProviderManager from './features/task';
@@ -19,17 +20,6 @@ import { PluginManager } from './utils/plugins';
 import * as ProjectStatus from './utils/projectStatus';
 import { Surveyor } from './utils/surveyor';
 
-
-interface ApiV0 {
-	readonly onCompletionAccepted: vscode.Event<vscode.CompletionItem>;
-}
-
-
-
-interface Api {
-	getAPI(version: 0): ApiV0 | undefined;
-}
-
 export function activate(
 	context: vscode.ExtensionContext
 ): Api {
@@ -38,7 +28,7 @@ export function activate(
 	const commandManager = new CommandManager();
 	context.subscriptions.push(commandManager);
 
-	const onCompletionAccepted = new vscode.EventEmitter();
+	const onCompletionAccepted = new vscode.EventEmitter<vscode.CompletionItem>();
 	context.subscriptions.push(onCompletionAccepted);
 
 	const lazyClientHost = createLazyClientHost(context, pluginManager, commandManager, item => {
@@ -78,16 +68,7 @@ export function activate(
 		}
 	}
 
-	return {
-		getAPI(version) {
-			if (version === 0) {
-				return {
-					onCompletionAccepted: onCompletionAccepted.event
-				} as ApiV0;
-			}
-			return undefined;
-		}
-	} as Api;
+	return getExtensionApi(onCompletionAccepted.event);
 }
 
 function createLazyClientHost(
