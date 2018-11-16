@@ -9,7 +9,7 @@
 					"commitHash": "54426a14f4c232da8e563d20ca8e71263e1c96b5"
 				}
 			},
-			"developmentDependency": false,
+			"isOnlyProductionDependency": true,
 			"license": "Apache-2.0",
 			"version": "2.6.2"
 		}
