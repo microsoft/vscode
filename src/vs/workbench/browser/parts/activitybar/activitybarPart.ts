@@ -10,7 +10,7 @@ import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/acti
 import { GlobalActivityExtensions, IGlobalActivityRegistry } from 'vs/workbench/common/activity';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Part } from 'vs/workbench/browser/part';
-import { GlobalActivityActionItem, GlobalActivityAction, ViewletActivityAction, ToggleViewletAction, CachedToggleCompositePinnedAction, CachedViewletActivityAction } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
+import { GlobalActivityActionItem, GlobalActivityAction, ViewletActivityAction, ToggleViewletAction, PlaceHolderToggleCompositePinnedAction, PlaceHolderViewletActivityAction } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { IPartService, Parts, Position as SideBarPosition } from 'vs/workbench/services/part/common/partService';
@@ -33,12 +33,12 @@ import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { IViewsService, IViewContainersRegistry, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
-interface ICachedComposite {
+interface IPlaceholderComposite {
 	id: string;
 	iconUrl: URI;
 }
 
-interface ISerializedCachedComposite extends ICachedComposite {
+interface ISerializedPlaceholderComposite extends IPlaceholderComposite {
 	whens?: string[];
 }
 
@@ -46,14 +46,14 @@ export class ActivitybarPart extends Part {
 
 	private static readonly ACTION_HEIGHT = 50;
 	private static readonly PINNED_VIEWLETS = 'workbench.activity.pinnedViewlets';
-	private static readonly CACHED_VIEWLETS = 'workbench.activity.placeholderViewlets';
+	private static readonly PLACEHOLDER_VIEWLETS = 'workbench.activity.placeholderViewlets';
 
 	private dimension: Dimension;
 
 	private globalActionBar: ActionBar;
 	private globalActivityIdToActions: { [globalActivityId: string]: GlobalActivityAction; } = Object.create(null);
 
-	private cachedComposites: ICachedComposite[] = [];
+	private placeholderComposites: IPlaceholderComposite[] = [];
 	private compositeBar: CompositeBar;
 	private compositeActions: { [compositeId: string]: { activityAction: ViewletActivityAction, pinnedAction: ToggleCompositePinnedAction } } = Object.create(null);
 
@@ -87,17 +87,17 @@ export class ActivitybarPart extends Part {
 			overflowActionSize: ActivitybarPart.ACTION_HEIGHT
 		}));
 
-		const previousState = this.storageService.get(ActivitybarPart.CACHED_VIEWLETS, StorageScope.GLOBAL, '[]');
-		const serializedCachedComposites = <ISerializedCachedComposite[]>JSON.parse(previousState);
-		this.cachedComposites = [];
-		for (const { id, iconUrl, whens } of serializedCachedComposites) {
+		const previousState = this.storageService.get(ActivitybarPart.PLACEHOLDER_VIEWLETS, StorageScope.GLOBAL, '[]');
+		const serializedPlaceholderComposites = <ISerializedPlaceholderComposite[]>JSON.parse(previousState);
+		this.placeholderComposites = [];
+		for (const { id, iconUrl, whens } of serializedPlaceholderComposites) {
 			if (whens && whens.length > 0) {
 				if (whens.every(when => !contextKeyService.contextMatchesRules(ContextKeyExpr.deserialize(when)))) {
 					// Hidden by default
 					continue;
 				}
 			}
-			this.cachedComposites.push({
+			this.placeholderComposites.push({
 				id,
 				iconUrl: typeof iconUrl === 'object' ? URI.revive(iconUrl) : void 0
 			});
@@ -253,10 +253,10 @@ export class ActivitybarPart extends Part {
 					pinnedAction: new ToggleCompositePinnedAction(viewlet, this.compositeBar)
 				};
 			} else {
-				const cachedComposite = this.cachedComposites.filter(c => c.id === compositeId)[0];
+				const placeHolderComposite = this.placeholderComposites.filter(c => c.id === compositeId)[0];
 				compositeActions = {
-					activityAction: this.instantiationService.createInstance(CachedViewletActivityAction, compositeId, cachedComposite && cachedComposite.iconUrl),
-					pinnedAction: new CachedToggleCompositePinnedAction(compositeId, this.compositeBar)
+					activityAction: this.instantiationService.createInstance(PlaceHolderViewletActivityAction, compositeId, placeHolderComposite && placeHolderComposite.iconUrl),
+					pinnedAction: new PlaceHolderToggleCompositePinnedAction(compositeId, this.compositeBar)
 				};
 			}
 
@@ -271,8 +271,8 @@ export class ActivitybarPart extends Part {
 		for (const viewlet of viewlets) {
 			this.compositeBar.addComposite(viewlet);
 
-			// Pin it by default if it is new => it is not in cache
-			if (this.cachedComposites.every(c => c.id !== viewlet.id)) {
+			// Pin it by default if it is new => it does not has a placeholder
+			if (this.placeholderComposites.every(c => c.id !== viewlet.id)) {
 				this.compositeBar.pin(viewlet.id);
 			}
 
@@ -309,10 +309,10 @@ export class ActivitybarPart extends Part {
 
 	private enableCompositeActions(viewlet: ViewletDescriptor): void {
 		const { activityAction, pinnedAction } = this.getCompositeActions(viewlet.id);
-		if (activityAction instanceof CachedViewletActivityAction) {
+		if (activityAction instanceof PlaceHolderViewletActivityAction) {
 			activityAction.setActivity(viewlet);
 		}
-		if (pinnedAction instanceof CachedToggleCompositePinnedAction) {
+		if (pinnedAction instanceof PlaceHolderToggleCompositePinnedAction) {
 			pinnedAction.setActivity(viewlet);
 		}
 	}
@@ -347,7 +347,7 @@ export class ActivitybarPart extends Part {
 
 	protected saveState(): void {
 		const viewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
-		const state: ISerializedCachedComposite[] = [];
+		const state: ISerializedPlaceholderComposite[] = [];
 		for (const { id, iconUrl } of this.viewletService.getAllViewlets()) {
 			const viewContainer = viewContainerRegistry.get(id);
 			const whens: string[] = [];
@@ -360,7 +360,7 @@ export class ActivitybarPart extends Part {
 			}
 			state.push({ id, iconUrl, whens });
 		}
-		this.storageService.store(ActivitybarPart.CACHED_VIEWLETS, JSON.stringify(state), StorageScope.GLOBAL);
+		this.storageService.store(ActivitybarPart.PLACEHOLDER_VIEWLETS, JSON.stringify(state), StorageScope.GLOBAL);
 
 		super.saveState();
 	}

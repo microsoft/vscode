@@ -166,7 +166,7 @@ export class GlobalActivityActionItem extends ActivityActionItem {
 	}
 }
 
-export class CachedViewletActivityAction extends ViewletActivityAction {
+export class PlaceHolderViewletActivityAction extends ViewletActivityAction {
 
 	constructor(
 		id: string, iconUrl: URI,
@@ -185,7 +185,7 @@ export class CachedViewletActivityAction extends ViewletActivityAction {
 	}
 }
 
-export class CachedToggleCompositePinnedAction extends ToggleCompositePinnedAction {
+export class PlaceHolderToggleCompositePinnedAction extends ToggleCompositePinnedAction {
 
 	constructor(id: string, compositeBar: ICompositeBar) {
 		super({ id, name: id, cssClass: void 0 }, compositeBar);
