@@ -35,7 +35,7 @@ import { TaskDTO, TaskExecutionDTO, TaskFilterDTO, TaskHandleDTO, TaskProcessEnd
 import { ITreeItem, IRevealOptions } from 'vs/workbench/common/views';
 import { IAdapterDescriptor, IConfig, ITerminalSettings } from 'vs/workbench/parts/debug/common/debug';
 import { ITextQueryBuilderOptions } from 'vs/workbench/parts/search/common/queryBuilder';
-import { TaskSet } from 'vs/workbench/parts/tasks/common/tasks';
+import { TaskSet, Task } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITerminalDimensions } from 'vs/workbench/parts/terminal/common/terminal';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IRPCProtocol, ProxyIdentifier, createExtHostContextProxyIdentifier as createExtId, createMainContextProxyIdentifier as createMainId } from 'vs/workbench/services/extensions/node/proxyIdentifier';
@@ -521,6 +521,7 @@ export interface MainThreadTaskShape extends IDisposable {
 	$executeTask(task: TaskHandleDTO | TaskDTO): Thenable<TaskExecutionDTO>;
 	$terminateTask(id: string): Thenable<void>;
 	$registerTaskSystem(scheme: string, info: TaskSystemInfoDTO): void;
+	$provideTaskId(task: Task): Thenable<string>;
 }
 
 export interface MainThreadExtensionServiceShape extends IDisposable {

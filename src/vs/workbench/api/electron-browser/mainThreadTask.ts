@@ -456,6 +456,17 @@ export class MainThreadTask implements MainThreadTaskShape {
 		this._providers.clear();
 	}
 
+	public $provideTaskId(task: Task): Thenable<string> {
+		return new Promise((resolve, reject) => {
+			let taskTransfer = task._source as any as ExtensionTaskSourceTransfer;
+			let taskIdentifier = TaskDefinition.createTaskIdentifier(taskTransfer.__definition, console);
+			if (taskIdentifier !== void 0) {
+				resolve(`${task._id}.${taskIdentifier._key}`);
+			}
+			reject(new Error('Unable to create task identifier'));
+		});
+	}
+
 	public $registerTaskProvider(handle: number): Thenable<void> {
 		let provider: ITaskProvider = {
 			provideTasks: (validTypes: IStringDictionary<boolean>) => {

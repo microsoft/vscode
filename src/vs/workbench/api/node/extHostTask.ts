@@ -30,7 +30,6 @@ import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { CommandOptions } from 'vs/workbench/parts/tasks/node/taskConfiguration';
-import * as crypto from 'crypto';
 
 /*
 namespace ProblemPattern {
@@ -809,7 +808,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 	private _handleCounter: number;
 	private _handlers: Map<number, HandlerData>;
 	private _taskExecutions: Map<string, TaskExecutionImpl>;
-	private _extensionCommandTaskOptions: Map<string, tasks.CommandOptions>;
+	private _extensionCommandTaskOptions: Map<string, tasks.ExtensionCommandConfiguration>;
 
 	private readonly _onDidExecuteTask: Emitter<vscode.TaskStartEvent> = new Emitter<vscode.TaskStartEvent>();
 	private readonly _onDidTerminateTask: Emitter<vscode.TaskEndEvent> = new Emitter<vscode.TaskEndEvent>();
@@ -952,7 +951,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 		// must maintain them.
 		// NOTE: This relies on the fact that provide tasks is called before
 		// every command execution.
-		this._extensionCommandTaskOptions = new Map<string, tasks.CommandOptions>();
+		this._extensionCommandTaskOptions = new Map<string, tasks.ExtensionCommandConfiguration>();
 
 		return asThenable(() => handler.provider.provideTasks(CancellationToken.None)).then(value => {
 			let sanitized: vscode.Task[] = [];
@@ -963,49 +962,22 @@ export class ExtHostTask implements ExtHostTaskShape {
 					sanitized.push(task);
 					console.warn(`The task [${task.source}, ${task.name}] uses an undefined task type. The task will be ignored in the future.`);
 				}
+
 			}
+
 			let workspaceFolders = this._workspaceService.getWorkspaceFolders();
+
 			let results = {
 				tasks: Tasks.from(sanitized, workspaceFolders && workspaceFolders.length > 0 ? workspaceFolders[0] : undefined, handler.extension),
 				extension: handler.extension
 			};
 
-			for (let possibleExtensionCommandTask of results.tasks) {
-				if (possibleExtensionCommandTask.command.runtime === tasks.RuntimeType.ExtensionCommand &&
-					possibleExtensionCommandTask.command.options !== void 0) {
-					// Now, for some not so elegant stuff.
-					// We need to create an identifier that tracks this extension command task.
-					// This is actually computed in the main thread. The ID that is present
-					// in the extension host is not the complete ID and cannot be used
-					// to track the extension command tasks options (such as the terminate and reveal callbacks).
-					// TODO: Find a much more elegant way to do this.
-					const hash = crypto.createHash('md5');
-
-					// Add the extension ID.
-					hash.update(possibleExtensionCommandTask._source.extension);
-					if (possibleExtensionCommandTask.command.name !== void 0) {
-						hash.update(tasks.CommandString.value(possibleExtensionCommandTask.command.name));
-					}
-
-					// Add the task definition object. (We cheat and just turn it into a string).
-					let taskDefinition = (possibleExtensionCommandTask._source as any as tasks.ExtensionTaskSourceTransfer).__definition;
-					if (taskDefinition !== void 0) {
-						try {
-							hash.update(JSON.stringify(taskDefinition));
-						} catch {
-						}
-					}
-
-					// If there are any arguments, add those as well.
-					if (possibleExtensionCommandTask.command.options.extensionCommand !== void 0 &&
-						possibleExtensionCommandTask.command.options.extensionCommand.args !== void 0) {
-						try {
-							hash.update(JSON.stringify(possibleExtensionCommandTask.command.options.extensionCommand.args));
-						} catch {
-						}
-					}
-
-					this._extensionCommandTaskOptions.set(hash.digest('hex'), possibleExtensionCommandTask.command.options);
+			for (let contributedTask of results.tasks) {
+				if (contributedTask.command.runtime === tasks.RuntimeType.ExtensionCommand &&
+					contributedTask.command.options !== void 0) {
+					this._proxy.$provideTaskId(contributedTask).then((id) => {
+						this._extensionCommandTaskOptions.set(id, contributedTask.command.options.extensionCommand);
+					});
 				}
 			}
 			return results;
@@ -1057,46 +1029,18 @@ export class ExtHostTask implements ExtHostTaskShape {
 			return Promise.reject(new Error('Expected extension command executions'));
 		}
 
-		// Now, for some not so elegant stuff.
-		// We need to regenerate the ID that was created above when the task was provided.
-		// The ID passed in TaskExecutionDTO.Id was actually computed on the main thread
-		// and is not the same ID we generated above (perhaps it could be??).
-		// TODO: Find a much more elegant way to do this.
-		const hash = crypto.createHash('md5');
-		hash.update(taskExecutionDTO.task.source.extensionId);
-		if (taskExecutionDTO.task.execution.command !== void 0) {
-			hash.update(tasks.CommandString.value(taskExecutionDTO.task.execution.command));
-		}
-
-		if (taskExecutionDTO.task.definition !== void 0) {
-			try {
-				hash.update(JSON.stringify(taskExecutionDTO.task.definition));
-			} catch {
-			}
-		}
-
-		if (taskExecutionDTO.task.execution.options !== void 0 &&
-			taskExecutionDTO.task.execution.options.args !== void 0) {
-			try {
-				hash.update(JSON.stringify(taskExecutionDTO.task.execution.options.args));
-			} catch {
-			}
-		}
-
-		let id = hash.digest('hex');
-
-		let commandExecution = this._extensionCommandTaskOptions.get(id);
-		if (!commandExecution) {
+		let commandExecutionOptions = this._extensionCommandTaskOptions.get(taskExecutionDTO.id);
+		if (!commandExecutionOptions) {
 			return Promise.reject(new Error('Extension command execution not found'));
 		}
 
-		this._extensionCommandTaskOptions.delete(id);
+		this._extensionCommandTaskOptions.delete(taskExecutionDTO.id);
 
-		if (commandExecution.extensionCommand === void 0 || commandExecution.extensionCommand.terminate === void 0) {
+		if (commandExecutionOptions === void 0 || commandExecutionOptions.terminate === void 0) {
 			return Promise.resolve();
 		}
 
-		return asThenable(() => commandExecution.extensionCommand.terminate());
+		return asThenable(() => commandExecutionOptions.terminate());
 	}
 
 	private nextHandle(): number {
