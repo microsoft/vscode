@@ -685,7 +685,7 @@ class SuggestAdapter {
 			//
 			range: undefined,
 			insertText: undefined,
-			insertTextRules: typeConvert.CompletionItemInsertTextRule.from(item.insertTextRules),
+			insertTextRules: item.keepWhitespace ? modes.CompletionItemInsertTextRule.KeepWhitespace : 0,
 			additionalTextEdits: item.additionalTextEdits && item.additionalTextEdits.map(typeConvert.TextEdit.from),
 			command: this._commands.toInternal(item.command),
 			commitCharacters: item.commitCharacters,
