@@ -1275,7 +1275,7 @@ declare module 'vscode' {
 
 	export enum RerunBehavior {
 		reevaluate = 1,
-		useEvaulated = 2,
+		useEvaluated = 2,
 	}
 
 

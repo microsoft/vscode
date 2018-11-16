@@ -1591,7 +1591,7 @@ export enum TaskScope {
 
 export enum RerunBehavior {
 	reevaluate = 1,
-	useEvaulated = 2,
+	useEvaluated = 2,
 }
 
 export class Task implements vscode.Task2 {

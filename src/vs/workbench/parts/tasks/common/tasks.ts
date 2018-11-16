@@ -181,7 +181,7 @@ export namespace RerunBehavior {
 		}
 		switch (value.toLowerCase()) {
 			case 'useevaluated':
-				return RerunBehavior.useEvaulated;
+				return RerunBehavior.useEvaluated;
 			case 'reevaulate':
 			default:
 				return RerunBehavior.reevaluate;
@@ -436,7 +436,7 @@ export interface ConfigurationProperties {
 
 export enum RerunBehavior {
 	reevaluate = 1,
-	useEvaulated = 2,
+	useEvaluated = 2,
 }
 
 export interface RunOptions {
