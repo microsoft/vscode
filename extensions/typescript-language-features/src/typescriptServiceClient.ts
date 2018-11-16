@@ -16,7 +16,6 @@ import API from './utils/api';
 import { TsServerLogLevel, TypeScriptServiceConfiguration } from './utils/configuration';
 import { Disposable } from './utils/dispose';
 import * as fileSchemes from './utils/fileSchemes';
-import * as is from './utils/is';
 import LogDirectoryProvider from './utils/logDirectoryProvider';
 import Logger from './utils/logger';
 import { TypeScriptPluginPathsProvider } from './utils/pluginPathsProvider';
@@ -683,10 +682,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				const typingsInstalledPayload: Proto.TypingsInstalledTelemetryEventPayload = (telemetryData.payload as Proto.TypingsInstalledTelemetryEventPayload);
 				properties['installedPackages'] = typingsInstalledPayload.installedPackages;
 
-				if (is.defined(typingsInstalledPayload.installSuccess)) {
+				if (typeof typingsInstalledPayload.installSuccess === 'boolean') {
 					properties['installSuccess'] = typingsInstalledPayload.installSuccess.toString();
 				}
-				if (is.string(typingsInstalledPayload.typingsInstallerVersion)) {
+				if (typeof typingsInstalledPayload.typingsInstallerVersion === 'string') {
 					properties['typingsInstallerVersion'] = typingsInstalledPayload.typingsInstallerVersion;
 				}
 				break;
@@ -697,7 +696,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 					Object.keys(payload).forEach((key) => {
 						try {
 							if (payload.hasOwnProperty(key)) {
-								properties[key] = is.string(payload[key]) ? payload[key] : JSON.stringify(payload[key]);
+								properties[key] = typeof payload[key] === 'string' ? payload[key] : JSON.stringify(payload[key]);
 							}
 						} catch (e) {
 							// noop
