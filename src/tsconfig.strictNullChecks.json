@@ -545,6 +545,7 @@
 		"./vs/vscode.d.ts",
 		"./vs/vscode.proposed.d.ts",
 		"./vs/workbench/api/node/extHostExtensionActivator.ts",
+		// "./vs/workbench/api/node/extHostTypes.ts",
 		"./vs/workbench/api/shared/tasks.ts",
 		"./vs/workbench/browser/actions/toggleActivityBarVisibility.ts",
 		"./vs/workbench/browser/actions/toggleCenteredLayout.ts",
