@@ -26,7 +26,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IProgressService } from 'vs/platform/progress/common/progress';
-import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition } from './goToDefinition';
+import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition, getDeclarationsAtPosition } from './goToDefinition';
 
 
 export class DefinitionActionConfig {
@@ -58,7 +58,7 @@ export class DefinitionAction extends EditorAction {
 		const model = editor.getModel();
 		const pos = editor.getPosition();
 
-		const definitionPromise = this._getDeclarationsAtPosition(model, pos, CancellationToken.None).then(references => {
+		const definitionPromise = this._getTargetLocationForPosition(model, pos, CancellationToken.None).then(references => {
 
 			if (model.isDisposed() || editor.getModel() !== model) {
 				// new model, no more model
@@ -113,7 +113,7 @@ export class DefinitionAction extends EditorAction {
 		return definitionPromise;
 	}
 
-	protected _getDeclarationsAtPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Thenable<DefinitionLink[]> {
+	protected _getTargetLocationForPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Thenable<DefinitionLink[]> {
 		return getDefinitionsAtPosition(model, position, token);
 	}
 
@@ -251,6 +251,10 @@ export class PeekDefinitionAction extends DefinitionAction {
 
 export class DeclarationAction extends DefinitionAction {
 
+	protected _getTargetLocationForPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Thenable<DefinitionLink[]> {
+		return getDeclarationsAtPosition(model, position, token);
+	}
+
 	protected _getNoResultFoundMessage(info?: IWordAtPosition): string {
 		return info && info.word
 			? nls.localize('decl.noResultWord', "No declaration found for '{0}'", info.word)
@@ -302,7 +306,7 @@ export class PeekDeclarationAction extends DeclarationAction {
 			label: nls.localize('actions.peekDecl.label', "Peek Declaration"),
 			alias: 'Peek Declaration',
 			precondition: ContextKeyExpr.and(
-				EditorContextKeys.hasDefinitionProvider,
+				EditorContextKeys.hasDeclarationProvider,
 				PeekContext.notInPeekEditor,
 				EditorContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
@@ -320,7 +324,7 @@ export class PeekDeclarationAction extends DeclarationAction {
 }
 
 export class ImplementationAction extends DefinitionAction {
-	protected _getDeclarationsAtPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Thenable<DefinitionLink[]> {
+	protected _getTargetLocationForPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Thenable<DefinitionLink[]> {
 		return getImplementationsAtPosition(model, position, token);
 	}
 
@@ -378,7 +382,7 @@ export class PeekImplementationAction extends ImplementationAction {
 }
 
 export class TypeDefinitionAction extends DefinitionAction {
-	protected _getDeclarationsAtPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Thenable<DefinitionLink[]> {
+	protected _getTargetLocationForPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Thenable<DefinitionLink[]> {
 		return getTypeDefinitionsAtPosition(model, position, token);
 	}
 
@@ -442,6 +446,8 @@ export class PeekTypeDefinitionAction extends TypeDefinitionAction {
 registerEditorAction(GoToDefinitionAction);
 registerEditorAction(OpenDefinitionToSideAction);
 registerEditorAction(PeekDefinitionAction);
+registerEditorAction(GoToDeclarationAction);
+registerEditorAction(PeekDeclarationAction);
 registerEditorAction(GoToImplementationAction);
 registerEditorAction(PeekImplementationAction);
 registerEditorAction(GoToTypeDefinitionAction);
