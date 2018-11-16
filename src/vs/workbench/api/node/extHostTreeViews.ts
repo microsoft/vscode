@@ -74,7 +74,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 			checkProposedApiEnabled(extension);
 		}
 
-		const treeView = this.createExtHostTreeViewer(viewId, options, extension);
+		const treeView = this.createExtHostTreeView(viewId, options, extension);
 		return {
 			get onDidCollapseElement() { return treeView.onDidCollapseElement; },
 			get onDidExpandElement() { return treeView.onDidExpandElement; },
@@ -124,7 +124,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		treeView.setVisible(isVisible);
 	}
 
-	private createExtHostTreeViewer<T>(id: string, options: vscode.TreeViewOptions<T>, extension: IExtensionDescription): ExtHostTreeView<T> {
+	private createExtHostTreeView<T>(id: string, options: vscode.TreeViewOptions<T>, extension: IExtensionDescription): ExtHostTreeView<T> {
 		const treeView = new ExtHostTreeView<T>(id, options, this._proxy, this.commands.converter, this.logService, extension);
 		this.treeViews.set(id, treeView);
 		return treeView;

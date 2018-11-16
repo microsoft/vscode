@@ -13,7 +13,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ContextAwareMenuItemActionItem, fillInActionBarActions, fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IViewsService, ITreeViewer, ITreeItem, TreeItemCollapsibleState, ITreeViewDataProvider, TreeViewItemHandleArg, ICustomViewDescriptor, ViewsRegistry, ViewContainer, ITreeItemLabel } from 'vs/workbench/common/views';
+import { IViewsService, ITreeView, ITreeItem, TreeItemCollapsibleState, ITreeViewDataProvider, TreeViewItemHandleArg, ICustomViewDescriptor, ViewsRegistry, ViewContainer, ITreeItemLabel } from 'vs/workbench/common/views';
 import { IViewletViewOptions, FileIconThemableWorkbenchTree } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -39,7 +39,7 @@ import { editorFindMatchHighlight, editorFindMatchHighlightBorder } from 'vs/pla
 
 export class CustomTreeViewPanel extends ViewletPanel {
 
-	private treeViewer: ITreeViewer;
+	private treeView: ITreeView;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -50,10 +50,10 @@ export class CustomTreeViewPanel extends ViewletPanel {
 		@IViewsService viewsService: IViewsService,
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: options.title }, keybindingService, contextMenuService, configurationService);
-		const { treeViewer } = (<ICustomViewDescriptor>ViewsRegistry.getView(options.id));
-		this.treeViewer = treeViewer;
-		this.treeViewer.onDidChangeActions(() => this.updateActions(), this, this.disposables);
-		this.disposables.push(toDisposable(() => this.treeViewer.setVisibility(false)));
+		const { treeView } = (<ICustomViewDescriptor>ViewsRegistry.getView(options.id));
+		this.treeView = treeView;
+		this.treeView.onDidChangeActions(() => this.updateActions(), this, this.disposables);
+		this.disposables.push(toDisposable(() => this.treeView.setVisibility(false)));
 		this.updateTreeVisibility();
 	}
 
@@ -64,28 +64,28 @@ export class CustomTreeViewPanel extends ViewletPanel {
 
 	focus(): void {
 		super.focus();
-		this.treeViewer.focus();
+		this.treeView.focus();
 	}
 
 	renderBody(container: HTMLElement): void {
-		this.treeViewer.show(container);
+		this.treeView.show(container);
 	}
 
 	setExpanded(expanded: boolean): void {
-		this.treeViewer.setVisibility(this.isVisible() && expanded);
+		this.treeView.setVisibility(this.isVisible() && expanded);
 		super.setExpanded(expanded);
 	}
 
 	layoutBody(size: number): void {
-		this.treeViewer.layout(size);
+		this.treeView.layout(size);
 	}
 
 	getActions(): IAction[] {
-		return [...this.treeViewer.getPrimaryActions()];
+		return [...this.treeView.getPrimaryActions()];
 	}
 
 	getSecondaryActions(): IAction[] {
-		return [...this.treeViewer.getSecondaryActions()];
+		return [...this.treeView.getSecondaryActions()];
 	}
 
 	getActionItem(action: IAction): IActionItem {
@@ -93,11 +93,11 @@ export class CustomTreeViewPanel extends ViewletPanel {
 	}
 
 	getOptimalWidth(): number {
-		return this.treeViewer.getOptimalWidth();
+		return this.treeView.getOptimalWidth();
 	}
 
 	private updateTreeVisibility(): void {
-		this.treeViewer.setVisibility(this.isVisible() && this.isExpanded());
+		this.treeView.setVisibility(this.isVisible() && this.isExpanded());
 	}
 
 	dispose(): void {
@@ -172,7 +172,7 @@ class Root implements ITreeItem {
 
 const noDataProviderMessage = localize('no-dataprovider', "There is no data provider registered that can provide view data.");
 
-export class CustomTreeViewer extends Disposable implements ITreeViewer {
+export class CustomTreeView extends Disposable implements ITreeView {
 
 	private isVisible: boolean = false;
 	private activated: boolean = false;
@@ -469,7 +469,7 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 class TreeDataSource implements IDataSource {
 
 	constructor(
-		private treeView: ITreeViewer,
+		private treeView: ITreeView,
 		private container: ViewContainer,
 		@IProgressService2 private progressService: IProgressService2
 	) {

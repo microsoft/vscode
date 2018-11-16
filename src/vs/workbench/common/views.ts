@@ -235,7 +235,7 @@ export interface IViewsService {
 
 // Custom views
 
-export interface ITreeViewer extends IDisposable {
+export interface ITreeView extends IDisposable {
 
 	dataProvider: ITreeViewDataProvider;
 
@@ -290,7 +290,7 @@ export interface IRevealOptions {
 
 export interface ICustomViewDescriptor extends IViewDescriptor {
 
-	readonly treeViewer: ITreeViewer;
+	readonly treeView: ITreeView;
 
 }
 
