@@ -427,7 +427,7 @@ namespace Tasks {
 				extensionCommand: {
 					args: value.options.args,
 					terminate: value.options.terminate,
-					showOutput: value.options.showOutput
+					reveal: value.options.reveal
 				}
 			};
 		}
@@ -573,7 +573,7 @@ namespace ExtensionCommandExecutionDTO {
 		if (value.options !== void 0 && value.options !== null) {
 			result.options = {
 				args: value.options.args,
-				showOutput: value.options.showOutput,
+				showOutput: value.options.reveal,
 				terminate: value.options.terminate
 			};
 		}
@@ -587,7 +587,7 @@ namespace ExtensionCommandExecutionDTO {
 		}
 
 		if (value.options !== void 0 && value.options !== null) {
-			return new types.ExtensionCommandExecution(value.command, { args: value.options.args, showOutput: value.options.showOutput, terminate: value.options.terminate });
+			return new types.ExtensionCommandExecution(value.command, { args: value.options.args, reveal: value.options.showOutput, terminate: value.options.terminate });
 		}
 
 		return new types.ExtensionCommandExecution(value.command);
@@ -962,25 +962,35 @@ export class ExtHostTask implements ExtHostTaskShape {
 					sanitized.push(task);
 					console.warn(`The task [${task.source}, ${task.name}] uses an undefined task type. The task will be ignored in the future.`);
 				}
-
 			}
 
 			let workspaceFolders = this._workspaceService.getWorkspaceFolders();
 
-			let results = {
+			return {
 				tasks: Tasks.from(sanitized, workspaceFolders && workspaceFolders.length > 0 ? workspaceFolders[0] : undefined, handler.extension),
 				extension: handler.extension
 			};
-
+		}).then((results) => {
+			// Okay, so now we need to filter out the extension commaand tasks and get
+			// proper IDs for them. Only the main task thread knows how to do this appropriately.
+			// So, we will create an array of promises to retrieve the IDs from the main
+			// task thread. When they all complete, we will return the tasks back to the main thread.
+			let idPromises: Promise<void>[] = [];
 			for (let contributedTask of results.tasks) {
 				if (contributedTask.command.runtime === tasks.RuntimeType.ExtensionCommand &&
 					contributedTask.command.options !== void 0) {
-					this._proxy.$provideTaskId(contributedTask).then((id) => {
-						this._extensionCommandTaskOptions.set(id, contributedTask.command.options.extensionCommand);
-					});
+					idPromises.push(new Promise((resolve) => {
+						this._proxy.$provideTaskId(contributedTask).then((id) => {
+							this._extensionCommandTaskOptions.set(id, contributedTask.command.options.extensionCommand);
+							resolve();
+						});
+					}));
 				}
 			}
-			return results;
+
+			return Promise.all(idPromises).then(() => {
+				return results;
+			});
 		});
 	}
 
@@ -1020,6 +1030,10 @@ export class ExtHostTask implements ExtHostTaskShape {
 		return Promise.resolve(result);
 	}
 
+	/**
+	 * This function requests an extension command task to terminate.
+	 * @param taskExecutionDTO Contains the information required to identify the task.
+	 */
 	public $terminateExtensionCommandTask(taskExecutionDTO: TaskExecutionDTO): Thenable<void> {
 		if (!this._extensionCommandTaskOptions) {
 			return Promise.reject(new Error('Do not have any cached extension command executions'));
@@ -1041,6 +1055,33 @@ export class ExtHostTask implements ExtHostTaskShape {
 		}
 
 		return asThenable(() => commandExecutionOptions.terminate());
+	}
+
+	/**
+	 * This function requests an extension command task to reveal some sort of output.
+	 * @param taskExecutionDTO Contains the information required to identify the task.
+	 */
+	public $revealExtensionCommandTask(taskExecutionDTO: TaskExecutionDTO): Thenable<void> {
+		if (!this._extensionCommandTaskOptions) {
+			return Promise.reject(new Error('Do not have any cached extension command executions'));
+		}
+
+		if (!ExtensionCommandExecutionDTO.is(taskExecutionDTO.task.execution)) {
+			return Promise.reject(new Error('Expected extension command executions'));
+		}
+
+		let commandExecutionOptions = this._extensionCommandTaskOptions.get(taskExecutionDTO.id);
+		if (!commandExecutionOptions) {
+			return Promise.reject(new Error('Extension command execution not found'));
+		}
+
+		this._extensionCommandTaskOptions.delete(taskExecutionDTO.id);
+
+		if (commandExecutionOptions === void 0 || commandExecutionOptions.reveal === void 0) {
+			return Promise.resolve();
+		}
+
+		return asThenable(() => commandExecutionOptions.reveal());
 	}
 
 	private nextHandle(): number {

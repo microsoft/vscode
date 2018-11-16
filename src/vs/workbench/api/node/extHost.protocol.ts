@@ -913,6 +913,7 @@ export interface ExtHostSCMShape {
 
 export interface ExtHostTaskShape {
 	$terminateExtensionCommandTask(execution: TaskExecutionDTO): Thenable<void>;
+	$revealExtensionCommandTask(execution: TaskExecutionDTO): Thenable<void>;
 	$provideTasks(handle: number, validTypes: { [key: string]: boolean; }): Thenable<TaskSet>;
 	$onDidStartTask(execution: TaskExecutionDTO): void;
 	$onDidStartTaskProcess(value: TaskProcessStartedDTO): void;

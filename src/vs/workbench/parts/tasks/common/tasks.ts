@@ -96,9 +96,9 @@ export interface ExtensionCommandConfiguration {
 	args?: any[];
 
 	/**
-	 * Called to show the output of the running command.
+	 * Called to reveal the output of the running command.
 	 */
-	showOutput?(): any;
+	reveal?(): any;
 
 	/**
 	 * Called to terminate the output of a running command.

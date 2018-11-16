@@ -4954,7 +4954,7 @@ declare module 'vscode' {
 		/**
 		 * Called to show the output of the running command.
 		 */
-		showOutput?(): any;
+		reveal?(): any;
 
 		/**
 		 * Called to terminate the output of a running command.

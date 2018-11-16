@@ -466,6 +466,8 @@ class TaskService extends Disposable implements ITaskService {
 	private _outputChannel: IOutputChannel;
 	private readonly _onDidStateChange: Emitter<TaskEvent>;
 	private readonly _onRequestTerminateExtensionCommandTask: Emitter<Task>;
+	private readonly _onRequestRevealExtensionCommandTask: Emitter<Task>;
+
 
 
 	constructor(
@@ -544,6 +546,7 @@ class TaskService extends Disposable implements ITaskService {
 		this._register(storageService.onWillSaveState(() => this.saveState()));
 		this._onDidStateChange = this._register(new Emitter());
 		this._onRequestTerminateExtensionCommandTask = this._register(new Emitter());
+		this._onRequestRevealExtensionCommandTask = this._register(new Emitter());
 		this.registerCommands();
 	}
 
@@ -551,8 +554,18 @@ class TaskService extends Disposable implements ITaskService {
 		return this._onDidStateChange.event;
 	}
 
+	/**
+	 * Fired when a request is made to terminate an extension command task.
+	 */
 	public get onRequestTerminateExtensionCommandTask(): Event<Task> {
 		return this._onRequestTerminateExtensionCommandTask.event;
+	}
+
+	/**
+	 * Fired when a request is made to reveal an extension command task's output.
+	 */
+	public get onRequestRevealExtensionCommandTask(): Event<Task> {
+		return this._onRequestRevealExtensionCommandTask.event;
 	}
 
 	public get supportsMultipleTaskExecutions(): boolean {
@@ -1284,6 +1297,9 @@ class TaskService extends Disposable implements ITaskService {
 			return TPromise.as({ success: true, task: undefined });
 		}
 
+		// Extension command tasks are special, they must be requested to terminate
+		// through the extension host thread. So, fire an event out so the task main thread
+		// can forward the request to the proxy.
 		if ((ContributedTask.is(task) || CustomTask.is(task)) && task.command.runtime === RuntimeType.ExtensionCommand) {
 			return this._onRequestTerminateExtensionCommandTask.fire(task);
 		}
@@ -2448,6 +2464,15 @@ class TaskService extends Disposable implements ITaskService {
 			if (task === void 0 || task === null) {
 				return;
 			}
+
+			// Extension command tasks are special, they must be requested to reveal there output
+			// through the extension host thread. So, fire an event out so the task main thread
+			// can forward the request to the proxy.
+			if ((ContributedTask.is(task) || CustomTask.is(task)) && task.command.runtime === RuntimeType.ExtensionCommand) {
+				this._onRequestRevealExtensionCommandTask.fire(task);
+				return;
+			}
+
 			this._taskSystem.revealTask(task);
 		});
 	}

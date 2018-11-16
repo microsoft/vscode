@@ -211,7 +211,7 @@ namespace ExtensionCommandExecutionDTO {
 			value.options.extensionCommand !== void 0 && value.options.extensionCommand !== null) {
 			result.options = {
 				args: value.options.extensionCommand.args,
-				showOutput: value.options.extensionCommand.showOutput,
+				showOutput: value.options.extensionCommand.reveal,
 				terminate: value.options.extensionCommand.terminate,
 			};
 		}
@@ -234,7 +234,7 @@ namespace ExtensionCommandExecutionDTO {
 			result.options = {
 				extensionCommand: {
 					args: value.options.args,
-					showOutput: value.options.showOutput,
+					reveal: value.options.showOutput,
 					terminate: value.options.terminate
 				}
 			};
@@ -444,8 +444,16 @@ export class MainThreadTask implements MainThreadTaskShape {
 			}
 		});
 
+		// Handles requests from the task service to terminate an extension command task.
+		// It merely routes the request to the extension host thread.
 		this._taskService.onRequestTerminateExtensionCommandTask((task) => {
 			this._proxy.$terminateExtensionCommandTask(TaskExecutionDTO.from(Task.getTaskExecution(task)));
+		});
+
+		// Handles requests from the task service to terminate an reveal a command task's output.
+		// It merely routes the request to the extension host thread.
+		this._taskService.onRequestRevealExtensionCommandTask((task) => {
+			this._proxy.$revealExtensionCommandTask(TaskExecutionDTO.from(Task.getTaskExecution(task)));
 		});
 	}
 

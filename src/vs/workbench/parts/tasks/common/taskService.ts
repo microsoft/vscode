@@ -42,6 +42,7 @@ export interface ITaskService {
 	_serviceBrand: any;
 	onDidStateChange: Event<TaskEvent>;
 	onRequestTerminateExtensionCommandTask: Event<Task>;
+	onRequestRevealExtensionCommandTask: Event<Task>;
 	supportsMultipleTaskExecutions: boolean;
 
 	configureAction(): Action;
