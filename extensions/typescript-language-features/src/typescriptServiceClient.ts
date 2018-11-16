@@ -20,7 +20,7 @@ import * as is from './utils/is';
 import LogDirectoryProvider from './utils/logDirectoryProvider';
 import Logger from './utils/logger';
 import { TypeScriptPluginPathsProvider } from './utils/pluginPathsProvider';
-import { PluginConfigProvider, TypeScriptServerPlugin } from './utils/plugins';
+import { PluginConfigProvider, PluginManager } from './utils/plugins';
 import TelemetryReporter from './utils/telemetry';
 import Tracer from './utils/tracer';
 import { inferredProjectConfig } from './utils/tsconfig';
@@ -74,7 +74,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	constructor(
 		private readonly workspaceState: vscode.Memento,
 		private readonly onDidChangeTypeScriptVersion: (version: TypeScriptVersion) => void,
-		public readonly plugins: TypeScriptServerPlugin[],
+		public readonly pluginManager: PluginManager,
 		private readonly pluginConfigProvider: PluginConfigProvider,
 		private readonly logDirectoryProvider: LogDirectoryProvider,
 		allModeIds: string[]
@@ -258,7 +258,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.lastError = null;
 		let mytoken = ++this.token;
 
-		const handle = this.typescriptServerSpawner.spawn(currentVersion, this.configuration, this.plugins);
+		const handle = this.typescriptServerSpawner.spawn(currentVersion, this.configuration, this.pluginManager);
 		this.lastStart = Date.now();
 
 		handle.onError((err: Error) => {

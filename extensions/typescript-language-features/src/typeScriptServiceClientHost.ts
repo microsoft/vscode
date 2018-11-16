@@ -18,9 +18,9 @@ import TypeScriptServiceClient from './typescriptServiceClient';
 import API from './utils/api';
 import { CommandManager } from './utils/commandManager';
 import { Disposable } from './utils/dispose';
-import { LanguageDescription, DiagnosticLanguage } from './utils/languageDescription';
+import { DiagnosticLanguage, LanguageDescription } from './utils/languageDescription';
 import LogDirectoryProvider from './utils/logDirectoryProvider';
-import { TypeScriptServerPlugin, PluginConfigProvider } from './utils/plugins';
+import { PluginConfigProvider, PluginManager } from './utils/plugins';
 import * as typeConverters from './utils/typeConverters';
 import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
 import VersionStatus from './utils/versionStatus';
@@ -48,7 +48,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 	constructor(
 		descriptions: LanguageDescription[],
 		workspaceState: vscode.Memento,
-		plugins: TypeScriptServerPlugin[],
+		pluginManager: PluginManager,
 		pluginConfigProvider: PluginConfigProvider,
 		private readonly commandManager: CommandManager,
 		logDirectoryProvider: LogDirectoryProvider,
@@ -73,7 +73,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		this.client = this._register(new TypeScriptServiceClient(
 			workspaceState,
 			version => this.versionStatus.onDidChangeTypeScriptVersion(version),
-			plugins,
+			pluginManager,
 			pluginConfigProvider,
 			logDirectoryProvider,
 			allModeIds));
@@ -111,7 +111,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 			}
 
 			const languages = new Set<string>();
-			for (const plugin of plugins) {
+			for (const plugin of pluginManager.plugins) {
 				for (const language of plugin.languages) {
 					languages.add(language);
 				}

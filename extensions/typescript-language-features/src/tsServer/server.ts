@@ -16,13 +16,13 @@ import * as electron from '../utils/electron';
 import LogDirectoryProvider from '../utils/logDirectoryProvider';
 import Logger from '../utils/logger';
 import { TypeScriptPluginPathsProvider } from '../utils/pluginPathsProvider';
-import { TypeScriptServerPlugin } from '../utils/plugins';
+import { PluginManager } from '../utils/plugins';
 import TelemetryReporter from '../utils/telemetry';
 import Tracer from '../utils/tracer';
 import { TypeScriptVersion, TypeScriptVersionProvider } from '../utils/versionProvider';
 import { Reader } from '../utils/wireProtocol';
 import { CallbackMap } from './callbackMap';
-import { RequestQueue, RequestItem, RequestQueueingType } from './requestQueue';
+import { RequestItem, RequestQueue, RequestQueueingType } from './requestQueue';
 
 export class TypeScriptServerSpawner {
 	public constructor(
@@ -37,11 +37,11 @@ export class TypeScriptServerSpawner {
 	public spawn(
 		version: TypeScriptVersion,
 		configuration: TypeScriptServiceConfiguration,
-		plugins: ReadonlyArray<TypeScriptServerPlugin>
+		pluginManager: PluginManager
 	): TypeScriptServer {
 		const apiVersion = version.version || API.defaultVersion;
 
-		const { args, cancellationPipeName, tsServerLogFile } = this.getTsServerArgs(configuration, version, plugins);
+		const { args, cancellationPipeName, tsServerLogFile } = this.getTsServerArgs(configuration, version, pluginManager);
 
 		if (TypeScriptServerSpawner.isLoggingEnabled(apiVersion, configuration)) {
 			if (tsServerLogFile) {
@@ -69,7 +69,7 @@ export class TypeScriptServerSpawner {
 	private getTsServerArgs(
 		configuration: TypeScriptServiceConfiguration,
 		currentVersion: TypeScriptVersion,
-		plugins: ReadonlyArray<TypeScriptServerPlugin>,
+		pluginManager: PluginManager,
 	): { args: string[], cancellationPipeName: string | undefined, tsServerLogFile: string | undefined } {
 		const args: string[] = [];
 		let cancellationPipeName: string | undefined;
@@ -110,11 +110,11 @@ export class TypeScriptServerSpawner {
 		if (apiVersion.gte(API.v230)) {
 			const pluginPaths = this._pluginPathsProvider.getPluginPaths();
 
-			if (plugins.length) {
-				args.push('--globalPlugins', plugins.map(x => x.name).join(','));
+			if (pluginManager.plugins.length) {
+				args.push('--globalPlugins', pluginManager.plugins.map(x => x.name).join(','));
 
 				if (currentVersion.path === this._versionProvider.defaultVersion.path) {
-					pluginPaths.push(...plugins.map(x => x.path));
+					pluginPaths.push(...pluginManager.plugins.map(x => x.path));
 				}
 			}
 

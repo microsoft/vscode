@@ -9,7 +9,7 @@ import * as Proto from './protocol';
 import API from './utils/api';
 import { TypeScriptServiceConfiguration } from './utils/configuration';
 import Logger from './utils/logger';
-import { TypeScriptServerPlugin } from './utils/plugins';
+import { PluginManager } from './utils/plugins';
 
 export class CancelledResponse {
 	public readonly type: 'cancelled' = 'cancelled';
@@ -86,7 +86,7 @@ export interface ITypeScriptServiceClient {
 	readonly onTypesInstallerInitializationFailed: vscode.Event<Proto.TypesInstallerInitializationFailedEventBody>;
 
 	readonly apiVersion: API;
-	readonly plugins: TypeScriptServerPlugin[];
+	readonly pluginManager: PluginManager;
 	readonly configuration: TypeScriptServiceConfiguration;
 	readonly logger: Logger;
 	readonly bufferSyncSupport: BufferSyncSupport;

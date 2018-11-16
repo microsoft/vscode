@@ -15,7 +15,7 @@ import { standardLanguageDescriptions } from './utils/languageDescription';
 import { lazy, Lazy } from './utils/lazy';
 import LogDirectoryProvider from './utils/logDirectoryProvider';
 import ManagedFileContextManager from './utils/managedFileContext';
-import { getContributedTypeScriptServerPlugins, TypeScriptServerPlugin, PluginConfigProvider } from './utils/plugins';
+import { PluginConfigProvider, PluginManager } from './utils/plugins';
 import * as ProjectStatus from './utils/projectStatus';
 import { Surveyor } from './utils/surveyor';
 
@@ -33,7 +33,7 @@ interface Api {
 export function activate(
 	context: vscode.ExtensionContext
 ): Api {
-	const plugins = getContributedTypeScriptServerPlugins();
+	const pluginManager = new PluginManager();
 	const pluginConfigProvider = new PluginConfigProvider();
 
 	const commandManager = new CommandManager();
@@ -42,7 +42,7 @@ export function activate(
 	const onCompletionAccepted = new vscode.EventEmitter();
 	context.subscriptions.push(onCompletionAccepted);
 
-	const lazyClientHost = createLazyClientHost(context, plugins, pluginConfigProvider, commandManager, item => {
+	const lazyClientHost = createLazyClientHost(context, pluginManager, pluginConfigProvider, commandManager, item => {
 		onCompletionAccepted.fire(item);
 	});
 
@@ -56,7 +56,7 @@ export function activate(
 
 	const supportedLanguage = flatten([
 		...standardLanguageDescriptions.map(x => x.modeIds),
-		...plugins.map(x => x.languages)
+		...pluginManager.plugins.map(x => x.languages)
 	]);
 	function didOpenTextDocument(textDocument: vscode.TextDocument): boolean {
 		if (isSupportedDocument(supportedLanguage, textDocument)) {
@@ -93,7 +93,7 @@ export function activate(
 
 function createLazyClientHost(
 	context: vscode.ExtensionContext,
-	plugins: TypeScriptServerPlugin[],
+	pluginManager: PluginManager,
 	pluginConfigProvider: PluginConfigProvider,
 	commandManager: CommandManager,
 	onCompletionAccepted: (item: vscode.CompletionItem) => void,
@@ -104,7 +104,7 @@ function createLazyClientHost(
 		const clientHost = new TypeScriptServiceClientHost(
 			standardLanguageDescriptions,
 			context.workspaceState,
-			plugins,
+			pluginManager,
 			pluginConfigProvider,
 			commandManager,
 			logDirectoryProvider,

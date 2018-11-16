@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import { Disposable } from './dispose';
+import { memoize } from './memoize';
 
 export interface TypeScriptServerPlugin {
 	readonly path: string;
@@ -12,23 +13,25 @@ export interface TypeScriptServerPlugin {
 	readonly languages: ReadonlyArray<string>;
 }
 
-export function getContributedTypeScriptServerPlugins(): TypeScriptServerPlugin[] {
-	const plugins: TypeScriptServerPlugin[] = [];
-	for (const extension of vscode.extensions.all) {
-		const pack = extension.packageJSON;
-		if (pack.contributes && pack.contributes.typescriptServerPlugins && Array.isArray(pack.contributes.typescriptServerPlugins)) {
-			for (const plugin of pack.contributes.typescriptServerPlugins) {
-				plugins.push({
-					name: plugin.name,
-					path: extension.extensionPath,
-					languages: Array.isArray(plugin.languages) ? plugin.languages : [],
-				});
+export class PluginManager {
+	@memoize
+	public get plugins(): ReadonlyArray<TypeScriptServerPlugin> {
+		const plugins: TypeScriptServerPlugin[] = [];
+		for (const extension of vscode.extensions.all) {
+			const pack = extension.packageJSON;
+			if (pack.contributes && pack.contributes.typescriptServerPlugins && Array.isArray(pack.contributes.typescriptServerPlugins)) {
+				for (const plugin of pack.contributes.typescriptServerPlugins) {
+					plugins.push({
+						name: plugin.name,
+						path: extension.extensionPath,
+						languages: Array.isArray(plugin.languages) ? plugin.languages : [],
+					});
+				}
 			}
 		}
+		return plugins;
 	}
-	return plugins;
 }
-
 
 export class PluginConfigProvider extends Disposable {
 	private readonly _config = new Map<string, {}>();
