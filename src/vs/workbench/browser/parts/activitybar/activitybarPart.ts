@@ -269,10 +269,11 @@ export class ActivitybarPart extends Part {
 	private updateCompositebar(): void {
 		const viewlets = this.viewletService.getViewlets();
 		for (const viewlet of viewlets) {
+			const existsBefore = this.compositeBar.getComposites().some(({ id }) => id === viewlet.id);
 			this.compositeBar.addComposite(viewlet);
 
-			// Pin it by default if it is new => it does not has a placeholder
-			if (this.placeholderComposites.every(c => c.id !== viewlet.id)) {
+			// Pin it by default if it is new
+			if (!existsBefore) {
 				this.compositeBar.pin(viewlet.id);
 			}
 
