@@ -418,6 +418,7 @@ export class ExtensionsListView extends ViewletPanel {
 		return extensions;
 	}
 
+	// Get All types of recommendations, trimmed to show a max of 8 at any given time
 	private getAllRecommendationsModel(query: Query, options: IQueryOptions): Promise<IPagedModel<IExtension>> {
 		const value = query.value.replace(/@recommended:all/g, '').replace(/@recommended/g, '').trim().toLowerCase();
 
@@ -472,6 +473,7 @@ export class ExtensionsListView extends ViewletPanel {
 		return new PagedModel([]);
 	}
 
+	// Get All types of recommendations other than Workspace recommendations, trimmed to show a max of 8 at any given time
 	private getRecommendationsModel(query: Query, options: IQueryOptions): Promise<IPagedModel<IExtension>> {
 		const value = query.value.replace(/@recommended/g, '').trim().toLowerCase();
 
