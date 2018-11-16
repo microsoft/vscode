@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as commands from './commands';
+import { registerCommands } from './commands/index';
 import { LanguageConfigurationManager } from './features/languageConfiguration';
 import TypeScriptTaskProviderManager from './features/task';
 import TypeScriptServiceClientHost from './typeScriptServiceClientHost';
@@ -121,21 +121,6 @@ function createLazyClientHost(
 
 		return clientHost;
 	});
-}
-
-function registerCommands(
-	commandManager: CommandManager,
-	lazyClientHost: Lazy<TypeScriptServiceClientHost>,
-	pluginManager: PluginManager,
-) {
-	commandManager.register(new commands.ReloadTypeScriptProjectsCommand(lazyClientHost));
-	commandManager.register(new commands.ReloadJavaScriptProjectsCommand(lazyClientHost));
-	commandManager.register(new commands.SelectTypeScriptVersionCommand(lazyClientHost));
-	commandManager.register(new commands.OpenTsServerLogCommand(lazyClientHost));
-	commandManager.register(new commands.RestartTsServerCommand(lazyClientHost));
-	commandManager.register(new commands.TypeScriptGoToProjectConfigCommand(lazyClientHost));
-	commandManager.register(new commands.JavaScriptGoToProjectConfigCommand(lazyClientHost));
-	commandManager.register(new commands.ConfigurePluginCommand(pluginManager));
 }
 
 function isSupportedDocument(
