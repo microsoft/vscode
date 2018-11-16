@@ -822,14 +822,22 @@ export class Repository {
 		}
 	}
 
-	async diff(path: string, cached = false): Promise<string> {
+	async apply(patch: string, reverse?: boolean): Promise<void> {
+		const args = ['apply', patch];
+
+		if (reverse) {
+			args.push('-R');
+		}
+
+		await this.run(args);
+	}
+
+	async diff(cached = false): Promise<string> {
 		const args = ['diff'];
 
 		if (cached) {
 			args.push('--cached');
 		}
-
-		args.push('--', path);
 
 		const result = await this.run(args);
 		return result.stdout;
