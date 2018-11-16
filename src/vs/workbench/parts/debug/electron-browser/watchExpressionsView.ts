@@ -353,7 +353,7 @@ class WatchExpressionsDragAndDrop extends DefaultDragAndDrop {
 	}
 
 	public getDragURI(tree: ITree, element: Expression): string {
-		if (!(element instanceof Expression)) {
+		if (!(element instanceof Expression) || element === this.debugService.getViewModel().getSelectedExpression()) {
 			return null;
 		}
 
