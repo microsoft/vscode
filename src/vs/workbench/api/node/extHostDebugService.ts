@@ -662,7 +662,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		const type = config.type;
 		const promises = this._configProviders
 			.filter(pair => pair.provider.provideDebugAdapterTracker && (pair.type === type || pair.type === '*'))
-			.map(pair => asThenable(() => pair.provider.provideDebugAdapterTracker(session, CancellationToken.None)).then(p => p).catch(err => null));
+			.map(pair => asThenable(() => (pair.provider as any).provideDebugAdapterTracker(session, session.workspaceFolder, session.configuration, CancellationToken.None)).then(p => p).catch(err => null));
 
 		return Promise.race([
 			Promise.all(promises).then(trackers => {
