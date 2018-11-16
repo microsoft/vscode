@@ -461,7 +461,8 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<IComp
 		this.focusedItem = null;
 		this.storageService = storageService;
 
-		// :facepalm:
+		// :facepalm: No other smart way to determine if this is monaco or vscode.
+		// The former doesnt have a storage service
 		this.storageService.store('___suggest___', true, StorageScope.GLOBAL);
 		if (!this.storageService.get('___suggest___', StorageScope.GLOBAL)) {
 			this.storageServiceAvailable = false;
@@ -1024,6 +1025,9 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<IComp
 		return height;
 	}
 
+	/**
+	 * Adds the propert classes, margins when positioning the docs to the side
+	 */
 	private adjustDocsPosition() {
 		const lineHeight = this.editor.getConfiguration().fontInfo.lineHeight;
 		const cursorCoords = this.editor.getScrolledVisiblePosition(this.editor.getPosition());
@@ -1054,6 +1058,9 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<IComp
 		}
 	}
 
+	/**
+	 * Adds the proper classes for positioning the docs to the side or below
+	 */
 	private expandSideOrBelow() {
 		if (!canExpandCompletionItem(this.focusedItem) && this.firstFocusInCurrentList) {
 			removeClass(this.element, 'docs-side');
