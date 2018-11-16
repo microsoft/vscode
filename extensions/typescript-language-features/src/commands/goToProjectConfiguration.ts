@@ -5,76 +5,13 @@
 
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
-import TypeScriptServiceClientHost from './typeScriptServiceClientHost';
-import { Command } from './utils/commandManager';
-import { Lazy } from './utils/lazy';
-import { isImplicitProjectConfigFile, openOrCreateConfigFile } from './utils/tsconfig';
-import { nulToken } from './utils/cancellation';
-import { PluginConfigProvider } from './typescriptServiceClient';
-
+import TypeScriptServiceClientHost from '../typeScriptServiceClientHost';
+import { nulToken } from '../utils/cancellation';
+import { Command } from '../utils/commandManager';
+import { Lazy } from '../utils/lazy';
+import { isImplicitProjectConfigFile, openOrCreateConfigFile } from '../utils/tsconfig';
 
 const localize = nls.loadMessageBundle();
-
-
-export class ReloadTypeScriptProjectsCommand implements Command {
-	public readonly id = 'typescript.reloadProjects';
-
-	public constructor(
-		private readonly lazyClientHost: Lazy<TypeScriptServiceClientHost>
-	) { }
-
-	public execute() {
-		this.lazyClientHost.value.reloadProjects();
-	}
-}
-
-export class ReloadJavaScriptProjectsCommand implements Command {
-	public readonly id = 'javascript.reloadProjects';
-
-	public constructor(
-		private readonly lazyClientHost: Lazy<TypeScriptServiceClientHost>
-	) { }
-
-	public execute() {
-		this.lazyClientHost.value.reloadProjects();
-	}
-}
-
-export class SelectTypeScriptVersionCommand implements Command {
-	public readonly id = 'typescript.selectTypeScriptVersion';
-
-	public constructor(
-		private readonly lazyClientHost: Lazy<TypeScriptServiceClientHost>
-	) { }
-
-	public execute() {
-		this.lazyClientHost.value.serviceClient.onVersionStatusClicked();
-	}
-}
-
-export class OpenTsServerLogCommand implements Command {
-	public readonly id = 'typescript.openTsServerLog';
-
-	public constructor(
-		private readonly lazyClientHost: Lazy<TypeScriptServiceClientHost>
-	) { }
-
-	public execute() {
-		this.lazyClientHost.value.serviceClient.openTsServerLogFile();
-	}
-}
-
-export class RestartTsServerCommand implements Command {
-	public readonly id = 'typescript.restartTsServer';
-
-	public constructor(
-		private readonly lazyClientHost: Lazy<TypeScriptServiceClientHost>
-	) { }
-
-	public execute() {
-		this.lazyClientHost.value.serviceClient.restartTsServer();
-	}
-}
 
 export class TypeScriptGoToProjectConfigCommand implements Command {
 	public readonly id = 'typescript.goToProjectConfig';
@@ -106,18 +43,6 @@ export class JavaScriptGoToProjectConfigCommand implements Command {
 	}
 }
 
-export class ConfigurePluginCommand implements Command {
-	public readonly id = '_typescript.configurePlugin';
-
-	public constructor(
-		private readonly pluginConfigProvider: PluginConfigProvider,
-	) { }
-
-	public execute(pluginId: string, configuration: any) {
-		this.pluginConfigProvider.set(pluginId, configuration);
-	}
-}
-
 async function goToProjectConfig(
 	clientHost: TypeScriptServiceClientHost,
 	isTypeScriptProject: boolean,
@@ -143,7 +68,7 @@ async function goToProjectConfig(
 		return;
 	}
 
-	let res: protocol.ProjectInfoResponse | undefined = undefined;
+	let res: protocol.ProjectInfoResponse | undefined;
 	try {
 		res = await client.execute('projectInfo', { file, needFileNameList: false }, nulToken);
 	} catch {
@@ -164,7 +89,7 @@ async function goToProjectConfig(
 	enum ProjectConfigAction {
 		None,
 		CreateConfig,
-		LearnMore
+		LearnMore,
 	}
 
 	interface ProjectConfigMessageItem extends vscode.MessageItem {
@@ -179,7 +104,7 @@ async function goToProjectConfig(
 			title: isTypeScriptProject
 				? localize('typescript.configureTsconfigQuickPick', 'Configure tsconfig.json')
 				: localize('typescript.configureJsconfigQuickPick', 'Configure jsconfig.json'),
-			id: ProjectConfigAction.CreateConfig
+			id: ProjectConfigAction.CreateConfig,
 		});
 
 	switch (selected && selected.id) {

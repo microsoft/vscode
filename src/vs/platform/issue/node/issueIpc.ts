@@ -3,26 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
-import { IChannel } from 'vs/base/parts/ipc/node/ipc';
+import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
 import { IIssueService, IssueReporterData, ProcessExplorerData } from '../common/issue';
 import { Event } from 'vs/base/common/event';
 
-export interface IIssueChannel extends IChannel {
-	call(command: 'openIssueReporter', arg: IssueReporterData): TPromise<void>;
-	call(command: 'getStatusInfo'): TPromise<any>;
-	call(command: string, arg?: any): TPromise<any>;
-}
-
-export class IssueChannel implements IIssueChannel {
+export class IssueChannel implements IServerChannel {
 
 	constructor(private service: IIssueService) { }
 
-	listen<T>(event: string): Event<T> {
+	listen<T>(_, event: string): Event<T> {
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(command: string, arg?: any): TPromise<any> {
+	call(_, command: string, arg?: any): Thenable<any> {
 		switch (command) {
 			case 'openIssueReporter':
 				return this.service.openReporter(arg);
@@ -38,13 +31,13 @@ export class IssueChannelClient implements IIssueService {
 
 	_serviceBrand: any;
 
-	constructor(private channel: IIssueChannel) { }
+	constructor(private channel: IChannel) { }
 
-	openReporter(data: IssueReporterData): TPromise<void> {
+	openReporter(data: IssueReporterData): Thenable<void> {
 		return this.channel.call('openIssueReporter', data);
 	}
 
-	openProcessExplorer(data: ProcessExplorerData): TPromise<void> {
+	openProcessExplorer(data: ProcessExplorerData): Thenable<void> {
 		return this.channel.call('openProcessExplorer', data);
 	}
 }

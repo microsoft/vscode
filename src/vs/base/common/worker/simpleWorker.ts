@@ -6,6 +6,15 @@
 import { transformErrorForSerialization } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
+import { PolyfillPromise } from 'vs/base/common/winjs.polyfill.promise';
+
+var global: any = self;
+
+// When missing, polyfill the native promise
+// with our winjs-based polyfill
+if (typeof global.Promise === 'undefined') {
+	global.Promise = PolyfillPromise;
+}
 
 const INITIALIZE = '$initialize';
 

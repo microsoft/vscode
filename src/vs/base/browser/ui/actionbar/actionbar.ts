@@ -206,7 +206,7 @@ export class BaseActionItem extends Disposable implements IActionItem {
 
 	dispose(): void {
 		if (this.element) {
-			this.element.remove();
+			DOM.removeNode(this.element);
 			this.element = null;
 		}
 
@@ -775,7 +775,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		}
 		this.items = null;
 
-		this.getContainer().remove();
+		DOM.removeNode(this.getContainer());
 
 		super.dispose();
 	}

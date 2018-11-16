@@ -243,7 +243,7 @@ export class DropdownMenu extends BaseDropdown {
 
 		this._contextMenuProvider.showContextMenu({
 			getAnchor: () => this.element,
-			getActions: () => Promise.resolve(this.actions),
+			getActions: () => this.actions,
 			getActionsContext: () => this.menuOptions ? this.menuOptions.context : null,
 			getActionItem: action => this.menuOptions && this.menuOptions.actionItemProvider ? this.menuOptions.actionItemProvider(action) : null,
 			getKeyBinding: action => this.menuOptions && this.menuOptions.getKeyBinding ? this.menuOptions.getKeyBinding(action) : null,

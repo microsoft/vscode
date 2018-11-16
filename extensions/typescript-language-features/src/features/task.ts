@@ -230,19 +230,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 
 	private getLabelForTasks(project: TSConfig): string {
 		if (project.workspaceFolder) {
-			const projectFolder = project.workspaceFolder;
-			const workspaceFolders = vscode.workspace.workspaceFolders;
-			const relativePath = path.relative(project.workspaceFolder.uri.fsPath, project.path);
-			if (workspaceFolders && workspaceFolders.length > 1) {
-				// Use absolute path when we have multiple folders with the same name
-				if (workspaceFolders.filter(x => x.name === projectFolder.name).length > 1) {
-					return path.join(project.workspaceFolder.uri.fsPath, relativePath);
-				} else {
-					return path.join(project.workspaceFolder.name, relativePath);
-				}
-			} else {
-				return relativePath;
-			}
+			return path.relative(project.workspaceFolder.uri.fsPath, project.path);
 		}
 		return project.path;
 	}

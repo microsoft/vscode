@@ -35,7 +35,6 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CommandService } from 'vs/workbench/services/commands/common/commandService';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { createHash } from 'crypto';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
@@ -83,14 +82,14 @@ suite('ConfigurationEditingService', () => {
 			.then(() => setUpServices());
 	});
 
-	function setUpWorkspace(): TPromise<boolean> {
+	async function setUpWorkspace(): Promise<boolean> {
 		const id = uuid.generateUuid();
 		parentDir = path.join(os.tmpdir(), 'vsctests', id);
 		workspaceDir = path.join(parentDir, 'workspaceconfig', id);
 		globalSettingsFile = path.join(workspaceDir, 'config.json');
 		workspaceSettingsDir = path.join(workspaceDir, '.vscode');
 
-		return mkdirp(workspaceSettingsDir, 493);
+		return await mkdirp(workspaceSettingsDir, 493);
 	}
 
 	function setUpServices(noWorkspace: boolean = false): Promise<void> {

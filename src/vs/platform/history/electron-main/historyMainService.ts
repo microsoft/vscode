@@ -240,7 +240,7 @@ export class HistoryMainService implements IHistoryMainService {
 
 		// Add currently files to open to the beginning if any
 		if (currentFiles) {
-			files.unshift(...currentFiles.map(f => f.fileUri));
+			files.unshift(...arrays.coalesce(currentFiles.map(f => f.fileUri)));
 		}
 
 		// Clear those dupes

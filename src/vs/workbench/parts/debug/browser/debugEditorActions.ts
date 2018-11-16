@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -18,6 +17,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { openBreakpointSource } from 'vs/workbench/parts/debug/browser/breakpointsView';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { PanelFocusContext } from 'vs/workbench/browser/parts/panel/panelPart';
+import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 
 export const TOGGLE_BREAKPOINT_ID = 'editor.debug.action.toggleBreakpoint';
 class ToggleBreakpointAction extends EditorAction {
@@ -35,7 +35,7 @@ class ToggleBreakpointAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<any> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<any> {
 		const debugService = accessor.get(IDebugService);
 
 		const position = editor.getPosition();
@@ -99,10 +99,13 @@ class LogPointAction extends EditorAction {
 
 class RunToCursorAction extends EditorAction {
 
+	public static ID = 'editor.debug.action.runToCursor';
+	public static LABEL = nls.localize('runToCursor', "Run to Cursor");
+
 	constructor() {
 		super({
-			id: 'editor.debug.action.runToCursor',
-			label: nls.localize('runToCursor', "Run to Cursor"),
+			id: RunToCursorAction.ID,
+			label: RunToCursorAction.LABEL,
 			alias: 'Debug: Run to Cursor',
 			precondition: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, PanelFocusContext.toNegated(), CONTEXT_DEBUG_STATE.isEqualTo('stopped'), EditorContextKeys.editorTextFocus),
 			menuOpts: {
@@ -112,7 +115,7 @@ class RunToCursorAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const debugService = accessor.get(IDebugService);
 		const focusedSession = debugService.getViewModel().focusedSession;
 		if (debugService.state !== State.Stopped || !focusedSession) {
@@ -157,7 +160,7 @@ class SelectionToReplAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const debugService = accessor.get(IDebugService);
 		const panelService = accessor.get(IPanelService);
 
@@ -185,7 +188,7 @@ class SelectionToWatchExpressionsAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): Thenable<void> {
 		const debugService = accessor.get(IDebugService);
 		const viewletService = accessor.get(IViewletService);
 
@@ -210,7 +213,7 @@ class ShowDebugHoverAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const position = editor.getPosition();
 		const word = editor.getModel().getWordAtPosition(position);
 		if (!word) {
@@ -227,7 +230,7 @@ class GoToBreakpointAction extends EditorAction {
 		super(opts);
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): TPromise<any> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): Thenable<any> {
 		const debugService = accessor.get(IDebugService);
 		const editorService = accessor.get(IEditorService);
 		const currentUri = editor.getModel().uri;
@@ -293,3 +296,12 @@ registerEditorAction(SelectionToWatchExpressionsAction);
 registerEditorAction(ShowDebugHoverAction);
 registerEditorAction(GoToNextBreakpointAction);
 registerEditorAction(GoToPreviousBreakpointAction);
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
+		id: RunToCursorAction.ID,
+		title: RunToCursorAction.LABEL,
+		category: 'Debug'
+	},
+	group: 'debug',
+	when: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEqualTo('stopped')),
+});

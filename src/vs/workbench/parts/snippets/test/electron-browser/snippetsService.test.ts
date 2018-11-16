@@ -352,4 +352,23 @@ suite('SnippetsService', function () {
 
 		toDispose.dispose();
 	});
+
+	test('No snippets shown when triggering completions at whitespace on line that already has text #62335', async function () {
+		snippetService = new SimpleSnippetService([new Snippet(
+			['fooLang'],
+			'bug',
+			'bug',
+			'',
+			'second',
+			'',
+			SnippetSource.User
+		)]);
+
+		const provider = new SnippetCompletionProvider(modeService, snippetService);
+
+		let model = TextModel.createFromString('a ', undefined, modeService.getLanguageIdentifier('fooLang'));
+		let result = await provider.provideCompletionItems(model, new Position(1, 3));
+
+		assert.equal(result.suggestions.length, 1);
+	});
 });

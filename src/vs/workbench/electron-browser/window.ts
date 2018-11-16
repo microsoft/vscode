@@ -237,7 +237,7 @@ export class ElectronWindow extends Themable {
 
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => e,
-					getActions: () => TPromise.as(TextInputActions),
+					getActions: () => TextInputActions,
 					onHide: () => target.focus() // fixes https://github.com/Microsoft/vscode/issues/52948
 				});
 			}

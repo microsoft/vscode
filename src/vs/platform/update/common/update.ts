@@ -48,7 +48,8 @@ export const enum StateType {
 
 export const enum UpdateType {
 	Setup,
-	Archive
+	Archive,
+	Snap
 }
 
 export type Uninitialized = { type: StateType.Uninitialized };

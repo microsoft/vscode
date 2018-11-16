@@ -8,6 +8,7 @@ import { Action } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
 import { LinkedMap } from 'vs/base/common/map';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { Task, ContributedTask, CustomTask, TaskSet, TaskSorter, TaskEvent, TaskIdentifier } from 'vs/workbench/parts/tasks/common/tasks';
@@ -66,8 +67,7 @@ export interface ITaskService {
 	customize(task: ContributedTask | CustomTask, properties?: {}, openConfig?: boolean): TPromise<void>;
 	openConfig(task: CustomTask): TPromise<void>;
 
-	registerTaskProvider(handle: number, taskProvider: ITaskProvider): void;
-	unregisterTaskProvider(handle: number): boolean;
+	registerTaskProvider(taskProvider: ITaskProvider): IDisposable;
 
 	registerTaskSystem(scheme: string, taskSystemInfo: TaskSystemInfo): void;
 }

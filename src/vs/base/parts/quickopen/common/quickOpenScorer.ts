@@ -304,19 +304,17 @@ export interface IPreparedQuery {
  * Helper function to prepare a search value for scoring in quick open by removing unwanted characters.
  */
 export function prepareQuery(original: string): IPreparedQuery {
-	let lowercase: string;
-	let containsPathSeparator: boolean;
-	let value: string;
-
-	if (original) {
-		value = stripWildcards(original).replace(/\s/g, ''); // get rid of all wildcards and whitespace
-		if (isWindows) {
-			value = value.replace(/\//g, nativeSep); // Help Windows users to search for paths when using slash
-		}
-
-		lowercase = value.toLowerCase();
-		containsPathSeparator = value.indexOf(nativeSep) >= 0;
+	if (!original) {
+		original = '';
 	}
+
+	let value = stripWildcards(original).replace(/\s/g, ''); // get rid of all wildcards and whitespace
+	if (isWindows) {
+		value = value.replace(/\//g, nativeSep); // Help Windows users to search for paths when using slash
+	}
+
+	const lowercase = value.toLowerCase();
+	const containsPathSeparator = value.indexOf(nativeSep) >= 0;
 
 	return { original, value, lowercase, containsPathSeparator };
 }
@@ -503,28 +501,25 @@ export function compareItemsByScore<T>(itemA: T, itemB: T, query: IPreparedQuery
 }
 
 function computeLabelAndDescriptionMatchDistance<T>(item: T, score: IItemScore, accessor: IItemAccessor<T>): number {
-	const hasLabelMatches = (score.labelMatch && score.labelMatch.length);
-	const hasDescriptionMatches = (score.descriptionMatch && score.descriptionMatch.length);
-
 	let matchStart: number = -1;
 	let matchEnd: number = -1;
 
 	// If we have description matches, the start is first of description match
-	if (hasDescriptionMatches) {
+	if (score.descriptionMatch && score.descriptionMatch.length) {
 		matchStart = score.descriptionMatch[0].start;
 	}
 
 	// Otherwise, the start is the first label match
-	else if (hasLabelMatches) {
+	else if (score.labelMatch && score.labelMatch.length) {
 		matchStart = score.labelMatch[0].start;
 	}
 
 	// If we have label match, the end is the last label match
 	// If we had a description match, we add the length of the description
 	// as offset to the end to indicate this.
-	if (hasLabelMatches) {
+	if (score.labelMatch && score.labelMatch.length) {
 		matchEnd = score.labelMatch[score.labelMatch.length - 1].end;
-		if (hasDescriptionMatches) {
+		if (score.descriptionMatch && score.descriptionMatch.length) {
 			const itemDescription = accessor.getItemDescription(item);
 			if (itemDescription) {
 				matchEnd += itemDescription.length;
@@ -533,7 +528,7 @@ function computeLabelAndDescriptionMatchDistance<T>(item: T, score: IItemScore, 
 	}
 
 	// If we have just a description match, the end is the last description match
-	else if (hasDescriptionMatches) {
+	else if (score.descriptionMatch && score.descriptionMatch.length) {
 		matchEnd = score.descriptionMatch[score.descriptionMatch.length - 1].end;
 	}
 
@@ -541,7 +536,7 @@ function computeLabelAndDescriptionMatchDistance<T>(item: T, score: IItemScore, 
 }
 
 function compareByMatchLength(matchesA?: IMatch[], matchesB?: IMatch[]): number {
-	if ((!matchesA && !matchesB) || (!matchesA.length && !matchesB.length)) {
+	if ((!matchesA && !matchesB) || ((!matchesA || !matchesA.length) && (!matchesB || !matchesB.length))) {
 		return 0; // make sure to not cause bad comparing when matches are not provided
 	}
 

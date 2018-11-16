@@ -316,7 +316,7 @@ class MainPanel extends ViewletPanel {
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
-			getActions: () => TPromise.as(secondary),
+			getActions: () => secondary,
 			getActionsContext: () => repository.provider
 		});
 	}
@@ -799,12 +799,12 @@ export class RepositoryPanel extends ViewletPanel {
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => ({ x: event.posx, y: event.posy }),
-			getActions: () => TPromise.as([<IAction>{
+			getActions: () => [<IAction>{
 				id: `scm.hideRepository`,
 				label: localize('hideRepository', "Hide"),
 				enabled: true,
 				run: () => this.viewModel.hide(this.repository)
-			}]),
+			}],
 		});
 	}
 
@@ -997,7 +997,7 @@ export class RepositoryPanel extends ViewletPanel {
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
-			getActions: () => TPromise.as(actions),
+			getActions: () => actions,
 			getActionsContext: () => element,
 			actionRunner: new MultipleSelectionActionRunner(() => this.getSelectedResources())
 		});
@@ -1406,7 +1406,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 		let anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => TPromise.as(actions)
+			getActions: () => actions
 		});
 	}
 
@@ -1477,7 +1477,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 		return super.isSingleView() && this.repositoryPanels.length + this.contributedViews.visibleViewDescriptors.length === 1;
 	}
 
-	openView(id: string, focus?: boolean): TPromise<IView> {
+	openView(id: string, focus?: boolean): IView {
 		if (focus) {
 			this.focus();
 		}
@@ -1487,8 +1487,10 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 		}
 		panel = this.panels.filter(panel => panel instanceof ViewletPanel && panel.id === id)[0];
 		panel.setExpanded(true);
-		panel.focus();
-		return TPromise.as(panel);
+		if (focus) {
+			panel.focus();
+		}
+		return panel;
 	}
 
 	hide(repository: ISCMRepository): void {

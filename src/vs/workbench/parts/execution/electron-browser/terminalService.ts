@@ -67,7 +67,7 @@ export class WinTerminalService implements ITerminalService {
 			const cmd = cp.spawn(WinTerminalService.CMD, cmdArgs, options);
 			cmd.on('error', e);
 
-			c(null);
+			c();
 		});
 	}
 
@@ -100,7 +100,7 @@ export class WinTerminalService implements ITerminalService {
 			const env = cwd ? { cwd: cwd } : void 0;
 			const child = spawner.spawn(command, cmdArgs, env);
 			child.on('error', e);
-			child.on('exit', () => c(null));
+			child.on('exit', () => c());
 		});
 	}
 
@@ -176,7 +176,7 @@ export class MacTerminalService implements ITerminalService {
 				});
 				osa.on('exit', (code: number) => {
 					if (code === 0) {	// OK
-						c(null);
+						c();
 					} else {
 						if (stderr) {
 							const lines = stderr.split('\n', 1);
@@ -199,7 +199,7 @@ export class MacTerminalService implements ITerminalService {
 		return new Promise<void>((c, e) => {
 			const child = spawner.spawn('/usr/bin/open', ['-a', terminalApp, cwd]);
 			child.on('error', e);
-			child.on('exit', () => c(null));
+			child.on('exit', () => c());
 		});
 	}
 }
@@ -262,7 +262,7 @@ export class LinuxTerminalService implements ITerminalService {
 				});
 				cmd.on('exit', (code: number) => {
 					if (code === 0) {	// OK
-						c(null);
+						c();
 					} else {
 						if (stderr) {
 							const lines = stderr.split('\n', 1);
@@ -285,7 +285,7 @@ export class LinuxTerminalService implements ITerminalService {
 			execPromise.then(exec => {
 				const child = spawner.spawn(exec, [], env);
 				child.on('error', e);
-				child.on('exit', () => c(null));
+				child.on('exit', () => c());
 			});
 		});
 	}

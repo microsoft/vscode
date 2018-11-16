@@ -14,7 +14,6 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { ICodeEditor, IEditorMouseEvent, IViewZone, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
@@ -416,7 +415,7 @@ export class FolderSettingsActionItem extends BaseActionItem {
 	private showMenu(): void {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => this.container,
-			getActions: () => TPromise.as(this.getDropdownMenuActions()),
+			getActions: () => this.getDropdownMenuActions(),
 			getActionItem: () => null,
 			onHide: () => {
 				this.anchorElement.blur();
@@ -549,13 +548,13 @@ export class SettingsTargetsWidget extends Widget {
 		}
 	}
 
-	public updateTarget(settingsTarget: SettingsTarget): TPromise<void> {
+	public updateTarget(settingsTarget: SettingsTarget): Promise<void> {
 		const isSameTarget = this.settingsTarget === settingsTarget || settingsTarget instanceof URI && this.settingsTarget instanceof URI && this.settingsTarget.toString() === settingsTarget.toString();
 		if (!isSameTarget) {
 			this.settingsTarget = settingsTarget;
 			this._onDidTargetChange.fire(this.settingsTarget);
 		}
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	private update(): void {
@@ -646,7 +645,7 @@ export class SearchWidget extends Widget {
 		return box;
 	}
 
-	public showMessage(message: string, count: number): void {
+	public showMessage(message: string): void {
 		// Avoid setting the aria-label unnecessarily, the screenreader will read the count every time it's set, since it's aria-live:assertive. #50968
 		if (this.countElement && message !== this.countElement.textContent) {
 			this.countElement.textContent = message;
@@ -833,7 +832,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 				outline-style: solid;
 				border-bottom: none;
 				padding-bottom: 0;
-				outline-offset: 2px;
+				outline-offset: -1px;
 			}
 
 			.settings-tabs-widget > .monaco-action-bar .action-item .action-label:not(.checked):hover {

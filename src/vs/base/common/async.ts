@@ -268,12 +268,12 @@ export class ThrottledDelayer<T> extends Delayer<TPromise<T>> {
 export class Barrier {
 
 	private _isOpen: boolean;
-	private _promise: TPromise<boolean>;
+	private _promise: Promise<boolean>;
 	private _completePromise: (v: boolean) => void;
 
 	constructor() {
 		this._isOpen = false;
-		this._promise = new TPromise<boolean>((c, e) => {
+		this._promise = new Promise<boolean>((c, e) => {
 			this._completePromise = c;
 		});
 	}
@@ -287,7 +287,7 @@ export class Barrier {
 		this._completePromise(true);
 	}
 
-	wait(): TPromise<boolean> {
+	wait(): Promise<boolean> {
 		return this._promise;
 	}
 }
@@ -673,7 +673,7 @@ export function nfcall(fn: Function, ...args: any[]): any {
 export function ninvoke(thisArg: any, fn: Function, ...args: any[]): TPromise;
 export function ninvoke<T>(thisArg: any, fn: Function, ...args: any[]): TPromise<T>;
 export function ninvoke(thisArg: any, fn: Function, ...args: any[]): any {
-	return new TPromise((c, e) => fn.call(thisArg, ...args, (err: any, result: any) => err ? e(err) : c(result)));
+	return new Promise((resolve, reject) => fn.call(thisArg, ...args, (err: any, result: any) => err ? reject(err) : resolve(result)));
 }
 
 

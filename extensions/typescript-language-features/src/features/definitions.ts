@@ -37,11 +37,11 @@ export default class TypeScriptDefinitionProvider extends DefinitionProviderBase
 			return response.body.definitions
 				.map(location => {
 					const target = typeConverters.Location.fromTextSpan(this.client.toResource(location.file), location);
-					return <vscode.DefinitionLink>{
+					return {
 						originSelectionRange: span,
 						targetRange: target.range,
 						targetUri: target.uri,
-					};
+					} as vscode.DefinitionLink;
 				});
 		}
 

@@ -24,7 +24,7 @@ export function tail2<T>(arr: T[]): [T[], T] {
 	return [arr.slice(0, arr.length - 1), arr[arr.length - 1]];
 }
 
-export function equals<T>(one: ReadonlyArray<T>, other: ReadonlyArray<T>, itemEquals: (a: T, b: T) => boolean = (a, b) => a === b): boolean {
+export function equals<T>(one: ReadonlyArray<T> | undefined, other: ReadonlyArray<T> | undefined, itemEquals: (a: T, b: T) => boolean = (a, b) => a === b): boolean {
 	if (one === other) {
 		return true;
 	}
@@ -334,7 +334,14 @@ export function move(array: any[], from: number, to: number): void {
  * 	and not empty.
  */
 export function isFalsyOrEmpty(obj: any): boolean {
-	return !Array.isArray(obj) || (<Array<any>>obj).length === 0;
+	return !Array.isArray(obj) || obj.length === 0;
+}
+
+/**
+ * @returns {{true}} if the provided object is an array and has at least one element.
+ */
+export function isNonEmptyArray<T>(obj: ReadonlyArray<T> | undefined | null): obj is Array<T> {
+	return Array.isArray(obj) && obj.length > 0;
 }
 
 /**

@@ -2,17 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import * as assert from 'assert';
 import { MenuRegistry, MenuId, isIMenuItem } from 'vs/platform/actions/common/actions';
-import { MenuService } from 'vs/workbench/services/actions/common/menuService';
+import { MenuService } from 'vs/platform/actions/common/menuService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { NullCommandService } from 'vs/platform/commands/common/commands';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { TestExtensionService } from 'vs/workbench/test/workbenchTestServices';
 
 // --- service instances
-
-const extensionService = new TestExtensionService();
 
 const contextKeyService = new class extends MockContextKeyService {
 	contextMatchesRules() {
@@ -29,8 +27,8 @@ suite('MenuService', function () {
 	let testMenuId: MenuId;
 
 	setup(function () {
-		menuService = new MenuService(extensionService, NullCommandService);
-		testMenuId = new MenuId();
+		menuService = new MenuService(NullCommandService);
+		testMenuId = Math.PI;
 		disposables = [];
 	});
 

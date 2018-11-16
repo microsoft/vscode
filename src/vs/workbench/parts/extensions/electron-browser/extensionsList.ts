@@ -91,7 +91,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			animated: false,
 			actionItemProvider: (action: Action) => {
 				if (action.id === ManageExtensionAction.ID) {
-					return (<ManageExtensionAction>action).actionItem;
+					return (<ManageExtensionAction>action).createActionItem();
 				}
 				return new ExtensionActionItem(null, action, actionOptions);
 			}
@@ -150,7 +150,16 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		this.extensionService.getExtensions().then(runningExtensions => {
 			if (installed && installed.local) {
 				const installedExtensionServer = this.extensionManagementServerService.getExtensionManagementServer(installed.local.location);
-				const isSameExtensionRunning = runningExtensions.some(e => areSameExtensions(e, extension) && installedExtensionServer.authority === this.extensionManagementServerService.getExtensionManagementServer(e.extensionLocation).authority);
+				const isSameExtensionRunning = runningExtensions.some(e => {
+					if (!areSameExtensions(e, extension)) {
+						return false;
+					}
+					const runningExtensionServer = this.extensionManagementServerService.getExtensionManagementServer(e.extensionLocation);
+					if (!installedExtensionServer || !runningExtensionServer) {
+						return false;
+					}
+					return installedExtensionServer.authority === runningExtensionServer.authority;
+				});
 				toggleClass(data.root, 'disabled', !isSameExtensionRunning);
 			} else {
 				removeClass(data.root, 'disabled');

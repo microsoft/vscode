@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import { localize } from 'vs/nls';
 import * as objects from 'vs/base/common/objects';
 import { parseArgs } from 'vs/platform/environment/node/argv';
@@ -15,14 +14,15 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowState } from 'vs/platform/windows/electron-main/windows';
 
 const DEFAULT_BACKGROUND_COLOR = '#1E1E1E';
 
 export class IssueService implements IIssueService {
 	_serviceBrand: any;
-	_issueWindow: BrowserWindow;
+	_issueWindow: BrowserWindow | null;
 	_issueParentWindow: BrowserWindow;
-	_processExplorerWindow: BrowserWindow;
+	_processExplorerWindow: BrowserWindow | null;
 
 	constructor(
 		private machineId: string,
@@ -73,102 +73,102 @@ export class IssueService implements IIssueService {
 
 	}
 
-	openReporter(data: IssueReporterData): TPromise<void> {
-		this._issueParentWindow = BrowserWindow.getFocusedWindow();
-		const position = this.getWindowPosition(this._issueParentWindow, 700, 800);
-		if (!this._issueWindow) {
-			this._issueWindow = new BrowserWindow({
-				width: position.width,
-				height: position.height,
-				minWidth: 300,
-				minHeight: 200,
-				x: position.x,
-				y: position.y,
-				title: localize('issueReporter', "Issue Reporter"),
-				backgroundColor: data.styles.backgroundColor || DEFAULT_BACKGROUND_COLOR
-			});
+	openReporter(data: IssueReporterData): Promise<void> {
+		return new Promise(_ => {
+			this._issueParentWindow = BrowserWindow.getFocusedWindow();
+			const position = this.getWindowPosition(this._issueParentWindow, 700, 800);
+			if (!this._issueWindow) {
+				this._issueWindow = new BrowserWindow({
+					width: position.width,
+					height: position.height,
+					minWidth: 300,
+					minHeight: 200,
+					x: position.x,
+					y: position.y,
+					title: localize('issueReporter', "Issue Reporter"),
+					backgroundColor: data.styles.backgroundColor || DEFAULT_BACKGROUND_COLOR
+				});
 
-			this._issueWindow.setMenuBarVisibility(false); // workaround for now, until a menu is implemented
+				this._issueWindow.setMenuBarVisibility(false); // workaround for now, until a menu is implemented
 
-			// Modified when testing UI
-			const features: IssueReporterFeatures = {};
+				// Modified when testing UI
+				const features: IssueReporterFeatures = {};
 
-			this.logService.trace('issueService#openReporter: opening issue reporter');
-			this._issueWindow.loadURL(this.getIssueReporterPath(data, features));
+				this.logService.trace('issueService#openReporter: opening issue reporter');
+				this._issueWindow.loadURL(this.getIssueReporterPath(data, features));
 
-			this._issueWindow.on('close', () => this._issueWindow = null);
+				this._issueWindow.on('close', () => this._issueWindow = null);
 
-			this._issueParentWindow.on('closed', () => {
-				if (this._issueWindow) {
-					this._issueWindow.close();
-					this._issueWindow = null;
-				}
-			});
-		}
-
-		this._issueWindow.focus();
-
-		return TPromise.as(null);
-	}
-
-	openProcessExplorer(data: ProcessExplorerData): TPromise<void> {
-		// Create as singleton
-		if (!this._processExplorerWindow) {
-			const parentWindow = BrowserWindow.getFocusedWindow();
-			const position = this.getWindowPosition(parentWindow, 800, 300);
-			this._processExplorerWindow = new BrowserWindow({
-				skipTaskbar: true,
-				resizable: true,
-				width: position.width,
-				height: position.height,
-				minWidth: 300,
-				minHeight: 200,
-				x: position.x,
-				y: position.y,
-				backgroundColor: data.styles.backgroundColor,
-				title: localize('processExplorer', "Process Explorer")
-			});
-
-			this._processExplorerWindow.setMenuBarVisibility(false);
-
-			const windowConfiguration = {
-				appRoot: this.environmentService.appRoot,
-				nodeCachedDataDir: this.environmentService.nodeCachedDataDir,
-				windowId: this._processExplorerWindow.id,
-				userEnv: this.userEnv,
-				machineId: this.machineId,
-				data
-			};
-
-			const environment = parseArgs(process.argv);
-			const config = objects.assign(environment, windowConfiguration);
-			for (let key in config) {
-				if (config[key] === void 0 || config[key] === null || config[key] === '') {
-					delete config[key]; // only send over properties that have a true value
-				}
+				this._issueParentWindow.on('closed', () => {
+					if (this._issueWindow) {
+						this._issueWindow.close();
+						this._issueWindow = null;
+					}
+				});
 			}
 
-			this._processExplorerWindow.loadURL(`${require.toUrl('vs/code/electron-browser/processExplorer/processExplorer.html')}?config=${encodeURIComponent(JSON.stringify(config))}`);
-
-			this._processExplorerWindow.on('close', () => this._processExplorerWindow = void 0);
-
-			parentWindow.on('close', () => {
-				if (this._processExplorerWindow) {
-					this._processExplorerWindow.close();
-					this._processExplorerWindow = null;
-				}
-			});
-		}
-
-		// Focus
-		this._processExplorerWindow.focus();
-
-		return TPromise.as(null);
+			this._issueWindow.focus();
+		});
 	}
 
-	private getWindowPosition(parentWindow: BrowserWindow, defaultWidth: number, defaultHeight: number) {
+	openProcessExplorer(data: ProcessExplorerData): Promise<void> {
+		return new Promise(_ => {
+			// Create as singleton
+			if (!this._processExplorerWindow) {
+				const parentWindow = BrowserWindow.getFocusedWindow();
+				const position = this.getWindowPosition(parentWindow, 800, 300);
+				this._processExplorerWindow = new BrowserWindow({
+					skipTaskbar: true,
+					resizable: true,
+					width: position.width,
+					height: position.height,
+					minWidth: 300,
+					minHeight: 200,
+					x: position.x,
+					y: position.y,
+					backgroundColor: data.styles.backgroundColor,
+					title: localize('processExplorer', "Process Explorer")
+				});
+
+				this._processExplorerWindow.setMenuBarVisibility(false);
+
+				const windowConfiguration = {
+					appRoot: this.environmentService.appRoot,
+					nodeCachedDataDir: this.environmentService.nodeCachedDataDir,
+					windowId: this._processExplorerWindow.id,
+					userEnv: this.userEnv,
+					machineId: this.machineId,
+					data
+				};
+
+				const environment = parseArgs(process.argv);
+				const config = objects.assign(environment, windowConfiguration);
+				for (let key in config) {
+					if (config[key] === void 0 || config[key] === null || config[key] === '') {
+						delete config[key]; // only send over properties that have a true value
+					}
+				}
+
+				this._processExplorerWindow.loadURL(`${require.toUrl('vs/code/electron-browser/processExplorer/processExplorer.html')}?config=${encodeURIComponent(JSON.stringify(config))}`);
+
+				this._processExplorerWindow.on('close', () => this._processExplorerWindow = null);
+
+				parentWindow.on('close', () => {
+					if (this._processExplorerWindow) {
+						this._processExplorerWindow.close();
+						this._processExplorerWindow = null;
+					}
+				});
+			}
+
+			// Focus
+			this._processExplorerWindow.focus();
+		});
+	}
+
+	private getWindowPosition(parentWindow: BrowserWindow, defaultWidth: number, defaultHeight: number): IWindowState {
 		// We want the new window to open on the same display that the parent is in
-		let displayToUse: Electron.Display;
+		let displayToUse: Electron.Display | undefined;
 		const displays = screen.getAllDisplays();
 
 		// Single Display
@@ -196,16 +196,14 @@ export class IssueService implements IIssueService {
 			}
 		}
 
-		let state = {
+		const state: IWindowState = {
 			width: defaultWidth,
-			height: defaultHeight,
-			x: undefined,
-			y: undefined
+			height: defaultHeight
 		};
 
 		const displayBounds = displayToUse.bounds;
-		state.x = displayBounds.x + (displayBounds.width / 2) - (state.width / 2);
-		state.y = displayBounds.y + (displayBounds.height / 2) - (state.height / 2);
+		state.x = displayBounds.x + (displayBounds.width / 2) - (state.width! / 2);
+		state.y = displayBounds.y + (displayBounds.height / 2) - (state.height! / 2);
 
 		if (displayBounds.width > 0 && displayBounds.height > 0 /* Linux X11 sessions sometimes report wrong display bounds */) {
 			if (state.x < displayBounds.x) {
@@ -224,11 +222,11 @@ export class IssueService implements IIssueService {
 				state.y = displayBounds.y; // prevent window from falling out of the screen to the bottom
 			}
 
-			if (state.width > displayBounds.width) {
+			if (state.width! > displayBounds.width) {
 				state.width = displayBounds.width; // prevent window from exceeding display bounds width
 			}
 
-			if (state.height > displayBounds.height) {
+			if (state.height! > displayBounds.height) {
 				state.height = displayBounds.height; // prevent window from exceeding display bounds height
 			}
 		}
@@ -236,7 +234,7 @@ export class IssueService implements IIssueService {
 		return state;
 	}
 
-	private getSystemInformation(): TPromise<SystemInfo> {
+	private getSystemInformation(): Promise<SystemInfo> {
 		return new Promise((resolve, reject) => {
 			this.launchService.getMainProcessInfo().then(info => {
 				resolve(this.diagnosticsService.getSystemInfo(info));
@@ -244,7 +242,7 @@ export class IssueService implements IIssueService {
 		});
 	}
 
-	private getPerformanceInfo(): TPromise<PerformanceInfo> {
+	private getPerformanceInfo(): Promise<PerformanceInfo> {
 		return new Promise((resolve, reject) => {
 			this.launchService.getMainProcessInfo().then(info => {
 				this.diagnosticsService.getPerformanceInfo(info)
@@ -259,7 +257,11 @@ export class IssueService implements IIssueService {
 		});
 	}
 
-	private getIssueReporterPath(data: IssueReporterData, features: IssueReporterFeatures) {
+	private getIssueReporterPath(data: IssueReporterData, features: IssueReporterFeatures): string {
+		if (!this._issueWindow) {
+			throw new Error('Issue window has been disposed');
+		}
+
 		const windowConfiguration = {
 			appRoot: this.environmentService.appRoot,
 			nodeCachedDataDir: this.environmentService.nodeCachedDataDir,

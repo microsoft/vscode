@@ -3,16 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-const toString = Object.prototype.toString;
+import { URI } from 'vs/base/common/uri';
 
-export function defined(value: any): boolean {
-	return typeof value !== 'undefined';
-}
+export const REMOTE_HOST_SCHEME = 'vscode-remote';
 
-export function boolean(value: any): value is boolean {
-	return value === true || value === false;
-}
-
-export function string(value: any): value is string {
-	return toString.call(value) === '[object String]';
+export function getRemoteAuthority(uri: URI) {
+	return uri.scheme === REMOTE_HOST_SCHEME ? uri.authority : void 0;
 }

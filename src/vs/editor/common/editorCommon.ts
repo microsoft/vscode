@@ -534,10 +534,10 @@ export interface IThemeDecorationRenderOptions {
 	textDecoration?: string;
 	cursor?: string;
 	color?: string | ThemeColor;
-	opacity?: number;
+	opacity?: string;
 	letterSpacing?: string;
 
-	gutterIconPath?: string | UriComponents;
+	gutterIconPath?: UriComponents;
 	gutterIconSize?: string;
 
 	overviewRulerColor?: string | ThemeColor;
@@ -551,7 +551,7 @@ export interface IThemeDecorationRenderOptions {
  */
 export interface IContentDecorationRenderOptions {
 	contentText?: string;
-	contentIconPath?: string | UriComponents;
+	contentIconPath?: UriComponents;
 
 	border?: string;
 	borderColor?: string | ThemeColor;

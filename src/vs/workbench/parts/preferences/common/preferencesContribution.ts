@@ -6,7 +6,6 @@
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ITextModel } from 'vs/editor/common/model';
 import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -109,14 +108,14 @@ export class PreferencesContribution implements IWorkbenchContribution {
 	private start(): void {
 
 		this.textModelResolverService.registerTextModelContentProvider('vscode', {
-			provideTextContent: (uri: URI): TPromise<ITextModel> => {
+			provideTextContent: (uri: URI): Thenable<ITextModel> => {
 				if (uri.scheme !== 'vscode') {
 					return null;
 				}
 				if (uri.authority === 'schemas') {
 					const schemaModel = this.getSchemaModel(uri);
 					if (schemaModel) {
-						return TPromise.as(schemaModel);
+						return Promise.resolve(schemaModel);
 					}
 				}
 				return this.preferencesService.resolveModel(uri);

@@ -33,10 +33,10 @@ export type ExtractErrorType = 'CorruptZip' | 'Incomplete';
 
 export class ExtractError extends Error {
 
-	readonly type: ExtractErrorType;
+	readonly type?: ExtractErrorType;
 	readonly cause: Error;
 
-	constructor(type: ExtractErrorType, cause: Error) {
+	constructor(type: ExtractErrorType | undefined, cause: Error) {
 		let message = cause.message;
 
 		switch (type) {
@@ -62,7 +62,7 @@ function toExtractError(err: Error): ExtractError {
 		return err;
 	}
 
-	let type: ExtractErrorType = void 0;
+	let type: ExtractErrorType | undefined = void 0;
 
 	if (/end of central directory record signature not found/.test(err.message)) {
 		type = 'CorruptZip';
@@ -94,7 +94,7 @@ function extractEntry(stream: Readable, fileName: string, mode: number, targetPa
 
 		try {
 			istream = createWriteStream(targetFileName, { mode });
-			istream.once('close', () => c(null));
+			istream.once('close', () => c());
 			istream.once('error', e);
 			stream.once('error', e);
 			stream.pipe(istream);
@@ -105,7 +105,7 @@ function extractEntry(stream: Readable, fileName: string, mode: number, targetPa
 }
 
 function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, logService: ILogService, token: CancellationToken): Promise<void> {
-	let last = createCancelablePromise(() => Promise.resolve(null));
+	let last = createCancelablePromise<void>(() => Promise.resolve());
 	let extractedEntriesCount = 0;
 
 	once(token.onCancellationRequested)(() => {
@@ -129,7 +129,7 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, log
 		zipfile.once('error', e);
 		zipfile.once('close', () => last.then(() => {
 			if (token.isCancellationRequested || zipfile.entryCount === extractedEntriesCount) {
-				c(null);
+				c();
 			} else {
 				e(new ExtractError('Incomplete', new Error(nls.localize('incompleteExtract', "Incomplete. Found {0} of {1} entries", extractedEntriesCount, zipfile.entryCount))));
 			}
@@ -177,7 +177,13 @@ export interface IFile {
 export function zip(zipPath: string, files: IFile[]): Promise<string> {
 	return new Promise<string>((c, e) => {
 		const zip = new yazl.ZipFile();
-		files.forEach(f => f.contents ? zip.addBuffer(typeof f.contents === 'string' ? Buffer.from(f.contents, 'utf8') : f.contents, f.path) : zip.addFile(f.localPath, f.path));
+		files.forEach(f => {
+			if (f.contents) {
+				zip.addBuffer(typeof f.contents === 'string' ? Buffer.from(f.contents, 'utf8') : f.contents, f.path);
+			} else if (f.localPath) {
+				zip.addFile(f.localPath, f.path);
+			}
+		});
 		zip.end();
 
 		const zipStream = createWriteStream(zipPath);

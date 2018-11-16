@@ -229,8 +229,8 @@ export class Storage extends Disposable implements IStorage {
 }
 
 export interface IUpdateRequest {
-	insert?: Map<string, string>;
-	delete?: Set<string>;
+	readonly insert?: Map<string, string>;
+	readonly delete?: Set<string>;
 }
 
 export class SQLiteStorageImpl {
@@ -286,7 +286,7 @@ export class SQLiteStorageImpl {
 			return this.transaction(db, () => {
 				if (request.insert && request.insert.size > 0) {
 					this.prepare(db, 'INSERT INTO ItemTable VALUES (?,?)', stmt => {
-						request.insert.forEach((value, key) => {
+						request.insert!.forEach((value, key) => {
 							stmt.run([key, value]);
 						});
 					});
@@ -294,7 +294,7 @@ export class SQLiteStorageImpl {
 
 				if (request.delete && request.delete.size) {
 					this.prepare(db, 'DELETE FROM ItemTable WHERE key=?', stmt => {
-						request.delete.forEach(key => {
+						request.delete!.forEach(key => {
 							stmt.run(key);
 						});
 					});
@@ -523,13 +523,13 @@ class SQLiteStorageLogger {
 	}
 
 	trace(msg: string): void {
-		if (this.logTrace) {
+		if (this.logTrace && this.options && this.options.logTrace) {
 			this.options.logTrace(msg);
 		}
 	}
 
 	error(error: string | Error): void {
-		if (this.logError) {
+		if (this.logError && this.options && this.options.logError) {
 			this.options.logError(error);
 		}
 	}

@@ -4,6 +4,8 @@ resources:
     image: joaomoreno/vscode-linux-build-agent:x64
   - container: vscode-ia32
     image: joaomoreno/vscode-linux-build-agent:ia32
+  - container: snapcraft
+    image: snapcore/snapcraft
 
 jobs:
 - job: Windows
@@ -33,6 +35,17 @@ jobs:
   container: vscode-x64
   steps:
   - template: linux/product-build-linux.yml
+
+- job: LinuxSnap
+  condition: eq(variables['VSCODE_BUILD_LINUX'], 'true')
+  pool:
+    vmImage: 'Ubuntu-16.04'
+  variables:
+    VSCODE_ARCH: x64
+  container: snapcraft
+  dependsOn: Linux
+  steps:
+  - template: linux/snap-build-linux.yml
 
 - job: Linux32
   condition: eq(variables['VSCODE_BUILD_LINUX_32BIT'], 'true')

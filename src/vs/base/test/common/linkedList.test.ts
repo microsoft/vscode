@@ -9,10 +9,14 @@ import { LinkedList } from 'vs/base/common/linkedList';
 suite('LinkedList', function () {
 
 	function assertElements<E>(list: LinkedList<E>, ...elements: E[]) {
-		// first: assert toArray
+
+		// check size
+		assert.equal(list.size, elements.length);
+
+		// assert toArray
 		assert.deepEqual(list.toArray(), elements);
 
-		// second: assert iterator
+		// assert iterator
 		for (let iter = list.iterator(), element = iter.next(); !element.done; element = iter.next()) {
 			assert.equal(elements.shift(), element.value);
 		}

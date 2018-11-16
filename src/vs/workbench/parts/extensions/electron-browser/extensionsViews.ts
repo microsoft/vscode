@@ -40,6 +40,7 @@ import { alert } from 'vs/base/browser/ui/aria/aria';
 import { IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { getKeywordsForExtension } from 'vs/workbench/parts/extensions/electron-browser/extensionsUtils';
 
 export class ExtensionsListView extends ViewletPanel {
 
@@ -48,7 +49,6 @@ export class ExtensionsListView extends ViewletPanel {
 	private badge: CountBadge;
 	protected badgeContainer: HTMLElement;
 	private list: WorkbenchPagedList<IExtension>;
-	private searchExperiments: IExperiment[] = [];
 
 	constructor(
 		private options: IViewletViewOptions,
@@ -68,7 +68,6 @@ export class ExtensionsListView extends ViewletPanel {
 		@IExperimentService private experimentService: IExperimentService
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: options.title }, keybindingService, contextMenuService, configurationService);
-		this.experimentService.getExperimentsByType(ExperimentActionType.ExtensionSearchResults).then(result => this.searchExperiments = result);
 	}
 
 	protected renderHeader(container: HTMLElement): void {
@@ -168,7 +167,7 @@ export class ExtensionsListView extends ViewletPanel {
 			if (manageExtensionAction.enabled) {
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => e.anchor,
-					getActions: () => Promise.resolve(manageExtensionAction.actionItem.getActions())
+					getActions: () => manageExtensionAction.createActionItem().getActions()
 				});
 			}
 		}
@@ -340,7 +339,7 @@ export class ExtensionsListView extends ViewletPanel {
 			text = query.value.replace(extensionRegex, (m, ext) => {
 
 				// Get curated keywords
-				const keywords = this.tipsService.getKeywordsForExtension(ext);
+				const keywords = getKeywordsForExtension(ext);
 
 				// Get mode name
 				const modeId = this.modeService.getModeIdByFilepathOrFirstLine(`.${ext}`);
@@ -361,10 +360,11 @@ export class ExtensionsListView extends ViewletPanel {
 		if (text) {
 			options = assign(options, { text: text.substr(0, 350), source: 'searchText' });
 			if (!hasUserDefinedSortOrder) {
-				for (let i = 0; i < this.searchExperiments.length; i++) {
-					if (text.toLowerCase() === this.searchExperiments[i].action.properties['searchText'] && Array.isArray(this.searchExperiments[i].action.properties['preferredResults'])) {
-						preferredResults = this.searchExperiments[i].action.properties['preferredResults'];
-						options.source += `-experiment-${this.searchExperiments[i].id}`;
+				const searchExperiments = await this.getSearchExperiments();
+				for (let i = 0; i < searchExperiments.length; i++) {
+					if (text.toLowerCase() === searchExperiments[i].action.properties['searchText'] && Array.isArray(searchExperiments[i].action.properties['preferredResults'])) {
+						preferredResults = searchExperiments[i].action.properties['preferredResults'];
+						options.source += `-experiment-${searchExperiments[i].id}`;
 						break;
 					}
 				}
@@ -392,6 +392,14 @@ export class ExtensionsListView extends ViewletPanel {
 
 	}
 
+	private _searchExperiments: Thenable<IExperiment[]>;
+	private getSearchExperiments(): Thenable<IExperiment[]> {
+		if (!this._searchExperiments) {
+			this._searchExperiments = this.experimentService.getExperimentsByType(ExperimentActionType.ExtensionSearchResults);
+		}
+		return this._searchExperiments;
+	}
+
 	private sortExtensions(extensions: IExtension[], options: IQueryOptions): IExtension[] {
 		switch (options.sortBy) {
 			case SortBy.InstallCount:
@@ -411,6 +419,7 @@ export class ExtensionsListView extends ViewletPanel {
 		return extensions;
 	}
 
+	// Get All types of recommendations, trimmed to show a max of 8 at any given time
 	private getAllRecommendationsModel(query: Query, options: IQueryOptions): Promise<IPagedModel<IExtension>> {
 		const value = query.value.replace(/@recommended:all/g, '').replace(/@recommended/g, '').trim().toLowerCase();
 
@@ -465,6 +474,7 @@ export class ExtensionsListView extends ViewletPanel {
 		return new PagedModel([]);
 	}
 
+	// Get All types of recommendations other than Workspace recommendations, trimmed to show a max of 8 at any given time
 	private getRecommendationsModel(query: Query, options: IQueryOptions): Promise<IPagedModel<IExtension>> {
 		const value = query.value.replace(/@recommended/g, '').trim().toLowerCase();
 

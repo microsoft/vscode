@@ -33,7 +33,7 @@ export class StorageService extends Disposable implements IStorageService {
 	private _hasErrors = false;
 	get hasErrors(): boolean { return this._hasErrors; }
 
-	private bufferedStorageErrors: (string | Error)[] = [];
+	private bufferedStorageErrors?: (string | Error)[] = [];
 	private _onStorageError: Emitter<string | Error> = this._register(new Emitter<string | Error>());
 	get onStorageError(): Event<string | Error> {
 		if (Array.isArray(this.bufferedStorageErrors)) {
@@ -199,7 +199,7 @@ export class StorageService extends Disposable implements IStorageService {
 			});
 
 			console.group(`Storage: Global (integrity: ${result[2]}, load: ${getDuration('willInitGlobalStorage', 'didInitGlobalStorage')}, path: ${this.globalStorageWorkspacePath})`);
-			let globalValues = [];
+			let globalValues: { key: string, value: string }[] = [];
 			globalItems.forEach((value, key) => {
 				globalValues.push({ key, value });
 			});
@@ -209,7 +209,7 @@ export class StorageService extends Disposable implements IStorageService {
 			console.log(globalItemsParsed);
 
 			console.group(`Storage: Workspace (integrity: ${result[3]}, load: ${getDuration('willInitWorkspaceStorage', 'didInitWorkspaceStorage')}, path: ${this.workspaceStoragePath})`);
-			let workspaceValues = [];
+			let workspaceValues: { key: string, value: string }[] = [];
 			workspaceItems.forEach((value, key) => {
 				workspaceValues.push({ key, value });
 			});
@@ -295,7 +295,7 @@ export class DelegatingStorageService extends Disposable implements IStorageServ
 		const globalKeyMarker = 'storage://global/';
 
 		window.addEventListener('storage', e => {
-			if (startsWith(e.key, globalKeyMarker)) {
+			if (e.key && startsWith(e.key, globalKeyMarker)) {
 				const key = e.key.substr(globalKeyMarker.length);
 
 				this._onDidChangeStorage.fire({ key, scope: StorageScope.GLOBAL });
@@ -307,7 +307,8 @@ export class DelegatingStorageService extends Disposable implements IStorageServ
 		return this.storageService as StorageService;
 	}
 
-	get(key: string, scope: StorageScope, fallbackValue?: string): string {
+	get(key: string, scope: StorageScope, fallbackValue: string): string;
+	get(key: string, scope: StorageScope, fallbackValue?: string): string | undefined {
 		if (scope === StorageScope.WORKSPACE && !this.useLegacyWorkspaceStorage) {
 			return this.storageService.get(key, scope, fallbackValue);
 		}
@@ -315,7 +316,8 @@ export class DelegatingStorageService extends Disposable implements IStorageServ
 		return this.storageLegacyService.get(key, this.convertScope(scope), fallbackValue);
 	}
 
-	getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): boolean {
+	getBoolean(key: string, scope: StorageScope, fallbackValue: boolean): boolean;
+	getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): boolean | undefined {
 		if (scope === StorageScope.WORKSPACE && !this.useLegacyWorkspaceStorage) {
 			return this.storageService.getBoolean(key, scope, fallbackValue);
 		}
@@ -323,7 +325,8 @@ export class DelegatingStorageService extends Disposable implements IStorageServ
 		return this.storageLegacyService.getBoolean(key, this.convertScope(scope), fallbackValue);
 	}
 
-	getInteger(key: string, scope: StorageScope, fallbackValue?: number): number {
+	getInteger(key: string, scope: StorageScope, fallbackValue: number): number;
+	getInteger(key: string, scope: StorageScope, fallbackValue?: number): number | undefined {
 		if (scope === StorageScope.WORKSPACE && !this.useLegacyWorkspaceStorage) {
 			return this.storageService.getInteger(key, scope, fallbackValue);
 		}

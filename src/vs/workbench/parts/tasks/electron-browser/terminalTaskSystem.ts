@@ -302,17 +302,16 @@ export class TerminalTaskSystem implements ITaskSystem {
 		return TPromise.join<TaskTerminateResponse>(promises);
 	}
 
-	private executeTask(startedTasks: IStringDictionary<TPromise<ITaskSummary>>, task: Task, resolver: ITaskResolver, trigger: string): TPromise<ITaskSummary> {
+	private executeTask(task: Task, resolver: ITaskResolver, trigger: string): TPromise<ITaskSummary> {
 		let promises: TPromise<ITaskSummary>[] = [];
 		if (task.dependsOn) {
 			task.dependsOn.forEach((dependency) => {
 				let task = resolver.resolve(dependency.workspaceFolder, dependency.task);
 				if (task) {
 					let key = Task.getMapKey(task);
-					let promise = startedTasks[key];
+					let promise = this.activeTasks[key] ? this.activeTasks[key].promise : undefined;
 					if (!promise) {
-						promise = this.executeTask(startedTasks, task, resolver, trigger);
-						startedTasks[key] = promise;
+						promise = this.executeTask(task, resolver, trigger);
 					}
 					promises.push(promise);
 				} else {
@@ -388,12 +387,18 @@ export class TerminalTaskSystem implements ITaskSystem {
 			variables.forEach(variable => {
 				result.set(variable, this.configurationResolverService.resolve(workspaceFolder, variable));
 			});
-			if (Platform.isWindows && isProcess) {
-				result.set(TerminalTaskSystem.ProcessVarName, win32.findExecutable(
-					this.configurationResolverService.resolve(workspaceFolder, CommandString.value(task.command.name)),
-					cwd ? this.configurationResolverService.resolve(workspaceFolder, cwd) : undefined,
-					envPath ? envPath.split(path.delimiter).map(p => this.configurationResolverService.resolve(workspaceFolder, p)) : undefined
-				));
+			if (isProcess) {
+				let processVarValue: string;
+				if (Platform.isWindows) {
+					processVarValue = win32.findExecutable(
+						this.configurationResolverService.resolve(workspaceFolder, CommandString.value(task.command.name)),
+						cwd ? this.configurationResolverService.resolve(workspaceFolder, cwd) : undefined,
+						envPath ? envPath.split(path.delimiter).map(p => this.configurationResolverService.resolve(workspaceFolder, p)) : undefined
+					);
+				} else {
+					processVarValue = this.configurationResolverService.resolve(workspaceFolder, CommandString.value(task.command.name));
+				}
+				result.set(TerminalTaskSystem.ProcessVarName, processVarValue);
 			}
 			let resolvedVariablesResult: ResolvedVariables = {
 				variables: result,

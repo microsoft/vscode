@@ -14,7 +14,7 @@ export function getComparisonKey(resource: URI): string {
 	return hasToIgnoreCase(resource) ? resource.toString().toLowerCase() : resource.toString();
 }
 
-export function hasToIgnoreCase(resource: URI): boolean {
+export function hasToIgnoreCase(resource: URI | undefined): boolean {
 	// A file scheme resource is in the same platform as code, so ignore case for non linux platforms
 	// Resource can be from another platform. Lowering the case as an hack. Should come from File system provider
 	return resource && resource.scheme === Schemas.file ? !isLinux : true;
@@ -45,7 +45,7 @@ function isEqualAuthority(a1: string, a2: string, ignoreCase?: boolean) {
 	return a1 === a2 || ignoreCase && a1 && a2 && equalsIgnoreCase(a1, a2);
 }
 
-export function isEqual(first: URI, second: URI, ignoreCase = hasToIgnoreCase(first)): boolean {
+export function isEqual(first: URI | undefined, second: URI | undefined, ignoreCase = hasToIgnoreCase(first)): boolean {
 	const identityEquals = (first === second);
 	if (identityEquals) {
 		return true;

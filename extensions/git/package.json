@@ -1093,7 +1093,7 @@
         "git.promptToSaveFilesBeforeCommit": {
           "type": "boolean",
           "scope": "resource",
-          "default": false,
+          "default": true,
           "description": "%config.promptToSaveFilesBeforeCommit%"
         },
         "git.showInlineOpenFileAction": {

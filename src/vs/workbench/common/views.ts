@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Command } from 'vs/editor/common/modes';
 import { UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -120,6 +119,7 @@ export interface IViewDescriptor {
 export interface IViewDescriptorCollection {
 	readonly onDidChangeActiveViews: Event<{ added: IViewDescriptor[], removed: IViewDescriptor[] }>;
 	readonly activeViewDescriptors: IViewDescriptor[];
+	readonly allViewDescriptors: IViewDescriptor[];
 }
 
 export interface IViewsRegistry {
@@ -219,7 +219,7 @@ export interface IView {
 
 export interface IViewsViewlet extends IViewlet {
 
-	openView(id: string, focus?: boolean): TPromise<IView>;
+	openView(id: string, focus?: boolean): IView;
 
 }
 
@@ -228,7 +228,7 @@ export const IViewsService = createDecorator<IViewsService>('viewsService');
 export interface IViewsService {
 	_serviceBrand: any;
 
-	openView(id: string, focus?: boolean): TPromise<IView>;
+	openView(id: string, focus?: boolean): Thenable<IView>;
 
 	getViewDescriptors(container: ViewContainer): IViewDescriptorCollection;
 }
@@ -253,7 +253,7 @@ export interface ITreeViewer extends IDisposable {
 
 	readonly onDidChangeActions: Event<void>;
 
-	refresh(treeItems?: ITreeItem[]): TPromise<void>;
+	refresh(treeItems?: ITreeItem[]): Promise<void>;
 
 	setVisibility(visible: boolean): void;
 
@@ -265,9 +265,9 @@ export interface ITreeViewer extends IDisposable {
 
 	getOptimalWidth(): number;
 
-	reveal(item: ITreeItem): TPromise<void>;
+	reveal(item: ITreeItem): Thenable<void>;
 
-	expand(itemOrItems: ITreeItem | ITreeItem[]): TPromise<void>;
+	expand(itemOrItems: ITreeItem | ITreeItem[]): Thenable<void>;
 
 	setSelection(items: ITreeItem[]): void;
 
@@ -342,6 +342,6 @@ export interface ITreeItem {
 
 export interface ITreeViewDataProvider {
 
-	getChildren(element?: ITreeItem): TPromise<ITreeItem[]>;
+	getChildren(element?: ITreeItem): Promise<ITreeItem[]>;
 
 }

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction, Action } from 'vs/base/common/actions';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import { isFullWidthCharacter, removeAnsiEscapeCodes, endsWith } from 'vs/base/common/strings';
@@ -38,7 +37,7 @@ export class ReplExpressionsDataSource implements IDataSource {
 		return element instanceof DebugSession || (<IExpressionContainer>element).hasChildren;
 	}
 
-	public getChildren(tree: ITree, element: any): TPromise<any> {
+	public getChildren(tree: ITree, element: any): Promise<any> {
 		if (element instanceof DebugSession) {
 			return Promise.resolve(element.getReplElements());
 		}
@@ -52,7 +51,7 @@ export class ReplExpressionsDataSource implements IDataSource {
 		return (<IExpression>element).getChildren();
 	}
 
-	public getParent(tree: ITree, element: any): TPromise<any> {
+	public getParent(tree: ITree, element: any): Promise<any> {
 		return Promise.resolve(null);
 	}
 }
@@ -325,15 +324,15 @@ export class ReplExpressionsActionProvider implements IActionProvider {
 		return false;
 	}
 
-	public getActions(tree: ITree, element: any): TPromise<IAction[]> {
-		return Promise.resolve([]);
+	public getActions(tree: ITree, element: any): IAction[] {
+		return [];
 	}
 
 	public hasSecondaryActions(tree: ITree, element: any): boolean {
 		return true;
 	}
 
-	public getSecondaryActions(tree: ITree, element: any): TPromise<IAction[]> {
+	public getSecondaryActions(tree: ITree, element: any): IAction[] {
 		const actions: IAction[] = [];
 		actions.push(new CopyAction(CopyAction.ID, CopyAction.LABEL));
 		actions.push(new CopyAllAction(CopyAllAction.ID, CopyAllAction.LABEL, tree));
@@ -341,7 +340,7 @@ export class ReplExpressionsActionProvider implements IActionProvider {
 		actions.push(new Separator());
 		actions.push(this.clearReplAction);
 
-		return Promise.resolve(actions);
+		return actions;
 	}
 
 	public getActionItem(tree: ITree, element: any, action: IAction): IActionItem {

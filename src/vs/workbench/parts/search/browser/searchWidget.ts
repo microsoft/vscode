@@ -17,7 +17,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as env from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { CONTEXT_FIND_WIDGET_NOT_VISIBLE } from 'vs/editor/contrib/find/findModel';
 import * as nls from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -67,11 +66,11 @@ class ReplaceAllAction extends Action {
 		this._searchWidget = searchWidget;
 	}
 
-	run(): TPromise<any> {
+	run(): Promise<any> {
 		if (this._searchWidget) {
 			return this._searchWidget.triggerReplaceAll();
 		}
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }
 
@@ -349,9 +348,9 @@ export class SearchWidget extends Widget {
 		this._register(this.replaceInputFocusTracker.onDidBlur(() => this.replaceInputBoxFocused.set(false)));
 	}
 
-	triggerReplaceAll(): TPromise<any> {
+	triggerReplaceAll(): Promise<any> {
 		this._onReplaceAll.fire();
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	private onToggleReplaceButton(): void {

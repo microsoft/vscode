@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ExtHostContext, MainThreadTreeViewsShape, ExtHostTreeViewsShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { ITreeViewDataProvider, ITreeItem, IViewsService, ITreeViewer, ViewsRegistry, ICustomViewDescriptor, IRevealOptions } from 'vs/workbench/common/views';
@@ -59,7 +58,7 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		return null;
 	}
 
-	private async reveal(treeViewer: ITreeViewer, dataProvider: TreeViewDataProvider, item: ITreeItem, parentChain: ITreeItem[], options: IRevealOptions): TPromise<void> {
+	private async reveal(treeViewer: ITreeViewer, dataProvider: TreeViewDataProvider, item: ITreeItem, parentChain: ITreeItem[], options: IRevealOptions): Promise<void> {
 		options = options ? options : { select: false, focus: false };
 		const select = isUndefinedOrNull(options.select) ? false : options.select;
 		const focus = isUndefinedOrNull(options.focus) ? false : options.focus;
@@ -131,17 +130,14 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 	) {
 	}
 
-	getChildren(treeItem?: ITreeItem): TPromise<ITreeItem[]> {
-		if (treeItem && treeItem.children) {
-			return TPromise.as(treeItem.children);
-		}
-		return TPromise.wrap(this._proxy.$getChildren(this.treeViewId, treeItem ? treeItem.handle : void 0)
-			.then(children => {
-				return this.postGetChildren(children);
-			}, err => {
-				this.notificationService.error(err);
-				return [];
-			}));
+	getChildren(treeItem?: ITreeItem): Promise<ITreeItem[]> {
+		return Promise.resolve(this._proxy.$getChildren(this.treeViewId, treeItem ? treeItem.handle : void 0)
+			.then(
+				children => this.postGetChildren(children),
+				err => {
+					this.notificationService.error(err);
+					return [];
+				}));
 	}
 
 	getItemsToRefresh(itemsToRefreshByHandle: { [treeItemHandle: string]: ITreeItem }): ITreeItem[] {

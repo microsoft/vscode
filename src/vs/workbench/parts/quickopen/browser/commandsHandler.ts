@@ -425,6 +425,7 @@ export class CommandsHandler extends QuickOpenHandler {
 			const menu = this.editorService.invokeWithinEditorContext(accessor => this.menuService.createMenu(MenuId.CommandPalette, accessor.get(IContextKeyService)));
 			const menuActions = menu.getActions().reduce((r, [, actions]) => [...r, ...actions], <MenuItemAction[]>[]).filter(action => action instanceof MenuItemAction) as MenuItemAction[];
 			const commandEntries = this.menuItemActionsToEntries(menuActions, searchValue);
+			menu.dispose();
 
 			// Concat
 			let entries = [...editorEntries, ...commandEntries];

@@ -43,6 +43,7 @@ const indentationFilter = [
 	// except specific files
 	'!ThirdPartyNotices.txt',
 	'!LICENSE.txt',
+	'!**/LICENSE',
 	'!src/vs/nls.js',
 	'!src/vs/nls.build.js',
 	'!src/vs/css.js',
@@ -86,6 +87,8 @@ const indentationFilter = [
 	'!build/tfs/**/*.js',
 	'!build/tfs/**/*.config',
 	'!**/Dockerfile',
+	'!**/*.Dockerfile',
+	'!**/*.dockerfile',
 	'!extensions/markdown-language-features/media/*.js'
 ];
 

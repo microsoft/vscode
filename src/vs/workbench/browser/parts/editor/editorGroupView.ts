@@ -308,7 +308,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Show it
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => TPromise.as(actions),
+			getActions: () => actions,
 			onHide: () => this.focus()
 		});
 	}
