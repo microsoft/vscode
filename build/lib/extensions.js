@@ -36,10 +36,12 @@ function fromLocalWebpack(extensionPath, sourceMappingURLBase) {
     const result = es.through();
     const packagedDependencies = [];
     const packageJsonConfig = require(path.join(extensionPath, 'package.json'));
-    const webpackRootConfig = require(path.join(extensionPath, 'extension.webpack.config.js'));
-    for (const key in webpackRootConfig.externals) {
-        if (key in packageJsonConfig.dependencies) {
-            packagedDependencies.push(key);
+    if (packageJsonConfig.dependencies) {
+        const webpackRootConfig = require(path.join(extensionPath, 'extension.webpack.config.js'));
+        for (const key in webpackRootConfig.externals) {
+            if (key in packageJsonConfig.dependencies) {
+                packagedDependencies.push(key);
+            }
         }
     }
     vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.Yarn, packagedDependencies }).then(fileNames => {

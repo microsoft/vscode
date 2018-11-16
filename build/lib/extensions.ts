@@ -39,10 +39,12 @@ function fromLocalWebpack(extensionPath: string, sourceMappingURLBase: string | 
 
 	const packagedDependencies: string[] = [];
 	const packageJsonConfig = require(path.join(extensionPath, 'package.json'));
-	const webpackRootConfig = require(path.join(extensionPath, 'extension.webpack.config.js'));
-	for (const key in webpackRootConfig.externals) {
-		if (key in packageJsonConfig.dependencies) {
-			packagedDependencies.push(key);
+	if (packageJsonConfig.dependencies) {
+		const webpackRootConfig = require(path.join(extensionPath, 'extension.webpack.config.js'));
+		for (const key in webpackRootConfig.externals) {
+			if (key in packageJsonConfig.dependencies) {
+				packagedDependencies.push(key);
+			}
 		}
 	}
 
