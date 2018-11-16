@@ -7,7 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import * as path from 'path';
 import * as fs from 'fs';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IChannel } from 'vs/base/parts/ipc/node/ipc';
+import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
 import { Event, Emitter, buffer } from 'vs/base/common/event';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { mkdirp } from 'vs/base/node/pfs';
@@ -24,24 +24,20 @@ export function upload(uri: URI): Event<UploadResponse> {
 	return stream.event;
 }
 
-export interface IDownloadServiceChannel extends IChannel {
-	listen(event: 'upload', uri: URI): Event<UploadResponse>;
-	listen(event: string, arg?: any): Event<any>;
-}
-
-export class DownloadServiceChannel implements IDownloadServiceChannel {
+export class DownloadServiceChannel implements IServerChannel {
 
 	constructor() { }
 
-	listen(event: string, arg?: any): Event<any> {
+	listen(_, event: string, arg?: any): Event<any> {
 		switch (event) {
 			case 'upload': return buffer(upload(URI.revive(arg)));
 		}
-		throw new Error(`Call not found: ${event}`);
+
+		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(command: string, arg?: any): TPromise<any> {
-		throw new Error('No calls');
+	call(_, command: string): TPromise<any> {
+		throw new Error(`Call not found: ${command}`);
 	}
 }
 
@@ -49,10 +45,10 @@ export class DownloadServiceChannelClient implements IDownloadService {
 
 	_serviceBrand: any;
 
-	constructor(private channel: IDownloadServiceChannel, private uriTransformer: IURITransformer) { }
+	constructor(private channel: IChannel, private getUriTransformer: () => IURITransformer) { }
 
 	download(from: URI, to: string): Promise<void> {
-		from = this.uriTransformer.transformOutgoing(from);
+		from = this.getUriTransformer().transformOutgoing(from);
 		const dirName = path.dirname(to);
 		let out: fs.WriteStream;
 		return new Promise((c, e) => {
@@ -61,8 +57,8 @@ export class DownloadServiceChannelClient implements IDownloadService {
 					out = fs.createWriteStream(to);
 					out.once('close', () => c());
 					out.once('error', e);
-					const uploadStream = this.channel.listen('upload', from);
-					const disposable = uploadStream((result: UploadResponse) => {
+					const uploadStream = this.channel.listen<UploadResponse>('upload', from);
+					const disposable = uploadStream(result => {
 						if (result === void 0) {
 							disposable.dispose();
 							out.end(c);

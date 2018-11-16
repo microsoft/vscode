@@ -42,11 +42,11 @@ export class Debugger implements IDebugger {
 	}
 
 
-	createDebugAdapter(session: IDebugSession, root: IWorkspaceFolder, config: IConfig, outputService: IOutputService): Promise<IDebugAdapter> {
+	createDebugAdapter(session: IDebugSession, outputService: IOutputService): Promise<IDebugAdapter> {
 		if (this.inExtHost()) {
-			return Promise.resolve(this.configurationManager.createDebugAdapter(session, root, config));
+			return Promise.resolve(this.configurationManager.createDebugAdapter(session));
 		} else {
-			return this.getAdapterDescriptor(session, root, config).then(adapterDescriptor => {
+			return this.getAdapterDescriptor(session).then(adapterDescriptor => {
 				switch (adapterDescriptor.type) {
 					case 'executable':
 						return new ExecutableDebugAdapter(adapterDescriptor, this.type, outputService);
@@ -54,26 +54,32 @@ export class Debugger implements IDebugger {
 						return new SocketDebugAdapter(adapterDescriptor);
 					case 'implementation':
 						// TODO@AW: this.inExtHost() should now return true
-						return Promise.resolve(this.configurationManager.createDebugAdapter(session, root, config));
+						return Promise.resolve(this.configurationManager.createDebugAdapter(session));
 					default:
-						throw new Error('Cannot create debug adapter.');
+						throw new Error('unknown type');
+				}
+			}).catch(err => {
+				if (err && err.message) {
+					throw new Error(nls.localize('cannot.create.da.with.err', "Cannot create debug adapter ({0}).", err.message));
+				} else {
+					throw new Error(nls.localize('cannot.create.da', "Cannot create debug adapter."));
 				}
 			});
 		}
 	}
 
-	private getAdapterDescriptor(session: IDebugSession, root: IWorkspaceFolder, config: IConfig): Promise<IAdapterDescriptor> {
+	private getAdapterDescriptor(session: IDebugSession): Promise<IAdapterDescriptor> {
 
 		// a "debugServer" attribute in the launch config takes precedence
-		if (typeof config.debugServer === 'number') {
+		if (typeof session.configuration.debugServer === 'number') {
 			return Promise.resolve(<IDebugAdapterServer>{
 				type: 'server',
-				port: config.debugServer
+				port: session.configuration.debugServer
 			});
 		}
 
 		// try the proposed and the deprecated "provideDebugAdapter" API
-		return this.configurationManager.provideDebugAdapter(session, root ? root.uri : undefined, config).then(adapter => {
+		return this.configurationManager.provideDebugAdapter(session).then(adapter => {
 
 			if (adapter) {
 				return adapter;
@@ -81,7 +87,7 @@ export class Debugger implements IDebugger {
 
 			// try deprecated command based extension API "adapterExecutableCommand" to determine the executable
 			if (this.debuggerContribution.adapterExecutableCommand) {
-				const rootFolder = root ? root.uri.toString() : undefined;
+				const rootFolder = session.root ? session.root.uri.toString() : undefined;
 				return this.commandService.executeCommand<IDebugAdapterExecutable>(this.debuggerContribution.adapterExecutableCommand, rootFolder).then((ae: { command: string, args: string[] }) => {
 					return <IAdapterDescriptor>{
 						type: 'executable',
@@ -92,7 +98,11 @@ export class Debugger implements IDebugger {
 			}
 
 			// fallback: use executable information from package.json
-			return ExecutableDebugAdapter.platformAdapterExecutable(this.mergedExtensionDescriptions, this.type);
+			const ae = ExecutableDebugAdapter.platformAdapterExecutable(this.mergedExtensionDescriptions, this.type);
+			if (ae === undefined) {
+				throw new Error('no executable specified in package.json');
+			}
+			return ae;
 		});
 	}
 

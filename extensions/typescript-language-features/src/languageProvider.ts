@@ -36,11 +36,8 @@ export default class LanguageProvider extends Disposable {
 		vscode.workspace.onDidChangeConfiguration(this.configurationChanged, this, this._disposables);
 		this.configurationChanged();
 
-		client.onReady(async () => {
-			await this.registerProviders();
-		});
+		client.onReady(() => this.registerProviders());
 	}
-
 
 	@memoize
 	private get documentSelector(): vscode.DocumentFilter[] {

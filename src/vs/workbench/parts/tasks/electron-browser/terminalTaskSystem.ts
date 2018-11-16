@@ -349,12 +349,18 @@ export class TerminalTaskSystem implements ITaskSystem {
 			variables.forEach(variable => {
 				result.set(variable, this.configurationResolverService.resolve(workspaceFolder, variable));
 			});
-			if (Platform.isWindows && isProcess) {
-				result.set(TerminalTaskSystem.ProcessVarName, win32.findExecutable(
-					this.configurationResolverService.resolve(workspaceFolder, CommandString.value(task.command.name)),
-					cwd ? this.configurationResolverService.resolve(workspaceFolder, cwd) : undefined,
-					envPath ? envPath.split(path.delimiter).map(p => this.configurationResolverService.resolve(workspaceFolder, p)) : undefined
-				));
+			if (isProcess) {
+				let processVarValue: string;
+				if (Platform.isWindows) {
+					processVarValue = win32.findExecutable(
+						this.configurationResolverService.resolve(workspaceFolder, CommandString.value(task.command.name)),
+						cwd ? this.configurationResolverService.resolve(workspaceFolder, cwd) : undefined,
+						envPath ? envPath.split(path.delimiter).map(p => this.configurationResolverService.resolve(workspaceFolder, p)) : undefined
+					);
+				} else {
+					processVarValue = this.configurationResolverService.resolve(workspaceFolder, CommandString.value(task.command.name));
+				}
+				result.set(TerminalTaskSystem.ProcessVarName, processVarValue);
 			}
 			variableResolver = TPromise.as(new VariableResolver(workspaceFolder, taskSystemInfo, result, this.configurationResolverService));
 		}

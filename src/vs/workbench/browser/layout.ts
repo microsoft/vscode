@@ -25,7 +25,6 @@ import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
 import { StatusbarPart } from 'vs/workbench/browser/parts/statusbar/statusbarPart';
 import { getZoomFactor } from 'vs/base/browser/browser';
-import * as perf from 'vs/base/common/performance';
 
 const TITLE_BAR_HEIGHT = isMacintosh ? 22 : 30;
 const STATUS_BAR_HEIGHT = 22;
@@ -551,7 +550,6 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 		// Bug on Chrome: Sometimes Chrome wants to scroll the workbench container on layout changes. The fix is to reset scrolling in this case.
 		// uses set time to ensure this happens in th next frame (RAF will be at the end of this JS time slice and we don't want that)
 		setTimeout(() => {
-			perf.mark('willCheckAndFixWorkbenchLayout');
 			const workbenchContainer = this.workbenchContainer;
 			if (workbenchContainer.scrollTop > 0) {
 				workbenchContainer.scrollTop = 0;
@@ -559,7 +557,6 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 			if (workbenchContainer.scrollLeft > 0) {
 				workbenchContainer.scrollLeft = 0;
 			}
-			perf.mark('didCheckAndFixWorkbenchLayout');
 		});
 
 		// Title Part

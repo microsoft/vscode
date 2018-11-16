@@ -80,6 +80,10 @@ class ViewDescriptorCollection extends Disposable implements IViewDescriptorColl
 			.map(i => i.viewDescriptor);
 	}
 
+	get allViewDescriptors(): IViewDescriptor[] {
+		return this.items.map(i => i.viewDescriptor);
+	}
+
 	constructor(
 		container: ViewContainer,
 		@IContextKeyService private contextKeyService: IContextKeyService

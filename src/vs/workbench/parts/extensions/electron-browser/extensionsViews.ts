@@ -40,6 +40,7 @@ import { alert } from 'vs/base/browser/ui/aria/aria';
 import { IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { getKeywordsForExtension } from 'vs/workbench/parts/extensions/electron-browser/extensionsUtils';
 
 export class ExtensionsListView extends ViewletPanel {
 
@@ -338,7 +339,7 @@ export class ExtensionsListView extends ViewletPanel {
 			text = query.value.replace(extensionRegex, (m, ext) => {
 
 				// Get curated keywords
-				const keywords = this.tipsService.getKeywordsForExtension(ext);
+				const keywords = getKeywordsForExtension(ext);
 
 				// Get mode name
 				const modeId = this.modeService.getModeIdByFilepathOrFirstLine(`.${ext}`);
@@ -418,6 +419,7 @@ export class ExtensionsListView extends ViewletPanel {
 		return extensions;
 	}
 
+	// Get All types of recommendations, trimmed to show a max of 8 at any given time
 	private getAllRecommendationsModel(query: Query, options: IQueryOptions): Promise<IPagedModel<IExtension>> {
 		const value = query.value.replace(/@recommended:all/g, '').replace(/@recommended/g, '').trim().toLowerCase();
 
@@ -472,6 +474,7 @@ export class ExtensionsListView extends ViewletPanel {
 		return new PagedModel([]);
 	}
 
+	// Get All types of recommendations other than Workspace recommendations, trimmed to show a max of 8 at any given time
 	private getRecommendationsModel(query: Query, options: IQueryOptions): Promise<IPagedModel<IExtension>> {
 		const value = query.value.replace(/@recommended/g, '').trim().toLowerCase();
 

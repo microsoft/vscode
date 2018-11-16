@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import { Event, Emitter, once, filterEvent, toPromise, Relay } from 'vs/base/common/event';
+import { Event, Emitter, once, toPromise, Relay } from 'vs/base/common/event';
 import { always, CancelablePromise, createCancelablePromise, timeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
@@ -63,11 +63,21 @@ export interface IChannel {
 }
 
 /**
+ * An `IServerChannel` is the couter part to `IChannel`,
+ * on the server-side. You should implement this interface
+ * if you'd like to handle remote promises or events.
+ */
+export interface IServerChannel<TContext = string> {
+	call<T>(ctx: TContext, command: string, arg?: any, cancellationToken?: CancellationToken): Thenable<T>;
+	listen<T>(ctx: TContext, event: string, arg?: any): Event<T>;
+}
+
+/**
  * An `IChannelServer` hosts a collection of channels. You are
  * able to register channels onto it, provided a channel name.
  */
-export interface IChannelServer {
-	registerChannel(channelName: string, channel: IChannel): void;
+export interface IChannelServer<TContext = string> {
+	registerChannel(channelName: string, channel: IServerChannel<TContext>): void;
 }
 
 /**
@@ -78,14 +88,23 @@ export interface IChannelClient {
 	getChannel<T extends IChannel>(channelName: string): T;
 }
 
+export interface Client<TContext> {
+	readonly ctx: TContext;
+}
+
+export interface IConnectionHub<TContext> {
+	readonly connections: Connection<TContext>[];
+	readonly onDidChangeConnections: Event<Connection<TContext>>;
+}
+
 /**
  * An `IClientRouter` is responsible for routing calls to specific
  * channels, in scenarios in which there are multiple possible
  * channels (each from a separate client) to pick from.
  */
-export interface IClientRouter {
-	routeCall(clientIds: string[], command: string, arg?: any, cancellationToken?: CancellationToken): Thenable<string>;
-	routeEvent(clientIds: string[], event: string, arg?: any): Thenable<string>;
+export interface IClientRouter<TContext = string> {
+	routeCall(hub: IConnectionHub<TContext>, command: string, arg?: any, cancellationToken?: CancellationToken): Thenable<Client<TContext>>;
+	routeEvent(hub: IConnectionHub<TContext>, event: string, arg?: any): Thenable<Client<TContext>>;
 }
 
 /**
@@ -95,8 +114,8 @@ export interface IClientRouter {
  * the same channel. You'll need to pass in an `IClientRouter` in
  * order to pick the right one.
  */
-export interface IRoutingChannelClient {
-	getChannel<T extends IChannel>(channelName: string, router: IClientRouter): T;
+export interface IRoutingChannelClient<TContext = string> {
+	getChannel<T extends IChannel>(channelName: string, router: IClientRouter<TContext>): T;
 }
 
 interface IReader {
@@ -207,18 +226,18 @@ function deserialize(reader: IReader): any {
 	}
 }
 
-export class ChannelServer implements IChannelServer, IDisposable {
+export class ChannelServer<TContext = string> implements IChannelServer<TContext>, IDisposable {
 
-	private channels = new Map<string, IChannel>();
+	private channels = new Map<string, IServerChannel<TContext>>();
 	private activeRequests = new Map<number, IDisposable>();
 	private protocolListener: IDisposable | null;
 
-	constructor(private protocol: IMessagePassingProtocol) {
+	constructor(private protocol: IMessagePassingProtocol, private ctx: TContext) {
 		this.protocolListener = this.protocol.onMessage(msg => this.onRawMessage(msg));
 		this.sendResponse({ type: ResponseType.Initialize });
 	}
 
-	registerChannel(channelName: string, channel: IChannel): void {
+	registerChannel(channelName: string, channel: IServerChannel<TContext>): void {
 		this.channels.set(channelName, channel);
 	}
 
@@ -274,7 +293,7 @@ export class ChannelServer implements IChannelServer, IDisposable {
 		let promise: Thenable<any>;
 
 		try {
-			promise = channel.call(request.name, request.arg, cancellationTokenSource.token);
+			promise = channel.call(this.ctx, request.name, request.arg, cancellationTokenSource.token);
 		} catch (err) {
 			promise = Promise.reject(err);
 		}
@@ -308,7 +327,7 @@ export class ChannelServer implements IChannelServer, IDisposable {
 		const channel = this.channels.get(request.channelName);
 
 		const id = request.id;
-		const event = channel.listen(request.name, request.arg);
+		const event = channel.listen(this.ctx, request.name, request.arg);
 		const disposable = event(data => this.sendResponse(<IRawResponse>{ id, data, type: ResponseType.EventFire }));
 
 		this.activeRequests.set(request.id, disposable);
@@ -543,6 +562,10 @@ export interface ClientConnectionEvent {
 	onDidClientDisconnect: Event<void>;
 }
 
+interface Connection<TContext> extends Client<TContext> {
+	readonly channelClient: ChannelClient;
+}
+
 /**
  * An `IPCServer` is both a channel server and a routing channel
  * client.
@@ -551,15 +574,17 @@ export interface ClientConnectionEvent {
  * and the `IPCClient` classes to get IPC implementations
  * for your protocol.
  */
-export class IPCServer implements IChannelServer, IRoutingChannelClient, IDisposable {
+export class IPCServer<TContext = string> implements IChannelServer<TContext>, IRoutingChannelClient<TContext>, IConnectionHub<TContext>, IDisposable {
 
-	private channels = new Map<string, IChannel>();
-	private channelClients = new Map<string, ChannelClient>();
-	private onClientAdded = new Emitter<string>();
+	private channels = new Map<string, IServerChannel<TContext>>();
+	private _connections = new Set<Connection<TContext>>();
 
-	private get clientKeys(): string[] {
-		const result: string[] = [];
-		this.channelClients.forEach((_, key) => result.push(key));
+	private _onDidChangeConnections = new Emitter<Connection<TContext>>();
+	readonly onDidChangeConnections: Event<Connection<TContext>> = this._onDidChangeConnections.event;
+
+	get connections(): Connection<TContext>[] {
+		const result: Connection<TContext>[] = [];
+		this._connections.forEach(ctx => result.push(ctx));
 		return result;
 	}
 
@@ -567,46 +592,42 @@ export class IPCServer implements IChannelServer, IRoutingChannelClient, IDispos
 		onDidClientConnect(({ protocol, onDidClientDisconnect }) => {
 			const onFirstMessage = once(protocol.onMessage);
 
-			onFirstMessage(rawId => {
-				const channelServer = new ChannelServer(protocol);
+			onFirstMessage(msg => {
+				const reader = new BufferReader(msg);
+				const ctx = deserialize(reader) as TContext;
+
+				const channelServer = new ChannelServer(protocol, ctx);
 				const channelClient = new ChannelClient(protocol);
 
 				this.channels.forEach((channel, name) => channelServer.registerChannel(name, channel));
 
-				const id = rawId.toString();
-
-				if (this.channelClients.has(id)) {
-					console.warn(`IPC client with id '${id}' is already registered.`);
-				}
-
-				this.channelClients.set(id, channelClient);
-				this.onClientAdded.fire(id);
+				const connection: Connection<TContext> = { channelClient, ctx };
+				this._connections.add(connection);
+				this._onDidChangeConnections.fire(connection);
 
 				onDidClientDisconnect(() => {
 					channelServer.dispose();
 					channelClient.dispose();
-					this.channelClients.delete(id);
+					this._connections.delete(connection);
 				});
 			});
 		});
 	}
 
-	getChannel<T extends IChannel>(channelName: string, router: IClientRouter): T {
+	getChannel<T extends IChannel>(channelName: string, router: IClientRouter<TContext>): T {
 		const that = this;
 
 		return {
 			call(command: string, arg?: any, cancellationToken?: CancellationToken) {
-				const channelPromise = router.routeCall(that.clientKeys, command, arg)
-					.then(id => that.getClient(id))
-					.then(client => client.getChannel(channelName));
+				const channelPromise = router.routeCall(that, command, arg)
+					.then(connection => (connection as Connection<TContext>).channelClient.getChannel(channelName));
 
 				return getDelayedChannel(channelPromise)
 					.call(command, arg, cancellationToken);
 			},
 			listen(event: string, arg: any) {
-				const channelPromise = router.routeEvent(that.clientKeys, event, arg)
-					.then(id => that.getClient(id))
-					.then(client => client.getChannel(channelName));
+				const channelPromise = router.routeEvent(that, event, arg)
+					.then(connection => (connection as Connection<TContext>).channelClient.getChannel(channelName));
 
 				return getDelayedChannel(channelPromise)
 					.listen(event, arg);
@@ -614,31 +635,14 @@ export class IPCServer implements IChannelServer, IRoutingChannelClient, IDispos
 		} as T;
 	}
 
-	registerChannel(channelName: string, channel: IChannel): void {
+	registerChannel(channelName: string, channel: IServerChannel<TContext>): void {
 		this.channels.set(channelName, channel);
-	}
-
-	private getClient(clientId: string): Thenable<IChannelClient> {
-		if (!clientId) {
-			return Promise.reject(new Error('Client id should be provided'));
-		}
-
-		const client = this.channelClients.get(clientId);
-
-		if (client) {
-			return Promise.resolve(client);
-		}
-
-		return new Promise<IChannelClient>(c => {
-			const onClient = once(filterEvent(this.onClientAdded.event, id => id === clientId));
-			onClient(() => c(this.channelClients.get(clientId)));
-		});
 	}
 
 	dispose(): void {
 		this.channels.clear();
-		this.channelClients.clear();
-		this.onClientAdded.dispose();
+		this._connections.clear();
+		this._onDidChangeConnections.dispose();
 	}
 }
 
@@ -649,22 +653,25 @@ export class IPCServer implements IChannelServer, IRoutingChannelClient, IDispos
  * and the `IPCClient` classes to get IPC implementations
  * for your protocol.
  */
-export class IPCClient implements IChannelClient, IChannelServer, IDisposable {
+export class IPCClient<TContext = string> implements IChannelClient, IChannelServer<TContext>, IDisposable {
 
 	private channelClient: ChannelClient;
-	private channelServer: ChannelServer;
+	private channelServer: ChannelServer<TContext>;
 
-	constructor(protocol: IMessagePassingProtocol, id: string) {
-		protocol.send(Buffer.from(id));
+	constructor(protocol: IMessagePassingProtocol, ctx: TContext) {
+		const writer = new BufferWriter();
+		serialize(writer, ctx);
+		protocol.send(writer.buffer);
+
 		this.channelClient = new ChannelClient(protocol);
-		this.channelServer = new ChannelServer(protocol);
+		this.channelServer = new ChannelServer(protocol, ctx);
 	}
 
 	getChannel<T extends IChannel>(channelName: string): T {
 		return this.channelClient.getChannel(channelName) as T;
 	}
 
-	registerChannel(channelName: string, channel: IChannel): void {
+	registerChannel(channelName: string, channel: IServerChannel<TContext>): void {
 		this.channelServer.registerChannel(channelName, channel);
 	}
 
@@ -715,4 +722,28 @@ export function getNextTickChannel<T extends IChannel>(channel: T): T {
 			return relay.event;
 		}
 	} as T;
+}
+
+export class StaticRouter<TContext = string> implements IClientRouter<TContext> {
+
+	constructor(private fn: (ctx: TContext) => boolean | Thenable<boolean>) { }
+
+	routeCall(hub: IConnectionHub<TContext>): Thenable<Client<TContext>> {
+		return this.route(hub);
+	}
+
+	routeEvent(hub: IConnectionHub<TContext>): Thenable<Client<TContext>> {
+		return this.route(hub);
+	}
+
+	private async route(hub: IConnectionHub<TContext>): Promise<Client<TContext>> {
+		for (const connection of hub.connections) {
+			if (await Promise.resolve(this.fn(connection.ctx))) {
+				return Promise.resolve(connection);
+			}
+		}
+
+		await toPromise(hub.onDidChangeConnections);
+		return await this.route(hub);
+	}
 }

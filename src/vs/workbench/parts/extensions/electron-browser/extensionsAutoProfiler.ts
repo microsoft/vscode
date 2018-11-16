@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IExtensionService, IResponsiveStateChangeEvent, ICpuProfilerTarget, IExtensionHostProfile } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, IResponsiveStateChangeEvent, ICpuProfilerTarget, IExtensionHostProfile, ProfileSession } from 'vs/workbench/services/extensions/common/extensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { timeout } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { ILogService } from 'vs/platform/log/common/log';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchContribution {
 
-	private _activeProfilingSessions = new Map<ICpuProfilerTarget, boolean>();
+	private readonly _session = new Map<ICpuProfilerTarget, CancellationTokenSource>();
 
 	constructor(
 		@IExtensionService extensionService: IExtensionService,
@@ -24,31 +24,48 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 		this._register(extensionService.onDidChangeResponsiveChange(this._onDidChangeResponsiveChange, this));
 	}
 
-	private _onDidChangeResponsiveChange(event: IResponsiveStateChangeEvent): void {
+	private async _onDidChangeResponsiveChange(event: IResponsiveStateChangeEvent): Promise<void> {
 		const { target } = event;
 
 		if (!target.canProfileExtensionHost()) {
 			return;
 		}
 
-		if (!this._activeProfilingSessions.has(target)) {
-			this._activeProfilingSessions.set(target, true);
-			this._profileNSeconds(target).then(profile => {
-				this._processCpuProfile(profile);
-				this._activeProfilingSessions.delete(target);
-			}).catch(err => {
-				onUnexpectedError(err);
-				this._activeProfilingSessions.delete(target);
-			});
-		}
-	}
+		if (event.isResponsive && this._session.has(target)) {
+			// stop profiling when responsive again
+			this._session.get(target).cancel();
 
-	private _profileNSeconds(target: ICpuProfilerTarget, seconds: number = 5): Promise<IExtensionHostProfile> {
-		return target.startExtensionHostProfile().then(session => {
-			return timeout(seconds * 1000).then(() => session.stop());
-		}).catch(err => {
-			return Promise.reject(err);
-		});
+		} else if (!event.isResponsive && !this._session.has(target)) {
+			// start profiling if not yet profiling
+			const token = new CancellationTokenSource();
+			this._session.set(target, token);
+
+			let session: ProfileSession;
+			try {
+				session = await target.startExtensionHostProfile();
+			} catch (err) {
+				this._session.delete(target);
+				// fail silent as this is often
+				// caused by another party being
+				// connected already
+				return;
+			}
+
+			// wait 5 seconds or until responsive again
+			await new Promise(resolve => {
+				token.token.onCancellationRequested(resolve);
+				setTimeout(resolve, 5e3);
+			});
+
+			try {
+				// stop profiling and analyse results
+				this._processCpuProfile(await session.stop());
+			} catch (err) {
+				onUnexpectedError(err);
+			} finally {
+				this._session.delete(target);
+			}
+		}
 	}
 
 	private _processCpuProfile(profile: IExtensionHostProfile) {
@@ -98,7 +115,7 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 			}
 		*/
 		this._telemetryService.publicLog('exthostunresponsive', {
-			duration: duration / 1e3,
+			duration,
 			data
 		});
 	}

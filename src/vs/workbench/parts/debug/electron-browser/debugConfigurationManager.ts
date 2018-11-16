@@ -92,10 +92,10 @@ export class ConfigurationManager implements IConfigurationManager {
 		};
 	}
 
-	public createDebugAdapter(session: IDebugSession, folder: IWorkspaceFolder, config: IConfig): IDebugAdapter {
-		let dap = this.debugAdapterFactories.get(config.type);
+	public createDebugAdapter(session: IDebugSession): IDebugAdapter {
+		let dap = this.debugAdapterFactories.get(session.configuration.type);
 		if (dap) {
-			return dap.createDebugAdapter(session, folder, config);
+			return dap.createDebugAdapter(session);
 		}
 		return undefined;
 	}
@@ -137,12 +137,14 @@ export class ConfigurationManager implements IConfigurationManager {
 		}
 	}
 
-	public provideDebugAdapter(session: IDebugSession, folderUri: uri | undefined, config: IConfig): Promise<IAdapterDescriptor | undefined> {
+	public provideDebugAdapter(session: IDebugSession): Promise<IAdapterDescriptor | undefined> {
+
+		const config = session.configuration;
 
 		// first try legacy proposed API: DebugConfigurationProvider.debugAdapterExecutable
 		const providers0 = this.configProviders.filter(p => p.type === config.type && p.debugAdapterExecutable);
 		if (providers0.length === 1) {
-			return providers0[0].debugAdapterExecutable(folderUri);
+			return providers0[0].debugAdapterExecutable(session.root ? session.root.uri : undefined);
 		} else {
 			// TODO@AW handle n > 1 case
 		}
@@ -150,7 +152,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		// try new proposed API
 		const providers = this.adapterProviders.filter(p => p.type === config.type && p.provideDebugAdapter);
 		if (providers.length === 1) {
-			return providers[0].provideDebugAdapter(session, folderUri, config);
+			return providers[0].provideDebugAdapter(session);
 		} else {
 			// TODO@AW handle n > 1 case
 		}

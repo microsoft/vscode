@@ -13,7 +13,7 @@ export interface ILinkComputerTarget {
 	getLineContent(lineNumber: number): string;
 }
 
-const enum State {
+export const enum State {
 	Invalid = 0,
 	Start = 1,
 	H = 2,
@@ -27,12 +27,13 @@ const enum State {
 	AfterColon = 10,
 	AlmostThere = 11,
 	End = 12,
-	Accept = 13
+	Accept = 13,
+	LastKnownState = 14 // marker, custom states may follow
 }
 
-type Edge = [State, number, State];
+export type Edge = [State, number, State];
 
-class StateMachine {
+export class StateMachine {
 
 	private _states: Uint8Matrix;
 	private _maxCharCode: number;
@@ -141,7 +142,7 @@ function getClassifier(): CharacterClassifier<CharacterClass> {
 	return _classifier;
 }
 
-class LinkComputer {
+export class LinkComputer {
 
 	private static _createLink(classifier: CharacterClassifier<CharacterClass>, line: string, lineNumber: number, linkBeginIndex: number, linkEndIndex: number): ILink {
 		// Do not allow to end link in certain characters...
@@ -183,8 +184,7 @@ class LinkComputer {
 		};
 	}
 
-	public static computeLinks(model: ILinkComputerTarget): ILink[] {
-		const stateMachine = getStateMachine();
+	public static computeLinks(model: ILinkComputerTarget, stateMachine: StateMachine = getStateMachine()): ILink[] {
 		const classifier = getClassifier();
 
 		let result: ILink[] = [];

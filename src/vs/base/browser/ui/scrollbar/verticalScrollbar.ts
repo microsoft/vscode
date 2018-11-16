@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { StandardMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { StandardWheelEvent } from 'vs/base/browser/mouseEvent';
 import { AbstractScrollbar, ISimplifiedMouseEvent, ScrollbarHost } from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
 import { ScrollableElementResolvedOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 import { ARROW_IMG_SIZE } from 'vs/base/browser/ui/scrollbar/scrollbarArrow';
@@ -39,7 +39,7 @@ export class VerticalScrollbar extends AbstractScrollbar {
 				right: void 0,
 				bgWidth: options.verticalScrollbarSize,
 				bgHeight: options.arrowSize,
-				onActivate: () => this._host.onMouseWheel(new StandardMouseWheelEvent(null, 0, 1)),
+				onActivate: () => this._host.onMouseWheel(new StandardWheelEvent(null, 0, 1)),
 			});
 
 			this._createArrow({
@@ -50,7 +50,7 @@ export class VerticalScrollbar extends AbstractScrollbar {
 				right: void 0,
 				bgWidth: options.verticalScrollbarSize,
 				bgHeight: options.arrowSize,
-				onActivate: () => this._host.onMouseWheel(new StandardMouseWheelEvent(null, 0, -1)),
+				onActivate: () => this._host.onMouseWheel(new StandardWheelEvent(null, 0, -1)),
 			});
 		}
 

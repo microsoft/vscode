@@ -20,17 +20,12 @@ export interface IRemoteAgentEnvironmentDTO {
 	os: OperatingSystem;
 }
 
-export interface IRemoteAgentEnvironmentChannel extends IChannel {
-	call(command: 'getEnvironmentData', args: [string, string]): Promise<IRemoteAgentEnvironmentDTO>;
-	call(command: string, arg?: any): Promise<any>;
-}
-
 export class RemoteExtensionEnvironmentChannelClient {
 
-	constructor(private channel: IRemoteAgentEnvironmentChannel) { }
+	constructor(private channel: IChannel) { }
 
-	getEnvironmentData(remoteAuthority: string, extensionDevelopmentPath?: URI): Promise<IRemoteAgentEnvironment> {
-		return this.channel.call('getEnvironmentData', [remoteAuthority, extensionDevelopmentPath])
+	getEnvironmentData(remoteAuthority: string, extensionDevelopmentPath?: URI): Thenable<IRemoteAgentEnvironment> {
+		return this.channel.call<IRemoteAgentEnvironmentDTO>('getEnvironmentData', [remoteAuthority, extensionDevelopmentPath])
 			.then((data: IRemoteAgentEnvironmentDTO): IRemoteAgentEnvironment => {
 				return {
 					pid: data.pid,

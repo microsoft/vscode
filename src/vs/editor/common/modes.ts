@@ -415,7 +415,7 @@ export interface CompletionItem {
 	preselect?: boolean;
 	/**
 	 * A string or snippet that should be inserted in a document when selecting
-	 * this completion. When `falsy` the [label](#CompletionItem.label)
+	 * this completion.
 	 * is used.
 	 */
 	insertText: string;
@@ -633,8 +633,8 @@ export interface SignatureHelpContext {
  */
 export interface SignatureHelpProvider {
 
-	readonly signatureHelpTriggerCharacters: ReadonlyArray<string>;
-	readonly signatureHelpRetriggerCharacters: ReadonlyArray<string>;
+	readonly signatureHelpTriggerCharacters?: ReadonlyArray<string>;
+	readonly signatureHelpRetriggerCharacters?: ReadonlyArray<string>;
 
 	/**
 	 * Provide help for the signature at the given position and document.
@@ -876,7 +876,7 @@ export interface DocumentSymbolProvider {
 	provideDocumentSymbols(model: model.ITextModel, token: CancellationToken): ProviderResult<DocumentSymbol[]>;
 }
 
-export type TextEdit = { range: IRange; text: string; eol?: model.EndOfLineSequence; } | { range: undefined; text: undefined; eol: model.EndOfLineSequence; };
+export type TextEdit = { range: IRange; text: string; eol?: model.EndOfLineSequence; };
 
 /**
  * Interface used to format a model

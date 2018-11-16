@@ -211,7 +211,10 @@ export class NotificationsToasts extends Themable {
 
 		// Install Timers to Purge Notification
 		let purgeTimeoutHandle: any;
+		let listener: IDisposable;
+
 		const hideAfterTimeout = () => {
+
 			purgeTimeoutHandle = setTimeout(() => {
 
 				// If the notification is sticky or prompting and the window does not have
@@ -220,11 +223,14 @@ export class NotificationsToasts extends Themable {
 				// could immediately hide the notification because the timeout was triggered
 				// again.
 				if ((item.sticky || item.hasPrompt()) && !this.windowHasFocus) {
-					disposables.push(this.windowService.onDidChangeFocus(focus => {
-						if (focus) {
-							hideAfterTimeout();
-						}
-					}));
+					if (!listener) {
+						listener = this.windowService.onDidChangeFocus(focus => {
+							if (focus) {
+								hideAfterTimeout();
+							}
+						});
+						disposables.push(listener);
+					}
 				}
 
 				// Otherwise...

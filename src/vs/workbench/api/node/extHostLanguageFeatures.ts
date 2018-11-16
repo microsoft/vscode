@@ -19,7 +19,7 @@ import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesSh
 import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range as EditorRange } from 'vs/editor/common/core/range';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { isFalsyOrEmpty, isNonEmptyArray } from 'vs/base/common/arrays';
 import { isObject } from 'vs/base/common/types';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
@@ -433,7 +433,7 @@ class NavigateTypeAdapter {
 	provideWorkspaceSymbols(search: string, token: CancellationToken): Thenable<WorkspaceSymbolsDto> {
 		const result: WorkspaceSymbolsDto = IdObject.mixin({ symbols: [] });
 		return asThenable(() => this._provider.provideWorkspaceSymbols(search, token)).then(value => {
-			if (!isFalsyOrEmpty(value)) {
+			if (isNonEmptyArray(value)) {
 				for (const item of value) {
 					if (!item) {
 						// drop
@@ -678,14 +678,14 @@ class SuggestAdapter {
 			label: item.label,
 			kind: typeConvert.CompletionItemKind.from(item.kind),
 			detail: item.detail,
-			documentation: typeConvert.MarkdownString.from(item.documentation),
+			documentation: typeConvert.MarkdownString.fromStrict(item.documentation),
 			filterText: item.filterText,
 			sortText: item.sortText,
 			preselect: item.preselect,
 			//
 			range: undefined,
 			insertText: undefined,
-			insertTextRules: typeConvert.CompletionItemInsertTextRule.from(item.insertTextRules),
+			insertTextRules: item.keepWhitespace ? modes.CompletionItemInsertTextRule.KeepWhitespace : 0,
 			additionalTextEdits: item.additionalTextEdits && item.additionalTextEdits.map(typeConvert.TextEdit.from),
 			command: this._commands.toInternal(item.command),
 			commitCharacters: item.commitCharacters,
@@ -973,9 +973,10 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	// --- outline
 
-	registerDocumentSymbolProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentSymbolProvider): vscode.Disposable {
+	registerDocumentSymbolProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentSymbolProvider, metadata?: vscode.DocumentSymbolProviderMetadata): vscode.Disposable {
 		const handle = this._addNewAdapter(new OutlineAdapter(this._documents, provider), extension);
-		this._proxy.$registerOutlineSupport(handle, this._transformDocumentSelector(selector), extension ? extension.displayName || extension.name : undefined);
+		const displayName = (metadata && metadata.label) || (extension && (extension.displayName || extension.name)) || undefined;
+		this._proxy.$registerOutlineSupport(handle, this._transformDocumentSelector(selector), displayName);
 		return this._createDisposable(handle);
 	}
 

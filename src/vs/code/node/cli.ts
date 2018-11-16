@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { spawn, ChildProcess } from 'child_process';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { assign } from 'vs/base/common/objects';
 import { parseCLIProcessArgv, buildHelpMessage } from 'vs/platform/environment/node/argv';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
@@ -30,7 +29,7 @@ function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
 }
 
 interface IMainCli {
-	main: (argv: ParsedArgs) => TPromise<void>;
+	main: (argv: ParsedArgs) => Thenable<void>;
 }
 
 export async function main(argv: string[]): Promise<any> {
@@ -40,7 +39,7 @@ export async function main(argv: string[]): Promise<any> {
 		args = parseCLIProcessArgv(argv);
 	} catch (err) {
 		console.error(err.message);
-		return TPromise.as(null);
+		return;
 	}
 
 	// Help
@@ -55,8 +54,9 @@ export async function main(argv: string[]): Promise<any> {
 
 	// Extensions Management
 	else if (shouldSpawnCliProcess(args)) {
-		const mainCli = new TPromise<IMainCli>(c => require(['vs/code/node/cliProcessMain'], c));
-		return mainCli.then(cli => cli.main(args));
+		const cli = await new Promise<IMainCli>((c, e) => require(['vs/code/node/cliProcessMain'], c, e));
+		await cli.main(args);
+		return;
 	}
 
 	// Write File
@@ -71,7 +71,7 @@ export async function main(argv: string[]): Promise<any> {
 			!fs.existsSync(source) || !fs.statSync(source).isFile() ||	// make sure source exists as file
 			!fs.existsSync(target) || !fs.statSync(target).isFile()		// make sure target exists as file
 		) {
-			return TPromise.wrapError(new Error('Using --file-write with invalid arguments.'));
+			throw new Error('Using --file-write with invalid arguments.');
 		}
 
 		try {
@@ -107,10 +107,9 @@ export async function main(argv: string[]): Promise<any> {
 				fs.chmodSync(target, targetMode);
 			}
 		} catch (error) {
-			return TPromise.wrapError(new Error(`Using --file-write resulted in an error: ${error}`));
+			error.message = `Error using --file-write: ${error.message}`;
+			throw error;
 		}
-
-		return TPromise.as(null);
 	}
 
 	// Just Code
@@ -128,11 +127,11 @@ export async function main(argv: string[]): Promise<any> {
 		if (verbose) {
 			env['ELECTRON_ENABLE_LOGGING'] = '1';
 
-			processCallbacks.push(child => {
+			processCallbacks.push(async child => {
 				child.stdout.on('data', (data: Buffer) => console.log(data.toString('utf8').trim()));
 				child.stderr.on('data', (data: Buffer) => console.log(data.toString('utf8').trim()));
 
-				return new TPromise<void>(c => child.once('exit', () => c(void 0)));
+				await new Promise(c => child.once('exit', () => c()));
 			});
 		}
 
@@ -199,7 +198,7 @@ export async function main(argv: string[]): Promise<any> {
 			// If the user pipes data via stdin but forgot to add the "-" argument, help by printing a message
 			// if we detect that data flows into via stdin after a certain timeout.
 			else if (args._.length === 0) {
-				processCallbacks.push(child => new TPromise(c => {
+				processCallbacks.push(child => new Promise(c => {
 					const dataListener = () => {
 						if (isWindows) {
 							console.log(`Run with '${product.applicationName} -' to read output from another program (e.g. 'echo Hello World | ${product.applicationName} -').`);
@@ -358,7 +357,7 @@ export async function main(argv: string[]): Promise<any> {
 		const child = spawn(process.execPath, argv.slice(2), options);
 
 		if (args.wait && waitMarkerFilePath) {
-			return new TPromise<void>(c => {
+			return new Promise<void>(c => {
 
 				// Complete when process exits
 				child.once('exit', () => c(void 0));
@@ -374,10 +373,8 @@ export async function main(argv: string[]): Promise<any> {
 			});
 		}
 
-		return TPromise.join(processCallbacks.map(callback => callback(child)));
+		return Promise.all(processCallbacks.map(callback => callback(child)));
 	}
-
-	return TPromise.as(null);
 }
 
 function eventuallyExit(code: number): void {

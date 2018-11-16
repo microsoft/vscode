@@ -28,11 +28,12 @@ export interface IRemoteAuthorityResolverService {
 
 	resolveAuthority(authority: string): Thenable<ResolvedAuthority>;
 
-	getLabel(authority: string): Thenable<string | null>;
+	getRemoteAuthorityResolver(authority: string): Thenable<IRemoteAuthorityResolver | null>;
 }
 
 export interface IRemoteAuthorityResolver {
 	label: string;
 	path: string;
 	authorityPrefix: string;
+	syncExtensions?: boolean;
 }

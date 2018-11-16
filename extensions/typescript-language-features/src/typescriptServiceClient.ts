@@ -16,11 +16,10 @@ import API from './utils/api';
 import { TsServerLogLevel, TypeScriptServiceConfiguration } from './utils/configuration';
 import { Disposable } from './utils/dispose';
 import * as fileSchemes from './utils/fileSchemes';
-import * as is from './utils/is';
 import LogDirectoryProvider from './utils/logDirectoryProvider';
 import Logger from './utils/logger';
 import { TypeScriptPluginPathsProvider } from './utils/pluginPathsProvider';
-import { TypeScriptServerPlugin } from './utils/plugins';
+import { PluginManager } from './utils/plugins';
 import TelemetryReporter from './utils/telemetry';
 import Tracer from './utils/tracer';
 import { inferredProjectConfig } from './utils/tsconfig';
@@ -28,22 +27,6 @@ import { TypeScriptVersionPicker } from './utils/versionPicker';
 import { TypeScriptVersion, TypeScriptVersionProvider } from './utils/versionProvider';
 
 const localize = nls.loadMessageBundle();
-
-export class PluginConfigProvider extends Disposable {
-	private readonly _config = new Map<string, {}>();
-
-	private readonly _onDidUpdateConfig = this._register(new vscode.EventEmitter<{ pluginId: string, config: {} }>());
-	public readonly onDidUpdateConfig = this._onDidUpdateConfig.event;
-
-	public set(pluginId: string, config: {}) {
-		this._config.set(pluginId, config);
-		this._onDidUpdateConfig.fire({ pluginId, config });
-	}
-
-	public entries(): IterableIterator<[string, {}]> {
-		return this._config.entries();
-	}
-}
 
 export interface TsDiagnostics {
 	readonly kind: DiagnosticKind;
@@ -90,8 +73,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	constructor(
 		private readonly workspaceState: vscode.Memento,
 		private readonly onDidChangeTypeScriptVersion: (version: TypeScriptVersion) => void,
-		public readonly plugins: TypeScriptServerPlugin[],
-		private readonly pluginConfigProvider: PluginConfigProvider,
+		public readonly pluginManager: PluginManager,
 		private readonly logDirectoryProvider: LogDirectoryProvider,
 		allModeIds: string[]
 	) {
@@ -150,7 +132,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 		this.typescriptServerSpawner = new TypeScriptServerSpawner(this.versionProvider, this.logDirectoryProvider, this.pluginPathsProvider, this.logger, this.telemetryReporter, this.tracer);
 
-		this._register(this.pluginConfigProvider.onDidUpdateConfig(update => {
+		this._register(this.pluginManager.onDidUpdateConfig(update => {
 			this.configurePlugin(update.pluginId, update.config);
 		}));
 	}
@@ -274,7 +256,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.lastError = null;
 		let mytoken = ++this.token;
 
-		const handle = this.typescriptServerSpawner.spawn(currentVersion, this.configuration, this.plugins);
+		const handle = this.typescriptServerSpawner.spawn(currentVersion, this.configuration, this.pluginManager);
 		this.lastStart = Date.now();
 
 		handle.onError((err: Error) => {
@@ -420,7 +402,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 	private serviceStarted(resendModels: boolean): void {
 		const configureOptions: Proto.ConfigureRequestArguments = {
-			hostInfo: 'vscode'
+			hostInfo: 'vscode',
 		};
 		this.executeWithoutWaitingForResponse('configure', configureOptions);
 		this.setCompilerOptionsForInferredProjects(this._configuration);
@@ -429,7 +411,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		}
 
 		// Reconfigure any plugins
-		for (const [config, pluginName] of this.pluginConfigProvider.entries()) {
+		for (const [config, pluginName] of this.pluginManager.configurations()) {
 			this.configurePlugin(config, pluginName);
 		}
 	}
@@ -485,7 +467,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 						localize('serverDiedAfterStart', 'The TypeScript language service died 5 times right after it got started. The service will not be restarted.'),
 						{
 							title: localize('serverDiedReportIssue', 'Report Issue'),
-							id: MessageAction.reportIssue
+							id: MessageAction.reportIssue,
 						});
 					/* __GDPR__
 						"serviceExited" : {
@@ -634,7 +616,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 					this._tsServerLoading = undefined;
 				}
 
-				const diagnosticEvent: Proto.DiagnosticEvent = event;
+				const diagnosticEvent = event as Proto.DiagnosticEvent;
 				if (diagnosticEvent.body && diagnosticEvent.body.diagnostics) {
 					this._onDiagnosticsReceived.fire({
 						kind: getDignosticsKind(event),
@@ -700,10 +682,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				const typingsInstalledPayload: Proto.TypingsInstalledTelemetryEventPayload = (telemetryData.payload as Proto.TypingsInstalledTelemetryEventPayload);
 				properties['installedPackages'] = typingsInstalledPayload.installedPackages;
 
-				if (is.defined(typingsInstalledPayload.installSuccess)) {
+				if (typeof typingsInstalledPayload.installSuccess === 'boolean') {
 					properties['installSuccess'] = typingsInstalledPayload.installSuccess.toString();
 				}
-				if (is.string(typingsInstalledPayload.typingsInstallerVersion)) {
+				if (typeof typingsInstalledPayload.typingsInstallerVersion === 'string') {
 					properties['typingsInstallerVersion'] = typingsInstalledPayload.typingsInstallerVersion;
 				}
 				break;
@@ -714,7 +696,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 					Object.keys(payload).forEach((key) => {
 						try {
 							if (payload.hasOwnProperty(key)) {
-								properties[key] = is.string(payload[key]) ? payload[key] : JSON.stringify(payload[key]);
+								properties[key] = typeof payload[key] === 'string' ? payload[key] : JSON.stringify(payload[key]);
 							}
 						} catch (e) {
 							// noop

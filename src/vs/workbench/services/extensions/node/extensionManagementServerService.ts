@@ -7,6 +7,10 @@ import { localize } from 'vs/nls';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IExtensionManagementServer, IExtensionManagementServerService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/node/extensionManagementIpc';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/node/remoteAgentService';
+import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
+import { IChannel } from 'vs/base/parts/ipc/node/ipc';
 
 const localExtensionManagementServerAuthority: string = 'vscode-local';
 
@@ -14,19 +18,28 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 
 	_serviceBrand: any;
 
-	readonly localExtensionManagementServer;
+	readonly localExtensionManagementServer: IExtensionManagementServer;
+	readonly otherExtensionManagementServer: IExtensionManagementServer | null = null;
 
 	constructor(
-		localExtensionManagementService: IExtensionManagementService
+		localExtensionManagementService: IExtensionManagementService,
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService
 	) {
 		this.localExtensionManagementServer = { extensionManagementService: localExtensionManagementService, authority: localExtensionManagementServerAuthority, label: localize('local', "Local") };
+		const remoteAgentConnection = remoteAgentService.getConnection();
+		if (remoteAgentConnection) {
+			const extensionManagementService = new ExtensionManagementChannelClient(remoteAgentConnection.getChannel<IChannel>('extensions'));
+			this.otherExtensionManagementServer = { authority: remoteAgentConnection.remoteAuthority, extensionManagementService, label: remoteAgentConnection.remoteAuthority };
+		}
 	}
 
 	getExtensionManagementServer(location: URI): IExtensionManagementServer | null {
-		return this.localExtensionManagementServer;
-	}
-
-	get otherExtensionManagementServer(): IExtensionManagementServer | null {
+		if (location.scheme === Schemas.file) {
+			return this.localExtensionManagementServer;
+		}
+		if (location.scheme === REMOTE_HOST_SCHEME) {
+			return this.otherExtensionManagementServer;
+		}
 		return null;
 	}
 }

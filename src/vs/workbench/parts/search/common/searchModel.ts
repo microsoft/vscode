@@ -33,26 +33,26 @@ export class Match {
 
 	private _id: string;
 	private _range: Range;
-	private _previewText: string;
-	private _rangeInPreviewText: Range;
+	private _oneLinePreviewText: string;
+	private _rangeInPreviewText: ISearchRange;
 
-	constructor(private _parent: FileMatch, _result: ITextSearchMatch) {
-		if (Array.isArray(_result.ranges) || Array.isArray(_result.preview.matches)) {
-			throw new Error('A Match can only be built from a single search result');
-		}
+	// For replace
+	private _fullPreviewRange: ISearchRange;
+
+	constructor(private _parent: FileMatch, private _fullPreviewLines: string[], _fullPreviewRange: ISearchRange, _documentRange: ISearchRange) {
+		this._oneLinePreviewText = _fullPreviewLines[_fullPreviewRange.startLineNumber];
+		const adjustedEndCol = _fullPreviewRange.startLineNumber === _fullPreviewRange.endLineNumber ?
+			_fullPreviewRange.endColumn :
+			this._oneLinePreviewText.length;
+		this._rangeInPreviewText = new OneLineRange(1, _fullPreviewRange.startColumn + 1, adjustedEndCol + 1);
 
 		this._range = new Range(
-			_result.ranges.startLineNumber + 1,
-			_result.ranges.startColumn + 1,
-			_result.ranges.endLineNumber + 1,
-			_result.ranges.endColumn + 1);
+			_documentRange.startLineNumber + 1,
+			_documentRange.startColumn + 1,
+			_documentRange.endLineNumber + 1,
+			_documentRange.endColumn + 1);
 
-		this._rangeInPreviewText = new Range(
-			_result.preview.matches.startLineNumber + 1,
-			_result.preview.matches.startColumn + 1,
-			_result.preview.matches.endLineNumber + 1,
-			_result.preview.matches.endColumn + 1);
-		this._previewText = _result.preview.text;
+		this._fullPreviewRange = _fullPreviewRange;
 
 		this._id = this._parent.id() + '>' + this._range + this.getMatchString();
 	}
@@ -66,7 +66,7 @@ export class Match {
 	}
 
 	public text(): string {
-		return this._previewText;
+		return this._oneLinePreviewText;
 	}
 
 	public range(): Range {
@@ -74,9 +74,9 @@ export class Match {
 	}
 
 	public preview(): { before: string; inside: string; after: string; } {
-		let before = this._previewText.substring(0, this._rangeInPreviewText.startColumn - 1),
+		let before = this._oneLinePreviewText.substring(0, this._rangeInPreviewText.startColumn - 1),
 			inside = this.getMatchString(),
-			after = this._previewText.substring(this._rangeInPreviewText.endColumn - 1);
+			after = this._oneLinePreviewText.substring(this._rangeInPreviewText.endColumn - 1);
 
 		before = lcut(before, 26);
 
@@ -93,13 +93,15 @@ export class Match {
 	}
 
 	public get replaceString(): string {
-		let searchModel = this.parent().parent().searchModel;
-		let matchString = this.getMatchString();
-		let replaceString = searchModel.replacePattern.getReplaceString(matchString);
+		const searchModel = this.parent().parent().searchModel;
+
+		const fullMatchText = this.getFullMatchText();
+		let replaceString = searchModel.replacePattern.getReplaceString(fullMatchText);
 
 		// If match string is not matching then regex pattern has a lookahead expression
 		if (replaceString === null) {
-			replaceString = searchModel.replacePattern.getReplaceString(matchString + this._previewText.substring(this._rangeInPreviewText.endColumn - 1));
+			const fullMatchTextWithTrailingContent = this.getFullMatchText(true);
+			replaceString = searchModel.replacePattern.getReplaceString(fullMatchTextWithTrailingContent);
 		}
 
 		// Match string is still not matching. Could be unsupported matches (multi-line).
@@ -110,8 +112,22 @@ export class Match {
 		return replaceString;
 	}
 
+	private getFullMatchText(includeTrailing = false): string {
+		let thisMatchPreviewLines: string[];
+		if (includeTrailing) {
+			thisMatchPreviewLines = this._fullPreviewLines.slice(this._fullPreviewRange.startLineNumber);
+		} else {
+			thisMatchPreviewLines = this._fullPreviewLines.slice(this._fullPreviewRange.startLineNumber, this._fullPreviewRange.endLineNumber + 1);
+			thisMatchPreviewLines[thisMatchPreviewLines.length - 1] = thisMatchPreviewLines[thisMatchPreviewLines.length - 1].slice(0, this._fullPreviewRange.endColumn);
+
+		}
+
+		thisMatchPreviewLines[0] = thisMatchPreviewLines[0].slice(this._fullPreviewRange.startColumn);
+		return thisMatchPreviewLines.join('\n');
+	}
+
 	public getMatchString(): string {
-		return this._previewText.substring(this._rangeInPreviewText.startColumn - 1, this._rangeInPreviewText.endColumn - 1);
+		return this._oneLinePreviewText.substring(this._rangeInPreviewText.startColumn - 1, this._rangeInPreviewText.endColumn - 1);
 	}
 }
 
@@ -1021,45 +1037,15 @@ export class RangeHighlightDecorations implements IDisposable {
 }
 
 function textSearchResultToMatches(rawMatch: ITextSearchMatch, fileMatch: FileMatch): Match[] {
+	const previewLines = rawMatch.preview.text.split('\n');
 	if (Array.isArray(rawMatch.ranges)) {
-		const previewLines = rawMatch.preview.text.split('\n');
 		return rawMatch.ranges.map((r, i) => {
 			const previewRange: ISearchRange = rawMatch.preview.matches[i];
-			const matchText = previewLines[previewRange.startLineNumber];
-			const adjustedEndCol = previewRange.startLineNumber === previewRange.endLineNumber ?
-				previewRange.endColumn :
-				matchText.length;
-			const adjustedRange = new OneLineRange(0, previewRange.startColumn, adjustedEndCol);
-
-			return new Match(fileMatch, {
-				uri: rawMatch.uri,
-				ranges: r,
-				preview: {
-					text: matchText,
-					matches: adjustedRange
-				}
-			});
+			return new Match(fileMatch, previewLines, previewRange, r);
 		});
 	} else {
-		const firstNewlineIdx = rawMatch.preview.text.indexOf('\n');
-		const matchText = firstNewlineIdx >= 0 ?
-			rawMatch.preview.text.slice(0, firstNewlineIdx) :
-			rawMatch.preview.text;
 		const previewRange = <ISearchRange>rawMatch.preview.matches;
-		const adjustedEndCol = previewRange.startLineNumber === previewRange.endLineNumber ?
-			previewRange.endColumn :
-			matchText.length;
-		const adjustedRange = new OneLineRange(0, previewRange.startColumn, adjustedEndCol);
-
-		const adjustedMatch: ITextSearchMatch = {
-			preview: {
-				text: matchText,
-				matches: adjustedRange
-			},
-			ranges: rawMatch.ranges
-		};
-
-		let match = new Match(fileMatch, adjustedMatch);
+		let match = new Match(fileMatch, previewLines, previewRange, rawMatch.ranges);
 		return [match];
 	}
 }

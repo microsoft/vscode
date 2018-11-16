@@ -46,5 +46,5 @@ export interface IDecorationsService {
 
 	registerDecorationsProvider(provider: IDecorationsProvider): IDisposable;
 
-	getDecoration(uri: URI, includeChildren: boolean, overwrite?: IDecorationData): IDecoration;
+	getDecoration(uri: URI, includeChildren: boolean, overwrite?: IDecorationData): IDecoration | undefined;
 }
