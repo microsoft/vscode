@@ -10,6 +10,8 @@ import { memoize } from './memoize';
 
 const localize = nls.loadMessageBundle();
 
+type LogLevel = 'Trace' | 'Info' | 'Error';
+
 export default class Logger {
 
 	@memoize
@@ -37,10 +39,6 @@ export default class Logger {
 		this.logLevel('Info', message, data);
 	}
 
-	public warn(message: string, data?: any): void {
-		this.logLevel('Warn', message, data);
-	}
-
 	public error(message: string, data?: any): void {
 		// See https://github.com/Microsoft/TypeScript/issues/10496
 		if (data && data.message === 'No content available.') {
@@ -49,7 +47,7 @@ export default class Logger {
 		this.logLevel('Error', message, data);
 	}
 
-	public logLevel(level: string, message: string, data?: any): void {
+	public logLevel(level: LogLevel, message: string, data?: any): void {
 		this.output.appendLine(`[${level}  - ${(new Date().toLocaleTimeString())}] ${message}`);
 		if (data) {
 			this.output.appendLine(this.data2String(data));
