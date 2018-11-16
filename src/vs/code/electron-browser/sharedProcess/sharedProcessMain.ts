@@ -8,7 +8,6 @@ import * as platform from 'vs/base/common/platform';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
 import { serve, Server, connect } from 'vs/base/parts/ipc/node/ipc.net';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
@@ -193,15 +192,14 @@ function setupIPC(hook: string): Thenable<Server> {
 	return setup(true);
 }
 
-function startHandshake(): TPromise<ISharedProcessInitData> {
-	return new TPromise<ISharedProcessInitData>((c, e) => {
+async function handshake(configuration: ISharedProcessConfiguration): Promise<void> {
+	const data = await new Promise<ISharedProcessInitData>(c => {
 		ipcRenderer.once('handshake:hey there', (_: any, r: ISharedProcessInitData) => c(r));
 		ipcRenderer.send('handshake:hello');
 	});
-}
 
-function handshake(configuration: ISharedProcessConfiguration): TPromise<void> {
-	return startHandshake()
-		.then(data => setupIPC(data.sharedIPCHandle).then(server => main(server, data, configuration)))
-		.then(() => ipcRenderer.send('handshake:im ready'));
+	const server = await setupIPC(data.sharedIPCHandle);
+
+	main(server, data, configuration);
+	ipcRenderer.send('handshake:im ready');
 }
