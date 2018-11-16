@@ -421,18 +421,6 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			.map(extensionId => (<IExtensionRecommendation>{ extensionId, sources: ['application'] }));
 	}
 
-	getAllRecommendations(): Promise<IExtensionRecommendation[]> {
-		if (!this.proactiveRecommendationsFetched) {
-			return Promise.resolve([]);
-		}
-		return Promise.all([
-			this.getWorkspaceRecommendations(),
-			Promise.resolve(this.getFileBasedRecommendations()),
-			this.getOtherRecommendations(),
-			Promise.resolve(this.getKeymapRecommendations())
-		]).then(result => flatten(result).filter(e => this.isExtensionAllowedToBeRecommended(e.extensionId)));
-	}
-
 	private fetchFileBasedRecommendations() {
 		const extensionTips = product.extensionTips;
 		if (!extensionTips) {
