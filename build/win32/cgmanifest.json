@@ -5,6 +5,7 @@
 				"type": "git",
 				"git": {
 					"name": "Amanieu/thread_local-rs",
+					"repositoryUrl": "https://github.com/Amanieu/thread_local-rs",
 					"commitHash": ""
 				}
 			},
@@ -43,6 +44,7 @@
 				"type": "git",
 				"git": {
 					"name": "BurntSushi/byteorder",
+					"repositoryUrl": "https://github.com/BurntSushi/byteorder",
 					"commitHash": ""
 				}
 			},
@@ -77,6 +79,7 @@
 				"type": "git",
 				"git": {
 					"name": "Sgeo/take_mut",
+					"repositoryUrl": "https://github.com/Sgeo/take_mut",
 					"commitHash": ""
 				}
 			},
@@ -111,6 +114,7 @@
 				"type": "git",
 				"git": {
 					"name": "Stebalien/term",
+					"repositoryUrl": "https://github.com/Stebalien/term",
 					"commitHash": ""
 				}
 			},
@@ -149,6 +153,7 @@
 				"type": "git",
 				"git": {
 					"name": "chronotope/chrono",
+					"repositoryUrl": "https://github.com/chronotope/chrono",
 					"commitHash": ""
 				}
 			},
@@ -401,6 +406,7 @@
 				"type": "git",
 				"git": {
 					"name": "dtolnay/isatty",
+					"repositoryUrl": "https://github.com/dtolnay/isatty",
 					"commitHash": ""
 				}
 			},
@@ -439,6 +445,7 @@
 				"type": "git",
 				"git": {
 					"name": "mrhooray/crc-rs",
+					"repositoryUrl": "https://github.com/mrhooray/crc-rs.git",
 					"commitHash": ""
 				}
 			},
@@ -473,6 +480,7 @@
 				"type": "git",
 				"git": {
 					"name": "redox-os/syscall",
+					"repositoryUrl": "https://github.com/redox-os/termios",
 					"commitHash": ""
 				}
 			},
@@ -508,6 +516,7 @@
 				"type": "git",
 				"git": {
 					"name": "redox-os/termios",
+					"repositoryUrl": "https://github.com/redox-os/termios",
 					"commitHash": ""
 				}
 			},
@@ -542,6 +551,7 @@
 				"type": "git",
 				"git": {
 					"name": "reem/rust-unreachable",
+					"repositoryUrl": "https://github.com/reem/rust-unreachable.git",
 					"commitHash": ""
 				}
 			},
@@ -574,6 +584,7 @@
 				"type": "git",
 				"git": {
 					"name": "reem/rust-void",
+					"repositoryUrl": "https://github.com/reem/rust-void.git",
 					"commitHash": ""
 				}
 			},
@@ -606,6 +617,7 @@
 				"type": "git",
 				"git": {
 					"name": "retep998/winapi-rs",
+					"repositoryUrl": "https://github.com/retep998/winapi-rs",
 					"commitHash": ""
 				}
 			},
@@ -638,6 +650,7 @@
 				"type": "git",
 				"git": {
 					"name": "retep998/winapi-rs",
+					"repositoryUrl": "https://github.com/retep998/winapi-rs",
 					"commitHash": ""
 				}
 			},
@@ -670,6 +683,7 @@
 				"type": "git",
 				"git": {
 					"name": "retep998/winapi-rs",
+					"repositoryUrl": "https://github.com/retep998/winapi-rs",
 					"commitHash": ""
 				}
 			},
@@ -702,6 +716,7 @@
 				"type": "git",
 				"git": {
 					"name": "retep998/winapi-rs",
+					"repositoryUrl": "https://github.com/retep998/winapi-rs",
 					"commitHash": ""
 				}
 			},
@@ -734,6 +749,7 @@
 				"type": "git",
 				"git": {
 					"name": "retep998/winapi-rs",
+					"repositoryUrl": "https://github.com/retep998/winapi-rs",
 					"commitHash": ""
 				}
 			},
@@ -766,6 +782,7 @@
 				"type": "git",
 				"git": {
 					"name": "retep998/winapi-rs",
+					"repositoryUrl": "https://github.com/retep998/winapi-rs",
 					"commitHash": ""
 				}
 			},
@@ -798,6 +815,7 @@
 				"type": "git",
 				"git": {
 					"name": "rust-lang-nursery/lazy-static.rs",
+					"repositoryUrl": "https://github.com/rust-lang-nursery/lazy-static.rs",
 					"commitHash": ""
 				}
 			},
@@ -836,6 +854,7 @@
 				"type": "git",
 				"git": {
 					"name": "rust-lang/libc",
+					"repositoryUrl": "https://github.com/rust-lang/libc",
 					"commitHash": ""
 				}
 			},
@@ -874,6 +893,7 @@
 				"type": "git",
 				"git": {
 					"name": "rust-lang/time",
+					"repositoryUrl": "https://github.com/rust-lang/time",
 					"commitHash": ""
 				}
 			},
@@ -912,6 +932,7 @@
 				"type": "git",
 				"git": {
 					"name": "rust-num/num",
+					"repositoryUrl": "https://github.com/rust-num/num",
 					"commitHash": ""
 				}
 			},
@@ -950,6 +971,7 @@
 				"type": "git",
 				"git": {
 					"name": "rust-num/num-integer",
+					"repositoryUrl": "https://github.com/rust-num/num-integer",
 					"commitHash": ""
 				}
 			},
@@ -988,6 +1010,7 @@
 				"type": "git",
 				"git": {
 					"name": "rust-num/num-iter",
+					"repositoryUrl": "https://github.com/rust-num/num-iter",
 					"commitHash": ""
 				}
 			},
@@ -1026,6 +1049,7 @@
 				"type": "git",
 				"git": {
 					"name": "rust-num/num-traits",
+					"repositoryUrl": "https://github.com/rust-num/num-traits",
 					"commitHash": ""
 				}
 			},
@@ -1064,6 +1088,7 @@
 				"type": "git",
 				"git": {
 					"name": "slog-rs/async",
+					"repositoryUrl": "https://github.com/slog-rs/async",
 					"commitHash": ""
 				}
 			},
@@ -1102,6 +1127,7 @@
 				"type": "git",
 				"git": {
 					"name": "slog-rs/slog",
+					"repositoryUrl": "https://github.com/slog-rs/slog",
 					"commitHash": ""
 				}
 			},
@@ -1140,6 +1166,7 @@
 				"type": "git",
 				"git": {
 					"name": "slog-rs/term",
+					"repositoryUrl": "https://github.com/slog-rs/term",
 					"commitHash": ""
 				}
 			},
@@ -1178,6 +1205,7 @@
 				"type": "git",
 				"git": {
 					"name": "ticki/termion",
+					"repositoryUrl": "https://github.com/ticki/termion",
 					"commitHash": ""
 				}
 			},
@@ -1212,6 +1240,7 @@
 				"type": "git",
 				"git": {
 					"name": "vitiral/build_const",
+					"repositoryUrl": "https://github.com/vitiral/build_const",
 					"commitHash": ""
 				}
 			},
