@@ -776,7 +776,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<IComp
 				this.setState(State.Open);
 			}
 
-			this.list.reveal(selectionIndex, selectionIndex);
+			this.list.reveal(selectionIndex, 0);
 			this.list.setFocus([selectionIndex]);
 
 			// Reset focus border
