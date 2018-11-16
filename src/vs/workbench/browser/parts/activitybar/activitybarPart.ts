@@ -349,18 +349,16 @@ export class ActivitybarPart extends Part {
 		const viewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 		const state: ISerializedPlaceholderComposite[] = [];
 		for (const { id, iconUrl } of this.viewletService.getAllViewlets()) {
-			if (iconUrl) {
-				const viewContainer = viewContainerRegistry.get(id);
-				const whens: string[] = [];
-				if (viewContainer) {
-					for (const { when } of this.viewsService.getViewDescriptors(viewContainer).allViewDescriptors) {
-						if (when) {
-							whens.push(when.serialize());
-						}
+			const viewContainer = viewContainerRegistry.get(id);
+			const whens: string[] = [];
+			if (viewContainer) {
+				for (const { when } of this.viewsService.getViewDescriptors(viewContainer).allViewDescriptors) {
+					if (when) {
+						whens.push(when.serialize());
 					}
 				}
-				state.push({ id, iconUrl, whens });
 			}
+			state.push({ id, iconUrl, whens });
 		}
 		this.storageService.store(ActivitybarPart.PLACEHOLDER_VIEWLETS, JSON.stringify(state), StorageScope.GLOBAL);
 
