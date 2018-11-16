@@ -36,6 +36,12 @@ import { localize } from 'vs/nls';
 import { timeout } from 'vs/base/common/async';
 import { CollapseAllAction } from 'vs/base/parts/tree/browser/treeDefaults';
 import { editorFindMatchHighlight, editorFindMatchHighlightBorder } from 'vs/platform/theme/common/colorRegistry';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { isString } from 'vs/base/common/types';
+import { renderMarkdown, RenderOptions } from 'vs/base/browser/htmlContentRenderer';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IMarkdownRenderResult } from 'vs/editor/contrib/markdown/markdownRenderer';
 
 export class CustomTreeViewPanel extends ViewletPanel {
 
@@ -182,13 +188,15 @@ export class CustomTreeView extends Disposable implements ITreeView {
 
 	private domNode: HTMLElement;
 	private treeContainer: HTMLElement;
-	private message: HTMLDivElement;
+	private _messageValue: string | IMarkdownString | undefined;
+	private messageElement: HTMLDivElement;
 	private tree: FileIconThemableWorkbenchTree;
 	private root: ITreeItem;
 	private elementsToRefresh: ITreeItem[] = [];
 	private menus: TitleMenus;
 
-	private _dataProvider: ITreeViewDataProvider;
+	private markdownRenderer: MarkdownRenderer;
+	private markdownResult: IMarkdownRenderResult;
 
 	private _onDidExpandItem: Emitter<ITreeItem> = this._register(new Emitter<ITreeItem>());
 	readonly onDidExpandItem: Event<ITreeItem> = this._onDidExpandItem.event;
@@ -217,7 +225,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	) {
 		super();
 		this.root = new Root();
-		this.menus = this._register(this.instantiationService.createInstance(TitleMenus, this.id));
+		this.menus = this._register(instantiationService.createInstance(TitleMenus, this.id));
 		this._register(this.menus.onDidChangeTitle(() => this._onDidChangeActions.fire()));
 		this._register(this.themeService.onDidFileIconThemeChange(() => this.doRefresh([this.root]) /** soft refresh **/));
 		this._register(this.themeService.onThemeChange(() => this.doRefresh([this.root]) /** soft refresh **/));
@@ -226,10 +234,16 @@ export class CustomTreeView extends Disposable implements ITreeView {
 				this.doRefresh([this.root]); /** soft refresh **/
 			}
 		}));
-
+		this.markdownRenderer = instantiationService.createInstance(MarkdownRenderer);
+		this._register(toDisposable(() => {
+			if (this.markdownResult) {
+				this.markdownResult.dispose();
+			}
+		}));
 		this.create();
 	}
 
+	private _dataProvider: ITreeViewDataProvider;
 	get dataProvider(): ITreeViewDataProvider {
 		return this._dataProvider;
 	}
@@ -248,12 +262,22 @@ export class CustomTreeView extends Disposable implements ITreeView {
 					});
 				}
 			};
-			this.hideMessage();
+			this.updateMessage();
 			this.refresh();
 		} else {
 			this._dataProvider = null;
-			this.showMessage(noDataProviderMessage);
+			this.updateMessage();
 		}
+	}
+
+	private _message: string | IMarkdownString | undefined;
+	get message(): string | IMarkdownString | undefined {
+		return this._message;
+	}
+
+	set message(message: string | IMarkdownString | undefined) {
+		this._message = message;
+		this.updateMessage();
 	}
 
 	get hasIconForParentNode(): boolean {
@@ -346,9 +370,8 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	}
 
 	private create() {
-		this.domNode = DOM.$('.tree-explorer-viewlet-tree-view.message');
-		this.message = DOM.append(this.domNode, DOM.$('.customview-message'));
-		this.message.innerText = noDataProviderMessage;
+		this.domNode = DOM.$('.tree-explorer-viewlet-tree-view');
+		this.messageElement = DOM.append(this.domNode, DOM.$('.message'));
 		this.treeContainer = DOM.append(this.domNode, DOM.$('.customview-tree'));
 	}
 
@@ -367,19 +390,55 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		this._register(this.tree.onDidChangeSelection(e => this._onDidChangeSelection.fire(e.selection)));
 	}
 
-	private showMessage(message: string): void {
-		DOM.addClass(this.domNode, 'message');
-		this.message.innerText = message;
+	private updateMessage(): void {
+		if (this._message) {
+			this.showMessage(this._message);
+		} else if (!this.dataProvider) {
+			this.showMessage(noDataProviderMessage);
+		} else {
+			this.hideMessage();
+		}
+	}
+
+	private showMessage(message: string | IMarkdownString): void {
+		DOM.removeClass(this.messageElement, 'hide');
+		if (this._messageValue !== message) {
+			this.resetMessageElement();
+			this._messageValue = message;
+			if (isString(this._messageValue)) {
+				this.messageElement.innerText = this._messageValue;
+			} else {
+				this.markdownResult = this.markdownRenderer.render(this._messageValue);
+				DOM.append(this.messageElement, this.markdownResult.element);
+			}
+			this.layout(this._size);
+		}
 	}
 
 	private hideMessage(): void {
-		DOM.removeClass(this.domNode, 'message');
+		this.resetMessageElement();
+		DOM.addClass(this.messageElement, 'hide');
+		this.layout(this._size);
 	}
 
+	private resetMessageElement(): void {
+		if (this.markdownResult) {
+			this.markdownResult.dispose();
+			this.markdownResult = null;
+		}
+		DOM.clearNode(this.messageElement);
+	}
+
+	private _size: number;
 	layout(size: number) {
-		this.domNode.style.height = size + 'px';
-		if (this.tree) {
-			this.tree.layout(size);
+		if (size) {
+			this._size = size;
+			this.domNode.style.height = size + 'px';
+			const treeSize = size - DOM.getTotalHeight(this.messageElement);
+			this.treeContainer.style.height = treeSize + 'px';
+			if (this.tree) {
+				this.tree.layout(treeSize);
+			}
 		}
 	}
 
@@ -426,15 +485,12 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	}
 
 	private activate() {
-		this.hideMessage();
 		if (!this.activated) {
 			this.tree.setInput(this.root);
 			this.progressService.withProgress({ location: this.container.id }, () => this.extensionService.activateByEvent(`onView:${this.id}`))
 				.then(() => timeout(2000))
 				.then(() => {
-					if (!this.dataProvider) {
-						this.showMessage(noDataProviderMessage);
-					}
+					this.updateMessage();
 				});
 			this.activated = true;
 		}
@@ -770,5 +826,41 @@ class TreeMenus extends Disposable implements IDisposable {
 		contextKeyService.dispose();
 
 		return result;
+	}
+}
+
+class MarkdownRenderer {
+
+	constructor(
+		@IOpenerService private readonly _openerService: IOpenerService
+	) {
+	}
+
+	private getOptions(disposeables: IDisposable[]): RenderOptions {
+		return {
+			actionHandler: {
+				callback: (content) => {
+					let uri: URI | undefined;
+					try {
+						uri = URI.parse(content);
+					} catch {
+						// ignore
+					}
+					if (uri && this._openerService) {
+						this._openerService.open(uri).catch(onUnexpectedError);
+					}
+				},
+				disposeables
+			}
+		};
+	}
+
+	render(markdown: IMarkdownString): IMarkdownRenderResult {
+		let disposeables: IDisposable[] = [];
+		const element: HTMLElement = markdown ? renderMarkdown(markdown, this.getOptions(disposeables)) : document.createElement('span');
+		return {
+			element,
+			dispose: () => dispose(disposeables)
+		};
 	}
 }

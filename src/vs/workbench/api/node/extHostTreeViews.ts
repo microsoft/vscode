@@ -13,11 +13,12 @@ import { ExtHostTreeViewsShape, MainThreadTreeViewsShape } from './extHost.proto
 import { ITreeItem, TreeViewItemHandleArg, ITreeItemLabel, IRevealOptions } from 'vs/workbench/common/views';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
 import { asThenable } from 'vs/base/common/async';
-import { TreeItemCollapsibleState, ThemeIcon } from 'vs/workbench/api/node/extHostTypes';
+import { TreeItemCollapsibleState, ThemeIcon, MarkdownString } from 'vs/workbench/api/node/extHostTypes';
 import { isUndefinedOrNull, isString } from 'vs/base/common/types';
 import { equals } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtensionDescription, checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import * as typeConvert from 'vs/workbench/api/node/extHostTypeConverters';
 
 type TreeItemHandle = string;
 
@@ -82,6 +83,8 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 			get onDidChangeSelection() { return treeView.onDidChangeSelection; },
 			get visible() { return treeView.visible; },
 			get onDidChangeVisibility() { return treeView.onDidChangeVisibility; },
+			get message() { return treeView.message; },
+			set message(message: string | MarkdownString) { treeView.message = message; },
 			reveal: (element: T, options?: IRevealOptions): Thenable<void> => {
 				return treeView.reveal(element, options);
 			},
@@ -223,6 +226,16 @@ class ExtHostTreeView<T> extends Disposable {
 			.then(() => this.resolveUnknownParentChain(element))
 			.then(parentChain => this.resolveTreeNode(element, parentChain[parentChain.length - 1])
 				.then(treeNode => this.proxy.$reveal(this.viewId, treeNode.item, parentChain.map(p => p.item), { select, focus, expand })), error => this.logService.error(error));
+	}
+
+	private _message: string | MarkdownString;
+	get message(): string | MarkdownString {
+		return this._message;
+	}
+
+	set message(message: string | MarkdownString) {
+		this._message = message;
+		this.proxy.$setMessage(this.viewId, typeConvert.MarkdownString.fromStrict(this._message));
 	}
 
 	setExpanded(treeItemHandle: TreeItemHandle, expanded: boolean): void {

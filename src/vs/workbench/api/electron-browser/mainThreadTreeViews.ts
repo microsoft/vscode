@@ -10,6 +10,7 @@ import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostC
 import { distinct } from 'vs/base/common/arrays';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { isUndefinedOrNull, isNumber } from 'vs/base/common/types';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 @extHostNamedCustomer(MainContext.MainThreadTreeViews)
 export class MainThreadTreeViews extends Disposable implements MainThreadTreeViewsShape {
@@ -56,6 +57,13 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 			return viewer.refresh(itemsToRefresh.length ? itemsToRefresh : void 0);
 		}
 		return null;
+	}
+
+	$setMessage(treeViewId: string, message: string | IMarkdownString): void {
+		const viewer = this.getTreeView(treeViewId);
+		if (viewer) {
+			viewer.message = message;
+		}
 	}
 
 	private async reveal(treeView: ITreeView, dataProvider: TreeViewDataProvider, item: ITreeItem, parentChain: ITreeItem[], options: IRevealOptions): Promise<void> {

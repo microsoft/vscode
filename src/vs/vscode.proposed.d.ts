@@ -1187,6 +1187,15 @@ declare module 'vscode' {
 
 	//#region Tree View
 
+	export interface TreeView<T> extends Disposable {
+
+		/**
+		 * An optional human-readable message that will be rendered in the view.
+		 */
+		message?: string | MarkdownString;
+
+	}
+
 	/**
 	 * Label describing the [Tree item](#TreeItem)
 	 */

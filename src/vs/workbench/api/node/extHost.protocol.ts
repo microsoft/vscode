@@ -42,6 +42,7 @@ import { IRPCProtocol, ProxyIdentifier, createExtHostContextProxyIdentifier as c
 import { IProgressOptions, IProgressStep } from 'vs/platform/progress/common/progress';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import * as vscode from 'vscode';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -215,6 +216,7 @@ export interface MainThreadTreeViewsShape extends IDisposable {
 	$registerTreeViewDataProvider(treeViewId: string, options: { showCollapseAll: boolean }): void;
 	$refresh(treeViewId: string, itemsToRefresh?: { [treeItemHandle: string]: ITreeItem }): Thenable<void>;
 	$reveal(treeViewId: string, treeItem: ITreeItem, parentChain: ITreeItem[], options: IRevealOptions): Thenable<void>;
+	$setMessage(treeViewId: string, message: string | IMarkdownString): void;
 }
 
 export interface MainThreadErrorsShape extends IDisposable {
