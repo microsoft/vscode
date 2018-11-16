@@ -5,7 +5,6 @@
 
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
-import * as is from './is';
 import { memoize } from './memoize';
 
 const localize = nls.loadMessageBundle();
@@ -21,16 +20,10 @@ export default class Logger {
 
 	private data2String(data: any): string {
 		if (data instanceof Error) {
-			if (is.string(data.stack)) {
-				return data.stack;
-			}
-			return (data as Error).message;
+			return data.stack || data.message;
 		}
-		if (is.boolean(data.success) && !data.success && is.string(data.message)) {
+		if (data.success === false && data.message) {
 			return data.message;
-		}
-		if (is.string(data)) {
-			return data;
 		}
 		return data.toString();
 	}
