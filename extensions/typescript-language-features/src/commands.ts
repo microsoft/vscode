@@ -112,7 +112,7 @@ export class ConfigurePluginCommand implements Command {
 	) { }
 
 	public execute(pluginId: string, configuration: any) {
-		this.pluginManager.set(pluginId, configuration);
+		this.pluginManager.setConfiguration(pluginId, configuration);
 	}
 }
 

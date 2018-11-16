@@ -14,14 +14,14 @@ export interface TypeScriptServerPlugin {
 }
 
 export class PluginManager extends Disposable {
-	private readonly _config = new Map<string, {}>();
+	private readonly _pluginConfigurations = new Map<string, {}>();
 
 	@memoize
 	public get plugins(): ReadonlyArray<TypeScriptServerPlugin> {
 		const plugins: TypeScriptServerPlugin[] = [];
 		for (const extension of vscode.extensions.all) {
 			const pack = extension.packageJSON;
-			if (pack.contributes && pack.contributes.typescriptServerPlugins && Array.isArray(pack.contributes.typescriptServerPlugins)) {
+			if (pack.contributes && Array.isArray(pack.contributes.typescriptServerPlugins)) {
 				for (const plugin of pack.contributes.typescriptServerPlugins) {
 					plugins.push({
 						name: plugin.name,
@@ -37,12 +37,12 @@ export class PluginManager extends Disposable {
 	private readonly _onDidUpdateConfig = this._register(new vscode.EventEmitter<{ pluginId: string, config: {} }>());
 	public readonly onDidUpdateConfig = this._onDidUpdateConfig.event;
 
-	public set(pluginId: string, config: {}) {
-		this._config.set(pluginId, config);
+	public setConfiguration(pluginId: string, config: {}) {
+		this._pluginConfigurations.set(pluginId, config);
 		this._onDidUpdateConfig.fire({ pluginId, config });
 	}
 
-	public config(): IterableIterator<[string, {}]> {
-		return this._config.entries();
+	public configurations(): IterableIterator<[string, {}]> {
+		return this._pluginConfigurations.entries();
 	}
 }

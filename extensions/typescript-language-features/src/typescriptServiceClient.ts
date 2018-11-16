@@ -412,7 +412,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		}
 
 		// Reconfigure any plugins
-		for (const [config, pluginName] of this.pluginManager.config()) {
+		for (const [config, pluginName] of this.pluginManager.configurations()) {
 			this.configurePlugin(config, pluginName);
 		}
 	}
