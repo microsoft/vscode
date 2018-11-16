@@ -1934,14 +1934,12 @@ export class FunctionBreakpoint extends Breakpoint {
 export class DebugAdapterExecutable implements vscode.DebugAdapterExecutable {
 	readonly command: string;
 	readonly args: string[];
-	readonly env?: { [key: string]: string };
-	readonly cwd?: string;
+	readonly options?: vscode.DebugAdapterExecutableOptions;
 
-	constructor(command: string, args?: string[], env?: { [key: string]: string }, cwd?: string) {
+	constructor(command: string, args: string[], options?: vscode.DebugAdapterExecutableOptions) {
 		this.command = command;
-		this.args = args;
-		this.env = env;
-		this.cwd = cwd;
+		this.args = args || [];
+		this.options = options;
 	}
 }
 

@@ -596,8 +596,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 				type: 'executable',
 				command: x.command,
 				args: x.args,
-				cwd: x.cwd,
-				env: x.env
+				options: x.options
 			};
 		} else if (x instanceof DebugAdapterServer) {
 			return <IDebugAdapterServer>{
@@ -662,7 +661,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		const type = config.type;
 		const promises = this._configProviders
 			.filter(pair => pair.provider.provideDebugAdapterTracker && (pair.type === type || pair.type === '*'))
-			.map(pair => asThenable(() => (pair.provider as any).provideDebugAdapterTracker(session, session.workspaceFolder, session.configuration, CancellationToken.None)).then(p => p).catch(err => null));
+			.map(pair => asThenable(() => pair.provider.provideDebugAdapterTracker(session, session.workspaceFolder, session.configuration, CancellationToken.None)).then(p => p).catch(err => null));
 
 		return Promise.race([
 			Promise.all(promises).then(trackers => {
@@ -701,7 +700,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		}
 
 		if (adapterProvider) {
-			return asThenable(() => adapterProvider.provideDebugAdapter(session, this.daExecutableFromPackage(session), CancellationToken.None));
+			return asThenable(() => adapterProvider.provideDebugAdapter(session, this.daExecutableFromPackage(session)));
 		}
 
 		// try deprecated command based extension API "adapterExecutableCommand" to determine the executable
@@ -719,9 +718,12 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		return Promise.resolve(this.daExecutableFromPackage(session));
 	}
 
-	private daExecutableFromPackage(session: ExtHostDebugSession): DebugAdapterExecutable {
+	private daExecutableFromPackage(session: ExtHostDebugSession): DebugAdapterExecutable | undefined {
 		const dae = ExecutableDebugAdapter.platformAdapterExecutable(this._extensionService.getAllExtensionDescriptions(), session.type);
-		return new DebugAdapterExecutable(dae.command, dae.args, dae.env, dae.cwd);
+		if (dae) {
+			return new DebugAdapterExecutable(dae.command, dae.args, dae.options);
+		}
+		return undefined;
 	}
 
 	private startBreakpoints() {

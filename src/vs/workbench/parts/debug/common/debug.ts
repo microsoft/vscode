@@ -472,12 +472,16 @@ export interface IDebugAdapterFactory extends ITerminalLauncher {
 	substituteVariables(folder: IWorkspaceFolder, config: IConfig): Promise<IConfig>;
 }
 
+export interface IDebugAdapterExecutableOptions {
+	cwd?: string;
+	env?: { [key: string]: string };
+}
+
 export interface IDebugAdapterExecutable {
 	readonly type: 'executable';
 	readonly command: string;
 	readonly args: string[];
-	readonly cwd?: string;
-	readonly env?: { [key: string]: string };
+	readonly options?: IDebugAdapterExecutableOptions;
 }
 
 export interface IDebugAdapterServer {

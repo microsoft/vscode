@@ -56,7 +56,13 @@ export class Debugger implements IDebugger {
 						// TODO@AW: this.inExtHost() should now return true
 						return Promise.resolve(this.configurationManager.createDebugAdapter(session));
 					default:
-						throw new Error('Cannot create debug adapter.');
+						throw new Error('unknown type');
+				}
+			}).catch(err => {
+				if (err && err.message) {
+					throw new Error(nls.localize('cannot.create.da.with.err', "Cannot create debug adapter ({0}).", err.message));
+				} else {
+					throw new Error(nls.localize('cannot.create.da', "Cannot create debug adapter."));
 				}
 			});
 		}
@@ -92,7 +98,11 @@ export class Debugger implements IDebugger {
 			}
 
 			// fallback: use executable information from package.json
-			return ExecutableDebugAdapter.platformAdapterExecutable(this.mergedExtensionDescriptions, this.type);
+			const ae = ExecutableDebugAdapter.platformAdapterExecutable(this.mergedExtensionDescriptions, this.type);
+			if (ae === undefined) {
+				throw new Error('no executable specified in package.json');
+			}
+			return ae;
 		});
 	}
 
