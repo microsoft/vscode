@@ -1033,7 +1033,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 				assert.equal(second.eol, EndOfLineSequence.LF);
 				assert.equal(second.text, '');
-				assert.equal(second.range, undefined);
+				assert.deepEqual(second.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 });
 			});
 		});
 	});
