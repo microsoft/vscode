@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { Disposable } from './dispose';
 
 export interface TypeScriptServerPlugin {
 	readonly path: string;
@@ -26,4 +27,21 @@ export function getContributedTypeScriptServerPlugins(): TypeScriptServerPlugin[
 		}
 	}
 	return plugins;
+}
+
+
+export class PluginConfigProvider extends Disposable {
+	private readonly _config = new Map<string, {}>();
+
+	private readonly _onDidUpdateConfig = this._register(new vscode.EventEmitter<{ pluginId: string, config: {} }>());
+	public readonly onDidUpdateConfig = this._onDidUpdateConfig.event;
+
+	public set(pluginId: string, config: {}) {
+		this._config.set(pluginId, config);
+		this._onDidUpdateConfig.fire({ pluginId, config });
+	}
+
+	public entries(): IterableIterator<[string, {}]> {
+		return this._config.entries();
+	}
 }

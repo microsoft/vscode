@@ -20,7 +20,7 @@ import * as is from './utils/is';
 import LogDirectoryProvider from './utils/logDirectoryProvider';
 import Logger from './utils/logger';
 import { TypeScriptPluginPathsProvider } from './utils/pluginPathsProvider';
-import { TypeScriptServerPlugin } from './utils/plugins';
+import { PluginConfigProvider, TypeScriptServerPlugin } from './utils/plugins';
 import TelemetryReporter from './utils/telemetry';
 import Tracer from './utils/tracer';
 import { inferredProjectConfig } from './utils/tsconfig';
@@ -28,22 +28,6 @@ import { TypeScriptVersionPicker } from './utils/versionPicker';
 import { TypeScriptVersion, TypeScriptVersionProvider } from './utils/versionProvider';
 
 const localize = nls.loadMessageBundle();
-
-export class PluginConfigProvider extends Disposable {
-	private readonly _config = new Map<string, {}>();
-
-	private readonly _onDidUpdateConfig = this._register(new vscode.EventEmitter<{ pluginId: string, config: {} }>());
-	public readonly onDidUpdateConfig = this._onDidUpdateConfig.event;
-
-	public set(pluginId: string, config: {}) {
-		this._config.set(pluginId, config);
-		this._onDidUpdateConfig.fire({ pluginId, config });
-	}
-
-	public entries(): IterableIterator<[string, {}]> {
-		return this._config.entries();
-	}
-}
 
 export interface TsDiagnostics {
 	readonly kind: DiagnosticKind;

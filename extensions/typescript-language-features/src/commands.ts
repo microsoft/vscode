@@ -10,7 +10,7 @@ import { Command } from './utils/commandManager';
 import { Lazy } from './utils/lazy';
 import { isImplicitProjectConfigFile, openOrCreateConfigFile } from './utils/tsconfig';
 import { nulToken } from './utils/cancellation';
-import { PluginConfigProvider } from './typescriptServiceClient';
+import { PluginConfigProvider } from './utils/plugins';
 
 const localize = nls.loadMessageBundle();
 

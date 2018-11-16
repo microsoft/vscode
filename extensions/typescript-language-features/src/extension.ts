@@ -15,10 +15,9 @@ import { standardLanguageDescriptions } from './utils/languageDescription';
 import { lazy, Lazy } from './utils/lazy';
 import LogDirectoryProvider from './utils/logDirectoryProvider';
 import ManagedFileContextManager from './utils/managedFileContext';
-import { getContributedTypeScriptServerPlugins, TypeScriptServerPlugin } from './utils/plugins';
+import { getContributedTypeScriptServerPlugins, TypeScriptServerPlugin, PluginConfigProvider } from './utils/plugins';
 import * as ProjectStatus from './utils/projectStatus';
 import { Surveyor } from './utils/surveyor';
-import { PluginConfigProvider } from './typescriptServiceClient';
 
 
 interface ApiV0 {
