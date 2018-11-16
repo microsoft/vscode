@@ -22,7 +22,7 @@ export class Editor {
 
 	async findReferences(filename: string, term: string, line: number): Promise<References> {
 		await this.clickOnTerm(filename, term, line);
-		await this.commands.runCommand('Find All References');
+		await this.commands.runCommand('Peek References');
 		const references = new References(this.code);
 		await references.waitUntilOpen();
 		return references;
