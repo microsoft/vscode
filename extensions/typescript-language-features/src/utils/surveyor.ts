@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import TypeScriptServiceClient from '../typescriptServiceClient';
 import { Disposable } from './dispose';
+import { memoize } from './memoize';
 
 const localize = nls.loadMessageBundle();
 
@@ -125,18 +126,19 @@ class Survey {
 
 export class Surveyor extends Disposable {
 
-	private readonly surveys: Map<string, Survey>;
-
 	public constructor(
-		memento: vscode.Memento,
+		private readonly memento: vscode.Memento,
 		serviceClient: TypeScriptServiceClient,
 	) {
 		super();
 
-		this.surveys = new Map<string, Survey>(allSurveys.map(data =>
-			[data.id, new Survey(data, memento)] as [string, Survey]));
-
 		this._register(serviceClient.onSurveyReady(e => this.surveyReady(e.surveyId)));
+	}
+
+	@memoize
+	private get surveys(): Map<string, Survey> {
+		return new Map<string, Survey>(
+			allSurveys.map(data => [data.id, new Survey(data, this.memento)] as [string, Survey]));
 	}
 
 	private surveyReady(surveyId: string): void {
