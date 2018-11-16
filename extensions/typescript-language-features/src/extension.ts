@@ -24,6 +24,7 @@ export function activate(
 	context: vscode.ExtensionContext
 ): Api {
 	const pluginManager = new PluginManager();
+	context.subscriptions.push(pluginManager);
 
 	const commandManager = new CommandManager();
 	context.subscriptions.push(commandManager);
