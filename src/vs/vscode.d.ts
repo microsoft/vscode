@@ -2611,12 +2611,14 @@ declare module 'vscode' {
 		provideDocumentSymbols(document: TextDocument, token: CancellationToken): ProviderResult<SymbolInformation[] | DocumentSymbol[]>;
 	}
 
+	/**
+	 * Metadata about a document symbol provider.
+	 */
 	export interface DocumentSymbolProviderMetadata {
 		/**
-		 * If there is more than one outline provider, this name will be used in the outline tree to
-		 *   distinguish between them.
+		 * A human readable string that is shown when multiple outlines trees show for one document.
 		 */
-		displayName?: string;
+		label?: string;
 	}
 
 	/**
