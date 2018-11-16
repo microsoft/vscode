@@ -83,7 +83,7 @@ export interface IExperimentActionPromptProperties {
 }
 
 export interface IExperimentActionPromptCommand {
-	text: string;
+	text: string | { [key: string]: string };
 	externalLink?: string;
 	curatedExtensionsKey?: string;
 	curatedExtensionsList?: string[];

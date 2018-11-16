@@ -51,7 +51,7 @@ export class ExperimentalPrompts extends Disposable implements IWorkbenchContrib
 		};
 
 		const actionProperties = (<IExperimentActionPromptProperties>experiment.action.properties);
-		const promptText = ExperimentalPrompts.getPromptText(actionProperties, language);
+		const promptText = ExperimentalPrompts.getLocalizedText(actionProperties.promptText, language);
 		if (!actionProperties || !promptText) {
 			return;
 		}
@@ -60,10 +60,11 @@ export class ExperimentalPrompts extends Disposable implements IWorkbenchContrib
 		}
 
 		const choices: IPromptChoice[] = actionProperties.commands.map((command: IExperimentActionPromptCommand) => {
+			const commandText = ExperimentalPrompts.getLocalizedText(command.text, language);
 			return {
-				label: command.text,
+				label: commandText,
 				run: () => {
-					logTelemetry(command.text);
+					logTelemetry(commandText);
 					if (command.externalLink) {
 						window.open(command.externalLink);
 					} else if (command.curatedExtensionsKey && Array.isArray(command.curatedExtensionsList)) {
@@ -94,15 +95,15 @@ export class ExperimentalPrompts extends Disposable implements IWorkbenchContrib
 		this._disposables = dispose(this._disposables);
 	}
 
-	static getPromptText(actionProperties: IExperimentActionPromptProperties, displayLanguage: string): string {
-		if (typeof actionProperties.promptText === 'string') {
-			return actionProperties.promptText;
+	static getLocalizedText(text: string | { [key: string]: string }, displayLanguage: string): string {
+		if (typeof text === 'string') {
+			return text;
 		}
-		const msgInEnglish = actionProperties.promptText['en'] || actionProperties.promptText['en-us'];
+		const msgInEnglish = text['en'] || text['en-us'];
 		displayLanguage = displayLanguage.toLowerCase();
-		if (!actionProperties.promptText[displayLanguage] && displayLanguage.indexOf('-') === 2) {
+		if (!text[displayLanguage] && displayLanguage.indexOf('-') === 2) {
 			displayLanguage = displayLanguage.substr(0, 2);
 		}
-		return actionProperties.promptText[displayLanguage] || msgInEnglish;
+		return text[displayLanguage] || msgInEnglish;
 	}
 }
