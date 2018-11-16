@@ -20,7 +20,7 @@ import * as is from './utils/is';
 import LogDirectoryProvider from './utils/logDirectoryProvider';
 import Logger from './utils/logger';
 import { TypeScriptPluginPathsProvider } from './utils/pluginPathsProvider';
-import { PluginConfigProvider, PluginManager } from './utils/plugins';
+import { PluginManager } from './utils/plugins';
 import TelemetryReporter from './utils/telemetry';
 import Tracer from './utils/tracer';
 import { inferredProjectConfig } from './utils/tsconfig';
@@ -75,7 +75,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		private readonly workspaceState: vscode.Memento,
 		private readonly onDidChangeTypeScriptVersion: (version: TypeScriptVersion) => void,
 		public readonly pluginManager: PluginManager,
-		private readonly pluginConfigProvider: PluginConfigProvider,
 		private readonly logDirectoryProvider: LogDirectoryProvider,
 		allModeIds: string[]
 	) {
@@ -134,7 +133,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 		this.typescriptServerSpawner = new TypeScriptServerSpawner(this.versionProvider, this.logDirectoryProvider, this.pluginPathsProvider, this.logger, this.telemetryReporter, this.tracer);
 
-		this._register(this.pluginConfigProvider.onDidUpdateConfig(update => {
+		this._register(this.pluginManager.onDidUpdateConfig(update => {
 			this.configurePlugin(update.pluginId, update.config);
 		}));
 	}
@@ -413,7 +412,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		}
 
 		// Reconfigure any plugins
-		for (const [config, pluginName] of this.pluginConfigProvider.entries()) {
+		for (const [config, pluginName] of this.pluginManager.config()) {
 			this.configurePlugin(config, pluginName);
 		}
 	}

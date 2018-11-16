@@ -20,7 +20,7 @@ import { CommandManager } from './utils/commandManager';
 import { Disposable } from './utils/dispose';
 import { DiagnosticLanguage, LanguageDescription } from './utils/languageDescription';
 import LogDirectoryProvider from './utils/logDirectoryProvider';
-import { PluginConfigProvider, PluginManager } from './utils/plugins';
+import { PluginManager } from './utils/plugins';
 import * as typeConverters from './utils/typeConverters';
 import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
 import VersionStatus from './utils/versionStatus';
@@ -49,7 +49,6 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		descriptions: LanguageDescription[],
 		workspaceState: vscode.Memento,
 		pluginManager: PluginManager,
-		pluginConfigProvider: PluginConfigProvider,
 		private readonly commandManager: CommandManager,
 		logDirectoryProvider: LogDirectoryProvider,
 		onCompletionAccepted: (item: vscode.CompletionItem) => void,
@@ -74,7 +73,6 @@ export default class TypeScriptServiceClientHost extends Disposable {
 			workspaceState,
 			version => this.versionStatus.onDidChangeTypeScriptVersion(version),
 			pluginManager,
-			pluginConfigProvider,
 			logDirectoryProvider,
 			allModeIds));
 

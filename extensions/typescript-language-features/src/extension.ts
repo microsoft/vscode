@@ -15,7 +15,7 @@ import { standardLanguageDescriptions } from './utils/languageDescription';
 import { lazy, Lazy } from './utils/lazy';
 import LogDirectoryProvider from './utils/logDirectoryProvider';
 import ManagedFileContextManager from './utils/managedFileContext';
-import { PluginConfigProvider, PluginManager } from './utils/plugins';
+import { PluginManager } from './utils/plugins';
 import * as ProjectStatus from './utils/projectStatus';
 import { Surveyor } from './utils/surveyor';
 
@@ -34,7 +34,6 @@ export function activate(
 	context: vscode.ExtensionContext
 ): Api {
 	const pluginManager = new PluginManager();
-	const pluginConfigProvider = new PluginConfigProvider();
 
 	const commandManager = new CommandManager();
 	context.subscriptions.push(commandManager);
@@ -42,11 +41,11 @@ export function activate(
 	const onCompletionAccepted = new vscode.EventEmitter();
 	context.subscriptions.push(onCompletionAccepted);
 
-	const lazyClientHost = createLazyClientHost(context, pluginManager, pluginConfigProvider, commandManager, item => {
+	const lazyClientHost = createLazyClientHost(context, pluginManager, commandManager, item => {
 		onCompletionAccepted.fire(item);
 	});
 
-	registerCommands(commandManager, lazyClientHost, pluginConfigProvider);
+	registerCommands(commandManager, lazyClientHost, pluginManager);
 	context.subscriptions.push(new TypeScriptTaskProviderManager(lazyClientHost.map(x => x.serviceClient)));
 	context.subscriptions.push(new LanguageConfigurationManager());
 
@@ -94,7 +93,6 @@ export function activate(
 function createLazyClientHost(
 	context: vscode.ExtensionContext,
 	pluginManager: PluginManager,
-	pluginConfigProvider: PluginConfigProvider,
 	commandManager: CommandManager,
 	onCompletionAccepted: (item: vscode.CompletionItem) => void,
 ): Lazy<TypeScriptServiceClientHost> {
@@ -105,7 +103,6 @@ function createLazyClientHost(
 			standardLanguageDescriptions,
 			context.workspaceState,
 			pluginManager,
-			pluginConfigProvider,
 			commandManager,
 			logDirectoryProvider,
 			onCompletionAccepted);
@@ -129,7 +126,7 @@ function createLazyClientHost(
 function registerCommands(
 	commandManager: CommandManager,
 	lazyClientHost: Lazy<TypeScriptServiceClientHost>,
-	pluginConfigProvider: PluginConfigProvider,
+	pluginManager: PluginManager,
 ) {
 	commandManager.register(new commands.ReloadTypeScriptProjectsCommand(lazyClientHost));
 	commandManager.register(new commands.ReloadJavaScriptProjectsCommand(lazyClientHost));
@@ -138,7 +135,7 @@ function registerCommands(
 	commandManager.register(new commands.RestartTsServerCommand(lazyClientHost));
 	commandManager.register(new commands.TypeScriptGoToProjectConfigCommand(lazyClientHost));
 	commandManager.register(new commands.JavaScriptGoToProjectConfigCommand(lazyClientHost));
-	commandManager.register(new commands.ConfigurePluginCommand(pluginConfigProvider));
+	commandManager.register(new commands.ConfigurePluginCommand(pluginManager));
 }
 
 function isSupportedDocument(

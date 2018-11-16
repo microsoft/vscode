@@ -13,7 +13,9 @@ export interface TypeScriptServerPlugin {
 	readonly languages: ReadonlyArray<string>;
 }
 
-export class PluginManager {
+export class PluginManager extends Disposable {
+	private readonly _config = new Map<string, {}>();
+
 	@memoize
 	public get plugins(): ReadonlyArray<TypeScriptServerPlugin> {
 		const plugins: TypeScriptServerPlugin[] = [];
@@ -31,10 +33,6 @@ export class PluginManager {
 		}
 		return plugins;
 	}
-}
-
-export class PluginConfigProvider extends Disposable {
-	private readonly _config = new Map<string, {}>();
 
 	private readonly _onDidUpdateConfig = this._register(new vscode.EventEmitter<{ pluginId: string, config: {} }>());
 	public readonly onDidUpdateConfig = this._onDidUpdateConfig.event;
@@ -44,7 +42,7 @@ export class PluginConfigProvider extends Disposable {
 		this._onDidUpdateConfig.fire({ pluginId, config });
 	}
 
-	public entries(): IterableIterator<[string, {}]> {
+	public config(): IterableIterator<[string, {}]> {
 		return this._config.entries();
 	}
 }

@@ -6,11 +6,11 @@
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import TypeScriptServiceClientHost from './typeScriptServiceClientHost';
+import { nulToken } from './utils/cancellation';
 import { Command } from './utils/commandManager';
 import { Lazy } from './utils/lazy';
+import { PluginManager } from './utils/plugins';
 import { isImplicitProjectConfigFile, openOrCreateConfigFile } from './utils/tsconfig';
-import { nulToken } from './utils/cancellation';
-import { PluginConfigProvider } from './utils/plugins';
 
 const localize = nls.loadMessageBundle();
 
@@ -108,11 +108,11 @@ export class ConfigurePluginCommand implements Command {
 	public readonly id = '_typescript.configurePlugin';
 
 	public constructor(
-		private readonly pluginConfigProvider: PluginConfigProvider,
+		private readonly pluginManager: PluginManager,
 	) { }
 
 	public execute(pluginId: string, configuration: any) {
-		this.pluginConfigProvider.set(pluginId, configuration);
+		this.pluginManager.set(pluginId, configuration);
 	}
 }
 
