@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IDriver, DriverChannel, IElement, WindowDriverChannelClient, IWindowDriverRegistry, WindowDriverRegistryChannel, IWindowDriver, IDriverOptions } from 'vs/platform/driver/node/driver';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { serve as serveNet } from 'vs/base/parts/ipc/node/ipc.net';
@@ -37,59 +36,60 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		@IWindowsMainService private windowsService: IWindowsMainService
 	) { }
 
-	registerWindowDriver(windowId: number): TPromise<IDriverOptions> {
+	async registerWindowDriver(windowId: number): Promise<IDriverOptions> {
 		this.registeredWindowIds.add(windowId);
 		this.reloadingWindowIds.delete(windowId);
 		this.onDidReloadingChange.fire();
-		return TPromise.as(this.options);
+		return this.options;
 	}
 
-	reloadWindowDriver(windowId: number): TPromise<void> {
+	async reloadWindowDriver(windowId: number): Promise<void> {
 		this.reloadingWindowIds.add(windowId);
-		return TPromise.as(void 0);
 	}
 
-	getWindowIds(): TPromise<number[]> {
-		return TPromise.as(this.windowsService.getWindows()
+	async getWindowIds(): Promise<number[]> {
+		return this.windowsService.getWindows()
 			.map(w => w.id)
-			.filter(id => this.registeredWindowIds.has(id) && !this.reloadingWindowIds.has(id)));
+			.filter(id => this.registeredWindowIds.has(id) && !this.reloadingWindowIds.has(id));
 	}
 
-	capturePage(windowId: number): TPromise<string> {
-		return this.whenUnfrozen(windowId).then(() => {
-			const window = this.windowsService.getWindowById(windowId);
-			const webContents = window.win.webContents;
-			return new TPromise(c => webContents.capturePage(image => c(image.toPNG().toString('base64'))));
-		});
+	async capturePage(windowId: number): Promise<string> {
+		await this.whenUnfrozen(windowId);
+
+		const window = this.windowsService.getWindowById(windowId);
+		const webContents = window.win.webContents;
+		const image = await new Promise<Electron.NativeImage>(c => webContents.capturePage(c));
+
+		return image.toPNG().toString('base64');
 	}
 
-	reloadWindow(windowId: number): TPromise<void> {
-		return this.whenUnfrozen(windowId).then(() => {
-			const window = this.windowsService.getWindowById(windowId);
-			this.reloadingWindowIds.add(windowId);
-			this.windowsService.reload(window);
-		});
+	async reloadWindow(windowId: number): Promise<void> {
+		await this.whenUnfrozen(windowId);
+
+		const window = this.windowsService.getWindowById(windowId);
+		this.reloadingWindowIds.add(windowId);
+		this.windowsService.reload(window);
 	}
 
-	dispatchKeybinding(windowId: number, keybinding: string): TPromise<void> {
-		return this.whenUnfrozen(windowId).then(() => {
-			const [first, second] = KeybindingParser.parseUserBinding(keybinding);
-			if (!first) {
-				return undefined;
-			}
-			return this._dispatchKeybinding(windowId, first).then(() => {
-				if (second) {
-					return this._dispatchKeybinding(windowId, second);
-				} else {
-					return TPromise.as(void 0);
-				}
-			});
-		});
+	async dispatchKeybinding(windowId: number, keybinding: string): Promise<void> {
+		await this.whenUnfrozen(windowId);
+
+		const [first, second] = KeybindingParser.parseUserBinding(keybinding);
+
+		if (!first) {
+			return;
+		}
+
+		await this._dispatchKeybinding(windowId, first);
+
+		if (second) {
+			await this._dispatchKeybinding(windowId, second);
+		}
 	}
 
-	private _dispatchKeybinding(windowId: number, keybinding: SimpleKeybinding | ScanCodeBinding): TPromise<void> {
+	private async _dispatchKeybinding(windowId: number, keybinding: SimpleKeybinding | ScanCodeBinding): Promise<void> {
 		if (keybinding instanceof ScanCodeBinding) {
-			return TPromise.wrapError(new Error('ScanCodeBindings not supported'));
+			throw new Error('ScanCodeBindings not supported');
 		}
 
 		const window = this.windowsService.getWindowById(windowId);
@@ -124,77 +124,64 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 
 		webContents.sendInputEvent({ type: 'keyUp', keyCode, modifiers } as any);
 
-		return TPromise.wrap(timeout(100));
+		await timeout(100);
 	}
 
-	click(windowId: number, selector: string, xoffset?: number, yoffset?: number): TPromise<void> {
-		return this.getWindowDriver(windowId).then(windowDriver => {
-			return windowDriver.click(selector, xoffset, yoffset);
-		});
+	async click(windowId: number, selector: string, xoffset?: number, yoffset?: number): Promise<void> {
+		const windowDriver = await this.getWindowDriver(windowId);
+		await windowDriver.click(selector, xoffset, yoffset);
 	}
 
-	doubleClick(windowId: number, selector: string): TPromise<void> {
-		return this.getWindowDriver(windowId).then(windowDriver => {
-			return windowDriver.doubleClick(selector);
-		});
+	async doubleClick(windowId: number, selector: string): Promise<void> {
+		const windowDriver = await this.getWindowDriver(windowId);
+		await windowDriver.doubleClick(selector);
 	}
 
-	setValue(windowId: number, selector: string, text: string): TPromise<void> {
-		return this.getWindowDriver(windowId).then(windowDriver => {
-			return windowDriver.setValue(selector, text);
-		});
+	async setValue(windowId: number, selector: string, text: string): Promise<void> {
+		const windowDriver = await this.getWindowDriver(windowId);
+		await windowDriver.setValue(selector, text);
 	}
 
-	getTitle(windowId: number): TPromise<string> {
-		return this.getWindowDriver(windowId).then(windowDriver => {
-			return windowDriver.getTitle();
-		});
+	async getTitle(windowId: number): Promise<string> {
+		const windowDriver = await this.getWindowDriver(windowId);
+		return await windowDriver.getTitle();
 	}
 
-	isActiveElement(windowId: number, selector: string): TPromise<boolean> {
-		return this.getWindowDriver(windowId).then(windowDriver => {
-			return windowDriver.isActiveElement(selector);
-		});
+	async isActiveElement(windowId: number, selector: string): Promise<boolean> {
+		const windowDriver = await this.getWindowDriver(windowId);
+		return await windowDriver.isActiveElement(selector);
 	}
 
-	getElements(windowId: number, selector: string, recursive: boolean): TPromise<IElement[]> {
-		return this.getWindowDriver(windowId).then(windowDriver => {
-			return windowDriver.getElements(selector, recursive);
-		});
+	async getElements(windowId: number, selector: string, recursive: boolean): Promise<IElement[]> {
+		const windowDriver = await this.getWindowDriver(windowId);
+		return await windowDriver.getElements(selector, recursive);
 	}
 
-	typeInEditor(windowId: number, selector: string, text: string): TPromise<void> {
-		return this.getWindowDriver(windowId).then(windowDriver => {
-			return windowDriver.typeInEditor(selector, text);
-		});
+	async typeInEditor(windowId: number, selector: string, text: string): Promise<void> {
+		const windowDriver = await this.getWindowDriver(windowId);
+		await windowDriver.typeInEditor(selector, text);
 	}
 
-	getTerminalBuffer(windowId: number, selector: string): TPromise<string[]> {
-		return this.getWindowDriver(windowId).then(windowDriver => {
-			return windowDriver.getTerminalBuffer(selector);
-		});
+	async getTerminalBuffer(windowId: number, selector: string): Promise<string[]> {
+		const windowDriver = await this.getWindowDriver(windowId);
+		return await windowDriver.getTerminalBuffer(selector);
 	}
 
-	writeInTerminal(windowId: number, selector: string, text: string): TPromise<void> {
-		return this.getWindowDriver(windowId).then(windowDriver => {
-			return windowDriver.writeInTerminal(selector, text);
-		});
+	async writeInTerminal(windowId: number, selector: string, text: string): Promise<void> {
+		const windowDriver = await this.getWindowDriver(windowId);
+		await windowDriver.writeInTerminal(selector, text);
 	}
 
-	private getWindowDriver(windowId: number): TPromise<IWindowDriver> {
-		return this.whenUnfrozen(windowId).then(() => {
-			const id = `window:${windowId}`;
-			const router = new StaticRouter(ctx => ctx === id);
-			const windowDriverChannel = this.windowServer.getChannel('windowDriver', router);
-			return new WindowDriverChannelClient(windowDriverChannel);
-		});
+	private async getWindowDriver(windowId: number): Promise<IWindowDriver> {
+		await this.whenUnfrozen(windowId);
+
+		const id = `window:${windowId}`;
+		const router = new StaticRouter(ctx => ctx === id);
+		const windowDriverChannel = this.windowServer.getChannel('windowDriver', router);
+		return new WindowDriverChannelClient(windowDriverChannel);
 	}
 
-	private whenUnfrozen(windowId: number): TPromise<void> {
-		return TPromise.wrap(this._whenUnfrozen(windowId));
-	}
-
-	private async _whenUnfrozen(windowId: number): Promise<void> {
+	private async whenUnfrozen(windowId: number): Promise<void> {
 		while (this.reloadingWindowIds.has(windowId)) {
 			await toPromise(this.onDidReloadingChange.event);
 		}
