@@ -666,10 +666,10 @@
 		},
 		{
 			"component": {
-				"type": "git",
-				"git": {
+				"type": "npm",
+				"npm": {
 					"name": "@types/node",
-					"commitHash": ""
+					"version": "8.9.1"
 				}
 			},
 			"licenseDetail": [
@@ -756,11 +756,10 @@
 		},
 		{
 			"component": {
-				"type": "git",
-				"git": {
+				"type": "npm",
+				"npm": {
 					"name": "@types/source-map",
-					"repositoryUrl": "https://www.github.com/DefinitelyTyped/DefinitelyTyped",
-					"commitHash": ""
+					"version": "0.5.2"
 				}
 			},
 			"licenseDetail": [
