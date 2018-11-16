@@ -447,7 +447,7 @@ export class TextEdit {
 	}
 
 	static setEndOfLine(eol: EndOfLine): TextEdit {
-		let ret = new TextEdit(undefined, undefined);
+		let ret = new TextEdit(new Range(new Position(0, 0), new Position(0, 0)), '');
 		ret.newEol = eol;
 		return ret;
 	}
@@ -513,8 +513,8 @@ export interface IFileOperationOptions {
 
 export interface IFileOperation {
 	_type: 1;
-	from: URI;
-	to: URI;
+	from?: URI;
+	to?: URI;
 	options?: IFileOperationOptions;
 }
 
@@ -567,7 +567,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 			for (let i = 0; i < this._edits.length; i++) {
 				const element = this._edits[i];
 				if (element._type === 2 && element.uri.toString() === uri.toString()) {
-					this._edits[i] = undefined;
+					this._edits[i] = undefined!; // will be coalesced down below
 				}
 			}
 			this._edits = coalesce(this._edits);
@@ -606,8 +606,8 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 		return values(textEdits);
 	}
 
-	_allEntries(): ([URI, TextEdit[]] | [URI, URI, IFileOperationOptions])[] {
-		let res: ([URI, TextEdit[]] | [URI, URI, IFileOperationOptions])[] = [];
+	_allEntries(): ([URI, TextEdit[]] | [URI?, URI?, IFileOperationOptions?])[] {
+		let res: ([URI, TextEdit[]] | [URI?, URI?, IFileOperationOptions?])[] = [];
 		for (let edit of this._edits) {
 			if (edit._type === 1) {
 				res.push([edit.from, edit.to, edit.options]);
@@ -938,7 +938,7 @@ export class SymbolInformation {
 		if (locationOrUri instanceof Location) {
 			this.location = locationOrUri;
 		} else if (rangeOrContainer instanceof Range) {
-			this.location = new Location(locationOrUri, rangeOrContainer);
+			this.location = new Location(locationOrUri!, rangeOrContainer);
 		}
 
 		SymbolInformation.validate(this);
