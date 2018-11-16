@@ -41,7 +41,7 @@
 				"git": {
 					"name": "freebroccolo/atom-language-swift",
 					"repositoryUrl": "https://github.com/freebroccolo/atom-language-swift",
-					"commitHash": ""
+					"commitHash": "d8f4ed1f79cbb4d5d215e7a68fa8cc6b618e16e0"
 				}
 			},
 			"licenseDetail": [

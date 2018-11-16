@@ -6,7 +6,7 @@
 				"git": {
 					"name": "chromium",
 					"repositoryUrl": "http://www.chromium.org/Home",
-					"commitHash": ""
+					"commitHash": "7accc8730b0f99b5e7c0702ea89d1fa7c17bfe33"
 				}
 			},
 			"licenseDetail": [
@@ -61,7 +61,7 @@
 				"git": {
 					"name": "nodejs",
 					"repositoryUrl": "https://github.com/nodejs/node",
-					"commitHash": ""
+					"commitHash": "8a44289089a08b7b19fa3c4651b5f1f5d1edd71b"
 				}
 			},
 			"developmentDependency": false,
@@ -73,7 +73,7 @@
 				"git": {
 					"name": "electron",
 					"repositoryUrl": "https://github.com/electron/electron",
-					"commitHash": ""
+					"commitHash": "d281859cf59f12c7107a540a9f4cba0ecf5eff41"
 				}
 			},
 			"developmentDependency": false,
@@ -86,7 +86,7 @@
 				"git": {
 					"name": "inno setup",
 					"repositoryUrl": "https://github.com/jrsoftware/issrc",
-					"commitHash": ""
+					"commitHash": "03fe8f4edb3e96c7835c9483052625bbedb160f2"
 				}
 			},
 			"developmentDependency": false,
@@ -98,7 +98,7 @@
 				"git": {
 					"name": "spdlog original",
 					"repositoryUrl": "https://github.com/gabime/spdlog",
-					"commitHash": ""
+					"commitHash": "4fba14c79f356ae48d6141c561bf9fd7ba33fabd"
 				}
 			},
 			"developmentDependency": false,
@@ -110,7 +110,8 @@
 				"type": "git",
 				"git": {
 					"name": "async-each",
-					"commitHash": ""
+					"commitHash": "f2342d85633d0dc1034a49387ca01c08c1189823",
+					"repositoryUrl": "https://github.com/paulmillr/async-each/"
 				}
 			},
 			"licenseDetail": [
@@ -143,7 +144,8 @@
 				"type": "git",
 				"git": {
 					"name": "jschardet",
-					"commitHash": ""
+					"commitHash": "28152dd8db5904dc2cf9aa12ef4f8783f713e79a",
+					"repositoryUrl": "https://github.com/aadsm/jschardet"
 				}
 			},
 			"licenseDetail": [
@@ -687,7 +689,8 @@
 				"type": "git",
 				"git": {
 					"name": "typescript",
-					"commitHash": ""
+					"commitHash": "54426a14f4c232da8e563d20ca8e71263e1c96b5",
+					"repositoryUrl": "https://github.com/Microsoft/TypeScript"
 				}
 			},
 			"licenseDetail": [
