@@ -201,7 +201,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 
 		try {
-			const executeResult = { kind: TaskExecuteKind.Started, task, started: {}, promise: this.executeTask(Object.create(null), task, resolver, trigger) };
+			const executeResult = { kind: TaskExecuteKind.Started, task, started: {}, promise: this.executeTask(task, resolver, trigger) };
 			this.lastTask = this.currentTask;
 			return executeResult;
 		} catch (error) {
