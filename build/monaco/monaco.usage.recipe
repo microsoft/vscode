@@ -13,6 +13,7 @@ import { QuickOpenWidget } from './vs/base/parts/quickopen/browser/quickOpenWidg
 import { SyncDescriptor0, SyncDescriptor1, SyncDescriptor2, SyncDescriptor3, SyncDescriptor4, SyncDescriptor5, SyncDescriptor6, SyncDescriptor7, SyncDescriptor8 } from './vs/platform/instantiation/common/descriptors';
 import { PolyfillPromise } from './vs/base/common/winjs.polyfill.promise';
 import { DiffNavigator } from './vs/editor/browser/widget/diffNavigator';
+import { TextModel } from './vs/editor/common/model/textModel';
 import * as editorAPI from './vs/editor/editor.api';
 
 (function () {
@@ -25,6 +26,7 @@ import * as editorAPI from './vs/editor/editor.api';
 	a = (<QuickOpenWidget>b).style; // IThemable
 	a = (<IEnvironmentService>b).userHome; // IUserHomeProvider
 	a = (<DiffNavigator>b).previous; // IDiffNavigator
+	a = (<TextModel>b).createSnapshot; // TextModel
 	a = (<ServiceIdentifier<any>>b).type;
 	a = (<IHighlight>b).start;
 	a = (<IHighlight>b).end;
