@@ -31,6 +31,7 @@ import { ExecuteCommandAction } from 'vs/platform/actions/common/actions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { once } from 'vs/base/common/event';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { isWindows } from 'vs/base/common/platform';
 
 export const CONFLICT_RESOLUTION_CONTEXT = 'saveConflictResolutionContext';
 export const CONFLICT_RESOLUTION_SCHEME = 'conflictResolution';
@@ -38,6 +39,9 @@ export const CONFLICT_RESOLUTION_SCHEME = 'conflictResolution';
 const LEARN_MORE_DIRTY_WRITE_IGNORE_KEY = 'learnMoreDirtyWriteError';
 
 const conflictEditorHelp = nls.localize('userGuide', "Use the actions in the editor tool bar to either undo your changes or overwrite the content on disk with your changes.");
+
+const adminUser = isWindows ? ('Admin') : ('Sudo');
+const adminUserLong = isWindows ? ('administrator') : ('superuser');
 
 // A handler for save error happening with conflict resolution actions
 export class SaveErrorHandler extends Disposable implements ISaveErrorHandler, IWorkbenchContribution {
@@ -158,12 +162,12 @@ export class SaveErrorHandler extends Disposable implements ISaveErrorHandler, I
 
 			if (isReadonly) {
 				if (triedToMakeWriteable) {
-					message = nls.localize('readonlySaveErrorAdmin', "Failed to save '{0}': File is write protected. Select 'Overwrite as Admin' to retry as administrator.", paths.basename(resource.fsPath));
+					message = nls.localize('readonlySaveErrorAdmin', "Failed to save '{0}': File is write protected. Select 'Overwrite as {1}' to retry as {2}.", paths.basename(resource.fsPath), adminUser, adminUserLong);
 				} else {
 					message = nls.localize('readonlySaveError', "Failed to save '{0}': File is write protected. Select 'Overwrite' to attempt to remove protection.", paths.basename(resource.fsPath));
 				}
 			} else if (isPermissionDenied) {
-				message = nls.localize('permissionDeniedSaveError', "Failed to save '{0}': Insufficient permissions. Select 'Retry as Admin' to retry as administrator.", paths.basename(resource.fsPath));
+				message = nls.localize('permissionDeniedSaveError', "Failed to save '{0}': Insufficient permissions. Select 'Retry as {1}' to retry as {2}.", paths.basename(resource.fsPath), adminUser, adminUserLong);
 			} else {
 				message = nls.localize('genericSaveError', "Failed to save '{0}': {1}", paths.basename(resource.fsPath), toErrorMessage(error, false));
 			}
@@ -272,7 +276,7 @@ class SaveElevatedAction extends Action {
 		private model: ITextFileEditorModel,
 		private triedToMakeWriteable: boolean
 	) {
-		super('workbench.files.action.saveElevated', triedToMakeWriteable ? nls.localize('overwriteElevated', "Overwrite as Admin...") : nls.localize('saveElevated', "Retry as Admin..."));
+		super('workbench.files.action.saveElevated', triedToMakeWriteable ? nls.localize('overwriteElevated', "Overwrite as {0}...", adminUser) : nls.localize('saveElevated', "Retry as {0}...", adminUser));
 	}
 
 	run(): Promise<any> {
