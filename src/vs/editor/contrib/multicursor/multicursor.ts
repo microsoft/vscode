@@ -179,10 +179,14 @@ class InsertCursorAtEndOfLineSelected extends EditorAction {
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const selections = editor.getSelections();
 		const lineCount = editor.getModel().getLineCount();
+		const startPosition = selections[0].startColumn;
 
 		let newSelections = [];
 		for (let i = selections[0].startLineNumber; i <= lineCount; i++) {
-			newSelections.push(new Selection(i, selections[0].startColumn, i, selections[0].endColumn));
+			const lineContent = editor.getModel().getLineContent(i);
+			if (lineContent.length >= startPosition) {
+				newSelections.push(new Selection(i, selections[0].startColumn, i, selections[0].endColumn));
+			}
 		}
 
 		if (newSelections.length > 0) {
@@ -204,10 +208,14 @@ class InsertCursorAtTopOfLineSelected extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const selections = editor.getSelections();
+		const startPosition = selections[0].startColumn;
 
 		let newSelections = [];
 		for (let i = selections[0].startLineNumber; i >= 1; i--) {
-			newSelections.push(new Selection(i, selections[0].startColumn, i, selections[0].endColumn));
+			const lineContent = editor.getModel().getLineContent(i);
+			if (lineContent.length >= startPosition) {
+				newSelections.push(new Selection(i, selections[0].startColumn, i, selections[0].endColumn));
+			}
 		}
 
 		if (newSelections.length > 0) {
