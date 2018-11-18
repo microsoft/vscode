@@ -442,16 +442,21 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 
 
 		// TODO: Toogle sidebar Size with Pannel
-		if (options && options.toggleMaximizedPanel) {
+		if (options && options.toggleMaximizedPanel && (panelPosition === Position.RIGHT) && !isSidebarHidden) {
 			let sidebarWidth: number;
 			sidebarWidth = this.sidebarWidth;
 
 			//if Pannel is not maximised, store sidebar
-			this.panelMaximized ? this.storageService.store(WorkbenchLayout.sidebarSizeBeforeMaximizedKey, this.sidebarWidth, StorageScope.GLOBAL) :
-			this.sidebarSizeBeforeMaximized = this.storageService.getInteger(WorkbenchLayout.sidebarSizeBeforeMaximizedKey, StorageScope.GLOBAL, DEFAULT_SIDEBAR_PART_WIDTH);
+			if(!this.panelMaximized) {
+				this.sidebarSizeBeforeMaximized = sidebarWidth;
+			}
 
 			//if Pannel is not maximised, store sidebar
-			this.sidebarSizeBeforeMaximized = this.panelMaximized ? sidebarWidth : this.sidebarSizeBeforeMaximized;
+			this.panelMaximized ?
+			this.sidebarSizeBeforeMaximized = this.storageService.getInteger(WorkbenchLayout.sidebarSizeBeforeMaximizedKey, StorageScope.GLOBAL, DEFAULT_SIDEBAR_PART_WIDTH)
+			:
+			this.storageService.store(WorkbenchLayout.sidebarSizeBeforeMaximizedKey, this.sidebarWidth, StorageScope.GLOBAL);
+
 
 			//Toogle sidebar Size with Pannel
 			sidebarWidth = this.panelMaximized ? Math.max(this.partLayoutInfo.sidebar.minWidth, this.sidebarSizeBeforeMaximized) : this.partLayoutInfo.sidebar.minWidth;
