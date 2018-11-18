@@ -52,6 +52,7 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 	private static readonly sashXTwoWidthSettingsKey = 'workbench.panel.width';
 	private static readonly sashYHeightSettingsKey = 'workbench.panel.height';
 	private static readonly panelSizeBeforeMaximizedKey = 'workbench.panel.sizeBeforeMaximized';
+	private static readonly sidebarSizeBeforeMaximizedKey = 'workbench.sidebar.sizeBeforeMaximized';
 
 	private workbenchSize: Dimension;
 
@@ -64,6 +65,7 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 	private titlebarHeight: number;
 	private statusbarHeight: number;
 	private panelSizeBeforeMaximized: number;
+	private sidebarSizeBeforeMaximized: number;
 	private panelMaximized: boolean;
 	private _panelHeight: number;
 	private _panelWidth: number;
@@ -418,6 +420,7 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 		const menubarVisibility = this.partService.getMenubarVisibility();
 
 		// Sidebar
+		//Todo: Get some of the sidebar memory in here
 		if (this.sidebarWidth === -1) {
 			this.sidebarWidth = this.workbenchSize.width / 5;
 		}
@@ -427,6 +430,35 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 
 		this.sidebarHeight = this.workbenchSize.height - this.statusbarHeight - this.titlebarHeight;
 		let sidebarSize = new Dimension(this.sidebarWidth, this.sidebarHeight);
+
+		//Start of working area
+
+		//if we are minimizing pannel
+			//set sidebar to old size
+		//else
+			//remember size
+			//set sidebar to min
+
+
+
+		// TODO: Toogle sidebar Size with Pannel
+		if (options && options.toggleMaximizedPanel) {
+			let sidebarWidth: number;
+			sidebarWidth = this.sidebarWidth;
+
+			//if Pannel is not maximised, store sidebar
+			this.panelMaximized ? this.storageService.store(WorkbenchLayout.sidebarSizeBeforeMaximizedKey, this.sidebarWidth, StorageScope.GLOBAL) :
+			this.sidebarSizeBeforeMaximized = this.storageService.getInteger(WorkbenchLayout.sidebarSizeBeforeMaximizedKey, StorageScope.GLOBAL, DEFAULT_SIDEBAR_PART_WIDTH);
+
+			//if Pannel is not maximised, store sidebar
+			this.sidebarSizeBeforeMaximized = this.panelMaximized ? sidebarWidth : this.sidebarSizeBeforeMaximized;
+
+			//Toogle sidebar Size with Pannel
+			sidebarWidth = this.panelMaximized ? Math.max(this.partLayoutInfo.sidebar.minWidth, this.sidebarSizeBeforeMaximized) : this.partLayoutInfo.sidebar.minWidth;
+
+			sidebarSize.width = sidebarWidth;
+		}
+		// TODO: End of working area
 
 		// Activity Bar
 		let activityBarSize = new Dimension(this.activitybarWidth, sidebarSize.height);
@@ -590,6 +622,7 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 		const activitybarContainer = this.parts.activitybar.getContainer();
 		size(activitybarContainer, null, activityBarSize.height);
 		if (sidebarPosition === Position.LEFT) {
+			//todo find what position does
 			this.parts.activitybar.getContainer().style.right = '';
 			position(activitybarContainer, this.titlebarHeight, null, 0, 0);
 		} else {
@@ -607,6 +640,7 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 		size(sidebarContainer, sidebarSize.width, sidebarSize.height);
 		const editorAndPanelWidth = editorSize.width + (panelPosition === Position.RIGHT ? panelWidth : 0);
 		if (sidebarPosition === Position.LEFT) {
+			//set size to what it was before maximize
 			position(sidebarContainer, this.titlebarHeight, editorAndPanelWidth, this.statusbarHeight, activityBarSize.width);
 		} else {
 			position(sidebarContainer, this.titlebarHeight, activityBarSize.width, this.statusbarHeight, editorAndPanelWidth);
