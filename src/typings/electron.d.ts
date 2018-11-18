@@ -1,4 +1,4 @@
-// Type definitions for Electron 3.0.4
+// Type definitions for Electron 3.0.9
 // Project: http://electronjs.org/
 // Definitions by: The Electron Team <https://github.com/electron/electron>
 // Definitions: https://github.com/electron/electron-typescript-definitions
@@ -545,14 +545,10 @@ declare namespace Electron {
 		/**
 		 * Emitted when Electron has created a new session.
 		 */
-		on(event: 'session-created', listener: (event: Event,
-			session: Session) => void): this;
-		once(event: 'session-created', listener: (event: Event,
-			session: Session) => void): this;
-		addListener(event: 'session-created', listener: (event: Event,
-			session: Session) => void): this;
-		removeListener(event: 'session-created', listener: (event: Event,
-			session: Session) => void): this;
+		on(event: 'session-created', listener: (session: Session) => void): this;
+		once(event: 'session-created', listener: (session: Session) => void): this;
+		addListener(event: 'session-created', listener: (session: Session) => void): this;
+		removeListener(event: 'session-created', listener: (session: Session) => void): this;
 		/**
 		 * Emitted when Handoff is about to be resumed on another device. If you need to
 		 * update the state to be transferred, you should call event.preventDefault()
@@ -3084,9 +3080,9 @@ declare namespace Electron {
 		 */
 		// sendSync(channel: string, ...args: any[]): any; ### VSCODE CHANGE (we do not want to use sendSync)
 		/**
-		 * Sends a message to a window with windowid via channel.
+		 * Sends a message to a window with webContentsId via channel.
 		 */
-		sendTo(windowId: number, channel: string, ...args: any[]): void;
+		sendTo(webContentsId: number, channel: string, ...args: any[]): void;
 		/**
 		 * Like ipcRenderer.send but the event will be sent to the <webview> element in the
 		 * host page instead of the main process.
@@ -4311,7 +4307,7 @@ declare namespace Electron {
 		 * Same as subscribeNotification, but uses NSNotificationCenter for local defaults.
 		 * This is necessary for events such as NSUserDefaultsDidChangeNotification.
 		 */
-		subscribeLocalNotification(event: string, callback: (event: string, userInfo: any) => void): void;
+		subscribeLocalNotification(event: string, callback: (event: string, userInfo: any) => void): number;
 		/**
 		 * Subscribes to native notifications of macOS, callback will be called with
 		 * callback(event, userInfo) when the corresponding event happens. The userInfo is
@@ -4320,7 +4316,7 @@ declare namespace Electron {
 		 * unsubscribe the event. Under the hood this API subscribes to
 		 * NSDistributedNotificationCenter, example values of event are:
 		 */
-		subscribeNotification(event: string, callback: (event: string, userInfo: any) => void): void;
+		subscribeNotification(event: string, callback: (event: string, userInfo: any) => void): number;
 		/**
 		 * Same as subscribeNotification, but uses
 		 * NSWorkspace.sharedWorkspace.notificationCenter. This is necessary for events
@@ -8284,7 +8280,7 @@ declare namespace Electron {
 		 * Specify page size of the generated PDF. Can be A3, A4, A5, Legal, Letter,
 		 * Tabloid or an Object containing height and width in microns.
 		 */
-		pageSize?: string;
+		pageSize?: string | Size;
 		/**
 		 * Whether to print CSS backgrounds.
 		 */
@@ -8517,7 +8513,7 @@ declare namespace Electron {
 		/**
 		 * true to open the app as hidden. Defaults to false. The user can edit this
 		 * setting from the System Preferences so
-		 * app.getLoginItemStatus().wasOpenedAsHidden should be checked when the app is
+		 * app.getLoginItemSettings().wasOpenedAsHidden should be checked when the app is
 		 * opened to know the current value. This setting is not available on .
 		 */
 		openAsHidden?: boolean;
