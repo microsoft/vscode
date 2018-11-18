@@ -75,7 +75,7 @@ export class IssueService implements IIssueService {
 
 	openReporter(data: IssueReporterData): Promise<void> {
 		return new Promise(_ => {
-			this._issueParentWindow = BrowserWindow.getFocusedWindow();
+			this._issueParentWindow = BrowserWindow.getFocusedWindow()!;
 			const position = this.getWindowPosition(this._issueParentWindow, 700, 800);
 			if (!this._issueWindow) {
 				this._issueWindow = new BrowserWindow({
@@ -115,7 +115,7 @@ export class IssueService implements IIssueService {
 		return new Promise(_ => {
 			// Create as singleton
 			if (!this._processExplorerWindow) {
-				const parentWindow = BrowserWindow.getFocusedWindow();
+				const parentWindow = BrowserWindow.getFocusedWindow()!;
 				const position = this.getWindowPosition(parentWindow, 800, 300);
 				this._processExplorerWindow = new BrowserWindow({
 					skipTaskbar: true,
