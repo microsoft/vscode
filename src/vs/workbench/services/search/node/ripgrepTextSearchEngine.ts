@@ -257,7 +257,7 @@ export class RipgrepParser extends EventEmitter {
 		})
 			.filter(r => !!r);
 
-		return createTextSearchResult(uri, fullText, ranges, this.previewOptions);
+		return createTextSearchResult(uri, fullText, <Range[]>ranges, this.previewOptions);
 	}
 
 	private createTextSearchContext(data: IRgMatch, uri: URI): vscode.TextSearchContext[] {
@@ -297,14 +297,14 @@ function getNumLinesAndLastNewlineLength(text: string): { numLines: number, last
 	}
 
 	const lastLineLength = lastNewlineIdx >= 0 ?
-		text.length - lastNewlineIdx :
+		text.length - lastNewlineIdx - 1 :
 		text.length;
 
 	return { numLines, lastLineLength };
 }
 
 function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions): string[] {
-	const args = ['--hidden', '--heading', '--line-number', '--color', 'ansi', '--colors', 'path:none', '--colors', 'line:none', '--colors', 'match:fg:red', '--colors', 'match:style:nobold'];
+	const args = ['--hidden'];
 	args.push(query.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
 
 	options.includes
@@ -330,7 +330,7 @@ function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOpti
 		args.push('--follow');
 	}
 
-	if (options.encoding) {
+	if (options.encoding && options.encoding !== 'utf8') {
 		args.push('--encoding', options.encoding);
 	}
 
@@ -357,7 +357,11 @@ function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOpti
 		const regexpStr = regexp.source.replace(/\\\//g, '/'); // RegExp.source arbitrarily returns escaped slashes. Search and destroy.
 		args.push('--regexp', regexpStr);
 	} else if (query.isRegExp) {
-		args.push('--regexp', pattern);
+		let fixedRegexpQuery = fixRegexEndingPattern(query.pattern);
+		fixedRegexpQuery = fixRegexNewline(fixedRegexpQuery);
+		fixedRegexpQuery = fixRegexCRMatchingNonWordClass(fixedRegexpQuery, !!query.isMultiline);
+		fixedRegexpQuery = fixRegexCRMatchingWhitespaceClass(fixedRegexpQuery, !!query.isMultiline);
+		args.push('--regexp', fixedRegexpQuery);
 	} else {
 		searchPatternAfterDoubleDashes = pattern;
 		args.push('--fixed-strings');
@@ -367,9 +371,6 @@ function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOpti
 	if (!options.useGlobalIgnoreFiles) {
 		args.push('--no-ignore-global');
 	}
-
-	// Match \r\n with $
-	args.push('--crlf');
 
 	args.push('--json');
 
@@ -429,3 +430,29 @@ interface IRgSubmatch {
 }
 
 type IRgBytesOrText = { bytes: string } | { text: string };
+
+export function fixRegexEndingPattern(pattern: string): string {
+	// Replace an unescaped $ at the end of the pattern with \r?$
+	// Match $ preceeded by none or even number of literal \
+	return pattern.match(/([^\\]|^)(\\\\)*\$$/) ?
+		pattern.replace(/\$$/, '\\r?$') :
+		pattern;
+}
+
+export function fixRegexNewline(pattern: string): string {
+	// Replace an unescaped $ at the end of the pattern with \r?$
+	// Match $ preceeded by none or even number of literal \
+	return pattern.replace(/([^\\]|^)(\\\\)*\\n/g, '$1$2\\r?\\n');
+}
+
+export function fixRegexCRMatchingWhitespaceClass(pattern: string, isMultiline: boolean): string {
+	return isMultiline ?
+		pattern.replace(/([^\\]|^)((?:\\\\)*)\\s/g, '$1$2(\\r?\\n|[^\\S\\r])') :
+		pattern.replace(/([^\\]|^)((?:\\\\)*)\\s/g, '$1$2[ \\t\\f]');
+}
+
+export function fixRegexCRMatchingNonWordClass(pattern: string, isMultiline: boolean): string {
+	return isMultiline ?
+		pattern.replace(/([^\\]|^)((?:\\\\)*)\\W/g, '$1$2(\\r?\\n|[^\\w\\r])') :
+		pattern.replace(/([^\\]|^)((?:\\\\)*)\\W/g, '$1$2[^\\w\\r]');
+}

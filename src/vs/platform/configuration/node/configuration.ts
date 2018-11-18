@@ -37,7 +37,7 @@ export class UserConfiguration extends Disposable {
 	}
 
 	reload(): Promise<void> {
-		return new Promise(c => this.userConfigModelWatcher.reload(() => c(null)));
+		return new Promise<void>(c => this.userConfigModelWatcher.reload(() => c()));
 	}
 
 }

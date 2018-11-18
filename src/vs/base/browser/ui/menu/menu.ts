@@ -139,6 +139,10 @@ export class Menu extends ActionBar {
 		this.mnemonics = new Map<KeyCode, Array<MenuActionItem>>();
 
 		this.push(actions, { icon: true, label: true, isMenu: true });
+
+		this.items.filter(item => !(item instanceof MenuSeparatorActionItem)).forEach((item: MenuActionItem, index: number, array: any[]) => {
+			item.updatePositionInSet(index + 1, array.length);
+		});
 	}
 
 	style(style: IMenuStyles): void {
@@ -321,6 +325,11 @@ class MenuActionItem extends BaseActionItem {
 		super.focus();
 		this.item.focus();
 		this.applyStyle();
+	}
+
+	updatePositionInSet(pos: number, setSize: number): void {
+		this.item.setAttribute('aria-posinset', `${pos}`);
+		this.item.setAttribute('aria-setsize', `${setSize}`);
 	}
 
 	updateLabel(): void {

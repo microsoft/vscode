@@ -813,7 +813,7 @@ configurationRegistry.registerConfiguration({
 		'window.titleBarStyle': {
 			'type': 'string',
 			'enum': ['native', 'custom'],
-			'default': isLinux ? 'native' : 'custom',
+			'default': 'custom',
 			'scope': ConfigurationScope.APPLICATION,
 			'description': nls.localize('titleBarStyle', "Adjust the appearance of the window title bar. Changes require a full restart to apply.")
 		},
@@ -829,6 +829,13 @@ configurationRegistry.registerConfiguration({
 			'default': true,
 			'description': nls.localize('window.nativeFullScreen', "Controls if native full-screen should be used on macOS. Disable this option to prevent macOS from creating a new space when going full-screen."),
 			'included': isMacintosh
+		},
+		'window.smoothScrollingWorkaround': {
+			'type': 'boolean',
+			'default': false,
+			'scope': ConfigurationScope.APPLICATION,
+			'markdownDescription': nls.localize('window.smoothScrollingWorkaround', "Enable this workaround if scrolling is no longer smooth after restoring a minimized VS Code window. This is a workaround for an issue (https://github.com/Microsoft/vscode/issues/13612) where scrolling starts to lag on devices with precision trackpads like the Surface devices from Microsoft. Enabling this workaround can result in a little bit of layout flickering after restoring the window from minimized state but is otherwise harmless. Note: in order for this workaround to function, make sure to also set `#window.titleBarStyle#` to `native`."),
+			'included': isWindows
 		},
 		'window.clickThroughInactive': {
 			'type': 'boolean',

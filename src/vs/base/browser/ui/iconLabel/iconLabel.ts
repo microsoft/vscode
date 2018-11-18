@@ -138,7 +138,7 @@ export class IconLabel extends Disposable {
 		this.domNode.title = options && options.title ? options.title : '';
 
 		if (this.labelNode instanceof HighlightedLabel) {
-			this.labelNode.set(label || '', options ? options.matches : void 0, options ? options.title : void 0, options && options.labelEscapeNewLines);
+			this.labelNode.set(label || '', options ? options.matches : void 0, options && options.title ? options.title : void 0, options && options.labelEscapeNewLines);
 		} else {
 			this.labelNode.textContent = label || '';
 		}

@@ -518,7 +518,7 @@ const schema: IJSONSchema = {
 				},
 				decreaseIndentPattern: {
 					type: ['string', 'object'],
-					description: nls.localize('schema.indentationRules.decreaseIndentPattern', 'If a line matches this pattern, then all the lines after it should be unindendented once (until another rule matches).'),
+					description: nls.localize('schema.indentationRules.decreaseIndentPattern', 'If a line matches this pattern, then all the lines after it should be unindented once (until another rule matches).'),
 					properties: {
 						pattern: {
 							type: 'string',

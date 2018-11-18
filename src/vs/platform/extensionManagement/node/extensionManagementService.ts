@@ -19,7 +19,9 @@ import {
 	StatisticType,
 	IExtensionIdentifier,
 	IReportedExtension,
-	InstallOperation
+	InstallOperation,
+	INSTALL_ERROR_MALICIOUS,
+	INSTALL_ERROR_INCOMPATIBLE
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionIdFromLocal, adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId, groupByExtension, getMaliciousExtensionsSet, getLocalExtensionId, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, getIdFromLocalExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { localizeManifest } from '../common/extensionNls';
@@ -44,11 +46,11 @@ import { IDownloadService } from 'vs/platform/download/common/download';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { Schemas } from 'vs/base/common/network';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 const ERROR_SCANNING_SYS_EXTENSIONS = 'scanningSystem';
 const ERROR_SCANNING_USER_EXTENSIONS = 'scanningUser';
 const INSTALL_ERROR_UNSET_UNINSTALLED = 'unsetUninstalled';
-const INSTALL_ERROR_INCOMPATIBLE = 'incompatible';
 const INSTALL_ERROR_DOWNLOADING = 'downloading';
 const INSTALL_ERROR_VALIDATING = 'validating';
 const INSTALL_ERROR_GALLERY = 'gallery';
@@ -56,7 +58,6 @@ const INSTALL_ERROR_LOCAL = 'local';
 const INSTALL_ERROR_EXTRACTING = 'extracting';
 const INSTALL_ERROR_RENAMING = 'renaming';
 const INSTALL_ERROR_DELETING = 'deleting';
-const INSTALL_ERROR_MALICIOUS = 'malicious';
 const ERROR_UNKNOWN = 'unknown';
 
 export class ExtensionManagementError extends Error {
@@ -135,7 +136,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	onDidUninstallExtension: Event<DidUninstallExtensionEvent> = this._onDidUninstallExtension.event;
 
 	constructor(
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IDialogService private dialogService: IDialogService,
 		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
 		@ILogService private logService: ILogService,
@@ -207,7 +208,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 						.then(manifest => {
 							const identifier = { id: getLocalExtensionIdFromManifest(manifest) };
 							if (manifest.engines && manifest.engines.vscode && !isEngineValid(manifest.engines.vscode)) {
-								return Promise.reject(new Error(nls.localize('incompatible', "Unable to install Extension '{0}' as it is not compatible with Code '{1}'.", identifier.id, pkg.version)));
+								return Promise.reject(new Error(nls.localize('incompatible', "Unable to install extension '{0}' as it is not compatible with VS Code '{1}'.", identifier.id, pkg.version)));
 							}
 							return this.removeIfExists(identifier.id)
 								.then(
@@ -229,7 +230,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 											}
 											return null;
 										}),
-									e => Promise.reject(new Error(nls.localize('restartCode', "Please restart Code before reinstalling {0}.", manifest.displayName || manifest.name))));
+									e => Promise.reject(new Error(nls.localize('restartCode', "Please restart VS Code before reinstalling {0}.", manifest.displayName || manifest.name))));
 						});
 				});
 		});
@@ -330,6 +331,9 @@ export class ExtensionManagementService extends Disposable implements IExtension
 							this.logService.error(`Failed to install extension:`, extension.identifier.id, error ? error.message : errorCode);
 							this._onDidInstallExtension.fire({ identifier, gallery: extension, operation, error: errorCode });
 							this.reportTelemetry(this.getTelemetryEvent(operation), telemetryData, new Date().getTime() - startTime, error);
+							if (error instanceof Error) {
+								error.name = errorCode;
+							}
 							errorCallback(error);
 						});
 
@@ -404,7 +408,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 								},
 								error => Promise.reject(new ExtensionManagementError(this.joinErrors(error).message, INSTALL_ERROR_DOWNLOADING)));
 					} else {
-						return Promise.reject(new ExtensionManagementError(nls.localize('notFoundCompatibleDependency', "Unable to install because, the depending extension '{0}' compatible with current version '{1}' of VS Code is not found.", extension.identifier.id, pkg.version), INSTALL_ERROR_INCOMPATIBLE));
+						return Promise.reject(new ExtensionManagementError(nls.localize('notFoundCompatibleDependency', "Unable to install because, the extension '{0}' compatible with current version '{1}' of VS Code is not found.", extension.identifier.id, pkg.version), INSTALL_ERROR_INCOMPATIBLE));
 					}
 				},
 				error => Promise.reject(new ExtensionManagementError(this.joinErrors(error).message, INSTALL_ERROR_GALLERY)));
@@ -729,11 +733,30 @@ export class ExtensionManagementService extends Disposable implements IExtension
 
 	private scanSystemExtensions(): Promise<ILocalExtension[]> {
 		this.logService.trace('Started scanning system extensions');
-		return this.scanExtensions(this.systemExtensionsPath, LocalExtensionType.System)
+		const systemExtensionsPromise = this.scanExtensions(this.systemExtensionsPath, LocalExtensionType.System)
 			.then(result => {
 				this.logService.info('Scanned system extensions:', result.length);
 				return result;
 			});
+		if (this.environmentService.isBuilt) {
+			return systemExtensionsPromise;
+		}
+
+		// Scan other system extensions during development
+		const devSystemExtensionsPromise = this.getDevSystemExtensionsList()
+			.then(devSystemExtensionsList => {
+				if (devSystemExtensionsList.length) {
+					return this.scanExtensions(this.devSystemExtensionsPath, LocalExtensionType.System)
+						.then(result => {
+							this.logService.info('Scanned dev system extensions:', result.length);
+							return result.filter(r => devSystemExtensionsList.some(id => areSameExtensions(r.galleryIdentifier, { id })));
+						});
+				} else {
+					return [];
+				}
+			});
+		return Promise.all([systemExtensionsPromise, devSystemExtensionsPromise])
+			.then(([systemExtensions, devSystemExtensions]) => [...systemExtensions, ...devSystemExtensions]);
 	}
 
 	private scanUserExtensions(excludeOutdated: boolean): Promise<ILocalExtension[]> {
@@ -890,6 +913,30 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			}, err => {
 				this.logService.trace('ExtensionManagementService.refreshReportedCache - failed to get extension report');
 				return [];
+			});
+	}
+
+	private _devSystemExtensionsPath: string | null = null;
+	private get devSystemExtensionsPath(): string {
+		if (!this._devSystemExtensionsPath) {
+			this._devSystemExtensionsPath = path.normalize(path.join(getPathFromAmdModule(require, ''), '..', '.build', 'builtInExtensions'));
+		}
+		return this._devSystemExtensionsPath;
+	}
+
+	private _devSystemExtensionsFilePath: string | null = null;
+	private get devSystemExtensionsFilePath(): string {
+		if (!this._devSystemExtensionsFilePath) {
+			this._devSystemExtensionsFilePath = path.normalize(path.join(getPathFromAmdModule(require, ''), '..', 'build', 'builtInExtensions.json'));
+		}
+		return this._devSystemExtensionsFilePath;
+	}
+
+	private getDevSystemExtensionsList(): Promise<string[]> {
+		return pfs.readFile(this.devSystemExtensionsFilePath, 'utf8')
+			.then<string[]>(raw => {
+				const parsed: { name: string }[] = JSON.parse(raw);
+				return parsed.map(({ name }) => name);
 			});
 	}
 

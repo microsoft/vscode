@@ -52,30 +52,6 @@ steps:
     inlineOperation: |
       [
         {
-          "keyCode": "CP-229803",
-          "operationSetCode": "SigntoolSign",
-          "parameters": [
-            {
-              "parameterName": "OpusName",
-              "parameterValue": "VS Code"
-            },
-            {
-              "parameterName": "OpusInfo",
-              "parameterValue": "https://code.visualstudio.com/"
-            },
-            {
-              "parameterName": "PageHash",
-              "parameterValue": "/NPH"
-            },
-            {
-              "parameterName": "TimeStamp",
-              "parameterValue": "/t \"http://ts4096.gtm.microsoft.com/TSS/AuthenticodeTS\""
-            }
-          ],
-          "toolName": "sign",
-          "toolVersion": "1.0"
-        },
-        {
           "keyCode": "CP-230012",
           "operationSetCode": "SigntoolSign",
           "parameters": [
@@ -170,3 +146,6 @@ steps:
     # publish hockeyapp symbols
     $hockeyAppId = if ("$(VSCODE_ARCH)" -eq "ia32") { "$(VSCODE_HOCKEYAPP_ID_WIN32)" } else { "$(VSCODE_HOCKEYAPP_ID_WIN64)" }
     exec { node build/tfs/common/symbols.js "$(VSCODE_MIXIN_PASSWORD)" "$(VSCODE_HOCKEYAPP_TOKEN)" "$(VSCODE_ARCH)" $hockeyAppId }
+
+- task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
+  displayName: 'Component Detection'

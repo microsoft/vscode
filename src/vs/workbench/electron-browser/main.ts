@@ -50,6 +50,7 @@ import { parseStorage, StorageObject } from 'vs/platform/storage/common/storageL
 import { StorageScope } from 'vs/platform/storage/common/storage';
 import { endsWith } from 'vs/base/common/strings';
 import { IdleValue } from 'vs/base/common/async';
+import { setGlobalLeakWarningThreshold } from 'vs/base/common/event';
 
 gracefulFs.gracefulify(fs); // enable gracefulFs
 
@@ -60,6 +61,9 @@ export function startup(configuration: IWindowConfiguration): Promise<void> {
 
 	// Setup perf
 	perf.importEntries(configuration.perfEntries);
+
+	// Configure emitter leak warning threshold
+	setGlobalLeakWarningThreshold(500);
 
 	// Browser config
 	browser.setZoomFactor(webFrame.getZoomFactor()); // Ensure others can listen to zoom level changes

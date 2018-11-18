@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as DOM from 'vs/base/browser/dom';
 import { dispose, IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IAction } from 'vs/base/common/actions';
@@ -86,7 +85,7 @@ export abstract class TreeViewsViewletPanel extends ViewletPanel {
 		// Make sure the current selected element is revealed
 		const selectedElement = this.tree.getSelection()[0];
 		if (selectedElement) {
-			this.tree.reveal(selectedElement, 0.5);
+			this.tree.reveal(selectedElement);
 		}
 
 		// Pass Focus to Viewer
@@ -194,7 +193,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 			.map((view) => view.setVisible(visible));
 	}
 
-	openView(id: string, focus?: boolean): TPromise<IView> {
+	openView(id: string, focus?: boolean): IView {
 		if (focus) {
 			this.focus();
 		}
@@ -207,7 +206,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		if (focus) {
 			view.focus();
 		}
-		return Promise.resolve(view);
+		return view;
 	}
 
 	movePanel(from: ViewletPanel, to: ViewletPanel): void {
@@ -319,7 +318,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		let anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => Promise.resolve(actions)
+			getActions: () => actions
 		});
 	}
 

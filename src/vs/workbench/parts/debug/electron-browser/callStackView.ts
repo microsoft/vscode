@@ -6,7 +6,6 @@
 import * as nls from 'vs/nls';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { TreeViewsViewletPanel, IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDebugService, State, IStackFrame, IDebugSession, IThread, CONTEXT_CALLSTACK_ITEM_TYPE } from 'vs/workbench/parts/debug/common/debug';
 import { Thread, StackFrame, ThreadAndSessionIds, DebugModel } from 'vs/workbench/parts/debug/common/debugModel';
@@ -98,6 +97,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 		this.treeContainer = renderViewTree(container);
 		const actionProvider = new CallStackActionProvider(this.debugService, this.keybindingService, this.instantiationService);
 		const controller = this.instantiationService.createInstance(CallStackController, actionProvider, MenuId.DebugCallStackContext, {});
+		this.disposables.push(controller);
 		this.dataSource = new CallStackDataSource();
 		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
 			dataSource: this.dataSource,
@@ -185,7 +185,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 		super.layoutBody(size);
 	}
 
-	private updateTreeSelection(): TPromise<void> {
+	private updateTreeSelection(): Thenable<void> {
 		if (!this.tree.getInput()) {
 			// Tree not initialized yet
 			return Promise.resolve(null);
@@ -257,15 +257,15 @@ class CallStackActionProvider implements IActionProvider {
 		return false;
 	}
 
-	getActions(tree: ITree, element: any): TPromise<IAction[]> {
-		return Promise.resolve([]);
+	getActions(tree: ITree, element: any): IAction[] {
+		return [];
 	}
 
 	hasSecondaryActions(tree: ITree, element: any): boolean {
 		return element !== tree.getInput();
 	}
 
-	getSecondaryActions(tree: ITree, element: any): TPromise<IAction[]> {
+	getSecondaryActions(tree: ITree, element: any): IAction[] {
 		const actions: IAction[] = [];
 		if (element instanceof DebugSession) {
 			actions.push(this.instantiationService.createInstance(RestartAction, RestartAction.ID, RestartAction.LABEL));
@@ -290,7 +290,7 @@ class CallStackActionProvider implements IActionProvider {
 			actions.push(new CopyStackTraceAction(CopyStackTraceAction.ID, CopyStackTraceAction.LABEL));
 		}
 
-		return Promise.resolve(actions);
+		return actions;
 	}
 
 	getActionItem(tree: ITree, element: any, action: IAction): IActionItem {
@@ -317,7 +317,7 @@ class CallStackDataSource implements IDataSource {
 		return element instanceof DebugModel || element instanceof DebugSession || (element instanceof Thread && (<Thread>element).stopped);
 	}
 
-	getChildren(tree: ITree, element: any): TPromise<any> {
+	getChildren(tree: ITree, element: any): Promise<any> {
 		if (element instanceof Thread) {
 			return this.getThreadChildren(element).then(children => {
 				// Check if some stack frames should be hidden under a parent element since they are deemphasized
@@ -355,15 +355,15 @@ class CallStackDataSource implements IDataSource {
 		return Promise.resolve(session.getAllThreads());
 	}
 
-	private getThreadChildren(thread: Thread): TPromise<(IStackFrame | string | ThreadAndSessionIds)[]> {
+	private getThreadChildren(thread: Thread): Promise<(IStackFrame | string | ThreadAndSessionIds)[]> {
 		let callStack: any[] = thread.getCallStack();
-		let callStackPromise: TPromise<any> = Promise.resolve(null);
+		let callStackPromise: Promise<any> = Promise.resolve(null);
 		if (!callStack || !callStack.length) {
 			callStackPromise = thread.fetchCallStack().then(() => callStack = thread.getCallStack());
 		}
 
 		return callStackPromise.then(() => {
-			if (callStack.length === 1 && thread.session.capabilities.supportsDelayedStackTraceLoading) {
+			if (callStack.length === 1 && thread.session.capabilities.supportsDelayedStackTraceLoading && thread.stoppedDetails && thread.stoppedDetails.totalFrames > 1) {
 				// To reduce flashing of the call stack view simply append the stale call stack
 				// once we have the correct data the tree will refresh and we will no longer display it.
 				callStack = callStack.concat(thread.getStaleCallStack().slice(1));
@@ -380,7 +380,7 @@ class CallStackDataSource implements IDataSource {
 		});
 	}
 
-	getParent(tree: ITree, element: any): TPromise<any> {
+	getParent(tree: ITree, element: any): Promise<any> {
 		return Promise.resolve(null);
 	}
 }
@@ -554,9 +554,10 @@ class CallStackRenderer implements IRenderer {
 	}
 
 	private renderShowMore(data: ILabelTemplateData, element: IStackFrame[]): void {
-		data.label.textContent = nls.localize('showMoreStackFrames', "Show {0} More Stack Frames", element.length);
-		if (element.every(sf => sf.source && sf.source.origin === element[0].source.origin)) {
-			data.label.textContent += ` ${element[0].source.origin}`;
+		if (element.every(sf => sf.source && sf.source.origin && sf.source.origin === element[0].source.origin)) {
+			data.label.textContent = nls.localize('showMoreAndOrigin', "Show {0} More: {1}", element.length, element[0].source.origin);
+		} else {
+			data.label.textContent = nls.localize('showMoreStackFrames', "Show {0} More Stack Frames", element.length);
 		}
 	}
 

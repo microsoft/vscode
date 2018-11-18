@@ -11,9 +11,11 @@ import { invalidateTasksCache, NpmTaskProvider } from './tasks';
 import { invalidateHoverScriptsCache, NpmScriptHoverProvider } from './scriptHover';
 import { runSelectedScript } from './commands';
 
+let treeDataProvider: NpmScriptsTreeDataProvider | undefined;
+
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
 	registerTaskProvider(context);
-	const treeDataProvider = registerExplorer(context);
+	treeDataProvider = registerExplorer(context);
 	registerHoverProvider(context);
 
 	configureHttpRequest();
@@ -46,6 +48,9 @@ function registerTaskProvider(context: vscode.ExtensionContext): vscode.Disposab
 	function invalidateScriptCaches() {
 		invalidateHoverScriptsCache();
 		invalidateTasksCache();
+		if (treeDataProvider) {
+			treeDataProvider.refresh();
+		}
 	}
 
 	if (vscode.workspace.workspaceFolders) {

@@ -212,8 +212,8 @@ export class ContextView extends Disposable {
 			around = {
 				top: realAnchor.y,
 				left: realAnchor.x,
-				width: realAnchor.width || 0,
-				height: realAnchor.height || 0
+				width: realAnchor.width || 1,
+				height: realAnchor.height || 2
 			};
 		}
 

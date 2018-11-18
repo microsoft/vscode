@@ -20,7 +20,7 @@ import Severity from 'vs/base/common/severity';
 import { ILogService } from 'vs/platform/log/common/log';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 
-function ignore<T>(code: string, value: T | null = null): (err: any) => Promise<T> {
+function ignore<T>(code: string, value: T): (err: any) => Promise<T> {
 	return err => err.code === code ? Promise.resolve<T>(value) : Promise.reject<T>(err);
 }
 
@@ -70,7 +70,7 @@ class InstallAction extends Action {
 						return Promise.resolve(null);
 					} else {
 						return pfs.unlink(this.target)
-							.then(null, ignore('ENOENT'))
+							.then(null, ignore('ENOENT', null))
 							.then(() => pfs.symlink(getSource(), this.target))
 							.then(null, err => {
 								if (err.code === 'EACCES' || err.code === 'ENOENT') {
@@ -147,7 +147,7 @@ class UninstallAction extends Action {
 
 			const uninstall = () => {
 				return pfs.unlink(this.target)
-					.then(null, ignore('ENOENT'));
+					.then(null, ignore('ENOENT', null));
 			};
 
 			return uninstall().then(null, err => {

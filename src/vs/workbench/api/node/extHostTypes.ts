@@ -14,6 +14,7 @@ import { relative } from 'path';
 import { startsWith } from 'vs/base/common/strings';
 import { values } from 'vs/base/common/map';
 import { coalesce, equals } from 'vs/base/common/arrays';
+import { generateUuid } from 'vs/base/common/uuid';
 
 export class Disposable {
 
@@ -48,9 +49,13 @@ export class Disposable {
 export class Position {
 
 	static Min(...positions: Position[]): Position {
-		let result = positions.pop();
-		for (let p of positions) {
-			if (p.isBefore(result)) {
+		if (positions.length === 0) {
+			throw new TypeError();
+		}
+		let result = positions[0];
+		for (let i = 1; i < positions.length; i++) {
+			let p = positions[i];
+			if (p.isBefore(result!)) {
 				result = p;
 			}
 		}
@@ -58,9 +63,13 @@ export class Position {
 	}
 
 	static Max(...positions: Position[]): Position {
-		let result = positions.pop();
-		for (let p of positions) {
-			if (p.isAfter(result)) {
+		if (positions.length === 0) {
+			throw new TypeError();
+		}
+		let result = positions[0];
+		for (let i = 1; i < positions.length; i++) {
+			let p = positions[i];
+			if (p.isAfter(result!)) {
 				result = p;
 			}
 		}
@@ -438,7 +447,7 @@ export class TextEdit {
 	}
 
 	static setEndOfLine(eol: EndOfLine): TextEdit {
-		let ret = new TextEdit(undefined, undefined);
+		let ret = new TextEdit(new Range(new Position(0, 0), new Position(0, 0)), '');
 		ret.newEol = eol;
 		return ret;
 	}
@@ -504,8 +513,8 @@ export interface IFileOperationOptions {
 
 export interface IFileOperation {
 	_type: 1;
-	from: URI;
-	to: URI;
+	from?: URI;
+	to?: URI;
 	options?: IFileOperationOptions;
 }
 
@@ -558,7 +567,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 			for (let i = 0; i < this._edits.length; i++) {
 				const element = this._edits[i];
 				if (element._type === 2 && element.uri.toString() === uri.toString()) {
-					this._edits[i] = undefined;
+					this._edits[i] = undefined!; // will be coalesced down below
 				}
 			}
 			this._edits = coalesce(this._edits);
@@ -579,9 +588,6 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 				res.push(candidate.edit);
 			}
 		}
-		if (res.length === 0) {
-			return undefined;
-		}
 		return res;
 	}
 
@@ -600,8 +606,8 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 		return values(textEdits);
 	}
 
-	_allEntries(): ([URI, TextEdit[]] | [URI, URI, IFileOperationOptions])[] {
-		let res: ([URI, TextEdit[]] | [URI, URI, IFileOperationOptions])[] = [];
+	_allEntries(): ([URI, TextEdit[]] | [URI?, URI?, IFileOperationOptions?])[] {
+		let res: ([URI, TextEdit[]] | [URI?, URI?, IFileOperationOptions?])[] = [];
 		for (let edit of this._edits) {
 			if (edit._type === 1) {
 				res.push([edit.from, edit.to, edit.options]);
@@ -811,7 +817,7 @@ export class Diagnostic {
 		};
 	}
 
-	static isEqual(a: Diagnostic, b: Diagnostic): boolean {
+	static isEqual(a: Diagnostic | undefined, b: Diagnostic | undefined): boolean {
 		if (a === b) {
 			return true;
 		}
@@ -832,7 +838,7 @@ export class Diagnostic {
 export class Hover {
 
 	public contents: vscode.MarkdownString[] | vscode.MarkedString[];
-	public range: Range;
+	public range: Range | undefined;
 
 	constructor(
 		contents: vscode.MarkdownString | vscode.MarkedString | vscode.MarkdownString[] | vscode.MarkedString[],
@@ -916,7 +922,7 @@ export class SymbolInformation {
 	name: string;
 	location: Location;
 	kind: SymbolKind;
-	containerName: string;
+	containerName: string | undefined;
 
 	constructor(name: string, kind: SymbolKind, containerName: string, location: Location);
 	constructor(name: string, kind: SymbolKind, range: Range, uri?: URI, containerName?: string);
@@ -932,7 +938,7 @@ export class SymbolInformation {
 		if (locationOrUri instanceof Location) {
 			this.location = locationOrUri;
 		} else if (rangeOrContainer instanceof Range) {
-			this.location = new Location(locationOrUri, rangeOrContainer);
+			this.location = new Location(locationOrUri!, rangeOrContainer);
 		}
 
 		SymbolInformation.validate(this);
@@ -1035,7 +1041,7 @@ export class CodeLens {
 
 	range: Range;
 
-	command: vscode.Command;
+	command: vscode.Command | undefined;
 
 	constructor(range: Range, command?: vscode.Command) {
 		this.range = range;
@@ -1157,21 +1163,17 @@ export enum CompletionItemKind {
 	TypeParameter = 24
 }
 
-export enum CompletionItemInsertTextRule {
-	KeepWhitespace = 0b1
-}
-
 export class CompletionItem implements vscode.CompletionItem {
 
 	label: string;
-	kind: CompletionItemKind;
+	kind: CompletionItemKind | undefined;
 	detail: string;
 	documentation: string | MarkdownString;
 	sortText: string;
 	filterText: string;
 	preselect: boolean;
 	insertText: string | SnippetString;
-	insertTextRules: CompletionItemInsertTextRule;
+	keepWhitespace?: boolean;
 	range: Range;
 	commitCharacters: string[];
 	textEdit: TextEdit;
@@ -1186,7 +1188,7 @@ export class CompletionItem implements vscode.CompletionItem {
 	toJSON(): any {
 		return {
 			label: this.label,
-			kind: CompletionItemKind[this.kind],
+			kind: this.kind && CompletionItemKind[this.kind],
 			detail: this.detail,
 			documentation: this.documentation,
 			sortText: this.sortText,
@@ -1877,6 +1879,8 @@ export class RelativePattern implements IRelativePattern {
 
 export class Breakpoint {
 
+	private _id: string | undefined;
+
 	readonly enabled: boolean;
 	readonly condition?: string;
 	readonly hitCondition?: string;
@@ -1893,6 +1897,13 @@ export class Breakpoint {
 		if (typeof logMessage === 'string') {
 			this.logMessage = logMessage;
 		}
+	}
+
+	get id(): string {
+		if (!this._id) {
+			this._id = generateUuid();
+		}
+		return this._id;
 	}
 }
 
@@ -1921,22 +1932,18 @@ export class FunctionBreakpoint extends Breakpoint {
 }
 
 export class DebugAdapterExecutable implements vscode.DebugAdapterExecutable {
-	readonly type = 'executable';
 	readonly command: string;
 	readonly args: string[];
-	readonly env?: { [key: string]: string };
-	readonly cwd?: string;
+	readonly options?: vscode.DebugAdapterExecutableOptions;
 
-	constructor(command: string, args?: string[], env?: { [key: string]: string }, cwd?: string) {
+	constructor(command: string, args: string[], options?: vscode.DebugAdapterExecutableOptions) {
 		this.command = command;
-		this.args = args;
-		this.env = env;
-		this.cwd = cwd;
+		this.args = args || [];
+		this.options = options;
 	}
 }
 
 export class DebugAdapterServer implements vscode.DebugAdapterServer {
-	readonly type = 'server';
 	readonly port: number;
 	readonly host: string;
 
@@ -1947,7 +1954,6 @@ export class DebugAdapterServer implements vscode.DebugAdapterServer {
 }
 
 export class DebugAdapterImplementation implements vscode.DebugAdapterImplementation {
-	readonly type = 'implementation';
 	readonly implementation: any;
 
 	constructor(transport: any) {

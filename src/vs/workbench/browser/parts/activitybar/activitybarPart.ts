@@ -27,10 +27,16 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { URI } from 'vs/base/common/uri';
 import { ToggleCompositePinnedAction, ICompositeBarColors } from 'vs/workbench/browser/parts/compositeBarActions';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
+import { IViewsService, IViewContainersRegistry, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
+import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 interface IPlaceholderComposite {
 	id: string;
 	iconUrl: URI;
+}
+
+interface ISerializedPlaceholderComposite extends IPlaceholderComposite {
+	whens?: string[];
 }
 
 export class ActivitybarPart extends Part {
@@ -55,7 +61,9 @@ export class ActivitybarPart extends Part {
 		@IPartService private partService: IPartService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService private storageService: IStorageService,
-		@IExtensionService private extensionService: IExtensionService
+		@IExtensionService private extensionService: IExtensionService,
+		@IViewsService private viewsService: IViewsService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(id, { hasTitle: false }, themeService, storageService);
 
@@ -76,14 +84,20 @@ export class ActivitybarPart extends Part {
 		}));
 
 		const previousState = this.storageService.get(ActivitybarPart.PLACEHOLDER_VIEWLETS, StorageScope.GLOBAL, '[]');
-		this.placeholderComposites = <IPlaceholderComposite[]>JSON.parse(previousState);
-		this.placeholderComposites.forEach((s) => {
-			if (typeof s.iconUrl === 'object') {
-				s.iconUrl = URI.revive(s.iconUrl);
-			} else {
-				s.iconUrl = void 0;
+		const serializedPlaceholderComposites = <ISerializedPlaceholderComposite[]>JSON.parse(previousState);
+		this.placeholderComposites = [];
+		for (const { id, iconUrl, whens } of serializedPlaceholderComposites) {
+			if (whens && whens.length > 0) {
+				if (whens.every(when => !contextKeyService.contextMatchesRules(ContextKeyExpr.deserialize(when)))) {
+					// Hidden by default
+					continue;
+				}
 			}
-		});
+			this.placeholderComposites.push({
+				id,
+				iconUrl: typeof iconUrl === 'object' ? URI.revive(iconUrl) : void 0
+			});
+		}
 
 		this.registerListeners();
 		this.updateCompositebar();
@@ -230,17 +244,17 @@ export class ActivitybarPart extends Part {
 	private updateCompositebar(): void {
 		const viewlets = this.viewletService.getViewlets();
 		for (const viewlet of viewlets) {
+			const existsBefore = this.compositeBar.getComposites().some(({ id }) => id === viewlet.id);
 			this.compositeBar.addComposite(viewlet);
 
-			// Pin it by default if it is new => it does not has a placeholder
-			if (this.placeholderComposites.every(c => c.id !== viewlet.id)) {
+			// Pin it by default if it is new
+			if (!existsBefore) {
 				this.compositeBar.pin(viewlet.id);
 			}
 
 			this.enableCompositeActions(viewlet);
 			const activeViewlet = this.viewletService.getActiveViewlet();
 			if (activeViewlet && activeViewlet.getId() === viewlet.id) {
-				this.compositeBar.pin(viewlet.id);
 				this.compositeBar.activateComposite(viewlet.id);
 			}
 		}
@@ -308,7 +322,20 @@ export class ActivitybarPart extends Part {
 	}
 
 	protected saveState(): void {
-		const state = this.viewletService.getAllViewlets().map(({ id, iconUrl }) => ({ id, iconUrl }));
+		const viewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
+		const state: ISerializedPlaceholderComposite[] = [];
+		for (const { id, iconUrl } of this.viewletService.getAllViewlets()) {
+			const viewContainer = viewContainerRegistry.get(id);
+			const whens: string[] = [];
+			if (viewContainer) {
+				for (const { when } of this.viewsService.getViewDescriptors(viewContainer).allViewDescriptors) {
+					if (when) {
+						whens.push(when.serialize());
+					}
+				}
+			}
+			state.push({ id, iconUrl, whens });
+		}
 		this.storageService.store(ActivitybarPart.PLACEHOLDER_VIEWLETS, JSON.stringify(state), StorageScope.GLOBAL);
 
 		super.saveState();

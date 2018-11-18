@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/822c147f65d9b009096d7163f7d624379812cd63",
+	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/b95e4044ff1ac52e03f622de76f459dc5388954c",
 	"name": "C#",
 	"scopeName": "source.cs",
 	"patterns": [
@@ -2607,9 +2607,13 @@
 			},
 			"patterns": [
 				{
-					"include": "#string-character-escape"
+					"include": "#char-character-escape"
 				}
 			]
+		},
+		"char-character-escape": {
+			"name": "constant.character.escape.cs",
+			"match": "\\\\(['\"\\\\0abfnrtv]|x[0-9a-fA-F]{1,4}|u[0-9a-fA-F]{4})"
 		},
 		"string-literal": {
 			"name": "string.quoted.double.cs",
@@ -2636,7 +2640,7 @@
 		},
 		"string-character-escape": {
 			"name": "constant.character.escape.cs",
-			"match": "\\\\."
+			"match": "\\\\(['\"\\\\0abfnrtv]|x[0-9a-fA-F]{1,4}|U[0-9a-fA-F]{8}|u[0-9a-fA-F]{4})"
 		},
 		"verbatim-string-literal": {
 			"name": "string.quoted.double.cs",

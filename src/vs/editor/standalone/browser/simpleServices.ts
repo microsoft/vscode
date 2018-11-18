@@ -12,7 +12,6 @@ import { IDisposable, IReference, ImmortalReference, combinedDisposable, toDispo
 import { OS, isLinux, isMacintosh } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditor, IDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IBulkEditOptions, IBulkEditResult, IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { isDiffEditorConfigurationKey, isEditorConfigurationKey } from 'vs/editor/common/config/commonEditorConfig';
@@ -25,8 +24,6 @@ import { TextEdit, WorkspaceEdit, isResourceTextEdit } from 'vs/editor/common/mo
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextEditorModel, ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ITextResourceConfigurationService, ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
-import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { Menu } from 'vs/platform/actions/common/menu';
 import { CommandsRegistry, ICommand, ICommandEvent, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Configuration, ConfigurationModel, DefaultConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
@@ -60,8 +57,8 @@ export class SimpleModel implements ITextEditorModel {
 		return this._onDispose.event;
 	}
 
-	public load(): TPromise<SimpleModel> {
-		return TPromise.as(this);
+	public load(): Promise<SimpleModel> {
+		return Promise.resolve(this);
 	}
 
 	public get textEditorModel(): ITextModel {
@@ -100,7 +97,7 @@ export class SimpleEditorModelResolverService implements ITextModelService {
 		this.editor = editor;
 	}
 
-	public createModelReference(resource: URI): TPromise<IReference<ITextEditorModel>> {
+	public createModelReference(resource: URI): Promise<IReference<ITextEditorModel>> {
 		let model: ITextModel;
 
 		model = withTypedEditor(this.editor,
@@ -109,10 +106,10 @@ export class SimpleEditorModelResolverService implements ITextModelService {
 		);
 
 		if (!model) {
-			return TPromise.as(new ImmortalReference(null));
+			return Promise.resolve(new ImmortalReference(null));
 		}
 
-		return TPromise.as(new ImmortalReference(new SimpleModel(model)));
+		return Promise.resolve(new ImmortalReference(new SimpleModel(model)));
 	}
 
 	public registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable {
@@ -479,31 +476,16 @@ export class SimpleResourcePropertiesService implements ITextResourcePropertiesS
 	}
 }
 
-export class SimpleMenuService implements IMenuService {
-
-	_serviceBrand: any;
-
-	private readonly _commandService: ICommandService;
-
-	constructor(commandService: ICommandService) {
-		this._commandService = commandService;
-	}
-
-	public createMenu(id: MenuId, contextKeyService: IContextKeyService): IMenu {
-		return new Menu(id, Promise.resolve(true), this._commandService, contextKeyService);
-	}
-}
-
 export class StandaloneTelemetryService implements ITelemetryService {
 	_serviceBrand: void;
 
 	public isOptedIn = false;
 
-	public publicLog(eventName: string, data?: any): TPromise<void> {
-		return TPromise.wrap<void>(null);
+	public publicLog(eventName: string, data?: any): Promise<void> {
+		return Promise.resolve(null);
 	}
 
-	public getTelemetryInfo(): TPromise<ITelemetryInfo> {
+	public getTelemetryInfo(): Promise<ITelemetryInfo> {
 		return null;
 	}
 }
@@ -634,5 +616,9 @@ export class SimpleUriLabelService implements ILabelService {
 
 	public registerFormatter(selector: string, formatter: LabelRules): IDisposable {
 		throw new Error('Not implemented');
+	}
+
+	public getHostLabel(): string {
+		return '';
 	}
 }

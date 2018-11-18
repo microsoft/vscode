@@ -8,7 +8,6 @@ import { createHash } from 'crypto';
 import { IExtensionManagementService, ILocalExtension, IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Queue } from 'vs/base/common/async';
 import { areSameExtensions, getGalleryExtensionIdFromLocal, getIdFromLocalExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -56,14 +55,14 @@ export class LocalizationsService extends Disposable implements ILocalizationsSe
 		this.extensionManagementService.getInstalled().then(installed => this.cache.update(installed));
 	}
 
-	getLanguageIds(type: LanguageType): TPromise<string[]> {
+	getLanguageIds(type: LanguageType): Thenable<string[]> {
 		if (type === LanguageType.Core) {
-			return TPromise.as([...systemLanguages]);
+			return Promise.resolve([...systemLanguages]);
 		}
 		return this.cache.getLanguagePacks()
 			.then(languagePacks => {
 				const languages = type === LanguageType.Contributed ? Object.keys(languagePacks) : [...systemLanguages, ...Object.keys(languagePacks)];
-				return TPromise.as(distinct(languages));
+				return distinct(languages);
 			});
 	}
 
@@ -86,7 +85,7 @@ export class LocalizationsService extends Disposable implements ILocalizationsSe
 	}
 
 	private update(): void {
-		TPromise.join([this.cache.getLanguagePacks(), this.extensionManagementService.getInstalled()])
+		Promise.all([this.cache.getLanguagePacks(), this.extensionManagementService.getInstalled()])
 			.then(([current, installed]) => this.cache.update(installed)
 				.then(updated => {
 					if (!equals(Object.keys(current), Object.keys(updated))) {
@@ -111,16 +110,16 @@ class LanguagePacksCache extends Disposable {
 		this.languagePacksFileLimiter = new Queue<void>();
 	}
 
-	getLanguagePacks(): TPromise<{ [language: string]: ILanguagePack }> {
+	getLanguagePacks(): Thenable<{ [language: string]: ILanguagePack }> {
 		// if queue is not empty, fetch from disk
 		if (this.languagePacksFileLimiter.size) {
 			return this.withLanguagePacks()
 				.then(() => this.languagePacks);
 		}
-		return TPromise.as(this.languagePacks);
+		return Promise.resolve(this.languagePacks);
 	}
 
-	update(extensions: ILocalExtension[]): TPromise<{ [language: string]: ILanguagePack }> {
+	update(extensions: ILocalExtension[]): Thenable<{ [language: string]: ILanguagePack }> {
 		return this.withLanguagePacks(languagePacks => {
 			Object.keys(languagePacks).forEach(language => languagePacks[language] = undefined);
 			this.createLanguagePacksFromExtensions(languagePacks, ...extensions);
@@ -168,11 +167,11 @@ class LanguagePacksCache extends Disposable {
 		}
 	}
 
-	private withLanguagePacks<T>(fn: (languagePacks: { [language: string]: ILanguagePack }) => T = () => null): TPromise<T> {
+	private withLanguagePacks<T>(fn: (languagePacks: { [language: string]: ILanguagePack }) => T = () => null): Thenable<T> {
 		return this.languagePacksFileLimiter.queue(() => {
 			let result: T | null = null;
 			return pfs.readFile(this.languagePacksFilePath, 'utf8')
-				.then(null, err => err.code === 'ENOENT' ? TPromise.as('{}') : TPromise.wrapError(err))
+				.then(null, err => err.code === 'ENOENT' ? Promise.resolve('{}') : Promise.reject(err))
 				.then<{ [language: string]: ILanguagePack }>(raw => { try { return JSON.parse(raw); } catch (e) { return {}; } })
 				.then(languagePacks => { result = fn(languagePacks); return languagePacks; })
 				.then(languagePacks => {

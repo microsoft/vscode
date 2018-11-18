@@ -18,6 +18,7 @@
 	font-size: 10px;
 	text-align: right;
 	margin-right: 6px;
+	flex-shrink: 0;
 }
 
 .monaco-tl-contents {

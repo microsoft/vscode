@@ -6,7 +6,7 @@
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService, ICommandEvent, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Event, Emitter, filterEvent, toPromise } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 
@@ -43,7 +43,11 @@ export class CommandService extends Disposable implements ICommandService {
 		} else {
 			let waitFor = activation;
 			if (!commandIsRegistered) {
-				waitFor = Promise.all([activation, this._extensionService.activateByEvent(`*`)]);
+				waitFor = Promise.race<any>([
+					// race activation events against command registration
+					Promise.all([activation, this._extensionService.activateByEvent(`*`)]),
+					toPromise(filterEvent(CommandsRegistry.onDidRegisterCommand, e => e === id)),
+				]);
 			}
 			return (waitFor as Promise<any>).then(_ => this._tryExecuteCommand(id, args));
 		}

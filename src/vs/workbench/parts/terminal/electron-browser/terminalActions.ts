@@ -53,12 +53,12 @@ function getCwdForSplit(configHelper: ITerminalConfigHelper, instance: ITerminal
 
 			return pathPromise;
 		}
-		case 'sourceInitialCwd': {
+		case 'initial': {
 			return new Promise<string>(resolve => {
 				resolve(instance.initialCwd);
 			});
 		}
-		case 'sourceCwd': {
+		case 'inherited': {
 			return instance.getCwd();
 		}
 	}
@@ -386,7 +386,7 @@ export class SplitTerminalAction extends Action {
 		}
 
 		return getCwdForSplit(this._terminalService.configHelper, instance, this.workspaceContextService.getWorkspace().folders, this.commandService).then(cwd => {
-			if (cwd) {
+			if (cwd || (cwd === '')) {
 				this._terminalService.splitInstance(instance, { cwd });
 				return this._terminalService.showPanel(true);
 			} else {

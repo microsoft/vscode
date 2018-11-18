@@ -83,6 +83,7 @@ export interface SaveDialogOptions {
 }
 
 export interface INewWindowOptions {
+	remoteAuthority?: string;
 }
 
 export interface IDevToolsOptions {
@@ -239,6 +240,7 @@ export interface IWindowSettings {
 	nativeFullScreen: boolean;
 	enableMenuBarMnemonics: boolean;
 	closeWhenEmpty: boolean;
+	smoothScrollingWorkaround: boolean;
 	clickThroughInactive: boolean;
 }
 
@@ -343,6 +345,8 @@ export interface IWindowConfiguration extends ParsedArgs {
 
 	workspace?: IWorkspaceIdentifier;
 	folderUri?: ISingleFolderWorkspaceIdentifier;
+
+	remoteAuthority?: string;
 
 	zoomLevel?: number;
 	fullscreen?: boolean;

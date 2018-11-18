@@ -102,11 +102,25 @@ export interface TaskTerminateResponse extends TerminateResponse {
 	task: Task | undefined;
 }
 
+export interface ResolveSet {
+	process?: {
+		name: string;
+		cwd?: string;
+		path?: string;
+	};
+	variables: Set<string>;
+}
+
+export interface ResolvedVariables {
+	process?: string;
+	variables: Map<string, string>;
+}
+
 export interface TaskSystemInfo {
 	platform: Platform;
 	context: any;
 	uriProvider: (this: void, path: string) => URI;
-	resolveVariables(workspaceFolder: IWorkspaceFolder, variables: Set<string>): TPromise<Map<string, string>>;
+	resolveVariables(workspaceFolder: IWorkspaceFolder, toResolve: ResolveSet): TPromise<ResolvedVariables>;
 }
 
 export interface TaskSystemInfoResovler {

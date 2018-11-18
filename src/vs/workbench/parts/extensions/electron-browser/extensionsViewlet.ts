@@ -55,6 +55,7 @@ import { Query } from 'vs/workbench/parts/extensions/common/extensionQuery';
 import { SuggestEnabledInput, attachSuggestEnabledInputBoxStyler } from 'vs/workbench/parts/codeEditor/electron-browser/suggestEnabledInput';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -110,6 +111,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		ViewsRegistry.registerViews(viewDescriptors);
 	}
 
+	// View used for any kind of searching
 	private createMarketPlaceExtensionsListViewDescriptor(): IViewDescriptor {
 		const id = 'extensions.listView';
 		return {
@@ -122,6 +124,8 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		};
 	}
 
+	// Separate view for enabled extensions required as we need to show enabled, disabled and recommended sections
+	// in the default view when there is no search text, but user has installed extensions.
 	private createEnabledExtensionsListViewDescriptor(): IViewDescriptor {
 		const id = 'extensions.enabledExtensionList';
 		return {
@@ -136,6 +140,8 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		};
 	}
 
+	// Separate view for disabled extensions required as we need to show enabled, disabled and recommended sections
+	// in the default view when there is no search text, but user has installed extensions.
 	private createDisabledExtensionsListViewDescriptor(): IViewDescriptor {
 		const id = 'extensions.disabledExtensionList';
 		return {
@@ -151,6 +157,8 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		};
 	}
 
+	// Separate view for popular extensions required as we need to show popular and recommended sections
+	// in the default view when there is no search text, and user has no installed extensions.
 	private createPopularExtensionsListViewDescriptor(): IViewDescriptor {
 		const id = 'extensions.popularExtensionsList';
 		return {
@@ -175,6 +183,9 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		}];
 	}
 
+	// Separate view for recommended extensions required as we need to show it along with other views when there is no search text.
+	// When user has installed extensions, this is shown along with the views for enabled & disabled extensions
+	// When user has no installed extensions, this is shown along with the view for popular extensions
 	private createDefaultRecommendedExtensionsListViewDescriptor(): IViewDescriptor {
 		const id = 'extensions.recommendedList';
 		return {
@@ -189,6 +200,8 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		};
 	}
 
+	// Separate view for recommedations that are not workspace recommendations.
+	// Shown along with view for workspace recommendations, when using the command that shows recommendations
 	private createOtherRecommendedExtensionsListViewDescriptor(): IViewDescriptor {
 		const id = 'extensions.otherrecommendedList';
 		return {
@@ -203,6 +216,8 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		};
 	}
 
+	// Separate view for workspace recommendations.
+	// Shown along with view for other recommendations, when using the command that shows recommendations
 	private createWorkspaceRecommendedExtensionsListViewDescriptor(): IViewDescriptor {
 		const id = 'extensions.workspaceRecommendedList';
 		return {
@@ -608,9 +623,12 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 		@IExtensionManagementService private extensionsManagementService: IExtensionManagementService,
 		@IWindowService private windowService: IWindowService,
 		@ILogService private logService: ILogService,
-		@INotificationService private notificationService: INotificationService
+		@INotificationService private notificationService: INotificationService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
-		this.loopCheckForMaliciousExtensions();
+		if (!this.environmentService.disableExtensions) {
+			this.loopCheckForMaliciousExtensions();
+		}
 	}
 
 	private loopCheckForMaliciousExtensions(): void {

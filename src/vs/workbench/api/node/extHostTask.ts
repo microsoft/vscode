@@ -3,11 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as path from 'path';
+
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import * as Objects from 'vs/base/common/objects';
 import { asThenable } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
+import { win32 } from 'vs/base/node/processes';
 
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import * as tasks from 'vs/workbench/parts/tasks/common/tasks';
@@ -605,7 +608,7 @@ namespace TaskDTO {
 			if (typeof value.scope === 'number') {
 				scope = value.scope;
 			} else {
-				scope = value.scope.uri.toJSON();
+				scope = value.scope.uri;
 			}
 		}
 		if (!definition || !scope) {
@@ -883,9 +886,12 @@ export class ExtHostTask implements ExtHostTaskShape {
 		});
 	}
 
-	public $resolveVariables(uriComponents: UriComponents, variables: string[]): any {
+	public $resolveVariables(uriComponents: UriComponents, toResolve: { process?: { name: string; cwd?: string; path?: string }, variables: string[] }): Thenable<{ process?: string, variables: { [key: string]: string; } }> {
 		let uri: URI = URI.revive(uriComponents);
-		let result: { [key: string]: string; } = Object.create(null);
+		let result = {
+			process: undefined as string,
+			variables: Object.create(null)
+		};
 		let workspaceFolder = this._workspaceService.resolveWorkspaceFolder(uri);
 		let resolver = new ExtHostVariableResolverService(this._workspaceService, this._editorService, this._configurationService);
 		let ws: IWorkspaceFolder = {
@@ -896,10 +902,24 @@ export class ExtHostTask implements ExtHostTaskShape {
 				throw new Error('Not implemented');
 			}
 		};
-		for (let variable of variables) {
-			result[variable] = resolver.resolve(ws, variable);
+		for (let variable of toResolve.variables) {
+			result.variables[variable] = resolver.resolve(ws, variable);
 		}
-		return result;
+		if (toResolve.process !== void 0) {
+			let paths: string[] | undefined = undefined;
+			if (toResolve.process.path !== void 0) {
+				paths = toResolve.process.path.split(path.delimiter);
+				for (let i = 0; i < paths.length; i++) {
+					paths[i] = resolver.resolve(ws, paths[i]);
+				}
+			}
+			result.process = win32.findExecutable(
+				resolver.resolve(ws, toResolve.process.name),
+				toResolve.process.cwd !== void 0 ? resolver.resolve(ws, toResolve.process.cwd) : undefined,
+				paths
+			);
+		}
+		return Promise.resolve(result);
 	}
 
 	private nextHandle(): number {

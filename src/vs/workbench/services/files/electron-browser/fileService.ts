@@ -601,8 +601,8 @@ export class FileService extends Disposable implements IFileService {
 									console.error(`Truncate succeeded, but save failed (${error}), retrying after 100ms`);
 								}
 
-								// we heard from one user that fs.truncate() succeeds, but the save fails (https://github.com/Microsoft/vscode/issues/61310)
-								// in that case, the file is now entirely empty and the contents are gone. this can happen if an external file watcher is
+								// We heard from one user that fs.truncate() succeeds, but the save fails (https://github.com/Microsoft/vscode/issues/61310)
+								// In that case, the file is now entirely empty and the contents are gone. This can happen if an external file watcher is
 								// installed that reacts on the truncate and keeps the file busy right after. Our workaround is to retry to save after a
 								// short timeout, assuming that the file is free to write then.
 								return timeout(100).then(() => this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite, { flag: 'r+' }));

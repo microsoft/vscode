@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/ionide/ionide-fsgrammar/commit/a20d836fa67d6daf81fd63e8baa97aa5e1516006",
+	"version": "https://github.com/ionide/ionide-fsgrammar/commit/24c1588529af144d205f66fbcec6889500f9aaa9",
 	"name": "fsharp",
 	"scopeName": "source.fsharp",
 	"patterns": [
@@ -273,6 +273,15 @@
 					"captures": {
 						"1": {
 							"name": "entity.name.type.fsharp"
+						}
+					}
+				},
+				{
+					"match": "(\\|)",
+					"comments": "Prevent captures of `|>` as a keyword when defining custom operator like `<|>`",
+					"captures": {
+						"1": {
+							"name": "keyword.symbol.fsharp"
 						}
 					}
 				},

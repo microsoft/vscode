@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { basename, extname, join } from 'path';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { combinedDisposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { values } from 'vs/base/common/map';
@@ -281,10 +280,8 @@ class SnippetsService implements ISnippetsService {
 		let addFolderSnippets = () => {
 			disposables = dispose(disposables);
 			return this._fileService.resolveFile(folder).then(stat => {
-				if (!isFalsyOrEmpty(stat.children)) {
-					for (const entry of stat.children) {
-						disposables.push(this._addSnippetFile(entry.resource, source));
-					}
+				for (const entry of stat.children || []) {
+					disposables.push(this._addSnippetFile(entry.resource, source));
 				}
 			}, err => {
 				this._logService.error(`Failed snippets from folder '${folder.toString()}'`, err);

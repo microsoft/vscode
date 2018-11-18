@@ -13,7 +13,7 @@ import { Event, Emitter } from 'vs/base/common/event';
  */
 
 export interface Sender {
-	send(channel: string, msg: string): void;
+	send(channel: string, msg: string | null): void;
 }
 
 export class Protocol implements IMessagePassingProtocol {

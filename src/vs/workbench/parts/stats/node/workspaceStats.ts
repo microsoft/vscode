@@ -701,8 +701,8 @@ export class WorkspaceStats implements IWorkbenchContribution {
 	private reportProxyStats() {
 		this.windowService.resolveProxy('https://www.example.com/')
 			.then(proxy => {
-				let type = String(proxy).trim().split(/\s+/, 1)[0];
-				if (['DIRECT', 'PROXY', 'HTTPS', 'SOCKS'].indexOf(type) === -1) {
+				let type = proxy ? String(proxy).trim().split(/\s+/, 1)[0] : 'EMPTY';
+				if (['DIRECT', 'PROXY', 'HTTPS', 'SOCKS', 'EMPTY'].indexOf(type) === -1) {
 					type = 'UNKNOWN';
 				}
 				/* __GDPR__

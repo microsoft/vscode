@@ -722,6 +722,10 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	}
 
 	protected update(): IFilterResult {
+		if (this._model.isDisposed()) {
+			return null;
+		}
+
 		// Grab current result groups, only render non-empty groups
 		const resultGroups = map
 			.values(this._currentResultGroups)
@@ -1126,7 +1130,7 @@ function escapeInvisibleChars(enumValue: string): string {
 }
 
 export function defaultKeybindingsContents(keybindingService: IKeybindingService): string {
-	const defaultsHeader = '// ' + nls.localize('defaultKeybindingsHeader', "Overwrite key bindings by placing them into your key bindings file.");
+	const defaultsHeader = '// ' + nls.localize('defaultKeybindingsHeader', "Override key bindings by placing them into your key bindings file.");
 	return defaultsHeader + '\n' + keybindingService.getDefaultKeybindingsContent();
 }
 

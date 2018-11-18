@@ -20,9 +20,14 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ToggleMarkersPanelAction, ShowProblemsPanelAction } from 'vs/workbench/parts/markers/electron-browser/markersPanelActions';
 import Constants from 'vs/workbench/parts/markers/electron-browser/constants';
 import Messages from 'vs/workbench/parts/markers/electron-browser/messages';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { IMarkersWorkbenchService, MarkersWorkbenchService, ActivityUpdater } from 'vs/workbench/parts/markers/electron-browser/markers';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
-import './markers';
 import './markersFileDecorations';
+
+registerSingleton(IMarkersWorkbenchService, MarkersWorkbenchService, false);
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Constants.MARKER_OPEN_SIDE_ACTION_ID,
@@ -73,6 +78,10 @@ Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescri
 	10,
 	ToggleMarkersPanelAction.ID
 ));
+
+// workbench
+const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
+workbenchRegistry.registerWorkbenchContribution(ActivityUpdater, LifecyclePhase.Running);
 
 // actions
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);

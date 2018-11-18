@@ -47,8 +47,6 @@ export const enum HoverStartMode {
 
 export class HoverOperation<Result> {
 
-	static HOVER_TIME = 300;
-
 	private _computer: IHoverComputer<Result>;
 	private _state: ComputeHoverOperationState;
 	private _hoverTime: number;
@@ -63,10 +61,10 @@ export class HoverOperation<Result> {
 	private _errorCallback?: (err: any) => void;
 	private _progressCallback: (progress: any) => void;
 
-	constructor(computer: IHoverComputer<Result>, success: (r: Result) => void, error: undefined | ((err: any) => void), progress: (progress: any) => void) {
+	constructor(computer: IHoverComputer<Result>, success: (r: Result) => void, error: undefined | ((err: any) => void), progress: (progress: any) => void, hoverTime: number) {
 		this._computer = computer;
 		this._state = ComputeHoverOperationState.IDLE;
-		this._hoverTime = HoverOperation.HOVER_TIME;
+		this._hoverTime = hoverTime;
 
 		this._firstWaitScheduler = new RunOnceScheduler(() => this._triggerAsyncComputation(), 0);
 		this._secondWaitScheduler = new RunOnceScheduler(() => this._triggerSyncComputation(), 0);

@@ -56,7 +56,7 @@ export class CommentNode extends Disposable {
 
 	constructor(
 		public comment: modes.Comment,
-		private owner: number,
+		private owner: string,
 		private resource: URI,
 		private markdownRenderer: MarkdownRenderer,
 		private themeService: IThemeService,
@@ -75,6 +75,7 @@ export class CommentNode extends Disposable {
 		if (comment.userIconPath) {
 			const img = <HTMLImageElement>dom.append(avatar, dom.$('img.avatar'));
 			img.src = comment.userIconPath.toString();
+			img.onerror = _ => img.remove();
 		}
 		const commentDetailsContainer = dom.append(this._domNode, dom.$('.review-comment-contents'));
 
@@ -185,7 +186,6 @@ export class CommentNode extends Disposable {
 	private createDeleteAction(): Action {
 		return new Action('comment.delete', nls.localize('label.delete', "Delete"), 'octicon octicon-x', true, () => {
 			return this.dialogService.confirm({
-				title: nls.localize('deleteCommentTitle', "Delete Comment"),
 				message: nls.localize('confirmDelete', "Delete comment?"),
 				type: 'question',
 				primaryButton: nls.localize('label.delete', "Delete")

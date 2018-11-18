@@ -32,6 +32,8 @@ export enum ShellQuoting {
 	Weak = 3,
 }
 
+export const CUSTOMIZED_TASK_TYPE = '$customized';
+
 export namespace ShellQuoting {
 	export function from(this: void, value: string): ShellQuoting {
 		if (!value) {
@@ -436,7 +438,7 @@ export interface CommonTask {
 
 export interface CustomTask extends CommonTask, ConfigurationProperties {
 
-	type: 'custom';
+	type: '$customized'; // CUSTOMIZED_TASK_TYPE
 
 	/**
 	 * Indicated the source of the task (e.g tasks.json or extension)
@@ -458,7 +460,7 @@ export interface CustomTask extends CommonTask, ConfigurationProperties {
 export namespace CustomTask {
 	export function is(value: any): value is CustomTask {
 		let candidate: CustomTask = value;
-		return candidate && candidate.type === 'custom';
+		return candidate && candidate.type === CUSTOMIZED_TASK_TYPE;
 	}
 	export function getDefinition(task: CustomTask): KeyedTaskIdentifier {
 		let type: string;
@@ -564,7 +566,7 @@ export namespace Task {
 			if (!workspaceFolder) {
 				return undefined;
 			}
-			let key: CustomKey = { type: 'custom', folder: workspaceFolder.uri.toString(), id: task.identifier };
+			let key: CustomKey = { type: CUSTOMIZED_TASK_TYPE, folder: workspaceFolder.uri.toString(), id: task.identifier };
 			return JSON.stringify(key);
 		}
 		if (ContributedTask.is(task)) {

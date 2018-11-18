@@ -16,13 +16,13 @@ import * as electron from '../utils/electron';
 import LogDirectoryProvider from '../utils/logDirectoryProvider';
 import Logger from '../utils/logger';
 import { TypeScriptPluginPathsProvider } from '../utils/pluginPathsProvider';
-import { TypeScriptServerPlugin } from '../utils/plugins';
+import { PluginManager } from '../utils/plugins';
 import TelemetryReporter from '../utils/telemetry';
 import Tracer from '../utils/tracer';
 import { TypeScriptVersion, TypeScriptVersionProvider } from '../utils/versionProvider';
 import { Reader } from '../utils/wireProtocol';
 import { CallbackMap } from './callbackMap';
-import { RequestQueue, RequestItem, RequestQueueingType } from './requestQueue';
+import { RequestItem, RequestQueue, RequestQueueingType } from './requestQueue';
 
 export class TypeScriptServerSpawner {
 	public constructor(
@@ -37,11 +37,11 @@ export class TypeScriptServerSpawner {
 	public spawn(
 		version: TypeScriptVersion,
 		configuration: TypeScriptServiceConfiguration,
-		plugins: ReadonlyArray<TypeScriptServerPlugin>
+		pluginManager: PluginManager
 	): TypeScriptServer {
 		const apiVersion = version.version || API.defaultVersion;
 
-		const { args, cancellationPipeName, tsServerLogFile } = this.getTsServerArgs(configuration, version, plugins);
+		const { args, cancellationPipeName, tsServerLogFile } = this.getTsServerArgs(configuration, version, pluginManager);
 
 		if (TypeScriptServerSpawner.isLoggingEnabled(apiVersion, configuration)) {
 			if (tsServerLogFile) {
@@ -60,7 +60,7 @@ export class TypeScriptServerSpawner {
 
 	private getForkOptions() {
 		const debugPort = TypeScriptServerSpawner.getDebugPort();
-		const tsServerForkOptions: electron.IForkOptions = {
+		const tsServerForkOptions: electron.ForkOptions = {
 			execArgv: debugPort ? [`--inspect=${debugPort}`] : [],
 		};
 		return tsServerForkOptions;
@@ -69,11 +69,11 @@ export class TypeScriptServerSpawner {
 	private getTsServerArgs(
 		configuration: TypeScriptServiceConfiguration,
 		currentVersion: TypeScriptVersion,
-		plugins: ReadonlyArray<TypeScriptServerPlugin>,
+		pluginManager: PluginManager,
 	): { args: string[], cancellationPipeName: string | undefined, tsServerLogFile: string | undefined } {
 		const args: string[] = [];
-		let cancellationPipeName: string | undefined = undefined;
-		let tsServerLogFile: string | undefined = undefined;
+		let cancellationPipeName: string | undefined;
+		let tsServerLogFile: string | undefined;
 
 		const apiVersion = currentVersion.version || API.defaultVersion;
 
@@ -110,11 +110,11 @@ export class TypeScriptServerSpawner {
 		if (apiVersion.gte(API.v230)) {
 			const pluginPaths = this._pluginPathsProvider.getPluginPaths();
 
-			if (plugins.length) {
-				args.push('--globalPlugins', plugins.map(x => x.name).join(','));
+			if (pluginManager.plugins.length) {
+				args.push('--globalPlugins', pluginManager.plugins.map(x => x.name).join(','));
 
 				if (currentVersion.path === this._versionProvider.defaultVersion.path) {
-					pluginPaths.push(...plugins.map(x => x.path));
+					pluginPaths.push(...pluginManager.plugins.map(x => x.path));
 				}
 			}
 
@@ -178,7 +178,7 @@ export class TypeScriptServer extends Disposable {
 		private readonly _tracer: Tracer,
 	) {
 		super();
-		this._reader = new Reader<Proto.Response>(this._childProcess.stdout);
+		this._reader = this._register(new Reader<Proto.Response>(this._childProcess.stdout));
 		this._reader.onData(msg => this.dispatchMessage(msg));
 		this._childProcess.on('exit', code => this.handleExit(code));
 		this._childProcess.on('error', error => this.handleError(error));
@@ -253,7 +253,7 @@ export class TypeScriptServer extends Disposable {
 
 	private tryCancelRequest(seq: number, command: string): boolean {
 		try {
-			if (this._requestQueue.tryCancelPendingRequest(seq)) {
+			if (this._requestQueue.tryDeletePendingRequest(seq)) {
 				this._tracer.logTrace(`TypeScript Server: canceled request with sequence number ${seq}`);
 				return true;
 			}
@@ -298,7 +298,7 @@ export class TypeScriptServer extends Disposable {
 	public executeImpl(command: string, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean }): Promise<any> {
 		const request = this._requestQueue.createRequest(command, args);
 		const requestInfo: RequestItem = {
-			request: request,
+			request,
 			expectsResponse: executeInfo.expectsResult,
 			isAsync: executeInfo.isAsync,
 			queueingType: getQueueingType(command, executeInfo.lowPriority)
@@ -337,7 +337,7 @@ export class TypeScriptServer extends Disposable {
 		} else {
 			result = Promise.resolve(null);
 		}
-		this._requestQueue.push(requestInfo);
+		this._requestQueue.enqueue(requestInfo);
 		this.sendNextRequests();
 
 		return result;
@@ -369,7 +369,7 @@ export class TypeScriptServer extends Disposable {
 
 	private sendNextRequests(): void {
 		while (this._pendingResponses.size === 0 && this._requestQueue.length > 0) {
-			const item = this._requestQueue.shift();
+			const item = this._requestQueue.dequeue();
 			if (item) {
 				this.sendRequest(item);
 			}
