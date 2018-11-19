@@ -246,6 +246,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.view.layout(height);
 	}
 
+	layoutWidth(width: number): void {
+		this.view.layoutWidth(width);
+	}
+
 	style(styles: IListStyles): void {
 		this.view.style(styles);
 	}

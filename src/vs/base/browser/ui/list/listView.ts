@@ -40,7 +40,7 @@ interface IItem<T> {
 	row: IRow | null;
 	size: number;
 	hasDynamicHeight: boolean;
-	dynamicSizeSnapshotId: number;
+	renderWidth: number | undefined;
 }
 
 export interface IListViewOptions {
@@ -68,7 +68,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private renderers = new Map<string, IListRenderer<T, any>>();
 	private lastRenderTop: number;
 	private lastRenderHeight: number;
-	private dynamicSizeSnapshotId = 0;
+	private renderWidth = 0;
 	private gesture: Gesture;
 	private rowsContainer: HTMLElement;
 	private scrollableElement: ScrollableElement;
@@ -170,7 +170,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			templateId: this.virtualDelegate.getTemplateId(element),
 			size: this.virtualDelegate.getHeight(element),
 			hasDynamicHeight: !!this.virtualDelegate.hasDynamicHeight && this.virtualDelegate.hasDynamicHeight(element),
-			dynamicSizeSnapshotId: this.dynamicSizeSnapshotId - 1,
+			renderWidth: undefined,
 			row: null
 		}));
 
@@ -276,6 +276,14 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		this.scrollableElement.setScrollDimensions({
 			height: height || DOM.getContentHeight(this.domNode)
 		});
+	}
+
+	layoutWidth(width: number): void {
+		this.renderWidth = width;
+
+		if (this.supportDynamicHeights) {
+			this.rerender(this.scrollTop, this.renderHeight);
+		}
 	}
 
 	// Render
@@ -587,7 +595,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private probeDynamicHeight(index: number): number {
 		const item = this.items[index];
 
-		if (!item.hasDynamicHeight || item.dynamicSizeSnapshotId === this.dynamicSizeSnapshotId) {
+		if (!item.hasDynamicHeight || item.renderWidth === this.renderWidth) {
 			return 0;
 		}
 
@@ -599,7 +607,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		this.rowsContainer.appendChild(row.domNode);
 		renderer.renderElement(item.element, index, row.templateData);
 		item.size = row.domNode.offsetHeight;
-		item.dynamicSizeSnapshotId = this.dynamicSizeSnapshotId;
+		item.renderWidth = this.renderWidth;
 		this.rowsContainer.removeChild(row.domNode);
 		this.cache.release(row);
 
