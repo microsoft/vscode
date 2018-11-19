@@ -27,6 +27,7 @@
 <body>
 	<input type="text" id="filter" />
 	<button id="collapseall">Collapse All</button>
+	<button id="renderwidth">Render Width</button>
 	<div id="container"></div>
 
 	<script src="/static/vs/loader.js"></script>
@@ -42,16 +43,29 @@
 		require.config({ baseUrl: '/static' });
 
 		require(['vs/base/browser/ui/tree/indexTree', 'vs/base/browser/ui/tree/dataTree', 'vs/base/browser/ui/tree/tree', 'vs/base/common/iterator'], ({ IndexTree }, { DataTree }, { TreeVisibility }, { iter }) => {
-			function createIndexTree() {
+			function createIndexTree(opts) {
+				opts = opts || {};
+
 				const delegate = {
 					getHeight() { return 22; },
-					getTemplateId() { return 'template'; }
+					getTemplateId() { return 'template'; },
+					hasDynamicHeight() { return true; }
 				};
 
 				const renderer = {
 					templateId: 'template',
 					renderTemplate(container) { return container; },
-					renderElement(element, index, container) { container.textContent = element.element; },
+					renderElement(element, index, container) {
+						if (opts.supportDynamicHeights) {
+							let v = [];
+							for (let i = 1; i <= 3; i++) {
+								v.push(element.element);
+							}
+							container.innerHTML = v.join('<br />');
+						} else {
+							container.innerHTML = element.element;
+						}
+					},
 					disposeElement() { },
 					disposeTemplate() { }
 				};
@@ -79,7 +93,7 @@
 					}
 				};
 
-				const tree = new IndexTree(container, delegate, [renderer], { filter: treeFilter });
+				const tree = new IndexTree(container, delegate, [renderer], { ...opts, filter: treeFilter, setRowLineHeight: false });
 
 				return { tree, treeFilter };
 			}
@@ -158,6 +172,9 @@
 				case '?problems': {
 					const { tree, treeFilter } = createIndexTree();
 
+					collapseall.onclick = () => perf('collapse all', () => tree.collapseAll());
+					renderwidth.onclick = () => perf('renderwidth', () => tree.layoutWidth(Math.random()));
+
 					const files = [];
 					for (let i = 0; i < 100000; i++) {
 						const errors = [];
@@ -175,12 +192,18 @@
 				case '?data': {
 					const { tree, treeFilter } = createDataTree();
 
+					collapseall.onclick = () => perf('collapse all', () => tree.collapseAll());
+					renderwidth.onclick = () => perf('renderwidth', () => tree.layoutWidth(Math.random()));
+
 					tree.refresh(null);
 
 					break;
 				}
-				default:
-					const { tree, treeFilter } = createIndexTree();
+				case '?height': {
+					const { tree, treeFilter } = createIndexTree({ supportDynamicHeights: true });
+
+					collapseall.onclick = () => perf('collapse all', () => tree.collapseAll());
+					renderwidth.onclick = () => perf('renderwidth', () => tree.layoutWidth(Math.random()));
 
 					const xhr = new XMLHttpRequest();
 					xhr.open('GET', '/api/ls?path=');
@@ -191,9 +214,25 @@
 							treeFilter.updatePattern();
 						}
 					};
-			}
+					break;
+				}
+				default: {
+					const { tree, treeFilter } = createIndexTree();
 
-			collapseall.onclick = () => perf('collapse all', () => tree.collapseAll());
+					collapseall.onclick = () => perf('collapse all', () => tree.collapseAll());
+					renderwidth.onclick = () => perf('renderwidth', () => tree.layoutWidth(Math.random()));
+
+					const xhr = new XMLHttpRequest();
+					xhr.open('GET', '/api/ls?path=');
+					xhr.send();
+					xhr.onreadystatechange = function () {
+						if (this.readyState == 4 && this.status == 200) {
+							perf('splice', () => tree.splice([0], 0, [JSON.parse(this.responseText)]));
+							treeFilter.updatePattern();
+						}
+					};
+				}
+			}
 		});
 	</script>
 </body>
