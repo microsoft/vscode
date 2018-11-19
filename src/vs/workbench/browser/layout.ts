@@ -430,7 +430,7 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 		this.sidebarHeight = this.workbenchSize.height - this.statusbarHeight - this.titlebarHeight;
 		let sidebarSize = new Dimension(this.sidebarWidth, this.sidebarHeight);
 
-		//Restore old sidebar when pannel is toggled
+		//Restore old sidebar when maximize panel is toggled
 		if (options && options.toggleMaximizedPanel && (panelPosition === Position.RIGHT) && (sidebarPosition === Position.LEFT) && !isSidebarHidden) {
 			if(this.panelMaximized){
 				//Store user's sidebar width
@@ -605,7 +605,6 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 		const activitybarContainer = this.parts.activitybar.getContainer();
 		size(activitybarContainer, null, activityBarSize.height);
 		if (sidebarPosition === Position.LEFT) {
-			//todo find what position does
 			this.parts.activitybar.getContainer().style.right = '';
 			position(activitybarContainer, this.titlebarHeight, null, 0, 0);
 		} else {
@@ -623,7 +622,6 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 		size(sidebarContainer, sidebarSize.width, sidebarSize.height);
 		const editorAndPanelWidth = editorSize.width + (panelPosition === Position.RIGHT ? panelWidth : 0);
 		if (sidebarPosition === Position.LEFT) {
-			//set size to what it was before maximize
 			position(sidebarContainer, this.titlebarHeight, editorAndPanelWidth, this.statusbarHeight, activityBarSize.width);
 		} else {
 			position(sidebarContainer, this.titlebarHeight, activityBarSize.width, this.statusbarHeight, editorAndPanelWidth);
