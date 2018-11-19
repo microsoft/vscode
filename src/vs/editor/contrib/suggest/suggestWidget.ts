@@ -437,9 +437,6 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<IComp
 	private detailsFocusBorderColor: string;
 	private detailsBorderColor: string;
 
-	private storageServiceAvailable: boolean = true;
-	private expandSuggestionDocs: boolean = false;
-
 	private firstFocusInCurrentList: boolean = false;
 
 	constructor(
@@ -460,14 +457,6 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<IComp
 		this.isAuto = false;
 		this.focusedItem = null;
 		this.storageService = storageService;
-
-		// :facepalm: No other smart way to determine if this is monaco or vscode.
-		// The former doesnt have a storage service
-		this.storageService.store('___suggest___', true, StorageScope.GLOBAL);
-		if (!this.storageService.get('___suggest___', StorageScope.GLOBAL)) {
-			this.storageServiceAvailable = false;
-		}
-		this.storageService.remove('___suggest___', StorageScope.GLOBAL);
 
 		this.element = $('.editor-widget.suggest-widget');
 		if (!this.editor.getConfiguration().contribInfo.iconsInSuggestions) {
@@ -1100,19 +1089,11 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<IComp
 	}
 
 	private expandDocsSettingFromStorage(): boolean {
-		if (this.storageServiceAvailable) {
-			return this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, expandSuggestionDocsByDefault);
-		} else {
-			return this.expandSuggestionDocs;
-		}
+		return this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, expandSuggestionDocsByDefault);
 	}
 
 	private updateExpandDocsSetting(value: boolean) {
-		if (this.storageServiceAvailable) {
-			this.storageService.store('expandSuggestionDocs', value, StorageScope.GLOBAL);
-		} else {
-			this.expandSuggestionDocs = value;
-		}
+		this.storageService.store('expandSuggestionDocs', value, StorageScope.GLOBAL);
 	}
 
 	dispose(): void {
