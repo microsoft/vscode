@@ -435,7 +435,6 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 			if(this.panelMaximized){
 				//Store user's sidebar width
 				this.storageService.store(WorkbenchLayout.sidebarSizeBeforeMaximizedKey, this.sidebarWidth, StorageScope.GLOBAL);
-				sidebarSize.width = this.partLayoutInfo.sidebar.minWidth;
 			} else {
 				//Retrieve user's sidebar width
 				this.sidebarSizeBeforeMaximized = this.storageService.getInteger(WorkbenchLayout.sidebarSizeBeforeMaximizedKey, StorageScope.GLOBAL, DEFAULT_SIDEBAR_PART_WIDTH);
