@@ -42,6 +42,8 @@ import { renderMarkdown, RenderOptions } from 'vs/base/browser/htmlContentRender
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IMarkdownRenderResult } from 'vs/editor/contrib/markdown/markdownRenderer';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { dirname } from 'vs/base/common/resources';
 
 export class CustomTreeViewPanel extends ViewletPanel {
 
@@ -587,6 +589,7 @@ class TreeRenderer implements IRenderer {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IConfigurationService private configurationService: IConfigurationService,
+		@ILabelService private labelService: ILabelService
 	) {
 	}
 
@@ -616,6 +619,7 @@ class TreeRenderer implements IRenderer {
 	renderElement(tree: ITree, node: ITreeItem, templateId: string, templateData: ITreeExplorerTemplateData): void {
 		const resource = node.resourceUri ? URI.revive(node.resourceUri) : null;
 		const treeItemLabel: ITreeItemLabel = node.label ? node.label : resource ? { label: basename(resource.path) } : void 0;
+		const description = isString(node.description) ? node.description : resource && node.description === true ? this.labelService.getUriLabel(dirname(resource), { relative: true }) : void 0;
 		const label = treeItemLabel ? treeItemLabel.label : void 0;
 		const matches = treeItemLabel && treeItemLabel.highlights ? treeItemLabel.highlights.map(([start, end]) => ({ start, end })) : void 0;
 		const icon = this.themeService.getTheme().type === LIGHT ? node.icon : node.iconDark;
@@ -628,9 +632,9 @@ class TreeRenderer implements IRenderer {
 
 		if (resource || node.themeIcon) {
 			const fileDecorations = this.configurationService.getValue<{ colors: boolean, badges: boolean }>('explorer.decorations');
-			templateData.resourceLabel.setLabel({ name: label, resource: resource ? resource : URI.parse('missing:_icon_resource') }, { fileKind: this.getFileKind(node), title, hideIcon: !!iconUrl, fileDecorations, extraClasses: ['custom-view-tree-node-item-resourceLabel'], matches });
+			templateData.resourceLabel.setLabel({ name: label, description, resource: resource ? resource : URI.parse('missing:_icon_resource') }, { fileKind: this.getFileKind(node), title, hideIcon: !!iconUrl, fileDecorations, extraClasses: ['custom-view-tree-node-item-resourceLabel'], matches });
 		} else {
-			templateData.resourceLabel.setLabel({ name: label }, { title, hideIcon: true, extraClasses: ['custom-view-tree-node-item-resourceLabel'], matches });
+			templateData.resourceLabel.setLabel({ name: label, description }, { title, hideIcon: true, extraClasses: ['custom-view-tree-node-item-resourceLabel'], matches });
 		}
 
 		templateData.icon.style.backgroundImage = iconUrl ? `url('${iconUrl.toString(true)}')` : '';

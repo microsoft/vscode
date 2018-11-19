@@ -1214,6 +1214,14 @@ declare module 'vscode' {
 
 	}
 
+	export interface TreeItem {
+		/**
+		 * A human readable string which is rendered less prominent.
+		 * When `true`, it is derived from [resourceUri](#TreeItem.resourceUri) and when `falsy`, it is not shown.
+		 */
+		description?: string | boolean;
+	}
+
 	export class TreeItem2 extends TreeItem {
 		/**
 		 * Label describing this item. When `falsy`, it is derived from [resourceUri](#TreeItem.resourceUri).

@@ -326,6 +326,8 @@ export interface ITreeItem {
 
 	label?: ITreeItemLabel;
 
+	description?: string | boolean;
+
 	icon?: UriComponents;
 
 	iconDark?: UriComponents;
