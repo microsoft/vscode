@@ -140,7 +140,7 @@ export class Throttler {
 
 export class Sequencer {
 
-	private current = Promise.resolve(null);
+	private current: Promise<any> = Promise.resolve(null);
 
 	queue<T>(promiseTask: ITask<Thenable<T>>): Thenable<T> {
 		return this.current = this.current.then(() => promiseTask());
