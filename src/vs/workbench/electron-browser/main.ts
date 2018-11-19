@@ -325,7 +325,7 @@ function createStorageService(payload: IWorkspaceInitializationPayload, environm
 							if (payload.id === 'ext-dev') {
 								workspaceItems = parseNoWorkspaceStorage(window.localStorage);
 							} else {
-								workspaceItems = parseEmptyStorage(window.localStorage, `empty:${payload.id}`);
+								workspaceItems = parseEmptyStorage(window.localStorage, `${payload.id}`);
 							}
 						}
 
