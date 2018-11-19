@@ -39,7 +39,7 @@ namespace snippetExt {
 		location: URI;
 	}
 
-	export function toValidSnippet(extension: IExtensionPointUser<ISnippetsExtensionPoint[]>, snippet: ISnippetsExtensionPoint, modeService: IModeService): IValidSnippetsExtensionPoint {
+	export function toValidSnippet(extension: IExtensionPointUser<ISnippetsExtensionPoint[]>, snippet: ISnippetsExtensionPoint, modeService: IModeService): IValidSnippetsExtensionPoint | null {
 
 		if (isFalsyOrWhitespace(snippet.path)) {
 			extension.collector.error(localize(
@@ -167,28 +167,35 @@ class SnippetsService implements ISnippetsService {
 
 	getSnippets(languageId: LanguageId): Promise<Snippet[]> {
 		return this._joinSnippets().then(() => {
-			const langName = this._modeService.getLanguageIdentifier(languageId).language;
 			const result: Snippet[] = [];
 			const promises: Promise<any>[] = [];
-			this._files.forEach(file => {
-				promises.push(file.load()
-					.then(file => file.select(langName, result))
-					.catch(err => this._logService.error(err, file.location.toString()))
-				);
-			});
+
+			const languageIdentifier = this._modeService.getLanguageIdentifier(languageId);
+			if (languageIdentifier) {
+				const langName = languageIdentifier.language;
+				this._files.forEach(file => {
+					promises.push(file.load()
+						.then(file => file.select(langName, result))
+						.catch(err => this._logService.error(err, file.location.toString()))
+					);
+				});
+			}
 			return Promise.all(promises).then(() => result);
 		});
 	}
 
 	getSnippetsSync(languageId: LanguageId): Snippet[] {
-		const langName = this._modeService.getLanguageIdentifier(languageId).language;
 		const result: Snippet[] = [];
-		this._files.forEach(file => {
-			// kick off loading (which is a noop in case it's already loaded)
-			// and optimistically collect snippets
-			file.load().catch(err => { /*ignore*/ });
-			file.select(langName, result);
-		});
+		const languageIdentifier = this._modeService.getLanguageIdentifier(languageId);
+		if (languageIdentifier) {
+			const langName = languageIdentifier.language;
+			this._files.forEach(file => {
+				// kick off loading (which is a noop in case it's already loaded)
+				// and optimistically collect snippets
+				file.load().catch(err => { /*ignore*/ });
+				file.select(langName, result);
+			});
+		}
 		return result;
 	}
 
@@ -203,9 +210,14 @@ class SnippetsService implements ISnippetsService {
 						continue;
 					}
 
-					if (this._files.has(validContribution.location.toString())) {
-						this._files.get(validContribution.location.toString()).defaultScopes.push(validContribution.language);
-
+					const resource = validContribution.location.toString();
+					if (this._files.has(resource)) {
+						const file = this._files.get(resource);
+						if (file.defaultScopes) {
+							file.defaultScopes.push(validContribution.language);
+						} else {
+							file.defaultScopes = [];
+						}
 					} else {
 						const file = new SnippetFile(SnippetSource.Extension, validContribution.location, validContribution.language ? [validContribution.language] : undefined, extension.description, this._fileService);
 						this._files.set(file.location.toString(), file);
