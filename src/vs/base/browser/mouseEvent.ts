@@ -131,8 +131,8 @@ export class StandardWheelEvent {
 				this.deltaX = -e.deltaX / 3;
 				this.deltaY = -e.deltaY / 3;
 			} else if (e.deltaMode === e.DOM_DELTA_PIXEL) {
-				this.deltaX = -e.deltaX / 120;
-				this.deltaY = -e.deltaY / 120;
+				this.deltaX = -e.deltaX / 40;
+				this.deltaY = -e.deltaY / 40;
 			}
 		}
 	}

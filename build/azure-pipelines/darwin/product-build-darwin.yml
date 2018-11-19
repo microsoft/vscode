@@ -15,7 +15,7 @@ steps:
     yarn monaco-compile-check
     yarn strict-null-check
     VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" yarn gulp -- mixin
-    node build/tfs/common/installDistro.js
+    node build/azure-pipelines/common/installDistro.js
     node build/lib/builtInExtensions.js
   displayName: Prepare build
 
@@ -69,7 +69,7 @@ steps:
     AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
     AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
     MOONCAKE_STORAGE_ACCESS_KEY="$(MOONCAKE_STORAGE_ACCESS_KEY)" \
-    node build/tfs/common/publish.js \
+    node build/azure-pipelines/common/publish.js \
       "$(VSCODE_QUALITY)" \
       darwin \
       archive \
@@ -79,7 +79,7 @@ steps:
       ../VSCode-darwin.zip
 
     # publish hockeyapp symbols
-    node build/tfs/common/symbols.js "$(VSCODE_MIXIN_PASSWORD)" "$(VSCODE_HOCKEYAPP_TOKEN)" "$(VSCODE_ARCH)" "$(VSCODE_HOCKEYAPP_ID_MACOS)"
+    node build/azure-pipelines/common/symbols.js "$(VSCODE_MIXIN_PASSWORD)" "$(VSCODE_HOCKEYAPP_TOKEN)" "$(VSCODE_ARCH)" "$(VSCODE_HOCKEYAPP_ID_MACOS)"
 
     # upload configuration
     AZURE_STORAGE_ACCESS_KEY="$(AZURE_STORAGE_ACCESS_KEY)" \

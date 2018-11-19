@@ -27,7 +27,7 @@ import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { getInstalledExtensions, IExtensionStatus, onExtensionChanged, isKeymapExtension } from 'vs/workbench/parts/extensions/electron-browser/extensionsUtils';
 import { IExtensionEnablementService, IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, EnablementState, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { used } from 'vs/workbench/parts/welcome/page/electron-browser/vs_code_welcome_page';
-import { ILifecycleService, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { tildify, getBaseLabel } from 'vs/base/common/labels';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
@@ -60,34 +60,34 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 		@ICommandService private commandService: ICommandService,
 	) {
 		const enabled = isWelcomePageEnabled(configurationService, contextService);
-		if (enabled && lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
+		if (enabled /* && lifecycleService.startupKind !== StartupKind.ReloadedWindow */) {
 			backupFileService.hasBackups().then(hasBackups => {
 				const activeEditor = editorService.activeEditor;
 				if (!activeEditor && !hasBackups) {
 					const openWithReadme = configurationService.getValue(configurationKey) === 'readme';
 					if (openWithReadme) {
+						let foldersChecked = 0;
+						let readmeOpened = false;
 						const workSpaceFolders = contextService.getWorkspace().folders.map(el => el.uri);
-						for (let i = 0; i < workSpaceFolders.length; i += 1) {
-							const workSpaceFolder = workSpaceFolders[i];
-							let foldersChecked = 0;
+						for (const workSpaceFolder of workSpaceFolders) {
 							readdir(workSpaceFolder.path, (err, files) => {
-								foldersChecked += 1;
+								foldersChecked++;
 								if (err) {
 									onUnexpectedError(err);
-								} else {
+								} else if (!readmeOpened) {
 									for (const content of files) {
 										if (content.toLowerCase().lastIndexOf('readme', 0) === 0) {
+											readmeOpened = true;
 											const readmeLocation = path.join(workSpaceFolder.path, content);
 											if (readmeLocation.toLowerCase().slice(readmeLocation.length - 3) === '.md') {
-												return !editorService.activeEditor && this.commandService
-													.executeCommand('markdown.showPreview', URI.file(readmeLocation));
+												this.commandService.executeCommand('markdown.showPreview', URI.file(readmeLocation));
+											} else {
+												editorService.openEditor({ resource: URI.file(readmeLocation) });
 											}
-											return !editorService.activeEditor && editorService
-												.openEditor({ resource: URI.file(readmeLocation) });
 										}
 									}
 								}
-								if (foldersChecked === workSpaceFolders.length - 1) {
+								if (!readmeOpened && foldersChecked === workSpaceFolders.length) {
 									return instantiationService.createInstance(WelcomePage).openEditor();
 								}
 								return undefined;

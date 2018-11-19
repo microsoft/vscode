@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import * as path from 'path';
 import { createWriteStream, WriteStream } from 'fs';
 import { Readable } from 'stream';
-import { nfcall, ninvoke, SimpleThrottler, createCancelablePromise } from 'vs/base/common/async';
+import { nfcall, ninvoke, Sequencer, createCancelablePromise } from 'vs/base/common/async';
 import { mkdirp, rimraf } from 'vs/base/node/pfs';
 import { open as _openZip, Entry, ZipFile } from 'yauzl';
 import * as yazl from 'yazl';
@@ -115,7 +115,7 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, log
 	});
 
 	return new Promise((c, e) => {
-		const throttler = new SimpleThrottler();
+		const throttler = new Sequencer();
 
 		const readNextEntry = (token: CancellationToken) => {
 			if (token.isCancellationRequested) {
@@ -158,7 +158,7 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, log
 			const stream = ninvoke(zipfile, zipfile.openReadStream, entry);
 			const mode = modeFromEntry(entry);
 
-			last = createCancelablePromise(token => throttler.queue(() => stream.then(stream => extractEntry(stream, fileName, mode, targetPath, options, token).then(() => readNextEntry(token)))).then(null, e));
+			last = createCancelablePromise(token => throttler.queue(() => stream.then(stream => extractEntry(stream, fileName, mode, targetPath, options, token).then(() => readNextEntry(token)))).then(null!, e));
 		});
 	});
 }
