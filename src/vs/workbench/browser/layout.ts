@@ -420,7 +420,6 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 		const menubarVisibility = this.partService.getMenubarVisibility();
 
 		// Sidebar
-		//Todo: Get some of the sidebar memory in here
 		if (this.sidebarWidth === -1) {
 			this.sidebarWidth = this.workbenchSize.width / 5;
 		}
@@ -432,17 +431,7 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 		let sidebarSize = new Dimension(this.sidebarWidth, this.sidebarHeight);
 
 		//Start of working area
-
-		//if we are minimizing pannel
-			//set sidebar to old size
-		//else
-			//remember size
-			//set sidebar to min
-
-
-
-		// TODO: Toogle sidebar Size with Pannel
-		if (options && options.toggleMaximizedPanel && (panelPosition === Position.RIGHT) && !isSidebarHidden) {
+		if (options && options.toggleMaximizedPanel && (panelPosition === Position.RIGHT) && (sidebarPosition === Position.LEFT) && !isSidebarHidden) {
 			let sidebarWidth: number;
 			sidebarWidth = this.sidebarWidth;
 
@@ -460,10 +449,8 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 
 			//Toogle sidebar Size with Pannel
 			sidebarWidth = this.panelMaximized ? Math.max(this.partLayoutInfo.sidebar.minWidth, this.sidebarSizeBeforeMaximized) : this.partLayoutInfo.sidebar.minWidth;
-
 			sidebarSize.width = sidebarWidth;
 		}
-		// TODO: End of working area
 
 		// Activity Bar
 		let activityBarSize = new Dimension(this.activitybarWidth, sidebarSize.height);
