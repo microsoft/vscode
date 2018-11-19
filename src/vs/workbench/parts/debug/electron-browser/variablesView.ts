@@ -79,12 +79,14 @@ export class VariablesView extends TreeViewsViewletPanel {
 	public renderBody(container: HTMLElement): void {
 		dom.addClass(container, 'debug-variables');
 		this.treeContainer = renderViewTree(container);
+		const controller = this.instantiationService.createInstance(VariablesController, new VariablesActionProvider(this.debugService, this.keybindingService), MenuId.DebugVariablesContext, { openMode: OpenMode.SINGLE_CLICK, clickBehavior: ClickBehavior.ON_MOUSE_UP });
+		this.disposables.push(controller);
 
 		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
 			dataSource: new VariablesDataSource(),
 			renderer: this.instantiationService.createInstance(VariablesRenderer),
 			accessibilityProvider: new VariablesAccessibilityProvider(),
-			controller: this.instantiationService.createInstance(VariablesController, new VariablesActionProvider(this.debugService, this.keybindingService), MenuId.DebugVariablesContext, { openMode: OpenMode.SINGLE_CLICK, clickBehavior: ClickBehavior.ON_MOUSE_UP })
+			controller
 		}, {
 				ariaLabel: nls.localize('variablesAriaTreeLabel', "Debug Variables"),
 				twistiePixels

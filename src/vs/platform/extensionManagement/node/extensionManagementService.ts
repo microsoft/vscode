@@ -46,6 +46,7 @@ import { IDownloadService } from 'vs/platform/download/common/download';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { Schemas } from 'vs/base/common/network';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 const ERROR_SCANNING_SYS_EXTENSIONS = 'scanningSystem';
 const ERROR_SCANNING_USER_EXTENSIONS = 'scanningUser';
@@ -114,7 +115,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	private systemExtensionsPath: string;
 	private extensionsPath: string;
 	private uninstalledPath: string;
-	private uninstalledFileLimiter: Queue<void>;
+	private uninstalledFileLimiter: Queue<any>;
 	private reportedExtensions: Promise<IReportedExtension[]> | undefined;
 	private lastReportTimestamp = 0;
 	private readonly installingExtensions: Map<string, CancelablePromise<void>> = new Map<string, CancelablePromise<void>>();
@@ -135,7 +136,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	onDidUninstallExtension: Event<DidUninstallExtensionEvent> = this._onDidUninstallExtension.event;
 
 	constructor(
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IDialogService private dialogService: IDialogService,
 		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
 		@ILogService private logService: ILogService,
@@ -146,7 +147,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		this.systemExtensionsPath = environmentService.builtinExtensionsPath;
 		this.extensionsPath = environmentService.extensionsPath;
 		this.uninstalledPath = path.join(this.extensionsPath, '.obsolete');
-		this.uninstalledFileLimiter = new Queue<void>();
+		this.uninstalledFileLimiter = new Queue();
 		this.manifestCache = this._register(new ExtensionsManifestCache(environmentService, this));
 		this.extensionLifecycle = this._register(new ExtensionsLifecycle(this.logService));
 
@@ -732,11 +733,30 @@ export class ExtensionManagementService extends Disposable implements IExtension
 
 	private scanSystemExtensions(): Promise<ILocalExtension[]> {
 		this.logService.trace('Started scanning system extensions');
-		return this.scanExtensions(this.systemExtensionsPath, LocalExtensionType.System)
+		const systemExtensionsPromise = this.scanExtensions(this.systemExtensionsPath, LocalExtensionType.System)
 			.then(result => {
 				this.logService.info('Scanned system extensions:', result.length);
 				return result;
 			});
+		if (this.environmentService.isBuilt) {
+			return systemExtensionsPromise;
+		}
+
+		// Scan other system extensions during development
+		const devSystemExtensionsPromise = this.getDevSystemExtensionsList()
+			.then(devSystemExtensionsList => {
+				if (devSystemExtensionsList.length) {
+					return this.scanExtensions(this.devSystemExtensionsPath, LocalExtensionType.System)
+						.then(result => {
+							this.logService.info('Scanned dev system extensions:', result.length);
+							return result.filter(r => devSystemExtensionsList.some(id => areSameExtensions(r.galleryIdentifier, { id })));
+						});
+				} else {
+					return [];
+				}
+			});
+		return Promise.all([systemExtensionsPromise, devSystemExtensionsPromise])
+			.then(([systemExtensions, devSystemExtensions]) => [...systemExtensions, ...devSystemExtensions]);
 	}
 
 	private scanUserExtensions(excludeOutdated: boolean): Promise<ILocalExtension[]> {
@@ -754,7 +774,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	private scanExtensions(root: string, type: LocalExtensionType): Promise<ILocalExtension[]> {
-		const limiter = new Limiter(10);
+		const limiter = new Limiter<any>(10);
 		return pfs.readdir(root)
 			.then(extensionsFolders => Promise.all<ILocalExtension>(extensionsFolders.map(extensionFolder => limiter.queue(() => this.scanExtension(extensionFolder, root, type)))))
 			.then(extensions => extensions.filter(e => e && e.identifier));
@@ -893,6 +913,30 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			}, err => {
 				this.logService.trace('ExtensionManagementService.refreshReportedCache - failed to get extension report');
 				return [];
+			});
+	}
+
+	private _devSystemExtensionsPath: string | null = null;
+	private get devSystemExtensionsPath(): string {
+		if (!this._devSystemExtensionsPath) {
+			this._devSystemExtensionsPath = path.normalize(path.join(getPathFromAmdModule(require, ''), '..', '.build', 'builtInExtensions'));
+		}
+		return this._devSystemExtensionsPath;
+	}
+
+	private _devSystemExtensionsFilePath: string | null = null;
+	private get devSystemExtensionsFilePath(): string {
+		if (!this._devSystemExtensionsFilePath) {
+			this._devSystemExtensionsFilePath = path.normalize(path.join(getPathFromAmdModule(require, ''), '..', 'build', 'builtInExtensions.json'));
+		}
+		return this._devSystemExtensionsFilePath;
+	}
+
+	private getDevSystemExtensionsList(): Promise<string[]> {
+		return pfs.readFile(this.devSystemExtensionsFilePath, 'utf8')
+			.then<string[]>(raw => {
+				const parsed: { name: string }[] = JSON.parse(raw);
+				return parsed.map(({ name }) => name);
 			});
 	}
 

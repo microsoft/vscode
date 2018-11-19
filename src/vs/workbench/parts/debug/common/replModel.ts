@@ -18,17 +18,17 @@ export class ReplModel {
 
 	constructor(private session: IDebugSession) { }
 
-	public getReplElements(): ReadonlyArray<IReplElement> {
+	getReplElements(): ReadonlyArray<IReplElement> {
 		return this.replElements;
 	}
 
-	public addReplExpression(stackFrame: IStackFrame, name: string): Promise<void> {
+	addReplExpression(stackFrame: IStackFrame, name: string): Promise<void> {
 		const expression = new Expression(name);
 		this.addReplElements([expression]);
 		return expression.evaluate(this.session, stackFrame, 'repl');
 	}
 
-	public appendToRepl(data: string | IExpression, sev: severity, source?: IReplElementSource): void {
+	appendToRepl(data: string | IExpression, sev: severity, source?: IReplElementSource): void {
 		const clearAnsiSequence = '\u001b[2J';
 		if (typeof data === 'string' && data.indexOf(clearAnsiSequence) >= 0) {
 			// [2J is the ansi escape sequence for clearing the display http://ascii-table.com/ansi-escape-sequences.php
@@ -63,7 +63,7 @@ export class ReplModel {
 		}
 	}
 
-	public logToRepl(sev: severity, args: any[], frame?: { uri: URI, line: number, column: number }) {
+	logToRepl(sev: severity, args: any[], frame?: { uri: URI, line: number, column: number }) {
 
 		let source: IReplElementSource;
 		if (frame) {
@@ -141,5 +141,4 @@ export class ReplModel {
 			this.replElements = [];
 		}
 	}
-
 }

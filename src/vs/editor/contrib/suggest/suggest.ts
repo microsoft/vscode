@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { first } from 'vs/base/common/async';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { assign } from 'vs/base/common/objects';
 import { onUnexpectedExternalError, canceled } from 'vs/base/common/errors';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -80,7 +80,7 @@ export function provideSuggestionItems(
 		// for each support in the group ask for suggestions
 		return Promise.all(supports.map(support => {
 
-			if (!isFalsyOrEmpty(onlyFrom) && onlyFrom!.indexOf(support) < 0) {
+			if (isNonEmptyArray(onlyFrom) && onlyFrom.indexOf(support) < 0) {
 				return undefined;
 			}
 
@@ -88,8 +88,8 @@ export function provideSuggestionItems(
 
 				const len = allSuggestions.length;
 
-				if (container && !isFalsyOrEmpty(container.suggestions)) {
-					for (let suggestion of container.suggestions) {
+				if (container) {
+					for (let suggestion of container.suggestions || []) {
 						if (acceptSuggestion(suggestion)) {
 
 							// fill in default range when missing

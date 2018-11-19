@@ -82,7 +82,7 @@ class ApplyFixAllCodeAction implements Command {
 				type: 'file',
 				args: { file }
 			},
-			fixId: tsAction.fixId
+			fixId: tsAction.fixId,
 		};
 
 		const response = await this.client.execute('getCombinedCodeFix', args, nulToken);

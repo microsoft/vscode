@@ -85,7 +85,7 @@ export abstract class TreeViewsViewletPanel extends ViewletPanel {
 		// Make sure the current selected element is revealed
 		const selectedElement = this.tree.getSelection()[0];
 		if (selectedElement) {
-			this.tree.reveal(selectedElement, 0.5);
+			this.tree.reveal(selectedElement);
 		}
 
 		// Pass Focus to Viewer

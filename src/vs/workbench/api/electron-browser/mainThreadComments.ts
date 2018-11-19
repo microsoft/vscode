@@ -16,13 +16,46 @@ import { COMMENTS_PANEL_ID } from 'vs/workbench/parts/comments/electron-browser/
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { URI } from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { generateUuid } from 'vs/base/common/uuid';
 
+export class ExtensionCommentProviderHandler implements modes.DocumentCommentProvider {
+	private _proxy: ExtHostCommentsShape;
+	private _handle: number;
+
+	constructor(proxy: ExtHostCommentsShape, handle: number) {
+		this._proxy = proxy;
+		this._handle = handle;
+	}
+
+	async provideDocumentComments(uri, token) {
+		return this._proxy.$provideDocumentComments(this._handle, uri);
+	}
+
+	async createNewCommentThread(uri, range, text, token) {
+		return this._proxy.$createNewCommentThread(this._handle, uri, range, text);
+	}
+
+	async replyToCommentThread(uri, range, thread, text, token) {
+		return this._proxy.$replyToCommentThread(this._handle, uri, range, thread, text);
+	}
+
+	async editComment(uri, comment, text, token) {
+		return this._proxy.$editComment(this._handle, uri, comment, text);
+	}
+
+	async deleteComment(uri, comment, token) {
+		return this._proxy.$deleteComment(this._handle, uri, comment);
+	}
+
+	onDidChangeCommentThreads = null;
+}
 @extHostNamedCustomer(MainContext.MainThreadComments)
 export class MainThreadComments extends Disposable implements MainThreadCommentsShape {
 	private _disposables: IDisposable[];
 	private _proxy: ExtHostCommentsShape;
 	private _documentProviders = new Map<number, IDisposable>();
 	private _workspaceProviders = new Map<number, IDisposable>();
+	private _handlers = new Map<number, string>();
 	private _firstSessionStart: boolean;
 
 	constructor(
@@ -40,32 +73,20 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 
 	$registerDocumentCommentProvider(handle: number): void {
 		this._documentProviders.set(handle, undefined);
+		const handler = new ExtensionCommentProviderHandler(this._proxy, handle);
 
-		this._commentService.registerDataProvider(
-			handle,
-			{
-				provideDocumentComments: async (uri, token) => {
-					return this._proxy.$provideDocumentComments(handle, uri);
-				},
-				onDidChangeCommentThreads: null,
-				createNewCommentThread: async (uri, range, text, token) => {
-					return this._proxy.$createNewCommentThread(handle, uri, range, text);
-				},
-				replyToCommentThread: async (uri, range, thread, text, token) => {
-					return this._proxy.$replyToCommentThread(handle, uri, range, thread, text);
-				},
-				editComment: async (uri, comment, text, token) => {
-					return this._proxy.$editComment(handle, uri, comment, text);
-				},
-				deleteComment: async (uri, comment, token) => {
-					return this._proxy.$deleteComment(handle, uri, comment);
-				}
-			}
-		);
+		const providerId = generateUuid();
+		this._handlers.set(handle, providerId);
+
+		this._commentService.registerDataProvider(providerId, handler);
 	}
 
 	$registerWorkspaceCommentProvider(handle: number, extensionId: string): void {
 		this._workspaceProviders.set(handle, undefined);
+
+		const providerId = generateUuid();
+		this._handlers.set(handle, providerId);
+
 		this._panelService.setPanelEnablement(COMMENTS_PANEL_ID, true);
 		if (this._firstSessionStart) {
 			this._panelService.openPanel(COMMENTS_PANEL_ID);
@@ -73,7 +94,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		}
 		this._proxy.$provideWorkspaceComments(handle).then(commentThreads => {
 			if (commentThreads) {
-				this._commentService.setWorkspaceComments(handle, commentThreads);
+				this._commentService.setWorkspaceComments(providerId, commentThreads);
 			}
 		});
 
@@ -89,7 +110,9 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 
 	$unregisterDocumentCommentProvider(handle: number): void {
 		this._documentProviders.delete(handle);
-		this._commentService.unregisterDataProvider(handle);
+		const handlerId = this._handlers.get(handle);
+		this._commentService.unregisterDataProvider(handlerId);
+		this._handlers.delete(handle);
 	}
 
 	$unregisterWorkspaceCommentProvider(handle: number): void {
@@ -97,12 +120,15 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		if (this._workspaceProviders.size === 0) {
 			this._panelService.setPanelEnablement(COMMENTS_PANEL_ID, false);
 		}
-		this._commentService.removeWorkspaceComments(handle);
+		const handlerId = this._handlers.get(handle);
+		this._commentService.removeWorkspaceComments(handlerId);
+		this._handlers.delete(handle);
 	}
 
 	$onDidCommentThreadsChange(handle: number, event: modes.CommentThreadChangedEvent) {
 		// notify comment service
-		this._commentService.updateComments(event);
+		const providerId = this._handlers.get(handle);
+		this._commentService.updateComments(providerId, event);
 	}
 
 	getVisibleEditors(): ICodeEditor[] {

@@ -437,6 +437,9 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<IComp
 	private detailsFocusBorderColor: string;
 	private detailsBorderColor: string;
 
+	private storageServiceAvailable: boolean = true;
+	private expandSuggestionDocs: boolean = false;
+
 	private firstFocusInCurrentList: boolean = false;
 
 	constructor(
@@ -457,6 +460,14 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<IComp
 		this.isAuto = false;
 		this.focusedItem = null;
 		this.storageService = storageService;
+
+		// :facepalm: No other smart way to determine if this is monaco or vscode.
+		// The former doesnt have a storage service
+		this.storageService.store('___suggest___', true, StorageScope.GLOBAL);
+		if (!this.storageService.get('___suggest___', StorageScope.GLOBAL)) {
+			this.storageServiceAvailable = false;
+		}
+		this.storageService.remove('___suggest___', StorageScope.GLOBAL);
 
 		this.element = $('.editor-widget.suggest-widget');
 		if (!this.editor.getConfiguration().contribInfo.iconsInSuggestions) {
@@ -765,7 +776,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<IComp
 				this.setState(State.Open);
 			}
 
-			this.list.reveal(selectionIndex, selectionIndex);
+			this.list.reveal(selectionIndex, 0);
 			this.list.setFocus([selectionIndex]);
 
 			// Reset focus border
@@ -1014,6 +1025,9 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<IComp
 		return height;
 	}
 
+	/**
+	 * Adds the propert classes, margins when positioning the docs to the side
+	 */
 	private adjustDocsPosition() {
 		const lineHeight = this.editor.getConfiguration().fontInfo.lineHeight;
 		const cursorCoords = this.editor.getScrolledVisiblePosition(this.editor.getPosition());
@@ -1044,6 +1058,9 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<IComp
 		}
 	}
 
+	/**
+	 * Adds the proper classes for positioning the docs to the side or below
+	 */
 	private expandSideOrBelow() {
 		if (!canExpandCompletionItem(this.focusedItem) && this.firstFocusInCurrentList) {
 			removeClass(this.element, 'docs-side');
@@ -1083,11 +1100,19 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<IComp
 	}
 
 	private expandDocsSettingFromStorage(): boolean {
-		return this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, expandSuggestionDocsByDefault);
+		if (this.storageServiceAvailable) {
+			return this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, expandSuggestionDocsByDefault);
+		} else {
+			return this.expandSuggestionDocs;
+		}
 	}
 
 	private updateExpandDocsSetting(value: boolean) {
-		this.storageService.store('expandSuggestionDocs', value, StorageScope.GLOBAL);
+		if (this.storageServiceAvailable) {
+			this.storageService.store('expandSuggestionDocs', value, StorageScope.GLOBAL);
+		} else {
+			this.expandSuggestionDocs = value;
+		}
 	}
 
 	dispose(): void {

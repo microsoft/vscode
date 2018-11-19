@@ -745,6 +745,7 @@ export class MenubarControl extends Disposable {
 							const submenuActions: SubmenuAction[] = [];
 							updateActions(submenu, submenuActions);
 							target.push(new SubmenuAction(action.label, submenuActions));
+							submenu.dispose();
 						} else {
 							action.label = this.calculateActionLabel(action);
 							target.push(action);
@@ -998,7 +999,8 @@ export class MenubarControl extends Disposable {
 
 				if (menuItem instanceof SubmenuItemAction) {
 					const submenu = { items: [] };
-					this.populateMenuItems(this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService), submenu, keybindings);
+					const menuToDispose = this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService);
+					this.populateMenuItems(menuToDispose, submenu, keybindings);
 
 					let menubarSubmenuItem: IMenubarMenuItemSubmenu = {
 						id: menuItem.id,
@@ -1007,6 +1009,7 @@ export class MenubarControl extends Disposable {
 					};
 
 					menuToPopulate.items.push(menubarSubmenuItem);
+					menuToDispose.dispose();
 				} else {
 					let menubarMenuItem: IMenubarMenuItemAction = {
 						id: menuItem.id,

@@ -257,7 +257,7 @@ suite('QueryBuilder', () => {
 				folderQueries: [{
 					folder: ROOT_1_URI
 				}],
-				excludePattern: patternsToIExpression(fixPath(paths.join(ROOT_1, 'bar'))),
+				excludePattern: patternsToIExpression('bar'),
 				type: QueryType.Text
 			});
 
@@ -272,7 +272,7 @@ suite('QueryBuilder', () => {
 				folderQueries: [{
 					folder: ROOT_1_URI
 				}],
-				excludePattern: patternsToIExpression(fixPath(paths.join(ROOT_1, 'bar/**/*.ts'))),
+				excludePattern: patternsToIExpression('bar/**/*.ts'),
 				type: QueryType.Text
 			});
 
@@ -287,7 +287,7 @@ suite('QueryBuilder', () => {
 				folderQueries: [{
 					folder: ROOT_1_URI
 				}],
-				excludePattern: patternsToIExpression(fixPath(paths.join(ROOT_1, 'bar/**/*.ts'))),
+				excludePattern: patternsToIExpression('bar/**/*.ts'),
 				type: QueryType.Text
 			});
 	});

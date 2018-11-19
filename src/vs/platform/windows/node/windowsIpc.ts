@@ -5,78 +5,15 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, buffer } from 'vs/base/common/event';
-import { IChannel } from 'vs/base/parts/ipc/node/ipc';
+import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
 import { IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, CrashReporterStartOptions, IMessageBoxResult, MessageBoxOptions, SaveDialogOptions, OpenDialogOptions, IDevToolsOptions, INewWindowOptions } from 'vs/platform/windows/common/windows';
 import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, ISingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 
-export interface IWindowsChannel extends IChannel {
-	listen(event: 'onWindowOpen'): Event<number>;
-	listen(event: 'onWindowFocus'): Event<number>;
-	listen(event: 'onWindowBlur'): Event<number>;
-	listen(event: 'onWindowMaximize'): Event<number>;
-	listen(event: 'onWindowUnmaximize'): Event<number>;
-	listen(event: 'onRecentlyOpenedChange'): Event<void>;
-	listen<T>(event: string, arg?: any): Event<T>;
-
-	call(command: 'pickFileFolderAndOpen', arg: INativeOpenDialogOptions): Thenable<void>;
-	call(command: 'pickFileAndOpen', arg: INativeOpenDialogOptions): Thenable<void>;
-	call(command: 'pickFolderAndOpen', arg: INativeOpenDialogOptions): Thenable<void>;
-	call(command: 'pickWorkspaceAndOpen', arg: INativeOpenDialogOptions): Thenable<void>;
-	call(command: 'showMessageBox', arg: [number, MessageBoxOptions]): Thenable<IMessageBoxResult>;
-	call(command: 'showSaveDialog', arg: [number, SaveDialogOptions]): Thenable<string>;
-	call(command: 'showOpenDialog', arg: [number, OpenDialogOptions]): Thenable<string[]>;
-	call(command: 'reloadWindow', arg: [number, ParsedArgs | undefined]): Thenable<void>;
-	call(command: 'openDevTools', arg: [number, IDevToolsOptions | undefined]): Thenable<void>;
-	call(command: 'toggleDevTools', arg: number): Thenable<void>;
-	call(command: 'closeWorkspace', arg: number): Thenable<void>;
-	call(command: 'enterWorkspace', arg: [number, string]): Thenable<IEnterWorkspaceResult>;
-	call(command: 'createAndEnterWorkspace', arg: [number, IWorkspaceFolderCreationData[] | undefined, string | undefined]): Thenable<IEnterWorkspaceResult>;
-	call(command: 'saveAndEnterWorkspace', arg: [number, string]): Thenable<IEnterWorkspaceResult>;
-	call(command: 'toggleFullScreen', arg: number): Thenable<void>;
-	call(command: 'setRepresentedFilename', arg: [number, string]): Thenable<void>;
-	call(command: 'addRecentlyOpened', arg: UriComponents[]): Thenable<void>;
-	call(command: 'removeFromRecentlyOpened', arg: (IWorkspaceIdentifier | UriComponents | string)[]): Thenable<void>;
-	call(command: 'clearRecentlyOpened'): Thenable<void>;
-	call(command: 'getRecentlyOpened', arg: number): Thenable<IRecentlyOpened>;
-	call(command: 'newWindowTab'): Thenable<void>;
-	call(command: 'showPreviousWindowTab'): Thenable<void>;
-	call(command: 'showNextWindowTab'): Thenable<void>;
-	call(command: 'moveWindowTabToNewWindow'): Thenable<void>;
-	call(command: 'mergeAllWindowTabs'): Thenable<void>;
-	call(command: 'toggleWindowTabsBar'): Thenable<void>;
-	call(command: 'updateTouchBar', arg: [number, ISerializableCommandAction[][]]): Thenable<void>;
-	call(command: 'focusWindow', arg: number): Thenable<void>;
-	call(command: 'closeWindow', arg: number): Thenable<void>;
-	call(command: 'isFocused', arg: number): Thenable<boolean>;
-	call(command: 'isMaximized', arg: number): Thenable<boolean>;
-	call(command: 'maximizeWindow', arg: number): Thenable<void>;
-	call(command: 'unmaximizeWindow', arg: number): Thenable<void>;
-	call(command: 'minimizeWindow', arg: number): Thenable<void>;
-	call(command: 'onWindowTitleDoubleClick', arg: number): Thenable<void>;
-	call(command: 'setDocumentEdited', arg: [number, boolean]): Thenable<void>;
-	call(command: 'quit'): Thenable<void>;
-	call(command: 'openWindow', arg: [number, URI[], { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean, args?: ParsedArgs } | undefined]): Thenable<void>;
-	call(command: 'openNewWindow', arg?: INewWindowOptions): Thenable<void>;
-	call(command: 'showWindow', arg: number): Thenable<void>;
-	call(command: 'getWindows'): Thenable<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]>;
-	call(command: 'getWindowCount'): Thenable<number>;
-	call(command: 'relaunch', arg: [{ addArgs?: string[], removeArgs?: string[] }]): Thenable<void>;
-	call(command: 'whenSharedProcessReady'): Thenable<void>;
-	call(command: 'toggleSharedProcess'): Thenable<void>;
-	call(command: 'log', arg: [string, string[]]): Thenable<void>;
-	call(command: 'showItemInFolder', arg: string): Thenable<void>;
-	call(command: 'getActiveWindowId'): Thenable<number>;
-	call(command: 'openExternal', arg: string): Thenable<boolean>;
-	call(command: 'startCrashReporter', arg: CrashReporterStartOptions): Thenable<void>;
-	call(command: 'openAboutDialog'): Thenable<void>;
-	call(command: 'resolveProxy', arg: [number, string]): Thenable<string | undefined>;
-}
-
-export class WindowsChannel implements IWindowsChannel {
+export class WindowsChannel implements IServerChannel {
 
 	private onWindowOpen: Event<number>;
 	private onWindowFocus: Event<number>;
@@ -94,7 +31,7 @@ export class WindowsChannel implements IWindowsChannel {
 		this.onRecentlyOpenedChange = buffer(service.onRecentlyOpenedChange, true);
 	}
 
-	listen<T>(event: string, arg?: any): Event<any> {
+	listen(_, event: string): Event<any> {
 		switch (event) {
 			case 'onWindowOpen': return this.onWindowOpen;
 			case 'onWindowFocus': return this.onWindowFocus;
@@ -107,7 +44,7 @@ export class WindowsChannel implements IWindowsChannel {
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(command: string, arg?: any): Thenable<any> {
+	call(_, command: string, arg?: any): Thenable<any> {
 		switch (command) {
 			case 'pickFileFolderAndOpen': return this.service.pickFileFolderAndOpen(arg);
 			case 'pickFileAndOpen': return this.service.pickFileAndOpen(arg);
@@ -190,7 +127,7 @@ export class WindowsChannelClient implements IWindowsService {
 
 	_serviceBrand: any;
 
-	constructor(private channel: IWindowsChannel) { }
+	constructor(private channel: IChannel) { }
 
 	get onWindowOpen(): Event<number> { return this.channel.listen('onWindowOpen'); }
 	get onWindowFocus(): Event<number> { return this.channel.listen('onWindowFocus'); }
@@ -276,7 +213,7 @@ export class WindowsChannelClient implements IWindowsService {
 	}
 
 	getRecentlyOpened(windowId: number): TPromise<IRecentlyOpened> {
-		return TPromise.wrap(this.channel.call('getRecentlyOpened', windowId))
+		return TPromise.wrap<IRecentlyOpened>(this.channel.call('getRecentlyOpened', windowId))
 			.then(recentlyOpened => {
 				recentlyOpened.workspaces = recentlyOpened.workspaces.map(workspace => isWorkspaceIdentifier(workspace) ? workspace : URI.revive(workspace));
 				recentlyOpened.files = recentlyOpened.files.map(URI.revive);
@@ -373,7 +310,7 @@ export class WindowsChannelClient implements IWindowsService {
 	}
 
 	getWindows(): TPromise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]> {
-		return TPromise.wrap(this.channel.call('getWindows').then(result => { result.forEach(win => win.folderUri = win.folderUri ? URI.revive(win.folderUri) : win.folderUri); return result; }));
+		return TPromise.wrap(this.channel.call<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]>('getWindows').then(result => { result.forEach(win => win.folderUri = win.folderUri ? URI.revive(win.folderUri) : win.folderUri); return result; }));
 	}
 
 	getWindowCount(): TPromise<number> {

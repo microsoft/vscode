@@ -183,6 +183,7 @@ export class BreadcrumbsControl {
 		this._cfUseQuickPick = BreadcrumbsConfig.UseQuickPick.bindTo(_configurationService);
 
 		this._disposables.push(breadcrumbsService.register(this._editorGroup.id, this._widget));
+		this._disposables.push(_fileService.onDidChangeFileSystemProviderRegistrations(this.update, this));
 	}
 
 	dispose(): void {

@@ -56,7 +56,7 @@ export class CommentNode extends Disposable {
 
 	constructor(
 		public comment: modes.Comment,
-		private owner: number,
+		private owner: string,
 		private resource: URI,
 		private markdownRenderer: MarkdownRenderer,
 		private themeService: IThemeService,

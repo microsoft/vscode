@@ -24,6 +24,7 @@ import { MarkerSeverity, IRelatedInformation, IMarkerData, MarkerTag } from 'vs/
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
 import { isString, isNumber } from 'vs/base/common/types';
+import * as marked from 'vs/base/common/marked/marked';
 
 export interface PositionLike {
 	line: number;
@@ -209,17 +210,34 @@ export namespace MarkdownString {
 	}
 
 	export function from(markup: vscode.MarkdownString | vscode.MarkedString): htmlContent.IMarkdownString {
+		let res: htmlContent.IMarkdownString;
 		if (isCodeblock(markup)) {
 			const { language, value } = markup;
-			return { value: '```' + language + '\n' + value + '\n```\n' };
+			res = { value: '```' + language + '\n' + value + '\n```\n' };
 		} else if (htmlContent.isMarkdownString(markup)) {
-			return markup;
+			res = markup;
 		} else if (typeof markup === 'string') {
-			return { value: <string>markup };
+			res = { value: <string>markup };
 		} else {
-			return { value: '' };
+			res = { value: '' };
 		}
+
+		// extract uris into a separate object
+		res.uris = Object.create(null);
+		let renderer = new marked.Renderer();
+		renderer.image = renderer.link = (href: string): string => {
+			try {
+				res.uris[href] = URI.parse(href, true);
+			} catch (e) {
+				// ignore
+			}
+			return '';
+		};
+		marked(res.value, { renderer });
+
+		return res;
 	}
+
 	export function to(value: htmlContent.IMarkdownString): vscode.MarkdownString {
 		const ret = new htmlContent.MarkdownString(value.value);
 		ret.isTrusted = value.isTrusted;
@@ -663,25 +681,6 @@ export namespace CompletionItemKind {
 	}
 }
 
-export namespace CompletionItemInsertTextRule {
-
-	export function from(rule: types.CompletionItemInsertTextRule): modes.CompletionItemInsertTextRule {
-		let result = 0;
-		if ((rule & types.CompletionItemInsertTextRule.KeepWhitespace)) {
-			result += modes.CompletionItemInsertTextRule.KeepWhitespace;
-		}
-		return result;
-	}
-
-	export function to(rule: modes.CompletionItemInsertTextRule): types.CompletionItemInsertTextRule {
-		let result = 0;
-		if ((rule & modes.CompletionItemInsertTextRule.KeepWhitespace)) {
-			result += types.CompletionItemInsertTextRule.KeepWhitespace;
-		}
-		return result;
-	}
-}
-
 export namespace CompletionItem {
 
 	export function to(suggestion: modes.CompletionItem): types.CompletionItem {
@@ -695,7 +694,7 @@ export namespace CompletionItem {
 		result.preselect = suggestion.preselect;
 		result.commitCharacters = suggestion.commitCharacters;
 		result.range = Range.to(suggestion.range);
-		result.insertTextRules = CompletionItemInsertTextRule.to(suggestion.insertTextRules);
+		result.keepWhitespace = Boolean(suggestion.insertTextRules & modes.CompletionItemInsertTextRule.KeepWhitespace);
 		// 'inserText'-logic
 		if (suggestion.insertTextRules & modes.CompletionItemInsertTextRule.InsertAsSnippet) {
 			result.insertText = new types.SnippetString(suggestion.insertText);

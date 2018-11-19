@@ -63,27 +63,27 @@ export class Source {
 		}
 	}
 
-	public get name() {
+	get name() {
 		return this.raw.name || resources.basenameOrAuthority(this.uri);
 	}
 
-	public get origin() {
+	get origin() {
 		return this.raw.origin;
 	}
 
-	public get presentationHint() {
+	get presentationHint() {
 		return this.raw.presentationHint;
 	}
 
-	public get reference() {
+	get reference() {
 		return this.raw.sourceReference;
 	}
 
-	public get inMemory() {
+	get inMemory() {
 		return this.uri.scheme === DEBUG_SCHEME;
 	}
 
-	public openInEditor(editorService: IEditorService, selection: IRange, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Thenable<any> {
+	openInEditor(editorService: IEditorService, selection: IRange, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Thenable<any> {
 		return !this.available ? Promise.resolve(null) : editorService.openEditor({
 			resource: this.uri,
 			description: this.origin,
@@ -97,7 +97,7 @@ export class Source {
 		}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 	}
 
-	public static getEncodedDebugData(modelUri: uri): { name: string, path: string, sessionId: string, sourceReference: number } {
+	static getEncodedDebugData(modelUri: uri): { name: string, path: string, sessionId: string, sourceReference: number } {
 		let path: string;
 		let sourceReference: number;
 		let sessionId: string;

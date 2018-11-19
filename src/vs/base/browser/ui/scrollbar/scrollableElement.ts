@@ -6,7 +6,7 @@
 import 'vs/css!./media/scrollbars';
 import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { IMouseEvent, StandardMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { IMouseEvent, StandardWheelEvent } from 'vs/base/browser/mouseEvent';
 import { ScrollbarHost } from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
 import { HorizontalScrollbar } from 'vs/base/browser/ui/scrollbar/horizontalScrollbar';
 import { ScrollableElementChangeOptions, ScrollableElementCreationOptions, ScrollableElementResolvedOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
@@ -178,7 +178,7 @@ export abstract class AbstractScrollableElement extends Widget {
 		}));
 
 		let scrollbarHost: ScrollbarHost = {
-			onMouseWheel: (mouseWheelEvent: StandardMouseWheelEvent) => this._onMouseWheel(mouseWheelEvent),
+			onMouseWheel: (mouseWheelEvent: StandardWheelEvent) => this._onMouseWheel(mouseWheelEvent),
 			onDragStart: () => this._onDragStart(),
 			onDragEnd: () => this._onDragEnd(),
 		};
@@ -307,17 +307,15 @@ export abstract class AbstractScrollableElement extends Widget {
 
 		// Start listening (if necessary)
 		if (shouldListen) {
-			let onMouseWheel = (browserEvent: MouseWheelEvent) => {
-				let e = new StandardMouseWheelEvent(browserEvent);
-				this._onMouseWheel(e);
+			let onMouseWheel = (browserEvent: WheelEvent) => {
+				this._onMouseWheel(new StandardWheelEvent(browserEvent));
 			};
 
-			this._mouseWheelToDispose.push(dom.addDisposableListener(this._listenOnDomNode, 'mousewheel', onMouseWheel));
-			this._mouseWheelToDispose.push(dom.addDisposableListener(this._listenOnDomNode, 'DOMMouseScroll', onMouseWheel));
+			this._mouseWheelToDispose.push(dom.addDisposableListener(this._listenOnDomNode, 'wheel', onMouseWheel));
 		}
 	}
 
-	private _onMouseWheel(e: StandardMouseWheelEvent): void {
+	private _onMouseWheel(e: StandardWheelEvent): void {
 
 		const classifier = MouseWheelClassifier.INSTANCE;
 		if (SCROLL_WHEEL_SMOOTH_SCROLL_ENABLED) {

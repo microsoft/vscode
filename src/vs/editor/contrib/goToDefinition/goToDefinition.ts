@@ -9,7 +9,7 @@ import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
-import { DefinitionLink, DefinitionProviderRegistry, ImplementationProviderRegistry, TypeDefinitionProviderRegistry } from 'vs/editor/common/modes';
+import { DefinitionLink, DefinitionProviderRegistry, ImplementationProviderRegistry, TypeDefinitionProviderRegistry, DeclarationProviderRegistry } from 'vs/editor/common/modes';
 import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureRegistry';
 
 
@@ -40,6 +40,12 @@ export function getDefinitionsAtPosition(model: ITextModel, position: Position, 
 	});
 }
 
+export function getDeclarationsAtPosition(model: ITextModel, position: Position, token: CancellationToken): Thenable<DefinitionLink[]> {
+	return getDefinitions(model, position, DeclarationProviderRegistry, (provider, model, position) => {
+		return provider.provideDeclaration(model, position, token);
+	});
+}
+
 export function getImplementationsAtPosition(model: ITextModel, position: Position, token: CancellationToken): Thenable<DefinitionLink[]> {
 	return getDefinitions(model, position, ImplementationProviderRegistry, (provider, model, position) => {
 		return provider.provideImplementation(model, position, token);
@@ -53,5 +59,6 @@ export function getTypeDefinitionsAtPosition(model: ITextModel, position: Positi
 }
 
 registerDefaultLanguageCommand('_executeDefinitionProvider', (model, position) => getDefinitionsAtPosition(model, position, CancellationToken.None));
+registerDefaultLanguageCommand('_executeDeclarationProvider', (model, position) => getDeclarationsAtPosition(model, position, CancellationToken.None));
 registerDefaultLanguageCommand('_executeImplementationProvider', (model, position) => getImplementationsAtPosition(model, position, CancellationToken.None));
 registerDefaultLanguageCommand('_executeTypeDefinitionProvider', (model, position) => getTypeDefinitionsAtPosition(model, position, CancellationToken.None));

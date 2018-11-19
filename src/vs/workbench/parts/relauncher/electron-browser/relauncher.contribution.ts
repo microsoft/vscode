@@ -43,7 +43,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private fileWatcherExclude: object;
 	private legacyStorage: boolean;
 
-	private firstFolderResource: URI;
+	private firstFolderResource?: URI;
 	private extensionHostRestarter: RunOnceScheduler;
 
 	private onDidChangeWorkspaceFoldersUnbind: IDisposable;

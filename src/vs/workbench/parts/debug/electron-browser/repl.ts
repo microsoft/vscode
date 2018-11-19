@@ -49,6 +49,7 @@ import { transparent, editorForeground } from 'vs/platform/theme/common/colorReg
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { FocusSessionActionItem } from 'vs/workbench/parts/debug/browser/debugActionItems';
 import { CompletionContext, CompletionList, CompletionProviderRegistry } from 'vs/editor/common/modes';
+import { first } from 'vs/base/common/arrays';
 
 const $ = dom.$;
 
@@ -69,6 +70,7 @@ export interface IPrivateReplService {
 	clearRepl(): void;
 }
 
+const sessionsToIgnore = new Set<IDebugSession>();
 export class Repl extends Panel implements IPrivateReplService, IHistoryNavigationWidget {
 	_serviceBrand: any;
 
@@ -112,9 +114,17 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 	private registerListeners(): void {
 		this._register(this.debugService.getViewModel().onDidFocusSession(session => {
-			this.selectSession(session);
+			sessionsToIgnore.delete(session);
+			this.selectSession();
 		}));
-		this._register(this.debugService.onDidNewSession(() => this.updateTitleArea()));
+		this._register(this.debugService.onWillNewSession(() => {
+			// Need to listen to output events for sessions which are not yet fully initialised
+			const input: IDebugSession = this.tree.getInput();
+			if (!input || input.state === State.Inactive) {
+				this.selectSession();
+			}
+			this.updateTitleArea();
+		}));
 		this._register(this.themeService.onThemeChange(() => {
 			if (this.isVisible()) {
 				this.updateInputDecoration();
@@ -163,7 +173,10 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		}
 	}
 
-	selectSession(session: IDebugSession): void {
+	selectSession(): void {
+		const focusedSession = this.debugService.getViewModel().focusedSession;
+		// If there is a focusedSession focus on that one, otherwise just show any other not ignored session
+		const session = focusedSession || first(this.debugService.getModel().getSessions(true), s => !sessionsToIgnore.has(s));
 		if (session) {
 			if (this.replElementsChangeListener) {
 				this.replElementsChangeListener.dispose();
@@ -183,7 +196,15 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 	clearRepl(): void {
 		const session: IDebugSession = this.tree.getInput();
-		session.removeReplExpressions();
+		if (session) {
+			session.removeReplExpressions();
+			if (session.state === State.Inactive) {
+				// Ignore inactive sessions which got cleared - so they are not shown any more
+				sessionsToIgnore.add(session);
+				this.selectSession();
+				this.updateTitleArea();
+			}
+		}
 		this.replInput.focus();
 	}
 
@@ -240,7 +261,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 	getActions(): IAction[] {
 		const result: IAction[] = [];
-		if (this.debugService.getModel().getSessions(true).length > 1) {
+		if (this.debugService.getModel().getSessions(true).filter(s => !sessionsToIgnore.has(s)).length > 1) {
 			result.push(this.selectReplAction);
 		}
 		result.push(this.clearReplAction);
@@ -283,6 +304,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 		this.renderer = this.instantiationService.createInstance(ReplExpressionsRenderer);
 		const controller = this.instantiationService.createInstance(ReplExpressionsController, new ReplExpressionsActionProvider(this.clearReplAction, this.replInput), MenuId.DebugConsoleContext, { openMode: OpenMode.SINGLE_CLICK, clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change, to preserve focus behaviour in input field */ });
+		this.toDispose.push(controller);
 		controller.toFocusOnClick = this.replInput;
 
 		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
@@ -293,10 +315,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		}, replTreeOptions);
 
 		// Make sure to select the session if debugging is already active
-		const focusedSession = this.debugService.getViewModel().focusedSession;
-		if (focusedSession) {
-			this.selectSession(focusedSession);
-		}
+		this.selectSession();
 	}
 
 	private createReplInput(container: HTMLElement): void {
@@ -479,7 +498,7 @@ registerEditorCommand(new SuggestCommand({
 
 class SelectReplActionItem extends FocusSessionActionItem {
 	protected getSessions(): ReadonlyArray<IDebugSession> {
-		return this.debugService.getModel().getSessions(true);
+		return this.debugService.getModel().getSessions(true).filter(s => !sessionsToIgnore.has(s));
 	}
 }
 

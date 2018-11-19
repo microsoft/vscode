@@ -21,11 +21,11 @@ export function setUriThrowOnMissingScheme(value: boolean): boolean {
 	return old;
 }
 
-function _validateUri(ret: URI): void {
+function _validateUri(ret: URI, _strict?: boolean): void {
 
 	// scheme, must be set
 	if (!ret.scheme) {
-		if (_throwOnMissingSchema) {
+		if (_strict || _throwOnMissingSchema) {
 			throw new Error(`[UriError]: Scheme is missing: {scheme: "", authority: "${ret.authority}", path: "${ret.path}", query: "${ret.query}", fragment: "${ret.fragment}"}`);
 		} else {
 			console.warn(`[UriError]: Scheme is missing: {scheme: "", authority: "${ret.authority}", path: "${ret.path}", query: "${ret.query}", fragment: "${ret.fragment}"}`);
@@ -141,7 +141,7 @@ export class URI implements UriComponents {
 	/**
 	 * @internal
 	 */
-	protected constructor(scheme: string, authority?: string, path?: string, query?: string, fragment?: string);
+	protected constructor(scheme: string, authority?: string, path?: string, query?: string, fragment?: string, _strict?: boolean);
 
 	/**
 	 * @internal
@@ -151,7 +151,7 @@ export class URI implements UriComponents {
 	/**
 	 * @internal
 	 */
-	protected constructor(schemeOrData: string | UriComponents, authority?: string, path?: string, query?: string, fragment?: string) {
+	protected constructor(schemeOrData: string | UriComponents, authority?: string, path?: string, query?: string, fragment?: string, _strict?: boolean) {
 
 		if (typeof schemeOrData === 'object') {
 			this.scheme = schemeOrData.scheme || _empty;
@@ -169,7 +169,7 @@ export class URI implements UriComponents {
 			this.query = query || _empty;
 			this.fragment = fragment || _empty;
 
-			_validateUri(this);
+			_validateUri(this, _strict);
 		}
 	}
 
@@ -261,7 +261,7 @@ export class URI implements UriComponents {
 	 *
 	 * @param value A string which represents an URI (see `URI#toString`).
 	 */
-	public static parse(value: string): URI {
+	public static parse(value: string, _strict: boolean = false): URI {
 		const match = _regexp.exec(value);
 		if (!match) {
 			return new _URI(_empty, _empty, _empty, _empty, _empty);
@@ -272,6 +272,7 @@ export class URI implements UriComponents {
 			decodeURIComponent(match[5] || _empty),
 			decodeURIComponent(match[7] || _empty),
 			decodeURIComponent(match[9] || _empty),
+			_strict
 		);
 	}
 

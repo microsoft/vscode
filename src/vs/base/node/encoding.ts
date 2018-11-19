@@ -17,7 +17,7 @@ export const UTF16le = 'utf16le';
 export interface IDecodeStreamOptions {
 	guessEncoding?: boolean;
 	minBytesRequiredForDetection?: number;
-	overwriteEncoding?(detectedEncoding: string): string;
+	overwriteEncoding?(detectedEncoding: string | null): string;
 }
 
 export function toDecodeStream(readable: Readable, options: IDecodeStreamOptions): Promise<{ detected: IDetectedEncodingResult, stream: NodeJS.ReadableStream }> {
@@ -78,7 +78,7 @@ export function toDecodeStream(readable: Readable, options: IDecodeStreamOptions
 				this._decodeStreamConstruction = Promise.resolve(detectEncodingFromBuffer({
 					buffer: Buffer.concat(this._buffer), bytesRead: this._bytesBuffered
 				}, options.guessEncoding)).then(detected => {
-					if (options.overwriteEncoding && detected.encoding) {
+					if (options.overwriteEncoding) {
 						detected.encoding = options.overwriteEncoding(detected.encoding);
 					}
 					this._decodeStream = decodeStream(detected.encoding);

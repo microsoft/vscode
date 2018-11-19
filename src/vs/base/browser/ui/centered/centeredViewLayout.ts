@@ -58,7 +58,7 @@ export class CenteredViewLayout {
 	private emptyViews: ISplitViewView[] | undefined;
 	private splitViewDisposables: IDisposable[] = [];
 
-	constructor(private container: HTMLElement, private view: IView, public readonly state: CenteredViewState = GOLDEN_RATIO) {
+	constructor(private container: HTMLElement, private view: IView, public readonly state: CenteredViewState = { leftMarginRatio: GOLDEN_RATIO.leftMarginRatio, rightMarginRatio: GOLDEN_RATIO.rightMarginRatio }) {
 		this.container.appendChild(this.view.element);
 		// Make sure to hide the split view overflow like sashes #52892
 		this.container.style.overflow = 'hidden';

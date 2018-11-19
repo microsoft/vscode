@@ -11,8 +11,8 @@ import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/co
 import { localize } from 'vs/nls';
 import Constants from './constants';
 import { URI } from 'vs/base/common/uri';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { groupBy } from 'vs/base/common/arrays';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 
 export const IMarkersWorkbenchService = createDecorator<IMarkersWorkbenchService>('markersWorkbenchService');
 
@@ -33,7 +33,6 @@ export class MarkersWorkbenchService extends Disposable implements IMarkersWorkb
 
 	constructor(
 		@IMarkerService private markerService: IMarkerService,
-		@IActivityService private activityService: IActivityService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super();
@@ -50,19 +49,28 @@ export class MarkersWorkbenchService extends Disposable implements IMarkersWorkb
 		for (const resource of resources) {
 			this.markersModel.setResourceMarkers(resource, this.readMarkers(resource));
 		}
-
-		this.refreshBadge();
 	}
 
 	private readMarkers(resource?: URI): IMarker[] {
 		return this.markerService.read({ resource, severities: MarkerSeverity.Error | MarkerSeverity.Warning | MarkerSeverity.Info });
 	}
 
-	private refreshBadge(): void {
-		const total = this.markersModel.resourceMarkers.reduce((r, rm) => r + rm.markers.length, 0);
+}
+
+export class ActivityUpdater extends Disposable implements IWorkbenchContribution {
+
+	constructor(
+		@IActivityService private activityService: IActivityService,
+		@IMarkersWorkbenchService private markersWorkbenchService: IMarkersWorkbenchService
+	) {
+		super();
+		this._register(this.markersWorkbenchService.markersModel.onDidChange(() => this.updateBadge()));
+		this.updateBadge();
+	}
+
+	private updateBadge(): void {
+		const total = this.markersWorkbenchService.markersModel.resourceMarkers.reduce((r, rm) => r + rm.markers.length, 0);
 		const message = localize('totalProblems', 'Total {0} Problems', total);
 		this.activityService.showActivity(Constants.MARKERS_PANEL_ID, new NumberBadge(total, () => message));
 	}
 }
-
-registerSingleton(IMarkersWorkbenchService, MarkersWorkbenchService, true);

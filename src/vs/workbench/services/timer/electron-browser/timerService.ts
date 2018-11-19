@@ -13,7 +13,7 @@ import { IWindowService, IWindowsService } from 'vs/platform/windows/common/wind
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -430,7 +430,7 @@ export function didUseCachedData(): boolean {
 	// whenever cached data is produced or rejected a onNodeCachedData-callback is invoked. That callback
 	// stores data in the `MonacoEnvironment.onNodeCachedData` global. See:
 	// https://github.com/Microsoft/vscode/blob/efe424dfe76a492eab032343e2fa4cfe639939f0/src/vs/workbench/electron-browser/bootstrap/index.js#L299
-	if (!isFalsyOrEmpty(MonacoEnvironment.onNodeCachedData)) {
+	if (isNonEmptyArray(MonacoEnvironment.onNodeCachedData)) {
 		return false;
 	}
 	return true;

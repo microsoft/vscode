@@ -23,25 +23,25 @@ const jsTsLanguageConfiguration: vscode.LanguageConfiguration = {
 			// e.g. /** | */
 			beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
 			afterText: /^\s*\*\/$/,
-			action: { indentAction: vscode.IndentAction.IndentOutdent, appendText: ' * ' }
+			action: { indentAction: vscode.IndentAction.IndentOutdent, appendText: ' * ' },
 		}, {
 			// e.g. /** ...|
 			beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
-			action: { indentAction: vscode.IndentAction.None, appendText: ' * ' }
+			action: { indentAction: vscode.IndentAction.None, appendText: ' * ' },
 		}, {
 			// e.g.  * ...|
 			beforeText: /^(\t|[ ])*[ ]\*([ ]([^\*]|\*(?!\/))*)?$/,
 			oneLineAboveText: /^(\s*(\/\*\*|\*)).*/,
-			action: { indentAction: vscode.IndentAction.None, appendText: '* ' }
+			action: { indentAction: vscode.IndentAction.None, appendText: '* ' },
 		}, {
 			// e.g.  */|
 			beforeText: /^(\t|[ ])*[ ]\*\/\s*$/,
-			action: { indentAction: vscode.IndentAction.None, removeText: 1 }
+			action: { indentAction: vscode.IndentAction.None, removeText: 1 },
 		},
 		{
 			// e.g.  *-----*/|
 			beforeText: /^(\t|[ ])*[ ]\*[^/]*\*\/\s*$/,
-			action: { indentAction: vscode.IndentAction.None, removeText: 1 }
+			action: { indentAction: vscode.IndentAction.None, removeText: 1 },
 		}
 	]
 };

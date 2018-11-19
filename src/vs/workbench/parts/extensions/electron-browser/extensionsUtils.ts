@@ -16,6 +16,7 @@ import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiati
 import { areSameExtensions, adoptToGalleryExtensionId, getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { Severity, INotificationService } from 'vs/platform/notification/common/notification';
+import product from 'vs/platform/node/product';
 
 export interface IExtensionStatus {
 	identifier: IExtensionIdentifier;
@@ -141,4 +142,9 @@ export function isKeymapExtension(tipsService: IExtensionTipsService, extension:
 
 function stripVersion(id: string): string {
 	return getIdAndVersionFromLocalExtensionId(id).id;
+}
+
+export function getKeywordsForExtension(extension: string): string[] {
+	const keywords = product.extensionKeywords || {};
+	return keywords[extension] || [];
 }

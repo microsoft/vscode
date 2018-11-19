@@ -39,9 +39,9 @@ import { getComparisonKey, isEqual, normalizePath } from 'vs/base/common/resourc
 import { endsWith } from 'vs/base/common/strings';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 
-enum WindowError {
-	UNRESPONSIVE,
-	CRASHED
+const enum WindowError {
+	UNRESPONSIVE = 1,
+	CRASHED = 2
 }
 
 interface INewWindowState extends ISingleWindowState {
@@ -162,7 +162,7 @@ export class WindowsManager implements IWindowsMainService {
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IBackupMainService private backupMainService: IBackupMainService,
-		@ITelemetryService telemetryService: ITelemetryService,
+		@ITelemetryService private telemetryService: ITelemetryService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IHistoryMainService private historyMainService: IHistoryMainService,
 		@IWorkspacesMainService private workspacesMainService: IWorkspacesMainService,
@@ -1640,6 +1640,13 @@ export class WindowsManager implements IWindowsMainService {
 
 	private onWindowError(window: ICodeWindow, error: WindowError): void {
 		this.logService.error(error === WindowError.CRASHED ? '[VS Code]: render process crashed!' : '[VS Code]: detected unresponsive');
+
+		/* __GDPR__
+			"windowerror" : {
+				"type" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+			}
+		*/
+		this.telemetryService.publicLog('windowerror', { type: error });
 
 		// Unresponsive
 		if (error === WindowError.UNRESPONSIVE) {

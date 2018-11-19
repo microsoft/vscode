@@ -46,7 +46,7 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 	private parseErrors: json.ParseError[];
 	private disposed: boolean;
 	private loaded: boolean;
-	private timeoutHandle: NodeJS.Timer;
+	private timeoutHandle: NodeJS.Timer | null;
 	private disposables: IDisposable[];
 	private readonly _onDidUpdateConfiguration: Emitter<IConfigurationChangeEvent<T>>;
 	private configName: string;

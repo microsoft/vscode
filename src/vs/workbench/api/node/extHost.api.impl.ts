@@ -134,7 +134,8 @@ export function createApiFactory(
 	const extHostLanguages = new ExtHostLanguages(rpcProtocol, extHostDocuments);
 
 	// Register an output channel for exthost log
-	extHostOutputService.createOutputChannelFromLogFile(localize('extensionsLog', "Extension Host"), extHostLogService.logFile);
+	const name = localize('extensionsLog', "Extension Host");
+	extHostOutputService.createOutputChannelFromLogFile(name, extHostLogService.logFile);
 
 	// Register API-ish commands
 	ExtHostApiCommands.register(extHostCommands);
@@ -251,7 +252,6 @@ export function createApiFactory(
 				return extHostLogService.onDidChangeLogLevel;
 			},
 			get clipboard(): vscode.Clipboard {
-				checkProposedApiEnabled(extension);
 				return extHostClipboard;
 			}
 		});
@@ -299,6 +299,9 @@ export function createApiFactory(
 			registerDefinitionProvider(selector: vscode.DocumentSelector, provider: vscode.DefinitionProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerDefinitionProvider(extension, checkSelector(selector), provider);
 			},
+			registerDeclarationProvider(selector: vscode.DocumentSelector, provider: vscode.DeclarationProvider): vscode.Disposable {
+				return extHostLanguageFeatures.registerDeclarationProvider(extension, checkSelector(selector), provider);
+			},
 			registerImplementationProvider(selector: vscode.DocumentSelector, provider: vscode.ImplementationProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerImplementationProvider(extension, checkSelector(selector), provider);
 			},
@@ -317,8 +320,8 @@ export function createApiFactory(
 			registerRenameProvider(selector: vscode.DocumentSelector, provider: vscode.RenameProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerRenameProvider(extension, checkSelector(selector), provider);
 			},
-			registerDocumentSymbolProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentSymbolProvider): vscode.Disposable {
-				return extHostLanguageFeatures.registerDocumentSymbolProvider(extension, checkSelector(selector), provider);
+			registerDocumentSymbolProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentSymbolProvider, metadata?: vscode.DocumentSymbolProviderMetadata): vscode.Disposable {
+				return extHostLanguageFeatures.registerDocumentSymbolProvider(extension, checkSelector(selector), provider, metadata);
 			},
 			registerWorkspaceSymbolProvider(provider: vscode.WorkspaceSymbolProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerWorkspaceSymbolProvider(extension, provider);
@@ -675,6 +678,9 @@ export function createApiFactory(
 			registerDebugConfigurationProvider(debugType: string, provider: vscode.DebugConfigurationProvider) {
 				return extHostDebugService.registerDebugConfigurationProvider(extension, debugType, provider);
 			},
+			registerDebugAdapterProvider(debugType: string, provider: vscode.DebugAdapterProvider) {
+				return extHostDebugService.registerDebugAdapterProvider(extension, debugType, provider);
+			},
 			startDebugging(folder: vscode.WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration) {
 				return extHostDebugService.startDebugging(folder, nameOrConfig);
 			},
@@ -738,7 +744,6 @@ export function createApiFactory(
 			CommentThreadCollapsibleState: extHostTypes.CommentThreadCollapsibleState,
 			CompletionItem: extHostTypes.CompletionItem,
 			CompletionItemKind: extHostTypes.CompletionItemKind,
-			CompletionItemInsertTextRule: extension.enableProposedApi ? extHostTypes.CompletionItemInsertTextRule : null,
 			CompletionList: extHostTypes.CompletionList,
 			CompletionTriggerKind: extHostTypes.CompletionTriggerKind,
 			ConfigurationTarget: extHostTypes.ConfigurationTarget,

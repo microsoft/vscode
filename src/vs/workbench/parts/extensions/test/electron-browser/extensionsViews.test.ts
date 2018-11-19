@@ -421,20 +421,20 @@ suite('ExtensionsListView Tests', () => {
 
 	test('Test preferred search experiment', () => {
 		const searchText = 'search-me';
-		const realResults = [
+		const actual = [
 			fileBasedRecommendationA,
 			workspaceRecommendationA,
 			otherRecommendationA,
 			workspaceRecommendationB
 		];
-		const preferredResults = [
+		const expected = [
 			workspaceRecommendationA,
 			workspaceRecommendationB,
 			fileBasedRecommendationA,
 			otherRecommendationA
 		];
 
-		const queryTarget = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...realResults));
+		const queryTarget = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...actual));
 		const experimentTarget = <SinonStub>instantiationService.stubPromise(IExperimentService, 'getExperimentsByType', [{
 			id: 'someId',
 			enabled: true,
@@ -461,9 +461,9 @@ suite('ExtensionsListView Tests', () => {
 			assert.ok(experimentTarget.calledOnce);
 			assert.ok(queryTarget.calledOnce);
 			assert.equal(options.text, searchText);
-			assert.equal(result.length, preferredResults.length);
-			for (let i = 0; i < preferredResults.length; i++) {
-				assert.equal(result.get(i).id, preferredResults[i].identifier.id);
+			assert.equal(result.length, expected.length);
+			for (let i = 0; i < expected.length; i++) {
+				assert.equal(result.get(i).id, expected[i].identifier.id);
 			}
 		});
 	});
@@ -478,22 +478,6 @@ suite('ExtensionsListView Tests', () => {
 		];
 
 		const queryTarget = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...realResults));
-		const experimentTarget = <SinonStub>instantiationService.stubPromise(IExperimentService, 'getExperimentsByType', [{
-			id: 'someId',
-			enabled: true,
-			state: ExperimentState.Run,
-			action: {
-				type: ExperimentActionType.ExtensionSearchResults,
-				properties: {
-					searchText: 'search-me',
-					preferredResults: [
-						workspaceRecommendationA.identifier.id,
-						'something-that-wasnt-in-first-page',
-						workspaceRecommendationB.identifier.id
-					]
-				}
-			}
-		}]);
 
 		testableView.dispose();
 		testableView = instantiationService.createInstance(ExtensionsListView, {});
@@ -501,7 +485,6 @@ suite('ExtensionsListView Tests', () => {
 		return testableView.show('search-me @sort:installs').then(result => {
 			const options: IQueryOptions = queryTarget.args[0][0];
 
-			assert.ok(experimentTarget.calledOnce);
 			assert.ok(queryTarget.calledOnce);
 			assert.equal(options.text, searchText);
 			assert.equal(result.length, realResults.length);

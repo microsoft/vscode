@@ -5,7 +5,7 @@
 
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
-import { StandardMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { StandardWheelEvent } from 'vs/base/browser/mouseEvent';
 import { RunOnceScheduler, TimeoutTimer } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
@@ -108,11 +108,11 @@ export class MouseHandler extends ViewEventHandler {
 
 		this._register(mouseEvents.onMouseDown(this.viewHelper.viewDomNode, (e) => this._onMouseDown(e)));
 
-		let onMouseWheel = (browserEvent: MouseWheelEvent) => {
+		let onMouseWheel = (browserEvent: WheelEvent) => {
 			if (!this._context.configuration.editor.viewInfo.mouseWheelZoom) {
 				return;
 			}
-			let e = new StandardMouseWheelEvent(browserEvent);
+			let e = new StandardWheelEvent(browserEvent);
 			if (e.browserEvent!.ctrlKey || e.browserEvent!.metaKey) {
 				let zoomLevel: number = EditorZoom.getZoomLevel();
 				let delta = e.deltaY > 0 ? 1 : -1;
@@ -121,8 +121,7 @@ export class MouseHandler extends ViewEventHandler {
 				e.stopPropagation();
 			}
 		};
-		this._register(dom.addDisposableListener(this.viewHelper.viewDomNode, 'mousewheel', onMouseWheel, true));
-		this._register(dom.addDisposableListener(this.viewHelper.viewDomNode, 'DOMMouseScroll', onMouseWheel, true));
+		this._register(dom.addDisposableListener(this.viewHelper.viewDomNode, 'wheel', onMouseWheel, true));
 
 		this._context.addEventHandler(this);
 	}

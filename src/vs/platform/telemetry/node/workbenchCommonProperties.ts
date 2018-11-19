@@ -22,7 +22,7 @@ export function resolveWorkbenchCommonProperties(storageService: IStorageService
 		// __GDPR__COMMON__ "common.firstSessionDate" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		result['common.firstSessionDate'] = getOrCreateFirstSessionDate(storageService);
 		// __GDPR__COMMON__ "common.lastSessionDate" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-		result['common.lastSessionDate'] = lastSessionDate;
+		result['common.lastSessionDate'] = lastSessionDate || '';
 		// __GDPR__COMMON__ "common.isNewSession" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		result['common.isNewSession'] = !lastSessionDate ? '1' : '0';
 		// __GDPR__COMMON__ "common.instanceId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }

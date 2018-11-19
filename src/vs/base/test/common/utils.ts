@@ -5,39 +5,13 @@
 
 import * as paths from 'vs/base/common/paths';
 import { URI } from 'vs/base/common/uri';
-import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { canceled } from 'vs/base/common/errors';
 
-export class DeferredTPromise<T> extends TPromise<T> {
-
-	private completeCallback: TValueCallback<T>;
-	private errorCallback: (err: any) => void;
-
-	constructor() {
-		let captured: any;
-		super((c, e) => {
-			captured = { c, e };
-		});
-		this.completeCallback = captured.c;
-		this.errorCallback = captured.e;
-	}
-
-	public complete(value: T) {
-		this.completeCallback(value);
-	}
-
-	public error(err: any) {
-		this.errorCallback(err);
-	}
-
-	public cancel() {
-		this.errorCallback(canceled());
-	}
-}
+export type ValueCallback<T = any> = (value: T | Thenable<T>) => void;
 
 export class DeferredPromise<T> {
 
-	private completeCallback: TValueCallback<T>;
+	private completeCallback: ValueCallback<T>;
 	private errorCallback: (err: any) => void;
 
 	public p: Promise<any>;
@@ -50,14 +24,20 @@ export class DeferredPromise<T> {
 	}
 
 	public complete(value: T) {
-		process.nextTick(() => {
-			this.completeCallback(value);
+		return new Promise(resolve => {
+			process.nextTick(() => {
+				this.completeCallback(value);
+				resolve();
+			});
 		});
 	}
 
 	public error(err: any) {
-		process.nextTick(() => {
-			this.errorCallback(err);
+		return new Promise(resolve => {
+			process.nextTick(() => {
+				this.errorCallback(err);
+				resolve();
+			});
 		});
 	}
 

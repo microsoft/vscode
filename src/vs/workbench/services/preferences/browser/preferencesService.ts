@@ -256,7 +256,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		*/
 		this.telemetryService.publicLog('openKeybindings', { textual });
 		if (textual) {
-			const emptyContents = '// ' + nls.localize('emptyKeybindingsHeader', "Place your key bindings in this file to overwrite the defaults") + '\n[\n]';
+			const emptyContents = '// ' + nls.localize('emptyKeybindingsHeader', "Place your key bindings in this file to override the defaults") + '\n[\n]';
 			const editableKeybindings = URI.file(this.environmentService.appKeybindingsPath);
 			const openDefaultKeybindings = !!this.configurationService.getValue('workbench.settings.openDefaultKeybindings');
 
@@ -487,7 +487,12 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	private createSettingsIfNotExists(target: ConfigurationTarget, resource: URI): Thenable<void> {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && target === ConfigurationTarget.WORKSPACE) {
-			return this.fileService.resolveContent(this.contextService.getWorkspace().configuration)
+			const workspaceConfig = this.contextService.getWorkspace().configuration;
+			if (!workspaceConfig) {
+				return Promise.resolve(null);
+			}
+
+			return this.fileService.resolveContent(workspaceConfig)
 				.then(content => {
 					if (Object.keys(parse(content.value)).indexOf('settings') === -1) {
 						return this.jsonEditingService.write(resource, { key: 'settings', value: {} }, true).then(null, () => { });

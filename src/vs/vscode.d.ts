@@ -2208,34 +2208,7 @@ declare module 'vscode' {
 	 * Provides additional metadata over normal [location](#Location) definitions, including the range of
 	 * the defining symbol
 	 */
-	export interface DefinitionLink {
-		/**
-		 * Span of the symbol being defined in the source file.
-		 *
-		 * Used as the underlined span for mouse definition hover. Defaults to the word range at
-		 * the definition position.
-		 */
-		originSelectionRange?: Range;
-
-		/**
-		 * The resource identifier of the definition.
-		 */
-		targetUri: Uri;
-
-		/**
-		 * The full range of the definition.
-		 *
-		 * For a class definition for example, this would be the entire body of the class definition.
-		 */
-		targetRange: Range;
-
-		/**
-		 * The span of the symbol definition.
-		 *
-		 * For a class definition, this would be the class name itself in the class definition.
-		 */
-		targetSelectionRange?: Range;
-	}
+	export type DefinitionLink = LocationLink;
 
 	/**
 	 * The definition of a symbol represented as one or many [locations](#Location).
@@ -2297,6 +2270,30 @@ declare module 'vscode' {
 		 * signaled by returning `undefined` or `null`.
 		 */
 		provideTypeDefinition(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Definition | DefinitionLink[]>;
+	}
+
+	/**
+	 * The declaration of a symbol representation as one or many [locations](#Location)
+	 * or [location links][#LocationLink].
+	 */
+	export type Declaration = Location | Location[] | LocationLink[];
+
+	/**
+	 * The declaration provider interface defines the contract between extensions and
+	 * the go to declaration feature.
+	 */
+	export interface DeclarationProvider {
+
+		/**
+		 * Provide the declaration of the symbol at the given position and document.
+		 *
+		 * @param document The document in which the command was invoked.
+		 * @param position The position at which the command was invoked.
+		 * @param token A cancellation token.
+		 * @return A declaration or a thenable that resolves to such. The lack of a result can be
+		 * signaled by returning `undefined` or `null`.
+		 */
+		provideDeclaration(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Declaration>;
 	}
 
 	/**
@@ -2612,6 +2609,16 @@ declare module 'vscode' {
 		 * signaled by returning `undefined`, `null`, or an empty array.
 		 */
 		provideDocumentSymbols(document: TextDocument, token: CancellationToken): ProviderResult<SymbolInformation[] | DocumentSymbol[]>;
+	}
+
+	/**
+	 * Metadata about a document symbol provider.
+	 */
+	export interface DocumentSymbolProviderMetadata {
+		/**
+		 * A human readable string that is shown when multiple outlines trees show for one document.
+		 */
+		label?: string;
 	}
 
 	/**
@@ -3251,6 +3258,13 @@ declare module 'vscode' {
 		 * characters will be ignored.
 		 */
 		commitCharacters?: string[];
+
+		/**
+		 * Keep whitespace of the [insertText](#CompletionItem.insertText) as is. By default, the editor adjusts leading
+		 * whitespace of new lines so that they match the indentation of the line for which the item is accepeted - setting
+		 * this to `true` will prevent that.
+		 */
+		keepWhitespace?: boolean;
 
 		/**
 		 * @deprecated Use `CompletionItem.insertText` and `CompletionItem.range` instead.
@@ -3991,6 +4005,35 @@ declare module 'vscode' {
 		 * @param rangeOrPosition The range or position. Positions will be converted to an empty range.
 		 */
 		constructor(uri: Uri, rangeOrPosition: Range | Position);
+	}
+
+	/**
+	 * Represents the connection of two locations. Provides additional metadata over normal [locations](#Location),
+	 * including an origin range.
+	 */
+	export interface LocationLink {
+		/**
+		 * Span of the origin of this link.
+		 *
+		 * Used as the underlined span for mouse definition hover. Defaults to the word range at
+		 * the definition position.
+		 */
+		originSelectionRange?: Range;
+
+		/**
+		 * The target resource identifier of this link.
+		 */
+		targetUri: Uri;
+
+		/**
+		 * The full target range of this link.
+		 */
+		targetRange: Range;
+
+		/**
+		 * The span of this link.
+		 */
+		targetSelectionRange?: Range;
 	}
 
 	/**
@@ -5716,6 +5759,24 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * The clipboard provides read and write access to the system's clipboard.
+	 */
+	export interface Clipboard {
+
+		/**
+		 * Read the current clipboard contents as text.
+		 * @returns A thenable that resolves to a string.
+		 */
+		readText(): Thenable<string>;
+
+		/**
+		 * Writes text into the clipboard.
+		 * @returns A thenable that resolves when writing happened.
+		 */
+		writeText(value: string): Thenable<void>;
+	}
+
+	/**
 	 * Namespace describing the environment the editor runs in.
 	 */
 	export namespace env {
@@ -5740,6 +5801,11 @@ declare module 'vscode' {
 		 * @readonly
 		 */
 		export let language: string;
+
+		/**
+		 * The system clipboard.
+		 */
+		export const clipboard: Clipboard;
 
 		/**
 		 * A unique identifier for the computer.
@@ -5840,6 +5906,7 @@ declare module 'vscode' {
 		 * the command handler function doesn't return anything.
 		 */
 		export function executeCommand<T>(command: string, ...rest: any[]): Thenable<T | undefined>;
+		export function executeCommand<T>(command: 'vscode.previewHtml', error: { '⚠️ The vscode.previewHtml command is deprecated and will be removed. Please switch to using the Webview Api': never }, ...rest: any[]): Thenable<T | undefined>;
 
 		/**
 		 * Retrieve the list of all available commands. Commands starting an underscore are
@@ -6379,10 +6446,10 @@ declare module 'vscode' {
 		/**
 		 * Create a [TreeView](#TreeView) for the view contributed using the extension point `views`.
 		 * @param viewId Id of the view contributed using the extension point `views`.
-		 * @param options Options object to provide [TreeDataProvider](#TreeDataProvider) for the view.
+		 * @param options Options for creating the [TreeView](#TreeView)
 		 * @returns a [TreeView](#TreeView).
 		 */
-		export function createTreeView<T>(viewId: string, options: { treeDataProvider: TreeDataProvider<T> }): TreeView<T>;
+		export function createTreeView<T>(viewId: string, options: TreeViewOptions<T>): TreeView<T>;
 
 		/**
 		 * Registers a [uri handler](#UriHandler) capable of handling system-wide [uris](#Uri).
@@ -6419,6 +6486,22 @@ declare module 'vscode' {
 		 * @param serializer Webview serializer.
 		 */
 		export function registerWebviewPanelSerializer(viewType: string, serializer: WebviewPanelSerializer): Disposable;
+	}
+
+	/**
+	 * Options for creating a [TreeView](#TreeView]
+	 */
+	export interface TreeViewOptions<T> {
+
+		/**
+		 * A data provider that provides tree data.
+		 */
+		treeDataProvider: TreeDataProvider<T>;
+
+		/**
+		 * Whether to show collapse all action or not.
+		 */
+		showCollapseAll?: boolean;
 	}
 
 	/**
@@ -7671,6 +7754,19 @@ declare module 'vscode' {
 		export function registerTypeDefinitionProvider(selector: DocumentSelector, provider: TypeDefinitionProvider): Disposable;
 
 		/**
+		 * Register a declaration provider.
+		 *
+		 * Multiple providers can be registered for a language. In that case providers are asked in
+		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
+		 * not cause a failure of the whole operation.
+		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider A declaration provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerDeclarationProvider(selector: DocumentSelector, provider: DeclarationProvider): Disposable;
+
+		/**
 		 * Register a hover provider.
 		 *
 		 * Multiple providers can be registered for a language. In that case providers are asked in
@@ -7705,9 +7801,10 @@ declare module 'vscode' {
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider A document symbol provider.
+		 * @param metaData metadata about the provider
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
-		export function registerDocumentSymbolProvider(selector: DocumentSelector, provider: DocumentSymbolProvider): Disposable;
+		export function registerDocumentSymbolProvider(selector: DocumentSelector, provider: DocumentSymbolProvider, metaData?: DocumentSymbolProviderMetadata): Disposable;
 
 		/**
 		 * Register a workspace symbol provider.
@@ -8134,6 +8231,19 @@ declare module 'vscode' {
 		readonly name: string;
 
 		/**
+		 * The workspace folder of this session or `undefined` for a folderless setup.
+		 */
+		readonly workspaceFolder: WorkspaceFolder | undefined;
+
+		/**
+		 * The "resolved" [debug configuration](#DebugConfiguration) of this session.
+		 * "Resolved" means that
+		 * - all variables have been substituted and
+		 * - platform specific attribute sections have been "flattened" for the matching platform and removed for non-matching platforms.
+		 */
+		readonly configuration: DebugConfiguration;
+
+		/**
 		 * Send a custom request to the debug adapter.
 		 */
 		customRequest(command: string, args?: any): Thenable<any>;
@@ -8169,7 +8279,7 @@ declare module 'vscode' {
 		 * Provides initial [debug configuration](#DebugConfiguration). If more than one debug configuration provider is
 		 * registered for the same type, debug configurations are concatenated in arbitrary order.
 		 *
-		 * @param folder The workspace folder for which the configurations are used or undefined for a folderless setup.
+		 * @param folder The workspace folder for which the configurations are used or `undefined` for a folderless setup.
 		 * @param token A cancellation token.
 		 * @return An array of [debug configurations](#DebugConfiguration).
 		 */
@@ -8182,7 +8292,7 @@ declare module 'vscode' {
 		 * Returning the value 'undefined' prevents the debug session from starting.
 		 * Returning the value 'null' prevents the debug session from starting and opens the underlying debug configuration instead.
 		 *
-		 * @param folder The workspace folder from which the configuration originates from or undefined for a folderless setup.
+		 * @param folder The workspace folder from which the configuration originates from or `undefined` for a folderless setup.
 		 * @param debugConfiguration The [debug configuration](#DebugConfiguration) to resolve.
 		 * @param token A cancellation token.
 		 * @return The resolved debug configuration or undefined or null.
@@ -8234,6 +8344,10 @@ declare module 'vscode' {
 	 * The base class of all breakpoint types.
 	 */
 	export class Breakpoint {
+		/**
+		 * The unique ID of the breakpoint.
+		 */
+		readonly id: string;
 		/**
 		 * Is breakpoint enabled.
 		 */

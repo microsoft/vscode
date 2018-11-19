@@ -247,6 +247,36 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		});
 	});
 
+	// --- declaration
+
+	test('Declaration, back and forth', function () {
+
+		disposables.push(extHost.registerDeclarationProvider(nullExtensionDescription, defaultSelector, <vscode.DeclarationProvider>{
+			provideDeclaration(doc: any): any {
+				return new types.Location(doc.uri, new types.Range(0, 0, 0, 0));
+			}
+		}));
+		disposables.push(extHost.registerDeclarationProvider(nullExtensionDescription, defaultSelector, <vscode.DeclarationProvider>{
+			provideDeclaration(doc: any): any {
+				return [
+					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
+					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
+					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
+				];
+			}
+		}));
+
+		return rpcProtocol.sync().then(() => {
+			return commands.executeCommand<vscode.Location[]>('vscode.executeDeclarationProvider', model.uri, new types.Position(0, 0)).then(values => {
+				assert.equal(values.length, 4);
+				for (let v of values) {
+					assert.ok(v.uri instanceof URI);
+					assert.ok(v.range instanceof types.Range);
+				}
+			});
+		});
+	});
+
 	// --- type definition
 
 	test('Type Definition, invalid arguments', function () {

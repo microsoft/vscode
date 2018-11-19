@@ -8,7 +8,7 @@ import * as os from 'os';
 import * as ipc from 'vs/base/parts/ipc/node/ipc';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 
-import { ISearchWorker, ISearchWorkerChannel, SearchWorkerChannelClient } from './worker/searchWorkerIpc';
+import { ISearchWorker, SearchWorkerChannelClient } from './worker/searchWorkerIpc';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 export interface ITextSearchWorkerProvider {
@@ -42,7 +42,7 @@ export class TextSearchWorkerProvider implements ITextSearchWorkerProvider {
 				useQueue: true
 			});
 
-		const channel = ipc.getNextTickChannel(client.getChannel<ISearchWorkerChannel>('searchWorker'));
+		const channel = ipc.getNextTickChannel(client.getChannel('searchWorker'));
 		const channelClient = new SearchWorkerChannelClient(channel);
 
 		this.workers.push(channelClient);

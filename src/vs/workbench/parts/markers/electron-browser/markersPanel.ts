@@ -6,7 +6,6 @@
 import 'vs/css!./media/markers';
 
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
 import { IAction, IActionItem, Action } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -202,7 +201,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		return false;
 	}
 
-	private refreshPanel(): TPromise<any> {
+	private refreshPanel(): void {
 		if (this.isVisible()) {
 			this.cachedFilterStats = undefined;
 			this.tree.setChildren(null, createModelIterator(this.markersWorkbenchService.markersModel));
@@ -212,7 +211,6 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 			this.renderMessage();
 			this._onDidFilter.fire();
 		}
-		return TPromise.as(null);
 	}
 
 	private updateFilter() {
