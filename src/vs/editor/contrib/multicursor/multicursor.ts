@@ -176,15 +176,18 @@ class InsertCursorAtEndOfLineSelected extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
 		const selections = editor.getSelections();
 		const lineCount = editor.getModel().getLineCount();
 		const startPosition = selections[0].startColumn;
+		const addCurrent = (args && args.addCurrent === true);
 
 		let newSelections = [];
 		for (let i = selections[0].startLineNumber; i <= lineCount; i++) {
-			const lineContent = editor.getModel().getLineContent(i);
-			if (lineContent.length >= startPosition) {
+			const currPosition = editor.getModel().getLineFirstNonWhitespaceColumn(i);
+			if (currPosition >= startPosition && addCurrent === true) {
+				newSelections.push(new Selection(i, selections[0].startColumn, i, selections[0].endColumn));
+			} else if (addCurrent === false) {
 				newSelections.push(new Selection(i, selections[0].startColumn, i, selections[0].endColumn));
 			}
 		}
@@ -206,14 +209,17 @@ class InsertCursorAtTopOfLineSelected extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
 		const selections = editor.getSelections();
 		const startPosition = selections[0].startColumn;
+		const addCurrent = (args && args.addCurrent === true);
 
 		let newSelections = [];
 		for (let i = selections[0].startLineNumber; i >= 1; i--) {
-			const lineContent = editor.getModel().getLineContent(i);
-			if (lineContent.length >= startPosition) {
+			const currPosition = editor.getModel().getLineFirstNonWhitespaceColumn(i);
+			if (currPosition >= startPosition && addCurrent === true) {
+				newSelections.push(new Selection(i, selections[0].startColumn, i, selections[0].endColumn));
+			} else if (addCurrent === false) {
 				newSelections.push(new Selection(i, selections[0].startColumn, i, selections[0].endColumn));
 			}
 		}
