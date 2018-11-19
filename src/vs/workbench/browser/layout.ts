@@ -432,7 +432,7 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 
 		//Restore old sidebar when maximize panel is toggled
 		if (options && options.toggleMaximizedPanel && (panelPosition === Position.RIGHT) && (sidebarPosition === Position.LEFT) && !isSidebarHidden) {
-			if(this.panelMaximized){
+			if (this.panelMaximized) {
 				//Store user's sidebar width
 				this.storageService.store(WorkbenchLayout.sidebarSizeBeforeMaximizedKey, this.sidebarWidth, StorageScope.GLOBAL);
 			} else {
