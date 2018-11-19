@@ -874,6 +874,10 @@ export class TestFileService implements IFileService {
 		return TPromise.as(null);
 	}
 
+	readFolder(_resource: URI) {
+		return TPromise.as([]);
+	}
+
 	createFolder(_resource: URI): TPromise<IFileStat> {
 		return TPromise.as(null);
 	}

@@ -520,6 +520,16 @@ export class RemoteFileService extends FileService {
 		}
 	}
 
+	readFolder(resource: URI): TPromise<string[]> {
+		if (resource.scheme === Schemas.file) {
+			return super.readFolder(resource);
+		} else {
+			return this._withProvider(resource).then(provider => {
+				return provider.readdir(resource);
+			}).then(list => list.map(l => l[0]));
+		}
+	}
+
 	createFolder(resource: URI): TPromise<IFileStat> {
 		if (resource.scheme === Schemas.file) {
 			return super.createFolder(resource);
