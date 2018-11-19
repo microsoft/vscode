@@ -430,23 +430,19 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 		this.sidebarHeight = this.workbenchSize.height - this.statusbarHeight - this.titlebarHeight;
 		let sidebarSize = new Dimension(this.sidebarWidth, this.sidebarHeight);
 
-		//Start of working area
+		//Restore old sidebar when pannel is toggled
 		if (options && options.toggleMaximizedPanel && (panelPosition === Position.RIGHT) && (sidebarPosition === Position.LEFT) && !isSidebarHidden) {
-			let sidebarWidth: number;
-			sidebarWidth = this.sidebarWidth;
-
-			//2 paths, maximising, minimizing
 			if(this.panelMaximized){
 				//Store user's sidebar width
 				this.storageService.store(WorkbenchLayout.sidebarSizeBeforeMaximizedKey, this.sidebarWidth, StorageScope.GLOBAL);
-				sidebarWidth = this.partLayoutInfo.sidebar.minWidth;
+				sidebarSize.width = this.partLayoutInfo.sidebar.minWidth;
 			} else {
 				//Retrieve user's sidebar width
 				this.sidebarSizeBeforeMaximized = this.storageService.getInteger(WorkbenchLayout.sidebarSizeBeforeMaximizedKey, StorageScope.GLOBAL, DEFAULT_SIDEBAR_PART_WIDTH);
-				sidebarWidth = Math.max(this.partLayoutInfo.sidebar.minWidth, this.sidebarSizeBeforeMaximized);
+				sidebarSize.width = Math.max(this.partLayoutInfo.sidebar.minWidth, this.sidebarSizeBeforeMaximized);
 			}
-			sidebarSize.width = sidebarWidth;
 		}
+
 		// Activity Bar
 		let activityBarSize = new Dimension(this.activitybarWidth, sidebarSize.height);
 
