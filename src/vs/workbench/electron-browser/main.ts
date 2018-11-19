@@ -298,7 +298,7 @@ function createStorageService(payload: IWorkspaceInitializationPayload, environm
 		}
 
 		// Otherwise do a migration of previous workspace data if the DB does not exist yet
-		// TODO@Ben remove me after one milestone
+		// TODO@Ben remove me after some milestones
 		const workspaceStorageDBPath = join(workspaceStorageFolder, 'storage.db');
 		perf.mark('willCheckWorkspaceStorageExists');
 		return exists(workspaceStorageDBPath).then(exists => {
