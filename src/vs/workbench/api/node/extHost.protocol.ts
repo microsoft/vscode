@@ -978,7 +978,7 @@ export type IDebugSessionDto = IDebugSessionFullDto | DebugSessionUUID;
 
 export interface ExtHostDebugServiceShape {
 	$substituteVariables(folder: UriComponents | undefined, config: IConfig): Thenable<IConfig>;
-	$runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Thenable<void>;
+	$runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Thenable<number | undefined>;
 	$startDASession(handle: number, session: IDebugSessionDto): Thenable<void>;
 	$stopDASession(handle: number): Thenable<void>;
 	$sendDAMessage(handle: number, message: DebugProtocol.ProtocolMessage): void;

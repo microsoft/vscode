@@ -280,7 +280,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 	// RPC methods (ExtHostDebugServiceShape)
 
-	public $runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Thenable<void> {
+	public $runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Thenable<number | undefined> {
 
 		if (args.kind === 'integrated') {
 
@@ -311,12 +311,12 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 				this._integratedTerminalInstance.show();
 
-				return new Promise((resolve) => {
-					setTimeout(_ => {
-						const command = prepareCommand(args, config);
-						this._integratedTerminalInstance.sendText(command, true);
-						resolve(void 0);
-					}, 500);
+				return this._integratedTerminalInstance.processId.then(shellProcessId => {
+
+					const command = prepareCommand(args, config);
+					this._integratedTerminalInstance.sendText(command, true);
+
+					return shellProcessId;
 				});
 			});
 

@@ -111,7 +111,7 @@ export interface IExpression extends IReplElement, IExpressionContainer {
 
 export interface IDebugger {
 	createDebugAdapter(session: IDebugSession, outputService: IOutputService): Promise<IDebugAdapter>;
-	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<void>;
+	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined>;
 	getCustomTelemetryService(): Thenable<TelemetryService>;
 }
 
@@ -543,7 +543,7 @@ export interface IDebugAdapterProvider {
 }
 
 export interface ITerminalLauncher {
-	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<void>;
+	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<number | undefined>;
 }
 
 export interface ITerminalSettings {
@@ -602,7 +602,7 @@ export interface IConfigurationManager {
 	createDebugAdapter(session: IDebugSession): IDebugAdapter;
 
 	substituteVariables(debugType: string, folder: IWorkspaceFolder, config: IConfig): Promise<IConfig>;
-	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<void>;
+	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<number | undefined>;
 }
 
 export interface ILaunch {
