@@ -435,23 +435,18 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 			let sidebarWidth: number;
 			sidebarWidth = this.sidebarWidth;
 
-			//if Pannel is not maximised, store sidebar
-			if(!this.panelMaximized) {
-				this.sidebarSizeBeforeMaximized = sidebarWidth;
+			//2 paths, maximising, minimizing
+			if(this.panelMaximized){
+				//Store user's sidebar width
+				this.storageService.store(WorkbenchLayout.sidebarSizeBeforeMaximizedKey, this.sidebarWidth, StorageScope.GLOBAL);
+				sidebarWidth = this.partLayoutInfo.sidebar.minWidth;
+			} else {
+				//Retrieve user's sidebar width
+				this.sidebarSizeBeforeMaximized = this.storageService.getInteger(WorkbenchLayout.sidebarSizeBeforeMaximizedKey, StorageScope.GLOBAL, DEFAULT_SIDEBAR_PART_WIDTH);
+				sidebarWidth = Math.max(this.partLayoutInfo.sidebar.minWidth, this.sidebarSizeBeforeMaximized);
 			}
-
-			//if Pannel is not maximised, store sidebar
-			this.panelMaximized ?
-			this.sidebarSizeBeforeMaximized = this.storageService.getInteger(WorkbenchLayout.sidebarSizeBeforeMaximizedKey, StorageScope.GLOBAL, DEFAULT_SIDEBAR_PART_WIDTH)
-			:
-			this.storageService.store(WorkbenchLayout.sidebarSizeBeforeMaximizedKey, this.sidebarWidth, StorageScope.GLOBAL);
-
-
-			//Toogle sidebar Size with Pannel
-			sidebarWidth = this.panelMaximized ? Math.max(this.partLayoutInfo.sidebar.minWidth, this.sidebarSizeBeforeMaximized) : this.partLayoutInfo.sidebar.minWidth;
 			sidebarSize.width = sidebarWidth;
 		}
-
 		// Activity Bar
 		let activityBarSize = new Dimension(this.activitybarWidth, sidebarSize.height);
 
