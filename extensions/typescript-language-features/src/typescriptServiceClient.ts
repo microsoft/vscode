@@ -54,7 +54,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	private lastStart: number;
 	private numberRestarts: number;
 	private isRestarting: boolean = false;
-	private _tsServerLoading: { resolve: () => void, reject: () => void } | undefined;
+	private loadingIndicator = new ServerInitializingIndicator();
 
 	public readonly telemetryReporter: TelemetryReporter;
 	/**
@@ -150,10 +150,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			this.forkedTsServer.kill();
 		}
 
-		if (this._tsServerLoading) {
-			this._tsServerLoading.reject();
-			this._tsServerLoading = undefined;
-		}
+		this.loadingIndicator.stop();
 	}
 
 	public restartTsServer(): void {
@@ -322,17 +319,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.forkedTsServer = handle;
 		this._onTsServerStarted.fire(currentVersion.version);
 
-		if (this._tsServerLoading) {
-			this._tsServerLoading.reject();
-		}
-		if (this._apiVersion.gte(API.v300)) {
-			vscode.window.withProgress({
-				location: vscode.ProgressLocation.Window,
-				title: localize('serverLoading.progress', "Initializing JS/TS language features"),
-			}, () => new Promise((resolve, reject) => {
-				this._tsServerLoading = { resolve, reject };
-			}));
-		}
+		this.loadingIndicator.start(this._apiVersion);
 
 		this.serviceStarted(resendModels);
 
@@ -437,10 +424,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	private serviceExited(restart: boolean): void {
-		if (this._tsServerLoading) {
-			this._tsServerLoading.reject();
-			this._tsServerLoading = undefined;
-		}
+		this.loadingIndicator.stop();
 
 		enum MessageAction {
 			reportIssue
@@ -611,10 +595,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			case 'semanticDiag':
 			case 'suggestionDiag':
 				// This event also roughly signals that project has been loaded successfully
-				if (this._tsServerLoading) {
-					this._tsServerLoading.resolve();
-					this._tsServerLoading = undefined;
-				}
+				this.loadingIndicator.stop();
 
 				const diagnosticEvent = event as Proto.DiagnosticEvent;
 				if (diagnosticEvent.body && diagnosticEvent.body.diagnostics) {
@@ -743,3 +724,30 @@ function getDignosticsKind(event: Proto.Event) {
 	}
 	throw new Error('Unknown dignostics kind');
 }
+
+class ServerInitializingIndicator extends Disposable {
+	private _tsServerLoading?: { resolve: () => void, reject: () => void };
+
+	public start(apiVersion: API) {
+		if (this._tsServerLoading) {
+			this._tsServerLoading.reject();
+		}
+
+		if (apiVersion.gte(API.v300)) {
+			vscode.window.withProgress({
+				location: vscode.ProgressLocation.Window,
+				title: localize('serverLoading.progress', "Initializing JS/TS language features"),
+			}, () => new Promise((resolve, reject) => {
+				this._tsServerLoading = { resolve, reject };
+			}));
+		}
+	}
+
+	public stop() {
+		if (this._tsServerLoading) {
+			this._tsServerLoading.reject();
+			this._tsServerLoading = undefined;
+		}
+	}
+}
+
