@@ -115,7 +115,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	private systemExtensionsPath: string;
 	private extensionsPath: string;
 	private uninstalledPath: string;
-	private uninstalledFileLimiter: Queue<void>;
+	private uninstalledFileLimiter: Queue<any>;
 	private reportedExtensions: Promise<IReportedExtension[]> | undefined;
 	private lastReportTimestamp = 0;
 	private readonly installingExtensions: Map<string, CancelablePromise<void>> = new Map<string, CancelablePromise<void>>();
@@ -147,7 +147,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		this.systemExtensionsPath = environmentService.builtinExtensionsPath;
 		this.extensionsPath = environmentService.extensionsPath;
 		this.uninstalledPath = path.join(this.extensionsPath, '.obsolete');
-		this.uninstalledFileLimiter = new Queue<void>();
+		this.uninstalledFileLimiter = new Queue();
 		this.manifestCache = this._register(new ExtensionsManifestCache(environmentService, this));
 		this.extensionLifecycle = this._register(new ExtensionsLifecycle(this.logService));
 
@@ -774,7 +774,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	private scanExtensions(root: string, type: LocalExtensionType): Promise<ILocalExtension[]> {
-		const limiter = new Limiter(10);
+		const limiter = new Limiter<any>(10);
 		return pfs.readdir(root)
 			.then(extensionsFolders => Promise.all<ILocalExtension>(extensionsFolders.map(extensionFolder => limiter.queue(() => this.scanExtension(extensionFolder, root, type)))))
 			.then(extensions => extensions.filter(e => e && e.identifier));
