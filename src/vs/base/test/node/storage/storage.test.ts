@@ -8,7 +8,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { equal, ok } from 'assert';
-import { mkdirp, del } from 'vs/base/node/pfs';
+import { mkdirp, del, exists, unlink, writeFile } from 'vs/base/node/pfs';
 import { timeout } from 'vs/base/common/async';
 
 suite('Storage Library', () => {
@@ -289,15 +289,22 @@ suite('SQLite Storage Library', () => {
 		await del(storageDir, tmpdir());
 	});
 
-	// test('basics (broken DB falls back to in-memory)', async () => {
-	// 	let expectedError: any;
+	test('basics (broken DB falls back to empty DB)', async () => {
+		let expectedError: any;
 
-	// 	await testDBBasics(join(__dirname, 'broken.db'), error => {
-	// 		expectedError = error;
-	// 	});
+		const brokenDBPath = join(__dirname, 'broken.db');
+		if (await exists(brokenDBPath)) {
+			await unlink(brokenDBPath); // cleanup previous run
+		}
 
-	// 	ok(expectedError);
-	// });
+		await writeFile(brokenDBPath, 'This is a broken DB');
+
+		await testDBBasics(brokenDBPath, error => {
+			expectedError = error;
+		});
+
+		ok(expectedError);
+	});
 
 	test('real world example', async () => {
 		const storageDir = uniqueStorageDir();
