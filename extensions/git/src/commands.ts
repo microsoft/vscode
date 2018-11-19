@@ -27,7 +27,7 @@ class CheckoutItem implements QuickPickItem {
 
 	constructor(protected ref: Ref) { }
 
-	async run(repository: Repository): Promise<void> {
+	async run(repository: Repository, _name: string): Promise<void> {
 		const ref = this.ref.name;
 
 		if (!ref) {
@@ -51,7 +51,7 @@ class CheckoutRemoteHeadItem extends CheckoutItem {
 		return localize('remote branch at', "Remote branch at {0}", this.shortCommit);
 	}
 
-	async run(repository: Repository): Promise<void> {
+	async run(repository: Repository, _name: string): Promise<void> {
 		if (!this.ref.name) {
 			return;
 		}
@@ -98,8 +98,8 @@ class CreateBranchItem implements QuickPickItem {
 
 	get alwaysShow(): boolean { return true; }
 
-	async run(repository: Repository): Promise<void> {
-		await this.cc.branch(repository);
+	async run(repository: Repository, name: string): Promise<void> {
+		await this.cc.branch(repository, name);
 	}
 }
 
@@ -1400,20 +1400,27 @@ export class CommandCenter {
 		const remoteHeads = (includeRemotes ? repository.refs.filter(ref => ref.type === RefType.RemoteHead) : [])
 			.map(ref => new CheckoutRemoteHeadItem(ref));
 
-		const picks = [createBranch, ...heads, ...tags, ...remoteHeads];
-		const placeHolder = localize('select a ref to checkout', 'Select a ref to checkout');
-		const choice = await window.showQuickPick(picks, { placeHolder });
+		const quickPick = window.createQuickPick<CheckoutItem | CreateBranchItem>();
+		quickPick.items = [createBranch, ...heads, ...tags, ...remoteHeads];
+		quickPick.placeholder = localize('select a ref to checkout', 'Select a ref to checkout');
 
-		if (!choice) {
-			return false;
-		}
+		return new Promise<boolean>(resolve => {
+			quickPick.onDidAccept(() => {
+				quickPick.selectedItems[0].run(repository, quickPick.value);
+				resolve(true);
+				quickPick.hide();
+			});
+			quickPick.onDidHide(() => {
+				resolve(false);
+				quickPick.dispose();
+			});
 
-		await choice.run(repository);
-		return true;
+			quickPick.show();
+		});
 	}
 
 	@command('git.branch', { repository: true })
-	async branch(repository: Repository): Promise<void> {
+	async branch(repository: Repository, name?: string): Promise<void> {
 		const config = workspace.getConfiguration('git');
 		const branchValidationRegex = config.get<string>('branchValidationRegex')!;
 		const branchWhitespaceChar = config.get<string>('branchWhitespaceChar')!;
@@ -1428,20 +1435,25 @@ export class CommandCenter {
 			return name.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$|\[|\]$/g, branchWhitespaceChar);
 		};
 
-		const result = await window.showInputBox({
-			placeHolder: localize('branch name', "Branch name"),
-			prompt: localize('provide branch name', "Please provide a branch name"),
-			ignoreFocusOut: true,
-			validateInput: (name: string) => {
-				if (validateName.test(sanitize(name))) {
-					return null;
+		if (!name || !validateName.test(sanitize(name))) {
+			const result = await window.showInputBox({
+				placeHolder: localize('branch name', "Branch name"),
+				prompt: localize('provide branch name', "Please provide a branch name"),
+				value: name,
+				ignoreFocusOut: true,
+				validateInput: (name: string) => {
+					if (validateName.test(sanitize(name))) {
+						return null;
+					}
+
+					return localize('branch name format invalid', "Branch name needs to match regex: {0}", branchValidationRegex);
 				}
+			});
 
-				return localize('branch name format invalid', "Branch name needs to match regex: {0}", branchValidationRegex);
-			}
-		});
-
-		const name = sanitize(result || '');
+			name = sanitize(result || '');
+		} else {
+			name = sanitize(name);
+		}
 
 		if (!name) {
 			return;
@@ -1960,7 +1972,7 @@ export class CommandCenter {
 				result = Promise.resolve(method.apply(this, args));
 			} else {
 				// try to guess the repository based on the first argument
-				const repository = this.model.getRepository(args[0]);
+				const repository = this.model.getRepository(args.shift());
 				let repositoryPromise: Promise<Repository | undefined>;
 
 				if (repository) {
