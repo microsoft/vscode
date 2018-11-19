@@ -307,6 +307,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 		id: ToggleMenuBarAction.ID,
 		title: nls.localize({ key: 'miToggleMenuBar', comment: ['&& denotes a mnemonic'] }, "Toggle Menu &&Bar")
 	},
+	when: IsMacContext.toNegated(),
 	order: 4
 });
 
