@@ -163,6 +163,7 @@ enum PushType {
 interface PushOptions {
 	pushType: PushType;
 	forcePush?: boolean;
+	silent?: boolean;
 }
 
 export class CommandCenter {
@@ -1225,6 +1226,17 @@ export class CommandCenter {
 
 		await repository.commit(message, opts);
 
+		const postCommitCommand = config.get<'none' | 'push' | 'sync'>('postCommitCommand');
+
+		switch (postCommitCommand) {
+			case 'push':
+				await this._push(repository, { pushType: PushType.Push, silent: true });
+				break;
+			case 'sync':
+				await this.sync(repository);
+				break;
+		}
+
 		return true;
 	}
 
@@ -1615,7 +1627,9 @@ export class CommandCenter {
 		const remotes = repository.remotes;
 
 		if (remotes.length === 0) {
-			window.showWarningMessage(localize('no remotes to push', "Your repository has no remotes configured to push to."));
+			if (!pushOptions.silent) {
+				window.showWarningMessage(localize('no remotes to push', "Your repository has no remotes configured to push to."));
+			}
 			return;
 		}
 
@@ -1652,7 +1666,9 @@ export class CommandCenter {
 		}
 
 		if (!repository.HEAD || !repository.HEAD.name) {
-			window.showWarningMessage(localize('nobranch', "Please check out a branch to push to a remote."));
+			if (!pushOptions.silent) {
+				window.showWarningMessage(localize('nobranch', "Please check out a branch to push to a remote."));
+			}
 			return;
 		}
 
@@ -1662,6 +1678,10 @@ export class CommandCenter {
 			} catch (err) {
 				if (err.gitErrorCode !== GitErrorCodes.NoUpstreamBranch) {
 					throw err;
+				}
+
+				if (pushOptions.silent) {
+					return;
 				}
 
 				const branchName = repository.HEAD.name;
