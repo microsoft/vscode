@@ -427,6 +427,7 @@
 		"./vs/platform/editor/common/editor.ts",
 		"./vs/platform/environment/common/environment.ts",
 		"./vs/platform/environment/node/argv.ts",
+		"./vs/platform/environment/node/environmentService.ts",
 		"./vs/platform/extensionManagement/common/extensionEnablementService.ts",
 		"./vs/platform/extensionManagement/common/extensionManagement.ts",
 		"./vs/platform/extensionManagement/common/extensionManagementUtil.ts",
