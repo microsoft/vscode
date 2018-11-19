@@ -39,6 +39,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { randomPort } from 'vs/base/node/ports';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 
 export const IExtensionHostProfileService = createDecorator<IExtensionHostProfileService>('extensionHostProfileService');
 export const CONTEXT_PROFILE_SESSION_STATE = new RawContextKey<string>('profileSessionState', 'none');
@@ -111,7 +112,8 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IExtensionHostProfileService private readonly _extensionHostProfileService: IExtensionHostProfileService,
-		@IStorageService storageService: IStorageService
+		@IStorageService storageService: IStorageService,
+		@IRemoteAuthorityResolverService private remoteAuthorityResolverService: IRemoteAuthorityResolverService
 	) {
 		super(RuntimeExtensionsEditor.ID, telemetryService, themeService, storageService);
 
@@ -376,6 +378,11 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				if (element.description.extensionLocation.scheme !== 'file') {
 					data.msgIcon2.className = 'octicon octicon-rss';
 					data.msgLabel2.textContent = element.description.extensionLocation.authority;
+					this.remoteAuthorityResolverService.getRemoteAuthorityResolver(element.description.extensionLocation.authority).then(resolver => {
+						if (resolver && resolver.label.length) {
+							data.msgLabel2.textContent = resolver.label;
+						}
+					});
 				} else {
 					data.msgIcon2.className = '';
 					data.msgLabel2.textContent = '';
