@@ -307,133 +307,102 @@ function createStorageService(payload: IWorkspaceInitializationPayload, environm
 			const storageService = new StorageService(workspaceStorageDBPath, true, logService, environmentService);
 
 			return storageService.init().then(() => {
-				// TODO: Verifying fix for #62733. Always run parse part of migration and then check results against existing storage
-				// if (exists) {
-				// 	return storageService; // return early if DB was already there
-				// }
-				if (!exists) {
-					perf.mark('willMigrateWorkspaceStorageKeys');
+				if (exists) {
+					return storageService; // return early if DB was already there
 				}
 
+				perf.mark('willMigrateWorkspaceStorageKeys');
 				return readdir(environmentService.extensionsPath).then(extensions => {
+
 					// Otherwise, we migrate data from window.localStorage over
 					try {
 						let workspaceItems: StorageObject;
-						{
-							if (isWorkspaceIdentifier(payload)) {
-								workspaceItems = parseMultiRootStorage(window.localStorage, `root:${payload.id}`);
-							} else if (isSingleFolderWorkspaceInitializationPayload(payload)) {
-								workspaceItems = parseFolderStorage(window.localStorage, payload.folder.toString());
+						if (isWorkspaceIdentifier(payload)) {
+							workspaceItems = parseMultiRootStorage(window.localStorage, `root:${payload.id}`);
+						} else if (isSingleFolderWorkspaceInitializationPayload(payload)) {
+							workspaceItems = parseFolderStorage(window.localStorage, payload.folder.toString());
+						} else {
+							if (payload.id === 'ext-dev') {
+								workspaceItems = parseNoWorkspaceStorage(window.localStorage);
 							} else {
-								if (payload.id === 'ext-dev') {
-									workspaceItems = parseNoWorkspaceStorage(window.localStorage);
-								} else {
-									workspaceItems = parseEmptyStorage(window.localStorage, `empty:${payload.id}`);
-								}
+								workspaceItems = parseEmptyStorage(window.localStorage, `empty:${payload.id}`);
 							}
 						}
 
-						const supportedKeys = new Map<string, string>();
-						[
-							'workbench.search.history',
-							'history.entries',
-							'ignoreNetVersionError',
-							'ignoreEnospcError',
-							'extensionUrlHandler.urlToHandle',
-							'terminal.integrated.isWorkspaceShellAllowed',
-							'workbench.tasks.ignoreTask010Shown',
-							'workbench.tasks.recentlyUsedTasks',
-							'workspaces.dontPromptToOpen',
-							'output.activechannel',
-							'outline/state',
-							'extensionsAssistant/workspaceRecommendationsIgnore',
-							'extensionsAssistant/dynamicWorkspaceRecommendations',
-							'debug.repl.history',
-							'editor.matchCase',
-							'editor.wholeWord',
-							'editor.isRegex',
-							'lifecyle.lastShutdownReason',
-							'debug.selectedroot',
-							'debug.selectedconfigname',
-							'debug.breakpoint',
-							'debug.breakpointactivated',
-							'debug.functionbreakpoint',
-							'debug.exceptionbreakpoint',
-							'debug.watchexpressions',
-							'workbench.sidebar.activeviewletid',
-							'workbench.panelpart.activepanelid',
-							'workbench.zenmode.active',
-							'workbench.centerededitorlayout.active',
-							'workbench.sidebar.restore',
-							'workbench.sidebar.hidden',
-							'workbench.panel.hidden',
-							'workbench.panel.location',
-							'extensionsIdentifiers/disabled',
-							'extensionsIdentifiers/enabled',
-							'scm.views',
-							'suggest/memories/first',
-							'suggest/memories/recentlyUsed',
-							'suggest/memories/recentlyUsedByPrefix',
-							'workbench.view.explorer.numberOfVisibleViews',
-							'workbench.view.extensions.numberOfVisibleViews',
-							'workbench.view.debug.numberOfVisibleViews',
-							'workbench.explorer.views.state',
-							'workbench.view.extensions.state',
-							'workbench.view.debug.state',
-							'memento/workbench.editor.walkThroughPart',
-							'memento/workbench.editor.settings2',
-							'memento/workbench.editor.htmlPreviewPart',
-							'memento/workbench.editor.defaultPreferences',
-							'memento/workbench.editors.files.textFileEditor',
-							'memento/workbench.editors.logViewer',
-							'memento/workbench.editors.textResourceEditor',
-							'memento/workbench.panel.output'
-						].forEach(key => supportedKeys.set(key.toLowerCase(), key));
+						const workspaceItemsKeys = workspaceItems ? Object.keys(workspaceItems) : [];
+						if (workspaceItemsKeys.length > 0) {
+							const supportedKeys = new Map<string, string>();
+							[
+								'workbench.search.history',
+								'history.entries',
+								'ignoreNetVersionError',
+								'ignoreEnospcError',
+								'extensionUrlHandler.urlToHandle',
+								'terminal.integrated.isWorkspaceShellAllowed',
+								'workbench.tasks.ignoreTask010Shown',
+								'workbench.tasks.recentlyUsedTasks',
+								'workspaces.dontPromptToOpen',
+								'output.activechannel',
+								'outline/state',
+								'extensionsAssistant/workspaceRecommendationsIgnore',
+								'extensionsAssistant/dynamicWorkspaceRecommendations',
+								'debug.repl.history',
+								'editor.matchCase',
+								'editor.wholeWord',
+								'editor.isRegex',
+								'lifecyle.lastShutdownReason',
+								'debug.selectedroot',
+								'debug.selectedconfigname',
+								'debug.breakpoint',
+								'debug.breakpointactivated',
+								'debug.functionbreakpoint',
+								'debug.exceptionbreakpoint',
+								'debug.watchexpressions',
+								'workbench.sidebar.activeviewletid',
+								'workbench.panelpart.activepanelid',
+								'workbench.zenmode.active',
+								'workbench.centerededitorlayout.active',
+								'workbench.sidebar.restore',
+								'workbench.sidebar.hidden',
+								'workbench.panel.hidden',
+								'workbench.panel.location',
+								'extensionsIdentifiers/disabled',
+								'extensionsIdentifiers/enabled',
+								'scm.views',
+								'suggest/memories/first',
+								'suggest/memories/recentlyUsed',
+								'suggest/memories/recentlyUsedByPrefix',
+								'workbench.view.explorer.numberOfVisibleViews',
+								'workbench.view.extensions.numberOfVisibleViews',
+								'workbench.view.debug.numberOfVisibleViews',
+								'workbench.explorer.views.state',
+								'workbench.view.extensions.state',
+								'workbench.view.debug.state',
+								'memento/workbench.editor.walkThroughPart',
+								'memento/workbench.editor.settings2',
+								'memento/workbench.editor.htmlPreviewPart',
+								'memento/workbench.editor.defaultPreferences',
+								'memento/workbench.editors.files.textFileEditor',
+								'memento/workbench.editors.logViewer',
+								'memento/workbench.editors.textResourceEditor',
+								'memento/workbench.panel.output'
+							].forEach(key => supportedKeys.set(key.toLowerCase(), key));
 
-						// Support extension storage as well (always the ID of the extension)
-						extensions.forEach(extension => {
-							let extensionId: string;
-							if (extension.indexOf('-') >= 0) {
-								extensionId = extension.substring(0, extension.lastIndexOf('-')); // convert "author.extension-0.2.5" => "author.extension"
-							} else {
-								extensionId = extension;
-							}
+							// Support extension storage as well (always the ID of the extension)
+							extensions.forEach(extension => {
+								let extensionId: string;
+								if (extension.indexOf('-') >= 0) {
+									extensionId = extension.substring(0, extension.lastIndexOf('-')); // convert "author.extension-0.2.5" => "author.extension"
+								} else {
+									extensionId = extension;
+								}
 
-							if (extensionId) {
-								supportedKeys.set(extensionId.toLowerCase(), extensionId);
-							}
-						});
+								if (extensionId) {
+									supportedKeys.set(extensionId.toLowerCase(), extensionId);
+								}
+							});
 
-						if (workspaceItems) {
-							// TODO: Verifying fix for #62733 in insiders
-							// Remove for VS Code 1.30 release
-							if (exists) {
-								const fallback = '__fallback_value_to_mark_key_that_does_not_exist';
-								supportedKeys.forEach((realCaseKey, lowerCaseKey) => {
-									let storedValue: any = fallback;
-									// dynamic keys
-									if (lowerCaseKey.indexOf('memento/') === 0 || lowerCaseKey.indexOf('viewservice.') === 0 || endsWith(lowerCaseKey, '.state')) {
-										storedValue = storageService.get(lowerCaseKey, StorageScope.WORKSPACE, fallback);
-									} else if (endsWith(lowerCaseKey, '.numberOfVisibleViews'.toLowerCase())) { // fix lowercased ".numberOfVisibleViews"
-										const normalizedKey = realCaseKey.substring(0, realCaseKey.length - '.numberOfVisibleViews'.length) + '.numberOfVisibleViews';
-										storedValue = storageService.get(normalizedKey, StorageScope.WORKSPACE, fallback);
-									} else {
-										storedValue = storageService.get(realCaseKey, StorageScope.WORKSPACE, fallback);
-									}
-
-									if (storedValue === fallback) {
-										return;
-									}
-
-									const parsedValue = workspaceItems[lowerCaseKey];
-									if (parsedValue !== storedValue) {
-										console.warn(`Storage migration error for key '${realCaseKey}'. Parsed value: "${parsedValue}" does not match existing stored value "${storedValue}"`);
-									}
-								});
-								return storageService;
-							}
-
-							Object.keys(workspaceItems).forEach(key => {
+							workspaceItemsKeys.forEach(key => {
 								const value = workspaceItems[key];
 
 								// first check for a well known supported key and store with realcase value
