@@ -69,7 +69,7 @@ export function activate(
 		}
 	}
 
-	return getExtensionApi(onCompletionAccepted.event);
+	return getExtensionApi(onCompletionAccepted.event, pluginManager);
 }
 
 function createLazyClientHost(
