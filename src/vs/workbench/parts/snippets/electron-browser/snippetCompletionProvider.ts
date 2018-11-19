@@ -73,7 +73,7 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 		//
 	}
 
-	provideCompletionItems(model: ITextModel, position: Position): Promise<CompletionList> {
+	provideCompletionItems(model: ITextModel, position: Position): Promise<CompletionList> | undefined {
 
 		if (position.column >= SnippetCompletionProvider._maxPrefix) {
 			return undefined;
@@ -156,8 +156,8 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 		// snippets, else fall back to the outer language
 		model.tokenizeIfCheap(position.lineNumber);
 		let languageId = model.getLanguageIdAtPosition(position.lineNumber, position.column);
-		let { language } = this._modeService.getLanguageIdentifier(languageId);
-		if (!this._modeService.getLanguageName(language)) {
+		const languageIdentifier = this._modeService.getLanguageIdentifier(languageId);
+		if (languageIdentifier && !this._modeService.getLanguageName(languageIdentifier.language)) {
 			languageId = model.getLanguageIdentifier().id;
 		}
 		return languageId;
