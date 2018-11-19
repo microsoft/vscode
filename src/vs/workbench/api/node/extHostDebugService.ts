@@ -230,7 +230,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		return this._debugServiceProxy.$startDebugging(folder ? folder.uri : undefined, nameOrConfig);
 	}
 
-	public registerDebugConfigurationProvider(extension: IExtensionDescription, type: string, provider: vscode.DebugConfigurationProvider): vscode.Disposable {
+	public registerDebugConfigurationProvider(type: string, provider: vscode.DebugConfigurationProvider): vscode.Disposable {
 
 		if (!provider) {
 			return new Disposable(() => { });
@@ -242,8 +242,9 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		this._debugServiceProxy.$registerDebugConfigurationProvider(type,
 			!!provider.provideDebugConfigurations,
 			!!provider.resolveDebugConfiguration,
-			!!provider.debugAdapterExecutable,		// TODO@AW: legacy
-			!!provider.provideDebugAdapterTracker, handle);
+			!!provider.debugAdapterExecutable,		// TODO@AW: deprecated
+			!!provider.provideDebugAdapterTracker,	// TODO@AW: deprecated
+			handle);
 
 		return new Disposable(() => {
 			this._configProviders = this._configProviders.filter(p => p.provider !== provider);		// remove
@@ -276,6 +277,17 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 			this._adapterProviders = this._adapterProviders.filter(p => p.provider !== provider);		// remove
 			this._debugServiceProxy.$unregisterDebugAdapterProvider(handle);
 		});
+	}
+
+	public registerDebugAdapterTracker(debugType: string, callback: (session: vscode.DebugSession) => vscode.DebugAdapterTracker | undefined) {
+
+		const provider: vscode.DebugConfigurationProvider = {
+			provideDebugAdapterTracker(session: vscode.DebugSession) {
+				return callback(session);
+			}
+		};
+
+		return this.registerDebugConfigurationProvider(debugType, provider);
 	}
 
 	// RPC methods (ExtHostDebugServiceShape)
