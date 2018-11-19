@@ -339,7 +339,7 @@ export interface IExtensionManagementServer {
 export interface IExtensionManagementServerService {
 	_serviceBrand: any;
 	readonly localExtensionManagementServer: IExtensionManagementServer | null;
-	readonly otherExtensionManagementServer: IExtensionManagementServer | null;
+	readonly remoteExtensionManagementServer: IExtensionManagementServer | null;
 	getExtensionManagementServer(location: URI): IExtensionManagementServer | null;
 }
 

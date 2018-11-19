@@ -35,7 +35,7 @@ export class MulitExtensionManagementService extends Disposable implements IExte
 		@IRemoteAuthorityResolverService private remoteAuthorityResolverService: IRemoteAuthorityResolverService
 	) {
 		super();
-		this.servers = this.extensionManagementServerService.otherExtensionManagementServer ? [this.extensionManagementServerService.localExtensionManagementServer, this.extensionManagementServerService.otherExtensionManagementServer] : [this.extensionManagementServerService.localExtensionManagementServer];
+		this.servers = this.extensionManagementServerService.remoteExtensionManagementServer ? [this.extensionManagementServerService.localExtensionManagementServer, this.extensionManagementServerService.remoteExtensionManagementServer] : [this.extensionManagementServerService.localExtensionManagementServer];
 
 		this.onInstallExtension = this._register(this.servers.reduce((emitter: EventMultiplexer<InstallExtensionEvent>, server) => { emitter.add(server.extensionManagementService.onInstallExtension); return emitter; }, new EventMultiplexer<InstallExtensionEvent>())).event;
 		this.onDidInstallExtension = this._register(this.servers.reduce((emitter: EventMultiplexer<DidInstallExtensionEvent>, server) => { emitter.add(server.extensionManagementService.onDidInstallExtension); return emitter; }, new EventMultiplexer<DidInstallExtensionEvent>())).event;
@@ -73,8 +73,8 @@ export class MulitExtensionManagementService extends Disposable implements IExte
 			.then(extensionIdentifer => this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.getInstalled(LocalExtensionType.User)
 				.then(installed => {
 					const extension = installed.filter(i => areSameExtensions(i.identifier, extensionIdentifer))[0];
-					if (this.extensionManagementServerService.otherExtensionManagementServer && extension && !isUIExtension(extension.manifest, this.configurationService)) {
-						return this.extensionManagementServerService.otherExtensionManagementServer.extensionManagementService.install(vsix)
+					if (this.extensionManagementServerService.remoteExtensionManagementServer && extension && !isUIExtension(extension.manifest, this.configurationService)) {
+						return this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.install(vsix)
 							.then(() => extensionIdentifer);
 					}
 					return extensionIdentifer;
@@ -82,12 +82,12 @@ export class MulitExtensionManagementService extends Disposable implements IExte
 	}
 
 	installFromGallery(gallery: IGalleryExtension): Promise<void> {
-		if (!this.extensionManagementServerService.otherExtensionManagementServer) {
+		if (!this.extensionManagementServerService.remoteExtensionManagementServer) {
 			return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.installFromGallery(gallery);
 		}
 		return Promise.all([this.extensionGalleryService.getManifest(gallery, CancellationToken.None), this.hasToSyncExtensions()])
 			.then(([manifest, syncExtensions]) => {
-				const servers = isUIExtension(manifest, this.configurationService) ? [this.extensionManagementServerService.localExtensionManagementServer] : syncExtensions ? this.servers : [this.extensionManagementServerService.otherExtensionManagementServer];
+				const servers = isUIExtension(manifest, this.configurationService) ? [this.extensionManagementServerService.localExtensionManagementServer] : syncExtensions ? this.servers : [this.extensionManagementServerService.remoteExtensionManagementServer];
 				return Promise.all(servers.map(server => server.extensionManagementService.installFromGallery(gallery)))
 					.then(() => null);
 			});
@@ -103,11 +103,11 @@ export class MulitExtensionManagementService extends Disposable implements IExte
 
 	private _remoteAuthorityResolverPromise: Thenable<IRemoteAuthorityResolver>;
 	private hasToSyncExtensions(): Thenable<boolean> {
-		if (!this.extensionManagementServerService.otherExtensionManagementServer) {
+		if (!this.extensionManagementServerService.remoteExtensionManagementServer) {
 			return Promise.resolve(false);
 		}
 		if (!this._remoteAuthorityResolverPromise) {
-			this._remoteAuthorityResolverPromise = this.remoteAuthorityResolverService.getRemoteAuthorityResolver(this.extensionManagementServerService.otherExtensionManagementServer.authority);
+			this._remoteAuthorityResolverPromise = this.remoteAuthorityResolverService.getRemoteAuthorityResolver(this.extensionManagementServerService.remoteExtensionManagementServer.authority);
 		}
 		return this._remoteAuthorityResolverPromise.then(({ syncExtensions }) => !!syncExtensions);
 	}
