@@ -50,6 +50,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { FocusSessionActionItem } from 'vs/workbench/parts/debug/browser/debugActionItems';
 import { CompletionContext, CompletionList, CompletionProviderRegistry } from 'vs/editor/common/modes';
 import { first } from 'vs/base/common/arrays';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 
 const $ = dom.$;
 
@@ -62,7 +63,7 @@ const HISTORY_STORAGE_KEY = 'debug.repl.history';
 const IPrivateReplService = createDecorator<IPrivateReplService>('privateReplService');
 const DECORATION_KEY = 'replinputdecoration';
 
-export interface IPrivateReplService {
+interface IPrivateReplService {
 	_serviceBrand: any;
 	acceptReplInput(): void;
 	getVisibleContent(): string;
@@ -527,22 +528,21 @@ class SelectReplAction extends Action {
 	}
 }
 
-class ClearReplAction extends Action {
+export class ClearReplAction extends Action {
 	static readonly ID = 'workbench.debug.panel.action.clearReplAction';
 	static LABEL = nls.localize('clearRepl', "Clear Console");
 
 	constructor(id: string, label: string,
-		@IDebugService debugService: IDebugService,
-		@IPrivateReplService private replService: IPrivateReplService
+		@IPanelService private panelService: IPanelService
 	) {
 		super(id, label, 'debug-action clear-repl');
 	}
 
 	public run(): Promise<any> {
-		this.replService.clearRepl();
+		const repl = <Repl>this.panelService.openPanel(REPL_ID);
+		repl.clearRepl();
 		aria.status(nls.localize('debugConsoleCleared', "Debug console was cleared"));
 
-		// focus back to repl
 		return Promise.resolve(undefined);
 	}
 }
