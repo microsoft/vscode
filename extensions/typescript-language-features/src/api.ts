@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 
 interface ApiV0 {
-	readonly onCompletionAccepted: vscode.Event<vscode.CompletionItem>;
+	readonly onCompletionAccepted: vscode.Event<vscode.CompletionItem & { metadata?: any }>;
 }
 
 export interface Api {

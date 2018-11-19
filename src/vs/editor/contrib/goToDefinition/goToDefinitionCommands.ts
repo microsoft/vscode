@@ -268,9 +268,11 @@ export class DeclarationAction extends DefinitionAction {
 
 export class GoToDeclarationAction extends DeclarationAction {
 
+	public static readonly ID = 'editor.action.goToRealDeclaration';
+
 	constructor() {
 		super(new DefinitionActionConfig(), {
-			id: 'editor.action.goToDeclaration',
+			id: GoToDeclarationAction.ID,
 			label: nls.localize('actions.goToDeclaration.label', "Go to Declaration"),
 			alias: 'Go to Declaration',
 			precondition: ContextKeyExpr.and(
