@@ -815,7 +815,12 @@
         },
         {
           "command": "git.openFile2",
-          "when": "scmProvider == git && scmResourceGroup == merge && config.git.showInlineOpenFileAction",
+          "when": "scmProvider == git && scmResourceGroup == merge && config.git.showInlineOpenFileAction && config.git.openDiffOnClick",
+          "group": "inline0"
+        },
+        {
+          "command": "git.openChange",
+          "when": "scmProvider == git && scmResourceGroup == merge && config.git.showInlineOpenFileAction && !config.git.openDiffOnClick",
           "group": "inline0"
         },
         {
@@ -845,7 +850,12 @@
         },
         {
           "command": "git.openFile2",
-          "when": "scmProvider == git && scmResourceGroup == index && config.git.showInlineOpenFileAction",
+          "when": "scmProvider == git && scmResourceGroup == index && config.git.showInlineOpenFileAction && config.git.openDiffOnClick",
+          "group": "inline0"
+        },
+        {
+          "command": "git.openChange",
+          "when": "scmProvider == git && scmResourceGroup == index && config.git.showInlineOpenFileAction && !config.git.openDiffOnClick",
           "group": "inline0"
         },
         {
@@ -885,7 +895,12 @@
         },
         {
           "command": "git.openFile2",
-          "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.showInlineOpenFileAction",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.showInlineOpenFileAction && config.git.openDiffOnClick",
+          "group": "inline0"
+        },
+        {
+          "command": "git.openChange",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.showInlineOpenFileAction && !config.git.openDiffOnClick",
           "group": "inline0"
         },
         {
@@ -1204,6 +1219,11 @@
           "type": "boolean",
           "default": true,
           "description": "%config.confirmForcePush%"
+        },
+        "git.openDiffOnClick": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.openDiffOnClick%"
         }
       }
     },

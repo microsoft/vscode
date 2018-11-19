@@ -109,6 +109,7 @@
 	"config.allowForcePush": "Controls whether force push (with or without lease) is enabled.",
 	"config.useForcePushWithLease": "Controls whether force pushing uses the safer force-with-lease variant.",
 	"config.confirmForcePush": "Controls whether to ask for confirmation before force-pushing.",
+	"config.openDiffOnClick": "Controls whether the diff editor should be opened when clicking a change. Otherwise the regular editor will be opened.",
 	"colors.added": "Color for added resources.",
 	"colors.modified": "Color for modified resources.",
 	"colors.deleted": "Color for deleted resources.",
