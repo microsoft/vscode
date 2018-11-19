@@ -43,7 +43,7 @@ export class ChokidarWatcherService implements IWatcherService {
 	private _watchers: { [watchPath: string]: IWatcher };
 	private _watcherCount: number;
 
-	private _pollingInterval: number;
+	private _pollingInterval?: number;
 	private _verboseLogging: boolean;
 
 	private spamCheckStartTime: number;
@@ -63,7 +63,7 @@ export class ChokidarWatcherService implements IWatcherService {
 
 	public setVerboseLogging(enabled: boolean): TPromise<void> {
 		this._verboseLogging = enabled;
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 
 	public setRoots(requests: IWatcherRequest[]): TPromise<void> {
@@ -93,7 +93,7 @@ export class ChokidarWatcherService implements IWatcherService {
 		}
 
 		this._watchers = watchers;
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 
 	// for test purposes
@@ -134,7 +134,7 @@ export class ChokidarWatcherService implements IWatcherService {
 			console.warn(`Watcher basePath does not match version on disk and was corrected (original: ${basePath}, real: ${realBasePath})`);
 		}
 
-		let chokidarWatcher = chokidar.watch(realBasePath, watcherOpts);
+		let chokidarWatcher: chokidar.FSWatcher | null = chokidar.watch(realBasePath, watcherOpts);
 		this._watcherCount++;
 
 		// Detect if for some reason the native watcher library fails to load
@@ -143,7 +143,7 @@ export class ChokidarWatcherService implements IWatcherService {
 		}
 
 		let undeliveredFileEvents: watcherCommon.IRawFileChange[] = [];
-		let fileEventDelayer = new ThrottledDelayer(ChokidarWatcherService.FS_EVENT_DELAY);
+		let fileEventDelayer: ThrottledDelayer<undefined> | null = new ThrottledDelayer(ChokidarWatcherService.FS_EVENT_DELAY);
 
 		const watcher: IWatcher = {
 			requests,
@@ -228,24 +228,26 @@ export class ChokidarWatcherService implements IWatcherService {
 			// Add to buffer
 			undeliveredFileEvents.push(event);
 
-			// Delay and send buffer
-			fileEventDelayer.trigger(() => {
-				const events = undeliveredFileEvents;
-				undeliveredFileEvents = [];
+			if (fileEventDelayer) {
+				// Delay and send buffer
+				fileEventDelayer.trigger(() => {
+					const events = undeliveredFileEvents;
+					undeliveredFileEvents = [];
 
-				// Broadcast to clients normalized
-				const res = watcherCommon.normalize(events);
-				this._onWatchEvent.fire(res);
+					// Broadcast to clients normalized
+					const res = watcherCommon.normalize(events);
+					this._onWatchEvent.fire(res);
 
-				// Logging
-				if (this._verboseLogging) {
-					res.forEach(r => {
-						console.log(` >> normalized  ${r.type === FileChangeType.ADDED ? '[ADDED]' : r.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${r.path}`);
-					});
-				}
+					// Logging
+					if (this._verboseLogging) {
+						res.forEach(r => {
+							console.log(` >> normalized  ${r.type === FileChangeType.ADDED ? '[ADDED]' : r.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${r.path}`);
+						});
+					}
 
-				return TPromise.as(null);
-			});
+					return TPromise.as(void 0);
+				});
+			}
 		});
 
 		chokidarWatcher.on('error', (error: Error) => {
