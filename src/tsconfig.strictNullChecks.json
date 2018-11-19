@@ -624,6 +624,7 @@
 		"./vs/workbench/parts/scm/electron-browser/scmUtil.ts",
 		"./vs/workbench/parts/search/common/constants.ts",
 		"./vs/workbench/parts/search/common/queryBuilder.ts",
+		"./vs/workbench/parts/snippets/electron-browser/configureSnippets.ts",
 		"./vs/workbench/parts/snippets/electron-browser/snippetCompletionProvider.ts",
 		"./vs/workbench/parts/snippets/electron-browser/snippets.contribution.ts",
 		"./vs/workbench/parts/snippets/electron-browser/snippetsFile.ts",
