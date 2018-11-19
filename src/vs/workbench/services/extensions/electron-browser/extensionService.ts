@@ -869,30 +869,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 					.then(([builtInExtensions, control]) => new ExtraBuiltInExtensionResolver(builtInExtensions, control))
 					.then(resolver => ExtensionScanner.scanExtensions(input, log, resolver));
 
-				finalBuiltinExtensions = Promise.all([builtinExtensions, extraBuiltinExtensions]).then(([builtinExtensions, extraBuiltinExtensions]) => {
-					let resultMap: { [id: string]: IExtensionDescription; } = Object.create(null);
-					for (let i = 0, len = builtinExtensions.length; i < len; i++) {
-						resultMap[builtinExtensions[i].id] = builtinExtensions[i];
-					}
-					// Overwrite with extensions found in extra
-					for (let i = 0, len = extraBuiltinExtensions.length; i < len; i++) {
-						resultMap[extraBuiltinExtensions[i].id] = extraBuiltinExtensions[i];
-					}
-
-					let resultArr = Object.keys(resultMap).map((id) => resultMap[id]);
-					resultArr.sort((a, b) => {
-						const aLastSegment = path.basename(a.extensionLocation.fsPath);
-						const bLastSegment = path.basename(b.extensionLocation.fsPath);
-						if (aLastSegment < bLastSegment) {
-							return -1;
-						}
-						if (aLastSegment > bLastSegment) {
-							return 1;
-						}
-						return 0;
-					});
-					return resultArr;
-				});
+				finalBuiltinExtensions = ExtensionScanner.mergeBuiltinExtensions(builtinExtensions, extraBuiltinExtensions);
 			}
 
 			const userExtensions = (
