@@ -352,6 +352,7 @@
 		"./vs/editor/contrib/referenceSearch/referencesModel.ts",
 		"./vs/editor/contrib/rename/rename.ts",
 		"./vs/editor/contrib/rename/renameInputField.ts",
+		"./vs/editor/contrib/smartSelect/smartSelect.ts",
 		"./vs/editor/contrib/smartSelect/tokenSelectionSupport.ts",
 		"./vs/editor/contrib/smartSelect/tokenTree.ts",
 		"./vs/editor/contrib/snippet/snippetParser.ts",
