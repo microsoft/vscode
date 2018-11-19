@@ -344,17 +344,17 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	private updateItemInDOM(item: IItem<T>, index: number): void {
-		item.row.domNode!.style.top = `${this.elementTop(index)}px`;
-		item.row.domNode!.style.height = `${item.size}px`;
+		item.row!.domNode!.style.top = `${this.elementTop(index)}px`;
+		item.row!.domNode!.style.height = `${item.size}px`;
 
 		if (this.setRowLineHeight) {
-			item.row.domNode!.style.lineHeight = `${item.size}px`;
+			item.row!.domNode!.style.lineHeight = `${item.size}px`;
 		}
 
-		item.row.domNode!.setAttribute('data-index', `${index}`);
-		item.row.domNode!.setAttribute('data-last-element', index === this.length - 1 ? 'true' : 'false');
-		item.row.domNode!.setAttribute('aria-setsize', `${this.length}`);
-		item.row.domNode!.setAttribute('aria-posinset', `${index + 1}`);
+		item.row!.domNode!.setAttribute('data-index', `${index}`);
+		item.row!.domNode!.setAttribute('data-last-element', index === this.length - 1 ? 'true' : 'false');
+		item.row!.domNode!.setAttribute('aria-setsize', `${this.length}`);
+		item.row!.domNode!.setAttribute('aria-posinset', `${index + 1}`);
 	}
 
 	private removeItemFromDOM(index: number): void {
@@ -583,7 +583,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 				}
 
 				if (typeof secondElementIndex === 'number') {
-					this.scrollTop = this.elementTop(secondElementIndex) - secondElementTopDelta;
+					this.scrollTop = this.elementTop(secondElementIndex) - secondElementTopDelta!;
 				}
 
 				return;
@@ -603,12 +603,12 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		const renderer = this.renderers.get(item.templateId);
 		const row = this.cache.alloc(item.templateId);
 
-		row.domNode.style.height = '';
-		this.rowsContainer.appendChild(row.domNode);
+		row.domNode!.style.height = '';
+		this.rowsContainer.appendChild(row.domNode!);
 		renderer.renderElement(item.element, index, row.templateData);
-		item.size = row.domNode.offsetHeight;
+		item.size = row.domNode!.offsetHeight;
 		item.renderWidth = this.renderWidth;
-		this.rowsContainer.removeChild(row.domNode);
+		this.rowsContainer.removeChild(row.domNode!);
 		this.cache.release(row);
 
 		return item.size - size;
