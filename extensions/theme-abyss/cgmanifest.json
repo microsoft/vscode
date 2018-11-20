@@ -6,7 +6,7 @@
 				"git": {
 					"name": "Colorsublime-Themes",
 					"repositoryUrl": "https://github.com/Colorsublime/Colorsublime-Themes",
-					"commitHash": ""
+					"commitHash": "d7401929c97c5fe78319b424f575ddce3f05da81"
 				}
 			},
 			"description": "The themes in this folders are copied from colorsublime.com. <<<TODO check the licenses, we can easily drop the themes>>>",

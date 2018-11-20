@@ -5,7 +5,7 @@
 				"type": "git",
 				"git": {
 					"name": "chromium",
-					"repositoryUrl": "http://www.chromium.org/Home",
+					"repositoryUrl": "https://chromium.googlesource.com/chromium/src",
 					"commitHash": "7accc8730b0f99b5e7c0702ea89d1fa7c17bfe33"
 				}
 			},
@@ -48,7 +48,7 @@
 				"git": {
 					"name": "libchromiumcontent",
 					"repositoryUrl": "https://github.com/electron/libchromiumcontent",
-					"commitHash": ""
+					"commitHash": "ccdb085454b0a387ee96e0f81a7ca9a8ce07a710"
 				}
 			},
 			"isOnlyProductionDependency": true,

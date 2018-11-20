@@ -2,11 +2,11 @@
 	"registrations": [
 		{
 			"component": {
-				"type": "git",
-				"git": {
+				"type": "other",
+				"other": {
 					"name": "lib-oniguruma",
-					"repositoryUrl": "https://github.com/kkos/oniguruma",
-					"commitHash": ""
+					"downloadUrl": "http://dl.fedoraproject.org/pub/epel/7/SRPMS/Packages/o/oniguruma-5.9.5-3.el7.src.rpm",
+					"version": "5.9.3"
 				}
 			},
 			"licenseDetail": [

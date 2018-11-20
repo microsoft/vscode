@@ -6,7 +6,7 @@
 				"git": {
 					"name": "TypeScript-TmLanguage",
 					"repositoryUrl": "https://github.com/Microsoft/TypeScript-TmLanguage",
-					"commitHash": ""
+					"commitHash": "3133e3d914db9a2bb8812119f9273727a305f16b"
 				}
 			},
 			"license": "MIT",
@@ -25,10 +25,10 @@
 		},
 		{
 			"component": {
-				"type": "git",
-				"git": {
+				"type": "other",
+				"other": {
 					"name": "Unicode",
-					"commitHash": ""
+					"downloadUrl": "http://www.unicode.org/"
 				}
 			},
 			"licenseDetail": [
@@ -92,10 +92,10 @@
 		},
 		{
 			"component": {
-				"type": "git",
-				"git": {
+				"type": "other",
+				"other": {
 					"name": "Document Object Model",
-					"commitHash": ""
+					"downloadUrl": "https://www.w3.org/DOM/"
 				}
 			},
 			"licenseDetail": [
@@ -124,7 +124,7 @@
 				"git": {
 					"name": "Web Background Synchronization",
 					"repositoryUrl": "https://github.com/WICG/BackgroundSync",
-					"commitHash": ""
+					"commitHash": "10778afe95b5d46c99f7a77565328b7108091510"
 				}
 			},
 			"license": "Apache2"

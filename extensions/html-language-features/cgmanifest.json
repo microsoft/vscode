@@ -14,11 +14,11 @@
 		},
 		{
 			"component": {
-				"type": "git",
-				"git": {
+				"type": "other",
+				"other": {
 					"name": "HTML 5.1 W3C Working Draft",
-					"repositoryUrl": "http://www.w3.org/TR/2015/WD-html51-20151008/",
-					"commitHash": ""
+					"downloadUrl": "http://www.w3.org/TR/2015/WD-html51-20151008/",
+					"version": "08 October 2015"
 				}
 			},
 			"licenseDetail": [
@@ -45,7 +45,7 @@
 				"git": {
 					"name": "Ionic documentation",
 					"repositoryUrl": "https://github.com/ionic-team/ionic-site",
-					"commitHash": ""
+					"commitHash": "e952bde103470738e19a456ec4acb0f1e650b619"
 				}
 			},
 			"licenseDetail": [
