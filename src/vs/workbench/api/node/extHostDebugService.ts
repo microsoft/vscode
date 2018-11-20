@@ -230,7 +230,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		return this._debugServiceProxy.$startDebugging(folder ? folder.uri : undefined, nameOrConfig);
 	}
 
-	public registerDebugConfigurationProvider(extension: IExtensionDescription, type: string, provider: vscode.DebugConfigurationProvider): vscode.Disposable {
+	public registerDebugConfigurationProvider(type: string, provider: vscode.DebugConfigurationProvider): vscode.Disposable {
 
 		if (!provider) {
 			return new Disposable(() => { });
@@ -242,8 +242,9 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		this._debugServiceProxy.$registerDebugConfigurationProvider(type,
 			!!provider.provideDebugConfigurations,
 			!!provider.resolveDebugConfiguration,
-			!!provider.debugAdapterExecutable,		// TODO@AW: legacy
-			!!provider.provideDebugAdapterTracker, handle);
+			!!provider.debugAdapterExecutable,		// TODO@AW: deprecated
+			!!provider.provideDebugAdapterTracker,	// TODO@AW: deprecated
+			handle);
 
 		return new Disposable(() => {
 			this._configProviders = this._configProviders.filter(p => p.provider !== provider);		// remove
@@ -278,9 +279,20 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		});
 	}
 
+	public registerDebugAdapterTracker(debugType: string, callback: (session: vscode.DebugSession) => vscode.DebugAdapterTracker | undefined) {
+
+		const provider: vscode.DebugConfigurationProvider = {
+			provideDebugAdapterTracker(session: vscode.DebugSession) {
+				return callback(session);
+			}
+		};
+
+		return this.registerDebugConfigurationProvider(debugType, provider);
+	}
+
 	// RPC methods (ExtHostDebugServiceShape)
 
-	public $runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Thenable<void> {
+	public $runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Thenable<number | undefined> {
 
 		if (args.kind === 'integrated') {
 
@@ -311,12 +323,12 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 				this._integratedTerminalInstance.show();
 
-				return new Promise((resolve) => {
-					setTimeout(_ => {
-						const command = prepareCommand(args, config);
-						this._integratedTerminalInstance.sendText(command, true);
-						resolve(void 0);
-					}, 500);
+				return this._integratedTerminalInstance.processId.then(shellProcessId => {
+
+					const command = prepareCommand(args, config);
+					this._integratedTerminalInstance.sendText(command, true);
+
+					return shellProcessId;
 				});
 			});
 

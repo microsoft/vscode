@@ -36,7 +36,8 @@ class MyCompletionItem extends vscode.CompletionItem {
 		line: string,
 		public readonly tsEntry: Proto.CompletionEntry,
 		useCodeSnippetsOnMethodSuggest: boolean,
-		public readonly commitCharactersSettings: CommitCharactersSettings
+		public readonly commitCharactersSettings: CommitCharactersSettings,
+		public readonly metadata: any | undefined,
 	) {
 		super(tsEntry.name, MyCompletionItem.convertKind(tsEntry.kind));
 
@@ -362,7 +363,8 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 
 		let isNewIdentifierLocation = true;
 		let isIncomplete = false;
-		let msg: ReadonlyArray<Proto.CompletionEntry>;
+		let entries: ReadonlyArray<Proto.CompletionEntry>;
+		let metadata: any | undefined;
 		if (this.client.apiVersion.gte(API.v300)) {
 			const response = await this.client.interuptGetErr(() => this.client.execute('completionInfo', args, token));
 			if (response.type !== 'response' || !response.body) {
@@ -370,24 +372,26 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			}
 			isNewIdentifierLocation = response.body.isNewIdentifierLocation;
 			isIncomplete = (response as any).metadata && (response as any).metadata.isIncomplete;
-			msg = response.body.entries;
+			entries = response.body.entries;
+			metadata = response.metadata;
 		} else {
 			const response = await this.client.interuptGetErr(() => this.client.execute('completions', args, token));
 			if (response.type !== 'response' || !response.body) {
 				return null;
 			}
 
-			msg = response.body;
+			entries = response.body;
+			metadata = response.metadata;
 		}
 
 		const isInValidCommitCharacterContext = this.isInValidCommitCharacterContext(document, position);
-		const items = msg
+		const items = entries
 			.filter(entry => !shouldExcludeCompletionEntry(entry, completionConfiguration))
 			.map(entry => new MyCompletionItem(position, document, line.text, entry, completionConfiguration.useCodeSnippetsOnMethodSuggest, {
 				isNewIdentifierLocation,
 				isInValidCommitCharacterContext,
 				enableCallCompletions: !completionConfiguration.useCodeSnippetsOnMethodSuggest
-			}));
+			}, metadata));
 		return new vscode.CompletionList(items, isIncomplete);
 	}
 

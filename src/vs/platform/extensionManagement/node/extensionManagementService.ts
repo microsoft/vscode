@@ -10,7 +10,7 @@ import * as errors from 'vs/base/common/errors';
 import { assign } from 'vs/base/common/objects';
 import { toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { flatten } from 'vs/base/common/arrays';
-import { extract, buffer, ExtractError, zip, IFile } from 'vs/platform/node/zip';
+import { extract, ExtractError, zip, IFile } from 'vs/platform/node/zip';
 import { ValueCallback, ErrorCallback } from 'vs/base/common/winjs.base';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension,
@@ -47,6 +47,7 @@ import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { Schemas } from 'vs/base/common/network';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { getManifest } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 
 const ERROR_SCANNING_SYS_EXTENSIONS = 'scanningSystem';
 const ERROR_SCANNING_USER_EXTENSIONS = 'scanningUser';
@@ -77,12 +78,6 @@ function parseManifest(raw: string): Promise<{ manifest: IExtensionManifest; met
 			e(new Error(nls.localize('invalidManifest', "Extension invalid: package.json is not a JSON file.")));
 		}
 	});
-}
-
-export function validateLocalExtension(zipPath: string): Promise<IExtensionManifest> {
-	return buffer(zipPath, 'extension/package.json')
-		.then(buffer => parseManifest(buffer.toString('utf8')))
-		.then(({ manifest }) => manifest);
 }
 
 function readManifest(extensionPath: string): Promise<{ manifest: IExtensionManifest; metadata: IGalleryMetadata; }> {
@@ -204,7 +199,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				.then(downloadLocation => {
 					const zipPath = path.resolve(downloadLocation.fsPath);
 
-					return validateLocalExtension(zipPath)
+					return getManifest(zipPath)
 						.then(manifest => {
 							const identifier = { id: getLocalExtensionIdFromManifest(manifest) };
 							if (manifest.engines && manifest.engines.vscode && !isEngineValid(manifest.engines.vscode)) {
@@ -400,7 +395,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 							.then(
 								zipPath => {
 									this.logService.info('Downloaded extension:', extension.name, zipPath);
-									return validateLocalExtension(zipPath)
+									return getManifest(zipPath)
 										.then(
 											manifest => (<InstallableExtension>{ zipPath, id: getLocalExtensionIdFromManifest(manifest), metadata }),
 											error => Promise.reject(new ExtensionManagementError(this.joinErrors(error).message, INSTALL_ERROR_VALIDATING))

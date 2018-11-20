@@ -21,7 +21,7 @@ export class TerminalLauncher implements ITerminalLauncher {
 	) {
 	}
 
-	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<void> {
+	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<number | undefined> {
 
 		if (args.kind === 'external') {
 			return this.nativeTerminalService.runInTerminal(args.title, args.cwd, args.args, args.env || {});
@@ -44,12 +44,30 @@ export class TerminalLauncher implements ITerminalLauncher {
 		this.terminalService.setActiveInstance(t);
 		this.terminalService.showPanel(true);
 
-		return new Promise((resolve, error) => {
+		return new Promise<number | undefined>((resolve, error) => {
+
+			if (typeof t.processId === 'number') {
+				// no need to wait
+				resolve(t.processId);
+			}
+
+			// shell not ready: wait for ready event
+			const toDispose = t.onProcessIdReady(t => {
+				toDispose.dispose();
+				resolve(t.processId);
+			});
+
+			// do not wait longer than 1 second
 			setTimeout(_ => {
-				const command = prepareCommand(args, config);
-				t.sendText(command, true);
-				resolve(void 0);
-			}, 500);
+				error(new Error('terminal shell timeout'));
+			}, 1000);
+
+		}).then(shellProcessId => {
+
+			const command = prepareCommand(args, config);
+			t.sendText(command, true);
+
+			return shellProcessId;
 		});
 	}
 }

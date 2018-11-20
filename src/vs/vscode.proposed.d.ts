@@ -624,6 +624,15 @@ declare module 'vscode' {
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerDebugAdapterProvider(debugType: string, provider: DebugAdapterProvider): Disposable;
+
+		/**
+		 * Register a factory callback for the given debug type that is is called at the start of a debug session in order
+		 * to return a "tracker" object that provides read-access to the communication between VS Code and a debug adapter.
+		 *
+		 * @param debugType A specific debug type or '*' for matching all debug types.
+		 * @param callback A factory callback that is called at the start of a debug session to return a tracker object or `undefined`.
+		 */
+		export function registerDebugAdapterTracker(debugType: string, callback: (session: DebugSession) => DebugAdapterTracker | undefined): Disposable;
 	}
 
 	/**

@@ -10,7 +10,7 @@ import * as PConst from '../protocol.const';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
 import { ConfigurationDependentRegistration, VersionDependentRegistration } from '../utils/dependentRegistration';
-import { CachedNavTreeResponse, ReferencesCodeLens, TypeScriptBaseCodeLensProvider } from './baseCodeLensProvider';
+import { CachedResponse, ReferencesCodeLens, TypeScriptBaseCodeLensProvider, getSymbolRange } from './baseCodeLensProvider';
 const localize = nls.loadMessageBundle();
 
 export default class TypeScriptImplementationsCodeLensProvider extends TypeScriptBaseCodeLensProvider {
@@ -58,7 +58,7 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 	): vscode.Range | null {
 		switch (item.kind) {
 			case PConst.Kind.interface:
-				return super.getSymbolRange(document, item);
+				return getSymbolRange(document, item);
 
 			case PConst.Kind.class:
 			case PConst.Kind.memberFunction:
@@ -66,7 +66,7 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 			case PConst.Kind.memberGetAccessor:
 			case PConst.Kind.memberSetAccessor:
 				if (item.kindModifiers.match(/\babstract\b/g)) {
-					return super.getSymbolRange(document, item);
+					return getSymbolRange(document, item);
 				}
 				break;
 		}
@@ -78,7 +78,7 @@ export function register(
 	selector: vscode.DocumentSelector,
 	modeId: string,
 	client: ITypeScriptServiceClient,
-	cachedResponse: CachedNavTreeResponse,
+	cachedResponse: CachedResponse<Proto.NavTreeResponse>,
 ) {
 	return new VersionDependentRegistration(client, API.v220, () =>
 		new ConfigurationDependentRegistration(modeId, 'implementationsCodeLens.enabled', () => {

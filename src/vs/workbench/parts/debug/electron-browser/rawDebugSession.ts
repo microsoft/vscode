@@ -475,9 +475,14 @@ export class RawDebugSession {
 
 		switch (request.command) {
 			case 'runInTerminal':
-				dbgr.runInTerminal(<DebugProtocol.RunInTerminalRequestArguments>request.arguments).then(_ => {
-					response.body = {};
-					safeSendResponse(response);
+				dbgr.runInTerminal(request.arguments as DebugProtocol.RunInTerminalRequestArguments).then(shellProcessId => {
+					const resp = response as DebugProtocol.RunInTerminalResponse;
+					if (typeof shellProcessId === 'number') {
+						resp.body = {
+							shellProcessId: shellProcessId
+						};
+					}
+					safeSendResponse(resp);
 				}, err => {
 					response.success = false;
 					response.message = err.message;

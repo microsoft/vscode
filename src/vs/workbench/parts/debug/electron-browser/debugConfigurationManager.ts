@@ -108,7 +108,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		return Promise.resolve(config);
 	}
 
-	public runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<void> {
+	public runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<number | undefined> {
 		let tl: ITerminalLauncher = this.debugAdapterFactories.get(debugType);
 		if (!tl) {
 			if (!this.terminalLauncher) {

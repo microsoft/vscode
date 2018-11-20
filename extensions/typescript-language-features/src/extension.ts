@@ -44,32 +44,9 @@ export function activate(
 		context.subscriptions.push(module.register());
 	});
 
-	const supportedLanguage = flatten([
-		...standardLanguageDescriptions.map(x => x.modeIds),
-		...pluginManager.plugins.map(x => x.languages)
-	]);
-	function didOpenTextDocument(textDocument: vscode.TextDocument): boolean {
-		if (isSupportedDocument(supportedLanguage, textDocument)) {
-			openListener.dispose();
-			// Force activation
-			// tslint:disable-next-line:no-unused-expression
-			void lazyClientHost.value;
+	context.subscriptions.push(lazilyActivateClient(lazyClientHost, pluginManager));
 
-			context.subscriptions.push(new ManagedFileContextManager(resource => {
-				return lazyClientHost.value.serviceClient.toPath(resource);
-			}));
-			return true;
-		}
-		return false;
-	}
-	const openListener = vscode.workspace.onDidOpenTextDocument(didOpenTextDocument, undefined, context.subscriptions);
-	for (const textDocument of vscode.workspace.textDocuments) {
-		if (didOpenTextDocument(textDocument)) {
-			break;
-		}
-	}
-
-	return getExtensionApi(onCompletionAccepted.event);
+	return getExtensionApi(onCompletionAccepted.event, pluginManager);
 }
 
 function createLazyClientHost(
@@ -102,6 +79,45 @@ function createLazyClientHost(
 
 		return clientHost;
 	});
+}
+
+function lazilyActivateClient(
+	lazyClientHost: Lazy<TypeScriptServiceClientHost>,
+	pluginManager: PluginManager,
+) {
+	const disposables: vscode.Disposable[] = [];
+
+	const supportedLanguage = flatten([
+		...standardLanguageDescriptions.map(x => x.modeIds),
+		...pluginManager.plugins.map(x => x.languages)
+	]);
+
+	let hasActivated = false;
+	const maybeActivate = (textDocument: vscode.TextDocument): boolean => {
+		if (!hasActivated && isSupportedDocument(supportedLanguage, textDocument)) {
+			hasActivated = true;
+			// Force activation
+			// tslint:disable-next-line:no-unused-expression
+			void lazyClientHost.value;
+
+			disposables.push(new ManagedFileContextManager(resource => {
+				return lazyClientHost.value.serviceClient.toPath(resource);
+			}));
+			return true;
+		}
+		return false;
+	};
+
+	const didActivate = vscode.workspace.textDocuments.some(maybeActivate);
+	if (!didActivate) {
+		const openListener = vscode.workspace.onDidOpenTextDocument(doc => {
+			if (maybeActivate(doc)) {
+				openListener.dispose();
+			}
+		}, undefined, disposables);
+	}
+
+	return vscode.Disposable.from(...disposables);
 }
 
 function isSupportedDocument(

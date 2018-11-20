@@ -116,7 +116,7 @@ export class Debugger implements IDebugger {
 		}
 	}
 
-	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<void> {
+	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined> {
 		const config = this.configurationService.getValue<ITerminalSettings>('terminal');
 		return this.configurationManager.runInTerminal(this.inExtHost() ? this.type : '*', args, config);
 	}

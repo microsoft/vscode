@@ -1055,6 +1055,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this.view.layout(height);
 	}
 
+	layoutWidth(width: number): void {
+		this.view.layoutWidth(width);
+	}
+
 	setSelection(indexes: number[], browserEvent?: UIEvent): void {
 		for (const index of indexes) {
 			if (index < 0 || index >= this.length) {

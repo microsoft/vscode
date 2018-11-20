@@ -37,7 +37,7 @@ import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IProgressService } from 'vs/platform/progress/common/progress';
-import { IStorageService, NullStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -143,7 +143,7 @@ export module StaticServices {
 
 	export const progressService = define(IProgressService, () => new SimpleProgressService());
 
-	export const storageService = define(IStorageService, () => NullStorageService);
+	export const storageService = define(IStorageService, () => InMemoryStorageService);
 
 	export const logService = define(ILogService, () => new NullLogService());
 

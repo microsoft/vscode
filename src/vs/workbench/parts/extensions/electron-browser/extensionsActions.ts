@@ -755,13 +755,13 @@ export class InstallInRemoteServerAction extends Action implements IExtensionAct
 		}
 		this.enabled = false;
 		if (this.extension) {
-			if (this.extensionManagementServerService.otherExtensionManagementServer
+			if (this.extensionManagementServerService.remoteExtensionManagementServer
 				&& this.extension && this.extension.locals && this.extension.locals.length > 0
 				&& !isUIExtension(this.extension.locals[0].manifest, this.configurationService)
 				&& this.extension.state === ExtensionState.Installed) {
 				const installedInRemoteServer = this.extension.locals.some(local => {
 					const server = this.extensionManagementServerService.getExtensionManagementServer(local.location);
-					return server && server.authority === this.extensionManagementServerService.otherExtensionManagementServer.authority;
+					return server && server.authority === this.extensionManagementServerService.remoteExtensionManagementServer.authority;
 				});
 				if (!installedInRemoteServer) {
 					const runningExtensions = await this.throttler.queue(() => this.extensionService.getExtensions());
@@ -776,7 +776,7 @@ export class InstallInRemoteServerAction extends Action implements IExtensionAct
 			return Promise.resolve();
 		}
 		if (this.storageService.getBoolean('askToInstallRemoteServerExtension', StorageScope.GLOBAL, true)) {
-			const message = localize('install extension', "Enabling the '{0}' extension will also install it in {1}. Would you like to continue?", this.extension.displayName, this.labelService.getHostLabel() || this.extensionManagementServerService.otherExtensionManagementServer.authority);
+			const message = localize('install extension', "Enabling the '{0}' extension will also install it in {1}. Would you like to continue?", this.extension.displayName, this.labelService.getHostLabel() || this.extensionManagementServerService.remoteExtensionManagementServer.authority);
 			const response = await this.dialogService.confirm({ type: 'info', message, checkbox: { label: localize('do not ask me again', "Do not ask me again") } });
 			if (!response || !response.confirmed) {
 				return Promise.resolve();
@@ -787,10 +787,10 @@ export class InstallInRemoteServerAction extends Action implements IExtensionAct
 		}
 		const galleryExtension = this.extension.gallery ? this.extension.gallery : await this.extensionGalleryService.getExtension(this.extension.local.galleryIdentifier);
 		if (galleryExtension) {
-			return this.extensionManagementServerService.otherExtensionManagementServer.extensionManagementService.installFromGallery(galleryExtension);
+			return this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.installFromGallery(galleryExtension);
 		} else {
 			const zipLocation = await this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.zip(this.extension.local);
-			return this.extensionManagementServerService.otherExtensionManagementServer.extensionManagementService.unzip(zipLocation, this.extension.type);
+			return this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.unzip(zipLocation, this.extension.type);
 		}
 	}
 
@@ -825,10 +825,10 @@ export class EnableGloballyAction extends Action implements IExtensionAction {
 	private update(): void {
 		this.enabled = false;
 		if (this.extension && this.extension.locals && this.extension.local) {
-			if (!isUIExtension(this.extension.local.manifest, this.configurationService) && this.extensionManagementServerService.otherExtensionManagementServer) {
+			if (!isUIExtension(this.extension.local.manifest, this.configurationService) && this.extensionManagementServerService.remoteExtensionManagementServer) {
 				if (!this.extension.locals.some(local => {
 					const server = this.extensionManagementServerService.getExtensionManagementServer(local.location);
-					return server && server.authority === this.extensionManagementServerService.otherExtensionManagementServer.authority;
+					return server && server.authority === this.extensionManagementServerService.remoteExtensionManagementServer.authority;
 				})) {
 					return;
 				}
@@ -1282,7 +1282,7 @@ export class ReloadAction extends Action {
 			} else {
 				const uiExtension = isUIExtension(installed.local.manifest, this.configurationService);
 				if (!isDisabled) {
-					if (this.extensionManagementServerService.otherExtensionManagementServer) {
+					if (this.extensionManagementServerService.remoteExtensionManagementServer) {
 						if (uiExtension) {
 							// Only UI extension from local server requires reload if it is not running on the server
 							if (installed.locals.some(local => this.extensionManagementServerService.getExtensionManagementServer(local.location).authority === this.extensionManagementServerService.localExtensionManagementServer.authority)) {
@@ -1292,7 +1292,7 @@ export class ReloadAction extends Action {
 								return;
 							}
 						} else {
-							if (installed.locals.some(local => this.extensionManagementServerService.getExtensionManagementServer(local.location).authority === this.extensionManagementServerService.otherExtensionManagementServer.authority)) {
+							if (installed.locals.some(local => this.extensionManagementServerService.getExtensionManagementServer(local.location).authority === this.extensionManagementServerService.remoteExtensionManagementServer.authority)) {
 								// Requires reload to enable the extension
 								this.enabled = true;
 								this.tooltip = localize('postEnableTooltip', "Reload to Activate");
@@ -2406,14 +2406,14 @@ export class DisabledStatusLabelAction extends Action {
 				this.class = `${DisabledStatusLabelAction.Class} hide`;
 				this.tooltip = '';
 				if (this.extension && this.extension.local && !this.extension.isMalicious && !runningExtensions.some(e => e.id === this.extension.id)) {
-					if (this.extensionManagementServerService.otherExtensionManagementServer && !isUIExtension(this.extension.local.manifest, this.configurationService)) {
+					if (this.extensionManagementServerService.remoteExtensionManagementServer && !isUIExtension(this.extension.local.manifest, this.configurationService)) {
 						const installedInRemoteServer = this.extension.locals.some(local => {
 							const server = this.extensionManagementServerService.getExtensionManagementServer(local.location);
-							return server && server.authority === this.extensionManagementServerService.otherExtensionManagementServer.authority;
+							return server && server.authority === this.extensionManagementServerService.remoteExtensionManagementServer.authority;
 						});
 						if (!installedInRemoteServer) {
 							this.class = `${DisabledStatusLabelAction.Class}`;
-							this.label = localize('disabled NonUI Extension', "Disabled for this Workspace because it is not installed in {0}.", this.labelService.getHostLabel() || this.extensionManagementServerService.otherExtensionManagementServer.authority);
+							this.label = localize('disabled NonUI Extension', "Disabled for this Workspace because it is not installed in {0}.", this.labelService.getHostLabel() || this.extensionManagementServerService.remoteExtensionManagementServer.authority);
 							return;
 						}
 					}

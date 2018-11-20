@@ -14,7 +14,7 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import * as modes from 'vs/editor/common/modes';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IStorageService, NullStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ParameterHintsModel } from '../parameterHintsWidget';
@@ -44,7 +44,7 @@ suite('ParameterHintsModel', () => {
 			model: textModel,
 			serviceCollection: new ServiceCollection(
 				[ITelemetryService, NullTelemetryService],
-				[IStorageService, NullStorageService]
+				[IStorageService, InMemoryStorageService]
 			)
 		});
 		disposables.push(textModel);
@@ -150,8 +150,9 @@ suite('ParameterHintsModel', () => {
 
 			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelp | Thenable<modes.SignatureHelp> {
 				++invokeCount;
+
 				assert.strictEqual(context.triggerReason, modes.SignatureHelpTriggerReason.TriggerCharacter);
-				assert.ok(context.isRetrigger);
+				assert.strictEqual(context.isRetrigger, false);
 				assert.strictEqual(context.triggerCharacter, 'c');
 
 				// Give some time to allow for later triggers

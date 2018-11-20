@@ -70,6 +70,10 @@ export class ComposedTreeDelegate<T, N extends { element: T }> implements IListV
 	getTemplateId(element: N): string {
 		return this.delegate.getTemplateId(element.element);
 	}
+
+	hasDynamicHeight(element: N): boolean {
+		return !!this.delegate.hasDynamicHeight && this.delegate.hasDynamicHeight(element.element);
+	}
 }
 
 interface ITreeListTemplateData<T> {
@@ -240,6 +244,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	layout(height?: number): void {
 		this.view.layout(height);
+	}
+
+	layoutWidth(width: number): void {
+		this.view.layoutWidth(width);
 	}
 
 	style(styles: IListStyles): void {

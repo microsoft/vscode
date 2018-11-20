@@ -62,7 +62,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 
 	createDebugAdapter(session: IDebugSession): IDebugAdapter {
 		const handle = this._debugAdaptersHandleCounter++;
-		const da = new ExtensionHostDebugAdapter(handle, this._proxy, this.getSessionDto(session));
+		const da = new ExtensionHostDebugAdapter(this, handle, this._proxy, session);
 		this._debugAdapters.set(handle, da);
 		return da;
 	}
@@ -71,7 +71,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		return Promise.resolve(this._proxy.$substituteVariables(folder ? folder.uri : undefined, config));
 	}
 
-	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<void> {
+	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<number | undefined> {
 		return Promise.resolve(this._proxy.$runInTerminal(args, config));
 	}
 
@@ -252,7 +252,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 
 	// dto helpers
 
-	private getSessionDto(session: IDebugSession): IDebugSessionDto {
+	getSessionDto(session: IDebugSession): IDebugSessionDto {
 		if (session) {
 			const sessionID = <DebugSessionUUID>session.getId();
 			if (this._sessions.has(sessionID)) {
@@ -307,7 +307,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
  */
 class ExtensionHostDebugAdapter extends AbstractDebugAdapter {
 
-	constructor(private _handle: number, private _proxy: ExtHostDebugServiceShape, private _sessionDto: IDebugSessionDto) {
+	constructor(private _ds: MainThreadDebugService, private _handle: number, private _proxy: ExtHostDebugServiceShape, private _session: IDebugSession) {
 		super();
 	}
 
@@ -320,7 +320,7 @@ class ExtensionHostDebugAdapter extends AbstractDebugAdapter {
 	}
 
 	public startSession(): Promise<void> {
-		return Promise.resolve(this._proxy.$startDASession(this._handle, this._sessionDto));
+		return Promise.resolve(this._proxy.$startDASession(this._handle, this._ds.getSessionDto(this._session)));
 	}
 
 	public sendMessage(message: DebugProtocol.ProtocolMessage): void {

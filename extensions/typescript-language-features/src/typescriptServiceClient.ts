@@ -54,7 +54,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	private lastStart: number;
 	private numberRestarts: number;
 	private isRestarting: boolean = false;
-	private _tsServerLoading: { resolve: () => void, reject: () => void } | undefined;
+	private loadingIndicator = new ServerInitializingIndicator();
 
 	public readonly telemetryReporter: TelemetryReporter;
 	/**
@@ -150,10 +150,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			this.forkedTsServer.kill();
 		}
 
-		if (this._tsServerLoading) {
-			this._tsServerLoading.reject();
-			this._tsServerLoading = undefined;
-		}
+		this.loadingIndicator.reset();
 	}
 
 	public restartTsServer(): void {
@@ -322,16 +319,8 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.forkedTsServer = handle;
 		this._onTsServerStarted.fire(currentVersion.version);
 
-		if (this._tsServerLoading) {
-			this._tsServerLoading.reject();
-		}
 		if (this._apiVersion.gte(API.v300)) {
-			vscode.window.withProgress({
-				location: vscode.ProgressLocation.Window,
-				title: localize('serverLoading.progress', "Initializing JS/TS language features"),
-			}, () => new Promise((resolve, reject) => {
-				this._tsServerLoading = { resolve, reject };
-			}));
+			this.loadingIndicator.startedLoadingProject(undefined /* projectName */);
 		}
 
 		this.serviceStarted(resendModels);
@@ -437,10 +426,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	private serviceExited(restart: boolean): void {
-		if (this._tsServerLoading) {
-			this._tsServerLoading.reject();
-			this._tsServerLoading = undefined;
-		}
+		this.loadingIndicator.reset();
 
 		enum MessageAction {
 			reportIssue
@@ -610,11 +596,8 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			case 'syntaxDiag':
 			case 'semanticDiag':
 			case 'suggestionDiag':
-				// This event also roughly signals that project has been loaded successfully
-				if (this._tsServerLoading) {
-					this._tsServerLoading.resolve();
-					this._tsServerLoading = undefined;
-				}
+				// This event also roughly signals that the global project has been loaded successfully
+				this.loadingIndicator.finishedLoadingProject(undefined /* projectName */);
 
 				const diagnosticEvent = event as Proto.DiagnosticEvent;
 				if (diagnosticEvent.body && diagnosticEvent.body.diagnostics) {
@@ -636,41 +619,37 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				break;
 
 			case 'projectLanguageServiceState':
-				if (event.body) {
-					this._onProjectLanguageServiceStateChanged.fire((event as Proto.ProjectLanguageServiceStateEvent).body);
-				}
+				this._onProjectLanguageServiceStateChanged.fire((event as Proto.ProjectLanguageServiceStateEvent).body);
 				break;
 
 			case 'projectsUpdatedInBackground':
-				if (event.body) {
-					const body = (event as Proto.ProjectsUpdatedInBackgroundEvent).body;
-					const resources = body.openFiles.map(vscode.Uri.file);
-					this.bufferSyncSupport.getErr(resources);
-				}
+				const body = (event as Proto.ProjectsUpdatedInBackgroundEvent).body;
+				const resources = body.openFiles.map(vscode.Uri.file);
+				this.bufferSyncSupport.getErr(resources);
 				break;
 
 			case 'beginInstallTypes':
-				if (event.body) {
-					this._onDidBeginInstallTypings.fire((event as Proto.BeginInstallTypesEvent).body);
-				}
+				this._onDidBeginInstallTypings.fire((event as Proto.BeginInstallTypesEvent).body);
 				break;
 
 			case 'endInstallTypes':
-				if (event.body) {
-					this._onDidEndInstallTypings.fire((event as Proto.EndInstallTypesEvent).body);
-				}
+				this._onDidEndInstallTypings.fire((event as Proto.EndInstallTypesEvent).body);
 				break;
 
 			case 'typesInstallerInitializationFailed':
-				if (event.body) {
-					this._onTypesInstallerInitializationFailed.fire((event as Proto.TypesInstallerInitializationFailedEvent).body);
-				}
+				this._onTypesInstallerInitializationFailed.fire((event as Proto.TypesInstallerInitializationFailedEvent).body);
 				break;
 
 			case 'surveyReady':
-				if (event.body) {
-					this._onSurveyReady.fire((event as Proto.SurveyReadyEvent).body);
-				}
+				this._onSurveyReady.fire((event as Proto.SurveyReadyEvent).body);
+				break;
+
+			case 'projectLoadingStart':
+				this.loadingIndicator.startedLoadingProject((event as Proto.ProjectLoadingStartEvent).body.projectName);
+				break;
+
+			case 'projectLoadingFinish':
+				this.loadingIndicator.finishedLoadingProject((event as Proto.ProjectLoadingFinishEvent).body.projectName);
 				break;
 		}
 	}
@@ -743,3 +722,38 @@ function getDignosticsKind(event: Proto.Event) {
 	}
 	throw new Error('Unknown dignostics kind');
 }
+
+class ServerInitializingIndicator extends Disposable {
+	private _task?: { project: string | undefined, resolve: () => void, reject: () => void };
+
+	public reset(): void {
+		if (this._task) {
+			this._task.reject();
+			this._task = undefined;
+		}
+	}
+
+	/**
+	 * Signal that a project has started loading.
+	 */
+	public startedLoadingProject(projectName: string | undefined): void {
+		// TS projects are loaded sequentially. Cancel existing task because it should always be resolved before
+		// the incoming project loading task is.
+		this.reset();
+
+		vscode.window.withProgress({
+			location: vscode.ProgressLocation.Window,
+			title: localize('serverLoading.progress', "Initializing JS/TS language features"),
+		}, () => new Promise((resolve, reject) => {
+			this._task = { project: projectName, resolve, reject };
+		}));
+	}
+
+	public finishedLoadingProject(projectName: string | undefined): void {
+		if (this._task && this._task.project === projectName) {
+			this._task.resolve();
+			this._task = undefined;
+		}
+	}
+}
+
