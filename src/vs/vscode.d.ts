@@ -6489,7 +6489,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Options for creating a [TreeView](#TreeView]
+	 * Options for creating a [TreeView](#TreeView)
 	 */
 	export interface TreeViewOptions<T> {
 

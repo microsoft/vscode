@@ -14,6 +14,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Color } from 'vs/base/common/color';
+import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 
 export const MENU_MNEMONIC_REGEX: RegExp = /\(&{1,2}(.)\)|&{1,2}(.)/;
 export const MENU_ESCAPED_MNEMONIC_REGEX: RegExp = /(?:&amp;){1,2}(.)/;
@@ -25,6 +26,7 @@ export interface IMenuOptions {
 	getKeyBinding?: (action: IAction) => ResolvedKeybinding;
 	ariaLabel?: string;
 	enableMnemonics?: boolean;
+	anchorAlignment?: AnchorAlignment;
 }
 
 export interface IMenuStyles {
