@@ -150,8 +150,9 @@ suite('ParameterHintsModel', () => {
 
 			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelp | Thenable<modes.SignatureHelp> {
 				++invokeCount;
+
 				assert.strictEqual(context.triggerReason, modes.SignatureHelpTriggerReason.TriggerCharacter);
-				assert.ok(context.isRetrigger);
+				assert.strictEqual(context.isRetrigger, false);
 				assert.strictEqual(context.triggerCharacter, 'c');
 
 				// Give some time to allow for later triggers

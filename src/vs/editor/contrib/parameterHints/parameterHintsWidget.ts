@@ -99,8 +99,6 @@ export class ParameterHintsModel extends Disposable {
 	}
 
 	trigger(context: TriggerContext, delay?: number): void {
-		const wasTriggered = this.isTriggered;
-		this.cancel(true);
 
 		const model = this.editor.getModel();
 		if (model === null || !modes.SignatureHelpProviderRegistry.has(model)) {
@@ -111,14 +109,12 @@ export class ParameterHintsModel extends Disposable {
 			() => this.doTrigger({
 				triggerReason: context.triggerReason,
 				triggerCharacter: context.triggerCharacter,
-				isRetrigger: wasTriggered
+				isRetrigger: this.isTriggered,
 			}), delay).then(undefined, onUnexpectedError);
 	}
 
 	private doTrigger(triggerContext: modes.SignatureHelpContext): Promise<boolean> {
-		if (this.provideSignatureHelpRequest) {
-			this.provideSignatureHelpRequest.cancel();
-		}
+		this.cancel(true);
 
 		if (!this.editor.hasModel()) {
 			return Promise.resolve(false);
