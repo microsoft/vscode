@@ -119,6 +119,10 @@ export interface PresentationOptions {
 	clear?: boolean;
 }
 
+export interface RunOptions {
+	rerunBehavior?: string;
+}
+
 export interface TaskIdentifier {
 	type?: string;
 	[name: string]: any;
@@ -313,6 +317,11 @@ export interface ConfigurationProperties {
 	 * output.
 	 */
 	problemMatcher?: ProblemMatcherConfig.ProblemMatcherType;
+
+	/**
+	 * Task run options. Control run related properties.
+	 */
+	runOptions?: RunOptions;
 }
 
 export interface CustomTask extends CommandProperties, ConfigurationProperties {
@@ -1285,7 +1294,8 @@ namespace ConfiguringTask {
 			configures: taskIdentifier,
 			_id: `${typeDeclaration.extensionId}.${taskIdentifier._key}`,
 			_source: Objects.assign({}, source, { config: configElement }),
-			_label: undefined
+			_label: undefined,
+			runOptions: { rerunBehavior: external.runOptions ? Tasks.RerunBehavior.fromString(external.runOptions.rerunBehavior) : Tasks.RerunBehavior.reevaluate },
 		};
 		let configuration = ConfigurationProperties.from(external, context, true);
 		if (configuration) {
@@ -1344,7 +1354,8 @@ namespace CustomTask {
 			name: taskName,
 			identifier: taskName,
 			hasDefinedMatchers: false,
-			command: undefined
+			command: undefined,
+			runOptions: { rerunBehavior: external.runOptions ? Tasks.RerunBehavior.fromString(external.runOptions.rerunBehavior) : Tasks.RerunBehavior.reevaluate }
 		};
 		let configuration = ConfigurationProperties.from(external, context, false);
 		if (configuration) {
@@ -1417,7 +1428,8 @@ namespace CustomTask {
 			command: contributedTask.command,
 			name: configuredProps.name || contributedTask.name,
 			identifier: configuredProps.identifier || contributedTask.identifier,
-			hasDefinedMatchers: false
+			hasDefinedMatchers: false,
+			runOptions: contributedTask.runOptions,
 		};
 		let resultConfigProps: Tasks.ConfigurationProperties = result;
 
@@ -1852,6 +1864,7 @@ class ConfigurationParser {
 				isBackground: isBackground,
 				problemMatchers: matchers,
 				hasDefinedMatchers: false,
+				runOptions: { rerunBehavior: Tasks.RerunBehavior.reevaluate },
 			};
 			let value = GroupKind.from(fileConfig.group);
 			if (value) {
