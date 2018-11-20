@@ -742,12 +742,12 @@ export class MenubarControl extends Disposable {
 						this.insertActionsBefore(action, target);
 						if (action instanceof SubmenuItemAction) {
 
-							if (!this.menus[action.item.submenu.id]) {
-								this.menus[action.item.submenu.id] = this.menuService.createMenu(action.item.submenu, this.contextKeyService);
-								this._register(this.menus[action.item.submenu.id].onDidChange(() => updateActions(menu, target)));
+							if (!this.menus[action.item.submenu]) {
+								this.menus[action.item.submenu] = this.menuService.createMenu(action.item.submenu, this.contextKeyService);
+								this._register(this.menus[action.item.submenu].onDidChange(() => updateActions(menu, target)));
 							}
 
-							const submenu = this.menus[action.item.submenu.id];
+							const submenu = this.menus[action.item.submenu];
 							const submenuActions: SubmenuAction[] = [];
 							updateActions(submenu, submenuActions);
 							target.push(new SubmenuAction(action.label, submenuActions));
@@ -1006,9 +1006,9 @@ export class MenubarControl extends Disposable {
 				if (menuItem instanceof SubmenuItemAction) {
 					const submenu = { items: [] };
 
-					if (!this.menus[menuItem.item.submenu.id]) {
-						this.menus[menuItem.item.submenu.id] = this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService);
-						this._register(this.menus[menuItem.item.submenu.id].onDidChange(() => this.setupMenubar()));
+					if (!this.menus[menuItem.item.submenu]) {
+						this.menus[menuItem.item.submenu] = this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService);
+						this._register(this.menus[menuItem.item.submenu].onDidChange(() => this.setupMenubar()));
 					}
 
 					const menuToDispose = this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService);
