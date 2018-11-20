@@ -13,8 +13,8 @@ const bootstrap = require('./bootstrap');
  * @param {object} source
  * @returns {object}
  */
-exports.assign = function assign(destination, source) {
-	return Object.keys(source).reduce(function (r, key) { r[key] = source[key]; return r; }, destination);
+exports.assign = (destination, source) => {
+	return Object.keys(source).reduce((r, key) => { r[key] = source[key]; return r; }, destination);
 };
 
 /**
@@ -23,7 +23,7 @@ exports.assign = function assign(destination, source) {
  * @param {(result, configuration: object) => any} resultCallback
  * @param {{ forceEnableDeveloperKeybindings?: boolean, removeDeveloperKeybindingsAfterLoad?: boolean, canModifyDOM?: (config: object) => void, beforeLoaderConfig?: (config: object, loaderConfig: object) => void, beforeRequire?: () => void }=} options
  */
-exports.load = function (modulePaths, resultCallback, options) {
+exports.load = (modulePaths, resultCallback, options) => {
 
 	// @ts-ignore
 	const webFrame = require('electron').webFrame;
@@ -34,7 +34,7 @@ exports.load = function (modulePaths, resultCallback, options) {
 
 	// Error handler
 	// @ts-ignore
-	process.on('uncaughtException', function (error) {
+	process.on('uncaughtException', (error) => {
 		onUnexpectedError(error, enableDeveloperTools);
 	});
 
@@ -84,7 +84,7 @@ exports.load = function (modulePaths, resultCallback, options) {
 	window['require'] = amdRequire;
 
 	// replace the patched electron fs with the original node fs for all AMD code
-	amdDefine('fs', ['original-fs'], function (originalFS) { return originalFS; });
+	amdDefine('fs', ['original-fs'], (originalFS) => { return originalFS; });
 
 	window['MonacoEnvironment'] = {};
 
@@ -102,7 +102,7 @@ exports.load = function (modulePaths, resultCallback, options) {
 	amdRequire.config(loaderConfig);
 
 	if (nlsConfig.pseudo) {
-		amdRequire(['vs/nls'], function (nlsPlugin) {
+		amdRequire(['vs/nls'], (nlsPlugin) => {
 			nlsPlugin.setPseudoTranslation(nlsConfig.pseudo);
 		});
 	}
@@ -132,25 +132,25 @@ exports.load = function (modulePaths, resultCallback, options) {
 /**
  * @returns {{[param: string]: string }}
  */
-function parseURLQueryArgs() {
+const parseURLQueryArgs = () => {
 	const search = window.location.search || '';
 
 	return search.split(/[?&]/)
-		.filter(function (param) { return !!param; })
-		.map(function (param) { return param.split('='); })
-		.filter(function (param) { return param.length === 2; })
-		.reduce(function (r, param) { r[param[0]] = decodeURIComponent(param[1]); return r; }, {});
-}
+		.filter((param) => { return !!param; })
+		.map((param) => { return param.split('='); })
+		.filter((param) => { return param.length === 2; })
+		.reduce((r, param) => { r[param[0]] = decodeURIComponent(param[1]); return r; }, {});
+};
 
 /**
  * @returns {() => void}
  */
-function registerDeveloperKeybindings() {
+const registerDeveloperKeybindings = () => {
 
 	// @ts-ignore
 	const ipc = require('electron').ipcRenderer;
 
-	const extractKey = function (e) {
+	const extractKey = (e) => {
 		return [
 			e.ctrlKey ? 'ctrl-' : '',
 			e.metaKey ? 'meta-' : '',
@@ -164,7 +164,7 @@ function registerDeveloperKeybindings() {
 	const TOGGLE_DEV_TOOLS_KB = (process.platform === 'darwin' ? 'meta-alt-73' : 'ctrl-shift-73'); // mac: Cmd-Alt-I, rest: Ctrl-Shift-I
 	const RELOAD_KB = (process.platform === 'darwin' ? 'meta-82' : 'ctrl-82'); // mac: Cmd-R, rest: Ctrl-R
 
-	let listener = function (e) {
+	let listener = (e) => {
 		const key = extractKey(e);
 		if (key === TOGGLE_DEV_TOOLS_KB) {
 			ipc.send('vscode:toggleDevTools');
@@ -175,15 +175,15 @@ function registerDeveloperKeybindings() {
 
 	window.addEventListener('keydown', listener);
 
-	return function () {
+	return () => {
 		if (listener) {
 			window.removeEventListener('keydown', listener);
 			listener = void 0;
 		}
 	};
-}
+};
 
-function onUnexpectedError(error, enableDeveloperTools) {
+const onUnexpectedError = (error, enableDeveloperTools) => {
 
 	// @ts-ignore
 	const ipc = require('electron').ipcRenderer;
@@ -197,4 +197,4 @@ function onUnexpectedError(error, enableDeveloperTools) {
 	if (error.stack) {
 		console.error(error.stack);
 	}
-}
+};

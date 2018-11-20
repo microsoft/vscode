@@ -24,7 +24,7 @@ process.on('SIGPIPE', () => {
 /**
  * @param {string=} nodeModulesPath
  */
-exports.enableASARSupport = function (nodeModulesPath) {
+exports.enableASARSupport = (nodeModulesPath) => {
 
 	// @ts-ignore
 	const Module = require('module');
@@ -40,7 +40,7 @@ exports.enableASARSupport = function (nodeModulesPath) {
 	// @ts-ignore
 	const originalResolveLookupPaths = Module._resolveLookupPaths;
 	// @ts-ignore
-	Module._resolveLookupPaths = function (request, parent, newReturn) {
+	Module._resolveLookupPaths = (request, parent, newReturn) => {
 		const result = originalResolveLookupPaths(request, parent, newReturn);
 
 		const paths = newReturn ? result : result[1];
@@ -61,7 +61,7 @@ exports.enableASARSupport = function (nodeModulesPath) {
  * @param {string} _path
  * @returns {string}
  */
-exports.uriFromPath = function (_path) {
+exports.uriFromPath = (_path) => {
 	const path = require('path');
 
 	let pathName = path.resolve(_path).replace(/\\/g, '/');
@@ -78,11 +78,11 @@ exports.uriFromPath = function (_path) {
  * @param {string} file
  * @returns {Promise<string>}
  */
-exports.readFile = function (file) {
+exports.readFile = (file) => {
 	const fs = require('fs');
 
-	return new Promise(function (resolve, reject) {
-		fs.readFile(file, 'utf8', function (err, data) {
+	return new Promise((resolve, reject) => {
+		fs.readFile(file, 'utf8', (err, data) => {
 			if (err) {
 				reject(err);
 				return;
@@ -97,11 +97,11 @@ exports.readFile = function (file) {
  * @param {string} content
  * @returns {Promise<void>}
  */
-exports.writeFile = function (file, content) {
+exports.writeFile = (file, content) => {
 	const fs = require('fs');
 
-	return new Promise(function (resolve, reject) {
-		fs.writeFile(file, content, 'utf8', function (err) {
+	return new Promise((resolve, reject) => {
+		fs.writeFile(file, content, 'utf8', (err) => {
 			if (err) {
 				reject(err);
 				return;
@@ -116,7 +116,7 @@ exports.writeFile = function (file, content) {
 /**
  * @returns {{locale?: string, availableLanguages: {[lang: string]: string;}, pseudo?: boolean }}
  */
-exports.setupNLS = function () {
+exports.setupNLS = () => {
 	const path = require('path');
 
 	// Get the nls configuration into the process.env as early as possible.
@@ -132,7 +132,7 @@ exports.setupNLS = function () {
 	if (nlsConfig._resolvedLanguagePackCoreLocation) {
 		const bundles = Object.create(null);
 
-		nlsConfig.loadBundle = function (bundle, language, cb) {
+		nlsConfig.loadBundle = (bundle, language, cb) => {
 			let result = bundles[bundle];
 			if (result) {
 				cb(undefined, result);
@@ -141,7 +141,7 @@ exports.setupNLS = function () {
 			}
 
 			const bundleFile = path.join(nlsConfig._resolvedLanguagePackCoreLocation, bundle.replace(/\//g, '!') + '.nls.json');
-			exports.readFile(bundleFile).then(function (content) {
+			exports.readFile(bundleFile).then((content) => {
 				let json = JSON.parse(content);
 				bundles[bundle] = json;
 
@@ -149,7 +149,7 @@ exports.setupNLS = function () {
 			}).catch((error) => {
 				try {
 					if (nlsConfig._corruptedFile) {
-						exports.writeFile(nlsConfig._corruptedFile, 'corrupted').catch(function (error) { console.error(error); });
+						exports.writeFile(nlsConfig._corruptedFile, 'corrupted').catch((error) => { console.error(error); });
 					}
 				} finally {
 					cb(error, undefined);
@@ -166,7 +166,7 @@ exports.setupNLS = function () {
 /**
  * @returns {{ portableDataPath: string, isPortable: boolean }}
  */
-exports.configurePortable = function () {
+exports.configurePortable = () => {
 	// @ts-ignore
 	const product = require('../product.json');
 	const path = require('path');
@@ -174,7 +174,7 @@ exports.configurePortable = function () {
 
 	const appRoot = path.dirname(__dirname);
 
-	function getApplicationPath() {
+	const getApplicationPath = () => {
 		if (process.env['VSCODE_DEV']) {
 			return appRoot;
 		}
@@ -184,9 +184,9 @@ exports.configurePortable = function () {
 		}
 
 		return path.dirname(path.dirname(appRoot));
-	}
+	};
 
-	function getPortableDataPath() {
+	const getPortableDataPath = () => {
 		if (process.env['VSCODE_PORTABLE']) {
 			return process.env['VSCODE_PORTABLE'];
 		}
@@ -197,7 +197,7 @@ exports.configurePortable = function () {
 
 		const portableDataName = product.portable || `${product.applicationName}-portable-data`;
 		return path.join(path.dirname(getApplicationPath()), portableDataName);
-	}
+	};
 
 	const portableDataPath = getPortableDataPath();
 	const isPortable = !('target' in product) && fs.existsSync(portableDataPath);
@@ -226,7 +226,7 @@ exports.configurePortable = function () {
  * Prevents appinsights from monkey patching modules.
  * This should be called before importing the applicationinsights module
  */
-exports.avoidMonkeyPatchFromAppInsights = function () {
+exports.avoidMonkeyPatchFromAppInsights = () => {
 	// @ts-ignore
 	process.env['APPLICATION_INSIGHTS_NO_DIAGNOSTIC_CHANNEL'] = true; // Skip monkey patching of 3rd party modules by appinsights
 	global['diagnosticsSource'] = {}; // Prevents diagnostic channel (which patches "require") from initializing entirely

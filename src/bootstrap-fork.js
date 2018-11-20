@@ -39,11 +39,11 @@ require('./bootstrap-amd').load(process.env['AMD_ENTRYPOINT']);
 
 //#region Helpers
 
-function pipeLoggingToParent() {
+const pipeLoggingToParent = () => {
 	const MAX_LENGTH = 100000;
 
 	// Prevent circular stringify and convert arguments to real array
-	function safeToArray(args) {
+	const safeToArray = (args) => {
 		const seen = [];
 		const argsArray = [];
 
@@ -83,7 +83,7 @@ function pipeLoggingToParent() {
 		}
 
 		try {
-			res = JSON.stringify(argsArray, function (key, value) {
+			res = JSON.stringify(argsArray, (key, value) => {
 
 				// Objects get special treatment to prevent circles
 				if (isObject(value) || Array.isArray(value)) {
@@ -105,72 +105,72 @@ function pipeLoggingToParent() {
 		}
 
 		return res;
-	}
+	};
 
-	function safeSend(arg) {
+	const safeSend = (arg) => {
 		try {
 			process.send(arg);
 		} catch (error) {
 			// Can happen if the parent channel is closed meanwhile
 		}
-	}
+	};
 
-	function isObject(obj) {
+	const isObject = (obj) => {
 		return typeof obj === 'object'
 			&& obj !== null
 			&& !Array.isArray(obj)
 			&& !(obj instanceof RegExp)
 			&& !(obj instanceof Date);
-	}
+	};
 
 	// Pass console logging to the outside so that we have it in the main side if told so
 	if (process.env.VERBOSE_LOGGING === 'true') {
-		console.log = function () { safeSend({ type: '__$console', severity: 'log', arguments: safeToArray(arguments) }); };
-		console.info = function () { safeSend({ type: '__$console', severity: 'log', arguments: safeToArray(arguments) }); };
-		console.warn = function () { safeSend({ type: '__$console', severity: 'warn', arguments: safeToArray(arguments) }); };
+		console.log = () => { safeSend({ type: '__$console', severity: 'log', arguments: safeToArray(arguments) }); };
+		console.info = () => { safeSend({ type: '__$console', severity: 'log', arguments: safeToArray(arguments) }); };
+		console.warn = () => { safeSend({ type: '__$console', severity: 'warn', arguments: safeToArray(arguments) }); };
 	} else {
-		console.log = function () { /* ignore */ };
-		console.warn = function () { /* ignore */ };
-		console.info = function () { /* ignore */ };
+		console.log = () => { /* ignore */ };
+		console.warn = () => { /* ignore */ };
+		console.info = () => { /* ignore */ };
 	}
 
-	console.error = function () { safeSend({ type: '__$console', severity: 'error', arguments: safeToArray(arguments) }); };
-}
+	console.error = () => { safeSend({ type: '__$console', severity: 'error', arguments: safeToArray(arguments) }); };
+};
 
-function disableSTDIO() {
+const disableSTDIO = () => {
 
 	// const stdout, stderr and stdin be no-op streams. This prevents an issue where we would get an EBADF
 	// error when we are inside a forked process and this process tries to access those channels.
 	const stream = require('stream');
 	const writable = new stream.Writable({
-		write: function () { /* No OP */ }
+		write: () => { /* No OP */ }
 	});
 
-	process['__defineGetter__']('stdout', function () { return writable; });
-	process['__defineGetter__']('stderr', function () { return writable; });
-	process['__defineGetter__']('stdin', function () { return writable; });
-}
+	process['__defineGetter__']('stdout', () => { return writable; });
+	process['__defineGetter__']('stderr', () => { return writable; });
+	process['__defineGetter__']('stdin', () => { return writable; });
+};
 
-function handleExceptions() {
+const handleExceptions = () => {
 
 	// Handle uncaught exceptions
 	// @ts-ignore
-	process.on('uncaughtException', function (err) {
+	process.on('uncaughtException', (err) => {
 		console.error('Uncaught Exception: ', err);
 	});
 
 	// Handle unhandled promise rejections
 	// @ts-ignore
-	process.on('unhandledRejection', function (reason) {
+	process.on('unhandledRejection', (reason) => {
 		console.error('Unhandled Promise Rejection: ', reason);
 	});
-}
+};
 
-function terminateWhenParentTerminates() {
+const terminateWhenParentTerminates = () => {
 	const parentPid = Number(process.env['VSCODE_PARENT_PID']);
 
 	if (typeof parentPid === 'number' && !isNaN(parentPid)) {
-		setInterval(function () {
+		setInterval(() => {
 			try {
 				process.kill(parentPid, 0); // throws an exception if the main process doesn't exist anymore.
 			} catch (e) {
@@ -178,9 +178,9 @@ function terminateWhenParentTerminates() {
 			}
 		}, 5000);
 	}
-}
+};
 
-function configureCrashReporter() {
+const configureCrashReporter = () => {
 	const crashReporterOptionsRaw = process.env['CRASH_REPORTER_START_OPTIONS'];
 	if (typeof crashReporterOptionsRaw === 'string') {
 		try {
@@ -192,6 +192,6 @@ function configureCrashReporter() {
 			console.error(error);
 		}
 	}
-}
+};
 
 //#endregion
