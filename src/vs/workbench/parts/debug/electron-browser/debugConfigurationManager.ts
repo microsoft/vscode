@@ -414,12 +414,16 @@ export class ConfigurationManager implements IConfigurationManager {
 	}
 
 	public activateDebuggers(activationEvent: string, debugType?: string): Thenable<void> {
+		const thenables: Thenable<any>[] = [
+			this.extensionService.activateByEvent(activationEvent),
+			this.extensionService.activateByEvent('onDebug')
+		];
 		if (debugType) {
-			return this.extensionService.activateByEvent(`${activationEvent}:${debugType}`)
-				.then(() => this.extensionService.activateByEvent(activationEvent))
-				.then(() => this.extensionService.activateByEvent('onDebug'));
+			thenables.push(this.extensionService.activateByEvent(`${activationEvent}:${debugType}`));
 		}
-		return this.extensionService.activateByEvent(activationEvent).then(() => this.extensionService.activateByEvent('onDebug'));
+		return Promise.all(thenables).then(_ => {
+			return void 0;
+		});
 	}
 
 	private saveState(): void {
