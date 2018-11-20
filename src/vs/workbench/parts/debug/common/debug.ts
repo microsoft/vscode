@@ -586,6 +586,8 @@ export interface IConfigurationManager {
 	 */
 	onDidSelectConfiguration: Event<void>;
 
+	activateDebuggers(activationEvent: string, debugType?: string): Thenable<void>;
+
 	needsToRunInExtHost(debugType: string): boolean;
 	hasDebugConfigurationProvider(debugType: string): boolean;
 
