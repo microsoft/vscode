@@ -105,27 +105,31 @@ export abstract class TypeScriptBaseCodeLensProvider implements vscode.CodeLensP
 
 		(item.childItems || []).forEach(child => this.walkNavTree(document, child, item, results));
 	}
-	protected getSymbolRange(document: vscode.TextDocument, item: Proto.NavigationTree): vscode.Range | null {
-		// TS 3.0+ provides a span for just the symbol
-		if (item.nameSpan) {
-			return typeConverters.Range.fromTextSpan(item.nameSpan);
-		}
+}
 
-		// In older versions, we have to calculate this manually. See #23924
-		const span = item.spans && item.spans[0];
-		if (!span) {
-			return null;
-		}
-
-		const range = typeConverters.Range.fromTextSpan(span);
-		const text = document.getText(range);
-
-		const identifierMatch = new RegExp(`^(.*?(\\b|\\W))${escapeRegExp(item.text || '')}(\\b|\\W)`, 'gm');
-		const match = identifierMatch.exec(text);
-		const prefixLength = match ? match.index + match[1].length : 0;
-		const startOffset = document.offsetAt(new vscode.Position(range.start.line, range.start.character)) + prefixLength;
-		return new vscode.Range(
-			document.positionAt(startOffset),
-			document.positionAt(startOffset + item.text.length));
+export function getSymbolRange(
+	document: vscode.TextDocument,
+	item: Proto.NavigationTree
+): vscode.Range | null {
+	// TS 3.0+ provides a span for just the symbol
+	if (item.nameSpan) {
+		return typeConverters.Range.fromTextSpan(item.nameSpan);
 	}
+
+	// In older versions, we have to calculate this manually. See #23924
+	const span = item.spans && item.spans[0];
+	if (!span) {
+		return null;
+	}
+
+	const range = typeConverters.Range.fromTextSpan(span);
+	const text = document.getText(range);
+
+	const identifierMatch = new RegExp(`^(.*?(\\b|\\W))${escapeRegExp(item.text || '')}(\\b|\\W)`, 'gm');
+	const match = identifierMatch.exec(text);
+	const prefixLength = match ? match.index + match[1].length : 0;
+	const startOffset = document.offsetAt(new vscode.Position(range.start.line, range.start.character)) + prefixLength;
+	return new vscode.Range(
+		document.positionAt(startOffset),
+		document.positionAt(startOffset + item.text.length));
 }
