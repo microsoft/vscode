@@ -48,7 +48,6 @@ import { ExtensionsTree, IExtensionData } from 'vs/workbench/parts/extensions/br
 import { ShowCurrentReleaseNotesAction } from 'vs/workbench/parts/update/electron-browser/update';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 
 function renderBody(body: string): string {
 	const styleSheetPath = require.toUrl('./media/markdown.css').replace('file://', 'vscode-core-resource://');
@@ -403,12 +402,6 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	private setSubText(extension: IExtension, reloadAction: ReloadAction) {
-		if (reloadAction.enabled) {
-			this.subtext.textContent = reloadAction.tooltip;
-			show(this.subtextContainer);
-			return;
-		}
-
 		hide(this.subtextContainer);
 
 		const ignoreAction = this.instantiationService.createInstance(IgnoreExtensionRecommendationAction);
@@ -453,8 +446,8 @@ export class ExtensionEditor extends BaseEditor {
 			}
 		});
 
-		this.extensionsWorkbenchService.onChange(e => {
-			if (areSameExtensions(e, extension) && reloadAction.enabled) {
+		reloadAction.onDidChange(e => {
+			if (e.tooltip) {
 				this.subtext.textContent = reloadAction.tooltip;
 				show(this.subtextContainer);
 				ignoreAction.enabled = false;
