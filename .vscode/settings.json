@@ -10,7 +10,6 @@
 		}
 	},
 	"files.associations": {
-		"OSSREADME.json": "jsonc",
 		"cglicenses.json": "jsonc"
 	},
 	"search.exclude": {
