@@ -5009,6 +5009,31 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Rerun behavior for a task.
+	 */
+	export enum RerunBehavior {
+		/**
+		 * Re-evaluate the variables associated with this task.
+		 */
+		reevaluate = 1,
+
+		/**
+		 * Use the variables associated with this task as they were evaluated on last run.
+		 */
+		useEvaluated = 2,
+	}
+
+	/**
+	 * Run options for a task.
+	 */
+	export interface RunOptions {
+		/**
+		 * Controls the behavior of a task when it is rerun.
+		 */
+		rerunBehavior?: RerunBehavior;
+	}
+
+	/**
 	 * A task to execute
 	 */
 	export class Task {
@@ -5091,6 +5116,11 @@ declare module 'vscode' {
 		 * array.
 		 */
 		problemMatchers: string[];
+
+		/**
+		 * Run options for the task
+		 */
+		runOptions: RunOptions;
 	}
 
 	/**

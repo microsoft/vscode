@@ -1596,7 +1596,7 @@ export enum RerunBehavior {
 	useEvaluated = 2,
 }
 
-export class Task implements vscode.Task2 {
+export class Task implements vscode.Task {
 
 	private static ProcessType: string = 'process';
 	private static ShellType: string = 'shell';
