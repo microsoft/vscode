@@ -123,12 +123,12 @@ export class ParameterHintsModel extends Disposable {
 			this.provideSignatureHelpRequest.cancel();
 		}
 
-		let model = this.editor.getModel();
-		let position = this.editor.getPosition();
-
-		if (model === null || position === null) {
+		if (!this.editor.hasModel()) {
 			return;
 		}
+
+		const model = this.editor.getModel();
+		const position = this.editor.getPosition();
 
 		this.pending = true;
 
