@@ -106,10 +106,6 @@ export abstract class TypeScriptBaseCodeLensProvider implements vscode.CodeLensP
 		(item.childItems || []).forEach(child => this.walkNavTree(document, child, item, results));
 	}
 	protected getSymbolRange(document: vscode.TextDocument, item: Proto.NavigationTree): vscode.Range | null {
-		if (!item) {
-			return null;
-		}
-
 		// TS 3.0+ provides a span for just the symbol
 		if (item.nameSpan) {
 			return typeConverters.Range.fromTextSpan(item.nameSpan);
