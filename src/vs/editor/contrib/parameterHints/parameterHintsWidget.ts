@@ -99,13 +99,13 @@ export class ParameterHintsModel extends Disposable {
 	}
 
 	trigger(context: TriggerContext, delay?: number): void {
-		let model = this.editor.getModel();
+		const wasTriggered = this.isTriggered;
+		this.cancel(true);
+
+		const model = this.editor.getModel();
 		if (model === null || !modes.SignatureHelpProviderRegistry.has(model)) {
 			return;
 		}
-
-		const wasTriggered = this.isTriggered;
-		this.cancel(true);
 
 		this.throttledDelayer.trigger(
 			() => this.doTrigger({
