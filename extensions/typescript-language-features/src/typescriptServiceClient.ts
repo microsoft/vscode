@@ -619,41 +619,29 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				break;
 
 			case 'projectLanguageServiceState':
-				if (event.body) {
-					this._onProjectLanguageServiceStateChanged.fire((event as Proto.ProjectLanguageServiceStateEvent).body);
-				}
+				this._onProjectLanguageServiceStateChanged.fire((event as Proto.ProjectLanguageServiceStateEvent).body);
 				break;
 
 			case 'projectsUpdatedInBackground':
-				if (event.body) {
-					const body = (event as Proto.ProjectsUpdatedInBackgroundEvent).body;
-					const resources = body.openFiles.map(vscode.Uri.file);
-					this.bufferSyncSupport.getErr(resources);
-				}
+				const body = (event as Proto.ProjectsUpdatedInBackgroundEvent).body;
+				const resources = body.openFiles.map(vscode.Uri.file);
+				this.bufferSyncSupport.getErr(resources);
 				break;
 
 			case 'beginInstallTypes':
-				if (event.body) {
-					this._onDidBeginInstallTypings.fire((event as Proto.BeginInstallTypesEvent).body);
-				}
+				this._onDidBeginInstallTypings.fire((event as Proto.BeginInstallTypesEvent).body);
 				break;
 
 			case 'endInstallTypes':
-				if (event.body) {
-					this._onDidEndInstallTypings.fire((event as Proto.EndInstallTypesEvent).body);
-				}
+				this._onDidEndInstallTypings.fire((event as Proto.EndInstallTypesEvent).body);
 				break;
 
 			case 'typesInstallerInitializationFailed':
-				if (event.body) {
-					this._onTypesInstallerInitializationFailed.fire((event as Proto.TypesInstallerInitializationFailedEvent).body);
-				}
+				this._onTypesInstallerInitializationFailed.fire((event as Proto.TypesInstallerInitializationFailedEvent).body);
 				break;
 
 			case 'surveyReady':
-				if (event.body) {
-					this._onSurveyReady.fire((event as Proto.SurveyReadyEvent).body);
-				}
+				this._onSurveyReady.fire((event as Proto.SurveyReadyEvent).body);
 				break;
 
 			case 'projectLoadingStart':
