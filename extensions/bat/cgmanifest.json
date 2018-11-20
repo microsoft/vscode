@@ -1,0 +1,17 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "mmims/language-batchfile",
+					"repositoryUrl": "https://github.com/mmims/language-batchfile",
+					"commitHash": "4b67596631b4ecd2c89c2ec1b2e08a6623438903"
+				}
+			},
+			"license": "MIT",
+			"version": "0.0.0"
+		}
+	],
+	"version": 1
+}

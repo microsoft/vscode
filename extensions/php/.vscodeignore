@@ -3,4 +3,4 @@ build/**
 out/test/**
 src/**
 tsconfig.json
-OSSREADME.json
+cgmanifest.json
