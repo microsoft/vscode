@@ -112,7 +112,7 @@ export abstract class TypeScriptBaseCodeLensProvider implements vscode.CodeLensP
 
 		// TS 3.0+ provides a span for just the symbol
 		if (item.nameSpan) {
-			return typeConverters.Range.fromTextSpan((item as any).nameSpan);
+			return typeConverters.Range.fromTextSpan(item.nameSpan);
 		}
 
 		// In older versions, we have to calculate this manually. See #23924
