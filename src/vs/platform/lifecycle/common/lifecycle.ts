@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { isThenable } from 'vs/base/common/async';
@@ -149,9 +148,9 @@ export const NullLifecycleService: ILifecycleService = {
 };
 
 // Shared veto handling across main and renderer
-export function handleVetos(vetos: (boolean | Thenable<boolean>)[], onError: (error: Error) => void): TPromise<boolean /* veto */> {
+export function handleVetos(vetos: (boolean | Thenable<boolean>)[], onError: (error: Error) => void): Promise<boolean /* veto */> {
 	if (vetos.length === 0) {
-		return TPromise.as(false);
+		return Promise.resolve(false);
 	}
 
 	const promises: Thenable<void>[] = [];
@@ -161,7 +160,7 @@ export function handleVetos(vetos: (boolean | Thenable<boolean>)[], onError: (er
 
 		// veto, done
 		if (valueOrPromise === true) {
-			return TPromise.as(true);
+			return Promise.resolve(true);
 		}
 
 		if (isThenable(valueOrPromise)) {
@@ -176,5 +175,5 @@ export function handleVetos(vetos: (boolean | Thenable<boolean>)[], onError: (er
 		}
 	}
 
-	return TPromise.join(promises).then(() => lazyValue);
+	return Promise.all(promises).then(() => lazyValue);
 }

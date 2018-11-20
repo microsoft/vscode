@@ -308,7 +308,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Show it
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => TPromise.as(actions),
+			getActions: () => actions,
 			onHide: () => this.focus()
 		});
 	}
@@ -763,13 +763,21 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			this.accessor.activateGroup(this);
 		}
 
+		// Actually move the editor if a specific index is provided and we figure
+		// out that the the editor is already opened at a different index. This
+		// ensures the right set of events are fired to the outside.
+		if (typeof openEditorOptions.index === 'number') {
+			const indexOfEditor = this._group.indexOf(editor);
+			if (indexOfEditor !== -1 && indexOfEditor !== openEditorOptions.index) {
+				this.doMoveEditorInsideGroup(editor, openEditorOptions);
+			}
+		}
+
 		// Update model
 		this._group.openEditor(editor, openEditorOptions);
 
 		// Show editor
-		const showEditorResult = this.doShowEditor(editor, openEditorOptions.active, options);
-
-		return showEditorResult;
+		return this.doShowEditor(editor, openEditorOptions.active, options);
 	}
 
 	private doShowEditor(editor: EditorInput, active: boolean, options?: EditorOptions): TPromise<void> {

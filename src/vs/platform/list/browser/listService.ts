@@ -877,9 +877,6 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 	private hasDoubleSelection: IContextKey<boolean>;
 	private hasMultiSelection: IContextKey<boolean>;
 
-	private _openOnSingleClick: boolean;
-	private _useAltAsMultipleSelectionModifier: boolean;
-
 	constructor(
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
@@ -907,9 +904,6 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 		this.hasDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
 		this.hasMultiSelection = WorkbenchListMultiSelection.bindTo(this.contextKeyService);
 
-		this._openOnSingleClick = useSingleClickToOpen(configurationService);
-		this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
-
 		this.disposables.push(
 			this.contextKeyService,
 			(listService as ListService).register(this),
@@ -927,30 +921,12 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 				const focus = this.getFocus();
 
 				this.hasSelectionOrFocus.set(selection.length > 0 || focus.length > 0);
-			}),
-			configurationService.onDidChangeConfiguration(e => {
-				if (e.affectsConfiguration(openModeSettingKey)) {
-					this._openOnSingleClick = useSingleClickToOpen(configurationService);
-				}
-
-				if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
-					this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
-				}
 			})
 		);
 	}
 
-	get openOnSingleClick(): boolean {
-		return this._openOnSingleClick;
-	}
-
-	get useAltAsMultipleSelectionModifier(): boolean {
-		return this._useAltAsMultipleSelectionModifier;
-	}
-
 	dispose(): void {
 		super.dispose();
-
 		this.disposables = dispose(this.disposables);
 	}
 }

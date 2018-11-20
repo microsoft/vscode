@@ -237,10 +237,10 @@ export class ExtensionEditor extends BaseEditor {
 			animated: false,
 			actionItemProvider: (action: Action) => {
 				if (action.id === EnableAction.ID) {
-					return (<EnableAction>action).actionItem;
+					return (<EnableAction>action).createActionItem();
 				}
 				if (action.id === DisableAction.ID) {
-					return (<DisableAction>action).actionItem;
+					return (<DisableAction>action).createActionItem();
 				}
 				return null;
 			}

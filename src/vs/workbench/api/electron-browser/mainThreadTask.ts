@@ -17,7 +17,7 @@ import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspac
 
 import {
 	ContributedTask, ExtensionTaskSourceTransfer, KeyedTaskIdentifier, TaskExecution, Task, TaskEvent, TaskEventKind,
-	PresentationOptions, CommandOptions, CommandConfiguration, RuntimeType, CustomTask, TaskScope, TaskSource, TaskSourceKind, ExtensionTaskSource, RevealKind, PanelKind
+	PresentationOptions, CommandOptions, CommandConfiguration, RuntimeType, CustomTask, TaskScope, TaskSource, TaskSourceKind, ExtensionTaskSource, RevealKind, PanelKind, RunOptions
 } from 'vs/workbench/parts/tasks/common/tasks';
 
 
@@ -30,7 +30,8 @@ import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostC
 import { ExtHostContext, MainThreadTaskShape, ExtHostTaskShape, MainContext, IExtHostContext } from 'vs/workbench/api/node/extHost.protocol';
 import {
 	TaskDefinitionDTO, TaskExecutionDTO, ProcessExecutionOptionsDTO, TaskPresentationOptionsDTO,
-	ProcessExecutionDTO, ShellExecutionDTO, ShellExecutionOptionsDTO, TaskDTO, TaskSourceDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO
+	ProcessExecutionDTO, ShellExecutionDTO, ShellExecutionOptionsDTO, TaskDTO, TaskSourceDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO,
+	RunOptionsDTO
 } from 'vs/workbench/api/shared/tasks';
 
 namespace TaskExecutionDTO {
@@ -94,6 +95,15 @@ namespace TaskPresentationOptionsDTO {
 	export function to(value: TaskPresentationOptionsDTO): PresentationOptions {
 		if (value === void 0 || value === null) {
 			return { reveal: RevealKind.Always, echo: true, focus: false, panel: PanelKind.Shared, showReuseMessage: true, clear: false };
+		}
+		return Objects.assign(Object.create(null), value);
+	}
+}
+
+namespace RunOptionsDTO {
+	export function from(value: RunOptions): RunOptionsDTO {
+		if (value === void 0 || value === null) {
+			return undefined;
 		}
 		return Objects.assign(Object.create(null), value);
 	}
@@ -289,7 +299,8 @@ namespace TaskDTO {
 			presentationOptions: task.command ? TaskPresentationOptionsDTO.from(task.command.presentation) : undefined,
 			isBackground: task.isBackground,
 			problemMatchers: [],
-			hasDefinedMatchers: ContributedTask.is(task) ? task.hasDefinedMatchers : false
+			hasDefinedMatchers: ContributedTask.is(task) ? task.hasDefinedMatchers : false,
+			runOptions: RunOptionsDTO.from(task.runOptions),
 		};
 		if (task.group) {
 			result.group = task.group;
@@ -344,7 +355,8 @@ namespace TaskDTO {
 			command: command,
 			isBackground: !!task.isBackground,
 			problemMatchers: task.problemMatchers.slice(),
-			hasDefinedMatchers: task.hasDefinedMatchers
+			hasDefinedMatchers: task.hasDefinedMatchers,
+			runOptions: task.runOptions,
 		};
 		return result;
 	}

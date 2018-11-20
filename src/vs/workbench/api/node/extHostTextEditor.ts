@@ -25,7 +25,7 @@ export class TextEditorDecorationType implements vscode.TextEditorDecorationType
 	constructor(proxy: MainThreadTextEditorsShape, options: vscode.DecorationRenderOptions) {
 		this.key = TextEditorDecorationType._Keys.nextId();
 		this._proxy = proxy;
-		this._proxy.$registerTextEditorDecorationType(this.key, <any>/* URI vs Uri */ options);
+		this._proxy.$registerTextEditorDecorationType(this.key, TypeConverters.DecorationRenderOptions.from(options));
 	}
 
 	public dispose(): void {

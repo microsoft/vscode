@@ -765,7 +765,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<IComp
 				this.setState(State.Open);
 			}
 
-			this.list.reveal(selectionIndex, selectionIndex);
+			this.list.reveal(selectionIndex, 0);
 			this.list.setFocus([selectionIndex]);
 
 			// Reset focus border
@@ -1014,6 +1014,9 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<IComp
 		return height;
 	}
 
+	/**
+	 * Adds the propert classes, margins when positioning the docs to the side
+	 */
 	private adjustDocsPosition() {
 		const lineHeight = this.editor.getConfiguration().fontInfo.lineHeight;
 		const cursorCoords = this.editor.getScrolledVisiblePosition(this.editor.getPosition());
@@ -1044,6 +1047,9 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<IComp
 		}
 	}
 
+	/**
+	 * Adds the proper classes for positioning the docs to the side or below
+	 */
 	private expandSideOrBelow() {
 		if (!canExpandCompletionItem(this.focusedItem) && this.firstFocusInCurrentList) {
 			removeClass(this.element, 'docs-side');

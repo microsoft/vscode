@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChannel } from 'vs/base/parts/ipc/node/ipc';
+import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
 import { Event, Emitter } from 'vs/base/common/event';
 import { timeout } from 'vs/base/common/async';
 
@@ -37,21 +37,11 @@ export class TestService implements ITestService {
 	}
 }
 
-export interface ITestChannel extends IChannel {
-	listen<IMarcoPoloEvent>(event: 'marco'): Event<IMarcoPoloEvent>;
-	listen<T>(event: string, arg?: any): Event<T>;
-
-	call(command: 'marco'): Thenable<any>;
-	call(command: 'pong', ping: string): Thenable<any>;
-	call(command: 'cancelMe'): Thenable<any>;
-	call(command: string, ...args: any[]): Thenable<any>;
-}
-
-export class TestChannel implements ITestChannel {
+export class TestChannel implements IServerChannel {
 
 	constructor(private testService: ITestService) { }
 
-	listen(event: string, arg?: any): Event<any> {
+	listen(_, event: string): Event<any> {
 		switch (event) {
 			case 'marco': return this.testService.onMarco;
 		}
@@ -59,12 +49,12 @@ export class TestChannel implements ITestChannel {
 		throw new Error('Event not found');
 	}
 
-	call(command: string, ...args: any[]): Thenable<any> {
+	call(_, command: string, ...args: any[]): Thenable<any> {
 		switch (command) {
 			case 'pong': return this.testService.pong(args[0]);
 			case 'cancelMe': return this.testService.cancelMe();
 			case 'marco': return this.testService.marco();
-			default: return Promise.reject(new Error('command not found'));
+			default: return Promise.reject(new Error(`command not found: ${command}`));
 		}
 	}
 }
@@ -73,7 +63,7 @@ export class TestServiceClient implements ITestService {
 
 	get onMarco(): Event<IMarcoPoloEvent> { return this.channel.listen('marco'); }
 
-	constructor(private channel: ITestChannel) { }
+	constructor(private channel: IChannel) { }
 
 	marco(): Thenable<string> {
 		return this.channel.call('marco');

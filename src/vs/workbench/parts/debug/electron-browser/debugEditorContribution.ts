@@ -94,7 +94,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		this.toggleExceptionWidget();
 	}
 
-	private getContextMenuActions(breakpoints: ReadonlyArray<IBreakpoint>, uri: uri, lineNumber: number): Promise<(IAction | ContextSubMenu)[]> {
+	private getContextMenuActions(breakpoints: ReadonlyArray<IBreakpoint>, uri: uri, lineNumber: number): (IAction | ContextSubMenu)[] {
 		const actions: (IAction | ContextSubMenu)[] = [];
 		if (breakpoints.length === 1) {
 			const breakpointType = breakpoints[0].logMessage ? nls.localize('logPoint', "Logpoint") : nls.localize('breakpoint', "Breakpoint");
@@ -165,7 +165,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			));
 		}
 
-		return Promise.resolve(actions);
+		return actions;
 	}
 
 	private registerListeners(): void {

@@ -16,7 +16,6 @@ import { ArrayNavigator } from 'vs/base/common/iterator';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorExtensionsRegistry, IEditorContributionCtor, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -48,7 +47,7 @@ import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorMo
 import { PREFERENCES_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 import { DefaultSettingsRenderer, FolderSettingsRenderer, IPreferencesRenderer, UserSettingsRenderer, WorkspaceSettingsRenderer } from 'vs/workbench/parts/preferences/browser/preferencesRenderers';
 import { SearchWidget, SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
-import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
+import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, IPreferencesSearchService, ISearchProvider, CONTEXT_SETTINGS_JSON_EDITOR } from 'vs/workbench/parts/preferences/common/preferences';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IFilterResult, IPreferencesService, ISearchResult, ISetting, ISettingsEditorModel, ISettingsGroup, SettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
@@ -62,6 +61,7 @@ export class PreferencesEditor extends BaseEditor {
 	public static readonly ID: string = PREFERENCES_EDITOR_ID;
 
 	private defaultSettingsEditorContextKey: IContextKey<boolean>;
+	private defaultSettingsJSONEditorContextKey: IContextKey<boolean>;
 	private searchFocusContextKey: IContextKey<boolean>;
 	private headerContainer: HTMLElement;
 	private searchWidget: SearchWidget;
@@ -99,6 +99,7 @@ export class PreferencesEditor extends BaseEditor {
 	) {
 		super(PreferencesEditor.ID, telemetryService, themeService, storageService);
 		this.defaultSettingsEditorContextKey = CONTEXT_SETTINGS_EDITOR.bindTo(this.contextKeyService);
+		this.defaultSettingsJSONEditorContextKey = CONTEXT_SETTINGS_JSON_EDITOR.bindTo(this.contextKeyService);
 		this.searchFocusContextKey = CONTEXT_SETTINGS_SEARCH_FOCUS.bindTo(this.contextKeyService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
 		this.localSearchDelayer = new Delayer(100);
@@ -155,6 +156,7 @@ export class PreferencesEditor extends BaseEditor {
 
 	public setInput(newInput: PreferencesEditorInput, options: SettingsEditorOptions, token: CancellationToken): Thenable<void> {
 		this.defaultSettingsEditorContextKey.set(true);
+		this.defaultSettingsJSONEditorContextKey.set(true);
 		if (options && options.query) {
 			this.focusSearch(options.query);
 		}
@@ -194,6 +196,7 @@ export class PreferencesEditor extends BaseEditor {
 
 	public clearInput(): void {
 		this.defaultSettingsEditorContextKey.set(false);
+		this.defaultSettingsJSONEditorContextKey.set(false);
 		this.sideBySidePreferencesWidget.clearInput();
 		this.preferencesRenderers.onHidden();
 		super.clearInput();
@@ -204,7 +207,7 @@ export class PreferencesEditor extends BaseEditor {
 		super.setEditorVisible(visible, group);
 	}
 
-	private updateInput(newInput: PreferencesEditorInput, options: EditorOptions, token: CancellationToken): TPromise<void> {
+	private updateInput(newInput: PreferencesEditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 		return this.sideBySidePreferencesWidget.setInput(<DefaultPreferencesEditorInput>newInput.details, <EditorInput>newInput.master, options, token).then(({ defaultPreferencesRenderer, editablePreferencesRenderer }) => {
 			if (token.isCancellationRequested) {
 				return void 0;
@@ -230,12 +233,12 @@ export class PreferencesEditor extends BaseEditor {
 			});
 	}
 
-	private triggerSearch(query: string): TPromise<void> {
+	private triggerSearch(query: string): Promise<void> {
 		if (query) {
-			return TPromise.join([
+			return Promise.all([
 				this.localSearchDelayer.trigger(() => this.preferencesRenderers.localFilterPreferences(query).then(() => { })),
-				this.remoteSearchThrottle.trigger(() => TPromise.wrap(this.progressService.showWhile(this.preferencesRenderers.remoteSearchPreferences(query), 500)))
-			]) as TPromise;
+				this.remoteSearchThrottle.trigger(() => Promise.resolve(this.progressService.showWhile(this.preferencesRenderers.remoteSearchPreferences(query), 500)))
+			]).then(() => { });
 		} else {
 			// When clearing the input, update immediately to clear it
 			this.localSearchDelayer.cancel();
@@ -251,8 +254,8 @@ export class PreferencesEditor extends BaseEditor {
 		if (this.editorService.activeControl !== this) {
 			this.focus();
 		}
-		const promise = this.input && this.input.isDirty() ? this.input.save() : TPromise.as(true);
-		promise.then(value => {
+		const promise: Thenable<boolean> = this.input && this.input.isDirty() ? this.input.save() : Promise.resolve(true);
+		promise.then(() => {
 			if (target === ConfigurationTarget.USER) {
 				this.preferencesService.switchSettings(ConfigurationTarget.USER, this.preferencesService.userSettingsResource, true);
 			} else if (target === ConfigurationTarget.WORKSPACE) {
@@ -438,7 +441,7 @@ class PreferencesRenderersController extends Disposable {
 		this._prefsModelsForSearch = new Map<string, ISettingsEditorModel>();
 	}
 
-	remoteSearchPreferences(query: string, updateCurrentResults?: boolean): TPromise<void> {
+	remoteSearchPreferences(query: string, updateCurrentResults?: boolean): Promise<void> {
 		if (this.lastFilterResult && this.lastFilterResult.exactMatch) {
 			// Skip and clear remote search
 			query = '';
@@ -467,7 +470,7 @@ class PreferencesRenderersController extends Disposable {
 		});
 	}
 
-	localFilterPreferences(query: string, updateCurrentResults?: boolean): TPromise<boolean> {
+	localFilterPreferences(query: string, updateCurrentResults?: boolean): Promise<boolean> {
 		if (this._settingsNavigator) {
 			this._settingsNavigator.reset();
 		}
@@ -476,10 +479,10 @@ class PreferencesRenderersController extends Disposable {
 		return this.filterOrSearchPreferences(query, this._currentLocalSearchProvider, 'filterResult', nls.localize('filterResult', "Filtered Results"), 0, undefined, updateCurrentResults);
 	}
 
-	private filterOrSearchPreferences(query: string, searchProvider: ISearchProvider, groupId: string, groupLabel: string, groupOrder: number, token?: CancellationToken, editableContentOnly?: boolean): TPromise<boolean> {
+	private filterOrSearchPreferences(query: string, searchProvider: ISearchProvider, groupId: string, groupLabel: string, groupOrder: number, token?: CancellationToken, editableContentOnly?: boolean): Promise<boolean> {
 		this._lastQuery = query;
 
-		const filterPs: TPromise<IFilterResult>[] = [this._filterOrSearchPreferences(query, this.editablePreferencesRenderer, searchProvider, groupId, groupLabel, groupOrder, token)];
+		const filterPs: Promise<IFilterResult>[] = [this._filterOrSearchPreferences(query, this.editablePreferencesRenderer, searchProvider, groupId, groupLabel, groupOrder, token)];
 		if (!editableContentOnly) {
 			filterPs.push(
 				this._filterOrSearchPreferences(query, this.defaultPreferencesRenderer, searchProvider, groupId, groupLabel, groupOrder, token));
@@ -487,7 +490,7 @@ class PreferencesRenderersController extends Disposable {
 				this.searchAllSettingsTargets(query, searchProvider, groupId, groupLabel, groupOrder, token).then(() => null));
 		}
 
-		return TPromise.join(filterPs).then(results => {
+		return Promise.all(filterPs).then(results => {
 			let [editableFilterResult, defaultFilterResult] = results;
 
 			if (!defaultFilterResult && editableContentOnly) {
@@ -501,7 +504,7 @@ class PreferencesRenderersController extends Disposable {
 		});
 	}
 
-	private searchAllSettingsTargets(query: string, searchProvider: ISearchProvider, groupId: string, groupLabel: string, groupOrder: number, token?: CancellationToken): TPromise<void> {
+	private searchAllSettingsTargets(query: string, searchProvider: ISearchProvider, groupId: string, groupLabel: string, groupOrder: number, token?: CancellationToken): Promise<void> {
 		const searchPs = [
 			this.searchSettingsTarget(query, searchProvider, ConfigurationTarget.WORKSPACE, groupId, groupLabel, groupOrder, token),
 			this.searchSettingsTarget(query, searchProvider, ConfigurationTarget.USER, groupId, groupLabel, groupOrder, token)
@@ -513,7 +516,7 @@ class PreferencesRenderersController extends Disposable {
 		}
 
 
-		return TPromise.join(searchPs).then(() => { });
+		return Promise.all(searchPs).then(() => { });
 	}
 
 	private searchSettingsTarget(query: string, provider: ISearchProvider, target: SettingsTarget, groupId: string, groupLabel: string, groupOrder: number, token?: CancellationToken): Promise<void> {
@@ -530,7 +533,7 @@ class PreferencesRenderersController extends Disposable {
 			this._onDidFilterResultsCountChange.fire({ target, count });
 		}, err => {
 			if (!isPromiseCanceledError(err)) {
-				return TPromise.wrapError(err);
+				return Promise.reject(err);
 			}
 
 			return null;
@@ -582,9 +585,9 @@ class PreferencesRenderersController extends Disposable {
 		}
 	}
 
-	private _filterOrSearchPreferences(filter: string, preferencesRenderer: IPreferencesRenderer<ISetting>, provider: ISearchProvider, groupId: string, groupLabel: string, groupOrder: number, token?: CancellationToken): TPromise<IFilterResult> {
+	private _filterOrSearchPreferences(filter: string, preferencesRenderer: IPreferencesRenderer<ISetting>, provider: ISearchProvider, groupId: string, groupLabel: string, groupOrder: number, token?: CancellationToken): Promise<IFilterResult> {
 		if (!preferencesRenderer) {
-			return TPromise.wrap(null);
+			return Promise.resolve(null);
 		}
 
 		const model = <ISettingsEditorModel>preferencesRenderer.preferencesModel;
@@ -594,12 +597,12 @@ class PreferencesRenderersController extends Disposable {
 		});
 	}
 
-	private _filterOrSearchPreferencesModel(filter: string, model: ISettingsEditorModel, provider: ISearchProvider, groupId: string, groupLabel: string, groupOrder: number, token?: CancellationToken): TPromise<IFilterResult> {
-		const searchP = provider ? provider.searchModel(model, token) : TPromise.wrap(null);
+	private _filterOrSearchPreferencesModel(filter: string, model: ISettingsEditorModel, provider: ISearchProvider, groupId: string, groupLabel: string, groupOrder: number, token?: CancellationToken): Promise<IFilterResult> {
+		const searchP = provider ? provider.searchModel(model, token) : Promise.resolve(null);
 		return searchP
 			.then<ISearchResult>(null, err => {
 				if (isPromiseCanceledError(err)) {
-					return TPromise.wrapError(err);
+					return Promise.reject(err);
 				} else {
 					/* __GDPR__
 						"defaultSettings.searchError" : {
@@ -845,10 +848,10 @@ class SideBySidePreferencesWidget extends Widget {
 		this._register(focusTracker.onDidFocus(() => this._onFocus.fire()));
 	}
 
-	public setInput(defaultPreferencesEditorInput: DefaultPreferencesEditorInput, editablePreferencesEditorInput: EditorInput, options: EditorOptions, token: CancellationToken): TPromise<{ defaultPreferencesRenderer?: IPreferencesRenderer<ISetting>, editablePreferencesRenderer?: IPreferencesRenderer<ISetting> }> {
+	public setInput(defaultPreferencesEditorInput: DefaultPreferencesEditorInput, editablePreferencesEditorInput: EditorInput, options: EditorOptions, token: CancellationToken): Promise<{ defaultPreferencesRenderer?: IPreferencesRenderer<ISetting>, editablePreferencesRenderer?: IPreferencesRenderer<ISetting> }> {
 		this.getOrCreateEditablePreferencesEditor(editablePreferencesEditorInput);
 		this.settingsTargetsWidget.settingsTarget = this.getSettingsTarget(editablePreferencesEditorInput.getResource());
-		return TPromise.join([
+		return Promise.all([
 			this.updateInput(this.defaultPreferencesEditor, defaultPreferencesEditorInput, DefaultSettingsEditorContribution.ID, editablePreferencesEditorInput.getResource(), options, token),
 			this.updateInput(this.editablePreferencesEditor, editablePreferencesEditorInput, SettingsEditorContribution.ID, defaultPreferencesEditorInput.getResource(), options, token)
 		])
@@ -1076,13 +1079,13 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 
 interface ISettingsEditorContribution extends editorCommon.IEditorContribution {
 
-	updatePreferencesRenderer(associatedPreferencesModelUri: URI): TPromise<IPreferencesRenderer<ISetting>>;
+	updatePreferencesRenderer(associatedPreferencesModelUri: URI): Thenable<IPreferencesRenderer<ISetting>>;
 
 }
 
 abstract class AbstractSettingsEditorContribution extends Disposable implements ISettingsEditorContribution {
 
-	private preferencesRendererCreationPromise: TPromise<IPreferencesRenderer<ISetting>>;
+	private preferencesRendererCreationPromise: Thenable<IPreferencesRenderer<ISetting>>;
 
 	constructor(protected editor: ICodeEditor,
 		@IInstantiationService protected instantiationService: IInstantiationService,
@@ -1093,7 +1096,7 @@ abstract class AbstractSettingsEditorContribution extends Disposable implements 
 		this._register(this.editor.onDidChangeModel(() => this._onModelChanged()));
 	}
 
-	updatePreferencesRenderer(associatedPreferencesModelUri: URI): TPromise<IPreferencesRenderer<ISetting>> {
+	updatePreferencesRenderer(associatedPreferencesModelUri: URI): Thenable<IPreferencesRenderer<ISetting>> {
 		if (!this.preferencesRendererCreationPromise) {
 			this.preferencesRendererCreationPromise = this._createPreferencesRenderer();
 		}
@@ -1103,7 +1106,7 @@ abstract class AbstractSettingsEditorContribution extends Disposable implements 
 				.then(changed => changed ? this._updatePreferencesRenderer(associatedPreferencesModelUri) : this.preferencesRendererCreationPromise);
 		}
 
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	protected _onModelChanged(): void {
@@ -1114,13 +1117,13 @@ abstract class AbstractSettingsEditorContribution extends Disposable implements 
 		}
 	}
 
-	private _hasAssociatedPreferencesModelChanged(associatedPreferencesModelUri: URI): TPromise<boolean> {
+	private _hasAssociatedPreferencesModelChanged(associatedPreferencesModelUri: URI): Thenable<boolean> {
 		return this.preferencesRendererCreationPromise.then(preferencesRenderer => {
 			return !(preferencesRenderer && preferencesRenderer.getAssociatedPreferencesModel() && preferencesRenderer.getAssociatedPreferencesModel().uri.toString() === associatedPreferencesModelUri.toString());
 		});
 	}
 
-	private _updatePreferencesRenderer(associatedPreferencesModelUri: URI): TPromise<IPreferencesRenderer<ISetting>> {
+	private _updatePreferencesRenderer(associatedPreferencesModelUri: URI): Thenable<IPreferencesRenderer<ISetting>> {
 		return this.preferencesService.createPreferencesEditorModel<ISetting>(associatedPreferencesModelUri)
 			.then(associatedPreferencesEditorModel => {
 				return this.preferencesRendererCreationPromise.then(preferencesRenderer => {
@@ -1148,7 +1151,7 @@ abstract class AbstractSettingsEditorContribution extends Disposable implements 
 					preferencesRenderer.dispose();
 				}
 			});
-			this.preferencesRendererCreationPromise = TPromise.as(null);
+			this.preferencesRendererCreationPromise = Promise.resolve(null);
 		}
 	}
 
@@ -1157,7 +1160,7 @@ abstract class AbstractSettingsEditorContribution extends Disposable implements 
 		super.dispose();
 	}
 
-	protected abstract _createPreferencesRenderer(): TPromise<IPreferencesRenderer<ISetting>>;
+	protected abstract _createPreferencesRenderer(): Thenable<IPreferencesRenderer<ISetting>>;
 	abstract getId(): string;
 }
 
@@ -1169,7 +1172,7 @@ class DefaultSettingsEditorContribution extends AbstractSettingsEditorContributi
 		return DefaultSettingsEditorContribution.ID;
 	}
 
-	protected _createPreferencesRenderer(): TPromise<IPreferencesRenderer<ISetting>> {
+	protected _createPreferencesRenderer(): Thenable<IPreferencesRenderer<ISetting>> {
 		return this.preferencesService.createPreferencesEditorModel(this.editor.getModel().uri)
 			.then(editorModel => {
 				if (editorModel instanceof DefaultSettingsEditorModel && this.editor.getModel()) {
@@ -1199,7 +1202,7 @@ class SettingsEditorContribution extends AbstractSettingsEditorContribution impl
 		return SettingsEditorContribution.ID;
 	}
 
-	protected _createPreferencesRenderer(): TPromise<IPreferencesRenderer<ISetting>> {
+	protected _createPreferencesRenderer(): Thenable<IPreferencesRenderer<ISetting>> {
 		if (this.isSettingsModel()) {
 			return this.preferencesService.createPreferencesEditorModel(this.editor.getModel().uri)
 				.then(settingsModel => {

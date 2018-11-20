@@ -50,17 +50,18 @@
 	display: none;
 }
 
-.monaco-workbench .tree-explorer-viewlet-tree-view .customview-message {
-	display: none;
-	padding: 10px 22px 0 22px;
-	opacity: 0.5;
+.monaco-workbench .tree-explorer-viewlet-tree-view .message {
+	padding: 4px 0px 0px 18px;
+	user-select: text
 }
 
-.monaco-workbench .tree-explorer-viewlet-tree-view.message .customview-message {
-	display: inherit;
+.monaco-workbench .tree-explorer-viewlet-tree-view .message p {
+	margin-top: 0px;
+	margin-bottom: 0px;
+	padding-bottom: 4px;
 }
 
-.monaco-workbench .tree-explorer-viewlet-tree-view.message .customview-tree {
+.monaco-workbench .tree-explorer-viewlet-tree-view .message.hide {
 	display: none;
 }
 

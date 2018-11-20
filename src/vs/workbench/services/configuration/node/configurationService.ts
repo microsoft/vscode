@@ -82,7 +82,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		this.defaultConfiguration = new DefaultConfigurationModel();
 		this.userConfiguration = this._register(new UserConfiguration(environmentService.appSettingsPath));
 		this.workspaceConfiguration = this._register(new WorkspaceConfiguration());
-		this._register(this.userConfiguration.onDidChangeConfiguration(() => this.onUserConfigurationChanged()));
+		this._register(this.userConfiguration.onDidChangeConfiguration(userConfiguration => this.onUserConfigurationChanged(userConfiguration)));
 		this._register(this.workspaceConfiguration.onDidUpdateConfiguration(() => this.onWorkspaceConfigurationChanged()));
 
 		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidSchemaChange(e => this.registerConfigurationSchemas()));
@@ -276,8 +276,8 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 			return this.reloadWorkspaceFolderConfiguration(folder, key);
 		}
 		return this.reloadUserConfiguration()
-			.then(() => this.reloadWorkspaceConfiguration())
-			.then(() => this.loadConfiguration());
+			.then(userConfigurationModel => this.reloadWorkspaceConfiguration()
+				.then(() => this.loadConfiguration(userConfigurationModel)));
 	}
 
 	inspect<T>(key: string, overrides?: IConfigurationOverrides): {
@@ -425,10 +425,11 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 
 	private initializeConfiguration(): Promise<void> {
 		this.registerConfigurationSchemas();
-		return this.loadConfiguration();
+		return this.userConfiguration.initialize()
+			.then(userConfigurationModel => this.loadConfiguration(userConfigurationModel));
 	}
 
-	private reloadUserConfiguration(key?: string): Promise<void> {
+	private reloadUserConfiguration(key?: string): Promise<ConfigurationModel> {
 		return this.userConfiguration.reload();
 	}
 
@@ -447,7 +448,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		return this.onWorkspaceFolderConfigurationChanged(folder, key);
 	}
 
-	private loadConfiguration(): Promise<void> {
+	private loadConfiguration(userConfigurationModel: ConfigurationModel): Promise<void> {
 		// reset caches
 		this.cachedFolderConfigs = new ResourceMap<FolderConfiguration>();
 
@@ -460,7 +461,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 				folderConfigurations.forEach((folderConfiguration, index) => folderConfigurationModels.set(folders[index].uri, folderConfiguration));
 
 				const currentConfiguration = this._configuration;
-				this._configuration = new Configuration(this.defaultConfiguration, this.userConfiguration.configurationModel, workspaceConfiguration, folderConfigurationModels, new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), this.getWorkbenchState() !== WorkbenchState.EMPTY ? this.workspace : null); //TODO: Sandy Avoid passing null
+				this._configuration = new Configuration(this.defaultConfiguration, userConfigurationModel, workspaceConfiguration, folderConfigurationModels, new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), this.getWorkbenchState() !== WorkbenchState.EMPTY ? this.workspace : null); //TODO: Sandy Avoid passing null
 
 				if (currentConfiguration) {
 					const changedKeys = this._configuration.compare(currentConfiguration);
@@ -527,8 +528,8 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		}
 	}
 
-	private onUserConfigurationChanged(): void {
-		let keys = this._configuration.compareAndUpdateUserConfiguration(this.userConfiguration.configurationModel);
+	private onUserConfigurationChanged(userConfiguration: ConfigurationModel): void {
+		let keys = this._configuration.compareAndUpdateUserConfiguration(userConfiguration);
 		this.triggerConfigurationChange(keys, ConfigurationTarget.USER);
 	}
 
@@ -623,7 +624,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 					case ConfigurationTarget.WORKSPACE_FOLDER:
 						const workspaceFolder = overrides && overrides.resource ? this.workspace.getFolder(overrides.resource) : null;
 						if (workspaceFolder) {
-							return this.reloadWorkspaceFolderConfiguration(this.workspace.getFolder(overrides.resource), key);
+							return this.reloadWorkspaceFolderConfiguration(this.workspace.getFolder(overrides.resource), key).then(() => null);
 						}
 				}
 				return null;

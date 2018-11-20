@@ -83,6 +83,7 @@ export interface SaveDialogOptions {
 }
 
 export interface INewWindowOptions {
+	remoteAuthority?: string;
 }
 
 export interface IDevToolsOptions {
@@ -344,6 +345,8 @@ export interface IWindowConfiguration extends ParsedArgs {
 
 	workspace?: IWorkspaceIdentifier;
 	folderUri?: ISingleFolderWorkspaceIdentifier;
+
+	remoteAuthority?: string;
 
 	zoomLevel?: number;
 	fullscreen?: boolean;

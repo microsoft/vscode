@@ -11,14 +11,6 @@ import { ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
 import API from '../utils/api';
 import * as typeConverters from '../utils/typeConverters';
 
-// TODO: Remove when we pick up TS 3.2
-declare module '../protocol' {
-	interface RenameTextSpan extends Proto.TextSpan {
-		readonly prefixText?: string;
-		readonly suffixText?: string;
-	}
-}
-
 const localize = nls.loadMessageBundle();
 
 class TypeScriptRenameProvider implements vscode.RenameProvider {

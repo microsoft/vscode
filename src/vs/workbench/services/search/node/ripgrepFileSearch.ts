@@ -44,7 +44,7 @@ function getRgArgs(config: IFileQuery, folderQuery: IFolderQuery, includePattern
 		}
 	});
 
-	let siblingClauses: glob.IExpression;
+	let siblingClauses: glob.IExpression | null;
 
 	const rgGlobs = foldersToRgExcludeGlobs([folderQuery], excludePattern, undefined, false);
 	rgGlobs.globArgs.forEach(globArg => {
@@ -85,7 +85,7 @@ function getRgArgs(config: IFileQuery, folderQuery: IFolderQuery, includePattern
 
 export interface IRgGlobResult {
 	globArgs: string[];
-	siblingClauses: glob.IExpression;
+	siblingClauses: glob.IExpression | null;
 }
 
 export function foldersToRgExcludeGlobs(folderQueries: IFolderQuery[], globalExclude: glob.IExpression, excludesToSkip?: Set<string>, absoluteGlobs = true): IRgGlobResult {
@@ -93,7 +93,7 @@ export function foldersToRgExcludeGlobs(folderQueries: IFolderQuery[], globalExc
 	let siblingClauses: glob.IExpression = {};
 	folderQueries.forEach(folderQuery => {
 		const totalExcludePattern = objects.assign({}, folderQuery.excludePattern || {}, globalExclude || {});
-		const result = globExprsToRgGlobs(totalExcludePattern, absoluteGlobs && folderQuery.folder.fsPath, excludesToSkip);
+		const result = globExprsToRgGlobs(totalExcludePattern, absoluteGlobs ? folderQuery.folder.fsPath : undefined, excludesToSkip);
 		globArgs.push(...result.globArgs);
 		if (result.siblingClauses) {
 			siblingClauses = objects.assign(siblingClauses, result.siblingClauses);
@@ -107,7 +107,7 @@ export function foldersToIncludeGlobs(folderQueries: IFolderQuery[], globalInclu
 	const globArgs: string[] = [];
 	folderQueries.forEach(folderQuery => {
 		const totalIncludePattern = objects.assign({}, globalInclude || {}, folderQuery.includePattern || {});
-		const result = globExprsToRgGlobs(totalIncludePattern, absoluteGlobs && folderQuery.folder.fsPath);
+		const result = globExprsToRgGlobs(totalIncludePattern, absoluteGlobs ? folderQuery.folder.fsPath : undefined);
 		globArgs.push(...result.globArgs);
 	});
 
@@ -116,7 +116,7 @@ export function foldersToIncludeGlobs(folderQueries: IFolderQuery[], globalInclu
 
 function globExprsToRgGlobs(patterns: glob.IExpression, folder?: string, excludesToSkip?: Set<string>): IRgGlobResult {
 	const globArgs: string[] = [];
-	let siblingClauses: glob.IExpression = null;
+	let siblingClauses: glob.IExpression | null = null;
 	Object.keys(patterns)
 		.forEach(key => {
 			if (excludesToSkip && excludesToSkip.has(key)) {

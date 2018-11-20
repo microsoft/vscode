@@ -41,7 +41,7 @@ export default class FileConfigurationManager {
 	public constructor(
 		private readonly client: ITypeScriptServiceClient
 	) {
-		this.onDidCloseTextDocumentSub = vscode.workspace.onDidCloseTextDocument((textDocument) => {
+		this.onDidCloseTextDocumentSub = vscode.workspace.onDidCloseTextDocument(textDocument => {
 			// When a document gets closed delete the cached formatting options.
 			// This is necessary since the tsserver now closed a project when its
 			// last file in it closes which drops the stored formatting options

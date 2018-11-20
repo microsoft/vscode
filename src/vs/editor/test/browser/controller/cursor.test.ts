@@ -1105,14 +1105,13 @@ class SurroundingMode extends MockMode {
 class OnEnterMode extends MockMode {
 	private static readonly _id = new LanguageIdentifier('onEnterMode', 3);
 
-	constructor(indentAction: IndentAction, outdentCurrentLine?: boolean) {
+	constructor(indentAction: IndentAction) {
 		super(OnEnterMode._id);
 		this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
 			onEnterRules: [{
 				beforeText: /.*/,
 				action: {
-					indentAction: indentAction,
-					outdentCurrentLine: outdentCurrentLine
+					indentAction: indentAction
 				}
 			}]
 		}));

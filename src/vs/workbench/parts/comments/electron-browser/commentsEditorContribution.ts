@@ -24,7 +24,7 @@ import { editorForeground, registerColor } from 'vs/platform/theme/common/colorR
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { CommentThreadCollapsibleState } from 'vs/workbench/api/node/extHostTypes';
 import { ReviewZoneWidget, COMMENTEDITOR_DECORATION_KEY } from 'vs/workbench/parts/comments/electron-browser/commentThreadWidget';
-import { ICommentService } from 'vs/workbench/parts/comments/electron-browser/commentService';
+import { ICommentService, ICommentInfo } from 'vs/workbench/parts/comments/electron-browser/commentService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -68,7 +68,7 @@ class CommentingRangeDecoration {
 		return this._decorationId;
 	}
 
-	constructor(private _editor: ICodeEditor, private _ownerId: number, private _range: IRange, private _reply: modes.Command, commentingOptions: ModelDecorationOptions) {
+	constructor(private _editor: ICodeEditor, private _ownerId: string, private _range: IRange, private _reply: modes.Command, commentingOptions: ModelDecorationOptions) {
 		const startLineNumber = _range.startLineNumber;
 		const endLineNumber = _range.endLineNumber;
 		let commentingRangeDecorations = [{
@@ -85,7 +85,7 @@ class CommentingRangeDecoration {
 		}
 	}
 
-	public getCommentAction(): { replyCommand: modes.Command, ownerId: number } {
+	public getCommentAction(): { replyCommand: modes.Command, ownerId: string } {
 		return {
 			replyCommand: this._reply,
 			ownerId: this._ownerId
@@ -123,7 +123,7 @@ class CommentingRangeDecorator {
 		this.commentsOptions = CommentingRangeDecorator.createDecoration('comment-thread', overviewRulerCommentingRangeForeground, options);
 	}
 
-	public update(editor: ICodeEditor, commentInfos: modes.CommentInfo[]) {
+	public update(editor: ICodeEditor, commentInfos: ICommentInfo[]) {
 		let model = editor.getModel();
 		if (!model) {
 			return;
@@ -168,14 +168,14 @@ export class ReviewController implements IEditorContribution {
 	private _newCommentWidget: ReviewZoneWidget;
 	private _commentWidgets: ReviewZoneWidget[];
 	private _reviewPanelVisible: IContextKey<boolean>;
-	private _commentInfos: modes.CommentInfo[];
+	private _commentInfos: ICommentInfo[];
 	private _commentingRangeDecorator: CommentingRangeDecorator;
 	private mouseDownInfo: { lineNumber: number } | null = null;
 	private _commentingRangeSpaceReserved = false;
-	private _computePromise: CancelablePromise<modes.CommentInfo[]> | null;
+	private _computePromise: CancelablePromise<ICommentInfo[]> | null;
 
 	private _pendingCommentCache: { [key: number]: { [key: string]: string } };
-	private _pendingNewCommentCache: { [key: string]: { lineNumber: number, replyCommand: modes.Command, ownerId: number, pendingComment: string } };
+	private _pendingNewCommentCache: { [key: string]: { lineNumber: number, replyCommand: modes.Command, ownerId: string, pendingComment: string } };
 
 	constructor(
 		editor: ICodeEditor,
@@ -410,7 +410,7 @@ export class ReviewController implements IEditorContribution {
 		this.beginCompute();
 	}
 
-	private addComment(lineNumber: number, replyCommand: modes.Command, ownerId: number, pendingComment: string) {
+	private addComment(lineNumber: number, replyCommand: modes.Command, ownerId: string, pendingComment: string) {
 		if (this._newCommentWidget !== null) {
 			this.notificationService.warn(`Please submit the comment at line ${this._newCommentWidget.position.lineNumber} before creating a new one.`);
 			return;
@@ -508,7 +508,7 @@ export class ReviewController implements IEditorContribution {
 	}
 
 
-	private setComments(commentInfos: modes.CommentInfo[]): void {
+	private setComments(commentInfos: ICommentInfo[]): void {
 		if (!this.editor) {
 			return;
 		}

@@ -59,11 +59,13 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 		this.treeContainer = renderViewTree(container);
 
 		const actionProvider = new WatchExpressionsActionProvider(this.debugService, this.keybindingService);
+		const controller = this.instantiationService.createInstance(WatchExpressionsController, actionProvider, MenuId.DebugWatchContext, { clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */, openMode: OpenMode.SINGLE_CLICK });
+		this.disposables.push(controller);
 		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
 			dataSource: new WatchExpressionsDataSource(this.debugService),
 			renderer: this.instantiationService.createInstance(WatchExpressionsRenderer),
 			accessibilityProvider: new WatchExpressionsAccessibilityProvider(),
-			controller: this.instantiationService.createInstance(WatchExpressionsController, actionProvider, MenuId.DebugWatchContext, { clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */, openMode: OpenMode.SINGLE_CLICK }),
+			controller,
 			dnd: new WatchExpressionsDragAndDrop(this.debugService)
 		}, {
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'watchAriaTreeLabel' }, "Debug Watch Expressions"),
@@ -144,11 +146,11 @@ class WatchExpressionsActionProvider implements IActionProvider {
 		return true;
 	}
 
-	public getActions(tree: ITree, element: any): Promise<IAction[]> {
-		return Promise.resolve([]);
+	public getActions(tree: ITree, element: any): IAction[] {
+		return [];
 	}
 
-	public getSecondaryActions(tree: ITree, element: any): Promise<IAction[]> {
+	public getSecondaryActions(tree: ITree, element: any): IAction[] {
 		const actions: IAction[] = [];
 		if (element instanceof Expression) {
 			const expression = <Expression>element;
@@ -173,7 +175,7 @@ class WatchExpressionsActionProvider implements IActionProvider {
 			actions.push(new RemoveAllWatchExpressionsAction(RemoveAllWatchExpressionsAction.ID, RemoveAllWatchExpressionsAction.LABEL, this.debugService, this.keybindingService));
 		}
 
-		return Promise.resolve(actions);
+		return actions;
 	}
 
 	public getActionItem(tree: ITree, element: any, action: IAction): IActionItem {
@@ -351,7 +353,7 @@ class WatchExpressionsDragAndDrop extends DefaultDragAndDrop {
 	}
 
 	public getDragURI(tree: ITree, element: Expression): string {
-		if (!(element instanceof Expression)) {
+		if (!(element instanceof Expression) || element === this.debugService.getViewModel().getSelectedExpression()) {
 			return null;
 		}
 

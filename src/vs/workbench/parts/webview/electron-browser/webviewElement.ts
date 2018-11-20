@@ -23,6 +23,7 @@ export interface WebviewOptions {
 	readonly enableWrappedPostMessage?: boolean;
 	readonly useSameOriginForRoot?: boolean;
 	readonly localResourceRoots?: ReadonlyArray<URI>;
+	readonly extensionLocation?: URI;
 }
 
 export class WebviewElement extends Disposable {
@@ -356,11 +357,11 @@ export class WebviewElement extends Disposable {
 
 		const appRootUri = URI.file(this._environmentService.appRoot);
 
-		registerFileProtocol(contents, WebviewProtocol.CoreResource, this._fileService, () => [
+		registerFileProtocol(contents, WebviewProtocol.CoreResource, this._fileService, null, () => [
 			appRootUri
 		]);
 
-		registerFileProtocol(contents, WebviewProtocol.VsCodeResource, this._fileService, () =>
+		registerFileProtocol(contents, WebviewProtocol.VsCodeResource, this._fileService, this._options.extensionLocation, () =>
 			(this._options.localResourceRoots || [])
 		);
 	}

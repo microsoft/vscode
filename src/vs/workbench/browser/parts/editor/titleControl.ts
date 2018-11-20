@@ -37,6 +37,7 @@ import { EditorCommandsContextActionRunner, IEditorCommandsContext, IEditorInput
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { Themable } from 'vs/workbench/common/theme';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 
 export interface IToolbarActions {
 	primary: IAction[];
@@ -119,7 +120,8 @@ export abstract class TitleControl extends Themable {
 			orientation: ActionsOrientation.HORIZONTAL,
 			ariaLabel: localize('araLabelEditorActions', "Editor actions"),
 			getKeyBinding: action => this.getKeybinding(action),
-			actionRunner: this._register(new EditorCommandsContextActionRunner(context))
+			actionRunner: this._register(new EditorCommandsContextActionRunner(context)),
+			anchorAlignmentProvider: () => AnchorAlignment.RIGHT
 		}));
 
 		// Context
@@ -288,7 +290,7 @@ export abstract class TitleControl extends Themable {
 		// Show it
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => Promise.resolve(actions),
+			getActions: () => actions,
 			getActionsContext: () => ({ groupId: this.group.id, editorIndex: this.group.getIndexOfEditor(editor) } as IEditorCommandsContext),
 			getKeyBinding: (action) => this.getKeybinding(action),
 			onHide: () => {

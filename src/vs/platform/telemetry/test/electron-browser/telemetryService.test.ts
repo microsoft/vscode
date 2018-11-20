@@ -48,7 +48,7 @@ class ErrorTestingSettings {
 	public noSuchFileMessage: string;
 	public stack: string[];
 	public randomUserFile: string = 'a/path/that/doe_snt/con-tain/code/names.js';
-	public anonymizedRandomUserFile: string = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+	public anonymizedRandomUserFile: string = '<REDACTED: user-file-path>';
 	public nodeModulePathToRetain: string = 'node_modules/path/that/shouldbe/retained/names.js:14:15854';
 	public nodeModuleAsarPathToRetain: string = 'node_modules.asar/path/that/shouldbe/retained/names.js:14:12354';
 

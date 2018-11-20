@@ -5,7 +5,7 @@
 
 import { basename } from 'path';
 import * as vscode from 'vscode';
-import { CachedNavTreeResponse } from './features/baseCodeLensProvider';
+import { CachedResponse } from './features/baseCodeLensProvider';
 import { DiagnosticKind } from './features/diagnostics';
 import FileConfigurationManager from './features/fileConfigurationManager';
 import TypeScriptServiceClient from './typescriptServiceClient';
@@ -36,11 +36,8 @@ export default class LanguageProvider extends Disposable {
 		vscode.workspace.onDidChangeConfiguration(this.configurationChanged, this, this._disposables);
 		this.configurationChanged();
 
-		client.onReady(async () => {
-			await this.registerProviders();
-		});
+		client.onReady(() => this.registerProviders());
 	}
-
 
 	@memoize
 	private get documentSelector(): vscode.DocumentFilter[] {
@@ -56,7 +53,7 @@ export default class LanguageProvider extends Disposable {
 	private async registerProviders(): Promise<void> {
 		const selector = this.documentSelector;
 
-		const cachedResponse = new CachedNavTreeResponse();
+		const cachedResponse = new CachedResponse();
 
 		this._register((await import('./features/completions')).register(selector, this.description.id, this.client, this.typingsStatus, this.fileConfigurationManager, this.commandManager, this.onCompletionAccepted));
 		this._register((await import('./features/definitions')).register(selector, this.client));

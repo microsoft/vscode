@@ -6,11 +6,10 @@
 import * as fs from 'fs';
 import * as crypto from 'crypto';
 import * as stream from 'stream';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { once } from 'vs/base/common/functional';
 
-export function checksum(path: string, sha1hash: string): TPromise<void> {
-	const promise = new TPromise<string | undefined>((c, e) => {
+export function checksum(path: string, sha1hash: string): Promise<void> {
+	const promise = new Promise<string | undefined>((c, e) => {
 		const input = fs.createReadStream(path);
 		const hash = crypto.createHash('sha1');
 		const hashStream = hash as any as stream.PassThrough;
@@ -35,9 +34,9 @@ export function checksum(path: string, sha1hash: string): TPromise<void> {
 
 	return promise.then(hash => {
 		if (hash !== sha1hash) {
-			return TPromise.wrapError<void>(new Error('Hash mismatch'));
+			return Promise.reject(new Error('Hash mismatch'));
 		}
 
-		return TPromise.as(void 0);
+		return Promise.resolve();
 	});
 }

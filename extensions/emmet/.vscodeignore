@@ -4,5 +4,5 @@ out/**
 tsconfig.json
 extension.webpack.config.js
 CONTRIBUTING.md
-OSSREADME.json
+cgmanifest.json
 yarn.lock

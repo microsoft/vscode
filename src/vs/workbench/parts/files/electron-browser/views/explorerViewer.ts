@@ -543,7 +543,7 @@ export class FileController extends WorkbenchTreeController implements IDisposab
 			getActions: () => {
 				const actions: IAction[] = [];
 				fillInContextMenuActions(this.contributedContextMenu, { arg: stat instanceof ExplorerItem ? stat.resource : {}, shouldForwardArgs: true }, actions, this.contextMenuService);
-				return Promise.resolve(actions);
+				return actions;
 			},
 			onHide: (wasCancelled?: boolean) => {
 				if (wasCancelled) {

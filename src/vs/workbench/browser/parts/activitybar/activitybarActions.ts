@@ -160,7 +160,7 @@ export class GlobalActivityActionItem extends ActivityActionItem {
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => location,
-			getActions: () => Promise.resolve(actions),
+			getActions: () => actions,
 			onHide: () => dispose(actions)
 		});
 	}

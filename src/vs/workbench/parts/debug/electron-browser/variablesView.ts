@@ -79,12 +79,14 @@ export class VariablesView extends TreeViewsViewletPanel {
 	public renderBody(container: HTMLElement): void {
 		dom.addClass(container, 'debug-variables');
 		this.treeContainer = renderViewTree(container);
+		const controller = this.instantiationService.createInstance(VariablesController, new VariablesActionProvider(this.debugService, this.keybindingService), MenuId.DebugVariablesContext, { openMode: OpenMode.SINGLE_CLICK, clickBehavior: ClickBehavior.ON_MOUSE_UP });
+		this.disposables.push(controller);
 
 		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
 			dataSource: new VariablesDataSource(),
 			renderer: this.instantiationService.createInstance(VariablesRenderer),
 			accessibilityProvider: new VariablesAccessibilityProvider(),
-			controller: this.instantiationService.createInstance(VariablesController, new VariablesActionProvider(this.debugService, this.keybindingService), MenuId.DebugVariablesContext, { openMode: OpenMode.SINGLE_CLICK, clickBehavior: ClickBehavior.ON_MOUSE_UP })
+			controller
 		}, {
 				ariaLabel: nls.localize('variablesAriaTreeLabel', "Debug Variables"),
 				twistiePixels
@@ -156,8 +158,8 @@ class VariablesActionProvider implements IActionProvider {
 		return false;
 	}
 
-	public getActions(tree: ITree, element: any): Promise<IAction[]> {
-		return Promise.resolve([]);
+	public getActions(tree: ITree, element: any): IAction[] {
+		return [];
 	}
 
 	public hasSecondaryActions(tree: ITree, element: any): boolean {
@@ -165,7 +167,7 @@ class VariablesActionProvider implements IActionProvider {
 		return element instanceof Variable && !!element.value;
 	}
 
-	public getSecondaryActions(tree: ITree, element: any): Promise<IAction[]> {
+	public getSecondaryActions(tree: ITree, element: any): IAction[] {
 		const actions: IAction[] = [];
 		const variable = <Variable>element;
 		actions.push(new SetValueAction(SetValueAction.ID, SetValueAction.LABEL, variable, this.debugService, this.keybindingService));
@@ -174,7 +176,7 @@ class VariablesActionProvider implements IActionProvider {
 		actions.push(new Separator());
 		actions.push(new AddToWatchExpressionsAction(AddToWatchExpressionsAction.ID, AddToWatchExpressionsAction.LABEL, variable, this.debugService, this.keybindingService));
 
-		return Promise.resolve(actions);
+		return actions;
 	}
 
 	public getActionItem(tree: ITree, element: any, action: IAction): IActionItem {

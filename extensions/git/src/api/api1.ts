@@ -60,6 +60,10 @@ export class ApiRepository implements Repository {
 
 	constructor(private _repository: BaseRepository) { }
 
+	apply(patch: string, reverse?: boolean): Promise<void> {
+		return this._repository.apply(patch, reverse);
+	}
+
 	getConfigs(): Promise<{ key: string; value: string; }[]> {
 		return this._repository.getConfigs();
 	}
@@ -96,6 +100,10 @@ export class ApiRepository implements Repository {
 		return this._repository.clean(paths.map(p => Uri.file(p)));
 	}
 
+	diff(cached?: boolean) {
+		return this._repository.diff(cached);
+	}
+
 	diffWithHEAD(path: string): Promise<string> {
 		return this._repository.diffWithHEAD(path);
 	}
@@ -128,8 +136,8 @@ export class ApiRepository implements Repository {
 		return this._repository.branch(name, checkout, ref);
 	}
 
-	deleteBranch(name: string): Promise<void> {
-		return this._repository.deleteBranch(name);
+	deleteBranch(name: string, force?: boolean): Promise<void> {
+		return this._repository.deleteBranch(name, force);
 	}
 
 	getBranch(name: string): Promise<Branch> {

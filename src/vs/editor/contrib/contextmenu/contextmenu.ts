@@ -168,9 +168,7 @@ export class ContextMenuController implements IEditorContribution {
 		this._contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 
-			getActions: () => {
-				return Promise.resolve(actions);
-			},
+			getActions: () => actions,
 
 			getActionItem: (action) => {
 				const keybinding = this._keybindingFor(action);

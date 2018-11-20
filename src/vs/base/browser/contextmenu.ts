@@ -7,6 +7,7 @@ import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { SubmenuAction } from 'vs/base/browser/ui/menu/menu';
+import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 
 export interface IContextMenuEvent {
 	shiftKey?: boolean;
@@ -23,7 +24,7 @@ export class ContextSubMenu extends SubmenuAction {
 
 export interface IContextMenuDelegate {
 	getAnchor(): HTMLElement | { x: number; y: number; width?: number; height?: number; };
-	getActions(): Thenable<(IAction | ContextSubMenu)[]>;
+	getActions(): (IAction | ContextSubMenu)[];
 	getActionItem?(action: IAction): IActionItem;
 	getActionsContext?(event?: IContextMenuEvent): any;
 	getKeyBinding?(action: IAction): ResolvedKeybinding;
@@ -31,4 +32,5 @@ export interface IContextMenuDelegate {
 	onHide?(didCancel: boolean): void;
 	actionRunner?: IActionRunner;
 	autoSelectFirstItem?: boolean;
+	anchorAlignment?: AnchorAlignment;
 }

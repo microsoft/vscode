@@ -63,7 +63,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 	private _collapseAction: Action;
 	private _commentThread: modes.CommentThread;
 	private _commentGlyph: CommentGlyphWidget;
-	private _owner: number;
+	private _owner: string;
 	private _pendingComment: string;
 	private _localToDispose: IDisposable[];
 	private _globalToDispose: IDisposable[];
@@ -71,7 +71,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 	private _styleElement: HTMLStyleElement;
 	private _error: HTMLElement;
 
-	public get owner(): number {
+	public get owner(): string {
 		return this._owner;
 	}
 	public get commentThread(): modes.CommentThread {
@@ -88,7 +88,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		private dialogService: IDialogService,
 		private notificationService: INotificationService,
 		editor: ICodeEditor,
-		owner: number,
+		owner: string,
 		commentThread: modes.CommentThread,
 		pendingComment: string,
 		options: IOptions = {}
@@ -161,7 +161,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		if (this._commentEditor) {
 			let model = this._commentEditor.getModel();
 
-			if (model.getValueLength() > 0) { // checking length is cheap
+			if (model && model.getValueLength() > 0) { // checking length is cheap
 				return model.getValue();
 			}
 		}
@@ -473,17 +473,20 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._headingLabel.setAttribute('aria-label', label);
 	}
 
+	private expandReplyArea() {
+		if (!dom.hasClass(this._commentForm, 'expand')) {
+			dom.addClass(this._commentForm, 'expand');
+			this._commentEditor.focus();
+		}
+	}
+
 	private createReplyButton() {
 		this._reviewThreadReplyButton = <HTMLButtonElement>dom.append(this._commentForm, dom.$('button.review-thread-reply-button'));
 		this._reviewThreadReplyButton.title = nls.localize('reply', "Reply...");
 		this._reviewThreadReplyButton.textContent = nls.localize('reply', "Reply...");
 		// bind click/escape actions for reviewThreadReplyButton and textArea
-		this._reviewThreadReplyButton.onclick = () => {
-			if (!dom.hasClass(this._commentForm, 'expand')) {
-				dom.addClass(this._commentForm, 'expand');
-				this._commentEditor.focus();
-			}
-		};
+		this._localToDispose.push(dom.addDisposableListener(this._reviewThreadReplyButton, 'click', _ => this.expandReplyArea()));
+		this._localToDispose.push(dom.addDisposableListener(this._reviewThreadReplyButton, 'focus', _ => this.expandReplyArea()));
 
 		this._commentEditor.onDidBlurEditorWidget(() => {
 			if (this._commentEditor.getModel().getValueLength() === 0 && dom.hasClass(this._commentForm, 'expand')) {

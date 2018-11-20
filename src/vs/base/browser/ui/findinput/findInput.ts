@@ -181,6 +181,10 @@ export class FindInput extends Widget {
 		}
 	}
 
+	public onSearchSubmit(): void {
+		this.inputBox.addToHistory();
+	}
+
 	public style(styles: IFindInputStyles): void {
 		this.inputActiveOptionBorder = styles.inputActiveOptionBorder;
 		this.inputBackground = styles.inputBackground;

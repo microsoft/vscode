@@ -307,6 +307,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 		id: ToggleMenuBarAction.ID,
 		title: nls.localize({ key: 'miToggleMenuBar', comment: ['&& denotes a mnemonic'] }, "Toggle Menu &&Bar")
 	},
+	when: IsMacContext.toNegated(),
 	order: 4
 });
 
@@ -813,7 +814,7 @@ configurationRegistry.registerConfiguration({
 		'window.titleBarStyle': {
 			'type': 'string',
 			'enum': ['native', 'custom'],
-			'default': isLinux ? 'native' : 'custom',
+			'default': 'custom',
 			'scope': ConfigurationScope.APPLICATION,
 			'description': nls.localize('titleBarStyle', "Adjust the appearance of the window title bar. Changes require a full restart to apply.")
 		},
@@ -830,7 +831,7 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('window.nativeFullScreen', "Controls if native full-screen should be used on macOS. Disable this option to prevent macOS from creating a new space when going full-screen."),
 			'included': isMacintosh
 		},
-		'window.smoothScrollingWorkaround': {
+		'window.smoothScrollingWorkaround': { // TODO@Ben remove once https://github.com/Microsoft/vscode/issues/61824 settles
 			'type': 'boolean',
 			'default': false,
 			'scope': ConfigurationScope.APPLICATION,

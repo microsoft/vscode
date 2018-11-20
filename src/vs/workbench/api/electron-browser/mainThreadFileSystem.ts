@@ -51,10 +51,12 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 class RemoteFileSystemProvider implements IFileSystemProvider {
 
 	private readonly _onDidChange = new Emitter<IFileChange[]>();
-	private readonly _registrations: IDisposable[];
+	private readonly _registration: IDisposable;
 
 	readonly onDidChangeFile: Event<IFileChange[]> = this._onDidChange.event;
+
 	readonly capabilities: FileSystemProviderCapabilities;
+	readonly onDidChangeCapabilities: Event<void> = Event.None;
 
 	constructor(
 		fileService: IFileService,
@@ -64,11 +66,11 @@ class RemoteFileSystemProvider implements IFileSystemProvider {
 		private readonly _proxy: ExtHostFileSystemShape
 	) {
 		this.capabilities = capabilities;
-		this._registrations = [fileService.registerProvider(scheme, this)];
+		this._registration = fileService.registerProvider(scheme, this);
 	}
 
 	dispose(): void {
-		dispose(this._registrations);
+		this._registration.dispose();
 		this._onDidChange.dispose();
 	}
 

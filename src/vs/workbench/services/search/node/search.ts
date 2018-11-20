@@ -5,7 +5,6 @@
 
 import { Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IFileSearchStats, IFolderQuery, IProgress, IRawFileQuery, IRawTextQuery, ISearchEngineStats, ISearchQuery, ITextSearchMatch, ITextSearchStats, ITextSearchResult } from 'vs/platform/search/common/search';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 
@@ -17,7 +16,7 @@ export interface ITelemetryEvent {
 export interface IRawSearchService {
 	fileSearch(search: IRawFileQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
 	textSearch(search: IRawTextQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
-	clearCache(cacheKey: string): TPromise<void>;
+	clearCache(cacheKey: string): Thenable<void>;
 }
 
 export interface IRawFileMatch {
@@ -35,7 +34,7 @@ export interface ISearchEngine<T> {
 export interface ISerializedSearchSuccess {
 	type: 'success';
 	limitHit: boolean;
-	stats: IFileSearchStats | ITextSearchStats;
+	stats: IFileSearchStats | ITextSearchStats | null;
 }
 
 export interface ISearchEngineSuccess {
@@ -72,7 +71,7 @@ export function isSerializedFileMatch(arg: ISerializedSearchProgressItem): arg i
 }
 
 export interface ISerializedFileMatch {
-	path: string;
+	path?: string;
 	results?: ITextSearchResult[];
 	numMatches?: number;
 }
@@ -170,10 +169,10 @@ export class QueryGlobTester {
 	/**
 	 * Guaranteed async.
 	 */
-	public includedInQuery(testPath: string, basename?: string, hasSibling?: (name: string) => boolean | TPromise<boolean>): TPromise<boolean> {
+	public includedInQuery(testPath: string, basename?: string, hasSibling?: (name: string) => boolean | Promise<boolean>): Promise<boolean> {
 		const excludeP = this._parsedExcludeExpression ?
-			TPromise.as(this._parsedExcludeExpression(testPath, basename, hasSibling)).then(result => !!result) :
-			TPromise.wrap(false);
+			Promise.resolve(this._parsedExcludeExpression(testPath, basename, hasSibling)).then(result => !!result) :
+			Promise.resolve(false);
 
 		return excludeP.then(excluded => {
 			if (excluded) {
@@ -181,8 +180,8 @@ export class QueryGlobTester {
 			}
 
 			return this._parsedIncludeExpression ?
-				TPromise.as(this._parsedIncludeExpression(testPath, basename, hasSibling)).then(result => !!result) :
-				TPromise.wrap(true);
+				Promise.resolve(this._parsedIncludeExpression(testPath, basename, hasSibling)).then(result => !!result) :
+				Promise.resolve(true);
 		}).then(included => {
 			return included;
 		});

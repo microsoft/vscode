@@ -134,7 +134,8 @@ export function createApiFactory(
 	const extHostLanguages = new ExtHostLanguages(rpcProtocol, extHostDocuments);
 
 	// Register an output channel for exthost log
-	extHostOutputService.createOutputChannelFromLogFile(localize('extensionsLog', "Extension Host"), extHostLogService.logFile);
+	const name = localize('extensionsLog', "Extension Host");
+	extHostOutputService.createOutputChannelFromLogFile(name, extHostLogService.logFile);
 
 	// Register API-ish commands
 	ExtHostApiCommands.register(extHostCommands);
@@ -146,7 +147,7 @@ export function createApiFactory(
 		// extension should specify then the `file`-scheme, e.g `{ scheme: 'fooLang', language: 'fooLang' }`
 		// We only inform once, it is not a warning because we just want to raise awareness and because
 		// we cannot say if the extension is doing it right or wrong...
-		let checkSelector = (function () {
+		const checkSelector = (function () {
 			let done = (!extension.isUnderDevelopment);
 			function informOnce(selector: vscode.DocumentSelector) {
 				if (!done) {
@@ -168,6 +169,24 @@ export function createApiFactory(
 					}
 				}
 				return selector;
+			};
+		})();
+
+		// Warn when trying to use the vscode.previewHtml command as it does not work properly in all scenarios and
+		// has security concerns.
+		const checkCommand = (() => {
+			let done = !extension.isUnderDevelopment;
+			const informOnce = () => {
+				if (!done) {
+					done = true;
+					console.warn(`Extension '${extension.id}' uses the 'vscode.previewHtml' command which is deprecated and will be removed. Please update your extension to use the Webview API: https://go.microsoft.com/fwlink/?linkid=2039309`);
+				}
+			};
+			return (commandId: string) => {
+				if (commandId === 'vscode.previewHtml') {
+					informOnce();
+				}
+				return commandId;
 			};
 		})();
 
@@ -210,7 +229,7 @@ export function createApiFactory(
 				});
 			}),
 			executeCommand<T>(id: string, ...args: any[]): Thenable<T> {
-				return extHostCommands.executeCommand<T>(id, ...args);
+				return extHostCommands.executeCommand<T>(checkCommand(id), ...args);
 			},
 			getCommands(filterInternal: boolean = false): Thenable<string[]> {
 				return extHostCommands.getCommands(filterInternal);
@@ -233,7 +252,6 @@ export function createApiFactory(
 				return extHostLogService.onDidChangeLogLevel;
 			},
 			get clipboard(): vscode.Clipboard {
-				checkProposedApiEnabled(extension);
 				return extHostClipboard;
 			}
 		});
@@ -281,6 +299,9 @@ export function createApiFactory(
 			registerDefinitionProvider(selector: vscode.DocumentSelector, provider: vscode.DefinitionProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerDefinitionProvider(extension, checkSelector(selector), provider);
 			},
+			registerDeclarationProvider(selector: vscode.DocumentSelector, provider: vscode.DeclarationProvider): vscode.Disposable {
+				return extHostLanguageFeatures.registerDeclarationProvider(extension, checkSelector(selector), provider);
+			},
 			registerImplementationProvider(selector: vscode.DocumentSelector, provider: vscode.ImplementationProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerImplementationProvider(extension, checkSelector(selector), provider);
 			},
@@ -299,8 +320,8 @@ export function createApiFactory(
 			registerRenameProvider(selector: vscode.DocumentSelector, provider: vscode.RenameProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerRenameProvider(extension, checkSelector(selector), provider);
 			},
-			registerDocumentSymbolProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentSymbolProvider): vscode.Disposable {
-				return extHostLanguageFeatures.registerDocumentSymbolProvider(extension, checkSelector(selector), provider);
+			registerDocumentSymbolProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentSymbolProvider, metadata?: vscode.DocumentSymbolProviderMetadata): vscode.Disposable {
+				return extHostLanguageFeatures.registerDocumentSymbolProvider(extension, checkSelector(selector), provider, metadata);
 			},
 			registerWorkspaceSymbolProvider(provider: vscode.WorkspaceSymbolProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerWorkspaceSymbolProvider(extension, provider);
@@ -655,7 +676,13 @@ export function createApiFactory(
 				return extHostDebugService.onDidChangeBreakpoints(listener, thisArgs, disposables);
 			},
 			registerDebugConfigurationProvider(debugType: string, provider: vscode.DebugConfigurationProvider) {
-				return extHostDebugService.registerDebugConfigurationProvider(extension, debugType, provider);
+				return extHostDebugService.registerDebugConfigurationProvider(debugType, provider);
+			},
+			registerDebugAdapterProvider(debugType: string, provider: vscode.DebugAdapterProvider) {
+				return extHostDebugService.registerDebugAdapterProvider(extension, debugType, provider);
+			},
+			registerDebugAdapterTracker(debugType: string, callback: (session: vscode.DebugSession) => vscode.DebugAdapterTracker | undefined) {
+				return extHostDebugService.registerDebugAdapterTracker(debugType, callback);
 			},
 			startDebugging(folder: vscode.WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration) {
 				return extHostDebugService.startDebugging(folder, nameOrConfig);
@@ -720,7 +747,6 @@ export function createApiFactory(
 			CommentThreadCollapsibleState: extHostTypes.CommentThreadCollapsibleState,
 			CompletionItem: extHostTypes.CompletionItem,
 			CompletionItemKind: extHostTypes.CompletionItemKind,
-			CompletionItemInsertTextRule: extension.enableProposedApi ? extHostTypes.CompletionItemInsertTextRule : null,
 			CompletionList: extHostTypes.CompletionList,
 			CompletionTriggerKind: extHostTypes.CompletionTriggerKind,
 			ConfigurationTarget: extHostTypes.ConfigurationTarget,
@@ -758,6 +784,7 @@ export function createApiFactory(
 			QuickInputButtons: extHostTypes.QuickInputButtons,
 			Range: extHostTypes.Range,
 			RelativePattern: extHostTypes.RelativePattern,
+			RerunBehavior: extHostTypes.RerunBehavior,
 			Selection: extHostTypes.Selection,
 			ShellExecution: extHostTypes.ShellExecution,
 			ShellQuoting: extHostTypes.ShellQuoting,
@@ -771,6 +798,7 @@ export function createApiFactory(
 			SymbolInformation: extHostTypes.SymbolInformation,
 			SymbolKind: extHostTypes.SymbolKind,
 			Task: extHostTypes.Task,
+			Task2: extHostTypes.Task,
 			TaskGroup: extHostTypes.TaskGroup,
 			TaskPanelKind: extHostTypes.TaskPanelKind,
 			TaskRevealKind: extHostTypes.TaskRevealKind,

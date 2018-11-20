@@ -782,14 +782,22 @@ suite('ExtensionsActions Test', () => {
 	});
 
 	test('Test DisableForWorkspaceAction when extension is enabled', () => {
+		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ id: 'pub.a', extensionLocation: URI.file('pub.a') }]);
 		const testObject: ExtensionsActions.DisableForWorkspaceAction = instantiationService.createInstance(ExtensionsActions.DisableForWorkspaceAction, 'id');
 		const local = aLocalExtension('a');
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
 		return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
 			.then(extensions => {
-				testObject.extension = extensions[0];
-				assert.ok(testObject.enabled);
+				assert.ok(!testObject.enabled);
+				return new Promise(c => {
+					testObject.onDidChange(() => {
+						if (testObject.enabled) {
+							c();
+						}
+					});
+					testObject.extension = extensions[0];
+				});
 			});
 	});
 
@@ -830,14 +838,22 @@ suite('ExtensionsActions Test', () => {
 	});
 
 	test('Test DisableGloballyAction when the extension is enabled', () => {
+		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ id: 'pub.a', extensionLocation: URI.file('pub.a') }]);
 		const testObject: ExtensionsActions.DisableGloballyAction = instantiationService.createInstance(ExtensionsActions.DisableGloballyAction, 'id');
 		const local = aLocalExtension('a');
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
 		return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
 			.then(extensions => {
-				testObject.extension = extensions[0];
-				assert.ok(testObject.enabled);
+				assert.ok(!testObject.enabled);
+				return new Promise(c => {
+					testObject.onDidChange(() => {
+						if (testObject.enabled) {
+							c();
+						}
+					});
+					testObject.extension = extensions[0];
+				});
 			});
 	});
 
@@ -848,14 +864,22 @@ suite('ExtensionsActions Test', () => {
 	});
 
 	test('Test DisableAction when extension is installed and enabled', () => {
+		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ id: 'pub.a', extensionLocation: URI.file('pub.a') }]);
 		const testObject: ExtensionsActions.DisableAction = instantiationService.createInstance(ExtensionsActions.DisableAction);
 		const local = aLocalExtension('a');
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
 		return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
 			.then(extensions => {
-				testObject.extension = extensions[0];
-				assert.ok(testObject.enabled);
+				assert.ok(!testObject.enabled);
+				return new Promise(c => {
+					testObject.onDidChange(() => {
+						if (testObject.enabled) {
+							c();
+						}
+					});
+					testObject.extension = extensions[0];
+				});
 			});
 	});
 

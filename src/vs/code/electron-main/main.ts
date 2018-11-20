@@ -15,7 +15,7 @@ import { validatePaths } from 'vs/code/node/paths';
 import { LifecycleService, ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { Server, serve, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ILaunchChannel, LaunchChannelClient } from 'vs/platform/launch/electron-main/launchService';
+import { LaunchChannelClient } from 'vs/platform/launch/electron-main/launchService';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/node/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -57,7 +57,7 @@ function createServices(args: ParsedArgs, bufferLogService: BufferLogService): I
 	const environmentService = new EnvironmentService(args, process.execPath);
 	const consoleLogService = new ConsoleLogMainService(getLogLevel(environmentService));
 	const logService = new MultiplexLogService([consoleLogService, bufferLogService]);
-	const labelService = new LabelService(environmentService, undefined);
+	const labelService = new LabelService(environmentService, undefined, undefined);
 
 	process.once('exit', () => logService.dispose());
 
@@ -196,7 +196,7 @@ function setupIPC(accessor: ServicesAccessor): Thenable<Server> {
 						}, 10000);
 					}
 
-					const channel = client.getChannel<ILaunchChannel>('launch');
+					const channel = client.getChannel('launch');
 					const service = new LaunchChannelClient(channel);
 
 					// Process Info
@@ -208,7 +208,7 @@ function setupIPC(accessor: ServicesAccessor): Thenable<Server> {
 
 					// Log uploader
 					if (typeof environmentService.args['upload-logs'] !== 'undefined') {
-						return uploadLogs(channel, requestService, environmentService)
+						return uploadLogs(service, requestService, environmentService)
 							.then(() => Promise.reject(new ExpectedError()));
 					}
 

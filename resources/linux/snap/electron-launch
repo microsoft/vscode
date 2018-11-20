@@ -1,3 +1,6 @@
 #!/bin/sh
 
-exec "$@" --executed-from="$(pwd)" --pid=$$
+# Create $XDG_RUNTIME_DIR if it doesn't exist
+[ -n "$XDG_RUNTIME_DIR" ] && mkdir -p $XDG_RUNTIME_DIR -m 700
+
+exec "$@"
