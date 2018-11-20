@@ -112,7 +112,7 @@ export class Menubar {
 
 		// Help Menu Items
 		if (product.twitterUrl) {
-			this.fallbackMenuHandlers['workbench.action.openRequestFeatureUrl'] = () => this.openUrl(product.twitterUrl, 'openTwitterUrl');
+			this.fallbackMenuHandlers['workbench.action.openTwitterUrl'] = () => this.openUrl(product.twitterUrl, 'openTwitterUrl');
 		}
 
 		if (product.requestFeatureUrl) {
@@ -124,7 +124,7 @@ export class Menubar {
 		}
 
 		if (product.licenseUrl) {
-			this.addFallbackHandlers['workbench.action.openLicenseUrl'] = () => {
+			this.fallbackMenuHandlers['workbench.action.openLicenseUrl'] = () => {
 				if (language) {
 					const queryArgChar = product.licenseUrl.indexOf('?') > 0 ? '&' : '?';
 					this.openUrl(`${product.licenseUrl}${queryArgChar}lang=${language}`, 'openLicenseUrl');

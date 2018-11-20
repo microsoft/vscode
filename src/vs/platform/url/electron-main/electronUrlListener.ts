@@ -11,6 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { ReadyState } from 'vs/platform/windows/common/windows';
+import { isWindows } from 'vs/base/common/platform';
 
 function uriFromRawUrl(url: string): URI | null {
 	try {
@@ -42,7 +43,9 @@ export class ElectronURLListener {
 			}
 		});
 
-		app.setAsDefaultProtocolClient(product.urlProtocol, process.execPath, ['--open-url', '--']);
+		if (isWindows) {
+			app.setAsDefaultProtocolClient(product.urlProtocol, process.execPath, ['--open-url', '--']);
+		}
 
 		const onOpenElectronUrl = mapEvent(
 			fromNodeEventEmitter(app, 'open-url', (event: Electron.Event, url: string) => ({ event, url })),

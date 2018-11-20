@@ -186,7 +186,8 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			this._computer,
 			result => this._withResult(result, true),
 			null,
-			result => this._withResult(result, false)
+			result => this._withResult(result, false),
+			this._editor.getConfiguration().contribInfo.hover.delay
 		);
 
 		this._register(dom.addStandardDisposableListener(this.getDomNode(), dom.EventType.FOCUS, () => {

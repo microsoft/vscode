@@ -170,11 +170,7 @@ export class CodeWindow implements ICodeWindow {
 				useCustomTitleStyle = false; // not enabled when developing due to https://github.com/electron/electron/issues/3647
 			}
 		} else {
-			if (isLinux) {
-				useCustomTitleStyle = windowConfig && windowConfig.titleBarStyle === 'custom';
-			} else {
-				useCustomTitleStyle = !windowConfig || !windowConfig.titleBarStyle || windowConfig.titleBarStyle === 'custom'; // Default to custom on Windows
-			}
+			useCustomTitleStyle = !windowConfig || !windowConfig.titleBarStyle || windowConfig.titleBarStyle === 'custom'; // Default to custom
 		}
 
 		if (useNativeTabs) {
@@ -282,6 +278,10 @@ export class CodeWindow implements ICodeWindow {
 
 	get openedFolderUri(): URI {
 		return this.currentConfig ? this.currentConfig.folderUri : void 0;
+	}
+
+	get remoteAuthority(): string {
+		return this.currentConfig ? this.currentConfig.remoteAuthority : void 0;
 	}
 
 	setReady(): void {
@@ -420,6 +420,34 @@ export class CodeWindow implements ICodeWindow {
 
 		// Handle Workspace events
 		this.toDispose.push(this.workspacesMainService.onUntitledWorkspaceDeleted(e => this.onUntitledWorkspaceDeleted(e)));
+
+		// TODO@Ben workaround for https://github.com/Microsoft/vscode/issues/13612
+		// It looks like smooth scrolling disappears as soon as the window is minimized
+		// and maximized again. Touching some window properties "fixes" it, like toggling
+		// the visibility of the menu.
+		if (isWindows) {
+			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
+			if (windowConfig && windowConfig.smoothScrollingWorkaround === true) {
+				let minimized = false;
+
+				const restoreSmoothScrolling = () => {
+					if (minimized) {
+						const visibility = this.getMenuBarVisibility();
+						const temporaryVisibility: MenuBarVisibility = (visibility === 'hidden' || visibility === 'toggle') ? 'default' : 'hidden';
+						setTimeout(() => {
+							this.doSetMenuBarVisibility(temporaryVisibility);
+							this.doSetMenuBarVisibility(visibility);
+						}, 0);
+					}
+
+					minimized = false;
+				};
+
+				this._win.on('minimize', () => minimized = true);
+				this._win.on('restore', () => restoreSmoothScrolling());
+				this._win.on('maximize', () => restoreSmoothScrolling());
+			}
+		}
 	}
 
 	private onUntitledWorkspaceDeleted(workspace: IWorkspaceIdentifier): void {

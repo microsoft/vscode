@@ -259,7 +259,7 @@ export class TerminalPanel extends Panel {
 				const anchor: { x: number, y: number } = { x: standardEvent.posx, y: standardEvent.posy };
 				this._contextMenuService.showContextMenu({
 					getAnchor: () => anchor,
-					getActions: () => Promise.resolve(this._getContextMenuActions()),
+					getActions: () => this._getContextMenuActions(),
 					getActionsContext: () => this._parentDomElement
 				});
 			}

@@ -5,7 +5,9 @@
 
 import 'vs/css!./welcomePage';
 import { URI } from 'vs/base/common/uri';
+import * as strings from 'vs/base/common/strings';
 import * as path from 'path';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import * as arrays from 'vs/base/common/arrays';
 import { WalkThroughInput } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughInput';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -39,6 +41,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { TimeoutTimer } from 'vs/base/common/async';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { IFileService } from 'vs/platform/files/common/files';
 
 used();
 
@@ -53,16 +56,49 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IEditorService editorService: IEditorService,
 		@IBackupFileService backupFileService: IBackupFileService,
+		@IFileService fileService: IFileService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@ILifecycleService lifecycleService: ILifecycleService,
+		@ICommandService private commandService: ICommandService,
 	) {
 		const enabled = isWelcomePageEnabled(configurationService, contextService);
 		if (enabled && lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
 			backupFileService.hasBackups().then(hasBackups => {
 				const activeEditor = editorService.activeEditor;
 				if (!activeEditor && !hasBackups) {
-					return instantiationService.createInstance(WelcomePage)
-						.openEditor();
+					const openWithReadme = configurationService.getValue(configurationKey) === 'readme';
+					if (openWithReadme) {
+						return Promise.all(contextService.getWorkspace().folders.map(folder => {
+							const folderUri = folder.uri;
+							return fileService.readFolder(folderUri)
+								.then(files => {
+									const file = arrays.find(files.sort(), file => strings.startsWith(file.toLowerCase(), 'readme'));
+									if (file) {
+										return folderUri.with({
+											path: path.posix.join(folderUri.path, file)
+										});
+									}
+									return undefined;
+								}, onUnexpectedError);
+						})).then(results => results.filter(result => !!result))
+							.then<any>(readmes => {
+								if (!editorService.activeEditor) {
+									if (readmes.length) {
+										const isMarkDown = (readme: URI) => strings.endsWith(readme.path.toLowerCase(), '.md');
+										return Promise.all([
+											this.commandService.executeCommand('markdown.showPreview', null, readmes.filter(isMarkDown), { locked: true }),
+											editorService.openEditors(readmes.filter(readme => !isMarkDown(readme))
+												.map(readme => ({ resource: readme }))),
+										]);
+									} else {
+										return instantiationService.createInstance(WelcomePage).openEditor();
+									}
+								}
+								return undefined;
+							});
+					} else {
+						return instantiationService.createInstance(WelcomePage).openEditor();
+					}
 				}
 				return undefined;
 			}).then(null, onUnexpectedError);
@@ -78,7 +114,7 @@ function isWelcomePageEnabled(configurationService: IConfigurationService, conte
 			return welcomeEnabled.value;
 		}
 	}
-	return startupEditor.value === 'welcomePage' || startupEditor.value === 'welcomePageInEmptyWorkbench' && contextService.getWorkbenchState() === WorkbenchState.EMPTY;
+	return startupEditor.value === 'welcomePage' || startupEditor.value === 'readme' || startupEditor.value === 'welcomePageInEmptyWorkbench' && contextService.getWorkbenchState() === WorkbenchState.EMPTY;
 }
 
 export class WelcomePageAction extends Action {
@@ -590,8 +626,13 @@ export class WelcomeInputFactory implements IEditorInputFactory {
 
 export const buttonBackground = registerColor('welcomePage.buttonBackground', { dark: null, light: null, hc: null }, localize('welcomePage.buttonBackground', 'Background color for the buttons on the Welcome page.'));
 export const buttonHoverBackground = registerColor('welcomePage.buttonHoverBackground', { dark: null, light: null, hc: null }, localize('welcomePage.buttonHoverBackground', 'Hover background color for the buttons on the Welcome page.'));
+export const welcomePageBackground = registerColor('welcomePage.background', { light: null, dark: null, hc: null }, localize('welcomePage.background', 'Background color for the Welcome page.'));
 
 registerThemingParticipant((theme, collector) => {
+	const backgroundColor = theme.getColor(welcomePageBackground);
+	if (backgroundColor) {
+		collector.addRule(`.monaco-workbench > .part.editor > .content .welcomePageContainer { background-color: ${backgroundColor}; }`);
+	}
 	const foregroundColor = theme.getColor(foreground);
 	if (foregroundColor) {
 		collector.addRule(`.monaco-workbench > .part.editor > .content .welcomePage .caption { color: ${foregroundColor}; }`);

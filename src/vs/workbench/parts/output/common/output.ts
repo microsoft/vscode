@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -85,7 +84,7 @@ export interface IOutputService {
 	/**
 	 * Show the channel with the passed id.
 	 */
-	showChannel(id: string, preserveFocus?: boolean): TPromise<void>;
+	showChannel(id: string, preserveFocus?: boolean): Thenable<void>;
 
 	/**
 	 * Allows to register on active output channel change.

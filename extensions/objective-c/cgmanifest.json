@@ -1,0 +1,18 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "atom/language-objective-c",
+					"repositoryUrl": "https://github.com/atom/language-objective-c",
+					"commitHash": "0727e04544f3414c1c339cf15a39a05ea3938cb4"
+				}
+			},
+			"license": "MIT",
+			"description": "The files syntaxes/objective-c.tmLanguage.json and syntaxes/objective-c++.tmLanguage.json were derived from the Atom package https://github.com/atom/language-objective-c which was originally converted from the TextMate bundle https://github.com/textmate/objective-c.tmbundle.",
+			"version": "0.0.0"
+		}
+	],
+	"version": 1
+}

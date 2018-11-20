@@ -29,7 +29,7 @@ import { IWindowService, IWindowsService } from 'vs/platform/windows/common/wind
 import { writeFile } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { memoize } from 'vs/base/common/decorators';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
 import { DisableForWorkspaceAction, DisableGloballyAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -39,6 +39,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { randomPort } from 'vs/base/node/ports';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 
 export const IExtensionHostProfileService = createDecorator<IExtensionHostProfileService>('extensionHostProfileService');
 export const CONTEXT_PROFILE_SESSION_STATE = new RawContextKey<string>('profileSessionState', 'none');
@@ -111,7 +112,8 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IExtensionHostProfileService private readonly _extensionHostProfileService: IExtensionHostProfileService,
-		@IStorageService storageService: IStorageService
+		@IStorageService storageService: IStorageService,
+		@IRemoteAuthorityResolverService private remoteAuthorityResolverService: IRemoteAuthorityResolverService
 	) {
 		super(RuntimeExtensionsEditor.ID, telemetryService, themeService, storageService);
 
@@ -254,6 +256,9 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 			msgIcon: HTMLElement;
 			msgLabel: HTMLElement;
 
+			msgIcon2: HTMLElement;
+			msgLabel2: HTMLElement;
+
 			actionbar: ActionBar;
 			disposables: IDisposable[];
 			elementDisposables: IDisposable[];
@@ -270,6 +275,9 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				const msgContainer = append(desc, $('div.msg'));
 				const msgIcon = append(msgContainer, $('.'));
 				const msgLabel = append(msgContainer, $('span.msg-label'));
+
+				const msgIcon2 = append(msgContainer, $('.'));
+				const msgLabel2 = append(msgContainer, $('span.msg-label'));
 
 				const timeContainer = append(element, $('.time'));
 				const activationTime = append(timeContainer, $('div.activation-time'));
@@ -295,6 +303,8 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 					profileTimeline,
 					msgIcon,
 					msgLabel,
+					msgIcon2,
+					msgLabel2,
 					disposables,
 					elementDisposables: []
 				};
@@ -354,7 +364,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 					}, "Activated on {0}", activationTimes.activationEvent);
 				}
 				data.activationTime.title = title;
-				if (!isFalsyOrEmpty(element.status.runtimeErrors)) {
+				if (isNonEmptyArray(element.status.runtimeErrors)) {
 					data.msgIcon.className = 'octicon octicon-bug';
 					data.msgLabel.textContent = nls.localize('errors', "{0} uncaught errors", element.status.runtimeErrors.length);
 				} else if (element.status.messages && element.status.messages.length > 0) {
@@ -363,6 +373,19 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				} else {
 					data.msgIcon.className = '';
 					data.msgLabel.textContent = '';
+				}
+
+				if (element.description.extensionLocation.scheme !== 'file') {
+					data.msgIcon2.className = 'octicon octicon-rss';
+					data.msgLabel2.textContent = element.description.extensionLocation.authority;
+					this.remoteAuthorityResolverService.getRemoteAuthorityResolver(element.description.extensionLocation.authority).then(resolver => {
+						if (resolver && resolver.label.length) {
+							data.msgLabel2.textContent = resolver.label;
+						}
+					});
+				} else {
+					data.msgIcon2.className = '';
+					data.msgLabel2.textContent = '';
 				}
 
 				if (this._profileInfo) {
@@ -426,7 +449,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 			this._contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
-				getActions: () => Promise.resolve(actions)
+				getActions: () => actions
 			});
 		});
 	}
@@ -528,6 +551,7 @@ export class DebugExtensionHostAction extends Action {
 
 		return this._debugService.startDebugging(null, {
 			type: 'node',
+			name: nls.localize('debugExtensionHost.launch.name', "Attach Extension Host"),
 			request: 'attach',
 			port: inspectPort
 		});
@@ -614,7 +638,7 @@ export class SaveExtensionHostProfileAction extends Action {
 			// about users. We also append the `.txt` suffix to make it
 			// easier to attach these files to GH issues
 
-			let tmp = profiler.rewriteAbsolutePaths({ profile: dataToWrite }, 'piiRemoved');
+			let tmp = profiler.rewriteAbsolutePaths({ profile: dataToWrite as any }, 'piiRemoved');
 			dataToWrite = tmp.profile;
 
 			picked = picked + '.txt';

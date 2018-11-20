@@ -284,7 +284,7 @@ class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 			DOM.addDisposableListener(this.statusBarItem, DOM.EventType.CLICK, () => {
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => container,
-					getActions: () => Promise.resolve(this.zoomActions)
+					getActions: () => this.zoomActions
 				});
 			});
 		}

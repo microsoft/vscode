@@ -22,14 +22,12 @@ import { MenuId } from 'vs/platform/actions/common/actions';
 class State {
 
 	public editor: ICodeEditor;
-	public next: State;
-	public previous: State;
-	public selection: Range;
+	public next?: State;
+	public previous?: State;
+	public selection: Range | null;
 
 	constructor(editor: ICodeEditor) {
 		this.editor = editor;
-		this.next = null;
-		this.previous = null;
 		this.selection = editor.getSelection();
 	}
 }
@@ -45,7 +43,7 @@ class SmartSelectController implements IEditorContribution {
 	}
 
 	private _tokenSelectionSupport: TokenSelectionSupport;
-	private _state: State;
+	private _state?: State;
 	private _ignoreSelection: boolean;
 
 	constructor(
@@ -53,7 +51,6 @@ class SmartSelectController implements IEditorContribution {
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		this._tokenSelectionSupport = instantiationService.createInstance(TokenSelectionSupport);
-		this._state = null;
 		this._ignoreSelection = false;
 	}
 
@@ -65,6 +62,9 @@ class SmartSelectController implements IEditorContribution {
 	}
 
 	public run(forward: boolean): Promise<void> {
+		if (!this.editor.hasModel()) {
+			return Promise.resolve(void 0);
+		}
 
 		const selection = this.editor.getSelection();
 		const model = this.editor.getModel();
@@ -72,11 +72,11 @@ class SmartSelectController implements IEditorContribution {
 		// forget about current state
 		if (this._state) {
 			if (this._state.editor !== this.editor) {
-				this._state = null;
+				this._state = undefined;
 			}
 		}
 
-		let promise: Promise<void> = Promise.resolve(null);
+		let promise: Promise<void> = Promise.resolve(void 0);
 		if (!this._state) {
 			promise = Promise.resolve(this._tokenSelectionSupport.getRangesToPositionSync(model.uri, selection.getStartPosition())).then((elements: ILogicalSelectionEntry[]) => {
 
@@ -84,8 +84,11 @@ class SmartSelectController implements IEditorContribution {
 					return;
 				}
 
-				let lastState: State;
+				let lastState: State | undefined;
 				elements.filter((element) => {
+					if (!this.editor.hasModel()) {
+						return false;
+					}
 					// filter ranges inside the selection
 					const selection = this.editor.getSelection();
 					const range = new Range(element.range.startLineNumber, element.range.startColumn, element.range.endLineNumber, element.range.endColumn);
@@ -116,7 +119,7 @@ class SmartSelectController implements IEditorContribution {
 					if (this._ignoreSelection) {
 						return;
 					}
-					this._state = null;
+					this._state = undefined;
 					unhook.dispose();
 				});
 			});
@@ -135,7 +138,9 @@ class SmartSelectController implements IEditorContribution {
 
 			this._ignoreSelection = true;
 			try {
-				this.editor.setSelection(this._state.selection);
+				if (this._state.selection) {
+					this.editor.setSelection(this._state.selection);
+				}
 			} finally {
 				this._ignoreSelection = false;
 			}
@@ -154,7 +159,7 @@ abstract class AbstractSmartSelect extends EditorAction {
 		this._forward = forward;
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> | undefined {
 		let controller = SmartSelectController.get(editor);
 		if (controller) {
 			return controller.run(this._forward);

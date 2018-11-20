@@ -38,6 +38,8 @@ export interface ICodeWindow {
 	openedWorkspace: IWorkspaceIdentifier;
 	backupPath: string;
 
+	remoteAuthority: string;
+
 	isExtensionDevelopmentHost: boolean;
 	isExtensionTestHost: boolean;
 

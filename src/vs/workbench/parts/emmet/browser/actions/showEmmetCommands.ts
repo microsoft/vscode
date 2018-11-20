@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { registerEditorAction, EditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -31,10 +30,10 @@ class ShowEmmetCommandsAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const quickOpenService = accessor.get(IQuickOpenService);
 		quickOpenService.show(EMMET_COMMANDS_PREFIX);
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 }
 

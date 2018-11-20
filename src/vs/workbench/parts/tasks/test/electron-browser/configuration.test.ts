@@ -185,14 +185,15 @@ class CustomTaskBuilder {
 			_id: name,
 			_source: { kind: Tasks.TaskSourceKind.Workspace, label: 'workspace', config: { workspaceFolder: workspaceFolder, element: undefined, index: -1, file: '.vscode/tasks.json' } },
 			_label: name,
-			type: 'custom',
+			type: Tasks.CUSTOMIZED_TASK_TYPE,
 			identifier: name,
 			name: name,
 			command: this.commandBuilder.result,
 			isBackground: false,
 			promptOnClose: true,
 			problemMatchers: [],
-			hasDefinedMatchers: false
+			hasDefinedMatchers: false,
+			runOptions: { rerunBehavior: Tasks.RerunBehavior.reevaluate },
 		};
 	}
 

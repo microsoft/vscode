@@ -81,15 +81,11 @@ export function activate(context: ExtensionContext) {
 
 	let documentSelector = ['json', 'jsonc'];
 
-	let statusBarItem = window.createStatusBarItem(StatusBarAlignment.Right, 0);
-	statusBarItem.command = '_json.retrySchema';
-	toDispose.push(statusBarItem);
-
-	let showStatusBarItem = (message: string) => {
-		statusBarItem.tooltip = message + '\n' + localize('json.clickToRetry', 'Click to retry.');
-		statusBarItem.text = '$(alert)';
-		statusBarItem.show();
-	};
+	let schemaResolutionErrorStatusBarItem = window.createStatusBarItem(StatusBarAlignment.Right, 0);
+	schemaResolutionErrorStatusBarItem.command = '_json.retryResolveSchema';
+	schemaResolutionErrorStatusBarItem.tooltip = localize('json.schemaResolutionErrorMessage', 'Unable to resolve schema.') + ' ' + localize('json.clickToRetry', 'Click to retry.');
+	schemaResolutionErrorStatusBarItem.text = '$(alert)';
+	toDispose.push(schemaResolutionErrorStatusBarItem);
 
 	let fileSchemaErrors = new Map<string, string>();
 
@@ -108,16 +104,19 @@ export function activate(context: ExtensionContext) {
 			},
 			handleDiagnostics: (uri: Uri, diagnostics: Diagnostic[], next: HandleDiagnosticsSignature) => {
 				const schemaErrorIndex = diagnostics.findIndex(candidate => candidate.code === /* SchemaResolveError */ 0x300);
-				if (schemaErrorIndex !== -1) {
-					// Show schema resolution errors in status bar only; ref: #51032
-					const schemaResolveDiagnostic = diagnostics[schemaErrorIndex];
-					fileSchemaErrors.set(uri.toString(), schemaResolveDiagnostic.message);
-					showStatusBarItem(schemaResolveDiagnostic.message);
-					diagnostics.splice(schemaErrorIndex, 1);
-				} else {
-					statusBarItem.hide();
+
+				if (schemaErrorIndex === -1) {
 					fileSchemaErrors.delete(uri.toString());
+					return next(uri, diagnostics);
 				}
+
+				const schemaResolveDiagnostic = diagnostics[schemaErrorIndex];
+				fileSchemaErrors.set(uri.toString(), schemaResolveDiagnostic.message);
+
+				if (window.activeTextEditor && window.activeTextEditor.document.uri.toString() === uri.toString()) {
+					schemaResolutionErrorStatusBarItem.show();
+				}
+
 				next(uri, diagnostics);
 			}
 		}
@@ -153,12 +152,16 @@ export function activate(context: ExtensionContext) {
 		};
 
 		let handleActiveEditorChange = (activeEditor?: TextEditor) => {
-			const uriStr = activeEditor && activeEditor.document.uri.toString();
-			if (uriStr && fileSchemaErrors.has(uriStr)) {
-				const message = fileSchemaErrors.get(uriStr)!;
-				showStatusBarItem(message);
+			if (!activeEditor) {
+				return;
+			}
+
+			const activeDocUri = activeEditor.document.uri.toString();
+
+			if (activeDocUri && fileSchemaErrors.has(activeDocUri)) {
+				schemaResolutionErrorStatusBarItem.show();
 			} else {
-				statusBarItem.hide();
+				schemaResolutionErrorStatusBarItem.hide();
 			}
 		};
 
@@ -169,14 +172,25 @@ export function activate(context: ExtensionContext) {
 		}));
 		toDispose.push(window.onDidChangeActiveTextEditor(handleActiveEditorChange));
 
-		let handleRetrySchemaCommand = () => {
+		let handleRetryResolveSchemaCommand = () => {
 			if (window.activeTextEditor) {
-				client.sendRequest(ForceValidateRequest.type, window.activeTextEditor.document.uri.toString());
-				statusBarItem.text = '$(watch)';
+				schemaResolutionErrorStatusBarItem.text = '$(watch)';
+				const activeDocUri = window.activeTextEditor.document.uri.toString();
+				client.sendRequest(ForceValidateRequest.type, activeDocUri).then((diagnostics) => {
+					const schemaErrorIndex = diagnostics.findIndex(candidate => candidate.code === /* SchemaResolveError */ 0x300);
+					if (schemaErrorIndex !== -1) {
+						// Show schema resolution errors in status bar only; ref: #51032
+						const schemaResolveDiagnostic = diagnostics[schemaErrorIndex];
+						fileSchemaErrors.set(activeDocUri, schemaResolveDiagnostic.message);
+					} else {
+						schemaResolutionErrorStatusBarItem.hide();
+					}
+					schemaResolutionErrorStatusBarItem.text = '$(alert)';
+				});
 			}
 		};
 
-		toDispose.push(commands.registerCommand('_json.retrySchema', handleRetrySchemaCommand));
+		toDispose.push(commands.registerCommand('_json.retryResolveSchema', handleRetryResolveSchemaCommand));
 
 		client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context));
 	});

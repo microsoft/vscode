@@ -8,27 +8,30 @@ import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import * as Objects from 'vs/base/common/objects';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as Types from 'vs/base/common/types';
 import * as Platform from 'vs/base/common/platform';
 import { IStringDictionary } from 'vs/base/common/collections';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 import {
 	ContributedTask, ExtensionTaskSourceTransfer, KeyedTaskIdentifier, TaskExecution, Task, TaskEvent, TaskEventKind,
-	PresentationOptions, CommandOptions, CommandConfiguration, RuntimeType, CustomTask, TaskScope, TaskSource, TaskSourceKind, ExtensionTaskSource, RevealKind, PanelKind
+	PresentationOptions, CommandOptions, CommandConfiguration, RuntimeType, CustomTask, TaskScope, TaskSource, TaskSourceKind, ExtensionTaskSource, RevealKind, PanelKind, RunOptions
 } from 'vs/workbench/parts/tasks/common/tasks';
 
-import { TaskDefinition } from 'vs/workbench/parts/tasks/node/tasks';
 
-import { ITaskService, TaskFilter } from 'vs/workbench/parts/tasks/common/taskService';
+import { ResolveSet, ResolvedVariables } from 'vs/workbench/parts/tasks/common/taskSystem';
+import { ITaskService, TaskFilter, ITaskProvider } from 'vs/workbench/parts/tasks/common/taskService';
+
+import { TaskDefinition } from 'vs/workbench/parts/tasks/node/tasks';
 
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ExtHostContext, MainThreadTaskShape, ExtHostTaskShape, MainContext, IExtHostContext } from 'vs/workbench/api/node/extHost.protocol';
 import {
 	TaskDefinitionDTO, TaskExecutionDTO, ProcessExecutionOptionsDTO, TaskPresentationOptionsDTO,
-	ProcessExecutionDTO, ShellExecutionDTO, ShellExecutionOptionsDTO, TaskDTO, TaskSourceDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO
+	ProcessExecutionDTO, ShellExecutionDTO, ShellExecutionOptionsDTO, TaskDTO, TaskSourceDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO,
+	RunOptionsDTO
 } from 'vs/workbench/api/shared/tasks';
 
 namespace TaskExecutionDTO {
@@ -92,6 +95,15 @@ namespace TaskPresentationOptionsDTO {
 	export function to(value: TaskPresentationOptionsDTO): PresentationOptions {
 		if (value === void 0 || value === null) {
 			return { reveal: RevealKind.Always, echo: true, focus: false, panel: PanelKind.Shared, showReuseMessage: true, clear: false };
+		}
+		return Objects.assign(Object.create(null), value);
+	}
+}
+
+namespace RunOptionsDTO {
+	export function from(value: RunOptions): RunOptionsDTO {
+		if (value === void 0 || value === null) {
+			return undefined;
 		}
 		return Objects.assign(Object.create(null), value);
 	}
@@ -287,7 +299,8 @@ namespace TaskDTO {
 			presentationOptions: task.command ? TaskPresentationOptionsDTO.from(task.command.presentation) : undefined,
 			isBackground: task.isBackground,
 			problemMatchers: [],
-			hasDefinedMatchers: ContributedTask.is(task) ? task.hasDefinedMatchers : false
+			hasDefinedMatchers: ContributedTask.is(task) ? task.hasDefinedMatchers : false,
+			runOptions: RunOptionsDTO.from(task.runOptions),
 		};
 		if (task.group) {
 			result.group = task.group;
@@ -342,7 +355,8 @@ namespace TaskDTO {
 			command: command,
 			isBackground: !!task.isBackground,
 			problemMatchers: task.problemMatchers.slice(),
-			hasDefinedMatchers: task.hasDefinedMatchers
+			hasDefinedMatchers: task.hasDefinedMatchers,
+			runOptions: task.runOptions,
 		};
 		return result;
 	}
@@ -362,7 +376,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 
 	private _extHostContext: IExtHostContext;
 	private _proxy: ExtHostTaskShape;
-	private _activeHandles: { [handle: number]: boolean; };
+	private _providers: Map<number, { disposable: IDisposable, provider: ITaskProvider }>;
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -370,7 +384,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 		@IWorkspaceContextService private readonly _workspaceContextServer: IWorkspaceContextService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTask);
-		this._activeHandles = Object.create(null);
+		this._providers = new Map();
 		this._taskService.onDidStateChange((event: TaskEvent) => {
 			let task = event.__task;
 			if (event.kind === TaskEventKind.Start) {
@@ -386,16 +400,16 @@ export class MainThreadTask implements MainThreadTaskShape {
 	}
 
 	public dispose(): void {
-		Object.keys(this._activeHandles).forEach((handle) => {
-			this._taskService.unregisterTaskProvider(parseInt(handle, 10));
+		this._providers.forEach((value) => {
+			value.disposable.dispose();
 		});
-		this._activeHandles = Object.create(null);
+		this._providers.clear();
 	}
 
 	public $registerTaskProvider(handle: number): Thenable<void> {
-		this._taskService.registerTaskProvider(handle, {
+		let provider: ITaskProvider = {
 			provideTasks: (validTypes: IStringDictionary<boolean>) => {
-				return TPromise.wrap(this._proxy.$provideTasks(handle, validTypes)).then((value) => {
+				return Promise.resolve(this._proxy.$provideTasks(handle, validTypes)).then((value) => {
 					let tasks: Task[] = [];
 					for (let task of value.tasks) {
 						let taskTransfer = task._source as any as ExtensionTaskSourceTransfer;
@@ -417,15 +431,15 @@ export class MainThreadTask implements MainThreadTaskShape {
 					return value;
 				});
 			}
-		});
-		this._activeHandles[handle] = true;
-		return TPromise.wrap<void>(undefined);
+		};
+		let disposable = this._taskService.registerTaskProvider(provider);
+		this._providers.set(handle, { disposable, provider });
+		return Promise.resolve(undefined);
 	}
 
 	public $unregisterTaskProvider(handle: number): Thenable<void> {
-		this._taskService.unregisterTaskProvider(handle);
-		delete this._activeHandles[handle];
-		return TPromise.wrap<void>(undefined);
+		this._providers.delete(handle);
+		return Promise.resolve(undefined);
 	}
 
 	public $fetchTasks(filter?: TaskFilterDTO): Thenable<TaskDTO[]> {
@@ -442,7 +456,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 	}
 
 	public $executeTask(value: TaskHandleDTO | TaskDTO): Thenable<TaskExecutionDTO> {
-		return new TPromise<TaskExecutionDTO>((resolve, reject) => {
+		return new Promise<TaskExecutionDTO>((resolve, reject) => {
 			if (TaskHandleDTO.is(value)) {
 				let workspaceFolder = this._workspaceContextServer.getWorkspaceFolder(URI.revive(value.workspaceFolder));
 				this._taskService.getTask(workspaceFolder, value.id, true).then((task: Task) => {
@@ -468,7 +482,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 	}
 
 	public $terminateTask(id: string): Thenable<void> {
-		return new TPromise<void>((resolve, reject) => {
+		return new Promise<void>((resolve, reject) => {
 			this._taskService.getActiveTasks().then((tasks) => {
 				for (let task of tasks) {
 					if (id === task._id) {
@@ -506,12 +520,18 @@ export class MainThreadTask implements MainThreadTaskShape {
 				return URI.parse(`${info.scheme}://${info.authority}${path}`);
 			},
 			context: this._extHostContext,
-			resolveVariables: (workspaceFolder: IWorkspaceFolder, variables: Set<string>): TPromise<Map<string, string>> => {
+			resolveVariables: (workspaceFolder: IWorkspaceFolder, toResolve: ResolveSet): Promise<ResolvedVariables> => {
 				let vars: string[] = [];
-				variables.forEach(item => vars.push(item));
-				return TPromise.wrap(this._proxy.$resolveVariables(workspaceFolder.uri, vars)).then(values => {
-					let result = new Map<string, string>();
-					Object.keys(values).forEach(key => result.set(key, values[key]));
+				toResolve.variables.forEach(item => vars.push(item));
+				return Promise.resolve(this._proxy.$resolveVariables(workspaceFolder.uri, { process: toResolve.process, variables: vars })).then(values => {
+					let result = {
+						process: undefined as string,
+						variables: new Map<string, string>()
+					};
+					Object.keys(values.variables).forEach(key => result.variables.set(key, values[key]));
+					if (Types.isString(values.process)) {
+						result.process = values.process;
+					}
 					return result;
 				});
 			}

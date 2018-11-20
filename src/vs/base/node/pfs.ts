@@ -183,7 +183,7 @@ export function whenDeleted(path: string): TPromise<void> {
 
 					if (!exists) {
 						clearInterval(interval);
-						c(null);
+						c(void 0);
 					}
 				});
 			}

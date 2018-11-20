@@ -14,7 +14,6 @@ import { Schemas } from 'vs/base/common/network';
 import * as objects from 'vs/base/common/objects';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI as uri } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as pfs from 'vs/base/node/pfs';
 import { getNextTickChannel } from 'vs/base/parts/ipc/node/ipc';
 import { Client, IIPCOptions } from 'vs/base/parts/ipc/node/ipc.cp';
@@ -29,7 +28,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { addContextToEditorMatches, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IRawSearchService, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, isSerializedSearchComplete, isSerializedSearchSuccess } from './search';
-import { ISearchChannel, SearchChannelClient } from './searchIpc';
+import { SearchChannelClient } from './searchIpc';
 
 export class SearchService extends Disposable implements ISearchService {
 	public _serviceBrand: any;
@@ -86,7 +85,7 @@ export class SearchService extends Disposable implements ISearchService {
 		}
 	}
 
-	public textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void): TPromise<ISearchComplete> {
+	public textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void): Promise<ISearchComplete> {
 		// Get local results from dirty/untitled
 		const localResults = this.getLocalResults(query);
 
@@ -115,23 +114,23 @@ export class SearchService extends Disposable implements ISearchService {
 		return this.doSearch(query, token, onProviderProgress);
 	}
 
-	public fileSearch(query: IFileQuery, token?: CancellationToken): TPromise<ISearchComplete> {
+	public fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete> {
 		return this.doSearch(query, token);
 	}
 
-	private doSearch(query: ISearchQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void): TPromise<ISearchComplete> {
+	private doSearch(query: ISearchQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void): Promise<ISearchComplete> {
 		const schemesInQuery = this.getSchemesInQuery(query);
 
-		const providerActivations: TPromise<any>[] = [TPromise.wrap(null)];
+		const providerActivations: Thenable<any>[] = [Promise.resolve(null)];
 		schemesInQuery.forEach(scheme => providerActivations.push(this.extensionService.activateByEvent(`onSearch:${scheme}`)));
 		providerActivations.push(this.extensionService.activateByEvent('onSearch:file'));
 
-		const providerPromise = TPromise.join(providerActivations)
+		const providerPromise = Promise.all(providerActivations)
 			.then(() => this.extensionService.whenInstalledExtensionsRegistered())
 			.then(() => {
 				// Cancel faster if search was canceled while waiting for extensions
 				if (token && token.isCancellationRequested) {
-					return TPromise.wrapError(canceled());
+					return Promise.reject(canceled());
 				}
 
 				const progressCallback = (item: ISearchProgressItem) => {
@@ -149,7 +148,10 @@ export class SearchService extends Disposable implements ISearchService {
 			.then(completes => {
 				completes = completes.filter(c => !!c);
 				if (!completes.length) {
-					return null;
+					return {
+						limitHit: false,
+						results: []
+					};
 				}
 
 				return <ISearchComplete>{
@@ -157,16 +159,9 @@ export class SearchService extends Disposable implements ISearchService {
 					stats: completes[0].stats,
 					results: arrays.flatten(completes.map(c => c.results))
 				};
-			}, errs => {
-				if (!Array.isArray(errs)) {
-					errs = [errs];
-				}
-
-				errs = errs.filter(e => !!e);
-				return TPromise.wrapError(errs[0]);
 			});
 
-		return new TPromise((resolve, reject) => {
+		return new Promise((resolve, reject) => {
 			if (token) {
 				token.onCancellationRequested(() => {
 					reject(canceled());
@@ -194,7 +189,7 @@ export class SearchService extends Disposable implements ISearchService {
 		const e2eSW = StopWatch.create(false);
 
 		const diskSearchQueries: IFolderQuery[] = [];
-		const searchPs: TPromise<ISearchComplete>[] = [];
+		const searchPs: Thenable<ISearchComplete>[] = [];
 
 		const fqs = this.groupFolderQueriesByScheme(query);
 		keys(fqs).forEach(scheme => {
@@ -237,20 +232,17 @@ export class SearchService extends Disposable implements ISearchService {
 				this.diskSearch.textSearch(diskSearchQuery, onProviderProgress, token));
 		}
 
-		return TPromise.join(searchPs).then(completes => {
+		return Promise.all(searchPs).then(completes => {
 			const endToEndTime = e2eSW.elapsed();
 			this.logService.trace(`SearchService#search: ${endToEndTime}ms`);
 			completes.forEach(complete => {
 				this.sendTelemetry(query, endToEndTime, complete);
 			});
 			return completes;
-		}, errs => {
+		}, err => {
 			const endToEndTime = e2eSW.elapsed();
 			this.logService.trace(`SearchService#search: ${endToEndTime}ms`);
-			errs = errs
-				.filter(e => !!e);
-
-			const searchError = deserializeSearchError(errs[0] && errs[0].message);
+			const searchError = deserializeSearchError(err.message);
 			this.sendTelemetry(query, endToEndTime, null, searchError);
 
 			throw searchError;
@@ -444,13 +436,13 @@ export class SearchService extends Disposable implements ISearchService {
 		return pathIncludedInQuery(query, resource.fsPath);
 	}
 
-	public clearCache(cacheKey: string): TPromise<void> {
+	public clearCache(cacheKey: string): Promise<void> {
 		const clearPs = [
 			this.diskSearch,
 			...values(this.fileIndexProviders)
 		].map(provider => provider && provider.clearCache(cacheKey));
 
-		return TPromise.join(clearPs)
+		return Promise.all(clearPs)
 			.then(() => { });
 	}
 }
@@ -472,7 +464,8 @@ export class DiskSearch implements ISearchResultProvider {
 				AMD_ENTRYPOINT: 'vs/workbench/services/search/node/searchApp',
 				PIPE_LOGGING: 'true',
 				VERBOSE_LOGGING: verboseLogging
-			}
+			},
+			useQueue: true
 		};
 
 		if (searchDebug) {
@@ -487,13 +480,13 @@ export class DiskSearch implements ISearchResultProvider {
 			getPathFromAmdModule(require, 'bootstrap-fork'),
 			opts);
 
-		const channel = getNextTickChannel(client.getChannel<ISearchChannel>('search'));
+		const channel = getNextTickChannel(client.getChannel('search'));
 		this.raw = new SearchChannelClient(channel);
 	}
 
-	textSearch(query: ITextQuery, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): TPromise<ISearchComplete> {
+	textSearch(query: ITextQuery, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): Promise<ISearchComplete> {
 		const folderQueries = query.folderQueries || [];
-		return TPromise.join(folderQueries.map(q => q.folder.scheme === Schemas.file && pfs.exists(q.folder.fsPath)))
+		return Promise.all(folderQueries.map(q => q.folder.scheme === Schemas.file && pfs.exists(q.folder.fsPath)))
 			.then(exists => {
 				if (token && token.isCancellationRequested) {
 					throw canceled();
@@ -506,9 +499,9 @@ export class DiskSearch implements ISearchResultProvider {
 			});
 	}
 
-	fileSearch(query: IFileQuery, token?: CancellationToken): TPromise<ISearchComplete> {
+	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete> {
 		const folderQueries = query.folderQueries || [];
-		return TPromise.join(folderQueries.map(q => q.folder.scheme === Schemas.file && pfs.exists(q.folder.fsPath)))
+		return Promise.all(folderQueries.map(q => q.folder.scheme === Schemas.file && pfs.exists(q.folder.fsPath)))
 			.then(exists => {
 				if (token && token.isCancellationRequested) {
 					throw canceled();
@@ -522,11 +515,11 @@ export class DiskSearch implements ISearchResultProvider {
 			});
 	}
 
-	public static collectResultsFromEvent(event: Event<ISerializedSearchProgressItem | ISerializedSearchComplete>, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): TPromise<ISearchComplete> {
+	public static collectResultsFromEvent(event: Event<ISerializedSearchProgressItem | ISerializedSearchComplete>, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): Promise<ISearchComplete> {
 		let result: IFileMatch[] = [];
 
 		let listener: IDisposable;
-		return new TPromise<ISearchComplete>((c, e) => {
+		return new Promise<ISearchComplete>((c, e) => {
 			if (token) {
 				token.onCancellationRequested(() => {
 					if (listener) {
@@ -588,7 +581,7 @@ export class DiskSearch implements ISearchResultProvider {
 		return fileMatch;
 	}
 
-	public clearCache(cacheKey: string): TPromise<void> {
+	public clearCache(cacheKey: string): Thenable<void> {
 		return this.raw.clearCache(cacheKey);
 	}
 }

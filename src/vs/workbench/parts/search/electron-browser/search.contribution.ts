@@ -9,7 +9,6 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
@@ -430,7 +429,7 @@ class ShowAllSymbolsAction extends Action {
 		this.enabled = !!this.quickOpenService;
 	}
 
-	public run(context?: any): TPromise<void> {
+	public run(context?: any): Promise<void> {
 
 		let prefix = ShowAllSymbolsAction.ALL_SYMBOLS_PREFIX;
 		let inputSelection: { start: number; end: number; } = void 0;
@@ -443,7 +442,7 @@ class ShowAllSymbolsAction extends Action {
 
 		this.quickOpenService.show(prefix, { inputSelection });
 
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }
 

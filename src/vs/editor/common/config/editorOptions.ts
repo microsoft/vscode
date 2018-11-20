@@ -23,16 +23,14 @@ export interface IEditorScrollbarOptions {
 	arrowSize?: number;
 	/**
 	 * Render vertical scrollbar.
-	 * Accepted values: 'auto', 'visible', 'hidden'.
 	 * Defaults to 'auto'.
 	 */
-	vertical?: string;
+	vertical?: 'auto' | 'visible' | 'hidden';
 	/**
 	 * Render horizontal scrollbar.
-	 * Accepted values: 'auto', 'visible', 'hidden'.
 	 * Defaults to 'auto'.
 	 */
-	horizontal?: string;
+	horizontal?: 'auto' | 'visible' | 'hidden';
 	/**
 	 * Cast horizontal and vertical shadows when the content is scrolled.
 	 * Defaults to true.
@@ -326,6 +324,11 @@ export interface IEditorOptions {
 	 * @internal
 	 */
 	mouseStyle?: 'text' | 'default' | 'copy';
+	/**
+	 * Enable smooth caret animation.
+	 * Defaults to false.
+	 */
+	cursorSmoothCaretAnimation?: boolean;
 	/**
 	 * Control the cursor style, either 'block' or 'line'.
 	 * Defaults to 'line'.
@@ -939,6 +942,7 @@ export interface InternalEditorViewOptions {
 	readonly overviewRulerBorder: boolean;
 	readonly cursorBlinking: TextEditorCursorBlinkingStyle;
 	readonly mouseWheelZoom: boolean;
+	readonly cursorSmoothCaretAnimation: boolean;
 	readonly cursorStyle: TextEditorCursorStyle;
 	readonly cursorWidth: number;
 	readonly hideCursorInOverviewRuler: boolean;
@@ -1245,6 +1249,7 @@ export class InternalEditorOptions {
 			&& a.overviewRulerBorder === b.overviewRulerBorder
 			&& a.cursorBlinking === b.cursorBlinking
 			&& a.mouseWheelZoom === b.mouseWheelZoom
+			&& a.cursorSmoothCaretAnimation === b.cursorSmoothCaretAnimation
 			&& a.cursorStyle === b.cursorStyle
 			&& a.cursorWidth === b.cursorWidth
 			&& a.hideCursorInOverviewRuler === b.hideCursorInOverviewRuler
@@ -1970,6 +1975,7 @@ export class EditorOptionsValidator {
 			overviewRulerBorder: _boolean(opts.overviewRulerBorder, defaults.overviewRulerBorder),
 			cursorBlinking: _cursorBlinkingStyleFromString(opts.cursorBlinking, defaults.cursorBlinking),
 			mouseWheelZoom: _boolean(opts.mouseWheelZoom, defaults.mouseWheelZoom),
+			cursorSmoothCaretAnimation: _boolean(opts.cursorSmoothCaretAnimation, defaults.cursorSmoothCaretAnimation),
 			cursorStyle: _cursorStyleFromString(opts.cursorStyle, defaults.cursorStyle),
 			cursorWidth: _clampedInt(opts.cursorWidth, defaults.cursorWidth, 0, Number.MAX_VALUE),
 			hideCursorInOverviewRuler: _boolean(opts.hideCursorInOverviewRuler, defaults.hideCursorInOverviewRuler),
@@ -2089,6 +2095,7 @@ export class InternalEditorOptionsFactory {
 				overviewRulerBorder: opts.viewInfo.overviewRulerBorder,
 				cursorBlinking: opts.viewInfo.cursorBlinking,
 				mouseWheelZoom: opts.viewInfo.mouseWheelZoom,
+				cursorSmoothCaretAnimation: opts.viewInfo.cursorSmoothCaretAnimation,
 				cursorStyle: opts.viewInfo.cursorStyle,
 				cursorWidth: opts.viewInfo.cursorWidth,
 				hideCursorInOverviewRuler: opts.viewInfo.hideCursorInOverviewRuler,
@@ -2550,6 +2557,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		overviewRulerBorder: true,
 		cursorBlinking: TextEditorCursorBlinkingStyle.Blink,
 		mouseWheelZoom: false,
+		cursorSmoothCaretAnimation: false,
 		cursorStyle: TextEditorCursorStyle.Line,
 		cursorWidth: 0,
 		hideCursorInOverviewRuler: false,

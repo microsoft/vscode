@@ -45,7 +45,7 @@ import { IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelView
 import { ILabelService } from 'vs/platform/label/common/label';
 
 export interface IExplorerViewOptions extends IViewletViewOptions {
-	viewletState: FileViewletState;
+	fileViewletState: FileViewletState;
 }
 
 export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView {
@@ -61,7 +61,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 	private explorerViewer: WorkbenchTree;
 	private filter: FileFilter;
-	private viewletState: FileViewletState;
+	private fileViewletState: FileViewletState;
 
 	private explorerRefreshDelayer: ThrottledDelayer<void>;
 
@@ -100,7 +100,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService);
 
 		this.viewState = options.viewletState;
-		this.viewletState = options.viewletState;
+		this.fileViewletState = options.fileViewletState;
 		this.autoReveal = true;
 
 		this.explorerRefreshDelayer = new ThrottledDelayer<void>(ExplorerView.EXPLORER_FILE_CHANGES_REFRESH_DELAY);
@@ -307,7 +307,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			if (this.autoReveal) {
 				const selection = this.explorerViewer.getSelection();
 				if (selection.length > 0) {
-					this.reveal(selection[0], 0.5);
+					this.reveal(selection[0]);
 				}
 			}
 
@@ -406,7 +406,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 	private createViewer(container: HTMLElement): WorkbenchTree {
 		const dataSource = this.instantiationService.createInstance(FileDataSource);
-		const renderer = this.instantiationService.createInstance(FileRenderer, this.viewletState);
+		const renderer = this.instantiationService.createInstance(FileRenderer, this.fileViewletState);
 		const controller = this.instantiationService.createInstance(FileController);
 		this.disposables.push(controller);
 		const sorter = this.instantiationService.createInstance(FileSorter);
@@ -504,7 +504,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 						p.addChild(childElement);
 						// Refresh the Parent (View)
 						this.explorerViewer.refresh(p).then(() => {
-							return this.reveal(childElement, 0.5).then(() => {
+							return this.reveal(childElement).then(() => {
 
 								// Focus new element
 								this.explorerViewer.setFocus(childElement);
@@ -715,7 +715,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 				if (!this.explorerViewer.getHighlight()) {
 					return this.doRefresh(newRoots.map(r => r.uri)).then(() => {
 						if (newRoots.length === 1) {
-							return this.reveal(this.model.findClosest(newRoots[0].uri), 0.5);
+							return this.reveal(this.model.findClosest(newRoots[0].uri));
 						}
 
 						return undefined;
@@ -929,7 +929,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		// If path already selected, just reveal and return
 		const selection = this.hasSingleSelection(resource);
 		if (selection) {
-			return reveal ? this.reveal(selection, 0.5) : Promise.resolve(null);
+			return reveal ? this.reveal(selection) : Promise.resolve(null);
 		}
 
 		// First try to get the stat object from the input to avoid a roundtrip
@@ -984,7 +984,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		// Reveal depending on flag
 		let revealPromise: TPromise<void>;
 		if (reveal) {
-			revealPromise = this.reveal(fileStat, 0.5);
+			revealPromise = this.reveal(fileStat);
 		} else {
 			revealPromise = Promise.resolve(null);
 		}

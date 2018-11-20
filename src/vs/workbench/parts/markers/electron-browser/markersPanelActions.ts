@@ -5,7 +5,6 @@
 
 import { Delayer } from 'vs/base/common/async';
 import * as DOM from 'vs/base/browser/dom';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Action, IAction, IActionChangeEvent } from 'vs/base/common/actions';
 import { HistoryInputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -69,7 +68,7 @@ export class ShowProblemsPanelAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	public run(): Thenable<any> {
 		this.panelService.openPanel(Constants.MARKERS_PANEL_ID, true);
 		return Promise.resolve(null);
 	}
@@ -347,7 +346,7 @@ export class QuickFixAction extends Action {
 			}));
 	}
 
-	public openFileAtMarker(element: Marker): TPromise<void> {
+	public openFileAtMarker(element: Marker): Thenable<void> {
 		const { resource, selection } = { resource: element.resource, selection: element.range };
 		return this.editorService.openEditor({
 			resource,
@@ -410,10 +409,11 @@ export class QuickFixActionItem extends ActionItem {
 	public onClick(event: DOM.EventLike): void {
 		DOM.EventHelper.stop(event, true);
 		const elementPosition = DOM.getDomNodePagePosition(this.element);
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => ({ x: elementPosition.left + 10, y: elementPosition.top + elementPosition.height }),
-			getActions: () => TPromise.wrap((<QuickFixAction>this.getAction()).getQuickFixActions()),
+		(<QuickFixAction>this.getAction()).getQuickFixActions().then(actions => {
+			this.contextMenuService.showContextMenu({
+				getAnchor: () => ({ x: elementPosition.left + 10, y: elementPosition.top + elementPosition.height }),
+				getActions: () => actions
+			});
 		});
 	}
-
 }

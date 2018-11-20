@@ -153,14 +153,11 @@ suite('QueryBuilder', () => {
 			<ITextQuery>{
 				contentPattern: PATTERN_INFO,
 				folderQueries: [{
-					folder: getUri(paths.join(ROOT_1, 'foo'))
-				}],
-				excludePattern: {
-					[paths.join(ROOT_1, 'foo/**/*.js')]: true,
-					[paths.join(ROOT_1, 'bar/**')]: {
-						'when': '$(basename).ts'
+					folder: getUri(paths.join(ROOT_1, 'foo')),
+					excludePattern: {
+						['**/*.js']: true
 					}
-				},
+				}],
 				type: QueryType.Text
 			});
 	});
@@ -212,7 +209,6 @@ suite('QueryBuilder', () => {
 				folderQueries: [
 					{ folder: getUri(paths.join(ROOT_2, 'src')) }
 				],
-				excludePattern: patternsToIExpression(paths.join(ROOT_1, 'foo/**/*.js'), paths.join(ROOT_2, 'bar')),
 				type: QueryType.Text
 			}
 		);
@@ -261,7 +257,7 @@ suite('QueryBuilder', () => {
 				folderQueries: [{
 					folder: ROOT_1_URI
 				}],
-				excludePattern: patternsToIExpression(fixPath(paths.join(ROOT_1, 'bar'))),
+				excludePattern: patternsToIExpression('bar'),
 				type: QueryType.Text
 			});
 
@@ -276,7 +272,7 @@ suite('QueryBuilder', () => {
 				folderQueries: [{
 					folder: ROOT_1_URI
 				}],
-				excludePattern: patternsToIExpression(fixPath(paths.join(ROOT_1, 'bar/**/*.ts'))),
+				excludePattern: patternsToIExpression('bar/**/*.ts'),
 				type: QueryType.Text
 			});
 
@@ -291,7 +287,7 @@ suite('QueryBuilder', () => {
 				folderQueries: [{
 					folder: ROOT_1_URI
 				}],
-				excludePattern: patternsToIExpression(fixPath(paths.join(ROOT_1, 'bar/**/*.ts'))),
+				excludePattern: patternsToIExpression('bar/**/*.ts'),
 				type: QueryType.Text
 			});
 	});

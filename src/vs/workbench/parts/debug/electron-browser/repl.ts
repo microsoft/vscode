@@ -6,7 +6,6 @@
 import 'vs/css!vs/workbench/parts/debug/browser/media/repl';
 import * as nls from 'vs/nls';
 import { URI as uri } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
 import { IAction, IActionItem, Action } from 'vs/base/common/actions';
 import * as dom from 'vs/base/browser/dom';
@@ -50,6 +49,8 @@ import { transparent, editorForeground } from 'vs/platform/theme/common/colorReg
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { FocusSessionActionItem } from 'vs/workbench/parts/debug/browser/debugActionItems';
 import { CompletionContext, CompletionList, CompletionProviderRegistry } from 'vs/editor/common/modes';
+import { first } from 'vs/base/common/arrays';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 
 const $ = dom.$;
 
@@ -62,7 +63,7 @@ const HISTORY_STORAGE_KEY = 'debug.repl.history';
 const IPrivateReplService = createDecorator<IPrivateReplService>('privateReplService');
 const DECORATION_KEY = 'replinputdecoration';
 
-export interface IPrivateReplService {
+interface IPrivateReplService {
 	_serviceBrand: any;
 	acceptReplInput(): void;
 	getVisibleContent(): string;
@@ -70,6 +71,7 @@ export interface IPrivateReplService {
 	clearRepl(): void;
 }
 
+const sessionsToIgnore = new Set<IDebugSession>();
 export class Repl extends Panel implements IPrivateReplService, IHistoryNavigationWidget {
 	_serviceBrand: any;
 
@@ -113,11 +115,17 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 	private registerListeners(): void {
 		this._register(this.debugService.getViewModel().onDidFocusSession(session => {
-			if (this.isVisible()) {
-				this.selectSession(session);
-			}
+			sessionsToIgnore.delete(session);
+			this.selectSession();
 		}));
-		this._register(this.debugService.onDidNewSession(() => this.updateTitleArea()));
+		this._register(this.debugService.onWillNewSession(() => {
+			// Need to listen to output events for sessions which are not yet fully initialised
+			const input: IDebugSession = this.tree.getInput();
+			if (!input || input.state === State.Inactive) {
+				this.selectSession();
+			}
+			this.updateTitleArea();
+		}));
 		this._register(this.themeService.onThemeChange(() => {
 			if (this.isVisible()) {
 				this.updateInputDecoration();
@@ -126,19 +134,15 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	}
 
 	setVisible(visible: boolean): void {
+		super.setVisible(visible);
 		if (!visible) {
 			dispose(this.model);
 		} else {
 			this.model = this.modelService.createModel('', null, uri.parse(`${DEBUG_SCHEME}:replinput`), true);
 			this.replInput.setModel(this.model);
 			this.updateInputDecoration();
-			const focusedSession = this.debugService.getViewModel().focusedSession;
-			if (focusedSession && this.tree.getInput() !== focusedSession) {
-				this.selectSession(focusedSession);
-			}
+			this.refreshReplElements(true);
 		}
-
-		super.setVisible(visible);
 	}
 
 	get isReadonly(): boolean {
@@ -170,11 +174,14 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		}
 	}
 
-	selectSession(session: IDebugSession): void {
-		if (this.replElementsChangeListener) {
-			this.replElementsChangeListener.dispose();
-		}
+	selectSession(): void {
+		const focusedSession = this.debugService.getViewModel().focusedSession;
+		// If there is a focusedSession focus on that one, otherwise just show any other not ignored session
+		const session = focusedSession || first(this.debugService.getModel().getSessions(true), s => !sessionsToIgnore.has(s));
 		if (session) {
+			if (this.replElementsChangeListener) {
+				this.replElementsChangeListener.dispose();
+			}
 			this.replElementsChangeListener = session.onDidChangeReplElements(() => {
 				this.refreshReplElements(session.getReplElements().length === 0);
 			});
@@ -190,7 +197,15 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 	clearRepl(): void {
 		const session: IDebugSession = this.tree.getInput();
-		session.removeReplExpressions();
+		if (session) {
+			session.removeReplExpressions();
+			if (session.state === State.Inactive) {
+				// Ignore inactive sessions which got cleared - so they are not shown any more
+				sessionsToIgnore.add(session);
+				this.selectSession();
+				this.updateTitleArea();
+			}
+		}
 		this.replInput.focus();
 	}
 
@@ -247,7 +262,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 	getActions(): IAction[] {
 		const result: IAction[] = [];
-		if (this.debugService.getModel().getSessions(true).length > 1) {
+		if (this.debugService.getModel().getSessions(true).filter(s => !sessionsToIgnore.has(s)).length > 1) {
 			result.push(this.selectReplAction);
 		}
 		result.push(this.clearReplAction);
@@ -290,6 +305,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 		this.renderer = this.instantiationService.createInstance(ReplExpressionsRenderer);
 		const controller = this.instantiationService.createInstance(ReplExpressionsController, new ReplExpressionsActionProvider(this.clearReplAction, this.replInput), MenuId.DebugConsoleContext, { openMode: OpenMode.SINGLE_CLICK, clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change, to preserve focus behaviour in input field */ });
+		this.toDispose.push(controller);
 		controller.toFocusOnClick = this.replInput;
 
 		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
@@ -298,6 +314,9 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			accessibilityProvider: new ReplExpressionsAccessibilityProvider(),
 			controller
 		}, replTreeOptions);
+
+		// Make sure to select the session if debugging is already active
+		this.selectSession();
 	}
 
 	private createReplInput(container: HTMLElement): void {
@@ -441,7 +460,7 @@ class AcceptReplInputAction extends EditorAction {
 		});
 	}
 
-	run(accessor: ServicesAccessor, editor: ICodeEditor): void | TPromise<void> {
+	run(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
 		SuggestController.get(editor).acceptSelectedSuggestion();
 		accessor.get(IPrivateReplService).acceptReplInput();
 	}
@@ -458,7 +477,7 @@ export class ReplCopyAllAction extends EditorAction {
 		});
 	}
 
-	run(accessor: ServicesAccessor, editor: ICodeEditor): void | TPromise<void> {
+	run(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
 		clipboard.writeText(accessor.get(IPrivateReplService).getVisibleContent());
 	}
 }
@@ -480,7 +499,7 @@ registerEditorCommand(new SuggestCommand({
 
 class SelectReplActionItem extends FocusSessionActionItem {
 	protected getSessions(): ReadonlyArray<IDebugSession> {
-		return this.debugService.getModel().getSessions(true);
+		return this.debugService.getModel().getSessions(true).filter(s => !sessionsToIgnore.has(s));
 	}
 }
 
@@ -496,7 +515,7 @@ class SelectReplAction extends Action {
 		super(id, label);
 	}
 
-	run(sessionName: string): TPromise<any> {
+	run(sessionName: string): Promise<any> {
 		const session = this.debugService.getModel().getSessions(true).filter(p => p.getLabel() === sessionName).pop();
 		// If session is already the focused session we need to manualy update the tree since view model will not send a focused change event
 		if (session && session.state !== State.Inactive && session !== this.debugService.getViewModel().focusedSession) {
@@ -509,22 +528,21 @@ class SelectReplAction extends Action {
 	}
 }
 
-class ClearReplAction extends Action {
+export class ClearReplAction extends Action {
 	static readonly ID = 'workbench.debug.panel.action.clearReplAction';
 	static LABEL = nls.localize('clearRepl', "Clear Console");
 
 	constructor(id: string, label: string,
-		@IDebugService debugService: IDebugService,
-		@IPrivateReplService private replService: IPrivateReplService
+		@IPanelService private panelService: IPanelService
 	) {
 		super(id, label, 'debug-action clear-repl');
 	}
 
-	public run(): TPromise<any> {
-		this.replService.clearRepl();
+	public run(): Promise<any> {
+		const repl = <Repl>this.panelService.openPanel(REPL_ID);
+		repl.clearRepl();
 		aria.status(nls.localize('debugConsoleCleared', "Debug console was cleared"));
 
-		// focus back to repl
 		return Promise.resolve(undefined);
 	}
 }

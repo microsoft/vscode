@@ -8,7 +8,6 @@ import { Action } from 'vs/base/common/actions';
 import * as paths from 'vs/base/common/paths';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ILogService, LogLevel, DEFAULT_LOG_LEVEL } from 'vs/platform/log/common/log';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
@@ -24,7 +23,7 @@ export class OpenLogsFolderAction extends Action {
 		super(id, label);
 	}
 
-	run(): TPromise<void> {
+	run(): Thenable<void> {
 		return this.windowsService.showItemInFolder(paths.join(this.environmentService.logsPath, 'main.log'));
 	}
 }
@@ -41,7 +40,7 @@ export class SetLogLevelAction extends Action {
 		super(id, label);
 	}
 
-	run(): TPromise<void> {
+	run(): Thenable<void> {
 		const current = this.logService.getLevel();
 		const entries = [
 			{ label: nls.localize('trace', "Trace"), level: LogLevel.Trace, description: this.getDescription(LogLevel.Trace, current) },

@@ -68,7 +68,7 @@ export class SelectionBasedVariableResolver implements VariableResolver {
 
 		if (name === 'SELECTION' || name === 'TM_SELECTED_TEXT') {
 			let value = this._model.getValueInRange(this._selection) || undefined;
-			if (value && this._selection.startLineNumber !== this._selection.endLineNumber) {
+			if (value && this._selection.startLineNumber !== this._selection.endLineNumber && variable.snippet) {
 				// Selection is a multiline string which we indentation we now
 				// need to adjust. We compare the indentation of this variable
 				// with the indentation at the editor position and add potential
@@ -83,7 +83,7 @@ export class SelectionBasedVariableResolver implements VariableResolver {
 						return false;
 					}
 					if (marker instanceof Text) {
-						varLeadingWhitespace = getLeadingWhitespace(marker.value.split(/\r\n|\r|\n/).pop());
+						varLeadingWhitespace = getLeadingWhitespace(marker.value.split(/\r\n|\r|\n/).pop()!);
 					}
 					return true;
 				});

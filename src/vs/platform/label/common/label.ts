@@ -18,6 +18,8 @@ import { localize } from 'vs/nls';
 import { isParent } from 'vs/platform/files/common/files';
 import { basename, dirname, join } from 'vs/base/common/paths';
 import { Schemas } from 'vs/base/common/network';
+import { IWindowService } from 'vs/platform/windows/common/windows';
+import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 
 export interface RegisterFormatterEvent {
 	selector: string;
@@ -33,6 +35,7 @@ export interface ILabelService {
 	 */
 	getUriLabel(resource: URI, options?: { relative?: boolean, noPrefix?: boolean }): string;
 	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IWorkspace), options?: { verbose: boolean }): string;
+	getHostLabel(): string;
 	registerFormatter(selector: string, formatter: LabelRules): IDisposable;
 	onDidRegisterFormatter: Event<RegisterFormatterEvent>;
 }
@@ -66,7 +69,8 @@ export class LabelService implements ILabelService {
 
 	constructor(
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IWindowService private windowService: IWindowService
 	) { }
 
 	get onDidRegisterFormatter(): Event<RegisterFormatterEvent> {
@@ -153,6 +157,19 @@ export class LabelService implements ILabelService {
 		}
 
 		return localize('workspaceName', "{0} (Workspace)", workspaceName);
+	}
+
+	getHostLabel(): string {
+		if (this.windowService) {
+			const authority = this.windowService.getConfiguration().remoteAuthority;
+			if (authority) {
+				const formatter = this.findFormatter(URI.from({ scheme: REMOTE_HOST_SCHEME, authority }));
+				if (formatter && formatter.workspace) {
+					return formatter.workspace.suffix;
+				}
+			}
+		}
+		return '';
 	}
 
 	registerFormatter(selector: string, formatter: LabelRules): IDisposable {

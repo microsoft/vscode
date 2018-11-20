@@ -24,7 +24,6 @@ import { URI } from 'vs/base/common/uri';
 import { join } from 'vs/base/common/paths';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { VIEWLET_ID as EXTENSIONS_VIEWLET_ID, IExtensionsViewlet } from 'vs/workbench/parts/extensions/common/extensions';
 import { minimumTranslatedStrings } from 'vs/platform/node/minimalTranslations';
@@ -133,7 +132,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 						return;
 					}
 
-					TPromise.join([this.galleryService.getManifest(extensionToFetchTranslationsFrom, CancellationToken.None), this.galleryService.getCoreTranslation(extensionToFetchTranslationsFrom, locale)])
+					Promise.all([this.galleryService.getManifest(extensionToFetchTranslationsFrom, CancellationToken.None), this.galleryService.getCoreTranslation(extensionToFetchTranslationsFrom, locale)])
 						.then(([manifest, translation]) => {
 							const loc = manifest && manifest.contributes && manifest.contributes.localizations && manifest.contributes.localizations.filter(x => x.languageId.toLowerCase() === locale)[0];
 							const languageName = loc ? (loc.languageName || locale) : locale;
@@ -214,12 +213,12 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 
 	}
 
-	private isLanguageInstalled(language: string): TPromise<boolean> {
+	private isLanguageInstalled(language: string): Promise<boolean> {
 		return this.extensionManagementService.getInstalled(LocalExtensionType.User)
 			.then(installed => installed.some(i => i.manifest && i.manifest.contributes && i.manifest.contributes.localizations && i.manifest.contributes.localizations.length && i.manifest.contributes.localizations.some(l => l.languageId.toLowerCase() === language)));
 	}
 
-	private installExtension(extension: IGalleryExtension): TPromise<void> {
+	private installExtension(extension: IGalleryExtension): Thenable<void> {
 		return this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => viewlet.search(`@id:${extension.identifier.id}`))

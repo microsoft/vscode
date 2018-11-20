@@ -46,7 +46,7 @@ export interface IFileService {
 	onDidChangeFileSystemProviderRegistrations: Event<IFileSystemProviderRegistrationEvent>;
 
 	/**
-	 * Registeres a file system provider for a certain scheme.
+	 * Registers a file system provider for a certain scheme.
 	 */
 	registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable;
 
@@ -80,7 +80,7 @@ export interface IFileService {
 	resolveFiles(toResolve: { resource: URI, options?: IResolveFileOptions }[]): TPromise<IResolveFileResult[]>;
 
 	/**
-	 *Finds out if a file identified by the resource exists.
+	 * Finds out if a file identified by the resource exists.
 	 */
 	existsFile(resource: URI): TPromise<boolean>;
 
@@ -124,6 +124,12 @@ export interface IFileService {
 	 * The optional parameter content can be used as value to fill into the new file.
 	 */
 	createFile(resource: URI, content?: string, options?: ICreateFileOptions): TPromise<IFileStat>;
+
+	/**
+	 * Reads a folder's content with the given path. The returned promise
+	 * will have the list of children as a result.
+	 */
+	readFolder(resource: URI): TPromise<string[]>;
 
 	/**
 	 * Creates a new folder with the given path. The returned promise
@@ -198,6 +204,7 @@ export const enum FileSystemProviderCapabilities {
 export interface IFileSystemProvider {
 
 	readonly capabilities: FileSystemProviderCapabilities;
+	onDidChangeCapabilities: Event<void>;
 
 	onDidChangeFile: Event<IFileChange[]>;
 	watch(resource: URI, opts: IWatchOptions): IDisposable;

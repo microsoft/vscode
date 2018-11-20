@@ -50,7 +50,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 		this.workspacesHome = environmentService.workspacesHome;
 	}
 
-	resolveWorkspace(path: string): TPromise<IResolvedWorkspace> {
+	resolveWorkspace(path: string): TPromise<IResolvedWorkspace | null> {
 		if (!this.isWorkspacePath(path)) {
 			return TPromise.as(null); // does not look like a valid workspace config file
 		}
@@ -58,7 +58,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 		return readFile(path, 'utf8').then(contents => this.doResolveWorkspace(path, contents));
 	}
 
-	resolveWorkspaceSync(path: string): IResolvedWorkspace {
+	resolveWorkspaceSync(path: string): IResolvedWorkspace | null {
 		if (!this.isWorkspacePath(path)) {
 			return null; // does not look like a valid workspace config file
 		}
@@ -77,7 +77,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 		return this.isInsideWorkspacesHome(path) || extname(path) === `.${WORKSPACE_EXTENSION}`;
 	}
 
-	private doResolveWorkspace(path: string, contents: string): IResolvedWorkspace {
+	private doResolveWorkspace(path: string, contents: string): IResolvedWorkspace | null {
 		try {
 			const workspace = this.doParseStoredWorkspace(path, contents);
 

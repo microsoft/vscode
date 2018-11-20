@@ -6,7 +6,6 @@
 import * as appInsights from 'applicationinsights';
 import { isObject } from 'vs/base/common/types';
 import { safeStringify, mixin } from 'vs/base/common/objects';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ILogService } from 'vs/platform/log/common/log';
 
@@ -144,9 +143,9 @@ export class AppInsightsAppender implements ITelemetryAppender {
 		});
 	}
 
-	dispose(): TPromise<any> {
+	dispose(): Promise<any> {
 		if (this._aiClient) {
-			return new TPromise(resolve => {
+			return new Promise(resolve => {
 				this._aiClient.flush({
 					callback: () => {
 						// all data flushed

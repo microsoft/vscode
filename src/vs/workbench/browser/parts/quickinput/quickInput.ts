@@ -13,7 +13,6 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { contrastBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND } from 'vs/workbench/common/theme';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { QuickInputList } from './quickInputList';
 import { QuickInputBox } from './quickInputBox';
@@ -1041,8 +1040,8 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.updateStyles();
 	}
 
-	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: TPromise<QuickPickInput<T>[]> | QuickPickInput<T>[], options: O = <O>{}, token: CancellationToken = CancellationToken.None): TPromise<O extends { canPickMany: true } ? T[] : T> {
-		return new TPromise<O extends { canPickMany: true } ? T[] : T>((doResolve, reject) => {
+	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options: O = <O>{}, token: CancellationToken = CancellationToken.None): Promise<O extends { canPickMany: true } ? T[] : T> {
+		return new Promise<O extends { canPickMany: true } ? T[] : T>((doResolve, reject) => {
 			let resolve = (result: any) => {
 				resolve = doResolve;
 				if (options.onKeyMods) {
@@ -1117,7 +1116,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			input.quickNavigate = options.quickNavigate;
 			input.contextKey = options.contextKey;
 			input.busy = true;
-			TPromise.join([picks, options.activeItem])
+			Promise.all([picks, options.activeItem])
 				.then(([items, _activeItem]) => {
 					activeItem = _activeItem;
 					input.busy = false;
@@ -1130,29 +1129,29 @@ export class QuickInputService extends Component implements IQuickInputService {
 					}
 				});
 			input.show();
-			TPromise.wrap(picks).then(null, err => {
+			Promise.resolve(picks).then(null, err => {
 				reject(err);
 				input.hide();
 			});
 		});
 	}
 
-	input(options: IInputOptions = {}, token: CancellationToken = CancellationToken.None): TPromise<string> {
-		return new TPromise<string>((resolve, reject) => {
+	input(options: IInputOptions = {}, token: CancellationToken = CancellationToken.None): Promise<string> {
+		return new Promise<string>((resolve, reject) => {
 			if (token.isCancellationRequested) {
 				resolve(undefined);
 				return;
 			}
 			const input = this.createInputBox();
-			const validateInput = options.validateInput || (() => TPromise.as(undefined));
+			const validateInput = options.validateInput || (() => <Thenable<undefined>>Promise.resolve(undefined));
 			const onDidValueChange = debounceEvent(input.onDidChangeValue, (last, cur) => cur, 100);
 			let validationValue = options.value || '';
-			let validation = TPromise.wrap(validateInput(validationValue));
+			let validation = Promise.resolve(validateInput(validationValue));
 			const disposables = [
 				input,
 				onDidValueChange(value => {
 					if (value !== validationValue) {
-						validation = TPromise.wrap(validateInput(value));
+						validation = Promise.resolve(validateInput(value));
 						validationValue = value;
 					}
 					validation.then(result => {
@@ -1164,7 +1163,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 				input.onDidAccept(() => {
 					const value = input.value;
 					if (value !== validationValue) {
-						validation = TPromise.wrap(validateInput(value));
+						validation = Promise.resolve(validateInput(value));
 						validationValue = value;
 					}
 					validation.then(result => {
@@ -1335,17 +1334,17 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 	accept() {
 		this.onDidAcceptEmitter.fire();
-		return TPromise.as(undefined);
+		return Promise.resolve(undefined);
 	}
 
 	back() {
 		this.onDidTriggerButtonEmitter.fire(this.backButton);
-		return TPromise.as(undefined);
+		return Promise.resolve(undefined);
 	}
 
 	cancel() {
 		this.hide();
-		return TPromise.as(undefined);
+		return Promise.resolve(undefined);
 	}
 
 	layout(dimension: dom.Dimension): void {
@@ -1411,8 +1410,8 @@ export class BackAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	public run(): Promise<any> {
 		this.quickInputService.back();
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }

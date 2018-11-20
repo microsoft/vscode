@@ -10,7 +10,7 @@ import { CharCode } from 'vs/base/common/charCode';
  */
 export const empty = '';
 
-export function isFalsyOrWhitespace(str: string): boolean {
+export function isFalsyOrWhitespace(str: string | undefined): boolean {
 	if (!str || typeof str !== 'string') {
 		return true;
 	}
@@ -78,7 +78,7 @@ export function escapeRegExpCharacters(value: string): string {
  * @param haystack string to trim
  * @param needle the thing to trim (default is a blank)
  */
-export function trim(haystack: string, needle: string = ' '): string | undefined {
+export function trim(haystack: string, needle: string = ' '): string {
 	let trimmed = ltrim(haystack, needle);
 	return rtrim(trimmed, needle);
 }

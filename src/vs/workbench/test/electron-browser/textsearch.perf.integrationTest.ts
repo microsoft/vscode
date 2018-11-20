@@ -19,7 +19,6 @@ import { SearchService } from 'vs/workbench/services/search/node/searchService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { TestEnvironmentService, TestContextService, TestEditorService, TestEditorGroupsService, TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { URI } from 'vs/base/common/uri';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -78,7 +77,7 @@ suite.skip('TextSearch performance (integration)', () => {
 		};
 
 		const searchModel: SearchModel = instantiationService.createInstance(SearchModel);
-		function runSearch(): TPromise<any> {
+		function runSearch(): Promise<any> {
 			const queryBuilder: QueryBuilder = instantiationService.createInstance(QueryBuilder);
 			const query = queryBuilder.text({ pattern: 'static_library(' }, [URI.file(testWorkspacePath)], queryOptions);
 
@@ -107,7 +106,7 @@ suite.skip('TextSearch performance (integration)', () => {
 
 			let resolve;
 			let error;
-			return new TPromise((_resolve, _error) => {
+			return new Promise((_resolve, _error) => {
 				resolve = _resolve;
 				error = _error;
 
@@ -155,15 +154,15 @@ class TestTelemetryService implements ITelemetryService {
 		return this.emitter.event;
 	}
 
-	public publicLog(eventName: string, data?: any): TPromise<void> {
+	public publicLog(eventName: string, data?: any): Promise<void> {
 		const event = { name: eventName, data: data };
 		this.events.push(event);
 		this.emitter.fire(event);
-		return TPromise.wrap<void>(null);
+		return Promise.resolve();
 	}
 
-	public getTelemetryInfo(): TPromise<ITelemetryInfo> {
-		return TPromise.wrap({
+	public getTelemetryInfo(): Promise<ITelemetryInfo> {
+		return Promise.resolve({
 			instanceId: 'someValue.instanceId',
 			sessionId: 'someValue.sessionId',
 			machineId: 'someValue.machineId'

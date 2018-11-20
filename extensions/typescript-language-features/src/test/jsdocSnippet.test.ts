@@ -75,4 +75,3 @@ suite('typescript.jsDocSnippet', () => {
 			].join('\n'));
 	});
 });
-

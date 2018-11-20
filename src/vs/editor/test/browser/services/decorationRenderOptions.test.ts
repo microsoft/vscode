@@ -134,7 +134,7 @@ suite('Decoration Render Options', () => {
 
 		// unix file path (used as string)
 		let s = new TestCodeEditorServiceImpl(themeServiceMock, styleSheet);
-		s.registerDecorationType('example', { gutterIconPath: '/Users/foo/bar.png' });
+		s.registerDecorationType('example', { gutterIconPath: URI.file('/Users/foo/bar.png') });
 		let sheet = readStyleSheet(styleSheet);//.innerHTML || styleSheet.sheet.toString();
 		assert(
 			sheet.indexOf('background: url(\'file:///Users/foo/bar.png\') center center no-repeat;') > 0
@@ -143,7 +143,7 @@ suite('Decoration Render Options', () => {
 
 		// windows file path (used as string)
 		s = new TestCodeEditorServiceImpl(themeServiceMock, styleSheet);
-		s.registerDecorationType('example', { gutterIconPath: 'c:\\files\\miles\\more.png' });
+		s.registerDecorationType('example', { gutterIconPath: URI.file('c:\\files\\miles\\more.png') });
 		sheet = readStyleSheet(styleSheet);
 		// TODO@Alex test fails
 		// assert(
@@ -162,7 +162,7 @@ suite('Decoration Render Options', () => {
 
 		// single quote must always be escaped/encoded
 		s = new TestCodeEditorServiceImpl(themeServiceMock, styleSheet);
-		s.registerDecorationType('example', { gutterIconPath: '/Users/foo/b\'ar.png' });
+		s.registerDecorationType('example', { gutterIconPath: URI.file('/Users/foo/b\'ar.png') });
 		sheet = readStyleSheet(styleSheet);
 		assert(
 			sheet.indexOf('background: url(\'file:///Users/foo/b%27ar.png\') center center no-repeat;') > 0

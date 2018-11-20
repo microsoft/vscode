@@ -119,6 +119,10 @@ export interface PresentationOptions {
 	clear?: boolean;
 }
 
+export interface RunOptions {
+	rerunBehavior?: string;
+}
+
 export interface TaskIdentifier {
 	type?: string;
 	[name: string]: any;
@@ -313,11 +317,16 @@ export interface ConfigurationProperties {
 	 * output.
 	 */
 	problemMatcher?: ProblemMatcherConfig.ProblemMatcherType;
+
+	/**
+	 * Task run options. Control run related properties.
+	 */
+	runOptions?: RunOptions;
 }
 
 export interface CustomTask extends CommandProperties, ConfigurationProperties {
 	/**
-	 * Custom tasks have the type 'custom'
+	 * Custom tasks have the type CUSTOMIZED_TASK_TYPE
 	 */
 	type?: string;
 
@@ -747,7 +756,7 @@ namespace CommandOptions {
 namespace CommandConfiguration {
 
 	export namespace PresentationOptions {
-		const properties: MetaData<Tasks.PresentationOptions, void>[] = [{ property: 'echo' }, { property: 'reveal' }, { property: 'focus' }, { property: 'panel' }, { property: 'showReuseMessage' }];
+		const properties: MetaData<Tasks.PresentationOptions, void>[] = [{ property: 'echo' }, { property: 'reveal' }, { property: 'focus' }, { property: 'panel' }, { property: 'showReuseMessage' }, { property: 'clear' }];
 
 		interface PresentationOptionsShape extends LegacyCommandProperties {
 			presentation?: PresentationOptions;
@@ -1285,7 +1294,8 @@ namespace ConfiguringTask {
 			configures: taskIdentifier,
 			_id: `${typeDeclaration.extensionId}.${taskIdentifier._key}`,
 			_source: Objects.assign({}, source, { config: configElement }),
-			_label: undefined
+			_label: undefined,
+			runOptions: { rerunBehavior: external.runOptions ? Tasks.RerunBehavior.fromString(external.runOptions.rerunBehavior) : Tasks.RerunBehavior.reevaluate },
 		};
 		let configuration = ConfigurationProperties.from(external, context, true);
 		if (configuration) {
@@ -1321,9 +1331,9 @@ namespace CustomTask {
 		}
 		let type = external.type;
 		if (type === void 0 || type === null) {
-			type = 'custom';
+			type = Tasks.CUSTOMIZED_TASK_TYPE;
 		}
-		if (type !== 'custom' && type !== 'shell' && type !== 'process') {
+		if (type !== Tasks.CUSTOMIZED_TASK_TYPE && type !== 'shell' && type !== 'process') {
 			context.problemReporter.error(nls.localize('ConfigurationParser.notCustom', 'Error: tasks is not declared as a custom task. The configuration will be ignored.\n{0}\n', JSON.stringify(external, null, 4)));
 			return undefined;
 		}
@@ -1337,14 +1347,15 @@ namespace CustomTask {
 		}
 
 		let result: Tasks.CustomTask = {
-			type: 'custom',
+			type: Tasks.CUSTOMIZED_TASK_TYPE,
 			_id: context.uuidMap.getUUID(taskName),
 			_source: Objects.assign({}, source, { config: { index, element: external, file: '.vscode\\tasks.json', workspaceFolder: context.workspaceFolder } }),
 			_label: taskName,
 			name: taskName,
 			identifier: taskName,
 			hasDefinedMatchers: false,
-			command: undefined
+			command: undefined,
+			runOptions: { rerunBehavior: external.runOptions ? Tasks.RerunBehavior.fromString(external.runOptions.rerunBehavior) : Tasks.RerunBehavior.reevaluate }
 		};
 		let configuration = ConfigurationProperties.from(external, context, false);
 		if (configuration) {
@@ -1413,11 +1424,12 @@ namespace CustomTask {
 			_id: configuredProps._id,
 			_source: Objects.assign({}, configuredProps._source, { customizes: contributedTask.defines }),
 			_label: configuredProps.name || contributedTask._label,
-			type: 'custom',
+			type: Tasks.CUSTOMIZED_TASK_TYPE,
 			command: contributedTask.command,
 			name: configuredProps.name || contributedTask.name,
 			identifier: configuredProps.identifier || contributedTask.identifier,
-			hasDefinedMatchers: false
+			hasDefinedMatchers: false,
+			runOptions: contributedTask.runOptions,
 		};
 		let resultConfigProps: Tasks.ConfigurationProperties = result;
 
@@ -1460,7 +1472,7 @@ namespace TaskParser {
 	function isCustomTask(value: CustomTask | ConfiguringTask): value is CustomTask {
 		let type = value.type;
 		let customize = (value as any).customize;
-		return customize === void 0 && (type === void 0 || type === null || type === 'custom' || type === 'shell' || type === 'process');
+		return customize === void 0 && (type === void 0 || type === null || type === Tasks.CUSTOMIZED_TASK_TYPE || type === 'shell' || type === 'process');
 	}
 
 	export function from(this: void, externals: (CustomTask | ConfiguringTask)[], globals: Globals, context: ParseContext): TaskParseResult {
@@ -1839,7 +1851,7 @@ class ConfigurationParser {
 				_id: context.uuidMap.getUUID(name),
 				_source: Objects.assign({}, source, { config: { index: -1, element: fileConfig, workspaceFolder: context.workspaceFolder } }),
 				_label: name,
-				type: 'custom',
+				type: Tasks.CUSTOMIZED_TASK_TYPE,
 				name: name,
 				identifier: name,
 				group: Tasks.TaskGroup.Build,
@@ -1852,6 +1864,7 @@ class ConfigurationParser {
 				isBackground: isBackground,
 				problemMatchers: matchers,
 				hasDefinedMatchers: false,
+				runOptions: { rerunBehavior: Tasks.RerunBehavior.reevaluate },
 			};
 			let value = GroupKind.from(fileConfig.group);
 			if (value) {

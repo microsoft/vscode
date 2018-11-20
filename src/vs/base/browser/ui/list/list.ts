@@ -8,6 +8,7 @@ import { GestureEvent } from 'vs/base/browser/touch';
 export interface IListVirtualDelegate<T> {
 	getHeight(element: T): number;
 	getTemplateId(element: T): string;
+	hasDynamicHeight?(element: T): boolean;
 }
 
 export interface IListRenderer<T, TTemplateData> {
@@ -44,7 +45,7 @@ export interface IListGestureEvent<T> {
 
 export interface IListContextMenuEvent<T> {
 	browserEvent: UIEvent;
-	element: T;
+	element: T | undefined;
 	index: number;
-	anchor: HTMLElement | { x: number; y: number; };
+	anchor: HTMLElement | { x: number; y: number; } | undefined;
 }

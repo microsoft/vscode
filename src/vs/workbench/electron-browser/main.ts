@@ -46,10 +46,11 @@ import { Schemas } from 'vs/base/common/network';
 import { sanitizeFilePath, mkdirp } from 'vs/base/node/extfs';
 import { basename, join } from 'path';
 import { createHash } from 'crypto';
-import { parseStorage, StorageObject } from 'vs/platform/storage/common/storageLegacyMigration';
+import { StorageObject, parseFolderStorage, parseMultiRootStorage, parseNoWorkspaceStorage, parseEmptyStorage } from 'vs/platform/storage/common/storageLegacyMigration';
 import { StorageScope } from 'vs/platform/storage/common/storage';
 import { endsWith } from 'vs/base/common/strings';
 import { IdleValue } from 'vs/base/common/async';
+import { setGlobalLeakWarningThreshold } from 'vs/base/common/event';
 
 gracefulFs.gracefulify(fs); // enable gracefulFs
 
@@ -60,6 +61,9 @@ export function startup(configuration: IWindowConfiguration): Promise<void> {
 
 	// Setup perf
 	perf.importEntries(configuration.perfEntries);
+
+	// Configure emitter leak warning threshold
+	setGlobalLeakWarningThreshold(500);
 
 	// Browser config
 	browser.setZoomFactor(webFrame.getZoomFactor()); // Ensure others can listen to zoom level changes
@@ -294,7 +298,7 @@ function createStorageService(payload: IWorkspaceInitializationPayload, environm
 		}
 
 		// Otherwise do a migration of previous workspace data if the DB does not exist yet
-		// TODO@Ben remove me after one milestone
+		// TODO@Ben remove me after some milestones
 		const workspaceStorageDBPath = join(workspaceStorageFolder, 'storage.db');
 		perf.mark('willCheckWorkspaceStorageExists');
 		return exists(workspaceStorageDBPath).then(exists => {
@@ -312,94 +316,93 @@ function createStorageService(payload: IWorkspaceInitializationPayload, environm
 
 					// Otherwise, we migrate data from window.localStorage over
 					try {
-						const parsedStorage = parseStorage(window.localStorage);
-
 						let workspaceItems: StorageObject;
 						if (isWorkspaceIdentifier(payload)) {
-							workspaceItems = parsedStorage.multiRoot.get(`root:${payload.id}`);
+							workspaceItems = parseMultiRootStorage(window.localStorage, `root:${payload.id}`);
 						} else if (isSingleFolderWorkspaceInitializationPayload(payload)) {
-							workspaceItems = parsedStorage.folder.get(payload.folder.toString());
+							workspaceItems = parseFolderStorage(window.localStorage, payload.folder.toString());
 						} else {
 							if (payload.id === 'ext-dev') {
-								workspaceItems = parsedStorage.noWorkspace;
+								workspaceItems = parseNoWorkspaceStorage(window.localStorage);
 							} else {
-								workspaceItems = parsedStorage.empty.get(`empty:${payload.id}`);
+								workspaceItems = parseEmptyStorage(window.localStorage, `${payload.id}`);
 							}
 						}
 
-						const supportedKeys = new Map<string, string>();
-						[
-							'workbench.search.history',
-							'history.entries',
-							'ignoreNetVersionError',
-							'ignoreEnospcError',
-							'extensionUrlHandler.urlToHandle',
-							'terminal.integrated.isWorkspaceShellAllowed',
-							'workbench.tasks.ignoreTask010Shown',
-							'workbench.tasks.recentlyUsedTasks',
-							'workspaces.dontPromptToOpen',
-							'output.activechannel',
-							'outline/state',
-							'extensionsAssistant/workspaceRecommendationsIgnore',
-							'extensionsAssistant/dynamicWorkspaceRecommendations',
-							'debug.repl.history',
-							'editor.matchCase',
-							'editor.wholeWord',
-							'editor.isRegex',
-							'lifecyle.lastShutdownReason',
-							'debug.selectedroot',
-							'debug.selectedconfigname',
-							'debug.breakpoint',
-							'debug.breakpointactivated',
-							'debug.functionbreakpoint',
-							'debug.exceptionbreakpoint',
-							'debug.watchexpressions',
-							'workbench.sidebar.activeviewletid',
-							'workbench.panelpart.activepanelid',
-							'workbench.zenmode.active',
-							'workbench.centerededitorlayout.active',
-							'workbench.sidebar.restore',
-							'workbench.sidebar.hidden',
-							'workbench.panel.hidden',
-							'workbench.panel.location',
-							'extensionsIdentifiers/disabled',
-							'extensionsIdentifiers/enabled',
-							'scm.views',
-							'suggest/memories/first',
-							'suggest/memories/recentlyUsed',
-							'suggest/memories/recentlyUsedByPrefix',
-							'workbench.view.explorer.numberOfVisibleViews',
-							'workbench.view.extensions.numberOfVisibleViews',
-							'workbench.view.debug.numberOfVisibleViews',
-							'workbench.explorer.views.state',
-							'workbench.view.extensions.state',
-							'workbench.view.debug.state',
-							'memento/workbench.editor.walkThroughPart',
-							'memento/workbench.editor.settings2',
-							'memento/workbench.editor.htmlPreviewPart',
-							'memento/workbench.editor.defaultPreferences',
-							'memento/workbench.editors.files.textFileEditor',
-							'memento/workbench.editors.logViewer',
-							'memento/workbench.editors.textResourceEditor',
-							'memento/workbench.panel.output'
-						].forEach(key => supportedKeys.set(key.toLowerCase(), key));
+						const workspaceItemsKeys = workspaceItems ? Object.keys(workspaceItems) : [];
+						if (workspaceItemsKeys.length > 0) {
+							const supportedKeys = new Map<string, string>();
+							[
+								'workbench.search.history',
+								'history.entries',
+								'ignoreNetVersionError',
+								'ignoreEnospcError',
+								'extensionUrlHandler.urlToHandle',
+								'terminal.integrated.isWorkspaceShellAllowed',
+								'workbench.tasks.ignoreTask010Shown',
+								'workbench.tasks.recentlyUsedTasks',
+								'workspaces.dontPromptToOpen',
+								'output.activechannel',
+								'outline/state',
+								'extensionsAssistant/workspaceRecommendationsIgnore',
+								'extensionsAssistant/dynamicWorkspaceRecommendations',
+								'debug.repl.history',
+								'editor.matchCase',
+								'editor.wholeWord',
+								'editor.isRegex',
+								'lifecyle.lastShutdownReason',
+								'debug.selectedroot',
+								'debug.selectedconfigname',
+								'debug.breakpoint',
+								'debug.breakpointactivated',
+								'debug.functionbreakpoint',
+								'debug.exceptionbreakpoint',
+								'debug.watchexpressions',
+								'workbench.sidebar.activeviewletid',
+								'workbench.panelpart.activepanelid',
+								'workbench.zenmode.active',
+								'workbench.centerededitorlayout.active',
+								'workbench.sidebar.restore',
+								'workbench.sidebar.hidden',
+								'workbench.panel.hidden',
+								'workbench.panel.location',
+								'extensionsIdentifiers/disabled',
+								'extensionsIdentifiers/enabled',
+								'scm.views',
+								'suggest/memories/first',
+								'suggest/memories/recentlyUsed',
+								'suggest/memories/recentlyUsedByPrefix',
+								'workbench.view.explorer.numberOfVisibleViews',
+								'workbench.view.extensions.numberOfVisibleViews',
+								'workbench.view.debug.numberOfVisibleViews',
+								'workbench.explorer.views.state',
+								'workbench.view.extensions.state',
+								'workbench.view.debug.state',
+								'memento/workbench.editor.walkThroughPart',
+								'memento/workbench.editor.settings2',
+								'memento/workbench.editor.htmlPreviewPart',
+								'memento/workbench.editor.defaultPreferences',
+								'memento/workbench.editors.files.textFileEditor',
+								'memento/workbench.editors.logViewer',
+								'memento/workbench.editors.textResourceEditor',
+								'memento/workbench.panel.output'
+							].forEach(key => supportedKeys.set(key.toLowerCase(), key));
 
-						// Support extension storage as well (always the ID of the extension)
-						extensions.forEach(extension => {
-							let extensionId: string;
-							if (extension.indexOf('-') >= 0) {
-								extensionId = extension.substring(0, extension.lastIndexOf('-')); // convert "author.extension-0.2.5" => "author.extension"
-							} else {
-								extensionId = extension;
-							}
+							// Support extension storage as well (always the ID of the extension)
+							extensions.forEach(extension => {
+								let extensionId: string;
+								if (extension.indexOf('-') >= 0) {
+									extensionId = extension.substring(0, extension.lastIndexOf('-')); // convert "author.extension-0.2.5" => "author.extension"
+								} else {
+									extensionId = extension;
+								}
 
-							if (extensionId) {
-								supportedKeys.set(extensionId.toLowerCase(), extensionId);
-							}
-						});
+								if (extensionId) {
+									supportedKeys.set(extensionId.toLowerCase(), extensionId);
+								}
+							});
 
-						if (workspaceItems) {
-							Object.keys(workspaceItems).forEach(key => {
+							workspaceItemsKeys.forEach(key => {
 								const value = workspaceItems[key];
 
 								// first check for a well known supported key and store with realcase value
