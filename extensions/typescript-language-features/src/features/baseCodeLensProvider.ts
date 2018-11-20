@@ -9,7 +9,6 @@ import { ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
 import { escapeRegExp } from '../utils/regexp';
 import * as typeConverters from '../utils/typeConverters';
 
-
 export class ReferencesCodeLens extends vscode.CodeLens {
 	constructor(
 		public document: vscode.Uri,
@@ -20,14 +19,14 @@ export class ReferencesCodeLens extends vscode.CodeLens {
 	}
 }
 
-export class CachedNavTreeResponse {
-	private response?: Promise<ServerResponse<Proto.NavTreeResponse>>;
+export class CachedResponse<T extends Proto.Response> {
+	private response?: Promise<ServerResponse<T>>;
 	private version: number = -1;
 	private document: string = '';
 
 	public execute(
 		document: vscode.TextDocument,
-		f: () => Promise<ServerResponse<Proto.NavTreeResponse>>
+		f: () => Promise<ServerResponse<T>>
 	) {
 		if (this.matches(document)) {
 			return this.response;
@@ -42,8 +41,8 @@ export class CachedNavTreeResponse {
 
 	private update(
 		document: vscode.TextDocument,
-		response: Promise<ServerResponse<Proto.NavTreeResponse>>
-	): Promise<ServerResponse<Proto.NavTreeResponse>> {
+		response: Promise<ServerResponse<T>>
+	): Promise<ServerResponse<T>> {
 		this.response = response;
 		this.version = document.version;
 		this.document = document.uri.toString();
@@ -56,7 +55,7 @@ export abstract class TypeScriptBaseCodeLensProvider implements vscode.CodeLensP
 
 	public constructor(
 		protected client: ITypeScriptServiceClient,
-		private cachedResponse: CachedNavTreeResponse
+		private cachedResponse: CachedResponse<Proto.NavTreeResponse>
 	) { }
 
 	public get onDidChangeCodeLenses(): vscode.Event<void> {

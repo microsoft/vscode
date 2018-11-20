@@ -78,7 +78,7 @@ export function register(
 	selector: vscode.DocumentSelector,
 	modeId: string,
 	client: ITypeScriptServiceClient,
-	cachedResponse: CachedNavTreeResponse,
+	cachedResponse: CachedResponse<Proto.NavTreeResponse>,
 ) {
 	return new VersionDependentRegistration(client, API.v220, () =>
 		new ConfigurationDependentRegistration(modeId, 'implementationsCodeLens.enabled', () => {
