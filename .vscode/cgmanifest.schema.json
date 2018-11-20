@@ -10,31 +10,98 @@
 						"oneOf": [
 							{
 								"type": "object",
-								"required": [ "type", "git" ],
+								"required": [
+									"type",
+									"git"
+								],
 								"properties": {
-									"type": { "type": "string", "enum": [ "git" ] },
+									"type": {
+										"type": "string",
+										"enum": [
+											"git"
+										]
+									},
 									"git": {
 										"type": "object",
-										"required": [ "name", "repositoryUrl", "commitHash" ],
+										"required": [
+											"name",
+											"repositoryUrl",
+											"commitHash"
+										],
 										"properties": {
-											"name": { "type": "string" },
-											"repositoryUrl": { "type": "string" },
-											"commitHash": { "type": "string" }
+											"name": {
+												"type": "string"
+											},
+											"repositoryUrl": {
+												"type": "string"
+											},
+											"commitHash": {
+												"type": "string"
+											}
 										}
 									}
 								}
 							},
 							{
 								"type": "object",
-								"required": [ "type", "npm" ],
+								"required": [
+									"type",
+									"npm"
+								],
 								"properties": {
-									"type": { "type": "string", "enum": [ "npm" ] },
+									"type": {
+										"type": "string",
+										"enum": [
+											"npm"
+										]
+									},
 									"npm": {
 										"type": "object",
-										"required": [ "name", "version" ],
+										"required": [
+											"name",
+											"version"
+										],
 										"properties": {
-											"name": { "type": "string" },
-											"version": { "type": "string" }
+											"name": {
+												"type": "string"
+											},
+											"version": {
+												"type": "string"
+											}
+										}
+									}
+								}
+							},
+							{
+								"type": "object",
+								"required": [
+									"type",
+									"other"
+								],
+								"properties": {
+									"type": {
+										"type": "string",
+										"enum": [
+											"other"
+										]
+									},
+									"other": {
+										"type": "object",
+										"required": [
+											"name",
+											"downloadUrl",
+											"version"
+										],
+										"properties": {
+											"name": {
+												"type": "string"
+											},
+											"downloadUrl": {
+												"type": "string"
+											},
+											"version": {
+												"type": "string"
+											}
 										}
 									}
 								}

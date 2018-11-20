@@ -2,11 +2,11 @@
 	"registrations": [
 		{
 			"component": {
-				"type": "git",
-				"git": {
+				"type": "other",
+				"other": {
 					"name": "octicons-code",
-					"repositoryUrl": "https://octicons.github.com",
-					"commitHash": ""
+					"version": "3.1.0",
+					"downloadUrl": "https://registry.npmjs.org/octicons/-/octicons-3.1.0.tgz"
 				}
 			},
 			"licenseDetail": [
@@ -37,11 +37,11 @@
 		},
 		{
 			"component": {
-				"type": "git",
-				"git": {
+				"type": "other",
+				"other": {
 					"name": "octicons-font",
-					"repositoryUrl": "https://octicons.github.com",
-					"commitHash": ""
+					"version": "3.1.0",
+					"downloadUrl": "https://registry.npmjs.org/octicons/-/octicons-3.1.0.tgz"
 				}
 			},
 			"licenseDetail": [
