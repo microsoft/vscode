@@ -437,7 +437,7 @@ export class SQLiteStorageImpl {
 
 				const db: Database = new (this.logger.isTracing ? sqlite3.verbose().Database : sqlite3.Database)(path, error => {
 					if (error) {
-						return db.close(() => reject(error));
+						return db ? db.close(() => reject(error)) : reject(error);
 					}
 
 					// The following exec() statement serves two purposes:
@@ -450,11 +450,11 @@ export class SQLiteStorageImpl {
 					].join('')).then(() => {
 						mark('didSetupSQLiteSchema');
 
-						resolve({ path, db });
+						return resolve({ path, db });
 					}, error => {
 						mark('didSetupSQLiteSchema');
 
-						db.close(() => reject(error));
+						return db.close(() => reject(error));
 					});
 				});
 
