@@ -635,13 +635,7 @@ export function snippetForFunctionCall(
 	const snippet = new vscode.SnippetString(`${item.insertText || item.label}(`);
 
 	const parameterListParts = getParameterListParts(displayParts, item.label);
-	for (let i = 0; i < parameterListParts.parts.length; ++i) {
-		const paramterPart = parameterListParts.parts[i];
-		snippet.appendPlaceholder(paramterPart.text);
-		if (i !== parameterListParts.parts.length - 1) {
-			snippet.appendText(', ');
-		}
-	}
+	appendJoinedPlaceholders(snippet, parameterListParts.parts, ', ');
 
 	if (parameterListParts.hasOptionalParameters) {
 		snippet.appendTabstop();
@@ -649,6 +643,20 @@ export function snippetForFunctionCall(
 	snippet.appendText(')');
 	snippet.appendTabstop(0);
 	return snippet;
+}
+
+function appendJoinedPlaceholders(
+	snippet: vscode.SnippetString,
+	parts: ReadonlyArray<ParamterPart>,
+	joiner: string
+) {
+	for (let i = 0; i < parts.length; ++i) {
+		const paramterPart = parts[i];
+		snippet.appendPlaceholder(paramterPart.text);
+		if (i !== parts.length - 1) {
+			snippet.appendText(joiner);
+		}
+	}
 }
 
 interface ParamterPart {
