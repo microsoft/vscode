@@ -51,7 +51,7 @@
     "vscode-nsfw": "1.1.1",
     "vscode-proxy-agent": "0.1.1",
     "vscode-ripgrep": "^1.2.4",
-    "vscode-sqlite3": "4.0.4",
+    "vscode-sqlite3": "4.0.5",
     "vscode-textmate": "^4.0.1",
     "vscode-xterm": "3.9.0-beta13",
     "winreg": "^1.2.4",
