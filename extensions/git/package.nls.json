@@ -23,6 +23,7 @@
 	"command.commit": "Commit",
 	"command.commitStaged": "Commit Staged",
 	"command.commitEmpty": "Commit Empty",
+	"command.commitAndPush": "Commit and Push",
 	"command.commitStagedSigned": "Commit Staged (Signed Off)",
 	"command.commitStagedAmend": "Commit Staged (Amend)",
 	"command.commitAll": "Commit All",

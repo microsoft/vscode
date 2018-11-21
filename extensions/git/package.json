@@ -196,6 +196,11 @@
         "category": "Git"
       },
       {
+        "command": "git.commitAndPush",
+        "title": "%command.commitAndPush%",
+        "category": "Git"
+      },
+      {
         "command": "git.commitStagedSigned",
         "title": "%command.commitStagedSigned%",
         "category": "Git"
@@ -462,6 +467,10 @@
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
+          "command": "git.commitAndPush",
+          "when": "config.gif.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
           "command": "git.commitStagedSigned",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
@@ -664,6 +673,11 @@
         },
         {
           "command": "git.commitStaged",
+          "group": "3_commit",
+          "when": "scmProvider == git"
+        },
+        {
+          "command": "git.commitAndPush",
           "group": "3_commit",
           "when": "scmProvider == git"
         },

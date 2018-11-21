@@ -1279,6 +1279,12 @@ export class CommandCenter {
 		await this.commitWithAnyInput(repository, { all: false });
 	}
 
+	@command('git.commitAndPush', { repository: true })
+	async commitChangesAndPush(repository: Repository): Promise<void> {
+		await this.commitWithAnyInput(repository);
+		await this._push(repository, { pushType: PushType.Push });
+	}
+
 	@command('git.commitStagedSigned', { repository: true })
 	async commitStagedSigned(repository: Repository): Promise<void> {
 		await this.commitWithAnyInput(repository, { all: false, signoff: true });
