@@ -189,7 +189,7 @@ export class QueryBuilder {
 			return true;
 		}
 
-		return false;
+		return !!contentPattern.isMultiline;
 	}
 
 	/**
