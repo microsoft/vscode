@@ -11,15 +11,9 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Emitter, Event, mapEvent } from 'vs/base/common/event';
 import { timeout } from 'vs/base/common/async';
 
-export interface IDataTreeElement<T> {
-	readonly element: T;
-	readonly collapsible?: boolean;
-	readonly collapsed?: boolean;
-}
-
 export interface IDataSource<T extends NonNullable<any>> {
 	hasChildren(element: T | null): boolean;
-	getChildren(element: T | null): Thenable<IDataTreeElement<T>[]>;
+	getChildren(element: T | null): Thenable<T[]>;
 }
 
 enum DataTreeNodeState {
@@ -193,15 +187,17 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 					node.state = DataTreeNodeState.Loaded;
 					this._onDidChangeNodeState.fire(node);
 
-					const createTreeElement = (el: IDataTreeElement<T>): ITreeElement<IDataTreeNode<T>> => {
+					const createTreeElement = (element: T): ITreeElement<IDataTreeNode<T>> => {
+						const collapsible = this.dataSource.hasChildren(element);
+
 						return {
 							element: {
-								element: el.element,
+								element: element,
 								state: DataTreeNodeState.Uninitialized,
 								parent: node
 							},
-							collapsible: el.collapsible,
-							collapsed: typeof el.collapsed === 'boolean' ? el.collapsed : true
+							collapsible,
+							collapsed: true
 						};
 					};
 
