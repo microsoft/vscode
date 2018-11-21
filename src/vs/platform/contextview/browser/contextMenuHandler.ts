@@ -9,7 +9,6 @@ import { combinedDisposable, IDisposable, dispose } from 'vs/base/common/lifecyc
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ActionRunner, IAction, IRunEvent } from 'vs/base/common/actions';
 import { Menu } from 'vs/base/browser/ui/menu/menu';
-
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -57,6 +56,7 @@ export class ContextMenuHandler {
 
 			this.focusToReturn = document.activeElement as HTMLElement;
 
+			let menu: Menu | undefined;
 			this.contextViewService.showContextView({
 				getAnchor: () => delegate.getAnchor(),
 				canRelayout: false,
@@ -76,7 +76,7 @@ export class ContextMenuHandler {
 					actionRunner.onDidBeforeRun(this.onActionRun, this, menuDisposables);
 					actionRunner.onDidRun(this.onDidActionRun, this, menuDisposables);
 
-					const menu = new Menu(container, actions, {
+					menu = new Menu(container, actions, {
 						actionItemProvider: delegate.getActionItem,
 						context: delegate.getActionsContext ? delegate.getActionsContext() : null,
 						actionRunner,
@@ -89,9 +89,11 @@ export class ContextMenuHandler {
 					menu.onDidBlur(() => this.contextViewService.hideContextView(true), null, menuDisposables);
 					domEvent(window, EventType.BLUR)(() => { this.contextViewService.hideContextView(true); }, null, menuDisposables);
 
-					menu.focus(!!delegate.autoSelectFirstItem);
-
 					return combinedDisposable([...menuDisposables, menu]);
+				},
+
+				focus: () => {
+					menu.focus(!!delegate.autoSelectFirstItem);
 				},
 
 				onHide: (didCancel?: boolean) => {

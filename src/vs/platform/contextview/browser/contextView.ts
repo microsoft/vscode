@@ -27,6 +27,7 @@ export interface IContextViewDelegate {
 	render(container: HTMLElement): IDisposable;
 	onDOMEvent?(e: any, activeElement: HTMLElement): void;
 	onHide?(data?: any): void;
+	focus?(): void;
 }
 
 export const IContextMenuService = createDecorator<IContextMenuService>('contextMenuService');
