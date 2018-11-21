@@ -95,7 +95,7 @@ export class ContextMenuController implements IEditorContribution {
 		// Unless the user triggerd the context menu through Shift+F10, use the mouse position as menu position
 		let forcedPosition: IPosition;
 		if (e.target.type !== MouseTargetType.TEXTAREA) {
-			forcedPosition = { x: e.event.posx, y: e.event.posy + 1 };
+			forcedPosition = { x: e.event.posx + 2, y: e.event.posy + 1 };
 		}
 
 		// Show the context menu
