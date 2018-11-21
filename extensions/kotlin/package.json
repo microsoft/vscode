@@ -1,0 +1,24 @@
+{
+	"name": "kotlin",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "1.0.0",
+	"publisher": "vscode",
+	"engines": { "vscode": "*" },
+	"scripts": {
+		"update-grammar": "node ../../build/npm/update-grammar.js fwcd/KotlinLanguageServer syntaxes/Kotlin.tmLanguage.json ./syntaxes/Kotlin.tmLanguage.json"
+	},
+	"contributes": {
+		"languages": [{
+			"id": "kotlin",
+			"extensions": [ ".kt", ".kts" ],
+			"aliases": [ "Kotlin", "kotlin" ],
+			"configuration": "./language-configuration.json"
+		}],
+		"grammars": [{
+			"language": "kotlin",
+			"scopeName": "source.kotlin",
+			"path": "./syntaxes/Kotlin.tmLanguage.json"
+		}]
+	}
+}
