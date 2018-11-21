@@ -632,7 +632,6 @@ export function snippetForFunctionCall(
 	let hasAddedParameters = false;
 
 	const snippet = new vscode.SnippetString();
-	const methodName = displayParts.find(part => part.kind === 'methodName');
 	if (item.insertText) {
 		if (typeof item.insertText === 'string') {
 			snippet.appendText(item.insertText);
@@ -640,17 +639,18 @@ export function snippetForFunctionCall(
 			return item.insertText;
 		}
 	} else {
-		snippet.appendText((methodName && methodName.text) || item.label);
+		snippet.appendText(item.label);
 	}
 	snippet.appendText('(');
 
+	const functionSignatureDisplayParts = getFunctionSignatureDisplayParts(displayParts, item.label);
 	let parenCount = 0;
 	let i = 0;
-	for (; i < displayParts.length; ++i) {
-		const part = displayParts[i];
+	for (; i < functionSignatureDisplayParts.length; ++i) {
+		const part = functionSignatureDisplayParts[i];
 		// Only take top level paren names
 		if (part.kind === 'parameterName' && parenCount === 1) {
-			const next = displayParts[i + 1];
+			const next = functionSignatureDisplayParts[i + 1];
 			// Skip optional parameters
 			const nameIsFollowedByOptionalIndicator = next && next.text === '?';
 			if (!nameIsFollowedByOptionalIndicator) {
@@ -682,6 +682,43 @@ export function snippetForFunctionCall(
 	snippet.appendText(')');
 	snippet.appendTabstop(0);
 	return snippet;
+}
+
+function getFunctionSignatureDisplayParts(
+	displayParts: ReadonlyArray<Proto.SymbolDisplayPart>,
+	label: string,
+): ReadonlyArray<Proto.SymbolDisplayPart> {
+	let start: number | undefined;
+	let end: number | undefined;
+
+	let index = 0;
+	let nestingLevel = 0;
+	for (; index < displayParts.length; ++index) {
+		const part = displayParts[index];
+		if (part.kind === 'methodName' || part.kind === 'functionName' || part.kind === 'text' && part.text === label) {
+			if (nestingLevel === 0) {
+				start = index;
+			}
+		} else if (part.kind === 'punctuation') {
+			switch (part.text) {
+				case '(':
+					++nestingLevel;
+					break;
+
+				case ')':
+					--nestingLevel;
+					if (nestingLevel <= 0) {
+						end = index;
+					}
+
+					break;
+			}
+		}
+	}
+	if (typeof start === 'number' && typeof end === 'number') {
+		return displayParts.slice(start, end);
+	}
+	return [];
 }
 
 function shouldExcludeCompletionEntry(

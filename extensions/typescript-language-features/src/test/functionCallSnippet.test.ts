@@ -81,12 +81,21 @@ suite('typescript function call snippets', () => {
 			'foo(${1:a}, ${2:b})$0');
 	});
 
-	test('Should skip over return type', async () => {
+	test('Should skip over return type while extracting parameters', async () => {
 		assert.strictEqual(
 			snippetForFunctionCall(
 				{ label: 'foo' },
 				[{ "text": "function", "kind": "keyword" }, { "text": " ", "kind": "space" }, { "text": "foo", "kind": "functionName" }, { "text": "(", "kind": "punctuation" }, { "text": "a", "kind": "parameterName" }, { "text": ":", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "number", "kind": "keyword" }, { "text": ")", "kind": "punctuation" }, { "text": ":", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "{", "kind": "punctuation" }, { "text": "\n", "kind": "lineBreak" }, { "text": "    ", "kind": "space" }, { "text": "f", "kind": "propertyName" }, { "text": ":", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "(", "kind": "punctuation" }, { "text": "b", "kind": "parameterName" }, { "text": ":", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "number", "kind": "keyword" }, { "text": ")", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "=>", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "number", "kind": "keyword" }, { "text": ";", "kind": "punctuation" }, { "text": "\n", "kind": "lineBreak" }, { "text": "}", "kind": "punctuation" }]
 			).value,
 			'foo(${1:a})$0');
+	});
+
+	test('Should skip over prefix type while extracting parameters', async () => {
+		assert.strictEqual(
+			snippetForFunctionCall(
+				{ label: 'foo' },
+				[{ "text": "(", "kind": "punctuation" }, { "text": "method", "kind": "text" }, { "text": ")", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "Array", "kind": "localName" }, { "text": "<", "kind": "punctuation" }, { "text": "{", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "dispose", "kind": "methodName" }, { "text": "(", "kind": "punctuation" }, { "text": ")", "kind": "punctuation" }, { "text": ":", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "any", "kind": "keyword" }, { "text": ";", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "}", "kind": "punctuation" }, { "text": ">", "kind": "punctuation" }, { "text": ".", "kind": "punctuation" }, { "text": "foo", "kind": "methodName" }, { "text": "(", "kind": "punctuation" }, { "text": "searchElement", "kind": "parameterName" }, { "text": ":", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "{", "kind": "punctuation" }, { "text": "\n", "kind": "lineBreak" }, { "text": "    ", "kind": "space" }, { "text": "dispose", "kind": "methodName" }, { "text": "(", "kind": "punctuation" }, { "text": ")", "kind": "punctuation" }, { "text": ":", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "any", "kind": "keyword" }, { "text": ";", "kind": "punctuation" }, { "text": "\n", "kind": "lineBreak" }, { "text": "}", "kind": "punctuation" }, { "text": ",", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "fromIndex", "kind": "parameterName" }, { "text": "?", "kind": "punctuation" }, { "text": ":", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "number", "kind": "keyword" }, { "text": ")", "kind": "punctuation" }, { "text": ":", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "number", "kind": "keyword" }]
+			).value,
+			'foo(${1:searchElement}$2)$0');
 	});
 });
