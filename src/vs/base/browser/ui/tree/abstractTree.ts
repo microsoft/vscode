@@ -181,6 +181,11 @@ export interface ITreeEvent<T> {
 	browserEvent?: UIEvent;
 }
 
+export interface ITreeMouseEvent<T> {
+	browserEvent: MouseEvent;
+	element: T | undefined;
+}
+
 export interface ITreeContextMenuEvent<T> {
 	browserEvent: UIEvent;
 	element: T | undefined;
@@ -191,6 +196,13 @@ function asTreeEvent<T>(event: IListEvent<ITreeNode<T, any>>): ITreeEvent<T> {
 	return {
 		elements: event.elements.map(node => node.element),
 		browserEvent: event.browserEvent
+	};
+}
+
+function asTreeMouseEvent<T>(event: IListMouseEvent<ITreeNode<T, any>>): ITreeMouseEvent<T> {
+	return {
+		browserEvent: event.browserEvent,
+		element: event.element.element
 	};
 }
 
@@ -211,6 +223,8 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	get onDidChangeFocus(): Event<ITreeEvent<T>> { return mapEvent(this.view.onFocusChange, asTreeEvent); }
 	get onDidChangeSelection(): Event<ITreeEvent<T>> { return mapEvent(this.view.onSelectionChange, asTreeEvent); }
 
+	get onMouseClick(): Event<ITreeMouseEvent<T>> { return mapEvent(this.view.onMouseClick, asTreeMouseEvent); }
+	get onMouseDblClick(): Event<ITreeMouseEvent<T>> { return mapEvent(this.view.onMouseDblClick, asTreeMouseEvent); }
 	get onContextMenu(): Event<ITreeContextMenuEvent<T>> { return mapEvent(this.view.onContextMenu, asTreeContextMenuEvent); }
 	get onDidFocus(): Event<void> { return this.view.onDidFocus; }
 	get onDidBlur(): Event<void> { return this.view.onDidBlur; }
@@ -238,7 +252,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		onDidChangeCollapseStateRelay.input = this.model.onDidChangeCollapseState;
 
 		if (options.mouseSupport !== false) {
-			this.view.onMouseClick(this.onMouseClick, this, this.disposables);
+			this.view.onMouseClick(this.reactOnMouseClick, this, this.disposables);
 		}
 
 		if (options.keyboardSupport !== false) {
@@ -385,7 +399,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		return this.view.getRelativeTop(index);
 	}
 
-	private onMouseClick(e: IListMouseEvent<ITreeNode<T, TFilterData>>): void {
+	private reactOnMouseClick(e: IListMouseEvent<ITreeNode<T, TFilterData>>): void {
 		const node = e.element;
 
 		if (!node) {

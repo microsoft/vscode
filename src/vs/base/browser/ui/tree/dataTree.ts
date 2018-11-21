@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITreeOptions, ComposedTreeDelegate, createComposedTreeListOptions, ITreeEvent, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/abstractTree';
+import { ITreeOptions, ComposedTreeDelegate, createComposedTreeListOptions, ITreeEvent, ITreeContextMenuEvent, ITreeMouseEvent } from 'vs/base/browser/ui/tree/abstractTree';
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeElement, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
@@ -96,6 +96,13 @@ function asTreeEvent<T>(e: ITreeEvent<IDataTreeNode<T>>): ITreeEvent<T> {
 	};
 }
 
+function asTreeMouseEvent<T>(e: ITreeMouseEvent<IDataTreeNode<T>>): ITreeMouseEvent<T> {
+	return {
+		browserEvent: e.browserEvent,
+		element: e.element.element
+	};
+}
+
 function asTreeContextMenuEvent<T>(e: ITreeContextMenuEvent<IDataTreeNode<T>>): ITreeContextMenuEvent<T> {
 	return {
 		browserEvent: e.browserEvent,
@@ -117,6 +124,8 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 	get onDidChangeFocus(): Event<ITreeEvent<T>> { return mapEvent(this.tree.onDidChangeFocus, asTreeEvent); }
 	get onDidChangeSelection(): Event<ITreeEvent<T>> { return mapEvent(this.tree.onDidChangeSelection, asTreeEvent); }
 
+	get onMouseClick(): Event<ITreeMouseEvent<T>> { return mapEvent(this.tree.onMouseClick, asTreeMouseEvent); }
+	get onMouseDblClick(): Event<ITreeMouseEvent<T>> { return mapEvent(this.tree.onMouseDblClick, asTreeMouseEvent); }
 	get onContextMenu(): Event<ITreeContextMenuEvent<T>> { return mapEvent(this.tree.onContextMenu, asTreeContextMenuEvent); }
 	get onDidDOMFocus(): Event<void> { return this.tree.onDidFocus; }
 	get onDidDOMBlur(): Event<void> { return this.tree.onDidBlur; }
