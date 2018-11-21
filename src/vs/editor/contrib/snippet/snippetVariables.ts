@@ -193,14 +193,16 @@ export class CommentBasedVariableResolver implements VariableResolver {
 	resolve(variable: Variable): string | undefined {
 		const { name } = variable;
 		const language = this._model.getLanguageIdentifier();
-		const comments = LanguageConfigurationRegistry.getComments(language.id);
-
+		const config = LanguageConfigurationRegistry.getComments(language.id);
+		if (!config) {
+			return undefined;
+		}
 		if (name === 'LINE_COMMENT') {
-			return comments.lineCommentToken || undefined;
+			return config.lineCommentToken || undefined;
 		} else if (name === 'BLOCK_COMMENT_START') {
-			return comments.blockCommentStartToken || undefined;
+			return config.blockCommentStartToken || undefined;
 		} else if (name === 'BLOCK_COMMENT_END') {
-			return comments.blockCommentEndToken || undefined;
+			return config.blockCommentEndToken || undefined;
 		}
 		return undefined;
 	}
