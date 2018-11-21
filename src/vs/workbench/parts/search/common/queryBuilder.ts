@@ -67,10 +67,8 @@ export class QueryBuilder {
 	) { }
 
 	text(contentPattern: IPatternInfo, folderResources?: uri[], options: ITextQueryBuilderOptions = {}): ITextQuery {
-		contentPattern.isCaseSensitive = this.isCaseSensitive(contentPattern);
-		contentPattern.isMultiline = this.isMultiline(contentPattern);
+		contentPattern = this.getContentPattern(contentPattern);
 		const searchConfig = this.configurationService.getValue<ISearchConfiguration>();
-		contentPattern.wordSeparators = searchConfig.editor.wordSeparators;
 
 		const fallbackToPCRE = folderResources && folderResources.some(folder => {
 			const folderConfig = this.configurationService.getValue<ISearchConfiguration>({ resource: folder });
@@ -89,6 +87,28 @@ export class QueryBuilder {
 			afterContext: options.afterContext,
 			userDisabledExcludesAndIgnoreFiles: options.disregardExcludeSettings && options.disregardIgnoreFiles
 		};
+	}
+
+	/**
+	 * Adjusts input pattern for config
+	 */
+	private getContentPattern(inputPattern: IPatternInfo): IPatternInfo {
+		const searchConfig = this.configurationService.getValue<ISearchConfiguration>();
+
+		const newPattern = {
+			...inputPattern,
+			wordSeparators: searchConfig.editor.wordSeparators
+		};
+
+		if (this.isCaseSensitive(inputPattern)) {
+			newPattern.isCaseSensitive = true;
+		}
+
+		if (this.isMultiline(inputPattern)) {
+			newPattern.isMultiline = true;
+		}
+
+		return newPattern;
 	}
 
 	file(folderResources: uri[] | undefined, options: IFileQueryBuilderOptions = {}): IFileQuery {
@@ -162,6 +182,10 @@ export class QueryBuilder {
 		}
 
 		if (contentPattern.isRegExp && isMultilineRegexSource(contentPattern.pattern)) {
+			return true;
+		}
+
+		if (contentPattern.pattern.indexOf('\n') >= 0) {
 			return true;
 		}
 

@@ -291,6 +291,9 @@ export class InputBox extends Widget {
 
 	public set width(width: number) {
 		this.input.style.width = width + 'px';
+		if (this.mirror) {
+			this.mirror.style.width = width + 'px';
+		}
 	}
 
 	public showMessage(message: IMessage, force?: boolean): void {

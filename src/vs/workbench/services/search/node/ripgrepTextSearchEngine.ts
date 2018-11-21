@@ -7,7 +7,7 @@ import * as cp from 'child_process';
 import { EventEmitter } from 'events';
 import * as path from 'path';
 import { NodeStringDecoder, StringDecoder } from 'string_decoder';
-import { createRegExp, startsWith, startsWithUTF8BOM, stripUTF8BOM } from 'vs/base/common/strings';
+import { createRegExp, startsWith, startsWithUTF8BOM, stripUTF8BOM, escapeRegExpCharacters } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { IExtendedExtensionSearchOptions, SearchError, SearchErrorCode, serializeSearchError } from 'vs/platform/search/common/search';
 import * as vscode from 'vscode';
@@ -341,6 +341,11 @@ function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOpti
 	if (pattern === '--') {
 		query.isRegExp = true;
 		pattern = '\\-\\-';
+	}
+
+	if (query.isMultiline && !query.isRegExp) {
+		query.pattern = escapeRegExpCharacters(query.pattern);
+		query.isRegExp = true;
 	}
 
 	if ((<IExtendedExtensionSearchOptions>options).usePCRE2) {
