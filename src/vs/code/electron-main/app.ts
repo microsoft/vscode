@@ -70,7 +70,6 @@ import { nativeSep, join } from 'vs/base/common/paths';
 import { homedir } from 'os';
 import { localize } from 'vs/nls';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
-import { RemoteAuthorityResolverChannelClient } from 'vs/platform/remote/node/remoteAuthorityResolverChannel';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/platform/remote/node/remoteAgentFileSystemChannel';
 import { ResolvedAuthority } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { SnapUpdateService } from 'vs/platform/update/electron-main/updateService.snap';
@@ -177,11 +176,9 @@ export class CodeApplication {
 			private _client: TPromise<Client<RemoteAgentConnectionContext>>;
 			private _disposeRunner: RunOnceScheduler;
 
-			constructor(authority: string, connectionInfo: TPromise<ResolvedAuthority>) {
+			constructor(authority: string, host: string, port: number) {
 				this._authority = authority;
-				this._client = connectionInfo.then(({ host, port }) => {
-					return connectRemoteAgentManagement(authority, host, port, `main`);
-				});
+				this._client = connectRemoteAgentManagement(authority, host, port, `main`);
 				this._disposeRunner = new RunOnceScheduler(() => this._dispose(), 5000);
 			}
 
@@ -199,6 +196,23 @@ export class CodeApplication {
 			}
 		}
 
+		const resolvedAuthorities = new Map<string, ResolvedAuthority>();
+		ipc.on('vscode:remoteAuthorityResolved', (event: any, data: ResolvedAuthority) => {
+			resolvedAuthorities.set(data.authority, data);
+		});
+		const resolveAuthority = (authority: string): ResolvedAuthority | null => {
+			if (authority.indexOf('+') >= 0) {
+				if (resolvedAuthorities.has(authority)) {
+					return resolvedAuthorities.get(authority);
+				}
+				return null;
+			} else {
+				const [host, strPort] = authority.split(':');
+				const port = parseInt(strPort, 10);
+				return { authority, host, port };
+			}
+		};
+
 		protocol.registerBufferProtocol(REMOTE_HOST_SCHEME, async (request, callback) => {
 			if (request.method !== 'GET') {
 				return callback(null);
@@ -209,12 +223,13 @@ export class CodeApplication {
 			if (connectionPool.has(uri.authority)) {
 				activeConnection = connectionPool.get(uri.authority);
 			} else {
-				if (this.sharedProcessClient) {
-					const remoteAuthorityResolverChannel = getDelayedChannel(this.sharedProcessClient.then(c => c.getChannel('remoteAuthorityResolver')));
-					const remoteAuthorityResolverChannelClient = new RemoteAuthorityResolverChannelClient(remoteAuthorityResolverChannel);
-					activeConnection = new ActiveConnection(uri.authority, remoteAuthorityResolverChannelClient.resolveAuthority(uri.authority));
-					connectionPool.set(uri.authority, activeConnection);
+				let resolvedAuthority = resolveAuthority(uri.authority);
+				if (!resolvedAuthority) {
+					callback(null);
+					return;
 				}
+				activeConnection = new ActiveConnection(uri.authority, resolvedAuthority.host, resolvedAuthority.port);
+				connectionPool.set(uri.authority, activeConnection);
 			}
 			try {
 				const rawClient = await activeConnection.getClient();
