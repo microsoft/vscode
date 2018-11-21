@@ -589,7 +589,7 @@ export class ExtensionsListView extends ViewletPanel {
 			.then(result => this.getPagedModel(result));
 	}
 
-	// Sorts the firsPage of the pager in the same order as given array of extension ids
+	// Sorts the firstPage of the pager in the same order as given array of extension ids
 	private sortFirstPage(pager: IPager<IExtension>, ids: string[]) {
 		ids = ids.map(x => x.toLowerCase());
 		pager.firstPage.sort((a, b) => {
