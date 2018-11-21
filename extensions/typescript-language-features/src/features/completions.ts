@@ -452,7 +452,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		if (detail && item.useCodeSnippet) {
 			const shouldCompleteFunction = await this.isValidFunctionCompletionContext(filepath, item.position, token);
 			if (shouldCompleteFunction) {
-				item.insertText = this.snippetForFunctionCall(item, detail);
+				item.insertText = snippetForFunctionCall(item, detail.displayParts);
 				commands.push({ title: 'triggerParameterHints', command: 'editor.action.triggerParameterHints' });
 			}
 		}
@@ -622,63 +622,63 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			return true;
 		}
 	}
+}
 
-	private snippetForFunctionCall(
-		item: vscode.CompletionItem,
-		detail: Proto.CompletionEntryDetails
-	): vscode.SnippetString {
-		let hasOptionalParameters = false;
-		let hasAddedParameters = false;
+export function snippetForFunctionCall(
+	item: { insertText?: string | vscode.SnippetString, label: string },
+	displayParts: ReadonlyArray<Proto.SymbolDisplayPart>
+): vscode.SnippetString {
+	let hasOptionalParameters = false;
+	let hasAddedParameters = false;
 
-		const snippet = new vscode.SnippetString();
-		const methodName = detail.displayParts.find(part => part.kind === 'methodName');
-		if (item.insertText) {
-			if (typeof item.insertText === 'string') {
-				snippet.appendText(item.insertText);
-			} else {
-				return item.insertText;
-			}
+	const snippet = new vscode.SnippetString();
+	const methodName = displayParts.find(part => part.kind === 'methodName');
+	if (item.insertText) {
+		if (typeof item.insertText === 'string') {
+			snippet.appendText(item.insertText);
 		} else {
-			snippet.appendText((methodName && methodName.text) || item.label);
+			return item.insertText;
 		}
-		snippet.appendText('(');
+	} else {
+		snippet.appendText((methodName && methodName.text) || item.label);
+	}
+	snippet.appendText('(');
 
-		let parenCount = 0;
-		let i = 0;
-		for (; i < detail.displayParts.length; ++i) {
-			const part = detail.displayParts[i];
-			// Only take top level paren names
-			if (part.kind === 'parameterName' && parenCount === 1) {
-				const next = detail.displayParts[i + 1];
-				// Skip optional parameters
-				const nameIsFollowedByOptionalIndicator = next && next.text === '?';
-				if (!nameIsFollowedByOptionalIndicator) {
-					if (hasAddedParameters) {
-						snippet.appendText(', ');
-					}
-					hasAddedParameters = true;
-					snippet.appendPlaceholder(part.text);
+	let parenCount = 0;
+	let i = 0;
+	for (; i < displayParts.length; ++i) {
+		const part = displayParts[i];
+		// Only take top level paren names
+		if (part.kind === 'parameterName' && parenCount === 1) {
+			const next = displayParts[i + 1];
+			// Skip optional parameters
+			const nameIsFollowedByOptionalIndicator = next && next.text === '?';
+			if (!nameIsFollowedByOptionalIndicator) {
+				if (hasAddedParameters) {
+					snippet.appendText(', ');
 				}
-				hasOptionalParameters = hasOptionalParameters || nameIsFollowedByOptionalIndicator;
-			} else if (part.kind === 'punctuation') {
-				if (part.text === '(') {
-					++parenCount;
-				} else if (part.text === ')') {
-					--parenCount;
-				} else if (part.text === '...' && parenCount === 1) {
-					// Found rest parmeter. Do not fill in any further arguments
-					hasOptionalParameters = true;
-					break;
-				}
+				hasAddedParameters = true;
+				snippet.appendPlaceholder(part.text);
+			}
+			hasOptionalParameters = hasOptionalParameters || nameIsFollowedByOptionalIndicator;
+		} else if (part.kind === 'punctuation') {
+			if (part.text === '(') {
+				++parenCount;
+			} else if (part.text === ')') {
+				--parenCount;
+			} else if (part.text === '...' && parenCount === 1) {
+				// Found rest parmeter. Do not fill in any further arguments
+				hasOptionalParameters = true;
+				break;
 			}
 		}
-		if (hasOptionalParameters) {
-			snippet.appendTabstop();
-		}
-		snippet.appendText(')');
-		snippet.appendTabstop(0);
-		return snippet;
 	}
+	if (hasOptionalParameters) {
+		snippet.appendTabstop();
+	}
+	snippet.appendText(')');
+	snippet.appendTabstop(0);
+	return snippet;
 }
 
 function shouldExcludeCompletionEntry(
