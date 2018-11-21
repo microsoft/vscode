@@ -144,7 +144,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		this.uninstalledPath = path.join(this.extensionsPath, '.obsolete');
 		this.uninstalledFileLimiter = new Queue();
 		this.manifestCache = this._register(new ExtensionsManifestCache(environmentService, this));
-		this.extensionLifecycle = this._register(new ExtensionsLifecycle(this.logService));
+		this.extensionLifecycle = this._register(new ExtensionsLifecycle(environmentService, this.logService));
 
 		this._register(toDisposable(() => {
 			this.installingExtensions.forEach(promise => promise.cancel());
@@ -449,17 +449,17 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		const extensionPath = path.join(location, id);
 		return pfs.rimraf(extensionPath)
 			.then(() => this.extractAndRename(id, zipPath, tempPath, extensionPath, token), e => Promise.reject(new ExtensionManagementError(nls.localize('errorDeleting', "Unable to delete the existing folder '{0}' while installing the extension '{1}'. Please delete the folder manually and try again", extensionPath, id), INSTALL_ERROR_DELETING)))
-			.then(() => {
-				this.logService.info('Installation completed.', id);
-				return this.scanExtension(id, location, type);
-			})
-			.then(local => {
-				if (metadata) {
-					local.metadata = metadata;
-					return this.saveMetadataForLocalExtension(local);
-				}
-				return local;
-			});
+			.then(() => this.scanExtension(id, location, type))
+			.then(local =>
+				this.extensionLifecycle.postInstall(local)
+					.then(() => {
+						this.logService.info('Installation completed.', id);
+						if (metadata) {
+							local.metadata = metadata;
+							return this.saveMetadataForLocalExtension(local);
+						}
+						return local;
+					}, error => pfs.rimraf(extensionPath).then(() => Promise.reject(error), () => Promise.reject(error))));
 	}
 
 	private extractAndRename(id: string, zipPath: string, extractPath: string, renamePath: string, token: CancellationToken): Promise<void> {
@@ -810,7 +810,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			.then(uninstalled => this.scanExtensions(this.extensionsPath, LocalExtensionType.User) // All user extensions
 				.then(extensions => {
 					const toRemove: ILocalExtension[] = extensions.filter(e => uninstalled[e.identifier.id]);
-					return Promise.all(toRemove.map(e => this.extensionLifecycle.uninstall(e).then(() => this.removeUninstalledExtension(e))));
+					return Promise.all(toRemove.map(e => this.extensionLifecycle.postUninstall(e).then(() => this.removeUninstalledExtension(e))));
 				})
 			).then(() => null);
 	}
