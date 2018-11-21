@@ -21,8 +21,6 @@ export interface IStorageOptions {
 
 export interface IStorageLoggingOptions {
 	logError?: (error: string | Error) => void;
-
-	trace?: boolean;
 	logTrace?: (msg: string) => void;
 }
 
@@ -509,27 +507,32 @@ export class SQLiteStorageImpl {
 }
 
 class SQLiteStorageLogger {
-	private readonly logTrace: boolean;
-	private readonly logError: boolean;
+	private readonly logTrace: (msg: string) => void;
+	private readonly logError: (error: string | Error) => void;
 
-	constructor(private readonly options?: IStorageLoggingOptions) {
-		this.logTrace = !!(options && options.trace && typeof options.logTrace === 'function');
-		this.logError = !!(options && typeof options.logError === 'function');
+	constructor(options?: IStorageLoggingOptions) {
+		if (options && typeof options.logTrace === 'function') {
+			this.logTrace = options.logTrace;
+		}
+
+		if (options && typeof options.logError === 'function') {
+			this.logError = options.logError;
+		}
 	}
 
 	get isTracing(): boolean {
-		return this.logTrace;
+		return !!this.logTrace;
 	}
 
 	trace(msg: string): void {
-		if (this.logTrace && this.options && this.options.logTrace) {
-			this.options.logTrace(msg);
+		if (this.logTrace) {
+			this.logTrace(msg);
 		}
 	}
 
 	error(error: string | Error): void {
-		if (this.logError && this.options && this.options.logError) {
-			this.options.logError(error);
+		if (this.logError) {
+			this.logError(error);
 		}
 	}
 }

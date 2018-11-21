@@ -69,8 +69,7 @@ export class StorageService extends Disposable implements IStorageService {
 		super();
 
 		this.loggingOptions = {
-			trace: logService.getLevel() === LogLevel.Trace,
-			logTrace: msg => logService.trace(msg),
+			logTrace: (logService.getLevel() === LogLevel.Trace) ? msg => logService.trace(msg) : void 0,
 			logError: error => {
 				logService.error(error);
 
