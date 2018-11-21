@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import * as Proto from '../protocol';
+import * as PConst from '../protocol.const';
 
 export function snippetForFunctionCall(
 	item: { insertText?: string | vscode.SnippetString; label: string; },
@@ -45,12 +46,12 @@ function getParameterListParts(displayParts: ReadonlyArray<Proto.SymbolDisplayPa
 	let parenCount = 0;
 	for (let i = 0; i < displayParts.length; ++i) {
 		const part = displayParts[i];
-		if ((part.kind === 'methodName' || part.kind === 'functionName' || part.kind === 'text') && part.text === label) {
+		if ((part.kind === PConst.DisplayPartKind.methodName || part.kind === PConst.DisplayPartKind.functionName || part.kind === PConst.DisplayPartKind.text) && part.text === label) {
 			if (parenCount === 0) {
 				isInMethod = true;
 			}
 		}
-		if (part.kind === 'parameterName' && parenCount === 1 && isInMethod) {
+		if (part.kind === PConst.DisplayPartKind.parameterName && parenCount === 1 && isInMethod) {
 			// Only take top level paren names
 			const next = displayParts[i + 1];
 			// Skip optional parameters
@@ -60,7 +61,7 @@ function getParameterListParts(displayParts: ReadonlyArray<Proto.SymbolDisplayPa
 			}
 			hasOptionalParameters = hasOptionalParameters || nameIsFollowedByOptionalIndicator;
 		}
-		else if (part.kind === 'punctuation') {
+		else if (part.kind === PConst.DisplayPartKind.punctuation) {
 			if (part.text === '(') {
 				++parenCount;
 			} else if (part.text === ')') {
