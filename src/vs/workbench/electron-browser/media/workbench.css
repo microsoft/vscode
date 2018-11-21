@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-workbench {
-	font-size: 13px;
-	line-height: 1.4em;
 	position: relative;
 	z-index: 1;
 	overflow: hidden;

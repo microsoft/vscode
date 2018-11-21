@@ -22,7 +22,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ADD_ROOT_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { IsMacContext } from 'vs/platform/workbench/common/contextkeys';
-
+import { WORKBENCH_FONT_DEFAULTS } from 'vs/workbench/electron-browser/workbench';
 // Contribute Commands
 registerCommands();
 
@@ -642,6 +642,31 @@ configurationRegistry.registerConfiguration({
 				nls.localize('workbench.fontAliasing.auto', "Applies `default` or `antialiased` automatically based on the DPI of displays.")
 			],
 			'included': isMacintosh
+		},
+		'workbench.fontFamily': {
+			'type': 'string',
+			'default': WORKBENCH_FONT_DEFAULTS.fontFamily,
+			'description': nls.localize('fontFamily', "Controls the font family.")
+		},
+		'workbench.titleFontSize': {
+			'type': 'number',
+			'default': WORKBENCH_FONT_DEFAULTS.titleFontSize,
+			'description': nls.localize('titleFontSize', "Controls the font size of title in pixels, support value from 8 to 35")
+		},
+		'workbench.titleLineHeight': {
+			'type': 'number',
+			'default': WORKBENCH_FONT_DEFAULTS.titleLineHeight,
+			'description': nls.localize('titleLineHeight', "Controls the line height of title. This number is relative to the title font size.")
+		},
+		'workbench.contentFontSize': {
+			'type': 'number',
+			'default': WORKBENCH_FONT_DEFAULTS.contentFontSize,
+			'description': nls.localize('contentFontSize', "Controls the font size of content in pixels, support value from 8 to 22.")
+		},
+		'workbench.contentLineHeight': {
+			'type': 'number',
+			'default': WORKBENCH_FONT_DEFAULTS.contentLineHeight,
+			'description': nls.localize('contentLineHeight', "Controls the line height of content. This number is relative to the content font size")
 		},
 		'workbench.settings.enableNaturalLanguageSearch': {
 			'type': 'boolean',

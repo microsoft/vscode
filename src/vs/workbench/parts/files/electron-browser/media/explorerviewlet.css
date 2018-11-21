@@ -16,8 +16,8 @@
 .explorer-viewlet .explorer-item,
 .explorer-viewlet .open-editor,
 .explorer-viewlet .editor-group {
-	height: 22px;
-	line-height: 22px;
+	height: auto;
+	line-height: inherit;
 }
 
 .explorer-viewlet .explorer-item {
@@ -108,7 +108,7 @@
 
 .monaco-workbench.linux .explorer-viewlet .explorer-item .monaco-inputbox,
 .monaco-workbench.mac .explorer-viewlet .explorer-item .monaco-inputbox {
-	height: 22px;
+	height: auto;
 }
 
 .explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input {
@@ -140,5 +140,5 @@
 .hc-black .monaco-workbench .explorer-viewlet .explorer-item,
 .hc-black .monaco-workbench .explorer-viewlet .open-editor,
 .hc-black .monaco-workbench .explorer-viewlet .editor-group {
-	line-height: 20px;
+	min-height: 20px;
 }

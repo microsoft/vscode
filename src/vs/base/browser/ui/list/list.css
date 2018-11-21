@@ -17,7 +17,7 @@
 }
 
 .monaco-list > .monaco-scrollable-element {
-	height: 100%;
+	height: auto;
 }
 
 .monaco-list-rows {

@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-panel-view .panel > .panel-header h3.title {
+	font-size: inherit;
+	line-height: inherit;
 	white-space: nowrap;
 	text-overflow: ellipsis;
 	overflow: hidden;
-	font-size: 11px;
 	-webkit-margin-before: 0;
 	-webkit-margin-after: 0;
 }

@@ -137,8 +137,26 @@ export interface IWorkbenchStartedInfo {
 	restoredEditorsCount: number;
 }
 
-type FontAliasingOption = 'default' | 'antialiased' | 'none' | 'auto';
+const DEFAULT_WINDOWS_FONT_FAMILY = 'Consolas, \'Courier New\', monospace';
+const DEFAULT_MAC_FONT_FAMILY = '-apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Droid Sans", sans-serif';
+const DEFAULT_LINUX_FONT_FAMILY = '\'Droid Sans Mono\', \'monospace\', monospace, \'Droid Sans Fallback\'';
 
+export const WORKBENCH_FONT_DEFAULTS = {
+	fontFamily: (
+		isMacintosh ? DEFAULT_MAC_FONT_FAMILY : (isLinux ? DEFAULT_LINUX_FONT_FAMILY : DEFAULT_WINDOWS_FONT_FAMILY)
+	),
+	titleFontSize: (
+		isMacintosh ? 12 : 14
+	),
+	contentFontSize: (
+		isMacintosh ? 12 : 14
+	),
+	titleLineHeight: 1.6,
+	contentLineHeight: 1.6,
+};
+
+type FontAliasingOption = 'default' | 'antialiased' | 'none' | 'auto';
+//MARK
 const fontAliasingValues: FontAliasingOption[] = ['antialiased', 'none', 'auto'];
 
 const Identifiers = {
@@ -182,12 +200,19 @@ export class Workbench extends Disposable implements IPartService {
 	private static readonly statusbarVisibleConfigurationKey = 'workbench.statusBar.visible';
 	private static readonly activityBarVisibleConfigurationKey = 'workbench.activityBar.visible';
 	private static readonly closeWhenEmptyConfigurationKey = 'window.closeWhenEmpty';
+
 	private static readonly fontAliasingConfigurationKey = 'workbench.fontAliasing';
+	private static readonly fontFamilyConfigurationKey = 'workbench.fontFamily';
+	private static readonly titleFontSizeConfigurationKey = 'workbench.titleFontSize';
+	private static readonly titleLineHeightConfigurationKey = 'workbench.titleLineHeight';
+	private static readonly contentFontSizeConfigurationKey = 'workbench.contentFontSize';
+	private static readonly contentLineHeightConfigurationKey = 'workbench.contentLineHeight';
 
 	_serviceBrand: any;
 
 	private workbenchParams: WorkbenchParams;
 	private workbench: HTMLElement;
+	private styleElement: HTMLStyleElement;
 	private workbenchStarted: boolean;
 	private workbenchCreated: boolean;
 	private workbenchShutdown: boolean;
@@ -301,6 +326,7 @@ export class Workbench extends Disposable implements IPartService {
 		this._register(DOM.addDisposableListener(this.workbench, DOM.EventType.SCROLL, () => {
 			this.workbench.scrollTop = 0; // Prevent workbench from scrolling #55456
 		}));
+		this.styleElement = DOM.createStyleSheet(this.container);
 	}
 
 	private createGlobalActions(): void {
@@ -585,6 +611,8 @@ export class Workbench extends Disposable implements IPartService {
 		if (fontAliasing !== this.fontAliasing) {
 			this.setFontAliasing(fontAliasing);
 		}
+
+		this.setFontStyle();
 
 		if (!this.zenMode.active) {
 			const newStatusbarHiddenValue = !this.configurationService.getValue<boolean>(Workbench.statusbarVisibleConfigurationKey);
@@ -983,6 +1011,30 @@ export class Workbench extends Disposable implements IPartService {
 		}
 	}
 
+	private setFontStyle() {
+		const fontFamily = this.configurationService.getValue<string>(Workbench.fontFamilyConfigurationKey);
+		const titleFontSizeValue = this.configurationService.getValue<number>(Workbench.titleFontSizeConfigurationKey);
+		const titleFontSize = Math.min(Math.max(8, titleFontSizeValue), 35);
+		const titleLineHeight = Math.max(0.6, this.configurationService.getValue<number>(Workbench.titleLineHeightConfigurationKey));
+		const contentFontSizeValue = Math.min(this.configurationService.getValue<number>(Workbench.contentFontSizeConfigurationKey), 22);
+		const contentFontSize = Math.min(Math.max(8, contentFontSizeValue), 22);
+		const contentLineHeight = Math.max(0.6, this.configurationService.getValue<number>(Workbench.contentLineHeightConfigurationKey));
+
+
+		const content: string[] = [];
+
+		content.push(`.monaco-workbench { font-family:  ${fontFamily} }`);
+		content.push(`.monaco-workbench> .sidebar > .title> .title-label { font-size: ${titleFontSize}px; line-height: ${titleLineHeight}; min-height:  ${titleFontSize}px; }`);
+		content.push(`.monaco-workbench > .part > .title > .title-label { font-size: ${titleFontSize}px; line-height: ${titleLineHeight}; min-height:  ${titleFontSize}px; }`);
+		// content.push(`.monaco-panel-view .panel>.panel-header { font-size: ${titleFontSize}px;  line-height: ${titleLineHeight}; min-height:  ${titleFontSize}px; }`);
+		content.push(`.monaco-workbench> .sidebar > .content { font-size: ${contentFontSize}px;  line-height: ${contentLineHeight}; min-height:  ${contentFontSize}px; }`);
+
+		const newStyles = content.join('\n');
+		if (newStyles !== this.styleElement.innerHTML) {
+			this.styleElement.innerHTML = newStyles;
+		}
+	}
+
 	private createWorkbenchLayout(): void {
 		this.workbenchLayout = this.instantiationService.createInstance(
 			WorkbenchLayout,
@@ -1020,6 +1072,8 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Apply font aliasing
 		this.setFontAliasing(this.fontAliasing);
+
+		this.setFontStyle();
 
 		// Apply fullscreen state
 		if (browser.isFullscreen()) {

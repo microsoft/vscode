@@ -17,7 +17,7 @@
 }
 
 .monaco-panel-view .panel > .panel-header {
-	font-size: 11px;
+	font-size: inherit;
 	font-weight: bold;
 	text-transform: uppercase;
 	padding-left: 20px;
