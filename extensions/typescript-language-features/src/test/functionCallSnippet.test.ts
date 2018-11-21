@@ -62,4 +62,13 @@ suite('typescript function call snippets', () => {
 			).value,
 			'foo(${1:a}, ${2:b}, ${3:c})$0');
 	});
+
+	test('Should create empty placeholder at rest parameter', async () => {
+		assert.strictEqual(
+			snippetForFunctionCall(
+				{ label: 'foo' },
+				[{ "text": "function", "kind": "keyword" }, { "text": " ", "kind": "space" }, { "text": "foo", "kind": "functionName" }, { "text": "(", "kind": "punctuation" }, { "text": "a", "kind": "parameterName" }, { "text": ":", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "string", "kind": "keyword" }, { "text": ",", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "...", "kind": "punctuation" }, { "text": "rest", "kind": "parameterName" }, { "text": ":", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "any", "kind": "keyword" }, { "text": "[", "kind": "punctuation" }, { "text": "]", "kind": "punctuation" }, { "text": ")", "kind": "punctuation" }, { "text": ":", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "void", "kind": "keyword" }]
+			).value,
+			'foo(${1:a}$2)$0');
+	});
 });
