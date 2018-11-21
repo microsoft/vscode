@@ -1053,8 +1053,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			_reason: 'searchView',
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorService, this.contextService),
 			maxResults: SearchView.MAX_TEXT_RESULTS,
-			disregardIgnoreFiles: !useExcludesAndIgnoreFiles,
-			disregardExcludeSettings: !useExcludesAndIgnoreFiles,
+			disregardIgnoreFiles: !useExcludesAndIgnoreFiles || undefined,
+			disregardExcludeSettings: !useExcludesAndIgnoreFiles || undefined,
 			excludePattern,
 			includePattern,
 			previewOptions: {

@@ -1963,7 +1963,7 @@ export class DebugAdapterExecutable implements vscode.DebugAdapterExecutable {
 
 export class DebugAdapterServer implements vscode.DebugAdapterServer {
 	readonly port: number;
-	readonly host: string;
+	readonly host?: string;
 
 	constructor(port: number, host?: string) {
 		this.port = port;

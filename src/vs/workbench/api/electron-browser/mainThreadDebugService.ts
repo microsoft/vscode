@@ -43,6 +43,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		}));
 		this._toDispose.push(debugService.onDidEndSession(session => {
 			this._proxy.$acceptDebugSessionTerminated(this.getSessionDto(session));
+			this._sessions.delete(session.getId());
 		}));
 		this._toDispose.push(debugService.getViewModel().onDidFocusSession(session => {
 			this._proxy.$acceptDebugSessionActiveChanged(this.getSessionDto(session));
