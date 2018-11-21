@@ -628,20 +628,14 @@ export function snippetForFunctionCall(
 	item: { insertText?: string | vscode.SnippetString, label: string },
 	displayParts: ReadonlyArray<Proto.SymbolDisplayPart>
 ): vscode.SnippetString {
+	if (item.insertText && typeof item.insertText !== 'string') {
+		return item.insertText;
+	}
+
 	let hasOptionalParameters = false;
 	let hasAddedParameters = false;
 
-	const snippet = new vscode.SnippetString();
-	if (item.insertText) {
-		if (typeof item.insertText === 'string') {
-			snippet.appendText(item.insertText);
-		} else {
-			return item.insertText;
-		}
-	} else {
-		snippet.appendText(item.label);
-	}
-	snippet.appendText('(');
+	const snippet = new vscode.SnippetString(`${item.insertText || item.label}(`);
 
 	const functionSignatureDisplayParts = getFunctionSignatureDisplayParts(displayParts, item.label);
 	let parenCount = 0;
