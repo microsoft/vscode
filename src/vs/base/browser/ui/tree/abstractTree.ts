@@ -202,13 +202,13 @@ function asTreeEvent<T>(event: IListEvent<ITreeNode<T, any>>): ITreeEvent<T> {
 function asTreeMouseEvent<T>(event: IListMouseEvent<ITreeNode<T, any>>): ITreeMouseEvent<T> {
 	return {
 		browserEvent: event.browserEvent,
-		element: event.element.element
+		element: event.element && event.element.element
 	};
 }
 
 function asTreeContextMenuEvent<T>(event: IListContextMenuEvent<ITreeNode<T, any>>): ITreeContextMenuEvent<T> {
 	return {
-		element: event.element.element,
+		element: event.element && event.element.element,
 		browserEvent: event.browserEvent,
 		anchor: event.anchor
 	};
