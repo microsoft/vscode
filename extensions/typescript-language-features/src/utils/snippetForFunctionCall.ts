@@ -13,8 +13,9 @@ export function snippetForFunctionCall(
 	if (item.insertText && typeof item.insertText !== 'string') {
 		return item.insertText;
 	}
-	const snippet = new vscode.SnippetString(`${item.insertText || item.label}(`);
+
 	const parameterListParts = getParameterListParts(displayParts, item.label);
+	const snippet = new vscode.SnippetString(`${item.insertText || item.label}(`);
 	appendJoinedPlaceholders(snippet, parameterListParts.parts, ', ');
 	if (parameterListParts.hasOptionalParameters) {
 		snippet.appendTabstop();
@@ -24,7 +25,7 @@ export function snippetForFunctionCall(
 	return snippet;
 }
 
-function appendJoinedPlaceholders(snippet: vscode.SnippetString, parts: ReadonlyArray<ParamterPart>, joiner: string) {
+function appendJoinedPlaceholders(snippet: vscode.SnippetString, parts: ReadonlyArray<Proto.SymbolDisplayPart>, joiner: string) {
 	for (let i = 0; i < parts.length; ++i) {
 		const paramterPart = parts[i];
 		snippet.appendPlaceholder(paramterPart.text);
@@ -34,21 +35,15 @@ function appendJoinedPlaceholders(snippet: vscode.SnippetString, parts: Readonly
 	}
 }
 
-interface ParamterPart {
-	readonly text: string;
-	readonly optional?: boolean;
-}
-
 function getParameterListParts(displayParts: ReadonlyArray<Proto.SymbolDisplayPart>, label: string): {
-	parts: ReadonlyArray<ParamterPart>;
+	parts: ReadonlyArray<Proto.SymbolDisplayPart>;
 	hasOptionalParameters: boolean;
 } {
-	let parts: ParamterPart[] = [];
+	const parts: Proto.SymbolDisplayPart[] = [];
 	let isInMethod = false;
 	let hasOptionalParameters = false;
 	let parenCount = 0;
-	let i = 0;
-	for (; i < displayParts.length; ++i) {
+	for (let i = 0; i < displayParts.length; ++i) {
 		const part = displayParts[i];
 		if ((part.kind === 'methodName' || part.kind === 'functionName' || part.kind === 'text') && part.text === label) {
 			if (parenCount === 0) {
