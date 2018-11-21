@@ -8417,6 +8417,7 @@ declare module 'vscode' {
 
 		/**
 		 * The currently active [debug console](#DebugConsole).
+		 * If no debug session is active, output sent to the debug console is not shown.
 		 */
 		export let activeDebugConsole: DebugConsole;
 
