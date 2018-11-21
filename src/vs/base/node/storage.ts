@@ -11,7 +11,7 @@ import { isUndefinedOrNull } from 'vs/base/common/types';
 import { mapToString, setToString } from 'vs/base/common/map';
 import { basename } from 'path';
 import { mark } from 'vs/base/common/performance';
-import { rename } from 'vs/base/node/pfs';
+import { rename, unlinkIgnoreError, copy, renameIgnoreError } from 'vs/base/node/pfs';
 
 export interface IStorageOptions {
 	path: string;
@@ -230,24 +230,32 @@ export interface IUpdateRequest {
 	readonly delete?: Set<string>;
 }
 
+interface IOpenDatabaseResult {
+	db: Database;
+	path: string;
+}
+
 export class SQLiteStorageImpl {
 
 	private static measuredRequireDuration: boolean; // TODO@Ben remove me after a while
 
+	private static IN_MEMORY_PATH = ':memory:';
 	private static BUSY_OPEN_TIMEOUT = 2000; // timeout in ms to retry when opening DB fails with SQLITE_BUSY
 
-	private db: Promise<Database>;
 	private name: string;
 	private logger: SQLiteStorageLogger;
 
-	constructor(private options: IStorageOptions) {
+	private whenOpened: Promise<IOpenDatabaseResult>;
+
+	constructor(options: IStorageOptions) {
 		this.name = basename(options.path);
 		this.logger = new SQLiteStorageLogger(options.logging);
-		this.db = this.open();
+
+		this.whenOpened = this.open(options.path);
 	}
 
 	getItems(): Promise<Map<string, string>> {
-		return this.db.then(db => {
+		return this.whenOpened.then(({ db }) => {
 			const items = new Map<string, string>();
 
 			return this.all(db, 'SELECT * FROM ItemTable').then(rows => {
@@ -279,7 +287,7 @@ export class SQLiteStorageImpl {
 			this.logger.trace(`[storage ${this.name}] updateItems(): insert(${request.insert ? mapToString(request.insert) : '0'}), delete(${request.delete ? setToString(request.delete) : '0'})`);
 		}
 
-		return this.db.then(db => {
+		return this.whenOpened.then(({ db }) => {
 			return this.transaction(db, () => {
 				if (request.insert && request.insert.size > 0) {
 					this.prepare(db, 'INSERT INTO ItemTable VALUES (?,?)', stmt => {
@@ -303,13 +311,24 @@ export class SQLiteStorageImpl {
 	close(): Promise<void> {
 		this.logger.trace(`[storage ${this.name}] close()`);
 
-		return this.db.then(db => {
+		return this.whenOpened.then(result => {
 			return new Promise((resolve, reject) => {
-				db.close(error => {
+				result.db.close(error => {
 					if (error) {
 						this.logger.error(`[storage ${this.name}] close(): ${error}`);
 
 						return reject(error);
+					}
+
+					// If the DB closed successfully and we are not running in-memory
+					// make a backup of the DB so that we can use it as fallback in
+					// case the actual DB becomes corrupt.
+					if (result.path !== SQLiteStorageImpl.IN_MEMORY_PATH) {
+						return this.backup(result).then(resolve, error => {
+							this.logger.error(`[storage ${this.name}] backup(): ${error}`);
+
+							return resolve(); // ignore failing backup
+						});
 					}
 
 					return resolve();
@@ -318,17 +337,31 @@ export class SQLiteStorageImpl {
 		});
 	}
 
+	private backup(db: IOpenDatabaseResult): Promise<void> {
+		if (db.path === SQLiteStorageImpl.IN_MEMORY_PATH) {
+			return Promise.resolve(); // no backups when running in-memory
+		}
+
+		const backupPath = this.toBackupPath(db.path);
+
+		return unlinkIgnoreError(backupPath).then(() => copy(db.path, backupPath));
+	}
+
+	private toBackupPath(path: string): string {
+		return `${path}.backup`;
+	}
+
 	checkIntegrity(full: boolean): Promise<string> {
 		this.logger.trace(`[storage ${this.name}] checkIntegrity(full: ${full})`);
 
-		return this.db.then(db => {
+		return this.whenOpened.then(({ db }) => {
 			return this.get(db, full ? 'PRAGMA integrity_check' : 'PRAGMA quick_check').then(row => {
 				return full ? row['integrity_check'] : row['quick_check'];
 			});
 		});
 	}
 
-	private open(): Promise<Database> {
+	private open(path: string): Promise<IOpenDatabaseResult> {
 		this.logger.trace(`[storage ${this.name}] open()`);
 
 		return new Promise((resolve, reject) => {
@@ -338,10 +371,10 @@ export class SQLiteStorageImpl {
 
 				// In case of any error to open the DB, use an in-memory
 				// DB so that we always have a valid DB to talk to.
-				this.doOpen(':memory:').then(resolve, reject);
+				this.doOpen(SQLiteStorageImpl.IN_MEMORY_PATH).then(resolve, reject);
 			};
 
-			this.doOpen(this.options.path).then(resolve, error => {
+			this.doOpen(path).then(resolve, error => {
 
 				// TODO@Ben check if this is still happening. This error code should only arise if
 				// another process is locking the same DB we want to open at that time. This typically
@@ -349,32 +382,45 @@ export class SQLiteStorageImpl {
 				// of a window reload, it may be possible that the previous connection was not properly
 				// closed while the new connection is already established.
 				if (error.code === 'SQLITE_BUSY') {
-					this.logger.error(`[storage ${this.name}] open(): Retrying after ${SQLiteStorageImpl.BUSY_OPEN_TIMEOUT}ms due to SQLITE_BUSY`);
-
-					// Retry after some time if the DB is busy
-					timeout(SQLiteStorageImpl.BUSY_OPEN_TIMEOUT).then(() => this.doOpen(this.options.path).then(resolve, fallbackToInMemoryDatabase));
+					return this.handleSQLiteBusy(path).then(resolve, fallbackToInMemoryDatabase);
 				}
 
 				// This error code indicates that even though the DB file exists,
 				// SQLite cannot open it and signals it is corrupt or not a DB.
-				else if (error.code === 'SQLITE_CORRUPT' || error.code === 'SQLITE_NOTADB') {
-					this.logger.error(`[storage ${this.name}] open(): Recreating DB due to ${error.code}`);
-
-					// Move corrupt DB to different filename and start fresh
-					const randomSuffix = Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 4);
-					rename(this.options.path, `${this.options.path}.${randomSuffix}.corrupt`)
-						.then(() => this.doOpen(this.options.path)).then(resolve, fallbackToInMemoryDatabase);
+				if (error.code === 'SQLITE_CORRUPT' || error.code === 'SQLITE_NOTADB') {
+					return this.handleSQLiteCorrupt(path, error).then(resolve, fallbackToInMemoryDatabase);
 				}
 
 				// Otherwise give up and fallback to in-memory DB
-				else {
-					fallbackToInMemoryDatabase(error);
-				}
+				return fallbackToInMemoryDatabase(error);
 			});
 		});
 	}
 
-	private doOpen(path: string): Promise<Database> {
+	private handleSQLiteBusy(path: string): Promise<IOpenDatabaseResult> {
+		this.logger.error(`[storage ${this.name}] open(): Retrying after ${SQLiteStorageImpl.BUSY_OPEN_TIMEOUT}ms due to SQLITE_BUSY`);
+
+		// Retry after some time if the DB is busy
+		return timeout(SQLiteStorageImpl.BUSY_OPEN_TIMEOUT).then(() => this.doOpen(path));
+	}
+
+	private handleSQLiteCorrupt(path: string, error: any): Promise<IOpenDatabaseResult> {
+		this.logger.error(`[storage ${this.name}] open(): Unable to open DB due to ${error.code}`);
+
+		// Move corrupt DB to a different filename and try to load from backup
+		// If that fails, a new empty DB is being created automatically
+		return rename(path, this.toCorruptPath(path))
+			.then(() => renameIgnoreError(this.toBackupPath(path), path))
+			.then(() => this.doOpen(path));
+	}
+
+	private toCorruptPath(path: string): string {
+		const randomSuffix = Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 4);
+
+		return `${path}.${randomSuffix}.corrupt`;
+	}
+
+	private doOpen(path: string): Promise<IOpenDatabaseResult> {
 		// TODO@Ben clean up performance markers
 		return new Promise((resolve, reject) => {
 			let measureRequireDuration = false;
@@ -404,7 +450,7 @@ export class SQLiteStorageImpl {
 					].join('')).then(() => {
 						mark('didSetupSQLiteSchema');
 
-						resolve(db);
+						resolve({ path, db });
 					}, error => {
 						mark('didSetupSQLiteSchema');
 
