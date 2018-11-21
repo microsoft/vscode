@@ -22,6 +22,7 @@ export interface TaskPresentationOptionsDTO {
 
 export interface RunOptionsDTO {
 	rerunBehavior?: RerunBehavior;
+	startAutomatically?: boolean;
 }
 
 export interface ExecutionOptionsDTO {

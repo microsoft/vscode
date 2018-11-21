@@ -281,16 +281,18 @@ const identifier: IJSONSchema = {
 	deprecationMessage: nls.localize('JsonSchema.tasks.identifier.deprecated', 'User defined identifiers are deprecated. For custom task use the name as a reference and for tasks provided by extensions use their defined task identifier.')
 };
 
-const rerunBehavior: IJSONSchema = {
-	type: 'string',
-	enum: ['reevauate', 'useEvaluated'],
-	description: nls.localize('JsonSchema.tasks.rerunBehavior', 'The task\'s behavior on rerun')
-};
-
 const runOptions: IJSONSchema = {
 	type: 'object',
 	properties: {
-		rerunBehavior: Objects.deepClone(rerunBehavior),
+		rerunBehavior: {
+			type: 'string',
+			enum: ['reevauate', 'useEvaluated'],
+			description: nls.localize('JsonSchema.tasks.rerunBehavior', 'The task\'s behavior on rerun')
+		},
+		startAutomatically: {
+			type: 'boolean',
+			description: nls.localize('JsonSchema.tasks.startAutomatically', 'Whether the task should be started automatically when the workspace or folder is opened.')
+		},
 	},
 	description: nls.localize('JsonSchema.tasks.runOptions', 'The task\'s run related options')
 };

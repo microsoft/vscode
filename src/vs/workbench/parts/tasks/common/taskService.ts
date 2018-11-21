@@ -23,7 +23,7 @@ export interface ITaskProvider {
 	provideTasks(validTypes: IStringDictionary<boolean>): TPromise<TaskSet>;
 }
 
-export interface RunOptions {
+export interface ProblemMatcherRunOptions {
 	attachProblemMatcher?: boolean;
 }
 
@@ -46,7 +46,7 @@ export interface ITaskService {
 	configureAction(): Action;
 	build(): TPromise<ITaskSummary>;
 	runTest(): TPromise<ITaskSummary>;
-	run(task: Task, options?: RunOptions): TPromise<ITaskSummary>;
+	run(task: Task, options?: ProblemMatcherRunOptions): TPromise<ITaskSummary>;
 	inTerminal(): boolean;
 	isActive(): TPromise<boolean>;
 	getActiveTasks(): TPromise<Task[]>;
