@@ -305,8 +305,8 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		const markerFocusContextKey = Constants.MarkerFocusContextKey.bindTo(this.tree.contextKeyService);
 		const relatedInformationFocusContextKey = Constants.RelatedInformationFocusContextKey.bindTo(this.tree.contextKeyService);
 		this._register(this.tree.onDidChangeFocus(focus => {
-			markerFocusContextKey.set(focus.elements.some(e => e.element instanceof Marker));
-			relatedInformationFocusContextKey.set(focus.elements.some(e => e.element instanceof RelatedInformation));
+			markerFocusContextKey.set(focus.elements.some(e => e instanceof Marker));
+			relatedInformationFocusContextKey.set(focus.elements.some(e => e instanceof RelatedInformation));
 		}));
 		const focusTracker = this._register(dom.trackFocus(this.tree.getHTMLElement()));
 		this._register(focusTracker.onDidBlur(() => {
@@ -542,7 +542,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		this.rangeHighlightDecorations.highlightRange(selection);
 	}
 
-	private onContextMenu(e: ITreeContextMenuEvent<TreeElement, FilterData>): void {
+	private onContextMenu(e: ITreeContextMenuEvent<TreeElement>): void {
 		if (!e.element) {
 			return;
 		}
@@ -550,7 +550,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		e.browserEvent.preventDefault();
 		e.browserEvent.stopPropagation();
 
-		this._getMenuActions(e.element.element).then(actions => {
+		this._getMenuActions(e.element).then(actions => {
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
 				getActions: () => actions,
