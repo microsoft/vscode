@@ -5,7 +5,7 @@
 
 import { strictEqual, ok, equal } from 'assert';
 import { StorageScope } from 'vs/platform/storage/common/storage';
-import { TestStorageService, TestEnvironmentService } from 'vs/workbench/test/workbenchTestServices';
+import { TestStorageService } from 'vs/workbench/test/workbenchTestServices';
 import { StorageService } from 'vs/platform/storage/node/storageService';
 import { generateUuid } from 'vs/base/common/uuid';
 import { join } from 'path';
@@ -84,7 +84,7 @@ suite('StorageService', () => {
 		const storageDir = uniqueStorageDir();
 		await mkdirp(storageDir);
 
-		const storage = new StorageService(join(storageDir, 'storage.db'), false, new NullLogService(), TestEnvironmentService);
+		const storage = new StorageService(join(storageDir, 'storage.db'), false, new NullLogService());
 		await storage.init();
 
 		storage.store('bar', 'foo', StorageScope.WORKSPACE);

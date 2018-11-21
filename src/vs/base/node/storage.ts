@@ -435,7 +435,7 @@ export class SQLiteStorageImpl {
 					mark('didRequireSQLite');
 				}
 
-				const db = new (this.logger.isTracing ? sqlite3.verbose().Database : sqlite3.Database)(path, error => {
+				const db: Database = new (this.logger.isTracing ? sqlite3.verbose().Database : sqlite3.Database)(path, error => {
 					if (error) {
 						return db.close(() => reject(error));
 					}
