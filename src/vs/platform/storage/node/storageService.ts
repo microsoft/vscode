@@ -6,7 +6,6 @@
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceStorageChangeEvent, IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { Storage, IStorageLoggingOptions, NullStorage, IStorage } from 'vs/base/node/storage';
 import { IStorageLegacyService, StorageLegacyScope } from 'vs/platform/storage/common/storageLegacyService';
@@ -63,8 +62,7 @@ export class StorageService extends Disposable implements IStorageService {
 	constructor(
 		workspaceStoragePath: string,
 		disableGlobalStorage: boolean,
-		@ILogService logService: ILogService,
-		@IEnvironmentService environmentService: IEnvironmentService
+		@ILogService logService: ILogService
 	) {
 		super();
 
