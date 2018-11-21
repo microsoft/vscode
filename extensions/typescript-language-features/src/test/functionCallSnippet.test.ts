@@ -16,4 +16,13 @@ suite('typescript function call snippets', () => {
 			).value,
 			'abc()$0');
 	});
+
+	test('Should use insertText to override function name if no display parts are provided', async () => {
+		assert.strictEqual(
+			snippetForFunctionCall(
+				{ label: 'abc', insertText: 'def' },
+				[]
+			).value,
+			'def()$0');
+	});
 });
