@@ -632,27 +632,56 @@ export function snippetForFunctionCall(
 		return item.insertText;
 	}
 
-	let hasOptionalParameters = false;
-	let hasAddedParameters = false;
-
 	const snippet = new vscode.SnippetString(`${item.insertText || item.label}(`);
 
-	const functionSignatureDisplayParts = getFunctionSignatureDisplayParts(displayParts, item.label);
+	const parameterListParts = getParameterListParts(displayParts, item.label);
+	for (let i = 0; i < parameterListParts.parts.length; ++i) {
+		const paramterPart = parameterListParts.parts[i];
+		snippet.appendPlaceholder(paramterPart.text);
+		if (i !== parameterListParts.parts.length - 1) {
+			snippet.appendText(', ');
+		}
+	}
+
+	if (parameterListParts.hasOptionalParameters) {
+		snippet.appendTabstop();
+	}
+	snippet.appendText(')');
+	snippet.appendTabstop(0);
+	return snippet;
+}
+
+interface ParamterPart {
+	readonly text: string;
+	readonly optional?: boolean;
+}
+
+function getParameterListParts(
+	displayParts: ReadonlyArray<Proto.SymbolDisplayPart>,
+	label: string,
+): {
+		parts: ReadonlyArray<ParamterPart>
+		hasOptionalParameters: boolean
+	} {
+	let parts: ParamterPart[] = [];
+	let isInMethod = false;
+	let hasOptionalParameters = false;
+
 	let parenCount = 0;
 	let i = 0;
-	for (; i < functionSignatureDisplayParts.length; ++i) {
-		const part = functionSignatureDisplayParts[i];
-		// Only take top level paren names
-		if (part.kind === 'parameterName' && parenCount === 1) {
-			const next = functionSignatureDisplayParts[i + 1];
+	for (; i < displayParts.length; ++i) {
+		const part = displayParts[i];
+		if ((part.kind === 'methodName' || part.kind === 'functionName' || part.kind === 'text') && part.text === label) {
+			if (parenCount === 0) {
+				isInMethod = true;
+			}
+		} if (part.kind === 'parameterName' && parenCount === 1 && isInMethod) {
+			// Only take top level paren names
+			const next = displayParts[i + 1];
 			// Skip optional parameters
 			const nameIsFollowedByOptionalIndicator = next && next.text === '?';
 			if (!nameIsFollowedByOptionalIndicator) {
-				if (hasAddedParameters) {
-					snippet.appendText(', ');
-				}
-				hasAddedParameters = true;
-				snippet.appendPlaceholder(part.text);
+				parts.push(part);
 			}
 			hasOptionalParameters = hasOptionalParameters || nameIsFollowedByOptionalIndicator;
 		} else if (part.kind === 'punctuation') {
@@ -660,7 +689,7 @@ export function snippetForFunctionCall(
 				++parenCount;
 			} else if (part.text === ')') {
 				--parenCount;
-				if (parenCount <= 0) {
+				if (parenCount <= 0 && isInMethod) {
 					break;
 				}
 			} else if (part.text === '...' && parenCount === 1) {
@@ -670,49 +699,7 @@ export function snippetForFunctionCall(
 			}
 		}
 	}
-	if (hasOptionalParameters) {
-		snippet.appendTabstop();
-	}
-	snippet.appendText(')');
-	snippet.appendTabstop(0);
-	return snippet;
-}
-
-function getFunctionSignatureDisplayParts(
-	displayParts: ReadonlyArray<Proto.SymbolDisplayPart>,
-	label: string,
-): ReadonlyArray<Proto.SymbolDisplayPart> {
-	let start: number | undefined;
-	let end: number | undefined;
-
-	let index = 0;
-	let nestingLevel = 0;
-	for (; index < displayParts.length; ++index) {
-		const part = displayParts[index];
-		if (part.kind === 'methodName' || part.kind === 'functionName' || part.kind === 'text' && part.text === label) {
-			if (nestingLevel === 0) {
-				start = index;
-			}
-		} else if (part.kind === 'punctuation') {
-			switch (part.text) {
-				case '(':
-					++nestingLevel;
-					break;
-
-				case ')':
-					--nestingLevel;
-					if (nestingLevel <= 0) {
-						end = index;
-					}
-
-					break;
-			}
-		}
-	}
-	if (typeof start === 'number' && typeof end === 'number') {
-		return displayParts.slice(start, end);
-	}
-	return [];
+	return { hasOptionalParameters, parts };
 }
 
 function shouldExcludeCompletionEntry(
