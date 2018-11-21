@@ -202,7 +202,8 @@ class ModelMarkerHandler {
 				hoverMessage.appendText(' ');
 			}
 
-			message = message.trim();
+			hoverMessage.appendMarkdown(`<span style='font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback"; white-space: pre-wrap;'>`);
+			message = escape(message.trim());
 			const lines = message.split(/\r\n|\r|\n/g);
 			if (lines.length > 1) {
 				if (source) {
@@ -215,6 +216,7 @@ class ModelMarkerHandler {
 			} else {
 				hoverMessage.appendText(message);
 			}
+			hoverMessage.appendMarkdown(`</span>`);
 
 			if (code) {
 				if (lines.length === 1) {

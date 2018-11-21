@@ -190,7 +190,7 @@ export class ConfigurationManager implements IConfigurationManager {
 	}
 
 	public resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: IConfig): Thenable<IConfig> {
-		return this.activateDebuggers(`onDebugResolve:${type}`).then(() => {
+		return this.activateDebuggers('onDebugResolve', type).then(() => {
 			// pipe the config through the promises sequentially. append at the end the '*' types
 			const providers = this.configProviders.filter(p => p.type === type && p.resolveDebugConfiguration)
 				.concat(this.configProviders.filter(p => p.type === '*' && p.resolveDebugConfiguration));
@@ -413,8 +413,17 @@ export class ConfigurationManager implements IConfigurationManager {
 		});
 	}
 
-	private activateDebuggers(activationEvent: string): Thenable<void> {
-		return this.extensionService.activateByEvent(activationEvent).then(() => this.extensionService.activateByEvent('onDebug'));
+	public activateDebuggers(activationEvent: string, debugType?: string): Thenable<void> {
+		const thenables: Thenable<any>[] = [
+			this.extensionService.activateByEvent(activationEvent),
+			this.extensionService.activateByEvent('onDebug')
+		];
+		if (debugType) {
+			thenables.push(this.extensionService.activateByEvent(`${activationEvent}:${debugType}`));
+		}
+		return Promise.all(thenables).then(_ => {
+			return void 0;
+		});
 	}
 
 	private saveState(): void {

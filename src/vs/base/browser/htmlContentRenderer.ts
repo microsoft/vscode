@@ -123,7 +123,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 
 		} else {
 			// HTML Encode href
-			href.replace(/&/g, '&amp;')
+			href = href.replace(/&/g, '&amp;')
 				.replace(/</g, '&lt;')
 				.replace(/>/g, '&gt;')
 				.replace(/"/g, '&quot;')

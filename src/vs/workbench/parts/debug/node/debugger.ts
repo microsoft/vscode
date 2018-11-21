@@ -41,8 +41,15 @@ export class Debugger implements IDebugger {
 		this.mergedExtensionDescriptions = [extensionDescription];
 	}
 
+	public createDebugAdapter(session: IDebugSession, outputService: IOutputService): Promise<IDebugAdapter> {
+		return new Promise<IDebugAdapter>((resolve, reject) => {
+			this.configurationManager.activateDebuggers('onDebugAdapterProtocolTracker', this.type).then(_ => {
+				resolve(this._createDebugAdapter(session, outputService));
+			}, reject);
+		});
+	}
 
-	createDebugAdapter(session: IDebugSession, outputService: IOutputService): Promise<IDebugAdapter> {
+	private _createDebugAdapter(session: IDebugSession, outputService: IOutputService): Promise<IDebugAdapter> {
 		if (this.inExtHost()) {
 			return Promise.resolve(this.configurationManager.createDebugAdapter(session));
 		} else {

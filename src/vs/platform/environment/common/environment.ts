@@ -103,6 +103,7 @@ export interface IEnvironmentService {
 	settingsSearchBuildId?: number;
 	settingsSearchUrl?: string;
 
+	globalStorageHome: string;
 	workspaceStorageHome: string;
 
 	backupHome: string;

@@ -4713,6 +4713,11 @@ declare module 'vscode' {
 		 * Controls whether to show the "Terminal will be reused by tasks, press any key to close it" message.
 		 */
 		showReuseMessage?: boolean;
+
+		/**
+		 * Controls whether the terminal is cleared before executing the task.
+		 */
+		clear?: boolean;
 	}
 
 	/**
@@ -6489,7 +6494,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Options for creating a [TreeView](#TreeView]
+	 * Options for creating a [TreeView](#TreeView)
 	 */
 	export interface TreeViewOptions<T> {
 
@@ -8412,6 +8417,7 @@ declare module 'vscode' {
 
 		/**
 		 * The currently active [debug console](#DebugConsole).
+		 * If no debug session is active, output sent to the debug console is not shown.
 		 */
 		export let activeDebugConsole: DebugConsole;
 

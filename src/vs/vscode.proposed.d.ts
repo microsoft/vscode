@@ -1246,14 +1246,27 @@ declare module 'vscode' {
 	//#endregion
 
 	//#region Task
-	/**
-	 * Controls how the task is presented in the UI.
-	 */
-	export interface TaskPresentationOptions {
+	export enum RerunBehavior {
+		reevaluate = 1,
+		useEvaluated = 2,
+	}
+
+
+	export interface RunOptions {
 		/**
-		 * Controls whether the terminal is cleared before executing the task.
+		 * Controls the behavior of a task when it is rerun.
 		 */
-		clear?: boolean;
+		rerunBehavior?: RerunBehavior;
+	}
+
+	/**
+	 * A task to execute
+	 */
+	export class Task2 extends Task {
+		/**
+		 * Run options for the task
+		 */
+		runOptions: RunOptions;
 	}
 	//#endregion
 

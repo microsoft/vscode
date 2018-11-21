@@ -235,44 +235,6 @@ function resolveSingleFolderWorkspaceInitializationPayload(folderUri: ISingleFol
 	}, error => onUnexpectedError(error));
 }
 
-function getWorkspaceStoragePath(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService): string {
-	return join(environmentService.workspaceStorageHome, payload.id); // workspace home + workspace id;
-}
-
-function prepareWorkspaceStorageFolder(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService): Thenable<string> {
-	const workspaceStoragePath = getWorkspaceStoragePath(payload, environmentService);
-
-	return exists(workspaceStoragePath).then(exists => {
-		if (exists) {
-			return workspaceStoragePath;
-		}
-
-		return mkdirp(workspaceStoragePath).then(() => workspaceStoragePath);
-	});
-}
-
-function ensureWorkspaceStorageFolderMeta(payload: IWorkspaceInitializationPayload, workspaceService: IWorkspaceContextService, environmentService: IEnvironmentService): void {
-	const state = workspaceService.getWorkbenchState();
-	if (state === WorkbenchState.EMPTY) {
-		return; // no storage meta for empty workspaces
-	}
-
-	const workspaceStorageMetaPath = join(getWorkspaceStoragePath(payload, environmentService), 'workspace.json');
-
-	exists(workspaceStorageMetaPath).then(exists => {
-		if (exists) {
-			return void 0; // already existing
-		}
-
-		const workspace = workspaceService.getWorkspace();
-
-		return writeFile(workspaceStorageMetaPath, JSON.stringify({
-			configuration: workspace.configuration ? uri.revive(workspace.configuration).toString() : void 0,
-			folder: state === WorkbenchState.FOLDER ? uri.revive(workspace.folders[0].uri).toString() : void 0
-		}, undefined, 2));
-	}).then(null, error => onUnexpectedError(error));
-}
-
 function createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService, logService: ILogService): Promise<WorkspaceService> {
 	const workspaceService = new WorkspaceService(environmentService);
 
@@ -287,24 +249,24 @@ function createWorkspaceService(payload: IWorkspaceInitializationPayload, enviro
 function createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService, logService: ILogService): Thenable<StorageService> {
 
 	// Prepare the workspace storage folder
-	return prepareWorkspaceStorageFolder(payload, environmentService).then(workspaceStorageFolder => {
+	return prepareWorkspaceStorageFolder(payload, environmentService).then(result => {
 
 		// Return early if we are using in-memory storage
 		const useInMemoryStorage = !!environmentService.extensionTestsPath; /* never keep any state when running extension tests */
 		if (useInMemoryStorage) {
-			const storageService = new StorageService(StorageService.IN_MEMORY_PATH, true, logService, environmentService);
+			const storageService = new StorageService(StorageService.IN_MEMORY_PATH, true, logService);
 
 			return storageService.init().then(() => storageService);
 		}
 
 		// Otherwise do a migration of previous workspace data if the DB does not exist yet
 		// TODO@Ben remove me after some milestones
-		const workspaceStorageDBPath = join(workspaceStorageFolder, 'storage.db');
+		const workspaceStorageDBPath = join(result.path, 'storage.db');
 		perf.mark('willCheckWorkspaceStorageExists');
 		return exists(workspaceStorageDBPath).then(exists => {
 			perf.mark('didCheckWorkspaceStorageExists');
 
-			const storageService = new StorageService(workspaceStorageDBPath, true, logService, environmentService);
+			const storageService = new StorageService(workspaceStorageDBPath, true, logService);
 
 			return storageService.init().then(() => {
 				if (exists) {
@@ -435,6 +397,44 @@ function createStorageService(payload: IWorkspaceInitializationPayload, environm
 			});
 		});
 	});
+}
+
+function getWorkspaceStoragePath(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService): string {
+	return join(environmentService.workspaceStorageHome, payload.id); // workspace home + workspace id;
+}
+
+function prepareWorkspaceStorageFolder(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService): Thenable<{ path: string, wasCreated: boolean }> {
+	const workspaceStoragePath = getWorkspaceStoragePath(payload, environmentService);
+
+	return exists(workspaceStoragePath).then(exists => {
+		if (exists) {
+			return { path: workspaceStoragePath, wasCreated: false };
+		}
+
+		return mkdirp(workspaceStoragePath).then(() => ({ path: workspaceStoragePath, wasCreated: true }));
+	});
+}
+
+function ensureWorkspaceStorageFolderMeta(payload: IWorkspaceInitializationPayload, workspaceService: IWorkspaceContextService, environmentService: IEnvironmentService): void {
+	const state = workspaceService.getWorkbenchState();
+	if (state === WorkbenchState.EMPTY) {
+		return; // no storage meta for empty workspaces
+	}
+
+	const workspaceStorageMetaPath = join(getWorkspaceStoragePath(payload, environmentService), 'workspace.json');
+
+	exists(workspaceStorageMetaPath).then(exists => {
+		if (exists) {
+			return void 0; // already existing
+		}
+
+		const workspace = workspaceService.getWorkspace();
+
+		return writeFile(workspaceStorageMetaPath, JSON.stringify({
+			configuration: workspace.configuration ? uri.revive(workspace.configuration).toString() : void 0,
+			folder: state === WorkbenchState.FOLDER ? uri.revive(workspace.folders[0].uri).toString() : void 0
+		}, undefined, 2));
+	}).then(null, error => onUnexpectedError(error));
 }
 
 function createStorageLegacyService(workspaceService: IWorkspaceContextService, environmentService: IEnvironmentService): IStorageLegacyService {
