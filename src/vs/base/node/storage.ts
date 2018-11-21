@@ -13,8 +13,19 @@ import { basename } from 'path';
 import { mark } from 'vs/base/common/performance';
 import { rename, unlinkIgnoreError, copy, renameIgnoreError } from 'vs/base/node/pfs';
 
+export enum StorageHint {
+
+	// A hint to the storage that the storage
+	// does not exist on disk yet. This allows
+	// the storage library to improve startup
+	// time by not checking the storage for data.
+	STORAGE_DOES_NOT_EXIST
+}
+
 export interface IStorageOptions {
 	path: string;
+
+	hint?: StorageHint;
 
 	logging?: IStorageLoggingOptions;
 }
@@ -73,7 +84,7 @@ export class Storage extends Disposable implements IStorage {
 	private pendingDeletes: Set<string> = new Set<string>();
 	private pendingInserts: Map<string, string> = new Map();
 
-	constructor(options: IStorageOptions) {
+	constructor(private options: IStorageOptions) {
 		super();
 
 		this.storage = new SQLiteStorageImpl(options);
@@ -91,6 +102,13 @@ export class Storage extends Disposable implements IStorage {
 		}
 
 		this.state = StorageState.Initialized;
+
+		if (this.options.hint === StorageHint.STORAGE_DOES_NOT_EXIST) {
+			// return early if we know the storage file does not exist. this is a performance
+			// optimization to not load all items of the underlying storage if we know that
+			// there can be no items because the storage does not exist.
+			return Promise.resolve();
+		}
 
 		return this.storage.getItems().then(items => {
 			this.cache = items;
