@@ -666,6 +666,9 @@ export function snippetForFunctionCall(
 				++parenCount;
 			} else if (part.text === ')') {
 				--parenCount;
+				if (parenCount <= 0) {
+					break;
+				}
 			} else if (part.text === '...' && parenCount === 1) {
 				// Found rest parmeter. Do not fill in any further arguments
 				hasOptionalParameters = true;

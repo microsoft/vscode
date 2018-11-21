@@ -80,4 +80,13 @@ suite('typescript function call snippets', () => {
 			).value,
 			'foo(${1:a}, ${2:b})$0');
 	});
+
+	test('Should skip over return type', async () => {
+		assert.strictEqual(
+			snippetForFunctionCall(
+				{ label: 'foo' },
+				[{ "text": "function", "kind": "keyword" }, { "text": " ", "kind": "space" }, { "text": "foo", "kind": "functionName" }, { "text": "(", "kind": "punctuation" }, { "text": "a", "kind": "parameterName" }, { "text": ":", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "number", "kind": "keyword" }, { "text": ")", "kind": "punctuation" }, { "text": ":", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "{", "kind": "punctuation" }, { "text": "\n", "kind": "lineBreak" }, { "text": "    ", "kind": "space" }, { "text": "f", "kind": "propertyName" }, { "text": ":", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "(", "kind": "punctuation" }, { "text": "b", "kind": "parameterName" }, { "text": ":", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "number", "kind": "keyword" }, { "text": ")", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "=>", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "number", "kind": "keyword" }, { "text": ";", "kind": "punctuation" }, { "text": "\n", "kind": "lineBreak" }, { "text": "}", "kind": "punctuation" }]
+			).value,
+			'foo(${1:a})$0');
+	});
 });
