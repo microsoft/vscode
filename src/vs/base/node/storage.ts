@@ -24,7 +24,6 @@ export interface IStorageLoggingOptions {
 
 	trace?: boolean;
 	logTrace?: (msg: string) => void;
-
 }
 
 enum StorageState {
@@ -354,7 +353,7 @@ export class SQLiteStorageImpl {
 				if (error.code === 'SQLITE_BUSY') {
 					this.logger.error(`[storage ${this.name}] open(): Retrying after ${SQLiteStorageImpl.BUSY_OPEN_TIMEOUT}ms due to SQLITE_BUSY`);
 
-					// Retry after 2s if the DB is busy
+					// Retry after some time if the DB is busy
 					timeout(SQLiteStorageImpl.BUSY_OPEN_TIMEOUT).then(() => this.doOpen(this.options.path).then(resolve, fallbackToInMemoryDatabase));
 				}
 
@@ -514,8 +513,8 @@ class SQLiteStorageLogger {
 	private readonly logError: boolean;
 
 	constructor(private readonly options?: IStorageLoggingOptions) {
-		this.logTrace = !!(options && options.logTrace);
-		this.logError = !!(options && options.logError);
+		this.logTrace = !!(options && options.trace && typeof options.logTrace === 'function');
+		this.logError = !!(options && typeof options.logError === 'function');
 	}
 
 	get isTracing(): boolean {
