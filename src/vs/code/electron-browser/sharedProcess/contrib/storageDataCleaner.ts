@@ -24,7 +24,7 @@ export class StorageDataCleaner extends Disposable {
 	}
 
 	private cleanUpStorageSoon(): void {
-		let handle = setTimeout(() => {
+		let handle: any = setTimeout(() => {
 			handle = void 0;
 
 			// Leverage the backup workspace file to find out which empty workspace is currently in use to
