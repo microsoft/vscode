@@ -99,7 +99,7 @@ export interface IReplElementSource {
 
 export interface IExpressionContainer extends ITreeElement {
 	readonly hasChildren: boolean;
-	getChildren(): Promise<ReadonlyArray<IExpression>>;
+	getChildren(): Promise<IExpression[]>;
 }
 
 export interface IExpression extends IReplElement, IExpressionContainer {
@@ -380,13 +380,17 @@ export interface IViewModel extends ITreeElement {
 	onDidSelectExpression: Event<IExpression>;
 }
 
+export interface IEvaluate {
+	evaluate(session: IDebugSession, stackFrame: IStackFrame, context: string): Promise<void>;
+}
+
 export interface IDebugModel extends ITreeElement {
 	getSessions(includeInactive?: boolean): ReadonlyArray<IDebugSession>;
 	getBreakpoints(filter?: { uri?: uri, lineNumber?: number, column?: number, enabledOnly?: boolean }): ReadonlyArray<IBreakpoint>;
 	areBreakpointsActivated(): boolean;
 	getFunctionBreakpoints(): ReadonlyArray<IFunctionBreakpoint>;
 	getExceptionBreakpoints(): ReadonlyArray<IExceptionBreakpoint>;
-	getWatchExpressions(): ReadonlyArray<IExpression>;
+	getWatchExpressions(): ReadonlyArray<IExpression & IEvaluate>;
 
 	onDidChangeBreakpoints: Event<IBreakpointsChangeEvent>;
 	onDidChangeCallStack: Event<void>;
