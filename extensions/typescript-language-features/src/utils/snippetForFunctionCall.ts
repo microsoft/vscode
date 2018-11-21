@@ -26,7 +26,11 @@ export function snippetForFunctionCall(
 	return snippet;
 }
 
-function appendJoinedPlaceholders(snippet: vscode.SnippetString, parts: ReadonlyArray<Proto.SymbolDisplayPart>, joiner: string) {
+function appendJoinedPlaceholders(
+	snippet: vscode.SnippetString,
+	parts: ReadonlyArray<Proto.SymbolDisplayPart>,
+	joiner: string
+) {
 	for (let i = 0; i < parts.length; ++i) {
 		const paramterPart = parts[i];
 		snippet.appendPlaceholder(paramterPart.text);
@@ -36,10 +40,14 @@ function appendJoinedPlaceholders(snippet: vscode.SnippetString, parts: Readonly
 	}
 }
 
-function getParameterListParts(displayParts: ReadonlyArray<Proto.SymbolDisplayPart>, label: string): {
-	parts: ReadonlyArray<Proto.SymbolDisplayPart>;
-	hasOptionalParameters: boolean;
-} {
+interface ParamterListParts {
+	readonly parts: ReadonlyArray<Proto.SymbolDisplayPart>;
+	readonly hasOptionalParameters: boolean;
+}
+
+function getParameterListParts(
+	displayParts: ReadonlyArray<Proto.SymbolDisplayPart>, label: string
+): ParamterListParts {
 	const parts: Proto.SymbolDisplayPart[] = [];
 	let isInMethod = false;
 	let hasOptionalParameters = false;
