@@ -203,7 +203,7 @@ class ModelMarkerHandler {
 			}
 
 			hoverMessage.appendMarkdown(`<span style='font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback"; white-space: pre-wrap;'>`);
-			message = message.trim();
+			message = escape(message.trim());
 			const lines = message.split(/\r\n|\r|\n/g);
 			if (lines.length > 1) {
 				if (source) {
