@@ -2,22 +2,25 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { SingleCursorState, CursorContext, CursorState } from 'vs/editor/common/controller/cursorCommon';
+import { CursorContext, CursorState, SingleCursorState } from 'vs/editor/common/controller/cursorCommon';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { Selection, SelectionDirection, ISelection } from 'vs/editor/common/core/selection';
+import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
+import { TrackedRangeStickiness } from 'vs/editor/common/model';
 
 export class OneCursor {
 
 	public modelState: SingleCursorState;
 	public viewState: SingleCursorState;
 
-	private _selStartMarker: string;
-	private _selEndMarker: string;
+	private _selTrackedRange: string | null;
+	private _trackSelection: boolean;
 
 	constructor(context: CursorContext) {
+		this._selTrackedRange = null;
+		this._trackSelection = true;
+
 		this._setState(
 			context,
 			new SingleCursorState(new Range(1, 1, 1, 1), 0, new Position(1, 1), 0),
@@ -26,8 +29,29 @@ export class OneCursor {
 	}
 
 	public dispose(context: CursorContext): void {
-		context.model._removeMarker(this._selStartMarker);
-		context.model._removeMarker(this._selEndMarker);
+		this._removeTrackedRange(context);
+	}
+
+	public startTrackingSelection(context: CursorContext): void {
+		this._trackSelection = true;
+		this._updateTrackedRange(context);
+	}
+
+	public stopTrackingSelection(context: CursorContext): void {
+		this._trackSelection = false;
+		this._removeTrackedRange(context);
+	}
+
+	private _updateTrackedRange(context: CursorContext): void {
+		if (!this._trackSelection) {
+			// don't track the selection
+			return;
+		}
+		this._selTrackedRange = context.model._setTrackedRange(this._selTrackedRange, this.modelState.selection, TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
+	}
+
+	private _removeTrackedRange(context: CursorContext): void {
+		this._selTrackedRange = context.model._setTrackedRange(this._selTrackedRange, null, TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
 	}
 
 	public asCursorState(): CursorState {
@@ -35,42 +59,26 @@ export class OneCursor {
 	}
 
 	public readSelectionFromMarkers(context: CursorContext): Selection {
-		const start = context.model._getMarker(this._selStartMarker);
-		const end = context.model._getMarker(this._selEndMarker);
-
+		const range = context.model._getTrackedRange(this._selTrackedRange!)!;
 		if (this.modelState.selection.getDirection() === SelectionDirection.LTR) {
-			return new Selection(start.lineNumber, start.column, end.lineNumber, end.column);
+			return new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
 		}
-
-		return new Selection(end.lineNumber, end.column, start.lineNumber, start.column);
+		return new Selection(range.endLineNumber, range.endColumn, range.startLineNumber, range.startColumn);
 	}
 
 	public ensureValidState(context: CursorContext): void {
 		this._setState(context, this.modelState, this.viewState);
 	}
 
-	public setSelection(context: CursorContext, selection: ISelection): void {
-		const selectionStartLineNumber = selection.selectionStartLineNumber;
-		const selectionStartColumn = selection.selectionStartColumn;
-		const positionLineNumber = selection.positionLineNumber;
-		const positionColumn = selection.positionColumn;
-		const modelState = new SingleCursorState(
-			new Range(selectionStartLineNumber, selectionStartColumn, selectionStartLineNumber, selectionStartColumn), 0,
-			new Position(positionLineNumber, positionColumn), 0
-		);
-		this._setState(
-			context,
-			modelState,
-			null
-		);
-	}
-
-	public setState(context: CursorContext, modelState: SingleCursorState, viewState: SingleCursorState): void {
+	public setState(context: CursorContext, modelState: SingleCursorState | null, viewState: SingleCursorState | null): void {
 		this._setState(context, modelState, viewState);
 	}
 
-	private _setState(context: CursorContext, modelState: SingleCursorState, viewState: SingleCursorState): void {
+	private _setState(context: CursorContext, modelState: SingleCursorState | null, viewState: SingleCursorState | null): void {
 		if (!modelState) {
+			if (!viewState) {
+				return;
+			}
 			// We only have the view state => compute the model state
 			const selectionStart = context.model.validateRange(
 				context.convertViewRangeToModelRange(viewState.selectionStart)
@@ -108,25 +116,9 @@ export class OneCursor {
 			viewState = new SingleCursorState(viewSelectionStart, modelState.selectionStartLeftoverVisibleColumns, viewPosition, modelState.leftoverVisibleColumns);
 		}
 
-		if (this.modelState && this.viewState && this.modelState.equals(modelState) && this.viewState.equals(viewState)) {
-			// No-op, early return
-			return;
-		}
-
 		this.modelState = modelState;
 		this.viewState = viewState;
 
-		this._selStartMarker = this._ensureMarker(context, this._selStartMarker, this.modelState.selection.startLineNumber, this.modelState.selection.startColumn, true);
-		this._selEndMarker = this._ensureMarker(context, this._selEndMarker, this.modelState.selection.endLineNumber, this.modelState.selection.endColumn, false);
-	}
-
-	private _ensureMarker(context: CursorContext, markerId: string, lineNumber: number, column: number, stickToPreviousCharacter: boolean): string {
-		if (!markerId) {
-			return context.model._addMarker(0, lineNumber, column, stickToPreviousCharacter);
-		} else {
-			context.model._changeMarker(markerId, lineNumber, column);
-			context.model._changeMarkerStickiness(markerId, stickToPreviousCharacter);
-			return markerId;
-		}
+		this._updateTrackedRange(context);
 	}
 }

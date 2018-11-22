@@ -5,13 +5,12 @@
 
 import * as nls from 'vs/nls';
 import * as lifecycle from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import * as dom from 'vs/base/browser/dom';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
-import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { DefaultController, ICancelableEvent, ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
+import { ICancelableEvent, OpenMode } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -19,25 +18,29 @@ import { IContentWidget, ICodeEditor, IContentWidgetPosition, ContentWidgetPosit
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDebugService, IExpression, IExpressionContainer } from 'vs/workbench/parts/debug/common/debug';
 import { Expression } from 'vs/workbench/parts/debug/common/debugModel';
-import { VariablesRenderer, renderExpressionValue, VariablesDataSource } from 'vs/workbench/parts/debug/electron-browser/debugViewer';
-import { IListService } from 'vs/platform/list/browser/listService';
-import { attachListStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
+import { renderExpressionValue } from 'vs/workbench/parts/debug/browser/baseDebugView';
+import { VariablesDataSource, VariablesRenderer } from 'vs/workbench/parts/debug/electron-browser/variablesView';
+import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { editorHoverBackground, editorHoverBorder } from "vs/platform/theme/common/colorRegistry";
+import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
+import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { getExactExpressionStartAndEnd } from 'vs/workbench/parts/debug/common/debugUtils';
 
 const $ = dom.$;
 const MAX_ELEMENTS_SHOWN = 18;
-const MAX_VALUE_RENDER_LENGTH_IN_HOVER = 4096;
 
 export class DebugHoverWidget implements IContentWidget {
 
-	public static ID = 'debug.hoverWidget';
+	public static readonly ID = 'debug.hoverWidget';
 	// editor.IContentWidget.allowEditorOverflow
 	public allowEditorOverflow = true;
 
 	private _isVisible: boolean;
 	private domNode: HTMLElement;
-	private tree: ITree;
+	private tree: WorkbenchTree;
 	private showAtPosition: Position;
 	private highlightDecorations: string[];
 	private complexValueContainer: HTMLElement;
@@ -46,64 +49,69 @@ export class DebugHoverWidget implements IContentWidget {
 	private valueContainer: HTMLElement;
 	private stoleFocus: boolean;
 	private toDispose: lifecycle.IDisposable[];
+	private scrollbar: DomScrollableElement;
 
 	constructor(
 		private editor: ICodeEditor,
 		private debugService: IDebugService,
-		private listService: IListService,
-		instantiationService: IInstantiationService,
+		private instantiationService: IInstantiationService,
 		private themeService: IThemeService
 	) {
 		this.toDispose = [];
-		this.create(instantiationService);
-		this.registerListeners();
-
-		this.valueContainer = dom.append(this.domNode, $('.value'));
-		this.valueContainer.tabIndex = 0;
-		this.valueContainer.setAttribute('role', 'tooltip');
 
 		this._isVisible = false;
 		this.showAtPosition = null;
 		this.highlightDecorations = [];
-
-		this.editor.addContentWidget(this);
-		this.editor.applyFontInfo(this.domNode);
 	}
 
-	private create(instantiationService: IInstantiationService): void {
+	private create(): void {
 		this.domNode = $('.debug-hover-widget');
 		this.complexValueContainer = dom.append(this.domNode, $('.complex-value'));
 		this.complexValueTitle = dom.append(this.complexValueContainer, $('.title'));
 		this.treeContainer = dom.append(this.complexValueContainer, $('.debug-hover-tree'));
 		this.treeContainer.setAttribute('role', 'tree');
-		this.tree = new Tree(this.treeContainer, {
+		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
 			dataSource: new VariablesDataSource(),
-			renderer: instantiationService.createInstance(VariablesHoverRenderer),
-			controller: new DebugHoverController(this.editor)
+			renderer: this.instantiationService.createInstance(VariablesHoverRenderer),
+			controller: this.instantiationService.createInstance(DebugHoverController, this.editor)
 		}, {
 				indentPixels: 6,
+				horizontalScrollMode: ScrollbarVisibility.Auto,
 				twistiePixels: 15,
-				ariaLabel: nls.localize('treeAriaLabel', "Debug Hover"),
-				keyboardSupport: false
+				ariaLabel: nls.localize('treeAriaLabel', "Debug Hover")
 			});
 
-		this.toDispose.push(attachListStyler(this.tree, this.themeService));
-		this.toDispose.push(this.listService.register(this.tree));
+		this.valueContainer = $('.value');
+		this.valueContainer.tabIndex = 0;
+		this.valueContainer.setAttribute('role', 'tooltip');
+		this.scrollbar = new DomScrollableElement(this.valueContainer, { horizontal: ScrollbarVisibility.Hidden });
+		this.domNode.appendChild(this.scrollbar.getDomNode());
+		this.toDispose.push(this.scrollbar);
+
+		this.editor.applyFontInfo(this.domNode);
+
 		this.toDispose.push(attachStylerCallback(this.themeService, { editorHoverBackground, editorHoverBorder }, colors => {
-			this.domNode.style.backgroundColor = colors.editorHoverBackground;
+			if (colors.editorHoverBackground) {
+				this.domNode.style.backgroundColor = colors.editorHoverBackground.toString();
+			} else {
+				this.domNode.style.backgroundColor = null;
+			}
 			if (colors.editorHoverBorder) {
 				this.domNode.style.border = `1px solid ${colors.editorHoverBorder}`;
 			} else {
 				this.domNode.style.border = null;
 			}
 		}));
+
+		this.registerListeners();
+		this.editor.addContentWidget(this);
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.tree.addListener('item:expanded', () => {
+		this.toDispose.push(this.tree.onDidExpandItem(() => {
 			this.layoutTree();
 		}));
-		this.toDispose.push(this.tree.addListener('item:collapsed', () => {
+		this.toDispose.push(this.tree.onDidCollapseItem(() => {
 			this.layoutTree();
 		}));
 
@@ -131,67 +139,24 @@ export class DebugHoverWidget implements IContentWidget {
 		return this.domNode;
 	}
 
-	private getExactExpressionRange(lineContent: string, range: Range): Range {
-		let matchingExpression: string = undefined;
-		let startOffset = 0;
-
-		// Some example supported expressions: myVar.prop, a.b.c.d, myVar?.prop, myVar->prop, MyClass::StaticProp, *myVar
-		// Match any character except a set of characters which often break interesting sub-expressions
-		let expression: RegExp = /([^()\[\]{}<>\s+\-/%~#^;=|,`!]|\->)+/g;
-		let result: RegExpExecArray = undefined;
-
-		// First find the full expression under the cursor
-		while (result = expression.exec(lineContent)) {
-			let start = result.index + 1;
-			let end = start + result[0].length;
-
-			if (start <= range.startColumn && end >= range.endColumn) {
-				matchingExpression = result[0];
-				startOffset = start;
-				break;
-			}
-		}
-
-		// If there are non-word characters after the cursor, we want to truncate the expression then.
-		// For example in expression 'a.b.c.d', if the focus was under 'b', 'a.b' would be evaluated.
-		if (matchingExpression) {
-			let subExpression: RegExp = /\w+/g;
-			let subExpressionResult: RegExpExecArray = undefined;
-			while (subExpressionResult = subExpression.exec(matchingExpression)) {
-				let subEnd = subExpressionResult.index + 1 + startOffset + subExpressionResult[0].length;
-				if (subEnd >= range.endColumn) {
-					break;
-				}
-			}
-
-			if (subExpressionResult) {
-				matchingExpression = matchingExpression.substring(0, subExpression.lastIndex);
-			}
-		}
-
-		return matchingExpression ?
-			new Range(range.startLineNumber, startOffset, range.endLineNumber, startOffset + matchingExpression.length - 1) :
-			new Range(range.startLineNumber, 0, range.endLineNumber, 0);
-	}
-
-	public showAt(range: Range, focus: boolean): TPromise<void> {
+	public showAt(range: Range, focus: boolean): Promise<void> {
 		const pos = range.getStartPosition();
 
-		const process = this.debugService.getViewModel().focusedProcess;
+		const session = this.debugService.getViewModel().focusedSession;
 		const lineContent = this.editor.getModel().getLineContent(pos.lineNumber);
-		const expressionRange = this.getExactExpressionRange(lineContent, range);
+		const { start, end } = getExactExpressionStartAndEnd(lineContent, range.startColumn, range.endColumn);
 		// use regex to extract the sub-expression #9821
-		const matchingExpression = lineContent.substring(expressionRange.startColumn - 1, expressionRange.endColumn);
+		const matchingExpression = lineContent.substring(start - 1, end);
 		if (!matchingExpression) {
-			return TPromise.as(this.hide());
+			return Promise.resolve(this.hide());
 		}
 
-		let promise: TPromise<IExpression>;
-		if (process.session.capabilities.supportsEvaluateForHovers) {
+		let promise: Promise<IExpression>;
+		if (session.capabilities.supportsEvaluateForHovers) {
 			const result = new Expression(matchingExpression);
-			promise = result.evaluate(process, this.debugService.getViewModel().focusedStackFrame, 'hover').then(() => result);
+			promise = result.evaluate(session, this.debugService.getViewModel().focusedStackFrame, 'hover').then(() => result);
 		} else {
-			promise = this.findExpressionInStackFrame(matchingExpression.split('.').map(word => word.trim()).filter(word => !!word), expressionRange);
+			promise = this.findExpressionInStackFrame(matchingExpression.split('.').map(word => word.trim()).filter(word => !!word));
 		}
 
 		return promise.then(expression => {
@@ -201,19 +166,21 @@ export class DebugHoverWidget implements IContentWidget {
 			}
 
 			this.highlightDecorations = this.editor.deltaDecorations(this.highlightDecorations, [{
-				range: new Range(pos.lineNumber, expressionRange.startColumn, pos.lineNumber, expressionRange.startColumn + matchingExpression.length),
-				options: {
-					className: 'hoverHighlight'
-				}
+				range: new Range(pos.lineNumber, start, pos.lineNumber, start + matchingExpression.length),
+				options: DebugHoverWidget._HOVER_HIGHLIGHT_DECORATION_OPTIONS
 			}]);
 
 			return this.doShow(pos, expression, focus);
 		});
 	}
 
-	private doFindExpression(container: IExpressionContainer, namesToFind: string[]): TPromise<IExpression> {
+	private static _HOVER_HIGHLIGHT_DECORATION_OPTIONS = ModelDecorationOptions.register({
+		className: 'hoverHighlight'
+	});
+
+	private doFindExpression(container: IExpressionContainer, namesToFind: string[]): Promise<IExpression> {
 		if (!container) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		return container.getChildren().then(children => {
@@ -231,15 +198,20 @@ export class DebugHoverWidget implements IContentWidget {
 		});
 	}
 
-	private findExpressionInStackFrame(namesToFind: string[], expressionRange: Range): TPromise<IExpression> {
-		return this.debugService.getViewModel().focusedStackFrame.getMostSpecificScopes(expressionRange)
-			.then(scopes => TPromise.join(scopes.map(scope => this.doFindExpression(scope, namesToFind))))
+	private findExpressionInStackFrame(namesToFind: string[]): Promise<IExpression> {
+		return this.debugService.getViewModel().focusedStackFrame.getScopes()
+			.then(scopes => scopes.filter(s => !s.expensive))
+			.then(scopes => Promise.all(scopes.map(scope => this.doFindExpression(scope, namesToFind))))
 			.then(expressions => expressions.filter(exp => !!exp))
 			// only show if all expressions found have the same value
 			.then(expressions => (expressions.length > 0 && expressions.every(e => e.value === expressions[0].value)) ? expressions[0] : null);
 	}
 
-	private doShow(position: Position, expression: IExpression, focus: boolean, forceValueHover = false): TPromise<void> {
+	private doShow(position: Position, expression: IExpression, focus: boolean, forceValueHover = false): Thenable<void> {
+		if (!this.domNode) {
+			this.create();
+		}
+
 		this.showAtPosition = position;
 		this._isVisible = true;
 		this.stoleFocus = focus;
@@ -249,17 +221,18 @@ export class DebugHoverWidget implements IContentWidget {
 			this.valueContainer.hidden = false;
 			renderExpressionValue(expression, this.valueContainer, {
 				showChanged: false,
-				maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_HOVER,
-				preserveWhitespace: true
+				preserveWhitespace: true,
+				colorize: true
 			});
 			this.valueContainer.title = '';
 			this.editor.layoutContentWidget(this);
+			this.scrollbar.scanDomNode();
 			if (focus) {
 				this.editor.render();
 				this.valueContainer.focus();
 			}
 
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		this.valueContainer.hidden = true;
@@ -270,9 +243,10 @@ export class DebugHoverWidget implements IContentWidget {
 			this.complexValueTitle.title = expression.value;
 			this.layoutTree();
 			this.editor.layoutContentWidget(this);
+			this.scrollbar.scanDomNode();
 			if (focus) {
 				this.editor.render();
-				this.tree.DOMFocus();
+				this.tree.domFocus();
 			}
 		});
 	}
@@ -287,7 +261,7 @@ export class DebugHoverWidget implements IContentWidget {
 		if (visibleElementsCount === 0) {
 			this.doShow(this.showAtPosition, this.tree.getInput(), false, true);
 		} else {
-			const height = Math.min(visibleElementsCount, MAX_ELEMENTS_SHOWN) * 18;
+			const height = Math.min(visibleElementsCount, MAX_ELEMENTS_SHOWN) * 18 + 10; // add 10 px for the horizontal scroll bar
 
 			if (this.treeContainer.clientHeight !== height) {
 				this.treeContainer.style.height = `${height}px`;
@@ -325,10 +299,13 @@ export class DebugHoverWidget implements IContentWidget {
 	}
 }
 
-class DebugHoverController extends DefaultController {
+class DebugHoverController extends WorkbenchTreeController {
 
-	constructor(private editor: ICodeEditor) {
-		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP, keyboardSupport: false });
+	constructor(
+		private editor: ICodeEditor,
+		@IConfigurationService configurationService: IConfigurationService
+	) {
+		super({ openMode: OpenMode.SINGLE_CLICK }, configurationService);
 	}
 
 	protected onLeftClick(tree: ITree, element: any, eventish: ICancelableEvent, origin = 'mouse'): boolean {

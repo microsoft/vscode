@@ -5,11 +5,10 @@
 
 .monaco-workbench > .part.statusbar {
 	box-sizing: border-box;
+	cursor: default;
 	width: 100%;
 	height: 22px;
 	font-size: 12px;
-	padding: 0 10px;
-	overflow: hidden;
 }
 
 .monaco-workbench > .part.statusbar > .statusbar-item {
@@ -17,6 +16,21 @@
 	line-height: 22px;
 	height: 100%;
 	vertical-align: top;
+}
+
+.monaco-workbench > .part.statusbar > .statusbar-item.has-beak {
+	position: relative;
+}
+
+.monaco-workbench > .part.statusbar > .statusbar-item.has-beak:before {
+	content: '';
+	position: absolute;
+	left: 11px;
+	top: -5px;
+	border-bottom-width: 5px;
+	border-bottom-style: solid;
+	border-left: 5px solid transparent;
+	border-right: 5px solid transparent;
 }
 
 .monaco-workbench > .part.statusbar > .statusbar-item.left > :first-child {
@@ -31,19 +45,27 @@
 	margin-left: 5px;
 }
 
-.monaco-workbench > .part.statusbar > .statusbar-item a:not([disabled]):not(.disabled) {
+/* adding padding to the most left status bar item */
+.monaco-workbench > .part.statusbar > .statusbar-item.left:first-child, .monaco-workbench > .part.statusbar > .statusbar-item.right + .statusbar-item.left {
+	padding-left: 10px;
+}
+/* adding padding to the most right status bar item */
+.monaco-workbench > .part.statusbar > .statusbar-item.right:first-child {
+	padding-right: 10px;
+}
+
+.monaco-workbench > .part.statusbar > .statusbar-item a {
 	cursor: pointer;
 	display: inline-block;
 	height: 100%;
 }
 
 .monaco-workbench > .part.statusbar > .statusbar-entry > span {
-	cursor: default;
 	height: 100%;
 }
 
 .monaco-workbench > .part.statusbar > .statusbar-entry > span,
-.monaco-workbench > .part.statusbar > .statusbar-entry > a:not([disabled]) {
+.monaco-workbench > .part.statusbar > .statusbar-entry > a {
 	padding: 0 5px 0 5px;
 	white-space: pre; /* gives some degree of styling */
 }
@@ -53,6 +75,6 @@
 	font-size: 14px;
 }
 
-.monaco-workbench > .part.statusbar > .statusbar-item a:hover:not([disabled]):not(.disabled) {
+.monaco-workbench > .part.statusbar > .statusbar-item a:hover {
 	text-decoration: none;
 }

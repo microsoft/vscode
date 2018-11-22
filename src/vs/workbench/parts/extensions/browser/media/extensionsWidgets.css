@@ -47,21 +47,3 @@
 .extension-ratings.small > .count {
 	margin-left: 2px;
 }
-
-.extension-status {
-	display: none;
-}
-
-.extension-status.active,
-.extension-status.disabled {
-	border-radius: 50%;
-	display: inline-block;
-}
-
-.extension-status.active {
-	background: #478E4B;
-}
-
-.extension-status.disabled {
-	background: #5f5f5f;
-}

@@ -3,17 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import Event from 'vs/base/common/event';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
-export const ID = 'urlService';
-export const IURLService = createDecorator<IURLService>(ID);
+export const IURLService = createDecorator<IURLService>('urlService');
+
+export interface IURLHandler {
+	handleURL(uri: URI): Thenable<boolean>;
+}
 
 export interface IURLService {
 	_serviceBrand: any;
-	open(url: string): void;
-	onOpenURL: Event<URI>;
+
+	open(url: URI): Thenable<boolean>;
+	registerHandler(handler: IURLHandler): IDisposable;
 }

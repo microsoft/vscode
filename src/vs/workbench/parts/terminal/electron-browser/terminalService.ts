@@ -6,67 +6,139 @@
 import * as nls from 'vs/nls';
 import * as pfs from 'vs/base/node/pfs';
 import * as platform from 'vs/base/common/platform';
-import product from 'vs/platform/node/product';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { IQuickOpenService, IPickOpenEntry, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
-import { ITerminalInstance, ITerminalService, IShellLaunchConfig, ITerminalConfigHelper, NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY } from 'vs/workbench/parts/terminal/common/terminal';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { ITerminalInstance, ITerminalService, IShellLaunchConfig, ITerminalConfigHelper, NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, TERMINAL_PANEL_ID, ITerminalProcessExtHostProxy } from 'vs/workbench/parts/terminal/common/terminal';
 import { TerminalService as AbstractTerminalService } from 'vs/workbench/parts/terminal/common/terminalService';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
-import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { IChoiceService } from 'vs/platform/message/common/message';
-import { Severity } from 'vs/editor/common/standalone/standaloneBase';
+import Severity from 'vs/base/common/severity';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { TERMINAL_DEFAULT_SHELL_WINDOWS } from "vs/workbench/parts/terminal/electron-browser/terminal";
+import { getDefaultShell } from 'vs/workbench/parts/terminal/node/terminal';
+import { TerminalPanel } from 'vs/workbench/parts/terminal/electron-browser/terminalPanel';
+import { TerminalTab } from 'vs/workbench/parts/terminal/browser/terminalTab';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { ipcRenderer as ipc } from 'electron';
+import { IOpenFileRequest } from 'vs/platform/windows/common/windows';
+import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IQuickInputService, IQuickPickItem, IPickOptions } from 'vs/platform/quickinput/common/quickInput';
 
 export class TerminalService extends AbstractTerminalService implements ITerminalService {
 	private _configHelper: TerminalConfigHelper;
+	public get configHelper(): ITerminalConfigHelper { return this._configHelper; }
 
-	public get configHelper(): ITerminalConfigHelper { return this._configHelper; };
-
-	constructor(
-		@IContextKeyService _contextKeyService: IContextKeyService,
-		@IConfigurationService _configurationService: IConfigurationService,
-		@IPanelService _panelService: IPanelService,
-		@IPartService _partService: IPartService,
-		@ILifecycleService _lifecycleService: ILifecycleService,
-		@IInstantiationService private _instantiationService: IInstantiationService,
-		@IWindowIPCService private _windowService: IWindowIPCService,
-		@IQuickOpenService private _quickOpenService: IQuickOpenService,
-		@IConfigurationEditingService private _configurationEditingService: IConfigurationEditingService,
-		@IChoiceService private _choiceService: IChoiceService,
-		@IStorageService private _storageService: IStorageService
-	) {
-		super(_contextKeyService, _configurationService, _panelService, _partService, _lifecycleService);
-
-		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper, platform.platform);
+	protected _terminalTabs: TerminalTab[];
+	protected get _terminalInstances(): ITerminalInstance[] {
+		return this._terminalTabs.reduce((p, c) => p.concat(c.terminalInstances), <ITerminalInstance[]>[]);
 	}
 
-	public createInstance(shell: IShellLaunchConfig = {}, wasNewTerminalAction?: boolean): ITerminalInstance {
-		let terminalInstance = this._instantiationService.createInstance(TerminalInstance,
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IPanelService panelService: IPanelService,
+		@IPartService partService: IPartService,
+		@IStorageService storageService: IStorageService,
+		@ILifecycleService lifecycleService: ILifecycleService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IQuickInputService private readonly _quickInputService: IQuickInputService,
+		@INotificationService private readonly _notificationService: INotificationService,
+		@IDialogService private readonly _dialogService: IDialogService,
+		@IExtensionService private readonly _extensionService: IExtensionService
+	) {
+		super(contextKeyService, panelService, partService, lifecycleService, storageService);
+
+		this._terminalTabs = [];
+		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper);
+		ipc.on('vscode:openFiles', (_event: any, request: IOpenFileRequest) => {
+			// if the request to open files is coming in from the integrated terminal (identified though
+			// the termProgram variable) and we are instructed to wait for editors close, wait for the
+			// marker file to get deleted and then focus back to the integrated terminal.
+			if (request.termProgram === 'vscode' && request.filesToWait) {
+				pfs.whenDeleted(request.filesToWait.waitMarkerFilePath).then(() => {
+					if (this.terminalInstances.length > 0) {
+						this.getActiveInstance().focus();
+					}
+				});
+			}
+		});
+	}
+
+	public createTerminal(shell: IShellLaunchConfig = {}, wasNewTerminalAction?: boolean): ITerminalInstance {
+		const terminalTab = this._instantiationService.createInstance(TerminalTab,
 			this._terminalFocusContextKey,
 			this._configHelper,
 			this._terminalContainer,
 			shell);
-		terminalInstance.addDisposable(terminalInstance.onTitleChanged(this._onInstanceTitleChanged.fire, this._onInstanceTitleChanged));
-		terminalInstance.addDisposable(terminalInstance.onDisposed(this._onInstanceDisposed.fire, this._onInstanceDisposed));
-		terminalInstance.addDisposable(terminalInstance.onDataForApi(this._onInstanceData.fire, this._onInstanceData));
-		terminalInstance.addDisposable(terminalInstance.onProcessIdReady(this._onInstanceProcessIdReady.fire, this._onInstanceProcessIdReady));
-		this.terminalInstances.push(terminalInstance);
+		this._terminalTabs.push(terminalTab);
+		const instance = terminalTab.terminalInstances[0];
+		terminalTab.addDisposable(terminalTab.onDisposed(this._onTabDisposed.fire, this._onTabDisposed));
+		terminalTab.addDisposable(terminalTab.onInstancesChanged(this._onInstancesChanged.fire, this._onInstancesChanged));
+		this._initInstanceListeners(instance);
 		if (this.terminalInstances.length === 1) {
 			// It's the first instance so it should be made active automatically
 			this.setActiveInstanceByIndex(0);
 		}
 		this._onInstancesChanged.fire();
 		this._suggestShellChange(wasNewTerminalAction);
-		return terminalInstance;
+		return instance;
+	}
+
+	public createTerminalRenderer(name: string): ITerminalInstance {
+		return this.createTerminal({ name, isRendererOnly: true });
+	}
+
+	public createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement | undefined, shellLaunchConfig: IShellLaunchConfig, doCreateProcess: boolean): ITerminalInstance {
+		const instance = this._instantiationService.createInstance(TerminalInstance, terminalFocusContextKey, configHelper, container, shellLaunchConfig);
+		this._onInstanceCreated.fire(instance);
+		return instance;
+	}
+
+	public requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number): void {
+		// Ensure extension host is ready before requesting a process
+		this._extensionService.whenInstalledExtensionsRegistered().then(() => {
+			// TODO: MainThreadTerminalService is not ready at this point, fix this
+			setTimeout(() => {
+				this._onInstanceRequestExtHostProcess.fire({ proxy, shellLaunchConfig, cols, rows });
+			}, 500);
+		});
+	}
+
+	public focusFindWidget(): Promise<void> {
+		return this.showPanel(false).then(() => {
+			const panel = this._panelService.getActivePanel() as TerminalPanel;
+			panel.focusFindWidget();
+			this._findWidgetVisible.set(true);
+		});
+	}
+
+	public hideFindWidget(): void {
+		const panel = this._panelService.getActivePanel() as TerminalPanel;
+		if (panel && panel.getId() === TERMINAL_PANEL_ID) {
+			panel.hideFindWidget();
+			this._findWidgetVisible.reset();
+			panel.focus();
+		}
+	}
+
+	public findNext(): void {
+		const panel = this._panelService.getActivePanel() as TerminalPanel;
+		if (panel && panel.getId() === TERMINAL_PANEL_ID) {
+			panel.showFindWidget();
+			panel.getFindWidget().find(false);
+		}
+	}
+
+	public findPrevious(): void {
+		const panel = this._panelService.getActivePanel() as TerminalPanel;
+		if (panel && panel.getId() === TERMINAL_PANEL_ID) {
+			panel.showFindWidget();
+			panel.getFindWidget().find(true);
+		}
 	}
 
 	private _suggestShellChange(wasNewTerminalAction?: boolean): void {
@@ -88,80 +160,87 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		}
 
 		// Never suggest if the setting is non-default already (ie. they set the setting manually)
-		if (this._configHelper.config.shell.windows !== TERMINAL_DEFAULT_SHELL_WINDOWS) {
-			this._storageService.store(NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, true);
+		if (this._configHelper.config.shell.windows !== getDefaultShell(platform.Platform.Windows)) {
+			this._storageService.store(NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, true, StorageScope.GLOBAL);
 			return;
 		}
 
-		const message = nls.localize('terminal.integrated.chooseWindowsShellInfo', "You can change the default terminal shell by selecting the customize button.");
-		const options = [nls.localize('customize', "Customize"), nls.localize('cancel', "Cancel"), nls.localize('never again', "OK, Never Show Again")];
-		this._choiceService.choose(Severity.Info, message, options, 1).then(choice => {
-			switch (choice) {
-				case 0:
-					return this.selectDefaultWindowsShell().then(shell => {
+		this._notificationService.prompt(
+			Severity.Info,
+			nls.localize('terminal.integrated.chooseWindowsShellInfo', "You can change the default terminal shell by selecting the customize button."),
+			[{
+				label: nls.localize('customize', "Customize"),
+				run: () => {
+					this.selectDefaultWindowsShell().then(shell => {
 						if (!shell) {
-							return TPromise.as(null);
+							return Promise.resolve(null);
 						}
 						// Launch a new instance with the newly selected shell
-						const instance = this.createInstance({
+						const instance = this.createTerminal({
 							executable: shell,
 							args: this._configHelper.config.shellArgs.windows
 						});
 						if (instance) {
 							this.setActiveInstance(instance);
 						}
-						return TPromise.as(null);
+						return Promise.resolve(null);
 					});
-				case 1:
-					return TPromise.as(null);
-				case 2:
-					this._storageService.store(NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, true);
-				default:
-					return TPromise.as(null);
-			}
-		});
+				}
+			},
+			{
+				label: nls.localize('never again', "Don't Show Again"),
+				isSecondary: true,
+				run: () => this._storageService.store(NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, true, StorageScope.GLOBAL)
+			}]
+		);
 	}
 
-	public selectDefaultWindowsShell(): TPromise<string> {
+	public selectDefaultWindowsShell(): Promise<string> {
 		return this._detectWindowsShells().then(shells => {
-			const options: IPickOptions = {
+			const options: IPickOptions<IQuickPickItem> = {
 				placeHolder: nls.localize('terminal.integrated.chooseWindowsShell', "Select your preferred terminal shell, you can change this later in your settings")
 			};
-			return this._quickOpenService.pick(shells, options).then(value => {
+			return this._quickInputService.pick(shells, options).then(value => {
 				if (!value) {
 					return null;
 				}
 				const shell = value.description;
-				const configChange = { key: 'terminal.integrated.shell.windows', value: shell };
-				return this._configurationEditingService.writeConfiguration(ConfigurationTarget.USER, configChange).then(() => shell);
+				return this._configurationService.updateValue('terminal.integrated.shell.windows', shell, ConfigurationTarget.USER).then(() => shell);
 			});
 		});
 	}
 
-	private _detectWindowsShells(): TPromise<IPickOpenEntry[]> {
-		const windir = process.env['windir'];
+	private _detectWindowsShells(): Promise<IQuickPickItem[]> {
+		// Determine the correct System32 path. We want to point to Sysnative
+		// when the 32-bit version of VS Code is running on a 64-bit machine.
+		// The reason for this is because PowerShell's important PSReadline
+		// module doesn't work if this is not the case. See #27915.
+		const is32ProcessOn64Windows = process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
+		const system32Path = `${process.env['windir']}\\${is32ProcessOn64Windows ? 'Sysnative' : 'System32'}`;
+
+		let useWSLexe = false;
+
+		if (TerminalInstance.getWindowsBuildNumber() >= 16299) {
+			useWSLexe = true;
+		}
+
 		const expectedLocations = {
-			'Command Prompt': [
-				`${windir}\\Sysnative\\cmd.exe`,
-				`${windir}\\System32\\cmd.exe`
-			],
-			PowerShell: [
-				`${windir}\\Sysnative\\WindowsPowerShell\\v1.0\\powershell.exe`,
-				`${windir}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`
-			],
-			'WSL Bash': [`${windir}\\Sysnative\\bash.exe`],
+			'Command Prompt': [`${system32Path}\\cmd.exe`],
+			PowerShell: [`${system32Path}\\WindowsPowerShell\\v1.0\\powershell.exe`],
+			'WSL Bash': [`${system32Path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`],
 			'Git Bash': [
 				`${process.env['ProgramW6432']}\\Git\\bin\\bash.exe`,
 				`${process.env['ProgramW6432']}\\Git\\usr\\bin\\bash.exe`,
 				`${process.env['ProgramFiles']}\\Git\\bin\\bash.exe`,
 				`${process.env['ProgramFiles']}\\Git\\usr\\bin\\bash.exe`,
+				`${process.env['LocalAppData']}\\Programs\\Git\\bin\\bash.exe`,
 			]
 		};
-		const promises: TPromise<[string, string]>[] = [];
+		const promises: PromiseLike<[string, string]>[] = [];
 		Object.keys(expectedLocations).forEach(key => promises.push(this._validateShellPaths(key, expectedLocations[key])));
-		return TPromise.join(promises).then(results => {
+		return Promise.all(promises).then(results => {
 			return results.filter(result => !!result).map(result => {
-				return <IPickOpenEntry>{
+				return <IQuickPickItem>{
 					label: result[0],
 					description: result[1]
 				};
@@ -169,7 +248,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		});
 	}
 
-	private _validateShellPaths(label: string, potentialPaths: string[]): TPromise<[string, string]> {
+	private _validateShellPaths(label: string, potentialPaths: string[]): PromiseLike<[string, string]> {
 		const current = potentialPaths.shift();
 		return pfs.fileExists(current).then(exists => {
 			if (!exists) {
@@ -178,39 +257,36 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 				}
 				return this._validateShellPaths(label, potentialPaths);
 			}
-			return [label, current];
+			return [label, current] as [string, string];
 		});
 	}
 
 	public getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance {
 		const activeInstance = this.getActiveInstance();
-		return activeInstance ? activeInstance : this.createInstance(undefined, wasNewTerminalAction);
+		return activeInstance ? activeInstance : this.createTerminal(undefined, wasNewTerminalAction);
 	}
 
-	protected _showTerminalCloseConfirmation(): boolean {
-		const cancelId = 1;
+	protected _showTerminalCloseConfirmation(): PromiseLike<boolean> {
 		let message;
 		if (this.terminalInstances.length === 1) {
 			message = nls.localize('terminalService.terminalCloseConfirmationSingular', "There is an active terminal session, do you want to kill it?");
 		} else {
 			message = nls.localize('terminalService.terminalCloseConfirmationPlural', "There are {0} active terminal sessions, do you want to kill them?", this.terminalInstances.length);
 		}
-		const opts: Electron.ShowMessageBoxOptions = {
-			title: product.nameLong,
+
+		return this._dialogService.confirm({
 			message,
 			type: 'warning',
-			buttons: [nls.localize('yes', "Yes"), nls.localize('cancel', "Cancel")],
-			noLink: true,
-			cancelId
-		};
-		return this._windowService.getWindow().showMessageBox(opts) === cancelId;
+		}).then(res => !res.confirmed);
+	}
+
+	protected _showNotEnoughSpaceToast(): void {
+		this._notificationService.info(nls.localize('terminal.minWidth', "Not enough space to split terminal."));
 	}
 
 	public setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void {
 		this._configHelper.panelContainer = panelContainer;
 		this._terminalContainer = terminalContainer;
-		this._terminalInstances.forEach(terminalInstance => {
-			terminalInstance.attachToElement(this._terminalContainer);
-		});
+		this._terminalTabs.forEach(tab => tab.attachToElement(this._terminalContainer));
 	}
 }

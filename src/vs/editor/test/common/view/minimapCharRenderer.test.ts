@@ -2,13 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
+import { RGBA8 } from 'vs/editor/common/core/rgba';
 import { Constants } from 'vs/editor/common/view/minimapCharRenderer';
-import { MinimapCharRendererFactory } from 'vs/editor/test/common/view/minimapCharRendererFactory';
 import { getOrCreateMinimapCharRenderer } from 'vs/editor/common/view/runtimeMinimapCharRenderer';
-import { RGBA } from 'vs/base/common/color';
+import { MinimapCharRendererFactory } from 'vs/editor/test/common/view/minimapCharRendererFactory';
 
 suite('MinimapCharRenderer', () => {
 
@@ -79,8 +78,8 @@ suite('MinimapCharRenderer', () => {
 		setSampleData('d'.charCodeAt(0), sampleD);
 		let renderer = MinimapCharRendererFactory.create(sampleData);
 
-		let background = new RGBA(0, 0, 0, 255);
-		let color = new RGBA(255, 255, 255, 255);
+		let background = new RGBA8(0, 0, 0, 255);
+		let color = new RGBA8(255, 255, 255, 255);
 		let imageData = createFakeImageData(Constants.x2_CHAR_WIDTH, Constants.x2_CHAR_HEIGHT);
 		// set the background color
 		for (let i = 0, len = imageData.data.length / 4; i < len; i++) {
@@ -106,8 +105,8 @@ suite('MinimapCharRenderer', () => {
 	test('letter d @ 2x at runtime', () => {
 		let renderer = getOrCreateMinimapCharRenderer();
 
-		let background = new RGBA(0, 0, 0, 255);
-		let color = new RGBA(255, 255, 255, 255);
+		let background = new RGBA8(0, 0, 0, 255);
+		let color = new RGBA8(255, 255, 255, 255);
 		let imageData = createFakeImageData(Constants.x2_CHAR_WIDTH, Constants.x2_CHAR_HEIGHT);
 		// set the background color
 		for (let i = 0, len = imageData.data.length / 4; i < len; i++) {
@@ -135,8 +134,8 @@ suite('MinimapCharRenderer', () => {
 		setSampleData('d'.charCodeAt(0), sampleD);
 		let renderer = MinimapCharRendererFactory.create(sampleData);
 
-		let background = new RGBA(0, 0, 0, 255);
-		let color = new RGBA(255, 255, 255, 255);
+		let background = new RGBA8(0, 0, 0, 255);
+		let color = new RGBA8(255, 255, 255, 255);
 		let imageData = createFakeImageData(Constants.x1_CHAR_WIDTH, Constants.x1_CHAR_HEIGHT);
 		// set the background color
 		for (let i = 0, len = imageData.data.length / 4; i < len; i++) {
@@ -161,8 +160,8 @@ suite('MinimapCharRenderer', () => {
 	test('letter d @ 1x at runtime', () => {
 		let renderer = getOrCreateMinimapCharRenderer();
 
-		let background = new RGBA(0, 0, 0, 255);
-		let color = new RGBA(255, 255, 255, 255);
+		let background = new RGBA8(0, 0, 0, 255);
+		let color = new RGBA8(255, 255, 255, 255);
 		let imageData = createFakeImageData(Constants.x1_CHAR_WIDTH, Constants.x1_CHAR_HEIGHT);
 		// set the background color
 		for (let i = 0, len = imageData.data.length / 4; i < len; i++) {

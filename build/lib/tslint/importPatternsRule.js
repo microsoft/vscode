@@ -1,57 +1,70 @@
+"use strict";
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-"use strict";
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = Object.setPrototypeOf ||
-        ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-        function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
 Object.defineProperty(exports, "__esModule", { value: true });
-var Lint = require("tslint");
-var minimatch = require("minimatch");
-var Rule = (function (_super) {
-    __extends(Rule, _super);
-    function Rule() {
-        return _super !== null && _super.apply(this, arguments) || this;
-    }
-    Rule.prototype.apply = function (sourceFile) {
-        var configs = this.getOptions().ruleArguments;
-        for (var _i = 0, configs_1 = configs; _i < configs_1.length; _i++) {
-            var config = configs_1[_i];
+const ts = require("typescript");
+const Lint = require("tslint");
+const minimatch = require("minimatch");
+const path_1 = require("path");
+class Rule extends Lint.Rules.AbstractRule {
+    apply(sourceFile) {
+        const configs = this.getOptions().ruleArguments;
+        for (const config of configs) {
             if (minimatch(sourceFile.fileName, config.target)) {
                 return this.applyWithWalker(new ImportPatterns(sourceFile, this.getOptions(), config));
             }
         }
         return [];
-    };
-    return Rule;
-}(Lint.Rules.AbstractRule));
-exports.Rule = Rule;
-var ImportPatterns = (function (_super) {
-    __extends(ImportPatterns, _super);
-    function ImportPatterns(file, opts, _config) {
-        var _this = _super.call(this, file, opts) || this;
-        _this._config = _config;
-        return _this;
     }
-    ImportPatterns.prototype.visitImportDeclaration = function (node) {
-        var path = node.moduleSpecifier.getText();
+}
+exports.Rule = Rule;
+class ImportPatterns extends Lint.RuleWalker {
+    constructor(file, opts, _config) {
+        super(file, opts);
+        this._config = _config;
+    }
+    visitImportEqualsDeclaration(node) {
+        if (node.moduleReference.kind === ts.SyntaxKind.ExternalModuleReference) {
+            this._validateImport(node.moduleReference.expression.getText(), node);
+        }
+    }
+    visitImportDeclaration(node) {
+        this._validateImport(node.moduleSpecifier.getText(), node);
+    }
+    visitCallExpression(node) {
+        super.visitCallExpression(node);
+        // import('foo') statements inside the code
+        if (node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+            const [path] = node.arguments;
+            this._validateImport(path.getText(), node);
+        }
+    }
+    _validateImport(path, node) {
         // remove quotes
         path = path.slice(1, -1);
-        // ignore relative paths
+        // resolve relative paths
         if (path[0] === '.') {
-            return;
+            path = path_1.join(this.getSourceFile().fileName, path);
         }
-        if (!minimatch(path, this._config.restrictions)) {
-            this.addFailure(this.createFailure(node.getStart(), node.getWidth(), "Imports violates '" + this._config.restrictions + "'-restriction."));
+        let restrictions;
+        if (typeof this._config.restrictions === 'string') {
+            restrictions = [this._config.restrictions];
         }
-    };
-    return ImportPatterns;
-}(Lint.RuleWalker));
+        else {
+            restrictions = this._config.restrictions;
+        }
+        let matched = false;
+        for (const pattern of restrictions) {
+            if (minimatch(path, pattern)) {
+                matched = true;
+                break;
+            }
+        }
+        if (!matched) {
+            // None of the restrictions matched
+            this.addFailure(this.createFailure(node.getStart(), node.getWidth(), `Imports violates '${restrictions.join(' or ')}' restrictions. See https://github.com/Microsoft/vscode/wiki/Code-Organization`));
+        }
+    }
+}

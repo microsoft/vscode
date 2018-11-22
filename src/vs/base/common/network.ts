@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 export namespace Schemas {
 
@@ -38,5 +37,9 @@ export namespace Schemas {
 
 	export const file: string = 'file';
 
+	export const mailto: string = 'mailto';
+
 	export const untitled: string = 'untitled';
+
+	export const data: string = 'data';
 }

@@ -3,23 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { TPromise } from 'vs/base/common/winjs.base';
-import paths = require('vs/base/common/paths');
-import URI from 'vs/base/common/uri';
+import * as paths from 'vs/base/common/paths';
+import { URI } from 'vs/base/common/uri';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import pfs = require('vs/base/node/pfs');
+import * as pfs from 'vs/base/node/pfs';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchThemeService, IColorTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { toResource } from 'vs/workbench/common/editor';
-import { ITextMateService } from 'vs/editor/node/textMate/textMateService';
+import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
 import { IGrammar, StackElement } from 'vscode-textmate';
-import { TokenizationRegistry } from 'vs/editor/common/modes';
-import { TokenMetadata } from 'vs/editor/common/model/tokensBinaryEncoding';
-import { ThemeRule, findMatchingThemeRule } from 'vs/editor/electron-browser/textMate/TMHelper';
+import { TokenizationRegistry, TokenMetadata } from 'vs/editor/common/modes';
+import { ThemeRule, findMatchingThemeRule } from 'vs/workbench/services/textMate/electron-browser/TMHelper';
 import { Color } from 'vs/base/common/color';
 
 interface IToken {
@@ -58,7 +54,7 @@ class ThemeDocument {
 	}
 
 	private _generateExplanation(selector: string, color: Color): string {
-		return `${selector}: ${color.toRGBAHex(true).toUpperCase()}`;
+		return `${selector}: ${Color.Format.CSS.formatHexA(color, true).toUpperCase()}`;
 	}
 
 	public explainTokenColor(scopes: string, color: Color): string {
@@ -68,14 +64,14 @@ class ThemeDocument {
 			let expected = Color.fromHex(this._defaultColor);
 			// No matching rule
 			if (!color.equals(expected)) {
-				throw new Error(`[${this._theme.label}]: Unexpected color ${color.toRGBAHex()} for ${scopes}. Expected default ${expected.toRGBAHex()}`);
+				throw new Error(`[${this._theme.label}]: Unexpected color ${Color.Format.CSS.formatHexA(color)} for ${scopes}. Expected default ${Color.Format.CSS.formatHexA(expected)}`);
 			}
 			return this._generateExplanation('default', color);
 		}
 
 		let expected = Color.fromHex(matchingRule.settings.foreground);
 		if (!color.equals(expected)) {
-			throw new Error(`[${this._theme.label}]: Unexpected color ${color.toRGBAHex()} for ${scopes}. Expected ${expected.toRGBAHex()} coming in from ${matchingRule.rawSelector}`);
+			throw new Error(`[${this._theme.label}]: Unexpected color ${Color.Format.CSS.formatHexA(color)} for ${scopes}. Expected ${Color.Format.CSS.formatHexA(expected)} coming in from ${matchingRule.rawSelector}`);
 		}
 		return this._generateExplanation(matchingRule.rawSelector, color);
 	}
@@ -99,7 +95,7 @@ class Snapper {
 
 	private _themedTokenize(grammar: IGrammar, lines: string[]): IThemedToken[] {
 		let colorMap = TokenizationRegistry.getColorMap();
-		let state: StackElement = null;
+		let state: StackElement | null = null;
 		let result: IThemedToken[] = [], resultLen = 0;
 		for (let i = 0, len = lines.length; i < len; i++) {
 			let line = lines[i];
@@ -127,13 +123,13 @@ class Snapper {
 	}
 
 	private _tokenize(grammar: IGrammar, lines: string[]): IToken[] {
-		let state: StackElement = null;
+		let state: StackElement | null = null;
 		let result: IToken[] = [], resultLen = 0;
 		for (let i = 0, len = lines.length; i < len; i++) {
 			let line = lines[i];
 
 			let tokenizationResult = grammar.tokenizeLine(line, state);
-			let lastScopes: string = null;
+			let lastScopes: string | null = null;
 
 			for (let j = 0, lenJ = tokenizationResult.tokens.length; j < lenJ; j++) {
 				let token = tokenizationResult.tokens[j];
@@ -163,7 +159,7 @@ class Snapper {
 		return result;
 	}
 
-	private _getThemesResult(grammar: IGrammar, lines: string[]): TPromise<IThemesResult> {
+	private async _getThemesResult(grammar: IGrammar, lines: string[]): Promise<IThemesResult> {
 		let currentTheme = this.themeService.getColorTheme();
 
 		let getThemeName = (id: string) => {
@@ -177,25 +173,21 @@ class Snapper {
 
 		let result: IThemesResult = {};
 
-		return this.themeService.getColorThemes().then(themeDatas => {
-			let defaultThemes = themeDatas.filter(themeData => !!getThemeName(themeData.id));
-			return TPromise.join(defaultThemes.map(defaultTheme => {
-				let themeId = defaultTheme.id;
-				return this.themeService.setColorTheme(themeId, null).then(success => {
-					if (success) {
-						let themeName = getThemeName(themeId);
-						result[themeName] = {
-							document: new ThemeDocument(this.themeService.getColorTheme()),
-							tokens: this._themedTokenize(grammar, lines)
-						};
-					}
-				});
-			}));
-		}).then(_ => {
-			return this.themeService.setColorTheme(currentTheme.id, null).then(_ => {
-				return result;
-			});
-		});
+		let themeDatas = await this.themeService.getColorThemes();
+		let defaultThemes = themeDatas.filter(themeData => !!getThemeName(themeData.id));
+		for (let defaultTheme of defaultThemes) {
+			let themeId = defaultTheme.id;
+			let success = await this.themeService.setColorTheme(themeId, null);
+			if (success) {
+				let themeName = getThemeName(themeId);
+				result[themeName] = {
+					document: new ThemeDocument(this.themeService.getColorTheme()),
+					tokens: this._themedTokenize(grammar, lines)
+				};
+			}
+		}
+		await this.themeService.setColorTheme(currentTheme.id, null);
+		return result;
 	}
 
 	private _enrichResult(result: IToken[], themesResult: IThemesResult): void {
@@ -222,16 +214,15 @@ class Snapper {
 		}
 	}
 
-	public captureSyntaxTokens(fileName: string, content: string): TPromise<IToken[]> {
-		return this.modeService.getOrCreateModeByFilenameOrFirstLine(fileName).then(mode => {
-			return this.textMateService.createGrammar(mode.getId()).then((grammar) => {
-				let lines = content.split(/\r\n|\r|\n/);
+	public captureSyntaxTokens(fileName: string, content: string): Thenable<IToken[]> {
+		const modeId = this.modeService.getModeIdByFilepathOrFirstLine(fileName);
+		return this.textMateService.createGrammar(modeId).then((grammar) => {
+			let lines = content.split(/\r\n|\r|\n/);
 
-				let result = this._tokenize(grammar, lines);
-				return this._getThemesResult(grammar, lines).then((themesResult) => {
-					this._enrichResult(result, themesResult);
-					return result.filter(t => t.c.length > 0);
-				});
+			let result = this._tokenize(grammar, lines);
+			return this._getThemesResult(grammar, lines).then((themesResult) => {
+				this._enrichResult(result, themesResult);
+				return result.filter(t => t.c.length > 0);
 			});
 		});
 	}
@@ -250,8 +241,8 @@ CommandsRegistry.registerCommand('_workbench.captureSyntaxTokens', function (acc
 	};
 
 	if (!resource) {
-		let editorService = accessor.get(IWorkbenchEditorService);
-		let file = toResource(editorService.getActiveEditorInput(), { filter: 'file' });
+		let editorService = accessor.get(IEditorService);
+		let file = toResource(editorService.activeEditor, { filter: 'file' });
 		if (file) {
 			process(file).then(result => {
 				console.log(result);
@@ -264,4 +255,3 @@ CommandsRegistry.registerCommand('_workbench.captureSyntaxTokens', function (acc
 	}
 	return undefined;
 });
-

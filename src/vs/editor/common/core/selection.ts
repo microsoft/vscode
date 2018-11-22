@@ -2,8 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
+import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 
 /**
@@ -32,7 +32,7 @@ export interface ISelection {
 /**
  * The direction of a selection.
  */
-export enum SelectionDirection {
+export const enum SelectionDirection {
 	/**
 	 * The selection starts above where it ends.
 	 */
@@ -129,6 +129,13 @@ export class Selection extends Range {
 	}
 
 	/**
+	 * Get the position at `positionLineNumber` and `positionColumn`.
+	 */
+	public getPosition(): Position {
+		return new Position(this.positionLineNumber, this.positionColumn);
+	}
+
+	/**
 	 * Create a new selection with a different `selectionStartLineNumber` and `selectionStartColumn`.
 	 */
 	public setStartPosition(startLineNumber: number, startColumn: number): Selection {
@@ -139,6 +146,13 @@ export class Selection extends Range {
 	}
 
 	// ----
+
+	/**
+	 * Create a `Selection` from one or two positions
+	 */
+	public static fromPositions(start: IPosition, end: IPosition = start): Selection {
+		return new Selection(start.lineNumber, start.column, end.lineNumber, end.column);
+	}
 
 	/**
 	 * Create a `Selection` from an `ISelection`.
@@ -160,7 +174,7 @@ export class Selection extends Range {
 		if (a.length !== b.length) {
 			return false;
 		}
-		for (var i = 0, len = a.length; i < len; i++) {
+		for (let i = 0, len = a.length; i < len; i++) {
 			if (!this.selectionsEqual(a[i], b[i])) {
 				return false;
 			}

@@ -8,6 +8,13 @@
 			}
 		},
 		{
+			"scope": ["meta.embedded", "source.groovy.embedded"],
+			"settings": {
+				"background": "#002B36",
+				"foreground": "#93A1A1"
+			}
+		},
+		{
 			"name": "Comment",
 			"scope": "comment",
 			"settings": {
@@ -301,6 +308,8 @@
 
 		// "widget.shadow": "",
 
+		"selection.background": "#2AA19899",
+
 		"input.background": "#003847",
 		"input.foreground": "#93A1A1",
 		"input.placeholderForeground": "#93A1A1AA",
@@ -313,6 +322,8 @@
 		"inputValidation.warningBorder": "#9d8a5e",
 		"inputValidation.errorBackground": "#571b26",
 		"inputValidation.errorBorder": "#a92049",
+
+		"errorForeground": "#ffeaea",
 
 		"badge.background": "#047aa6",
 		"progressBar.background": "#047aa6",
@@ -344,8 +355,10 @@
 		"editorCursor.foreground": "#D30102",
 		"editorWhitespace.foreground": "#93A1A180",
 		"editor.lineHighlightBackground": "#073642",
-		"editor.selectionBackground": "#073642",
-		// "editorIndentGuide.background": "",
+		"editorLineNumber.activeForeground": "#949494",
+		"editor.selectionBackground": "#274642",
+		"editorIndentGuide.background": "#93A1A180",
+		"editorIndentGuide.activeBackground": "#C3E1E180",
 		"editorHoverWidget.background": "#004052",
 		// "editorHoverWidget.border": "",
 		// "editorLineNumber.foreground": "",
@@ -360,9 +373,9 @@
 		// "editor.inactiveSelectionBackground": "",
 		// "editor.lineHighlightBorder": "",
 		// "editor.rangeHighlightBackground": "",
-		// "editor.selectionHighlightBackground": "",
-		// "editor.wordHighlightBackground": "",
-		// "editor.wordHighlightStrongBackground": "",
+		"editor.selectionHighlightBackground": "#005A6FAA",
+		"editor.wordHighlightBackground": "#004454AA",
+		"editor.wordHighlightStrongBackground": "#005A6FAA",
 
 		// Editor: Suggest
 		// "editorSuggestWidget.background": "",
@@ -400,7 +413,6 @@
 		// Workbench: Editors
 		// "editorGroupHeader.noTabsBackground": "",
 		"editorGroup.border": "#00212B",
-		"editorGroup.background": "#011b23",
 		"editorGroup.dropBackground": "#2AA19844",
 		"editorGroupHeader.tabsBackground": "#004052",
 
@@ -410,6 +422,7 @@
 		"tab.inactiveForeground": "#93A1A1",
 		"tab.inactiveBackground": "#004052",
 		"tab.border": "#003847",
+		"tab.modifiedBorder": "#268bd2",
 
 		// Workbench: Activity Bar
 		"activityBar.background": "#003847",
@@ -445,31 +458,27 @@
 		"debugExceptionWidget.background": "#00212B",
 		"debugExceptionWidget.border": "#AB395B",
 
-		// Workbench: Notifications
-		"notification.background": "#003847",
-		// "notification.foreground": "",
-
 		// Workbench: Quick Open
 		"pickerGroup.foreground": "#2AA19899",
 		"pickerGroup.border": "#2AA19899",
 
 		// Workbench: Terminal
 		// Colors sourced from the official palette http://ethanschoonover.com/solarized
-		"terminal.ansiBlack": "#262626",
-		"terminal.ansiBlue": "#0087ff",
-		"terminal.ansiBrightBlack": "#1c1c1c",
-		"terminal.ansiBrightBlue": "#808080",
-		"terminal.ansiBrightCyan": "#808080",
-		"terminal.ansiBrightGreen": "#585858",
-		"terminal.ansiBrightMagenta": "#5f5faf",
-		"terminal.ansiBrightRed": "#d75f00",
-		"terminal.ansiBrightWhite": "#808080",
-		"terminal.ansiBrightYellow": "#626262",
-		"terminal.ansiCyan": "#00afaf",
-		"terminal.ansiGreen": "#5f8700",
-		"terminal.ansiMagenta": "#af005f",
-		"terminal.ansiRed": "#d70000",
-		"terminal.ansiWhite": "#808080",
-		"terminal.ansiYellow": "#af8700"
+		"terminal.ansiBlack": "#073642",
+		"terminal.ansiRed": "#dc322f",
+		"terminal.ansiGreen": "#859900",
+		"terminal.ansiYellow": "#b58900",
+		"terminal.ansiBlue": "#268bd2",
+		"terminal.ansiMagenta": "#d33682",
+		"terminal.ansiCyan": "#2aa198",
+		"terminal.ansiWhite": "#eee8d5",
+		"terminal.ansiBrightBlack": "#586e75",
+		"terminal.ansiBrightRed": "#cb4b16",
+		"terminal.ansiBrightGreen": "#586e75",
+		"terminal.ansiBrightYellow": "#657b83",
+		"terminal.ansiBrightBlue": "#839496",
+		"terminal.ansiBrightMagenta": "#6c71c4",
+		"terminal.ansiBrightCyan": "#93a1a1",
+		"terminal.ansiBrightWhite": "#fdf6e3"
 	}
 }

@@ -9,5 +9,7 @@
 */
 .monaco-editor .lines-content .cigr {
 	position: absolute;
-	width: 1px;
+}
+.monaco-editor .lines-content .cigra {
+	position: absolute;
 }

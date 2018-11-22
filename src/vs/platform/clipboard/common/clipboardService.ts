@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { URI } from 'vs/base/common/uri';
 
 export const IClipboardService = createDecorator<IClipboardService>('clipboardService');
 
@@ -17,4 +16,34 @@ export interface IClipboardService {
 	 * Writes text to the system clipboard.
 	 */
 	writeText(text: string): void;
+
+	/**
+	 * Reads the content of the clipboard in plain text
+	 */
+	readText(): string;
+
+	/**
+	 * Reads text from the system find pasteboard.
+	 */
+	readFindText(): string;
+
+	/**
+	 * Writes text to the system find pasteboard.
+	 */
+	writeFindText(text: string): void;
+
+	/**
+	 * Writes resources to the system clipboard.
+	 */
+	writeResources(resources: URI[]): void;
+
+	/**
+	 * Reads resources from the system clipboard.
+	 */
+	readResources(): URI[];
+
+	/**
+	 * Find out if resources are copied to the clipboard.
+	 */
+	hasResources(): boolean;
 }

@@ -2,21 +2,18 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { AbstractScrollbar, ScrollbarHost, IMouseMoveEventData } from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
-import { IMouseEvent, StandardMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { IDomNodePagePosition } from 'vs/base/browser/dom';
+import { StandardWheelEvent } from 'vs/base/browser/mouseEvent';
+import { AbstractScrollbar, ISimplifiedMouseEvent, ScrollbarHost } from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
 import { ScrollableElementResolvedOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
-import { Scrollable, ScrollEvent, ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { ScrollbarState } from 'vs/base/browser/ui/scrollbar/scrollbarState';
 import { ARROW_IMG_SIZE } from 'vs/base/browser/ui/scrollbar/scrollbarArrow';
+import { ScrollbarState } from 'vs/base/browser/ui/scrollbar/scrollbarState';
+import { INewScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
 
 export class HorizontalScrollbar extends AbstractScrollbar {
 
 	constructor(scrollable: Scrollable, options: ScrollableElementResolvedOptions, host: ScrollbarHost) {
 		super({
-			canUseTranslate3d: options.canUseTranslate3d,
 			lazyRender: options.lazyRender,
 			host: host,
 			scrollbarState: new ScrollbarState(
@@ -41,7 +38,7 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 				right: void 0,
 				bgWidth: options.arrowSize,
 				bgHeight: options.horizontalScrollbarSize,
-				onActivate: () => this._host.onMouseWheel(new StandardMouseWheelEvent(null, 1, 0)),
+				onActivate: () => this._host.onMouseWheel(new StandardWheelEvent(null, 1, 0)),
 			});
 
 			this._createArrow({
@@ -52,22 +49,16 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 				right: arrowDelta,
 				bgWidth: options.arrowSize,
 				bgHeight: options.horizontalScrollbarSize,
-				onActivate: () => this._host.onMouseWheel(new StandardMouseWheelEvent(null, -1, 0)),
+				onActivate: () => this._host.onMouseWheel(new StandardWheelEvent(null, -1, 0)),
 			});
 		}
 
-		this._createSlider(Math.floor((options.horizontalScrollbarSize - options.horizontalSliderSize) / 2), 0, null, options.horizontalSliderSize);
+		this._createSlider(Math.floor((options.horizontalScrollbarSize - options.horizontalSliderSize) / 2), 0, undefined, options.horizontalSliderSize);
 	}
 
 	protected _updateSlider(sliderSize: number, sliderPosition: number): void {
 		this.slider.setWidth(sliderSize);
-		if (this._canUseTranslate3d) {
-			this.slider.setTransform('translate3d(' + sliderPosition + 'px, 0px, 0px)');
-			this.slider.setLeft(0);
-		} else {
-			this.slider.setTransform('');
-			this.slider.setLeft(sliderPosition);
-		}
+		this.slider.setLeft(sliderPosition);
 	}
 
 	protected _renderDomNode(largeSize: number, smallSize: number): void {
@@ -84,26 +75,19 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 		return this._shouldRender;
 	}
 
-	protected _mouseDownRelativePosition(e: IMouseEvent, domNodePosition: IDomNodePagePosition): number {
-		return e.posx - domNodePosition.left;
+	protected _mouseDownRelativePosition(offsetX: number, offsetY: number): number {
+		return offsetX;
 	}
 
-	protected _sliderMousePosition(e: IMouseMoveEventData): number {
+	protected _sliderMousePosition(e: ISimplifiedMouseEvent): number {
 		return e.posx;
 	}
 
-	protected _sliderOrthogonalMousePosition(e: IMouseMoveEventData): number {
+	protected _sliderOrthogonalMousePosition(e: ISimplifiedMouseEvent): number {
 		return e.posy;
 	}
 
-	protected _getScrollPosition(): number {
-		const scrollState = this._scrollable.getState();
-		return scrollState.scrollLeft;
-	}
-
-	protected _setScrollPosition(scrollPosition: number) {
-		this._scrollable.updateState({
-			scrollLeft: scrollPosition
-		});
+	public writeScrollPosition(target: INewScrollPosition, scrollPosition: number): void {
+		target.scrollLeft = scrollPosition;
 	}
 }

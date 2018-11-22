@@ -3,26 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
-import { IHTMLContentElement } from 'vs/base/common/htmlContent';
-import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
+import * as path from 'path';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { Keybinding, ResolvedKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { ScanCodeBinding } from 'vs/base/common/scanCode';
 import { readFile, writeFile } from 'vs/base/node/pfs';
-import { OperatingSystem } from 'vs/base/common/platform';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { ScanCodeBinding } from 'vs/workbench/services/keybinding/common/scanCode';
+import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
 
 export interface IResolvedKeybinding {
-	label: string;
-	ariaLabel: string;
-	electronAccelerator: string;
-	userSettingsLabel: string;
+	label: string | null;
+	ariaLabel: string | null;
+	electronAccelerator: string | null;
+	userSettingsLabel: string | null;
 	isWYSIWYG: boolean;
 	isChord: boolean;
-	dispatchParts: [string, string];
+	dispatchParts: [string | null, string | null];
 }
 
 function toIResolvedKeybinding(kb: ResolvedKeybinding): IResolvedKeybinding {
@@ -52,63 +49,29 @@ export function assertResolveUserBinding(mapper: IKeyboardMapper, firstPart: Sim
 	assert.deepEqual(actual, expected);
 }
 
-function _htmlPieces(pieces: string[], OS: OperatingSystem): IHTMLContentElement[] {
-	let children: IHTMLContentElement[] = [];
-	for (let i = 0, len = pieces.length; i < len; i++) {
-		if (i !== 0 && OS !== OperatingSystem.Macintosh) {
-			children.push({ tagName: 'span', text: '+' });
-		}
-		children.push({ tagName: 'span', className: 'monaco-kbkey', text: pieces[i] });
-	}
-	return children;
-}
-
-export function simpleHTMLLabel(pieces: string[], OS: OperatingSystem): IHTMLContentElement {
-	return {
-		tagName: 'span',
-		className: 'monaco-kb',
-		children: _htmlPieces(pieces, OS)
-	};
-}
-
-export function chordHTMLLabel(firstPart: string[], chordPart: string[], OS: OperatingSystem): IHTMLContentElement {
-	return {
-		tagName: 'span',
-		className: 'monaco-kb',
-		children: [].concat(
-			_htmlPieces(firstPart, OS),
-			[{ tagName: 'span', text: ' ' }],
-			_htmlPieces(chordPart, OS)
-		)
-	};
-}
-
-export function readRawMapping<T>(file: string): TPromise<T> {
-	return readFile(require.toUrl(`vs/workbench/services/keybinding/test/${file}.js`)).then((buff) => {
+export function readRawMapping<T>(file: string): Promise<T> {
+	return readFile(getPathFromAmdModule(require, `vs/workbench/services/keybinding/test/${file}.js`)).then((buff) => {
 		let contents = buff.toString();
 		let func = new Function('define', contents);
-		let rawMappings: T = null;
-		func(function (value) {
+		let rawMappings: T | null = null;
+		func(function (value: T) {
 			rawMappings = value;
 		});
-		return rawMappings;
+		return rawMappings!;
 	});
 }
 
-export function assertMapping(writeFileIfDifferent: boolean, mapper: IKeyboardMapper, file: string, done: (err?: any) => void): void {
-	const filePath = require.toUrl(`vs/workbench/services/keybinding/test/${file}`);
+export function assertMapping(writeFileIfDifferent: boolean, mapper: IKeyboardMapper, file: string): Promise<void> {
+	const filePath = path.normalize(getPathFromAmdModule(require, `vs/workbench/services/keybinding/test/${file}`));
 
-	readFile(filePath).then((buff) => {
+	return readFile(filePath).then((buff) => {
 		let expected = buff.toString();
 		const actual = mapper.dumpDebugInfo();
 		if (actual !== expected && writeFileIfDifferent) {
-			writeFile(filePath, actual);
+			const destPath = filePath.replace(/vscode\/out\/vs/, 'vscode/src/vs');
+			writeFile(destPath, actual);
 		}
-		try {
-			assert.deepEqual(actual, expected);
-		} catch (err) {
-			return done(err);
-		}
-		done();
-	}, done);
+
+		assert.deepEqual(actual.split(/\r\n|\n/), expected.split(/\r\n|\n/));
+	});
 }

@@ -9,7 +9,7 @@ const es = require('event-stream');
 function handleDeletions() {
 	return es.mapSync(f => {
 		if (/\.ts$/.test(f.relative) && !f.contents) {
-			f.contents = new Buffer('');
+			f.contents = Buffer.from('');
 			f.stat = { mtime: new Date() };
 		}
 
@@ -17,9 +17,11 @@ function handleDeletions() {
 	});
 }
 
-const watch = process.platform === 'win32'
-	? require('./watch-win32')
-	: require('gulp-watch');
+let watch = void 0;
+
+if (!watch) {
+	watch = process.platform === 'win32' ? require('./watch-win32') : require('gulp-watch');
+}
 
 module.exports = function () {
 	return watch.apply(null, arguments)

@@ -5,85 +5,123 @@
 
 import { assign } from 'vs/base/common/objects';
 import { memoize } from 'vs/base/common/decorators';
-import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { BrowserWindow, ipcMain } from 'electron';
-import { PromiseSource } from 'vs/base/common/async';
+import { ISharedProcess } from 'vs/platform/windows/electron-main/windows';
+import { Barrier } from 'vs/base/common/async';
+import { ILogService } from 'vs/platform/log/common/log';
+import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
+import { IStateService } from 'vs/platform/state/common/state';
+import { getBackgroundColor } from 'vs/code/electron-main/theme';
+import { dispose, toDisposable, IDisposable } from 'vs/base/common/lifecycle';
 
-export class SharedProcess {
+export class SharedProcess implements ISharedProcess {
 
-	private window: Electron.BrowserWindow;
-	private disposables: IDisposable[] = [];
+	private barrier = new Barrier();
+
+	private window: Electron.BrowserWindow | null;
+
+	constructor(
+		private readonly machineId: string,
+		private readonly userEnv: IProcessEnvironment,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IStateService private readonly stateService: IStateService,
+		@ILogService private readonly logService: ILogService
+	) { }
 
 	@memoize
-	private get _whenReady(): TPromise<void> {
-		this.window = new BrowserWindow({ show: false });
+	private get _whenReady(): Promise<void> {
+		this.window = new BrowserWindow({
+			show: false,
+			backgroundColor: getBackgroundColor(this.stateService),
+			webPreferences: {
+				images: false,
+				webaudio: false,
+				webgl: false,
+				disableBlinkFeatures: 'Auxclick' // do NOT change, allows us to identify this window as shared-process in the process explorer
+			}
+		});
 		const config = assign({
 			appRoot: this.environmentService.appRoot,
+			machineId: this.machineId,
 			nodeCachedDataDir: this.environmentService.nodeCachedDataDir,
 			userEnv: this.userEnv
 		});
 
-		const url = `${require.toUrl('vs/code/electron-browser/sharedProcess.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;
+		const url = `${require.toUrl('vs/code/electron-browser/sharedProcess/sharedProcess.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;
 		this.window.loadURL(url);
 
 		// Prevent the window from dying
-		const onClose = e => {
-			if (this.window.isVisible()) {
-				e.preventDefault();
+		const onClose = (e: Event) => {
+			this.logService.trace('SharedProcess#close prevented');
+
+			// We never allow to close the shared process unless we get explicitly disposed()
+			e.preventDefault();
+
+			// Still hide the window though if visible
+			if (this.window && this.window.isVisible()) {
 				this.window.hide();
 			}
 		};
 
 		this.window.on('close', onClose);
-		this.disposables.push(toDisposable(() => this.window.removeListener('close', onClose)));
 
-		this.disposables.push(toDisposable(() => {
+		const disposables: IDisposable[] = [];
+
+		this.lifecycleService.onShutdown(() => {
+			dispose(disposables);
+
+			// Shut the shared process down when we are quitting
+			//
+			// Note: because we veto the window close, we must first remove our veto.
+			// Otherwise the application would never quit because the shared process
+			// window is refusing to close!
+			//
+			if (this.window) {
+				this.window.removeListener('close', onClose);
+			}
+
 			// Electron seems to crash on Windows without this setTimeout :|
 			setTimeout(() => {
 				try {
-					this.window.close();
+					if (this.window) {
+						this.window.close();
+					}
 				} catch (err) {
 					// ignore, as electron is already shutting down
 				}
 
 				this.window = null;
 			}, 0);
-		}));
+		});
 
-		return new TPromise<void>((c, e) => {
-			ipcMain.once('handshake:hello', ({ sender }) => {
+		return new Promise<void>(c => {
+			ipcMain.once('handshake:hello', ({ sender }: { sender: any }) => {
 				sender.send('handshake:hey there', {
 					sharedIPCHandle: this.environmentService.sharedIPCHandle,
-					args: this.environmentService.args
+					args: this.environmentService.args,
+					logLevel: this.logService.getLevel()
 				});
 
-				ipcMain.once('handshake:im ready', () => c(null));
+				disposables.push(toDisposable(() => sender.send('handshake:goodbye')));
+				ipcMain.once('handshake:im ready', () => c(void 0));
 			});
 		});
 	}
 
-	private spawnPromiseSource: PromiseSource<void>;
-
-	constructor(
-		private environmentService: IEnvironmentService,
-		private userEnv: IProcessEnvironment
-	) {
-		this.spawnPromiseSource = new PromiseSource<void>();
-	}
-
 	spawn(): void {
-		this.spawnPromiseSource.complete();
+		this.barrier.open();
 	}
 
-	whenReady(): TPromise<void> {
-		return this.spawnPromiseSource.value.then(() => this._whenReady);
+	async whenReady(): Promise<void> {
+		await this.barrier.wait();
+		await this._whenReady;
 	}
 
 	toggle(): void {
-		if (this.window.isVisible()) {
+		if (!this.window || this.window.isVisible()) {
 			this.hide();
 		} else {
 			this.show();
@@ -91,16 +129,16 @@ export class SharedProcess {
 	}
 
 	show(): void {
-		this.window.show();
-		this.window.webContents.openDevTools();
+		if (this.window) {
+			this.window.show();
+			this.window.webContents.openDevTools();
+		}
 	}
 
 	hide(): void {
-		this.window.webContents.closeDevTools();
-		this.window.hide();
-	}
-
-	dispose(): void {
-		this.disposables = dispose(this.disposables);
+		if (this.window) {
+			this.window.webContents.closeDevTools();
+			this.window.hide();
+		}
 	}
 }

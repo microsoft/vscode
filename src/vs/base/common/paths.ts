@@ -2,11 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { isLinux, isWindows } from 'vs/base/common/platform';
-import { fill } from 'vs/base/common/arrays';
-import { rtrim } from 'vs/base/common/strings';
+import { isWindows } from 'vs/base/common/platform';
+import { startsWithIgnoreCase, equalsIgnoreCase } from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
 
 /**
@@ -19,48 +17,24 @@ export const sep = '/';
  */
 export const nativeSep = isWindows ? '\\' : '/';
 
-export function relative(from: string, to: string): string {
-	// ignore trailing slashes
-	const originalNormalizedFrom = rtrim(normalize(from), sep);
-	const originalNormalizedTo = rtrim(normalize(to), sep);
-
-	// we're assuming here that any non=linux OS is case insensitive
-	// so we must compare each part in its lowercase form
-	const normalizedFrom = isLinux ? originalNormalizedFrom : originalNormalizedFrom.toLowerCase();
-	const normalizedTo = isLinux ? originalNormalizedTo : originalNormalizedTo.toLowerCase();
-
-	const fromParts = normalizedFrom.split(sep);
-	const toParts = normalizedTo.split(sep);
-
-	let i = 0, max = Math.min(fromParts.length, toParts.length);
-
-	for (; i < max; i++) {
-		if (fromParts[i] !== toParts[i]) {
-			break;
-		}
-	}
-
-	const result = [
-		...fill(fromParts.length - i, () => '..'),
-		...originalNormalizedTo.split(sep).slice(i)
-	];
-
-	return result.join(sep);
-}
-
 /**
+ * @param path the path to get the dirname from
+ * @param separator the separator to use
  * @returns the directory name of a path.
+ *
  */
-export function dirname(path: string): string {
+export function dirname(path: string, separator = nativeSep): string {
 	const idx = ~path.lastIndexOf('/') || ~path.lastIndexOf('\\');
 	if (idx === 0) {
 		return '.';
 	} else if (~idx === 0) {
 		return path[0];
+	} else if (~idx === path.length - 1) {
+		return dirname(path.substring(0, path.length - 1));
 	} else {
 		let res = path.substring(0, ~idx);
 		if (isWindows && res[res.length - 1] === ':') {
-			res += nativeSep; // make sure drive letters end with backslash
+			res += separator; // make sure drive letters end with backslash
 		}
 		return res;
 	}
@@ -81,7 +55,7 @@ export function basename(path: string): string {
 }
 
 /**
- * @returns {{.far}} from boo.far or the empty string.
+ * @returns `.far` from `boo.far` or the empty string.
  */
 export function extname(path: string): string {
 	path = basename(path);
@@ -98,7 +72,10 @@ function _isNormal(path: string, win: boolean): boolean {
 		: !_posixBadPath.test(path);
 }
 
-export function normalize(path: string, toOSPath?: boolean): string {
+export function normalize(path: undefined, toOSPath?: boolean): undefined;
+export function normalize(path: null, toOSPath?: boolean): null;
+export function normalize(path: string, toOSPath?: boolean): string;
+export function normalize(path: string | null | undefined, toOSPath?: boolean): string | null | undefined {
 
 	if (path === null || path === void 0) {
 		return path;
@@ -109,7 +86,7 @@ export function normalize(path: string, toOSPath?: boolean): string {
 		return '.';
 	}
 
-	const wantsBackslash = isWindows && toOSPath;
+	const wantsBackslash = !!(isWindows && toOSPath);
 	if (_isNormal(path, wantsBackslash)) {
 		return path;
 	}
@@ -314,7 +291,7 @@ export function isUNC(path: string): boolean {
 // Reference: https://en.wikipedia.org/wiki/Filename
 const INVALID_FILE_CHARS = isWindows ? /[\\/:\*\?"<>\|]/g : /[\\/]/g;
 const WINDOWS_FORBIDDEN_NAMES = /^(con|prn|aux|clock\$|nul|lpt[0-9]|com[0-9])$/i;
-export function isValidBasename(name: string): boolean {
+export function isValidBasename(name: string | null | undefined): boolean {
 	if (!name || name.length === 0 || /^\s+$/.test(name)) {
 		return false; // require a name that is not just whitespace
 	}
@@ -341,4 +318,88 @@ export function isValidBasename(name: string): boolean {
 	}
 
 	return true;
+}
+
+export function isEqual(pathA: string, pathB: string, ignoreCase?: boolean): boolean {
+	const identityEquals = (pathA === pathB);
+	if (!ignoreCase || identityEquals) {
+		return identityEquals;
+	}
+
+	if (!pathA || !pathB) {
+		return false;
+	}
+
+	return equalsIgnoreCase(pathA, pathB);
+}
+
+export function isEqualOrParent(path: string, candidate: string, ignoreCase?: boolean, separator = nativeSep): boolean {
+	if (path === candidate) {
+		return true;
+	}
+
+	if (!path || !candidate) {
+		return false;
+	}
+
+	if (candidate.length > path.length) {
+		return false;
+	}
+
+	if (ignoreCase) {
+		const beginsWith = startsWithIgnoreCase(path, candidate);
+		if (!beginsWith) {
+			return false;
+		}
+
+		if (candidate.length === path.length) {
+			return true; // same path, different casing
+		}
+
+		let sepOffset = candidate.length;
+		if (candidate.charAt(candidate.length - 1) === separator) {
+			sepOffset--; // adjust the expected sep offset in case our candidate already ends in separator character
+		}
+
+		return path.charAt(sepOffset) === separator;
+	}
+
+	if (candidate.charAt(candidate.length - 1) !== separator) {
+		candidate += separator;
+	}
+
+	return path.indexOf(candidate) === 0;
+}
+
+/**
+ * Adapted from Node's path.isAbsolute functions
+ */
+export function isAbsolute(path: string): boolean {
+	return isWindows ?
+		isAbsolute_win32(path) :
+		isAbsolute_posix(path);
+}
+
+export function isAbsolute_win32(path: string): boolean {
+	if (!path) {
+		return false;
+	}
+
+	const char0 = path.charCodeAt(0);
+	if (char0 === CharCode.Slash || char0 === CharCode.Backslash) {
+		return true;
+	} else if ((char0 >= CharCode.A && char0 <= CharCode.Z) || (char0 >= CharCode.a && char0 <= CharCode.z)) {
+		if (path.length > 2 && path.charCodeAt(1) === CharCode.Colon) {
+			const char2 = path.charCodeAt(2);
+			if (char2 === CharCode.Slash || char2 === CharCode.Backslash) {
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+export function isAbsolute_posix(path: string): boolean {
+	return !!(path && path.charCodeAt(0) === CharCode.Slash);
 }

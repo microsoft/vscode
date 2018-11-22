@@ -4,7 +4,7 @@
 		"libpthread.so.0(GLIBC_2.2.5)(64bit)",
 		"libpthread.so.0(GLIBC_2.3.2)(64bit)",
 		"libpthread.so.0(GLIBC_2.3.3)(64bit)",
-		"libgtk-x11-2.0.so.0()(64bit)",
+		"libgtk-3.so.0()(64bit)",
 		"libgdk-x11-2.0.so.0()(64bit)",
 		"libatk-1.0.so.0()(64bit)",
 		"libgio-2.0.so.0()(64bit)",
@@ -62,7 +62,8 @@
 		"libc.so.6(GLIBC_2.7)(64bit)",
 		"libc.so.6(GLIBC_2.9)(64bit)",
 		"libxcb.so.1()(64bit)",
-		"libxkbfile.so.1()(64bit)"
+		"libxkbfile.so.1()(64bit)",
+		"libsecret-1.so.0()(64bit)"
 	],
 	"i386": [
 		"ld-linux.so.2",
@@ -113,7 +114,7 @@
 		"libglib-2.0.so.0",
 		"libgmodule-2.0.so.0",
 		"libgobject-2.0.so.0",
-		"libgtk-x11-2.0.so.0",
+		"libgtk-3.so.0",
 		"libm.so.6",
 		"libm.so.6(GLIBC_2.0)",
 		"libm.so.6(GLIBC_2.1)",
@@ -140,6 +141,7 @@
 		"libstdc++.so.6(GLIBCXX_3.4.15)",
 		"libstdc++.so.6(GLIBCXX_3.4.9)",
 		"libxcb.so.1",
-		"libxkbfile.so.1"
+		"libxkbfile.so.1",
+		"libsecret-1.so.0"
 	]
 }

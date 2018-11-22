@@ -14,7 +14,8 @@
 }
 
 .defineKeybindingWidget .monaco-inputbox,
-.defineKeybindingWidget .output {
+.defineKeybindingWidget .output,
+.defineKeybindingWidget .existing {
 	margin-top:10px;
 	width: 400px;
 	display: block;
@@ -30,7 +31,12 @@
 	justify-content: center;
 }
 
-.defineKeybindingWidget .output .htmlkb {
+.defineKeybindingWidget .existing .existingText {
+	text-decoration: underline;
+	cursor: pointer;
+}
+
+.defineKeybindingWidget .output .monaco-keybinding {
 	margin: 0px 4px;
 }
 
@@ -63,13 +69,4 @@
 .monaco-editor .keybindingError {
 	box-shadow:	inset 0 0 0 1px #B9B9B9;
 	background-color: rgba(250, 100, 100, 0.2);
-}
-
-/* launcher widget */
-.monaco-editor .defineKeybindingLauncher {
-	background: #007ACC;
-	color: white;
-	padding: 10px;
-	border-radius: 5px;
-	cursor: pointer;
 }

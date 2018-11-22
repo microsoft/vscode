@@ -2,62 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import * as platform from 'vs/base/common/platform';
 import product from 'vs/platform/node/product';
 
-abstract class AbstractGettingStarted implements IWorkbenchContribution {
-	protected static hideWelcomeSettingskey = 'workbench.hide.welcome';
-
-	protected welcomePageURL: string;
-	protected appName: string;
-
-	constructor(
-		@IStorageService private storageService: IStorageService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@ITelemetryService private telemetryService: ITelemetryService
-	) {
-		this.appName = product.nameLong;
-
-		if (product.welcomePage && !environmentService.isExtensionDevelopment /* do not open a browser when we run an extension */) {
-			this.welcomePageURL = product.welcomePage;
-			this.handleWelcome();
-		}
-	}
-
-	protected handleWelcome(): void {
-		let firstStartup = !this.storageService.get(AbstractGettingStarted.hideWelcomeSettingskey);
-
-		if (firstStartup && this.welcomePageURL) {
-			this.telemetryService.getTelemetryInfo().then(info => {
-				let url = this.getUrl(info);
-				this.openExternal(url);
-				this.storageService.store(AbstractGettingStarted.hideWelcomeSettingskey, true);
-			});
-		}
-	}
-
-	private getUrl(telemetryInfo: ITelemetryInfo): string {
-		return `${this.welcomePageURL}&&from=${this.appName}&&id=${telemetryInfo.machineId}`;
-	}
-
-	protected openExternal(url: string) {
-		throw new Error('implement me');
-	}
-
-	getId(): string {
-		return 'vs.gettingstarted';
-	}
-}
-
 export class GettingStarted implements IWorkbenchContribution {
 
-	private static hideWelcomeSettingskey = 'workbench.hide.welcome';
+	private static readonly hideWelcomeSettingskey = 'workbench.hide.welcome';
 
 	private welcomePageURL: string;
 	private appName: string;
@@ -69,15 +24,20 @@ export class GettingStarted implements IWorkbenchContribution {
 	) {
 		this.appName = product.nameLong;
 
-		/* do not open a browser when we run an extension or --skip-getting-started is provided */
-		if (product.welcomePage && !environmentService.isExtensionDevelopment && !environmentService.skipGettingStarted) {
-			this.welcomePageURL = product.welcomePage;
-			this.handleWelcome();
+		if (!product.welcomePage) {
+			return;
 		}
-	}
 
-	getId(): string {
-		return 'vs.gettingstarted';
+		if (environmentService.skipGettingStarted) {
+			return;
+		}
+
+		if (environmentService.isExtensionDevelopment) {
+			return;
+		}
+
+		this.welcomePageURL = product.welcomePage;
+		this.handleWelcome();
 	}
 
 	private getUrl(telemetryInfo: ITelemetryInfo): string {
@@ -87,7 +47,7 @@ export class GettingStarted implements IWorkbenchContribution {
 	private openExternal(url: string) {
 		// Don't open the welcome page as the root user on Linux, this is due to a bug with xdg-open
 		// which recommends against running itself as root.
-		if (platform.isLinux && platform.isRootUser) {
+		if (platform.isLinux && platform.isRootUser()) {
 			return;
 		}
 		window.open(url);
@@ -99,13 +59,13 @@ export class GettingStarted implements IWorkbenchContribution {
 			return;
 		}
 
-		let firstStartup = !this.storageService.get(GettingStarted.hideWelcomeSettingskey);
+		let firstStartup = !this.storageService.get(GettingStarted.hideWelcomeSettingskey, StorageScope.GLOBAL);
 
 		if (firstStartup && this.welcomePageURL) {
 			this.telemetryService.getTelemetryInfo().then(info => {
 				let url = this.getUrl(info);
 				this.openExternal(url);
-				this.storageService.store(GettingStarted.hideWelcomeSettingskey, true);
+				this.storageService.store(GettingStarted.hideWelcomeSettingskey, true, StorageScope.GLOBAL);
 			});
 		}
 	}

@@ -2,15 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 
 export interface ScrollableElementCreationOptions {
-	/**
-	 * Allow scrollbar rendering to use translate3d.
-	 */
-	canUseTranslate3d: boolean;
 	/**
 	 * The scrollable element should not do any DOM mutations until renderNow() is called.
 	 * Defaults to false.
@@ -30,6 +25,11 @@ export interface ScrollableElementCreationOptions {
 	 * Defaults to true
 	 */
 	handleMouseWheel?: boolean;
+	/**
+	 * If mouse wheel is handled, make mouse wheel scrolling smooth.
+	 * Defaults to true.
+	 */
+	mouseWheelSmoothScroll?: boolean;
 	/**
 	 * Flip axes. Treat vertical scrolling like horizontal and vice-versa.
 	 * Defaults to false.
@@ -105,13 +105,11 @@ export interface ScrollableElementCreationOptions {
 }
 
 export interface ScrollableElementChangeOptions {
-	canUseTranslate3d: boolean;
 	handleMouseWheel?: boolean;
 	mouseWheelScrollSensitivity?: number;
 }
 
 export interface ScrollableElementResolvedOptions {
-	canUseTranslate3d: boolean;
 	lazyRender: boolean;
 	className: string;
 	useShadows: boolean;
@@ -120,8 +118,9 @@ export interface ScrollableElementResolvedOptions {
 	scrollYToX: boolean;
 	alwaysConsumeMouseWheel: boolean;
 	mouseWheelScrollSensitivity: number;
+	mouseWheelSmoothScroll: boolean;
 	arrowSize: number;
-	listenOnDomNode: HTMLElement;
+	listenOnDomNode: HTMLElement | null;
 	horizontal: ScrollbarVisibility;
 	horizontalScrollbarSize: number;
 	horizontalSliderSize: number;

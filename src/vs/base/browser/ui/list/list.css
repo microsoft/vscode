@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-list {
+	position: relative;
 	height: 100%;
 	width: 100%;
 	white-space: nowrap;
@@ -43,4 +44,6 @@
 }
 
 /* Focus */
-.monaco-list.element-focused { outline: 0 !important; }
+.monaco-list.element-focused, .monaco-list.selection-single, .monaco-list.selection-multiple {
+	outline: 0 !important;
+}

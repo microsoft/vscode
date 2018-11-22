@@ -3,22 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { IRange } from 'vs/editor/common/core/range';
-
-/**
- * @internal
- */
-export const TextModelEventType = {
-	ModelDispose: 'modelDispose',
-	ModelTokensChanged: 'modelTokensChanged',
-	ModelLanguageChanged: 'modelLanguageChanged',
-	ModelOptionsChanged: 'modelOptionsChanged',
-	ModelContentChanged: 'contentChanged',
-	ModelRawContentChanged2: 'rawContentChanged2',
-	ModelDecorationsChanged: 'decorationsChanged',
-};
 
 /**
  * An event describing that the current mode associated with a model has changed.
@@ -34,11 +19,21 @@ export interface IModelLanguageChangedEvent {
 	readonly newLanguage: string;
 }
 
+/**
+ * An event describing that the language configuration associated with a model has changed.
+ */
+export interface IModelLanguageConfigurationChangedEvent {
+}
+
 export interface IModelContentChange {
 	/**
 	 * The range that got replaced.
 	 */
 	readonly range: IRange;
+	/**
+	 * The offset of the range that got replaced.
+	 */
+	readonly rangeOffset: number;
 	/**
 	 * The length of the range that got replaced.
 	 */
@@ -81,18 +76,6 @@ export interface IModelContentChangedEvent {
  * An event describing that model decorations have changed.
  */
 export interface IModelDecorationsChangedEvent {
-	/**
-	 * Lists of ids for added decorations.
-	 */
-	readonly addedDecorations: string[];
-	/**
-	 * Lists of ids for changed decorations.
-	 */
-	readonly changedDecorations: string[];
-	/**
-	 * List of ids for removed decorations.
-	 */
-	readonly removedDecorations: string[];
 }
 
 /**
@@ -124,7 +107,8 @@ export const enum RawContentChangedType {
 	Flush = 1,
 	LineChanged = 2,
 	LinesDeleted = 3,
-	LinesInserted = 4
+	LinesInserted = 4,
+	EOLChanged = 5
 }
 
 /**
@@ -194,9 +178,9 @@ export class ModelRawLinesInserted {
 	/**
 	 * The text that was inserted
 	 */
-	public readonly detail: string;
+	public readonly detail: string[];
 
-	constructor(fromLineNumber: number, toLineNumber: number, detail: string) {
+	constructor(fromLineNumber: number, toLineNumber: number, detail: string[]) {
 		this.fromLineNumber = fromLineNumber;
 		this.toLineNumber = toLineNumber;
 		this.detail = detail;
@@ -204,9 +188,17 @@ export class ModelRawLinesInserted {
 }
 
 /**
+ * An event describing that a model has had its EOL changed.
  * @internal
  */
-export type ModelRawChange = ModelRawFlush | ModelRawLineChanged | ModelRawLinesDeleted | ModelRawLinesInserted;
+export class ModelRawEOLChanged {
+	public readonly changeType = RawContentChangedType.EOLChanged;
+}
+
+/**
+ * @internal
+ */
+export type ModelRawChange = ModelRawFlush | ModelRawLineChanged | ModelRawLinesDeleted | ModelRawLinesInserted | ModelRawEOLChanged;
 
 /**
  * An event describing a change in the text of a model.
@@ -233,5 +225,56 @@ export class ModelRawContentChangedEvent {
 		this.versionId = versionId;
 		this.isUndoing = isUndoing;
 		this.isRedoing = isRedoing;
+	}
+
+	public containsEvent(type: RawContentChangedType): boolean {
+		for (let i = 0, len = this.changes.length; i < len; i++) {
+			const change = this.changes[i];
+			if (change.changeType === type) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	public static merge(a: ModelRawContentChangedEvent, b: ModelRawContentChangedEvent): ModelRawContentChangedEvent {
+		const changes = ([] as ModelRawChange[]).concat(a.changes).concat(b.changes);
+		const versionId = b.versionId;
+		const isUndoing = (a.isUndoing || b.isUndoing);
+		const isRedoing = (a.isRedoing || b.isRedoing);
+		return new ModelRawContentChangedEvent(changes, versionId, isUndoing, isRedoing);
+	}
+}
+
+/**
+ * @internal
+ */
+export class InternalModelContentChangeEvent {
+	constructor(
+		public readonly rawContentChangedEvent: ModelRawContentChangedEvent,
+		public readonly contentChangedEvent: IModelContentChangedEvent,
+	) { }
+
+	public merge(other: InternalModelContentChangeEvent): InternalModelContentChangeEvent {
+		const rawContentChangedEvent = ModelRawContentChangedEvent.merge(this.rawContentChangedEvent, other.rawContentChangedEvent);
+		const contentChangedEvent = InternalModelContentChangeEvent._mergeChangeEvents(this.contentChangedEvent, other.contentChangedEvent);
+		return new InternalModelContentChangeEvent(rawContentChangedEvent, contentChangedEvent);
+	}
+
+	private static _mergeChangeEvents(a: IModelContentChangedEvent, b: IModelContentChangedEvent): IModelContentChangedEvent {
+		const changes = ([] as IModelContentChange[]).concat(a.changes).concat(b.changes);
+		const eol = b.eol;
+		const versionId = b.versionId;
+		const isUndoing = (a.isUndoing || b.isUndoing);
+		const isRedoing = (a.isRedoing || b.isRedoing);
+		const isFlush = (a.isFlush || b.isFlush);
+		return {
+			changes: changes,
+			eol: eol,
+			versionId: versionId,
+			isUndoing: isUndoing,
+			isRedoing: isRedoing,
+			isFlush: isFlush
+		};
 	}
 }

@@ -2,26 +2,18 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import URI from 'vs/base/common/uri';
-import platform = require('vs/base/common/platform');
-import types = require('vs/base/common/types');
-import { nativeSep, normalize } from 'vs/base/common/paths';
-import { endsWith, ltrim } from 'vs/base/common/strings';
-import { isEqualOrParent, isEqual } from 'vs/platform/files/common/files';
+import { URI } from 'vs/base/common/uri';
+import { nativeSep, normalize, basename as pathsBasename, sep } from 'vs/base/common/paths';
+import { endsWith, ltrim, startsWithIgnoreCase, rtrim, startsWith } from 'vs/base/common/strings';
+import { Schemas } from 'vs/base/common/network';
+import { isLinux, isWindows, isMacintosh } from 'vs/base/common/platform';
+import { isEqual } from 'vs/base/common/resources';
 
-export interface ILabelProvider {
-
-	/**
-	 * Given an element returns a label for it to display in the UI.
-	 */
-	getLabel(element: any): string;
-}
-
-export interface IWorkspaceProvider {
+export interface IWorkspaceFolderProvider {
+	getWorkspaceFolder(resource: URI): { uri: URI, name?: string };
 	getWorkspace(): {
-		resource: URI;
+		folders: { uri: URI, name?: string }[];
 	};
 }
 
@@ -29,69 +21,109 @@ export interface IUserHomeProvider {
 	userHome: string;
 }
 
-export class PathLabelProvider implements ILabelProvider {
-	private root: string;
-
-	constructor(arg1?: URI | string | IWorkspaceProvider) {
-		this.root = arg1 && getPath(arg1);
+/**
+ * @deprecated use LabelService instead
+ */
+export function getPathLabel(resource: URI | string, userHomeProvider?: IUserHomeProvider, rootProvider?: IWorkspaceFolderProvider): string {
+	if (typeof resource === 'string') {
+		resource = URI.file(resource);
 	}
 
-	public getLabel(arg1: URI | string | IWorkspaceProvider): string {
-		return getPathLabel(getPath(arg1), this.root);
-	}
-}
+	// return early if we can resolve a relative path label from the root
+	if (rootProvider) {
+		const baseResource = rootProvider.getWorkspaceFolder(resource);
+		if (baseResource) {
+			const hasMultipleRoots = rootProvider.getWorkspace().folders.length > 1;
 
-export function getPathLabel(resource: URI | string, basePathProvider?: URI | string | IWorkspaceProvider, userHomeProvider?: IUserHomeProvider): string {
-	const absolutePath = getPath(resource);
-	if (!absolutePath) {
-		return null;
-	}
+			let pathLabel: string;
+			if (isEqual(baseResource.uri, resource, !isLinux)) {
+				pathLabel = ''; // no label if paths are identical
+			} else {
+				pathLabel = normalize(ltrim(resource.path.substr(baseResource.uri.path.length), sep)!, true);
+			}
 
-	const basepath = basePathProvider && getPath(basePathProvider);
+			if (hasMultipleRoots) {
+				const rootName = (baseResource && baseResource.name) ? baseResource.name : pathsBasename(baseResource.uri.fsPath);
+				pathLabel = pathLabel ? (rootName + ' • ' + pathLabel) : rootName; // always show root basename if there are multiple
+			}
 
-	if (basepath && isEqualOrParent(absolutePath, basepath, !platform.isLinux /* ignorecase */)) {
-		if (isEqual(basepath, absolutePath, !platform.isLinux /* ignorecase */)) {
-			return ''; // no label if pathes are identical
+			return pathLabel;
 		}
-
-		return normalize(ltrim(absolutePath.substr(basepath.length), nativeSep), true);
 	}
 
-	if (platform.isWindows && absolutePath && absolutePath[1] === ':') {
-		return normalize(absolutePath.charAt(0).toUpperCase() + absolutePath.slice(1), true); // convert c:\something => C:\something
+	// return if the resource is neither file:// nor untitled:// and no baseResource was provided
+	if (resource.scheme !== Schemas.file && resource.scheme !== Schemas.untitled) {
+		return resource.with({ query: null, fragment: null }).toString(true);
 	}
 
-	let res = normalize(absolutePath, true);
-	if (!platform.isWindows && userHomeProvider) {
+	// convert c:\something => C:\something
+	if (hasDriveLetter(resource.fsPath)) {
+		return normalize(normalizeDriveLetter(resource.fsPath), true);
+	}
+
+	// normalize and tildify (macOS, Linux only)
+	let res = normalize(resource.fsPath, true);
+	if (!isWindows && userHomeProvider) {
 		res = tildify(res, userHomeProvider.userHome);
 	}
 
 	return res;
 }
 
-function getPath(arg1: URI | string | IWorkspaceProvider): string {
-	if (!arg1) {
-		return null;
+export function getBaseLabel(resource: URI | string): string | undefined {
+	if (!resource) {
+		return undefined;
 	}
 
-	if (typeof arg1 === 'string') {
-		return arg1;
+	if (typeof resource === 'string') {
+		resource = URI.file(resource);
 	}
 
-	if (types.isFunction((<IWorkspaceProvider>arg1).getWorkspace)) {
-		const ws = (<IWorkspaceProvider>arg1).getWorkspace();
-		return ws ? ws.resource.fsPath : void 0;
+	const base = pathsBasename(resource.path) || (resource.scheme === Schemas.file ? resource.fsPath : resource.path) /* can be empty string if '/' is passed in */;
+
+	// convert c: => C:
+	if (hasDriveLetter(base)) {
+		return normalizeDriveLetter(base);
 	}
 
-	return (<URI>arg1).fsPath;
+	return base;
 }
 
-export function tildify(path: string, userHome: string): string {
-	if (path && (platform.isMacintosh || platform.isLinux) && isEqualOrParent(path, userHome, !platform.isLinux /* ignorecase */)) {
-		path = `~${path.substr(userHome.length)}`;
+function hasDriveLetter(path: string): boolean {
+	return !!(isWindows && path && path[1] === ':');
+}
+
+export function normalizeDriveLetter(path: string): string {
+	if (hasDriveLetter(path)) {
+		return path.charAt(0).toUpperCase() + path.slice(1);
 	}
 
 	return path;
+}
+
+let normalizedUserHomeCached: { original: string; normalized: string } = Object.create(null);
+export function tildify(path: string, userHome: string): string {
+	if (isWindows || !path || !userHome) {
+		return path; // unsupported
+	}
+
+	// Keep a normalized user home path as cache to prevent accumulated string creation
+	let normalizedUserHome = normalizedUserHomeCached.original === userHome ? normalizedUserHomeCached.normalized : void 0;
+	if (!normalizedUserHome) {
+		normalizedUserHome = `${rtrim(userHome, sep)}${sep}`;
+		normalizedUserHomeCached = { original: userHome, normalized: normalizedUserHome };
+	}
+
+	// Linux: case sensitive, macOS: case insensitive
+	if (isLinux ? startsWith(path, normalizedUserHome) : startsWithIgnoreCase(path, normalizedUserHome)) {
+		path = `~/${path.substr(normalizedUserHome.length)}`;
+	}
+
+	return path;
+}
+
+export function untildify(path: string, userHome: string): string {
+	return path.replace(/^~($|\/|\\)/, `${userHome}$1`);
 }
 
 /**
@@ -125,6 +157,7 @@ export function tildify(path: string, userHome: string): string {
  */
 const ellipsis = '\u2026';
 const unc = '\\\\';
+const home = '~';
 export function shorten(paths: string[]): string[] {
 	const shortenedPaths: string[] = new Array(paths.length);
 
@@ -134,7 +167,7 @@ export function shorten(paths: string[]): string[] {
 		let path = paths[pathIndex];
 
 		if (path === '') {
-			shortenedPaths[pathIndex] = '.';
+			shortenedPaths[pathIndex] = `.${nativeSep}`;
 			continue;
 		}
 
@@ -145,7 +178,7 @@ export function shorten(paths: string[]): string[] {
 
 		match = true;
 
-		// trim for now and concatenate unc path (e.g. \\network) or root path (/etc) later
+		// trim for now and concatenate unc path (e.g. \\network) or root path (/etc, ~/etc) later
 		let prefix = '';
 		if (path.indexOf(unc) === 0) {
 			prefix = path.substr(0, path.indexOf(unc) + unc.length);
@@ -153,6 +186,9 @@ export function shorten(paths: string[]): string[] {
 		} else if (path.indexOf(nativeSep) === 0) {
 			prefix = path.substr(0, path.indexOf(nativeSep) + nativeSep.length);
 			path = path.substr(path.indexOf(nativeSep) + nativeSep.length);
+		} else if (path.indexOf(home) === 0) {
+			prefix = path.substr(0, path.indexOf(home) + home.length);
+			path = path.substr(path.indexOf(home) + home.length);
 		}
 
 		// pick the first shortest subpath found
@@ -304,10 +340,42 @@ export function template(template: string, values: { [key: string]: string | ISe
 			const left = segments[index - 1];
 			const right = segments[index + 1];
 
-			return [left, right].every(segment => segment && segment.type === Type.VARIABLE && segment.value.length > 0);
+			return [left, right].every(segment => segment && (segment.type === Type.VARIABLE || segment.type === Type.TEXT) && segment.value.length > 0);
 		}
 
 		// accept any TEXT and VARIABLE
 		return true;
 	}).map(segment => segment.value).join('');
+}
+
+/**
+ * Handles mnemonics for menu items. Depending on OS:
+ * - Windows: Supported via & character (replace && with &)
+ * -   Linux: Supported via & character (replace && with &)
+ * -   macOS: Unsupported (replace && with empty string)
+ */
+export function mnemonicMenuLabel(label: string, forceDisableMnemonics?: boolean): string {
+	if (isMacintosh || forceDisableMnemonics) {
+		return label.replace(/\(&&\w\)|&&/g, '');
+	}
+
+	return label.replace(/&&/g, '&');
+}
+
+/**
+ * Handles mnemonics for buttons. Depending on OS:
+ * - Windows: Supported via & character (replace && with &)
+ * -   Linux: Supported via _ character (replace && with _)
+ * -   macOS: Unsupported (replace && with empty string)
+ */
+export function mnemonicButtonLabel(label: string): string {
+	if (isMacintosh) {
+		return label.replace(/\(&&\w\)|&&/g, '');
+	}
+
+	return label.replace(/&&/g, isWindows ? '&' : '_');
+}
+
+export function unmnemonicLabel(label: string): string {
+	return label.replace(/&/g, '&&');
 }

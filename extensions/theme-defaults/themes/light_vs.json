@@ -4,6 +4,12 @@
 	"include": "./light_defaults.json",
 	"tokenColors": [
 		{
+			"scope": ["meta.embedded", "source.groovy.embedded"],
+			"settings": {
+				"foreground": "#000000ff"
+			}
+		},
+		{
 			"scope": "emphasis",
 			"settings": {
 				"fontStyle": "italic"
@@ -134,8 +140,8 @@
 		},
 		{
 			"scope": [
-				"beginning.punctuation.definition.quote.markdown",
-				"beginning.punctuation.definition.list.markdown"
+				"punctuation.definition.quote.begin.markdown",
+				"punctuation.definition.list.begin.markdown"
 			],
 			"settings": {
 				"foreground": "#0451a5"
@@ -143,12 +149,6 @@
 		},
 		{
 			"scope": "markup.inline.raw",
-			"settings": {
-				"foreground": "#800000"
-			}
-		},
-		{
-			"scope": "meta.selector",
 			"settings": {
 				"foreground": "#800000"
 			}
@@ -210,9 +210,9 @@
 		},
 		{
 			"scope": [
-				"string.comment.buffered.block.jade",
-				"string.quoted.jade",
-				"string.interpolated.jade",
+				"string.comment.buffered.block.pug",
+				"string.quoted.pug",
+				"string.interpolated.pug",
 				"string.unquoted.plain.in.yaml",
 				"string.unquoted.plain.out.yaml",
 				"string.unquoted.block.yaml",
@@ -237,15 +237,23 @@
 			}
 		},
 		{
-			"name": "JavaScript string interpolation ${}",
+			"name": "String interpolation",
 			"scope": [
-				"punctuation.definition.template-expression.begin.js",
-				"punctuation.definition.template-expression.begin.ts",
-				"punctuation.definition.template-expression.end.ts",
-				"punctuation.definition.template-expression.end.js"
+				"punctuation.definition.template-expression.begin",
+				"punctuation.definition.template-expression.end",
+				"punctuation.section.embedded"
 			],
 			"settings": {
 				"foreground": "#0000ff"
+			}
+		},
+		{
+			"name": "Reset JavaScript string interpolation expression",
+			"scope": [
+				"meta.template.expression"
+			],
+			"settings": {
+				"foreground": "#000000"
 			}
 		},
 		{
@@ -268,14 +276,17 @@
 				"support.type.property-name",
 				"variable.css",
 				"variable.scss",
-				"variable.other.less"
+				"variable.other.less",
+				"source.coffee.embedded"
 			],
 			"settings": {
 				"foreground": "#ff0000"
 			}
 		},
 		{
-			"scope": "support.type.property-name.json",
+			"scope": [
+				"support.type.property-name.json"
+			],
 			"settings": {
 				"foreground": "#0451a5"
 			}
@@ -304,6 +315,7 @@
 				"keyword.operator.expression",
 				"keyword.operator.cast",
 				"keyword.operator.sizeof",
+				"keyword.operator.instanceof",
 				"keyword.operator.logical.python"
 			],
 			"settings": {
@@ -341,6 +353,7 @@
 			"name": "coloring of the Java import and package identifiers",
 			"scope": [
 				"storage.modifier.import.java",
+				"variable.language.wildcard.java",
 				"storage.modifier.package.java"
 			],
 			"settings": {

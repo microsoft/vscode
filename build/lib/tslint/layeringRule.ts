@@ -16,9 +16,9 @@ export class Rule extends Lint.Rules.AbstractRule {
 	public apply(sourceFile: ts.SourceFile): Lint.RuleFailure[] {
 
 		const parts = dirname(sourceFile.fileName).split(/\\|\//);
-		let ruleArgs = this.getOptions().ruleArguments[0];
+		const ruleArgs = this.getOptions().ruleArguments[0];
 
-		let config: Config;
+		let config: Config | undefined;
 		for (let i = parts.length - 1; i >= 0; i--) {
 			if (ruleArgs[parts[i]]) {
 				config = {
@@ -26,8 +26,8 @@ export class Rule extends Lint.Rules.AbstractRule {
 					disallowed: new Set<string>()
 				};
 				Object.keys(ruleArgs).forEach(key => {
-					if (!config.allowed.has(key)) {
-						config.disallowed.add(key);
+					if (!config!.allowed.has(key)) {
+						config!.disallowed.add(key);
 					}
 				});
 				break;
@@ -51,9 +51,27 @@ class LayeringRule extends Lint.RuleWalker {
 		this._config = config;
 	}
 
-	protected visitImportDeclaration(node: ts.ImportDeclaration): void {
-		let path = node.moduleSpecifier.getText();
+	protected visitImportEqualsDeclaration(node: ts.ImportEqualsDeclaration): void {
+		if (node.moduleReference.kind === ts.SyntaxKind.ExternalModuleReference) {
+			this._validateImport(node.moduleReference.expression.getText(), node);
+		}
+	}
 
+	protected visitImportDeclaration(node: ts.ImportDeclaration): void {
+		this._validateImport(node.moduleSpecifier.getText(), node);
+	}
+
+	protected visitCallExpression(node: ts.CallExpression): void {
+		super.visitCallExpression(node);
+
+		// import('foo') statements inside the code
+		if (node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+			const [path] = node.arguments;
+			this._validateImport(path.getText(), node);
+		}
+	}
+
+	private _validateImport(path: string, node: ts.Node): void {
 		// remove quotes
 		path = path.slice(1, -1);
 
@@ -80,7 +98,7 @@ class LayeringRule extends Lint.RuleWalker {
 	}
 
 	static _print(set: Set<string>): string {
-		let r: string[] = [];
+		const r: string[] = [];
 		set.forEach(e => r.push(e));
 		return r.join(', ');
 	}

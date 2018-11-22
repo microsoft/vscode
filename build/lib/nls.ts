@@ -1,10 +1,14 @@
-import * as ts from './typescript/typescriptServices';
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import * as ts from 'typescript';
 import * as lazy from 'lazy.js';
 import { duplex, through } from 'event-stream';
-import File = require('vinyl');
+import * as File from 'vinyl';
 import * as sm from 'source-map';
-import assign = require('object-assign');
-import path = require('path');
+import * as  path from 'path';
 
 declare class FileSourceMap extends File {
 	public sourceMap: sm.RawSourceMap;
@@ -21,7 +25,7 @@ function collect(node: ts.Node, fn: (node: ts.Node) => CollectStepResult): ts.No
 	const result: ts.Node[] = [];
 
 	function loop(node: ts.Node) {
-		var stepResult = fn(node);
+		const stepResult = fn(node);
 
 		if (stepResult === CollectStepResult.Yes || stepResult === CollectStepResult.YesAndRecurse) {
 			result.push(node);
@@ -37,8 +41,8 @@ function collect(node: ts.Node, fn: (node: ts.Node) => CollectStepResult): ts.No
 }
 
 function clone<T>(object: T): T {
-	var result = <T>{};
-	for (var id in object) {
+	const result = <T>{};
+	for (const id in object) {
 		result[id] = object[id];
 	}
 	return result;
@@ -62,8 +66,8 @@ define([], [${ wrap + lines.map(l => indent + l).join(',\n') + wrap}]);`;
  * Returns a stream containing the patched JavaScript and source maps.
  */
 function nls(): NodeJS.ReadWriteStream {
-	var input = through();
-	var output = input.pipe(through(function (f: FileSourceMap) {
+	const input = through();
+	const output = input.pipe(through(function (f: FileSourceMap) {
 		if (!f.sourceMap) {
 			return this.emit('error', new Error(`File ${f.relative} does not have sourcemaps.`));
 		}
@@ -78,7 +82,7 @@ function nls(): NodeJS.ReadWriteStream {
 			source = path.join(root, source);
 		}
 
-		const typescript = f.sourceMap.sourcesContent[0];
+		const typescript = f.sourceMap.sourcesContent![0];
 		if (!typescript) {
 			return this.emit('error', new Error(`File ${f.relative} does not have the original content in the source map.`));
 		}
@@ -126,7 +130,7 @@ module nls {
 
 	export function fileFrom(file: File, contents: string, path: string = file.path) {
 		return new File({
-			contents: new Buffer(contents),
+			contents: Buffer.from(contents),
 			base: file.base,
 			cwd: file.cwd,
 			path: path
@@ -169,9 +173,9 @@ module nls {
 
 	export function analyze(contents: string, options: ts.CompilerOptions = {}): ILocalizeAnalysisResult {
 		const filename = 'file.ts';
-		const serviceHost = new SingleFileServiceHost(assign(clone(options), { noResolve: true }), filename, contents);
+		const serviceHost = new SingleFileServiceHost(Object.assign(clone(options), { noResolve: true }), filename, contents);
 		const service = ts.createLanguageService(serviceHost);
-		const sourceFile = service.getSourceFile(filename);
+		const sourceFile = ts.createSourceFile(filename, contents, ts.ScriptTarget.ES5, true);
 
 		// all imports
 		const imports = lazy(collect(sourceFile, n => isImportNode(n) ? CollectStepResult.YesAndRecurse : CollectStepResult.NoAndRecurse));
@@ -201,8 +205,8 @@ module nls {
 
 		// `nls.localize(...)` calls
 		const nlsLocalizeCallExpressions = importDeclarations
-			.filter(d => d.importClause.namedBindings.kind === ts.SyntaxKind.NamespaceImport)
-			.map(d => (<ts.NamespaceImport>d.importClause.namedBindings).name)
+			.filter(d => !!(d.importClause && d.importClause.namedBindings && d.importClause.namedBindings.kind === ts.SyntaxKind.NamespaceImport))
+			.map(d => (<ts.NamespaceImport>d.importClause!.namedBindings).name)
 			.concat(importEqualsDeclarations.map(d => d.name))
 
 			// find read-only references to `nls`
@@ -221,8 +225,8 @@ module nls {
 
 		// `localize` named imports
 		const allLocalizeImportDeclarations = importDeclarations
-			.filter(d => d.importClause.namedBindings.kind === ts.SyntaxKind.NamedImports)
-			.map(d => (<ts.NamedImports>d.importClause.namedBindings).elements)
+			.filter(d => !!(d.importClause && d.importClause.namedBindings && d.importClause.namedBindings.kind === ts.SyntaxKind.NamedImports))
+			.map(d => ([] as any[]).concat((<ts.NamedImports>d.importClause!.namedBindings!).elements))
 			.flatten();
 
 		// `localize` read-only references
@@ -274,7 +278,7 @@ module nls {
 		constructor(contents: string) {
 			const regex = /\r\n|\r|\n/g;
 			let index = 0;
-			let match: RegExpExecArray;
+			let match: RegExpExecArray | null;
 
 			this.lines = [];
 			this.lineEndings = [];
@@ -355,7 +359,7 @@ module nls {
 		patches = patches.reverse();
 		let currentLine = -1;
 		let currentLineDiff = 0;
-		let source = null;
+		let source: string | null = null;
 
 		smc.eachMapping(m => {
 			const patch = patches[patches.length - 1];

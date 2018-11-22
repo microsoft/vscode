@@ -4,5 +4,5 @@
  *--------------------------------------------------------------------------------------------*/
 
 /// <reference path="../../../../src/vs/vscode.d.ts" />
-/// <reference types='@types/mocha'/>
+/// <reference path="../../../../src/vs/vscode.proposed.d.ts" />
 /// <reference types='@types/node'/>

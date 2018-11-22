@@ -2,10 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
-import { RenderedLinesCollection, ILine } from 'vs/editor/browser/view/viewLayer';
+import { ILine, RenderedLinesCollection } from 'vs/editor/browser/view/viewLayer';
 
 class TestLine implements ILine {
 
@@ -51,7 +50,7 @@ suite('RenderedLinesCollection onLinesDeleted', () => {
 			new TestLine('old9')
 		]);
 		let actualDeleted1 = col.onLinesDeleted(deleteFromLineNumber, deleteToLineNumber);
-		let actualDeleted = [];
+		let actualDeleted: string[] = [];
 		if (actualDeleted1) {
 			actualDeleted = actualDeleted1.map(line => line.id);
 		}
@@ -407,7 +406,7 @@ suite('RenderedLinesCollection onLinesInserted', () => {
 			new TestLine('old9')
 		]);
 		let actualDeleted1 = col.onLinesInserted(insertFromLineNumber, insertToLineNumber);
-		let actualDeleted = [];
+		let actualDeleted: string[] = [];
 		if (actualDeleted1) {
 			actualDeleted = actualDeleted1.map(line => line.id);
 		}

@@ -4,27 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
+import * as path from 'path';
 import * as platform from 'vs/base/common/platform';
-import { EDITOR_FONT_DEFAULTS, IEditorOptions } from "vs/editor/common/config/editorOptions";
+import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { IChoiceService } from 'vs/platform/message/common/message';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { ITerminalConfiguration, ITerminalConfigHelper, ITerminalFont, IShellLaunchConfig, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY } from 'vs/workbench/parts/terminal/common/terminal';
-import { Severity } from 'vs/editor/common/standalone/standaloneBase';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { ITerminalConfiguration, ITerminalConfigHelper, ITerminalFont, IShellLaunchConfig, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, TERMINAL_CONFIG_SECTION, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, MINIMUM_LETTER_SPACING } from 'vs/workbench/parts/terminal/common/terminal';
+import Severity from 'vs/base/common/severity';
+import { isFedora, isUbuntu } from 'vs/workbench/parts/terminal/node/terminal';
+import { Terminal as XTermTerminal } from 'vscode-xterm';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
-interface IEditorConfiguration {
-	editor: IEditorOptions;
-}
-
-interface IFullTerminalConfiguration {
-	terminal: {
-		integrated: ITerminalConfiguration;
-	};
-}
-
-const DEFAULT_LINE_HEIGHT = 1.2;
+const MINIMUM_FONT_SIZE = 6;
+const MAXIMUM_FONT_SIZE = 25;
 
 /**
  * Encapsulates terminal configuration logic, the primary purpose of this file is so that platform
@@ -35,33 +28,67 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 
 	private _charMeasureElement: HTMLElement;
 	private _lastFontMeasurement: ITerminalFont;
+	public config: ITerminalConfiguration;
 
 	public constructor(
-		private _platform: platform.Platform,
-		@IConfigurationService private _configurationService: IConfigurationService,
-		@IWorkspaceConfigurationService private _workspaceConfigurationService: IWorkspaceConfigurationService,
-		@IChoiceService private _choiceService: IChoiceService,
-		@IStorageService private _storageService: IStorageService) {
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IWorkspaceConfigurationService private readonly _workspaceConfigurationService: IWorkspaceConfigurationService,
+		@INotificationService private readonly _notificationService: INotificationService,
+		@IStorageService private readonly _storageService: IStorageService
+	) {
+		this._updateConfig();
+		this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TERMINAL_CONFIG_SECTION)) {
+				this._updateConfig();
+			}
+		});
 	}
 
-	public get config(): ITerminalConfiguration {
-		return this._configurationService.getConfiguration<IFullTerminalConfiguration>().terminal.integrated;
+	private _updateConfig(): void {
+		this.config = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
 	}
 
-	private _measureFont(fontFamily: string, fontSize: number, lineHeight: number): ITerminalFont {
+	public configFontIsMonospace(): boolean {
+		this._createCharMeasureElementIfNecessary();
+		const fontSize = 15;
+		const fontFamily = this.config.fontFamily || this._configurationService.getValue<IEditorOptions>('editor').fontFamily;
+		const i_rect = this._getBoundingRectFor('i', fontFamily, fontSize);
+		const w_rect = this._getBoundingRectFor('w', fontFamily, fontSize);
+
+		const invalidBounds = !i_rect.width || !w_rect.width;
+		if (invalidBounds) {
+			// There is no reason to believe the font is not Monospace.
+			return true;
+		}
+
+		return i_rect.width === w_rect.width;
+	}
+
+	private _createCharMeasureElementIfNecessary() {
 		// Create charMeasureElement if it hasn't been created or if it was orphaned by its parent
 		if (!this._charMeasureElement || !this._charMeasureElement.parentElement) {
 			this._charMeasureElement = document.createElement('div');
 			this.panelContainer.appendChild(this._charMeasureElement);
 		}
+	}
+
+	private _getBoundingRectFor(char: string, fontFamily: string, fontSize: number): ClientRect | DOMRect {
 		const style = this._charMeasureElement.style;
-		style.display = 'block';
+		style.display = 'inline-block';
 		style.fontFamily = fontFamily;
 		style.fontSize = fontSize + 'px';
-		style.lineHeight = lineHeight.toString(10);
-		this._charMeasureElement.innerText = 'X';
+		style.lineHeight = 'normal';
+		this._charMeasureElement.innerText = char;
 		const rect = this._charMeasureElement.getBoundingClientRect();
 		style.display = 'none';
+
+		return rect;
+	}
+
+	private _measureFont(fontFamily: string, fontSize: number, letterSpacing: number, lineHeight: number): ITerminalFont {
+		this._createCharMeasureElementIfNecessary();
+
+		const rect = this._getBoundingRectFor('X', fontFamily, fontSize);
 
 		// Bounding client rect was invalid, use last font measurement if available.
 		if (this._lastFontMeasurement && !rect.width && !rect.height) {
@@ -70,10 +97,11 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 
 		this._lastFontMeasurement = {
 			fontFamily,
-			fontSize: fontSize + 'px',
+			fontSize,
+			letterSpacing,
 			lineHeight,
 			charWidth: rect.width,
-			charHeight: rect.height
+			charHeight: Math.ceil(rect.height)
 		};
 		return this._lastFontMeasurement;
 	}
@@ -82,38 +110,74 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	 * Gets the font information based on the terminal.integrated.fontFamily
 	 * terminal.integrated.fontSize, terminal.integrated.lineHeight configuration properties
 	 */
-	public getFont(): ITerminalFont {
-		const config = this._configurationService.getConfiguration();
-		const editorConfig = (<IEditorConfiguration>config).editor;
-		const terminalConfig = this.config;
+	public getFont(xterm?: XTermTerminal, excludeDimensions?: boolean): ITerminalFont {
+		const editorConfig = this._configurationService.getValue<IEditorOptions>('editor');
 
-		const fontFamily = terminalConfig.fontFamily || editorConfig.fontFamily;
-		let fontSize = this._toInteger(terminalConfig.fontSize, 0);
-		if (fontSize <= 0) {
-			fontSize = EDITOR_FONT_DEFAULTS.fontSize;
-		}
-		let lineHeight = terminalConfig.lineHeight <= 0 ? DEFAULT_LINE_HEIGHT : terminalConfig.lineHeight;
-		if (!lineHeight) {
-			lineHeight = DEFAULT_LINE_HEIGHT;
+		let fontFamily = this.config.fontFamily || editorConfig.fontFamily;
+		let fontSize = this._toInteger(this.config.fontSize, MINIMUM_FONT_SIZE, MAXIMUM_FONT_SIZE, EDITOR_FONT_DEFAULTS.fontSize);
+
+		// Work around bad font on Fedora/Ubuntu
+		if (!this.config.fontFamily) {
+			if (isFedora) {
+				fontFamily = '\'DejaVu Sans Mono\', monospace';
+			}
+			if (isUbuntu) {
+				fontFamily = '\'Ubuntu Mono\', monospace';
+
+				// Ubuntu mono is somehow smaller, so set fontSize a bit larger to get the same perceived size.
+				fontSize = this._toInteger(fontSize + 2, MINIMUM_FONT_SIZE, MAXIMUM_FONT_SIZE, EDITOR_FONT_DEFAULTS.fontSize);
+			}
 		}
 
-		return this._measureFont(fontFamily, fontSize, lineHeight);
+		const letterSpacing = this.config.letterSpacing ? Math.max(Math.floor(this.config.letterSpacing), MINIMUM_LETTER_SPACING) : DEFAULT_LETTER_SPACING;
+		const lineHeight = this.config.lineHeight ? Math.max(this.config.lineHeight, 1) : DEFAULT_LINE_HEIGHT;
+
+		if (excludeDimensions) {
+			return {
+				fontFamily,
+				fontSize,
+				letterSpacing,
+				lineHeight
+			};
+		}
+
+		// Get the character dimensions from xterm if it's available
+		if (xterm) {
+			if (xterm._core.charMeasure && xterm._core.charMeasure.width && xterm._core.charMeasure.height) {
+				return {
+					fontFamily,
+					fontSize,
+					letterSpacing,
+					lineHeight,
+					charHeight: xterm._core.charMeasure.height,
+					charWidth: xterm._core.charMeasure.width
+				};
+			}
+		}
+
+		// Fall back to measuring the font ourselves
+		return this._measureFont(fontFamily, fontSize, letterSpacing, lineHeight);
 	}
 
 	public setWorkspaceShellAllowed(isAllowed: boolean): void {
 		this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, isAllowed, StorageScope.WORKSPACE);
 	}
 
-	public mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig): void {
+	public mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig, platformOverride: platform.Platform = platform.platform): void {
 		// Check whether there is a workspace setting
-		const platformKey = platform.isWindows ? 'windows' : platform.isMacintosh ? 'osx' : 'linux';
-		const shellConfigValue = this._workspaceConfigurationService.lookup<string>(`terminal.integrated.shell.${platformKey}`);
-		const shellArgsConfigValue = this._workspaceConfigurationService.lookup<string[]>(`terminal.integrated.shellArgs.${platformKey}`);
+		const platformKey = platformOverride === platform.Platform.Windows ? 'windows' : platformOverride === platform.Platform.Mac ? 'osx' : 'linux';
+		const shellConfigValue = this._workspaceConfigurationService.inspect<string>(`terminal.integrated.shell.${platformKey}`);
+		const shellArgsConfigValue = this._workspaceConfigurationService.inspect<string[]>(`terminal.integrated.shellArgs.${platformKey}`);
 
 		// Check if workspace setting exists and whether it's whitelisted
 		let isWorkspaceShellAllowed = false;
 		if (shellConfigValue.workspace !== undefined || shellArgsConfigValue.workspace !== undefined) {
 			isWorkspaceShellAllowed = this._storageService.getBoolean(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, StorageScope.WORKSPACE, undefined);
+		}
+
+		// Always allow [] args as it would lead to an odd error message and should not be dangerous
+		if (shellConfigValue.workspace === undefined && shellArgsConfigValue.workspace && shellArgsConfigValue.workspace.length === 0) {
+			isWorkspaceShellAllowed = true;
 		}
 
 		// Check if the value is neither blacklisted (false) or whitelisted (true) and ask for
@@ -138,31 +202,42 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 			} else { // if (shellArgsConfigValue.workspace !== undefined)
 				changeString = `shellArgs: ${argsString}`;
 			}
-			const message = nls.localize('terminal.integrated.allowWorkspaceShell', "Do you allow {0} (defined as a workspace setting) to be launched in the terminal?", changeString);
-			const options = [nls.localize('allow', "Allow"), nls.localize('disallow', "Disallow")];
-			this._choiceService.choose(Severity.Info, message, options, 1).then(choice => {
-				switch (choice) {
-					case 0:
-						this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, true, StorageScope.WORKSPACE);
-					case 1:
-						this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, false, StorageScope.WORKSPACE);
-					default:
-						return TPromise.as(null);
-				}
-			});
+			this._notificationService.prompt(Severity.Info, nls.localize('terminal.integrated.allowWorkspaceShell', "Do you allow {0} (defined as a workspace setting) to be launched in the terminal?", changeString),
+				[{
+					label: nls.localize('allow', "Allow"),
+					run: () => this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, true, StorageScope.WORKSPACE)
+				},
+				{
+					label: nls.localize('disallow', "Disallow"),
+					run: () => this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, false, StorageScope.WORKSPACE)
+				}]
+			);
 		}
 
 		shell.executable = (isWorkspaceShellAllowed ? shellConfigValue.value : shellConfigValue.user) || shellConfigValue.default;
 		shell.args = (isWorkspaceShellAllowed ? shellArgsConfigValue.value : shellArgsConfigValue.user) || shellArgsConfigValue.default;
+
+		// Change Sysnative to System32 if the OS is Windows but NOT WoW64. It's
+		// safe to assume that this was used by accident as Sysnative does not
+		// exist and will break the terminal in non-WoW64 environments.
+		if (platform.isWindows && !process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432')) {
+			const sysnativePath = path.join(process.env.windir, 'Sysnative').toLowerCase();
+			if (shell.executable.toLowerCase().indexOf(sysnativePath) === 0) {
+				shell.executable = path.join(process.env.windir, 'System32', shell.executable.substr(sysnativePath.length));
+			}
+		}
 	}
 
-	private _toInteger(source: any, minimum?: number): number {
+	private _toInteger(source: any, minimum: number, maximum: number, fallback: number): number {
 		let r = parseInt(source, 10);
 		if (isNaN(r)) {
-			r = 0;
+			return fallback;
 		}
 		if (typeof minimum === 'number') {
 			r = Math.max(minimum, r);
+		}
+		if (typeof maximum === 'number') {
+			r = Math.min(maximum, r);
 		}
 		return r;
 	}

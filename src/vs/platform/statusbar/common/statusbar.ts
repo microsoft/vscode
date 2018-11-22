@@ -3,14 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { ThemeColor } from 'vs/platform/theme/common/themeService';
 
-export var IStatusbarService = createDecorator<IStatusbarService>('statusbarService');
+export const IStatusbarService = createDecorator<IStatusbarService>('statusbarService');
 
-export enum StatusbarAlignment {
+export const enum StatusbarAlignment {
 	LEFT, RIGHT
 }
 
@@ -34,7 +33,7 @@ export interface IStatusbarEntry {
 	/**
 	 * An optional color to use for the entry
 	 */
-	color?: string;
+	color?: string | ThemeColor;
 
 	/**
 	 * An optional id of a command that is known to the workbench to execute on click
@@ -42,9 +41,19 @@ export interface IStatusbarEntry {
 	command?: string;
 
 	/**
+	 * Optional arguments for the command.
+	 */
+	arguments?: any[];
+
+	/**
 	 * An optional extension ID if this entry is provided from an extension.
 	 */
 	extensionId?: string;
+
+	/**
+	 * Wether to show a beak above the status bar entry.
+	 */
+	showBeak?: boolean;
 }
 
 export interface IStatusbarService {

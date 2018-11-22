@@ -3,28 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+import * as nls from 'vs/nls';
 
-import nls = require('vs/nls');
-
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { Registry } from 'vs/platform/platform';
-
-import { QuickOpenAction } from 'vs/workbench/browser/quickopen';
-import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
+import { registerEditorAction, EditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { MenuId } from 'vs/platform/actions/common/actions';
 
 const EMMET_COMMANDS_PREFIX = '>Emmet: ';
 
-class ShowEmmetCommandsAction extends QuickOpenAction {
+class ShowEmmetCommandsAction extends EditorAction {
 
-	public static ID = 'workbench.action.showEmmetCommands';
-	public static LABEL = nls.localize('showEmmetCommands', "Show Emmet Commands");
+	constructor() {
+		super({
+			id: 'workbench.action.showEmmetCommands',
+			label: nls.localize('showEmmetCommands', "Show Emmet Commands"),
+			alias: 'Show Emmet Commands',
+			precondition: EditorContextKeys.writable,
+			menubarOpts: {
+				menuId: MenuId.MenubarEditMenu,
+				group: '5_insert',
+				title: nls.localize({ key: 'miShowEmmetCommands', comment: ['&& denotes a mnemonic'] }, "E&&mmet..."),
+				order: 4
+			}
+		});
+	}
 
-	constructor(actionId: string, actionLabel: string, @IQuickOpenService quickOpenService: IQuickOpenService) {
-		super(actionId, actionLabel, EMMET_COMMANDS_PREFIX, quickOpenService);
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+		const quickOpenService = accessor.get(IQuickOpenService);
+		quickOpenService.show(EMMET_COMMANDS_PREFIX);
+		return Promise.resolve(void 0);
 	}
 }
 
-const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(new SyncActionDescriptor(ShowEmmetCommandsAction, ShowEmmetCommandsAction.ID, ShowEmmetCommandsAction.LABEL), 'Show Emmet Commands');
+registerEditorAction(ShowEmmetCommandsAction);

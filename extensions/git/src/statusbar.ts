@@ -3,13 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { Disposable, Command, EventEmitter, Event } from 'vscode';
-import { RefType, Branch } from './git';
-import { Model, Operation } from './model';
+import { Disposable, Command, EventEmitter, Event, workspace, Uri } from 'vscode';
+import { Repository, Operation } from './repository';
 import { anyEvent, dispose } from './util';
 import * as nls from 'vscode-nls';
+import { Branch } from './api/git';
 
 const localize = nls.loadMessageBundle();
 
@@ -19,30 +17,19 @@ class CheckoutStatusBar {
 	get onDidChange(): Event<void> { return this._onDidChange.event; }
 	private disposables: Disposable[] = [];
 
-	constructor(private model: Model) {
-		model.onDidChange(this._onDidChange.fire, this._onDidChange, this.disposables);
+	constructor(private repository: Repository) {
+		repository.onDidRunGitStatus(this._onDidChange.fire, this._onDidChange, this.disposables);
 	}
 
 	get command(): Command | undefined {
-		const HEAD = this.model.HEAD;
-
-		if (!HEAD) {
-			return undefined;
-		}
-
-		const tag = this.model.refs.filter(iref => iref.type === RefType.Tag && iref.commit === HEAD.commit)[0];
-		const tagName = tag && tag.name;
-		const head = HEAD.name || tagName || (HEAD.commit || '').substr(0, 8);
-		const title = '$(git-branch) '
-			+ head
-			+ (this.model.workingTreeGroup.resources.length > 0 ? '*' : '')
-			+ (this.model.indexGroup.resources.length > 0 ? '+' : '')
-			+ (this.model.mergeGroup.resources.length > 0 ? '!' : '');
+		const rebasing = !!this.repository.rebaseCommit;
+		const title = `$(git-branch) ${this.repository.headLabel}${rebasing ? ` (${localize('rebasing', 'Rebasing')})` : ''}`;
 
 		return {
 			command: 'git.checkout',
 			tooltip: localize('checkout', 'Checkout...'),
-			title
+			title,
+			arguments: [this.repository.sourceControl]
 		};
 	}
 
@@ -76,24 +63,25 @@ class SyncStatusBar {
 		this._onDidChange.fire();
 	}
 
-	constructor(private model: Model) {
-		model.onDidChange(this.onModelChange, this, this.disposables);
-		model.onDidChangeOperations(this.onOperationsChange, this, this.disposables);
+	constructor(private repository: Repository) {
+		repository.onDidRunGitStatus(this.onModelChange, this, this.disposables);
+		repository.onDidChangeOperations(this.onOperationsChange, this, this.disposables);
 		this._onDidChange.fire();
 	}
 
 	private onOperationsChange(): void {
-		this.state = {
-			...this.state,
-			isSyncRunning: this.model.operations.isRunning(Operation.Sync)
-		};
+		const isSyncRunning = this.repository.operations.isRunning(Operation.Sync) ||
+			this.repository.operations.isRunning(Operation.Push) ||
+			this.repository.operations.isRunning(Operation.Pull);
+
+		this.state = { ...this.state, isSyncRunning };
 	}
 
 	private onModelChange(): void {
 		this.state = {
 			...this.state,
-			hasRemotes: this.model.remotes.length > 0,
-			HEAD: this.model.HEAD
+			hasRemotes: this.repository.remotes.length > 0,
+			HEAD: this.repository.HEAD
 		};
 	}
 
@@ -111,14 +99,18 @@ class SyncStatusBar {
 		if (HEAD && HEAD.name && HEAD.commit) {
 			if (HEAD.upstream) {
 				if (HEAD.ahead || HEAD.behind) {
-					text += `${HEAD.behind}↓ ${HEAD.ahead}↑`;
+					text += this.repository.syncLabel;
 				}
-				command = 'git.sync';
-				tooltip = localize('sync changes', "Synchronize changes");
+
+				const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
+				const rebaseWhenSync = config.get<string>('rebaseWhenSync');
+
+				command = rebaseWhenSync ? 'git.syncRebase' : 'git.sync';
+				tooltip = localize('sync changes', "Synchronize Changes");
 			} else {
 				icon = '$(cloud-upload)';
 				command = 'git.publish';
-				tooltip = localize('publish changes', "Publish changes");
+				tooltip = localize('publish changes', "Publish Changes");
 			}
 		} else {
 			command = '';
@@ -128,13 +120,14 @@ class SyncStatusBar {
 		if (this.state.isSyncRunning) {
 			icon = '$(sync~spin)';
 			command = '';
-			tooltip = localize('syncing changes', "Synchronizing changes...");
+			tooltip = localize('syncing changes', "Synchronizing Changes...");
 		}
 
 		return {
 			command,
 			title: [icon, text].join(' ').trim(),
-			tooltip
+			tooltip,
+			arguments: [this.repository.sourceControl]
 		};
 	}
 
@@ -149,9 +142,9 @@ export class StatusBarCommands {
 	private checkoutStatusBar: CheckoutStatusBar;
 	private disposables: Disposable[] = [];
 
-	constructor(model: Model) {
-		this.syncStatusBar = new SyncStatusBar(model);
-		this.checkoutStatusBar = new CheckoutStatusBar(model);
+	constructor(repository: Repository) {
+		this.syncStatusBar = new SyncStatusBar(repository);
+		this.checkoutStatusBar = new CheckoutStatusBar(repository);
 	}
 
 	get onDidChange(): Event<void> {

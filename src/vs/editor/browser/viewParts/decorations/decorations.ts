@@ -3,22 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./decorations';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { Range } from 'vs/editor/common/core/range';
+import { HorizontalRange, RenderingContext } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { RenderingContext, HorizontalRange } from 'vs/editor/common/view/renderingContext';
-import { ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
 
 export class DecorationsOverlay extends DynamicViewOverlay {
 
 	private _context: ViewContext;
 	private _lineHeight: number;
 	private _typicalHalfwidthCharacterWidth: number;
-	private _renderResult: string[];
+	private _renderResult: string[] | null;
 
 	constructor(context: ViewContext) {
 		super();
@@ -32,7 +30,6 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 
 	public dispose(): void {
 		this._context.removeEventHandler(this);
-		this._context = null;
 		this._renderResult = null;
 		super.dispose();
 	}
@@ -78,15 +75,21 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 		let decorations: ViewModelDecoration[] = [], decorationsLen = 0;
 		for (let i = 0, len = _decorations.length; i < len; i++) {
 			let d = _decorations[i];
-			if (d.source.options.className) {
+			if (d.options.className) {
 				decorations[decorationsLen++] = d;
 			}
 		}
 
 		// Sort decorations for consistent render output
 		decorations = decorations.sort((a, b) => {
-			let aClassName = a.source.options.className;
-			let bClassName = b.source.options.className;
+			if (a.options.zIndex! < b.options.zIndex!) {
+				return -1;
+			}
+			if (a.options.zIndex! > b.options.zIndex!) {
+				return 1;
+			}
+			const aClassName = a.options.className!;
+			const bClassName = b.options.className!;
 
 			if (aClassName < bClassName) {
 				return -1;
@@ -120,13 +123,13 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 		for (let i = 0, lenI = decorations.length; i < lenI; i++) {
 			let d = decorations[i];
 
-			if (!d.source.options.isWholeLine) {
+			if (!d.options.isWholeLine) {
 				continue;
 			}
 
 			let decorationOutput = (
 				'<div class="cdr '
-				+ d.source.options.className
+				+ d.options.className
 				+ '" style="left:0;width:100%;height:'
 				+ lineHeight
 				+ 'px;"></div>'
@@ -142,50 +145,81 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 	}
 
 	private _renderNormalDecorations(ctx: RenderingContext, decorations: ViewModelDecoration[], output: string[]): void {
-		let lineHeight = String(this._lineHeight);
-		let visibleStartLineNumber = ctx.visibleRange.startLineNumber;
+		const lineHeight = String(this._lineHeight);
+		const visibleStartLineNumber = ctx.visibleRange.startLineNumber;
+
+		let prevClassName: string | null = null;
+		let prevShowIfCollapsed: boolean = false;
+		let prevRange: Range | null = null;
 
 		for (let i = 0, lenI = decorations.length; i < lenI; i++) {
-			let d = decorations[i];
+			const d = decorations[i];
 
-			if (d.source.options.isWholeLine) {
+			if (d.options.isWholeLine) {
 				continue;
 			}
 
-			let className = d.source.options.className;
+			const className = d.options.className!;
+			const showIfCollapsed = Boolean(d.options.showIfCollapsed);
 
-			let linesVisibleRanges = ctx.linesVisibleRangesForRange(d.range, /*TODO@Alex*/className === 'findMatch');
-			if (!linesVisibleRanges) {
+			let range = d.range;
+			if (showIfCollapsed && range.endColumn === 1 && range.endLineNumber !== range.startLineNumber) {
+				range = new Range(range.startLineNumber, range.startColumn, range.endLineNumber - 1, this._context.model.getLineMaxColumn(range.endLineNumber - 1));
+			}
+
+			if (prevClassName === className && prevShowIfCollapsed === showIfCollapsed && Range.areIntersectingOrTouching(prevRange!, range)) {
+				// merge into previous decoration
+				prevRange = Range.plusRange(prevRange!, range);
 				continue;
 			}
 
-			for (let j = 0, lenJ = linesVisibleRanges.length; j < lenJ; j++) {
-				let lineVisibleRanges = linesVisibleRanges[j];
-				let lineIndex = lineVisibleRanges.lineNumber - visibleStartLineNumber;
+			// flush previous decoration
+			if (prevClassName !== null) {
+				this._renderNormalDecoration(ctx, prevRange!, prevClassName, prevShowIfCollapsed, lineHeight, visibleStartLineNumber, output);
+			}
 
-				if (lineVisibleRanges.ranges.length === 1) {
-					const singleVisibleRange = lineVisibleRanges.ranges[0];
-					if (singleVisibleRange.width === 0) {
-						// collapsed range case => make the decoration visible by faking its width
-						lineVisibleRanges.ranges[0] = new HorizontalRange(singleVisibleRange.left, this._typicalHalfwidthCharacterWidth);
-					}
-				}
+			prevClassName = className;
+			prevShowIfCollapsed = showIfCollapsed;
+			prevRange = range;
+		}
 
-				for (let k = 0, lenK = lineVisibleRanges.ranges.length; k < lenK; k++) {
-					let visibleRange = lineVisibleRanges.ranges[k];
-					let decorationOutput = (
-						'<div class="cdr '
-						+ className
-						+ '" style="left:'
-						+ String(visibleRange.left)
-						+ 'px;width:'
-						+ String(visibleRange.width)
-						+ 'px;height:'
-						+ lineHeight
-						+ 'px;"></div>'
-					);
-					output[lineIndex] += decorationOutput;
+		if (prevClassName !== null) {
+			this._renderNormalDecoration(ctx, prevRange!, prevClassName, prevShowIfCollapsed, lineHeight, visibleStartLineNumber, output);
+		}
+	}
+
+	private _renderNormalDecoration(ctx: RenderingContext, range: Range, className: string, showIfCollapsed: boolean, lineHeight: string, visibleStartLineNumber: number, output: string[]): void {
+		let linesVisibleRanges = ctx.linesVisibleRangesForRange(range, /*TODO@Alex*/className === 'findMatch');
+		if (!linesVisibleRanges) {
+			return;
+		}
+
+		for (let j = 0, lenJ = linesVisibleRanges.length; j < lenJ; j++) {
+			let lineVisibleRanges = linesVisibleRanges[j];
+			const lineIndex = lineVisibleRanges.lineNumber - visibleStartLineNumber;
+
+			if (showIfCollapsed && lineVisibleRanges.ranges.length === 1) {
+				const singleVisibleRange = lineVisibleRanges.ranges[0];
+				if (singleVisibleRange.width === 0) {
+					// collapsed range case => make the decoration visible by faking its width
+					lineVisibleRanges.ranges[0] = new HorizontalRange(singleVisibleRange.left, this._typicalHalfwidthCharacterWidth);
 				}
+			}
+
+			for (let k = 0, lenK = lineVisibleRanges.ranges.length; k < lenK; k++) {
+				const visibleRange = lineVisibleRanges.ranges[k];
+				const decorationOutput = (
+					'<div class="cdr '
+					+ className
+					+ '" style="left:'
+					+ String(visibleRange.left)
+					+ 'px;width:'
+					+ String(visibleRange.width)
+					+ 'px;height:'
+					+ lineHeight
+					+ 'px;"></div>'
+				);
+				output[lineIndex] += decorationOutput;
 			}
 		}
 	}
@@ -196,7 +230,7 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 		}
 		let lineIndex = lineNumber - startLineNumber;
 		if (lineIndex < 0 || lineIndex >= this._renderResult.length) {
-			throw new Error('Unexpected render request');
+			return '';
 		}
 		return this._renderResult[lineIndex];
 	}

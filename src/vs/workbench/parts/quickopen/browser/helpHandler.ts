@@ -2,20 +2,21 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
-import types = require('vs/base/common/types');
-import { Registry } from 'vs/platform/platform';
+import * as nls from 'vs/nls';
+import * as types from 'vs/base/common/types';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { Mode, IEntryRunContext, IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenModel, QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import { IQuickOpenRegistry, Extensions, QuickOpenHandler } from 'vs/workbench/browser/quickopen';
+import { IQuickOpenRegistry, Extensions, QuickOpenHandler, QuickOpenHandlerDescriptor, QuickOpenHandlerHelpEntry } from 'vs/workbench/browser/quickopen';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const HELP_PREFIX = '?';
 
 class HelpEntry extends QuickOpenEntryGroup {
+	private prefixLabel: string;
 	private prefix: string;
 	private description: string;
 	private quickOpenService: IQuickOpenService;
@@ -24,25 +25,31 @@ class HelpEntry extends QuickOpenEntryGroup {
 	constructor(prefix: string, description: string, quickOpenService: IQuickOpenService, openOnPreview: boolean) {
 		super();
 
-		this.prefix = prefix || '\u2026';
+		if (!prefix) {
+			this.prefix = '';
+			this.prefixLabel = '\u2026' /* ... */;
+		} else {
+			this.prefix = this.prefixLabel = prefix;
+		}
+
 		this.description = description;
 		this.quickOpenService = quickOpenService;
 		this.openOnPreview = openOnPreview;
 	}
 
-	public getLabel(): string {
-		return this.prefix;
+	getLabel(): string {
+		return this.prefixLabel;
 	}
 
-	public getAriaLabel(): string {
+	getAriaLabel(): string {
 		return nls.localize('entryAriaLabel', "{0}, picker help", this.getLabel());
 	}
 
-	public getDescription(): string {
+	getDescription(): string {
 		return this.description;
 	}
 
-	public run(mode: Mode, context: IEntryRunContext): boolean {
+	run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN || this.openOnPreview) {
 			this.quickOpenService.show(this.prefix);
 		}
@@ -53,14 +60,16 @@ class HelpEntry extends QuickOpenEntryGroup {
 
 export class HelpHandler extends QuickOpenHandler {
 
-	constructor( @IQuickOpenService private quickOpenService: IQuickOpenService) {
+	static readonly ID = 'workbench.picker.help';
+
+	constructor(@IQuickOpenService private quickOpenService: IQuickOpenService) {
 		super();
 	}
 
-	public getResults(searchValue: string): TPromise<QuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken): TPromise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 
-		const registry = (<IQuickOpenRegistry>Registry.as(Extensions.Quickopen));
+		const registry = (Registry.as<IQuickOpenRegistry>(Extensions.Quickopen));
 		const handlerDescriptors = registry.getQuickOpenHandlers();
 
 		const defaultHandler = registry.getDefaultQuickOpenHandler();
@@ -70,9 +79,9 @@ export class HelpHandler extends QuickOpenHandler {
 
 		const workbenchScoped: HelpEntry[] = [];
 		const editorScoped: HelpEntry[] = [];
-		let entry: HelpEntry;
 
-		handlerDescriptors.sort((h1, h2) => h1.prefix.localeCompare(h2.prefix)).forEach((handlerDescriptor) => {
+		const matchingHandlers: (QuickOpenHandlerHelpEntry | QuickOpenHandlerDescriptor)[] = [];
+		handlerDescriptors.sort((h1, h2) => h1.prefix.localeCompare(h2.prefix)).forEach(handlerDescriptor => {
 			if (handlerDescriptor.prefix !== HELP_PREFIX) {
 
 				// Descriptor has multiple help entries
@@ -81,19 +90,26 @@ export class HelpHandler extends QuickOpenHandler {
 						const helpEntry = handlerDescriptor.helpEntries[j];
 
 						if (helpEntry.prefix.indexOf(searchValue) === 0) {
-							entry = new HelpEntry(helpEntry.prefix, helpEntry.description, this.quickOpenService, searchValue.length > 0);
-							if (helpEntry.needsEditor) {
-								editorScoped.push(entry);
-							} else {
-								workbenchScoped.push(entry);
-							}
+							matchingHandlers.push(helpEntry);
 						}
 					}
 				}
 
 				// Single Help entry for descriptor
 				else if (handlerDescriptor.prefix.indexOf(searchValue) === 0) {
-					entry = new HelpEntry(handlerDescriptor.prefix, handlerDescriptor.description, this.quickOpenService, searchValue.length > 0);
+					matchingHandlers.push(handlerDescriptor);
+				}
+			}
+		});
+
+		matchingHandlers.forEach(handler => {
+			if (handler instanceof QuickOpenHandlerDescriptor) {
+				workbenchScoped.push(new HelpEntry(handler.prefix, handler.description, this.quickOpenService, matchingHandlers.length === 1));
+			} else {
+				const entry = new HelpEntry(handler.prefix, handler.description, this.quickOpenService, matchingHandlers.length === 1);
+				if (handler.needsEditor) {
+					editorScoped.push(entry);
+				} else {
 					workbenchScoped.push(entry);
 				}
 			}
@@ -115,7 +131,7 @@ export class HelpHandler extends QuickOpenHandler {
 		return TPromise.as(new QuickOpenModel([...workbenchScoped, ...editorScoped]));
 	}
 
-	public getAutoFocus(searchValue: string): IAutoFocus {
+	getAutoFocus(searchValue: string): IAutoFocus {
 		searchValue = searchValue.trim();
 		return {
 			autoFocusFirstEntry: searchValue.length > 0,

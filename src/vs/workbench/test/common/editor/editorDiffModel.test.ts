@@ -3,40 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
-import { EditorModel } from 'vs/workbench/common/editor';
-import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorModel';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { ResourceEditorInput } from "vs/workbench/common/editor/resourceEditorInput";
-import URI from "vs/base/common/uri";
-import { ITextModelResolverService } from "vs/editor/common/services/resolverService";
-import { ITextFileService } from "vs/workbench/services/textfile/common/textfiles";
-import { IUntitledEditorService } from "vs/workbench/services/untitled/common/untitledEditorService";
-import { TestTextFileService, workbenchInstantiationService } from "vs/workbench/test/workbenchTestServices";
-import { TPromise } from "vs/base/common/winjs.base";
-import { IModel } from "vs/editor/common/editorCommon";
-import { IInstantiationService } from "vs/platform/instantiation/common/instantiation";
-
-class MyEditorModel extends EditorModel { }
-class MyTextEditorModel extends BaseTextEditorModel { }
+import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
+import { URI } from 'vs/base/common/uri';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { TestTextFileService, workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { ITextModel } from 'vs/editor/common/model';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 class ServiceAccessor {
 	constructor(
-		@ITextModelResolverService public textModelResolverService: ITextModelResolverService,
+		@ITextModelService public textModelResolverService: ITextModelService,
 		@IModelService public modelService: IModelService,
 		@IModeService public modeService: IModeService,
-		@ITextFileService public textFileService: TestTextFileService,
-		@IUntitledEditorService public untitledEditorService: IUntitledEditorService
+		@ITextFileService public textFileService: TestTextFileService
 	) {
 	}
 }
 
-suite('Workbench - EditorModel', () => {
+suite('Workbench editor model', () => {
 	let instantiationService: IInstantiationService;
 	let accessor: ServiceAccessor;
 
@@ -45,13 +36,13 @@ suite('Workbench - EditorModel', () => {
 		accessor = instantiationService.createInstance(ServiceAccessor);
 	});
 
-	test('TextDiffEditorModel', function (done) {
+	test('TextDiffEditorModel', () => {
 		const dispose = accessor.textModelResolverService.registerTextModelContentProvider('test', {
-			provideTextContent: function (resource: URI): TPromise<IModel> {
+			provideTextContent: function (resource: URI): TPromise<ITextModel> {
 				if (resource.scheme === 'test') {
 					let modelContent = 'Hello Test';
-					let mode = accessor.modeService.getOrCreateMode('json');
-					return TPromise.as(accessor.modelService.createModel(modelContent, mode, resource));
+					let languageSelection = accessor.modeService.create('json');
+					return TPromise.as(accessor.modelService.createModel(modelContent, languageSelection, resource));
 				}
 
 				return TPromise.as(null);
@@ -62,7 +53,7 @@ suite('Workbench - EditorModel', () => {
 		let otherInput = instantiationService.createInstance(ResourceEditorInput, 'name2', 'description', URI.from({ scheme: 'test', authority: null, path: 'thePath' }));
 		let diffInput = new DiffEditorInput('name', 'description', input, otherInput);
 
-		diffInput.resolve(true).then((model: any) => {
+		return diffInput.resolve().then((model: any) => {
 			assert(model);
 			assert(model instanceof TextDiffEditorModel);
 
@@ -70,7 +61,7 @@ suite('Workbench - EditorModel', () => {
 			assert(diffEditorModel.original);
 			assert(diffEditorModel.modified);
 
-			return diffInput.resolve(true).then((model: any) => {
+			return diffInput.resolve().then((model: any) => {
 				assert(model.isResolved());
 
 				assert(diffEditorModel !== model.textDiffEditorModel);
@@ -79,8 +70,6 @@ suite('Workbench - EditorModel', () => {
 
 				dispose.dispose();
 			});
-		}).done(() => {
-			done();
 		});
 	});
 });

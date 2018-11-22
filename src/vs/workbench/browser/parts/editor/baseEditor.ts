@@ -2,25 +2,27 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import types = require('vs/base/common/types');
-import { Builder } from 'vs/base/browser/builder';
-import { Registry } from 'vs/platform/platform';
 import { Panel } from 'vs/workbench/browser/panel';
-import { EditorInput, EditorOptions, IEditorDescriptor, IEditorInputFactory, IEditorRegistry, Extensions, IFileInputFactory } from 'vs/workbench/common/editor';
-import { IEditor, Position } from 'vs/platform/editor/common/editor';
-import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
-import { SyncDescriptor, AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { EditorInput, EditorOptions, IEditor, GroupIdentifier, IEditorMemento } from 'vs/workbench/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { LRUCache } from 'vs/base/common/map';
+import { URI } from 'vs/base/common/uri';
+import { once, Event } from 'vs/base/common/event';
+import { isEmptyObject } from 'vs/base/common/types';
+import { DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 
 /**
  * The base class of editors in the workbench. Editors register themselves for specific editor inputs.
- * Editors are layed out in the editor part of the workbench. Only one editor can be open at a time.
- * Each editor has a minimized representation that is good enough to provide some information about the
- * state of the editor data.
+ * Editors are layed out in the editor part of the workbench in editor groups. Multiple editors can be
+ * open at the same time. Each editor has a minimized representation that is good enough to provide some
+ * information about the state of the editor data.
+ *
  * The workbench will keep an editor alive after it has been created and show/hide it based on
  * user interaction. The lifecycle of a editor goes in the order create(), setVisible(true|false),
  * layout(), setInput(), focus(), dispose(). During use of the workbench, a editor will often receive a
@@ -29,277 +31,272 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
  * This class is only intended to be subclassed and not instantiated.
  */
 export abstract class BaseEditor extends Panel implements IEditor {
-	protected _input: EditorInput;
-	private _options: EditorOptions;
-	private _position: Position;
 
-	constructor(id: string, telemetryService: ITelemetryService, themeService: IThemeService) {
-		super(id, telemetryService, themeService);
+	private static readonly EDITOR_MEMENTOS: Map<string, EditorMemento<any>> = new Map<string, EditorMemento<any>>();
+
+	readonly minimumWidth = DEFAULT_EDITOR_MIN_DIMENSIONS.width;
+	readonly maximumWidth = DEFAULT_EDITOR_MAX_DIMENSIONS.width;
+	readonly minimumHeight = DEFAULT_EDITOR_MIN_DIMENSIONS.height;
+	readonly maximumHeight = DEFAULT_EDITOR_MAX_DIMENSIONS.height;
+
+	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; }> = Event.None;
+
+	protected _input: EditorInput;
+
+	private _options: EditorOptions;
+	private _group: IEditorGroup;
+
+	constructor(
+		id: string,
+		telemetryService: ITelemetryService,
+		themeService: IThemeService,
+		storageService: IStorageService
+	) {
+		super(id, telemetryService, themeService, storageService);
 	}
 
-	public get input(): EditorInput {
+	get input(): EditorInput {
 		return this._input;
 	}
 
-	public get options(): EditorOptions {
+	get options(): EditorOptions {
 		return this._options;
+	}
+
+	get group(): IEditorGroup {
+		return this._group;
 	}
 
 	/**
 	 * Note: Clients should not call this method, the workbench calls this
 	 * method. Calling it otherwise may result in unexpected behavior.
 	 *
-	 * Sets the given input with the options to the part. An editor has to deal with the
-	 * situation that the same input is being set with different options.
+	 * Sets the given input with the options to the editor. The input is guaranteed
+	 * to be different from the previous input that was set using the input.matches()
+	 * method.
+	 *
+	 * The provided cancellation token should be used to test if the operation
+	 * was cancelled.
 	 */
-	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
+	setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
 		this._input = input;
 		this._options = options;
 
-		return TPromise.as<void>(null);
+		return TPromise.wrap<void>(null);
 	}
 
 	/**
-	 * Called to indicate to the editor that the input should be cleared and resources associated with the
-	 * input should be freed.
+	 * Called to indicate to the editor that the input should be cleared and
+	 * resources associated with the input should be freed.
 	 */
-	public clearInput(): void {
+	clearInput(): void {
 		this._input = null;
 		this._options = null;
 	}
 
-	public create(parent: Builder): void; // create is sync for editors
-	public create(parent: Builder): TPromise<void>;
-	public create(parent: Builder): TPromise<void> {
-		const res = super.create(parent);
+	/**
+	 * Note: Clients should not call this method, the workbench calls this
+	 * method. Calling it otherwise may result in unexpected behavior.
+	 *
+	 * Sets the given options to the editor. Clients should apply the options
+	 * to the current input.
+	 */
+	setOptions(options: EditorOptions): void {
+		this._options = options;
+	}
+
+	create(parent: HTMLElement): void {
+		super.create(parent);
 
 		// Create Editor
 		this.createEditor(parent);
-
-		return res;
 	}
 
 	/**
-	 * Called to create the editor in the parent builder.
+	 * Called to create the editor in the parent HTMLElement.
 	 */
-	protected abstract createEditor(parent: Builder): void;
+	protected abstract createEditor(parent: HTMLElement): void;
 
-	/**
-	 * Overload this function to allow for passing in a position argument.
-	 */
-	public setVisible(visible: boolean, position?: Position): void; // setVisible is sync for editors
-	public setVisible(visible: boolean, position?: Position): TPromise<void>;
-	public setVisible(visible: boolean, position: Position = null): TPromise<void> {
-		const promise = super.setVisible(visible);
-
+	setVisible(visible: boolean, group?: IEditorGroup): void {
+		super.setVisible(visible);
 		// Propagate to Editor
-		this.setEditorVisible(visible, position);
-
-		return promise;
-	}
-
-	protected setEditorVisible(visible: boolean, position: Position = null): void {
-		this._position = position;
+		this.setEditorVisible(visible, group);
 	}
 
 	/**
-	 * Called when the position of the editor changes while it is visible.
+	 * Indicates that the editor control got visible or hidden in a specific group. A
+	 * editor instance will only ever be visible in one editor group.
+	 *
+	 * @param visible the state of visibility of this editor
+	 * @param group the editor group this editor is in.
 	 */
-	public changePosition(position: Position): void {
-		this._position = position;
+	protected setEditorVisible(visible: boolean, group: IEditorGroup): void {
+		this._group = group;
 	}
 
-	/**
-	 * The position this editor is showing in or null if none.
-	 */
-	public get position(): Position {
-		return this._position;
+	protected getEditorMemento<T>(editorGroupService: IEditorGroupsService, key: string, limit: number = 10): IEditorMemento<T> {
+		const mementoKey = `${this.getId()}${key}`;
+
+		let editorMemento = BaseEditor.EDITOR_MEMENTOS.get(mementoKey);
+		if (!editorMemento) {
+			editorMemento = new EditorMemento(this.getId(), key, this.getMemento(StorageScope.WORKSPACE), limit, editorGroupService);
+			BaseEditor.EDITOR_MEMENTOS.set(mementoKey, editorMemento);
+		}
+
+		return editorMemento;
 	}
 
-	public dispose(): void {
+	protected saveState(): void {
+
+		// Save all editor memento for this editor type
+		BaseEditor.EDITOR_MEMENTOS.forEach(editorMemento => {
+			if (editorMemento.id === this.getId()) {
+				editorMemento.saveState();
+			}
+		});
+
+		super.saveState();
+	}
+
+	dispose(): void {
 		this._input = null;
 		this._options = null;
 
-		// Super Dispose
 		super.dispose();
 	}
 }
 
-/**
- * A lightweight descriptor of an editor. The descriptor is deferred so that heavy editors
- * can load lazily in the workbench.
- */
-export class EditorDescriptor extends AsyncDescriptor<BaseEditor> implements IEditorDescriptor {
-	private id: string;
-	private name: string;
-
-	constructor(id: string, name: string, moduleId: string, ctorName: string) {
-		super(moduleId, ctorName);
-
-		this.id = id;
-		this.name = name;
-	}
-
-	public getId(): string {
-		return this.id;
-	}
-
-	public getName(): string {
-		return this.name;
-	}
-
-	public describes(obj: any): boolean {
-		return obj instanceof BaseEditor && (<BaseEditor>obj).getId() === this.id;
-	}
+interface MapGroupToMemento<T> {
+	[group: number]: T;
 }
 
-const INPUT_DESCRIPTORS_PROPERTY = '__$inputDescriptors';
+export class EditorMemento<T> implements IEditorMemento<T> {
+	private cache: LRUCache<string, MapGroupToMemento<T>>;
+	private cleanedUp = false;
 
-class EditorRegistry implements IEditorRegistry {
-	private editors: EditorDescriptor[];
-	private instantiationService: IInstantiationService;
-	private fileInputFactory: IFileInputFactory;
-	private editorInputFactoryConstructors: { [editorInputId: string]: IConstructorSignature0<IEditorInputFactory> } = Object.create(null);
-	private editorInputFactoryInstances: { [editorInputId: string]: IEditorInputFactory } = Object.create(null);
+	constructor(
+		private _id: string,
+		private key: string,
+		private memento: object,
+		private limit: number,
+		private editorGroupService: IEditorGroupsService
+	) { }
 
-	constructor() {
-		this.editors = [];
+	get id(): string {
+		return this._id;
 	}
 
-	public setInstantiationService(service: IInstantiationService): void {
-		this.instantiationService = service;
-
-		for (let key in this.editorInputFactoryConstructors) {
-			const element = this.editorInputFactoryConstructors[key];
-			this.createEditorInputFactory(key, element);
+	saveEditorState(group: IEditorGroup, resource: URI, state: T): void;
+	saveEditorState(group: IEditorGroup, editor: EditorInput, state: T): void;
+	saveEditorState(group: IEditorGroup, resourceOrEditor: URI | EditorInput, state: T): void {
+		const resource = this.doGetResource(resourceOrEditor);
+		if (!resource || !group) {
+			return; // we are not in a good state to save any state for a resource
 		}
 
-		this.editorInputFactoryConstructors = {};
-	}
+		const cache = this.doLoad();
 
-	private createEditorInputFactory(editorInputId: string, ctor: IConstructorSignature0<IEditorInputFactory>): void {
-		const instance = this.instantiationService.createInstance(ctor);
-		this.editorInputFactoryInstances[editorInputId] = instance;
-	}
-
-	public registerEditor(descriptor: EditorDescriptor, editorInputDescriptor: SyncDescriptor<EditorInput>): void;
-	public registerEditor(descriptor: EditorDescriptor, editorInputDescriptor: SyncDescriptor<EditorInput>[]): void;
-	public registerEditor(descriptor: EditorDescriptor, editorInputDescriptor: any): void {
-
-		// Support both non-array and array parameter
-		let inputDescriptors: SyncDescriptor<EditorInput>[] = [];
-		if (!types.isArray(editorInputDescriptor)) {
-			inputDescriptors.push(editorInputDescriptor);
-		} else {
-			inputDescriptors = editorInputDescriptor;
+		let mementoForResource = cache.get(resource.toString());
+		if (!mementoForResource) {
+			mementoForResource = Object.create(null) as MapGroupToMemento<T>;
+			cache.set(resource.toString(), mementoForResource);
 		}
 
-		// Register (Support multiple Editors per Input)
-		descriptor[INPUT_DESCRIPTORS_PROPERTY] = inputDescriptors;
-		this.editors.push(descriptor);
+		mementoForResource[group.id] = state;
+
+		// Automatically clear when editor input gets disposed if any
+		if (resourceOrEditor instanceof EditorInput) {
+			once(resourceOrEditor.onDispose)(() => {
+				this.clearEditorState(resource);
+			});
+		}
 	}
 
-	public getEditor(input: EditorInput): EditorDescriptor {
-		const findEditorDescriptors = (input: EditorInput, byInstanceOf?: boolean): EditorDescriptor[] => {
-			const matchingDescriptors: EditorDescriptor[] = [];
+	loadEditorState(group: IEditorGroup, resource: URI): T;
+	loadEditorState(group: IEditorGroup, editor: EditorInput): T;
+	loadEditorState(group: IEditorGroup, resourceOrEditor: URI | EditorInput): T {
+		const resource = this.doGetResource(resourceOrEditor);
+		if (!resource || !group) {
+			return void 0; // we are not in a good state to load any state for a resource
+		}
 
-			for (let i = 0; i < this.editors.length; i++) {
-				const editor = this.editors[i];
-				const inputDescriptors = <SyncDescriptor<EditorInput>[]>editor[INPUT_DESCRIPTORS_PROPERTY];
-				for (let j = 0; j < inputDescriptors.length; j++) {
-					const inputClass = inputDescriptors[j].ctor;
+		const cache = this.doLoad();
 
-					// Direct check on constructor type (ignores prototype chain)
-					if (!byInstanceOf && input.constructor === inputClass) {
-						matchingDescriptors.push(editor);
-						break;
-					}
+		const mementoForResource = cache.get(resource.toString());
+		if (mementoForResource) {
+			return mementoForResource[group.id];
+		}
 
-					// Normal instanceof check
-					else if (byInstanceOf && input instanceof inputClass) {
-						matchingDescriptors.push(editor);
-						break;
+		return void 0;
+	}
+
+	clearEditorState(resource: URI, group?: IEditorGroup): void;
+	clearEditorState(editor: EditorInput, group?: IEditorGroup): void;
+	clearEditorState(resourceOrEditor: URI | EditorInput, group?: IEditorGroup): void {
+		const resource = this.doGetResource(resourceOrEditor);
+		if (resource) {
+			const cache = this.doLoad();
+
+			if (group) {
+				const resourceViewState = cache.get(resource.toString());
+				if (resourceViewState) {
+					delete resourceViewState[group.id];
+				}
+			} else {
+				cache.delete(resource.toString());
+			}
+		}
+	}
+
+	private doGetResource(resourceOrEditor: URI | EditorInput): URI {
+		if (resourceOrEditor instanceof EditorInput) {
+			return resourceOrEditor.getResource();
+		}
+
+		return resourceOrEditor;
+	}
+
+	private doLoad(): LRUCache<string, MapGroupToMemento<T>> {
+		if (!this.cache) {
+			this.cache = new LRUCache<string, MapGroupToMemento<T>>(this.limit);
+
+			// Restore from serialized map state
+			const rawEditorMemento = this.memento[this.key];
+			if (Array.isArray(rawEditorMemento)) {
+				this.cache.fromJSON(rawEditorMemento);
+			}
+		}
+
+		return this.cache;
+	}
+
+	saveState(): void {
+		const cache = this.doLoad();
+
+		// Cleanup once during shutdown
+		if (!this.cleanedUp) {
+			this.cleanUp();
+			this.cleanedUp = true;
+		}
+
+		this.memento[this.key] = cache.toJSON();
+	}
+
+	private cleanUp(): void {
+		const cache = this.doLoad();
+
+		// Remove groups from states that no longer exist
+		cache.forEach((mapGroupToMemento, resource) => {
+			Object.keys(mapGroupToMemento).forEach(group => {
+				const groupId: GroupIdentifier = Number(group);
+				if (!this.editorGroupService.getGroup(groupId)) {
+					delete mapGroupToMemento[groupId];
+
+					if (isEmptyObject(mapGroupToMemento)) {
+						cache.delete(resource);
 					}
 				}
-			}
-
-			// If no descriptors found, continue search using instanceof and prototype chain
-			if (!byInstanceOf && matchingDescriptors.length === 0) {
-				return findEditorDescriptors(input, true);
-			}
-
-			if (byInstanceOf) {
-				return matchingDescriptors;
-			}
-
-			return matchingDescriptors;
-		};
-
-		const descriptors = findEditorDescriptors(input);
-		if (descriptors && descriptors.length > 0) {
-
-			// Ask the input for its preferred Editor
-			const preferredEditorId = input.getPreferredEditorId(descriptors.map(d => d.getId()));
-			if (preferredEditorId) {
-				return this.getEditorById(preferredEditorId);
-			}
-
-			// Otherwise, first come first serve
-			return descriptors[0];
-		}
-
-		return null;
-	}
-
-	public getEditorById(editorId: string): EditorDescriptor {
-		for (let i = 0; i < this.editors.length; i++) {
-			const editor = this.editors[i];
-			if (editor.getId() === editorId) {
-				return editor;
-			}
-		}
-
-		return null;
-	}
-
-	public getEditors(): EditorDescriptor[] {
-		return this.editors.slice(0);
-	}
-
-	public setEditors(editorsToSet: EditorDescriptor[]): void {
-		this.editors = editorsToSet;
-	}
-
-	public getEditorInputs(): any[] {
-		const inputClasses: any[] = [];
-		for (let i = 0; i < this.editors.length; i++) {
-			const editor = this.editors[i];
-			const editorInputDescriptors = <SyncDescriptor<EditorInput>[]>editor[INPUT_DESCRIPTORS_PROPERTY];
-			inputClasses.push(...editorInputDescriptors.map(descriptor => descriptor.ctor));
-		}
-
-		return inputClasses;
-	}
-
-	public registerFileInputFactory(factory: IFileInputFactory): void {
-		this.fileInputFactory = factory;
-	}
-
-	public getFileInputFactory(): IFileInputFactory {
-		return this.fileInputFactory;
-	}
-
-	public registerEditorInputFactory(editorInputId: string, ctor: IConstructorSignature0<IEditorInputFactory>): void {
-		if (!this.instantiationService) {
-			this.editorInputFactoryConstructors[editorInputId] = ctor;
-		} else {
-			this.createEditorInputFactory(editorInputId, ctor);
-		}
-	}
-
-	public getEditorInputFactory(editorInputId: string): IEditorInputFactory {
-		return this.editorInputFactoryInstances[editorInputId];
+			});
+		});
 	}
 }
-
-Registry.add(Extensions.Editors, new EditorRegistry());

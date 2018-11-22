@@ -40,6 +40,8 @@
 		print("Uncut Point: <strong>$deck[$index]</strong> ");
 		$starting_point++;
 	}
+
+	function foo bar(){}
 ?>
 
 </body>

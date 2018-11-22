@@ -19,14 +19,14 @@
 	width: 100%;
 }
 
-.monaco-workbench .monaco-editor .margin-view-overlays .line-numbers {
+.monaco-editor .margin-view-overlays .line-numbers {
 	cursor: -webkit-image-set(
 		url('flipped-cursor.svg') 1x,
 		url('flipped-cursor-2x.svg') 2x
 	) 30 0, default;
 }
 
-.monaco-workbench .monaco-editor.mac .margin-view-overlays .line-numbers {
+.monaco-editor.mac .margin-view-overlays .line-numbers {
 	cursor: -webkit-image-set(
 		url('flipped-cursor-mac.svg') 1x,
 		url('flipped-cursor-mac-2x.svg') 2x

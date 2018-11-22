@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
 import * as dom from 'vs/base/browser/dom';
@@ -84,75 +83,6 @@ suite('dom', () => {
 	//		assert(dom.hasClass(element, 'foobar'));
 	//	}
 	//});
-
-	test('safeStringify', function () {
-		let obj1 = {
-			friend: null
-		};
-
-		let obj2 = {
-			friend: null
-		};
-
-		obj1.friend = obj2;
-		obj2.friend = obj1;
-
-		let arr: any = [1];
-		arr.push(arr);
-
-		let circular = {
-			a: 42,
-			b: null,
-			c: [
-				obj1, obj2
-			],
-			d: null
-		};
-
-		arr.push(circular);
-		circular.b = circular;
-		circular.d = arr;
-
-		let result = dom.safeStringifyDOMAware(circular);
-
-		assert.deepEqual(JSON.parse(result), {
-			a: 42,
-			b: '[Circular]',
-			c: [
-				{
-					friend: {
-						friend: '[Circular]'
-					}
-				},
-				'[Circular]'
-			],
-			d: [1, '[Circular]', '[Circular]']
-		});
-	});
-
-	test('safeStringify2', function () {
-		let obj: any = {
-			a: null,
-			b: document.createElement('div'),
-			c: null,
-			d: 'string',
-			e: 'string',
-			f: 42,
-			g: 42
-		};
-
-		let result = dom.safeStringifyDOMAware(obj);
-
-		assert.deepEqual(JSON.parse(result), {
-			a: null,
-			b: '[Element]',
-			c: null,
-			d: 'string',
-			e: 'string',
-			f: 42,
-			g: 42
-		});
-	});
 
 	suite('$', () => {
 		test('should build simple nodes', () => {

@@ -3,108 +3,61 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import fs = require('fs');
-import stream = require('stream');
-
-import { TPromise } from 'vs/base/common/winjs.base';
+import * as fs from 'fs';
 
 export interface ReadResult {
-	buffer: NodeBuffer;
+	buffer: Buffer | null;
 	bytesRead: number;
-}
-
-/**
- * Reads up to total bytes from the provided stream.
- */
-export function readExactlyByStream(stream: stream.Readable, totalBytes: number): TPromise<ReadResult> {
-	return new TPromise<ReadResult>((complete, error) => {
-		let done = false;
-		let buffer = new Buffer(totalBytes);
-		let bytesRead = 0;
-
-		stream.on('data', (data: NodeBuffer) => {
-			let bytesToRead = Math.min(totalBytes - bytesRead, data.length);
-			data.copy(buffer, bytesRead, 0, bytesToRead);
-			bytesRead += bytesToRead;
-
-			if (bytesRead === totalBytes) {
-				(stream as any).destroy(); // Will trigger the close event eventually
-			}
-		});
-
-		stream.on('error', (e: Error) => {
-			if (!done) {
-				done = true;
-				error(e);
-			}
-		});
-
-		let onSuccess = () => {
-			if (!done) {
-				done = true;
-				complete({ buffer, bytesRead });
-			}
-		};
-
-		stream.on('close', onSuccess);
-	});
 }
 
 /**
  * Reads totalBytes from the provided file.
  */
-export function readExactlyByFile(file: string, totalBytes: number): TPromise<ReadResult> {
-	return new TPromise<ReadResult>((complete, error) => {
+export function readExactlyByFile(file: string, totalBytes: number): Promise<ReadResult> {
+	return new Promise<ReadResult>((resolve, reject) => {
 		fs.open(file, 'r', null, (err, fd) => {
 			if (err) {
-				return error(err);
+				return reject(err);
 			}
 
-			function end(err: Error, resultBuffer: NodeBuffer, bytesRead: number): void {
-				fs.close(fd, (closeError: Error) => {
+			function end(err: Error | null, resultBuffer: Buffer | null, bytesRead: number): void {
+				fs.close(fd, closeError => {
 					if (closeError) {
-						return error(closeError);
+						return reject(closeError);
 					}
 
 					if (err && (<any>err).code === 'EISDIR') {
-						return error(err); // we want to bubble this error up (file is actually a folder)
+						return reject(err); // we want to bubble this error up (file is actually a folder)
 					}
 
-					return complete({ buffer: resultBuffer, bytesRead });
+					return resolve({ buffer: resultBuffer, bytesRead });
 				});
 			}
 
-			let buffer = new Buffer(totalBytes);
-			let bytesRead = 0;
-			let zeroAttempts = 0;
-			function loop(): void {
-				fs.read(fd, buffer, bytesRead, totalBytes - bytesRead, null, (err, moreBytesRead) => {
+			const buffer = Buffer.allocUnsafe(totalBytes);
+			let offset = 0;
+
+			function readChunk(): void {
+				fs.read(fd, buffer, offset, totalBytes - offset, null, (err, bytesRead) => {
 					if (err) {
 						return end(err, null, 0);
 					}
 
-					// Retry up to N times in case 0 bytes where read
-					if (moreBytesRead === 0) {
-						if (++zeroAttempts === 10) {
-							return end(null, buffer, bytesRead);
-						}
-
-						return loop();
+					if (bytesRead === 0) {
+						return end(null, buffer, offset);
 					}
 
-					bytesRead += moreBytesRead;
+					offset += bytesRead;
 
-					if (bytesRead === totalBytes) {
-						return end(null, buffer, bytesRead);
+					if (offset === totalBytes) {
+						return end(null, buffer, offset);
 					}
 
-					return loop();
+					return readChunk();
 				});
 			}
 
-			loop();
+			readChunk();
 		});
 	});
 }
@@ -118,61 +71,56 @@ export function readExactlyByFile(file: string, totalBytes: number): TPromise<Re
  * @param maximumBytesToRead The maximum number of bytes to read before giving up.
  * @param callback The finished callback.
  */
-export function readToMatchingString(file: string, matchingString: string, chunkBytes: number, maximumBytesToRead: number): TPromise<string> {
-	return new TPromise<string>((complete, error) =>
+export function readToMatchingString(file: string, matchingString: string, chunkBytes: number, maximumBytesToRead: number): Promise<string | null> {
+	return new Promise<string | null>((resolve, reject) =>
 		fs.open(file, 'r', null, (err, fd) => {
 			if (err) {
-				return error(err);
+				return reject(err);
 			}
 
-			function end(err: Error, result: string): void {
-				fs.close(fd, (closeError: Error) => {
+			function end(err: Error | null, result: string | null): void {
+				fs.close(fd, closeError => {
 					if (closeError) {
-						return error(closeError);
+						return reject(closeError);
 					}
 
 					if (err && (<any>err).code === 'EISDIR') {
-						return error(err); // we want to bubble this error up (file is actually a folder)
+						return reject(err); // we want to bubble this error up (file is actually a folder)
 					}
 
-					return complete(result);
+					return resolve(result);
 				});
 			}
 
-			let buffer = new Buffer(maximumBytesToRead);
-			let bytesRead = 0;
-			let zeroAttempts = 0;
-			function loop(): void {
-				fs.read(fd, buffer, bytesRead, chunkBytes, null, (err, moreBytesRead) => {
+			let buffer = Buffer.allocUnsafe(maximumBytesToRead);
+			let offset = 0;
+
+			function readChunk(): void {
+				fs.read(fd, buffer, offset, chunkBytes, null, (err, bytesRead) => {
 					if (err) {
 						return end(err, null);
 					}
 
-					// Retry up to N times in case 0 bytes where read
-					if (moreBytesRead === 0) {
-						if (++zeroAttempts === 10) {
-							return end(null, null);
-						}
-
-						return loop();
+					if (bytesRead === 0) {
+						return end(null, null);
 					}
 
-					bytesRead += moreBytesRead;
+					offset += bytesRead;
 
 					const newLineIndex = buffer.indexOf(matchingString);
 					if (newLineIndex >= 0) {
 						return end(null, buffer.toString('utf8').substr(0, newLineIndex));
 					}
 
-					if (bytesRead >= maximumBytesToRead) {
+					if (offset >= maximumBytesToRead) {
 						return end(new Error(`Could not find ${matchingString} in first ${maximumBytesToRead} bytes of ${file}`), null);
 					}
 
-					return loop();
+					return readChunk();
 				});
 			}
 
-			loop();
+			readChunk();
 		})
 	);
 }

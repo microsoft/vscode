@@ -2,19 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as strings from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorInput, EditorModel, ITextEditorModel } from 'vs/workbench/common/editor';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IReference, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
-import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
-import { marked } from 'vs/base/common/marked/marked';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import * as marked from 'vs/base/common/marked/marked';
 import { Schemas } from 'vs/base/common/network';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
+import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 
 export class WalkThroughModel extends EditorModel {
 
@@ -40,63 +38,72 @@ export class WalkThroughModel extends EditorModel {
 	}
 }
 
-export class WalkThroughInput extends EditorInput {
+export interface WalkThroughInputOptions {
+	readonly typeId: string;
+	readonly name: string;
+	readonly description?: string;
+	readonly resource: URI;
+	readonly telemetryFrom: string;
+	readonly onReady?: (container: HTMLElement) => void;
+}
 
-	static ID: string = 'workbench.editors.walkThroughInput';
+export class WalkThroughInput extends EditorInput {
 
 	private disposables: IDisposable[] = [];
 
 	private promise: TPromise<WalkThroughModel>;
 
-	private resolveTime: number;
 	private maxTopScroll = 0;
 	private maxBottomScroll = 0;
 
 	constructor(
-		private name: string,
-		private description: string,
-		private resource: URI,
-		private telemetryFrom: string,
-		public readonly onReady: (container: HTMLElement) => void,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@ILifecycleService lifecycleService: ILifecycleService,
-		@ITextModelResolverService private textModelResolverService: ITextModelResolverService
+		private options: WalkThroughInputOptions,
+		@ITextModelService private textModelResolverService: ITextModelService,
+		@IHashService private hashService: IHashService
 	) {
 		super();
-		this.disposables.push(lifecycleService.onShutdown(e => this.disposeTelemetry(e)));
 	}
 
 	getResource(): URI {
-		return this.resource;
+		return this.options.resource;
 	}
 
 	getTypeId(): string {
-		return WalkThroughInput.ID;
+		return this.options.typeId;
 	}
 
 	getName(): string {
-		return this.name;
+		return this.options.name;
 	}
 
 	getDescription(): string {
-		return this.description;
+		return this.options.description || '';
 	}
 
 	getTelemetryFrom(): string {
-		return this.telemetryFrom || 'walkThrough';
+		return this.options.telemetryFrom;
 	}
 
 	getTelemetryDescriptor(): object {
 		const descriptor = super.getTelemetryDescriptor();
 		descriptor['target'] = this.getTelemetryFrom();
-		descriptor['resource'] = telemetryURIDescriptor(this.resource);
+		descriptor['resource'] = telemetryURIDescriptor(this.options.resource, path => this.hashService.createSHA1(path));
+		/* __GDPR__FRAGMENT__
+			"EditorTelemetryDescriptor" : {
+				"target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"resource": { "${inline}": [ "${URIDescriptor}" ] }
+			}
+		*/
 		return descriptor;
 	}
 
-	resolve(refresh?: boolean): TPromise<WalkThroughModel> {
+	get onReady() {
+		return this.options.onReady;
+	}
+
+	resolve(): TPromise<WalkThroughModel> {
 		if (!this.promise) {
-			this.resolveTelemetry();
-			this.promise = this.textModelResolverService.createModelReference(this.resource)
+			this.promise = this.textModelResolverService.createModelReference(this.options.resource)
 				.then(ref => {
 					if (strings.endsWith(this.getResource().path, '.html')) {
 						return new WalkThroughModel(ref, []);
@@ -106,7 +113,7 @@ export class WalkThroughInput extends EditorInput {
 					let i = 0;
 					const renderer = new marked.Renderer();
 					renderer.code = (code, lang) => {
-						const resource = this.resource.with({ scheme: Schemas.walkThroughSnippet, fragment: `${i++}.${lang}` });
+						const resource = this.options.resource.with({ scheme: Schemas.walkThroughSnippet, fragment: `${i++}.${lang}` });
 						snippets.push(this.textModelResolverService.createModelReference(resource));
 						return '';
 					};
@@ -131,7 +138,7 @@ export class WalkThroughInput extends EditorInput {
 			let otherResourceEditorInput = <WalkThroughInput>otherInput;
 
 			// Compare by properties
-			return otherResourceEditorInput.resource.toString() === this.resource.toString();
+			return otherResourceEditorInput.options.resource.toString() === this.options.resource.toString();
 		}
 
 		return false;
@@ -145,35 +152,11 @@ export class WalkThroughInput extends EditorInput {
 			this.promise = null;
 		}
 
-		this.disposeTelemetry();
-
 		super.dispose();
 	}
 
 	public relativeScrollPosition(topScroll: number, bottomScroll: number) {
 		this.maxTopScroll = Math.max(this.maxTopScroll, topScroll);
 		this.maxBottomScroll = Math.max(this.maxBottomScroll, bottomScroll);
-	}
-
-	private resolveTelemetry() {
-		if (!this.resolveTime) {
-			this.resolveTime = Date.now();
-			this.telemetryService.publicLog('resolvingInput', {
-				target: this.getTelemetryFrom(),
-			});
-		}
-	}
-
-	private disposeTelemetry(reason?: ShutdownReason) {
-		if (this.resolveTime) {
-			this.telemetryService.publicLog('disposingInput', {
-				target: this.getTelemetryFrom(),
-				timeSpent: (Date.now() - this.resolveTime) / 60,
-				reason: reason ? ShutdownReason[reason] : 'DISPOSE',
-				maxTopScroll: this.maxTopScroll,
-				maxBottomScroll: this.maxBottomScroll,
-			});
-			this.resolveTime = null;
-		}
 	}
 }

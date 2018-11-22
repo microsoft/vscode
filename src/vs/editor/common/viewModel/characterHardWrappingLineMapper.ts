@@ -2,15 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import * as strings from 'vs/base/common/strings';
-import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { ILineMapperFactory, ILineMapping, OutputPosition } from 'vs/editor/common/viewModel/splitLinesCollection';
 import { CharCode } from 'vs/base/common/charCode';
+import * as strings from 'vs/base/common/strings';
+import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
 import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
 import { toUint32Array } from 'vs/editor/common/core/uint';
-import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
+import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
+import { ILineMapperFactory, ILineMapping, OutputPosition } from 'vs/editor/common/viewModel/splitLinesCollection';
 
 const enum CharacterClass {
 	NONE = 0,
@@ -75,7 +74,7 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 		return currentVisibleColumn + columnSize;
 	}
 
-	public createLineMapping(lineText: string, tabSize: number, breakingColumn: number, columnsForFullWidthChar: number, hardWrappingIndent: WrappingIndent): ILineMapping {
+	public createLineMapping(lineText: string, tabSize: number, breakingColumn: number, columnsForFullWidthChar: number, hardWrappingIndent: WrappingIndent): ILineMapping | null {
 		if (breakingColumn === -1) {
 			return null;
 		}
@@ -92,16 +91,26 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 		if (hardWrappingIndent !== WrappingIndent.None) {
 			firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineText);
 			if (firstNonWhitespaceIndex !== -1) {
+				// Track existing indent
 				wrappedTextIndent = lineText.substring(0, firstNonWhitespaceIndex);
 				for (let i = 0; i < firstNonWhitespaceIndex; i++) {
 					wrappedTextIndentVisibleColumn = CharacterHardWrappingLineMapperFactory.nextVisibleColumn(wrappedTextIndentVisibleColumn, tabSize, lineText.charCodeAt(i) === CharCode.Tab, 1);
 				}
+
+				// Increase indent of continuation lines, if desired
+				let numberOfAdditionalTabs = 0;
 				if (hardWrappingIndent === WrappingIndent.Indent) {
+					numberOfAdditionalTabs = 1;
+				} else if (hardWrappingIndent === WrappingIndent.DeepIndent) {
+					numberOfAdditionalTabs = 2;
+				}
+				for (let i = 0; i < numberOfAdditionalTabs; i++) {
 					wrappedTextIndent += '\t';
 					wrappedTextIndentVisibleColumn = CharacterHardWrappingLineMapperFactory.nextVisibleColumn(wrappedTextIndentVisibleColumn, tabSize, true, 1);
 				}
-				// Force sticking to beginning of line if indentColumn > 66% breakingColumn
-				if (wrappedTextIndentVisibleColumn > 1 / 2 * breakingColumn) {
+
+				// Force sticking to beginning of line if no character would fit except for the indentation
+				if (wrappedTextIndentVisibleColumn + columnsForFullWidthChar > breakingColumn) {
 					wrappedTextIndent = '';
 					wrappedTextIndentVisibleColumn = 0;
 				}
@@ -162,13 +171,13 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 				let breakBeforeOffset: number;
 				let restoreVisibleColumnFrom: number;
 
-				if (niceBreakOffset !== -1) {
+				if (niceBreakOffset !== -1 && niceBreakVisibleColumn <= breakingColumn) {
 
 					// We will break before `niceBreakLastOffset`
 					breakBeforeOffset = niceBreakOffset;
 					restoreVisibleColumnFrom = niceBreakVisibleColumn;
 
-				} else if (obtrusiveBreakOffset !== -1) {
+				} else if (obtrusiveBreakOffset !== -1 && obtrusiveBreakVisibleColumn <= breakingColumn) {
 
 					// We will break before `obtrusiveBreakLastOffset`
 					breakBeforeOffset = obtrusiveBreakOffset;

@@ -1,8 +1,0 @@
-{
-	"name": "node-debug2-placeholder",
-	"version": "0.0.3",
-	"publisher": "vscode",
-	"engines": {
-		"vscode": "1.6.x"
-	}
-}

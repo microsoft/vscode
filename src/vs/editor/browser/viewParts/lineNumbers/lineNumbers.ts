@@ -3,33 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./lineNumbers';
-import { editorLineNumbers } from 'vs/editor/common/view/editorColorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import * as platform from 'vs/base/common/platform';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { RenderingContext } from 'vs/editor/common/view/renderingContext';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
+import { editorActiveLineNumber, editorLineNumbers } from 'vs/editor/common/view/editorColorRegistry';
+import { RenderingContext } from 'vs/editor/common/view/renderingContext';
+import { ViewContext } from 'vs/editor/common/view/viewContext';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
 export class LineNumbersOverlay extends DynamicViewOverlay {
 
-	public static CLASS_NAME = 'line-numbers';
+	public static readonly CLASS_NAME = 'line-numbers';
 
 	private _context: ViewContext;
 
 	private _lineHeight: number;
-	private _renderLineNumbers: boolean;
-	private _renderCustomLineNumbers: (lineNumber: number) => string;
-	private _renderRelativeLineNumbers: boolean;
+	private _renderLineNumbers: RenderLineNumbersType;
+	private _renderCustomLineNumbers: ((lineNumber: number) => string) | null;
 	private _lineNumbersLeft: number;
 	private _lineNumbersWidth: number;
-
 	private _lastCursorModelPosition: Position;
-	private _renderResult: string[];
+	private _renderResult: string[] | null;
 
 	constructor(context: ViewContext) {
 		super();
@@ -47,14 +44,12 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		this._lineHeight = config.lineHeight;
 		this._renderLineNumbers = config.viewInfo.renderLineNumbers;
 		this._renderCustomLineNumbers = config.viewInfo.renderCustomLineNumbers;
-		this._renderRelativeLineNumbers = config.viewInfo.renderRelativeLineNumbers;
 		this._lineNumbersLeft = config.layoutInfo.lineNumbersLeft;
 		this._lineNumbersWidth = config.layoutInfo.lineNumbersWidth;
 	}
 
 	public dispose(): void {
 		this._context.removeEventHandler(this);
-		this._context = null;
 		this._renderResult = null;
 		super.dispose();
 	}
@@ -65,10 +60,11 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		this._readConfig();
 		return true;
 	}
-	public onCursorPositionChanged(e: viewEvents.ViewCursorPositionChangedEvent): boolean {
-		this._lastCursorModelPosition = this._context.model.coordinatesConverter.convertViewPositionToModelPosition(e.position);
+	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
+		const primaryViewPosition = e.selections[0].getPosition();
+		this._lastCursorModelPosition = this._context.model.coordinatesConverter.convertViewPositionToModelPosition(primaryViewPosition);
 
-		if (this._renderRelativeLineNumbers) {
+		if (this._renderLineNumbers === RenderLineNumbersType.Relative || this._renderLineNumbers === RenderLineNumbersType.Interval) {
 			return true;
 		}
 		return false;
@@ -105,7 +101,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 			return this._renderCustomLineNumbers(modelLineNumber);
 		}
 
-		if (this._renderRelativeLineNumbers) {
+		if (this._renderLineNumbers === RenderLineNumbersType.Relative) {
 			let diff = Math.abs(this._lastCursorModelPosition.lineNumber - modelLineNumber);
 			if (diff === 0) {
 				return '<span class="relative-current-line-number">' + modelLineNumber + '</span>';
@@ -113,11 +109,21 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 			return String(diff);
 		}
 
+		if (this._renderLineNumbers === RenderLineNumbersType.Interval) {
+			if (this._lastCursorModelPosition.lineNumber === modelLineNumber) {
+				return String(modelLineNumber);
+			}
+			if (modelLineNumber % 10 === 0) {
+				return String(modelLineNumber);
+			}
+			return '';
+		}
+
 		return String(modelLineNumber);
 	}
 
 	public prepareRender(ctx: RenderingContext): void {
-		if (!this._renderLineNumbers) {
+		if (this._renderLineNumbers === RenderLineNumbersType.Off) {
 			this._renderResult = null;
 			return;
 		}
@@ -132,6 +138,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 			let lineIndex = lineNumber - visibleStartLineNumber;
 
 			let renderLineNumber = this._getLineRenderLineNumber(lineNumber);
+
 			if (renderLineNumber) {
 				output[lineIndex] = (
 					common
@@ -152,7 +159,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		}
 		let lineIndex = lineNumber - startLineNumber;
 		if (lineIndex < 0 || lineIndex >= this._renderResult.length) {
-			throw new Error('Unexpected render request');
+			return '';
 		}
 		return this._renderResult[lineIndex];
 	}
@@ -161,8 +168,12 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 // theming
 
 registerThemingParticipant((theme, collector) => {
-	let lineNumbers = theme.getColor(editorLineNumbers);
+	const lineNumbers = theme.getColor(editorLineNumbers);
 	if (lineNumbers) {
 		collector.addRule(`.monaco-editor .line-numbers { color: ${lineNumbers}; }`);
+	}
+	const activeLineNumber = theme.getColor(editorActiveLineNumber);
+	if (activeLineNumber) {
+		collector.addRule(`.monaco-editor .current-line ~ .line-numbers { color: ${activeLineNumber}; }`);
 	}
 });

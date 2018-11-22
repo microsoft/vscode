@@ -2,13 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import * as modes from 'vs/editor/common/modes';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
+import * as modes from 'vs/editor/common/modes';
 
 export function createScopedLineTokens(context: LineTokens, offset: number): ScopedLineTokens {
-	let tokenCount = context.getTokenCount();
+	let tokenCount = context.getCount();
 	let tokenIndex = context.findTokenIndexAtOffset(offset);
 	let desiredLanguageId = context.getLanguageId(tokenIndex);
 
@@ -27,8 +26,8 @@ export function createScopedLineTokens(context: LineTokens, offset: number): Sco
 		desiredLanguageId,
 		firstTokenIndex,
 		lastTokenIndex + 1,
-		context.getTokenStartOffset(firstTokenIndex),
-		context.getTokenEndOffset(lastTokenIndex)
+		context.getStartOffset(firstTokenIndex),
+		context.getEndOffset(lastTokenIndex)
 	);
 }
 
@@ -59,7 +58,7 @@ export class ScopedLineTokens {
 	}
 
 	public getLineContent(): string {
-		var actualLineContent = this._actual.getLineContent();
+		const actualLineContent = this._actual.getLineContent();
 		return actualLineContent.substring(this.firstCharOffset, this._lastCharOffset);
 	}
 
@@ -69,10 +68,6 @@ export class ScopedLineTokens {
 
 	public findTokenIndexAtOffset(offset: number): number {
 		return this._actual.findTokenIndexAtOffset(offset + this.firstCharOffset) - this._firstTokenIndex;
-	}
-
-	public getTokenStartOffset(tokenIndex: number): number {
-		return this._actual.getTokenStartOffset(tokenIndex + this._firstTokenIndex) - this.firstCharOffset;
 	}
 
 	public getStandardTokenType(tokenIndex: number): modes.StandardTokenType {

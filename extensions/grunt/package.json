@@ -1,31 +1,29 @@
 {
   "name": "grunt",
   "publisher": "vscode",
-  "description": "Extension to add Grunt capabilities to VSCode.",
-  "displayName": "Grunt support for VSCode",
-  "version": "0.0.1",
+  "description": "Extension to add Grunt capabilities to VS Code.",
+  "displayName": "Grunt support for VS Code",
+  "version": "1.0.0",
+  "icon": "images/grunt.png",
   "engines": {
     "vscode": "*"
   },
-  "enableProposedApi": true,
   "categories": [
     "Other"
   ],
   "scripts": {
-    "compile": "gulp compile-extension:gulp",
-    "watch": "gulp watch-extension:gulp"
+    "compile": "gulp compile-extension:grunt",
+    "watch": "gulp watch-extension:grunt"
   },
   "dependencies": {
-    "vscode-nls": "^2.0.2"
+    "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
-    "@types/node": "^7.0.12"
+    "@types/node": "^8.10.25"
   },
   "main": "./out/main",
   "activationEvents": [
-    "onCommand:workbench.action.tasks.runTask",
-    "onCommand:workbench.action.tasks.build",
-    "onCommand:workbench.action.tasks.test"
+    "onCommand:workbench.action.tasks.runTask"
   ],
   "contributes": {
     "configuration": {
@@ -34,6 +32,7 @@
       "title": "Grunt",
       "properties": {
         "grunt.autoDetect": {
+          "scope": "resource",
           "type": "string",
           "enum": [
             "off",
@@ -43,6 +42,24 @@
           "description": "%config.grunt.autoDetect%"
         }
       }
-    }
+    },
+    "taskDefinitions": [
+      {
+        "type": "grunt",
+        "required": [
+          "task"
+        ],
+        "properties": {
+          "task": {
+            "type": "string",
+            "description": "%grunt.taskDefinition.type.description%"
+          },
+          "file": {
+            "type": "string",
+            "description": "%grunt.taskDefinition.file.description%"
+          }
+        }
+      }
+    ]
   }
 }

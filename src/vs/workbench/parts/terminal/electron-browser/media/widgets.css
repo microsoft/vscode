@@ -12,19 +12,12 @@
 }
 
 .monaco-workbench .terminal-message-widget {
-	/* This font list is sourced from a .monaco-shell style */
 	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif;
-	font-size: 14px;
+	font-size: 12px;
 	line-height: 19px;
 	padding: 4px 5px;
 	animation: fadein 100ms linear;
-	background-color: #F3F3F3;
-	border: 1px solid #CCC;
-}
-.vs-dark .monaco-workbench .terminal-message-widget {
-	background-color: #2D2D30;
-	border-color: #555;
-}
-.hc-black .monaco-workbench .terminal-message-widget {
-	background-color: #0C141F;
+	white-space: nowrap;
+	/* Must be drawn on the top of the terminal's canvases */
+	z-index: 20;
 }

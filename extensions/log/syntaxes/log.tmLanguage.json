@@ -1,0 +1,93 @@
+{
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/emilast/vscode-logfile-highlighter/blob/master/syntaxes/log.tmLanguage",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
+	"version": "https://github.com/emilast/vscode-logfile-highlighter/commit/30a19d24b9a0070b0fab5eef45f89c92e7cd71ea",
+	"name": "Log file",
+	"scopeName": "text.log",
+	"patterns": [
+		{
+			"match": "\\b(DEBUG|Debug|Trace)\\b|(?i)\\b(debug)\\:",
+			"name": "markup.changed log.debug"
+		},
+		{
+			"match": "(?i)\\[(debug|dbug|dbg|de|d)\\]",
+			"name": "markup.changed log.debug"
+		},
+		{
+			"match": "\\b(HINT|INFO|INFORMATION|Info|NOTICE)\\b|(?i)\\b(info|information)\\:",
+			"name": "markup.inserted log.info"
+		},
+		{
+			"match": "(?i)\\[(information|info|inf|in|i)\\]",
+			"name": "markup.inserted log.info"
+		},
+		{
+			"match": "\\b(WARNING|WARN|Warn)\\b|(?i)\\b(warning)\\:",
+			"name": "markup.deleted log.warning"
+		},
+		{
+			"match": "(?i)\\[(warning|warn|wrn|wn|w)\\]",
+			"name": "markup.deleted log.warning"
+		},
+		{
+			"match": "\\b(ALERT|CRITICAL|EMERGENCY|ERROR|FAILURE|FAIL|Fatal|Error)\\b|(?i)\\b(error)\\:",
+			"name": "string.regexp, strong log.error"
+		},
+		{
+			"match": "(?i)\\[(error|eror|err|er|e|fatal|fatl|ftl|fa|f)\\]",
+			"name": "string.regexp, strong log.error"
+		},
+		{
+			"match": "\\b\\d{4}-\\d{2}-\\d{2}(T|\\b)",
+			"name": "comment log.date"
+		},
+		{
+			"match": "\\b\\d{2}[^\\w\\s]\\d{2}[^\\w\\s]\\d{4}\\b",
+			"name": "comment log.date"
+		},
+		{
+			"match": "\\d{1,2}:\\d{2}(:\\d{2}([.,]\\d{1,})?)?(Z| ?[+-]\\d{1,2}:\\d{2})?\\b",
+			"name": "comment log.date"
+		},
+		{
+			"match": "\\b([0-9a-fA-F]{40}|[0-9a-fA-F]{10}|[0-9a-fA-F]{7})\\b",
+			"name": "constant.language"
+		},
+		{
+			"match": "[0-9a-fA-F]{8}[-]?([0-9a-fA-F]{4}[-]?){3}[0-9a-fA-F]{12}",
+			"name": "constant.language log.constant"
+		},
+		{
+			"match": "\\b([0-9]+|true|false|null)\\b",
+			"name": "constant.language log.constant"
+		},
+		{
+			"match": "\"[^\"]*\"",
+			"name": "string log.string"
+		},
+		{
+			"match": "(?<![\\w])'[^']*'",
+			"name": "string log.string"
+		},
+		{
+			"match": "\\b([a-zA-Z.]*Exception)\\b",
+			"name": "string.regexp, emphasis log.exceptiontype"
+		},
+		{
+			"begin": "^[\\t ]*at",
+			"end": "$",
+			"name": "string.key, emphasis log.exception"
+		},
+		{
+			"match": "\\b(http|https|ftp|file)://\\S+\\b/?",
+			"name": "constant.language log.constant"
+		},
+		{
+			"match": "(?<![\\w/\\\\])([\\w-]+\\.)+([\\w-])+(?![\\w/\\\\])",
+			"name": "constant.language log.constant"
+		}
+	]
+}

@@ -1,0 +1,40 @@
+steps:
+- task: NodeTool@0
+  inputs:
+    versionSpec: "8.12.0"
+- task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+  inputs:
+    versionSpec: "1.10.1"
+- script: |
+    yarn
+  displayName: Install Dependencies
+- script: |
+    yarn gulp electron-x64
+  displayName: Download Electron
+- script: |
+    yarn gulp hygiene
+  displayName: Run Hygiene Checks
+- script: |
+    yarn monaco-compile-check
+  displayName: Run Monaco Editor Checks
+- script: |
+    yarn strict-null-check
+  displayName: Run Strict Null Checks
+- script: |
+    yarn compile
+  displayName: Compile Sources
+- script: |
+    yarn download-builtin-extensions
+  displayName: Download Built-in Extensions
+- script: |
+    ./scripts/test.sh --tfs "Unit Tests"
+  displayName: Run Unit Tests
+- script: |
+    ./scripts/test-integration.sh --tfs "Integration Tests"
+  displayName: Run Integration Tests
+- task: PublishTestResults@2
+  displayName: Publish Tests Results
+  inputs:
+    testResultsFiles: '*-results.xml'
+    searchFolder: '$(Build.ArtifactStagingDirectory)/test-results'
+  condition: succeededOrFailed()

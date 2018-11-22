@@ -2,18 +2,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { ok } from 'vs/base/common/assert';
+import { Schemas } from 'vs/base/common/network';
 import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
-import { MirrorModel } from 'vs/editor/common/model/mirrorModel';
-import URI from 'vs/base/common/uri';
-import { Range, Position, EndOfLine } from 'vs/workbench/api/node/extHostTypes';
+import { URI } from 'vs/base/common/uri';
+import { MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
+import { ensureValidWordDefinition, getWordAtText } from 'vs/editor/common/model/wordHelper';
+import { MainThreadDocumentsShape } from 'vs/workbench/api/node/extHost.protocol';
+import { EndOfLine, Position, Range } from 'vs/workbench/api/node/extHostTypes';
 import * as vscode from 'vscode';
-import { getWordAtText, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
-import { MainThreadDocumentsShape } from './extHost.protocol';
-import { ITextSource } from 'vs/editor/common/model/textSource';
-import { TPromise } from 'vs/base/common/winjs.base';
 
 const _modeId2WordDefinition = new Map<string, RegExp>();
 export function setWordDefinitionFor(modeId: string, wordDefinition: RegExp): void {
@@ -23,7 +21,7 @@ export function getWordDefinitionFor(modeId: string): RegExp {
 	return _modeId2WordDefinition.get(modeId);
 }
 
-export class ExtHostDocumentData extends MirrorModel {
+export class ExtHostDocumentData extends MirrorTextModel {
 
 	private _proxy: MainThreadDocumentsShape;
 	private _languageId: string;
@@ -50,7 +48,7 @@ export class ExtHostDocumentData extends MirrorModel {
 		this._isDirty = false;
 	}
 
-	equalLines({ lines }: ITextSource): boolean {
+	equalLines(lines: string[]): boolean {
 		const len = lines.length;
 		if (len !== this._lines.length) {
 			return false;
@@ -69,7 +67,7 @@ export class ExtHostDocumentData extends MirrorModel {
 			this._document = {
 				get uri() { return data._uri; },
 				get fileName() { return data._uri.fsPath; },
-				get isUntitled() { return data._uri.scheme !== 'file'; },
+				get isUntitled() { return data._uri.scheme === Schemas.untitled; },
 				get languageId() { return data._languageId; },
 				get version() { return data._versionId; },
 				get isClosed() { return data._isDisposed; },
@@ -78,7 +76,7 @@ export class ExtHostDocumentData extends MirrorModel {
 				getText(range?) { return range ? data._getTextInRange(range) : data.getText(); },
 				get eol() { return data._eol === '\n' ? EndOfLine.LF : EndOfLine.CRLF; },
 				get lineCount() { return data._lines.length; },
-				lineAt(lineOrPos) { return data._lineAt(lineOrPos); },
+				lineAt(lineOrPos: number | vscode.Position) { return data._lineAt(lineOrPos); },
 				offsetAt(pos) { return data._offsetAt(pos); },
 				positionAt(offset) { return data._positionAt(offset); },
 				validateRange(ran) { return data._validateRange(ran); },
@@ -99,9 +97,9 @@ export class ExtHostDocumentData extends MirrorModel {
 		this._isDirty = isDirty;
 	}
 
-	private _save(): TPromise<boolean> {
+	private _save(): Thenable<boolean> {
 		if (this._isDisposed) {
-			return TPromise.wrapError<boolean>('Document has been closed');
+			return Promise.reject(new Error('Document has been closed'));
 		}
 		return this._proxy.$trySaveDocument(this._uri);
 	}
@@ -242,9 +240,17 @@ export class ExtHostDocumentData extends MirrorModel {
 
 	private _getWordRangeAtPosition(_position: vscode.Position, regexp?: RegExp): vscode.Range {
 		let position = this._validatePosition(_position);
-		if (!regexp || regExpLeadsToEndlessLoop(regexp)) {
+
+		if (!regexp) {
+			// use default when custom-regexp isn't provided
+			regexp = getWordDefinitionFor(this._languageId);
+
+		} else if (regExpLeadsToEndlessLoop(regexp)) {
+			// use default when custom-regexp is bad
+			console.warn(`[getWordRangeAtPosition]: ignoring custom regexp '${regexp.source}' because it matches the empty string.`);
 			regexp = getWordDefinitionFor(this._languageId);
 		}
+
 		let wordAtText = getWordAtText(
 			position.character + 1,
 			ensureValidWordDefinition(regexp),

@@ -2,17 +2,21 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
-import { KeyCode, KeyMod, KeyChord, createKeybinding, KeybindingType, SimpleKeybinding } from 'vs/base/common/keyCodes';
-import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
+import { KeyChord, KeyCode, KeyMod, KeybindingType, SimpleKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
+import { OS } from 'vs/base/common/platform';
 import { ContextKeyAndExpr, ContextKeyExpr, IContext } from 'vs/platform/contextkey/common/contextkey';
+import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
-import { OS } from 'vs/base/common/platform';
 
-const createContext = ctx => ({ getValue: key => ctx[key] });
+function createContext(ctx: any) {
+	return {
+		getValue: (key: string) => {
+			return ctx[key];
+		}
+	};
+}
 
 suite('KeybindingResolver', () => {
 
@@ -22,7 +26,7 @@ suite('KeybindingResolver', () => {
 			resolvedKeybinding,
 			command,
 			commandArgs,
-			when,
+			when ? when.normalize() : null,
 			isDefault
 		);
 	}
@@ -186,12 +190,16 @@ suite('KeybindingResolver', () => {
 		]);
 	});
 
-	test('contextIsEntirelyIncluded', function () {
+	test('contextIsEntirelyIncluded', () => {
 		let assertIsIncluded = (a: ContextKeyExpr[], b: ContextKeyExpr[]) => {
-			assert.equal(KeybindingResolver.whenIsEntirelyIncluded(false, new ContextKeyAndExpr(a), new ContextKeyAndExpr(b)), true);
+			let tmpA = new ContextKeyAndExpr(a).normalize();
+			let tmpB = new ContextKeyAndExpr(b).normalize();
+			assert.equal(KeybindingResolver.whenIsEntirelyIncluded(tmpA, tmpB), true);
 		};
 		let assertIsNotIncluded = (a: ContextKeyExpr[], b: ContextKeyExpr[]) => {
-			assert.equal(KeybindingResolver.whenIsEntirelyIncluded(false, new ContextKeyAndExpr(a), new ContextKeyAndExpr(b)), false);
+			let tmpA = new ContextKeyAndExpr(a).normalize();
+			let tmpB = new ContextKeyAndExpr(b).normalize();
+			assert.equal(KeybindingResolver.whenIsEntirelyIncluded(tmpA, tmpB), false);
 		};
 		let key1IsTrue = ContextKeyExpr.equals('key1', true);
 		let key1IsNotFalse = ContextKeyExpr.notEquals('key1', false);

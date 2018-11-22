@@ -1,6 +1,8 @@
 {
-  "name": "handlebars",
-  "version": "0.1.0",
+	"name": "handlebars",
+	"displayName": "%displayName%",
+	"description": "%description%",
+  "version": "1.0.0",
   "publisher": "vscode",
   "engines": {
     "vscode": "0.10.x"
@@ -11,7 +13,7 @@
 	"contributes": {
 		"languages": [{
 			"id": "handlebars",
-			"extensions": [ ".handlebars", ".hbs"],
+			"extensions": [ ".handlebars", ".hbs", ".hjs" ],
 			"aliases": [ "Handlebars", "handlebars" ],
 			"mimetypes": ["text/x-handlebars-template"],
 			"configuration": "./language-configuration.json"

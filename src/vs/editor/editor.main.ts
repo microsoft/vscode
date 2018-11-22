@@ -3,34 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+import 'vs/editor/editor.all';
+import 'vs/editor/standalone/browser/accessibilityHelp/accessibilityHelp';
+import 'vs/editor/standalone/browser/iPadShowKeyboard/iPadShowKeyboard';
+import 'vs/editor/standalone/browser/inspectTokens/inspectTokens';
+import 'vs/editor/standalone/browser/quickOpen/gotoLine';
+import 'vs/editor/standalone/browser/quickOpen/quickCommand';
+import 'vs/editor/standalone/browser/quickOpen/quickOutline';
+import 'vs/editor/standalone/browser/referenceSearch/standaloneReferenceSearch';
+import 'vs/editor/standalone/browser/toggleHighContrast/toggleHighContrast';
 
-import 'vs/editor/browser/editor.all';
-import 'vs/editor/contrib/quickOpen/browser/quickOutline';
-import 'vs/editor/contrib/quickOpen/browser/gotoLine';
-import 'vs/editor/contrib/quickOpen/browser/quickCommand';
-import 'vs/editor/contrib/inspectTokens/browser/inspectTokens';
-
-import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
-import { createMonacoEditorAPI } from 'vs/editor/browser/standalone/standaloneEditor';
-import { createMonacoLanguagesAPI } from 'vs/editor/browser/standalone/standaloneLanguages';
-import { EDITOR_DEFAULTS, WrappingIndent } from "vs/editor/common/config/editorOptions";
-
-// Set defaults for standalone editor
-EDITOR_DEFAULTS.wrappingIndent = WrappingIndent.None;
-(<any>EDITOR_DEFAULTS.contribInfo).folding = false;
-(<any>EDITOR_DEFAULTS.viewInfo).glyphMargin = false;
-
-var global: any = self;
-global.monaco = createMonacoBaseAPI();
-global.monaco.editor = createMonacoEditorAPI();
-global.monaco.languages = createMonacoLanguagesAPI();
-
-if (typeof global.require !== 'undefined' && typeof global.require.config === 'function') {
-	global.require.config({
-		ignoreDuplicateModules: [
-			'vscode-languageserver-types',
-			'vscode-languageserver-types/main',
-		]
-	});
-}
+export * from 'vs/editor/editor.api';

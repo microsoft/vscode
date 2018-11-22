@@ -10,7 +10,8 @@ exports.base = [{
 	append: [ 'vs/base/worker/workerMain' ],
 	dest: 'vs/base/worker/workerMain.js'
 }];
-exports.workbench = require('./vs/workbench/buildfile').collectModules(['vs/workbench/electron-browser/workbench.main']);
+//@ts-ignore review
+exports.workbench = require('./vs/workbench/buildfile').collectModules(['vs/workbench/workbench.main']);
 exports.code = require('./vs/code/buildfile').collectModules();
 
 exports.entrypoint = function (name) {

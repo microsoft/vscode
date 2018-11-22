@@ -1,0 +1,120 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Container */
+
+.monaco-workbench > .part.editor > .content .editor-group-container {
+	height: 100%;
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container.empty  {
+	opacity: 0.5; /* dimmed to indicate inactive state */
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container.empty.active,
+.monaco-workbench > .part.editor > .content .editor-group-container.empty.dragged-over {
+	opacity: 1; /* indicate active/dragged-over group through undimmed state */
+}
+
+/* Letterpress */
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .editor-group-letterpress  {
+	display: none; /* only visible when empty */
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container.empty > .editor-group-letterpress  {
+	display: block;
+	margin: auto;
+	width: 100%;
+	height: calc(100% - 70px); /* centered below toolbar */
+	max-width: 260px;
+	background-repeat: no-repeat;
+	background-position: 50% 50%;
+	background-size: 70% 70%;
+}
+
+.monaco-workbench > .part.editor > .content.empty .editor-group-container.empty > .editor-group-letterpress  {
+	background-size: 100% 100%; /* larger for empty editor part */
+	height: 100%; /* no toolbar in this case */
+}
+
+/* Title */
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .title {
+	position: relative;
+	display: flex;
+	flex-wrap: nowrap;
+	box-sizing:	border-box;
+	overflow: hidden;
+	justify-content: space-between;
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .title.tabs {
+	flex-wrap: wrap;
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .title.title-border-bottom::after {
+	content: '';
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	z-index: 5;
+	pointer-events: none;
+	background-color: var(--title-border-bottom-color);
+	width: 100%;
+	height: 1px;
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container.empty > .title {
+	display: none;
+}
+
+/* Toolbar */
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .editor-group-container-toolbar {
+	display: none;
+}
+
+.monaco-workbench > .part.editor > .content:not(.empty) .editor-group-container.empty > .editor-group-container-toolbar {
+	display: block;
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .editor-group-container-toolbar .action-label {
+	display: block;
+	height: 35px;
+	line-height: 35px;
+	min-width: 28px;
+	background-size: 16px;
+	background-position: center center;
+	background-repeat: no-repeat;
+}
+
+.vs .monaco-workbench > .part.editor > .content .editor-group-container > .editor-group-container-toolbar .close-editor-group {
+	background-image: url('close-big.svg');
+}
+
+.vs-dark .monaco-workbench > .part.editor > .content .editor-group-container > .editor-group-container-toolbar .close-editor-group,
+.hc-black .monaco-workbench > .part.editor > .content .editor-group-container > .editor-group-container-toolbar .close-editor-group {
+	background-image: url('close-big-inverse.svg');
+}
+
+/* Editor */
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .editor-container {
+	height: calc(100% - 35px); /* below title control */
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container.empty > .editor-container  {
+	display: none;
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .editor-container > .editor-instance {
+	height: 100%;
+}
+
+.monaco-workbench > .part.editor > .content .grid-view-container {
+	width: 100%;
+	height: 100%;
+}

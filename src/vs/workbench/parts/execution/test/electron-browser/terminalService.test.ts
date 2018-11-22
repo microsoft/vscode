@@ -3,20 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { deepEqual, equal } from 'assert';
 import { WinTerminalService, LinuxTerminalService, MacTerminalService } from 'vs/workbench/parts/execution/electron-browser/terminalService';
-import { DEFAULT_TERMINAL_WINDOWS, DEFAULT_TERMINAL_LINUX_READY, DEFAULT_TERMINAL_OSX } from 'vs/workbench/parts/execution/electron-browser/terminal';
+import { getDefaultTerminalWindows, getDefaultTerminalLinuxReady, DEFAULT_TERMINAL_OSX } from 'vs/workbench/parts/execution/electron-browser/terminal';
 
 suite('Execution - TerminalService', () => {
-	let mockOnExit;
-	let mockOnError;
-	let mockConfig;
+	let mockOnExit: Function;
+	let mockOnError: Function;
+	let mockConfig: any;
 
 	setup(() => {
 		mockConfig = {
 			terminal: {
+				explorerKind: 'external',
 				external: {
 					windowsExec: 'testWindowsShell',
 					osxExec: 'testOSXShell',
@@ -24,22 +23,22 @@ suite('Execution - TerminalService', () => {
 				}
 			}
 		};
-		mockOnExit = s => s;
-		mockOnError = e => e;
+		mockOnExit = (s: any) => s;
+		mockOnError = (e: any) => e;
 	});
 
 	test(`WinTerminalService - uses terminal from configuration`, done => {
 		let testShell = 'cmd';
 		let testCwd = 'path/to/workspace';
 		let mockSpawner = {
-			spawn: (command, args, opts) => {
+			spawn: (command: any, args: any, opts: any) => {
 				// assert
 				equal(command, testShell, 'shell should equal expected');
 				equal(args[args.length - 1], mockConfig.terminal.external.windowsExec, 'terminal should equal expected');
 				equal(opts.cwd, testCwd, 'opts.cwd should equal expected');
 				done();
 				return {
-					on: (evt) => evt
+					on: (evt: any) => evt
 				};
 			}
 		};
@@ -58,12 +57,12 @@ suite('Execution - TerminalService', () => {
 		let testShell = 'cmd';
 		let testCwd = 'path/to/workspace';
 		let mockSpawner = {
-			spawn: (command, args, opts) => {
+			spawn: (command: any, args: any, opts: any) => {
 				// assert
-				equal(args[args.length - 1], DEFAULT_TERMINAL_WINDOWS, 'terminal should equal expected');
+				equal(args[args.length - 1], getDefaultTerminalWindows(), 'terminal should equal expected');
 				done();
 				return {
-					on: (evt) => evt
+					on: (evt: any) => evt
 				};
 			}
 		};
@@ -83,12 +82,12 @@ suite('Execution - TerminalService', () => {
 		let testShell = 'cmd';
 		let testCwd = 'c:/foo';
 		let mockSpawner = {
-			spawn: (command, args, opts) => {
+			spawn: (command: any, args: any, opts: any) => {
 				// assert
 				equal(opts.cwd, 'C:/foo', 'cwd should be uppercase regardless of the case that\'s passed in');
 				done();
 				return {
-					on: (evt) => evt
+					on: (evt: any) => evt
 				};
 			}
 		};
@@ -108,12 +107,12 @@ suite('Execution - TerminalService', () => {
 		mockConfig.terminal.external.windowsExec = 'cmder';
 		let testCwd = 'c:/foo';
 		let mockSpawner = {
-			spawn: (command, args, opts) => {
+			spawn: (command: any, args: any, opts: any) => {
 				// assert
 				deepEqual(args, ['C:/foo']);
 				equal(opts, undefined);
 				done();
-				return { on: (evt) => evt };
+				return { on: (evt: any) => evt };
 			}
 		};
 		let testService = new WinTerminalService(mockConfig);
@@ -130,12 +129,12 @@ suite('Execution - TerminalService', () => {
 	test(`MacTerminalService - uses terminal from configuration`, done => {
 		let testCwd = 'path/to/workspace';
 		let mockSpawner = {
-			spawn: (command, args, opts) => {
+			spawn: (command: any, args: any, opts: any) => {
 				// assert
 				equal(args[1], mockConfig.terminal.external.osxExec, 'terminal should equal expected');
 				done();
 				return {
-					on: (evt) => evt
+					on: (evt: any) => evt
 				};
 			}
 		};
@@ -152,12 +151,12 @@ suite('Execution - TerminalService', () => {
 	test(`MacTerminalService - uses default terminal when configuration.terminal.external.osxExec is undefined`, done => {
 		let testCwd = 'path/to/workspace';
 		let mockSpawner = {
-			spawn: (command, args, opts) => {
+			spawn: (command: any, args: any, opts: any) => {
 				// assert
 				equal(args[1], DEFAULT_TERMINAL_OSX, 'terminal should equal expected');
 				done();
 				return {
-					on: (evt) => evt
+					on: (evt: any) => evt
 				};
 			}
 		};
@@ -175,13 +174,13 @@ suite('Execution - TerminalService', () => {
 	test(`LinuxTerminalService - uses terminal from configuration`, done => {
 		let testCwd = 'path/to/workspace';
 		let mockSpawner = {
-			spawn: (command, args, opts) => {
+			spawn: (command: any, args: any, opts: any) => {
 				// assert
 				equal(command, mockConfig.terminal.external.linuxExec, 'terminal should equal expected');
 				equal(opts.cwd, testCwd, 'opts.cwd should equal expected');
 				done();
 				return {
-					on: (evt) => evt
+					on: (evt: any) => evt
 				};
 			}
 		};
@@ -196,15 +195,15 @@ suite('Execution - TerminalService', () => {
 	});
 
 	test(`LinuxTerminalService - uses default terminal when configuration.terminal.external.linuxExec is undefined`, done => {
-		DEFAULT_TERMINAL_LINUX_READY.then(defaultTerminalLinux => {
+		getDefaultTerminalLinuxReady().then(defaultTerminalLinux => {
 			let testCwd = 'path/to/workspace';
 			let mockSpawner = {
-				spawn: (command, args, opts) => {
+				spawn: (command: any, args: any, opts: any) => {
 					// assert
 					equal(command, defaultTerminalLinux, 'terminal should equal expected');
 					done();
 					return {
-						on: (evt) => evt
+						on: (evt: any) => evt
 					};
 				}
 			};

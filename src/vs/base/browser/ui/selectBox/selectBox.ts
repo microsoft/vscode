@@ -5,138 +5,124 @@
 
 import 'vs/css!./selectBox';
 
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { Widget } from 'vs/base/browser/ui/widget';
-import * as dom from 'vs/base/browser/dom';
-import * as arrays from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
-import { clone } from 'vs/base/common/objects';
+import { deepClone, mixin } from 'vs/base/common/objects';
+import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
+import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
+import { SelectBoxNative } from 'vs/base/browser/ui/selectBox/selectBoxNative';
+import { SelectBoxList } from 'vs/base/browser/ui/selectBox/selectBoxCustom';
+import { isMacintosh } from 'vs/base/common/platform';
+import { IContentActionHandler } from 'vs/base/browser/htmlContentRenderer';
 
-export interface ISelectBoxStyles {
-	selectBackground?: Color;
-	selectForeground?: Color;
-	selectBorder?: Color;
+// Public SelectBox interface - Calls routed to appropriate select implementation class
+
+export interface ISelectBoxDelegate {
+
+	// Public SelectBox Interface
+	readonly onDidSelect: Event<ISelectData>;
+	setOptions(options: string[], selected?: number, disabled?: number): void;
+	select(index: number): void;
+	setAriaLabel(label: string);
+	setDetailsProvider(provider: (index: number) => { details: string, isMarkdown: boolean });
+	focus(): void;
+	blur(): void;
+	dispose(): void;
+
+	// Delegated Widget interface
+	render(container: HTMLElement): void;
+	style(styles: ISelectBoxStyles): void;
+	applyStyles(): void;
 }
 
-const defaultStyles = {
+export interface ISelectBoxOptions {
+	ariaLabel?: string;
+	minBottomMargin?: number;
+	hasDetails?: boolean;
+	markdownActionHandler?: IContentActionHandler;
+}
+
+export interface ISelectBoxStyles extends IListStyles {
+	selectBackground?: Color;
+	selectListBackground?: Color;
+	selectForeground?: Color;
+	selectBorder?: Color;
+	selectListBorder?: Color;
+	focusBorder?: Color;
+}
+
+export const defaultStyles = {
 	selectBackground: Color.fromHex('#3C3C3C'),
 	selectForeground: Color.fromHex('#F0F0F0'),
 	selectBorder: Color.fromHex('#3C3C3C')
 };
 
-export class SelectBox extends Widget {
+export interface ISelectData {
+	selected: string;
+	index: number;
+}
 
-	private selectElement: HTMLSelectElement;
-	private options: string[];
-	private selected: number;
-	private container: HTMLElement;
-	private _onDidSelect: Emitter<string>;
-	private toDispose: IDisposable[];
-	private selectBackground: Color;
-	private selectForeground: Color;
-	private selectBorder: Color;
+export class SelectBox extends Widget implements ISelectBoxDelegate {
+	private styles: ISelectBoxStyles;
+	private selectBoxDelegate: ISelectBoxDelegate;
 
-	constructor(options: string[], selected: number, styles: ISelectBoxStyles = clone(defaultStyles)) {
+	constructor(options: string[], selected: number, contextViewProvider: IContextViewProvider, styles: ISelectBoxStyles = deepClone(defaultStyles), selectBoxOptions?: ISelectBoxOptions) {
 		super();
 
-		this.selectElement = document.createElement('select');
-		this.selectElement.className = 'select-box';
+		mixin(this.styles, defaultStyles, false);
 
-		this.setOptions(options, selected);
-		this.toDispose = [];
-		this._onDidSelect = new Emitter<string>();
+		// Instantiate select implementation based on platform
+		if (isMacintosh && !(selectBoxOptions && selectBoxOptions.hasDetails)) {
+			this.selectBoxDelegate = new SelectBoxNative(options, selected, styles, selectBoxOptions);
+		} else {
+			this.selectBoxDelegate = new SelectBoxList(options, selected, contextViewProvider, styles, selectBoxOptions);
+		}
 
-		this.selectBackground = styles.selectBackground;
-		this.selectForeground = styles.selectForeground;
-		this.selectBorder = styles.selectBorder;
-
-		this.toDispose.push(dom.addStandardDisposableListener(this.selectElement, 'change', (e) => {
-			this.selectElement.title = e.target.value;
-			this._onDidSelect.fire(e.target.value);
-		}));
+		this._register(this.selectBoxDelegate);
 	}
 
-	public get onDidSelect(): Event<string> {
-		return this._onDidSelect.event;
+	// Public SelectBox Methods - routed through delegate interface
+
+	public get onDidSelect(): Event<ISelectData> {
+		return this.selectBoxDelegate.onDidSelect;
 	}
 
 	public setOptions(options: string[], selected?: number, disabled?: number): void {
-		if (!this.options || !arrays.equals(this.options, options)) {
-			this.options = options;
-
-			this.selectElement.options.length = 0;
-			let i = 0;
-			this.options.forEach((option) => {
-				this.selectElement.add(this.createOption(option, disabled === i++));
-			});
-		}
-		this.select(selected);
+		this.selectBoxDelegate.setOptions(options, selected, disabled);
 	}
 
 	public select(index: number): void {
-		if (index >= 0 && index < this.options.length) {
-			this.selected = index;
-		} else if (this.selected < 0) {
-			this.selected = 0;
-		}
+		this.selectBoxDelegate.select(index);
+	}
 
-		this.selectElement.selectedIndex = this.selected;
-		this.selectElement.title = this.options[this.selected];
+	public setAriaLabel(label: string): void {
+		this.selectBoxDelegate.setAriaLabel(label);
+	}
+
+	public setDetailsProvider(provider: (index: number) => { details: string, isMarkdown: boolean }): void {
+		this.selectBoxDelegate.setDetailsProvider(provider);
 	}
 
 	public focus(): void {
-		if (this.selectElement) {
-			this.selectElement.focus();
-		}
+		this.selectBoxDelegate.focus();
 	}
 
 	public blur(): void {
-		if (this.selectElement) {
-			this.selectElement.blur();
-		}
+		this.selectBoxDelegate.blur();
 	}
 
-	public render(container: HTMLElement): void {
-		this.container = container;
-		dom.addClass(container, 'select-container');
-		container.appendChild(this.selectElement);
-		this.setOptions(this.options, this.selected);
+	// Public Widget Methods - routed through delegate interface
 
-		this.applyStyles();
+	public render(container: HTMLElement): void {
+		this.selectBoxDelegate.render(container);
 	}
 
 	public style(styles: ISelectBoxStyles): void {
-		this.selectBackground = styles.selectBackground;
-		this.selectForeground = styles.selectForeground;
-		this.selectBorder = styles.selectBorder;
-
-		this.applyStyles();
+		this.selectBoxDelegate.style(styles);
 	}
 
-	protected applyStyles(): void {
-		if (this.selectElement) {
-			const background = this.selectBackground ? this.selectBackground.toString() : null;
-			const foreground = this.selectForeground ? this.selectForeground.toString() : null;
-			const border = this.selectBorder ? this.selectBorder.toString() : null;
-
-			this.selectElement.style.backgroundColor = background;
-			this.selectElement.style.color = foreground;
-			this.selectElement.style.borderColor = border;
-		}
-	}
-
-	private createOption(value: string, disabled?: boolean): HTMLOptionElement {
-		let option = document.createElement('option');
-		option.value = value;
-		option.text = value;
-		option.disabled = disabled;
-
-		return option;
-	}
-
-	public dispose(): void {
-		this.toDispose = dispose(this.toDispose);
-		super.dispose();
+	public applyStyles(): void {
+		this.selectBoxDelegate.applyStyles();
 	}
 }

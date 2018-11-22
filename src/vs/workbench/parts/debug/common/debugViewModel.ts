@@ -3,101 +3,107 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import Event, { Emitter } from 'vs/base/common/event';
-import * as debug from 'vs/workbench/parts/debug/common/debug';
+import { Event, Emitter } from 'vs/base/common/event';
+import { CONTEXT_EXPRESSION_SELECTED, IViewModel, IStackFrame, IDebugSession, IThread, IExpression, IFunctionBreakpoint, CONTEXT_BREAKPOINT_SELECTED, CONTEXT_LOADED_SCRIPTS_SUPPORTED } from 'vs/workbench/parts/debug/common/debug';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 
-export class ViewModel implements debug.IViewModel {
+export class ViewModel implements IViewModel {
 
-	private _focusedStackFrame: debug.IStackFrame;
-	private _focusedProcess: debug.IProcess;
-	private selectedExpression: debug.IExpression;
-	private selectedFunctionBreakpoint: debug.IFunctionBreakpoint;
-	private _onDidFocusStackFrame: Emitter<debug.IStackFrame>;
-	private _onDidSelectExpression: Emitter<debug.IExpression>;
-	private _onDidSelectFunctionBreakpoint: Emitter<debug.IFunctionBreakpoint>;
-	private _onDidSelectConfigurationName: Emitter<string>;
-	private multiProcessView: boolean;
-	public changedWorkbenchViewState: boolean;
+	firstSessionStart = true;
 
-	constructor(private _selectedConfigurationName: string) {
-		this._onDidFocusStackFrame = new Emitter<debug.IStackFrame>();
-		this._onDidSelectExpression = new Emitter<debug.IExpression>();
-		this._onDidSelectFunctionBreakpoint = new Emitter<debug.IFunctionBreakpoint>();
-		this._onDidSelectConfigurationName = new Emitter<string>();
-		this.changedWorkbenchViewState = false;
-		this.multiProcessView = false;
+	private _focusedStackFrame: IStackFrame;
+	private _focusedSession: IDebugSession;
+	private _focusedThread: IThread;
+	private selectedExpression: IExpression;
+	private selectedFunctionBreakpoint: IFunctionBreakpoint;
+	private readonly _onDidFocusSession: Emitter<IDebugSession | undefined>;
+	private readonly _onDidFocusStackFrame: Emitter<{ stackFrame: IStackFrame, explicit: boolean }>;
+	private readonly _onDidSelectExpression: Emitter<IExpression>;
+	private multiSessionView: boolean;
+	private expressionSelectedContextKey: IContextKey<boolean>;
+	private breakpointSelectedContextKey: IContextKey<boolean>;
+	private loadedScriptsSupportedContextKey: IContextKey<boolean>;
+
+	constructor(contextKeyService: IContextKeyService) {
+		this._onDidFocusSession = new Emitter<IDebugSession | undefined>();
+		this._onDidFocusStackFrame = new Emitter<{ stackFrame: IStackFrame, explicit: boolean }>();
+		this._onDidSelectExpression = new Emitter<IExpression>();
+		this.multiSessionView = false;
+		this.expressionSelectedContextKey = CONTEXT_EXPRESSION_SELECTED.bindTo(contextKeyService);
+		this.breakpointSelectedContextKey = CONTEXT_BREAKPOINT_SELECTED.bindTo(contextKeyService);
+		this.loadedScriptsSupportedContextKey = CONTEXT_LOADED_SCRIPTS_SUPPORTED.bindTo(contextKeyService);
 	}
 
-	public getId(): string {
+	getId(): string {
 		return 'root';
 	}
 
-	public get focusedProcess(): debug.IProcess {
-		return this._focusedProcess;
+	get focusedSession(): IDebugSession {
+		return this._focusedSession;
 	}
 
-	public get focusedThread(): debug.IThread {
-		return this._focusedStackFrame ? this._focusedStackFrame.thread : (this._focusedProcess ? this._focusedProcess.getAllThreads().pop() : null);
+	get focusedThread(): IThread {
+		return this._focusedThread;
 	}
 
-	public get focusedStackFrame(): debug.IStackFrame {
+	get focusedStackFrame(): IStackFrame {
 		return this._focusedStackFrame;
 	}
 
-	public setFocusedStackFrame(stackFrame: debug.IStackFrame, process: debug.IProcess): void {
+	setFocus(stackFrame: IStackFrame, thread: IThread, session: IDebugSession, explicit: boolean): void {
+		const shouldEmitForStackFrame = this._focusedStackFrame !== stackFrame;
+		const shouldEmitForSession = this._focusedSession !== session;
+
 		this._focusedStackFrame = stackFrame;
-		this._focusedProcess = process;
-		this._onDidFocusStackFrame.fire(stackFrame);
+		this._focusedThread = thread;
+		this._focusedSession = session;
+
+		this.loadedScriptsSupportedContextKey.set(session && session.capabilities.supportsLoadedSourcesRequest);
+
+		if (shouldEmitForSession) {
+			this._onDidFocusSession.fire(session);
+		}
+		if (shouldEmitForStackFrame) {
+			this._onDidFocusStackFrame.fire({ stackFrame, explicit });
+		}
 	}
 
-	public get onDidFocusStackFrame(): Event<debug.IStackFrame> {
+	get onDidFocusSession(): Event<IDebugSession> {
+		return this._onDidFocusSession.event;
+	}
+
+	get onDidFocusStackFrame(): Event<{ stackFrame: IStackFrame, explicit: boolean }> {
 		return this._onDidFocusStackFrame.event;
 	}
 
-	public getSelectedExpression(): debug.IExpression {
+	getSelectedExpression(): IExpression {
 		return this.selectedExpression;
 	}
 
-	public setSelectedExpression(expression: debug.IExpression) {
+	setSelectedExpression(expression: IExpression) {
 		this.selectedExpression = expression;
+		this.expressionSelectedContextKey.set(!!expression);
 		this._onDidSelectExpression.fire(expression);
 	}
 
-	public get onDidSelectExpression(): Event<debug.IExpression> {
+	get onDidSelectExpression(): Event<IExpression> {
 		return this._onDidSelectExpression.event;
 	}
 
-	public getSelectedFunctionBreakpoint(): debug.IFunctionBreakpoint {
+	getSelectedFunctionBreakpoint(): IFunctionBreakpoint {
 		return this.selectedFunctionBreakpoint;
 	}
 
-	public setSelectedFunctionBreakpoint(functionBreakpoint: debug.IFunctionBreakpoint): void {
+	setSelectedFunctionBreakpoint(functionBreakpoint: IFunctionBreakpoint): void {
 		this.selectedFunctionBreakpoint = functionBreakpoint;
-		this._onDidSelectFunctionBreakpoint.fire(functionBreakpoint);
+		this.breakpointSelectedContextKey.set(!!functionBreakpoint);
 	}
 
-	public get onDidSelectFunctionBreakpoint(): Event<debug.IFunctionBreakpoint> {
-		return this._onDidSelectFunctionBreakpoint.event;
+	isMultiSessionView(): boolean {
+		return this.multiSessionView;
 	}
 
-	public get selectedConfigurationName(): string {
-		return this._selectedConfigurationName;
-	}
-
-	public setSelectedConfigurationName(configurationName: string): void {
-		this._selectedConfigurationName = configurationName;
-		this._onDidSelectConfigurationName.fire(configurationName);
-	}
-
-	public isMultiProcessView(): boolean {
-		return this.multiProcessView;
-	}
-
-	public setMultiProcessView(isMultiProcessView: boolean): void {
-		this.multiProcessView = isMultiProcessView;
-	}
-
-	public get onDidSelectConfiguration(): Event<string> {
-		return this._onDidSelectConfigurationName.event;
+	setMultiSessionView(isMultiSessionView: boolean): void {
+		this.multiSessionView = isMultiSessionView;
 	}
 }

@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import uri from 'vs/base/common/uri';
+import { URI as uri } from 'vs/base/common/uri';
 import { FileChangeType, FileChangesEvent, isParent } from 'vs/platform/files/common/files';
 import { isLinux } from 'vs/base/common/platform';
 
@@ -97,7 +95,7 @@ class EventNormalizer {
 		// 2.) sort short deleted paths to the top
 		// 3.) for each DELETE, check if there is a deleted parent and ignore the event in that case
 		return this.normalized.filter(e => {
-			if (e.type !== 2) {
+			if (e.type !== FileChangeType.DELETED) {
 				addedChangeEvents.push(e);
 				return false; // remove ADD / CHANGE
 			}

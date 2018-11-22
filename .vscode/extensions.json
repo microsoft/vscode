@@ -1,8 +1,8 @@
 {
-	// See http://go.microsoft.com/fwlink/?LinkId=827846
+	// See https://go.microsoft.com/fwlink/?LinkId=827846
 	// for the documentation about the extensions.json format
 	"recommendations": [
-		"eg2.tslint",
+		"ms-vscode.vscode-typescript-tslint-plugin",
 		"dbaeumer.vscode-eslint",
 		"msjsdiag.debugger-for-chrome"
 	]

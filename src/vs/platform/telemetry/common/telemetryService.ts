@@ -3,26 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { localize } from 'vs/nls';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
-import { ITelemetryService, ITelemetryInfo, ITelemetryExperiments, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { ITelemetryAppender, defaultExperiments } from 'vs/platform/telemetry/common/telemetryUtils';
+import { ITelemetryService, ITelemetryInfo, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { cloneAndChange, mixin } from 'vs/base/common/objects';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 export interface ITelemetryServiceConfig {
 	appender: ITelemetryAppender;
-	commonProperties?: TPromise<{ [name: string]: any }>;
+	commonProperties?: Thenable<{ [name: string]: any }>;
 	piiPaths?: string[];
-	userOptIn?: boolean;
-	experiments?: ITelemetryExperiments;
 }
 
 export class TelemetryService implements ITelemetryService {
@@ -33,47 +28,43 @@ export class TelemetryService implements ITelemetryService {
 	_serviceBrand: any;
 
 	private _appender: ITelemetryAppender;
-	private _commonProperties: TPromise<{ [name: string]: any; }>;
+	private _commonProperties: Thenable<{ [name: string]: any; }>;
 	private _piiPaths: string[];
 	private _userOptIn: boolean;
-	private _experiments: ITelemetryExperiments;
 
 	private _disposables: IDisposable[] = [];
-	private _cleanupPatterns: [RegExp, string][] = [];
+	private _cleanupPatterns: RegExp[] = [];
 
 	constructor(
 		config: ITelemetryServiceConfig,
 		@optional(IConfigurationService) private _configurationService: IConfigurationService
 	) {
 		this._appender = config.appender;
-		this._commonProperties = config.commonProperties || TPromise.as({});
+		this._commonProperties = config.commonProperties || Promise.resolve({});
 		this._piiPaths = config.piiPaths || [];
-		this._userOptIn = typeof config.userOptIn === 'undefined' ? true : config.userOptIn;
-		this._experiments = config.experiments || defaultExperiments;
+		this._userOptIn = true;
 
-		// static cleanup patterns for:
-		// #1 `file:///DANGEROUS/PATH/resources/app/Useful/Information`
-		// #2 // Any other file path that doesn't match the approved form above should be cleaned.
-		// #3 "Error: ENOENT; no such file or directory" is often followed with PII, clean it
-		this._cleanupPatterns.push(
-			[/file:\/\/\/.*?\/resources\/app\//gi, ''],
-			[/file:\/\/\/.*/gi, ''],
-			[/ENOENT: no such file or directory.*?\'([^\']+)\'/gi, 'ENOENT: no such file or directory']
-		);
+		// static cleanup pattern for: `file:///DANGEROUS/PATH/resources/app/Useful/Information`
+		this._cleanupPatterns = [/file:\/\/\/.*?\/resources\/app\//gi];
 
 		for (let piiPath of this._piiPaths) {
-			this._cleanupPatterns.push([new RegExp(escapeRegExpCharacters(piiPath), 'gi'), '']);
+			this._cleanupPatterns.push(new RegExp(escapeRegExpCharacters(piiPath), 'gi'));
 		}
 
 		if (this._configurationService) {
 			this._updateUserOptIn();
-			this._configurationService.onDidUpdateConfiguration(this._updateUserOptIn, this, this._disposables);
+			this._configurationService.onDidChangeConfiguration(this._updateUserOptIn, this, this._disposables);
+			/* __GDPR__
+				"optInStatus" : {
+					"optIn" : { "classification": "SystemMetaData", "purpose": "BusinessInsight", "isMeasurement": true }
+				}
+			*/
 			this.publicLog('optInStatus', { optIn: this._userOptIn });
 		}
 	}
 
 	private _updateUserOptIn(): void {
-		const config = this._configurationService.getConfiguration<any>(TELEMETRY_SECTION_ID);
+		const config = this._configurationService.getValue<any>(TELEMETRY_SECTION_ID);
 		this._userOptIn = config ? config.enableTelemetry : this._userOptIn;
 	}
 
@@ -81,11 +72,7 @@ export class TelemetryService implements ITelemetryService {
 		return this._userOptIn;
 	}
 
-	getExperiments(): ITelemetryExperiments {
-		return this._experiments;
-	}
-
-	getTelemetryInfo(): TPromise<ITelemetryInfo> {
+	getTelemetryInfo(): Thenable<ITelemetryInfo> {
 		return this._commonProperties.then(values => {
 			// well known properties
 			let sessionId = values['sessionID'];
@@ -100,10 +87,10 @@ export class TelemetryService implements ITelemetryService {
 		this._disposables = dispose(this._disposables);
 	}
 
-	publicLog(eventName: string, data?: ITelemetryData): TPromise<any> {
+	publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): Thenable<any> {
 		// don't send events when the user is optout
 		if (!this._userOptIn) {
-			return TPromise.as(undefined);
+			return Promise.resolve(undefined);
 		}
 
 		return this._commonProperties.then(values => {
@@ -114,7 +101,7 @@ export class TelemetryService implements ITelemetryService {
 			// (last) remove all PII from data
 			data = cloneAndChange(data, value => {
 				if (typeof value === 'string') {
-					return this._cleanupInfo(value);
+					return this._cleanupInfo(value, anonymizeFilePaths);
 				}
 				return undefined;
 			});
@@ -127,15 +114,47 @@ export class TelemetryService implements ITelemetryService {
 		});
 	}
 
-	private _cleanupInfo(stack: string): string {
+	private _cleanupInfo(stack: string, anonymizeFilePaths?: boolean): string {
+		let updatedStack = stack;
 
-		// sanitize with configured cleanup patterns
-		for (let tuple of this._cleanupPatterns) {
-			let [regexp, replaceValue] = tuple;
-			stack = stack.replace(regexp, replaceValue);
+		if (anonymizeFilePaths) {
+			const cleanUpIndexes: [number, number][] = [];
+			for (let regexp of this._cleanupPatterns) {
+				while (true) {
+					const result = regexp.exec(stack);
+					if (!result) {
+						break;
+					}
+					cleanUpIndexes.push([result.index, regexp.lastIndex]);
+				}
+			}
+
+			const nodeModulesRegex = /^[\\\/]?(node_modules|node_modules\.asar)[\\\/]/;
+			const fileRegex = /(file:\/\/)?([a-zA-Z]:(\\\\|\\|\/)|(\\\\|\\|\/))?([\w-\._]+(\\\\|\\|\/))+[\w-\._]*/g;
+			let lastIndex = 0;
+			updatedStack = '';
+
+			while (true) {
+				const result = fileRegex.exec(stack);
+				if (!result) {
+					break;
+				}
+				// Anoynimize user file paths that do not need to be retained or cleaned up.
+				if (!nodeModulesRegex.test(result[0]) && cleanUpIndexes.every(([x, y]) => result.index < x || result.index >= y)) {
+					updatedStack += stack.substring(lastIndex, result.index) + '<REDACTED: user-file-path>';
+					lastIndex = fileRegex.lastIndex;
+				}
+			}
+			if (lastIndex < stack.length) {
+				updatedStack += stack.substr(lastIndex);
+			}
 		}
 
-		return stack;
+		// sanitize with configured cleanup patterns
+		for (let regexp of this._cleanupPatterns) {
+			updatedStack = updatedStack.replace(regexp, '');
+		}
+		return updatedStack;
 	}
 }
 
@@ -150,8 +169,9 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 	'properties': {
 		'telemetry.enableTelemetry': {
 			'type': 'boolean',
-			'description': localize('telemetry.enableTelemetry', "Enable usage data and errors to be sent to Microsoft."),
-			'default': true
+			'description': localize('telemetry.enableTelemetry', "Enable usage data and errors to be sent to a Microsoft online service."),
+			'default': true,
+			'tags': ['usesOnlineServices']
 		}
 	}
 });

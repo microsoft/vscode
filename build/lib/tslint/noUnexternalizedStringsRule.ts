@@ -40,16 +40,18 @@ function isPropertyAssignment(node: ts.Node): node is ts.PropertyAssignment {
 
 interface KeyMessagePair {
 	key: ts.StringLiteral;
-	message: ts.Node;
+	message: ts.Node | undefined;
 }
 
 class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 
+	private static ImportFailureMessage = 'Do not use double quotes for imports.';
+
 	private static DOUBLE_QUOTE: string = '"';
 
 	private signatures: Map<boolean>;
-	private messageIndex: number;
-	private keyIndex: number;
+	private messageIndex: number | undefined;
+	private keyIndex: number | undefined;
 	private ignores: Map<boolean>;
 
 	private usedKeys: Map<KeyMessagePair[]>;
@@ -61,8 +63,8 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 		this.messageIndex = undefined;
 		this.keyIndex = undefined;
 		this.usedKeys = Object.create(null);
-		let options: any[] = this.getOptions();
-		let first: UnexternalizedStringsOptions = options && options.length > 0 ? options[0] : null;
+		const options: any[] = this.getOptions();
+		const first: UnexternalizedStringsOptions = options && options.length > 0 ? options[0] : null;
 		if (first) {
 			if (Array.isArray(first.signatures)) {
 				first.signatures.forEach((signature: string) => this.signatures[signature] = true);
@@ -79,13 +81,20 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 		}
 	}
 
+	private static IDENTIFIER = /^[_a-zA-Z0-9][ .\-_a-zA-Z0-9]*$/;
 	protected visitSourceFile(node: ts.SourceFile): void {
 		super.visitSourceFile(node);
 		Object.keys(this.usedKeys).forEach(key => {
-			let occurences = this.usedKeys[key];
-			if (occurences.length > 1) {
-				occurences.forEach(occurence => {
-					this.addFailure((this.createFailure(occurence.key.getStart(), occurence.key.getWidth(), `Duplicate key ${occurence.key.getText()} with different message value.`)));
+			// Keys are quoted.
+			let identifier = key.substr(1, key.length - 2);
+			if (!NoUnexternalizedStringsRuleWalker.IDENTIFIER.test(identifier)) {
+				let occurrence = this.usedKeys[key][0];
+				this.addFailure(this.createFailure(occurrence.key.getStart(), occurrence.key.getWidth(), `The key ${occurrence.key.getText()} doesn't conform to a valid localize identifier`));
+			}
+			const occurrences = this.usedKeys[key];
+			if (occurrences.length > 1) {
+				occurrences.forEach(occurrence => {
+					this.addFailure((this.createFailure(occurrence.key.getStart(), occurrence.key.getWidth(), `Duplicate key ${occurrence.key.getText()} with different message value.`)));
 				});
 			}
 		});
@@ -97,46 +106,56 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 	}
 
 	private checkStringLiteral(node: ts.StringLiteral): void {
-		let text = node.getText();
-		let doubleQuoted = text.length >= 2 && text[0] === NoUnexternalizedStringsRuleWalker.DOUBLE_QUOTE && text[text.length - 1] === NoUnexternalizedStringsRuleWalker.DOUBLE_QUOTE;
-		let info = this.findDescribingParent(node);
+		const text = node.getText();
+		const doubleQuoted = text.length >= 2 && text[0] === NoUnexternalizedStringsRuleWalker.DOUBLE_QUOTE && text[text.length - 1] === NoUnexternalizedStringsRuleWalker.DOUBLE_QUOTE;
+		const info = this.findDescribingParent(node);
 		// Ignore strings in import and export nodes.
-		if (info && info.ignoreUsage) {
+		if (info && info.isImport && doubleQuoted) {
+			const fix = [
+				Lint.Replacement.replaceFromTo(node.getStart(), 1, '\''),
+				Lint.Replacement.replaceFromTo(node.getStart() + text.length - 1, 1, '\''),
+			];
+			this.addFailureAtNode(
+				node,
+				NoUnexternalizedStringsRuleWalker.ImportFailureMessage,
+				fix
+			);
 			return;
 		}
-		let callInfo = info ? info.callInfo : null;
-		let functionName = callInfo ? callInfo.callExpression.expression.getText() : null;
+		const callInfo = info ? info.callInfo : null;
+		const functionName = callInfo ? callInfo.callExpression.expression.getText() : null;
 		if (functionName && this.ignores[functionName]) {
 			return;
 		}
 
-		if (doubleQuoted && (!callInfo || callInfo.argIndex === -1 || !this.signatures[functionName])) {
+		if (doubleQuoted && (!callInfo || callInfo.argIndex === -1 || !this.signatures[functionName!])) {
 			const s = node.getText();
-			const replacement = new Lint.Replacement(node.getStart(), node.getWidth(), `nls.localize('KEY-${s.substring(1, s.length - 1)}', ${s})`);
-			const fix = new Lint.Fix('Unexternalitzed string', [replacement]);
+			const fix = [
+				Lint.Replacement.replaceFromTo(node.getStart(), node.getWidth(), `nls.localize('KEY-${s.substring(1, s.length - 1)}', ${s})`),
+			];
 			this.addFailure(this.createFailure(node.getStart(), node.getWidth(), `Unexternalized string found: ${node.getText()}`, fix));
 			return;
 		}
 		// We have a single quoted string outside a localize function name.
-		if (!doubleQuoted && !this.signatures[functionName]) {
+		if (!doubleQuoted && !this.signatures[functionName!]) {
 			return;
 		}
 		// We have a string that is a direct argument into the localize call.
-		let keyArg: ts.Expression = callInfo.argIndex === this.keyIndex
+		const keyArg: ts.Expression | null = callInfo && callInfo.argIndex === this.keyIndex
 			? callInfo.callExpression.arguments[this.keyIndex]
 			: null;
 		if (keyArg) {
 			if (isStringLiteral(keyArg)) {
-				this.recordKey(keyArg, this.messageIndex ? callInfo.callExpression.arguments[this.messageIndex] : undefined);
+				this.recordKey(keyArg, this.messageIndex && callInfo ? callInfo.callExpression.arguments[this.messageIndex] : undefined);
 			} else if (isObjectLiteral(keyArg)) {
 				for (let i = 0; i < keyArg.properties.length; i++) {
-					let property = keyArg.properties[i];
+					const property = keyArg.properties[i];
 					if (isPropertyAssignment(property)) {
-						let name = property.name.getText();
+						const name = property.name.getText();
 						if (name === 'key') {
-							let initializer = property.initializer;
+							const initializer = property.initializer;
 							if (isStringLiteral(initializer)) {
-								this.recordKey(initializer, this.messageIndex ? callInfo.callExpression.arguments[this.messageIndex] : undefined);
+								this.recordKey(initializer, this.messageIndex && callInfo ? callInfo.callExpression.arguments[this.messageIndex] : undefined);
 							}
 							break;
 						}
@@ -144,41 +163,50 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 				}
 			}
 		}
-		let messageArg: ts.Expression = callInfo.argIndex === this.messageIndex
-			? callInfo.callExpression.arguments[this.messageIndex]
-			: null;
-		if (messageArg && messageArg !== node) {
+
+		const messageArg = callInfo!.callExpression.arguments[this.messageIndex!];
+
+		if (messageArg && messageArg.kind !== ts.SyntaxKind.StringLiteral) {
 			this.addFailure(this.createFailure(
 				messageArg.getStart(), messageArg.getWidth(),
-				`Message argument to '${callInfo.callExpression.expression.getText()}' must be a string literal.`));
+				`Message argument to '${callInfo!.callExpression.expression.getText()}' must be a string literal.`));
 			return;
 		}
 	}
 
-	private recordKey(keyNode: ts.StringLiteral, messageNode: ts.Node) {
-		let text = keyNode.getText();
-		let occurences: KeyMessagePair[] = this.usedKeys[text];
-		if (!occurences) {
-			occurences = [];
-			this.usedKeys[text] = occurences;
+	private recordKey(keyNode: ts.StringLiteral, messageNode: ts.Node | undefined) {
+		const text = keyNode.getText();
+		// We have an empty key
+		if (text.match(/(['"]) *\1/)) {
+			if (messageNode) {
+				this.addFailureAtNode(keyNode, `Key is empty for message: ${messageNode.getText()}`);
+			} else {
+				this.addFailureAtNode(keyNode, `Key is empty.`);
+			}
+			return;
+		}
+		let occurrences: KeyMessagePair[] = this.usedKeys[text];
+		if (!occurrences) {
+			occurrences = [];
+			this.usedKeys[text] = occurrences;
 		}
 		if (messageNode) {
-			if (occurences.some(pair => pair.message ? pair.message.getText() === messageNode.getText() : false)) {
+			if (occurrences.some(pair => pair.message ? pair.message.getText() === messageNode.getText() : false)) {
 				return;
 			}
 		}
-		occurences.push({ key: keyNode, message: messageNode });
+		occurrences.push({ key: keyNode, message: messageNode });
 	}
 
-	private findDescribingParent(node: ts.Node): { callInfo?: { callExpression: ts.CallExpression, argIndex: number }, ignoreUsage?: boolean; } {
+	private findDescribingParent(node: ts.Node): { callInfo?: { callExpression: ts.CallExpression, argIndex: number }, isImport?: boolean; } | null {
 		let parent: ts.Node;
 		while ((parent = node.parent)) {
-			let kind = parent.kind;
+			const kind = parent.kind;
 			if (kind === ts.SyntaxKind.CallExpression) {
-				let callExpression = parent as ts.CallExpression;
+				const callExpression = parent as ts.CallExpression;
 				return { callInfo: { callExpression: callExpression, argIndex: callExpression.arguments.indexOf(<any>node) } };
 			} else if (kind === ts.SyntaxKind.ImportEqualsDeclaration || kind === ts.SyntaxKind.ImportDeclaration || kind === ts.SyntaxKind.ExportDeclaration) {
-				return { ignoreUsage: true };
+				return { isImport: true };
 			} else if (kind === ts.SyntaxKind.VariableDeclaration || kind === ts.SyntaxKind.FunctionDeclaration || kind === ts.SyntaxKind.PropertyDeclaration
 				|| kind === ts.SyntaxKind.MethodDeclaration || kind === ts.SyntaxKind.VariableDeclarationList || kind === ts.SyntaxKind.InterfaceDeclaration
 				|| kind === ts.SyntaxKind.ClassDeclaration || kind === ts.SyntaxKind.EnumDeclaration || kind === ts.SyntaxKind.ModuleDeclaration
@@ -187,5 +215,6 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 			}
 			node = parent;
 		}
+		return null;
 	}
 }

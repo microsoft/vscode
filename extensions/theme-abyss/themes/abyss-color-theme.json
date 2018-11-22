@@ -8,6 +8,13 @@
 			}
 		},
 		{
+			"scope": ["meta.embedded", "source.groovy.embedded"],
+			"settings": {
+				"background": "#000c18",
+				"foreground": "#6688cc"
+			}
+		},
+		{
 			"name": "Comment",
 			"scope": "comment",
 			"settings": {
@@ -302,9 +309,11 @@
 		"editor.lineHighlightBackground": "#082050",
 		"editor.selectionBackground": "#770811",
 		"editorIndentGuide.background": "#002952",
+		"editorIndentGuide.activeBackground": "#204972",
 		"editorHoverWidget.background": "#000c38",
 		"editorHoverWidget.border": "#004c18",
 		"editorLineNumber.foreground": "#406385",
+		"editorLineNumber.activeForeground": "#80a2c2",
 		"editorMarkerNavigation.background": "#060621",
 		"editorMarkerNavigationError.background": "#AB395B",
 		"editorMarkerNavigationWarning.background": "#5B7E7A",
@@ -356,7 +365,6 @@
 		// Workbench: Editors
 		// "editorGroupHeader.noTabsBackground": "",
 		"editorGroup.border": "#2b2b4a",
-		"editorGroup.background": "#1c1c2a",
 		"editorGroup.dropBackground": "#25375daa",
 		"editorGroupHeader.tabsBackground": "#1c1c2a",
 
@@ -364,6 +372,7 @@
 		"tab.border": "#2b2b4a",
 		// "tab.activeBackground": "",
 		"tab.inactiveBackground": "#10192c",
+		"tab.modifiedBorder": "#0072bf",
 		// "tab.activeForeground": "",
 		// "tab.inactiveForeground": "",
 
@@ -401,13 +410,13 @@
 		"debugExceptionWidget.background": "#051336",
 		"debugExceptionWidget.border": "#AB395B",
 
-		// Workbench: Notifications
-		"notification.background": "#182543",
-		// "notification.foreground": "",
-
 		// Workbench: Quick Open
 		"pickerGroup.border": "#596F99",
 		"pickerGroup.foreground": "#596F99",
+
+		// Workbench: Extensions
+		"extensionButton.prominentBackground": "#5f8b3b",
+		"extensionButton.prominentHoverBackground": "#5f8b3bbb",
 
 		// Workbench: Terminal
 		"terminal.ansiBlack": "#111111",

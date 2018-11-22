@@ -4,27 +4,40 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { URI } from 'vs/base/common/uri';
 
 export interface IBackupWorkspacesFormat {
-	folderWorkspaces: string[];
-	emptyWorkspaces: string[];
+	rootWorkspaces: IWorkspaceIdentifier[];
+	folderURIWorkspaces: string[];
+	emptyWorkspaceInfos: IEmptyWindowBackupInfo[];
+
+	// deprecated
+	folderWorkspaces?: string[]; // use folderURIWorkspaces instead
+	emptyWorkspaces?: string[];
 }
 
 export const IBackupMainService = createDecorator<IBackupMainService>('backupMainService');
-export const IBackupService = createDecorator<IBackupService>('backupService');
 
-export interface IBackupMainService extends IBackupService {
-	_serviceBrand: any;
-
-	getWorkspaceBackupPaths(): string[];
-	getEmptyWorkspaceBackupPaths(): string[];
-
-	registerWindowForBackupsSync(windowId: number, isEmptyWorkspace: boolean, backupFolder?: string, workspacePath?: string): void;
+export interface IEmptyWindowBackupInfo {
+	backupFolder: string;
+	remoteAuthority?: string;
 }
 
-export interface IBackupService {
+export interface IBackupMainService {
 	_serviceBrand: any;
 
-	getBackupPath(windowId: number): TPromise<string>;
+	isHotExitEnabled(): boolean;
+
+	getWorkspaceBackups(): IWorkspaceIdentifier[];
+	getFolderBackupPaths(): URI[];
+	getEmptyWindowBackupPaths(): IEmptyWindowBackupInfo[];
+
+	registerWorkspaceBackupSync(workspace: IWorkspaceIdentifier, migrateFrom?: string): string;
+	registerFolderBackupSync(folderUri: URI): string;
+	registerEmptyWindowBackupSync(backupInfo: IEmptyWindowBackupInfo): string;
+
+	unregisterWorkspaceBackupSync(workspace: IWorkspaceIdentifier): void;
+	unregisterFolderBackupSync(folderUri: URI): void;
+	unregisterEmptyWindowBackupSync(backupFolder: string): void;
 }

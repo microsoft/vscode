@@ -2,11 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
+import { AccessibilitySupport } from 'vs/base/common/platform';
 import { CommonEditorConfiguration, IEnvConfiguration } from 'vs/editor/common/config/commonEditorConfig';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
+import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
 
 export class TestConfiguration extends CommonEditorConfiguration {
 
@@ -20,9 +20,10 @@ export class TestConfiguration extends CommonEditorConfiguration {
 			extraEditorClassName: '',
 			outerWidth: 100,
 			outerHeight: 100,
-			canUseTranslate3d: true,
+			emptySelectionClipboard: true,
 			pixelRatio: 1,
-			zoomLevel: 0
+			zoomLevel: 0,
+			accessibilitySupport: AccessibilitySupport.Unknown
 		};
 	}
 
@@ -33,9 +34,11 @@ export class TestConfiguration extends CommonEditorConfiguration {
 			fontWeight: 'normal',
 			fontSize: 14,
 			lineHeight: 19,
+			letterSpacing: 1.5,
 			isMonospace: true,
 			typicalHalfwidthCharacterWidth: 10,
 			typicalFullwidthCharacterWidth: 20,
+			canUseHalfwidthRightwardsArrow: true,
 			spaceWidth: 10,
 			maxDigitWidth: 10,
 		}, true);

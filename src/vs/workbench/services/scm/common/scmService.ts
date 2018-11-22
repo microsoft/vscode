@@ -3,15 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { IDisposable, toDisposable, empty as EmptyDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import Event, { Emitter } from 'vs/base/common/event';
-import { memoize } from 'vs/base/common/decorators';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/statusbar/common/statusbar';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { ISCMService, ISCMProvider, ISCMInput, DefaultSCMProviderIdStorageKey } from './scm';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Event, Emitter } from 'vs/base/common/event';
+import { ISCMService, ISCMProvider, ISCMInput, ISCMRepository, IInputValidator } from './scm';
+import { ILogService } from 'vs/platform/log/common/log';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { equals } from 'vs/base/common/arrays';
 
 class SCMInput implements ISCMInput {
 
@@ -28,98 +25,152 @@ class SCMInput implements ISCMInput {
 
 	private _onDidChange = new Emitter<string>();
 	get onDidChange(): Event<string> { return this._onDidChange.event; }
+
+	private _placeholder = '';
+
+	get placeholder(): string {
+		return this._placeholder;
+	}
+
+	set placeholder(placeholder: string) {
+		this._placeholder = placeholder;
+		this._onDidChangePlaceholder.fire(placeholder);
+	}
+
+	private _onDidChangePlaceholder = new Emitter<string>();
+	get onDidChangePlaceholder(): Event<string> { return this._onDidChangePlaceholder.event; }
+
+	private _visible = true;
+
+	get visible(): boolean {
+		return this._visible;
+	}
+
+	set visible(visible: boolean) {
+		this._visible = visible;
+		this._onDidChangeVisibility.fire(visible);
+	}
+
+	private _onDidChangeVisibility = new Emitter<boolean>();
+	get onDidChangeVisibility(): Event<boolean> { return this._onDidChangeVisibility.event; }
+
+	private _validateInput: IInputValidator = () => TPromise.as(undefined);
+
+	get validateInput(): IInputValidator {
+		return this._validateInput;
+	}
+
+	set validateInput(validateInput: IInputValidator) {
+		this._validateInput = validateInput;
+		this._onDidChangeValidateInput.fire();
+	}
+
+	private _onDidChangeValidateInput = new Emitter<void>();
+	get onDidChangeValidateInput(): Event<void> { return this._onDidChangeValidateInput.event; }
+}
+
+class SCMRepository implements ISCMRepository {
+
+	private _onDidFocus = new Emitter<void>();
+	readonly onDidFocus: Event<void> = this._onDidFocus.event;
+
+	private _selected = false;
+	get selected(): boolean {
+		return this._selected;
+	}
+
+	private _onDidChangeSelection = new Emitter<boolean>();
+	readonly onDidChangeSelection: Event<boolean> = this._onDidChangeSelection.event;
+
+	readonly input: ISCMInput = new SCMInput();
+
+	constructor(
+		public readonly provider: ISCMProvider,
+		private disposable: IDisposable
+	) { }
+
+	focus(): void {
+		this._onDidFocus.fire();
+	}
+
+	setSelected(selected: boolean): void {
+		this._selected = selected;
+		this._onDidChangeSelection.fire(selected);
+	}
+
+	dispose(): void {
+		this.disposable.dispose();
+		this.provider.dispose();
+	}
 }
 
 export class SCMService implements ISCMService {
 
-	_serviceBrand;
+	_serviceBrand: any;
 
-	private activeProviderDisposable: IDisposable = EmptyDisposable;
-	private statusBarDisposable: IDisposable = EmptyDisposable;
-	private activeProviderContextKey: IContextKey<string | undefined>;
+	private _providerIds = new Set<string>();
+	private _repositories: ISCMRepository[] = [];
+	get repositories(): ISCMRepository[] { return [...this._repositories]; }
 
-	private _activeProvider: ISCMProvider | undefined;
+	private _selectedRepositories: ISCMRepository[] = [];
+	get selectedRepositories(): ISCMRepository[] { return [...this._selectedRepositories]; }
 
-	get activeProvider(): ISCMProvider | undefined {
-		return this._activeProvider;
-	}
+	private _onDidChangeSelectedRepositories = new Emitter<ISCMRepository[]>();
+	readonly onDidChangeSelectedRepositories: Event<ISCMRepository[]> = this._onDidChangeSelectedRepositories.event;
 
-	set activeProvider(provider: ISCMProvider | undefined) {
-		this.setActiveSCMProdiver(provider);
-		this.storageService.store(DefaultSCMProviderIdStorageKey, provider.id, StorageScope.WORKSPACE);
-	}
+	private _onDidAddProvider = new Emitter<ISCMRepository>();
+	get onDidAddRepository(): Event<ISCMRepository> { return this._onDidAddProvider.event; }
 
-	private _providers: ISCMProvider[] = [];
-	get providers(): ISCMProvider[] { return [...this._providers]; }
+	private _onDidRemoveProvider = new Emitter<ISCMRepository>();
+	get onDidRemoveRepository(): Event<ISCMRepository> { return this._onDidRemoveProvider.event; }
 
-	private _onDidChangeProvider = new Emitter<ISCMProvider>();
-	get onDidChangeProvider(): Event<ISCMProvider> { return this._onDidChangeProvider.event; }
+	constructor(@ILogService private logService: ILogService) { }
 
-	@memoize
-	get input(): ISCMInput { return new SCMInput(); }
+	registerSCMProvider(provider: ISCMProvider): ISCMRepository {
+		this.logService.trace('SCMService#registerSCMProvider');
 
-	constructor(
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IStorageService private storageService: IStorageService,
-		@IStatusbarService private statusbarService: IStatusbarService
-	) {
-		this.activeProviderContextKey = contextKeyService.createKey<string | undefined>('scmProvider', void 0);
-	}
-
-	private setActiveSCMProdiver(provider: ISCMProvider): void {
-		this.activeProviderDisposable.dispose();
-
-		if (!provider) {
-			throw new Error('invalid provider');
+		if (this._providerIds.has(provider.id)) {
+			throw new Error(`SCM Provider ${provider.id} already exists.`);
 		}
 
-		if (provider && this._providers.indexOf(provider) === -1) {
-			throw new Error('Provider not registered');
-		}
+		this._providerIds.add(provider.id);
 
-		this._activeProvider = provider;
-
-		this.activeProviderDisposable = provider.onDidChange(() => this.onDidProviderChange(provider));
-		this.onDidProviderChange(provider);
-
-		this.activeProviderContextKey.set(provider ? provider.id : void 0);
-		this._onDidChangeProvider.fire(provider);
-	}
-
-	registerSCMProvider(provider: ISCMProvider): IDisposable {
-		this._providers.push(provider);
-
-		const defaultProviderId = this.storageService.get(DefaultSCMProviderIdStorageKey, StorageScope.WORKSPACE);
-
-		if (this._providers.length === 1 || defaultProviderId === provider.id) {
-			this.setActiveSCMProdiver(provider);
-		}
-
-		return toDisposable(() => {
-			const index = this._providers.indexOf(provider);
+		const disposable = toDisposable(() => {
+			const index = this._repositories.indexOf(repository);
 
 			if (index < 0) {
 				return;
 			}
 
-			this._providers.splice(index, 1);
-
-			if (this.activeProvider === provider) {
-				this.activeProvider = this._providers[0];
-			}
+			selectedDisposable.dispose();
+			this._providerIds.delete(provider.id);
+			this._repositories.splice(index, 1);
+			this._onDidRemoveProvider.fire(repository);
+			this.onDidChangeSelection();
 		});
+
+		const repository = new SCMRepository(provider, disposable);
+		const selectedDisposable = repository.onDidChangeSelection(this.onDidChangeSelection, this);
+
+		this._repositories.push(repository);
+		this._onDidAddProvider.fire(repository);
+
+		// automatically select the first repository
+		if (this._repositories.length === 1) {
+			repository.setSelected(true);
+		}
+
+		return repository;
 	}
 
-	private onDidProviderChange(provider: ISCMProvider): void {
-		this.statusBarDisposable.dispose();
+	private onDidChangeSelection(): void {
+		const selectedRepositories = this._repositories.filter(r => r.selected);
 
-		const commands = provider.statusBarCommands || [];
-		const disposables = commands.map(c => this.statusbarService.addEntry({
-			text: c.title,
-			tooltip: c.tooltip,
-			command: c.id
-		}, MainThreadStatusBarAlignment.LEFT, 10000));
+		if (equals(this._selectedRepositories, selectedRepositories)) {
+			return;
+		}
 
-		this.statusBarDisposable = combinedDisposable(disposables);
+		this._selectedRepositories = this._repositories.filter(r => r.selected);
+		this._onDidChangeSelectedRepositories.fire(this.selectedRepositories);
 	}
 }

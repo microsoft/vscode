@@ -3,39 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
-import { KeyMod, KeyCode, createKeybinding, SimpleKeybinding, KeyChord } from 'vs/base/common/keyCodes';
-import { MacLinuxKeyboardMapper, IMacLinuxKeyboardMapping } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
+import { KeyChord, KeyCode, KeyMod, SimpleKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
+import { UserSettingsLabelProvider } from 'vs/base/common/keybindingLabels';
 import { OperatingSystem } from 'vs/base/common/platform';
-import { UserSettingsLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
+import { ScanCode, ScanCodeBinding, ScanCodeUtils } from 'vs/base/common/scanCode';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
-import { ScanCodeUtils, ScanCodeBinding, ScanCode } from 'vs/workbench/services/keybinding/common/scanCode';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { readRawMapping, assertMapping, IResolvedKeybinding, assertResolveKeybinding, assertResolveKeyboardEvent, assertResolveUserBinding } from 'vs/workbench/services/keybinding/test/keyboardMapperTestUtils';
+import { IMacLinuxKeyboardMapping, MacLinuxKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
+import { IResolvedKeybinding, assertMapping, assertResolveKeybinding, assertResolveKeyboardEvent, assertResolveUserBinding, readRawMapping } from 'vs/workbench/services/keybinding/test/keyboardMapperTestUtils';
 
 const WRITE_FILE_IF_DIFFERENT = false;
 
-function createKeyboardMapper(isUSStandard: boolean, file: string, OS: OperatingSystem): TPromise<MacLinuxKeyboardMapper> {
-	return readRawMapping<IMacLinuxKeyboardMapping>(file).then((rawMappings) => {
-		return new MacLinuxKeyboardMapper(false, isUSStandard, rawMappings, OS);
-	});
+async function createKeyboardMapper(isUSStandard: boolean, file: string, OS: OperatingSystem): Promise<MacLinuxKeyboardMapper> {
+	const rawMappings = await readRawMapping<IMacLinuxKeyboardMapping>(file);
+	return new MacLinuxKeyboardMapper(isUSStandard, rawMappings, OS);
 }
 
 suite('keyboardMapper - MAC de_ch', () => {
 
 	let mapper: MacLinuxKeyboardMapper;
 
-	suiteSetup((done) => {
-		createKeyboardMapper(false, 'mac_de_ch', OperatingSystem.Macintosh).then((_mapper) => {
-			mapper = _mapper;
-			done();
-		}, done);
+	suiteSetup(async () => {
+		const _mapper = await createKeyboardMapper(false, 'mac_de_ch', OperatingSystem.Macintosh);
+		mapper = _mapper;
 	});
 
-	test('mapping', (done) => {
-		assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'mac_de_ch.txt', done);
+	test('mapping', () => {
+		return assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'mac_de_ch.txt');
 	});
 
 	function assertKeybindingTranslation(kb: number, expected: string | string[]): void {
@@ -378,15 +372,13 @@ suite('keyboardMapper - MAC en_us', () => {
 
 	let mapper: MacLinuxKeyboardMapper;
 
-	suiteSetup((done) => {
-		createKeyboardMapper(true, 'mac_en_us', OperatingSystem.Macintosh).then((_mapper) => {
-			mapper = _mapper;
-			done();
-		}, done);
+	suiteSetup(async () => {
+		const _mapper = await createKeyboardMapper(true, 'mac_en_us', OperatingSystem.Macintosh);
+		mapper = _mapper;
 	});
 
-	test('mapping', (done) => {
-		assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'mac_en_us.txt', done);
+	test('mapping', () => {
+		return assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'mac_en_us.txt');
 	});
 
 	test('resolveUserBinding Cmd+[Comma] Cmd+/', () => {
@@ -457,15 +449,13 @@ suite('keyboardMapper - LINUX de_ch', () => {
 
 	let mapper: MacLinuxKeyboardMapper;
 
-	suiteSetup((done) => {
-		createKeyboardMapper(false, 'linux_de_ch', OperatingSystem.Linux).then((_mapper) => {
-			mapper = _mapper;
-			done();
-		}, done);
+	suiteSetup(async () => {
+		const _mapper = await createKeyboardMapper(false, 'linux_de_ch', OperatingSystem.Linux);
+		mapper = _mapper;
 	});
 
-	test('mapping', (done) => {
-		assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'linux_de_ch.txt', done);
+	test('mapping', () => {
+		return assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'linux_de_ch.txt');
 	});
 
 	function assertKeybindingTranslation(kb: number, expected: string | string[]): void {
@@ -808,15 +798,13 @@ suite('keyboardMapper - LINUX en_us', () => {
 
 	let mapper: MacLinuxKeyboardMapper;
 
-	suiteSetup((done) => {
-		createKeyboardMapper(true, 'linux_en_us', OperatingSystem.Linux).then((_mapper) => {
-			mapper = _mapper;
-			done();
-		}, done);
+	suiteSetup(async () => {
+		const _mapper = await createKeyboardMapper(true, 'linux_en_us', OperatingSystem.Linux);
+		mapper = _mapper;
 	});
 
-	test('mapping', (done) => {
-		assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'linux_en_us.txt', done);
+	test('mapping', () => {
+		return assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'linux_en_us.txt');
 	});
 
 	function _assertResolveKeybinding(k: number, expected: IResolvedKeybinding[]): void {
@@ -1202,7 +1190,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 suite('keyboardMapper', () => {
 
 	test('issue #23706: Linux UK layout: Ctrl + Apostrophe also toggles terminal', () => {
-		let mapper = new MacLinuxKeyboardMapper(false, false, {
+		let mapper = new MacLinuxKeyboardMapper(false, {
 			'Backquote': {
 				'value': '`',
 				'withShift': '¬',
@@ -1234,7 +1222,7 @@ suite('keyboardMapper', () => {
 	});
 
 	test('issue #24064: NumLock/NumPad keys stopped working in 1.11 on Linux', () => {
-		let mapper = new MacLinuxKeyboardMapper(false, false, {}, OperatingSystem.Linux);
+		let mapper = new MacLinuxKeyboardMapper(false, {}, OperatingSystem.Linux);
 
 		function assertNumpadKeyboardEvent(keyCode: KeyCode, code: string, label: string, electronAccelerator: string, userSettingsLabel: string, dispatch: string): void {
 			assertResolveKeyboardEvent(
@@ -1273,7 +1261,7 @@ suite('keyboardMapper', () => {
 	});
 
 	test('issue #24107: Delete, Insert, Home, End, PgUp, PgDn, and arrow keys no longer work editor in 1.11', () => {
-		let mapper = new MacLinuxKeyboardMapper(false, false, {}, OperatingSystem.Linux);
+		let mapper = new MacLinuxKeyboardMapper(false, {}, OperatingSystem.Linux);
 
 		function assertKeyboardEvent(keyCode: KeyCode, code: string, label: string, electronAccelerator: string, userSettingsLabel: string, dispatch: string): void {
 			assertResolveKeyboardEvent(
@@ -1322,81 +1310,19 @@ suite('keyboardMapper', () => {
 		assertKeyboardEvent(KeyCode.DownArrow, 'NumpadEnter', 'DownArrow', 'Down', 'down', '[ArrowDown]');
 		assertKeyboardEvent(KeyCode.UpArrow, 'Lang3', 'UpArrow', 'Up', 'up', '[ArrowUp]');
 	});
-
-	test('issue #24153: ISO Keyboards: Backslash and IntlBackslash "swapped"', () => {
-		let mapper = new MacLinuxKeyboardMapper(true, false, {
-			'Backquote': {
-				'value': '`',
-				'withShift': '~',
-				'withAltGr': '`',
-				'withShiftAltGr': '`'
-			},
-			'IntlBackslash': {
-				'value': '§',
-				'withShift': '°',
-				'withAltGr': '§',
-				'withShiftAltGr': '°'
-			}
-		}, OperatingSystem.Macintosh);
-
-		assertResolveKeyboardEvent(
-			mapper,
-			{
-				ctrlKey: true,
-				shiftKey: false,
-				altKey: false,
-				metaKey: false,
-				keyCode: -1,
-				code: 'Backquote'
-			},
-			{
-				label: '⌃§',
-				ariaLabel: 'Control+§',
-				electronAccelerator: null,
-				userSettingsLabel: 'ctrl+[IntlBackslash]',
-				isWYSIWYG: false,
-				isChord: false,
-				dispatchParts: ['ctrl+[IntlBackslash]', null],
-			}
-		);
-
-		assertResolveKeyboardEvent(
-			mapper,
-			{
-				ctrlKey: true,
-				shiftKey: false,
-				altKey: false,
-				metaKey: false,
-				keyCode: -1,
-				code: 'IntlBackslash'
-			},
-			{
-				label: '⌃`',
-				ariaLabel: 'Control+`',
-				electronAccelerator: null,
-				userSettingsLabel: 'ctrl+`',
-				isWYSIWYG: true,
-				isChord: false,
-				dispatchParts: ['ctrl+[Backquote]', null],
-			}
-		);
-	});
-
 });
 
 suite('keyboardMapper - LINUX ru', () => {
 
 	let mapper: MacLinuxKeyboardMapper;
 
-	suiteSetup((done) => {
-		createKeyboardMapper(false, 'linux_ru', OperatingSystem.Linux).then((_mapper) => {
-			mapper = _mapper;
-			done();
-		}, done);
+	suiteSetup(async () => {
+		const _mapper = await createKeyboardMapper(false, 'linux_ru', OperatingSystem.Linux);
+		mapper = _mapper;
 	});
 
-	test('mapping', (done) => {
-		assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'linux_ru.txt', done);
+	test('mapping', () => {
+		return assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'linux_ru.txt');
 	});
 
 	function _assertResolveKeybinding(k: number, expected: IResolvedKeybinding[]): void {
@@ -1407,11 +1333,11 @@ suite('keyboardMapper - LINUX ru', () => {
 		_assertResolveKeybinding(
 			KeyMod.CtrlCmd | KeyCode.KEY_S,
 			[{
-				label: 'Ctrl+ы',
-				ariaLabel: 'Control+ы',
+				label: 'Ctrl+S',
+				ariaLabel: 'Control+S',
 				electronAccelerator: 'Ctrl+S',
 				userSettingsLabel: 'ctrl+s',
-				isWYSIWYG: false,
+				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+[KeyS]', null],
 			}]
@@ -1423,15 +1349,13 @@ suite('keyboardMapper - LINUX en_uk', () => {
 
 	let mapper: MacLinuxKeyboardMapper;
 
-	suiteSetup((done) => {
-		createKeyboardMapper(false, 'linux_en_uk', OperatingSystem.Linux).then((_mapper) => {
-			mapper = _mapper;
-			done();
-		}, done);
+	suiteSetup(async () => {
+		const _mapper = await createKeyboardMapper(false, 'linux_en_uk', OperatingSystem.Linux);
+		mapper = _mapper;
 	});
 
-	test('mapping', (done) => {
-		assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'linux_en_uk.txt', done);
+	test('mapping', () => {
+		return assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'linux_en_uk.txt');
 	});
 
 	test('issue #24522: resolveKeyboardEvent Ctrl+Alt+[Minus]', () => {
@@ -1454,6 +1378,39 @@ suite('keyboardMapper - LINUX en_uk', () => {
 				isChord: false,
 				dispatchParts: ['ctrl+alt+[Minus]', null],
 			}
+		);
+	});
+});
+
+suite('keyboardMapper - MAC zh_hant', () => {
+
+	let mapper: MacLinuxKeyboardMapper;
+
+	suiteSetup(async () => {
+		const _mapper = await createKeyboardMapper(false, 'mac_zh_hant', OperatingSystem.Macintosh);
+		mapper = _mapper;
+	});
+
+	test('mapping', () => {
+		return assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'mac_zh_hant.txt');
+	});
+
+	function _assertResolveKeybinding(k: number, expected: IResolvedKeybinding[]): void {
+		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Macintosh), expected);
+	}
+
+	test('issue #28237 resolveKeybinding Cmd+C', () => {
+		_assertResolveKeybinding(
+			KeyMod.CtrlCmd | KeyCode.KEY_C,
+			[{
+				label: '⌘C',
+				ariaLabel: 'Command+C',
+				electronAccelerator: 'Cmd+C',
+				userSettingsLabel: 'cmd+c',
+				isWYSIWYG: true,
+				isChord: false,
+				dispatchParts: ['meta+[KeyC]', null],
+			}]
 		);
 	});
 });

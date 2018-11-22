@@ -1,23 +1,11 @@
 {
   "name": "javascript",
-  "version": "0.1.0",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "1.0.0",
   "publisher": "vscode",
   "engines": {
     "vscode": "0.10.x"
-  },
-  "activationEvents": [
-    "onLanguage:javascript",
-    "onLanguage:json"
-  ],
-  "main": "./out/javascriptMain",
-  "dependencies": {
-    "jsonc-parser": "^0.3.1",
-    "request-light": "^0.2.0",
-    "vscode-nls": "^2.0.2"
-  },
-  "scripts": {
-    "compile": "gulp compile-extension:javascript",
-    "watch": "gulp watch-extension:javascript"
   },
   "contributes": {
     "languages": [
@@ -42,7 +30,8 @@
         "extensions": [
           ".js",
           ".es6",
-          ".mjs"
+          ".mjs",
+          ".pac"
         ],
         "filenames": [
           "jakefile"
@@ -62,11 +51,19 @@
     "grammars": [
       {
         "language": "javascriptreact",
-        "scopeName": "source.js",
-        "path": "./syntaxes/JavaScript.tmLanguage.json",
+        "scopeName": "source.js.jsx",
+        "path": "./syntaxes/JavaScriptReact.tmLanguage.json",
         "embeddedLanguages": {
           "meta.tag.js": "jsx-tags",
-          "meta.tag.without-attributes.js": "jsx-tags"
+          "meta.tag.without-attributes.js": "jsx-tags",
+          "meta.tag.attributes.js.jsx": "javascriptreact",
+          "meta.embedded.expression.js": "javascriptreact"
+        },
+        "tokenTypes": {
+          "entity.name.type.instance.jsdoc": "other",
+          "entity.name.function.tagged-template": "other",
+          "meta.import string.quoted": "other",
+          "variable.other.jsdoc": "other"
         }
       },
       {
@@ -75,7 +72,15 @@
         "path": "./syntaxes/JavaScript.tmLanguage.json",
         "embeddedLanguages": {
           "meta.tag.js": "jsx-tags",
-          "meta.tag.without-attributes.js": "jsx-tags"
+          "meta.tag.without-attributes.js": "jsx-tags",
+          "meta.tag.attributes.js": "javascript",
+          "meta.embedded.expression.js": "javascript"
+        },
+        "tokenTypes": {
+          "entity.name.type.instance.jsdoc": "other",
+          "entity.name.function.tagged-template": "other",
+          "meta.import string.quoted": "other",
+          "variable.other.jsdoc": "other"
         }
       },
       {
@@ -90,29 +95,25 @@
       },
       {
         "language": "javascriptreact",
-        "path": "./snippets/javascriptreact.json"
+        "path": "./snippets/javascript.json"
       }
     ],
     "jsonValidation": [
       {
-        "fileMatch": "package.json",
-        "url": "http://json.schemastore.org/package"
-      },
-      {
-        "fileMatch": "bower.json",
-        "url": "http://json.schemastore.org/bower"
-      },
-      {
-        "fileMatch": ".bower.json",
-        "url": "http://json.schemastore.org/bower"
-      },
-      {
         "fileMatch": ".bowerrc",
-        "url": "http://json.schemastore.org/bowerrc"
+        "url": "https://schemastore.azurewebsites.net/schemas/json/bowerrc.json"
+      },
+      {
+        "fileMatch": ".babelrc",
+        "url": "https://schemastore.azurewebsites.net/schemas/json/babelrc.json"
+      },
+      {
+        "fileMatch": ".babelrc.json",
+        "url": "https://schemastore.azurewebsites.net/schemas/json/babelrc.json"
       },
       {
         "fileMatch": "jsconfig.json",
-        "url": "http://json.schemastore.org/jsconfig"
+        "url": "https://schemastore.azurewebsites.net/schemas/json/jsconfig.json"
       },
       {
         "fileMatch": "jsconfig.json",
@@ -120,15 +121,12 @@
       },
       {
         "fileMatch": "jsconfig.*.json",
-        "url": "http://json.schemastore.org/jsconfig"
+        "url": "https://schemastore.azurewebsites.net/schemas/json/jsconfig.json"
       },
       {
         "fileMatch": "jsconfig.*.json",
         "url": "./schemas/jsconfig.schema.json"
       }
     ]
-  },
-  "devDependencies": {
-    "@types/node": "^7.0.4"
   }
 }

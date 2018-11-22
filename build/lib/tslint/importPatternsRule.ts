@@ -6,10 +6,11 @@
 import * as ts from 'typescript';
 import * as Lint from 'tslint';
 import * as minimatch from 'minimatch';
+import { join } from 'path';
 
 interface ImportPatternsConfig {
 	target: string;
-	restrictions: string;
+	restrictions: string | string[];
 }
 
 export class Rule extends Lint.Rules.AbstractRule {
@@ -34,19 +35,53 @@ class ImportPatterns extends Lint.RuleWalker {
 		super(file, opts);
 	}
 
-	protected visitImportDeclaration(node: ts.ImportDeclaration): void {
-		let path = node.moduleSpecifier.getText();
+	protected visitImportEqualsDeclaration(node: ts.ImportEqualsDeclaration): void {
+		if (node.moduleReference.kind === ts.SyntaxKind.ExternalModuleReference) {
+			this._validateImport(node.moduleReference.expression.getText(), node);
+		}
+	}
 
+	protected visitImportDeclaration(node: ts.ImportDeclaration): void {
+		this._validateImport(node.moduleSpecifier.getText(), node);
+	}
+
+	protected visitCallExpression(node: ts.CallExpression): void {
+		super.visitCallExpression(node);
+
+		// import('foo') statements inside the code
+		if (node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+			const [path] = node.arguments;
+			this._validateImport(path.getText(), node);
+		}
+	}
+
+	private _validateImport(path: string, node: ts.Node): void {
 		// remove quotes
 		path = path.slice(1, -1);
 
-		// ignore relative paths
+		// resolve relative paths
 		if (path[0] === '.') {
-			return;
+			path = join(this.getSourceFile().fileName, path);
 		}
 
-		if (!minimatch(path, this._config.restrictions)) {
-			this.addFailure(this.createFailure(node.getStart(), node.getWidth(), `Imports violates '${this._config.restrictions}'-restriction.`));
+		let restrictions: string[];
+		if (typeof this._config.restrictions === 'string') {
+			restrictions = [this._config.restrictions];
+		} else {
+			restrictions = this._config.restrictions;
+		}
+
+		let matched = false;
+		for (const pattern of restrictions) {
+			if (minimatch(path, pattern)) {
+				matched = true;
+				break;
+			}
+		}
+
+		if (!matched) {
+			// None of the restrictions matched
+			this.addFailure(this.createFailure(node.getStart(), node.getWidth(), `Imports violates '${restrictions.join(' or ')}' restrictions. See https://github.com/Microsoft/vscode/wiki/Code-Organization`));
 		}
 	}
 }

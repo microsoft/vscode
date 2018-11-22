@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
-import labels = require('vs/base/common/labels');
-import platform = require('vs/base/common/platform');
+import * as labels from 'vs/base/common/labels';
+import * as platform from 'vs/base/common/platform';
 
 suite('Labels', () => {
 	test('shorten - windows', () => {
@@ -57,11 +55,11 @@ suite('Labels', () => {
 		assert.deepEqual(labels.shorten(['a\\b\\c', 'd\\b\\C']), ['…\\c', '…\\C']);
 
 		// empty or null
-		assert.deepEqual(labels.shorten(['', null]), ['.', null]);
+		assert.deepEqual(labels.shorten(['', null]), ['.\\', null]);
 
 		assert.deepEqual(labels.shorten(['a', 'a\\b', 'a\\b\\c', 'd\\b\\c', 'd\\b']), ['a', 'a\\b', 'a\\b\\c', 'd\\b\\c', 'd\\b']);
 		assert.deepEqual(labels.shorten(['a', 'a\\b', 'b']), ['a', 'a\\b', 'b']);
-		assert.deepEqual(labels.shorten(['', 'a', 'b', 'b\\c', 'a\\c']), ['.', 'a', 'b', 'b\\c', 'a\\c']);
+		assert.deepEqual(labels.shorten(['', 'a', 'b', 'b\\c', 'a\\c']), ['.\\', 'a', 'b', 'b\\c', 'a\\c']);
 		assert.deepEqual(labels.shorten(['src\\vs\\workbench\\parts\\execution\\electron-browser', 'src\\vs\\workbench\\parts\\execution\\electron-browser\\something', 'src\\vs\\workbench\\parts\\terminal\\electron-browser']), ['…\\execution\\electron-browser', '…\\something', '…\\terminal\\…']);
 	});
 
@@ -105,14 +103,14 @@ suite('Labels', () => {
 		assert.deepEqual(labels.shorten(['a/b/c', 'd/b/C']), ['…/c', '…/C']);
 
 		// empty or null
-		assert.deepEqual(labels.shorten(['', null]), ['.', null]);
+		assert.deepEqual(labels.shorten(['', null]), ['./', null]);
 
 		assert.deepEqual(labels.shorten(['a', 'a/b', 'a/b/c', 'd/b/c', 'd/b']), ['a', 'a/b', 'a/b/c', 'd/b/c', 'd/b']);
 		assert.deepEqual(labels.shorten(['a', 'a/b', 'b']), ['a', 'a/b', 'b']);
-		assert.deepEqual(labels.shorten(['', 'a', 'b', 'b/c', 'a/c']), ['.', 'a', 'b', 'b/c', 'a/c']);
+		assert.deepEqual(labels.shorten(['', 'a', 'b', 'b/c', 'a/c']), ['./', 'a', 'b', 'b/c', 'a/c']);
 	});
 
-	test('template', function () {
+	test('template', () => {
 
 		// simple
 		assert.strictEqual(labels.template('Foo Bar'), 'Foo Bar');
@@ -124,9 +122,9 @@ suite('Labels', () => {
 
 		// conditional separator
 		assert.strictEqual(labels.template('Foo${separator}Bar'), 'FooBar');
-		assert.strictEqual(labels.template('Foo${separator}Bar', { separator: { label: ' - ' } }), 'FooBar');
-		assert.strictEqual(labels.template('${separator}Foo${separator}Bar', { value: 'something', separator: { label: ' - ' } }), 'FooBar');
-		assert.strictEqual(labels.template('${value} Foo${separator}Bar', { value: 'something', separator: { label: ' - ' } }), 'something FooBar');
+		assert.strictEqual(labels.template('Foo${separator}Bar', { separator: { label: ' - ' } }), 'Foo - Bar');
+		assert.strictEqual(labels.template('${separator}Foo${separator}Bar', { value: 'something', separator: { label: ' - ' } }), 'Foo - Bar');
+		assert.strictEqual(labels.template('${value} Foo${separator}Bar', { value: 'something', separator: { label: ' - ' } }), 'something Foo - Bar');
 
 		// // real world example (macOS)
 		let t = '${activeEditorShort}${separator}${rootName}';
@@ -142,5 +140,28 @@ suite('Labels', () => {
 		assert.strictEqual(labels.template(t, { dirty: '', activeEditorShort: '', rootName: 'monaco', appName: 'Visual Studio Code', separator: { label: ' - ' } }), 'monaco - Visual Studio Code');
 		assert.strictEqual(labels.template(t, { dirty: '', activeEditorShort: 'somefile.txt', rootName: 'monaco', appName: 'Visual Studio Code', separator: { label: ' - ' } }), 'somefile.txt - monaco - Visual Studio Code');
 		assert.strictEqual(labels.template(t, { dirty: '* ', activeEditorShort: 'somefile.txt', rootName: 'monaco', appName: 'Visual Studio Code', separator: { label: ' - ' } }), '* somefile.txt - monaco - Visual Studio Code');
+	});
+
+	test('getBaseLabel - unix', () => {
+		if (platform.isWindows) {
+			assert.ok(true);
+			return;
+		}
+
+		assert.equal(labels.getBaseLabel('/some/folder/file.txt'), 'file.txt');
+		assert.equal(labels.getBaseLabel('/some/folder'), 'folder');
+		assert.equal(labels.getBaseLabel('/'), '/');
+	});
+
+	test('getBaseLabel - windows', () => {
+		if (!platform.isWindows) {
+			assert.ok(true);
+			return;
+		}
+
+		assert.equal(labels.getBaseLabel('c:'), 'C:');
+		assert.equal(labels.getBaseLabel('c:\\'), 'C:');
+		assert.equal(labels.getBaseLabel('c:\\some\\folder\\file.txt'), 'file.txt');
+		assert.equal(labels.getBaseLabel('c:\\some\\folder'), 'folder');
 	});
 });

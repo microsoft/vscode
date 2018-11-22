@@ -1,6 +1,8 @@
 {
 	"name": "python",
-	"version": "0.1.0",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "1.0.0",
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
 	"activationEvents": ["onLanguage:python"],
@@ -8,9 +10,9 @@
 	"contributes": {
 		"languages": [{
 			"id": "python",
-			"extensions": [ ".py", ".rpy", ".pyw", ".cpy", ".gyp", ".gypi" ],
+			"extensions": [ ".py", ".rpy", ".pyw", ".cpy", ".gyp", ".gypi", ".snakefile", ".smk"],
 			"aliases": [ "Python", "py" ],
-			"firstLine": "^#!/.*\\bpython[0-9.-]*\\b",
+			"firstLine": "^#!\\s*/.*\\bpython[0-9.-]*\\b",
 			"configuration": "./language-configuration.json"
 		}],
 		"grammars": [{

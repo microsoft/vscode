@@ -1,0 +1,255 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+
+/* Default standalone editor font */
+.monaco-editor {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif;
+}
+
+.monaco-menu .monaco-action-bar.vertical .action-item .action-menu-item:focus .action-label {
+	stroke-width: 1.2px;
+}
+
+.monaco-editor.vs-dark .monaco-menu .monaco-action-bar.vertical .action-menu-item:focus .action-label,
+.monaco-editor.hc-black .monaco-menu .monaco-action-bar.vertical .action-menu-item:focus .action-label {
+	stroke-width: 1.2px;
+}
+
+.monaco-editor-hover p {
+	margin: 0;
+}
+
+/* The hc-black theme is already high contrast optimized */
+.monaco-editor.hc-black {
+	-ms-high-contrast-adjust: none;
+}
+/* In case the browser goes into high contrast mode and the editor is not configured with the hc-black theme */
+@media screen and (-ms-high-contrast:active) {
+
+	/* current line highlight */
+	.monaco-editor.vs .view-overlays .current-line,
+	.monaco-editor.vs-dark .view-overlays .current-line {
+		border-color: windowtext !important;
+		border-left: 0;
+		border-right: 0;
+	}
+
+	/* view cursors */
+	.monaco-editor.vs .cursor,
+	.monaco-editor.vs-dark .cursor {
+		background-color: windowtext !important;
+	}
+	/* dnd target */
+	.monaco-editor.vs .dnd-target,
+	.monaco-editor.vs-dark .dnd-target {
+		border-color: windowtext !important;
+	}
+
+	/* selected text background */
+	.monaco-editor.vs .selected-text,
+	.monaco-editor.vs-dark .selected-text {
+		background-color: highlight !important;
+	}
+
+	/* allow the text to have a transparent background. */
+	.monaco-editor.vs .view-line,
+	.monaco-editor.vs-dark .view-line {
+		-ms-high-contrast-adjust: none;
+	}
+
+	/* text color */
+	.monaco-editor.vs .view-line span,
+	.monaco-editor.vs-dark .view-line span {
+		color: windowtext !important;
+	}
+	/* selected text color */
+	.monaco-editor.vs .view-line span.inline-selected-text,
+	.monaco-editor.vs-dark .view-line span.inline-selected-text {
+		color: highlighttext !important;
+	}
+
+	/* allow decorations */
+	.monaco-editor.vs .view-overlays,
+	.monaco-editor.vs-dark .view-overlays {
+		-ms-high-contrast-adjust: none;
+	}
+
+	/* various decorations */
+	.monaco-editor.vs .selectionHighlight,
+	.monaco-editor.vs-dark .selectionHighlight,
+	.monaco-editor.vs .wordHighlight,
+	.monaco-editor.vs-dark .wordHighlight,
+	.monaco-editor.vs .wordHighlightStrong,
+	.monaco-editor.vs-dark .wordHighlightStrong,
+	.monaco-editor.vs .reference-decoration,
+	.monaco-editor.vs-dark .reference-decoration {
+		border: 2px dotted highlight !important;
+		background: transparent !important;
+		box-sizing: border-box;
+	}
+	.monaco-editor.vs .rangeHighlight,
+	.monaco-editor.vs-dark .rangeHighlight {
+		background: transparent !important;
+		border: 1px dotted activeborder !important;
+		box-sizing: border-box;
+	}
+	.monaco-editor.vs .bracket-match,
+	.monaco-editor.vs-dark .bracket-match {
+		border-color: windowtext !important;
+		background: transparent !important;
+	}
+
+	/* find widget */
+	.monaco-editor.vs .findMatch,
+	.monaco-editor.vs-dark .findMatch,
+	.monaco-editor.vs .currentFindMatch,
+	.monaco-editor.vs-dark .currentFindMatch {
+		border: 2px dotted activeborder !important;
+		background: transparent !important;
+		box-sizing: border-box;
+	}
+	.monaco-editor.vs .find-widget,
+	.monaco-editor.vs-dark .find-widget {
+		border: 1px solid windowtext;
+	}
+
+	/* list - used by suggest widget */
+	.monaco-editor.vs .monaco-list .monaco-list-row,
+	.monaco-editor.vs-dark .monaco-list .monaco-list-row {
+		-ms-high-contrast-adjust: none;
+		color: windowtext !important;
+	}
+	.monaco-editor.vs .monaco-list .monaco-list-row.focused,
+	.monaco-editor.vs-dark .monaco-list .monaco-list-row.focused {
+		color: highlighttext !important;
+		background-color: highlight !important;
+	}
+	.monaco-editor.vs .monaco-list .monaco-list-row:hover,
+	.monaco-editor.vs-dark .monaco-list .monaco-list-row:hover {
+		background: transparent !important;
+		border: 1px solid highlight;
+		box-sizing: border-box;
+	}
+
+	/* tree */
+	.monaco-editor.vs .monaco-tree .monaco-tree-row,
+	.monaco-editor.vs-dark .monaco-tree .monaco-tree-row {
+		-ms-high-contrast-adjust: none;
+		color: windowtext !important;
+	}
+	.monaco-editor.vs .monaco-tree .monaco-tree-row.selected,
+	.monaco-editor.vs-dark .monaco-tree .monaco-tree-row.selected,
+	.monaco-editor.vs .monaco-tree .monaco-tree-row.focused,
+	.monaco-editor.vs-dark .monaco-tree .monaco-tree-row.focused {
+		color: highlighttext !important;
+		background-color: highlight !important;
+	}
+	.monaco-editor.vs .monaco-tree .monaco-tree-row:hover,
+	.monaco-editor.vs-dark .monaco-tree .monaco-tree-row:hover {
+		background: transparent !important;
+		border: 1px solid highlight;
+		box-sizing: border-box;
+	}
+
+	/* scrollbars */
+	.monaco-editor.vs .monaco-scrollable-element > .scrollbar,
+	.monaco-editor.vs-dark .monaco-scrollable-element > .scrollbar {
+		-ms-high-contrast-adjust: none;
+		background: background !important;
+		border: 1px solid windowtext;
+		box-sizing: border-box;
+	}
+	.monaco-editor.vs .monaco-scrollable-element > .scrollbar > .slider,
+	.monaco-editor.vs-dark .monaco-scrollable-element > .scrollbar > .slider {
+		background: windowtext !important;
+	}
+	.monaco-editor.vs .monaco-scrollable-element > .scrollbar > .slider:hover,
+	.monaco-editor.vs-dark .monaco-scrollable-element > .scrollbar > .slider:hover {
+		background: highlight !important;
+	}
+	.monaco-editor.vs .monaco-scrollable-element > .scrollbar > .slider.active,
+	.monaco-editor.vs-dark .monaco-scrollable-element > .scrollbar > .slider.active {
+		background: highlight !important;
+	}
+
+	/* overview ruler */
+	.monaco-editor.vs .decorationsOverviewRuler,
+	.monaco-editor.vs-dark .decorationsOverviewRuler {
+		opacity: 0;
+	}
+
+	/* minimap */
+	.monaco-editor.vs .minimap,
+	.monaco-editor.vs-dark .minimap {
+		display: none;
+	}
+
+	/* squiggles */
+	.monaco-editor.vs .squiggly-d-error,
+	.monaco-editor.vs-dark .squiggly-d-error {
+		background: transparent !important;
+		border-bottom: 4px double #E47777;
+	}
+	.monaco-editor.vs .squiggly-c-warning,
+	.monaco-editor.vs-dark .squiggly-c-warning {
+		border-bottom: 4px double #71B771;
+	}
+	.monaco-editor.vs .squiggly-b-info,
+	.monaco-editor.vs-dark .squiggly-b-info {
+		border-bottom: 4px double #71B771;
+	}
+	.monaco-editor.vs .squiggly-a-hint,
+	.monaco-editor.vs-dark .squiggly-a-hint {
+		border-bottom: 4px double #6c6c6c;
+	}
+
+	/* contextmenu */
+	.monaco-editor.vs .monaco-menu .monaco-action-bar.vertical .action-menu-item:focus .action-label,
+	.monaco-editor.vs-dark .monaco-menu .monaco-action-bar.vertical .action-menu-item:focus .action-label {
+		-ms-high-contrast-adjust: none;
+		color: highlighttext !important;
+		background-color: highlight !important;
+	}
+	.monaco-editor.vs .monaco-menu .monaco-action-bar.vertical .action-menu-item:hover .action-label,
+	.monaco-editor.vs-dark .monaco-menu .monaco-action-bar.vertical .action-menu-item:hover .action-label {
+		-ms-high-contrast-adjust: none;
+		background: transparent !important;
+		border: 1px solid highlight;
+		box-sizing: border-box;
+	}
+
+	/* diff editor */
+	.monaco-diff-editor.vs .diffOverviewRuler,
+	.monaco-diff-editor.vs-dark .diffOverviewRuler {
+		display: none;
+	}
+	.monaco-editor.vs .line-insert,
+	.monaco-editor.vs-dark .line-insert,
+	.monaco-editor.vs .line-delete,
+	.monaco-editor.vs-dark .line-delete {
+		background: transparent !important;
+		border: 1px solid highlight !important;
+		box-sizing: border-box;
+	}
+	.monaco-editor.vs .char-insert,
+	.monaco-editor.vs-dark .char-insert,
+	.monaco-editor.vs .char-delete,
+	.monaco-editor.vs-dark .char-delete {
+		background: transparent !important;
+	}
+}
+
+/*.monaco-editor.vs [tabindex="0"]:focus {
+	outline: 1px solid rgba(0, 122, 204, 0.4);
+	outline-offset: -1px;
+	opacity: 1 !important;
+}
+
+.monaco-editor.vs-dark [tabindex="0"]:focus {
+	outline: 1px solid rgba(14, 99, 156, 0.6);
+	outline-offset: -1px;
+	opacity: 1 !important;
+}*/

@@ -11,43 +11,12 @@
 .monaco-findInput .monaco-inputbox {
 	font-size: 13px;
 	width: 100%;
-	height: 25px;
-}
-
-.fl:after {
-	clear: both;
-	content: '';
-	display: block;
-	visibility: hidden;
-	height: 0;
 }
 
 .monaco-findInput > .controls {
 	position: absolute;
 	top: 3px;
 	right: 2px;
-}
-
-.monaco-findInput > .controls > .matchCount {
-	margin-left: 2px;
-	float: left;
-	overflow: hidden;
-	max-width: 30px;
-	min-width: 20px;
-	text-align: center;
-
-	border-radius: 5px;
-	padding: 0 4px;
-
-	-webkit-box-sizing:	border-box;
-	-o-box-sizing:		border-box;
-	-moz-box-sizing:	border-box;
-	-ms-box-sizing:		border-box;
-	box-sizing:			border-box;
-}
-
-.vs .monaco-findInput > .controls > .matchCount {
-	background: #ddd;
 }
 
 .vs .monaco-findInput.disabled {
@@ -57,10 +26,6 @@
 /* Theming */
 .vs-dark .monaco-findInput.disabled {
 	background-color: #333;
-}
-
-.vs-dark .monaco-findInput > .controls > .matchCount {
-	background: #555;
 }
 
 /* Highlighting */

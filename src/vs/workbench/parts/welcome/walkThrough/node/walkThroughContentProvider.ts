@@ -3,24 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { TPromise } from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
-import { ITextModelResolverService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
+import { URI } from 'vs/base/common/uri';
+import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { ITextModel, DefaultEndOfLine, EndOfLinePreference, ITextBufferFactory } from 'vs/editor/common/model';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { marked } from 'vs/base/common/marked/marked';
+import * as marked from 'vs/base/common/marked/marked';
 import { Schemas } from 'vs/base/common/network';
-import { IRawTextSource } from 'vs/editor/common/model/textSource';
+import { Range } from 'vs/editor/common/core/range';
 
 export class WalkThroughContentProvider implements ITextModelContentProvider, IWorkbenchContribution {
 
 	constructor(
-		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
+		@ITextModelService private textModelResolverService: ITextModelService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IModeService private modeService: IModeService,
 		@IModelService private modelService: IModelService,
@@ -28,9 +25,9 @@ export class WalkThroughContentProvider implements ITextModelContentProvider, IW
 		this.textModelResolverService.registerTextModelContentProvider(Schemas.walkThrough, this);
 	}
 
-	public provideTextContent(resource: URI): TPromise<IModel> {
+	public provideTextContent(resource: URI): Thenable<ITextModel> {
 		const query = resource.query ? JSON.parse(resource.query) : {};
-		const content: TPromise<string | IRawTextSource> = (query.moduleId ? new TPromise<string>((resolve, reject) => {
+		const content: Thenable<string | ITextBufferFactory> = (query.moduleId ? new Promise<string>((resolve, reject) => {
 			require([query.moduleId], content => {
 				try {
 					resolve(content.default());
@@ -42,7 +39,7 @@ export class WalkThroughContentProvider implements ITextModelContentProvider, IW
 		return content.then(content => {
 			let codeEditorModel = this.modelService.getModel(resource);
 			if (!codeEditorModel) {
-				codeEditorModel = this.modelService.createModel(content, this.modeService.getOrCreateModeByFilenameOrFirstLine(resource.fsPath), resource);
+				codeEditorModel = this.modelService.createModel(content, this.modeService.createByFilepathOrFirstLine(resource.fsPath), resource);
 			} else {
 				this.modelService.updateModel(codeEditorModel, content);
 			}
@@ -50,16 +47,12 @@ export class WalkThroughContentProvider implements ITextModelContentProvider, IW
 			return codeEditorModel;
 		});
 	}
-
-	public getId(): string {
-		return 'vs.walkThroughContentProvider';
-	}
 }
 
 export class WalkThroughSnippetContentProvider implements ITextModelContentProvider, IWorkbenchContribution {
 
 	constructor(
-		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
+		@ITextModelService private textModelResolverService: ITextModelService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IModeService private modeService: IModeService,
 		@IModelService private modelService: IModelService,
@@ -67,7 +60,7 @@ export class WalkThroughSnippetContentProvider implements ITextModelContentProvi
 		this.textModelResolverService.registerTextModelContentProvider(Schemas.walkThroughSnippet, this);
 	}
 
-	public provideTextContent(resource: URI): TPromise<IModel> {
+	public provideTextContent(resource: URI): Thenable<ITextModel> {
 		return this.textFileService.resolveTextContent(URI.file(resource.fsPath)).then(content => {
 			let codeEditorModel = this.modelService.getModel(resource);
 			if (!codeEditorModel) {
@@ -85,21 +78,20 @@ export class WalkThroughSnippetContentProvider implements ITextModelContentProvi
 					return '';
 				};
 
-				const markdown = content.value.lines.join('\n');
+				const textBuffer = content.value.create(DefaultEndOfLine.LF);
+				const lineCount = textBuffer.getLineCount();
+				const range = new Range(1, 1, lineCount, textBuffer.getLineLength(lineCount) + 1);
+				const markdown = textBuffer.getValueInRange(range, EndOfLinePreference.TextDefined);
 				marked(markdown, { renderer });
 
-				const modeId = this.modeService.getModeIdForLanguageName(languageName);
-				const mode = this.modeService.getOrCreateMode(modeId);
-				codeEditorModel = this.modelService.createModel(codeSnippet, mode, resource);
+				const languageId = this.modeService.getModeIdForLanguageName(languageName);
+				const languageSelection = this.modeService.create(languageId);
+				codeEditorModel = this.modelService.createModel(codeSnippet, languageSelection, resource);
 			} else {
 				this.modelService.updateModel(codeEditorModel, content.value);
 			}
 
 			return codeEditorModel;
 		});
-	}
-
-	public getId(): string {
-		return 'vs.walkThroughSnippetContentProvider';
 	}
 }

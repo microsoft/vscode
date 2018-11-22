@@ -1,13 +1,13 @@
 {
   "name": "gulp",
   "publisher": "vscode",
-  "description": "Extension to add Gulp capabilities to VSCode.",
-  "displayName": "Gulp support for VSCode",
-  "version": "0.0.1",
+  "description": "%description%",
+  "displayName": "%displayName%",
+  "version": "1.0.0",
+  "icon": "images/gulp.png",
   "engines": {
     "vscode": "*"
   },
-  "enableProposedApi": true,
   "categories": [
     "Other"
   ],
@@ -16,16 +16,14 @@
     "watch": "gulp watch-extension:gulp"
   },
   "dependencies": {
-    "vscode-nls": "^2.0.2"
+    "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
-    "@types/node": "^7.0.4"
+    "@types/node": "^8.10.25"
   },
   "main": "./out/main",
   "activationEvents": [
-    "onCommand:workbench.action.tasks.runTask",
-    "onCommand:workbench.action.tasks.build",
-    "onCommand:workbench.action.tasks.test"
+    "onCommand:workbench.action.tasks.runTask"
   ],
   "contributes": {
     "configuration": {
@@ -34,6 +32,7 @@
       "title": "Gulp",
       "properties": {
         "gulp.autoDetect": {
+          "scope": "resource",
           "type": "string",
           "enum": [
             "off",
@@ -43,6 +42,24 @@
           "description": "%config.gulp.autoDetect%"
         }
       }
-    }
+    },
+    "taskDefinitions": [
+      {
+        "type": "gulp",
+        "required": [
+          "task"
+        ],
+        "properties": {
+          "task": {
+            "type": "string",
+            "description": "%gulp.taskDefinition.type.description%"
+          },
+          "file": {
+            "type": "string",
+            "description": "%gulp.taskDefinition.file.description%"
+          }
+        }
+      }
+    ]
   }
 }

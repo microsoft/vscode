@@ -3,75 +3,58 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
-import errors = require('vs/base/common/errors');
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Position, IResourceInput, IUntitledResourceInput } from 'vs/platform/editor/common/editor';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IResourceInput } from 'vs/platform/editor/common/editor';
+import { Schemas } from 'vs/base/common/network';
+import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { IUntitledResourceInput } from 'vs/workbench/common/editor';
 
 export class BackupRestorer implements IWorkbenchContribution {
 
 	private static readonly UNTITLED_REGEX = /Untitled-\d+/;
 
 	constructor(
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IPartService private partService: IPartService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorService private editorService: IEditorService,
 		@IBackupFileService private backupFileService: IBackupFileService,
-		@ITextFileService private textFileService: ITextFileService,
-		@IEditorGroupService private groupService: IEditorGroupService
+		@ILifecycleService private lifecycleService: ILifecycleService
 	) {
 		this.restoreBackups();
 	}
 
 	private restoreBackups(): void {
-		if (!this.environmentService.isExtensionDevelopment) {
-			this.partService.joinCreation().then(() => {
-				this.doRestoreBackups().done(null, errors.onUnexpectedError);
-			});
-		}
+		this.lifecycleService.when(LifecyclePhase.Running).then(() => this.doRestoreBackups());
 	}
 
-	private doRestoreBackups(): TPromise<any> {
+	private doRestoreBackups(): TPromise<URI[]> {
 
 		// Find all files and untitled with backups
 		return this.backupFileService.getWorkspaceFileBackups().then(backups => {
 
-			// Resolve backups that are opened in stacks model
+			// Resolve backups that are opened
 			return this.doResolveOpenedBackups(backups).then(unresolved => {
 
 				// Some failed to restore or were not opened at all so we open and resolve them manually
 				if (unresolved.length > 0) {
 					return this.doOpenEditors(unresolved).then(() => this.doResolveOpenedBackups(unresolved));
 				}
-				return undefined;
+
+				return void 0;
 			});
 		});
 	}
 
 	private doResolveOpenedBackups(backups: URI[]): TPromise<URI[]> {
-		const stacks = this.groupService.getStacksModel();
-
 		const restorePromises: TPromise<any>[] = [];
 		const unresolved: URI[] = [];
 
 		backups.forEach(backup => {
-			if (stacks.isOpen(backup)) {
-				if (backup.scheme === 'file') {
-					restorePromises.push(this.textFileService.models.loadOrCreate(backup).then(null, () => unresolved.push(backup)));
-				} else if (backup.scheme === 'untitled') {
-					restorePromises.push(this.untitledEditorService.get(backup).resolve().then(null, () => unresolved.push(backup)));
-				}
+			const openedEditor = this.editorService.getOpened({ resource: backup });
+			if (openedEditor) {
+				restorePromises.push(openedEditor.resolve().then(null, () => unresolved.push(backup)));
 			} else {
 				unresolved.push(backup);
 			}
@@ -81,29 +64,20 @@ export class BackupRestorer implements IWorkbenchContribution {
 	}
 
 	private doOpenEditors(resources: URI[]): TPromise<void> {
-		const stacks = this.groupService.getStacksModel();
-		const hasOpenedEditors = stacks.groups.length > 0;
-
-		const inputs = resources.map(resource => this.resolveInput(resource));
-		const openEditorsArgs = inputs.map((input, index) => {
-			return { input, options: { pinned: true, preserveFocus: true, inactive: index > 0 || hasOpenedEditors }, position: Position.ONE };
-		});
+		const hasOpenedEditors = this.editorService.visibleEditors.length > 0;
+		const inputs = resources.map((resource, index) => this.resolveInput(resource, index, hasOpenedEditors));
 
 		// Open all remaining backups as editors and resolve them to load their backups
-		return this.editorService.openEditors(openEditorsArgs).then(() => void 0);
+		return this.editorService.openEditors(inputs).then(() => void 0);
 	}
 
-	private resolveInput(resource: URI): IResourceInput | IUntitledResourceInput {
-		if (resource.scheme === 'untitled' && !BackupRestorer.UNTITLED_REGEX.test(resource.fsPath)) {
-			// TODO@Ben debt: instead of guessing if an untitled file has an associated file path or not
-			// this information should be provided by the backup service and stored as meta data within
-			return { filePath: resource.fsPath };
+	private resolveInput(resource: URI, index: number, hasOpenedEditors: boolean): IResourceInput | IUntitledResourceInput {
+		const options = { pinned: true, preserveFocus: true, inactive: index > 0 || hasOpenedEditors };
+
+		if (resource.scheme === Schemas.untitled && !BackupRestorer.UNTITLED_REGEX.test(resource.fsPath)) {
+			return { filePath: resource.fsPath, options };
 		}
 
-		return { resource };
-	}
-
-	public getId(): string {
-		return 'vs.backup.backupRestorer';
+		return { resource, options };
 	}
 }

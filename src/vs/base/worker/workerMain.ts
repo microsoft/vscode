@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 (function () {
-	'use strict';
 
 	let MonacoEnvironment = (<any>self).MonacoEnvironment;
 	let monacoBaseUrl = MonacoEnvironment && MonacoEnvironment.baseUrl ? MonacoEnvironment.baseUrl : '../../../';
@@ -18,7 +17,7 @@
 		catchError: true
 	});
 
-	let loadCode = function (moduleId) {
+	let loadCode = function (moduleId: string) {
 		require([moduleId], function (ws) {
 			setTimeout(function () {
 				let messageHandler = ws.create((msg: any) => {
@@ -27,7 +26,7 @@
 
 				self.onmessage = (e) => messageHandler.onmessage(e.data);
 				while (beforeReadyMessages.length > 0) {
-					self.onmessage(beforeReadyMessages.shift());
+					self.onmessage(beforeReadyMessages.shift()!);
 				}
 			}, 0);
 		});
