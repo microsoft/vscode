@@ -58,40 +58,48 @@ class LeakageMonitor {
 		}
 	}
 
-	check(listenerCount: number): void {
+	check(listenerCount: number): undefined | (() => void) {
 
 		let threshold = _globalLeakWarningThreshold;
 		if (typeof this.customThreshold === 'number') {
 			threshold = this.customThreshold;
 		}
-		if (threshold > 1 && threshold < listenerCount) {
-			if (!this._stacks) {
-				this._stacks = new Map();
-			}
-			let stack = new Error().stack!.split('\n').slice(3).join('\n');
-			let count = (this._stacks.get(stack) || 0) + 1;
-			this._stacks.set(stack, count);
-			this._warnCountdown -= 1;
 
-			if (this._warnCountdown <= 0) {
-				// only warn on first exceed and then every time the limit
-				// is exceeded by 50% again
-				this._warnCountdown = threshold * .5;
-
-				// find most frequent listener and print warning
-				let topStack: string;
-				let topCount: number = 0;
-				this._stacks.forEach((count, stack) => {
-					if (!topStack || topCount < count) {
-						topStack = stack;
-						topCount = count;
-					}
-				});
-
-				console.warn(`[${this.name}] potential listener LEAK detected, having ${listenerCount} listeners already. MOST frequent listener (${topCount}):`);
-				console.warn(topStack!);
-			}
+		if (threshold <= 0 || listenerCount < threshold) {
+			return undefined;
 		}
+
+		if (!this._stacks) {
+			this._stacks = new Map();
+		}
+		let stack = new Error().stack!.split('\n').slice(3).join('\n');
+		let count = (this._stacks.get(stack) || 0);
+		this._stacks.set(stack, count + 1);
+		this._warnCountdown -= 1;
+
+		if (this._warnCountdown <= 0) {
+			// only warn on first exceed and then every time the limit
+			// is exceeded by 50% again
+			this._warnCountdown = threshold * .5;
+
+			// find most frequent listener and print warning
+			let topStack: string;
+			let topCount: number = 0;
+			this._stacks.forEach((count, stack) => {
+				if (!topStack || topCount < count) {
+					topStack = stack;
+					topCount = count;
+				}
+			});
+
+			console.warn(`[${this.name}] potential listener LEAK detected, having ${listenerCount} listeners already. MOST frequent listener (${topCount}):`);
+			console.warn(topStack!);
+		}
+
+		return () => {
+			let count = (this._stacks.get(stack) || 0);
+			this._stacks.set(stack, count - 1);
+		};
 	}
 }
 
@@ -160,11 +168,14 @@ export class Emitter<T> {
 				}
 
 				// check and record this emitter for potential leakage
-				this._leakageMon.check(this._listeners.size);
+				const check = this._leakageMon.check(this._listeners.size);
 
 				let result: IDisposable;
 				result = {
 					dispose: () => {
+						if (check) {
+							check();
+						}
 						result.dispose = Emitter._noop;
 						if (!this._disposed) {
 							remove();
