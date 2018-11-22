@@ -250,10 +250,11 @@ class ExpressionsRenderer implements ITreeRenderer<Expression, void, IWatchExpre
 		data.expression = dom.append(container, $('.expression'));
 		data.name = dom.append(data.expression, $('span.name'));
 		data.value = dom.append(data.expression, $('span.value'));
-		data.inputBoxContainer = dom.append(container, $('.inputBoxContainer'));
+		data.inputBoxContainer = dom.append(data.expression, $('.inputBoxContainer'));
 
 		data.enableInputBox = (expression: IExpression) => {
-			data.expression.style.display = 'none';
+			data.name.style.display = 'none';
+			data.value.style.display = 'none';
 			data.inputBoxContainer.style.display = 'inherit';
 
 			const inputBox = new InputBox(data.inputBoxContainer, this.contextViewService, {
@@ -281,7 +282,8 @@ class ExpressionsRenderer implements ITreeRenderer<Expression, void, IWatchExpre
 
 					// need to remove the input box since this template will be reused.
 					data.inputBoxContainer.removeChild(inputBox.element);
-					data.expression.style.display = 'inherit';
+					data.name.style.display = 'inherit';
+					data.value.style.display = 'inherit';
 					data.inputBoxContainer.style.display = 'none';
 					dispose(data.toDispose);
 				}
