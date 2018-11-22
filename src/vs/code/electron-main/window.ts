@@ -15,7 +15,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/node/product';
-import { IWindowSettings, MenuBarVisibility, IWindowConfiguration, ReadyState, IRunActionInWindowRequest } from 'vs/platform/windows/common/windows';
+import { IWindowSettings, MenuBarVisibility, IWindowConfiguration, ReadyState, IRunActionInWindowRequest, getTitleBarStyle } from 'vs/platform/windows/common/windows';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ICodeWindow, IWindowState, WindowMode } from 'vs/platform/windows/electron-main/windows';
@@ -155,28 +155,11 @@ export class CodeWindow implements ICodeWindow {
 			}
 		}
 
-		let useNativeTabs = false;
 		if (isMacintosh && windowConfig && windowConfig.nativeTabs === true) {
 			options.tabbingIdentifier = product.nameShort; // this opts in to sierra tabs
-			useNativeTabs = true;
 		}
 
-		let useCustomTitleStyle = false;
-		if (isMacintosh) {
-			useCustomTitleStyle = !windowConfig || !windowConfig.titleBarStyle || windowConfig.titleBarStyle === 'custom'; // Default to custom on macOS
-
-			const isDev = !this.environmentService.isBuilt || !!config.extensionDevelopmentPath;
-			if (isDev) {
-				useCustomTitleStyle = false; // not enabled when developing due to https://github.com/electron/electron/issues/3647
-			}
-		} else {
-			useCustomTitleStyle = !windowConfig || !windowConfig.titleBarStyle || windowConfig.titleBarStyle === 'custom'; // Default to custom
-		}
-
-		if (useNativeTabs) {
-			useCustomTitleStyle = false; // native tabs on sierra do not work with custom title style
-		}
-
+		const useCustomTitleStyle = getTitleBarStyle(this.configurationService, this.environmentService) === 'custom';
 		if (useCustomTitleStyle) {
 			options.titleBarStyle = 'hidden';
 			this.hiddenTitleBarStyle = true;

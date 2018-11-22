@@ -75,7 +75,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecycleService';
-import { IWindowService, IWindowConfiguration as IWindowSettings, IWindowConfiguration, IPath, MenuBarVisibility } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowConfiguration, IPath, MenuBarVisibility, getTitleBarStyle } from 'vs/platform/windows/common/windows';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IMenuService, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { MenuService } from 'vs/platform/actions/common/menuService';
@@ -357,7 +357,7 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection.set(IContextViewService, this.contextViewService);
 
 		// Use themable context menus when custom titlebar is enabled to match custom menubar
-		if (!isMacintosh && this.getCustomTitleBarStyle() === 'custom') {
+		if (!isMacintosh && this.useCustomTitleBarStyle()) {
 			serviceCollection.set(IContextMenuService, new SyncDescriptor(HTMLContextMenuService, [null]));
 		} else {
 			serviceCollection.set(IContextMenuService, new SyncDescriptor(NativeContextMenuService));
@@ -522,8 +522,7 @@ export class Workbench extends Disposable implements IPartService {
 		}
 
 		// Changing fullscreen state of the window has an impact on custom title bar visibility, so we need to update
-		const hasCustomTitle = this.getCustomTitleBarStyle() === 'custom';
-		if (hasCustomTitle) {
+		if (this.useCustomTitleBarStyle()) {
 			this._onTitleBarVisibilityChange.fire();
 			this.layout(); // handle title bar when fullscreen changes
 		}
@@ -933,26 +932,8 @@ export class Workbench extends Disposable implements IPartService {
 		this.panelPosition = (panelPosition === 'right') ? Position.RIGHT : Position.BOTTOM;
 	}
 
-	private getCustomTitleBarStyle(): 'custom' {
-		const isDev = !this.environmentService.isBuilt || this.environmentService.isExtensionDevelopment;
-		if (isMacintosh && isDev) {
-			return null; // not enabled when developing due to https://github.com/electron/electron/issues/3647
-		}
-
-		const windowConfig = this.configurationService.getValue<IWindowSettings>();
-		if (windowConfig && windowConfig.window) {
-			const useNativeTabs = isMacintosh && windowConfig.window.nativeTabs;
-			if (useNativeTabs) {
-				return null; // native tabs on sierra do not work with custom title style
-			}
-
-			const style = windowConfig.window.titleBarStyle;
-			if (style === 'custom') {
-				return style;
-			}
-		}
-
-		return null;
+	private useCustomTitleBarStyle(): boolean {
+		return getTitleBarStyle(this.configurationService, this.environmentService) === 'custom';
 	}
 
 	private setStatusBarHidden(hidden: boolean, skipLayout?: boolean): void {
@@ -1039,7 +1020,7 @@ export class Workbench extends Disposable implements IPartService {
 
 
 		// Menubar visibility changes
-		if ((isWindows || isLinux) && this.getCustomTitleBarStyle() === 'custom') {
+		if ((isWindows || isLinux) && this.useCustomTitleBarStyle()) {
 			this.titlebarPart.onMenubarVisibilityChange()(e => this.onMenubarToggled(e));
 		}
 
@@ -1205,7 +1186,7 @@ export class Workbench extends Disposable implements IPartService {
 	isVisible(part: Parts): boolean {
 		switch (part) {
 			case Parts.TITLEBAR_PART:
-				if (this.getCustomTitleBarStyle() !== 'custom') {
+				if (!this.useCustomTitleBarStyle()) {
 					return false;
 				} else if (!browser.isFullscreen()) {
 					return true;

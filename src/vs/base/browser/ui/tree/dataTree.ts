@@ -92,21 +92,21 @@ class DataTreeRenderer<T, TFilterData, TTemplateData> implements ITreeRenderer<I
 function asTreeEvent<T>(e: ITreeEvent<IDataTreeNode<T>>): ITreeEvent<T> {
 	return {
 		browserEvent: e.browserEvent,
-		elements: e.elements.map(e => e.element)
+		elements: e.elements.map(e => e.element!)
 	};
 }
 
 function asTreeMouseEvent<T>(e: ITreeMouseEvent<IDataTreeNode<T>>): ITreeMouseEvent<T> {
 	return {
 		browserEvent: e.browserEvent,
-		element: e.element.element
+		element: e.element && e.element.element!
 	};
 }
 
 function asTreeContextMenuEvent<T>(e: ITreeContextMenuEvent<IDataTreeNode<T>>): ITreeContextMenuEvent<T> {
 	return {
 		browserEvent: e.browserEvent,
-		element: e.element.element,
+		element: e.element && e.element.element!,
 		anchor: e.anchor
 	};
 }

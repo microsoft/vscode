@@ -23,6 +23,7 @@ export interface IFindInputOptions extends IFindInputStyles {
 	readonly width?: number;
 	readonly validation?: IInputValidator;
 	readonly label: string;
+	readonly flexibleHeight?: boolean;
 
 	readonly appendCaseSensitiveLabel?: string;
 	readonly appendWholeWordsLabel?: string;
@@ -118,7 +119,7 @@ export class FindInput extends Widget {
 		this.domNode = null;
 		this.inputBox = null;
 
-		this.buildDomNode(options.appendCaseSensitiveLabel || '', options.appendWholeWordsLabel || '', options.appendRegexLabel || '', options.history);
+		this.buildDomNode(options.appendCaseSensitiveLabel || '', options.appendWholeWordsLabel || '', options.appendRegexLabel || '', options.history, options.flexibleHeight);
 
 		if (Boolean(parent)) {
 			parent.appendChild(this.domNode);
@@ -287,7 +288,7 @@ export class FindInput extends Widget {
 		this.inputBox.width = w;
 	}
 
-	private buildDomNode(appendCaseSensitiveLabel: string, appendWholeWordsLabel: string, appendRegexLabel: string, history: string[]): void {
+	private buildDomNode(appendCaseSensitiveLabel: string, appendWholeWordsLabel: string, appendRegexLabel: string, history: string[], flexibleHeight: boolean): void {
 		this.domNode = document.createElement('div');
 		this.domNode.style.width = this.width + 'px';
 		dom.addClass(this.domNode, 'monaco-findInput');
@@ -310,7 +311,8 @@ export class FindInput extends Widget {
 			inputValidationErrorBackground: this.inputValidationErrorBackground,
 			inputValidationErrorForeground: this.inputValidationErrorForeground,
 			inputValidationErrorBorder: this.inputValidationErrorBorder,
-			history
+			history,
+			flexibleHeight
 		}));
 
 		this.regex = this._register(new RegexCheckbox({

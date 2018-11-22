@@ -8,6 +8,7 @@ import { basename, dirname } from 'vs/base/common/paths';
 import { ITextModel } from 'vs/editor/common/model';
 import { Selection } from 'vs/editor/common/core/selection';
 import { VariableResolver, Variable, Text } from 'vs/editor/contrib/snippet/snippetParser';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { getLeadingWhitespace, commonPrefixLength, isFalsyOrWhitespace, pad } from 'vs/base/common/strings';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
@@ -34,6 +35,9 @@ export const KnownSnippetVariableNames = Object.freeze({
 	'TM_FILENAME_BASE': true,
 	'TM_DIRECTORY': true,
 	'TM_FILEPATH': true,
+	'BLOCK_COMMENT_START': true,
+	'BLOCK_COMMENT_END': true,
+	'LINE_COMMENT': true,
 });
 
 export class CompositeSnippetVariableResolver implements VariableResolver {
@@ -180,7 +184,29 @@ export class ClipboardBasedVariableResolver implements VariableResolver {
 		}
 	}
 }
-
+export class CommentBasedVariableResolver implements VariableResolver {
+	constructor(
+		private readonly _model: ITextModel
+	) {
+		//
+	}
+	resolve(variable: Variable): string | undefined {
+		const { name } = variable;
+		const language = this._model.getLanguageIdentifier();
+		const config = LanguageConfigurationRegistry.getComments(language.id);
+		if (!config) {
+			return undefined;
+		}
+		if (name === 'LINE_COMMENT') {
+			return config.lineCommentToken || undefined;
+		} else if (name === 'BLOCK_COMMENT_START') {
+			return config.blockCommentStartToken || undefined;
+		} else if (name === 'BLOCK_COMMENT_END') {
+			return config.blockCommentEndToken || undefined;
+		}
+		return undefined;
+	}
+}
 export class TimeBasedVariableResolver implements VariableResolver {
 
 	private static readonly dayNames = [nls.localize('Sunday', "Sunday"), nls.localize('Monday', "Monday"), nls.localize('Tuesday', "Tuesday"), nls.localize('Wednesday', "Wednesday"), nls.localize('Thursday', "Thursday"), nls.localize('Friday', "Friday"), nls.localize('Saturday', "Saturday")];
