@@ -7,7 +7,7 @@ import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IWorkspaceStorageChangeEvent, IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { Storage, IStorageLoggingOptions, NullStorage, IStorage } from 'vs/base/node/storage';
+import { Storage, IStorageLoggingOptions, NullStorage, IStorage, StorageHint } from 'vs/base/node/storage';
 import { IStorageLegacyService, StorageLegacyScope } from 'vs/platform/storage/common/storageLegacyService';
 import { startsWith, endsWith } from 'vs/base/common/strings';
 import { Action } from 'vs/base/common/actions';
@@ -98,7 +98,7 @@ export class StorageService extends Disposable implements IStorageService {
 
 		// Workspace Storage (in-memory only, other users require the initalize() call)
 		if (options.storeInMemory) {
-			this.createWorkspaceStorage(Storage.IN_MEMORY_PATH);
+			this.createWorkspaceStorage(Storage.IN_MEMORY_PATH, StorageHint.STORAGE_DOES_NOT_EXIST);
 		}
 	}
 
@@ -130,7 +130,7 @@ export class StorageService extends Disposable implements IStorageService {
 
 				// Create workspace storage and initalize
 				mark('willInitWorkspaceStorage');
-				return this.createWorkspaceStorage(workspaceStoragePath).init().then(() => {
+				return this.createWorkspaceStorage(workspaceStoragePath, result.wasCreated ? StorageHint.STORAGE_DOES_NOT_EXIST : void 0).init().then(() => {
 					mark('didInitWorkspaceStorage');
 
 					// Migrate storage if this is the first start and we are not using in-memory
@@ -275,7 +275,7 @@ export class StorageService extends Disposable implements IStorageService {
 		});
 	}
 
-	private createWorkspaceStorage(workspaceStoragePath: string): IStorage {
+	private createWorkspaceStorage(workspaceStoragePath: string, hint?: StorageHint): IStorage {
 
 		// Dispose old (if any)
 		this.workspaceStorage = dispose(this.workspaceStorage);
@@ -283,7 +283,7 @@ export class StorageService extends Disposable implements IStorageService {
 
 		// Create new
 		this.workspaceStoragePath = workspaceStoragePath;
-		this.workspaceStorage = new Storage({ path: workspaceStoragePath, logging: this.loggingOptions });
+		this.workspaceStorage = new Storage({ path: workspaceStoragePath, logging: this.loggingOptions, hint });
 		this.workspaceStorageListener = this.workspaceStorage.onDidChangeStorage(key => this.handleDidChangeStorage(key, StorageScope.WORKSPACE));
 
 		return this.workspaceStorage;
