@@ -9,7 +9,7 @@ import { distinct } from 'vs/base/common/arrays';
 import { getErrorMessage, isPromiseCanceledError, canceled } from 'vs/base/common/errors';
 import { StatisticType, IGalleryExtension, IExtensionGalleryService, IGalleryExtensionAsset, IQueryOptions, SortBy, SortOrder, IExtensionManifest, IExtensionIdentifier, IReportedExtension, InstallOperation, ITranslation } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId, getGalleryExtensionTelemetryData, adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { assign, getOrDefault2 } from 'vs/base/common/objects';
+import { assign, getOrDefault } from 'vs/base/common/objects';
 import { IRequestService } from 'vs/platform/request/node/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IPager } from 'vs/base/common/paging';
@@ -402,7 +402,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 
 		const type = options.names ? 'ids' : (options.text ? 'text' : 'all');
 		let text = options.text || '';
-		const pageSize = getOrDefault2(options, o => o.pageSize, 50);
+		const pageSize = getOrDefault(options, o => o.pageSize, 50);
 
 		/* __GDPR__
 			"galleryService:query" : {

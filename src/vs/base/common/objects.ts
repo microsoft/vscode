@@ -218,7 +218,7 @@ export function safeStringify(obj: any): string {
 	});
 }
 
-export function getOrDefault2<T, R>(obj: T, fn: (obj: T) => R | undefined, defaultValue: R): R {
+export function getOrDefault<T, R>(obj: T, fn: (obj: T) => R | undefined, defaultValue: R): R {
 	const result = fn(obj);
 	return typeof result === 'undefined' ? defaultValue : result;
 }
