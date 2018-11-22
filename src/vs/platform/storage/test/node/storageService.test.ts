@@ -85,19 +85,23 @@ suite('StorageService', () => {
 	test('Migrate Data', async () => {
 		class StorageTestEnvironmentService extends EnvironmentService {
 
-			constructor(private workspaceStorageFolderPath: string) {
+			constructor(private workspaceStorageFolderPath: string, private _extensionsPath) {
 				super(parseArgs(process.argv), process.execPath);
 			}
 
 			get workspaceStorageHome(): string {
 				return this.workspaceStorageFolderPath;
 			}
+
+			get extensionsPath(): string {
+				return this._extensionsPath;
+			}
 		}
 
 		const storageDir = uniqueStorageDir();
 		await mkdirp(storageDir);
 
-		const storage = new StorageService({}, new NullLogService(), new StorageTestEnvironmentService(storageDir));
+		const storage = new StorageService({}, new NullLogService(), new StorageTestEnvironmentService(storageDir, storageDir));
 		await storage.initialize({ id: String(Date.now()) });
 
 		storage.store('bar', 'foo', StorageScope.WORKSPACE);
