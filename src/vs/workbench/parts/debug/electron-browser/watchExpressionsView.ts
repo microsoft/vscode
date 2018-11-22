@@ -12,7 +12,7 @@ import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewl
 import { IDebugService, IExpression, IDebugModel } from 'vs/workbench/parts/debug/common/debug';
 import { Expression, Variable, DebugModel } from 'vs/workbench/parts/debug/common/debugModel';
 import { AddWatchExpressionAction, RemoveAllWatchExpressionsAction, EditWatchExpressionAction, RemoveWatchExpressionAction } from 'vs/workbench/parts/debug/browser/debugActions';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IAction } from 'vs/base/common/actions';
@@ -26,6 +26,11 @@ import { ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ITreeContextMenuEvent, ITreeMouseEvent } from 'vs/base/browser/ui/tree/abstractTree';
+import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
+import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 const $ = dom.$;
 const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
@@ -52,11 +57,13 @@ export class WatchExpressionsView extends ViewletPanel {
 		}, 50);
 	}
 
-	public renderBody(container: HTMLElement): void {
+	renderBody(container: HTMLElement): void {
 		dom.addClass(container, 'debug-watch');
 		const treeContainer = renderViewTree(container);
 
-		this.tree = new DataTree(treeContainer, new WatchExpressionsDelegate(), [this.instantiationService.createInstance(ExpressionsRenderer), new VariablesRenderer()],
+		const expressionsRenderer = this.instantiationService.createInstance(ExpressionsRenderer);
+		this.disposables.push(expressionsRenderer);
+		this.tree = new DataTree(treeContainer, new WatchExpressionsDelegate(), [expressionsRenderer, new VariablesRenderer()],
 			new WatchExpressionsDataSource(this.debugService), {
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'watchAriaTreeLabel' }, "Debug Watch Expressions"),
 				accessibilityProvider: new WatchExpressionsAccessibilityProvider(),
@@ -77,14 +84,9 @@ export class WatchExpressionsView extends ViewletPanel {
 		this.disposables.push(this.debugService.getModel().onDidChangeWatchExpressions(we => {
 			if (!this.isExpanded() || !this.isVisible()) {
 				this.needsRefresh = true;
-				return;
+			} else {
+				this.tree.refresh(null).then();
 			}
-
-			this.tree.refresh(null).then(() => {
-				if (we instanceof Expression) {
-					this.tree.reveal(we);
-				}
-			});
 		}));
 		this.disposables.push(this.debugService.getViewModel().onDidFocusStackFrame(() => {
 			if (!this.isExpanded() || !this.isVisible()) {
@@ -96,29 +98,20 @@ export class WatchExpressionsView extends ViewletPanel {
 				this.onWatchExpressionsUpdatedScheduler.schedule();
 			}
 		}));
-
-		this.disposables.push(this.debugService.getViewModel().onDidSelectExpression(expression => {
-			if (expression instanceof Expression) {
-				this.tree.refresh(expression);
-			}
-		}));
 	}
 
 	layoutBody(size: number): void {
-		// if (this.treeContainer) {
-		// 	this.treeContainer.style.height = size + 'px';
-		// }
 		this.tree.layout(size);
 	}
 
-	public setExpanded(expanded: boolean): void {
+	setExpanded(expanded: boolean): void {
 		super.setExpanded(expanded);
 		if (expanded && this.needsRefresh) {
 			this.onWatchExpressionsUpdatedScheduler.schedule();
 		}
 	}
 
-	public setVisible(visible: boolean): void {
+	setVisible(visible: boolean): void {
 		super.setVisible(visible);
 		if (visible && this.needsRefresh) {
 			this.onWatchExpressionsUpdatedScheduler.schedule();
@@ -218,88 +211,131 @@ class WatchExpressionsDataSource implements IDataSource<IExpression | IDebugMode
 }
 
 interface IWatchExpressionTemplateData {
-	watchExpression: HTMLElement;
 	expression: HTMLElement;
 	name: HTMLSpanElement;
 	value: HTMLSpanElement;
-	enableRenameBox();
+	inputBoxContainer: HTMLElement;
+	enableInputBox(expression: IExpression);
+	toDispose: IDisposable[];
 }
 
-
-class ExpressionsRenderer implements ITreeRenderer<Expression, void, IWatchExpressionTemplateData> {
+class ExpressionsRenderer implements ITreeRenderer<Expression, void, IWatchExpressionTemplateData>, IDisposable {
 
 	static readonly ID = 'watchExpression';
 
-	// private renderedElements = new Map<Expression, IWatchExpressionTemplateData>();
+	private renderedExpressions = new Map<IExpression, IWatchExpressionTemplateData>();
 	private toDispose: IDisposable[];
 
 	constructor(
 		@IDebugService private debugService: IDebugService,
-		// @IContextViewService private contextViewService: IContextViewService,
-		// @IThemeService private themeService: IThemeService
+		@IContextViewService private contextViewService: IContextViewService,
+		@IThemeService private themeService: IThemeService
 	) {
 		this.toDispose = [];
 
-
-		// this.disposables.push(this.debugService.getViewModel().onDidSelectExpression(expression => {
-		// 	const template = this.renderedElements.get(expression);
-
-		// 	if (template) {
-		// 		template.enableRenameBox();
-		// 	}
-		// }));
+		this.toDispose.push(this.debugService.getViewModel().onDidSelectExpression(expression => {
+			const template = this.renderedExpressions.get(expression);
+			if (template) {
+				template.enableInputBox(expression);
+			}
+		}));
 	}
 
 	get templateId() {
 		return ExpressionsRenderer.ID;
 	}
 
-	public renderTemplate(container: HTMLElement): IWatchExpressionTemplateData {
+	renderTemplate(container: HTMLElement): IWatchExpressionTemplateData {
 		const data: IWatchExpressionTemplateData = Object.create(null);
 		data.expression = dom.append(container, $('.expression'));
 		data.name = dom.append(data.expression, $('span.name'));
 		data.value = dom.append(data.expression, $('span.value'));
-		data.watchExpression = dom.append(container, $('.watch-expression'));
+		data.inputBoxContainer = dom.append(container, $('.inputBoxContainer'));
 
-		data.enableRenameBox = () => {
-			//create input box.. hide other stuff, etc.
+		data.enableInputBox = (expression: IExpression) => {
+			data.expression.style.display = 'none';
+			data.inputBoxContainer.style.display = 'inherit';
+
+			const inputBox = new InputBox(data.inputBoxContainer, this.contextViewService, {
+				placeholder: nls.localize('watchExpressionPlaceholder', "Expression to watch"),
+				ariaLabel: nls.localize('watchExpressionInputAriaLabel', "Type watch expression")
+			});
+			const styler = attachInputBoxStyler(inputBox, this.themeService);
+
+			inputBox.value = expression.name ? expression.name : '';
+			inputBox.focus();
+			inputBox.select();
+
+			let disposed = false;
+			data.toDispose = [inputBox, styler];
+
+			const wrapUp = (renamed: boolean) => {
+				if (!disposed) {
+					disposed = true;
+					this.debugService.getViewModel().setSelectedExpression(undefined);
+					if (renamed && inputBox.value) {
+						this.debugService.renameWatchExpression(expression.getId(), inputBox.value);
+					} else if (!expression.name) {
+						this.debugService.removeWatchExpressions(expression.getId());
+					}
+
+					// need to remove the input box since this template will be reused.
+					data.inputBoxContainer.removeChild(inputBox.element);
+					data.expression.style.display = 'inherit';
+					data.inputBoxContainer.style.display = 'none';
+					dispose(data.toDispose);
+				}
+			};
+
+			data.toDispose.push(dom.addStandardDisposableListener(inputBox.inputElement, 'keydown', (e: IKeyboardEvent) => {
+				const isEscape = e.equals(KeyCode.Escape);
+				const isEnter = e.equals(KeyCode.Enter);
+				if (isEscape || isEnter) {
+					e.preventDefault();
+					e.stopPropagation();
+					wrapUp(isEnter);
+				}
+			}));
+			data.toDispose.push(dom.addDisposableListener(inputBox.inputElement, 'blur', () => {
+				wrapUp(true);
+			}));
 		};
 
 		return data;
 	}
 
-	public renderElement({ element: expression }: ITreeNode<Expression>, index: number, data: IWatchExpressionTemplateData): void {
-		let selectedExpression = this.debugService.getViewModel().getSelectedExpression();
-		if ((selectedExpression instanceof Expression && selectedExpression.getId() === expression.getId())) {
-			// TODO@Isidor
-			// renderRenameBox(this.debugService, this.contextViewService, this.themeService, tree, expression, data.expression, {
-			// 	initialValue: expression.name,
-			// 	placeholder: nls.localize('watchExpressionPlaceholder', "Expression to watch"),
-			// 	ariaLabel: nls.localize('watchExpressionInputAriaLabel', "Type watch expression")
-			// });
-		}
+	renderElement({ element }: ITreeNode<Expression>, index: number, data: IWatchExpressionTemplateData): void {
+		this.renderedExpressions.set(element, data);
+		if (element === this.debugService.getViewModel().getSelectedExpression()) {
+			data.enableInputBox(element);
+		} else {
+			data.name.textContent = element.name;
+			renderExpressionValue(element, data.value, {
+				showChanged: true,
+				maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
+				preserveWhitespace: false,
+				showHover: true,
+				colorize: true
+			});
+			data.name.title = element.type ? element.type : element.value;
 
-		data.name.textContent = expression.name;
-		renderExpressionValue(expression, data.value, {
-			showChanged: true,
-			maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
-			preserveWhitespace: false,
-			showHover: true,
-			colorize: true
-		});
-		data.name.title = expression.type ? expression.type : expression.value;
-
-		if (typeof expression.value === 'string') {
-			data.name.textContent += ':';
+			if (typeof element.value === 'string') {
+				data.name.textContent += ':';
+			}
 		}
 	}
 
-	public disposeTemplate(templateData: IWatchExpressionTemplateData): void {
-		// noop
+	disposeTemplate(templateData: IWatchExpressionTemplateData): void {
+		dispose(templateData.toDispose);
 	}
 
-	public disposeElement(element: ITreeNode<Expression, void>, index: number, templateData: IWatchExpressionTemplateData): void {
-		this.toDispose = dispose(this.toDispose);
+	disposeElement(element: ITreeNode<Expression, void>): void {
+		this.renderedExpressions.delete(element.element);
+	}
+
+	dispose(): void {
+		this.renderedExpressions = undefined;
+		dispose(this.toDispose);
 	}
 }
 
@@ -346,13 +382,14 @@ class WatchExpressionsAccessibilityProvider implements IAccessibilityProvider<IE
 	}
 }
 
+// TODO@Isidor
 // class WatchExpressionsDragAndDrop extends DefaultDragAndDrop {
 
 // 	constructor(private debugService: IDebugService) {
 // 		super();
 // 	}
 
-// 	public getDragURI(tree: ITree, element: Expression): string {
+// 	getDragURI(tree: ITree, element: Expression): string {
 // 		if (!(element instanceof Expression) || element === this.debugService.getViewModel().getSelectedExpression()) {
 // 			return null;
 // 		}
@@ -360,7 +397,7 @@ class WatchExpressionsAccessibilityProvider implements IAccessibilityProvider<IE
 // 		return element.getId();
 // 	}
 
-// 	public getDragLabel(tree: ITree, elements: Expression[]): string {
+// 	getDragLabel(tree: ITree, elements: Expression[]): string {
 // 		if (elements.length > 1) {
 // 			return String(elements.length);
 // 		}
@@ -368,7 +405,7 @@ class WatchExpressionsAccessibilityProvider implements IAccessibilityProvider<IE
 // 		return elements[0].name;
 // 	}
 
-// 	public onDragOver(tree: ITree, data: IDragAndDropData, target: Expression | DebugModel, originalEvent: DragMouseEvent): IDragOverReaction {
+// 	onDragOver(tree: ITree, data: IDragAndDropData, target: Expression | DebugModel, originalEvent: DragMouseEvent): IDragOverReaction {
 // 		if (target instanceof Expression || target instanceof DebugModel) {
 // 			return {
 // 				accept: true,
@@ -379,7 +416,7 @@ class WatchExpressionsAccessibilityProvider implements IAccessibilityProvider<IE
 // 		return DRAG_OVER_REJECT;
 // 	}
 
-// 	public drop(tree: ITree, data: IDragAndDropData, target: Expression | DebugModel, originalEvent: DragMouseEvent): void {
+// 	drop(tree: ITree, data: IDragAndDropData, target: Expression | DebugModel, originalEvent: DragMouseEvent): void {
 // 		const draggedData = data.getData();
 // 		if (Array.isArray(draggedData)) {
 // 			const draggedElement = <Expression>draggedData[0];

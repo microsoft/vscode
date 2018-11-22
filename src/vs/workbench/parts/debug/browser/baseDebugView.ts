@@ -143,11 +143,7 @@ export function renderRenameBox(debugService: IDebugService, contextViewService:
 		if (!disposed) {
 			disposed = true;
 			debugService.getViewModel().setSelectedExpression(undefined);
-			if (element instanceof Expression && renamed && inputBox.value) {
-				debugService.renameWatchExpression(element.getId(), inputBox.value);
-			} else if (element instanceof Expression && !element.name) {
-				debugService.removeWatchExpressions(element.getId());
-			} else if (element instanceof Variable) {
+			if (element instanceof Variable) {
 				element.errorMessage = null;
 				if (renamed && element.value !== inputBox.value) {
 					element.setVariable(inputBox.value)
