@@ -182,10 +182,10 @@ export function del(path: string, tmp = getTmpDir()): Promise<void> {
 	return nfcall(extfs.del, path, tmp);
 }
 
-export function whenDeleted(path: string): TPromise<void> {
+export function whenDeleted(path: string): Promise<void> {
 
 	// Complete when wait marker file is deleted
-	return new TPromise<void>(c => {
+	return new Promise<void>(resolve => {
 		let running = false;
 		const interval = setInterval(() => {
 			if (!running) {
@@ -195,7 +195,7 @@ export function whenDeleted(path: string): TPromise<void> {
 
 					if (!exists) {
 						clearInterval(interval);
-						c(void 0);
+						resolve(void 0);
 					}
 				});
 			}
