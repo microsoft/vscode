@@ -532,7 +532,7 @@ export class TestPartService implements IPartService {
 export class TestStorageService extends StorageService {
 
 	constructor() {
-		super(':memory:', false, new NullLogService());
+		super({ storeInMemory: true }, new NullLogService(), TestEnvironmentService);
 	}
 }
 
