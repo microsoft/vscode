@@ -861,8 +861,8 @@ export class WindowsManager implements IWindowsMainService {
 			if (path) {
 				pathsToOpen.push(path);
 			} else {
-				// Warn about the invalid URI or path
 
+				// Warn about the invalid URI or path
 				let message, detail;
 				if (pathToOpen.scheme === Schemas.file) {
 					message = localize('pathNotExistTitle', "Path does not exist");

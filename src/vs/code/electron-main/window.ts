@@ -850,6 +850,10 @@ export class CodeWindow implements ICodeWindow {
 		return windowConfig.nativeFullScreen !== false;
 	}
 
+	isMinimized(): boolean {
+		return this._win.isMinimized();
+	}
+
 	private getMenuBarVisibility(): MenuBarVisibility {
 		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 		if (!windowConfig || !windowConfig.menuBarVisibility) {
