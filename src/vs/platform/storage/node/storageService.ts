@@ -312,7 +312,7 @@ export class StorageService extends Disposable implements IStorageService {
 	}
 
 	private ensureWorkspaceStorageFolderMeta(payload: IWorkspaceInitializationPayload): void {
-		let meta: object;
+		let meta: object | undefined = void 0;
 		if (isSingleFolderWorkspaceInitializationPayload(payload)) {
 			meta = { folder: payload.folder.toString() };
 		} else if (isWorkspaceIdentifier(payload)) {
