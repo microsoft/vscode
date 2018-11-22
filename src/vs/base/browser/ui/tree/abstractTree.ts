@@ -8,7 +8,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IListOptions, List, IIdentityProvider, IMultipleSelectionController, IListStyles, IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListEvent, IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
 import { append, $, toggleClass } from 'vs/base/browser/dom';
-import { Event, Relay, chain } from 'vs/base/common/event';
+import { Event, Relay, chain, mapEvent } from 'vs/base/common/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ITreeModel, ITreeNode, ITreeRenderer, ITreeModelOptions } from 'vs/base/browser/ui/tree/tree';
@@ -175,8 +175,44 @@ function isInputElement(e: HTMLElement): boolean {
 }
 
 export interface ITreeOptions<T, TFilterData = void> extends IListOptions<T>, ITreeModelOptions<T, TFilterData> { }
-export interface ITreeEvent<T, TFilterData> extends IListEvent<ITreeNode<T, TFilterData>> { }
-export interface ITreeContextMenuEvent<T, TFilterData> extends IListContextMenuEvent<ITreeNode<T, TFilterData>> { }
+
+export interface ITreeEvent<T> {
+	elements: T[];
+	browserEvent?: UIEvent;
+}
+
+export interface ITreeMouseEvent<T> {
+	browserEvent: MouseEvent;
+	element: T | undefined;
+}
+
+export interface ITreeContextMenuEvent<T> {
+	browserEvent: UIEvent;
+	element: T | undefined;
+	anchor: HTMLElement | { x: number; y: number; } | undefined;
+}
+
+function asTreeEvent<T>(event: IListEvent<ITreeNode<T, any>>): ITreeEvent<T> {
+	return {
+		elements: event.elements.map(node => node.element),
+		browserEvent: event.browserEvent
+	};
+}
+
+function asTreeMouseEvent<T>(event: IListMouseEvent<ITreeNode<T, any>>): ITreeMouseEvent<T> {
+	return {
+		browserEvent: event.browserEvent,
+		element: event.element && event.element.element
+	};
+}
+
+function asTreeContextMenuEvent<T>(event: IListContextMenuEvent<ITreeNode<T, any>>): ITreeContextMenuEvent<T> {
+	return {
+		element: event.element && event.element.element,
+		browserEvent: event.browserEvent,
+		anchor: event.anchor
+	};
+}
 
 export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable {
 
@@ -184,15 +220,18 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	protected model: ITreeModel<T, TFilterData, TRef>;
 	protected disposables: IDisposable[] = [];
 
-	readonly onDidChangeCollapseState: Event<ITreeNode<T, TFilterData>>;
-	readonly onDidChangeRenderNodeCount: Event<ITreeNode<T, TFilterData>>;
-	readonly onDidChangeFocus: Event<ITreeEvent<T, TFilterData>>;
-	readonly onDidChangeSelection: Event<ITreeEvent<T, TFilterData>>;
+	get onDidChangeFocus(): Event<ITreeEvent<T>> { return mapEvent(this.view.onFocusChange, asTreeEvent); }
+	get onDidChangeSelection(): Event<ITreeEvent<T>> { return mapEvent(this.view.onSelectionChange, asTreeEvent); }
 
-	readonly onContextMenu: Event<ITreeContextMenuEvent<T, TFilterData>>;
-
+	get onMouseClick(): Event<ITreeMouseEvent<T>> { return mapEvent(this.view.onMouseClick, asTreeMouseEvent); }
+	get onMouseDblClick(): Event<ITreeMouseEvent<T>> { return mapEvent(this.view.onMouseDblClick, asTreeMouseEvent); }
+	get onContextMenu(): Event<ITreeContextMenuEvent<T>> { return mapEvent(this.view.onContextMenu, asTreeContextMenuEvent); }
 	get onDidFocus(): Event<void> { return this.view.onDidFocus; }
 	get onDidBlur(): Event<void> { return this.view.onDidBlur; }
+
+	get onDidChangeCollapseState(): Event<ITreeNode<T, TFilterData>> { return this.model.onDidChangeCollapseState; }
+	get onDidChangeRenderNodeCount(): Event<ITreeNode<T, TFilterData>> { return this.model.onDidChangeRenderNodeCount; }
+
 	get onDidDispose(): Event<void> { return this.view.onDidDispose; }
 
 	constructor(
@@ -208,17 +247,12 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.disposables.push(...treeRenderers);
 
 		this.view = new List(container, treeDelegate, treeRenderers, createComposedTreeListOptions(options));
-		this.onDidChangeFocus = this.view.onFocusChange;
-		this.onDidChangeSelection = this.view.onSelectionChange;
-		this.onContextMenu = this.view.onContextMenu;
 
 		this.model = this.createModel(this.view, options);
 		onDidChangeCollapseStateRelay.input = this.model.onDidChangeCollapseState;
-		this.onDidChangeCollapseState = this.model.onDidChangeCollapseState;
-		this.onDidChangeRenderNodeCount = this.model.onDidChangeRenderNodeCount;
 
 		if (options.mouseSupport !== false) {
-			this.view.onMouseClick(this.onMouseClick, this, this.disposables);
+			this.view.onMouseClick(this.reactOnMouseClick, this, this.disposables);
 		}
 
 		if (options.keyboardSupport !== false) {
@@ -365,7 +399,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		return this.view.getRelativeTop(index);
 	}
 
-	private onMouseClick(e: IListMouseEvent<ITreeNode<T, TFilterData>>): void {
+	private reactOnMouseClick(e: IListMouseEvent<ITreeNode<T, TFilterData>>): void {
 		const node = e.element;
 
 		if (!node) {

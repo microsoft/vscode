@@ -312,7 +312,7 @@ export class WorkbenchShell extends Disposable {
 				loggedStorageErrors.add(errorStr);
 
 				/* __GDPR__
-					"sqliteStorageError4" : {
+					"sqliteStorageError5" : {
 						"appReadyTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"workbenchReadyTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"workspaceExistsTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -327,7 +327,7 @@ export class WorkbenchShell extends Disposable {
 						"storageError": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 					}
 				*/
-				this.telemetryService.publicLog('sqliteStorageError4', {
+				this.telemetryService.publicLog('sqliteStorageError5', {
 					'appReadyTime': appReadyDuration,
 					'workbenchReadyTime': workbenchReadyDuration,
 					'workspaceExistsTime': workspaceStorageFileExistsDuration,
@@ -354,7 +354,7 @@ export class WorkbenchShell extends Disposable {
 		}
 
 		/* __GDPR__
-			"sqliteStorageTimers4" : {
+			"sqliteStorageTimers5" : {
 				"appReadyTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"workbenchReadyTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"workspaceExistsTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -368,7 +368,7 @@ export class WorkbenchShell extends Disposable {
 				"startupKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 			}
 		*/
-		this.telemetryService.publicLog('sqliteStorageTimers4', {
+		this.telemetryService.publicLog('sqliteStorageTimers5', {
 			'appReadyTime': appReadyDuration,
 			'workbenchReadyTime': workbenchReadyDuration,
 			'workspaceExistsTime': workspaceStorageFileExistsDuration,

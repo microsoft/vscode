@@ -64,12 +64,24 @@ export function rename(oldPath: string, newPath: string): Promise<void> {
 	return nfcall(fs.rename, oldPath, newPath);
 }
 
+export function renameIgnoreError(oldPath: string, newPath: string): Promise<void> {
+	return new Promise(resolve => {
+		fs.rename(oldPath, newPath, () => resolve());
+	});
+}
+
 export function rmdir(path: string): Promise<void> {
 	return nfcall(fs.rmdir, path);
 }
 
 export function unlink(path: string): Promise<void> {
 	return nfcall(fs.unlink, path);
+}
+
+export function unlinkIgnoreError(path: string): Promise<void> {
+	return new Promise(resolve => {
+		fs.unlink(path, () => resolve());
+	});
 }
 
 export function symlink(target: string, path: string, type?: string): Promise<void> {

@@ -594,7 +594,7 @@ export class ObjectTreeResourceNavigator<T, TFilterData> extends Disposable {
 		this._register(this.tree.onDidChangeSelection(e => this.onSelection(e)));
 	}
 
-	private onFocus(e: ITreeEvent<T, TFilterData>): void {
+	private onFocus(e: ITreeEvent<T>): void {
 		const focus = this.tree.getFocus();
 		this.tree.setSelection(focus, e.browserEvent);
 
@@ -609,7 +609,7 @@ export class ObjectTreeResourceNavigator<T, TFilterData> extends Disposable {
 		}
 	}
 
-	private onSelection(e: ITreeEvent<T, TFilterData>): void {
+	private onSelection(e: ITreeEvent<T>): void {
 		if (!e.browserEvent || !(e.browserEvent instanceof MouseEvent)) {
 			return;
 		}

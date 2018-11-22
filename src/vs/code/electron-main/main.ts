@@ -100,6 +100,7 @@ function createPaths(environmentService: IEnvironmentService): TPromise<any> {
 		environmentService.extensionsPath,
 		environmentService.nodeCachedDataDir,
 		environmentService.logsPath,
+		environmentService.globalStorageHome,
 		environmentService.workspaceStorageHome
 	];
 

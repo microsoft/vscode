@@ -120,7 +120,7 @@
 						"type": "string",
 						"description": "The name of the license"
 					},
-					"isOnlyDevelopmentDependency": {
+					"developmentDependency": {
 						"type": "boolean",
 						"description": "This component is inlined in the vscode repo and **is not shipped**."
 					},

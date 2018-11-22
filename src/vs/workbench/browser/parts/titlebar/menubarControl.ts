@@ -9,7 +9,7 @@ import * as strings from 'vs/base/common/strings';
 import { IMenubarMenu, IMenubarMenuItemAction, IMenubarMenuItemSubmenu, IMenubarKeybinding, IMenubarService, IMenubarData } from 'vs/platform/menubar/common/menubar';
 import { IMenuService, MenuId, IMenu, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { registerThemingParticipant, ITheme, ICssStyleCollector, IThemeService } from 'vs/platform/theme/common/themeService';
-import { IWindowService, MenuBarVisibility, IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowService, MenuBarVisibility, IWindowsService, getTitleBarStyle } from 'vs/platform/windows/common/windows';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ActionRunner, IActionRunner, IAction, Action } from 'vs/base/common/actions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -35,6 +35,7 @@ import { attachMenuStyler } from 'vs/platform/theme/common/styler';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 const $ = DOM.$;
 
@@ -130,7 +131,8 @@ export class MenubarControl extends Disposable {
 		@IUpdateService private updateService: IUpdateService,
 		@IStorageService private storageService: IStorageService,
 		@INotificationService private notificationService: INotificationService,
-		@IPreferencesService private preferencesService: IPreferencesService
+		@IPreferencesService private preferencesService: IPreferencesService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 
 		super();
@@ -214,7 +216,7 @@ export class MenubarControl extends Disposable {
 	}
 
 	private get currentTitlebarStyleSetting(): string {
-		return this.configurationService.getValue<string>('window.titleBarStyle');
+		return getTitleBarStyle(this.configurationService, this.environmentService);
 	}
 
 	private get focusState(): MenubarState {

@@ -3,23 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITreeOptions, ComposedTreeDelegate, createComposedTreeListOptions } from 'vs/base/browser/ui/tree/abstractTree';
+import { ITreeOptions, ComposedTreeDelegate, createComposedTreeListOptions, ITreeEvent, ITreeContextMenuEvent, ITreeMouseEvent } from 'vs/base/browser/ui/tree/abstractTree';
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeElement, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter, Event, mapEvent } from 'vs/base/common/event';
 import { timeout } from 'vs/base/common/async';
-
-export interface IDataTreeElement<T> {
-	readonly element: T;
-	readonly collapsible?: boolean;
-	readonly collapsed?: boolean;
-}
 
 export interface IDataSource<T extends NonNullable<any>> {
 	hasChildren(element: T | null): boolean;
-	getChildren(element: T | null): Thenable<IDataTreeElement<T>[]>;
+	getChildren(element: T | null): Thenable<T[]>;
 }
 
 enum DataTreeNodeState {
@@ -95,6 +89,28 @@ class DataTreeRenderer<T, TFilterData, TTemplateData> implements ITreeRenderer<I
 	}
 }
 
+function asTreeEvent<T>(e: ITreeEvent<IDataTreeNode<T>>): ITreeEvent<T> {
+	return {
+		browserEvent: e.browserEvent,
+		elements: e.elements.map(e => e.element!)
+	};
+}
+
+function asTreeMouseEvent<T>(e: ITreeMouseEvent<IDataTreeNode<T>>): ITreeMouseEvent<T> {
+	return {
+		browserEvent: e.browserEvent,
+		element: e.element && e.element.element!
+	};
+}
+
+function asTreeContextMenuEvent<T>(e: ITreeContextMenuEvent<IDataTreeNode<T>>): ITreeContextMenuEvent<T> {
+	return {
+		browserEvent: e.browserEvent,
+		element: e.element && e.element.element!,
+		anchor: e.anchor
+	};
+}
+
 export class DataTree<T extends NonNullable<any>, TFilterData = void> implements IDisposable {
 
 	private tree: ObjectTree<IDataTreeNode<T>, TFilterData>;
@@ -104,6 +120,17 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 	private _onDidChangeNodeState = new Emitter<IDataTreeNode<T>>();
 
 	private disposables: IDisposable[] = [];
+
+	get onDidChangeFocus(): Event<ITreeEvent<T>> { return mapEvent(this.tree.onDidChangeFocus, asTreeEvent); }
+	get onDidChangeSelection(): Event<ITreeEvent<T>> { return mapEvent(this.tree.onDidChangeSelection, asTreeEvent); }
+
+	get onMouseClick(): Event<ITreeMouseEvent<T>> { return mapEvent(this.tree.onMouseClick, asTreeMouseEvent); }
+	get onMouseDblClick(): Event<ITreeMouseEvent<T>> { return mapEvent(this.tree.onMouseDblClick, asTreeMouseEvent); }
+	get onContextMenu(): Event<ITreeContextMenuEvent<T>> { return mapEvent(this.tree.onContextMenu, asTreeContextMenuEvent); }
+	get onDidDOMFocus(): Event<void> { return this.tree.onDidFocus; }
+	get onDidDOMBlur(): Event<void> { return this.tree.onDidBlur; }
+
+	get onDidDispose(): Event<void> { return this.tree.onDidDispose; }
 
 	constructor(
 		container: HTMLElement,
@@ -125,7 +152,7 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 
 		this.nodes.set(null, this.root);
 
-		this.tree.onDidChangeCollapseState(this.onDidChangeCollapseState, this, this.disposables);
+		this.tree.onDidChangeCollapseState(this._onDidChangeCollapseState, this, this.disposables);
 	}
 
 	layout(height?: number): void {
@@ -169,15 +196,17 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 					node.state = DataTreeNodeState.Loaded;
 					this._onDidChangeNodeState.fire(node);
 
-					const createTreeElement = (el: IDataTreeElement<T>): ITreeElement<IDataTreeNode<T>> => {
+					const createTreeElement = (element: T): ITreeElement<IDataTreeNode<T>> => {
+						const collapsible = this.dataSource.hasChildren(element);
+
 						return {
 							element: {
-								element: el.element,
+								element: element,
 								state: DataTreeNodeState.Uninitialized,
 								parent: node
 							},
-							collapsible: el.collapsible,
-							collapsed: typeof el.collapsed === 'boolean' ? el.collapsed : true
+							collapsible,
+							collapsed: true
 						};
 					};
 
@@ -198,7 +227,7 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 		}
 	}
 
-	private onDidChangeCollapseState(treeNode: ITreeNode<IDataTreeNode<T>, any>): void {
+	private _onDidChangeCollapseState(treeNode: ITreeNode<IDataTreeNode<T>, any>): void {
 		if (!treeNode.collapsed && treeNode.element.state === DataTreeNodeState.Uninitialized) {
 			this.refreshNode(treeNode.element);
 		}

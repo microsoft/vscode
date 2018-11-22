@@ -271,7 +271,7 @@ export class DropdownMenuActionItem extends BaseActionItem {
 	private actionItemProvider: IActionItemProvider;
 	private keybindings: (action: IAction) => ResolvedKeybinding;
 	private clazz: string;
-	private anchorAlignmentProvider: () => AnchorAlignment;
+	private anchorAlignmentProvider: (() => AnchorAlignment) | undefined;
 
 	constructor(action: IAction, menuActions: IAction[], contextMenuProvider: IContextMenuProvider, actionItemProvider: IActionItemProvider, actionRunner: IActionRunner, keybindings: (action: IAction) => ResolvedKeybinding, clazz: string, anchorAlignmentProvider?: () => AnchorAlignment);
 	constructor(action: IAction, actionProvider: IActionProvider, contextMenuProvider: IContextMenuProvider, actionItemProvider: IActionItemProvider, actionRunner: IActionRunner, keybindings: (action: IAction) => ResolvedKeybinding, clazz: string, anchorAlignmentProvider?: () => AnchorAlignment);
@@ -314,16 +314,23 @@ export class DropdownMenuActionItem extends BaseActionItem {
 
 		this.dropdownMenu = this._register(new DropdownMenu(container, options));
 
-		const that = this;
 		this.dropdownMenu.menuOptions = {
 			actionItemProvider: this.actionItemProvider,
 			actionRunner: this.actionRunner,
 			getKeyBinding: this.keybindings,
-			context: this._context,
-			get anchorAlignment(): AnchorAlignment {
-				return that.anchorAlignmentProvider();
-			}
+			context: this._context
 		};
+
+		if (this.anchorAlignmentProvider) {
+			const that = this;
+
+			this.dropdownMenu.menuOptions = {
+				...this.dropdownMenu.menuOptions,
+				get anchorAlignment(): AnchorAlignment {
+					return that.anchorAlignmentProvider();
+				}
+			};
+		}
 	}
 
 	setActionContext(newContext: any): void {

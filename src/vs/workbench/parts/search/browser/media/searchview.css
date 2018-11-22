@@ -29,14 +29,30 @@
 	margin-left: 17px;
 }
 
-.search-view .search-widget .input-box,
-.search-view .search-widget .input-box .monaco-inputbox {
-	height: 25px;
+.search-view .search-widget .monaco-inputbox > .wrapper {
+	height: 100%;
+}
+
+.search-view .search-widget .monaco-inputbox > .wrapper > .mirror {
+	max-height: 134px;
+}
+
+.search-view .monaco-inputbox > .wrapper > textarea.input {
+	overflow: initial;
+	height: 26px; /* set initial height before measure */
+}
+
+.search-view .monaco-inputbox > .wrapper > textarea.input::-webkit-scrollbar {
+	display: none;
 }
 
 .search-view .search-widget .monaco-findInput {
 	display: inline-block;
 	vertical-align: middle;
+}
+
+.search-view .search-widget .monaco-findInput > .controls {
+	top: 4px; /* Adjust controls, search view input box is slighty taller than find widget due to measurement */
 }
 
 .search-view .search-widget .replace-container {

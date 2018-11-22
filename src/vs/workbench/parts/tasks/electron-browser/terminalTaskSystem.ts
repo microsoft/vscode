@@ -10,7 +10,6 @@ import * as Objects from 'vs/base/common/objects';
 import * as Types from 'vs/base/common/types';
 import * as Platform from 'vs/base/common/platform';
 import * as Async from 'vs/base/common/async';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { LinkedMap, Touch } from 'vs/base/common/map';
 import Severity from 'vs/base/common/severity';
@@ -48,7 +47,7 @@ interface TerminalData {
 interface ActiveTerminalData {
 	terminal: ITerminalInstance;
 	task: Task;
-	promise: TPromise<ITaskSummary>;
+	promise: Promise<ITaskSummary>;
 }
 
 class VariableResolver {
@@ -242,8 +241,8 @@ export class TerminalTaskSystem implements ITaskSystem {
 		return true;
 	}
 
-	public isActive(): TPromise<boolean> {
-		return TPromise.as(this.isActiveSync());
+	public isActive(): Promise<boolean> {
+		return Promise.resolve(this.isActiveSync());
 	}
 
 	public isActiveSync(): boolean {
@@ -258,12 +257,12 @@ export class TerminalTaskSystem implements ITaskSystem {
 		return Object.keys(this.activeTasks).map(key => this.activeTasks[key].task);
 	}
 
-	public terminate(task: Task): TPromise<TaskTerminateResponse> {
+	public terminate(task: Task): Promise<TaskTerminateResponse> {
 		let activeTerminal = this.activeTasks[Task.getMapKey(task)];
 		if (!activeTerminal) {
-			return TPromise.as<TaskTerminateResponse>({ success: false, task: undefined });
+			return Promise.resolve<TaskTerminateResponse>({ success: false, task: undefined });
 		}
-		return new TPromise<TaskTerminateResponse>((resolve, reject) => {
+		return new Promise<TaskTerminateResponse>((resolve, reject) => {
 			let terminal = activeTerminal.terminal;
 			const onExit = terminal.onExit(() => {
 				let task = activeTerminal.task;
@@ -279,12 +278,12 @@ export class TerminalTaskSystem implements ITaskSystem {
 		});
 	}
 
-	public terminateAll(): TPromise<TaskTerminateResponse[]> {
-		let promises: TPromise<TaskTerminateResponse>[] = [];
+	public terminateAll(): Promise<TaskTerminateResponse[]> {
+		let promises: Promise<TaskTerminateResponse>[] = [];
 		Object.keys(this.activeTasks).forEach((key) => {
 			let terminalData = this.activeTasks[key];
 			let terminal = terminalData.terminal;
-			promises.push(new TPromise<TaskTerminateResponse>((resolve, reject) => {
+			promises.push(new Promise<TaskTerminateResponse>((resolve, reject) => {
 				const onExit = terminal.onExit(() => {
 					let task = terminalData.task;
 					try {
@@ -299,11 +298,11 @@ export class TerminalTaskSystem implements ITaskSystem {
 			terminal.dispose();
 		});
 		this.activeTasks = Object.create(null);
-		return TPromise.join<TaskTerminateResponse>(promises);
+		return Promise.all<TaskTerminateResponse>(promises);
 	}
 
-	private executeTask(task: Task, resolver: ITaskResolver, trigger: string): TPromise<ITaskSummary> {
-		let promises: TPromise<ITaskSummary>[] = [];
+	private executeTask(task: Task, resolver: ITaskResolver, trigger: string): Promise<ITaskSummary> {
+		let promises: Promise<ITaskSummary>[] = [];
 		if (task.dependsOn) {
 			task.dependsOn.forEach((dependency) => {
 				let task = resolver.resolve(dependency.workspaceFolder, dependency.task);
@@ -326,7 +325,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 
 		if ((ContributedTask.is(task) || CustomTask.is(task)) && (task.command)) {
-			return TPromise.join(promises).then((summaries): TPromise<ITaskSummary> | ITaskSummary => {
+			return Promise.all(promises).then((summaries): Promise<ITaskSummary> | ITaskSummary => {
 				for (let summary of summaries) {
 					if (summary.exitCode !== 0) {
 						return { exitCode: summary.exitCode };
@@ -339,7 +338,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				}
 			});
 		} else {
-			return TPromise.join(promises).then((summaries): ITaskSummary => {
+			return Promise.all(promises).then((summaries): ITaskSummary => {
 				for (let summary of summaries) {
 					if (summary.exitCode !== 0) {
 						return { exitCode: summary.exitCode };
@@ -350,7 +349,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 	}
 
-	private resolveVariablesFromSet(taskSystemInfo: TaskSystemInfo, workspaceFolder: IWorkspaceFolder, task: CustomTask | ContributedTask, variables: Set<string>): TPromise<ResolvedVariables> {
+	private resolveVariablesFromSet(taskSystemInfo: TaskSystemInfo, workspaceFolder: IWorkspaceFolder, task: CustomTask | ContributedTask, variables: Set<string>): Promise<ResolvedVariables> {
 		let isProcess = task.command && task.command.runtime === RuntimeType.Process;
 		let options = task.command && task.command.options ? task.command.options : undefined;
 		let cwd = options ? options.cwd : undefined;
@@ -366,7 +365,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			}
 		}
 
-		let resolvedVariables: TPromise<ResolvedVariables>;
+		let resolvedVariables: Promise<ResolvedVariables>;
 		if (taskSystemInfo) {
 			let resolveSet: ResolveSet = {
 				variables
@@ -403,12 +402,12 @@ export class TerminalTaskSystem implements ITaskSystem {
 			let resolvedVariablesResult: ResolvedVariables = {
 				variables: result,
 			};
-			resolvedVariables = TPromise.as(resolvedVariablesResult);
+			resolvedVariables = Promise.resolve(resolvedVariablesResult);
 		}
 		return resolvedVariables;
 	}
 
-	private executeCommand(task: CustomTask | ContributedTask, trigger: string): TPromise<ITaskSummary> {
+	private executeCommand(task: CustomTask | ContributedTask, trigger: string): Promise<ITaskSummary> {
 		this.currentTask.workspaceFolder = Task.getWorkspaceFolder(task);
 		if (this.currentTask.workspaceFolder) {
 			this.currentTask.systemInfo = this.taskSystemInfoResolver(this.currentTask.workspaceFolder);
@@ -424,7 +423,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		});
 	}
 
-	private reexecuteCommand(task: CustomTask | ContributedTask, trigger: string): TPromise<ITaskSummary> {
+	private reexecuteCommand(task: CustomTask | ContributedTask, trigger: string): Promise<ITaskSummary> {
 		this.currentTask.workspaceFolder = this.lastTask.workspaceFolder;
 		let variables = new Set<string>();
 		this.collectTaskVariables(variables, task);
@@ -448,13 +447,13 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 	}
 
-	private executeInTerminal(task: CustomTask | ContributedTask, trigger: string, resolver: VariableResolver): TPromise<ITaskSummary> {
+	private executeInTerminal(task: CustomTask | ContributedTask, trigger: string, resolver: VariableResolver): Promise<ITaskSummary> {
 		let terminal: ITerminalInstance | undefined = undefined;
 		let executedCommand: string | undefined = undefined;
 		let error: TaskError | undefined = undefined;
-		let promise: TPromise<ITaskSummary> | undefined = undefined;
+		let promise: Promise<ITaskSummary> | undefined = undefined;
 		if (task.isBackground) {
-			promise = new TPromise<ITaskSummary>((resolve, reject) => {
+			promise = new Promise<ITaskSummary>((resolve, reject) => {
 				const problemMatchers = this.resolveMatchers(resolver, task.problemMatchers);
 				let watchingProblemMatcher = new WatchingProblemCollector(problemMatchers, this.markerService, this.modelService);
 				let toDispose: IDisposable[] = [];
@@ -541,7 +540,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				});
 			});
 		} else {
-			promise = new TPromise<ITaskSummary>((resolve, reject) => {
+			promise = new Promise<ITaskSummary>((resolve, reject) => {
 				[terminal, executedCommand, error] = this.createTerminal(task, resolver);
 				if (error || !terminal) {
 					return;
@@ -598,10 +597,10 @@ export class TerminalTaskSystem implements ITaskSystem {
 			});
 		}
 		if (error) {
-			return TPromise.wrapError<ITaskSummary>(new Error(error.message));
+			return Promise.reject(new Error(error.message));
 		}
 		if (!terminal) {
-			return TPromise.wrapError<ITaskSummary>(new Error(`Failed to create terminal for task ${task._label}`));
+			return Promise.reject(new Error(`Failed to create terminal for task ${task._label}`));
 		}
 		if (task.command.presentation.reveal === RevealKind.Always) {
 			this.terminalService.setActiveInstance(terminal);
@@ -649,7 +648,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				this.telemetryService.publicLog(TerminalTaskSystem.TelemetryEventName, telemetryEvent);
 			} catch (error) {
 			}
-			return TPromise.wrapError<ITaskSummary>(error);
+			return Promise.reject<ITaskSummary>(error);
 		});
 	}
 

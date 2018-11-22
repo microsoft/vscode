@@ -111,6 +111,9 @@ export class EnvironmentService implements IEnvironmentService {
 	get appSettingsPath(): string { return path.join(this.appSettingsHome, 'settings.json'); }
 
 	@memoize
+	get globalStorageHome(): string { return path.join(this.appSettingsHome, 'globalStorage'); }
+
+	@memoize
 	get workspaceStorageHome(): string { return path.join(this.appSettingsHome, 'workspaceStorage'); }
 
 	@memoize

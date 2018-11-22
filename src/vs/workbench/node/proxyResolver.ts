@@ -60,6 +60,7 @@ function createProxyAgent(
 		extHostWorkspace.resolveProxy(url)
 			.then(proxy => {
 				callback(proxy);
+				extHostLogService.info('ProxyResolver#resolveProxy', url, proxy);
 			}).then(() => {
 				count++;
 				duration = Date.now() - start + duration;
