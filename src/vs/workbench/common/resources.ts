@@ -74,6 +74,8 @@ export class ResourceContextKey extends Disposable implements IContextKey<URI> {
 		this._langIdKey.reset();
 		this._extensionKey.reset();
 		this._hasResource.reset();
+		this._isFileSystemResource.reset();
+		this._isFileSystemResourceOrUntitled.reset();
 	}
 
 	get(): URI | undefined {
