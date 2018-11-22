@@ -57,10 +57,10 @@ export class TerminalLauncher implements ITerminalLauncher {
 				resolve(t.processId);
 			});
 
-			// do not wait longer than 1 second
+			// do not wait longer than 5 seconds
 			setTimeout(_ => {
 				error(new Error('terminal shell timeout'));
-			}, 1000);
+			}, 5000);
 
 		}).then(shellProcessId => {
 
