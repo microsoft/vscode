@@ -9,7 +9,7 @@ import * as dom from 'vs/base/browser/dom';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { CollapseAction2 } from 'vs/workbench/browser/viewlet';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IDebugService, IExpression, IDebugModel } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IExpression } from 'vs/workbench/parts/debug/common/debug';
 import { Expression, Variable, DebugModel } from 'vs/workbench/parts/debug/common/debugModel';
 import { AddWatchExpressionAction, RemoveAllWatchExpressionsAction, EditWatchExpressionAction, RemoveWatchExpressionAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -39,7 +39,7 @@ export class WatchExpressionsView extends ViewletPanel {
 
 	private onWatchExpressionsUpdatedScheduler: RunOnceScheduler;
 	private needsRefresh: boolean;
-	private tree: DataTree<any>;
+	private tree: DataTree<IExpression>;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -182,11 +182,11 @@ class WatchExpressionsDelegate implements IListVirtualDelegate<IExpression> {
 	}
 }
 
-class WatchExpressionsDataSource implements IDataSource<IExpression | IDebugModel> {
+class WatchExpressionsDataSource implements IDataSource<IExpression> {
 
 	constructor(private debugService: IDebugService) { }
 
-	hasChildren(element: IExpression | IDebugModel | null): boolean {
+	hasChildren(element: IExpression | null): boolean {
 		if (element === null) {
 			return true;
 		}
@@ -197,7 +197,7 @@ class WatchExpressionsDataSource implements IDataSource<IExpression | IDebugMode
 		return (<IExpression>element).hasChildren;
 	}
 
-	getChildren(element: IExpression | null): Thenable<(IExpression | IDebugModel)[]> {
+	getChildren(element: IExpression | null): Thenable<(IExpression)[]> {
 		if (element === null) {
 			const watchExpressions = this.debugService.getModel().getWatchExpressions();
 			const viewModel = this.debugService.getViewModel();
