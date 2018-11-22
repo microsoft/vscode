@@ -255,7 +255,7 @@ class ExpressionsRenderer implements ITreeRenderer<Expression, void, IWatchExpre
 		data.enableInputBox = (expression: IExpression) => {
 			data.name.style.display = 'none';
 			data.value.style.display = 'none';
-			data.inputBoxContainer.style.display = 'inherit';
+			data.inputBoxContainer.style.display = 'initial';
 
 			const inputBox = new InputBox(data.inputBoxContainer, this.contextViewService, {
 				placeholder: nls.localize('watchExpressionPlaceholder', "Expression to watch"),
@@ -282,8 +282,8 @@ class ExpressionsRenderer implements ITreeRenderer<Expression, void, IWatchExpre
 
 					// need to remove the input box since this template will be reused.
 					data.inputBoxContainer.removeChild(inputBox.element);
-					data.name.style.display = 'inherit';
-					data.value.style.display = 'inherit';
+					data.name.style.display = 'initial';
+					data.value.style.display = 'initial';
 					data.inputBoxContainer.style.display = 'none';
 					dispose(data.toDispose);
 				}
