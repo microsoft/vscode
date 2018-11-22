@@ -54,6 +54,7 @@ export interface ITaskService {
 	terminate(task: Task): TPromise<TaskTerminateResponse>;
 	terminateAll(): TPromise<TaskTerminateResponse[]>;
 	tasks(filter?: TaskFilter): TPromise<Task[]>;
+	workspaceTasks(): TPromise<Task[]>;
 	/**
 	 * @param alias The task's name, label or defined identifier.
 	 */

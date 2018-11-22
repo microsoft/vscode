@@ -29,7 +29,7 @@ import { LinkedMap, Touch } from 'vs/base/common/map';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IMarkerService, MarkerStatistics } from 'vs/platform/markers/common/markers';
@@ -93,8 +93,13 @@ import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/
 
 import { TaskDefinitionRegistry } from 'vs/workbench/parts/tasks/common/taskDefinitionRegistry';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { RunAutomaticTasks } from 'vs/workbench/parts/tasks/electron-browser/runAutomaticTasks';
 
 let tasksCategory = nls.localize('tasksCategory', "Tasks");
+
+const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
+workbenchRegistry.registerWorkbenchContribution(RunAutomaticTasks, LifecyclePhase.Eventually);
 
 namespace ConfigureTaskAction {
 	export const ID = 'workbench.action.tasks.configureTaskRunner';
@@ -1378,7 +1383,7 @@ class TaskService extends Disposable implements ITaskService {
 					}
 				}
 			}
-			return this.getWorkspaceTasks().then((customTasks) => {
+			return this.getWorkspaceTasksResults().then((customTasks) => {
 				customTasks.forEach((folderTasks, key) => {
 					let contributed = contributedTasks.get(key);
 					if (!folderTasks.set) {
@@ -1493,12 +1498,23 @@ class TaskService extends Disposable implements ITaskService {
 		return result;
 	}
 
-	private getWorkspaceTasks(): TPromise<Map<string, WorkspaceFolderTaskResult>> {
+	private getWorkspaceTasksResults(): TPromise<Map<string, WorkspaceFolderTaskResult>> {
 		if (this._workspaceTasksPromise) {
 			return this._workspaceTasksPromise;
 		}
 		this.updateWorkspaceTasks();
 		return this._workspaceTasksPromise;
+	}
+
+	public workspaceTasks(): TPromise<Task[]> {
+		const workspaceTasksResult = this.getWorkspaceTasksResults();
+		return workspaceTasksResult.then(results => {
+			let tasks: Task[] = new Array();
+			results.forEach(value => {
+				tasks = tasks.concat(value.set.tasks);
+			});
+			return tasks;
+		});
 	}
 
 	private updateWorkspaceTasks(): void {
