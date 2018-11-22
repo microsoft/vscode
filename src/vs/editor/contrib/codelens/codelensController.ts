@@ -179,7 +179,13 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 				this._disposeAllLenses(null, null);
 			}
 		}));
-
+		this._localToDispose.push(this._editor.onDidChangeConfiguration(e => {
+			if (e.fontInfo) {
+				for (const lens of this._lenses) {
+					lens.updateHeight();
+				}
+			}
+		}));
 		scheduler.schedule();
 	}
 

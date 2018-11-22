@@ -6,7 +6,7 @@
 import 'vs/css!./codelensWidget';
 import * as dom from 'vs/base/browser/dom';
 import { coalesce, isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { escape, format } from 'vs/base/common/strings';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
@@ -60,7 +60,7 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 
 	private readonly _id: string;
 	private readonly _domNode: HTMLElement;
-	private readonly _disposables: IDisposable[] = [];
+	private readonly _disposable: IDisposable;
 	private readonly _editor: editorBrowser.ICodeEditor;
 
 	private _widgetPosition: editorBrowser.IContentWidgetPosition;
@@ -82,11 +82,9 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 		this._domNode.innerHTML = '&nbsp;';
 		dom.addClass(this._domNode, 'codelens-decoration');
 		dom.addClass(this._domNode, 'invisible-cl');
-		this._updateHeight();
+		this.updateHeight();
 
-		this._disposables.push(this._editor.onDidChangeConfiguration(e => e.fontInfo && this._updateHeight()));
-
-		this._disposables.push(dom.addDisposableListener(this._domNode, 'click', e => {
+		this._disposable = dom.addDisposableListener(this._domNode, 'click', e => {
 			let element = <HTMLElement>e.target;
 			if (element.tagName === 'A' && element.id) {
 				let command = this._commands[element.id];
@@ -97,16 +95,16 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 					});
 				}
 			}
-		}));
+		});
 
 		this.updateVisibility();
 	}
 
 	dispose(): void {
-		dispose(this._disposables);
+		this._disposable.dispose();
 	}
 
-	private _updateHeight(): void {
+	updateHeight(): void {
 		const { fontInfo, lineHeight } = this._editor.getConfiguration();
 		this._domNode.style.height = `${Math.round(lineHeight * 1.1)}px`;
 		this._domNode.style.lineHeight = `${lineHeight}px`;
@@ -300,6 +298,10 @@ export class CodeLens {
 
 	updateCommands(symbols: ICodeLensSymbol[]): void {
 		this._contentWidget.withCommands(symbols);
+	}
+
+	updateHeight(): void {
+		this._contentWidget.updateHeight();
 	}
 
 	getLineNumber(): number {
