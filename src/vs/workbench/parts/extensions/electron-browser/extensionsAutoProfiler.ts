@@ -16,12 +16,12 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 	private readonly _session = new Map<ICpuProfilerTarget, CancellationTokenSource>();
 
 	constructor(
-		@IExtensionService extensionService: IExtensionService,
+		@IExtensionService private _extensionService: IExtensionService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
-		this._register(extensionService.onDidChangeResponsiveChange(this._onDidChangeResponsiveChange, this));
+		this._register(_extensionService.onDidChangeResponsiveChange(this._onDidChangeResponsiveChange, this));
 	}
 
 	private async _onDidChangeResponsiveChange(event: IResponsiveStateChangeEvent): Promise<void> {
@@ -106,17 +106,23 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 			}
 		}
 
-		this._logService.warn(`UNRESPONSIVE extension host, '${top ? top.id : 'unknown'}' took ${top ? top.percentage : 'unknown'}% of ${duration / 1e3}ms`, data);
-
-		/* __GDPR__
-			"exthostunresponsive" : {
-				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-				"data": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+		this._extensionService.getExtension(top.id).then(extension => {
+			if (!extension) {
+				return;
 			}
-		*/
-		this._telemetryService.publicLog('exthostunresponsive', {
-			duration,
-			data
+
+			this._logService.warn(`UNRESPONSIVE extension host, '${top ? top.id : 'unknown'}' took ${top ? top.percentage : 'unknown'}% of ${duration / 1e3}ms`, data);
+
+			/* __GDPR__
+				"exthostunresponsive" : {
+					"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+					"data": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+				}
+			*/
+			this._telemetryService.publicLog('exthostunresponsive', {
+				duration,
+				data
+			});
 		});
 	}
 }
