@@ -161,6 +161,13 @@ export class RipgrepParser extends EventEmitter {
 		this.handleDecodedData(this.stringDecoder.end());
 	}
 
+
+	on(event: 'result', listener: (result: vscode.TextSearchResult) => void);
+	on(event: 'hitLimit', listener: () => void);
+	on(event: string, listener: (...args: any[]) => void) {
+		super.on(event, listener);
+	}
+
 	public handleData(data: Buffer | string): void {
 		if (this.isDone) {
 			return;
@@ -427,12 +434,12 @@ export function unicodeEscapesToPCRE2(pattern: string): string {
 	return pattern;
 }
 
-interface IRgMessage {
+export interface IRgMessage {
 	type: 'match' | 'context' | string;
 	data: IRgMatch;
 }
 
-interface IRgMatch {
+export interface IRgMatch {
 	path: IRgBytesOrText;
 	lines: IRgBytesOrText;
 	line_number: number;
@@ -440,13 +447,13 @@ interface IRgMatch {
 	submatches: IRgSubmatch[];
 }
 
-interface IRgSubmatch {
+export interface IRgSubmatch {
 	match: IRgBytesOrText;
 	start: number;
 	end: number;
 }
 
-type IRgBytesOrText = { bytes: string } | { text: string };
+export type IRgBytesOrText = { bytes: string } | { text: string };
 
 export function fixRegexEndingPattern(pattern: string): string {
 	// Replace an unescaped $ at the end of the pattern with \r?$
