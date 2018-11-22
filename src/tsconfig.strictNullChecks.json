@@ -510,7 +510,7 @@
 		"./vs/platform/statusbar/common/statusbar.ts",
 		"./vs/platform/storage/common/storage.ts",
 		"./vs/platform/storage/common/storageLegacyService.ts",
-		"./vs/platform/storage/node/storageService.ts",
+		//"./vs/platform/storage/node/storageService.ts", TODO@Ben bring back when storageMigration is removed
 		"./vs/platform/telemetry/browser/errorTelemetry.ts",
 		"./vs/platform/telemetry/common/telemetry.ts",
 		"./vs/platform/telemetry/common/telemetryService.ts",

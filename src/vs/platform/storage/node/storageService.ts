@@ -7,21 +7,31 @@ import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IWorkspaceStorageChangeEvent, IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { Storage, IStorageLoggingOptions, NullStorage, IStorage } from 'vs/base/node/storage';
+import { Storage, IStorageLoggingOptions, NullStorage, IStorage, StorageHint } from 'vs/base/node/storage';
 import { IStorageLegacyService, StorageLegacyScope } from 'vs/platform/storage/common/storageLegacyService';
-import { startsWith } from 'vs/base/common/strings';
+import { startsWith, endsWith } from 'vs/base/common/strings';
 import { Action } from 'vs/base/common/actions';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { localize } from 'vs/nls';
 import { mark, getDuration } from 'vs/base/common/performance';
-import { join, basename } from 'path';
-import { copy } from 'vs/base/node/pfs';
+import { join } from 'path';
+import { copy, exists, mkdirp, readdir, writeFile } from 'vs/base/node/pfs';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkspaceInitializationPayload, isWorkspaceIdentifier, isSingleFolderWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { StorageObject, parseMultiRootStorage, parseFolderStorage, parseNoWorkspaceStorage, parseEmptyStorage } from 'vs/platform/storage/common/storageLegacyMigration';
+
+export interface IStorageServiceOptions {
+	storeInMemory?: boolean;
+	disableGlobalStorage?: boolean;
+}
 
 export class StorageService extends Disposable implements IStorageService {
 	_serviceBrand: any;
 
-	static IN_MEMORY_PATH = ':memory:';
+	private static WORKSPACE_STORAGE_NAME = 'storage.db';
+	private static WORKSPACE_META_NAME = 'workspace.json';
 
 	private _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
 	get onDidChangeStorage(): Event<IWorkspaceStorageChangeEvent> { return this._onDidChangeStorage.event; }
@@ -60,9 +70,9 @@ export class StorageService extends Disposable implements IStorageService {
 	private loggingOptions: IStorageLoggingOptions;
 
 	constructor(
-		workspaceStoragePath: string,
-		disableGlobalStorage: boolean,
-		@ILogService logService: ILogService
+		private options: IStorageServiceOptions,
+		@ILogService private logService: ILogService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super();
 
@@ -81,14 +91,191 @@ export class StorageService extends Disposable implements IStorageService {
 			}
 		};
 
-		this.globalStorageWorkspacePath = workspaceStoragePath === StorageService.IN_MEMORY_PATH ? StorageService.IN_MEMORY_PATH : StorageService.IN_MEMORY_PATH;
-		this.globalStorage = disableGlobalStorage ? new NullStorage() : new Storage({ path: this.globalStorageWorkspacePath, logging: this.loggingOptions });
+		// Global Storage
+		this.globalStorageWorkspacePath = options.storeInMemory ? Storage.IN_MEMORY_PATH : Storage.IN_MEMORY_PATH;
+		this.globalStorage = options.disableGlobalStorage ? new NullStorage() : new Storage({ path: this.globalStorageWorkspacePath, logging: this.loggingOptions });
 		this._register(this.globalStorage.onDidChangeStorage(key => this.handleDidChangeStorage(key, StorageScope.GLOBAL)));
 
-		this.createWorkspaceStorage(workspaceStoragePath);
+		// Workspace Storage (in-memory only, other users require the initalize() call)
+		if (options.storeInMemory) {
+			this.createWorkspaceStorage(Storage.IN_MEMORY_PATH, StorageHint.STORAGE_DOES_NOT_EXIST);
+		}
 	}
 
-	private createWorkspaceStorage(workspaceStoragePath: string): void {
+	private handleDidChangeStorage(key: string, scope: StorageScope): void {
+		this._onDidChangeStorage.fire({ key, scope });
+	}
+
+	initialize(payload: IWorkspaceInitializationPayload): Thenable<void> {
+
+		// Prepare workspace storage folder for DB
+		return this.prepareWorkspaceStorageFolder(payload).then(result => {
+			let workspaceStoragePath: string;
+			let workspaceStorageExists: Thenable<boolean>;
+			if (this.options.storeInMemory) {
+				workspaceStoragePath = Storage.IN_MEMORY_PATH;
+				workspaceStorageExists = Promise.resolve(true);
+			} else {
+				workspaceStoragePath = join(result.path, StorageService.WORKSPACE_STORAGE_NAME);
+
+				mark('willCheckWorkspaceStorageExists');
+				workspaceStorageExists = exists(workspaceStoragePath).then(exists => {
+					mark('didCheckWorkspaceStorageExists');
+
+					return exists;
+				});
+			}
+
+			return workspaceStorageExists.then(exists => {
+
+				// Create workspace storage and initalize
+				mark('willInitWorkspaceStorage');
+				return this.createWorkspaceStorage(workspaceStoragePath, result.wasCreated ? StorageHint.STORAGE_DOES_NOT_EXIST : void 0).init().then(() => {
+					mark('didInitWorkspaceStorage');
+
+					// Migrate storage if this is the first start and we are not using in-memory
+					let migrationPromise: Thenable<void>;
+					if (!this.options.storeInMemory && !exists) {
+						migrationPromise = this.migrateWorkspaceStorage(payload);
+					} else {
+						migrationPromise = Promise.resolve();
+					}
+
+					return migrationPromise.then(() => {
+						mark('willInitGlobalStorage');
+						return this.globalStorage.init().then(() => {
+							mark('didInitGlobalStorage');
+						});
+					});
+				});
+			});
+		});
+	}
+
+	// TODO@Ben remove migration after a while
+	private migrateWorkspaceStorage(payload: IWorkspaceInitializationPayload): Thenable<void> {
+		mark('willMigrateWorkspaceStorageKeys');
+		return readdir(this.environmentService.extensionsPath).then(extensions => {
+
+			// Otherwise, we migrate data from window.localStorage over
+			try {
+				let workspaceItems: StorageObject;
+				if (isWorkspaceIdentifier(payload)) {
+					workspaceItems = parseMultiRootStorage(window.localStorage, `root:${payload.id}`);
+				} else if (isSingleFolderWorkspaceInitializationPayload(payload)) {
+					workspaceItems = parseFolderStorage(window.localStorage, payload.folder.toString());
+				} else {
+					if (payload.id === 'ext-dev') {
+						workspaceItems = parseNoWorkspaceStorage(window.localStorage);
+					} else {
+						workspaceItems = parseEmptyStorage(window.localStorage, `${payload.id}`);
+					}
+				}
+
+				const workspaceItemsKeys = workspaceItems ? Object.keys(workspaceItems) : [];
+				if (workspaceItemsKeys.length > 0) {
+					const supportedKeys = new Map<string, string>();
+					[
+						'workbench.search.history',
+						'history.entries',
+						'ignoreNetVersionError',
+						'ignoreEnospcError',
+						'extensionUrlHandler.urlToHandle',
+						'terminal.integrated.isWorkspaceShellAllowed',
+						'workbench.tasks.ignoreTask010Shown',
+						'workbench.tasks.recentlyUsedTasks',
+						'workspaces.dontPromptToOpen',
+						'output.activechannel',
+						'outline/state',
+						'extensionsAssistant/workspaceRecommendationsIgnore',
+						'extensionsAssistant/dynamicWorkspaceRecommendations',
+						'debug.repl.history',
+						'editor.matchCase',
+						'editor.wholeWord',
+						'editor.isRegex',
+						'lifecyle.lastShutdownReason',
+						'debug.selectedroot',
+						'debug.selectedconfigname',
+						'debug.breakpoint',
+						'debug.breakpointactivated',
+						'debug.functionbreakpoint',
+						'debug.exceptionbreakpoint',
+						'debug.watchexpressions',
+						'workbench.sidebar.activeviewletid',
+						'workbench.panelpart.activepanelid',
+						'workbench.zenmode.active',
+						'workbench.centerededitorlayout.active',
+						'workbench.sidebar.restore',
+						'workbench.sidebar.hidden',
+						'workbench.panel.hidden',
+						'workbench.panel.location',
+						'extensionsIdentifiers/disabled',
+						'extensionsIdentifiers/enabled',
+						'scm.views',
+						'suggest/memories/first',
+						'suggest/memories/recentlyUsed',
+						'suggest/memories/recentlyUsedByPrefix',
+						'workbench.view.explorer.numberOfVisibleViews',
+						'workbench.view.extensions.numberOfVisibleViews',
+						'workbench.view.debug.numberOfVisibleViews',
+						'workbench.explorer.views.state',
+						'workbench.view.extensions.state',
+						'workbench.view.debug.state',
+						'memento/workbench.editor.walkThroughPart',
+						'memento/workbench.editor.settings2',
+						'memento/workbench.editor.htmlPreviewPart',
+						'memento/workbench.editor.defaultPreferences',
+						'memento/workbench.editors.files.textFileEditor',
+						'memento/workbench.editors.logViewer',
+						'memento/workbench.editors.textResourceEditor',
+						'memento/workbench.panel.output'
+					].forEach(key => supportedKeys.set(key.toLowerCase(), key));
+
+					// Support extension storage as well (always the ID of the extension)
+					extensions.forEach(extension => {
+						let extensionId: string;
+						if (extension.indexOf('-') >= 0) {
+							extensionId = extension.substring(0, extension.lastIndexOf('-')); // convert "author.extension-0.2.5" => "author.extension"
+						} else {
+							extensionId = extension;
+						}
+
+						if (extensionId) {
+							supportedKeys.set(extensionId.toLowerCase(), extensionId);
+						}
+					});
+
+					workspaceItemsKeys.forEach(key => {
+						const value = workspaceItems[key];
+
+						// first check for a well known supported key and store with realcase value
+						const supportedKey = supportedKeys.get(key);
+						if (supportedKey) {
+							this.store(supportedKey, value, StorageScope.WORKSPACE);
+						}
+
+						// fix lowercased ".numberOfVisibleViews"
+						else if (endsWith(key, '.numberOfVisibleViews'.toLowerCase())) {
+							const normalizedKey = key.substring(0, key.length - '.numberOfVisibleViews'.length) + '.numberOfVisibleViews';
+							this.store(normalizedKey, value, StorageScope.WORKSPACE);
+						}
+
+						// support dynamic keys
+						else if (key.indexOf('memento/') === 0 || key.indexOf('viewservice.') === 0 || endsWith(key, '.state')) {
+							this.store(key, value, StorageScope.WORKSPACE);
+						}
+					});
+				}
+			} catch (error) {
+				onUnexpectedError(error);
+				this.logService.error(error);
+			}
+
+			mark('didMigrateWorkspaceStorageKeys');
+		});
+	}
+
+	private createWorkspaceStorage(workspaceStoragePath: string, hint?: StorageHint): IStorage {
 
 		// Dispose old (if any)
 		this.workspaceStorage = dispose(this.workspaceStorage);
@@ -96,24 +283,52 @@ export class StorageService extends Disposable implements IStorageService {
 
 		// Create new
 		this.workspaceStoragePath = workspaceStoragePath;
-		this.workspaceStorage = new Storage({ path: workspaceStoragePath, logging: this.loggingOptions });
+		this.workspaceStorage = new Storage({ path: workspaceStoragePath, logging: this.loggingOptions, hint });
 		this.workspaceStorageListener = this.workspaceStorage.onDidChangeStorage(key => this.handleDidChangeStorage(key, StorageScope.WORKSPACE));
+
+		return this.workspaceStorage;
 	}
 
-	private handleDidChangeStorage(key: string, scope: StorageScope): void {
-		this._onDidChangeStorage.fire({ key, scope });
+	private getWorkspaceStorageFolderPath(payload: IWorkspaceInitializationPayload): string {
+		return join(this.environmentService.workspaceStorageHome, payload.id); // workspace home + workspace id;
 	}
 
-	init(): Promise<void> {
-		mark('willInitWorkspaceStorage');
-		return this.workspaceStorage.init().then(() => {
-			mark('didInitWorkspaceStorage');
+	private prepareWorkspaceStorageFolder(payload: IWorkspaceInitializationPayload): Thenable<{ path: string, wasCreated: boolean }> {
+		const workspaceStorageFolderPath = this.getWorkspaceStorageFolderPath(payload);
 
-			mark('willInitGlobalStorage');
-			return this.globalStorage.init().then(() => {
-				mark('didInitGlobalStorage');
+		return exists(workspaceStorageFolderPath).then(exists => {
+			if (exists) {
+				return { path: workspaceStorageFolderPath, wasCreated: false };
+			}
+
+			return mkdirp(workspaceStorageFolderPath).then(() => {
+
+				// Write metadata into folder
+				this.ensureWorkspaceStorageFolderMeta(payload);
+
+				return { path: workspaceStorageFolderPath, wasCreated: true };
 			});
 		});
+	}
+
+	private ensureWorkspaceStorageFolderMeta(payload: IWorkspaceInitializationPayload): void {
+		let meta: object | undefined = void 0;
+		if (isSingleFolderWorkspaceInitializationPayload(payload)) {
+			meta = { folder: payload.folder.toString() };
+		} else if (isWorkspaceIdentifier(payload)) {
+			meta = { configuration: payload.configPath };
+		}
+
+		if (meta) {
+			const workspaceStorageMetaPath = join(this.getWorkspaceStorageFolderPath(payload), StorageService.WORKSPACE_META_NAME);
+			exists(workspaceStorageMetaPath).then(exists => {
+				if (exists) {
+					return void 0; // already existing
+				}
+
+				return writeFile(workspaceStorageMetaPath, JSON.stringify(meta, void 0, 2));
+			}).then(null, error => onUnexpectedError(error));
+		}
 	}
 
 	get(key: string, scope: StorageScope, fallbackValue: string): string;
@@ -217,23 +432,24 @@ export class StorageService extends Disposable implements IStorageService {
 		});
 	}
 
-	migrate(toWorkspaceStorageFolder: string): Thenable<void> {
-		if (this.workspaceStoragePath === StorageService.IN_MEMORY_PATH) {
+	migrate(toWorkspace: IWorkspaceInitializationPayload): Thenable<void> {
+		if (this.workspaceStoragePath === Storage.IN_MEMORY_PATH) {
 			return Promise.resolve(); // no migration needed if running in memory
-		}
-
-		// Compute new workspace storage path based on workspace identifier
-		const newWorkspaceStoragePath = join(toWorkspaceStorageFolder, basename(this.workspaceStoragePath));
-		if (this.workspaceStoragePath === newWorkspaceStoragePath) {
-			return Promise.resolve(); // guard against migrating to same path
 		}
 
 		// Close workspace DB to be able to copy
 		return this.workspaceStorage.close().then(() => {
-			return copy(this.workspaceStoragePath, newWorkspaceStoragePath).then(() => {
-				this.createWorkspaceStorage(newWorkspaceStoragePath);
 
-				return this.workspaceStorage.init();
+			// Prepare new workspace storage folder
+			return this.prepareWorkspaceStorageFolder(toWorkspace).then(result => {
+				const newWorkspaceStoragePath = join(result.path, StorageService.WORKSPACE_STORAGE_NAME);
+
+				// Copy current storage over to new workspace storage
+				return copy(this.workspaceStoragePath, newWorkspaceStoragePath).then(() => {
+
+					// Recreate and init workspace storage
+					return this.createWorkspaceStorage(newWorkspaceStoragePath).init();
+				});
 			});
 		});
 	}
