@@ -97,8 +97,8 @@ class LeakageMonitor {
 		}
 
 		return () => {
-			let count = (this._stacks.get(stack) || 0);
-			this._stacks.set(stack, count - 1);
+			let count = (this._stacks!.get(stack) || 0);
+			this._stacks!.set(stack, count - 1);
 		};
 	}
 }
