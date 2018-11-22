@@ -70,7 +70,9 @@ export class Menubar {
 		this.menubarMenus = Object.create(null);
 		this.keybindings = Object.create(null);
 
-		this.restoreCachedMenubarData();
+		if (isMacintosh || this.configurationService.getValue('window.titleBarStyle') === 'native') {
+			this.restoreCachedMenubarData();
+		}
 
 		this.addFallbackHandlers();
 
