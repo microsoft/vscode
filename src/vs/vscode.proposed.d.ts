@@ -1268,11 +1268,6 @@ declare module 'vscode' {
 		 * Controls the behavior of a task when it is rerun.
 		 */
 		rerunBehavior?: RerunBehavior;
-
-		/**
-		 * Enables a task to start automatically when it's workspace or folder is opened.
-		 */
-		startAutomatically?: boolean;
 	}
 
 	/**
