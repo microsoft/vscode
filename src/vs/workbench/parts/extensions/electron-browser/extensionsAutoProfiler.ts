@@ -10,6 +10,9 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { writeFile } from 'vs/base/node/pfs';
 
 export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchContribution {
 
@@ -106,12 +109,15 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 			}
 		}
 
-		this._extensionService.getExtension(top.id).then(extension => {
+		this._extensionService.getExtension(top.id).then(async extension => {
 			if (!extension) {
 				return;
 			}
 
-			this._logService.warn(`UNRESPONSIVE extension host, '${top ? top.id : 'unknown'}' took ${top ? top.percentage : 'unknown'}% of ${duration / 1e3}ms`, data);
+			const path = join(tmpdir(), `exthost-${Math.random().toString(16).slice(2, 8)}.cpuprofile`);
+			await writeFile(path, JSON.stringify(profile.data));
+
+			this._logService.warn(`UNRESPONSIVE extension host, '${top ? top.id : 'unknown'}' took ${top ? top.percentage : 'unknown'}% of ${duration / 1e3}ms, saved PROFILE here: '${path}'`, data);
 
 			/* __GDPR__
 				"exthostunresponsive" : {
