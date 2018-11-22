@@ -51,6 +51,7 @@
 }
 
 .monaco-workbench .tree-explorer-viewlet-tree-view .message {
+	display: flex;
 	padding: 4px 12px 0px 18px;
 	user-select: text
 }
