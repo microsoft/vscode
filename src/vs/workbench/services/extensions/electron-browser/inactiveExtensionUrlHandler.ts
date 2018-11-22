@@ -83,8 +83,7 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		const extensionId = uri.authority;
 		const wasHandlerAvailable = this.extensionHandlers.has(extensionId);
 
-		return this.extensionService.getExtensions().then(extensions => {
-			const extension = extensions.filter(e => e.id === extensionId)[0];
+		return this.extensionService.getExtension(extensionId).then(extension => {
 
 			if (!extension) {
 				return this.handleUnhandledURL(uri, { id: extensionId }).then(() => false);
