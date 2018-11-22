@@ -315,6 +315,7 @@ export class TestExtensionService implements IExtensionService {
 	activateByEvent(_activationEvent: string): Thenable<void> { return Promise.resolve(void 0); }
 	whenInstalledExtensionsRegistered(): Promise<boolean> { return Promise.resolve(true); }
 	getExtensions(): Promise<IExtensionDescription[]> { return Promise.resolve([]); }
+	getExtension() { return Promise.resolve(undefined); }
 	readExtensionPointContributions<T>(_extPoint: IExtensionPoint<T>): Promise<ExtensionPointContribution<T>[]> { return Promise.resolve(Object.create(null)); }
 	getExtensionsStatus(): { [id: string]: IExtensionsStatus; } { return Object.create(null); }
 	canProfileExtensionHost(): boolean { return false; }

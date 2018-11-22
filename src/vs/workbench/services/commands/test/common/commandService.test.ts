@@ -36,6 +36,9 @@ class SimpleExtensionService implements IExtensionService {
 	getExtensions(): Promise<IExtensionDescription[]> {
 		return Promise.resolve([]);
 	}
+	getExtension() {
+		return Promise.resolve(undefined);
+	}
 	canProfileExtensionHost() {
 		return false;
 	}

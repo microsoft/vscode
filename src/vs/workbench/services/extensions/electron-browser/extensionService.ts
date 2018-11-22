@@ -474,6 +474,12 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		});
 	}
 
+	public getExtension(id: string): Promise<IExtensionDescription | undefined> {
+		return this._installedExtensionsReady.wait().then(() => {
+			return this._registry.getExtensionDescription(id);
+		});
+	}
+
 	public readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): Promise<ExtensionPointContribution<T>[]> {
 		return this._installedExtensionsReady.wait().then(() => {
 			let availableExtensions = this._registry.getAllExtensionDescriptions();
