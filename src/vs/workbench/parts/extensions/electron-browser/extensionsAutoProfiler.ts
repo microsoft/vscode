@@ -109,6 +109,10 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 			}
 		}
 
+		if (!top) {
+			return;
+		}
+
 		this._extensionService.getExtension(top.id).then(async extension => {
 			if (!extension) {
 				return;
@@ -117,7 +121,7 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 			const path = join(tmpdir(), `exthost-${Math.random().toString(16).slice(2, 8)}.cpuprofile`);
 			await writeFile(path, JSON.stringify(profile.data));
 
-			this._logService.warn(`UNRESPONSIVE extension host, '${top ? top.id : 'unknown'}' took ${top ? top.percentage : 'unknown'}% of ${duration / 1e3}ms, saved PROFILE here: '${path}'`, data);
+			this._logService.warn(`UNRESPONSIVE extension host, 'top.id' took ${top!.percentage}% of ${duration / 1e3}ms, saved PROFILE here: '${path}'`, data);
 
 			/* __GDPR__
 				"exthostunresponsive" : {
