@@ -16,7 +16,7 @@ import { IWorkspaceContextService, Workspace, WorkbenchState } from 'vs/platform
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { stat, exists, writeFile } from 'vs/base/node/pfs';
+import { stat } from 'vs/base/node/pfs';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import * as gracefulFs from 'graceful-fs';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
@@ -44,7 +44,7 @@ import { MenubarChannelClient } from 'vs/platform/menubar/node/menubarIpc';
 import { IMenubarService } from 'vs/platform/menubar/common/menubar';
 import { Schemas } from 'vs/base/common/network';
 import { sanitizeFilePath } from 'vs/base/node/extfs';
-import { basename, join } from 'path';
+import { basename } from 'path';
 import { createHash } from 'crypto';
 import { IdleValue } from 'vs/base/common/async';
 import { setGlobalLeakWarningThreshold } from 'vs/base/common/event';
@@ -135,11 +135,6 @@ function openWorkbench(configuration: IWindowConfiguration): Promise<void> {
 					logService,
 					storageService
 				}, mainServices, mainProcessClient, configuration);
-
-				// Store meta file in workspace storage after workbench is running
-				shell.onRunning(() => {
-					ensureWorkspaceStorageFolderMeta(payload, workspaceService, environmentService);
-				});
 
 				// Gracefully Shutdown Storage
 				shell.onShutdown(event => {
@@ -253,32 +248,6 @@ function createStorageService(payload: IWorkspaceInitializationPayload, environm
 
 		return storageService;
 	});
-}
-
-function getWorkspaceStoragePath(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService): string {
-	return join(environmentService.workspaceStorageHome, payload.id); // workspace home + workspace id;
-}
-
-function ensureWorkspaceStorageFolderMeta(payload: IWorkspaceInitializationPayload, workspaceService: IWorkspaceContextService, environmentService: IEnvironmentService): void {
-	const state = workspaceService.getWorkbenchState();
-	if (state === WorkbenchState.EMPTY) {
-		return; // no storage meta for empty workspaces
-	}
-
-	const workspaceStorageMetaPath = join(getWorkspaceStoragePath(payload, environmentService), 'workspace.json');
-
-	exists(workspaceStorageMetaPath).then(exists => {
-		if (exists) {
-			return void 0; // already existing
-		}
-
-		const workspace = workspaceService.getWorkspace();
-
-		return writeFile(workspaceStorageMetaPath, JSON.stringify({
-			configuration: workspace.configuration ? uri.revive(workspace.configuration).toString() : void 0,
-			folder: state === WorkbenchState.FOLDER ? uri.revive(workspace.folders[0].uri).toString() : void 0
-		}, undefined, 2));
-	}).then(null, error => onUnexpectedError(error));
 }
 
 function createStorageLegacyService(workspaceService: IWorkspaceContextService, environmentService: IEnvironmentService): IStorageLegacyService {

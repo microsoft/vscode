@@ -15,7 +15,7 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { localize } from 'vs/nls';
 import { mark, getDuration } from 'vs/base/common/performance';
 import { join } from 'path';
-import { copy, exists, mkdirp, readdir } from 'vs/base/node/pfs';
+import { copy, exists, mkdirp, readdir, writeFile } from 'vs/base/node/pfs';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceInitializationPayload, isWorkspaceIdentifier, isSingleFolderWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
@@ -31,6 +31,7 @@ export class StorageService extends Disposable implements IStorageService {
 	_serviceBrand: any;
 
 	private static WORKSPACE_STORAGE_NAME = 'storage.db';
+	private static WORKSPACE_META_NAME = 'workspace.json';
 
 	private _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
 	get onDidChangeStorage(): Event<IWorkspaceStorageChangeEvent> { return this._onDidChangeStorage.event; }
@@ -300,8 +301,34 @@ export class StorageService extends Disposable implements IStorageService {
 				return { path: workspaceStorageFolderPath, wasCreated: false };
 			}
 
-			return mkdirp(workspaceStorageFolderPath).then(() => ({ path: workspaceStorageFolderPath, wasCreated: true }));
+			return mkdirp(workspaceStorageFolderPath).then(() => {
+
+				// Write metadata into folder
+				this.ensureWorkspaceStorageFolderMeta(payload);
+
+				return { path: workspaceStorageFolderPath, wasCreated: true };
+			});
 		});
+	}
+
+	private ensureWorkspaceStorageFolderMeta(payload: IWorkspaceInitializationPayload): void {
+		let meta: object;
+		if (isSingleFolderWorkspaceInitializationPayload(payload)) {
+			meta = { folder: payload.folder.toString() };
+		} else if (isWorkspaceIdentifier(payload)) {
+			meta = { configuration: payload.configPath };
+		}
+
+		if (meta) {
+			const workspaceStorageMetaPath = join(this.getWorkspaceStorageFolderPath(payload), StorageService.WORKSPACE_META_NAME);
+			exists(workspaceStorageMetaPath).then(exists => {
+				if (exists) {
+					return void 0; // already existing
+				}
+
+				return writeFile(workspaceStorageMetaPath, JSON.stringify(meta, void 0, 2));
+			}).then(null, error => onUnexpectedError(error));
+		}
 	}
 
 	get(key: string, scope: StorageScope, fallbackValue: string): string;

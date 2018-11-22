@@ -132,6 +132,7 @@ export function toWorkspaceIdentifier(workspace: IWorkspace): IWorkspaceIdentifi
 export type IMultiFolderWorkspaceInitializationPayload = IWorkspaceIdentifier;
 export interface ISingleFolderWorkspaceInitializationPayload { id: string; folder: ISingleFolderWorkspaceIdentifier; }
 export interface IEmptyWorkspaceInitializationPayload { id: string; }
+
 export type IWorkspaceInitializationPayload = IMultiFolderWorkspaceInitializationPayload | ISingleFolderWorkspaceInitializationPayload | IEmptyWorkspaceInitializationPayload;
 
 export function isSingleFolderWorkspaceInitializationPayload(obj: any): obj is ISingleFolderWorkspaceInitializationPayload {
