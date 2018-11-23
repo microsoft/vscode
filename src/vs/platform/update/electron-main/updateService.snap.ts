@@ -214,7 +214,7 @@ export class SnapUpdateService extends AbstractUpdateService2 {
 	}
 
 	isLatestVersion(): Thenable<boolean | undefined> {
-		return this.isUpdateAvailable().then(null, err => {
+		return this.isUpdateAvailable().then(undefined, err => {
 			this.logService.error('update#checkForSnapUpdate(): Could not get realpath of application.');
 			return undefined;
 		});
