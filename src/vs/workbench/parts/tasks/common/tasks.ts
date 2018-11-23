@@ -176,21 +176,6 @@ export namespace PanelKind {
 	}
 }
 
-export namespace RerunBehavior {
-	export function fromString(value: string | undefined): RerunBehavior {
-		if (!value) {
-			return RerunBehavior.reevaluate;
-		}
-		switch (value.toLowerCase()) {
-			case 'useevaluated':
-				return RerunBehavior.useEvaluated;
-			case 'reevaulate':
-			default:
-				return RerunBehavior.reevaluate;
-		}
-	}
-}
-
 export interface PresentationOptions {
 	/**
 	 * Controls whether the task output is reveal in the user interface.
@@ -443,6 +428,7 @@ export enum RerunBehavior {
 
 export interface RunOptions {
 	rerunBehavior?: RerunBehavior;
+	startAutomatically?: boolean;
 }
 export interface CommonTask {
 
