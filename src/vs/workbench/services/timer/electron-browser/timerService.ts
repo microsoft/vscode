@@ -53,6 +53,7 @@ export interface IMemoryInfo {
 		"timers.ellapsedExtensions" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedExtensionsReady" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedRequire" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.ellapsedGlobalStorageInit" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedWorkspaceStorageRequire" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedWorkspaceStorageInit" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedViewletRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
@@ -193,6 +194,15 @@ export interface IStartupMetrics {
 		 *
 		 */
 		ellapsedWindowLoadToRequire: number;
+
+		/**
+		 * The time it took to require the global storage DB, connect to it
+		 * and load the initial set of values.
+		 *
+		 * * Happens in the main-process
+		 * * Measured with the `main:willInitGlobalStorage` and `main:didInitGlobalStorage` performance marks.
+		 */
+		ellapsedGlobalStorageInit: number;
 
 		/**
 		 * The time it took to require the workspace storage DB.
@@ -388,6 +398,7 @@ class TimerService implements ITimerService {
 				ellapsedWindowLoad: initialStartup ? perf.getDuration('main:appReady', 'main:loadWindow') : undefined,
 				ellapsedWindowLoadToRequire: perf.getDuration('main:loadWindow', 'willLoadWorkbenchMain'),
 				ellapsedRequire: perf.getDuration('willLoadWorkbenchMain', 'didLoadWorkbenchMain'),
+				ellapsedGlobalStorageInit: perf.getDuration('main:willInitGlobalStorage', 'main:didInitGlobalStorage'),
 				ellapsedWorkspaceStorageRequire: perf.getDuration('willRequireSQLite', 'didRequireSQLite'),
 				ellapsedWorkspaceStorageInit: perf.getDuration('willInitWorkspaceStorage', 'didInitWorkspaceStorage'),
 				ellapsedExtensions: perf.getDuration('willLoadExtensions', 'didLoadExtensions'),

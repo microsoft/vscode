@@ -292,6 +292,7 @@ export class WorkbenchShell extends Disposable {
 		const workbenchReadyDuration = perf.getDuration(initialStartup ? 'main:started' : 'main:loadWindow', 'didStartWorkbench');
 		const workspaceStorageRequireDuration = perf.getDuration('willRequireSQLite', 'didRequireSQLite');
 		const workspaceStorageSchemaDuration = perf.getDuration('willSetupSQLiteSchema', 'didSetupSQLiteSchema');
+		const globalStorageInitDuration = perf.getDuration('main:willInitGlobalStorage', 'main:didInitGlobalStorage');
 		const workspaceStorageInitDuration = perf.getDuration('willInitWorkspaceStorage', 'didInitWorkspaceStorage');
 		const workspaceStorageFileExistsDuration = perf.getDuration('willCheckWorkspaceStorageExists', 'didCheckWorkspaceStorageExists');
 		const workspaceStorageMigrationDuration = perf.getDuration('willMigrateWorkspaceStorageKeys', 'didMigrateWorkspaceStorageKeys');
@@ -314,6 +315,7 @@ export class WorkbenchShell extends Disposable {
 						"workspaceMigrationTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"workspaceRequireTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"workspaceSchemaTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"globalReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"workspaceReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"localStorageTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"workbenchRequireTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -329,6 +331,7 @@ export class WorkbenchShell extends Disposable {
 					'workspaceMigrationTime': workspaceStorageMigrationDuration,
 					'workspaceRequireTime': workspaceStorageRequireDuration,
 					'workspaceSchemaTime': workspaceStorageSchemaDuration,
+					'globalReadTime': globalStorageInitDuration,
 					'workspaceReadTime': workspaceStorageInitDuration,
 					'localStorageTime': localStorageDuration,
 					'workbenchRequireTime': workbenchLoadDuration,
@@ -356,6 +359,7 @@ export class WorkbenchShell extends Disposable {
 				"workspaceMigrationTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"workspaceRequireTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"workspaceSchemaTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"globalReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"workspaceReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"localStorageTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"workbenchRequireTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -370,6 +374,7 @@ export class WorkbenchShell extends Disposable {
 			'workspaceMigrationTime': workspaceStorageMigrationDuration,
 			'workspaceRequireTime': workspaceStorageRequireDuration,
 			'workspaceSchemaTime': workspaceStorageSchemaDuration,
+			'globalReadTime': globalStorageInitDuration,
 			'workspaceReadTime': workspaceStorageInitDuration,
 			'localStorageTime': localStorageDuration,
 			'workbenchRequireTime': workbenchLoadDuration,

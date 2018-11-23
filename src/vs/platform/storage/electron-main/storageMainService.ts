@@ -11,6 +11,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IStorage, Storage, IStorageLoggingOptions } from 'vs/base/node/storage';
 import { join } from 'path';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { mark } from 'vs/base/common/performance';
 
 export const IStorageMainService = createDecorator<IStorageMainService>('storageMainService');
 
@@ -125,7 +126,14 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 	}
 
 	initialize(): Thenable<void> {
-		return this.storage.init();
+		mark('main:willInitGlobalStorage');
+		return this.storage.init().then(() => {
+			mark('main:didInitGlobalStorage');
+		}, error => {
+			mark('main:didInitGlobalStorage');
+
+			return Promise.reject(error);
+		});
 	}
 
 	get(key: string, fallbackValue: string): string {
