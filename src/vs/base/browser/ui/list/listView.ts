@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getOrDefault2 } from 'vs/base/common/objects';
+import { getOrDefault } from 'vs/base/common/objects';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Gesture, EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import * as DOM from 'vs/base/browser/dom';
@@ -111,8 +111,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		this.scrollableElement = new ScrollableElement(this.rowsContainer, {
 			alwaysConsumeMouseWheel: true,
 			horizontal: ScrollbarVisibility.Hidden,
-			vertical: getOrDefault2(options, o => o.verticalScrollMode, DefaultOptions.verticalScrollMode),
-			useShadows: getOrDefault2(options, o => o.useShadows, DefaultOptions.useShadows)
+			vertical: getOrDefault(options, o => o.verticalScrollMode, DefaultOptions.verticalScrollMode),
+			useShadows: getOrDefault(options, o => o.useShadows, DefaultOptions.useShadows)
 		});
 
 		this.domNode.appendChild(this.scrollableElement.getDomNode());
@@ -131,8 +131,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		const onDragOver = mapEvent(domEvent(this.rowsContainer, 'dragover'), e => new DragMouseEvent(e));
 		onDragOver(this.onDragOver, this, this.disposables);
 
-		this.setRowLineHeight = getOrDefault2(options, o => o.setRowLineHeight, DefaultOptions.setRowLineHeight);
-		this.supportDynamicHeights = getOrDefault2(options, o => o.supportDynamicHeights, DefaultOptions.supportDynamicHeights);
+		this.setRowLineHeight = getOrDefault(options, o => o.setRowLineHeight, DefaultOptions.setRowLineHeight);
+		this.supportDynamicHeights = getOrDefault(options, o => o.supportDynamicHeights, DefaultOptions.supportDynamicHeights);
 
 		this.layout();
 	}

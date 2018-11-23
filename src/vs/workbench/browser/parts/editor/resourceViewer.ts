@@ -182,17 +182,14 @@ class FileTooLargeFileView {
 		scrollbar: DomScrollableElement,
 		metadataClb: (meta: string) => void
 	) {
-		DOM.clearNode(container);
-
 		const size = BinarySize.formatSize(descriptor.size);
+		metadataClb(size);
+
+		DOM.clearNode(container);
 
 		const label = document.createElement('span');
 		label.textContent = nls.localize('nativeFileTooLargeError', "The file is not displayed in the editor because it is too large ({0}).", size);
 		container.appendChild(label);
-
-		if (metadataClb) {
-			metadataClb(size);
-		}
 
 		scrollbar.scanDomNode();
 
@@ -208,6 +205,8 @@ class FileSeemsBinaryFileView {
 		openInternalClb: (uri: URI) => void,
 		metadataClb: (meta: string) => void
 	) {
+		metadataClb(typeof descriptor.size === 'number' ? BinarySize.formatSize(descriptor.size) : '');
+
 		DOM.clearNode(container);
 
 		const disposables: IDisposable[] = [];
@@ -222,10 +221,6 @@ class FileSeemsBinaryFileView {
 			link.textContent = nls.localize('openAsText', "Do you want to open it anyway?");
 
 			disposables.push(DOM.addDisposableListener(link, DOM.EventType.CLICK, () => openInternalClb(descriptor.resource)));
-		}
-
-		if (metadataClb) {
-			metadataClb(typeof descriptor.size === 'number' ? BinarySize.formatSize(descriptor.size) : '');
 		}
 
 		scrollbar.scanDomNode();
@@ -543,13 +538,11 @@ class InlineImageView {
 		image.style.visibility = 'hidden';
 
 		disposables.push(DOM.addDisposableListener(image, DOM.EventType.LOAD, e => {
-			let metadata: string;
 			if (typeof descriptor.size === 'number') {
 				metadataClb(nls.localize('imgMeta', '{0}x{1} {2}', image.naturalWidth, image.naturalHeight, BinarySize.formatSize(descriptor.size)));
 			} else {
 				metadataClb(nls.localize('imgMetaNoSize', '{0}x{1}', image.naturalWidth, image.naturalHeight));
 			}
-			metadataClb(metadata);
 
 			scrollbar.scanDomNode();
 			image.style.visibility = 'visible';
@@ -590,5 +583,6 @@ function getMime(descriptor: IResourceDescriptor) {
 	if (!mime && descriptor.resource.scheme !== Schemas.data) {
 		mime = mimes.getMediaMime(descriptor.resource.path);
 	}
+
 	return mime || mimes.MIME_BINARY;
 }

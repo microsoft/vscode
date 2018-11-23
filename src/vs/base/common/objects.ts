@@ -171,7 +171,7 @@ export function equals(one: any, other: any): boolean {
 	return true;
 }
 
-export function arrayToHash(array: any[]) {
+function arrayToHash(array: string[]): { [name: string]: true } {
 	const result: any = {};
 	for (let i = 0; i < array.length; ++i) {
 		result[array[i]] = true;
@@ -218,12 +218,7 @@ export function safeStringify(obj: any): string {
 	});
 }
 
-export function getOrDefault<T, R>(obj: T, fn: (obj: T) => R, defaultValue: R | null = null): R | null {
-	const result = fn(obj);
-	return typeof result === 'undefined' ? defaultValue : result;
-}
-
-export function getOrDefault2<T, R>(obj: T, fn: (obj: T) => R | undefined, defaultValue: R): R {
+export function getOrDefault<T, R>(obj: T, fn: (obj: T) => R | undefined, defaultValue: R): R {
 	const result = fn(obj);
 	return typeof result === 'undefined' ? defaultValue : result;
 }

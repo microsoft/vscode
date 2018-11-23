@@ -96,7 +96,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private active: boolean;
 	private dimension: Dimension;
 
-	private _whenRestored: TPromise<void>;
+	private _whenRestored: Thenable<void>;
 	private isRestored: boolean;
 
 	private scopedInstantiationService: IInstantiationService;
@@ -398,9 +398,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 	}
 
-	private restoreEditors(from: IEditorGroupView | ISerializedEditorGroup): TPromise<void> {
+	private restoreEditors(from: IEditorGroupView | ISerializedEditorGroup): Thenable<void> {
 		if (this._group.count === 0) {
-			return TPromise.as(void 0); // nothing to show
+			return Promise.resolve(void 0); // nothing to show
 		}
 
 		// Determine editor options
@@ -598,7 +598,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this._disposed;
 	}
 
-	get whenRestored(): TPromise<void> {
+	get whenRestored(): Thenable<void> {
 		return this._whenRestored;
 	}
 

@@ -435,7 +435,6 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	layout(size: number) {
 		if (size) {
 			this._size = size;
-			this.domNode.style.height = size + 'px';
 			const treeSize = size - DOM.getTotalHeight(this.messageElement);
 			this.treeContainer.style.height = treeSize + 'px';
 			if (this.tree) {

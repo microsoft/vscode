@@ -179,7 +179,24 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 				this._disposeAllLenses(null, null);
 			}
 		}));
-
+		this._localToDispose.push(this._editor.onDidChangeConfiguration(e => {
+			if (e.fontInfo) {
+				for (const lens of this._lenses) {
+					lens.updateHeight();
+				}
+			}
+		}));
+		this._localToDispose.push(this._editor.onMouseUp(e => {
+			if (e.target.type === editorBrowser.MouseTargetType.CONTENT_WIDGET && e.target.element.tagName === 'A') {
+				for (const lens of this._lenses) {
+					let command = lens.getCommand(e.target.element as HTMLLinkElement);
+					if (command) {
+						this._commandService.executeCommand(command.id, ...command.arguments).catch(err => this._notificationService.error(err));
+						break;
+					}
+				}
+			}
+		}));
 		scheduler.schedule();
 	}
 
@@ -236,7 +253,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 						groupsIndex++;
 						codeLensIndex++;
 					} else {
-						this._lenses.splice(codeLensIndex, 0, new CodeLens(groups[groupsIndex], this._editor, helper, accessor, this._commandService, this._notificationService, () => this._detectVisibleLenses.schedule()));
+						this._lenses.splice(codeLensIndex, 0, new CodeLens(groups[groupsIndex], this._editor, helper, accessor, () => this._detectVisibleLenses.schedule()));
 						codeLensIndex++;
 						groupsIndex++;
 					}
@@ -250,7 +267,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 
 				// Create extra symbols
 				while (groupsIndex < groups.length) {
-					this._lenses.push(new CodeLens(groups[groupsIndex], this._editor, helper, accessor, this._commandService, this._notificationService, () => this._detectVisibleLenses.schedule()));
+					this._lenses.push(new CodeLens(groups[groupsIndex], this._editor, helper, accessor, () => this._detectVisibleLenses.schedule()));
 					groupsIndex++;
 				}
 

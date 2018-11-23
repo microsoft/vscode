@@ -82,6 +82,10 @@ export class SettingsEditor2Input extends EditorInput {
 
 	public static readonly ID: string = 'workbench.input.settings2';
 	private readonly _settingsModel: Settings2EditorModel;
+	private resource: URI = URI.from({
+		scheme: 'vscode-settings',
+		path: `settingseditor`
+	});
 
 	constructor(
 		@IPreferencesService _preferencesService: IPreferencesService,
@@ -108,9 +112,6 @@ export class SettingsEditor2Input extends EditorInput {
 	}
 
 	public getResource(): URI {
-		return URI.from({
-			scheme: 'vscode-settings',
-			path: `settingseditor`
-		});
+		return this.resource;
 	}
 }

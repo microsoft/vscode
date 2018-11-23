@@ -10,18 +10,21 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { writeFile } from 'vs/base/node/pfs';
 
 export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchContribution {
 
 	private readonly _session = new Map<ICpuProfilerTarget, CancellationTokenSource>();
 
 	constructor(
-		@IExtensionService extensionService: IExtensionService,
+		@IExtensionService private _extensionService: IExtensionService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
-		this._register(extensionService.onDidChangeResponsiveChange(this._onDidChangeResponsiveChange, this));
+		this._register(_extensionService.onDidChangeResponsiveChange(this._onDidChangeResponsiveChange, this));
 	}
 
 	private async _onDidChangeResponsiveChange(event: IResponsiveStateChangeEvent): Promise<void> {
@@ -106,17 +109,30 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 			}
 		}
 
-		this._logService.warn(`UNRESPONSIVE extension host, '${top ? top.id : 'unknown'}' took ${top ? top.percentage : 'unknown'}% of ${duration / 1e3}ms`, data);
+		if (!top) {
+			return;
+		}
 
-		/* __GDPR__
-			"exthostunresponsive" : {
-				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-				"data": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+		this._extensionService.getExtension(top.id).then(async extension => {
+			if (!extension) {
+				return;
 			}
-		*/
-		this._telemetryService.publicLog('exthostunresponsive', {
-			duration,
-			data
+
+			const path = join(tmpdir(), `exthost-${Math.random().toString(16).slice(2, 8)}.cpuprofile`);
+			await writeFile(path, JSON.stringify(profile.data));
+
+			this._logService.warn(`UNRESPONSIVE extension host, 'top.id' took ${top!.percentage}% of ${duration / 1e3}ms, saved PROFILE here: '${path}'`, data);
+
+			/* __GDPR__
+				"exthostunresponsive" : {
+					"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+					"data": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+				}
+			*/
+			this._telemetryService.publicLog('exthostunresponsive', {
+				duration,
+				data
+			});
 		});
 	}
 }
