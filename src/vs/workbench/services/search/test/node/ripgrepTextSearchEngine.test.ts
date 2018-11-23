@@ -116,7 +116,7 @@ suite('RipgrepTextSearchEngine', () => {
 		function testParser(inputData: string[], expectedResults: TextSearchResult[]): void {
 			const testParser = new RipgrepParser(1000, TEST_FOLDER.fsPath);
 
-			const actualResults = [];
+			const actualResults: TextSearchResult[] = [];
 			testParser.on('result', r => {
 				actualResults.push(r);
 			});
