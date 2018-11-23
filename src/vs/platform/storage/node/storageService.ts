@@ -261,7 +261,7 @@ export class StorageService extends Disposable implements IStorageService {
 						}
 
 						// support dynamic keys
-						else if (key.indexOf('memento/') === 0 || key.indexOf('viewservice.') === 0 || endsWith(key, '.state')) {
+						else if (key.indexOf('memento/') === 0 || endsWith(key, '.state')) {
 							this.store(key, value, StorageScope.WORKSPACE);
 						}
 					});
