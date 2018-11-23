@@ -5,25 +5,30 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ITaskService } from 'vs/workbench/parts/tasks/common/taskService';
+import { forEach } from 'vs/base/common/collections';
 
 export class RunAutomaticTasks extends Disposable implements IWorkbenchContribution {
 	constructor(
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
-		@IExtensionService extensionService: IExtensionService,
 		@ITaskService taskService: ITaskService) {
-
 		super();
 
-		taskService.workspaceTasks().then(tasks => {
-			tasks.forEach(task => {
-				if (task.runOptions.startAutomatically) {
-					taskService.run(task);
-				}
+		taskService.getWorkspaceTasks().then(workspaceTaskResult => {
+			workspaceTaskResult.forEach(resultElement => {
+				resultElement.set.tasks.forEach(task => {
+					if (task.runOptions.startAutomatically) {
+						taskService.run(task);
+					}
+				});
+				forEach(resultElement.configurations.byIdentifier, (configedTask) => {
+					if (configedTask.value.runOptions.startAutomatically) {
+						taskService.getTask(resultElement.workspaceFolder, configedTask.value._id, true).then(task => {
+							if (task) {
+								taskService.run(task);
+							}
+						});
+					}
+				});
 			});
 		});
 	}

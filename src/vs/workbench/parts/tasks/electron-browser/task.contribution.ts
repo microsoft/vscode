@@ -76,7 +76,7 @@ import {
 	TaskEventKind, TaskSet, TaskGroup, GroupType, ExecutionEngine, JsonSchemaVersion, TaskSourceKind,
 	TaskSorter, TaskIdentifier, KeyedTaskIdentifier, TASK_RUNNING_STATE, RerunBehavior
 } from 'vs/workbench/parts/tasks/common/tasks';
-import { ITaskService, ITaskProvider, ProblemMatcherRunOptions, CustomizationProperties, TaskFilter } from 'vs/workbench/parts/tasks/common/taskService';
+import { ITaskService, ITaskProvider, ProblemMatcherRunOptions, CustomizationProperties, TaskFilter, WorkspaceFolderTaskResult } from 'vs/workbench/parts/tasks/common/taskService';
 import { getTemplates as getTaskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
 
 import { KeyedTaskIdentifier as NKeyedTaskIdentifier, TaskDefinition } from 'vs/workbench/parts/tasks/node/tasks';
@@ -373,18 +373,6 @@ class ProblemReporter implements TaskConfig.IProblemReporter {
 	public get status(): ValidationStatus {
 		return this._validationStatus;
 	}
-}
-
-interface WorkspaceTaskResult {
-	set: TaskSet;
-	configurations: {
-		byIdentifier: IStringDictionary<ConfiguringTask>;
-	};
-	hasErrors: boolean;
-}
-
-interface WorkspaceFolderTaskResult extends WorkspaceTaskResult {
-	workspaceFolder: IWorkspaceFolder;
 }
 
 interface WorkspaceFolderConfigurationResult {
@@ -1383,7 +1371,7 @@ class TaskService extends Disposable implements ITaskService {
 					}
 				}
 			}
-			return this.getWorkspaceTasksResults().then((customTasks) => {
+			return this.getWorkspaceTasks().then((customTasks) => {
 				customTasks.forEach((folderTasks, key) => {
 					let contributed = contributedTasks.get(key);
 					if (!folderTasks.set) {
@@ -1498,23 +1486,12 @@ class TaskService extends Disposable implements ITaskService {
 		return result;
 	}
 
-	private getWorkspaceTasksResults(): TPromise<Map<string, WorkspaceFolderTaskResult>> {
+	public getWorkspaceTasks(): TPromise<Map<string, WorkspaceFolderTaskResult>> {
 		if (this._workspaceTasksPromise) {
 			return this._workspaceTasksPromise;
 		}
 		this.updateWorkspaceTasks();
 		return this._workspaceTasksPromise;
-	}
-
-	public workspaceTasks(): TPromise<Task[]> {
-		const workspaceTasksResult = this.getWorkspaceTasksResults();
-		return workspaceTasksResult.then(results => {
-			let tasks: Task[] = new Array();
-			results.forEach(value => {
-				tasks = tasks.concat(value.set.tasks);
-			});
-			return tasks;
-		});
 	}
 
 	private updateWorkspaceTasks(): void {
