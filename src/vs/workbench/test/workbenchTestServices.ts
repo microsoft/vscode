@@ -548,7 +548,7 @@ export class TestEditorGroupsService implements EditorGroupsServiceImpl {
 	onDidMoveGroup: Event<IEditorGroup> = Event.None;
 
 	orientation: any;
-	whenRestored: TPromise<void> = TPromise.as(void 0);
+	whenRestored: Thenable<void> = Promise.resolve(void 0);
 
 	get activeGroup(): IEditorGroup {
 		return this.groups[0];
@@ -627,7 +627,7 @@ export class TestEditorGroup implements IEditorGroupView {
 	disposed: boolean;
 	editors: ReadonlyArray<IEditorInput> = [];
 	label: string;
-	whenRestored: TPromise<void> = TPromise.as(void 0);
+	whenRestored: Thenable<void> = Promise.resolve(void 0);
 	element: HTMLElement;
 	minimumWidth: number;
 	maximumWidth: number;
