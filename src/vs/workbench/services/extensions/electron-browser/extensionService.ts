@@ -306,7 +306,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		this._extensionsMessages = {};
 		this._allRequestedActivateEvents = Object.create(null);
 
-		this._onDidRegisterExtensions = new Emitter<void>();
+		this._onDidRegisterExtensions = new Emitter<void>({ leakWarningThreshold: 500 });
 
 		this._extensionHostProcessManagers = [];
 		this._extensionHostProcessActivationTimes = Object.create(null);
