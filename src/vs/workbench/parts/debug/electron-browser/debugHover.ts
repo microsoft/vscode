@@ -8,9 +8,7 @@ import * as lifecycle from 'vs/base/common/lifecycle';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import * as dom from 'vs/base/browser/dom';
-import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { ICancelableEvent, OpenMode } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -19,28 +17,29 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IDebugService, IExpression, IExpressionContainer } from 'vs/workbench/parts/debug/common/debug';
 import { Expression } from 'vs/workbench/parts/debug/common/debugModel';
 import { renderExpressionValue } from 'vs/workbench/parts/debug/browser/baseDebugView';
-import { VariablesDataSource, VariablesRenderer } from 'vs/workbench/parts/debug/electron-browser/variablesView';
+import { VariablesRenderer } from 'vs/workbench/parts/debug/electron-browser/variablesView';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
-import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { getExactExpressionStartAndEnd } from 'vs/workbench/parts/debug/common/debugUtils';
+import { DataTree, IDataSource } from 'vs/base/browser/ui/tree/dataTree';
+import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 
 const $ = dom.$;
 const MAX_ELEMENTS_SHOWN = 18;
 
 export class DebugHoverWidget implements IContentWidget {
 
-	public static readonly ID = 'debug.hoverWidget';
+	static readonly ID = 'debug.hoverWidget';
 	// editor.IContentWidget.allowEditorOverflow
-	public allowEditorOverflow = true;
+	allowEditorOverflow = true;
 
 	private _isVisible: boolean;
 	private domNode: HTMLElement;
-	private tree: WorkbenchTree;
+	private tree: DataTree<IExpression>;
 	private showAtPosition: Position;
 	private highlightDecorations: string[];
 	private complexValueContainer: HTMLElement;
@@ -50,6 +49,7 @@ export class DebugHoverWidget implements IContentWidget {
 	private stoleFocus: boolean;
 	private toDispose: lifecycle.IDisposable[];
 	private scrollbar: DomScrollableElement;
+	private dataSource: DebugHoverDataSource;
 
 	constructor(
 		private editor: ICodeEditor,
@@ -70,15 +70,12 @@ export class DebugHoverWidget implements IContentWidget {
 		this.complexValueTitle = dom.append(this.complexValueContainer, $('.title'));
 		this.treeContainer = dom.append(this.complexValueContainer, $('.debug-hover-tree'));
 		this.treeContainer.setAttribute('role', 'tree');
-		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
-			dataSource: new VariablesDataSource(),
-			renderer: this.instantiationService.createInstance(VariablesHoverRenderer),
-			controller: this.instantiationService.createInstance(DebugHoverController, this.editor)
-		}, {
-				indentPixels: 6,
-				horizontalScrollMode: ScrollbarVisibility.Auto,
-				twistiePixels: 15,
-				ariaLabel: nls.localize('treeAriaLabel', "Debug Hover")
+		this.dataSource = new DebugHoverDataSource();
+
+		this.tree = new DataTree(this.treeContainer, new DebugHoverDelegate(), [this.instantiationService.createInstance(VariablesRenderer)],
+			this.dataSource, {
+				ariaLabel: nls.localize('treeAriaLabel', "Debug Hover"),
+				accessibilityProvider: new DebugHoverAccessibilityProvider(),
 			});
 
 		this.valueContainer = $('.value');
@@ -108,12 +105,10 @@ export class DebugHoverWidget implements IContentWidget {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.tree.onDidExpandItem(() => {
+		this.toDispose.push(this.tree.onDidChangeCollapseState(() => {
 			this.layoutTree();
 		}));
-		this.toDispose.push(this.tree.onDidCollapseItem(() => {
-			this.layoutTree();
-		}));
+		this.toDispose.push(this.tree.onMouseClick(event => this.onMouseClick(event.element)));
 
 		this.toDispose.push(dom.addStandardDisposableListener(this.domNode, 'keydown', (e: IKeyboardEvent) => {
 			if (e.equals(KeyCode.Escape)) {
@@ -127,19 +122,19 @@ export class DebugHoverWidget implements IContentWidget {
 		}));
 	}
 
-	public isVisible(): boolean {
+	isVisible(): boolean {
 		return this._isVisible;
 	}
 
-	public getId(): string {
+	getId(): string {
 		return DebugHoverWidget.ID;
 	}
 
-	public getDomNode(): HTMLElement {
+	getDomNode(): HTMLElement {
 		return this.domNode;
 	}
 
-	public showAt(range: Range, focus: boolean): Promise<void> {
+	showAt(range: Range, focus: boolean): Promise<void> {
 		const pos = range.getStartPosition();
 
 		const session = this.debugService.getViewModel().focusedSession;
@@ -237,8 +232,9 @@ export class DebugHoverWidget implements IContentWidget {
 
 		this.valueContainer.hidden = true;
 		this.complexValueContainer.hidden = false;
+		this.dataSource.expression = expression;
 
-		return this.tree.setInput(expression).then(() => {
+		return this.tree.refresh(null).then(() => {
 			this.complexValueTitle.textContent = expression.value;
 			this.complexValueTitle.title = expression.value;
 			this.layoutTree();
@@ -252,25 +248,29 @@ export class DebugHoverWidget implements IContentWidget {
 	}
 
 	private layoutTree(): void {
-		const navigator = this.tree.getNavigator();
+		// TODO@Isidor
+		// const navigator = this.tree.getNavigator();
 		let visibleElementsCount = 0;
-		while (navigator.next()) {
-			visibleElementsCount++;
-		}
+		// while (navigator.next()) {
+		// 	visibleElementsCount++;
+		// }
 
-		if (visibleElementsCount === 0) {
-			this.doShow(this.showAtPosition, this.tree.getInput(), false, true);
-		} else {
-			const height = Math.min(visibleElementsCount, MAX_ELEMENTS_SHOWN) * 18 + 10; // add 10 px for the horizontal scroll bar
-
-			if (this.treeContainer.clientHeight !== height) {
-				this.treeContainer.style.height = `${height}px`;
-				this.tree.layout();
-			}
+		const height = Math.min(visibleElementsCount, MAX_ELEMENTS_SHOWN) * 18 + 10; // add 10 px for the horizontal scroll bar
+		if (this.treeContainer.clientHeight !== height) {
+			this.treeContainer.style.height = `${height}px`;
+			this.tree.layout();
 		}
 	}
 
-	public hide(): void {
+	private onMouseClick(element: IExpression): void {
+		if (element && element.hasChildren) {
+			this.tree.setFocus([]);
+			this.tree.setSelection([]);
+			this.editor.focus();
+		}
+	}
+
+	hide(): void {
 		if (!this._isVisible) {
 			return;
 		}
@@ -284,7 +284,7 @@ export class DebugHoverWidget implements IContentWidget {
 		}
 	}
 
-	public getPosition(): IContentWidgetPosition {
+	getPosition(): IContentWidgetPosition {
 		return this._isVisible ? {
 			position: this.showAtPosition,
 			preference: [
@@ -294,35 +294,40 @@ export class DebugHoverWidget implements IContentWidget {
 		} : null;
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this.toDispose = lifecycle.dispose(this.toDispose);
 	}
 }
 
-class DebugHoverController extends WorkbenchTreeController {
-
-	constructor(
-		private editor: ICodeEditor,
-		@IConfigurationService configurationService: IConfigurationService
-	) {
-		super({ openMode: OpenMode.SINGLE_CLICK }, configurationService);
-	}
-
-	protected onLeftClick(tree: ITree, element: any, eventish: ICancelableEvent, origin = 'mouse'): boolean {
-		if (element.reference > 0) {
-			super.onLeftClick(tree, element, eventish, origin);
-			tree.clearFocus();
-			tree.deselect(element);
-			this.editor.focus();
-		}
-
-		return true;
+class DebugHoverAccessibilityProvider implements IAccessibilityProvider<IExpression> {
+	getAriaLabel(element: IExpression): string {
+		return nls.localize('variableAriaLabel', "{0} value {1}, variables, debug", element.name, element.value);
 	}
 }
 
-class VariablesHoverRenderer extends VariablesRenderer {
+class DebugHoverDataSource implements IDataSource<IExpression> {
 
-	public getHeight(tree: ITree, element: any): number {
+	expression: IExpression;
+
+	hasChildren(element: IExpression | null): boolean {
+		return element === null || element.hasChildren;
+	}
+
+	getChildren(element: IExpression | null): Thenable<IExpression[]> {
+		if (element === null) {
+			element = this.expression;
+		}
+
+		return element.getChildren();
+	}
+}
+
+class DebugHoverDelegate implements IListVirtualDelegate<IExpression> {
+	getHeight(element: IExpression): number {
 		return 18;
+	}
+
+	getTemplateId(element: IExpression): string {
+		return VariablesRenderer.ID;
 	}
 }
