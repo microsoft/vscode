@@ -28,6 +28,7 @@ import { overviewRulerError, overviewRulerInfo, overviewRulerWarning } from 'vs/
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IMarker, IMarkerService, MarkerSeverity, MarkerTag } from 'vs/platform/markers/common/markers';
 import { ThemeColor, themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { localize } from 'vs/nls';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -197,44 +198,34 @@ class ModelMarkerHandler {
 			// Disable markdown renderer sanitize to allow html
 			// Hence, escape all input strings
 			hoverMessage.sanitize = false;
-			if (source) {
-				hoverMessage.appendMarkdown(`<span style='opacity: 0.6'>[${escape(source)}]</span>`);
-				hoverMessage.appendText(' ');
-			}
 
-			hoverMessage.appendMarkdown(`<span style='font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback"; white-space: pre-wrap;'>`);
-			message = escape(message.trim());
-			const lines = message.split(/\r\n|\r|\n/g);
-			if (lines.length > 1) {
-				if (source) {
-					hoverMessage.appendMarkdown(`</br>`);
-				}
-				for (const line of lines) {
-					hoverMessage.appendText(line);
-					hoverMessage.appendMarkdown(`</br>`);
-				}
-			} else {
-				hoverMessage.appendText(message);
-			}
-			hoverMessage.appendMarkdown(`</span>`);
-
-			if (code) {
-				if (lines.length === 1) {
-					hoverMessage.appendText(' ');
-				}
-				hoverMessage.appendMarkdown(`<span style='opacity: 0.6'>[${escape(code)}]</span>`);
-			}
+			hoverMessage.appendMarkdown(`<div style='font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback"; white-space: pre-wrap;'>`);
+			hoverMessage.appendMarkdown(`<span>${escape(message.trim())}</span>`);
+			hoverMessage.appendMarkdown(`</div>`);
 
 			if (isNonEmptyArray(relatedInformation)) {
-				hoverMessage.appendMarkdown(`\n`);
+				hoverMessage.appendMarkdown(`<ul>`);
 				for (const { message, resource, startLineNumber, startColumn } of relatedInformation) {
-					hoverMessage.appendMarkdown(
-						escape(`* [${basename(resource.path)}(${startLineNumber}, ${startColumn})](${resource.toString(false)}#${startLineNumber},${startColumn}): `)
-					);
-					hoverMessage.appendText(`${escape(message)}`);
-					hoverMessage.appendMarkdown(`\n`);
+					hoverMessage.appendMarkdown(`<li>`);
+					hoverMessage.appendMarkdown(`<a href='#' data-href='${resource.toString(false)}#${startLineNumber},${startColumn}'>${escape(basename(resource.path))}(${startLineNumber}, ${startColumn})</a>`);
+					hoverMessage.appendMarkdown(`<span>: ${escape(message)}</span>`);
+					hoverMessage.appendMarkdown(`</li>`);
 				}
-				hoverMessage.appendMarkdown(`\n`);
+				hoverMessage.appendMarkdown(`</ul>`);
+			}
+
+			if (source || code) {
+				hoverMessage.appendMarkdown(`<div style='margin-top: 4px'>`);
+				if (source) {
+					hoverMessage.appendMarkdown(`<span style='opacity: 0.6; padding-right:4px;'>${localize('source', "Source")}:</span><span>${escape(source)}</span>`);
+					if (code) {
+						hoverMessage.appendMarkdown(`<span style='padding-right:4px;'>,</span>`);
+					}
+				}
+				if (code) {
+					hoverMessage.appendMarkdown(`<span style='opacity: 0.6; padding-right:4px;'>${localize('code', "Code")}:</span><span>${escape(code)}</span>`);
+				}
+				hoverMessage.appendMarkdown(`</div>`);
 			}
 		}
 
