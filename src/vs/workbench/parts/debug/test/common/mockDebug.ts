@@ -179,7 +179,7 @@ export class MockSession implements IDebugSession {
 
 	setConfiguration(configuration: { resolved: IConfig, unresolved: IConfig }) { }
 
-	getAllThreads(): ReadonlyArray<IThread> {
+	getAllThreads(): IThread[] {
 		return [];
 	}
 

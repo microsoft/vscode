@@ -158,7 +158,7 @@ export interface IDebugSession extends ITreeElement {
 	rawUpdate(data: IRawModelUpdate): void;
 
 	getThread(threadId: number): IThread;
-	getAllThreads(): ReadonlyArray<IThread>;
+	getAllThreads(): IThread[];
 	clearThreads(removeThreads: boolean, reference?: number): void;
 
 	getReplElements(): ReadonlyArray<IReplElement>;
@@ -385,7 +385,7 @@ export interface IEvaluate {
 }
 
 export interface IDebugModel extends ITreeElement {
-	getSessions(includeInactive?: boolean): ReadonlyArray<IDebugSession>;
+	getSessions(includeInactive?: boolean): IDebugSession[];
 	getBreakpoints(filter?: { uri?: uri, lineNumber?: number, column?: number, enabledOnly?: boolean }): ReadonlyArray<IBreakpoint>;
 	areBreakpointsActivated(): boolean;
 	getFunctionBreakpoints(): ReadonlyArray<IFunctionBreakpoint>;
