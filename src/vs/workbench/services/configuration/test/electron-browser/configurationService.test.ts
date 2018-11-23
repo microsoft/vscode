@@ -1217,7 +1217,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 	test('update launch configuration in a workspace', () => {
 		const workspace = workspaceContextService.getWorkspace();
 		return testObject.updateValue('launch', { 'version': '1.0.0', configurations: [{ 'name': 'myLaunch' }] }, { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE, true)
-			.then(() => assert.deepEqual(testObject.getValue('launch'), { 'version': '2.0.0', configurations: [{ 'name': 'myLaunch' }] }));
+			.then(() => assert.deepEqual(testObject.getValue('launch'), { 'version': '1.0.0', configurations: [{ 'name': 'myLaunch' }] }));
 	});
 
 	test('task configurations are not read from workspace', () => {
