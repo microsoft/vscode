@@ -240,6 +240,10 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 
 	// Tree
 
+	get visibleNodeCount(): number {
+		return this.tree.visibleNodeCount;
+	}
+
 	collapse(element: T): boolean {
 		return this.tree.collapse(this.getNode(element));
 	}

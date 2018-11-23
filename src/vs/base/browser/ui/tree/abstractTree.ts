@@ -399,6 +399,12 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		return this.view.getRelativeTop(index);
 	}
 
+	// List
+
+	get visibleNodeCount(): number {
+		return this.view.length;
+	}
+
 	private reactOnMouseClick(e: IListMouseEvent<ITreeNode<T, TFilterData>>): void {
 		const node = e.element;
 
