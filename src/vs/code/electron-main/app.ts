@@ -36,7 +36,7 @@ import { getDelayedChannel, StaticRouter } from 'vs/base/parts/ipc/node/ipc';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
 import { ProxyAuthHandler } from 'vs/code/electron-main/auth';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
@@ -74,12 +74,12 @@ import { RemoteAuthorityResolverChannelClient } from 'vs/platform/remote/node/re
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/platform/remote/node/remoteAgentFileSystemChannel';
 import { ResolvedAuthority } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { SnapUpdateService } from 'vs/platform/update/electron-main/updateService.snap';
+import { IStorageMainService, StorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
 
-export class CodeApplication {
+export class CodeApplication extends Disposable {
 
 	private static readonly MACHINE_ID_KEY = 'telemetry.machineId';
 
-	private toDispose: IDisposable[];
 	private windowsMainService: IWindowsMainService;
 
 	private electronIpcServer: ElectronIPCServer;
@@ -99,7 +99,10 @@ export class CodeApplication {
 		@IHistoryMainService private historyMainService: IHistoryMainService,
 		@ILabelService private labelService: ILabelService
 	) {
-		this.toDispose = [mainIpcServer, configurationService];
+		super();
+
+		this._register(mainIpcServer);
+		this._register(configurationService);
 
 		this.registerListeners();
 	}
@@ -411,23 +414,19 @@ export class CodeApplication {
 			this.sharedProcessClient = this.sharedProcess.whenReady().then(() => connect(this.environmentService.sharedIPCHandle, 'main'));
 
 			// Services
-			const appInstantiationService = this.initServices(machineId);
+			return this.initServices(machineId).then(appInstantiationService => {
 
-			let promise: TPromise<any> = TPromise.as(null);
-
-			// Create driver
-			if (this.environmentService.driverHandle) {
-				serveDriver(this.electronIpcServer, this.environmentService.driverHandle, this.environmentService, appInstantiationService).then(server => {
-					this.logService.info('Driver started at:', this.environmentService.driverHandle);
-					this.toDispose.push(server);
-				});
-			}
-
-			return promise.then(() => {
+				// Create driver
+				if (this.environmentService.driverHandle) {
+					serveDriver(this.electronIpcServer, this.environmentService.driverHandle, this.environmentService, appInstantiationService).then(server => {
+						this.logService.info('Driver started at:', this.environmentService.driverHandle);
+						this._register(server);
+					});
+				}
 
 				// Setup Auth Handler
 				const authHandler = appInstantiationService.createInstance(ProxyAuthHandler);
-				this.toDispose.push(authHandler);
+				this._register(authHandler);
 
 				// Open Windows
 				const windows = appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor));
@@ -437,40 +436,44 @@ export class CodeApplication {
 
 				// Tracing: Stop tracing after windows are ready if enabled
 				if (this.environmentService.args.trace) {
-					this.logService.info(`Tracing: waiting for windows to get ready...`);
-
-					let recordingStopped = false;
-					const stopRecording = (timeout) => {
-						if (recordingStopped) {
-							return;
-						}
-
-						recordingStopped = true; // only once
-
-						contentTracing.stopRecording(join(homedir(), `${product.applicationName}-${Math.random().toString(16).slice(-4)}.trace.txt`), path => {
-							if (!timeout) {
-								this.windowsMainService.showMessageBox({
-									type: 'info',
-									message: localize('trace.message', "Successfully created trace."),
-									detail: localize('trace.detail', "Please create an issue and manually attach the following file:\n{0}", path),
-									buttons: [localize('trace.ok', "Ok")]
-								}, this.windowsMainService.getLastActiveWindow());
-							} else {
-								this.logService.info(`Tracing: data recorded (after 30s timeout) to ${path}`);
-							}
-						});
-					};
-
-					// Wait up to 30s before creating the trace anyways
-					const timeoutHandle = setTimeout(() => stopRecording(true), 30000);
-
-					// Wait for all windows to get ready and stop tracing then
-					TPromise.join(windows.map(window => window.ready())).then(() => {
-						clearTimeout(timeoutHandle);
-						stopRecording(false);
-					});
+					this.stopTracingEventually(windows);
 				}
 			});
+		});
+	}
+
+	private stopTracingEventually(windows: ICodeWindow[]): void {
+		this.logService.info(`Tracing: waiting for windows to get ready...`);
+
+		let recordingStopped = false;
+		const stopRecording = (timeout) => {
+			if (recordingStopped) {
+				return;
+			}
+
+			recordingStopped = true; // only once
+
+			contentTracing.stopRecording(join(homedir(), `${product.applicationName}-${Math.random().toString(16).slice(-4)}.trace.txt`), path => {
+				if (!timeout) {
+					this.windowsMainService.showMessageBox({
+						type: 'info',
+						message: localize('trace.message', "Successfully created trace."),
+						detail: localize('trace.detail', "Please create an issue and manually attach the following file:\n{0}", path),
+						buttons: [localize('trace.ok', "Ok")]
+					}, this.windowsMainService.getLastActiveWindow());
+				} else {
+					this.logService.info(`Tracing: data recorded (after 30s timeout) to ${path}`);
+				}
+			});
+		};
+
+		// Wait up to 30s before creating the trace anyways
+		const timeoutHandle = setTimeout(() => stopRecording(true), 30000);
+
+		// Wait for all windows to get ready and stop tracing then
+		TPromise.join(windows.map(window => window.ready())).then(() => {
+			clearTimeout(timeoutHandle);
+			stopRecording(false);
 		});
 	}
 
@@ -489,7 +492,7 @@ export class CodeApplication {
 		});
 	}
 
-	private initServices(machineId: string): IInstantiationService {
+	private initServices(machineId: string): Thenable<IInstantiationService> {
 		const services = new ServiceCollection();
 
 		if (process.platform === 'win32') {
@@ -509,8 +512,9 @@ export class CodeApplication {
 		services.set(ILaunchService, new SyncDescriptor(LaunchService));
 		services.set(IIssueService, new SyncDescriptor(IssueService, [machineId, this.userEnv]));
 		services.set(IMenubarService, new SyncDescriptor(MenubarService));
+		services.set(IStorageMainService, new SyncDescriptor(StorageMainService));
 
-		// Telemtry
+		// Telemetry
 		if (!this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
 			const channel = getDelayedChannel(this.sharedProcessClient.then(c => c.getChannel('telemetryAppender')));
 			const appender = combinedAppender(new TelemetryAppenderClient(channel), new LogAppender(this.logService));
@@ -523,7 +527,19 @@ export class CodeApplication {
 			services.set(ITelemetryService, NullTelemetryService);
 		}
 
-		return this.instantiationService.createChild(services);
+		const appInstantiationService = this.instantiationService.createChild(services);
+
+		return appInstantiationService.invokeFunction(accessor => this.initStorageService(accessor)).then(() => appInstantiationService);
+	}
+
+	private initStorageService(accessor: ServicesAccessor): Thenable<void> {
+		const storageService = accessor.get(IStorageMainService) as StorageMainService;
+
+		// Initialize storage service
+		return storageService.initialize().then(void 0, error => {
+			errors.onUnexpectedError(error);
+			this.logService.error(error);
+		});
 	}
 
 	private openFirstWindow(accessor: ServicesAccessor): ICodeWindow[] {
@@ -604,7 +620,7 @@ export class CodeApplication {
 		// Watch Electron URLs and forward them to the UrlService
 		const urls = args['open-url'] ? args._urls : [];
 		const urlListener = new ElectronURLListener(urls, urlService, this.windowsMainService);
-		this.toDispose.push(urlListener);
+		this._register(urlListener);
 
 		this.windowsMainService.ready(this.userEnv);
 
@@ -636,7 +652,7 @@ export class CodeApplication {
 			try {
 				const Mutex = (require.__$__nodeRequire('windows-mutex') as any).Mutex;
 				windowsMutex = new Mutex(product.win32MutexName);
-				this.toDispose.push({ dispose: () => windowsMutex.release() });
+				this._register(toDisposable(() => windowsMutex.release()));
 			} catch (e) {
 				if (!this.environmentService.isBuilt) {
 					windowsMainService.showMessageBox({
@@ -673,10 +689,6 @@ export class CodeApplication {
 		// Start shared process after a while
 		const sharedProcess = new RunOnceScheduler(() => this.sharedProcess.spawn(), 3000);
 		sharedProcess.schedule();
-		this.toDispose.push(sharedProcess);
-	}
-
-	private dispose(): void {
-		this.toDispose = dispose(this.toDispose);
+		this._register(sharedProcess);
 	}
 }
