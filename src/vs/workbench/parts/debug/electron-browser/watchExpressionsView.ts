@@ -6,33 +6,26 @@
 import * as nls from 'vs/nls';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { CollapseAction2 } from 'vs/workbench/browser/viewlet';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDebugService, IExpression } from 'vs/workbench/parts/debug/common/debug';
-import { Expression, Variable, DebugModel } from 'vs/workbench/parts/debug/common/debugModel';
+import { Expression, Variable } from 'vs/workbench/parts/debug/common/debugModel';
 import { AddWatchExpressionAction, RemoveAllWatchExpressionsAction, EditWatchExpressionAction, RemoveWatchExpressionAction } from 'vs/workbench/parts/debug/browser/debugActions';
-import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IAction } from 'vs/base/common/actions';
 import { CopyValueAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IVariableTemplateData, renderVariable, renderExpressionValue, renderViewTree } from 'vs/workbench/parts/debug/browser/baseDebugView';
+import { renderExpressionValue, renderViewTree, IInputBoxOptions, AbstractExpressionsRenderer, IExpressionTemplateData } from 'vs/workbench/parts/debug/browser/baseDebugView';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewletPanelOptions, ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { DataTree, IDataSource } from 'vs/base/browser/ui/tree/dataTree';
-import { ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ITreeContextMenuEvent, ITreeMouseEvent } from 'vs/base/browser/ui/tree/abstractTree';
-import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
+import { VariablesRenderer } from 'vs/workbench/parts/debug/electron-browser/variablesView';
 
-const $ = dom.$;
 const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
 
 export class WatchExpressionsView extends ViewletPanel {
@@ -61,9 +54,9 @@ export class WatchExpressionsView extends ViewletPanel {
 		dom.addClass(container, 'debug-watch');
 		const treeContainer = renderViewTree(container);
 
-		const expressionsRenderer = this.instantiationService.createInstance(ExpressionsRenderer);
+		const expressionsRenderer = this.instantiationService.createInstance(WatchExpressionsRenderer);
 		this.disposables.push(expressionsRenderer);
-		this.tree = new DataTree(treeContainer, new WatchExpressionsDelegate(), [expressionsRenderer, new VariablesRenderer()],
+		this.tree = new DataTree(treeContainer, new WatchExpressionsDelegate(), [expressionsRenderer, this.instantiationService.createInstance(VariablesRenderer)],
 			new WatchExpressionsDataSource(this.debugService), {
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'watchAriaTreeLabel' }, "Debug Watch Expressions"),
 				accessibilityProvider: new WatchExpressionsAccessibilityProvider(),
@@ -123,7 +116,7 @@ export class WatchExpressionsView extends ViewletPanel {
 		// double click on primitive value: open input box to be able to select and copy value.
 		if (element instanceof Expression) {
 			this.debugService.getViewModel().setSelectedExpression(element);
-		} else if (element instanceof DebugModel) {
+		} else if (element === null) {
 			// Double click in watch panel triggers to add a new watch expression
 			this.debugService.addWatchExpression();
 		}
@@ -172,7 +165,7 @@ class WatchExpressionsDelegate implements IListVirtualDelegate<IExpression> {
 
 	getTemplateId(element: IExpression): string {
 		if (element instanceof Expression) {
-			return ExpressionsRenderer.ID;
+			return WatchExpressionsRenderer.ID;
 		}
 		if (element instanceof Variable) {
 			return VariablesRenderer.ID;
@@ -188,9 +181,6 @@ class WatchExpressionsDataSource implements IDataSource<IExpression> {
 
 	hasChildren(element: IExpression | null): boolean {
 		if (element === null) {
-			return true;
-		}
-		if (element instanceof DebugModel) {
 			return true;
 		}
 
@@ -210,164 +200,44 @@ class WatchExpressionsDataSource implements IDataSource<IExpression> {
 	}
 }
 
-interface IWatchExpressionTemplateData {
-	expression: HTMLElement;
-	name: HTMLSpanElement;
-	value: HTMLSpanElement;
-	inputBoxContainer: HTMLElement;
-	enableInputBox(expression: IExpression);
-	toDispose: IDisposable[];
-}
 
-class ExpressionsRenderer implements ITreeRenderer<Expression, void, IWatchExpressionTemplateData>, IDisposable {
+export class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
 
-	static readonly ID = 'watchExpression';
-
-	private renderedExpressions = new Map<IExpression, IWatchExpressionTemplateData>();
-	private toDispose: IDisposable[];
-
-	constructor(
-		@IDebugService private debugService: IDebugService,
-		@IContextViewService private contextViewService: IContextViewService,
-		@IThemeService private themeService: IThemeService
-	) {
-		this.toDispose = [];
-
-		this.toDispose.push(this.debugService.getViewModel().onDidSelectExpression(expression => {
-			const template = this.renderedExpressions.get(expression);
-			if (template) {
-				template.enableInputBox(expression);
-			}
-		}));
-	}
+	static readonly ID = 'watchexpression';
 
 	get templateId() {
-		return ExpressionsRenderer.ID;
+		return WatchExpressionsRenderer.ID;
 	}
 
-	renderTemplate(container: HTMLElement): IWatchExpressionTemplateData {
-		const data: IWatchExpressionTemplateData = Object.create(null);
-		data.expression = dom.append(container, $('.expression'));
-		data.name = dom.append(data.expression, $('span.name'));
-		data.value = dom.append(data.expression, $('span.value'));
-		data.inputBoxContainer = dom.append(data.expression, $('.inputBoxContainer'));
+	protected renderExpression(expression: IExpression, data: IExpressionTemplateData): void {
+		data.name.textContent = expression.name;
+		renderExpressionValue(expression, data.value, {
+			showChanged: true,
+			maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
+			preserveWhitespace: false,
+			showHover: true,
+			colorize: true
+		});
+		data.name.title = expression.type ? expression.type : expression.value;
 
-		data.enableInputBox = (expression: IExpression) => {
-			data.name.style.display = 'none';
-			data.value.style.display = 'none';
-			data.inputBoxContainer.style.display = 'initial';
-
-			const inputBox = new InputBox(data.inputBoxContainer, this.contextViewService, {
-				placeholder: nls.localize('watchExpressionPlaceholder', "Expression to watch"),
-				ariaLabel: nls.localize('watchExpressionInputAriaLabel', "Type watch expression")
-			});
-			const styler = attachInputBoxStyler(inputBox, this.themeService);
-
-			inputBox.value = expression.name ? expression.name : '';
-			inputBox.focus();
-			inputBox.select();
-
-			let disposed = false;
-			data.toDispose = [inputBox, styler];
-
-			const wrapUp = (renamed: boolean) => {
-				if (!disposed) {
-					disposed = true;
-					this.debugService.getViewModel().setSelectedExpression(undefined);
-					if (renamed && inputBox.value) {
-						this.debugService.renameWatchExpression(expression.getId(), inputBox.value);
-					} else if (!expression.name) {
-						this.debugService.removeWatchExpressions(expression.getId());
-					}
-
-					// need to remove the input box since this template will be reused.
-					data.inputBoxContainer.removeChild(inputBox.element);
-					data.name.style.display = 'initial';
-					data.value.style.display = 'initial';
-					data.inputBoxContainer.style.display = 'none';
-					dispose(data.toDispose);
-				}
-			};
-
-			data.toDispose.push(dom.addStandardDisposableListener(inputBox.inputElement, 'keydown', (e: IKeyboardEvent) => {
-				const isEscape = e.equals(KeyCode.Escape);
-				const isEnter = e.equals(KeyCode.Enter);
-				if (isEscape || isEnter) {
-					e.preventDefault();
-					e.stopPropagation();
-					wrapUp(isEnter);
-				}
-			}));
-			data.toDispose.push(dom.addDisposableListener(inputBox.inputElement, 'blur', () => {
-				wrapUp(true);
-			}));
-		};
-
-		return data;
-	}
-
-	renderElement({ element }: ITreeNode<Expression>, index: number, data: IWatchExpressionTemplateData): void {
-		this.renderedExpressions.set(element, data);
-		if (element === this.debugService.getViewModel().getSelectedExpression()) {
-			data.enableInputBox(element);
-		} else {
-			data.name.textContent = element.name;
-			renderExpressionValue(element, data.value, {
-				showChanged: true,
-				maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
-				preserveWhitespace: false,
-				showHover: true,
-				colorize: true
-			});
-			data.name.title = element.type ? element.type : element.value;
-
-			if (typeof element.value === 'string') {
-				data.name.textContent += ':';
-			}
+		if (typeof expression.value === 'string') {
+			data.name.textContent += ':';
 		}
 	}
 
-	disposeTemplate(templateData: IWatchExpressionTemplateData): void {
-		dispose(templateData.toDispose);
-	}
-
-	disposeElement(element: ITreeNode<Expression, void>): void {
-		this.renderedExpressions.delete(element.element);
-	}
-
-	dispose(): void {
-		this.renderedExpressions = undefined;
-		dispose(this.toDispose);
-	}
-}
-
-class VariablesRenderer implements ITreeRenderer<Variable, void, IVariableTemplateData> {
-
-	static readonly ID = 'variable';
-
-	get templateId() {
-		return VariablesRenderer.ID;
-	}
-
-	renderTemplate(container: HTMLElement): IVariableTemplateData {
-		const data: IVariableTemplateData = Object.create(null);
-		data.expression = dom.append(container, $('.expression'));
-		data.name = dom.append(data.expression, $('span.name'));
-		data.value = dom.append(data.expression, $('span.value'));
-
-		return data;
-	}
-
-	renderElement({ element }: ITreeNode<Variable, void>, index: number, templateData: IVariableTemplateData): void {
-		renderVariable(element, templateData, false);
-	}
-
-	disposeElement(): void {
-		// noop
-	}
-
-	disposeTemplate(): void {
-		// noop
+	protected getInputBoxOptions(expression: IExpression): IInputBoxOptions {
+		return {
+			initialValue: expression.name ? expression.name : '',
+			ariaLabel: nls.localize('watchExpressionInputAriaLabel', "Type watch expression"),
+			placeholder: nls.localize('watchExpressionPlaceholder', "Expression to watch"),
+			onFinish: (value: string, success: boolean) => {
+				if (success && value) {
+					this.debugService.renameWatchExpression(expression.getId(), value);
+				} else if (!expression.name) {
+					this.debugService.removeWatchExpressions(expression.getId());
+				}
+			}
+		};
 	}
 }
 
