@@ -276,7 +276,7 @@ suite('WorkspaceContextService - Workspace', () => {
 		const removedFolder = testObject.getWorkspace().folders[0];
 		return testObject.removeFolders([removedFolder.uri])
 			.then(() => {
-				assert.ok(target.calledOnce);
+				assert.equal(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
 				const actual = <IWorkspaceFoldersChangeEvent>target.args[0][0];
 				assert.deepEqual(actual.added, []);
 				assert.deepEqual(actual.removed.map(r => r.uri.toString()), [removedFolder.uri.toString()]);
@@ -305,7 +305,7 @@ suite('WorkspaceContextService - Workspace', () => {
 		const removedFolders = [testObject.getWorkspace().folders[1]].map(f => f.uri);
 		return testObject.updateFolders(addedFolders, removedFolders)
 			.then(() => {
-				assert.ok(target.calledOnce);
+				assert.equal(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
 				const actual = <IWorkspaceFoldersChangeEvent>target.args[0][0];
 				assert.deepEqual(actual.added.map(r => r.uri.toString()), addedFolders.map(a => a.uri.toString()));
 				assert.deepEqual(actual.removed.map(r => r.uri.toString()), removedFolders.map(a => a.toString()));
@@ -321,7 +321,7 @@ suite('WorkspaceContextService - Workspace', () => {
 		const removedFolders = [testObject.getWorkspace().folders[0]].map(f => f.uri);
 		return testObject.updateFolders(addedFolders, removedFolders, 0)
 			.then(() => {
-				assert.ok(target.calledOnce);
+				assert.equal(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
 				const actual = <IWorkspaceFoldersChangeEvent>target.args[0][0];
 				assert.deepEqual(actual.added, []);
 				assert.deepEqual(actual.removed, []);
@@ -338,7 +338,7 @@ suite('WorkspaceContextService - Workspace', () => {
 		const changedFolders = [testObject.getWorkspace().folders[1]].map(f => f.uri);
 		return testObject.updateFolders(addedFolders, removedFolders)
 			.then(() => {
-				assert.ok(target.calledOnce);
+				assert.equal(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
 				const actual = <IWorkspaceFoldersChangeEvent>target.args[0][0];
 				assert.deepEqual(actual.added.map(r => r.uri.toString()), addedFolders.map(a => a.uri.toString()));
 				assert.deepEqual(actual.removed.map(r => r.uri.toString()), removedFolders.map(a => a.toString()));
@@ -353,7 +353,7 @@ suite('WorkspaceContextService - Workspace', () => {
 		fs.writeFileSync(testObject.getWorkspace().configuration.fsPath, JSON.stringify(workspace, null, '\t'));
 		return testObject.reloadConfiguration()
 			.then(() => {
-				assert.ok(target.calledOnce);
+				assert.equal(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
 				const actual = <IWorkspaceFoldersChangeEvent>target.args[0][0];
 				assert.deepEqual(actual.added, []);
 				assert.deepEqual(actual.removed, []);
@@ -368,7 +368,7 @@ suite('WorkspaceContextService - Workspace', () => {
 		fs.writeFileSync(testObject.getWorkspace().configuration.fsPath, JSON.stringify(workspace, null, '\t'));
 		return testObject.reloadConfiguration()
 			.then(() => {
-				assert.ok(target.calledOnce);
+				assert.equal(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
 				const actual = <IWorkspaceFoldersChangeEvent>target.args[0][0];
 				assert.deepEqual(actual.added, []);
 				assert.deepEqual(actual.removed, []);
@@ -1217,7 +1217,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 	test('update launch configuration in a workspace', () => {
 		const workspace = workspaceContextService.getWorkspace();
 		return testObject.updateValue('launch', { 'version': '1.0.0', configurations: [{ 'name': 'myLaunch' }] }, { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE, true)
-			.then(() => assert.deepEqual(testObject.getValue('launch'), { 'version': '1.0.0', configurations: [{ 'name': 'myLaunch' }] }));
+			.then(() => assert.deepEqual(testObject.getValue('launch'), { 'version': '2.0.0', configurations: [{ 'name': 'myLaunch' }] }));
 	});
 
 	test('task configurations are not read from workspace', () => {
