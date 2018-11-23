@@ -380,7 +380,12 @@ export class TerminalTaskSystem implements ITaskSystem {
 					resolveSet.process.path = envPath;
 				}
 			}
-			resolvedVariables = taskSystemInfo.resolveVariables(workspaceFolder, resolveSet);
+			resolvedVariables = taskSystemInfo.resolveVariables(workspaceFolder, resolveSet).then(resolved => {
+				if ((taskSystemInfo.platform !== Platform.Platform.Windows) && isProcess) {
+					resolved.variables.set(TerminalTaskSystem.ProcessVarName, CommandString.value(task.command.name));
+				}
+				return Promise.resolve(resolved);
+			});
 		} else {
 			let result = new Map<string, string>();
 			variables.forEach(variable => {
