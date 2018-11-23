@@ -1264,7 +1264,7 @@ declare module 'vscode' {
 	 */
 	export class Task2 extends Task {
 		/**
-		 * Run options for the task
+		 * Run options for the task.  Defaults to an empty literal.
 		 */
 		runOptions: RunOptions;
 	}
