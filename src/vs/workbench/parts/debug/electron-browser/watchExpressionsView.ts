@@ -8,7 +8,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
 import { CollapseAction2 } from 'vs/workbench/browser/viewlet';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IDebugService, IExpression } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IExpression, CONTEXT_WATCH_EXPRESSIONS_FOCUSED } from 'vs/workbench/parts/debug/common/debug';
 import { Expression, Variable } from 'vs/workbench/parts/debug/common/debugModel';
 import { AddWatchExpressionAction, RemoveAllWatchExpressionsAction, EditWatchExpressionAction, RemoveWatchExpressionAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -24,7 +24,8 @@ import { DataTree, IDataSource } from 'vs/base/browser/ui/tree/dataTree';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ITreeContextMenuEvent, ITreeMouseEvent } from 'vs/base/browser/ui/tree/abstractTree';
-import { VariablesRenderer } from 'vs/workbench/parts/debug/electron-browser/variablesView';
+import { VariablesRenderer, variableSetEmitter } from 'vs/workbench/parts/debug/electron-browser/variablesView';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
 
@@ -40,7 +41,8 @@ export class WatchExpressionsView extends ViewletPanel {
 		@IDebugService private debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IContextKeyService private contextKeyService: IContextKeyService
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('watchExpressionsSection', "Watch Expressions Section") }, keybindingService, contextMenuService, configurationService);
 
@@ -53,6 +55,7 @@ export class WatchExpressionsView extends ViewletPanel {
 	renderBody(container: HTMLElement): void {
 		dom.addClass(container, 'debug-watch');
 		const treeContainer = renderViewTree(container);
+		CONTEXT_WATCH_EXPRESSIONS_FOCUSED.bindTo(this.contextKeyService.createScoped(treeContainer));
 
 		const expressionsRenderer = this.instantiationService.createInstance(WatchExpressionsRenderer);
 		this.disposables.push(expressionsRenderer);
@@ -61,9 +64,6 @@ export class WatchExpressionsView extends ViewletPanel {
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'watchAriaTreeLabel' }, "Debug Watch Expressions"),
 				accessibilityProvider: new WatchExpressionsAccessibilityProvider(),
 			});
-
-		// TODO@Isidor
-		// CONTEXT_WATCH_EXPRESSIONS_FOCUSED.bindTo(this.tree.contextKeyService);
 
 		this.tree.refresh(null);
 
@@ -78,7 +78,7 @@ export class WatchExpressionsView extends ViewletPanel {
 			if (!this.isExpanded() || !this.isVisible()) {
 				this.needsRefresh = true;
 			} else {
-				this.tree.refresh(null).then();
+				this.tree.refresh(null);
 			}
 		}));
 		this.disposables.push(this.debugService.getViewModel().onDidFocusStackFrame(() => {
@@ -91,6 +91,7 @@ export class WatchExpressionsView extends ViewletPanel {
 				this.onWatchExpressionsUpdatedScheduler.schedule();
 			}
 		}));
+		this.disposables.push(variableSetEmitter.event(() => this.tree.refresh(null)));
 	}
 
 	layoutBody(size: number): void {

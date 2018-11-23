@@ -248,14 +248,7 @@ export class DebugHoverWidget implements IContentWidget {
 	}
 
 	private layoutTree(): void {
-		// TODO@Isidor
-		// const navigator = this.tree.getNavigator();
-		let visibleElementsCount = 0;
-		// while (navigator.next()) {
-		// 	visibleElementsCount++;
-		// }
-
-		const height = Math.min(visibleElementsCount, MAX_ELEMENTS_SHOWN) * 18 + 10; // add 10 px for the horizontal scroll bar
+		const height = Math.min(this.tree.visibleNodeCount, MAX_ELEMENTS_SHOWN) * 18 + 10; // add 10 px for the horizontal scroll bar
 		if (this.treeContainer.clientHeight !== height) {
 			this.treeContainer.style.height = `${height}px`;
 			this.tree.layout();

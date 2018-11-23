@@ -8,7 +8,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
 import { CollapseAction2 } from 'vs/workbench/browser/viewlet';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IDebugService, IExpression, IScope } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IExpression, IScope, CONTEXT_VARIABLES_FOCUSED } from 'vs/workbench/parts/debug/common/debug';
 import { Variable, Scope } from 'vs/workbench/parts/debug/common/debugModel';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -25,13 +25,19 @@ import { ITreeContextMenuEvent, ITreeMouseEvent } from 'vs/base/browser/ui/tree/
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { Emitter } from 'vs/base/common/event';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 const $ = dom.$;
+
+// TODO@Isidor Remember expanded elements when there are some (otherwise don't override/erase the previous ones)
+// Just give the identity provider to the tree and that should solve it
+
+export const variableSetEmitter = new Emitter<void>();
 
 export class VariablesView extends ViewletPanel {
 
 	private onFocusStackFrameScheduler: RunOnceScheduler;
-	// private expandedElements: any[];
 	private needsRefresh: boolean;
 	private tree: DataTree<IExpression | IScope>;
 
@@ -41,36 +47,15 @@ export class VariablesView extends ViewletPanel {
 		@IDebugService private debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IContextKeyService private contextKeyService: IContextKeyService
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('variablesSection', "Variables Section") }, keybindingService, contextMenuService, configurationService);
 
-		// this.expandedElements = [];
 		// Use scheduler to prevent unnecessary flashing
 		this.onFocusStackFrameScheduler = new RunOnceScheduler(() => {
-			// Remember expanded elements when there are some (otherwise don't override/erase the previous ones)
-			// TODO@Isidor
-			// const expanded = this.tree.getExpandedElements();
-			// if (expanded.length > 0) {
-			// 	this.expandedElements = expanded;
-			// }
-
 			this.needsRefresh = false;
-			this.tree.refresh(null).then(() => {
-				// const stackFrame = this.debugService.getViewModel().focusedStackFrame;
-				// return sequence(this.expandedElements.map(e => () => this.tree.expand(e))).then(() => {
-				// 	// If there is no preserved expansion state simply expand the first scope
-				// 	if (stackFrame && this.tree.getExpandedElements().length === 0) {
-				// 		return stackFrame.getScopes().then(scopes => {
-				// 			if (scopes.length > 0 && !scopes[0].expensive) {
-				// 				return this.tree.expand(scopes[0]);
-				// 			}
-				// 			return undefined;
-				// 		});
-				// 	}
-				// 	return undefined;
-				// });
-			});
+			this.tree.refresh(null);
 		}, 400);
 	}
 
@@ -84,10 +69,9 @@ export class VariablesView extends ViewletPanel {
 				accessibilityProvider: new VariablesAccessibilityProvider()
 			});
 
-		// TODO@Isidor
-		// CONTEXT_VARIABLES_FOCUSED.bindTo(this.tree.contextKeyService);
+		CONTEXT_VARIABLES_FOCUSED.bindTo(this.contextKeyService.createScoped(treeContainer));
 
-		const collapseAction = new CollapseAction2(this.tree, false, 'explorer-action collapse-explorer');
+		const collapseAction = new CollapseAction2(this.tree, true, 'explorer-action collapse-explorer');
 		this.toolbar.setActions([collapseAction])();
 		this.tree.refresh(null);
 
@@ -102,7 +86,7 @@ export class VariablesView extends ViewletPanel {
 			const timeout = sf.explicit ? 0 : undefined;
 			this.onFocusStackFrameScheduler.schedule(timeout);
 		}));
-
+		this.disposables.push(variableSetEmitter.event(() => this.tree.refresh(null)));
 		this.disposables.push(this.tree.onMouseDblClick(e => this.onMouseDblClick(e)));
 		this.disposables.push(this.tree.onContextMenu(e => this.onContextMenu(e)));
 	}
@@ -249,13 +233,9 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 				variable.errorMessage = null;
 				if (success && variable.value !== value) {
 					variable.setVariable(value)
-						// if everything went fine we need to refresh ui elements since the variable update can change watch and variables view
-						.then(() => {
-							// Need to force watch expressions to update since a variable change can have an effect on watches
-							this.debugService.focusStackFrame(this.debugService.getViewModel().focusedStackFrame);
-						});
+						// Need to force watch expressions and variables to update since a variable change can have an effect on both
+						.then(() => variableSetEmitter.fire());
 				}
-
 			}
 		};
 	}
