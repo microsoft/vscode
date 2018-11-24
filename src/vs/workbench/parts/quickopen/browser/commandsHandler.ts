@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
 import * as types from 'vs/base/common/types';
@@ -145,7 +144,7 @@ export class ShowAllCommandsAction extends Action {
 		super(id, label);
 	}
 
-	run(context?: any): TPromise<void> {
+	run(context?: any): Thenable<void> {
 		const config = <IWorkbenchQuickOpenConfiguration>this.configurationService.getValue();
 		const restoreInput = config.workbench && config.workbench.commandPalette && config.workbench.commandPalette.preserveInput === true;
 
@@ -157,7 +156,7 @@ export class ShowAllCommandsAction extends Action {
 
 		this.quickOpenService.show(value, { inputSelection: lastCommandPaletteInput ? { start: 1 /* after prefix */, end: value.length } : void 0 });
 
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }
 
@@ -174,14 +173,14 @@ export class ClearCommandHistoryAction extends Action {
 		super(id, label);
 	}
 
-	run(context?: any): TPromise<void> {
+	run(context?: any): Thenable<void> {
 		const commandHistoryLength = resolveCommandHistory(this.configurationService);
 		if (commandHistoryLength > 0) {
 			commandHistory = new LRUCache<string, number>(commandHistoryLength);
 			commandCounter = 1;
 		}
 
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }
 
@@ -200,13 +199,13 @@ class CommandPaletteEditorAction extends EditorAction {
 		});
 	}
 
-	run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
+	run(accessor: ServicesAccessor, editor: ICodeEditor): Thenable<void> {
 		const quickOpenService = accessor.get(IQuickOpenService);
 
 		// Show with prefix
 		quickOpenService.show(ALL_COMMANDS_PREFIX);
 
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }
 
@@ -398,7 +397,7 @@ export class CommandsHandler extends QuickOpenHandler {
 		this.commandHistoryEnabled = resolveCommandHistory(this.configurationService) > 0;
 	}
 
-	getResults(searchValue: string, token: CancellationToken): TPromise<QuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken): Thenable<QuickOpenModel> {
 
 		// wait for extensions being registered to cover all commands
 		// also from extensions

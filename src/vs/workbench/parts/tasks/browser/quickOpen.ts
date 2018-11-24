@@ -86,7 +86,7 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 		this.tasks = undefined;
 	}
 
-	public getResults(input: string, token: CancellationToken): TPromise<Model.QuickOpenModel> {
+	public getResults(input: string, token: CancellationToken): Thenable<Model.QuickOpenModel> {
 		return this.tasks.then((tasks) => {
 			let entries: Model.QuickOpenEntry[] = [];
 			if (tasks.length === 0 || token.isCancellationRequested) {
@@ -172,7 +172,7 @@ class CustomizeTaskAction extends Action {
 		this.class = 'quick-open-task-configure';
 	}
 
-	public run(element: any): TPromise<any> {
+	public run(element: any): Thenable<any> {
 		let task = this.getTask(element);
 		if (ContributedTask.is(task)) {
 			return this.taskService.customize(task, undefined, true).then(() => {

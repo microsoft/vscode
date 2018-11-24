@@ -181,7 +181,7 @@ export class UntitledEditorService extends Disposable implements IUntitledEditor
 			.map(i => i.getResource());
 	}
 
-	loadOrCreate(options: IModelLoadOrCreateOptions = Object.create(null)): TPromise<UntitledEditorModel> {
+	loadOrCreate(options: IModelLoadOrCreateOptions = Object.create(null)): Thenable<UntitledEditorModel> {
 		return this.createOrGet(options.resource, options.modeId, options.initialValue, options.encoding, options.useResourcePath).resolve();
 	}
 

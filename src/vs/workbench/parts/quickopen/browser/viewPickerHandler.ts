@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import { Mode, IEntryRunContext, IAutoFocus, IQuickNavigateConfiguration, IModel } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenModel, QuickOpenEntryGroup, QuickOpenEntry } from 'vs/base/parts/quickopen/browser/quickOpenModel';
@@ -79,7 +78,7 @@ export class ViewPickerHandler extends QuickOpenHandler {
 		super();
 	}
 
-	getResults(searchValue: string, token: CancellationToken): TPromise<QuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken): Thenable<QuickOpenModel> {
 		searchValue = searchValue.trim();
 		const normalizedSearchValueLowercase = stripWildcards(searchValue).toLowerCase();
 
@@ -127,7 +126,7 @@ export class ViewPickerHandler extends QuickOpenHandler {
 			}
 		});
 
-		return TPromise.as(new QuickOpenModel(entries));
+		return Promise.resolve(new QuickOpenModel(entries));
 	}
 
 	private getViewEntries(): ViewEntry[] {
@@ -225,11 +224,11 @@ export class QuickOpenViewPickerAction extends Action {
 		super(id, label);
 	}
 
-	run(): TPromise<boolean> {
+	run(): Thenable<boolean> {
 		const keys = this.keybindingService.lookupKeybindings(this.id);
 
 		this.quickOpenService.show(VIEW_PICKER_PREFIX, { quickNavigateConfiguration: { keybindings: keys } });
 
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 }

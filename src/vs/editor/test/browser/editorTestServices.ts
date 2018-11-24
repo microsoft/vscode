@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { AbstractCodeEditorService } from 'vs/editor/browser/services/abstractCodeEditorService';
 import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
@@ -16,9 +15,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 export class TestCodeEditorService extends AbstractCodeEditorService {
 	public lastInput: IResourceInput;
 	public getActiveCodeEditor(): ICodeEditor | null { return null; }
-	public openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): TPromise<ICodeEditor | null> {
+	public openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Thenable<ICodeEditor | null> {
 		this.lastInput = input;
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 	public registerDecorationType(key: string, options: IDecorationRenderOptions, parentTypeKey?: string): void { }
 	public removeDecorationType(key: string): void { }

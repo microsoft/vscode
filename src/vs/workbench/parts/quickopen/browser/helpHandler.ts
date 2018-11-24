@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -66,7 +65,7 @@ export class HelpHandler extends QuickOpenHandler {
 		super();
 	}
 
-	getResults(searchValue: string, token: CancellationToken): TPromise<QuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken): Thenable<QuickOpenModel> {
 		searchValue = searchValue.trim();
 
 		const registry = (Registry.as<IQuickOpenRegistry>(Extensions.Quickopen));
@@ -128,7 +127,7 @@ export class HelpHandler extends QuickOpenHandler {
 			}
 		}
 
-		return TPromise.as(new QuickOpenModel([...workbenchScoped, ...editorScoped]));
+		return Promise.resolve(new QuickOpenModel([...workbenchScoped, ...editorScoped]));
 	}
 
 	getAutoFocus(searchValue: string): IAutoFocus {
