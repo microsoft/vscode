@@ -171,8 +171,16 @@ export class WebviewEditor extends BaseWebviewEditor {
 			this._webview = undefined;
 			this._webviewContent = undefined;
 		}
-		return super.setInput(input, options, token)
-			.then(() => input.resolve())
+
+		// TODO@matt restore following line but check for test failures
+		// in integration tests due to the async nature of native promises
+		// return super.setInput(input, options).then()
+
+		// TODO@matt remove the following 2 lines when super.setInput() is back
+		this._input = input;
+		this._options = options;
+
+		return input.resolve()
 			.then(() => {
 				if (token.isCancellationRequested) {
 					return;

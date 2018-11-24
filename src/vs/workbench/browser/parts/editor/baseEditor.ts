@@ -41,8 +41,8 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; }> = Event.None;
 
 	protected _input: EditorInput;
+	protected _options: EditorOptions;
 
-	private _options: EditorOptions;
 	private _group: IEditorGroup;
 
 	constructor(
