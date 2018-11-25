@@ -15,8 +15,8 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/node/product';
-import { IWindowSettings, MenuBarVisibility, IWindowConfiguration, ReadyState, IRunActionInWindowRequest } from 'vs/platform/windows/common/windows';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IWindowSettings, MenuBarVisibility, IWindowConfiguration, ReadyState, IRunActionInWindowRequest, getTitleBarStyle } from 'vs/platform/windows/common/windows';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ICodeWindow, IWindowState, WindowMode } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspaceIdentifier, IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
@@ -52,7 +52,7 @@ interface ITouchBarSegment extends Electron.SegmentedControlSegment {
 	id: string;
 }
 
-export class CodeWindow implements ICodeWindow {
+export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private static readonly MIN_WIDTH = 200;
 	private static readonly MIN_HEIGHT = 120;
@@ -67,7 +67,6 @@ export class CodeWindow implements ICodeWindow {
 	private _readyState: ReadyState;
 	private windowState: IWindowState;
 	private currentMenuBarVisibility: MenuBarVisibility;
-	private toDispose: IDisposable[];
 	private representedFilename: string;
 
 	private whenReadyCallbacks: TValueCallback<ICodeWindow>[];
@@ -88,11 +87,12 @@ export class CodeWindow implements ICodeWindow {
 		@IWorkspacesMainService private workspacesMainService: IWorkspacesMainService,
 		@IBackupMainService private backupMainService: IBackupMainService
 	) {
+		super();
+
 		this.touchBarGroups = [];
 		this._lastFocusTime = -1;
 		this._readyState = ReadyState.NONE;
 		this.whenReadyCallbacks = [];
-		this.toDispose = [];
 
 		// create browser window
 		this.createBrowserWindow(config);
@@ -155,32 +155,11 @@ export class CodeWindow implements ICodeWindow {
 			}
 		}
 
-		let useNativeTabs = false;
 		if (isMacintosh && windowConfig && windowConfig.nativeTabs === true) {
 			options.tabbingIdentifier = product.nameShort; // this opts in to sierra tabs
-			useNativeTabs = true;
 		}
 
-		let useCustomTitleStyle = false;
-		if (isMacintosh) {
-			useCustomTitleStyle = !windowConfig || !windowConfig.titleBarStyle || windowConfig.titleBarStyle === 'custom'; // Default to custom on macOS
-
-			const isDev = !this.environmentService.isBuilt || !!config.extensionDevelopmentPath;
-			if (isDev) {
-				useCustomTitleStyle = false; // not enabled when developing due to https://github.com/electron/electron/issues/3647
-			}
-		} else {
-			if (isLinux) {
-				useCustomTitleStyle = windowConfig && windowConfig.titleBarStyle === 'custom';
-			} else {
-				useCustomTitleStyle = !windowConfig || !windowConfig.titleBarStyle || windowConfig.titleBarStyle === 'custom'; // Default to custom on Windows
-			}
-		}
-
-		if (useNativeTabs) {
-			useCustomTitleStyle = false; // native tabs on sierra do not work with custom title style
-		}
-
+		const useCustomTitleStyle = getTitleBarStyle(this.configurationService, this.environmentService) === 'custom';
 		if (useCustomTitleStyle) {
 			options.titleBarStyle = 'hidden';
 			this.hiddenTitleBarStyle = true;
@@ -420,10 +399,10 @@ export class CodeWindow implements ICodeWindow {
 		});
 
 		// Handle configuration changes
-		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated()));
+		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated()));
 
 		// Handle Workspace events
-		this.toDispose.push(this.workspacesMainService.onUntitledWorkspaceDeleted(e => this.onUntitledWorkspaceDeleted(e)));
+		this._register(this.workspacesMainService.onUntitledWorkspaceDeleted(e => this.onUntitledWorkspaceDeleted(e)));
 
 		// TODO@Ben workaround for https://github.com/Microsoft/vscode/issues/13612
 		// It looks like smooth scrolling disappears as soon as the window is minimized
@@ -871,6 +850,10 @@ export class CodeWindow implements ICodeWindow {
 		return windowConfig.nativeFullScreen !== false;
 	}
 
+	isMinimized(): boolean {
+		return this._win.isMinimized();
+	}
+
 	private getMenuBarVisibility(): MenuBarVisibility {
 		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 		if (!windowConfig || !windowConfig.menuBarVisibility) {
@@ -1053,11 +1036,11 @@ export class CodeWindow implements ICodeWindow {
 	}
 
 	dispose(): void {
+		super.dispose();
+
 		if (this.showTimeoutHandle) {
 			clearTimeout(this.showTimeoutHandle);
 		}
-
-		this.toDispose = dispose(this.toDispose);
 
 		this._win = null; // Important to dereference the window object to allow for GC
 	}

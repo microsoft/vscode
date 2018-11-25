@@ -6,7 +6,7 @@
 import { connect as connectNet, Client } from 'vs/base/parts/ipc/node/ipc.net';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IChannel } from 'vs/base/parts/ipc/node/ipc';
+import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
 import { Event } from 'vs/base/common/event';
 
 export const ID = 'driverService';
@@ -44,32 +44,15 @@ export interface IDriver {
 }
 //*END
 
-export interface IDriverChannel extends IChannel {
-	call(command: 'getWindowIds'): Thenable<number[]>;
-	call(command: 'capturePage'): Thenable<string>;
-	call(command: 'reloadWindow', arg: number): Thenable<void>;
-	call(command: 'dispatchKeybinding', arg: [number, string]): Thenable<void>;
-	call(command: 'click', arg: [number, string, number | undefined, number | undefined]): Thenable<void>;
-	call(command: 'doubleClick', arg: [number, string]): Thenable<void>;
-	call(command: 'setValue', arg: [number, string, string]): Thenable<void>;
-	call(command: 'getTitle', arg: [number]): Thenable<string>;
-	call(command: 'isActiveElement', arg: [number, string]): Thenable<boolean>;
-	call(command: 'getElements', arg: [number, string, boolean]): Thenable<IElement[]>;
-	call(command: 'typeInEditor', arg: [number, string, string]): Thenable<void>;
-	call(command: 'getTerminalBuffer', arg: [number, string]): Thenable<string[]>;
-	call(command: 'writeInTerminal', arg: [number, string, string]): Thenable<void>;
-	call(command: string, arg: any): Thenable<any>;
-}
-
-export class DriverChannel implements IDriverChannel {
+export class DriverChannel implements IServerChannel {
 
 	constructor(private driver: IDriver) { }
 
-	listen<T>(event: string): Event<T> {
+	listen<T>(_, event: string): Event<T> {
 		throw new Error('No event found');
 	}
 
-	call(command: string, arg?: any): TPromise<any> {
+	call(_, command: string, arg?: any): TPromise<any> {
 		switch (command) {
 			case 'getWindowIds': return this.driver.getWindowIds();
 			case 'capturePage': return this.driver.capturePage(arg);
@@ -94,7 +77,7 @@ export class DriverChannelClient implements IDriver {
 
 	_serviceBrand: any;
 
-	constructor(private channel: IDriverChannel) { }
+	constructor(private channel: IChannel) { }
 
 	getWindowIds(): TPromise<number[]> {
 		return TPromise.wrap(this.channel.call('getWindowIds'));
@@ -158,21 +141,15 @@ export interface IWindowDriverRegistry {
 	reloadWindowDriver(windowId: number): TPromise<void>;
 }
 
-export interface IWindowDriverRegistryChannel extends IChannel {
-	call(command: 'registerWindowDriver', arg: number): Thenable<IDriverOptions>;
-	call(command: 'reloadWindowDriver', arg: number): Thenable<void>;
-	call(command: string, arg: any): Thenable<any>;
-}
-
-export class WindowDriverRegistryChannel implements IWindowDriverRegistryChannel {
+export class WindowDriverRegistryChannel implements IServerChannel {
 
 	constructor(private registry: IWindowDriverRegistry) { }
 
-	listen<T>(event: string): Event<T> {
-		throw new Error('No event found');
+	listen<T>(_, event: string): Event<T> {
+		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(command: string, arg?: any): Thenable<any> {
+	call(_, command: string, arg?: any): Thenable<any> {
 		switch (command) {
 			case 'registerWindowDriver': return this.registry.registerWindowDriver(arg);
 			case 'reloadWindowDriver': return this.registry.reloadWindowDriver(arg);
@@ -186,7 +163,7 @@ export class WindowDriverRegistryChannelClient implements IWindowDriverRegistry 
 
 	_serviceBrand: any;
 
-	constructor(private channel: IWindowDriverRegistryChannel) { }
+	constructor(private channel: IChannel) { }
 
 	registerWindowDriver(windowId: number): TPromise<IDriverOptions> {
 		return TPromise.wrap(this.channel.call('registerWindowDriver', windowId));
@@ -209,28 +186,15 @@ export interface IWindowDriver {
 	writeInTerminal(selector: string, text: string): TPromise<void>;
 }
 
-export interface IWindowDriverChannel extends IChannel {
-	call(command: 'click', arg: [string, number | undefined, number | undefined]): Thenable<void>;
-	call(command: 'doubleClick', arg: string): Thenable<void>;
-	call(command: 'setValue', arg: [string, string]): Thenable<void>;
-	call(command: 'getTitle'): Thenable<string>;
-	call(command: 'isActiveElement', arg: string): Thenable<boolean>;
-	call(command: 'getElements', arg: [string, boolean]): Thenable<IElement[]>;
-	call(command: 'typeInEditor', arg: [string, string]): Thenable<void>;
-	call(command: 'getTerminalBuffer', arg: string): Thenable<string[]>;
-	call(command: 'writeInTerminal', arg: [string, string]): Thenable<void>;
-	call(command: string, arg: any): Thenable<any>;
-}
-
-export class WindowDriverChannel implements IWindowDriverChannel {
+export class WindowDriverChannel implements IServerChannel {
 
 	constructor(private driver: IWindowDriver) { }
 
-	listen<T>(event: string): Event<T> {
-		throw new Error('No event found');
+	listen<T>(_, event: string): Event<T> {
+		throw new Error(`No event found: ${event}`);
 	}
 
-	call(command: string, arg?: any): Thenable<any> {
+	call(_, command: string, arg?: any): Thenable<any> {
 		switch (command) {
 			case 'click': return this.driver.click(arg[0], arg[1], arg[2]);
 			case 'doubleClick': return this.driver.doubleClick(arg);
@@ -251,7 +215,7 @@ export class WindowDriverChannelClient implements IWindowDriver {
 
 	_serviceBrand: any;
 
-	constructor(private channel: IWindowDriverChannel) { }
+	constructor(private channel: IChannel) { }
 
 	click(selector: string, xoffset?: number, yoffset?: number): TPromise<void> {
 		return TPromise.wrap(this.channel.call('click', [selector, xoffset, yoffset]));

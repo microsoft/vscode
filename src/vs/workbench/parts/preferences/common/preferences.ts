@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { join } from 'vs/base/common/paths';
@@ -54,12 +53,12 @@ export interface IKeybindingsEditor extends IEditor {
 	focusKeybindings(): void;
 	recordSearchKeys(): void;
 	toggleSortByPrecedence(): void;
-	defineKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
-	removeKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
-	resetKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
-	copyKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
-	copyKeybindingCommand(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
-	showSimilarKeybindings(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
+	defineKeybinding(keybindingEntry: IKeybindingItemEntry): Thenable<any>;
+	removeKeybinding(keybindingEntry: IKeybindingItemEntry): Thenable<any>;
+	resetKeybinding(keybindingEntry: IKeybindingItemEntry): Thenable<any>;
+	copyKeybinding(keybindingEntry: IKeybindingItemEntry): void;
+	copyKeybindingCommand(keybindingEntry: IKeybindingItemEntry): void;
+	showSimilarKeybindings(keybindingEntry: IKeybindingItemEntry): void;
 }
 
 export const CONTEXT_SETTINGS_EDITOR = new RawContextKey<boolean>('inSettingsEditor', false);

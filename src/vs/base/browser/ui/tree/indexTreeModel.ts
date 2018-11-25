@@ -335,7 +335,7 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 
 		if (typeof result === 'boolean') {
 			node.filterData = undefined;
-			return TreeVisibility.Visible;
+			return result ? TreeVisibility.Visible : TreeVisibility.Hidden;
 		} else if (isFilterResult<TFilterData>(result)) {
 			node.filterData = result.data;
 			return getVisibleState(result.visibility);

@@ -99,6 +99,7 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 		}
 	}
 
+	delete tsConfig.compilerOptions.moduleResolution;
 	writeOutputFile('tsconfig.json', JSON.stringify(tsConfig, null, '\t'));
 
 	[
@@ -148,7 +149,7 @@ export function createESMSourcesAndResources2(options: IOptions2): void {
 		if (file === 'tsconfig.json') {
 			const tsConfig = JSON.parse(fs.readFileSync(path.join(SRC_FOLDER, file)).toString());
 			tsConfig.compilerOptions.module = 'es6';
-			tsConfig.compilerOptions.outDir = path.join(path.relative(OUT_FOLDER, OUT_RESOURCES_FOLDER), 'vs');
+			tsConfig.compilerOptions.outDir = path.join(path.relative(OUT_FOLDER, OUT_RESOURCES_FOLDER), 'vs').replace(/\\/g, '/');
 			write(getDestAbsoluteFilePath(file), JSON.stringify(tsConfig, null, '\t'));
 			continue;
 		}
@@ -181,13 +182,14 @@ export function createESMSourcesAndResources2(options: IOptions2): void {
 				}
 
 				let relativePath: string;
-				if (importedFilepath === path.dirname(file)) {
+				if (importedFilepath === path.dirname(file).replace(/\\/g, '/')) {
 					relativePath = '../' + path.basename(path.dirname(file));
-				} else if (importedFilepath === path.dirname(path.dirname(file))) {
+				} else if (importedFilepath === path.dirname(path.dirname(file)).replace(/\\/g, '/')) {
 					relativePath = '../../' + path.basename(path.dirname(path.dirname(file)));
 				} else {
 					relativePath = path.relative(path.dirname(file), importedFilepath);
 				}
+				relativePath = relativePath.replace(/\\/g, '/');
 				if (!/(^\.\/)|(^\.\.\/)/.test(relativePath)) {
 					relativePath = './' + relativePath;
 				}

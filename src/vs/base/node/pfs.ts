@@ -64,12 +64,24 @@ export function rename(oldPath: string, newPath: string): Promise<void> {
 	return nfcall(fs.rename, oldPath, newPath);
 }
 
+export function renameIgnoreError(oldPath: string, newPath: string): Promise<void> {
+	return new Promise(resolve => {
+		fs.rename(oldPath, newPath, () => resolve());
+	});
+}
+
 export function rmdir(path: string): Promise<void> {
 	return nfcall(fs.rmdir, path);
 }
 
 export function unlink(path: string): Promise<void> {
 	return nfcall(fs.unlink, path);
+}
+
+export function unlinkIgnoreError(path: string): Promise<void> {
+	return new Promise(resolve => {
+		fs.unlink(path, () => resolve());
+	});
 }
 
 export function symlink(target: string, path: string, type?: string): Promise<void> {
@@ -170,10 +182,10 @@ export function del(path: string, tmp = getTmpDir()): Promise<void> {
 	return nfcall(extfs.del, path, tmp);
 }
 
-export function whenDeleted(path: string): TPromise<void> {
+export function whenDeleted(path: string): Promise<void> {
 
 	// Complete when wait marker file is deleted
-	return new TPromise<void>(c => {
+	return new Promise<void>(resolve => {
 		let running = false;
 		const interval = setInterval(() => {
 			if (!running) {
@@ -183,7 +195,7 @@ export function whenDeleted(path: string): TPromise<void> {
 
 					if (!exists) {
 						clearInterval(interval);
-						c(void 0);
+						resolve(void 0);
 					}
 				});
 			}

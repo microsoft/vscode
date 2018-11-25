@@ -371,4 +371,40 @@ suite('SnippetsService', function () {
 
 		assert.equal(result.suggestions.length, 1);
 	});
+
+	test('Snippet prefix with special chars and numbers does not work #62906', async function () {
+		snippetService = new SimpleSnippetService([new Snippet(
+			['fooLang'],
+			'noblockwdelay',
+			'<<',
+			'',
+			'<= #dly"',
+			'',
+			SnippetSource.User
+		), new Snippet(
+			['fooLang'],
+			'noblockwdelay',
+			'11',
+			'',
+			'eleven',
+			'',
+			SnippetSource.User
+		)]);
+
+		const provider = new SnippetCompletionProvider(modeService, snippetService);
+
+		let model = TextModel.createFromString(' <', undefined, modeService.getLanguageIdentifier('fooLang'));
+		let result = await provider.provideCompletionItems(model, new Position(1, 3));
+
+		assert.equal(result.suggestions.length, 1);
+		let [first] = result.suggestions;
+		assert.equal(first.range.startColumn, 2);
+
+		model = TextModel.createFromString('1', undefined, modeService.getLanguageIdentifier('fooLang'));
+		result = await provider.provideCompletionItems(model, new Position(1, 2));
+
+		assert.equal(result.suggestions.length, 1);
+		[first] = result.suggestions;
+		assert.equal(first.range.startColumn, 1);
+	});
 });

@@ -57,9 +57,12 @@ export class ContextMenuHandler {
 
 		this.focusToReturn = document.activeElement as HTMLElement;
 
+		let menu: Menu | undefined;
+
 		this.contextViewService.showContextView({
 			getAnchor: () => delegate.getAnchor(),
 			canRelayout: false,
+			anchorAlignment: delegate.anchorAlignment,
 
 			render: (container) => {
 				this.menuContainerElement = container;
@@ -76,7 +79,7 @@ export class ContextMenuHandler {
 				actionRunner.onDidBeforeRun(this.onActionRun, this, menuDisposables);
 				actionRunner.onDidRun(this.onDidActionRun, this, menuDisposables);
 
-				const menu = new Menu(container, actions, {
+				menu = new Menu(container, actions, {
 					actionItemProvider: delegate.getActionItem,
 					context: delegate.getActionsContext ? delegate.getActionsContext() : null,
 					actionRunner,
@@ -89,9 +92,11 @@ export class ContextMenuHandler {
 				menu.onDidBlur(() => this.contextViewService.hideContextView(true), null, menuDisposables);
 				domEvent(window, EventType.BLUR)(() => { this.contextViewService.hideContextView(true); }, null, menuDisposables);
 
-				menu.focus(!!delegate.autoSelectFirstItem);
-
 				return combinedDisposable([...menuDisposables, menu]);
+			},
+
+			focus: () => {
+				menu.focus(!!delegate.autoSelectFirstItem);
 			},
 
 			onHide: (didCancel?: boolean) => {

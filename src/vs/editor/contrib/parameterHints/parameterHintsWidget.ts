@@ -10,7 +10,7 @@ import * as dom from 'vs/base/browser/dom';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import * as modes from 'vs/editor/common/modes';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { RunOnceScheduler, createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
+import { createCancelablePromise, CancelablePromise, Delayer } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Event, Emitter, chain } from 'vs/base/common/event';
 import { domEvent, stop } from 'vs/base/browser/event';
@@ -55,9 +55,8 @@ export class ParameterHintsModel extends Disposable {
 	private triggerChars = new CharacterSet();
 	private retriggerChars = new CharacterSet();
 
-	private triggerContext: modes.SignatureHelpContext | undefined;
-	private throttledDelayer: RunOnceScheduler;
-	private provideSignatureHelpRequest?: CancelablePromise<modes.SignatureHelp>;
+	private throttledDelayer: Delayer<boolean>;
+	private provideSignatureHelpRequest?: CancelablePromise<modes.SignatureHelp | null | undefined>;
 
 	constructor(
 		editor: ICodeEditor,
@@ -69,7 +68,7 @@ export class ParameterHintsModel extends Disposable {
 		this.enabled = false;
 		this.triggerCharactersListeners = [];
 
-		this.throttledDelayer = new RunOnceScheduler(() => this.doTrigger(), delay);
+		this.throttledDelayer = new Delayer(delay);
 
 		this._register(this.editor.onDidChangeConfiguration(() => this.onEditorConfigurationChange()));
 		this._register(this.editor.onDidChangeModel(e => this.onModelChanged()));
@@ -86,7 +85,6 @@ export class ParameterHintsModel extends Disposable {
 	cancel(silent: boolean = false): void {
 		this.active = false;
 		this.pending = false;
-		this.triggerContext = undefined;
 
 		this.throttledDelayer.cancel();
 
@@ -101,36 +99,36 @@ export class ParameterHintsModel extends Disposable {
 	}
 
 	trigger(context: TriggerContext, delay?: number): void {
-		if (!modes.SignatureHelpProviderRegistry.has(this.editor.getModel())) {
+
+		const model = this.editor.getModel();
+		if (model === null || !modes.SignatureHelpProviderRegistry.has(model)) {
 			return;
 		}
 
-		const wasTriggered = this.isTriggered;
-		this.cancel(true);
-
-		this.triggerContext = {
-			triggerReason: context.triggerReason,
-			triggerCharacter: context.triggerCharacter,
-			isRetrigger: wasTriggered
-		};
-
-		return this.throttledDelayer.schedule(delay);
+		this.throttledDelayer.trigger(
+			() => this.doTrigger({
+				triggerReason: context.triggerReason,
+				triggerCharacter: context.triggerCharacter,
+				isRetrigger: this.isTriggered,
+			}), delay).then(undefined, onUnexpectedError);
 	}
 
-	private doTrigger(): void {
-		if (this.provideSignatureHelpRequest) {
-			this.provideSignatureHelpRequest.cancel();
+	private doTrigger(triggerContext: modes.SignatureHelpContext): Promise<boolean> {
+		this.cancel(true);
+
+		if (!this.editor.hasModel()) {
+			return Promise.resolve(false);
 		}
+
+		const model = this.editor.getModel();
+		const position = this.editor.getPosition();
 
 		this.pending = true;
 
-		const triggerContext = this.triggerContext || { triggerReason: modes.SignatureHelpTriggerReason.Invoke, isRetrigger: false };
-		this.triggerContext = undefined;
-
 		this.provideSignatureHelpRequest = createCancelablePromise(token =>
-			provideSignatureHelp(this.editor.getModel(), this.editor.getPosition(), triggerContext, token));
+			provideSignatureHelp(model!, position!, triggerContext, token));
 
-		this.provideSignatureHelpRequest.then(result => {
+		return this.provideSignatureHelpRequest.then(result => {
 			this.pending = false;
 
 			if (!result || !result.signatures || result.signatures.length === 0) {
@@ -147,11 +145,12 @@ export class ParameterHintsModel extends Disposable {
 		}).catch(error => {
 			this.pending = false;
 			onUnexpectedError(error);
+			return false;
 		});
 	}
 
 	private get isTriggered(): boolean {
-		return this.active || this.pending || this.throttledDelayer.isScheduled();
+		return this.active || this.pending || this.throttledDelayer.isTriggered();
 	}
 
 	private onModelChanged(): void {
@@ -236,7 +235,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 	private readonly markdownRenderer: MarkdownRenderer;
 	private renderDisposeables: IDisposable[];
-	private model: ParameterHintsModel;
+	private model: ParameterHintsModel | null;
 	private readonly keyVisible: IContextKey<boolean>;
 	private readonly keyMultipleSignatures: IContextKey<boolean>;
 	private element: HTMLElement;
@@ -245,8 +244,8 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 	private overloads: HTMLElement;
 	private currentSignature: number;
 	private visible: boolean;
-	private hints: modes.SignatureHelp;
-	private announcedLabel: string;
+	private hints: modes.SignatureHelp | null;
+	private announcedLabel: string | null;
 	private scrollbar: DomScrollableElement;
 	private disposables: IDisposable[];
 
@@ -362,7 +361,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		this.editor.layoutContentWidget(this);
 	}
 
-	getPosition(): IContentWidgetPosition {
+	getPosition(): IContentWidgetPosition | null {
 		if (this.visible) {
 			return {
 				position: this.editor.getPosition(),
@@ -373,6 +372,10 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 	}
 
 	private render(): void {
+		if (!this.hints) {
+			return;
+		}
+
 		const multiple = this.hints.signatures.length > 1;
 		dom.toggleClass(this.element, 'multiple', multiple);
 		this.keyMultipleSignatures.set(multiple);
@@ -416,13 +419,14 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 				this.renderDisposeables.push(renderedContents);
 				documentation.appendChild(renderedContents.element);
 			}
-			dom.append(this.docs, $('p', null, documentation));
+			dom.append(this.docs, $('p', {}, documentation));
 		}
 
 		dom.toggleClass(this.signature, 'has-docs', !!signature.documentation);
 
-		if (typeof signature.documentation === 'string') {
-			dom.append(this.docs, $('p', null, signature.documentation));
+		if (signature.documentation === undefined) { /** no op */ }
+		else if (typeof signature.documentation === 'string') {
+			dom.append(this.docs, $('p', {}, signature.documentation));
 		} else {
 			const renderedContents = this.markdownRenderer.render(signature.documentation);
 			dom.addClass(renderedContents.element, 'markdown-docs');
@@ -525,6 +529,10 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 	// }
 
 	next(): boolean {
+		if (!this.hints) {
+			return false;
+		}
+
 		const length = this.hints.signatures.length;
 		const last = (this.currentSignature % length) === (length - 1);
 		const cycle = this.editor.getConfiguration().contribInfo.parameterHints.cycle;
@@ -546,6 +554,10 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 	}
 
 	previous(): boolean {
+		if (!this.hints) {
+			return false;
+		}
+
 		const length = this.hints.signatures.length;
 		const first = this.currentSignature === 0;
 		const cycle = this.editor.getConfiguration().contribInfo.parameterHints.cycle;
@@ -567,7 +579,9 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 	}
 
 	cancel(): void {
-		this.model.cancel();
+		if (this.model) {
+			this.model.cancel();
+		}
 	}
 
 	getDomNode(): HTMLElement {
@@ -579,7 +593,9 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 	}
 
 	trigger(context: TriggerContext): void {
-		this.model.trigger(context, 0);
+		if (this.model) {
+			this.model.trigger(context, 0);
+		}
 	}
 
 	private updateMaxHeight(): void {

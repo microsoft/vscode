@@ -4,16 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals } from 'vs/base/common/arrays';
+import { UriComponents } from 'vs/base/common/uri';
 
 export interface IMarkdownString {
 	value: string;
 	isTrusted?: boolean;
+	uris?: { [href: string]: UriComponents };
 }
 
 export class MarkdownString implements IMarkdownString {
 
 	value: string;
 	isTrusted?: boolean;
+	sanitize: boolean = true;
 
 	constructor(value: string = '') {
 		this.value = value;

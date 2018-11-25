@@ -7,8 +7,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event, latch, anyEvent } from 'vs/base/common/event';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { IProcessEnvironment } from 'vs/base/common/platform';
-import { ParsedArgs } from 'vs/platform/environment/common/environment';
+import { IProcessEnvironment, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
@@ -16,6 +16,7 @@ import { ExportData } from 'vs/base/common/performance';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export const IWindowsService = createDecorator<IWindowsService>('windowsService');
 
@@ -242,6 +243,39 @@ export interface IWindowSettings {
 	closeWhenEmpty: boolean;
 	smoothScrollingWorkaround: boolean;
 	clickThroughInactive: boolean;
+}
+
+export function getTitleBarStyle(configurationService: IConfigurationService, environment: IEnvironmentService): 'native' | 'custom' {
+	const configuration = configurationService.getValue<IWindowSettings>('window');
+
+	const isDev = !environment.isBuilt || environment.isExtensionDevelopment;
+	if (isMacintosh && isDev) {
+		return 'native'; // not enabled when developing due to https://github.com/electron/electron/issues/3647
+	}
+
+	if (configuration) {
+		const useNativeTabs = isMacintosh && configuration.nativeTabs === true;
+		if (useNativeTabs) {
+			return 'native'; // native tabs on sierra do not work with custom title style
+		}
+
+		const useSimpleFullScreen = isMacintosh && configuration.nativeFullScreen === false;
+		if (useSimpleFullScreen) {
+			return 'native'; // simple fullscreen does not work well with custom title style (https://github.com/Microsoft/vscode/issues/63291)
+		}
+
+		const smoothScrollingWorkaround = isWindows && configuration.smoothScrollingWorkaround === true;
+		if (smoothScrollingWorkaround) {
+			return 'native'; // smooth scrolling workaround does not work with custom title style
+		}
+
+		const style = configuration.titleBarStyle;
+		if (style === 'native') {
+			return 'native';
+		}
+	}
+
+	return 'custom'; // default to custom on all OS
 }
 
 export const enum OpenContext {

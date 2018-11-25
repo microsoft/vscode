@@ -707,9 +707,9 @@ export class OutlinePanel extends ViewletPanel {
 		if (top < 0 || top > 1) {
 			// only when outside view port
 			await this._tree.reveal(item, .5);
-			this._tree.setFocus(item, this);
-			this._tree.setSelection([item], this);
 		}
+		this._tree.setFocus(item, this);
+		this._tree.setSelection([item], this);
 	}
 
 	focusHighlightedElement(up: boolean): void {

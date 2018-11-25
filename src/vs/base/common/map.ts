@@ -449,7 +449,7 @@ export class ResourceMap<T> {
 	}
 
 	public keys(): URI[] {
-		return keys(this.map).map(URI.parse);
+		return keys(this.map).map(k => URI.parse(k));
 	}
 
 	public clone(): ResourceMap<T> {

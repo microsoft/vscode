@@ -15,7 +15,7 @@ import * as Model from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 
 import { Task, CustomTask, ContributedTask } from 'vs/workbench/parts/tasks/common/tasks';
-import { ITaskService, RunOptions } from 'vs/workbench/parts/tasks/common/taskService';
+import { ITaskService, ProblemMatcherRunOptions } from 'vs/workbench/parts/tasks/common/taskService';
 import { ActionBarContributor, ContributableActionProvider } from 'vs/workbench/browser/actions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
@@ -48,7 +48,7 @@ export class TaskEntry extends Model.QuickOpenEntry {
 		return this._task;
 	}
 
-	protected doRun(task: CustomTask | ContributedTask, options?: RunOptions): boolean {
+	protected doRun(task: CustomTask | ContributedTask, options?: ProblemMatcherRunOptions): boolean {
 		this.taskService.run(task, options);
 		if (!task.command || task.command.presentation.focus) {
 			this.quickOpenService.close();

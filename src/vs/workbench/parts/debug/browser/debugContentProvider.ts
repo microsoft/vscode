@@ -38,7 +38,7 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 		textModelResolverService.registerTextModelContentProvider(DEBUG_SCHEME, this);
 	}
 
-	public provideTextContent(resource: uri): Promise<ITextModel> {
+	provideTextContent(resource: uri): Promise<ITextModel> {
 
 		let session: IDebugSession;
 

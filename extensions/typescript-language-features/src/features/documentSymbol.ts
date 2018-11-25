@@ -99,5 +99,5 @@ export function register(
 	client: ITypeScriptServiceClient,
 ) {
 	return vscode.languages.registerDocumentSymbolProvider(selector,
-		new TypeScriptDocumentSymbolProvider(client));
+		new TypeScriptDocumentSymbolProvider(client), { label: 'TypeScript' });
 }

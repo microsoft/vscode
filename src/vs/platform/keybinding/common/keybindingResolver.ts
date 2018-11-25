@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { MenuRegistry } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ContextKeyAndExpr, ContextKeyExpr, IContext } from 'vs/platform/contextkey/common/contextkey';
@@ -322,7 +322,7 @@ export class KeybindingResolver {
 			}
 			const command = CommandsRegistry.getCommand(id);
 			if (command && typeof command.description === 'object'
-				&& !isFalsyOrEmpty((<ICommandHandlerDescription>command.description).args)) { // command with args
+				&& isNonEmptyArray((<ICommandHandlerDescription>command.description).args)) { // command with args
 				return;
 			}
 			unboundCommands.push(id);

@@ -67,9 +67,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 			// Otherwise there will be a pause message per thread and there is no need for a global one.
 			if (newTreeInput instanceof Thread && newTreeInput.stoppedDetails) {
 				this.pauseMessageLabel.textContent = newTreeInput.stoppedDetails.description || nls.localize('debugStopped', "Paused on {0}", newTreeInput.stoppedDetails.reason);
-				if (newTreeInput.stoppedDetails.text) {
-					this.pauseMessageLabel.title = newTreeInput.stoppedDetails.text;
-				}
+				this.pauseMessageLabel.title = newTreeInput.stoppedDetails.text;
 				dom.toggleClass(this.pauseMessageLabel, 'exception', newTreeInput.stoppedDetails.reason === 'exception');
 				this.pauseMessage.hidden = false;
 			} else {
@@ -97,6 +95,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 		this.treeContainer = renderViewTree(container);
 		const actionProvider = new CallStackActionProvider(this.debugService, this.keybindingService, this.instantiationService);
 		const controller = this.instantiationService.createInstance(CallStackController, actionProvider, MenuId.DebugCallStackContext, {});
+		this.disposables.push(controller);
 		this.dataSource = new CallStackDataSource();
 		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
 			dataSource: this.dataSource,

@@ -9,10 +9,10 @@ import * as Proto from './protocol';
 import API from './utils/api';
 import { TypeScriptServiceConfiguration } from './utils/configuration';
 import Logger from './utils/logger';
-import { TypeScriptServerPlugin } from './utils/plugins';
+import { PluginManager } from './utils/plugins';
 
 export class CancelledResponse {
-	readonly type: 'cancelled' = 'cancelled';
+	public readonly type: 'cancelled' = 'cancelled';
 
 	constructor(
 		public readonly reason: string
@@ -20,7 +20,7 @@ export class CancelledResponse {
 }
 
 export class NoContentResponse {
-	readonly type: 'noContent' = 'noContent';
+	public readonly type: 'noContent' = 'noContent';
 }
 
 export type ServerResponse<T extends Proto.Response> = T | CancelledResponse | NoContentResponse;
@@ -57,7 +57,6 @@ interface TypeScriptRequestTypes {
 	'typeDefinition': [Proto.FileLocationRequestArgs, Proto.TypeDefinitionResponse];
 }
 
-
 export interface ITypeScriptServiceClient {
 	/**
 	 * Convert a resource (VS Code) to a normalized path (TypeScript).
@@ -87,7 +86,7 @@ export interface ITypeScriptServiceClient {
 	readonly onTypesInstallerInitializationFailed: vscode.Event<Proto.TypesInstallerInitializationFailedEventBody>;
 
 	readonly apiVersion: API;
-	readonly plugins: TypeScriptServerPlugin[];
+	readonly pluginManager: PluginManager;
 	readonly configuration: TypeScriptServiceConfiguration;
 	readonly logger: Logger;
 	readonly bufferSyncSupport: BufferSyncSupport;

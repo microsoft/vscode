@@ -751,6 +751,11 @@ export class FileService extends Disposable implements IFileService {
 		});
 	}
 
+	readFolder(resource: uri): TPromise<string[]> {
+		const absolutePath = this.toAbsolutePath(resource);
+		return pfs.readdir(absolutePath);
+	}
+
 	createFolder(resource: uri): TPromise<IFileStat> {
 
 		// 1.) Create folder

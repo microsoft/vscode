@@ -14,6 +14,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Color } from 'vs/base/common/color';
+import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 
 export const MENU_MNEMONIC_REGEX: RegExp = /\(&{1,2}(.)\)|&{1,2}(.)/;
 export const MENU_ESCAPED_MNEMONIC_REGEX: RegExp = /(?:&amp;){1,2}(.)/;
@@ -25,6 +26,7 @@ export interface IMenuOptions {
 	getKeyBinding?: (action: IAction) => ResolvedKeybinding;
 	ariaLabel?: string;
 	enableMnemonics?: boolean;
+	anchorAlignment?: AnchorAlignment;
 }
 
 export interface IMenuStyles {
@@ -139,6 +141,10 @@ export class Menu extends ActionBar {
 		this.mnemonics = new Map<KeyCode, Array<MenuActionItem>>();
 
 		this.push(actions, { icon: true, label: true, isMenu: true });
+
+		this.items.filter(item => !(item instanceof MenuSeparatorActionItem)).forEach((item: MenuActionItem, index: number, array: any[]) => {
+			item.updatePositionInSet(index + 1, array.length);
+		});
 	}
 
 	style(style: IMenuStyles): void {
@@ -321,6 +327,11 @@ class MenuActionItem extends BaseActionItem {
 		super.focus();
 		this.item.focus();
 		this.applyStyle();
+	}
+
+	updatePositionInSet(pos: number, setSize: number): void {
+		this.item.setAttribute('aria-posinset', `${pos}`);
+		this.item.setAttribute('aria-setsize', `${setSize}`);
 	}
 
 	updateLabel(): void {

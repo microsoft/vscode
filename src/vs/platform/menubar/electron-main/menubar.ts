@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { isMacintosh, language } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { app, shell, Menu, MenuItem, BrowserWindow } from 'electron';
-import { OpenContext, IRunActionInWindowRequest } from 'vs/platform/windows/common/windows';
+import { OpenContext, IRunActionInWindowRequest, getTitleBarStyle } from 'vs/platform/windows/common/windows';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUpdateService, StateType } from 'vs/platform/update/common/update';
@@ -70,7 +70,9 @@ export class Menubar {
 		this.menubarMenus = Object.create(null);
 		this.keybindings = Object.create(null);
 
-		this.restoreCachedMenubarData();
+		if (isMacintosh || getTitleBarStyle(this.configurationService, this.environmentService) === 'native') {
+			this.restoreCachedMenubarData();
+		}
 
 		this.addFallbackHandlers();
 
@@ -364,8 +366,12 @@ export class Menubar {
 		const showAll = new MenuItem({ label: nls.localize('mShowAll', "Show All"), role: 'unhide' });
 		const quit = new MenuItem(this.likeAction('workbench.action.quit', {
 			label: nls.localize('miQuit', "Quit {0}", product.nameLong), click: () => {
-				if (this.windowsMainService.getWindowCount() === 0 || !!BrowserWindow.getFocusedWindow()) {
-					this.windowsMainService.quit(); // fix for https://github.com/Microsoft/vscode/issues/39191
+				if (
+					this.windowsMainService.getWindowCount() === 0 || 			// allow to quit when no more windows are open
+					!!this.windowsMainService.getFocusedWindow() ||				// allow to quit when window has focus (fix for https://github.com/Microsoft/vscode/issues/39191)
+					this.windowsMainService.getLastActiveWindow().isMinimized()	// allow to quit when window has no focus but is minimized (https://github.com/Microsoft/vscode/issues/63000)
+				) {
+					this.windowsMainService.quit();
 				}
 			}
 		}));
@@ -396,7 +402,7 @@ export class Menubar {
 
 	private shouldDrawMenu(menuId: string): boolean {
 		// We need to draw an empty menu to override the electron default
-		if (!isMacintosh && this.configurationService.getValue('window.titleBarStyle') === 'custom') {
+		if (!isMacintosh && getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
 			return false;
 		}
 
@@ -702,7 +708,16 @@ export class Menubar {
 		// We make sure to not run actions when the window has no focus, this helps
 		// for https://github.com/Microsoft/vscode/issues/25907 and specifically for
 		// https://github.com/Microsoft/vscode/issues/11928
-		const activeWindow = this.windowsMainService.getFocusedWindow();
+		// Still allow to run when the last active window is minimized though for
+		// https://github.com/Microsoft/vscode/issues/63000
+		let activeWindow = this.windowsMainService.getFocusedWindow();
+		if (!activeWindow) {
+			const lastActiveWindow = this.windowsMainService.getLastActiveWindow();
+			if (lastActiveWindow.isMinimized()) {
+				activeWindow = lastActiveWindow;
+			}
+		}
+
 		if (activeWindow) {
 			this.windowsMainService.sendToFocused('vscode:runAction', { id, from: 'menu' } as IRunActionInWindowRequest);
 		}

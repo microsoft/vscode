@@ -296,6 +296,7 @@ export const enum Operation {
 	SubmoduleUpdate = 'SubmoduleUpdate',
 	RebaseContinue = 'RebaseContinue',
 	GetTracking = 'GetTracking'
+	Apply = 'Apply'
 }
 
 function isReadOnly(operation: Operation): boolean {
@@ -706,6 +707,10 @@ export class Repository implements Disposable {
 		await this.run(Operation.Status);
 	}
 
+	diff(cached?: boolean): Promise<string> {
+		return this.run(Operation.Diff, () => this.repository.diff(cached));
+	}
+
 	diffWithHEAD(path: string): Promise<string> {
 		return this.run(Operation.Diff, () => this.repository.diffWithHEAD(path));
 	}
@@ -895,6 +900,11 @@ export class Repository implements Disposable {
 	}
 
 	@throttle
+	async fetchPrune(): Promise<void> {
+		await this.run(Operation.Fetch, () => this.repository.fetch({ prune: true }));
+	}
+
+	@throttle
 	async fetchAll(): Promise<void> {
 		await this.run(Operation.Fetch, () => this.repository.fetch({ all: true }));
 	}
@@ -1053,6 +1063,10 @@ export class Repository implements Disposable {
 
 	detectObjectType(object: string): Promise<{ mimetype: string, encoding?: string }> {
 		return this.run(Operation.Show, () => this.repository.detectObjectType(object));
+	}
+
+	async apply(patch: string, reverse?: boolean): Promise<void> {
+		return await this.run(Operation.Apply, () => this.repository.apply(patch, reverse));
 	}
 
 	async getStashes(): Promise<Stash[]> {

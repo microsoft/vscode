@@ -44,41 +44,38 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 	abstract startSession(): Promise<void>;
 	abstract stopSession(): Promise<void>;
 
-	public dispose(): void {
-	}
-
 	abstract sendMessage(message: DebugProtocol.ProtocolMessage): void;
 
-	public get onError(): Event<Error> {
+	get onError(): Event<Error> {
 		return this._onError.event;
 	}
 
-	public get onExit(): Event<number> {
+	get onExit(): Event<number> {
 		return this._onExit.event;
 	}
 
-	public onMessage(callback: (message: DebugProtocol.ProtocolMessage) => void): void {
+	onMessage(callback: (message: DebugProtocol.ProtocolMessage) => void): void {
 		if (this.eventCallback) {
 			this._onError.fire(new Error(`attempt to set more than one 'Message' callback`));
 		}
 		this.messageCallback = callback;
 	}
 
-	public onEvent(callback: (event: DebugProtocol.Event) => void): void {
+	onEvent(callback: (event: DebugProtocol.Event) => void): void {
 		if (this.eventCallback) {
 			this._onError.fire(new Error(`attempt to set more than one 'Event' callback`));
 		}
 		this.eventCallback = callback;
 	}
 
-	public onRequest(callback: (request: DebugProtocol.Request) => void): void {
+	onRequest(callback: (request: DebugProtocol.Request) => void): void {
 		if (this.requestCallback) {
 			this._onError.fire(new Error(`attempt to set more than one 'Request' callback`));
 		}
 		this.requestCallback = callback;
 	}
 
-	public sendResponse(response: DebugProtocol.Response): void {
+	sendResponse(response: DebugProtocol.Response): void {
 		if (response.seq > 0) {
 			this._onError.fire(new Error(`attempt to send more than one response for command ${response.command}`));
 		} else {
@@ -86,7 +83,7 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 		}
 	}
 
-	public sendRequest(command: string, args: any, clb: (result: DebugProtocol.Response) => void, timeout?: number): void {
+	sendRequest(command: string, args: any, clb: (result: DebugProtocol.Response) => void, timeout?: number): void {
 
 		const request: any = {
 			command: command
@@ -122,7 +119,7 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 		}
 	}
 
-	public acceptMessage(message: DebugProtocol.ProtocolMessage): void {
+	acceptMessage(message: DebugProtocol.ProtocolMessage): void {
 		if (this.messageCallback) {
 			this.messageCallback(message);
 		} else {
@@ -174,6 +171,10 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 			});
 		}, 1000);
 	}
+
+	dispose(): void {
+		this.cancelPending();
+	}
 }
 
 /**
@@ -202,7 +203,7 @@ export abstract class StreamDebugAdapter extends AbstractDebugAdapter {
 		readable.on('data', (data: Buffer) => this.handleData(data));
 	}
 
-	public sendMessage(message: DebugProtocol.ProtocolMessage): void {
+	sendMessage(message: DebugProtocol.ProtocolMessage): void {
 
 		if (this.outputStream) {
 			const json = JSON.stringify(message);
@@ -335,14 +336,14 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 				if (Array.isArray(this.adapterExecutable.args) && this.adapterExecutable.args.length > 0) {
 					const isElectron = !!process.env['ELECTRON_RUN_AS_NODE'] || !!process.versions['electron'];
 					const options: cp.ForkOptions = {
-						env: this.adapterExecutable.env
-							? objects.mixin(objects.mixin({}, process.env), this.adapterExecutable.env)
+						env: this.adapterExecutable.options && this.adapterExecutable.options.env
+							? objects.mixin(objects.mixin({}, process.env), this.adapterExecutable.options.env)
 							: process.env,
 						execArgv: isElectron ? ['-e', 'delete process.env.ELECTRON_RUN_AS_NODE;require(process.argv[1])'] : [],
 						silent: true
 					};
-					if (this.adapterExecutable.cwd) {
-						options.cwd = this.adapterExecutable.cwd;
+					if (this.adapterExecutable.options && this.adapterExecutable.options.cwd) {
+						options.cwd = this.adapterExecutable.options.cwd;
 					}
 					const child = cp.fork(this.adapterExecutable.args[0], this.adapterExecutable.args.slice(1), options);
 					if (!child.pid) {
@@ -355,12 +356,12 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 				}
 			} else {
 				const options: cp.SpawnOptions = {
-					env: this.adapterExecutable.env
-						? objects.mixin(objects.mixin({}, process.env), this.adapterExecutable.env)
+					env: this.adapterExecutable.options && this.adapterExecutable.options.env
+						? objects.mixin(objects.mixin({}, process.env), this.adapterExecutable.options.env)
 						: process.env
 				};
-				if (this.adapterExecutable.cwd) {
-					options.cwd = this.adapterExecutable.cwd;
+				if (this.adapterExecutable.options && this.adapterExecutable.options.cwd) {
+					options.cwd = this.adapterExecutable.options.cwd;
 				}
 				this.serverProcess = cp.spawn(this.adapterExecutable.command, this.adapterExecutable.args, options);
 				resolve(null);
@@ -473,8 +474,8 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 		return result;
 	}
 
-	public static platformAdapterExecutable(extensionDescriptions: IExtensionDescription[], debugType: string): IDebugAdapterExecutable {
-		const result: IDebuggerContribution = Object.create(null);
+	static platformAdapterExecutable(extensionDescriptions: IExtensionDescription[], debugType: string): IDebugAdapterExecutable | undefined {
+		let result: IDebuggerContribution = Object.create(null);
 		debugType = debugType.toLowerCase();
 
 		// merge all contributions into one
@@ -487,7 +488,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 						const extractedDbg = ExecutableDebugAdapter.extract(dbg, ed.extensionLocation.fsPath);
 
 						// merge
-						objects.mixin(result, extractedDbg, ed.isBuiltin);
+						result = objects.mixin(result, extractedDbg, ed.isBuiltin);
 					});
 				}
 			}
@@ -518,12 +519,15 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 				command: runtime,
 				args: (runtimeArgs || []).concat([program]).concat(args || [])
 			};
-		} else {
+		} else if (program) {
 			return {
 				type: 'executable',
 				command: program,
 				args: args || []
 			};
 		}
+
+		// nothing found
+		return undefined;
 	}
 }

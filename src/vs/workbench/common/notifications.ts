@@ -203,7 +203,7 @@ export interface INotificationViewItem {
 
 	close(): void;
 
-	equals(item: INotificationViewItem);
+	equals(item: INotificationViewItem): boolean;
 }
 
 export function isNotificationViewItem(obj: any): obj is INotificationViewItem {

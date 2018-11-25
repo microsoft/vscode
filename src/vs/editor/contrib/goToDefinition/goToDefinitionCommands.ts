@@ -26,7 +26,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IProgressService } from 'vs/platform/progress/common/progress';
-import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition } from './goToDefinition';
+import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition, getDeclarationsAtPosition } from './goToDefinition';
 
 
 export class DefinitionActionConfig {
@@ -58,7 +58,7 @@ export class DefinitionAction extends EditorAction {
 		const model = editor.getModel();
 		const pos = editor.getPosition();
 
-		const definitionPromise = this._getDeclarationsAtPosition(model, pos, CancellationToken.None).then(references => {
+		const definitionPromise = this._getTargetLocationForPosition(model, pos, CancellationToken.None).then(references => {
 
 			if (model.isDisposed() || editor.getModel() !== model) {
 				// new model, no more model
@@ -113,7 +113,7 @@ export class DefinitionAction extends EditorAction {
 		return definitionPromise;
 	}
 
-	protected _getDeclarationsAtPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Thenable<DefinitionLink[]> {
+	protected _getTargetLocationForPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Thenable<DefinitionLink[]> {
 		return getDefinitionsAtPosition(model, position, token);
 	}
 
@@ -249,8 +249,84 @@ export class PeekDefinitionAction extends DefinitionAction {
 	}
 }
 
+export class DeclarationAction extends DefinitionAction {
+
+	protected _getTargetLocationForPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Thenable<DefinitionLink[]> {
+		return getDeclarationsAtPosition(model, position, token);
+	}
+
+	protected _getNoResultFoundMessage(info?: IWordAtPosition): string {
+		return info && info.word
+			? nls.localize('decl.noResultWord', "No declaration found for '{0}'", info.word)
+			: nls.localize('decl.generic.noResults', "No declaration found");
+	}
+
+	protected _getMetaTitle(model: ReferencesModel): string {
+		return model.references.length > 1 && nls.localize('decl.meta.title', " – {0} declarations", model.references.length);
+	}
+}
+
+export class GoToDeclarationAction extends DeclarationAction {
+
+	public static readonly ID = 'editor.action.goToRealDeclaration';
+
+	constructor() {
+		super(new DefinitionActionConfig(), {
+			id: GoToDeclarationAction.ID,
+			label: nls.localize('actions.goToDeclaration.label', "Go to Declaration"),
+			alias: 'Go to Declaration',
+			precondition: ContextKeyExpr.and(
+				EditorContextKeys.hasDeclarationProvider,
+				EditorContextKeys.isInEmbeddedEditor.toNegated()),
+			kbOpts: {
+				kbExpr: EditorContextKeys.editorTextFocus,
+				primary: KeyMod.CtrlCmd | KeyCode.F12,
+				weight: KeybindingWeight.EditorContrib
+			},
+			menuOpts: {
+				group: 'navigation',
+				order: 1.3
+			}
+		});
+	}
+
+	protected _getNoResultFoundMessage(info?: IWordAtPosition): string {
+		return info && info.word
+			? nls.localize('decl.noResultWord', "No declaration found for '{0}'", info.word)
+			: nls.localize('decl.generic.noResults', "No declaration found");
+	}
+
+	protected _getMetaTitle(model: ReferencesModel): string {
+		return model.references.length > 1 && nls.localize('decl.meta.title', " – {0} declarations", model.references.length);
+	}
+}
+
+export class PeekDeclarationAction extends DeclarationAction {
+	constructor() {
+		super(new DefinitionActionConfig(void 0, true, false), {
+			id: 'editor.action.peekDeclaration',
+			label: nls.localize('actions.peekDecl.label', "Peek Declaration"),
+			alias: 'Peek Declaration',
+			precondition: ContextKeyExpr.and(
+				EditorContextKeys.hasDeclarationProvider,
+				PeekContext.notInPeekEditor,
+				EditorContextKeys.isInEmbeddedEditor.toNegated()),
+			kbOpts: {
+				kbExpr: EditorContextKeys.editorTextFocus,
+				primary: KeyMod.Alt | KeyCode.F12,
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F10 },
+				weight: KeybindingWeight.EditorContrib
+			},
+			menuOpts: {
+				group: 'navigation',
+				order: 1.31
+			}
+		});
+	}
+}
+
 export class ImplementationAction extends DefinitionAction {
-	protected _getDeclarationsAtPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Thenable<DefinitionLink[]> {
+	protected _getTargetLocationForPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Thenable<DefinitionLink[]> {
 		return getImplementationsAtPosition(model, position, token);
 	}
 
@@ -308,7 +384,7 @@ export class PeekImplementationAction extends ImplementationAction {
 }
 
 export class TypeDefinitionAction extends DefinitionAction {
-	protected _getDeclarationsAtPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Thenable<DefinitionLink[]> {
+	protected _getTargetLocationForPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Thenable<DefinitionLink[]> {
 		return getTypeDefinitionsAtPosition(model, position, token);
 	}
 
@@ -372,6 +448,8 @@ export class PeekTypeDefinitionAction extends TypeDefinitionAction {
 registerEditorAction(GoToDefinitionAction);
 registerEditorAction(OpenDefinitionToSideAction);
 registerEditorAction(PeekDefinitionAction);
+registerEditorAction(GoToDeclarationAction);
+registerEditorAction(PeekDeclarationAction);
 registerEditorAction(GoToImplementationAction);
 registerEditorAction(PeekImplementationAction);
 registerEditorAction(GoToTypeDefinitionAction);

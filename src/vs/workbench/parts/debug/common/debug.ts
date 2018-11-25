@@ -110,16 +110,25 @@ export interface IExpression extends IReplElement, IExpressionContainer {
 }
 
 export interface IDebugger {
-	createDebugAdapter(session: IDebugSession, root: IWorkspaceFolder, config: IConfig, outputService: IOutputService): Promise<IDebugAdapter>;
-	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<void>;
+	createDebugAdapter(session: IDebugSession, outputService: IOutputService): Promise<IDebugAdapter>;
+	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined>;
 	getCustomTelemetryService(): Thenable<TelemetryService>;
 }
 
-export enum State {
+export const enum State {
 	Inactive,
 	Initializing,
 	Stopped,
 	Running
+}
+
+export function getStateLabel(state: State): string {
+	switch (state) {
+		case State.Initializing: return 'initializing';
+		case State.Stopped: return 'stopped';
+		case State.Running: return 'running';
+		default: return 'inactive';
+	}
 }
 
 export class AdapterEndEvent {
@@ -427,7 +436,7 @@ export interface IConfig extends IEnvConfig {
 	// fundamental attributes
 	type: string;
 	request: string;
-	name?: string;
+	name: string;
 
 	// platform specifics
 	windows?: IEnvConfig;
@@ -458,17 +467,21 @@ export interface IDebugAdapter extends IDisposable {
 	stopSession(): Promise<void>;
 }
 
-export interface IDebugAdapterProvider extends ITerminalLauncher {
-	createDebugAdapter(session: IDebugSession, folder: IWorkspaceFolder, config: IConfig): IDebugAdapter;
+export interface IDebugAdapterFactory extends ITerminalLauncher {
+	createDebugAdapter(session: IDebugSession): IDebugAdapter;
 	substituteVariables(folder: IWorkspaceFolder, config: IConfig): Promise<IConfig>;
+}
+
+export interface IDebugAdapterExecutableOptions {
+	cwd?: string;
+	env?: { [key: string]: string };
 }
 
 export interface IDebugAdapterExecutable {
 	readonly type: 'executable';
 	readonly command: string;
 	readonly args: string[];
-	readonly cwd?: string;
-	readonly env?: { [key: string]: string };
+	readonly options?: IDebugAdapterExecutableOptions;
 }
 
 export interface IDebugAdapterServer {
@@ -520,12 +533,17 @@ export interface IDebugConfigurationProvider {
 	readonly type: string;
 	resolveDebugConfiguration?(folderUri: uri | undefined, debugConfiguration: IConfig): Promise<IConfig>;
 	provideDebugConfigurations?(folderUri: uri | undefined): Promise<IConfig[]>;
-	provideDebugAdapter?(session: IDebugSession, folderUri: uri | undefined, config: IConfig): Promise<IAdapterDescriptor>;
+	debugAdapterExecutable?(folderUri: uri | undefined): Promise<IAdapterDescriptor>;		// TODO@AW legacy
 	hasTracker: boolean;
 }
 
+export interface IDebugAdapterProvider {
+	readonly type: string;
+	provideDebugAdapter(session: IDebugSession): Promise<IAdapterDescriptor>;
+}
+
 export interface ITerminalLauncher {
-	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<void>;
+	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<number | undefined>;
 }
 
 export interface ITerminalSettings {
@@ -568,20 +586,25 @@ export interface IConfigurationManager {
 	 */
 	onDidSelectConfiguration: Event<void>;
 
+	activateDebuggers(activationEvent: string, debugType?: string): Thenable<void>;
+
 	needsToRunInExtHost(debugType: string): boolean;
 	hasDebugConfigurationProvider(debugType: string): boolean;
 
 	registerDebugConfigurationProvider(debugConfigurationProvider: IDebugConfigurationProvider): IDisposable;
 	unregisterDebugConfigurationProvider(debugConfigurationProvider: IDebugConfigurationProvider): void;
 
-	resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: any): Thenable<any>;
-	provideDebugAdapter(session: IDebugSession, folderUri: uri | undefined, config: IConfig): Promise<IAdapterDescriptor | undefined>;
+	registerDebugAdapterProvider(debugConfigurationProvider: IDebugAdapterProvider): IDisposable;
+	unregisterDebugAdapterProvider(debugConfigurationProvider: IDebugAdapterProvider): void;
 
-	registerDebugAdapterProvider(debugTypes: string[], debugAdapterLauncher: IDebugAdapterProvider): IDisposable;
-	createDebugAdapter(session: IDebugSession, folder: IWorkspaceFolder, config: IConfig): IDebugAdapter;
+	resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: any): Thenable<any>;
+	provideDebugAdapter(session: IDebugSession): Promise<IAdapterDescriptor | undefined>;
+
+	registerDebugAdapterFactory(debugTypes: string[], debugAdapterFactory: IDebugAdapterFactory): IDisposable;
+	createDebugAdapter(session: IDebugSession): IDebugAdapter;
 
 	substituteVariables(debugType: string, folder: IWorkspaceFolder, config: IConfig): Promise<IConfig>;
-	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<void>;
+	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<number | undefined>;
 }
 
 export interface ILaunch {

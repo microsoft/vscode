@@ -29,26 +29,63 @@ export function connectProxyResolver(
 	return configureModuleLoading(extensionService, lookup);
 }
 
+const maxCacheEntries = 10000;
+
 function createProxyAgent(
 	extHostWorkspace: ExtHostWorkspace,
 	extHostLogService: ExtHostLogService,
 	mainThreadTelemetry: MainThreadTelemetryShape
 ) {
+
+	let cacheRolls = 0;
+	let oldCache = new Map<string, string>();
+	let cache = new Map<string, string>();
+	function getCacheKey(url: string) {
+		// Expecting proxies to usually be the same per host. Keeping the path in for now.
+		const queryIndex = url.indexOf('?');
+		return queryIndex === -1 ? url : url.substr(0, queryIndex);
+	}
+	function getCachedProxy(key: string) {
+		let proxy = cache.get(key);
+		if (proxy) {
+			return proxy;
+		}
+		proxy = oldCache.get(key);
+		if (proxy) {
+			oldCache.delete(key);
+			cacheProxy(key, proxy);
+		}
+		return proxy;
+	}
+	function cacheProxy(key: string, proxy: string) {
+		cache.set(key, proxy);
+		if (cache.size >= maxCacheEntries) {
+			oldCache = cache;
+			cache = new Map();
+			cacheRolls++;
+			extHostLogService.trace('ProxyResolver#cacheProxy cacheRolls', cacheRolls);
+		}
+	}
+
 	let timeout: NodeJS.Timer | undefined;
 	let count = 0;
 	let duration = 0;
 	let errorCount = 0;
+	let cacheCount = 0;
 	function logEvent() {
 		timeout = undefined;
 		/* __GDPR__
 			"resolveProxy" : {
 				"count": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 				"duration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-				"errorCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+				"errorCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+				"cacheCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+				"cacheSize": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+				"cacheRolls": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
 			}
 		*/
-		mainThreadTelemetry.$publicLog('resolveProxy', { count, duration, errorCount });
-		count = duration = errorCount = 0;
+		mainThreadTelemetry.$publicLog('resolveProxy', { count, duration, errorCount, cacheCount, cacheSize: cache.size, cacheRolls });
+		count = duration = errorCount = cacheCount = 0;
 	}
 
 	function resolveProxy(url: string, callback: (proxy?: string) => void) {
@@ -56,17 +93,28 @@ function createProxyAgent(
 			timeout = setTimeout(logEvent, 10 * 60 * 1000);
 		}
 
+		const key = getCacheKey(url);
+		const proxy = getCachedProxy(key);
+		if (proxy) {
+			cacheCount++;
+			callback(proxy);
+			extHostLogService.trace('ProxyResolver#resolveProxy cached', url, proxy);
+			return;
+		}
+
 		const start = Date.now();
-		extHostWorkspace.resolveProxy(url)
+		extHostWorkspace.resolveProxy(url) // Use full URL to ensure it is an actually used one.
 			.then(proxy => {
+				cacheProxy(key, proxy);
 				callback(proxy);
+				extHostLogService.debug('ProxyResolver#resolveProxy', url, proxy);
 			}).then(() => {
 				count++;
 				duration = Date.now() - start + duration;
 			}, err => {
 				errorCount++;
-				extHostLogService.error('resolveProxy', toErrorMessage(err));
 				callback();
+				extHostLogService.error('ProxyResolver#resolveProxy', toErrorMessage(err));
 			});
 	}
 

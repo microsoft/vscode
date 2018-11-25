@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { isFalsyOrEmpty, isNonEmptyArray } from 'vs/base/common/arrays';
 import { Schemas } from 'vs/base/common/network';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isEmptyObject } from 'vs/base/common/types';
@@ -146,10 +146,8 @@ export class MarkerService implements IMarkerService {
 	}
 
 	remove(owner: string, resources: URI[]): void {
-		if (!isFalsyOrEmpty(resources)) {
-			for (const resource of resources) {
-				this.changeOne(owner, resource, []);
-			}
+		for (const resource of resources || []) {
+			this.changeOne(owner, resource, []);
 		}
 	}
 
@@ -238,7 +236,7 @@ export class MarkerService implements IMarkerService {
 		}
 
 		// add new markers
-		if (!isFalsyOrEmpty(data)) {
+		if (isNonEmptyArray(data)) {
 
 			// group by resource
 			const groups: { [resource: string]: IMarker[] } = Object.create(null);

@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { StorageLegacyScope, StorageLegacyService } from 'vs/platform/storage/common/storageLegacyService';
-import { parseStorage } from 'vs/platform/storage/common/storageLegacyMigration';
+import { parseEmptyStorage, parseMultiRootStorage, parseFolderStorage } from 'vs/platform/storage/common/storageLegacyMigration';
 import { URI } from 'vs/base/common/uri';
 import { startsWith } from 'vs/base/common/strings';
 
@@ -18,18 +18,6 @@ suite('Storage Migration', () => {
 
 	teardown(() => {
 		storage.clear();
-	});
-
-	test('Parse Storage (Global)', () => {
-		const service = createService();
-
-		const parsed = parseStorage(storage);
-
-		assert.equal(parsed.global.size, 4);
-		assert.equal(parsed.global.get('key1'), service.get('key1'));
-		assert.equal(parsed.global.get('key2.something'), service.get('key2.something'));
-		assert.equal(parsed.global.get('key3/special'), service.get('key3/special'));
-		assert.equal(parsed.global.get('key4 space'), service.get('key4 space'));
 	});
 
 	test('Parse Storage (mixed)', () => {
@@ -74,23 +62,21 @@ suite('Storage Migration', () => {
 
 		const services = workspaceIds.map(id => createService(id));
 
-		const parsed = parseStorage(storage);
-
 		services.forEach((service, index) => {
 			let expectedKeyCount = 4;
 			let storageToTest;
 
 			const workspaceId = workspaceIds[index];
 			if (startsWith(workspaceId, 'file:')) {
-				storageToTest = parsed.folder.get(workspaceId);
+				storageToTest = parseFolderStorage(storage, workspaceId);
 				expectedKeyCount++; // workspaceIdentifier gets added!
 			} else if (startsWith(workspaceId, 'empty:')) {
-				storageToTest = parsed.empty.get(workspaceId);
+				storageToTest = parseEmptyStorage(storage, workspaceId);
 			} else if (startsWith(workspaceId, 'root:')) {
-				storageToTest = parsed.multiRoot.get(workspaceId);
+				storageToTest = parseMultiRootStorage(storage, workspaceId);
 			}
 
-			assert.equal(Object.keys(storageToTest).length, expectedKeyCount);
+			assert.equal(Object.keys(storageToTest).length, expectedKeyCount, 's');
 			assert.equal(storageToTest['key1'], service.get('key1', StorageLegacyScope.WORKSPACE));
 			assert.equal(storageToTest['key2.something'], service.get('key2.something', StorageLegacyScope.WORKSPACE));
 			assert.equal(storageToTest['key3/special'], service.get('key3/special', StorageLegacyScope.WORKSPACE));
@@ -115,16 +101,15 @@ suite('Storage Migration', () => {
 		s2.store('s2key3/special', true, StorageLegacyScope.WORKSPACE);
 		s2.store('s2key4 space', 4, StorageLegacyScope.WORKSPACE);
 
-		const parsed = parseStorage(storage);
 
-		const s1Storage = parsed.folder.get(ws1);
+		const s1Storage = parseFolderStorage(storage, ws1);
 		assert.equal(Object.keys(s1Storage).length, 5);
 		assert.equal(s1Storage['s1key1'], s1.get('s1key1', StorageLegacyScope.WORKSPACE));
 		assert.equal(s1Storage['s1key2.something'], s1.get('s1key2.something', StorageLegacyScope.WORKSPACE));
 		assert.equal(s1Storage['s1key3/special'], s1.get('s1key3/special', StorageLegacyScope.WORKSPACE));
 		assert.equal(s1Storage['s1key4 space'], s1.get('s1key4 space', StorageLegacyScope.WORKSPACE));
 
-		const s2Storage = parsed.folder.get(ws2);
+		const s2Storage = parseFolderStorage(storage, ws2);
 		assert.equal(Object.keys(s2Storage).length, 5);
 		assert.equal(s2Storage['s2key1'], s2.get('s2key1', StorageLegacyScope.WORKSPACE));
 		assert.equal(s2Storage['s2key2.something'], s2.get('s2key2.something', StorageLegacyScope.WORKSPACE));

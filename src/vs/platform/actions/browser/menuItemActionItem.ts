@@ -128,14 +128,16 @@ export class MenuItemActionItem extends ActionItem {
 
 	private _wantsAltCommand: boolean;
 	private _itemClassDispose: IDisposable;
+	private readonly _altKey: AlternativeKeyEmitter;
 
 	constructor(
-		public _action: MenuItemAction,
+		readonly _action: MenuItemAction,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@INotificationService protected _notificationService: INotificationService,
-		@IContextMenuService private readonly _contextMenuService: IContextMenuService
+		@IContextMenuService _contextMenuService: IContextMenuService
 	) {
 		super(undefined, _action, { icon: !!(_action.class || _action.item.iconLocation), label: !_action.class && !_action.item.iconLocation });
+		this._altKey = AlternativeKeyEmitter.getInstance(_contextMenuService);
 	}
 
 	protected get _commandAction(): IAction {
@@ -146,9 +148,8 @@ export class MenuItemActionItem extends ActionItem {
 		event.preventDefault();
 		event.stopPropagation();
 
-		const altKey = AlternativeKeyEmitter.getInstance(this._contextMenuService);
-		if (altKey.isPressed) {
-			altKey.suppressAltKeyUp();
+		if (this._altKey.isPressed) {
+			this._altKey.suppressAltKeyUp();
 		}
 
 		this.actionRunner.run(this._commandAction)
@@ -161,8 +162,8 @@ export class MenuItemActionItem extends ActionItem {
 		this._updateItemClass(this._action.item);
 
 		let mouseOver = false;
-		const alternativeKeyEmitter = AlternativeKeyEmitter.getInstance(this._contextMenuService);
-		let alternativeKeyDown = alternativeKeyEmitter.isPressed;
+
+		let alternativeKeyDown = this._altKey.isPressed;
 
 		const updateAltState = () => {
 			const wantsAltCommand = mouseOver && alternativeKeyDown;
@@ -174,10 +175,12 @@ export class MenuItemActionItem extends ActionItem {
 			}
 		};
 
-		this._register(alternativeKeyEmitter.event(value => {
-			alternativeKeyDown = value;
-			updateAltState();
-		}));
+		if (this._action.alt) {
+			this._register(this._altKey.event(value => {
+				alternativeKeyDown = value;
+				updateAltState();
+			}));
+		}
 
 		this._register(domEvent(container, 'mouseleave')(_ => {
 			mouseOver = false;

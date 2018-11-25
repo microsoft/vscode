@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten, isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { flatten, isNonEmptyArray } from 'vs/base/common/arrays';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
@@ -76,7 +76,7 @@ export function toDeepIFileStat(provider: IFileSystemProvider, tuple: [URI, ISta
 	const trie = TernarySearchTree.forPaths<true>();
 	trie.set(tuple[0].toString(), true);
 
-	if (!isFalsyOrEmpty(to)) {
+	if (isNonEmptyArray(to)) {
 		to.forEach(uri => trie.set(uri.toString(), true));
 	}
 
@@ -517,6 +517,16 @@ export class RemoteFileService extends FileService {
 					this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
 				});
 			});
+		}
+	}
+
+	readFolder(resource: URI): TPromise<string[]> {
+		if (resource.scheme === Schemas.file) {
+			return super.readFolder(resource);
+		} else {
+			return this._withProvider(resource).then(provider => {
+				return provider.readdir(resource);
+			}).then(list => list.map(l => l[0]));
 		}
 	}
 

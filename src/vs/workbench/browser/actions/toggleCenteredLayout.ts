@@ -42,12 +42,3 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	},
 	order: 3
 });
-
-MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: '2_layouts',
-	command: {
-		id: 'workbench.action.editorLayoutCentered',
-		title: nls.localize({ key: 'miCenteredEditorLayout', comment: ['&& denotes a mnemonic'] }, "&&Centered")
-	},
-	order: 2
-});

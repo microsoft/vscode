@@ -4,26 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IChannel } from 'vs/base/parts/ipc/node/ipc';
+import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
 import { IWatcherRequest, IWatcherService, IWatcherOptions, IWatchError } from './watcher';
 import { Event } from 'vs/base/common/event';
 import { IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
 
-export interface IWatcherChannel extends IChannel {
-	listen(event: 'watch', verboseLogging: boolean): Event<IRawFileChange[] | Error>;
-	listen<T>(event: string, arg?: any): Event<T>;
-
-	call(command: 'setRoots', request: IWatcherRequest[]): TPromise<void>;
-	call(command: 'setVerboseLogging', enable: boolean): TPromise<void>;
-	call(command: 'stop'): TPromise<void>;
-	call<T>(command: string, arg?: any): TPromise<T>;
-}
-
-export class WatcherChannel implements IWatcherChannel {
+export class WatcherChannel implements IServerChannel {
 
 	constructor(private service: IWatcherService) { }
 
-	listen(event: string, arg?: any): Event<any> {
+	listen(_, event: string, arg?: any): Event<any> {
 		switch (event) {
 			case 'watch': return this.service.watch(arg);
 		}
@@ -31,7 +21,7 @@ export class WatcherChannel implements IWatcherChannel {
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(command: string, arg?: any): TPromise<any> {
+	call(_, command: string, arg?: any): TPromise<any> {
 		switch (command) {
 			case 'setRoots': return this.service.setRoots(arg);
 			case 'setVerboseLogging': return this.service.setVerboseLogging(arg);
@@ -44,7 +34,7 @@ export class WatcherChannel implements IWatcherChannel {
 
 export class WatcherChannelClient implements IWatcherService {
 
-	constructor(private channel: IWatcherChannel) { }
+	constructor(private channel: IChannel) { }
 
 	watch(options: IWatcherOptions): Event<IRawFileChange[] | IWatchError> {
 		return this.channel.listen('watch', options);

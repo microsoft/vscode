@@ -67,10 +67,10 @@ export function getDefaultTerminalWindows(): string {
 }
 
 abstract class TerminalLauncher implements ITerminalLauncher {
-	public runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<void> {
+	public runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<number | undefined> {
 		return this.runInTerminal0(args.title, args.cwd, args.args, args.env || {}, config);
 	}
-	runInTerminal0(title: string, dir: string, args: string[], envVars: env.IProcessEnvironment, config): Promise<void> {
+	runInTerminal0(title: string, dir: string, args: string[], envVars: env.IProcessEnvironment, config): Promise<number | undefined> {
 		return void 0;
 	}
 }
@@ -79,11 +79,11 @@ class WinTerminalService extends TerminalLauncher {
 
 	private static readonly CMD = 'cmd.exe';
 
-	public runInTerminal0(title: string, dir: string, args: string[], envVars: env.IProcessEnvironment, configuration: ITerminalSettings): Promise<void> {
+	public runInTerminal0(title: string, dir: string, args: string[], envVars: env.IProcessEnvironment, configuration: ITerminalSettings): Promise<number | undefined> {
 
 		const exec = configuration.external.windowsExec || getDefaultTerminalWindows();
 
-		return new Promise<void>((c, e) => {
+		return new Promise<number | undefined>((c, e) => {
 
 			const title = `"${dir} - ${TERMINAL_TITLE}"`;
 			const command = `""${args.join('" "')}" & pause"`; // use '|' to only pause on non-zero exit code
@@ -107,7 +107,7 @@ class WinTerminalService extends TerminalLauncher {
 			const cmd = cp.spawn(WinTerminalService.CMD, cmdArgs, options);
 			cmd.on('error', e);
 
-			c(null);
+			c(undefined);
 		});
 	}
 }
@@ -117,11 +117,11 @@ class MacTerminalService extends TerminalLauncher {
 	private static readonly DEFAULT_TERMINAL_OSX = 'Terminal.app';
 	private static readonly OSASCRIPT = '/usr/bin/osascript';	// osascript is the AppleScript interpreter on OS X
 
-	public runInTerminal0(title: string, dir: string, args: string[], envVars: env.IProcessEnvironment, configuration: ITerminalSettings): Promise<void> {
+	public runInTerminal0(title: string, dir: string, args: string[], envVars: env.IProcessEnvironment, configuration: ITerminalSettings): Promise<number | undefined> {
 
 		const terminalApp = configuration.external.osxExec || MacTerminalService.DEFAULT_TERMINAL_OSX;
 
-		return new Promise<void>((c, e) => {
+		return new Promise<number | undefined>((c, e) => {
 
 			if (terminalApp === MacTerminalService.DEFAULT_TERMINAL_OSX || terminalApp === 'iTerm.app') {
 
@@ -163,7 +163,7 @@ class MacTerminalService extends TerminalLauncher {
 				});
 				osa.on('exit', (code: number) => {
 					if (code === 0) {	// OK
-						c(null);
+						c(undefined);
 					} else {
 						if (stderr) {
 							const lines = stderr.split('\n', 1);
@@ -184,12 +184,12 @@ class LinuxTerminalService extends TerminalLauncher {
 
 	private static readonly WAIT_MESSAGE = nls.localize('press.any.key', "Press any key to continue...");
 
-	public runInTerminal0(title: string, dir: string, args: string[], envVars: env.IProcessEnvironment, configuration: ITerminalSettings): Promise<void> {
+	public runInTerminal0(title: string, dir: string, args: string[], envVars: env.IProcessEnvironment, configuration: ITerminalSettings): Promise<number | undefined> {
 
 		const terminalConfig = configuration.external;
 		const execThenable: Thenable<string> = terminalConfig.linuxExec ? Promise.resolve(terminalConfig.linuxExec) : getDefaultTerminalLinuxReady();
 
-		return new Promise<void>((c, e) => {
+		return new Promise<number | undefined>((c, e) => {
 
 			let termArgs: string[] = [];
 			//termArgs.push('--title');
@@ -225,7 +225,7 @@ class LinuxTerminalService extends TerminalLauncher {
 				});
 				cmd.on('exit', (code: number) => {
 					if (code === 0) {	// OK
-						c(null);
+						c(undefined);
 					} else {
 						if (stderr) {
 							const lines = stderr.split('\n', 1);

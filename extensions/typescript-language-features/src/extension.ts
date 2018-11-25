@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as commands from './commands';
+import { Api, getExtensionApi } from './api';
+import { registerCommands } from './commands/index';
 import { LanguageConfigurationManager } from './features/languageConfiguration';
 import TypeScriptTaskProviderManager from './features/task';
 import TypeScriptServiceClientHost from './typeScriptServiceClientHost';
@@ -15,39 +16,27 @@ import { standardLanguageDescriptions } from './utils/languageDescription';
 import { lazy, Lazy } from './utils/lazy';
 import LogDirectoryProvider from './utils/logDirectoryProvider';
 import ManagedFileContextManager from './utils/managedFileContext';
-import { getContributedTypeScriptServerPlugins, TypeScriptServerPlugin } from './utils/plugins';
+import { PluginManager } from './utils/plugins';
 import * as ProjectStatus from './utils/projectStatus';
 import { Surveyor } from './utils/surveyor';
-import { PluginConfigProvider } from './typescriptServiceClient';
-
-
-interface ApiV0 {
-	readonly onCompletionAccepted: vscode.Event<vscode.CompletionItem>;
-}
-
-
-
-interface Api {
-	getAPI(version: 0): ApiV0 | undefined;
-}
 
 export function activate(
 	context: vscode.ExtensionContext
 ): Api {
-	const plugins = getContributedTypeScriptServerPlugins();
-	const pluginConfigProvider = new PluginConfigProvider();
+	const pluginManager = new PluginManager();
+	context.subscriptions.push(pluginManager);
 
 	const commandManager = new CommandManager();
 	context.subscriptions.push(commandManager);
 
-	const onCompletionAccepted = new vscode.EventEmitter();
+	const onCompletionAccepted = new vscode.EventEmitter<vscode.CompletionItem>();
 	context.subscriptions.push(onCompletionAccepted);
 
-	const lazyClientHost = createLazyClientHost(context, plugins, pluginConfigProvider, commandManager, item => {
+	const lazyClientHost = createLazyClientHost(context, pluginManager, commandManager, item => {
 		onCompletionAccepted.fire(item);
 	});
 
-	registerCommands(commandManager, lazyClientHost, pluginConfigProvider);
+	registerCommands(commandManager, lazyClientHost, pluginManager);
 	context.subscriptions.push(new TypeScriptTaskProviderManager(lazyClientHost.map(x => x.serviceClient)));
 	context.subscriptions.push(new LanguageConfigurationManager());
 
@@ -55,47 +44,14 @@ export function activate(
 		context.subscriptions.push(module.register());
 	});
 
-	const supportedLanguage = flatten([
-		...standardLanguageDescriptions.map(x => x.modeIds),
-		...plugins.map(x => x.languages)
-	]);
-	function didOpenTextDocument(textDocument: vscode.TextDocument): boolean {
-		if (isSupportedDocument(supportedLanguage, textDocument)) {
-			openListener.dispose();
-			// Force activation
-			// tslint:disable-next-line:no-unused-expression
-			void lazyClientHost.value;
+	context.subscriptions.push(lazilyActivateClient(lazyClientHost, pluginManager));
 
-			context.subscriptions.push(new ManagedFileContextManager(resource => {
-				return lazyClientHost.value.serviceClient.toPath(resource);
-			}));
-			return true;
-		}
-		return false;
-	}
-	const openListener = vscode.workspace.onDidOpenTextDocument(didOpenTextDocument, undefined, context.subscriptions);
-	for (const textDocument of vscode.workspace.textDocuments) {
-		if (didOpenTextDocument(textDocument)) {
-			break;
-		}
-	}
-
-	return {
-		getAPI(version) {
-			if (version === 0) {
-				return {
-					onCompletionAccepted: onCompletionAccepted.event
-				} as ApiV0;
-			}
-			return undefined;
-		}
-	} as Api;
+	return getExtensionApi(onCompletionAccepted.event, pluginManager);
 }
 
 function createLazyClientHost(
 	context: vscode.ExtensionContext,
-	plugins: TypeScriptServerPlugin[],
-	pluginConfigProvider: PluginConfigProvider,
+	pluginManager: PluginManager,
 	commandManager: CommandManager,
 	onCompletionAccepted: (item: vscode.CompletionItem) => void,
 ): Lazy<TypeScriptServiceClientHost> {
@@ -105,18 +61,14 @@ function createLazyClientHost(
 		const clientHost = new TypeScriptServiceClientHost(
 			standardLanguageDescriptions,
 			context.workspaceState,
-			plugins,
-			pluginConfigProvider,
+			pluginManager,
 			commandManager,
 			logDirectoryProvider,
 			onCompletionAccepted);
 
 		context.subscriptions.push(clientHost);
 
-		const surveyor = new Surveyor(context.globalState);
-		context.subscriptions.push(clientHost.serviceClient.onSurveyReady(e => surveyor.surveyReady(e.surveyId)));
-
-
+		context.subscriptions.push(new Surveyor(context.globalState, clientHost.serviceClient));
 
 		clientHost.serviceClient.onReady(() => {
 			context.subscriptions.push(
@@ -129,19 +81,43 @@ function createLazyClientHost(
 	});
 }
 
-function registerCommands(
-	commandManager: CommandManager,
+function lazilyActivateClient(
 	lazyClientHost: Lazy<TypeScriptServiceClientHost>,
-	pluginConfigProvider: PluginConfigProvider,
+	pluginManager: PluginManager,
 ) {
-	commandManager.register(new commands.ReloadTypeScriptProjectsCommand(lazyClientHost));
-	commandManager.register(new commands.ReloadJavaScriptProjectsCommand(lazyClientHost));
-	commandManager.register(new commands.SelectTypeScriptVersionCommand(lazyClientHost));
-	commandManager.register(new commands.OpenTsServerLogCommand(lazyClientHost));
-	commandManager.register(new commands.RestartTsServerCommand(lazyClientHost));
-	commandManager.register(new commands.TypeScriptGoToProjectConfigCommand(lazyClientHost));
-	commandManager.register(new commands.JavaScriptGoToProjectConfigCommand(lazyClientHost));
-	commandManager.register(new commands.ConfigurePluginCommand(pluginConfigProvider));
+	const disposables: vscode.Disposable[] = [];
+
+	const supportedLanguage = flatten([
+		...standardLanguageDescriptions.map(x => x.modeIds),
+		...pluginManager.plugins.map(x => x.languages)
+	]);
+
+	let hasActivated = false;
+	const maybeActivate = (textDocument: vscode.TextDocument): boolean => {
+		if (!hasActivated && isSupportedDocument(supportedLanguage, textDocument)) {
+			hasActivated = true;
+			// Force activation
+			// tslint:disable-next-line:no-unused-expression
+			void lazyClientHost.value;
+
+			disposables.push(new ManagedFileContextManager(resource => {
+				return lazyClientHost.value.serviceClient.toPath(resource);
+			}));
+			return true;
+		}
+		return false;
+	};
+
+	const didActivate = vscode.workspace.textDocuments.some(maybeActivate);
+	if (!didActivate) {
+		const openListener = vscode.workspace.onDidOpenTextDocument(doc => {
+			if (maybeActivate(doc)) {
+				openListener.dispose();
+			}
+		}, undefined, disposables);
+	}
+
+	return vscode.Disposable.from(...disposables);
 }
 
 function isSupportedDocument(

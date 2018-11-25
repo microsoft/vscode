@@ -8,7 +8,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { equal, ok } from 'assert';
-import { mkdirp, del } from 'vs/base/node/pfs';
+import { mkdirp, del, writeFile } from 'vs/base/node/pfs';
 import { timeout } from 'vs/base/common/async';
 
 suite('Storage Library', () => {
@@ -289,15 +289,83 @@ suite('SQLite Storage Library', () => {
 		await del(storageDir, tmpdir());
 	});
 
-	// test('basics (broken DB falls back to in-memory)', async () => {
-	// 	let expectedError: any;
+	test('basics (corrupt DB falls back to empty DB)', async () => {
+		const storageDir = uniqueStorageDir();
 
-	// 	await testDBBasics(join(__dirname, 'broken.db'), error => {
-	// 		expectedError = error;
-	// 	});
+		await mkdirp(storageDir);
 
-	// 	ok(expectedError);
-	// });
+		const corruptDBPath = join(storageDir, 'broken.db');
+		await writeFile(corruptDBPath, 'This is a broken DB');
+
+		let expectedError: any;
+		await testDBBasics(corruptDBPath, error => {
+			expectedError = error;
+		});
+
+		ok(expectedError);
+
+		await del(storageDir, tmpdir());
+	});
+
+	test('basics (corrupt DB restores from previous backup)', async () => {
+		const storageDir = uniqueStorageDir();
+
+		await mkdirp(storageDir);
+
+		const storagePath = join(storageDir, 'storage.db');
+		let storage = new SQLiteStorageImpl({ path: storagePath });
+
+		const items = new Map<string, string>();
+		items.set('foo', 'bar');
+		items.set('some/foo/path', 'some/bar/path');
+		items.set(JSON.stringify({ foo: 'bar' }), JSON.stringify({ bar: 'foo' }));
+
+		await storage.updateItems({ insert: items });
+		await storage.close();
+
+		await writeFile(storagePath, 'This is now a broken DB');
+
+		storage = new SQLiteStorageImpl({ path: storagePath });
+
+		const storedItems = await storage.getItems();
+		equal(storedItems.size, items.size);
+		equal(storedItems.get('foo'), 'bar');
+		equal(storedItems.get('some/foo/path'), 'some/bar/path');
+		equal(storedItems.get(JSON.stringify({ foo: 'bar' })), JSON.stringify({ bar: 'foo' }));
+
+		await storage.close();
+
+		await del(storageDir, tmpdir());
+	});
+
+	test('basics (corrupt DB falls back to empty DB if backup is corrupt)', async () => {
+		const storageDir = uniqueStorageDir();
+
+		await mkdirp(storageDir);
+
+		const storagePath = join(storageDir, 'storage.db');
+		let storage = new SQLiteStorageImpl({ path: storagePath });
+
+		const items = new Map<string, string>();
+		items.set('foo', 'bar');
+		items.set('some/foo/path', 'some/bar/path');
+		items.set(JSON.stringify({ foo: 'bar' }), JSON.stringify({ bar: 'foo' }));
+
+		await storage.updateItems({ insert: items });
+		await storage.close();
+
+		await writeFile(storagePath, 'This is now a broken DB');
+		await writeFile(`${storagePath}.backup`, 'This is now also a broken DB');
+
+		storage = new SQLiteStorageImpl({ path: storagePath });
+
+		const storedItems = await storage.getItems();
+		equal(storedItems.size, 0);
+
+		await testDBBasics(storagePath);
+
+		await del(storageDir, tmpdir());
+	});
 
 	test('real world example', async () => {
 		const storageDir = uniqueStorageDir();

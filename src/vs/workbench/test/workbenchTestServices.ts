@@ -58,7 +58,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IConfirmation, IConfirmationResult, IDialogService, IDialogOptions, IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { IExtensionService, ProfileSession, IExtensionsStatus, ExtensionPointContribution, IExtensionDescription, IWillActivateEvent } from '../services/extensions/common/extensions';
+import { IExtensionService, ProfileSession, IExtensionsStatus, ExtensionPointContribution, IExtensionDescription, IWillActivateEvent, IResponsiveStateChangeEvent } from '../services/extensions/common/extensions';
 import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IDecorationsService, IResourceDecorationChangeEvent, IDecoration, IDecorationData, IDecorationsProvider } from 'vs/workbench/services/decorations/browser/decorations';
@@ -311,14 +311,16 @@ export class TestExtensionService implements IExtensionService {
 	onDidRegisterExtensions: Event<void> = Event.None;
 	onDidChangeExtensionsStatus: Event<string[]> = Event.None;
 	onWillActivateByEvent: Event<IWillActivateEvent> = Event.None;
-	activateByEvent(_activationEvent: string): TPromise<void> { return TPromise.as(void 0); }
-	whenInstalledExtensionsRegistered(): TPromise<boolean> { return TPromise.as(true); }
-	getExtensions(): TPromise<IExtensionDescription[]> { return TPromise.as([]); }
-	readExtensionPointContributions<T>(_extPoint: IExtensionPoint<T>): TPromise<ExtensionPointContribution<T>[]> { return TPromise.as(Object.create(null)); }
+	onDidChangeResponsiveChange: Event<IResponsiveStateChangeEvent> = Event.None;
+	activateByEvent(_activationEvent: string): Thenable<void> { return Promise.resolve(void 0); }
+	whenInstalledExtensionsRegistered(): Promise<boolean> { return Promise.resolve(true); }
+	getExtensions(): Promise<IExtensionDescription[]> { return Promise.resolve([]); }
+	getExtension() { return Promise.resolve(undefined); }
+	readExtensionPointContributions<T>(_extPoint: IExtensionPoint<T>): Promise<ExtensionPointContribution<T>[]> { return Promise.resolve(Object.create(null)); }
 	getExtensionsStatus(): { [id: string]: IExtensionsStatus; } { return Object.create(null); }
 	canProfileExtensionHost(): boolean { return false; }
 	getInspectPort(): number { return 0; }
-	startExtensionHostProfile(): TPromise<ProfileSession> { return TPromise.as(Object.create(null)); }
+	startExtensionHostProfile(): Promise<ProfileSession> { return Promise.resolve(Object.create(null)); }
 	restartExtensionHost(): void { }
 	startExtensionHost(): void { }
 	stopExtensionHost(): void { }
@@ -531,7 +533,7 @@ export class TestPartService implements IPartService {
 export class TestStorageService extends StorageService {
 
 	constructor() {
-		super(':memory:', false, new NullLogService(), TestEnvironmentService);
+		super({ storeInMemory: true }, new NullLogService(), TestEnvironmentService);
 	}
 }
 
@@ -546,7 +548,7 @@ export class TestEditorGroupsService implements EditorGroupsServiceImpl {
 	onDidMoveGroup: Event<IEditorGroup> = Event.None;
 
 	orientation: any;
-	whenRestored: TPromise<void> = TPromise.as(void 0);
+	whenRestored: Thenable<void> = Promise.resolve(void 0);
 
 	get activeGroup(): IEditorGroup {
 		return this.groups[0];
@@ -625,7 +627,7 @@ export class TestEditorGroup implements IEditorGroupView {
 	disposed: boolean;
 	editors: ReadonlyArray<IEditorInput> = [];
 	label: string;
-	whenRestored: TPromise<void> = TPromise.as(void 0);
+	whenRestored: Thenable<void> = Promise.resolve(void 0);
 	element: HTMLElement;
 	minimumWidth: number;
 	maximumWidth: number;
@@ -871,6 +873,10 @@ export class TestFileService implements IFileService {
 
 	createFile(_resource: URI, _content?: string, _options?: ICreateFileOptions): TPromise<IFileStat> {
 		return TPromise.as(null);
+	}
+
+	readFolder(_resource: URI) {
+		return TPromise.as([]);
 	}
 
 	createFolder(_resource: URI): TPromise<IFileStat> {

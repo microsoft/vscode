@@ -40,13 +40,13 @@ class ApplyRefactoringCommand implements Command {
 			}
 		*/
 		this.telemetryReporter.logTelemetry('refactor.execute', {
-			action: action
+			action: action,
 		});
 
 		const args: Proto.GetEditsForRefactorRequestArgs = {
 			...typeConverters.Range.toFileRangeRequestArgs(file, range),
 			refactor,
-			action
+			action,
 		};
 		const response = await this.client.execute('getEditsForRefactor', args, nulToken);
 		if (response.type !== 'response' || !response.body || !response.body.edits.length) {
@@ -94,7 +94,7 @@ class SelectRefactorCommand implements Command {
 	): Promise<boolean> {
 		const selected = await vscode.window.showQuickPick(info.actions.map((action): vscode.QuickPickItem => ({
 			label: action.name,
-			description: action.description
+			description: action.description,
 		})));
 		if (!selected) {
 			return false;
@@ -119,7 +119,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 	}
 
 	public static readonly metadata: vscode.CodeActionProviderMetadata = {
-		providedCodeActionKinds: [vscode.CodeActionKind.Refactor]
+		providedCodeActionKinds: [vscode.CodeActionKind.Refactor],
 	};
 
 	public async provideCodeActions(

@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/11cf764606cb2cde54badb5d0e5a0758a8871c4b",
+	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/47e0c947d0a8d13c07e06a086a5c0c9bbffc6cf6",
 	"name": "Markdown",
 	"scopeName": "text.html.markdown",
 	"patterns": [
@@ -2115,7 +2115,7 @@
 					"include": "source.yaml"
 				}
 			],
-			"end": "(^|\\G)-{3}|\\.{3}\\s*$\""
+			"end": "(^|\\G)-{3}|\\.{3}\\s*$"
 		},
 		"inline": {
 			"patterns": [

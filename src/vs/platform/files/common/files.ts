@@ -126,6 +126,12 @@ export interface IFileService {
 	createFile(resource: URI, content?: string, options?: ICreateFileOptions): TPromise<IFileStat>;
 
 	/**
+	 * Reads a folder's content with the given path. The returned promise
+	 * will have the list of children as a result.
+	 */
+	readFolder(resource: URI): TPromise<string[]>;
+
+	/**
 	 * Creates a new folder with the given path. The returned promise
 	 * will have the stat model object as a result.
 	 */
@@ -198,6 +204,7 @@ export const enum FileSystemProviderCapabilities {
 export interface IFileSystemProvider {
 
 	readonly capabilities: FileSystemProviderCapabilities;
+	onDidChangeCapabilities: Event<void>;
 
 	onDidChangeFile: Event<IFileChange[]>;
 	watch(resource: URI, opts: IWatchOptions): IDisposable;

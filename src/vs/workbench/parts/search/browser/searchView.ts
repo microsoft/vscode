@@ -66,7 +66,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	private static readonly MAX_TEXT_RESULTS = 10000;
 
 	private static readonly WIDE_CLASS_NAME = 'wide';
-	private static readonly WIDE_VIEW_SIZE = 600;
+	private static readonly WIDE_VIEW_SIZE = 1000;
 
 	private isDisposed: boolean;
 
@@ -379,7 +379,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	private refreshAndUpdateCount(event?: IChangeEvent): Thenable<void> {
 		return this.refreshTree(event).then(() => {
 			this.searchWidget.setReplaceAllActionState(!this.viewModel.searchResult.isEmpty());
-			this.updateSearchResultCount();
+			this.updateSearchResultCount(this.viewModel.searchResult.query.userDisabledExcludesAndIgnoreFiles);
 		});
 	}
 
@@ -1053,8 +1053,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			_reason: 'searchView',
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorService, this.contextService),
 			maxResults: SearchView.MAX_TEXT_RESULTS,
-			disregardIgnoreFiles: !useExcludesAndIgnoreFiles,
-			disregardExcludeSettings: !useExcludesAndIgnoreFiles,
+			disregardIgnoreFiles: !useExcludesAndIgnoreFiles || undefined,
+			disregardExcludeSettings: !useExcludesAndIgnoreFiles || undefined,
 			excludePattern,
 			includePattern,
 			previewOptions: {
@@ -1078,7 +1078,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		}
 
 		this.validateQuery(query).then(() => {
-			this.onQueryTriggered(query, excludePatternText, includePatternText);
+			this.onQueryTriggered(query, options, excludePatternText, includePatternText);
 
 			if (!preserveFocus) {
 				this.searchWidget.focus(false); // focus back to input field
@@ -1108,7 +1108,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		});
 	}
 
-	private onQueryTriggered(query: ITextQuery, excludePatternText: string, includePatternText: string): void {
+	private onQueryTriggered(query: ITextQuery, options: ITextQueryBuilderOptions, excludePatternText: string, includePatternText: string): void {
+		this.searchWidget.searchInput.onSearchSubmit();
 		this.inputPatternExcludes.onSearchSubmit();
 		this.inputPatternIncludes.onSearchSubmit();
 
@@ -1311,7 +1312,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 				visibleMatches = fileCount;
 				this.tree.refresh();
 
-				this.updateSearchResultCount();
+				this.updateSearchResultCount(options.disregardExcludeSettings);
 			}
 			if (fileCount > 0) {
 				this.updateActions();
@@ -1361,14 +1362,19 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		window.open('https://go.microsoft.com/fwlink/?linkid=853977');
 	}
 
-	private updateSearchResultCount(): void {
+	private updateSearchResultCount(disregardExcludesAndIgnores?: boolean): void {
 		const fileCount = this.viewModel.searchResult.fileCount();
 		this.hasSearchResultsKey.set(fileCount > 0);
 
 		const msgWasHidden = this.messagesElement.style.display === 'none';
 		if (fileCount > 0) {
 			const messageEl = this.clearMessage();
-			dom.append(messageEl, $('p', undefined, this.buildResultCountMessage(this.viewModel.searchResult.count(), fileCount)));
+			let resultMsg = this.buildResultCountMessage(this.viewModel.searchResult.count(), fileCount);
+			if (disregardExcludesAndIgnores) {
+				resultMsg += nls.localize('useIgnoresAndExcludesDisabled', " - exclude settings and ignore files are disabled");
+			}
+
+			dom.append(messageEl, $('p', undefined, resultMsg));
 			if (msgWasHidden) {
 				this.reLayout();
 			}

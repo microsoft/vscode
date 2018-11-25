@@ -131,6 +131,8 @@ export class TelemetryService implements ITelemetryService {
 
 			const nodeModulesRegex = /^[\\\/]?(node_modules|node_modules\.asar)[\\\/]/;
 			const fileRegex = /(file:\/\/)?([a-zA-Z]:(\\\\|\\|\/)|(\\\\|\\|\/))?([\w-\._]+(\\\\|\\|\/))+[\w-\._]*/g;
+			let lastIndex = 0;
+			updatedStack = '';
 
 			while (true) {
 				const result = fileRegex.exec(stack);
@@ -139,8 +141,12 @@ export class TelemetryService implements ITelemetryService {
 				}
 				// Anoynimize user file paths that do not need to be retained or cleaned up.
 				if (!nodeModulesRegex.test(result[0]) && cleanUpIndexes.every(([x, y]) => result.index < x || result.index >= y)) {
-					updatedStack = updatedStack.slice(0, result.index) + result[0].replace(/./g, 'a') + updatedStack.slice(fileRegex.lastIndex);
+					updatedStack += stack.substring(lastIndex, result.index) + '<REDACTED: user-file-path>';
+					lastIndex = fileRegex.lastIndex;
 				}
+			}
+			if (lastIndex < stack.length) {
+				updatedStack += stack.substr(lastIndex);
 			}
 		}
 

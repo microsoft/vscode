@@ -220,8 +220,8 @@ suite('SearchModel', () => {
 		let testObject = instantiationService.createInstance(SearchModel);
 		let result = testObject.search({ contentPattern: { pattern: 'somestring' }, type: 1, folderQueries });
 
-		return timeout(1).then(() => {
-			return result.then(() => { }, () => {
+		return result.then(() => { }, () => {
+			return timeout(1).then(() => {
 				assert.ok(target1.calledWith('searchResultsFirstRender'));
 				assert.ok(target1.calledWith('searchResultsFinished'));
 				// assert.ok(target2.calledOnce);
@@ -243,8 +243,8 @@ suite('SearchModel', () => {
 
 		deferredPromise.cancel();
 
-		return timeout(1).then(() => {
-			return result.then(() => { }, () => {
+		return result.then(() => { }, () => {
+			return timeout(1).then(() => {
 				assert.ok(target1.calledWith('searchResultsFirstRender'));
 				assert.ok(target1.calledWith('searchResultsFinished'));
 				// assert.ok(target2.calledOnce);

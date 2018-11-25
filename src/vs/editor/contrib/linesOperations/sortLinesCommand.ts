@@ -33,7 +33,11 @@ export class SortLinesCommand implements editorCommon.ICommand {
 		return helper.getTrackedSelection(this.selectionId);
 	}
 
-	public static canRun(model: ITextModel, selection: Selection, descending: boolean): boolean {
+	public static canRun(model: ITextModel | null, selection: Selection, descending: boolean): boolean {
+		if (model === null) {
+			return false;
+		}
+
 		let data = getSortData(model, selection, descending);
 
 		if (!data) {

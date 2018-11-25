@@ -42,6 +42,14 @@ export interface IExtensionAPI {
 	// _extensionAPIBrand: any;
 }
 
+/* __GDPR__FRAGMENT__
+	"ExtensionActivationTimes" : {
+		"startup": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"codeLoadingTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"activateCallTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"activateResolvedTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+	}
+*/
 export class ExtensionActivationTimes {
 
 	public static readonly NONE = new ExtensionActivationTimes(false, -1, -1, -1);

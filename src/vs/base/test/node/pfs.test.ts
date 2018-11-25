@@ -118,4 +118,38 @@ suite('PFS', () => {
 			});
 		});
 	});
+
+	test('unlinkIgnoreError', function () {
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'extfs', id);
+
+		return pfs.mkdirp(newDir, 493).then(() => {
+			return pfs.unlinkIgnoreError(path.join(newDir, 'foo')).then(() => {
+
+				return pfs.del(parentDir, os.tmpdir());
+			}, error => {
+				assert.fail(error);
+
+				return Promise.reject(error);
+			});
+		});
+	});
+
+	test('moveIgnoreError', function () {
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'extfs', id);
+
+		return pfs.mkdirp(newDir, 493).then(() => {
+			return pfs.renameIgnoreError(path.join(newDir, 'foo'), path.join(newDir, 'bar')).then(() => {
+
+				return pfs.del(parentDir, os.tmpdir());
+			}, error => {
+				assert.fail(error);
+
+				return Promise.reject(error);
+			});
+		});
+	});
 });

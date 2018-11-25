@@ -19,7 +19,7 @@ import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesSh
 import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range as EditorRange } from 'vs/editor/common/core/range';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { isFalsyOrEmpty, isNonEmptyArray } from 'vs/base/common/arrays';
 import { isObject } from 'vs/base/common/types';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
@@ -163,6 +163,20 @@ class DefinitionAdapter {
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = typeConvert.Position.to(position);
 		return asThenable(() => this._provider.provideDefinition(doc, pos, token)).then(convertToDefinitionLinks);
+	}
+}
+
+class DeclarationAdapter {
+
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _provider: vscode.DeclarationProvider
+	) { }
+
+	provideDeclaration(resource: URI, position: IPosition, token: CancellationToken): Thenable<modes.DefinitionLink[]> {
+		let doc = this._documents.getDocumentData(resource).document;
+		let pos = typeConvert.Position.to(position);
+		return asThenable(() => this._provider.provideDeclaration(doc, pos, token)).then(convertToDefinitionLinks);
 	}
 }
 
@@ -419,7 +433,7 @@ class NavigateTypeAdapter {
 	provideWorkspaceSymbols(search: string, token: CancellationToken): Thenable<WorkspaceSymbolsDto> {
 		const result: WorkspaceSymbolsDto = IdObject.mixin({ symbols: [] });
 		return asThenable(() => this._provider.provideWorkspaceSymbols(search, token)).then(value => {
-			if (!isFalsyOrEmpty(value)) {
+			if (isNonEmptyArray(value)) {
 				for (const item of value) {
 					if (!item) {
 						// drop
@@ -664,14 +678,14 @@ class SuggestAdapter {
 			label: item.label,
 			kind: typeConvert.CompletionItemKind.from(item.kind),
 			detail: item.detail,
-			documentation: item.documentation,
+			documentation: typeConvert.MarkdownString.fromStrict(item.documentation),
 			filterText: item.filterText,
 			sortText: item.sortText,
 			preselect: item.preselect,
 			//
 			range: undefined,
 			insertText: undefined,
-			insertTextRules: typeConvert.CompletionItemInsertTextRule.from(item.insertTextRules),
+			insertTextRules: item.keepWhitespace ? modes.CompletionItemInsertTextRule.KeepWhitespace : 0,
 			additionalTextEdits: item.additionalTextEdits && item.additionalTextEdits.map(typeConvert.TextEdit.from),
 			command: this._commands.toInternal(item.command),
 			commitCharacters: item.commitCharacters,
@@ -840,7 +854,7 @@ type Adapter = OutlineAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapt
 	| DocumentHighlightAdapter | ReferenceAdapter | CodeActionAdapter | DocumentFormattingAdapter
 	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
 	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter | TypeDefinitionAdapter
-	| ColorProviderAdapter | FoldingProviderAdapter;
+	| ColorProviderAdapter | FoldingProviderAdapter | DeclarationAdapter;
 
 class AdapterData {
 	constructor(
@@ -959,9 +973,10 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	// --- outline
 
-	registerDocumentSymbolProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentSymbolProvider): vscode.Disposable {
+	registerDocumentSymbolProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentSymbolProvider, metadata?: vscode.DocumentSymbolProviderMetadata): vscode.Disposable {
 		const handle = this._addNewAdapter(new OutlineAdapter(this._documents, provider), extension);
-		this._proxy.$registerOutlineSupport(handle, this._transformDocumentSelector(selector), extension ? extension.displayName || extension.name : undefined);
+		const displayName = (metadata && metadata.label) || (extension && (extension.displayName || extension.name)) || undefined;
+		this._proxy.$registerOutlineSupport(handle, this._transformDocumentSelector(selector), displayName);
 		return this._createDisposable(handle);
 	}
 
@@ -999,12 +1014,22 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	registerDefinitionProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DefinitionProvider): vscode.Disposable {
 		const handle = this._addNewAdapter(new DefinitionAdapter(this._documents, provider), extension);
-		this._proxy.$registerDeclaractionSupport(handle, this._transformDocumentSelector(selector));
+		this._proxy.$registerDefinitionSupport(handle, this._transformDocumentSelector(selector));
 		return this._createDisposable(handle);
 	}
 
 	$provideDefinition(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Thenable<modes.DefinitionLink[]> {
 		return this._withAdapter(handle, DefinitionAdapter, adapter => adapter.provideDefinition(URI.revive(resource), position, token));
+	}
+
+	registerDeclarationProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DeclarationProvider): vscode.Disposable {
+		const handle = this._addNewAdapter(new DeclarationAdapter(this._documents, provider), extension);
+		this._proxy.$registerDeclarationSupport(handle, this._transformDocumentSelector(selector));
+		return this._createDisposable(handle);
+	}
+
+	$provideDeclaration(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Thenable<modes.DefinitionLink[]> {
+		return this._withAdapter(handle, DeclarationAdapter, adapter => adapter.provideDeclaration(URI.revive(resource), position, token));
 	}
 
 	registerImplementationProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.ImplementationProvider): vscode.Disposable {

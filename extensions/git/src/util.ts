@@ -33,7 +33,7 @@ export function combinedDisposable(disposables: IDisposable[]): IDisposable {
 export const EmptyDisposable = toDisposable(() => null);
 
 export function fireEvent<T>(event: Event<T>): Event<T> {
-	return (listener, thisArgs = null, disposables?) => event(_ => listener.call(thisArgs), null, disposables);
+	return (listener, thisArgs = null, disposables?) => event(_ => (listener as any).call(thisArgs), null, disposables);
 }
 
 export function mapEvent<I, O>(event: Event<I>, map: (i: I) => O): Event<O> {

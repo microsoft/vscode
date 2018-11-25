@@ -109,7 +109,8 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 			this._computer,
 			(result: IHoverMessage[]) => this._withResult(result),
 			undefined,
-			(result: any) => this._withResult(result)
+			(result: any) => this._withResult(result),
+			300
 		);
 
 	}

@@ -63,6 +63,7 @@ export interface ICodeWindow {
 
 	toggleFullScreen(): void;
 	isFullScreen(): boolean;
+	isMinimized(): boolean;
 	hasHiddenTitleBarStyle(): boolean;
 	setRepresentedFilename(name: string): void;
 	getRepresentedFilename(): string;
