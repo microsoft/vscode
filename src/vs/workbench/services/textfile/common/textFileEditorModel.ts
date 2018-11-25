@@ -6,7 +6,7 @@
 import * as path from 'vs/base/common/paths';
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
-import { TPromise, TValueCallback, ErrorCallback } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { guessMimeTypes } from 'vs/base/common/mime';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { URI } from 'vs/base/common/uri';
@@ -1039,14 +1039,14 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 interface IPendingSave {
 	versionId: number;
-	promise: TPromise<void>;
+	promise: Thenable<void>;
 }
 
 interface ISaveOperation {
-	promise: TPromise<void>;
-	promiseValue: TValueCallback<void>;
-	promiseError: ErrorCallback;
-	run: () => TPromise<void>;
+	promise: Thenable<void>;
+	promiseResolve: () => void;
+	promiseReject: (error: Error) => void;
+	run: () => Thenable<void>;
 }
 
 export class SaveSequentializer {
@@ -1065,11 +1065,11 @@ export class SaveSequentializer {
 		return !!this._pendingSave;
 	}
 
-	get pendingSave(): TPromise<void> {
+	get pendingSave(): Thenable<void> {
 		return this._pendingSave ? this._pendingSave.promise : void 0;
 	}
 
-	setPending(versionId: number, promise: TPromise<void>): TPromise<void> {
+	setPending(versionId: number, promise: Thenable<void>): Thenable<void> {
 		this._pendingSave = { versionId, promise };
 
 		promise.then(() => this.donePending(versionId), () => this.donePending(versionId));
@@ -1094,28 +1094,28 @@ export class SaveSequentializer {
 			this._nextSave = void 0;
 
 			// Run next save and complete on the associated promise
-			saveOperation.run().then(saveOperation.promiseValue, saveOperation.promiseError);
+			saveOperation.run().then(saveOperation.promiseResolve, saveOperation.promiseReject);
 		}
 	}
 
-	setNext(run: () => TPromise<void>): TPromise<void> {
+	setNext(run: () => Thenable<void>): Thenable<void> {
 
 		// this is our first next save, so we create associated promise with it
 		// so that we can return a promise that completes when the save operation
 		// has completed.
 		if (!this._nextSave) {
-			let promiseValue: TValueCallback<void>;
-			let promiseError: ErrorCallback;
-			const promise = new TPromise<void>((c, e) => {
-				promiseValue = c;
-				promiseError = e;
+			let promiseResolve: () => void;
+			let promiseReject: (error: Error) => void;
+			const promise = new Promise<void>((resolve, reject) => {
+				promiseResolve = resolve;
+				promiseReject = reject;
 			});
 
 			this._nextSave = {
 				run,
 				promise,
-				promiseValue,
-				promiseError
+				promiseResolve: promiseResolve,
+				promiseReject: promiseReject
 			};
 		}
 

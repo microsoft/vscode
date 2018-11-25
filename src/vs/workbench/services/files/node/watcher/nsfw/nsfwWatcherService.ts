@@ -10,7 +10,7 @@ import * as platform from 'vs/base/common/platform';
 import * as watcher from 'vs/workbench/services/files/node/watcher/common';
 import * as nsfw from 'vscode-nsfw';
 import { IWatcherService, IWatcherRequest, IWatcherOptions, IWatchError } from 'vs/workbench/services/files/node/watcher/nsfw/watcher';
-import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { normalizeNFC } from 'vs/base/common/normalization';
@@ -28,7 +28,7 @@ interface IWatcherObjet {
 }
 
 interface IPathWatcher {
-	ready: TPromise<IWatcherObjet>;
+	ready: Thenable<IWatcherObjet>;
 	watcher?: IWatcherObjet;
 	ignored: glob.ParsedPattern[];
 }
@@ -52,9 +52,9 @@ export class NsfwWatcherService implements IWatcherService {
 		let undeliveredFileEvents: watcher.IRawFileChange[] = [];
 		const fileEventDelayer = new ThrottledDelayer(NsfwWatcherService.FS_EVENT_DELAY);
 
-		let readyPromiseCallback: TValueCallback<IWatcherObjet>;
+		let readyPromiseResolve: (watcher: IWatcherObjet) => void;
 		this._pathWatchers[request.basePath] = {
-			ready: new TPromise<IWatcherObjet>(c => readyPromiseCallback = c),
+			ready: new Promise<IWatcherObjet>(resolve => readyPromiseResolve = resolve),
 			ignored: Array.isArray(request.ignored) ? request.ignored.map(ignored => glob.parse(ignored)) : []
 		};
 
@@ -172,7 +172,7 @@ export class NsfwWatcherService implements IWatcherService {
 		}).then(watcher => {
 			this._pathWatchers[request.basePath].watcher = watcher;
 			const startPromise = watcher.start();
-			startPromise.then(() => readyPromiseCallback(watcher));
+			startPromise.then(() => readyPromiseResolve(watcher));
 			return startPromise;
 		});
 	}

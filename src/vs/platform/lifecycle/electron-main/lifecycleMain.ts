@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ipcMain as ipc, app } from 'electron';
-import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStateService } from 'vs/platform/state/common/state';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -27,7 +26,7 @@ export const enum UnloadReason {
 export interface IWindowUnloadEvent {
 	window: ICodeWindow;
 	reason: UnloadReason;
-	veto(value: boolean | TPromise<boolean>): void;
+	veto(value: boolean | Thenable<boolean>): void;
 }
 
 export interface ILifecycleService {
@@ -72,7 +71,7 @@ export interface ILifecycleService {
 	/**
 	 * Close a window for the provided reason. Shutdown handlers are triggered.
 	 */
-	unload(window: ICodeWindow, reason: UnloadReason): TPromise<boolean /* veto */>;
+	unload(window: ICodeWindow, reason: UnloadReason): Thenable<boolean /* veto */>;
 
 	/**
 	 * Restart the application with optional arguments (CLI). Shutdown handlers are triggered.
@@ -82,7 +81,7 @@ export interface ILifecycleService {
 	/**
 	 * Shutdown the application normally. Shutdown handlers are triggered.
 	 */
-	quit(fromUpdate?: boolean): TPromise<boolean /* veto */>;
+	quit(fromUpdate?: boolean): Thenable<boolean /* veto */>;
 
 	/**
 	 * Forcefully shutdown the application. No shutdown handlers are triggered.
@@ -100,8 +99,8 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 	private static readonly QUIT_FROM_RESTART_MARKER = 'quit.from.restart'; // use a marker to find out if the session was restarted
 
 	private windowToCloseRequest: { [windowId: string]: boolean } = Object.create(null);
-	private pendingQuitPromise: TPromise<boolean> | null;
-	private pendingQuitPromiseComplete: TValueCallback<boolean> | null;
+	private pendingQuitPromise: Promise<boolean> | null;
+	private pendingQuitPromiseResolve: { (veto: boolean): void } | null;
 	private oneTimeListenerTokenGenerator = 0;
 	private windowCounter = 0;
 
@@ -235,11 +234,11 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 		});
 	}
 
-	unload(window: ICodeWindow, reason: UnloadReason): TPromise<boolean /* veto */> {
+	unload(window: ICodeWindow, reason: UnloadReason): Thenable<boolean /* veto */> {
 
 		// Always allow to unload a window that is not yet ready
 		if (window.readyState !== ReadyState.READY) {
-			return TPromise.as<boolean>(false);
+			return Promise.resolve(false);
 		}
 
 		this.logService.trace('Lifecycle#unload()', window.id);
@@ -273,35 +272,35 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 	private handleVeto(veto: boolean): boolean {
 
 		// Any cancellation also cancels a pending quit if present
-		if (veto && this.pendingQuitPromiseComplete) {
-			this.pendingQuitPromiseComplete(true /* veto */);
-			this.pendingQuitPromiseComplete = null;
+		if (veto && this.pendingQuitPromiseResolve) {
+			this.pendingQuitPromiseResolve(true /* veto */);
+			this.pendingQuitPromiseResolve = null;
 			this.pendingQuitPromise = null;
 		}
 
 		return veto;
 	}
 
-	private onBeforeUnloadWindowInRenderer(window: ICodeWindow, reason: UnloadReason): TPromise<boolean /* veto */> {
-		return new TPromise<boolean>(c => {
+	private onBeforeUnloadWindowInRenderer(window: ICodeWindow, reason: UnloadReason): Thenable<boolean /* veto */> {
+		return new Promise<boolean>(resolve => {
 			const oneTimeEventToken = this.oneTimeListenerTokenGenerator++;
 			const okChannel = `vscode:ok${oneTimeEventToken}`;
 			const cancelChannel = `vscode:cancel${oneTimeEventToken}`;
 
 			ipc.once(okChannel, () => {
-				c(false); // no veto
+				resolve(false); // no veto
 			});
 
 			ipc.once(cancelChannel, () => {
-				c(true); // veto
+				resolve(true); // veto
 			});
 
 			window.send('vscode:onBeforeUnload', { okChannel, cancelChannel, reason });
 		});
 	}
 
-	private onBeforeUnloadWindowInMain(window: ICodeWindow, reason: UnloadReason): TPromise<boolean /* veto */> {
-		const vetos: (boolean | TPromise<boolean>)[] = [];
+	private onBeforeUnloadWindowInMain(window: ICodeWindow, reason: UnloadReason): Thenable<boolean /* veto */> {
+		const vetos: (boolean | Thenable<boolean>)[] = [];
 
 		this._onBeforeWindowUnload.fire({
 			reason,
@@ -314,12 +313,12 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 		return handleVetos(vetos, err => this.logService.error(err));
 	}
 
-	private onWillUnloadWindowInRenderer(window: ICodeWindow, reason: UnloadReason): TPromise<void> {
-		return new TPromise<void>(c => {
+	private onWillUnloadWindowInRenderer(window: ICodeWindow, reason: UnloadReason): Thenable<void> {
+		return new Promise<void>(resolve => {
 			const oneTimeEventToken = this.oneTimeListenerTokenGenerator++;
 			const replyChannel = `vscode:reply${oneTimeEventToken}`;
 
-			ipc.once(replyChannel, () => c(void 0));
+			ipc.once(replyChannel, () => resolve(void 0));
 
 			window.send('vscode:onWillUnload', { replyChannel, reason });
 		});
@@ -329,26 +328,26 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 	 * A promise that completes to indicate if the quit request has been veto'd
 	 * by the user or not.
 	 */
-	quit(fromUpdate?: boolean): TPromise<boolean /* veto */> {
+	quit(fromUpdate?: boolean): Thenable<boolean /* veto */> {
 		this.logService.trace('Lifecycle#quit()');
 
 		if (!this.pendingQuitPromise) {
-			this.pendingQuitPromise = new TPromise<boolean>(c => {
+			this.pendingQuitPromise = new Promise<boolean>(resolve => {
 
 				// Store as field to access it from a window cancellation
-				this.pendingQuitPromiseComplete = c;
+				this.pendingQuitPromiseResolve = resolve;
 
 				// The will-quit event is fired when all windows have closed without veto
 				app.once('will-quit', () => {
 					this.logService.trace('Lifecycle#will-quit');
 
-					if (this.pendingQuitPromiseComplete) {
+					if (this.pendingQuitPromiseResolve) {
 						if (fromUpdate) {
 							this.stateService.setItem(LifecycleService.QUIT_FROM_RESTART_MARKER, true);
 						}
 
-						this.pendingQuitPromiseComplete(false /* no veto */);
-						this.pendingQuitPromiseComplete = null;
+						this.pendingQuitPromiseResolve(false /* no veto */);
+						this.pendingQuitPromiseResolve = null;
 						this.pendingQuitPromise = null;
 					}
 				});

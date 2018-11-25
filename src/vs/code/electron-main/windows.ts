@@ -1578,14 +1578,14 @@ export class WindowsManager implements IWindowsMainService {
 		return this.open({ context, cli: this.environmentService.args, forceNewTabbedWindow: true, forceEmpty: true });
 	}
 
-	waitForWindowCloseOrLoad(windowId: number): TPromise<void> {
-		return new TPromise<void>(c => {
+	waitForWindowCloseOrLoad(windowId: number): Thenable<void> {
+		return new Promise<void>(resolve => {
 			function handler(id: number) {
 				if (id === windowId) {
 					closeListener.dispose();
 					loadListener.dispose();
 
-					c(null);
+					resolve(null);
 				}
 			}
 
@@ -1755,15 +1755,15 @@ export class WindowsManager implements IWindowsMainService {
 		this.dialogs.pickAndOpen(internalOptions);
 	}
 
-	showMessageBox(options: Electron.MessageBoxOptions, win?: ICodeWindow): TPromise<IMessageBoxResult> {
+	showMessageBox(options: Electron.MessageBoxOptions, win?: ICodeWindow): Thenable<IMessageBoxResult> {
 		return this.dialogs.showMessageBox(options, win);
 	}
 
-	showSaveDialog(options: Electron.SaveDialogOptions, win?: ICodeWindow): TPromise<string> {
+	showSaveDialog(options: Electron.SaveDialogOptions, win?: ICodeWindow): Thenable<string> {
 		return this.dialogs.showSaveDialog(options, win);
 	}
 
-	showOpenDialog(options: Electron.OpenDialogOptions, win?: ICodeWindow): TPromise<string[]> {
+	showOpenDialog(options: Electron.OpenDialogOptions, win?: ICodeWindow): Thenable<string[]> {
 		return this.dialogs.showOpenDialog(options, win);
 	}
 
@@ -1893,17 +1893,17 @@ class Dialogs {
 		return windowDialogQueue;
 	}
 
-	showMessageBox(options: Electron.MessageBoxOptions, window?: ICodeWindow): TPromise<IMessageBoxResult> {
+	showMessageBox(options: Electron.MessageBoxOptions, window?: ICodeWindow): Thenable<IMessageBoxResult> {
 		return this.getDialogQueue(window).queue(() => {
-			return new TPromise((c, e) => {
+			return new Promise(resolve => {
 				dialog.showMessageBox(window ? window.win : void 0, options, (response: number, checkboxChecked: boolean) => {
-					c({ button: response, checkboxChecked });
+					resolve({ button: response, checkboxChecked });
 				});
 			});
 		});
 	}
 
-	showSaveDialog(options: Electron.SaveDialogOptions, window?: ICodeWindow): TPromise<string> {
+	showSaveDialog(options: Electron.SaveDialogOptions, window?: ICodeWindow): Thenable<string> {
 
 		function normalizePath(path: string): string {
 			if (path && isMacintosh) {
@@ -1914,15 +1914,15 @@ class Dialogs {
 		}
 
 		return this.getDialogQueue(window).queue(() => {
-			return new TPromise((c, e) => {
+			return new Promise(resolve => {
 				dialog.showSaveDialog(window ? window.win : void 0, options, path => {
-					c(normalizePath(path));
+					resolve(normalizePath(path));
 				});
 			});
 		});
 	}
 
-	showOpenDialog(options: Electron.OpenDialogOptions, window?: ICodeWindow): TPromise<string[]> {
+	showOpenDialog(options: Electron.OpenDialogOptions, window?: ICodeWindow): Thenable<string[]> {
 
 		function normalizePaths(paths: string[]): string[] {
 			if (paths && paths.length > 0 && isMacintosh) {
@@ -1933,10 +1933,10 @@ class Dialogs {
 		}
 
 		return this.getDialogQueue(window).queue(() => {
-			return new TPromise((c, e) => {
+			return new Promise(resolve => {
 
 				// Ensure the path exists (if provided)
-				let validatePathPromise: TPromise<void> = TPromise.as(void 0);
+				let validatePathPromise: Promise<void> = Promise.resolve();
 				if (options.defaultPath) {
 					validatePathPromise = exists(options.defaultPath).then(exists => {
 						if (!exists) {
@@ -1948,7 +1948,7 @@ class Dialogs {
 				// Show dialog and wrap as promise
 				validatePathPromise.then(() => {
 					dialog.showOpenDialog(window ? window.win : void 0, options, paths => {
-						c(normalizePaths(paths));
+						resolve(normalizePaths(paths));
 					});
 				});
 			});

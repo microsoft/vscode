@@ -231,7 +231,7 @@ export class FileService extends Disposable implements IFileService {
 
 	resolveContent(resource: uri, options?: IResolveContentOptions): TPromise<IContent> {
 		return this.resolveStreamContent(resource, options).then(streamContent => {
-			return new TPromise<IContent>((resolve, reject) => {
+			return new Promise<IContent>((resolve, reject) => {
 
 				const result: IContent = {
 					resource: streamContent.resource,
@@ -245,7 +245,7 @@ export class FileService extends Disposable implements IFileService {
 
 				streamContent.value.on('data', chunk => result.value += chunk);
 				streamContent.value.on('error', err => reject(err));
-				streamContent.value.on('end', _ => resolve(result));
+				streamContent.value.on('end', () => resolve(result));
 
 				return result;
 			});
@@ -393,8 +393,7 @@ export class FileService extends Disposable implements IFileService {
 		});
 	}
 
-	private resolveFileData(resource: uri, options: IResolveContentOptions, token: CancellationToken): TPromise<IContentData> {
-
+	private resolveFileData(resource: uri, options: IResolveContentOptions, token: CancellationToken): Thenable<IContentData> {
 		const chunkBuffer = Buffer.allocUnsafe(64 * 1024);
 
 		const result: IContentData = {
@@ -402,7 +401,7 @@ export class FileService extends Disposable implements IFileService {
 			stream: void 0
 		};
 
-		return new TPromise<IContentData>((resolve, reject) => {
+		return new Promise<IContentData>((resolve, reject) => {
 			fs.open(this.toAbsolutePath(resource), 'r', (err, fd) => {
 				if (err) {
 					if (err.code === 'ENOENT') {
@@ -421,9 +420,9 @@ export class FileService extends Disposable implements IFileService {
 				let totalBytesRead = 0;
 
 				const finish = (err?: any) => {
-
 					if (err) {
 						if (err.code === 'EISDIR') {
+
 							// Wrap EISDIR errors (fs.open on a directory works, but you cannot read from it)
 							err = new FileOperationError(
 								nls.localize('fileIsDirectoryError', "File is directory"),
@@ -439,6 +438,7 @@ export class FileService extends Disposable implements IFileService {
 							reject(err);
 						}
 					}
+
 					if (decoder) {
 						decoder.end();
 					}
@@ -672,8 +672,8 @@ export class FileService extends Disposable implements IFileService {
 			return this.updateContent(uri.file(tmpPath), value, writeOptions).then(() => {
 
 				// 3.) invoke our CLI as super user
-				return TPromise.wrap(import('sudo-prompt')).then(sudoPrompt => {
-					return new TPromise<void>((c, e) => {
+				return import('sudo-prompt').then(sudoPrompt => {
+					return new Promise<void>((resolve, reject) => {
 						const promptOptions = {
 							name: this.environmentService.appNameLong.replace('-', ''),
 							icns: (isMacintosh && this.environmentService.isBuilt) ? paths.join(paths.dirname(this.environmentService.appRoot), `${product.nameShort}.icns`) : void 0
@@ -687,9 +687,9 @@ export class FileService extends Disposable implements IFileService {
 
 						sudoPrompt.exec(sudoCommand.join(' '), promptOptions, (error: string, stdout: string, stderr: string) => {
 							if (error || stderr) {
-								e(error || stderr);
+								reject(error || stderr);
 							} else {
-								c(void 0);
+								resolve(void 0);
 							}
 						});
 					});
@@ -1138,7 +1138,7 @@ export class StatResolver {
 		this.etag = etag(size, mtime);
 	}
 
-	resolve(options: IResolveFileOptions): TPromise<IFileStat> {
+	resolve(options: IResolveFileOptions): Thenable<IFileStat> {
 
 		// General Data
 		const fileStat: IFileStat = {
@@ -1154,7 +1154,7 @@ export class StatResolver {
 
 		// File Specific Data
 		if (!this.isDirectory) {
-			return TPromise.as(fileStat);
+			return Promise.resolve(fileStat);
 		}
 
 		// Directory Specific Data
@@ -1169,14 +1169,14 @@ export class StatResolver {
 				});
 			}
 
-			return new TPromise<IFileStat>((c, e) => {
+			return new Promise<IFileStat>(resolve => {
 
 				// Load children
 				this.resolveChildren(this.resource.fsPath, absoluteTargetPaths, options && options.resolveSingleChildDescendants, children => {
 					children = arrays.coalesce(children); // we don't want those null children (could be permission denied when reading a child)
 					fileStat.children = children || [];
 
-					c(fileStat);
+					resolve(fileStat);
 				});
 			});
 		}

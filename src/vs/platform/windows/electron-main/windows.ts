@@ -46,7 +46,7 @@ export interface ICodeWindow {
 	lastFocusTime: number;
 
 	readyState: ReadyState;
-	ready(): TPromise<ICodeWindow>;
+	ready(): Thenable<ICodeWindow>;
 
 	addTabbedWindow(window: ICodeWindow): void;
 
@@ -107,9 +107,9 @@ export interface IWindowsMainService {
 	pickFolderAndOpen(options: INativeOpenDialogOptions): void;
 	pickFileAndOpen(options: INativeOpenDialogOptions): void;
 	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): void;
-	showMessageBox(options: Electron.MessageBoxOptions, win?: ICodeWindow): TPromise<IMessageBoxResult>;
-	showSaveDialog(options: Electron.SaveDialogOptions, win?: ICodeWindow): TPromise<string>;
-	showOpenDialog(options: Electron.OpenDialogOptions, win?: ICodeWindow): TPromise<string[]>;
+	showMessageBox(options: Electron.MessageBoxOptions, win?: ICodeWindow): Thenable<IMessageBoxResult>;
+	showSaveDialog(options: Electron.SaveDialogOptions, win?: ICodeWindow): Thenable<string>;
+	showOpenDialog(options: Electron.OpenDialogOptions, win?: ICodeWindow): Thenable<string[]>;
 	focusLastActive(cli: ParsedArgs, context: OpenContext): ICodeWindow;
 	getLastActiveWindow(): ICodeWindow;
 	waitForWindowCloseOrLoad(windowId: number): TPromise<void>;
