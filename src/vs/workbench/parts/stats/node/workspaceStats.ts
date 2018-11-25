@@ -5,7 +5,6 @@
 
 import { localize } from 'vs/nls';
 import * as crypto from 'crypto';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import { IFileService, IFileStat, IResolveFileResult } from 'vs/platform/files/common/files';
@@ -190,7 +189,7 @@ export function getHashedRemotesFromConfig(text: string, stripEndingDotGit: bool
 	});
 }
 
-export function getHashedRemotesFromUri(workspaceUri: URI, fileService: IFileService, stripEndingDotGit: boolean = false): TPromise<string[]> {
+export function getHashedRemotesFromUri(workspaceUri: URI, fileService: IFileService, stripEndingDotGit: boolean = false): Thenable<string[]> {
 	const path = workspaceUri.path;
 	const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
 	return fileService.resolveFile(uri).then(() => {
@@ -311,7 +310,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			"workspace.py.azure-cognitiveservices" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 		}
 	*/
-	private resolveWorkspaceTags(configuration: IWindowConfiguration, participant?: (rootFiles: string[]) => void): TPromise<Tags> {
+	private resolveWorkspaceTags(configuration: IWindowConfiguration, participant?: (rootFiles: string[]) => void): Thenable<Tags> {
 		const tags: Tags = Object.create(null);
 
 		const state = this.contextService.getWorkbenchState();
@@ -342,7 +341,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 
 		const folders = !isEmpty ? workspace.folders.map(folder => folder.uri) : this.environmentService.appQuality !== 'stable' && this.findFolders(configuration);
 		if (!folders || !folders.length || !this.fileService) {
-			return TPromise.as(tags);
+			return Promise.resolve(tags);
 		}
 
 		return this.fileService.resolveFiles(folders.map(resource => ({ resource }))).then((files: IResolveFileResult[]) => {
@@ -415,7 +414,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				tags['workspace.android.cpp'] = true;
 			}
 
-			function getFilePromises(filename, fileService, contentHandler): TPromise<void>[] {
+			function getFilePromises(filename, fileService, contentHandler): Thenable<void>[] {
 				return !nameSet.has(filename) ? [] : folders.map(workspaceUri => {
 					const uri = workspaceUri.with({ path: `${workspaceUri.path !== '/' ? workspaceUri.path : ''}/${filename}` });
 					return fileService.resolveFile(uri).then(() => {
@@ -495,10 +494,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 					// Ignore errors when resolving file or parsing file contents
 				}
 			});
-			return TPromise.join([...packageJsonPromises, ...requirementsTxtPromises, ...pipfilePromises]).then(function () {
-				return tags;
-			}
-			);
+			return Promise.all([...packageJsonPromises, ...requirementsTxtPromises, ...pipfilePromises]).then(() => tags);
 		});
 	}
 
@@ -588,7 +584,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 	}
 
 	private reportRemoteDomains(workspaceUris: URI[]): void {
-		TPromise.join<string[]>(workspaceUris.map(workspaceUri => {
+		Promise.all<string[]>(workspaceUris.map(workspaceUri => {
 			const path = workspaceUri.path;
 			const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
 			return this.fileService.resolveFile(uri).then(() => {
@@ -611,7 +607,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 	}
 
 	private reportRemotes(workspaceUris: URI[]): void {
-		TPromise.join<string[]>(workspaceUris.map(workspaceUri => {
+		Promise.all<string[]>(workspaceUris.map(workspaceUri => {
 			return getHashedRemotesFromUri(workspaceUri, this.fileService, true);
 		})).then(hashedRemotes => {
 			/* __GDPR__
@@ -628,7 +624,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			"node" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 		}
 	*/
-	private reportAzureNode(workspaceUris: URI[], tags: Tags): TPromise<Tags> {
+	private reportAzureNode(workspaceUris: URI[], tags: Tags): Thenable<Tags> {
 		// TODO: should also work for `node_modules` folders several levels down
 		const uris = workspaceUris.map(workspaceUri => {
 			const path = workspaceUri.path;
@@ -653,8 +649,8 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			"java" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 		}
 	*/
-	private reportAzureJava(workspaceUris: URI[], tags: Tags): TPromise<Tags> {
-		return TPromise.join(workspaceUris.map(workspaceUri => {
+	private reportAzureJava(workspaceUris: URI[], tags: Tags): Thenable<Tags> {
+		return Promise.all(workspaceUris.map(workspaceUri => {
 			const path = workspaceUri.path;
 			const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/pom.xml` });
 			return this.fileService.resolveFile(uri).then(stats => {

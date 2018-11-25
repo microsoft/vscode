@@ -13,6 +13,7 @@ import { ReadyState } from 'vs/platform/windows/common/windows';
 import { handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleService');
 
@@ -238,7 +239,7 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 
 		// Always allow to unload a window that is not yet ready
 		if (window.readyState !== ReadyState.READY) {
-			return Promise.resolve(false);
+			return TPromise.as(false); // TODO@Ben changing to native promise results in startup crash (when opening first window)
 		}
 
 		this.logService.trace('Lifecycle#unload()', window.id);
