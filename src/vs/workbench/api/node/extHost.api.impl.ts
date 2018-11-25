@@ -678,11 +678,11 @@ export function createApiFactory(
 			registerDebugConfigurationProvider(debugType: string, provider: vscode.DebugConfigurationProvider) {
 				return extHostDebugService.registerDebugConfigurationProvider(debugType, provider);
 			},
-			registerDebugAdapterProvider(debugType: string, provider: vscode.DebugAdapterProvider) {
-				return extHostDebugService.registerDebugAdapterProvider(extension, debugType, provider);
+			registerDebugAdapterDescriptorFactory(debugType: string, factory: vscode.DebugAdapterDescriptorFactory) {
+				return extHostDebugService.registerDebugAdapterDescriptorFactory(extension, debugType, factory);
 			},
-			registerDebugAdapterTracker(debugType: string, callback: (session: vscode.DebugSession) => vscode.DebugAdapterTracker | undefined) {
-				return extHostDebugService.registerDebugAdapterTracker(debugType, callback);
+			registerDebugAdapterTrackerFactory(debugType: string, factory: vscode.DebugAdapterTrackerFactory) {
+				return extHostDebugService.registerDebugAdapterTrackerFactory(debugType, factory);
 			},
 			startDebugging(folder: vscode.WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration) {
 				return extHostDebugService.startDebugging(folder, nameOrConfig);

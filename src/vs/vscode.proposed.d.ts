@@ -592,15 +592,15 @@ declare module 'vscode' {
 
 	export type DebugAdapterDescriptor = DebugAdapterExecutable | DebugAdapterServer | DebugAdapterImplementation;
 
-	export interface DebugAdapterProvider {
+	export interface DebugAdapterDescriptorFactory {
 		/**
-		 * 'provideDebugAdapter' is called at the start of a debug session to provide details about the debug adapter to use.
+		 * 'createDebugAdapterDescriptor' is called at the start of a debug session to provide details about the debug adapter to use.
 		 * These details must be returned as objects of type [DebugAdapterDescriptor](#DebugAdapterDescriptor).
 		 * Currently two types of debug adapters are supported:
 		 * - a debug adapter executable is specified as a command path and arguments (see [DebugAdapterExecutable](#DebugAdapterExecutable)),
 		 * - a debug adapter server reachable via a communication port (see [DebugAdapterServer](#DebugAdapterServer)).
 		 * If the method is not implemented the default behavior is this:
-		 *   provideDebugAdapter(session: DebugSession, executable: DebugAdapterExecutable) {
+		 *   createDebugAdapter(session: DebugSession, executable: DebugAdapterExecutable) {
 		 *      if (typeof session.configuration.debugServer === 'number') {
 		 *         return new DebugAdapterServer(session.configuration.debugServer);
 		 *      }
@@ -610,29 +610,7 @@ declare module 'vscode' {
 		 * @param executable The debug adapter's executable information as specified in the package.json (or undefined if no such information exists).
 		 * @return a [debug adapter descriptor](#DebugAdapterDescriptor) or undefined.
 		 */
-		provideDebugAdapter(session: DebugSession, executable: DebugAdapterExecutable | undefined): ProviderResult<DebugAdapterDescriptor>;
-	}
-
-	export namespace debug {
-		/**
-		 * Register a [debug adapter provider](#DebugAdapterProvider) for a specific debug type.
-		 * An extension is only allowed to register a DebugAdapterProvider for the debug type(s) defined by the extension. Otherwise an error is thrown.
-		 * Registering more than one DebugAdapterProvider for a debug type results in an error.
-		 *
-		 * @param type The debug type for which the provider is registered.
-		 * @param provider The [debug adapter provider](#DebugAdapterProvider) to register.
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
-		 */
-		export function registerDebugAdapterProvider(debugType: string, provider: DebugAdapterProvider): Disposable;
-
-		/**
-		 * Register a factory callback for the given debug type that is is called at the start of a debug session in order
-		 * to return a "tracker" object that provides read-access to the communication between VS Code and a debug adapter.
-		 *
-		 * @param debugType A specific debug type or '*' for matching all debug types.
-		 * @param callback A factory callback that is called at the start of a debug session to return a tracker object or `undefined`.
-		 */
-		export function registerDebugAdapterTracker(debugType: string, callback: (session: DebugSession) => DebugAdapterTracker | undefined): Disposable;
+		createDebugAdapterDescriptor(session: DebugSession, executable: DebugAdapterExecutable | undefined): ProviderResult<DebugAdapterDescriptor>;
 	}
 
 	/**
@@ -650,15 +628,51 @@ declare module 'vscode' {
 		debugAdapterExit?(code?: number, signal?: string): void;
 	}
 
+	export interface DebugAdapterTrackerFactory {
+		/**
+		 * The method 'createDebugAdapterTracker' is called at the start of a debug session in order
+		 * to return a "tracker" object that provides read-access to the communication between VS Code and a debug adapter.
+		 *
+		 * @param session The [debug session](#DebugSession) for which the debug adapter tracker will be used.
+		 * @return A [debug adapter tracker](#DebugAdapterTracker) or undefined.
+		 */
+		createDebugAdapterTracker(session: DebugSession): ProviderResult<DebugAdapterTracker>;
+	}
+
+	export namespace debug {
+		/**
+		 * Register a [debug adapter descriptor factory](#DebugAdapterDescriptorFactory) for a specific debug type.
+		 * An extension is only allowed to register a DebugAdapterDescriptorFactory for the debug type(s) defined by the extension. Otherwise an error is thrown.
+		 * Registering more than one DebugAdapterDescriptorFactory for a debug type results in an error.
+		 *
+		 * @param debugType The debug type for which the factory is registered.
+		 * @param factory The [debug adapter descriptor factory](#DebugAdapterDescriptorFactory) to register.
+		 * @return A [disposable](#Disposable) that unregisters this factory when being disposed.
+		 */
+		export function registerDebugAdapterDescriptorFactory(debugType: string, factory: DebugAdapterDescriptorFactory): Disposable;
+
+		/**
+		 * Register a debug adapter tracker factory for the given debug type.
+		 *
+		 * @param debugType The debug type for which the factory is registered or '*' for matching all debug types.
+		 * @param factory The [debug adapter tracker factory](#DebugAdapterTrackerFactory) to register.
+		 * @return A [disposable](#Disposable) that unregisters this factory when being disposed.
+		 */
+		export function registerDebugAdapterTrackerFactory(debugType: string, factory: DebugAdapterTrackerFactory): Disposable;
+	}
+
+	// deprecated
+
 	export interface DebugConfigurationProvider {
 		/**
-		 * Deprecated, use DebugAdapterProvider.provideDebugAdapter instead.
-		 * @deprecated Use DebugAdapterProvider.provideDebugAdapter instead
+		 * Deprecated, use DebugAdapterDescriptorFactory.provideDebugAdapter instead.
+		 * @deprecated Use DebugAdapterDescriptorFactory.createDebugAdapterDescriptor instead
 		 */
 		debugAdapterExecutable?(folder: WorkspaceFolder | undefined, token?: CancellationToken): ProviderResult<DebugAdapterExecutable>;
 
 		/**
-		 * Preliminary API, do not use in production.
+		 * Deprecated, use DebugAdapterTrackerFactory.createDebugAdapterTracker instead.
+		 * @deprecated Use DebugAdapterTrackerFactory.createDebugAdapterTracker instead
 		 *
 		 * The optional method 'provideDebugAdapterTracker' is called at the start of a debug session to provide a tracker that gives access to the communication between VS Code and a Debug Adapter.
 		 * @param session The [debug session](#DebugSession) for which the tracker will be used.
