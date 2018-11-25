@@ -30,6 +30,15 @@ export interface IWindowUnloadEvent {
 	veto(value: boolean | TPromise<boolean>): void;
 }
 
+export interface ShutdownEvent {
+
+	/**
+	 * Allows to join the shutdown. The promise can be a long running operation but it
+	 * will block the application from closing.
+	 */
+	join(promise: Thenable<void>): void;
+}
+
 export interface ILifecycleService {
 	_serviceBrand: any;
 
@@ -55,7 +64,7 @@ export interface ILifecycleService {
 	 * vetoed the shutdown sequence. At this point listeners are ensured that the application will
 	 * quit without veto.
 	 */
-	onShutdown: Event<void>;
+	onShutdown: Event<ShutdownEvent>;
 
 	/**
 	 * We provide our own event when we close a window because the general window.on('close')
@@ -114,8 +123,8 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 	private readonly _onBeforeShutdown = this._register(new Emitter<void>());
 	readonly onBeforeShutdown: Event<void> = this._onBeforeShutdown.event;
 
-	private readonly _onShutdown = this._register(new Emitter<void>());
-	readonly onShutdown: Event<void> = this._onShutdown.event;
+	private readonly _onShutdown = this._register(new Emitter<ShutdownEvent>());
+	readonly onShutdown: Event<ShutdownEvent> = this._onShutdown.event;
 
 	private readonly _onBeforeWindowClose = this._register(new Emitter<ICodeWindow>());
 	readonly onBeforeWindowClose: Event<ICodeWindow> = this._onBeforeWindowClose.event;
@@ -165,7 +174,7 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 			// the onShutdown() event directly because there is no veto to be expected.
 			if (isMacintosh && this.windowCounter === 0) {
 				this.logService.trace('Lifecycle#onShutdown.fire()');
-				this._onShutdown.fire();
+				this._onShutdown.fire(); //
 			}
 		});
 
@@ -230,7 +239,7 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 			// the application continues running (unless quit was actually requested)
 			if (this.windowCounter === 0 && (!isMacintosh || this._quitRequested)) {
 				this.logService.trace('Lifecycle#onShutdown.fire()');
-				this._onShutdown.fire();
+				this._onShutdown.fire(); //
 			}
 		});
 	}

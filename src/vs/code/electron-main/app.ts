@@ -535,6 +535,9 @@ export class CodeApplication extends Disposable {
 	private initStorageService(accessor: ServicesAccessor): Thenable<void> {
 		const storageService = accessor.get(IStorageMainService) as StorageMainService;
 
+		// Ensure to close storage on shutdown
+		this._register(this.lifecycleService.onShutdown(e => e.join(storageService.close())));
+
 		// Initialize storage service
 		return storageService.initialize().then(void 0, error => {
 			errors.onUnexpectedError(error);
