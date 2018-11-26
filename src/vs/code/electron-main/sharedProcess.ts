@@ -24,7 +24,7 @@ export class SharedProcess implements ISharedProcess {
 
 	constructor(
 		private readonly machineId: string,
-		private readonly userEnv: IProcessEnvironment,
+		private userEnv: IProcessEnvironment,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IStateService private readonly stateService: IStateService,
@@ -111,7 +111,8 @@ export class SharedProcess implements ISharedProcess {
 		});
 	}
 
-	spawn(): void {
+	spawn(userEnv: NodeJS.ProcessEnv): void {
+		this.userEnv = { ...this.userEnv, ...userEnv };
 		this.barrier.open();
 	}
 

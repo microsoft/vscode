@@ -684,7 +684,7 @@ export class CodeApplication extends Disposable {
 		this.historyMainService.onRecentlyOpenedChange(() => this.historyMainService.updateWindowsJumpList());
 
 		// Start shared process after a while
-		const sharedProcess = new RunOnceScheduler(() => this.sharedProcess.spawn(), 3000);
+		const sharedProcess = new RunOnceScheduler(() => getShellEnvironment().then(userEnv => this.sharedProcess.spawn(userEnv)), 3000);
 		sharedProcess.schedule();
 		this._register(sharedProcess);
 	}
