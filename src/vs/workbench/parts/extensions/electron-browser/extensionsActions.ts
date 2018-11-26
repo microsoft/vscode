@@ -460,6 +460,7 @@ export abstract class DropDownAction extends Action {
 
 		for (const group of actionsGroups) {
 			for (const action of group) {
+				this.disposables.push(action);
 				if (action instanceof Action) {
 					action.onDidChange(({ enabled }) => {
 						if (!isUndefinedOrNull(enabled)) {
@@ -744,7 +745,8 @@ export class InstallInRemoteServerAction extends Action implements IExtensionAct
 		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
 		@IExtensionService private extensionService: IExtensionService
 	) {
-		super(EnableForWorkspaceAction.ID, InstallInRemoteServerAction.LABEL);
+		super(InstallInRemoteServerAction.ID, InstallInRemoteServerAction.LABEL);
+
 		this.disposables.push(extensionWorkbenchService.onChange(extension => this.update(extension)));
 		this.update();
 	}
