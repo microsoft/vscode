@@ -224,20 +224,14 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		if (this._profileInfo) {
 			// sort descending by time spent in the profiler
 			result = result.sort((a, b) => {
-				if (a.profileInfo.totalTime === b.profileInfo.totalTime) {
+				if (a.unresponsiveProfile === this._profileInfo && !b.unresponsiveProfile) {
+					return -1;
+				} else if (!a.unresponsiveProfile && b.unresponsiveProfile === this._profileInfo) {
+					return 1;
+				} else if (a.profileInfo.totalTime === b.profileInfo.totalTime) {
 					return a.originalIndex - b.originalIndex;
 				}
 				return b.profileInfo.totalTime - a.profileInfo.totalTime;
-			});
-		} else {
-			// bubble up unresponsive extension
-			result = result.sort((a, b) => {
-				if (a.unresponsiveProfile && !b.unresponsiveProfile) {
-					return -1;
-				} else if (!a.unresponsiveProfile && b.unresponsiveProfile) {
-					return 1;
-				}
-				return 0;
 			});
 		}
 

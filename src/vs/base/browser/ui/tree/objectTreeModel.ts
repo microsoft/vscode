@@ -25,22 +25,35 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData = void> imp
 		this.onDidChangeRenderNodeCount = this.model.onDidChangeRenderNodeCount;
 	}
 
-	setChildren(element: T | null, children?: ISequence<ITreeElement<T>>): Iterator<ITreeElement<T>> {
+	setChildren(
+		element: T | null,
+		children?: ISequence<ITreeElement<T>>,
+		onDidCreateNode?: (node: ITreeNode<T, TFilterData>) => void,
+		onDidDeleteNode?: (node: ITreeNode<T, TFilterData>) => void
+	): Iterator<ITreeElement<T>> {
 		const location = this.getElementLocation(element);
 		const insertedElements = new Set<T>();
 
-		const onDidCreateNode = (node: ITreeNode<T, TFilterData>) => {
+		const _onDidCreateNode = (node: ITreeNode<T, TFilterData>) => {
 			insertedElements.add(node.element);
 			this.nodes.set(node.element, node);
-		};
 
-		const onDidDeleteNode = (node: ITreeNode<T, TFilterData>) => {
-			if (!insertedElements.has(node.element)) {
-				this.nodes.delete(node.element);
+			if (onDidCreateNode) {
+				onDidCreateNode(node);
 			}
 		};
 
-		return this.model.splice([...location, 0], Number.MAX_VALUE, children, onDidCreateNode, onDidDeleteNode);
+		const _onDidDeleteNode = (node: ITreeNode<T, TFilterData>) => {
+			if (!insertedElements.has(node.element)) {
+				this.nodes.delete(node.element);
+			}
+
+			if (onDidDeleteNode) {
+				onDidDeleteNode(node);
+			}
+		};
+
+		return this.model.splice([...location, 0], Number.MAX_VALUE, children, _onDidCreateNode, _onDidDeleteNode);
 	}
 
 	getParentElement(ref: T | null = null): T | null {
