@@ -2652,11 +2652,11 @@ export class ReinstallAction extends Action {
 	}
 
 	run(): Promise<any> {
-		return Promise.resolve(this.quickInputService.pick(this.getEntries(), { placeHolder: localize('selectExtension', "Select Extension to Reinstall") }))
+		return Promise.resolve(this.quickInputService.pick(this.getEntries(), { placeHolder: localize('selectExtensionToReinstall', "Select Extension to Reinstall") }))
 			.then(pick => pick && this.reinstallExtension(pick.extension));
 	}
 
-	private getEntries() {
+	private getEntries(): Thenable<(IQuickPickItem & { extension: IExtension })[]> {
 		return this.extensionsWorkbenchService.queryLocal()
 			.then(local => {
 				const entries = local
@@ -2679,6 +2679,93 @@ export class ReinstallAction extends Action {
 				this.notificationService.prompt(
 					Severity.Info,
 					localize('ReinstallAction.success', "Successfully reinstalled the extension."),
+					[{
+						label: localize('ReinstallAction.reloadNow', "Reload Now"),
+						run: () => this.windowService.reloadWindow()
+					}],
+					{ sticky: true }
+				);
+			}, error => this.notificationService.error(error));
+	}
+}
+
+export class InstallPreviousVersionAction extends Action {
+
+	static readonly ID = 'workbench.extensions.action.install.old';
+	static LABEL = localize('install previous version', "Install Previous Version of Extension...");
+
+	constructor(
+		id: string = ReinstallAction.ID, label: string = ReinstallAction.LABEL,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
+		@IQuickInputService private quickInputService: IQuickInputService,
+		@INotificationService private notificationService: INotificationService,
+		@IWindowService private windowService: IWindowService
+	) {
+		super(id, label);
+	}
+
+	get enabled(): boolean {
+		return this.extensionsWorkbenchService.local.filter(l => l.type === LocalExtensionType.User && l.local).length > 0;
+	}
+
+	run(): Promise<any> {
+		return Promise.resolve(this.quickInputService.pick(this.getEntries(), { placeHolder: localize('selectExtension', "Select Extension") }))
+			.then(pick => pick && this.install(pick.extension, pick.version));
+	}
+
+	private async getEntries(): Promise<(IQuickPickItem & { extension: IExtension, version: string })[]> {
+		const installed = await this.extensionsWorkbenchService.queryLocal();
+		const previousVersionExtensionsPromises: Thenable<{ extension: IExtension, version: string }>[] = [];
+		for (const extension of installed) {
+			if (extension.gallery && (extension.enablementState === EnablementState.Enabled || extension.enablementState === EnablementState.WorkspaceEnabled)) {
+				previousVersionExtensionsPromises.push(this.extensionGalleryService.getAllVersions(extension.gallery)
+					.then(versions => {
+						const previousVersion = this.getPreviousVersion(extension.version, versions);
+						if (previousVersion) {
+							return this.extensionGalleryService.loadCompatibleVersion(extension.gallery, previousVersion)
+								.then(gallery => gallery ? { extension, version: previousVersion } : null);
+						}
+						return null;
+					}));
+			}
+		}
+
+		const extensions = await Promise.all(previousVersionExtensionsPromises);
+		return extensions
+			.filter(e => !!e)
+			.sort((e1, e2) => e1.extension.displayName.localeCompare(e2.extension.displayName))
+			.map(({ extension, version }) => {
+				return {
+					id: extension.id,
+					label: extension.displayName || extension.id,
+					description: `${extension.version} → ${version}`,
+					extension,
+					version
+				} as (IQuickPickItem & { extension: IExtension, version: string });
+			});
+	}
+
+	private getPreviousVersion(version: string, versions: string[]): string {
+		let currentVersion: string = null;
+		for (const v of versions) {
+			if (currentVersion) {
+				return v;
+			} else {
+				if (v === version) {
+					currentVersion = v;
+				}
+			}
+		}
+		return null;
+	}
+
+	private install(extension: IExtension, version: string): Promise<void> {
+		return this.extensionsWorkbenchService.installVersion(extension, version)
+			.then(() => {
+				this.notificationService.prompt(
+					Severity.Info,
+					localize('Install Previous Version Success', "Successfully installed the previous version of the extension."),
 					[{
 						label: localize('ReinstallAction.reloadNow', "Reload Now"),
 						run: () => this.windowService.reloadWindow()
