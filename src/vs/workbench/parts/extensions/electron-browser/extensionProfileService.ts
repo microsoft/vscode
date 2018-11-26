@@ -125,13 +125,9 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 		return this._unresponsiveProfiles.get(extensionId);
 	}
 
-	setUnresponsiveProfile(extensionId: string, profile: IExtensionHostProfile): boolean {
-		if (!this._unresponsiveProfiles.has(extensionId)) {
-			this._unresponsiveProfiles.set(extensionId, profile);
-			this._setLastProfile(profile);
-			return true;
-		}
-		return false;
+	setUnresponsiveProfile(extensionId: string, profile: IExtensionHostProfile): void {
+		this._unresponsiveProfiles.set(extensionId, profile);
+		this._setLastProfile(profile);
 	}
 
 }

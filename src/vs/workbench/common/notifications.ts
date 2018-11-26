@@ -178,6 +178,7 @@ export class NotificationsModel extends Disposable implements INotificationsMode
 export interface INotificationViewItem {
 	readonly severity: Severity;
 	readonly sticky: boolean;
+	readonly silent: boolean;
 	readonly message: INotificationMessage;
 	readonly source: string | undefined;
 	readonly actions: INotificationActions;
@@ -365,7 +366,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 			actions = { primary: notification.message.actions };
 		}
 
-		return new NotificationViewItem(severity, notification.sticky, message, notification.source, actions);
+		return new NotificationViewItem(severity, notification.sticky, notification.silent, message, notification.source, actions);
 	}
 
 	private static parseNotificationMessage(input: NotificationMessage): INotificationMessage | undefined {
@@ -401,7 +402,14 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 		return { raw, value: message, links, original: input };
 	}
 
-	private constructor(private _severity: Severity, private _sticky: boolean | undefined, private _message: INotificationMessage, private _source: string | undefined, actions?: INotificationActions) {
+	private constructor(
+		private _severity: Severity,
+		private _sticky: boolean | undefined,
+		private _silent: boolean | undefined,
+		private _message: INotificationMessage,
+		private _source: string | undefined,
+		actions?: INotificationActions
+	) {
 		super();
 
 		this.setActions(actions);
@@ -447,6 +455,10 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 		}
 
 		return false; // not sticky
+	}
+
+	get silent(): boolean {
+		return !!this._silent;
 	}
 
 	hasPrompt(): boolean {

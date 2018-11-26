@@ -120,23 +120,23 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 				return;
 			}
 
-			const didPrompt = duration > 5e6 && top!.percentage > 90 && this._extensionProfileService.setUnresponsiveProfile(extension.id, profile);
+			// add to running extensions view
+			this._extensionProfileService.setUnresponsiveProfile(extension.id, profile);
+
 			const path = join(tmpdir(), `exthost-${Math.random().toString(16).slice(2, 8)}.cpuprofile`);
 			await writeFile(path, JSON.stringify(profile.data));
 
-			this._logService.warn(`UNRESPONSIVE extension host, 'top.id' took ${top!.percentage}% of ${duration / 1e3}ms, saved PROFILE here: '${path}'`, data);
+			this._logService.warn(`UNRESPONSIVE extension host, '${top.id}' took ${top!.percentage}% of ${duration / 1e3}ms, saved PROFILE here: '${path}'`, data);
 
 			/* __GDPR__
 				"exthostunresponsive" : {
 					"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 					"data": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-					"prompt" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 				}
 			*/
 			this._telemetryService.publicLog('exthostunresponsive', {
 				duration,
-				data,
-				prompt: didPrompt ? 1 : 0
+				data
 			});
 		});
 	}
