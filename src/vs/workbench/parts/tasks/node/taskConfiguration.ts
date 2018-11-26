@@ -67,7 +67,7 @@ export interface ShellConfiguration {
 	quoting?: ShellQuotingOptions;
 }
 
-export interface CommandOptions {
+export interface CommandOptionsConfig {
 	/**
 	 * The current working directory of the executed program or shell.
 	 * If omitted VSCode's current workspace root is used.
@@ -86,7 +86,7 @@ export interface CommandOptions {
 	shell?: ShellConfiguration;
 }
 
-export interface PresentationOptions {
+export interface PresentationOptionsConfig {
 	/**
 	 * Controls whether the terminal executing a task is brought to front or not.
 	 * Defaults to `RevealKind.Always`.
@@ -119,7 +119,7 @@ export interface PresentationOptions {
 	clear?: boolean;
 }
 
-export interface RunOptions {
+export interface RunOptionsConfig {
 	rerunBehavior?: string;
 }
 
@@ -178,7 +178,7 @@ export interface LegacyCommandProperties {
 	/**
 	 * @deprecated Use presentation instead
 	 */
-	terminal?: PresentationOptions;
+	terminal?: PresentationOptionsConfig;
 
 	/**
 	 * @deprecated Use inline commands.
@@ -232,7 +232,7 @@ export interface BaseCommandProperties {
 	/**
 	 * The command options used when the command is executed. Can be omitted.
 	 */
-	options?: CommandOptions;
+	options?: CommandOptionsConfig;
 
 	/**
 	 * The arguments passed to the command or additional arguments passed to the
@@ -305,12 +305,12 @@ export interface ConfigurationProperties {
 	/**
 	 * Controls the behavior of the used terminal
 	 */
-	presentation?: PresentationOptions;
+	presentation?: PresentationOptionsConfig;
 
 	/**
 	 * Controls shell options.
 	 */
-	options?: CommandOptions;
+	options?: CommandOptionsConfig;
 
 	/**
 	 * The problem matcher(s) to use to capture problems in the tasks
@@ -321,7 +321,7 @@ export interface ConfigurationProperties {
 	/**
 	 * Task run options. Control run related properties.
 	 */
-	runOptions?: RunOptions;
+	runOptions?: RunOptionsConfig;
 }
 
 export interface CustomTask extends CommandProperties, ConfigurationProperties {
@@ -368,7 +368,7 @@ export interface BaseTaskRunnerConfiguration {
 	/**
 	 * The command options used when the command is executed. Can be omitted.
 	 */
-	options?: CommandOptions;
+	options?: CommandOptionsConfig;
 
 	/**
 	 * The arguments passed to the command. Can be omitted.
@@ -398,7 +398,7 @@ export interface BaseTaskRunnerConfiguration {
 	/**
 	 * Controls the behavior of the used terminal
 	 */
-	presentation?: PresentationOptions;
+	presentation?: PresentationOptionsConfig;
 
 	/**
 	 * If set to false the task name is added as an additional argument to the
@@ -698,9 +698,9 @@ namespace ShellConfiguration {
 namespace CommandOptions {
 
 	const properties: MetaData<Tasks.CommandOptions, Tasks.ShellConfiguration>[] = [{ property: 'cwd' }, { property: 'env' }, { property: 'shell', type: ShellConfiguration }];
-	const defaults: CommandOptions = { cwd: '${workspaceFolder}' };
+	const defaults: CommandOptionsConfig = { cwd: '${workspaceFolder}' };
 
-	export function from(this: void, options: CommandOptions, context: ParseContext): Tasks.CommandOptions {
+	export function from(this: void, options: CommandOptionsConfig, context: ParseContext): Tasks.CommandOptions {
 		let result: Tasks.CommandOptions = {};
 		if (options.cwd !== void 0) {
 			if (Types.isString(options.cwd)) {
@@ -759,7 +759,7 @@ namespace CommandConfiguration {
 		const properties: MetaData<Tasks.PresentationOptions, void>[] = [{ property: 'echo' }, { property: 'reveal' }, { property: 'focus' }, { property: 'panel' }, { property: 'showReuseMessage' }, { property: 'clear' }];
 
 		interface PresentationOptionsShape extends LegacyCommandProperties {
-			presentation?: PresentationOptions;
+			presentation?: PresentationOptionsConfig;
 		}
 
 		export function from(this: void, config: PresentationOptionsShape, context: ParseContext): Tasks.PresentationOptions {

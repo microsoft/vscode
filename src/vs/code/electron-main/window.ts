@@ -9,14 +9,13 @@ import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { IStateService } from 'vs/platform/state/common/state';
 import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage } from 'electron';
-import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/node/product';
 import { IWindowSettings, MenuBarVisibility, IWindowConfiguration, ReadyState, IRunActionInWindowRequest, getTitleBarStyle } from 'vs/platform/windows/common/windows';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ICodeWindow, IWindowState, WindowMode } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspaceIdentifier, IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
@@ -69,12 +68,12 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private currentMenuBarVisibility: MenuBarVisibility;
 	private representedFilename: string;
 
-	private whenReadyCallbacks: TValueCallback<ICodeWindow>[];
+	private whenReadyCallbacks: { (window: ICodeWindow): void }[];
 
 	private currentConfig: IWindowConfiguration;
 	private pendingLoadConfig: IWindowConfiguration;
 
-	private marketplaceHeadersPromise: TPromise<object>;
+	private marketplaceHeadersPromise: Thenable<object>;
 
 	private touchBarGroups: Electron.TouchBarSegmentedControl[];
 
@@ -159,7 +158,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			options.tabbingIdentifier = product.nameShort; // this opts in to sierra tabs
 		}
 
-		const useCustomTitleStyle = getTitleBarStyle(this.configurationService, this.environmentService) === 'custom';
+		const useCustomTitleStyle = getTitleBarStyle(this.configurationService, this.environmentService, !!config.extensionDevelopmentPath) === 'custom';
 		if (useCustomTitleStyle) {
 			options.titleBarStyle = 'hidden';
 			this.hiddenTitleBarStyle = true;
@@ -276,19 +275,19 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 	}
 
-	ready(): TPromise<ICodeWindow> {
-		return new TPromise<ICodeWindow>((c) => {
-			if (this._readyState === ReadyState.READY) {
-				return c(this);
+	ready(): Thenable<ICodeWindow> {
+		return new Promise<ICodeWindow>(resolve => {
+			if (this.isReady) {
+				return resolve(this);
 			}
 
 			// otherwise keep and call later when we are ready
-			this.whenReadyCallbacks.push(c);
+			this.whenReadyCallbacks.push(resolve);
 		});
 	}
 
-	get readyState(): ReadyState {
-		return this._readyState;
+	get isReady(): boolean {
+		return this._readyState === ReadyState.READY;
 	}
 
 	private handleMarketplaceRequests(): void {
@@ -360,15 +359,20 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		});
 
 		// Simple fullscreen doesn't resize automatically when the resolution changes
-		screen.on('display-metrics-changed', () => {
-			if (isMacintosh && this.isFullScreen() && !this.useNativeFullScreen()) {
-				this.setFullScreen(false);
-				this.setFullScreen(true);
-			}
-		});
+		if (isMacintosh) {
+			const displayMetricsChangedListener = () => {
+				if (this.isFullScreen() && !this.useNativeFullScreen()) {
+					this.setFullScreen(false);
+					this.setFullScreen(true);
+				}
+			};
+
+			screen.addListener('display-metrics-changed', () => displayMetricsChangedListener());
+			this._register(toDisposable(() => screen.removeListener('display-metrics-changed', displayMetricsChangedListener)));
+		}
 
 		// Window (Un)Maximize
-		this._win.on('maximize', (e) => {
+		this._win.on('maximize', e => {
 			if (this.currentConfig) {
 				this.currentConfig.maximized = true;
 			}
@@ -376,7 +380,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			app.emit('browser-window-maximize', e, this._win);
 		});
 
-		this._win.on('unmaximize', (e) => {
+		this._win.on('unmaximize', e => {
 			if (this.currentConfig) {
 				this.currentConfig.maximized = false;
 			}
@@ -462,7 +466,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private registerNavigationListenerOn(command: 'swipe' | 'app-command', back: 'left' | 'browser-backward', forward: 'right' | 'browser-forward', acrossEditors: boolean) {
 		this._win.on(command as 'swipe' /* | 'app-command' */, (e: Electron.Event, cmd: string) => {
-			if (this.readyState !== ReadyState.READY) {
+			if (this._readyState !== ReadyState.READY) {
 				return; // window must be ready
 			}
 
@@ -484,7 +488,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// If this is the first time the window is loaded, we associate the paths
 		// directly with the window because we assume the loading will just work
-		if (this.readyState === ReadyState.NONE) {
+		if (this._readyState === ReadyState.NONE) {
 			this.currentConfig = config;
 		}
 
@@ -957,9 +961,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	sendWhenReady(channel: string, ...args: any[]): void {
-		this.ready().then(() => {
+		if (this.isReady) {
 			this.send(channel, ...args);
-		});
+		} else {
+			this.ready().then(() => this.send(channel, ...args));
+		}
 	}
 
 	send(channel: string, ...args: any[]): void {

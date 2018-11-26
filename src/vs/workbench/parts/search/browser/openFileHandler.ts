@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
 import * as nls from 'vs/nls';
 import * as paths from 'vs/base/common/paths';
@@ -138,12 +137,12 @@ export class OpenFileHandler extends QuickOpenHandler {
 		this.options = options;
 	}
 
-	getResults(searchValue: string, token: CancellationToken, maxSortedResults?: number): TPromise<FileQuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken, maxSortedResults?: number): Thenable<FileQuickOpenModel> {
 		const query = prepareQuery(searchValue);
 
 		// Respond directly to empty search
 		if (!query.value) {
-			return TPromise.as(new FileQuickOpenModel([]));
+			return Promise.resolve(new FileQuickOpenModel([]));
 		}
 
 		// Untildify file pattern
@@ -153,7 +152,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 		return this.doFindResults(query, token, this.cacheState.cacheKey, maxSortedResults);
 	}
 
-	private doFindResults(query: IPreparedQuery, token: CancellationToken, cacheKey?: string, maxSortedResults?: number): TPromise<FileQuickOpenModel> {
+	private doFindResults(query: IPreparedQuery, token: CancellationToken, cacheKey?: string, maxSortedResults?: number): Thenable<FileQuickOpenModel> {
 		const queryOptions = this.doResolveQueryOptions(query, cacheKey, maxSortedResults);
 
 		let iconClass: string;
@@ -163,12 +162,12 @@ export class OpenFileHandler extends QuickOpenHandler {
 
 		return this.getAbsolutePathResult(query).then(result => {
 			if (token.isCancellationRequested) {
-				return TPromise.wrap(<ISearchComplete>{ results: [] });
+				return Promise.resolve(<ISearchComplete>{ results: [] });
 			}
 
 			// If the original search value is an existing file on disk, return it immediately and bypass the search service
 			if (result) {
-				return TPromise.wrap(<ISearchComplete>{ results: [{ resource: result }] });
+				return Promise.resolve(<ISearchComplete>{ results: [{ resource: result }] });
 			}
 
 			return this.searchService.fileSearch(this.queryBuilder.file(this.contextService.getWorkspace().folders.map(folder => folder.uri), queryOptions), token);
@@ -190,14 +189,14 @@ export class OpenFileHandler extends QuickOpenHandler {
 		});
 	}
 
-	private getAbsolutePathResult(query: IPreparedQuery): TPromise<URI> {
+	private getAbsolutePathResult(query: IPreparedQuery): Thenable<URI> {
 		if (paths.isAbsolute(query.original)) {
 			const resource = URI.file(query.original);
 
 			return this.fileService.resolveFile(resource).then(stat => stat.isDirectory ? void 0 : resource, error => void 0);
 		}
 
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	private doResolveQueryOptions(query: IPreparedQuery, cacheKey?: string, maxSortedResults?: number): IFileQueryBuilderOptions {
@@ -273,9 +272,9 @@ export class CacheState {
 	private query: IFileQuery;
 
 	private loadingPhase = LoadingPhase.Created;
-	private promise: TPromise<void>;
+	private promise: Thenable<void>;
 
-	constructor(cacheQuery: (cacheKey: string) => IFileQuery, private doLoad: (query: IFileQuery) => TPromise<any>, private doDispose: (cacheKey: string) => TPromise<void>, private previous: CacheState) {
+	constructor(cacheQuery: (cacheKey: string) => IFileQuery, private doLoad: (query: IFileQuery) => Thenable<any>, private doDispose: (cacheKey: string) => Thenable<void>, private previous: CacheState) {
 		this.query = cacheQuery(this._cacheKey);
 		if (this.previous) {
 			const current = objects.assign({}, this.query, { cacheKey: null });

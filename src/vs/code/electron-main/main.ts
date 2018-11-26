@@ -14,7 +14,6 @@ import { mkdirp, readdir, rimraf } from 'vs/base/node/pfs';
 import { validatePaths } from 'vs/code/node/paths';
 import { LifecycleService, ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { Server, serve, connect } from 'vs/base/parts/ipc/node/ipc.net';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { LaunchChannelClient } from 'vs/platform/launch/electron-main/launchService';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/node/instantiationService';
@@ -88,10 +87,10 @@ async function cleanupOlderLogs(environmentService: EnvironmentService): Promise
 	const oldSessions = allSessions.sort().filter((d, i) => d !== currentLog);
 	const toDelete = oldSessions.slice(0, Math.max(0, oldSessions.length - 9));
 
-	await TPromise.join(toDelete.map(name => rimraf(path.join(logsRoot, name))));
+	await Promise.all(toDelete.map(name => rimraf(path.join(logsRoot, name))));
 }
 
-function createPaths(environmentService: IEnvironmentService): Promise<any> {
+function createPaths(environmentService: IEnvironmentService): Thenable<any> {
 	const paths = [
 		environmentService.extensionsPath,
 		environmentService.nodeCachedDataDir,
@@ -100,7 +99,7 @@ function createPaths(environmentService: IEnvironmentService): Promise<any> {
 		environmentService.workspaceStorageHome
 	];
 
-	return Promise.all(paths.map(p => p && mkdirp(p)));
+	return Promise.all(paths.map(path => path && mkdirp(path)));
 }
 
 class ExpectedError extends Error {
@@ -113,8 +112,8 @@ function setupIPC(accessor: ServicesAccessor): Thenable<Server> {
 	const requestService = accessor.get(IRequestService);
 	const diagnosticsService = accessor.get(IDiagnosticsService);
 
-	function allowSetForegroundWindow(service: LaunchChannelClient): TPromise<void> {
-		let promise = TPromise.wrap<void>(void 0);
+	function allowSetForegroundWindow(service: LaunchChannelClient): Thenable<void> {
+		let promise: Thenable<void> = Promise.resolve();
 		if (platform.isWindows) {
 			promise = service.getMainProcessId()
 				.then(processId => {

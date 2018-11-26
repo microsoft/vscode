@@ -13,6 +13,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { writeFile } from 'vs/base/node/pfs';
+import { IExtensionHostProfileService } from 'vs/workbench/parts/extensions/electron-browser/runtimeExtensionsEditor';
 
 export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchContribution {
 
@@ -20,6 +21,7 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 
 	constructor(
 		@IExtensionService private _extensionService: IExtensionService,
+		@IExtensionHostProfileService private readonly _extensionProfileService: IExtensionHostProfileService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILogService private readonly _logService: ILogService,
 	) {
@@ -118,6 +120,7 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 				return;
 			}
 
+			const didPrompt = duration > 5e6 && top!.percentage > 90 && this._extensionProfileService.setUnresponsiveProfile(extension.id, profile);
 			const path = join(tmpdir(), `exthost-${Math.random().toString(16).slice(2, 8)}.cpuprofile`);
 			await writeFile(path, JSON.stringify(profile.data));
 
@@ -127,11 +130,13 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 				"exthostunresponsive" : {
 					"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 					"data": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+					"prompt" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 				}
 			*/
 			this._telemetryService.publicLog('exthostunresponsive', {
 				duration,
-				data
+				data,
+				prompt: didPrompt ? 1 : 0
 			});
 		});
 	}

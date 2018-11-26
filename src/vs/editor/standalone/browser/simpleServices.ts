@@ -57,7 +57,7 @@ export class SimpleModel implements ITextEditorModel {
 		return this._onDispose.event;
 	}
 
-	public load(): Promise<SimpleModel> {
+	public load(): Thenable<SimpleModel> {
 		return Promise.resolve(this);
 	}
 

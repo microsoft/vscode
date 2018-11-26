@@ -7,8 +7,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import * as assert from 'assert';
-
-import { TPromise } from 'vs/base/common/winjs.base';
 import { FileService } from 'vs/workbench/services/files/electron-browser/fileService';
 import { FileOperation, FileOperationEvent, FileChangesEvent, FileOperationResult, FileOperationError } from 'vs/platform/files/common/files';
 import { URI as uri } from 'vs/base/common/uri';
@@ -498,9 +496,9 @@ suite('FileService', () => {
 		const resource = uri.file(path.join(testDir, 'deep'));
 		return service.resolveFile(resource).then(source => {
 			return service.del(source.resource).then(() => {
-				return TPromise.wrapError(new Error('Unexpected'));
+				return Promise.reject(new Error('Unexpected'));
 			}, error => {
-				return TPromise.as(true);
+				return Promise.resolve(true);
 			});
 		});
 	});
@@ -702,7 +700,7 @@ suite('FileService', () => {
 			return service.resolveContent(resource2).then(c => value2 = c.value);
 		}).then(() => {
 			// load in parallel in expect the same result
-			return TPromise.join([
+			return Promise.all([
 				service.resolveContent(resource1).then(c => assert.equal(c.value, value1)),
 				service.resolveContent(resource2).then(c => assert.equal(c.value, value2))
 			]);

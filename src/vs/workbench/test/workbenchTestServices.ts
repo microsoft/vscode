@@ -998,7 +998,7 @@ export class TestCodeEditorService implements ICodeEditorService {
 	setTransientModelProperty(_model: ITextModel, _key: string, _value: any): void { }
 	getTransientModelProperty(_model: ITextModel, _key: string) { }
 	getActiveCodeEditor(): ICodeEditor { return null; }
-	openCodeEditor(_input: IResourceInput, _source: ICodeEditor, _sideBySide?: boolean): TPromise<ICodeEditor> { return TPromise.as(null); }
+	openCodeEditor(_input: IResourceInput, _source: ICodeEditor, _sideBySide?: boolean): Thenable<ICodeEditor> { return Promise.resolve(); }
 }
 
 export class TestWindowService implements IWindowService {

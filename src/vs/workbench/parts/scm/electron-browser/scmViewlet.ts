@@ -5,7 +5,6 @@
 
 import 'vs/css!./media/scmViewlet';
 import { localize } from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter, chain, mapEvent, anyEvent, filterEvent, latch } from 'vs/base/common/event';
 import { domEvent, stop } from 'vs/base/browser/event';
 import { basename } from 'vs/base/common/paths';
@@ -89,7 +88,7 @@ class StatusBarAction extends Action {
 		this.tooltip = command.tooltip;
 	}
 
-	run(): TPromise<void> {
+	run(): Thenable<void> {
 		return this.commandService.executeCommand(this.command.id, ...this.command.arguments);
 	}
 }
@@ -459,7 +458,7 @@ class MultipleSelectionActionRunner extends ActionRunner {
 		super();
 	}
 
-	runAction(action: IAction, context: ISCMResource): TPromise<any> {
+	runAction(action: IAction, context: ISCMResource): Thenable<any> {
 		if (action instanceof MenuItemAction) {
 			const selection = this.getSelectedResources();
 			const filteredSelection = selection.filter(s => s !== context);

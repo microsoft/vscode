@@ -76,7 +76,7 @@ import {
 	TaskEventKind, TaskSet, TaskGroup, GroupType, ExecutionEngine, JsonSchemaVersion, TaskSourceKind,
 	TaskSorter, TaskIdentifier, KeyedTaskIdentifier, TASK_RUNNING_STATE, RerunBehavior
 } from 'vs/workbench/parts/tasks/common/tasks';
-import { ITaskService, ITaskProvider, RunOptions, CustomizationProperties, TaskFilter } from 'vs/workbench/parts/tasks/common/taskService';
+import { ITaskService, ITaskProvider, ProblemMatcherRunOptions, CustomizationProperties, TaskFilter } from 'vs/workbench/parts/tasks/common/taskService';
 import { getTemplates as getTaskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
 
 import { KeyedTaskIdentifier as NKeyedTaskIdentifier, TaskDefinition } from 'vs/workbench/parts/tasks/node/tasks';
@@ -848,7 +848,7 @@ class TaskService extends Disposable implements ITaskService {
 		});
 	}
 
-	public run(task: Task, options?: RunOptions): TPromise<ITaskSummary> {
+	public run(task: Task, options?: ProblemMatcherRunOptions): TPromise<ITaskSummary> {
 		return this.getGroupedTasks().then((grouped) => {
 			if (!task) {
 				throw new TaskError(Severity.Info, nls.localize('TaskServer.noTask', 'Requested task {0} to execute not found.', task.name), TaskErrors.TaskNotFound);
@@ -1330,7 +1330,7 @@ class TaskService extends Disposable implements ITaskService {
 		return TPromise.join([this.extensionService.activateByEvent('onCommand:workbench.action.tasks.runTask'), TaskDefinitionRegistry.onReady()]).then(() => {
 			let validTypes: IStringDictionary<boolean> = Object.create(null);
 			TaskDefinitionRegistry.all().forEach(definition => validTypes[definition.taskType] = true);
-			return new TPromise<TaskSet[]>((resolve, reject) => {
+			return new Promise<TaskSet[]>(resolve => {
 				let result: TaskSet[] = [];
 				let counter: number = 0;
 				let done = (value: TaskSet) => {

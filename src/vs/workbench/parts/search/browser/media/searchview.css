@@ -33,13 +33,19 @@
 	height: 100%;
 }
 
+.search-view .search-widget .monaco-inputbox > .wrapper > .mirror,
+.search-view .search-widget .monaco-inputbox > .wrapper > textarea.input {
+	padding: 3px;
+	padding-left: 4px;
+}
+
 .search-view .search-widget .monaco-inputbox > .wrapper > .mirror {
 	max-height: 134px;
 }
 
-.search-view .monaco-inputbox > .wrapper > textarea.input {
+.search-view .search-widget .monaco-inputbox > .wrapper > textarea.input {
 	overflow: initial;
-	height: 26px; /* set initial height before measure */
+	height: 24px; /* set initial height before measure */
 }
 
 .search-view .monaco-inputbox > .wrapper > textarea.input::-webkit-scrollbar {
@@ -49,10 +55,6 @@
 .search-view .search-widget .monaco-findInput {
 	display: inline-block;
 	vertical-align: middle;
-}
-
-.search-view .search-widget .monaco-findInput > .controls {
-	top: 4px; /* Adjust controls, search view input box is slighty taller than find widget due to measurement */
 }
 
 .search-view .search-widget .replace-container {

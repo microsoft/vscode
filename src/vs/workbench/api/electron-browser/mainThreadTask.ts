@@ -528,7 +528,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 						process: undefined as string,
 						variables: new Map<string, string>()
 					};
-					Object.keys(values.variables).forEach(key => result.variables.set(key, values[key]));
+					Object.keys(values.variables).forEach(key => result.variables.set(key, values.variables[key]));
 					if (Types.isString(values.process)) {
 						result.process = values.process;
 					}

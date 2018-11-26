@@ -203,7 +203,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 		await Promise.all(promises);
 	}
 
-	protected doApplyUpdate(): Thenable<void> {
+	protected async doApplyUpdate(): Promise<void> {
 		if (this.state.type !== StateType.Downloaded && this.state.type !== StateType.Downloading) {
 			return Promise.resolve(null);
 		}
@@ -215,29 +215,28 @@ export class Win32UpdateService extends AbstractUpdateService {
 		const update = this.state.update;
 		this.setState(State.Updating(update));
 
-		return this.cachePath.then(cachePath => {
-			this.availableUpdate.updateFilePath = path.join(cachePath, `CodeSetup-${product.quality}-${update.version}.flag`);
+		const cachePath = await this.cachePath;
 
-			return pfs.writeFile(this.availableUpdate.updateFilePath, 'flag').then(() => {
-				const child = spawn(this.availableUpdate.packagePath, ['/verysilent', `/update="${this.availableUpdate.updateFilePath}"`, '/nocloseapplications', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'], {
-					detached: true,
-					stdio: ['ignore', 'ignore', 'ignore'],
-					windowsVerbatimArguments: true
-				});
+		this.availableUpdate.updateFilePath = path.join(cachePath, `CodeSetup-${product.quality}-${update.version}.flag`);
 
-				child.once('exit', () => {
-					this.availableUpdate = undefined;
-					this.setState(State.Idle(getUpdateType()));
-				});
-
-				const readyMutexName = `${product.win32MutexName}-ready`;
-				const isActive = (require.__$__nodeRequire('windows-mutex') as any).isActive;
-
-				// poll for mutex-ready
-				pollUntil(() => isActive(readyMutexName))
-					.then(() => this.setState(State.Ready(update)));
-			});
+		await pfs.writeFile(this.availableUpdate.updateFilePath, 'flag');
+		const child = spawn(this.availableUpdate.packagePath, ['/verysilent', `/update="${this.availableUpdate.updateFilePath}"`, '/nocloseapplications', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'], {
+			detached: true,
+			stdio: ['ignore', 'ignore', 'ignore'],
+			windowsVerbatimArguments: true
 		});
+
+		child.once('exit', () => {
+			this.availableUpdate = undefined;
+			this.setState(State.Idle(getUpdateType()));
+		});
+
+		const readyMutexName = `${product.win32MutexName}-ready`;
+		const isActive = (require.__$__nodeRequire('windows-mutex') as any).isActive;
+
+		// poll for mutex-ready
+		pollUntil(() => isActive(readyMutexName))
+			.then(() => this.setState(State.Ready(update)));
 	}
 
 	protected doQuitAndInstall(): void {
