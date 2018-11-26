@@ -2642,7 +2642,8 @@ export class ReinstallAction extends Action {
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IQuickInputService private quickInputService: IQuickInputService,
 		@INotificationService private notificationService: INotificationService,
-		@IWindowService private windowService: IWindowService
+		@IWindowService private windowService: IWindowService,
+		@IViewletService private viewletService: IViewletService
 	) {
 		super(id, label);
 	}
@@ -2673,19 +2674,23 @@ export class ReinstallAction extends Action {
 			});
 	}
 
-	private reinstallExtension(extension: IExtension): Promise<void> {
-		return this.extensionsWorkbenchService.reinstall(extension)
-			.then(() => {
-				this.notificationService.prompt(
-					Severity.Info,
-					localize('ReinstallAction.success', "Successfully reinstalled the extension."),
-					[{
-						label: localize('ReinstallAction.reloadNow', "Reload Now"),
-						run: () => this.windowService.reloadWindow()
-					}],
-					{ sticky: true }
-				);
-			}, error => this.notificationService.error(error));
+	private reinstallExtension(extension: IExtension): Thenable<void> {
+		return this.viewletService.openViewlet(VIEWLET_ID)
+			.then((viewlet: IExtensionsViewlet) => {
+				viewlet.search('');
+				return this.extensionsWorkbenchService.reinstall(extension)
+					.then(() => {
+						this.notificationService.prompt(
+							Severity.Info,
+							localize('ReinstallAction.success', "Successfully reinstalled the extension."),
+							[{
+								label: localize('ReinstallAction.reloadNow', "Reload Now"),
+								run: () => this.windowService.reloadWindow()
+							}],
+							{ sticky: true }
+						);
+					}, error => this.notificationService.error(error));
+			});
 	}
 }
 
@@ -2700,7 +2705,8 @@ export class InstallPreviousVersionAction extends Action {
 		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
 		@IQuickInputService private quickInputService: IQuickInputService,
 		@INotificationService private notificationService: INotificationService,
-		@IWindowService private windowService: IWindowService
+		@IWindowService private windowService: IWindowService,
+		@IViewletService private viewletService: IViewletService
 	) {
 		super(id, label);
 	}
@@ -2760,19 +2766,23 @@ export class InstallPreviousVersionAction extends Action {
 		return null;
 	}
 
-	private install(extension: IExtension, version: string): Promise<void> {
-		return this.extensionsWorkbenchService.installVersion(extension, version)
-			.then(() => {
-				this.notificationService.prompt(
-					Severity.Info,
-					localize('Install Previous Version Success', "Successfully installed the previous version of the extension."),
-					[{
-						label: localize('ReinstallAction.reloadNow', "Reload Now"),
-						run: () => this.windowService.reloadWindow()
-					}],
-					{ sticky: true }
-				);
-			}, error => this.notificationService.error(error));
+	private install(extension: IExtension, version: string): Thenable<void> {
+		return this.viewletService.openViewlet(VIEWLET_ID)
+			.then((viewlet: IExtensionsViewlet) => {
+				viewlet.search('');
+				return this.extensionsWorkbenchService.installVersion(extension, version)
+					.then(() => {
+						this.notificationService.prompt(
+							Severity.Info,
+							localize('Install Previous Version Success', "Successfully installed the previous version of the extension."),
+							[{
+								label: localize('ReinstallAction.reloadNow', "Reload Now"),
+								run: () => this.windowService.reloadWindow()
+							}],
+							{ sticky: true }
+						);
+					}, error => this.notificationService.error(error));
+			});
 	}
 }
 
