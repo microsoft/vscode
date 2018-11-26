@@ -24,7 +24,7 @@ import { IContextViewService, IContextMenuService } from 'vs/platform/contextvie
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { MenuItemAction, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { MenuItemAction, IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { IAction, Action, IActionItem, ActionRunner } from 'vs/base/common/actions';
 import { fillInContextMenuActions, ContextAwareMenuItemActionItem, fillInActionBarActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { SCMMenus } from './scmMenus';
@@ -39,7 +39,7 @@ import { renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { format } from 'vs/base/common/strings';
 import { ISpliceable, ISequence, ISplice } from 'vs/base/common/sequence';
-import { firstIndex } from 'vs/base/common/arrays';
+import { firstIndex, equals } from 'vs/base/common/arrays';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ThrottledDelayer } from 'vs/base/common/async';
@@ -104,6 +104,29 @@ class StatusBarActionItem extends ActionItem {
 			this.label.innerHTML = renderOcticons(this.getAction().label);
 		}
 	}
+}
+
+function connectPrimaryMenuToInlineActionBar(menu: IMenu, actionBar: ActionBar): IDisposable {
+	let cachedPrimary: IAction[] = [];
+
+	const updateActions = () => {
+		const primary: IAction[] = [];
+		const secondary: IAction[] = [];
+		const result = { primary, secondary };
+
+		fillInActionBarActions(menu, { shouldForwardArgs: true }, result, g => /^inline/.test(g));
+
+		if (equals(cachedPrimary, primary, (a, b) => a.id === b.id)) {
+			return;
+		}
+
+		cachedPrimary = primary;
+		actionBar.clear();
+		actionBar.push(primary, { icon: true, label: false });
+	};
+
+	updateActions();
+	return menu.onDidChange(updateActions);
 }
 
 interface RepositoryTemplateData {
@@ -413,18 +436,7 @@ class ResourceGroupRenderer implements IListRenderer<ISCMResourceGroup, Resource
 		const menu = this.menuService.createMenu(MenuId.SCMResourceGroupContext, contextKeyService);
 		disposables.push(menu);
 
-		const updateActions = () => {
-			const primary: IAction[] = [];
-			const secondary: IAction[] = [];
-			const result = { primary, secondary };
-			fillInActionBarActions(menu, { shouldForwardArgs: true }, result, g => /^inline/.test(g));
-
-			template.actionBar.clear();
-			template.actionBar.push(primary, { icon: true, label: false });
-		};
-
-		menu.onDidChange(updateActions, null, disposables);
-		updateActions();
+		disposables.push(connectPrimaryMenuToInlineActionBar(menu, template.actionBar));
 
 		const updateCount = () => template.count.setCount(group.elements.length);
 		group.onDidSplice(updateCount, null, disposables);
@@ -433,8 +445,8 @@ class ResourceGroupRenderer implements IListRenderer<ISCMResourceGroup, Resource
 		template.elementDisposable = combinedDisposable(disposables);
 	}
 
-	disposeElement(): void {
-		// noop
+	disposeElement(group: ISCMResourceGroup, index: number, template: ResourceGroupTemplate): void {
+		template.elementDisposable.dispose();
 	}
 
 	disposeTemplate(template: ResourceGroupTemplate): void {
@@ -528,18 +540,7 @@ class ResourceRenderer implements IListRenderer<ISCMResource, ResourceTemplate> 
 		const menu = this.menuService.createMenu(MenuId.SCMResourceContext, contextKeyService);
 		disposables.push(menu);
 
-		const updateActions = () => {
-			const primary: IAction[] = [];
-			const secondary: IAction[] = [];
-			const result = { primary, secondary };
-			fillInActionBarActions(menu, { shouldForwardArgs: true }, result, g => /^inline/.test(g));
-
-			template.actionBar.clear();
-			template.actionBar.push(primary, { icon: true, label: false });
-		};
-
-		menu.onDidChange(updateActions, null, disposables);
-		updateActions();
+		disposables.push(connectPrimaryMenuToInlineActionBar(menu, template.actionBar));
 
 		toggleClass(template.name, 'strike-through', resource.decorations.strikeThrough);
 		toggleClass(template.element, 'faded', resource.decorations.faded);
@@ -557,8 +558,8 @@ class ResourceRenderer implements IListRenderer<ISCMResource, ResourceTemplate> 
 		template.elementDisposable = combinedDisposable(disposables);
 	}
 
-	disposeElement(): void {
-		// noop
+	disposeElement(resource: ISCMResource, index: number, template: ResourceTemplate): void {
+		template.elementDisposable.dispose();
 	}
 
 	disposeTemplate(template: ResourceTemplate): void {
