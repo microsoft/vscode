@@ -31,6 +31,7 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 	private readonly _onDidChangeLastProfile: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidChangeLastProfile: Event<void> = this._onDidChangeLastProfile.event;
 
+	private readonly _unresponsiveProfiles = new Map<string, IExtensionHostProfile>();
 	private _profile: IExtensionHostProfile;
 	private _profileSession: ProfileSession;
 	private _state: ProfileSessionState;
@@ -120,13 +121,19 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 		this._onDidChangeLastProfile.fire(void 0);
 	}
 
-	public getLastProfile(): IExtensionHostProfile {
-		return this._profile;
+	getUnresponsiveProfile(extensionId: string): IExtensionHostProfile | undefined {
+		return this._unresponsiveProfiles.get(extensionId);
 	}
 
-	public clearLastProfile(): void {
-		this._setLastProfile(null);
+	setUnresponsiveProfile(extensionId: string, profile: IExtensionHostProfile): boolean {
+		if (!this._unresponsiveProfiles.has(extensionId)) {
+			this._unresponsiveProfiles.set(extensionId, profile);
+			this._setLastProfile(profile);
+			return true;
+		}
+		return false;
 	}
+
 }
 
 export class ProfileExtHostStatusbarItem implements IStatusbarItem {
