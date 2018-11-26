@@ -30,6 +30,7 @@ import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/abstractTree';
 import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
+import { DataTreeResourceNavigator } from 'vs/platform/list/browser/listService';
 
 const $ = dom.$;
 
@@ -111,40 +112,37 @@ export class CallStackView extends ViewletPanel {
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'callStackAriaLabel' }, "Debug Call Stack"),
 			});
 
-		// TODO@Isidor
-		console.log(this.editorService);
-		console.log(this.ignoreSelectionChangedEvent);
-		// const callstackNavigator = new TreeResourceNavigator(this.tree);
-		// this.disposables.push(callstackNavigator);
-		// this.disposables.push(callstackNavigator.openResource(e => {
-		// 	if (this.ignoreSelectionChangedEvent) {
-		// 		return;
-		// 	}
+		const callstackNavigator = new DataTreeResourceNavigator(this.tree);
+		this.disposables.push(callstackNavigator);
+		this.disposables.push(callstackNavigator.openResource(e => {
+			if (this.ignoreSelectionChangedEvent) {
+				return;
+			}
 
-		// 	const element = e.element;
-		// 	if (element instanceof StackFrame) {
-		// 		this.debugService.focusStackFrame(element, element.thread, element.thread.session, true);
-		// 		element.openInEditor(this.editorService, e.editorOptions.preserveFocus, e.sideBySide, e.editorOptions.pinned);
-		// 	}
-		// 	if (element instanceof Thread) {
-		// 		this.debugService.focusStackFrame(undefined, element, element.session, true);
-		// 	}
-		// 	if (element instanceof DebugSession) {
-		// 		this.debugService.focusStackFrame(undefined, undefined, element, true);
-		// 	}
-		// 	if (element instanceof ThreadAndSessionIds) {
-		// 		const session = this.debugService.getModel().getSessions().filter(p => p.getId() === element.sessionId).pop();
-		// 		const thread = session && session.getThread(element.threadId);
-		// 		if (thread) {
-		// 			(<Thread>thread).fetchCallStack()
-		// 				.then(() => this.tree.refresh());
-		// 		}
-		// 	}
-		// 	if (element instanceof Array) {
-		// 		this.dataSource.deemphasizedStackFramesToShow.push(...element);
-		// 		this.tree.refresh();
-		// 	}
-		// }));
+			const element = e.element;
+			if (element instanceof StackFrame) {
+				this.debugService.focusStackFrame(element, element.thread, element.thread.session, true);
+				element.openInEditor(this.editorService, e.editorOptions.preserveFocus, e.sideBySide, e.editorOptions.pinned);
+			}
+			if (element instanceof Thread) {
+				this.debugService.focusStackFrame(undefined, element, element.session, true);
+			}
+			if (element instanceof DebugSession) {
+				this.debugService.focusStackFrame(undefined, undefined, element, true);
+			}
+			if (element instanceof ThreadAndSessionIds) {
+				const session = this.debugService.getModel().getSessions().filter(p => p.getId() === element.sessionId).pop();
+				const thread = session && session.getThread(element.threadId);
+				if (thread) {
+					(<Thread>thread).fetchCallStack()
+						.then(() => this.tree.refresh(null));
+				}
+			}
+			if (element instanceof Array) {
+				this.dataSource.deemphasizedStackFramesToShow.push(...element);
+				this.tree.refresh(null);
+			}
+		}));
 		this.disposables.push(this.tree.onDidChangeFocus(() => {
 			const focus = this.tree.getFocus();
 			if (focus instanceof StackFrame) {

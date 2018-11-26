@@ -31,7 +31,7 @@ import { ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IResourceResultsNavigationOptions, IOpenResourceOptions } from 'vs/platform/list/browser/listService';
+import { IResourceResultsNavigationOptions, IOpenResourceOptions, DataTreeResourceNavigator } from 'vs/platform/list/browser/listService';
 import { Emitter, Event } from 'vs/base/common/event';
 
 
@@ -411,7 +411,7 @@ export class LoadedScriptsView extends ViewletPanel {
 		}, 300);
 		this.disposables.push(this.changeScheduler);
 
-		const loadedScriptsNavigator = new TreeResourceNavigator(this.tree);
+		const loadedScriptsNavigator = new DataTreeResourceNavigator(this.tree);
 		this.disposables.push(loadedScriptsNavigator);
 		this.disposables.push(loadedScriptsNavigator.openResource(e => {
 			if (e.element instanceof BaseTreeItem) {
@@ -614,78 +614,5 @@ class LoadedSciptsAccessibilityProvider implements IAccessibilityProvider<Loaded
 		}
 
 		return null;
-	}
-}
-
-export class TreeResourceNavigator extends Disposable {
-
-	private readonly _openResource: Emitter<IOpenResourceOptions> = new Emitter<IOpenResourceOptions>();
-	readonly openResource: Event<IOpenResourceOptions> = this._openResource.event;
-
-	constructor(private tree: DataTree<BaseTreeItem, void>, private options?: IResourceResultsNavigationOptions) {
-		super();
-
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-		if (this.options && this.options.openOnFocus) {
-			this._register(this.tree.onDidChangeFocus(e => this.onFocus(e)));
-		}
-
-		this._register(this.tree.onDidChangeSelection(e => this.onSelection(e)));
-	}
-
-	private onFocus({ payload }: any): void {
-		const element = this.tree.getFocus();
-		this.tree.setSelection(element /*, { fromFocus: true }*/);
-
-		const originalEvent: KeyboardEvent | MouseEvent = payload && payload.originalEvent;
-		const isMouseEvent = payload && payload.origin === 'mouse';
-		const isDoubleClick = isMouseEvent && originalEvent && originalEvent.detail === 2;
-
-		const preventOpen = payload && payload.preventOpenOnFocus;
-		if (!preventOpen && (!isMouseEvent || /*this.tree.openOnSingleClick ||*/ isDoubleClick)) {
-			this._openResource.fire({
-				editorOptions: {
-					preserveFocus: true,
-					pinned: false,
-					revealIfVisible: true
-				},
-				sideBySide: false,
-				element,
-				payload
-			});
-		}
-	}
-
-	private onSelection({ payload }: any): void {
-		if (payload && payload.fromFocus) {
-			return;
-		}
-
-		const originalEvent: KeyboardEvent | MouseEvent = payload && payload.originalEvent;
-		const isMouseEvent = payload && payload.origin === 'mouse';
-		const isDoubleClick = isMouseEvent && originalEvent && originalEvent.detail === 2;
-
-		if (!isMouseEvent || /*this.tree.openOnSingleClick ||*/ isDoubleClick) {
-			if (isDoubleClick && originalEvent) {
-				originalEvent.preventDefault(); // focus moves to editor, we need to prevent default
-			}
-
-			const isFromKeyboard = payload && payload.origin === 'keyboard';
-			const sideBySide = (originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey || originalEvent.altKey));
-			const preserveFocus = !((isFromKeyboard && (!payload || !payload.preserveFocus)) || isDoubleClick || (payload && payload.focusEditor));
-			this._openResource.fire({
-				editorOptions: {
-					preserveFocus,
-					pinned: isDoubleClick,
-					revealIfVisible: true
-				},
-				sideBySide,
-				element: this.tree.getSelection()[0],
-				payload
-			});
-		}
 	}
 }
