@@ -16,7 +16,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/node/product';
 import { IWindowSettings, MenuBarVisibility, IWindowConfiguration, ReadyState, IRunActionInWindowRequest, getTitleBarStyle } from 'vs/platform/windows/common/windows';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ICodeWindow, IWindowState, WindowMode } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspaceIdentifier, IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
@@ -360,15 +360,20 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		});
 
 		// Simple fullscreen doesn't resize automatically when the resolution changes
-		screen.on('display-metrics-changed', () => {
-			if (isMacintosh && this.isFullScreen() && !this.useNativeFullScreen()) {
-				this.setFullScreen(false);
-				this.setFullScreen(true);
-			}
-		});
+		if (isMacintosh) {
+			const displayMetricsChangedListener = () => {
+				if (this.isFullScreen() && !this.useNativeFullScreen()) {
+					this.setFullScreen(false);
+					this.setFullScreen(true);
+				}
+			};
+
+			screen.addListener('display-metrics-changed', () => displayMetricsChangedListener());
+			this._register(toDisposable(() => screen.removeListener('display-metrics-changed', displayMetricsChangedListener)));
+		}
 
 		// Window (Un)Maximize
-		this._win.on('maximize', (e) => {
+		this._win.on('maximize', e => {
 			if (this.currentConfig) {
 				this.currentConfig.maximized = true;
 			}
@@ -376,7 +381,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			app.emit('browser-window-maximize', e, this._win);
 		});
 
-		this._win.on('unmaximize', (e) => {
+		this._win.on('unmaximize', e => {
 			if (this.currentConfig) {
 				this.currentConfig.maximized = false;
 			}
