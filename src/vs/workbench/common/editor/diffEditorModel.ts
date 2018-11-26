@@ -33,9 +33,7 @@ export class DiffEditorModel extends EditorModel {
 		return Promise.all([
 			this._originalModel.load(),
 			this._modifiedModel.load()
-		]).then(() => {
-			return this;
-		});
+		]).then(() => this);
 	}
 
 	isResolved(): boolean {

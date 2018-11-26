@@ -1164,8 +1164,6 @@ export class ChangeEncodingAction extends Action {
 			return this.quickInputService.pick([{ label: nls.localize('noFileEditor', "No file active at this time") }]);
 		}
 
-		let pickActionPromise: Promise<IQuickPickItem>;
-
 		let saveWithEncodingPick: IQuickPickItem;
 		let reopenWithEncodingPick: IQuickPickItem;
 		if (language === LANGUAGE_DEFAULT) {
@@ -1176,6 +1174,7 @@ export class ChangeEncodingAction extends Action {
 			reopenWithEncodingPick = { label: nls.localize('reopenWithEncoding', "Reopen with Encoding"), detail: 'Reopen with Encoding' };
 		}
 
+		let pickActionPromise: Promise<IQuickPickItem>;
 		if (encodingSupport instanceof UntitledEditorInput) {
 			pickActionPromise = Promise.resolve(saveWithEncodingPick);
 		} else if (!isWritableBaseEditor(activeControl)) {

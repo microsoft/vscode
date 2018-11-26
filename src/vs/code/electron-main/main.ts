@@ -103,7 +103,7 @@ function createPaths(environmentService: IEnvironmentService): Thenable<any> {
 		environmentService.workspaceStorageHome
 	];
 
-	return Promise.all(paths.map(p => p && mkdirp(p)));
+	return Promise.all(paths.map(path => path && mkdirp(path)));
 }
 
 class ExpectedError extends Error {
@@ -117,7 +117,7 @@ function setupIPC(accessor: ServicesAccessor): Thenable<Server> {
 	const diagnosticsService = accessor.get(IDiagnosticsService);
 
 	function allowSetForegroundWindow(service: LaunchChannelClient): Thenable<void> {
-		let promise: Thenable<void> = Promise.resolve(void 0);
+		let promise: Thenable<void> = Promise.resolve();
 		if (platform.isWindows) {
 			promise = service.getMainProcessId()
 				.then(processId => {

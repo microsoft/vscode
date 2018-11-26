@@ -63,7 +63,7 @@ export class OpenWebviewDeveloperToolsAction extends Action {
 				console.error(e);
 			}
 		}
-		return null;
+		return Promise.resolve(true);
 	}
 }
 
@@ -83,7 +83,7 @@ export class ReloadWebviewAction extends Action {
 		for (const webview of this.getVisibleWebviews()) {
 			webview.reload();
 		}
-		return null;
+		return Promise.resolve(true);
 	}
 
 	private getVisibleWebviews() {

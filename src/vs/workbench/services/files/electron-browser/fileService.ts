@@ -636,8 +636,6 @@ export class FileService extends Disposable implements IFileService {
 	}
 
 	private doSetContentsAndResolve(resource: uri, absolutePath: string, value: string | ITextSnapshot, addBOM: boolean, encodingToWrite: string, options?: { mode?: number; flag?: string; }): Thenable<IFileStat> {
-		let writeFilePromise: Thenable<void>;
-
 		// Configure encoding related options as needed
 		const writeFileOptions: extfs.IWriteFileOptions = options ? options : Object.create(null);
 		if (addBOM || encodingToWrite !== encoding.UTF8) {
@@ -647,6 +645,7 @@ export class FileService extends Disposable implements IFileService {
 			};
 		}
 
+		let writeFilePromise: Thenable<void>;
 		if (typeof value === 'string') {
 			writeFilePromise = pfs.writeFile(absolutePath, value, writeFileOptions);
 		} else {

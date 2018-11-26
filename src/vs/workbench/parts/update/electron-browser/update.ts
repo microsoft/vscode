@@ -51,7 +51,7 @@ export class OpenLatestReleaseNotesInBrowserAction extends Action {
 			const uri = URI.parse(product.releaseNotesUrl);
 			return this.openerService.open(uri);
 		}
-		return Promise.resolve(void 0);
+		return Promise.resolve(false);
 	}
 }
 
@@ -157,7 +157,9 @@ class NeverShowAgain {
 		// Hide notification
 		notification.close();
 
-		return Promise.resolve(this.storageService.store(this.key, true, StorageScope.GLOBAL));
+		this.storageService.store(this.key, true, StorageScope.GLOBAL);
+
+		return Promise.resolve(true);
 	});
 
 	constructor(key: string, @IStorageService private storageService: IStorageService) {

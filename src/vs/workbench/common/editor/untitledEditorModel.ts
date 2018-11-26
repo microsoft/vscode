@@ -155,6 +155,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 			}
 
 			return this.doLoad(untitledContents).then(model => {
+
 				// Encoding
 				this.configuredEncoding = this.configurationService.getValue<string>(this.resource, 'files.encoding');
 

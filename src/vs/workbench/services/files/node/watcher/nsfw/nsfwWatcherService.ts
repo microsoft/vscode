@@ -226,7 +226,7 @@ export class NsfwWatcherService implements IWatcherService {
 			delete this._pathWatchers[path];
 		}
 		this._pathWatchers = Object.create(null);
-		return Promise.resolve(void 0);
+		return Promise.resolve();
 	}
 
 	/**

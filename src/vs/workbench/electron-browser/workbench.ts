@@ -729,9 +729,7 @@ export class Workbench extends Disposable implements IPartService {
 			}
 
 			return editorsToOpen.then(editors => openEditors(editors, this.editorService));
-		}).then(() => {
-			perf.mark('didRestoreEditors');
-		}));
+		}).then(() => perf.mark('didRestoreEditors')));
 
 		// Restore Sidebar
 		let viewletIdToRestore: string;

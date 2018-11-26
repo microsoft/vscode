@@ -31,7 +31,7 @@ export class RuntimeExtensionsInput extends EditorInput {
 	}
 
 	resolve(): Thenable<any> {
-		return Promise.resolve();
+		return Promise.resolve(null);
 	}
 
 	supportsSplitEditor(): boolean {

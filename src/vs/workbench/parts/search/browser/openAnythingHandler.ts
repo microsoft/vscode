@@ -139,11 +139,14 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 				return Promise.resolve<QuickOpenModel>(new QuickOpenModel(viewResults));
 			}, error => {
 				if (!isPromiseCanceledError(error)) {
-					if (error && error[0] && error[0].message) {
-						this.notificationService.error(error[0].message.replace(/[\*_\[\]]/g, '\\$&'));
+					let message: Error | string;
+					if (error.message) {
+						message = error.message.replace(/[\*_\[\]]/g, '\\$&');
 					} else {
-						this.notificationService.error(error);
+						message = error;
 					}
+
+					this.notificationService.error(message);
 				}
 
 				return null;

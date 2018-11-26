@@ -126,7 +126,7 @@ export class WelcomeOverlayAction extends Action {
 			welcomeOverlay = this.instantiationService.createInstance(WelcomeOverlay);
 		}
 		welcomeOverlay.show();
-		return null;
+		return Promise.resolve();
 	}
 }
 
@@ -146,7 +146,7 @@ export class HideWelcomeOverlayAction extends Action {
 		if (welcomeOverlay) {
 			welcomeOverlay.hide();
 		}
-		return null;
+		return Promise.resolve();
 	}
 }
 

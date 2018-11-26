@@ -557,7 +557,7 @@ export class CollapseAllAction extends Action {
 
 	public run(context?: any): Thenable<any> {
 		if (this.viewer.getHighlight()) {
-			return Promise.resolve(null); // Global action disabled if user is in edit mode from another action
+			return Promise.resolve(); // Global action disabled if user is in edit mode from another action
 		}
 
 		this.viewer.collapseAll();
@@ -566,6 +566,6 @@ export class CollapseAllAction extends Action {
 		this.viewer.domFocus();
 		this.viewer.focusFirst();
 
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }

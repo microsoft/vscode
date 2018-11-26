@@ -286,7 +286,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		});
 	}
 
-	get isReady(): boolean {
+	private get isReady(): boolean {
 		return this._readyState === ReadyState.READY;
 	}
 

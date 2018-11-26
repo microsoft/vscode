@@ -55,7 +55,7 @@ export class DiffEditorInput extends SideBySideEditorInput {
 		return this.forceOpenAsBinary ? BINARY_DIFF_EDITOR_ID : TEXT_DIFF_EDITOR_ID;
 	}
 
-	private createModel(refresh?: boolean): Thenable<DiffEditorModel> {
+	private createModel(): Thenable<DiffEditorModel> {
 
 		// Join resolve call over two inputs and build diff editor model
 		return Promise.all([
