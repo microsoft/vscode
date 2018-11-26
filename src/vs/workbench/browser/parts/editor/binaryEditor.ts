@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
@@ -84,7 +83,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 
 				// Assert Model instance
 				if (!(model instanceof BinaryEditorModel)) {
-					return TPromise.wrapError<void>(new Error('Unable to open file as binary'));
+					return Promise.reject(new Error('Unable to open file as binary'));
 				}
 
 				// Render Input

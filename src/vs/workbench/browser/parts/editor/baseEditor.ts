@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Panel } from 'vs/workbench/browser/panel';
 import { EditorInput, EditorOptions, IEditor, GroupIdentifier, IEditorMemento } from 'vs/workbench/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -42,8 +41,8 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; }> = Event.None;
 
 	protected _input: EditorInput;
+	protected _options: EditorOptions;
 
-	private _options: EditorOptions;
 	private _group: IEditorGroup;
 
 	constructor(
@@ -82,7 +81,7 @@ export abstract class BaseEditor extends Panel implements IEditor {
 		this._input = input;
 		this._options = options;
 
-		return TPromise.wrap<void>(null);
+		return Promise.resolve();
 	}
 
 	/**

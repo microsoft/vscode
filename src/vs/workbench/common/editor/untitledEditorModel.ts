@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IEncodingSupport } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { URI } from 'vs/base/common/uri';
@@ -133,7 +132,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 		this.contentChangeEventScheduler.schedule();
 	}
 
-	load(): TPromise<UntitledEditorModel> {
+	load(): Thenable<UntitledEditorModel> {
 
 		// Check for backups first
 		return this.backupFileService.loadBackupResource(this.resource).then(backupResource => {
@@ -156,6 +155,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 			}
 
 			return this.doLoad(untitledContents).then(model => {
+
 				// Encoding
 				this.configuredEncoding = this.configurationService.getValue<string>(this.resource, 'files.encoding');
 
@@ -170,7 +170,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 		});
 	}
 
-	private doLoad(content: ITextBufferFactory): TPromise<UntitledEditorModel> {
+	private doLoad(content: ITextBufferFactory): Thenable<UntitledEditorModel> {
 
 		// Create text editor model if not yet done
 		if (!this.textEditorModel) {
@@ -182,7 +182,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 			this.updateTextEditorModel(content);
 		}
 
-		return TPromise.as<UntitledEditorModel>(this);
+		return Promise.resolve<UntitledEditorModel>(this);
 	}
 
 	private onModelContentChanged(): void {

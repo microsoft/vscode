@@ -92,7 +92,7 @@ export class DebugQuickOpenHandler extends Quickopen.QuickOpenHandler {
 		return nls.localize('debugAriaLabel', "Type a name of a launch configuration to run.");
 	}
 
-	public getResults(input: string, token: CancellationToken): Promise<Model.QuickOpenModel> {
+	public getResults(input: string, token: CancellationToken): Thenable<Model.QuickOpenModel> {
 		const configurations: Model.QuickOpenEntry[] = [];
 
 		const configManager = this.debugService.getConfigurationManager();

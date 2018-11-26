@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
 import { IDialogService, IConfirmation, IConfirmationResult } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
@@ -22,7 +21,7 @@ export class DialogChannel implements IServerChannel {
 			case 'show': return this.dialogService.show(args![0], args![1], args![2]);
 			case 'confirm': return this.dialogService.confirm(args![0]);
 		}
-		return TPromise.wrapError(new Error('invalid command'));
+		return Promise.reject(new Error('invalid command'));
 	}
 }
 
@@ -32,11 +31,11 @@ export class DialogChannelClient implements IDialogService {
 
 	constructor(private channel: IChannel) { }
 
-	show(severity: Severity, message: string, options: string[]): TPromise<number> {
-		return TPromise.wrap(this.channel.call('show', [severity, message, options]));
+	show(severity: Severity, message: string, options: string[]): Thenable<number> {
+		return this.channel.call('show', [severity, message, options]);
 	}
 
-	confirm(confirmation: IConfirmation): TPromise<IConfirmationResult> {
-		return TPromise.wrap(this.channel.call('confirm', [confirmation]));
+	confirm(confirmation: IConfirmation): Thenable<IConfirmationResult> {
+		return this.channel.call('confirm', [confirmation]);
 	}
 }
