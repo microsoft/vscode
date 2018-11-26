@@ -491,11 +491,13 @@ export class WorkspaceStats implements IWorkbenchContribution {
 								if (packageJsonContents['dependencies'][module]) {
 									tags['workspace.pwa'] = true;
 								}
-							} else if ('react-native' === module) {
+							} 
+							if ('react-native' === module) {
 								if (packageJsonContents['dependencies'][module]) {
 									tags['workspace.reactNative'] = true;
 								}
-							} else if ('tns-core-modules' === module) {
+							} 
+							if ('tns-core-modules' === module) {
 								if (packageJsonContents['dependencies'][module]) {
 									tags['workspace.nativescript'] = true;
 								}
