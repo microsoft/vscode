@@ -20,6 +20,7 @@ import { Client, IIPCOptions } from 'vs/base/parts/ipc/node/ipc.cp';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDebugParams, IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { deserializeSearchError, FileMatch, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgress, ISearchComplete, ISearchConfiguration, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, ITextQuery, pathIncludedInQuery, QueryType, SearchError, SearchErrorCode, SearchProviderType } from 'vs/platform/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -39,6 +40,7 @@ export class SearchService extends Disposable implements ISearchService {
 	private readonly fileIndexProviders = new Map<string, ISearchResultProvider>();
 
 	constructor(
+		@IInstantiationService private instantiationService: IInstantiationService,
 		@IModelService private modelService: IModelService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IEditorService private editorService: IEditorService,
@@ -49,7 +51,7 @@ export class SearchService extends Disposable implements ISearchService {
 		@IExtensionService private extensionService: IExtensionService
 	) {
 		super();
-		this.diskSearch = new DiskSearch(!environmentService.isBuilt || environmentService.verbose, /*timeout=*/undefined, environmentService.debugSearch);
+		this.diskSearch = this.instantiationService.createInstance(DiskSearch, !environmentService.isBuilt || environmentService.verbose, /*timeout=*/undefined, environmentService.debugSearch);
 	}
 
 	public registerSearchResultProvider(scheme: string, type: SearchProviderType, provider: ISearchResultProvider): IDisposable {
@@ -448,9 +450,16 @@ export class SearchService extends Disposable implements ISearchService {
 }
 
 export class DiskSearch implements ISearchResultProvider {
+	public _serviceBrand: any;
+
 	private raw: IRawSearchService;
 
-	constructor(verboseLogging: boolean, timeout: number = 60 * 60 * 1000, searchDebug?: IDebugParams) {
+	constructor(
+		verboseLogging: boolean,
+		timeout: number = 60 * 60 * 1000,
+		searchDebug: IDebugParams | undefined,
+		@ILogService private readonly logService: ILogService
+	) {
 		const opts: IIPCOptions = {
 			serverName: 'Search',
 			timeout: timeout,
@@ -511,10 +520,20 @@ export class DiskSearch implements ISearchResultProvider {
 				let event: Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
 				event = this.raw.fileSearch(query);
 
-				return DiskSearch.collectResultsFromEvent(event, null, token);
+				const onProgress = (p: ISearchProgressItem) => {
+					if (p.message) {
+						// Should only be for logs
+						this.logService.debug('SearchService#search', p.message);
+					}
+				};
+
+				return DiskSearch.collectResultsFromEvent(event, onProgress, token);
 			});
 	}
 
+	/**
+	 * Public for test
+	 */
 	public static collectResultsFromEvent(event: Event<ISerializedSearchProgressItem | ISerializedSearchComplete>, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): Promise<ISearchComplete> {
 		let result: IFileMatch[] = [];
 
