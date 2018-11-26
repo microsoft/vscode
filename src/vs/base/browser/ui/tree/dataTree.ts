@@ -10,6 +10,7 @@ import { ITreeElement, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Emitter, Event, mapEvent } from 'vs/base/common/event';
 import { timeout } from 'vs/base/common/async';
+import { ISequence } from 'vs/base/common/iterator';
 
 export interface IDataSource<T extends NonNullable<any>> {
 	hasChildren(element: T | null): boolean;
@@ -177,7 +178,7 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 		const hasChildren = this.dataSource.hasChildren(node.element);
 
 		if (!hasChildren) {
-			this.tree.setChildren(node === this.root ? null : node);
+			this.setChildren(node === this.root ? null : node);
 			return Promise.resolve();
 		} else {
 			node.state = DataTreeNodeState.Loading;
@@ -212,7 +213,7 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 
 					const nodeChildren = children.map<ITreeElement<IDataTreeNode<T>>>(createTreeElement);
 
-					this.tree.setChildren(node === this.root ? null : node, nodeChildren);
+					this.setChildren(node === this.root ? null : node, nodeChildren);
 				}, err => {
 					slowTimeout.cancel();
 					node.state = DataTreeNodeState.Uninitialized;
@@ -231,6 +232,23 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 		if (!treeNode.collapsed && treeNode.element.state === DataTreeNodeState.Uninitialized) {
 			this.refreshNode(treeNode.element);
 		}
+	}
+
+	private setChildren(element: IDataTreeNode<T>, children?: ISequence<ITreeElement<IDataTreeNode<T>>>): void {
+		const insertedElements = new Set<T>();
+
+		const onDidCreateNode = (node: ITreeNode<IDataTreeNode<T>, TFilterData>) => {
+			insertedElements.add(node.element.element);
+			this.nodes.set(node.element.element, node.element);
+		};
+
+		const onDidDeleteNode = (node: ITreeNode<IDataTreeNode<T>, TFilterData>) => {
+			if (!insertedElements.has(node.element.element)) {
+				this.nodes.delete(node.element.element);
+			}
+		};
+
+		this.tree.setChildren(element, children, onDidCreateNode, onDidDeleteNode);
 	}
 
 	// Tree

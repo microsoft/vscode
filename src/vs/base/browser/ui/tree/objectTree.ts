@@ -13,8 +13,13 @@ export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends 
 
 	protected model: ObjectTreeModel<T, TFilterData>;
 
-	setChildren(element: T | null, children?: ISequence<ITreeElement<T>>): Iterator<ITreeElement<T>> {
-		return this.model.setChildren(element, children);
+	setChildren(
+		element: T | null,
+		children?: ISequence<ITreeElement<T>>,
+		onDidCreateNode?: (node: ITreeNode<T, TFilterData>) => void,
+		onDidDeleteNode?: (node: ITreeNode<T, TFilterData>) => void
+	): Iterator<ITreeElement<T>> {
+		return this.model.setChildren(element, children, onDidCreateNode, onDidDeleteNode);
 	}
 
 	protected createModel(view: ISpliceable<ITreeNode<T, TFilterData>>, options: ITreeOptions<T, TFilterData>): ITreeModel<T, TFilterData, T> {
