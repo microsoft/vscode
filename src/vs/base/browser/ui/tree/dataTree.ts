@@ -112,6 +112,16 @@ function asTreeContextMenuEvent<T>(e: ITreeContextMenuEvent<IDataTreeNode<T>>): 
 	};
 }
 
+export enum ChildrenResolutionReason {
+	Refresh,
+	Expand
+}
+
+export interface IChildrenResolutionEvent<T> {
+	element: T;
+	reason: ChildrenResolutionReason;
+}
+
 export class DataTree<T extends NonNullable<any>, TFilterData = void> implements IDisposable {
 
 	private tree: ObjectTree<IDataTreeNode<T>, TFilterData>;
@@ -125,6 +135,9 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 	get onDidChangeFocus(): Event<ITreeEvent<T>> { return mapEvent(this.tree.onDidChangeFocus, asTreeEvent); }
 	get onDidChangeSelection(): Event<ITreeEvent<T>> { return mapEvent(this.tree.onDidChangeSelection, asTreeEvent); }
 	get onDidChangeCollapseState(): Event<T> { return mapEvent(this.tree.onDidChangeCollapseState, e => e.element.element); }
+
+	private _onDidResolveChildren = new Emitter<IChildrenResolutionEvent<T>>();
+	readonly onDidResolveChildren: Event<IChildrenResolutionEvent<T>> = this._onDidResolveChildren.event;
 
 	get onMouseClick(): Event<ITreeMouseEvent<T>> { return mapEvent(this.tree.onMouseClick, asTreeMouseEvent); }
 	get onMouseDblClick(): Event<ITreeMouseEvent<T>> { return mapEvent(this.tree.onMouseDblClick, asTreeMouseEvent); }
@@ -166,7 +179,7 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 	}
 
 	refresh(element: T | null): Thenable<void> {
-		return this.refreshNode(this.getNode(element));
+		return this.refreshNode(this.getNode(element), ChildrenResolutionReason.Refresh);
 	}
 
 	private getNode(element: T | null): IDataTreeNode<T> {
@@ -179,7 +192,7 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 		return node;
 	}
 
-	private refreshNode(node: IDataTreeNode<T>): Thenable<void> {
+	private refreshNode(node: IDataTreeNode<T>, reason: ChildrenResolutionReason): Thenable<void> {
 		const hasChildren = this.dataSource.hasChildren(node.element);
 
 		if (!hasChildren) {
@@ -217,8 +230,8 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 					};
 
 					const nodeChildren = children.map<ITreeElement<IDataTreeNode<T>>>(createTreeElement);
-
 					this.setChildren(node === this.root ? null : node, nodeChildren);
+					this._onDidResolveChildren.fire({ element: node.element, reason });
 				}, err => {
 					slowTimeout.cancel();
 					node.state = DataTreeNodeState.Uninitialized;
@@ -235,7 +248,7 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 
 	private _onDidChangeCollapseState(treeNode: ITreeNode<IDataTreeNode<T>, any>): void {
 		if (!treeNode.collapsed && treeNode.element.state === DataTreeNodeState.Uninitialized) {
-			this.refreshNode(treeNode.element);
+			this.refreshNode(treeNode.element, ChildrenResolutionReason.Expand);
 		}
 	}
 
