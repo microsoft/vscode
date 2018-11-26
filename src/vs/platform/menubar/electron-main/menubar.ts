@@ -22,6 +22,7 @@ import { IMenubarData, IMenubarKeybinding, MenubarMenuItem, isMenubarMenuItemSep
 import { URI } from 'vs/base/common/uri';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IStateService } from 'vs/platform/state/common/state';
+import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 
 const telemetryFrom = 'menu';
 
@@ -35,7 +36,7 @@ export class Menubar {
 	private static readonly MAX_MENU_RECENT_ENTRIES = 10;
 	private static readonly lastKnownMenubarStorageKey = 'lastKnownMenubarData';
 
-	private isQuitting: boolean;
+	private willShutdown: boolean;
 	private appMenuInstalled: boolean;
 	private closedLastWindow: boolean;
 
@@ -61,7 +62,8 @@ export class Menubar {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IHistoryMainService private historyMainService: IHistoryMainService,
 		@ILabelService private labelService: ILabelService,
-		@IStateService private stateService: IStateService
+		@IStateService private stateService: IStateService,
+		@ILifecycleService private lifecycleService: ILifecycleService
 	) {
 		this.menuUpdater = new RunOnceScheduler(() => this.doUpdateMenu(), 0);
 
@@ -151,9 +153,7 @@ export class Menubar {
 	private registerListeners(): void {
 
 		// Keep flag when app quits
-		app.on('will-quit', () => {
-			this.isQuitting = true;
-		});
+		this.lifecycleService.onWillShutdown(() => this.willShutdown = true);
 
 		// // Listen to some events from window service to update menu
 		this.historyMainService.onRecentlyOpenedChange(() => this.scheduleUpdateMenu());
@@ -212,9 +212,9 @@ export class Menubar {
 		// See also https://github.com/electron/electron/issues/846
 		//
 		// Run delayed to prevent updating menu while it is open
-		if (!this.isQuitting) {
+		if (!this.willShutdown) {
 			setTimeout(() => {
-				if (!this.isQuitting) {
+				if (!this.willShutdown) {
 					this.install();
 				}
 			}, 10 /* delay this because there is an issue with updating a menu when it is open */);

@@ -132,6 +132,11 @@ export class StorageService extends Disposable implements IStorageService {
 				mark('willInitWorkspaceStorage');
 				return this.createWorkspaceStorage(workspaceStoragePath, result.wasCreated ? StorageHint.STORAGE_DOES_NOT_EXIST : void 0).init().then(() => {
 					mark('didInitWorkspaceStorage');
+				}, error => {
+					mark('didInitWorkspaceStorage');
+
+					return Promise.reject(error);
+				}).then(() => {
 
 					// Migrate storage if this is the first start and we are not using in-memory
 					let migrationPromise: Thenable<void>;
