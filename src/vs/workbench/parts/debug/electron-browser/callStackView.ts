@@ -573,7 +573,10 @@ class CallStackDataSource implements IDataSource<CallStackItem> {
 		if (element === null) {
 			const model = this.debugService.getModel();
 			const sessions = model.getSessions();
-			if (this.debugService.getViewModel().isMultiSessionView()) {
+			if (sessions.length === 0) {
+				return Promise.resolve([]);
+			}
+			if (sessions.length > 1) {
 				return Promise.resolve(sessions);
 			}
 
