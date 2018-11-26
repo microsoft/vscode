@@ -9,7 +9,7 @@ import { WindowsManager } from 'vs/code/electron-main/windows';
 import { IWindowsService, OpenContext, ActiveWindowManager } from 'vs/platform/windows/common/windows';
 import { WindowsChannel } from 'vs/platform/windows/node/windowsIpc';
 import { WindowsService } from 'vs/platform/windows/electron-main/windowsService';
-import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
+import { ILifecycleService, LifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { getShellEnvironment } from 'vs/code/node/shellEnv';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { UpdateChannel } from 'vs/platform/update/node/updateIpc';
@@ -116,11 +116,8 @@ export class CodeApplication extends Disposable {
 		// Contextmenu via IPC support
 		registerContextMenuListener();
 
-		app.on('will-quit', () => {
-			this.logService.trace('App#will-quit: disposing resources');
-
-			this.dispose();
-		});
+		// Dispose on shutdown
+		this.lifecycleService.onWillShutdown(() => this.dispose());
 
 		app.on('accessibility-support-changed', (event: Event, accessibilitySupportEnabled: boolean) => {
 			if (this.windowsMainService) {
@@ -551,7 +548,7 @@ export class CodeApplication extends Disposable {
 		const storageService = accessor.get(IStorageMainService) as StorageMainService;
 
 		// Ensure to close storage on shutdown
-		this._register(this.lifecycleService.onShutdown(e => e.join(storageService.close())));
+		this.lifecycleService.onWillShutdown(e => e.join(storageService.close()));
 
 		// Initialize storage service
 		return storageService.initialize().then(void 0, error => {
@@ -600,7 +597,7 @@ export class CodeApplication extends Disposable {
 		this.sharedProcessClient.then(client => client.registerChannel('loglevel', logLevelChannel));
 
 		// Lifecycle
-		this.lifecycleService.ready();
+		(this.lifecycleService as LifecycleService).ready();
 
 		// Propagate to clients
 		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService); // TODO@Joao: unfold this

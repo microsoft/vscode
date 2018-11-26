@@ -88,8 +88,10 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 	) {
 		super();
 
+		const useInMemoryStorage = !!environmentService.extensionTestsPath; // no storage during extension tests!
+
 		this.storage = new Storage({
-			path: join(environmentService.globalStorageHome, StorageMainService.STORAGE_NAME),
+			path: useInMemoryStorage ? Storage.IN_MEMORY_PATH : join(environmentService.globalStorageHome, StorageMainService.STORAGE_NAME),
 			logging: this.createLogginOptions()
 		});
 

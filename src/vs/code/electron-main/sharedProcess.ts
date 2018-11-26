@@ -70,7 +70,7 @@ export class SharedProcess implements ISharedProcess {
 
 		const disposables: IDisposable[] = [];
 
-		this.lifecycleService.onShutdown(() => {
+		this.lifecycleService.onWillShutdown(() => {
 			dispose(disposables);
 
 			// Shut the shared process down when we are quitting
