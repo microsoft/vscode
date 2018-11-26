@@ -2696,13 +2696,13 @@ export class ReinstallAction extends Action {
 	}
 }
 
-export class InstallPreviousVersionAction extends Action {
+export class InstallExtensionPreviousVersionAction extends Action {
 
-	static readonly ID = 'workbench.extensions.action.install.old';
+	static readonly ID = 'workbench.extensions.action.install.previousVersion';
 	static LABEL = localize('install previous version', "Install Previous Version of Extension...");
 
 	constructor(
-		id: string = ReinstallAction.ID, label: string = ReinstallAction.LABEL,
+		id: string = InstallExtensionPreviousVersionAction.ID, label: string = InstallExtensionPreviousVersionAction.LABEL,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
 		@IQuickInputService private quickInputService: IQuickInputService,
@@ -2778,7 +2778,7 @@ export class InstallPreviousVersionAction extends Action {
 							Severity.Info,
 							localize('Install Previous Version Success', "Successfully installed the previous version of the extension."),
 							[{
-								label: localize('ReinstallAction.reloadNow', "Reload Now"),
+								label: localize('InstallExtensionPreviousVersionAction.reloadNow', "Reload Now"),
 								run: () => this.windowService.reloadWindow()
 							}],
 							{ sticky: true }
