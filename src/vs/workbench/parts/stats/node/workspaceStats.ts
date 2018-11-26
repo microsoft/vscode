@@ -56,6 +56,9 @@ const ModulesToLookFor = [
 	'@ionic',
 	'vue',
 	'tns-core-modules',
+	'workbox-core',
+	'sw-toolbox',
+	'@angular/service-worker',
 	// Other interesting packages
 	'aws-sdk',
 	'aws-amplify',
@@ -269,6 +272,9 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			"workspace.npm.azure-storage" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@google-cloud/common" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.firebase" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.workbox-core" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.sw-toolbox" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.@angular/service-worker" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.heroku-cli" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.bower" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.yeoman.code.ext" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -378,6 +384,9 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			const appDelegate = nameSet.has('appdelegate.cs') || nameSet.has('appdelegate.fs');
 			const androidManifest = nameSet.has('androidmanifest.xml');
 
+			const serviceWorker = nameSet.has('service-worker.js') || nameSet.has('sw.js');
+			const appManifest = nameSet.has('manifest.json');
+
 			const platforms = nameSet.has('platforms');
 			const plugins = nameSet.has('plugins');
 			const www = nameSet.has('www');
@@ -400,6 +409,10 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				if (nameSet.has('ionic.config.json')) {
 					tags['workspace.ionic'] = true;
 				}
+			}
+
+			if (serviceWorker && appManifest) {
+				tags['workspace.pwa'] = true;
 			}
 
 			if (mainActivity && properties && resources) {
@@ -474,7 +487,11 @@ export class WorkspaceStats implements IWorkbenchContribution {
 					const packageJsonContents = JSON.parse(content.value);
 					if (packageJsonContents['dependencies']) {
 						for (let module of ModulesToLookFor) {
-							if ('react-native' === module) {
+							if ('workbox-core' == module || 'sw-toolbox' == module || '@angular/service-worker' == module) {
+								if (packageJsonContents['dependencies'][module]) {
+									tags['workspace.pwa'] = true;
+								}
+							} else if ('react-native' === module) {
 								if (packageJsonContents['dependencies'][module]) {
 									tags['workspace.reactNative'] = true;
 								}
