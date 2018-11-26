@@ -20,7 +20,6 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'v
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { ContextKeyDefinedExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ISCMRepository } from 'vs/workbench/services/scm/common/scm';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -121,7 +120,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const repository = context.getValue<ISCMRepository>('scmRepository');
 
 		if (!repository || !repository.provider.acceptInputCommand) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		const id = repository.provider.acceptInputCommand.id;

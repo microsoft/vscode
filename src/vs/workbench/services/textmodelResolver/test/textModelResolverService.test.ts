@@ -5,7 +5,6 @@
 
 import * as assert from 'assert';
 import { ITextModel } from 'vs/editor/common/model';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { URI } from 'vs/base/common/uri';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
@@ -56,14 +55,14 @@ suite('Workbench - TextModelResolverService', () => {
 
 	test('resolve resource', function () {
 		const dispose = accessor.textModelResolverService.registerTextModelContentProvider('test', {
-			provideTextContent: function (resource: URI): TPromise<ITextModel> {
+			provideTextContent: function (resource: URI): Thenable<ITextModel> {
 				if (resource.scheme === 'test') {
 					let modelContent = 'Hello Test';
 					let languageSelection = accessor.modeService.create('json');
-					return TPromise.as(accessor.modelService.createModel(modelContent, languageSelection, resource));
+					return Promise.resolve(accessor.modelService.createModel(modelContent, languageSelection, resource));
 				}
 
-				return TPromise.as(null);
+				return Promise.resolve(null);
 			}
 		});
 
@@ -134,7 +133,7 @@ suite('Workbench - TextModelResolverService', () => {
 		let waitForIt = new Promise(c => resolveModel = c);
 
 		const disposable = accessor.textModelResolverService.registerTextModelContentProvider('test', {
-			provideTextContent: (resource: URI): TPromise<ITextModel> => {
+			provideTextContent: (resource: URI): Thenable<ITextModel> => {
 				return waitForIt.then(_ => {
 					let modelContent = 'Hello Test';
 					let languageSelection = accessor.modeService.create('json');

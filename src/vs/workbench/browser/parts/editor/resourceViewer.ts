@@ -19,7 +19,6 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IDisposable, Disposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { memoize } from 'vs/base/common/decorators';
@@ -126,7 +125,7 @@ class ImageView {
 			return InlineImageView.create(container, descriptor, fileService, scrollbar, metadataClb);
 		}
 
-		return LargeImageView.create(container, descriptor, openExternalClb);
+		return LargeImageView.create(container, descriptor, openExternalClb, metadataClb);
 	}
 
 	private static shouldShowImageInline(descriptor: IResourceDescriptor): boolean {
@@ -153,14 +152,18 @@ class LargeImageView {
 	static create(
 		container: HTMLElement,
 		descriptor: IResourceDescriptor,
-		openExternalClb: (uri: URI) => void
+		openExternalClb: (uri: URI) => void,
+		metadataClb: (meta: string) => void
 	) {
+		const size = BinarySize.formatSize(descriptor.size);
+		metadataClb(size);
+
 		DOM.clearNode(container);
 
 		const disposables: IDisposable[] = [];
 
 		const label = document.createElement('p');
-		label.textContent = nls.localize('largeImageError', "The image is not displayed in the editor because it is too large ({0}).", BinarySize.formatSize(descriptor.size));
+		label.textContent = nls.localize('largeImageError', "The image is not displayed in the editor because it is too large ({0}).", size);
 		container.appendChild(label);
 
 		if (descriptor.resource.scheme !== Schemas.data) {
@@ -565,7 +568,7 @@ class InlineImageView {
 		return context;
 	}
 
-	private static imageSrc(descriptor: IResourceDescriptor, fileService: IFileService): TPromise<string> {
+	private static imageSrc(descriptor: IResourceDescriptor, fileService: IFileService): Thenable<string> {
 		if (descriptor.resource.scheme === Schemas.data) {
 			return Promise.resolve(descriptor.resource.toString(true /* skip encoding */));
 		}

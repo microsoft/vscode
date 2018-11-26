@@ -10,7 +10,6 @@ import { IStateService } from 'vs/platform/state/common/state';
 import { Event, Emitter } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
-import { ReadyState } from 'vs/platform/windows/common/windows';
 import { handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -238,7 +237,7 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 	unload(window: ICodeWindow, reason: UnloadReason): TPromise<boolean /* veto */> {
 
 		// Always allow to unload a window that is not yet ready
-		if (window.readyState !== ReadyState.READY) {
+		if (!window.isReady) {
 			return TPromise.as<boolean>(false);
 		}
 

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as paths from 'vs/base/common/paths';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { URI } from 'vs/base/common/uri';
@@ -42,7 +41,7 @@ export class TestEditorInput extends EditorInput implements IFileEditorInput {
 	constructor(private resource: URI) { super(); }
 
 	getTypeId() { return 'testEditorInputForEditorService'; }
-	resolve(): TPromise<IEditorModel> { return null; }
+	resolve(): Thenable<IEditorModel> { return Promise.resolve(null); }
 	matches(other: TestEditorInput): boolean { return other && other.resource && this.resource.toString() === other.resource.toString() && other instanceof TestEditorInput; }
 	setEncoding(encoding: string) { }
 	getEncoding(): string { return null; }
@@ -270,7 +269,7 @@ suite('Editor service', () => {
 
 			done();
 
-			return TPromise.as(ed);
+			return Promise.resolve(ed);
 		});
 
 		delegate.openEditor(inp);
@@ -426,7 +425,7 @@ suite('Editor service', () => {
 		assertActiveEditorChangedEvent(false);
 		assertVisibleEditorsChangedEvent(false);
 
-		editor.group.closeAllEditors();
+		await editor.group.closeAllEditors();
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
 
@@ -439,11 +438,11 @@ suite('Editor service', () => {
 		assertActiveEditorChangedEvent(false);
 		assertVisibleEditorsChangedEvent(false);
 
-		editor.group.closeEditor(otherInput);
+		await editor.group.closeEditor(otherInput);
 		assertActiveEditorChangedEvent(false);
 		assertVisibleEditorsChangedEvent(false);
 
-		editor.group.closeAllEditors();
+		await editor.group.closeAllEditors();
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
 
@@ -464,7 +463,7 @@ suite('Editor service', () => {
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(false);
 
-		editor.group.closeAllEditors();
+		await editor.group.closeAllEditors();
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
 
@@ -477,15 +476,15 @@ suite('Editor service', () => {
 		assertActiveEditorChangedEvent(false);
 		assertVisibleEditorsChangedEvent(false);
 
-		rightGroup.openEditor(otherInput);
+		await rightGroup.openEditor(otherInput);
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
 
-		rightGroup.closeEditor(otherInput);
+		await rightGroup.closeEditor(otherInput);
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
 
-		editor.group.closeAllEditors();
+		await editor.group.closeAllEditors();
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
 
@@ -498,7 +497,7 @@ suite('Editor service', () => {
 		assertActiveEditorChangedEvent(false);
 		assertVisibleEditorsChangedEvent(false);
 
-		rightGroup.openEditor(otherInput);
+		await rightGroup.openEditor(otherInput);
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
 
@@ -506,11 +505,11 @@ suite('Editor service', () => {
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(false);
 
-		rightGroup.closeEditor(otherInput);
+		await rightGroup.closeEditor(otherInput);
 		assertActiveEditorChangedEvent(false);
 		assertVisibleEditorsChangedEvent(true);
 
-		editor.group.closeAllEditors();
+		await editor.group.closeAllEditors();
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
 
@@ -527,7 +526,7 @@ suite('Editor service', () => {
 		assertActiveEditorChangedEvent(false);
 		assertVisibleEditorsChangedEvent(false);
 
-		editor.group.closeAllEditors();
+		await editor.group.closeAllEditors();
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
 
@@ -540,11 +539,11 @@ suite('Editor service', () => {
 		assertActiveEditorChangedEvent(false);
 		assertVisibleEditorsChangedEvent(false);
 
-		rightGroup.openEditor(otherInput);
+		await rightGroup.openEditor(otherInput);
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
 
-		editor.group.closeEditor(input);
+		await editor.group.closeEditor(input);
 		assertActiveEditorChangedEvent(false);
 		assertVisibleEditorsChangedEvent(true);
 
