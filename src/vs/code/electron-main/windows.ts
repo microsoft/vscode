@@ -18,7 +18,7 @@ import { IPathWithLineAndColumn, parseLineAndColumnAware } from 'vs/code/node/pa
 import { ILifecycleService, UnloadReason, IWindowUnloadEvent } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IWindowSettings, OpenContext, IPath, IWindowConfiguration, INativeOpenDialogOptions, ReadyState, IPathsToWaitFor, IEnterWorkspaceResult, IMessageBoxResult, INewWindowOptions } from 'vs/platform/windows/common/windows';
+import { IWindowSettings, OpenContext, IPath, IWindowConfiguration, INativeOpenDialogOptions, IPathsToWaitFor, IEnterWorkspaceResult, IMessageBoxResult, INewWindowOptions } from 'vs/platform/windows/common/windows';
 import { getLastActiveWindow, findBestWindowOrFolderForFile, findWindowOnWorkspace, findWindowOnExtensionDevelopmentPath, findWindowOnWorkspaceOrFolderUri } from 'vs/code/node/windowsFinder';
 import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/node/product';
@@ -756,19 +756,19 @@ export class WindowsManager implements IWindowsMainService {
 	private doOpenFilesInExistingWindow(configuration: IOpenConfiguration, window: ICodeWindow, fileInputs?: IFileInputs): ICodeWindow {
 		window.focus(); // make sure window has focus
 
-		window.ready().then(readyWindow => {
-			const params: { filesToOpen?, filesToCreate?, filesToDiff?, filesToWait?, termProgram?} = {};
-			if (fileInputs) {
-				params.filesToOpen = fileInputs.filesToOpen;
-				params.filesToCreate = fileInputs.filesToCreate;
-				params.filesToDiff = fileInputs.filesToDiff;
-				params.filesToWait = fileInputs.filesToWait;
-			}
-			if (configuration.userEnv) {
-				params.termProgram = configuration.userEnv['TERM_PROGRAM'];
-			}
-			readyWindow.send('vscode:openFiles', params);
-		});
+		const params: { filesToOpen?, filesToCreate?, filesToDiff?, filesToWait?, termProgram?} = {};
+		if (fileInputs) {
+			params.filesToOpen = fileInputs.filesToOpen;
+			params.filesToCreate = fileInputs.filesToCreate;
+			params.filesToDiff = fileInputs.filesToDiff;
+			params.filesToWait = fileInputs.filesToWait;
+		}
+
+		if (configuration.userEnv) {
+			params.termProgram = configuration.userEnv['TERM_PROGRAM'];
+		}
+
+		window.sendWhenReady('vscode:openFiles', params);
 
 		return window;
 	}
@@ -776,9 +776,7 @@ export class WindowsManager implements IWindowsMainService {
 	private doAddFoldersToExistingWindow(window: ICodeWindow, foldersToAdd: URI[]): ICodeWindow {
 		window.focus(); // make sure window has focus
 
-		window.ready().then(readyWindow => {
-			readyWindow.send('vscode:addFolders', { foldersToAdd });
-		});
+		window.sendWhenReady('vscode:addFolders', { foldersToAdd });
 
 		return window;
 	}
@@ -1967,7 +1965,7 @@ class WorkspacesManager {
 	}
 
 	saveAndEnterWorkspace(window: ICodeWindow, path: string): TPromise<IEnterWorkspaceResult> {
-		if (!window || !window.win || window.readyState !== ReadyState.READY || !window.openedWorkspace || !path || !this.isValidTargetWorkspacePath(window, path)) {
+		if (!window || !window.win || !window.isReady || !window.openedWorkspace || !path || !this.isValidTargetWorkspacePath(window, path)) {
 			return TPromise.as(null); // return early if the window is not ready or disposed or does not have a workspace
 		}
 
@@ -1975,7 +1973,7 @@ class WorkspacesManager {
 	}
 
 	enterWorkspace(window: ICodeWindow, path: string): TPromise<IEnterWorkspaceResult> {
-		if (!window || !window.win || window.readyState !== ReadyState.READY) {
+		if (!window || !window.win || !window.isReady) {
 			return TPromise.as(null); // return early if the window is not ready or disposed
 		}
 
@@ -1992,7 +1990,7 @@ class WorkspacesManager {
 	}
 
 	createAndEnterWorkspace(window: ICodeWindow, folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult> {
-		if (!window || !window.win || window.readyState !== ReadyState.READY) {
+		if (!window || !window.win || !window.isReady) {
 			return TPromise.as(null); // return early if the window is not ready or disposed
 		}
 

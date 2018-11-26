@@ -286,12 +286,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		});
 	}
 
-	private get isReady(): boolean {
+	get isReady(): boolean {
 		return this._readyState === ReadyState.READY;
-	}
-
-	get readyState(): ReadyState {
-		return this._readyState;
 	}
 
 	private handleMarketplaceRequests(): void {
@@ -465,7 +461,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private registerNavigationListenerOn(command: 'swipe' | 'app-command', back: 'left' | 'browser-backward', forward: 'right' | 'browser-forward', acrossEditors: boolean) {
 		this._win.on(command as 'swipe' /* | 'app-command' */, (e: Electron.Event, cmd: string) => {
-			if (this.readyState !== ReadyState.READY) {
+			if (this._readyState !== ReadyState.READY) {
 				return; // window must be ready
 			}
 
@@ -487,7 +483,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// If this is the first time the window is loaded, we associate the paths
 		// directly with the window because we assume the loading will just work
-		if (this.readyState === ReadyState.NONE) {
+		if (this._readyState === ReadyState.NONE) {
 			this.currentConfig = config;
 		}
 
