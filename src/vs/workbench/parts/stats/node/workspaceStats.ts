@@ -487,7 +487,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 					const packageJsonContents = JSON.parse(content.value);
 					if (packageJsonContents['dependencies']) {
 						for (let module of ModulesToLookFor) {
-							if ('workbox-core' == module || 'sw-toolbox' == module || '@angular/service-worker' == module) {
+							if ('workbox-core' === module || 'sw-toolbox' === module || '@angular/service-worker' === module) {
 								if (packageJsonContents['dependencies'][module]) {
 									tags['workspace.pwa'] = true;
 								}
