@@ -487,6 +487,12 @@ export class LoadedScriptsView extends ViewletPanel {
 		}
 	}
 
+	private tryToExpand(element: LoadedScriptsItem): void {
+		try {
+			this.tree.expand(element);
+		} catch (e) { }
+	}
+
 	dispose(): void {
 		this.tree = undefined;
 		super.dispose();
