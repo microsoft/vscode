@@ -377,10 +377,9 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	}
 
 	private refreshAndUpdateCount(event?: IChangeEvent): Thenable<void> {
-		return this.refreshTree(event).then(() => {
-			this.searchWidget.setReplaceAllActionState(!this.viewModel.searchResult.isEmpty());
-			this.updateSearchResultCount(this.viewModel.searchResult.query.userDisabledExcludesAndIgnoreFiles);
-		});
+		this.searchWidget.setReplaceAllActionState(!this.viewModel.searchResult.isEmpty());
+		this.updateSearchResultCount(this.viewModel.searchResult.query.userDisabledExcludesAndIgnoreFiles);
+		return this.refreshTree(event);
 	}
 
 	private refreshTree(event?: IChangeEvent): Thenable<any> {
