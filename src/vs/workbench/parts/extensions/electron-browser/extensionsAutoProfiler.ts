@@ -14,6 +14,11 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { writeFile } from 'vs/base/node/pfs';
 import { IExtensionHostProfileService } from 'vs/workbench/parts/extensions/electron-browser/runtimeExtensionsEditor';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { localize } from 'vs/nls';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Action } from 'vs/base/common/actions';
+import { RuntimeExtensionsInput } from 'vs/workbench/services/extensions/electron-browser/runtimeExtensionsInput';
 
 export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchContribution {
 
@@ -24,6 +29,8 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 		@IExtensionHostProfileService private readonly _extensionProfileService: IExtensionHostProfileService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILogService private readonly _logService: ILogService,
+		@INotificationService private readonly _notificationService: INotificationService,
+		@IEditorService private readonly _editorService: IEditorService,
 	) {
 		super();
 		this._register(_extensionService.onDidChangeResponsiveChange(this._onDidChangeResponsiveChange, this));
@@ -123,6 +130,19 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 			// add to running extensions view
 			this._extensionProfileService.setUnresponsiveProfile(extension.id, profile);
 
+			// user-facing message when very bad...
+			const prompt = top.percentage >= 99 && top.total >= 5e6;
+			if (prompt) {
+				this._notificationService.notify({
+					severity: Severity.Info,
+					silent: true,
+					message: localize('unresponsive-exthost', "Extension '{0}' froze the extension host for more than {1} seconds.", extension.displayName || extension.name, Math.round(duration / 1e6)),
+					actions: {
+						primary: [new Action('foo', localize('show', 'Show Extensions'), undefined, true, () => this._editorService.openEditor(new RuntimeExtensionsInput()))]
+					}
+				});
+			}
+
 			const path = join(tmpdir(), `exthost-${Math.random().toString(16).slice(2, 8)}.cpuprofile`);
 			await writeFile(path, JSON.stringify(profile.data));
 
@@ -132,11 +152,13 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 				"exthostunresponsive" : {
 					"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 					"data": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+					"prompt" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 				}
 			*/
 			this._telemetryService.publicLog('exthostunresponsive', {
 				duration,
-				data
+				data,
+				prompt
 			});
 		});
 	}
