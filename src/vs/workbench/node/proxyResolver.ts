@@ -24,7 +24,7 @@ export function connectProxyResolver(
 	extHostLogService: ExtHostLogService,
 	mainThreadTelemetry: MainThreadTelemetryShape
 ) {
-	const agent = createProxyAgent(extHostWorkspace, extHostLogService, mainThreadTelemetry);
+	const agent = createProxyAgent(extHostWorkspace, extHostConfiguration, extHostLogService, mainThreadTelemetry);
 	const lookup = createPatchedModules(extHostConfiguration, agent);
 	return configureModuleLoading(extensionService, lookup);
 }
@@ -33,9 +33,18 @@ const maxCacheEntries = 10000;
 
 function createProxyAgent(
 	extHostWorkspace: ExtHostWorkspace,
+	extHostConfiguration: ExtHostConfiguration,
 	extHostLogService: ExtHostLogService,
 	mainThreadTelemetry: MainThreadTelemetryShape
 ) {
+	let settingsProxy = proxyFromConfigURL(extHostConfiguration.getConfiguration('http')
+		.get<string>('proxy'));
+	extHostConfiguration.onDidChangeConfiguration(e => {
+		settingsProxy = proxyFromConfigURL(extHostConfiguration.getConfiguration('http')
+			.get<string>('proxy'));
+	});
+	const env = process.env;
+	let envProxy = proxyFromConfigURL(env.https_proxy || env.HTTPS_PROXY || env.http_proxy || env.HTTP_PROXY); // Not standardized.
 
 	let cacheRolls = 0;
 	let oldCache = new Map<string, string>();
@@ -72,6 +81,8 @@ function createProxyAgent(
 	let duration = 0;
 	let errorCount = 0;
 	let cacheCount = 0;
+	let envCount = 0;
+	let settingsCount = 0;
 	function logEvent() {
 		timeout = undefined;
 		/* __GDPR__
@@ -81,16 +92,32 @@ function createProxyAgent(
 				"errorCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 				"cacheCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 				"cacheSize": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-				"cacheRolls": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+				"cacheRolls": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+				"envCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+				"settingsCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
 			}
 		*/
-		mainThreadTelemetry.$publicLog('resolveProxy', { count, duration, errorCount, cacheCount, cacheSize: cache.size, cacheRolls });
-		count = duration = errorCount = cacheCount = 0;
+		mainThreadTelemetry.$publicLog('resolveProxy', { count, duration, errorCount, cacheCount, cacheSize: cache.size, cacheRolls, envCount, settingsCount });
+		count = duration = errorCount = cacheCount = envCount = settingsCount = 0;
 	}
 
 	function resolveProxy(url: string, callback: (proxy?: string) => void) {
 		if (!timeout) {
 			timeout = setTimeout(logEvent, 10 * 60 * 1000);
+		}
+
+		if (settingsProxy) {
+			settingsCount++;
+			callback(settingsProxy);
+			extHostLogService.trace('ProxyResolver#resolveProxy settings', url, settingsProxy);
+			return;
+		}
+
+		if (envProxy) {
+			envCount++;
+			callback(envProxy);
+			extHostLogService.trace('ProxyResolver#resolveProxy env', url, envProxy);
+			return;
 		}
 
 		const key = getCacheKey(url);
@@ -119,6 +146,24 @@ function createProxyAgent(
 	}
 
 	return new ProxyAgent({ resolveProxy });
+}
+
+function proxyFromConfigURL(configURL: string) {
+	const url = (configURL || '').trim();
+	const i = url.indexOf('://');
+	if (i === -1) {
+		return undefined;
+	}
+	const scheme = url.substr(0, i).toLowerCase();
+	const proxy = url.substr(i + 3);
+	if (scheme === 'http') {
+		return 'PROXY ' + proxy;
+	} else if (scheme === 'https') {
+		return 'HTTPS ' + proxy;
+	} else if (scheme === 'socks') {
+		return 'SOCKS ' + proxy;
+	}
+	return undefined;
 }
 
 function createPatchedModules(extHostConfiguration: ExtHostConfiguration, agent: http.Agent) {
