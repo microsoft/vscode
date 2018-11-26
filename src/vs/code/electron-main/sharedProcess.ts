@@ -6,7 +6,6 @@
 import { assign } from 'vs/base/common/objects';
 import { memoize } from 'vs/base/common/decorators';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IProcessEnvironment } from 'vs/base/common/platform';
 import { BrowserWindow, ipcMain } from 'electron';
 import { ISharedProcess } from 'vs/platform/windows/electron-main/windows';
 import { Barrier } from 'vs/base/common/async';
@@ -24,7 +23,7 @@ export class SharedProcess implements ISharedProcess {
 
 	constructor(
 		private readonly machineId: string,
-		private userEnv: IProcessEnvironment,
+		private userEnv: NodeJS.ProcessEnv,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IStateService private readonly stateService: IStateService,
