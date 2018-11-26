@@ -29,7 +29,7 @@ export function connectProxyResolver(
 	return configureModuleLoading(extensionService, lookup);
 }
 
-const maxCacheEntries = 10000;
+const maxCacheEntries = 5000; // Cache can grow twice that much due to 'oldCache'.
 
 function createProxyAgent(
 	extHostWorkspace: ExtHostWorkspace,
@@ -50,9 +50,11 @@ function createProxyAgent(
 	let oldCache = new Map<string, string>();
 	let cache = new Map<string, string>();
 	function getCacheKey(url: string) {
-		// Expecting proxies to usually be the same per host. Keeping the path in for now.
-		const queryIndex = url.indexOf('?');
-		return queryIndex === -1 ? url : url.substr(0, queryIndex);
+		// Expecting proxies to usually be the same per scheme://host:port. Assuming that for performance.
+		const parsed = nodeurl.parse(url); // Coming from Node's URL, sticking with that.
+		delete parsed.pathname;
+		delete parsed.search;
+		return nodeurl.format(parsed);
 	}
 	function getCachedProxy(key: string) {
 		let proxy = cache.get(key);
