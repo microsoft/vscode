@@ -158,7 +158,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			options.tabbingIdentifier = product.nameShort; // this opts in to sierra tabs
 		}
 
-		const useCustomTitleStyle = getTitleBarStyle(this.configurationService, this.environmentService) === 'custom';
+		const useCustomTitleStyle = getTitleBarStyle(this.configurationService, this.environmentService, !!config.extensionDevelopmentPath) === 'custom';
 		if (useCustomTitleStyle) {
 			options.titleBarStyle = 'hidden';
 			this.hiddenTitleBarStyle = true;
