@@ -421,18 +421,13 @@ export interface ConfigurationProperties {
 	problemMatchers?: (string | ProblemMatcher)[];
 }
 
-export enum RerunBehavior {
-	reevaluate = 1,
-	useEvaluated = 2,
-}
-
 export enum RunOnOptions {
 	default = 1,
 	folderOpen = 2
 }
 
 export interface RunOptions {
-	rerunBehavior?: RerunBehavior;
+	reevaluateOnRerun?: boolean;
 	runOn?: RunOnOptions;
 }
 export interface CommonTask {

@@ -783,7 +783,6 @@ export function createApiFactory(
 			QuickInputButtons: extHostTypes.QuickInputButtons,
 			Range: extHostTypes.Range,
 			RelativePattern: extHostTypes.RelativePattern,
-			RerunBehavior: extHostTypes.RerunBehavior,
 			Selection: extHostTypes.Selection,
 			ShellExecution: extHostTypes.ShellExecution,
 			ShellQuoting: extHostTypes.ShellQuoting,
