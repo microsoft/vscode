@@ -279,7 +279,8 @@ export interface IExtensionGalleryService {
 	getManifest(extension: IGalleryExtension, token: CancellationToken): Promise<IExtensionManifest>;
 	getChangelog(extension: IGalleryExtension, token: CancellationToken): Promise<string>;
 	getCoreTranslation(extension: IGalleryExtension, languageId: string): Promise<ITranslation>;
-	loadCompatibleVersion(extension: IGalleryExtension): Promise<IGalleryExtension>;
+	loadCompatibleVersion(extension: IGalleryExtension, fromVersion?: string): Promise<IGalleryExtension>;
+	getAllVersions(extension: IGalleryExtension): Promise<string[]>;
 	loadAllDependencies(dependencies: IExtensionIdentifier[], token: CancellationToken): Promise<IGalleryExtension[]>;
 	getExtensionsReport(): Promise<IReportedExtension[]>;
 	getExtension(id: IExtensionIdentifier, version?: string): Promise<IGalleryExtension>;

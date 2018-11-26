@@ -578,11 +578,31 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		return this.getDependenciesReccursively(extensions.map(e => e.id), [], token);
 	}
 
-	loadCompatibleVersion(extension: IGalleryExtension): Promise<IGalleryExtension> {
-		if (extension.properties.engine && isEngineValid(extension.properties.engine)) {
-			return Promise.resolve(extension);
+	getAllVersions(extension: IGalleryExtension): Promise<string[]> {
+		let query = new Query()
+			.withFlags(Flags.IncludeVersions)
+			.withPage(1, 1)
+			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code')
+			.withFilter(FilterType.ExcludeWithFlags, flagsToString(Flags.Unpublished));
+
+		if (extension.identifier.uuid) {
+			query = query.withFilter(FilterType.ExtensionId, extension.identifier.uuid);
+		} else {
+			query = query.withFilter(FilterType.ExtensionName, extension.identifier.id);
 		}
 
+		return this.queryGallery(query, CancellationToken.None).then(({ galleryExtensions }) => {
+			if (galleryExtensions.length) {
+				return galleryExtensions[0].versions.map(v => v.version);
+			}
+			return [];
+		});
+	}
+
+	loadCompatibleVersion(extension: IGalleryExtension, fromVersion: string = extension.version): Promise<IGalleryExtension> {
+		if (extension.version === fromVersion && extension.properties.engine && isEngineValid(extension.properties.engine)) {
+			return Promise.resolve(extension);
+		}
 		const query = new Query()
 			.withFlags(Flags.IncludeVersions, Flags.IncludeFiles, Flags.IncludeVersionProperties)
 			.withPage(1, 1)
@@ -599,19 +619,38 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 					return null;
 				}
 
-				return this.getLastValidExtensionVersion(rawExtension, rawExtension.versions)
+				const versions: IRawGalleryExtensionVersion[] = this.getVersionsFrom(rawExtension.versions, fromVersion);
+				if (!versions.length) {
+					return null;
+				}
+
+				return this.getLastValidExtensionVersion(rawExtension, versions)
 					.then(rawVersion => {
 						if (rawVersion) {
-							extension.properties.dependencies = getExtensions(rawVersion, PropertyType.Dependency);
-							extension.properties.engine = getEngine(rawVersion);
-							extension.properties.localizedLanguages = getLocalizedLanguages(rawVersion);
-							extension.assets.download = getVersionAsset(rawVersion, AssetType.VSIX);
-							extension.version = rawVersion.version;
-							return extension;
+							return toExtension(rawExtension, rawVersion, 0, query);
 						}
 						return null;
 					});
 			});
+	}
+
+	private getVersionsFrom(versions: IRawGalleryExtensionVersion[], version: string): IRawGalleryExtensionVersion[] {
+		if (versions[0].version === version) {
+			return versions;
+		}
+		const result: IRawGalleryExtensionVersion[] = [];
+		let currentVersion: IRawGalleryExtensionVersion = null;
+		for (const v of versions) {
+			if (!currentVersion) {
+				if (v.version === version) {
+					currentVersion = v;
+				}
+			}
+			if (currentVersion) {
+				result.push(v);
+			}
+		}
+		return result;
 	}
 
 	private loadDependencies(extensionNames: string[], token: CancellationToken): Promise<IGalleryExtension[]> {
