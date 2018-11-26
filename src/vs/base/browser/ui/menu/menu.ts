@@ -81,7 +81,7 @@ export class Menu extends ActionBar {
 
 		this.menuElement = menuElement;
 
-		this._onScroll = new Emitter<void>();
+		this._onScroll = this._register(new Emitter<void>());
 
 		this.actionsList.setAttribute('role', 'menu');
 
@@ -156,8 +156,8 @@ export class Menu extends ActionBar {
 		this.scrollableElement = this._register(new DomScrollableElement(menuElement, {
 			alwaysConsumeMouseWheel: true,
 			horizontal: ScrollbarVisibility.Hidden,
-			vertical: ScrollbarVisibility.Auto,
-			verticalScrollbarSize: 5,
+			vertical: ScrollbarVisibility.Visible,
+			verticalScrollbarSize: 7,
 			handleMouseWheel: true,
 			useShadows: true
 		}));
@@ -170,6 +170,10 @@ export class Menu extends ActionBar {
 		this.scrollableElement.onScroll(() => {
 			this._onScroll.fire();
 		}, this, this.menuDisposables);
+
+		this._register(addDisposableListener(this.menuElement, EventType.SCROLL, (e) => {
+			this.scrollableElement.scanDomNode();
+		}));
 
 		container.appendChild(this.scrollableElement.getDomNode());
 		this.scrollableElement.scanDomNode();
