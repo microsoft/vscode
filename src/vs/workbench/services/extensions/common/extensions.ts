@@ -184,6 +184,12 @@ export interface IExtensionService extends ICpuProfilerTarget {
 	getExtensions(): Promise<IExtensionDescription[]>;
 
 	/**
+	 * Return a specific extension
+	 * @param id An extension id
+	 */
+	getExtension(id: string): Promise<IExtensionDescription | undefined>;
+
+	/**
 	 * Read all contributions to an extension point.
 	 */
 	readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): Promise<ExtensionPointContribution<T>[]>;

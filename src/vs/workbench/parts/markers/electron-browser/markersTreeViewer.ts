@@ -237,18 +237,18 @@ export class MarkerRenderer implements ITreeRenderer<Marker, MarkerFilterData, I
 
 		templateData.icon.className = 'icon ' + MarkerRenderer.iconClassNameFor(marker);
 
-		templateData.source.set(escape(marker.source), sourceMatches);
+		templateData.source.set(marker.source ? escape(marker.source) : marker.source, sourceMatches);
 		dom.toggleClass(templateData.source.element, 'marker-source', !!marker.source);
 
 		templateData.actionBar.clear();
 		const quickFixAction = this.instantiationService.createInstance(QuickFixAction, node.element);
 		templateData.actionBar.push([quickFixAction], { icon: true, label: false });
 
-		templateData.description.set(escape(marker.message), messageMatches);
+		templateData.description.set(marker.message ? escape(marker.message) : marker.message, messageMatches);
 		templateData.description.element.title = marker.message;
 
 		dom.toggleClass(templateData.code.element, 'marker-code', !!marker.code);
-		templateData.code.set(escape(marker.code) || '', codeMatches);
+		templateData.code.set(marker.code ? escape(marker.code) : '', codeMatches);
 
 		templateData.lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(marker.startLineNumber, marker.startColumn);
 	}
@@ -311,7 +311,7 @@ export class RelatedInformationRenderer implements ITreeRenderer<RelatedInformat
 		templateData.resourceLabel.set(paths.basename(relatedInformation.resource.fsPath), uriMatches);
 		templateData.resourceLabel.element.title = this.labelService.getUriLabel(relatedInformation.resource, { relative: true });
 		templateData.lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(relatedInformation.startLineNumber, relatedInformation.startColumn);
-		templateData.description.set(escape(relatedInformation.message), messageMatches);
+		templateData.description.set(relatedInformation.message ? escape(relatedInformation.message) : relatedInformation.message, messageMatches);
 		templateData.description.element.title = relatedInformation.message;
 	}
 

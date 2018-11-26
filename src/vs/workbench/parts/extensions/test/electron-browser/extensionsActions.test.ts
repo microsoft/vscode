@@ -531,13 +531,13 @@ suite('ExtensionsActions Test', () => {
 	});
 
 	test('Test EnableForWorkspaceAction when there is no extension', () => {
-		const testObject: ExtensionsActions.EnableForWorkspaceAction = instantiationService.createInstance(ExtensionsActions.EnableForWorkspaceAction, 'id');
+		const testObject: ExtensionsActions.EnableForWorkspaceAction = instantiationService.createInstance(ExtensionsActions.EnableForWorkspaceAction);
 
 		assert.ok(!testObject.enabled);
 	});
 
 	test('Test EnableForWorkspaceAction when there extension is not disabled', () => {
-		const testObject: ExtensionsActions.EnableForWorkspaceAction = instantiationService.createInstance(ExtensionsActions.EnableForWorkspaceAction, 'id');
+		const testObject: ExtensionsActions.EnableForWorkspaceAction = instantiationService.createInstance(ExtensionsActions.EnableForWorkspaceAction);
 		const local = aLocalExtension('a');
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
@@ -552,7 +552,7 @@ suite('ExtensionsActions Test', () => {
 		const local = aLocalExtension('a');
 		return instantiationService.get(IExtensionEnablementService).setEnablement(local, EnablementState.Disabled)
 			.then(() => {
-				const testObject: ExtensionsActions.EnableForWorkspaceAction = instantiationService.createInstance(ExtensionsActions.EnableForWorkspaceAction, 'id');
+				const testObject: ExtensionsActions.EnableForWorkspaceAction = instantiationService.createInstance(ExtensionsActions.EnableForWorkspaceAction);
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
 				return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
@@ -567,7 +567,7 @@ suite('ExtensionsActions Test', () => {
 		const local = aLocalExtension('a');
 		return instantiationService.get(IExtensionEnablementService).setEnablement(local, EnablementState.WorkspaceDisabled)
 			.then(() => {
-				const testObject: ExtensionsActions.EnableForWorkspaceAction = instantiationService.createInstance(ExtensionsActions.EnableForWorkspaceAction, 'id');
+				const testObject: ExtensionsActions.EnableForWorkspaceAction = instantiationService.createInstance(ExtensionsActions.EnableForWorkspaceAction);
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
 				return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
@@ -583,7 +583,7 @@ suite('ExtensionsActions Test', () => {
 		return instantiationService.get(IExtensionEnablementService).setEnablement(local, EnablementState.Disabled)
 			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(local, EnablementState.WorkspaceDisabled))
 			.then(() => {
-				const testObject: ExtensionsActions.EnableForWorkspaceAction = instantiationService.createInstance(ExtensionsActions.EnableForWorkspaceAction, 'id');
+				const testObject: ExtensionsActions.EnableForWorkspaceAction = instantiationService.createInstance(ExtensionsActions.EnableForWorkspaceAction);
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
 				return instantiationService.get(IExtensionsWorkbenchService).queryLocal()

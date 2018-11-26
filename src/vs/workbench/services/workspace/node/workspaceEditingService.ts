@@ -25,9 +25,6 @@ import { distinct } from 'vs/base/common/arrays';
 import { isLinux } from 'vs/base/common/platform';
 import { isEqual } from 'vs/base/common/resources';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { join } from 'path';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { mkdirp } from 'vs/base/node/pfs';
 
 export class WorkspaceEditingService implements IWorkspaceEditingService {
 
@@ -42,8 +39,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		@IExtensionService private extensionService: IExtensionService,
 		@IBackupFileService private backupFileService: IBackupFileService,
 		@INotificationService private notificationService: INotificationService,
-		@ICommandService private commandService: ICommandService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@ICommandService private commandService: ICommandService
 	) {
 	}
 
@@ -243,13 +239,9 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	}
 
 	private migrateStorage(toWorkspace: IWorkspaceIdentifier): Thenable<void> {
-		const newWorkspaceStorageHome = join(this.environmentService.workspaceStorageHome, toWorkspace.id);
+		const storageImpl = this.storageService as DelegatingStorageService;
 
-		return mkdirp(newWorkspaceStorageHome).then(() => {
-			const storageImpl = this.storageService as DelegatingStorageService;
-
-			return storageImpl.storage.migrate(newWorkspaceStorageHome);
-		});
+		return storageImpl.storage.migrate(toWorkspace);
 	}
 
 	private migrateWorkspaceSettings(toWorkspace: IWorkspaceIdentifier): TPromise<void> {

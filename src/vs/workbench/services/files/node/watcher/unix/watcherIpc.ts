@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
 import { IWatcherRequest, IWatcherService, IWatcherOptions, IWatchError } from './watcher';
 import { Event } from 'vs/base/common/event';
@@ -21,7 +20,7 @@ export class WatcherChannel implements IServerChannel {
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(_, command: string, arg?: any): TPromise<any> {
+	call(_, command: string, arg?: any): Thenable<any> {
 		switch (command) {
 			case 'setRoots': return this.service.setRoots(arg);
 			case 'setVerboseLogging': return this.service.setVerboseLogging(arg);
@@ -40,15 +39,15 @@ export class WatcherChannelClient implements IWatcherService {
 		return this.channel.listen('watch', options);
 	}
 
-	setVerboseLogging(enable: boolean): TPromise<void> {
+	setVerboseLogging(enable: boolean): Thenable<void> {
 		return this.channel.call('setVerboseLogging', enable);
 	}
 
-	setRoots(roots: IWatcherRequest[]): TPromise<void> {
+	setRoots(roots: IWatcherRequest[]): Thenable<void> {
 		return this.channel.call('setRoots', roots);
 	}
 
-	stop(): TPromise<void> {
+	stop(): Thenable<void> {
 		return this.channel.call('stop');
 	}
 }

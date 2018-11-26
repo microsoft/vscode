@@ -578,7 +578,7 @@ export class ViewsService extends Disposable implements IViewsService {
 			};
 			const when = ContextKeyExpr.has(`${viewDescriptor.id}.active`);
 
-			CommandsRegistry.registerCommand(command.id, () => this.openView(viewDescriptor.id, true));
+			CommandsRegistry.registerCommand(command.id, () => this.openView(viewDescriptor.id, true).then(() => null));
 
 			MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 				command,

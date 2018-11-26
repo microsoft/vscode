@@ -13,7 +13,6 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ILogService } from 'vs/platform/log/common/log';
 import { createUpdateURL, AbstractUpdateService } from 'vs/platform/update/electron-main/abstractUpdateService';
 import { asJson } from 'vs/base/node/request';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { shell } from 'electron';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import * as path from 'path';
@@ -100,7 +99,7 @@ export class LinuxUpdateService extends AbstractUpdateService {
 		});
 	}
 
-	protected doDownloadUpdate(state: AvailableForDownload): TPromise<void> {
+	protected async doDownloadUpdate(state: AvailableForDownload): Promise<void> {
 		// Use the download URL if available as we don't currently detect the package type that was
 		// installed and the website download page is more useful than the tarball generally.
 		if (product.downloadUrl && product.downloadUrl.length > 0) {
@@ -110,7 +109,6 @@ export class LinuxUpdateService extends AbstractUpdateService {
 		}
 
 		this.setState(State.Idle(UpdateType.Archive));
-		return TPromise.as(void 0);
 	}
 
 	protected doQuitAndInstall(): void {

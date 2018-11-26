@@ -365,9 +365,6 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	}
 
 	show(container: HTMLElement): void {
-		if (!this.tree) {
-			this.createTree();
-		}
 		DOM.append(container, this.domNode);
 	}
 
@@ -390,6 +387,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		this._register(this.tree.onDidExpandItem(e => this._onDidExpandItem.fire(e.item.getElement())));
 		this._register(this.tree.onDidCollapseItem(e => this._onDidCollapseItem.fire(e.item.getElement())));
 		this._register(this.tree.onDidChangeSelection(e => this._onDidChangeSelection.fire(e.selection)));
+		this.tree.setInput(this.root);
 	}
 
 	private updateMessage(): void {
@@ -435,7 +433,6 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	layout(size: number) {
 		if (size) {
 			this._size = size;
-			this.domNode.style.height = size + 'px';
 			const treeSize = size - DOM.getTotalHeight(this.messageElement);
 			this.treeContainer.style.height = treeSize + 'px';
 			if (this.tree) {
@@ -469,26 +466,36 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	}
 
 	expand(itemOrItems: ITreeItem | ITreeItem[]): Thenable<void> {
-		itemOrItems = Array.isArray(itemOrItems) ? itemOrItems : [itemOrItems];
-		return this.tree.expandAll(itemOrItems);
+		if (this.tree) {
+			itemOrItems = Array.isArray(itemOrItems) ? itemOrItems : [itemOrItems];
+			return this.tree.expandAll(itemOrItems);
+		}
+		return Promise.arguments(null);
 	}
 
 	setSelection(items: ITreeItem[]): void {
-		this.tree.setSelection(items, { source: 'api' });
+		if (this.tree) {
+			this.tree.setSelection(items, { source: 'api' });
+		}
 	}
 
 	setFocus(item: ITreeItem): void {
-		this.focus();
-		this.tree.setFocus(item);
+		if (this.tree) {
+			this.focus();
+			this.tree.setFocus(item);
+		}
 	}
 
 	reveal(item: ITreeItem): Thenable<void> {
-		return this.tree.reveal(item);
+		if (this.tree) {
+			return this.tree.reveal(item);
+		}
+		return Promise.arguments(null);
 	}
 
 	private activate() {
 		if (!this.activated) {
-			this.tree.setInput(this.root);
+			this.createTree();
 			this.progressService.withProgress({ location: this.container.id }, () => this.extensionService.activateByEvent(`onView:${this.id}`))
 				.then(() => timeout(2000))
 				.then(() => {

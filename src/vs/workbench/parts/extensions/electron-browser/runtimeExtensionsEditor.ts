@@ -40,6 +40,9 @@ import { randomPort } from 'vs/base/node/ports';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
+import { join } from 'path';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 export const IExtensionHostProfileService = createDecorator<IExtensionHostProfileService>('extensionHostProfileService');
 export const CONTEXT_PROFILE_SESSION_STATE = new RawContextKey<string>('profileSessionState', 'none');
@@ -64,7 +67,8 @@ export interface IExtensionHostProfileService {
 	startProfiling(): void;
 	stopProfiling(): void;
 
-	clearLastProfile(): void;
+	getUnresponsiveProfile(extensionId: string): IExtensionHostProfile;
+	setUnresponsiveProfile(extensionId: string, profile: IExtensionHostProfile): void;
 }
 
 interface IExtensionProfileInformation {
@@ -87,6 +91,7 @@ interface IRuntimeExtension {
 	marketplaceInfo: IExtension;
 	status: IExtensionsStatus;
 	profileInfo: IExtensionProfileInformation;
+	unresponsiveProfile?: IExtensionHostProfile;
 }
 
 export class RuntimeExtensionsEditor extends BaseEditor {
@@ -100,7 +105,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 	private _extensionsDescriptions: IExtensionDescription[];
 	private _updateSoon: RunOnceScheduler;
 	private _profileSessionState: IContextKey<string>;
-	private _extensionsHostRecoded: IContextKey<boolean>;
+	private _extensionsHostRecorded: IContextKey<boolean>;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -121,14 +126,13 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		this._profileInfo = this._extensionHostProfileService.lastProfile;
 		this._register(this._extensionHostProfileService.onDidChangeLastProfile(() => {
 			this._profileInfo = this._extensionHostProfileService.lastProfile;
-			this._extensionsHostRecoded.set(!!this._profileInfo);
+			this._extensionsHostRecorded.set(!!this._profileInfo);
 			this._updateExtensions();
 		}));
-		this._extensionHostProfileService.onDidChangeState(() => {
+		this._register(this._extensionHostProfileService.onDidChangeState(() => {
 			const state = this._extensionHostProfileService.state;
-
 			this._profileSessionState.set(ProfileSessionState[state].toLowerCase());
-		});
+		}));
 
 		this._elements = null;
 
@@ -136,7 +140,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		this._updateExtensions();
 
 		this._profileSessionState = CONTEXT_PROFILE_SESSION_STATE.bindTo(contextKeyService);
-		this._extensionsHostRecoded = CONTEXT_EXTENSION_HOST_PROFILE_RECORDED.bindTo(contextKeyService);
+		this._extensionsHostRecorded = CONTEXT_EXTENSION_HOST_PROFILE_RECORDED.bindTo(contextKeyService);
 
 		this._updateSoon = this._register(new RunOnceScheduler(() => this._updateExtensions(), 200));
 
@@ -210,7 +214,8 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				description: extensionDescription,
 				marketplaceInfo: marketplaceMap[extensionDescription.id],
 				status: statusMap[extensionDescription.id],
-				profileInfo: profileInfo
+				profileInfo: profileInfo,
+				unresponsiveProfile: this._extensionHostProfileService.getUnresponsiveProfile(extensionDescription.id)
 			};
 		}
 
@@ -223,6 +228,16 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 					return a.originalIndex - b.originalIndex;
 				}
 				return b.profileInfo.totalTime - a.profileInfo.totalTime;
+			});
+		} else {
+			// bubble up unresponsive extension
+			result = result.sort((a, b) => {
+				if (a.unresponsiveProfile && !b.unresponsiveProfile) {
+					return -1;
+				} else if (!a.unresponsiveProfile && b.unresponsiveProfile) {
+					return 1;
+				}
+				return 0;
 			});
 		}
 
@@ -250,6 +265,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 			activationTime: HTMLElement;
 			profileTime: HTMLElement;
+			unresponsiveWarn: HTMLElement;
 
 			profileTimeline: HTMLElement;
 
@@ -282,6 +298,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				const timeContainer = append(element, $('.time'));
 				const activationTime = append(timeContainer, $('div.activation-time'));
 				const profileTime = append(timeContainer, $('div.profile-time'));
+				const unresponsiveWarn = append(timeContainer, $('div.unresponsive-warn'));
 
 				const profileTimeline = append(element, $('div.profile-timeline'));
 
@@ -300,6 +317,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 					actionbar,
 					activationTime,
 					profileTime,
+					unresponsiveWarn,
 					profileTimeline,
 					msgIcon,
 					msgLabel,
@@ -414,6 +432,15 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 					data.profileTime.textContent = '';
 					data.profileTimeline.innerHTML = '';
 				}
+
+				const unresponsiveProfile = this._extensionHostProfileService.getUnresponsiveProfile(element.description.id);
+				if (unresponsiveProfile && (!this._profileInfo || this._profileInfo === unresponsiveProfile)) {
+					data.unresponsiveWarn.innerHTML = renderOcticons(`Unresponsive $(alert)`);
+					data.unresponsiveWarn.title = nls.localize('unresponsive.title', "Extension has caused the extension host to freeze.");
+				} else {
+					data.unresponsiveWarn.innerHTML = '';
+					data.unresponsiveWarn.title = '';
+				}
 			},
 
 			disposeElement: () => null,
@@ -492,7 +519,6 @@ class ReportExtensionIssueAction extends Action {
 	}
 
 	run(extension: IRuntimeExtension): Promise<any> {
-		clipboard.writeText('```json \n' + JSON.stringify(extension.status, null, '\t') + '\n```');
 		window.open(this.generateNewIssueUrl(extension));
 
 		return Promise.resolve(null);
@@ -506,13 +532,30 @@ class ReportExtensionIssueAction extends Action {
 			baseUrl = product.reportIssueUrl;
 		}
 
+		let message: string;
+		let reason: string;
+		if (extension.unresponsiveProfile) {
+			// unresponsive extension host caused
+			reason = 'Performance';
+			let path = join(os.homedir(), `${extension.description.id}-unresponsive.cpuprofile.txt`);
+			writeFile(path, JSON.stringify(extension.unresponsiveProfile.data)).catch(onUnexpectedError);
+			message = `:warning: Make sure to **attach** this file from your *home*-directory: \`${path}\` :warning:`;
+
+		} else {
+			// generic
+			clipboard.writeText('```json \n' + JSON.stringify(extension.status, null, '\t') + '\n```');
+			reason = 'Bug';
+			message = ':warning: We have written the needed data into your clipboard. Please paste! :warning:';
+		}
+
 		const osVersion = `${os.type()} ${os.arch()} ${os.release()}`;
 		const queryStringPrefix = baseUrl.indexOf('?') === -1 ? '?' : '&';
 		const body = encodeURIComponent(
-			`- Extension Name: ${extension.description.name}
-- Extension Version: ${extension.description.version}
-- OS Version: ${osVersion}
-- VSCode version: ${pkg.version}` + '\n\n We have written the needed data into your clipboard. Please paste:'
+			`- Issue Type: \`${reason}\`
+- Extension Name: \`${extension.description.name}\`
+- Extension Version: \`${extension.description.version}\`
+- OS Version: \`${osVersion}\`
+- VSCode version: \`${pkg.version}\`\n\n${message}`
 		);
 
 		return `${baseUrl}${queryStringPrefix}body=${body}`;

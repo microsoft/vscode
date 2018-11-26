@@ -5,13 +5,10 @@
 
 import * as chokidar from 'vscode-chokidar';
 import * as fs from 'fs';
-
 import * as gracefulFs from 'graceful-fs';
 gracefulFs.gracefulify(fs);
 import * as paths from 'vs/base/common/paths';
 import * as glob from 'vs/base/common/glob';
-
-import { TPromise } from 'vs/base/common/winjs.base';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import * as strings from 'vs/base/common/strings';
@@ -61,12 +58,13 @@ export class ChokidarWatcherService implements IWatcherService {
 		return this.onWatchEvent;
 	}
 
-	public setVerboseLogging(enabled: boolean): TPromise<void> {
+	public setVerboseLogging(enabled: boolean): Thenable<void> {
 		this._verboseLogging = enabled;
-		return TPromise.as(void 0);
+
+		return Promise.resolve();
 	}
 
-	public setRoots(requests: IWatcherRequest[]): TPromise<void> {
+	public setRoots(requests: IWatcherRequest[]): Thenable<void> {
 		const watchers = Object.create(null);
 		const newRequests: string[] = [];
 
@@ -93,7 +91,7 @@ export class ChokidarWatcherService implements IWatcherService {
 		}
 
 		this._watchers = watchers;
-		return TPromise.as(void 0);
+		return Promise.resolve();
 	}
 
 	// for test purposes
@@ -245,7 +243,7 @@ export class ChokidarWatcherService implements IWatcherService {
 						});
 					}
 
-					return TPromise.as(void 0);
+					return Promise.resolve();
 				});
 			}
 		});
@@ -272,16 +270,14 @@ export class ChokidarWatcherService implements IWatcherService {
 		return watcher;
 	}
 
-	public stop(): TPromise<void> {
+	public stop(): Thenable<void> {
 		for (let path in this._watchers) {
 			let watcher = this._watchers[path];
 			watcher.stop();
 		}
 		this._watchers = Object.create(null);
-		return TPromise.as(void 0);
+		return Promise.resolve();
 	}
-
-
 }
 
 function isIgnored(path: string, requests: ExtendedWatcherRequest[]): boolean {

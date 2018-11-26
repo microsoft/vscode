@@ -104,7 +104,7 @@ import { runWhenIdle } from 'vs/base/common/async';
 import { TextResourcePropertiesService } from 'vs/workbench/services/textfile/electron-browser/textResourcePropertiesService';
 import { MulitExtensionManagementService } from 'vs/platform/extensionManagement/node/multiExtensionManagement';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { RemoteAuthorityResolverChannelClient } from 'vs/platform/remote/node/remoteAuthorityResolverChannel';
+import { RemoteAuthorityResolverChannelClient } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
 
 /**
  * Services that we require for the Shell
@@ -125,9 +125,6 @@ export class WorkbenchShell extends Disposable {
 
 	private readonly _onShutdown = this._register(new Emitter<ShutdownEvent>());
 	get onShutdown(): Event<ShutdownEvent> { return this._onShutdown.event; }
-
-	private readonly _onRunning = this._register(new Emitter<void>());
-	get onRunning(): Event<void> { return this._onRunning.event; }
 
 	private storageService: DelegatingStorageService;
 	private environmentService: IEnvironmentService;
@@ -217,10 +214,8 @@ export class WorkbenchShell extends Disposable {
 			// Startup Workbench
 			workbench.startup().then(startupInfos => {
 
-				// Set lifecycle phase to `Runnning` so that other contributions can
-				// now do something we also emit this as event to interested parties outside
+				// Set lifecycle phase to `Runnning`
 				this.lifecycleService.phase = LifecyclePhase.Running;
-				this._onRunning.fire();
 
 				// Startup Telemetry
 				this.logStartupTelemetry(startupInfos);

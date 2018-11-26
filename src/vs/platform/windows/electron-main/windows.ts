@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { OpenContext, IWindowConfiguration, ReadyState, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, INewWindowOptions } from 'vs/platform/windows/common/windows';
+import { OpenContext, IWindowConfiguration, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, INewWindowOptions } from 'vs/platform/windows/common/windows';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -45,8 +45,8 @@ export interface ICodeWindow {
 
 	lastFocusTime: number;
 
-	readyState: ReadyState;
-	ready(): TPromise<ICodeWindow>;
+	isReady: boolean;
+	ready(): Thenable<ICodeWindow>;
 
 	addTabbedWindow(window: ICodeWindow): void;
 
@@ -63,6 +63,7 @@ export interface ICodeWindow {
 
 	toggleFullScreen(): void;
 	isFullScreen(): boolean;
+	isMinimized(): boolean;
 	hasHiddenTitleBarStyle(): boolean;
 	setRepresentedFilename(name: string): void;
 	getRepresentedFilename(): string;
@@ -106,9 +107,9 @@ export interface IWindowsMainService {
 	pickFolderAndOpen(options: INativeOpenDialogOptions): void;
 	pickFileAndOpen(options: INativeOpenDialogOptions): void;
 	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): void;
-	showMessageBox(options: Electron.MessageBoxOptions, win?: ICodeWindow): TPromise<IMessageBoxResult>;
-	showSaveDialog(options: Electron.SaveDialogOptions, win?: ICodeWindow): TPromise<string>;
-	showOpenDialog(options: Electron.OpenDialogOptions, win?: ICodeWindow): TPromise<string[]>;
+	showMessageBox(options: Electron.MessageBoxOptions, win?: ICodeWindow): Thenable<IMessageBoxResult>;
+	showSaveDialog(options: Electron.SaveDialogOptions, win?: ICodeWindow): Thenable<string>;
+	showOpenDialog(options: Electron.OpenDialogOptions, win?: ICodeWindow): Thenable<string[]>;
 	focusLastActive(cli: ParsedArgs, context: OpenContext): ICodeWindow;
 	getLastActiveWindow(): ICodeWindow;
 	waitForWindowCloseOrLoad(windowId: number): TPromise<void>;

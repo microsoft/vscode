@@ -13,8 +13,19 @@ import { basename } from 'path';
 import { mark } from 'vs/base/common/performance';
 import { rename, unlinkIgnoreError, copy, renameIgnoreError } from 'vs/base/node/pfs';
 
+export enum StorageHint {
+
+	// A hint to the storage that the storage
+	// does not exist on disk yet. This allows
+	// the storage library to improve startup
+	// time by not checking the storage for data.
+	STORAGE_DOES_NOT_EXIST
+}
+
 export interface IStorageOptions {
 	path: string;
+
+	hint?: StorageHint;
 
 	logging?: IStorageLoggingOptions;
 }
@@ -58,6 +69,8 @@ export interface IStorage extends IDisposable {
 export class Storage extends Disposable implements IStorage {
 	_serviceBrand: any;
 
+	static IN_MEMORY_PATH = ':memory:';
+
 	private static readonly FLUSH_DELAY = 100;
 
 	private _onDidChangeStorage: Emitter<string> = this._register(new Emitter<string>());
@@ -73,7 +86,7 @@ export class Storage extends Disposable implements IStorage {
 	private pendingDeletes: Set<string> = new Set<string>();
 	private pendingInserts: Map<string, string> = new Map();
 
-	constructor(options: IStorageOptions) {
+	constructor(private options: IStorageOptions) {
 		super();
 
 		this.storage = new SQLiteStorageImpl(options);
@@ -91,6 +104,13 @@ export class Storage extends Disposable implements IStorage {
 		}
 
 		this.state = StorageState.Initialized;
+
+		if (this.options.hint === StorageHint.STORAGE_DOES_NOT_EXIST) {
+			// return early if we know the storage file does not exist. this is a performance
+			// optimization to not load all items of the underlying storage if we know that
+			// there can be no items because the storage does not exist.
+			return Promise.resolve();
+		}
 
 		return this.storage.getItems().then(items => {
 			this.cache = items;
@@ -239,7 +259,6 @@ export class SQLiteStorageImpl {
 
 	private static measuredRequireDuration: boolean; // TODO@Ben remove me after a while
 
-	private static IN_MEMORY_PATH = ':memory:';
 	private static BUSY_OPEN_TIMEOUT = 2000; // timeout in ms to retry when opening DB fails with SQLITE_BUSY
 
 	private name: string;
@@ -323,7 +342,7 @@ export class SQLiteStorageImpl {
 					// If the DB closed successfully and we are not running in-memory
 					// make a backup of the DB so that we can use it as fallback in
 					// case the actual DB becomes corrupt.
-					if (result.path !== SQLiteStorageImpl.IN_MEMORY_PATH) {
+					if (result.path !== Storage.IN_MEMORY_PATH) {
 						return this.backup(result).then(resolve, error => {
 							this.logger.error(`[storage ${this.name}] backup(): ${error}`);
 
@@ -338,7 +357,7 @@ export class SQLiteStorageImpl {
 	}
 
 	private backup(db: IOpenDatabaseResult): Promise<void> {
-		if (db.path === SQLiteStorageImpl.IN_MEMORY_PATH) {
+		if (db.path === Storage.IN_MEMORY_PATH) {
 			return Promise.resolve(); // no backups when running in-memory
 		}
 
@@ -371,7 +390,7 @@ export class SQLiteStorageImpl {
 
 				// In case of any error to open the DB, use an in-memory
 				// DB so that we always have a valid DB to talk to.
-				this.doOpen(SQLiteStorageImpl.IN_MEMORY_PATH).then(resolve, reject);
+				this.doOpen(Storage.IN_MEMORY_PATH).then(resolve, reject);
 			};
 
 			this.doOpen(path).then(resolve, error => {

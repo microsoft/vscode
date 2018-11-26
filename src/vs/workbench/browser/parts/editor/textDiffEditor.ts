@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import * as objects from 'vs/base/common/objects';
 import * as types from 'vs/base/common/types';
@@ -129,7 +128,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 				}
 
 				// Otherwise make sure the error bubbles up
-				return TPromise.wrapError(error);
+				return Promise.reject(error);
 			});
 		});
 	}

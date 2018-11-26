@@ -69,7 +69,7 @@ export class KeybindingsEditorInput extends EditorInput {
 		return nls.localize('keybindingsInputName', "Keyboard Shortcuts");
 	}
 
-	resolve(): Promise<KeybindingsEditorModel> {
+	resolve(): Thenable<KeybindingsEditorModel> {
 		return Promise.resolve(this.keybindingsModel);
 	}
 
@@ -82,6 +82,10 @@ export class SettingsEditor2Input extends EditorInput {
 
 	public static readonly ID: string = 'workbench.input.settings2';
 	private readonly _settingsModel: Settings2EditorModel;
+	private resource: URI = URI.from({
+		scheme: 'vscode-settings',
+		path: `settingseditor`
+	});
 
 	constructor(
 		@IPreferencesService _preferencesService: IPreferencesService,
@@ -103,14 +107,11 @@ export class SettingsEditor2Input extends EditorInput {
 		return nls.localize('settingsEditor2InputName', "Settings");
 	}
 
-	resolve(): Promise<Settings2EditorModel> {
+	resolve(): Thenable<Settings2EditorModel> {
 		return Promise.resolve(this._settingsModel);
 	}
 
 	public getResource(): URI {
-		return URI.from({
-			scheme: 'vscode-settings',
-			path: `settingseditor`
-		});
+		return this.resource;
 	}
 }

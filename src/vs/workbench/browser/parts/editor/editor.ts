@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { GroupIdentifier, IWorkbenchEditorConfiguration, IWorkbenchEditorPartConfiguration, EditorOptions, TextEditorOptions, IEditorInput, IEditorIdentifier, IEditorCloseEvent } from 'vs/workbench/common/editor';
 import { EditorGroup } from 'vs/workbench/common/editor/editorGroup';
 import { IEditorGroup, GroupDirection, IAddGroupOptions, IMergeGroupOptions, GroupsOrder, IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
@@ -103,7 +102,7 @@ export interface IEditorGroupsAccessor {
 
 export interface IEditorGroupView extends IDisposable, ISerializableView, IEditorGroup {
 	readonly group: EditorGroup;
-	readonly whenRestored: TPromise<void>;
+	readonly whenRestored: Thenable<void>;
 	readonly disposed: boolean;
 
 	readonly onDidFocus: Event<void>;
@@ -156,5 +155,5 @@ export interface EditorGroupsServiceImpl extends IEditorGroupsService {
 	/**
 	 * A promise that resolves when groups have been restored.
 	 */
-	readonly whenRestored: TPromise<void>;
+	readonly whenRestored: Thenable<void>;
 }

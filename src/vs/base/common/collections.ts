@@ -72,18 +72,6 @@ export function forEach<T>(from: IStringDictionary<T> | INumberDictionary<T>, ca
 }
 
 /**
- * Removes an element from the dictionary. Returns {{false}} if the property
- * does not exists.
- */
-export function remove<T>(from: IStringDictionary<T> | INumberDictionary<T>, key: string): boolean {
-	if (!hasOwnProperty.call(from, key)) {
-		return false;
-	}
-	delete (from as any)[key];
-	return true;
-}
-
-/**
  * Groups the collection into a dictionary based on the provided
  * group function.
  */
