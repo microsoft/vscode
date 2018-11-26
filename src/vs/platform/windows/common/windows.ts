@@ -245,10 +245,10 @@ export interface IWindowSettings {
 	clickThroughInactive: boolean;
 }
 
-export function getTitleBarStyle(configurationService: IConfigurationService, environment: IEnvironmentService): 'native' | 'custom' {
+export function getTitleBarStyle(configurationService: IConfigurationService, environment: IEnvironmentService, isExtensionDevelopment = environment.isExtensionDevelopment): 'native' | 'custom' {
 	const configuration = configurationService.getValue<IWindowSettings>('window');
 
-	const isDev = !environment.isBuilt || environment.isExtensionDevelopment;
+	const isDev = !environment.isBuilt || isExtensionDevelopment;
 	if (isMacintosh && isDev) {
 		return 'native'; // not enabled when developing due to https://github.com/electron/electron/issues/3647
 	}

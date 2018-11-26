@@ -1304,31 +1304,41 @@ export class WindowsManager implements IWindowsMainService {
 			}
 		}
 
-		// Only load when the window has not vetoed this
-		this.lifecycleService.unload(window, UnloadReason.LOAD).then(veto => {
-			if (!veto) {
-
-				// Register window for backups
-				if (!configuration.extensionDevelopmentPath) {
-					if (configuration.workspace) {
-						configuration.backupPath = this.backupMainService.registerWorkspaceBackupSync(configuration.workspace);
-					} else if (configuration.folderUri) {
-						configuration.backupPath = this.backupMainService.registerFolderBackupSync(configuration.folderUri);
-					} else {
-						const backupFolder = options.emptyWindowBackupInfo && options.emptyWindowBackupInfo.backupFolder;
-						configuration.backupPath = this.backupMainService.registerEmptyWindowBackupSync({ backupFolder, remoteAuthority: configuration.remoteAuthority });
-					}
+		// If the window was already loaded, make sure to unload it
+		// first and only load the new configuration if that was
+		// not vetoed
+		if (window.isReady) {
+			this.lifecycleService.unload(window, UnloadReason.LOAD).then(veto => {
+				if (!veto) {
+					this.doOpenInBrowserWindow(window, configuration, options);
 				}
-
-				// Load it
-				window.load(configuration);
-
-				// Signal event
-				this._onWindowLoad.fire(window.id);
-			}
-		});
+			});
+		} else {
+			this.doOpenInBrowserWindow(window, configuration, options);
+		}
 
 		return window;
+	}
+
+	private doOpenInBrowserWindow(window: ICodeWindow, configuration: IWindowConfiguration, options: IOpenBrowserWindowOptions): void {
+
+		// Register window for backups
+		if (!configuration.extensionDevelopmentPath) {
+			if (configuration.workspace) {
+				configuration.backupPath = this.backupMainService.registerWorkspaceBackupSync(configuration.workspace);
+			} else if (configuration.folderUri) {
+				configuration.backupPath = this.backupMainService.registerFolderBackupSync(configuration.folderUri);
+			} else {
+				const backupFolder = options.emptyWindowBackupInfo && options.emptyWindowBackupInfo.backupFolder;
+				configuration.backupPath = this.backupMainService.registerEmptyWindowBackupSync({ backupFolder, remoteAuthority: configuration.remoteAuthority });
+			}
+		}
+
+		// Load it
+		window.load(configuration);
+
+		// Signal event
+		this._onWindowLoad.fire(window.id);
 	}
 
 	private getNewWindowState(configuration: IWindowConfiguration): INewWindowState {
