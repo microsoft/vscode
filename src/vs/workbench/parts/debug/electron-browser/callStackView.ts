@@ -189,16 +189,18 @@ export class CallStackView extends ViewletPanel {
 	}
 
 	private updateTreeSelection(): void {
-		if (!this.tree) {
+		if (!this.tree || this.tree.visibleNodeCount === 0) {
 			// Tree not initialized yet
 			return;
 		}
 
-		const updateSelection = (element: IStackFrame | IDebugSession) => {
+		const updateSelectionAndReveal = (element: IStackFrame | IDebugSession) => {
 			this.ignoreSelectionChangedEvent = true;
 			try {
 				this.tree.setSelection([element]);
-			} finally {
+				this.tree.reveal(element);
+			} catch (e) { }
+			finally {
 				this.ignoreSelectionChangedEvent = false;
 			}
 		};
@@ -210,18 +212,22 @@ export class CallStackView extends ViewletPanel {
 			if (!session) {
 				this.tree.setSelection([]);
 			} else {
-				updateSelection(session);
-				this.tree.reveal(session);
+				updateSelectionAndReveal(session);
 			}
 		} else {
-			this.tree.expand(thread.session);
-			this.tree.expand(thread);
+			this.tryToExpandElement(thread.session);
+			this.tryToExpandElement(thread);
 
 			if (stackFrame) {
-				updateSelection(stackFrame);
-				this.tree.reveal(stackFrame);
+				updateSelectionAndReveal(stackFrame);
 			}
 		}
+	}
+
+	private tryToExpandElement(element: CallStackItem): void {
+		try {
+			this.tree.expand(element);
+		} catch (e) { }
 	}
 
 	setVisible(visible: boolean): void {
