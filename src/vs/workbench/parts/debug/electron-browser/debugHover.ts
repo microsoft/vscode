@@ -29,7 +29,7 @@ import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 
 const $ = dom.$;
-const MAX_ELEMENTS_SHOWN = 18;
+const MAX_TREE_HEIGHT = 324;
 
 export class DebugHoverWidget implements IContentWidget {
 
@@ -43,7 +43,6 @@ export class DebugHoverWidget implements IContentWidget {
 	private showAtPosition: Position;
 	private highlightDecorations: string[];
 	private complexValueContainer: HTMLElement;
-	private treeContainer: HTMLElement;
 	private complexValueTitle: HTMLElement;
 	private valueContainer: HTMLElement;
 	private stoleFocus: boolean;
@@ -68,11 +67,11 @@ export class DebugHoverWidget implements IContentWidget {
 		this.domNode = $('.debug-hover-widget');
 		this.complexValueContainer = dom.append(this.domNode, $('.complex-value'));
 		this.complexValueTitle = dom.append(this.complexValueContainer, $('.title'));
-		this.treeContainer = dom.append(this.complexValueContainer, $('.debug-hover-tree'));
-		this.treeContainer.setAttribute('role', 'tree');
+		const treeContainer = dom.append(this.complexValueContainer, $('.debug-hover-tree'));
+		treeContainer.setAttribute('role', 'tree');
 		this.dataSource = new DebugHoverDataSource();
 
-		this.tree = new DataTree(this.treeContainer, new DebugHoverDelegate(), [this.instantiationService.createInstance(VariablesRenderer)],
+		this.tree = new DataTree(treeContainer, new DebugHoverDelegate(), [this.instantiationService.createInstance(VariablesRenderer)],
 			this.dataSource, {
 				ariaLabel: nls.localize('treeAriaLabel', "Debug Hover"),
 				accessibilityProvider: new DebugHoverAccessibilityProvider(),
@@ -105,9 +104,6 @@ export class DebugHoverWidget implements IContentWidget {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.tree.onDidChangeCollapseState(() => {
-			this.layoutTree();
-		}));
 		this.toDispose.push(this.tree.onMouseClick(event => this.onMouseClick(event.element)));
 
 		this.toDispose.push(dom.addStandardDisposableListener(this.domNode, 'keydown', (e: IKeyboardEvent) => {
@@ -237,7 +233,7 @@ export class DebugHoverWidget implements IContentWidget {
 		return this.tree.refresh(null).then(() => {
 			this.complexValueTitle.textContent = expression.value;
 			this.complexValueTitle.title = expression.value;
-			this.layoutTree();
+			this.tree.layout(MAX_TREE_HEIGHT);
 			this.editor.layoutContentWidget(this);
 			this.scrollbar.scanDomNode();
 			if (focus) {
@@ -245,14 +241,6 @@ export class DebugHoverWidget implements IContentWidget {
 				this.tree.domFocus();
 			}
 		});
-	}
-
-	private layoutTree(): void {
-		const height = Math.min(this.tree.visibleNodeCount, MAX_ELEMENTS_SHOWN) * 18; // + 10; // add 10 px for the horizontal scroll bar
-		if (this.treeContainer.clientHeight !== height) {
-			this.treeContainer.style.height = `${height}px`;
-			this.tree.layout();
-		}
 	}
 
 	private onMouseClick(element: IExpression): void {
