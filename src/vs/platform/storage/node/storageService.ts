@@ -30,7 +30,7 @@ export interface IStorageServiceOptions {
 export class StorageService extends Disposable implements IStorageService {
 	_serviceBrand: any;
 
-	private static WORKSPACE_STORAGE_NAME = 'state.db';
+	private static WORKSPACE_STORAGE_NAME = 'state.vscdb';
 	private static WORKSPACE_META_NAME = 'workspace.json';
 
 	private _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
