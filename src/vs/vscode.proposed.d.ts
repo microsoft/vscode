@@ -1210,15 +1210,6 @@ declare module 'vscode' {
 
 	//#region Tree View
 
-	export interface TreeView<T> extends Disposable {
-
-		/**
-		 * An optional human-readable message that will be rendered in the view.
-		 */
-		message?: string | MarkdownString;
-
-	}
-
 	/**
 	 * Label describing the [Tree item](#TreeItem)
 	 */
@@ -1235,14 +1226,6 @@ declare module 'vscode' {
 		 */
 		highlights?: [number, number][];
 
-	}
-
-	export interface TreeItem {
-		/**
-		 * A human readable string which is rendered less prominent.
-		 * When `true`, it is derived from [resourceUri](#TreeItem.resourceUri) and when `falsy`, it is not shown.
-		 */
-		description?: string | boolean;
 	}
 
 	export class TreeItem2 extends TreeItem {
