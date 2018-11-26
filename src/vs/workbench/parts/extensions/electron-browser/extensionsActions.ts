@@ -2654,8 +2654,8 @@ export class ReinstallAction extends Action {
 		return this.extensionsWorkbenchService.local.filter(l => l.type === LocalExtensionType.User && l.local).length > 0;
 	}
 
-	run(): Promise<any> {
-		return Promise.resolve(this.quickInputService.pick(this.getEntries(), { placeHolder: localize('selectExtensionToReinstall', "Select Extension to Reinstall") }))
+	run(): Thenable<any> {
+		return this.quickInputService.pick(this.getEntries(), { placeHolder: localize('selectExtensionToReinstall', "Select Extension to Reinstall") })
 			.then(pick => pick && this.reinstallExtension(pick.extension));
 	}
 
@@ -2717,8 +2717,8 @@ export class InstallExtensionPreviousVersionAction extends Action {
 		return this.extensionsWorkbenchService.local.filter(l => l.type === LocalExtensionType.User && l.local).length > 0;
 	}
 
-	run(): Promise<any> {
-		return Promise.resolve(this.quickInputService.pick(this.getEntries(), { placeHolder: localize('selectExtension', "Select Extension") }))
+	run(): Thenable<any> {
+		return this.quickInputService.pick(this.getEntries(), { placeHolder: localize('selectExtension', "Select Extension") })
 			.then(pick => pick && this.install(pick.extension, pick.version));
 	}
 
