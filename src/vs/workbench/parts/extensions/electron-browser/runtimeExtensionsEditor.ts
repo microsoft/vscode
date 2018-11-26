@@ -66,7 +66,7 @@ export interface IExtensionHostProfileService {
 	stopProfiling(): void;
 
 	getUnresponsiveProfile(extensionId: string): IExtensionHostProfile;
-	setUnresponsiveProfile(extensionId: string, profile: IExtensionHostProfile): boolean;
+	setUnresponsiveProfile(extensionId: string, profile: IExtensionHostProfile): void;
 }
 
 interface IExtensionProfileInformation {
