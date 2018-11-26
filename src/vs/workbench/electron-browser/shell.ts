@@ -104,7 +104,7 @@ import { runWhenIdle } from 'vs/base/common/async';
 import { TextResourcePropertiesService } from 'vs/workbench/services/textfile/electron-browser/textResourcePropertiesService';
 import { MulitExtensionManagementService } from 'vs/platform/extensionManagement/node/multiExtensionManagement';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { RemoteAuthorityResolverChannelClient } from 'vs/platform/remote/node/remoteAuthorityResolverChannel';
+import { RemoteAuthorityResolverChannelClient } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
 
 /**
  * Services that we require for the Shell

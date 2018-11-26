@@ -4,7 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { unicodeEscapesToPCRE2, fixRegexEndingPattern, fixRegexCRMatchingWhitespaceClass, fixRegexCRMatchingNonWordClass, fixRegexNewline } from 'vs/workbench/services/search/node/ripgrepTextSearchEngine';
+import { joinPath } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
+import { Range } from 'vs/workbench/services/search/node/ripgrepSearchUtils';
+import { fixRegexCRMatchingNonWordClass, fixRegexCRMatchingWhitespaceClass, fixRegexEndingPattern, fixRegexNewline, IRgMatch, IRgMessage, RipgrepParser, unicodeEscapesToPCRE2 } from 'vs/workbench/services/search/node/ripgrepTextSearchEngine';
+import { TextSearchResult } from 'vscode';
 
 suite('RipgrepTextSearchEngine', () => {
 	test('unicodeEscapesToPCRE2', async () => {
@@ -104,5 +108,141 @@ suite('RipgrepTextSearchEngine', () => {
 			['foo\\n+abc', 'foo\r\nabc', true],
 			['foo\\n+abc', 'foo\n\n\nabc', true],
 		].forEach(testFixRegexNewline);
+	});
+
+	suite('RipgrepParser', () => {
+		const TEST_FOLDER = URI.file('/foo/bar');
+
+		function testParser(inputData: string[], expectedResults: TextSearchResult[]): void {
+			const testParser = new RipgrepParser(1000, TEST_FOLDER.fsPath);
+
+			const actualResults: TextSearchResult[] = [];
+			testParser.on('result', r => {
+				actualResults.push(r);
+			});
+
+			inputData.forEach(d => testParser.handleData(d));
+			testParser.flush();
+
+			assert.deepEqual(actualResults, expectedResults);
+		}
+
+		function makeRgMatch(relativePath: string, text: string, lineNumber: number, matchRanges: { start: number, end: number }[]): string {
+			return JSON.stringify(<IRgMessage>{
+				type: 'match',
+				data: <IRgMatch>{
+					path: {
+						text: relativePath
+					},
+					lines: {
+						text
+					},
+					line_number: lineNumber,
+					absolute_offset: 0, // unused
+					submatches: matchRanges.map(mr => {
+						return {
+							...mr,
+							match: { text: text.substring(mr.start, mr.end) }
+						};
+					})
+				}
+			}) + '\n';
+		}
+
+		test('single result', () => {
+			testParser(
+				[
+					makeRgMatch('file1.js', 'foobar', 4, [{ start: 3, end: 6 }])
+				],
+				[
+					{
+						preview: {
+							text: 'foobar',
+							matches: [new Range(0, 3, 0, 6)]
+						},
+						uri: joinPath(TEST_FOLDER, 'file1.js'),
+						ranges: [new Range(3, 3, 3, 6)]
+					}
+				]);
+		});
+
+		test('multiple results', () => {
+			testParser(
+				[
+					makeRgMatch('file1.js', 'foobar', 4, [{ start: 3, end: 6 }]),
+					makeRgMatch('app/file2.js', 'foobar', 4, [{ start: 3, end: 6 }]),
+					makeRgMatch('app2/file3.js', 'foobar', 4, [{ start: 3, end: 6 }]),
+				],
+				[
+					{
+						preview: {
+							text: 'foobar',
+							matches: [new Range(0, 3, 0, 6)]
+						},
+						uri: joinPath(TEST_FOLDER, 'file1.js'),
+						ranges: [new Range(3, 3, 3, 6)]
+					},
+					{
+						preview: {
+							text: 'foobar',
+							matches: [new Range(0, 3, 0, 6)]
+						},
+						uri: joinPath(TEST_FOLDER, 'app/file2.js'),
+						ranges: [new Range(3, 3, 3, 6)]
+					},
+					{
+						preview: {
+							text: 'foobar',
+							matches: [new Range(0, 3, 0, 6)]
+						},
+						uri: joinPath(TEST_FOLDER, 'app2/file3.js'),
+						ranges: [new Range(3, 3, 3, 6)]
+					}
+				]);
+		});
+
+		test('chopped-up input chunks', () => {
+			const dataStrs = [
+				makeRgMatch('file1.js', 'foobar', 4, [{ start: 3, end: 6 }]),
+				makeRgMatch('app/file2.js', 'foobar', 4, [{ start: 3, end: 6 }]),
+				makeRgMatch('app2/file3.js', 'foobar', 4, [{ start: 3, end: 6 }]),
+			];
+
+			testParser(
+				[
+					dataStrs[0].substring(0, 5),
+					dataStrs[0].substring(5),
+					'\n',
+					dataStrs[1].trim(),
+					'\n' + dataStrs[2].substring(0, 25),
+					dataStrs[2].substring(25)
+				],
+				[
+					{
+						preview: {
+							text: 'foobar',
+							matches: [new Range(0, 3, 0, 6)]
+						},
+						uri: joinPath(TEST_FOLDER, 'file1.js'),
+						ranges: [new Range(3, 3, 3, 6)]
+					},
+					{
+						preview: {
+							text: 'foobar',
+							matches: [new Range(0, 3, 0, 6)]
+						},
+						uri: joinPath(TEST_FOLDER, 'app/file2.js'),
+						ranges: [new Range(3, 3, 3, 6)]
+					},
+					{
+						preview: {
+							text: 'foobar',
+							matches: [new Range(0, 3, 0, 6)]
+						},
+						uri: joinPath(TEST_FOLDER, 'app2/file3.js'),
+						ranges: [new Range(3, 3, 3, 6)]
+					}
+				]);
+		});
 	});
 });
