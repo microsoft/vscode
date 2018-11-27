@@ -207,7 +207,7 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 			slowTimeout.then(() => {
 				node.state = DataTreeNodeState.Slow;
 				this._onDidChangeNodeState.fire(node);
-			});
+			}, _ => null);
 
 			return this.dataSource.getChildren(node.element)
 				.then(children => {
