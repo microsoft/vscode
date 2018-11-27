@@ -1192,6 +1192,11 @@ export class CommandCenter {
 		// no changes, and the user has not configured to commit all in this case
 		if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit) {
 
+			const enableSmartCommitWarning = config.get<boolean>('enableSmartCommitWarning');
+			if (!enableSmartCommitWarning) {
+				return false;
+			}
+
 			// prompt the user if we want to commit all or not
 			const message = localize('no staged changes', "There are no staged changes to commit.\n\nWould you like to automatically stage all your changes and commit them directly?");
 			const yes = localize('yes', "Yes");
