@@ -66,6 +66,7 @@
 		"./vs/base/common/jsonFormatter.ts",
 		"./vs/base/common/paths.ts",
 		"./vs/base/common/uriIpc.ts",
+		"./vs/base/node/config.ts",
 		"./vs/base/node/console.ts",
 		"./vs/base/node/crypto.ts",
 		"./vs/base/node/decoder.ts",
@@ -116,6 +117,7 @@
 		"./vs/code/electron-browser/sharedProcess/contrib/contributions.ts",
 		"./vs/code/electron-browser/sharedProcess/contrib/languagePackCachedDataCleaner.ts",
 		"./vs/code/electron-browser/sharedProcess/contrib/nodeCachedDataCleaner.ts",
+		"./vs/code/electron-browser/sharedProcess/contrib/storageDataCleaner.ts",
 		"./vs/code/electron-main/auth.ts",
 		"./vs/code/electron-main/keyboard.ts",
 		"./vs/code/electron-main/logUploader.ts",
@@ -494,6 +496,7 @@
 		"./vs/platform/registry/common/platform.ts",
 		"./vs/platform/remote/common/remoteAuthorityResolver.ts",
 		"./vs/platform/remote/common/remoteHosts.ts",
+		"./vs/platform/remote/electron-browser/remoteAuthorityResolverService.ts",
 		"./vs/platform/remote/node/remoteAgentConnection.ts",
 		"./vs/platform/remote/node/remoteAgentFileSystemChannel.ts",
 		"./vs/platform/remote/node/remoteAuthorityResolverChannel.ts",
@@ -701,6 +704,7 @@
 		"./vs/workbench/services/keybinding/common/macLinuxFallbackKeyboardMapper.ts",
 		"./vs/workbench/services/keybinding/common/macLinuxKeyboardMapper.ts",
 		"./vs/workbench/services/keybinding/common/windowsKeyboardMapper.ts",
+		"./vs/workbench/services/keybinding/electron-browser/keybindingService.ts",
 		"./vs/workbench/services/keybinding/test/keyboardMapperTestUtils.ts",
 		"./vs/workbench/services/mode/common/workbenchModeService.ts",
 		"./vs/workbench/services/notification/common/notificationService.ts",
@@ -735,8 +739,7 @@
 		"./vs/workbench/services/themes/common/workbenchThemeService.ts",
 		"./vs/workbench/services/title/common/titleService.ts",
 		"./vs/workbench/services/workspace/common/workspaceEditing.ts",
-		"./vs/workbench/test/electron-browser/api/mock.ts",
-		"./vs/base/node/config.ts"
+		"./vs/workbench/test/electron-browser/api/mock.ts"
 	],
 	"exclude": [
 		"./typings/require-monaco.d.ts"
