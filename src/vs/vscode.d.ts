@@ -8317,6 +8317,101 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents a debug adapter executable and optional arguments and runtime options passed to it.
+	 */
+	export class DebugAdapterExecutable {
+
+		/**
+		 * Creates a description for a debug adapter based on an executable program.
+		 *
+		 * @param command The command or executable path that implements the debug adapter.
+		 * @param args Optional arguments to be passed to the command or executable.
+		 * @param options Optional options to be used when starting the command or executable.
+		 */
+		constructor(command: string, args?: string[], options?: DebugAdapterExecutableOptions);
+
+		/**
+		 * The command or path of the debug adapter executable.
+		 * A command must be either an absolute path of an executable or the name of an command to be looked up via the PATH environment variable.
+		 * The special value 'node' will be mapped to VS Code's built-in Node.js runtime.
+		 */
+		readonly command: string;
+
+		/**
+		 * The arguments passed to the debug adapter executable. Defaults to an empty array.
+		 */
+		readonly args: string[];
+
+		/**
+		 * Optional options to be used when the debug adapter is started.
+		 * Defaults to undefined.
+		 */
+		readonly options?: DebugAdapterExecutableOptions;
+	}
+
+	/**
+	 * Options for a debug adapter executable.
+	 */
+	export interface DebugAdapterExecutableOptions {
+
+		/**
+		 * The additional environment of the executed program or shell. If omitted
+		 * the parent process' environment is used. If provided it is merged with
+		 * the parent process' environment.
+		 */
+		env?: { [key: string]: string };
+
+		/**
+		 * The current working directory for the executed debug adapter.
+		 */
+		cwd?: string;
+	}
+
+	/**
+	 * Represents a debug adapter running as a socket based server.
+	 */
+	export class DebugAdapterServer {
+
+		/**
+		 * The port.
+		 */
+		readonly port: number;
+
+		/**
+		 * The host.
+		 */
+		readonly host?: string;
+
+		/**
+		 * Create a description for a debug adapter running as a socket based server.
+		 */
+		constructor(port: number, host?: string);
+	}
+
+	export type DebugAdapterDescriptor = DebugAdapterExecutable | DebugAdapterServer;
+
+	export interface DebugAdapterDescriptorFactory {
+		/**
+		 * 'createDebugAdapterDescriptor' is called at the start of a debug session to provide details about the debug adapter to use.
+		 * These details must be returned as objects of type [DebugAdapterDescriptor](#DebugAdapterDescriptor).
+		 * Currently two types of debug adapters are supported:
+		 * - a debug adapter executable is specified as a command path and arguments (see [DebugAdapterExecutable](#DebugAdapterExecutable)),
+		 * - a debug adapter server reachable via a communication port (see [DebugAdapterServer](#DebugAdapterServer)).
+		 * If the method is not implemented the default behavior is this:
+		 *   createDebugAdapter(session: DebugSession, executable: DebugAdapterExecutable) {
+		 *      if (typeof session.configuration.debugServer === 'number') {
+		 *         return new DebugAdapterServer(session.configuration.debugServer);
+		 *      }
+		 *      return executable;
+		 *   }
+		 * @param session The [debug session](#DebugSession) for which the debug adapter will be used.
+		 * @param executable The debug adapter's executable information as specified in the package.json (or undefined if no such information exists).
+		 * @return a [debug adapter descriptor](#DebugAdapterDescriptor) or undefined.
+		 */
+		createDebugAdapterDescriptor(session: DebugSession, executable: DebugAdapterExecutable | undefined): ProviderResult<DebugAdapterDescriptor>;
+	}
+
+	/**
 	 * Represents the debug console.
 	 */
 	export interface DebugConsole {
@@ -8475,6 +8570,17 @@ declare module 'vscode' {
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerDebugConfigurationProvider(debugType: string, provider: DebugConfigurationProvider): Disposable;
+
+		/**
+		 * Register a [debug adapter descriptor factory](#DebugAdapterDescriptorFactory) for a specific debug type.
+		 * An extension is only allowed to register a DebugAdapterDescriptorFactory for the debug type(s) defined by the extension. Otherwise an error is thrown.
+		 * Registering more than one DebugAdapterDescriptorFactory for a debug type results in an error.
+		 *
+		 * @param debugType The debug type for which the factory is registered.
+		 * @param factory The [debug adapter descriptor factory](#DebugAdapterDescriptorFactory) to register.
+		 * @return A [disposable](#Disposable) that unregisters this factory when being disposed.
+		 */
+		export function registerDebugAdapterDescriptorFactory(debugType: string, factory: DebugAdapterDescriptorFactory): Disposable;
 
 		/**
 		 * Start debugging by using either a named launch or named compound configuration,

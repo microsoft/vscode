@@ -367,7 +367,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				}
 			};
 
-			screen.addListener('display-metrics-changed', () => displayMetricsChangedListener());
+			screen.addListener('display-metrics-changed', displayMetricsChangedListener);
 			this._register(toDisposable(() => screen.removeListener('display-metrics-changed', displayMetricsChangedListener)));
 		}
 

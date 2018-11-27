@@ -2617,7 +2617,7 @@ event-emitter@~0.3.5:
     d "1"
     es5-ext "~0.10.14"
 
-event-stream@^3.1.7, event-stream@^3.3.1, event-stream@^3.3.4, event-stream@~3.3.4:
+event-stream@3.3.4, event-stream@^3.1.7, event-stream@^3.3.1, event-stream@^3.3.4, event-stream@~3.3.4:
   version "3.3.4"
   resolved "https://registry.yarnpkg.com/event-stream/-/event-stream-3.3.4.tgz#4ab4c9a0f5a54db9338b4c34d86bfce8f4b35571"
   integrity sha1-SrTJoPWlTbkzi0w02Gv86PSzVXE=

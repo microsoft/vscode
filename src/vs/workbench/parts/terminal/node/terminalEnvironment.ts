@@ -9,7 +9,7 @@ import * as platform from 'vs/base/common/platform';
 import pkg from 'vs/platform/node/package';
 import { URI as Uri } from 'vs/base/common/uri';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IShellLaunchConfig, ITerminalConfigHelper } from 'vs/workbench/parts/terminal/common/terminal';
+import { IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 
 /**
@@ -124,7 +124,7 @@ function _getLangEnvVariable(locale?: string) {
 	return parts.join('_') + '.UTF-8';
 }
 
-export function getCwd(shell: IShellLaunchConfig, root: Uri, configHelper: ITerminalConfigHelper): string {
+export function getCwd(shell: IShellLaunchConfig, root: Uri, customCwd: string): string {
 	if (shell.cwd) {
 		return shell.cwd;
 	}
@@ -132,15 +132,11 @@ export function getCwd(shell: IShellLaunchConfig, root: Uri, configHelper: ITerm
 	let cwd: string | undefined;
 
 	// TODO: Handle non-existent customCwd
-	if (!shell.ignoreConfigurationCwd) {
-		// Evaluate custom cwd first
-		const customCwd = configHelper.config.cwd;
-		if (customCwd) {
-			if (paths.isAbsolute(customCwd)) {
-				cwd = customCwd;
-			} else if (root) {
-				cwd = paths.normalize(paths.join(root.fsPath, customCwd));
-			}
+	if (!shell.ignoreConfigurationCwd && customCwd) {
+		if (paths.isAbsolute(customCwd)) {
+			cwd = customCwd;
+		} else if (root) {
+			cwd = paths.normalize(paths.join(root.fsPath, customCwd));
 		}
 	}
 

@@ -17,7 +17,6 @@ import { IExtensionHostProfileService } from 'vs/workbench/parts/extensions/elec
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { localize } from 'vs/nls';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Action } from 'vs/base/common/actions';
 import { RuntimeExtensionsInput } from 'vs/workbench/services/extensions/electron-browser/runtimeExtensionsInput';
 
 export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchContribution {
@@ -133,14 +132,15 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 			// user-facing message when very bad...
 			const prompt = top.percentage >= 99 && top.total >= 5e6;
 			if (prompt) {
-				this._notificationService.notify({
-					severity: Severity.Info,
-					silent: true,
-					message: localize('unresponsive-exthost', "Extension '{0}' froze the extension host for more than {1} seconds.", extension.displayName || extension.name, Math.round(duration / 1e6)),
-					actions: {
-						primary: [new Action('foo', localize('show', 'Show Extensions'), undefined, true, () => this._editorService.openEditor(new RuntimeExtensionsInput()))]
-					}
-				});
+				this._notificationService.prompt(
+					Severity.Info,
+					localize('unresponsive-exthost', "Extension '{0}' froze the extension host for more than {1} seconds.", extension.displayName || extension.name, Math.round(duration / 1e6)),
+					[{
+						label: localize('show', 'Show Extensions'),
+						run: () => this._editorService.openEditor(new RuntimeExtensionsInput())
+					}],
+					{ silent: true }
+				);
 			}
 
 			const path = join(tmpdir(), `exthost-${Math.random().toString(16).slice(2, 8)}.cpuprofile`);
