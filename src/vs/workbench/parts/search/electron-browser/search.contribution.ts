@@ -678,8 +678,12 @@ configurationRegistry.registerConfiguration({
 		'search.actionsPosition': {
 			type: 'string',
 			enum: ['auto', 'right'],
+			enumDescriptions: [
+				nls.localize('search.actionsPositionAuto', "Position the actionbar to the right when the search view is narrow, and immediately after the content when the search view is wide."),
+				nls.localize('search.actionsPositionRight', "Always position the actionbar to the right."),
+			],
 			default: 'auto',
-			description: nls.localize('search.actionsPosition', "Controls whether to show actions at the end of match or always aligned to the right in wide panels.")
+			description: nls.localize('search.actionsPosition', "Controls the positioning of the actionbar on rows in the search view.")
 		}
 	}
 });
