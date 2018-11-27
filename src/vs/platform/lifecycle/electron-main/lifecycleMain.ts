@@ -204,6 +204,9 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 			// Wait until shutdown is signaled to be complete
 			always(shutdownPromise, () => {
 
+				// Resolve pending quit promise now without veto
+				this.resolvePendingQuitPromise(false /* no veto */);
+
 				// Quit again, this time do not prevent this, since our
 				// will-quit listener is only installed "once". Also
 				// remove any listener we have that is no longer needed
@@ -337,12 +340,8 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 		return true; // veto
 	}
 
-	private resolvePendingQuitPromise(veto: boolean, fromUpdate?: boolean): void {
+	private resolvePendingQuitPromise(veto: boolean): void {
 		if (this.pendingQuitPromiseResolve) {
-			if (fromUpdate) {
-				this.stateService.setItem(LifecycleService.QUIT_FROM_RESTART_MARKER, true);
-			}
-
 			this.pendingQuitPromiseResolve(veto);
 			this.pendingQuitPromiseResolve = null;
 			this.pendingQuitPromise = null;
@@ -401,20 +400,17 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 			return this.pendingQuitPromise;
 		}
 
-		this.logService.trace('Lifecycle#quit()');
+		this.logService.trace(`Lifecycle#quit() - from update: ${fromUpdate}`);
+
+		// Remember the reason for quit was to restart
+		if (fromUpdate) {
+			this.stateService.setItem(LifecycleService.QUIT_FROM_RESTART_MARKER, true);
+		}
 
 		this.pendingQuitPromise = new Promise(resolve => {
 
 			// Store as field to access it from a window cancellation
 			this.pendingQuitPromiseResolve = resolve;
-
-			// The will-quit event is fired when all windows have closed without veto
-			app.once('will-quit', () => {
-				this.logService.trace('Lifecycle#quit() - app.on(will-quit)');
-
-				// Resolve pending quit promise now without veto
-				this.resolvePendingQuitPromise(false /* no veto */, fromUpdate);
-			});
 
 			// Calling app.quit() will trigger the close handlers of each opened window
 			// and only if no window vetoed the shutdown, we will get the will-quit event
