@@ -561,7 +561,7 @@ export class ManageExtensionAction extends DropDownAction {
 			instantiationService.createInstance(DisableGloballyAction, DisableGloballyAction.LABEL),
 			instantiationService.createInstance(DisableForWorkspaceAction, DisableForWorkspaceAction.LABEL)
 		]);
-		groups.push([instantiationService.createInstance(UninstallAction)]);
+		groups.push([instantiationService.createInstance(UninstallAction), instantiationService.createInstance(InstallAnotherVersionAction)]);
 		groups.push([instantiationService.createInstance(ExtensionInfoAction)]);
 		super(ManageExtensionAction.ID, '', '', true, groups, true, instantiationService);
 
@@ -588,6 +588,81 @@ export class ManageExtensionAction extends DropDownAction {
 			this.class = this.enabled || state === ExtensionState.Uninstalling ? ManageExtensionAction.Class : ManageExtensionAction.HideManageExtensionClass;
 			this.tooltip = state === ExtensionState.Uninstalling ? localize('ManageExtensionAction.uninstallingTooltip', "Uninstalling") : '';
 		}
+	}
+}
+
+export class InstallAnotherVersionAction extends Action {
+
+	static readonly ID = 'workbench.extensions.action.install.anotherVersion';
+	static LABEL = localize('install another version', "Install Another Version...");
+
+	private disposables: IDisposable[] = [];
+
+	private _extension: IExtension;
+	get extension(): IExtension { return this._extension; }
+	set extension(extension: IExtension) { this._extension = extension; this.update(); }
+
+	private throttler: Throttler = new Throttler();
+	private allVersions: string[];
+
+	constructor(
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
+		@IQuickInputService private quickInputService: IQuickInputService,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@INotificationService private notificationService: INotificationService,
+		@IOpenerService private openerService: IOpenerService
+	) {
+		super(InstallAnotherVersionAction.ID, InstallAnotherVersionAction.LABEL);
+		extensionsWorkbenchService.onChange(extension => this.update(extension), this, this.disposables);
+	}
+
+	private async update(extension?: IExtension) {
+		if (extension && this.extension && !areSameExtensions(this.extension, extension)) {
+			return;
+		}
+		this.enabled = false;
+		if (this.extension && this.extension.gallery) {
+			if (!this.allVersions) {
+				this.allVersions = await this.throttler.queue(() => this.extensionGalleryService.getAllVersions(this.extension.gallery));
+			}
+			this.enabled = this.allVersions.indexOf(this.extension.version) === -1 ? this.allVersions.length > 0 : this.allVersions.length > 1;
+		}
+	}
+
+	run(): Thenable<any> {
+		const quickPickItems: IQuickPickItem[] = [];
+		let currentVersionIndex = -1;
+		for (let i = 0; i < this.allVersions.length; i++) {
+			const version = this.allVersions[i];
+			if (version === this.extension.version) {
+				currentVersionIndex = i;
+				continue;
+			}
+			quickPickItems.push({
+				id: version,
+				label: version,
+				description: i === 0 ? localize('latest', "Latest") : i === currentVersionIndex + 1 ? localize('previous', "Previous") : void 0
+			});
+		}
+		return this.quickInputService.pick(quickPickItems, { placeHolder: localize('selectVersion', "Select Version to Install") })
+			.then(pick => {
+				if (pick) {
+					return (pick.id === this.allVersions[0] ? this.extensionsWorkbenchService.install(this.extension) : this.extensionsWorkbenchService.installVersion(this.extension, pick.id))
+						.then(() => {
+							alert(localize('installExtensionComplete', "Installing extension {0} is completed. Please reload Visual Studio Code to enable it.", this.extension.displayName));
+						}, err => {
+							if (!this.extension.gallery) {
+								return this.notificationService.error(err);
+							}
+
+							console.error(err);
+
+							return promptDownloadManually(this.extension.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", this.extension.id), err, this.instantiationService, this.notificationService, this.openerService);
+						});
+				}
+				return null;
+			});
 	}
 }
 
