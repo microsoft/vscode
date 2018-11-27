@@ -97,12 +97,10 @@ class BaseTreeItem {
 	}
 
 	// a dynamic ID based on the parent chain; required for reparenting (see #55448)
-	/*
 	getId(): string {
 		const parent = this.getParent();
 		return parent ? `${parent.getId()}/${this._label}` : this._label;
 	}
-	*/
 
 	// skips intermediate single-child nodes
 	getParent(): BaseTreeItem {
@@ -376,9 +374,6 @@ export class LoadedScriptsView extends ViewletPanel {
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('loadedScriptsSection', "Loaded Scripts Section") }, keybindingService, contextMenuService, configurationService);
 		this.loadedScriptsItemType = CONTEXT_LOADED_SCRIPTS_ITEM_TYPE.bindTo(contextKeyService);
-
-		//this.contributedContextMenu = menuService.createMenu(MenuId.DebugCallStackContext, contextKeyService);
-		//this.disposables.push(this.contributedContextMenu);
 	}
 
 	renderBody(container: HTMLElement): void {
@@ -396,7 +391,8 @@ export class LoadedScriptsView extends ViewletPanel {
 			new LoadedScriptsDataSource(root),
 			{
 				accessibilityProvider: new LoadedSciptsAccessibilityProvider(),
-				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'loadedScriptsAriaLabel' }, "Debug Loaded Scripts")
+				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'loadedScriptsAriaLabel' }, "Debug Loaded Scripts"),
+				identityProvider: element => element.getId()
 			}
 		);
 
@@ -487,11 +483,13 @@ export class LoadedScriptsView extends ViewletPanel {
 		}
 	}
 
+	/*
 	private tryToExpand(element: LoadedScriptsItem): void {
 		try {
 			this.tree.expand(element);
 		} catch (e) { }
 	}
+	*/
 
 	dispose(): void {
 		this.tree = undefined;
