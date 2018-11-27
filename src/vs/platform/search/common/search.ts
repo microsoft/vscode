@@ -333,6 +333,7 @@ export interface ISearchConfigurationProperties {
 	useReplacePreview: boolean;
 	showLineNumbers: boolean;
 	usePCRE2: boolean;
+	actionsPosition: 'auto' | 'right';
 }
 
 export interface ISearchConfiguration extends IFilesConfiguration {
