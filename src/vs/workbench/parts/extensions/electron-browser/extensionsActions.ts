@@ -85,6 +85,40 @@ const promptDownloadManually = (extension: IGalleryExtension, message: string, e
 	}
 };
 
+function getRelativeDateLabel(date: Date): string {
+	const delta = new Date().getTime() - date.getTime();
+
+	const year = 365 * 24 * 60 * 60 * 1000;
+	if (delta > year) {
+		const noOfYears = Math.floor(delta / year);
+		return noOfYears > 1 ? localize('noOfYearsAgo', "{0} years ago", noOfYears) : localize('one year ago', "1 year ago");
+	}
+
+	const month = 30 * 24 * 60 * 60 * 1000;
+	if (delta > month) {
+		const noOfMonths = Math.floor(delta / month);
+		return noOfMonths > 1 ? localize('noOfMonthsAgo', "{0} months ago", noOfMonths) : localize('one month ago', "1 month ago");
+	}
+
+	const day = 24 * 60 * 60 * 1000;
+	if (delta > day) {
+		const noOfDays = Math.floor(delta / day);
+		return noOfDays > 1 ? localize('noOfDaysAgo', "{0} days ago", noOfDays) : localize('one day ago', "1 day ago");
+	}
+
+	const hour = 60 * 60 * 1000;
+	if (delta > hour) {
+		const noOfHours = Math.floor(delta / day);
+		return noOfHours > 1 ? localize('noOfHoursAgo', "{0} hours ago", noOfHours) : localize('one hour ago', "1 hour ago");
+	}
+
+	if (delta > 0) {
+		return localize('just now', "Just now");
+	}
+
+	return '';
+}
+
 export interface IExtensionAction extends IAction {
 	extension: IExtension;
 }
@@ -648,7 +682,7 @@ export class InstallAnotherVersionAction extends Action {
 
 	private getVersionEntries(): Promise<(IQuickPickItem & { latest: boolean })[]> {
 		return this.extensionGalleryService.getAllVersions(this.extension.gallery, true)
-			.then(allVersions => allVersions.map((v, i) => ({ id: v.version, label: v.version, description: v.version === this.extension.version ? localize('current', "Current") : void 0, latest: i === 0 })));
+			.then(allVersions => allVersions.map((v, i) => ({ id: v.version, label: v.version, description: `${getRelativeDateLabel(new Date(Date.parse(v.date)))}${v.version === this.extension.version ? ` (${localize('current', "Current")})` : ''}`, latest: i === 0 })));
 	}
 }
 
@@ -2781,7 +2815,7 @@ export class InstallSpecificVersionOfExtensionAction extends Action {
 	async run(): Promise<any> {
 		const extensionPick = await this.quickInputService.pick(this.getExtensionEntries(), { placeHolder: localize('selectExtension', "Select Extension"), matchOnDetail: true });
 		if (extensionPick && extensionPick.extension) {
-			const versionPick = await this.quickInputService.pick(extensionPick.versions.map(v => ({ id: v.version, label: v.version, description: v.version === extensionPick.extension.version ? localize('current', "Current") : void 0 })), { placeHolder: localize('selectVersion', "Select Version to Install"), matchOnDetail: true });
+			const versionPick = await this.quickInputService.pick(extensionPick.versions.map(v => ({ id: v.version, label: v.version, description: `${getRelativeDateLabel(new Date(Date.parse(v.date)))}${v.version === extensionPick.extension.version ? ` (${localize('current', "Current")})` : ''}` })), { placeHolder: localize('selectVersion', "Select Version to Install"), matchOnDetail: true });
 			if (versionPick) {
 				if (extensionPick.extension.version !== versionPick.id) {
 					await this.install(extensionPick.extension, versionPick.id === extensionPick.versions[0].version ? void 0 : versionPick.id);
