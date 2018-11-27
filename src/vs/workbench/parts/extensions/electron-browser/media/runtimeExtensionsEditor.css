@@ -27,41 +27,15 @@
 	text-align: right;
 }
 
-.runtime-extensions-editor .extension .desc .msg-label {
-	padding-left: 4px;
-}
-
-
-.runtime-extensions-editor .extension .profile-timeline {
-	width: 100px;
-	margin: auto;
+.runtime-extensions-editor .extension .desc>.msg>span:not(:last-child)::after {
+	content: '\2022';
 	padding: 0 4px;
+	opacity: .8;
 }
 
-.runtime-extensions-editor .extension .profile-timeline-svg {
-	width: 100%;
-	pointer-events: none;
+.runtime-extensions-editor .monaco-action-bar .actions-container {
+	justify-content: left;
 }
-
-.runtime-extensions-editor .extension .profile-timeline rect {
-	fill: rgb(181, 181, 255);
-}
-
-.runtime-extensions-editor .extension > .icon {
-	width: 42px;
-	height: 42px;
-	padding: 10px 14px 10px 0;
-}
-
-.runtime-extensions-editor .monaco-action-bar {
-	padding-top: 21px;
-	flex-shrink: 0;
-}
-
-.runtime-extensions-editor .monaco-action-bar.hidden {
-	visibility: hidden;
-}
-
 
 .monaco-workbench .part.statusbar .profileExtHost-statusbar-item .icon {
 	background: url('profile-stop.svg') no-repeat;
