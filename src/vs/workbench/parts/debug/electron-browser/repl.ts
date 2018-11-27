@@ -63,6 +63,7 @@ import { CopyAction } from 'vs/workbench/parts/debug/electron-browser/electronDe
 import { ReplCollapseAllAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { removeAnsiEscapeCodes, isFullWidthCharacter, endsWith } from 'vs/base/common/strings';
 
 const $ = dom.$;
 
@@ -666,9 +667,25 @@ class ReplRawObjectsRenderer implements ITreeRenderer<RawObjectReplElement, void
 
 class ReplDelegate implements IListVirtualDelegate<IReplElement> {
 
+	private static readonly LINE_HEIGHT_PX = 18;
+
+	private width: number;
+	private characterWidth: number;
+
 	getHeight(element: IReplElement): number {
-		// todo@isidor
-		return 18;
+		if (element instanceof Variable && (element.hasChildren || (element.name !== null))) {
+			return ReplDelegate.LINE_HEIGHT_PX;
+		}
+		if (element instanceof Expression && element.hasChildren) {
+			return 2 * ReplDelegate.LINE_HEIGHT_PX;
+		}
+
+		let availableWidth = this.width;
+		if (element instanceof SimpleReplElement && element.sourceData) {
+			availableWidth -= `${element.sourceData.source.name}:${element.sourceData.lineNumber}`.length * this.characterWidth;
+		}
+
+		return this.getHeightForString((<any>element).value, availableWidth) + (element instanceof Expression ? this.getHeightForString(element.name, availableWidth) : 0);
 	}
 
 	getTemplateId(element: IReplElement): string {
@@ -693,11 +710,38 @@ class ReplDelegate implements IListVirtualDelegate<IReplElement> {
 		// todo@isidor
 		return false;
 	}
+
+	private getHeightForString(s: string, availableWidth: number): number {
+		if (!s || !s.length || !availableWidth || availableWidth <= 0 || !this.characterWidth || this.characterWidth <= 0) {
+			return ReplDelegate.LINE_HEIGHT_PX;
+		}
+
+		// Last new line should be ignored since the repl elements are by design split by rows
+		if (endsWith(s, '\n')) {
+			s = s.substr(0, s.length - 1);
+		}
+		const lines = removeAnsiEscapeCodes(s).split('\n');
+		const numLines = lines.reduce((lineCount: number, line: string) => {
+			let lineLength = 0;
+			for (let i = 0; i < line.length; i++) {
+				lineLength += isFullWidthCharacter(line.charCodeAt(i)) ? 2 : 1;
+			}
+
+			return lineCount + Math.floor(lineLength * this.characterWidth / availableWidth);
+		}, lines.length);
+
+		return ReplDelegate.LINE_HEIGHT_PX * numLines;
+	}
+
+	setWidth(fullWidth: number, characterWidth: number): void {
+		this.width = fullWidth;
+		this.characterWidth = characterWidth;
+	}
 }
 
 
 class ReplDataSource implements IDataSource<IReplElement> {
-	public input: IDebugSession;
+	input: IDebugSession;
 
 	hasChildren(element: IReplElement | null): boolean {
 		return element === null || (<IExpressionContainer>element).hasChildren;
@@ -831,7 +875,7 @@ export class ClearReplAction extends Action {
 		super(id, label, 'debug-action clear-repl');
 	}
 
-	public run(): Promise<any> {
+	run(): Promise<any> {
 		const repl = <Repl>this.panelService.openPanel(REPL_ID);
 		repl.clearRepl();
 		aria.status(nls.localize('debugConsoleCleared', "Debug console was cleared"));
