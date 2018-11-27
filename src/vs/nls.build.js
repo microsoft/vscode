@@ -169,7 +169,6 @@ var NLSBuildLoaderPlugin;
                 bundles: this._getEntryPointsMap()
             }, null, '\t'));
         };
-        ;
         NLSPlugin.DEFAULT_TAG = 'i-default';
         NLSPlugin.BUILD_MAP = {};
         NLSPlugin.BUILD_MAP_KEYS = {};
