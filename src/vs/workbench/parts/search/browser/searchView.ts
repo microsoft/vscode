@@ -32,7 +32,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TreeResourceNavigator, WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IProgressService } from 'vs/platform/progress/common/progress';
-import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchHistoryService, ISearchHistoryValues, ISearchProgressItem, ITextQuery, VIEW_ID, SearchErrorCode, ISearchConfigurationProperties } from 'vs/platform/search/common/search';
+import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchHistoryService, ISearchHistoryValues, ISearchProgressItem, ITextQuery, VIEW_ID, SearchErrorCode } from 'vs/platform/search/common/search';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { diffInserted, diffInsertedOutline, diffRemoved, diffRemovedOutline, editorFindMatchHighlight, editorFindMatchHighlightBorder, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -784,9 +784,11 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			return;
 		}
 
-		const actionsPosition = this.configurationService.getValue<ISearchConfigurationProperties>('search').actionsPosition;
-		const useWideLayout = this.size.width >= SearchView.WIDE_VIEW_SIZE && actionsPosition === 'auto';
-		dom.toggleClass(this.getContainer(), SearchView.WIDE_CLASS_NAME, useWideLayout);
+		if (this.size.width >= SearchView.WIDE_VIEW_SIZE) {
+			dom.addClass(this.getContainer(), SearchView.WIDE_CLASS_NAME);
+		} else {
+			dom.removeClass(this.getContainer(), SearchView.WIDE_CLASS_NAME);
+		}
 
 		this.searchWidget.setWidth(this.size.width - 28 /* container margin */);
 
