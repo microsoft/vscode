@@ -242,7 +242,7 @@ export class WindowsManager implements IWindowsMainService {
 
 		// Handle various lifecycle events around windows
 		this.lifecycleService.onBeforeWindowUnload(e => this.onBeforeWindowUnload(e));
-		this.lifecycleService.onBeforeWindowClose(win => this.onBeforeWindowClose(win as ICodeWindow));
+		this.lifecycleService.onBeforeWindowClose(window => this.onBeforeWindowClose(window));
 		this.lifecycleService.onBeforeShutdown(() => this.onBeforeShutdown());
 		this.onWindowsCountChanged(e => {
 			if (e.newCount - e.oldCount > 0) {
