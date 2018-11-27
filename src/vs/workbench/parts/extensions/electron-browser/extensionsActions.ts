@@ -16,7 +16,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet, AutoUpdateConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/parts/extensions/common/extensionsFileTemplate';
-import { LocalExtensionType, IExtensionEnablementService, IExtensionTipsService, EnablementState, ExtensionsLabel, IExtensionRecommendation, IGalleryExtension, IExtensionsConfigContent, IExtensionManagementServerService, IExtensionGalleryService, INSTALL_ERROR_MALICIOUS, INSTALL_ERROR_INCOMPATIBLE } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { LocalExtensionType, IExtensionEnablementService, IExtensionTipsService, EnablementState, ExtensionsLabel, IExtensionRecommendation, IGalleryExtension, IExtensionsConfigContent, IExtensionManagementServerService, IExtensionGalleryService, INSTALL_ERROR_MALICIOUS, INSTALL_ERROR_INCOMPATIBLE, IGalleryExtensionVersion } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { isUIExtension } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -49,7 +49,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import product from 'vs/platform/node/product';
-import { IQuickPickItem, IQuickInputService, IQuickPick } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { clipboard } from 'electron';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -561,7 +561,8 @@ export class ManageExtensionAction extends DropDownAction {
 			instantiationService.createInstance(DisableGloballyAction, DisableGloballyAction.LABEL),
 			instantiationService.createInstance(DisableForWorkspaceAction, DisableForWorkspaceAction.LABEL)
 		]);
-		groups.push([instantiationService.createInstance(UninstallAction), instantiationService.createInstance(InstallAnotherVersionAction)]);
+		groups.push([instantiationService.createInstance(UninstallAction)]);
+		groups.push([instantiationService.createInstance(InstallAnotherVersionAction)]);
 		groups.push([instantiationService.createInstance(ExtensionInfoAction)]);
 		super(ManageExtensionAction.ID, '', '', true, groups, true, instantiationService);
 
@@ -602,9 +603,6 @@ export class InstallAnotherVersionAction extends Action {
 	get extension(): IExtension { return this._extension; }
 	set extension(extension: IExtension) { this._extension = extension; this.update(); }
 
-	private throttler: Throttler = new Throttler();
-	private allVersions: string[];
-
 	constructor(
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
@@ -617,38 +615,21 @@ export class InstallAnotherVersionAction extends Action {
 		extensionsWorkbenchService.onChange(extension => this.update(extension), this, this.disposables);
 	}
 
-	private async update(extension?: IExtension) {
+	private update(extension?: IExtension) {
 		if (extension && this.extension && !areSameExtensions(this.extension, extension)) {
 			return;
 		}
-		this.enabled = false;
-		if (this.extension && this.extension.gallery) {
-			if (!this.allVersions) {
-				this.allVersions = await this.throttler.queue(() => this.extensionGalleryService.getAllVersions(this.extension.gallery));
-			}
-			this.enabled = this.allVersions.indexOf(this.extension.version) === -1 ? this.allVersions.length > 0 : this.allVersions.length > 1;
-		}
+		this.enabled = this.extension && !!this.extension.gallery;
 	}
 
 	run(): Thenable<any> {
-		const quickPickItems: IQuickPickItem[] = [];
-		let currentVersionIndex = -1;
-		for (let i = 0; i < this.allVersions.length; i++) {
-			const version = this.allVersions[i];
-			if (version === this.extension.version) {
-				currentVersionIndex = i;
-				continue;
-			}
-			quickPickItems.push({
-				id: version,
-				label: version,
-				description: i === 0 ? localize('latest', "Latest") : i === currentVersionIndex + 1 ? localize('previous', "Previous") : void 0
-			});
-		}
-		return this.quickInputService.pick(quickPickItems, { placeHolder: localize('selectVersion', "Select Version to Install") })
+		return this.quickInputService.pick(this.getVersionEntries(), { placeHolder: localize('selectVersion', "Select Version to Install"), matchOnDetail: true })
 			.then(pick => {
 				if (pick) {
-					return (pick.id === this.allVersions[0] ? this.extensionsWorkbenchService.install(this.extension) : this.extensionsWorkbenchService.installVersion(this.extension, pick.id))
+					if (this.extension.version === pick.id) {
+						return Promise.resolve();
+					}
+					return (pick.latest ? this.extensionsWorkbenchService.install(this.extension) : this.extensionsWorkbenchService.installVersion(this.extension, pick.id))
 						.then(() => {
 							alert(localize('installExtensionComplete', "Installing extension {0} is completed. Please reload Visual Studio Code to enable it.", this.extension.displayName));
 						}, err => {
@@ -663,6 +644,11 @@ export class InstallAnotherVersionAction extends Action {
 				}
 				return null;
 			});
+	}
+
+	private getVersionEntries(): Promise<(IQuickPickItem & { latest: boolean })[]> {
+		return this.extensionGalleryService.getAllVersions(this.extension.gallery, true)
+			.then(allVersions => allVersions.map((v, i) => ({ id: v.version, label: v.version, description: v.version === this.extension.version ? localize('current', "Current") : void 0, latest: i === 0 })));
 	}
 }
 
@@ -2771,13 +2757,13 @@ export class ReinstallAction extends Action {
 	}
 }
 
-export class InstallExtensionPreviousVersionAction extends Action {
+export class InstallSpecificVersionOfExtensionAction extends Action {
 
-	static readonly ID = 'workbench.extensions.action.install.previousVersion';
-	static LABEL = localize('install previous version', "Install Previous Version of Extension...");
+	static readonly ID = 'workbench.extensions.action.install.specificVersion';
+	static LABEL = localize('install previous version', "Install Specific Version of Extension...");
 
 	constructor(
-		id: string = InstallExtensionPreviousVersionAction.ID, label: string = InstallExtensionPreviousVersionAction.LABEL,
+		id: string = InstallSpecificVersionOfExtensionAction.ID, label: string = InstallSpecificVersionOfExtensionAction.LABEL,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
 		@IQuickInputService private quickInputService: IQuickInputService,
@@ -2789,86 +2775,48 @@ export class InstallExtensionPreviousVersionAction extends Action {
 	}
 
 	get enabled(): boolean {
-		return this.extensionsWorkbenchService.local.filter(l => l.type === LocalExtensionType.User && l.local).length > 0;
+		return this.extensionsWorkbenchService.local.some(l => this.isEnabled(l));
 	}
 
-	run(): Thenable<any> {
-		return new Promise(async (c, e) => {
-			const disposables: IDisposable[] = [];
-			let pick: (IQuickPickItem & { extension: IExtension, version: string });
-			const quickPick: IQuickPick<(IQuickPickItem & { extension: IExtension, version: string })> = this.quickInputService.createQuickPick();
-			disposables.push(quickPick.onDidHide(async () => {
-				if (pick && pick.extension) {
-					await this.install(pick.extension, pick.version);
+	async run(): Promise<any> {
+		const extensionPick = await this.quickInputService.pick(this.getExtensionEntries(), { placeHolder: localize('selectExtension', "Select Extension"), matchOnDetail: true });
+		if (extensionPick && extensionPick.extension) {
+			const versionPick = await this.quickInputService.pick(extensionPick.versions.map(v => ({ id: v.version, label: v.version, description: v.version === extensionPick.extension.version ? localize('current', "Current") : void 0 })), { placeHolder: localize('selectVersion', "Select Version to Install"), matchOnDetail: true });
+			if (versionPick) {
+				if (extensionPick.extension.version !== versionPick.id) {
+					await this.install(extensionPick.extension, versionPick.id === extensionPick.versions[0].version ? void 0 : versionPick.id);
 				}
-				dispose(disposables);
-				c();
-			}));
-			disposables.push(quickPick.onDidChangeSelection(([selected]) => {
-				pick = selected;
-				quickPick.hide();
-			}));
-			quickPick.placeholder = localize('selectExtension', "Select Extension");
-			quickPick.show();
-			quickPick.busy = true;
-			const entries = await this.getEntries();
-			quickPick.busy = false;
-			if (entries.length) {
-				quickPick.items = entries;
-			} else {
-				quickPick.items = [{
-					extension: void 0,
-					version: void 0,
-					label: localize('no extensions', "No extensions available")
-				}];
 			}
-		});
+		}
 	}
 
-	private async getEntries(): Promise<(IQuickPickItem & { extension: IExtension, version: string })[]> {
+	private isEnabled(extension: IExtension): boolean {
+		return extension.gallery && (extension.enablementState === EnablementState.Enabled || extension.enablementState === EnablementState.WorkspaceEnabled);
+	}
+
+	private async getExtensionEntries(): Promise<(IQuickPickItem & { extension: IExtension, versions: IGalleryExtensionVersion[] })[]> {
 		const installed = await this.extensionsWorkbenchService.queryLocal();
-		const previousVersionExtensionsPromises: Thenable<{ extension: IExtension, version: string }>[] = [];
+		const versionsPromises: Thenable<{ extension: IExtension, versions: IGalleryExtensionVersion[] }>[] = [];
 		for (const extension of installed) {
-			if (extension.gallery && (extension.enablementState === EnablementState.Enabled || extension.enablementState === EnablementState.WorkspaceEnabled)) {
-				previousVersionExtensionsPromises.push(this.extensionGalleryService.getAllVersions(extension.gallery)
-					.then(versions => {
-						const previousVersion = this.getPreviousVersion(extension.version, versions);
-						if (previousVersion) {
-							return this.extensionGalleryService.loadCompatibleVersion(extension.gallery, previousVersion)
-								.then(gallery => gallery ? { extension, version: previousVersion } : null);
-						}
-						return null;
-					}));
+			if (this.isEnabled(extension)) {
+				versionsPromises.push(this.extensionGalleryService.getAllVersions(extension.gallery, true)
+					.then(versions => (versions.length ? { extension, versions } : null)));
 			}
 		}
 
-		const extensions = await Promise.all(previousVersionExtensionsPromises);
+		const extensions = await Promise.all(versionsPromises);
 		return extensions
 			.filter(e => !!e)
 			.sort((e1, e2) => e1.extension.displayName.localeCompare(e2.extension.displayName))
-			.map(({ extension, version }) => {
+			.map(({ extension, versions }) => {
 				return {
 					id: extension.id,
 					label: extension.displayName || extension.id,
-					description: `${extension.version} → ${version}`,
+					description: extension.id,
 					extension,
-					version
-				} as (IQuickPickItem & { extension: IExtension, version: string });
+					versions
+				} as (IQuickPickItem & { extension: IExtension, versions: IGalleryExtensionVersion[] });
 			});
-	}
-
-	private getPreviousVersion(version: string, versions: string[]): string {
-		let currentVersion: string = null;
-		for (const v of versions) {
-			if (currentVersion) {
-				return v;
-			} else {
-				if (v === version) {
-					currentVersion = v;
-				}
-			}
-		}
-		return null;
 	}
 
 	private install(extension: IExtension, version: string): Thenable<void> {
@@ -2879,9 +2827,9 @@ export class InstallExtensionPreviousVersionAction extends Action {
 					.then(() => {
 						this.notificationService.prompt(
 							Severity.Info,
-							localize('Install Previous Version Success', "Successfully installed the previous version of the extension."),
+							localize('Install Success', "Successfully installed the extension."),
 							[{
-								label: localize('InstallExtensionPreviousVersionAction.reloadNow', "Reload Now"),
+								label: localize('InstallAnotherVersionExtensionAction.reloadNow', "Reload Now"),
 								run: () => this.windowService.reloadWindow()
 							}],
 							{ sticky: true }
