@@ -92,6 +92,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	private actions: (RefreshAction | CollapseDeepestExpandedLevelAction | ClearSearchResultsAction | CancelSearchAction)[] = [];
 	private tree: WorkbenchTree;
 	private viewletState: object;
+	private globalMemento: object;
 	private messagesElement: HTMLElement;
 	private messageDisposables: IDisposable[] = [];
 	private searchWidgetsContainerElement: HTMLElement;
@@ -150,6 +151,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 		this.queryBuilder = this.instantiationService.createInstance(QueryBuilder);
 		this.viewletState = this.getMemento(StorageScope.WORKSPACE);
+		this.globalMemento = this.getMemento(StorageScope.GLOBAL);
 
 		this._register(this.fileService.onFileChanges(e => this.onFilesChanged(e)));
 		this._register(this.untitledEditorService.onDidChangeDirty(e => this.onUntitledDidChangeDirty(e)));
@@ -1251,12 +1253,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 							run: () => this.openSettings('search.useLegacySearch')
 						}]);
 				} else if (e.code === SearchErrorCode.regexParseError && !this.configurationService.getValue('search.usePCRE2')) {
-					// If the regex parsed in JS but not rg, it likely uses features that are supported in JS and PCRE2 but not Rust
-					this.notificationService.prompt(Severity.Info, nls.localize('rgRegexError', "You can enable \"search.usePCRE2\" to enable some extra regex features like lookbehind and backreferences."),
-						[{
-							label: nls.localize('otherEncodingWarning.openSettingsLabel', "Open Settings"),
-							run: () => this.openSettings('search.usePCRE2')
-						}]);
+					this.showPcre2Hint();
 				}
 			}
 		};
@@ -1321,6 +1318,23 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this.searchWidget.setReplaceAllActionState(false);
 
 		this.viewModel.search(query, onProgress).then(onComplete, onError);
+	}
+
+	private showPcre2Hint(): void {
+		if (!this.globalMemento['disablePcre2Hint']) {
+			// If the regex parsed in JS but not rg, it likely uses features that are supported in JS and PCRE2 but not Rust
+			this.notificationService.prompt(Severity.Info, nls.localize('rgRegexError', "You can enable \"search.usePCRE2\" to enable some extra regex features like lookbehind and backreferences."), [
+				{
+					label: nls.localize('neverAgain', "Don't Show Again"),
+					run: () => this.globalMemento['disablePcre2Hint'] = true,
+					isSecondary: true
+				},
+				{
+					label: nls.localize('otherEncodingWarning.openSettingsLabel', "Open Settings"),
+					run: () => this.openSettings('search.usePCRE2')
+				}
+			]);
+		}
 	}
 
 	private addClickEvents = (element: HTMLElement, handler: (event: any) => void): void => {
