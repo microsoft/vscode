@@ -156,13 +156,11 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 		// before-quit: an event that is fired if application quit was
 		// requested but before any window was closed.
 		const beforeQuitListener = () => {
-			this.logService.trace('Lifecycle#app.on(before-quit)');
-
 			if (this._quitRequested) {
-				this.logService.trace('Lifecycle#app.on(before-quit) - returning because quit was already requested');
 				return;
 			}
 
+			this.logService.trace('Lifecycle#app.on(before-quit)');
 			this._quitRequested = true;
 
 			// Emit event to indicate that we are about to shutdown
@@ -245,7 +243,6 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 
 		// Window Before Closing: Main -> Renderer
 		window.win.on('close', e => {
-			this.logService.trace(`Lifecycle#window.on('close') - window ID ${window.id}`);
 
 			// The window already acknowledged to be closed
 			const windowId = window.id;
@@ -254,6 +251,8 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 
 				return;
 			}
+
+			this.logService.trace(`Lifecycle#window.on('close') - window ID ${window.id}`);
 
 			// Otherwise prevent unload and handle it from window
 			e.preventDefault();
