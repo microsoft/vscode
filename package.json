@@ -78,7 +78,7 @@
     "documentdb": "^1.5.1",
     "electron-mksnapshot": "~2.0.0",
     "eslint": "^3.4.0",
-    "event-stream": "^3.1.7",
+    "event-stream": "3.3.4",
     "express": "^4.13.1",
     "glob": "^5.0.13",
     "gulp": "^3.8.9",
