@@ -329,16 +329,24 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 		}
 
 		// a veto resolves any pending quit with veto
-		if (this.pendingQuitPromiseResolve) {
-			this.pendingQuitPromiseResolve(true /* veto */);
-			this.pendingQuitPromiseResolve = null;
-			this.pendingQuitPromise = null;
-		}
+		this.resolvePendingQuitPromise(true /* veto */);
 
 		// a veto resets the pending quit request flag
 		this._quitRequested = false;
 
 		return true; // veto
+	}
+
+	private resolvePendingQuitPromise(veto: boolean, fromUpdate?: boolean): void {
+		if (this.pendingQuitPromiseResolve) {
+			if (fromUpdate) {
+				this.stateService.setItem(LifecycleService.QUIT_FROM_RESTART_MARKER, true);
+			}
+
+			this.pendingQuitPromiseResolve(veto);
+			this.pendingQuitPromiseResolve = null;
+			this.pendingQuitPromise = null;
+		}
 	}
 
 	private onBeforeUnloadWindowInRenderer(window: ICodeWindow, reason: UnloadReason): Thenable<boolean /* veto */> {
@@ -390,8 +398,6 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 	 */
 	quit(fromUpdate?: boolean): Thenable<boolean /* veto */> {
 		if (this.pendingQuitPromise) {
-			this.logService.trace('Lifecycle#quit() - ignored, a pending quit was found');
-
 			return this.pendingQuitPromise;
 		}
 
@@ -406,15 +412,8 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 			app.once('will-quit', () => {
 				this.logService.trace('Lifecycle#quit() - app.on(will-quit)');
 
-				if (this.pendingQuitPromiseResolve) {
-					if (fromUpdate) {
-						this.stateService.setItem(LifecycleService.QUIT_FROM_RESTART_MARKER, true);
-					}
-
-					this.pendingQuitPromiseResolve(false /* no veto */);
-					this.pendingQuitPromiseResolve = null;
-					this.pendingQuitPromise = null;
-				}
+				// Resolve pending quit promise now without veto
+				this.resolvePendingQuitPromise(false /* no veto */, fromUpdate);
 			});
 
 			// Calling app.quit() will trigger the close handlers of each opened window
@@ -427,10 +426,6 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 	}
 
 	relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): void {
-		if (this.pendingQuitPromise) {
-			return this.logService.trace('Lifecycle#relaunch() - ignored, a pending quit was found');
-		}
-
 		this.logService.trace('Lifecycle#relaunch()');
 
 		const args = process.argv.slice(1);
