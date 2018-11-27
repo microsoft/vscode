@@ -165,7 +165,9 @@ export class IssueService implements IIssueService {
 				}
 
 				// Focus
-				this._processExplorerWindow.focus();
+				if (this._processExplorerWindow) {
+					this._processExplorerWindow.focus();
+				}
 			}
 		});
 	}
