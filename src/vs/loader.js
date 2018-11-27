@@ -298,25 +298,31 @@ var AMDLoader;
             if (!Array.isArray(options.nodeModules)) {
                 options.nodeModules = [];
             }
-            if (typeof options.nodeCachedDataWriteDelay !== 'number' || options.nodeCachedDataWriteDelay < 0) {
-                options.nodeCachedDataWriteDelay = 1000 * 7;
-            }
-            if (typeof options.onNodeCachedData !== 'function') {
-                options.onNodeCachedData = function (err, data) {
-                    if (!err) {
-                        // ignore
-                    }
-                    else if (err.errorCode === 'cachedDataRejected') {
-                        console.warn('Rejected cached data from file: ' + err.path);
-                    }
-                    else if (err.errorCode === 'unlink' || err.errorCode === 'writeFile') {
-                        console.error('Problems writing cached data file: ' + err.path);
-                        console.error(err.detail);
-                    }
-                    else {
-                        console.error(err);
-                    }
-                };
+            if (typeof options.nodeCachedData === 'object') {
+                if (typeof options.nodeCachedData.seed !== 'string') {
+                    options.nodeCachedData.seed = 'seed';
+                }
+                if (typeof options.nodeCachedData.writeDelay !== 'number' || options.nodeCachedData.writeDelay < 0) {
+                    options.nodeCachedData.writeDelay = 1000 * 7;
+                }
+                if (typeof options.nodeCachedData.onData !== 'function') {
+                    options.nodeCachedData.onData = function (err) {
+                        if (err && err.errorCode === 'cachedDataRejected') {
+                            console.warn('Rejected cached data from file: ' + err.path);
+                        }
+                        else if (err && err.errorCode) {
+                            console.error('Problems handling cached data file: ' + err.path);
+                            console.error(err.detail);
+                        }
+                        else if (err) {
+                            console.error(err);
+                        }
+                    };
+                }
+                if (!options.nodeCachedData.path || typeof options.nodeCachedData.path !== 'string') {
+                    options.nodeCachedData.onData('INVALID cached data configuration, \'path\' MUST be set');
+                    options.nodeCachedData = undefined;
+                }
             }
             return options;
         };
@@ -665,21 +671,12 @@ var AMDLoader;
             this._vm = nodeRequire('vm');
             this._path = nodeRequire('path');
             this._crypto = nodeRequire('crypto');
-            // js-flags have an impact on cached data
-            this._jsflags = '';
-            for (var _i = 0, _a = process.argv; _i < _a.length; _i++) {
-                var arg = _a[_i];
-                if (arg.indexOf('--js-flags=') === 0) {
-                    this._jsflags = arg;
-                    break;
-                }
-            }
         };
         // patch require-function of nodejs such that we can manually create a script
         // from cached data. this is done by overriding the `Module._compile` function
         NodeScriptLoader.prototype._initNodeRequire = function (nodeRequire, moduleManager) {
-            var nodeCachedDataDir = moduleManager.getConfig().getOptionsLiteral().nodeCachedDataDir;
-            if (!nodeCachedDataDir || this._didPatchNodeRequire) {
+            var nodeCachedData = moduleManager.getConfig().getOptionsLiteral().nodeCachedData;
+            if (!nodeCachedData || this._didPatchNodeRequire) {
                 return;
             }
             this._didPatchNodeRequire = true;
@@ -708,7 +705,7 @@ var AMDLoader;
                 content = content.replace(/^#!.*/, '');
                 // create wrapper function
                 var wrapper = Module.wrap(content);
-                var cachedDataPath = that._getCachedDataPath(nodeCachedDataDir, filename);
+                var cachedDataPath = that._getCachedDataPath(nodeCachedData.seed, nodeCachedData.path, filename);
                 var options = { filename: filename };
                 try {
                     options.cachedData = that._fs.readFileSync(cachedDataPath);
@@ -776,11 +773,11 @@ var AMDLoader;
                         contents = prefix + data + suffix;
                     }
                     contents = nodeInstrumenter(contents, normalizedScriptSrc);
-                    if (!opts.nodeCachedDataDir) {
+                    if (!opts.nodeCachedData) {
                         _this._loadAndEvalScript(moduleManager, scriptSrc, vmScriptSrc, contents, { filename: vmScriptSrc }, recorder, callback, errorback);
                     }
                     else {
-                        var cachedDataPath_1 = _this._getCachedDataPath(opts.nodeCachedDataDir, scriptSrc);
+                        var cachedDataPath_1 = _this._getCachedDataPath(opts.nodeCachedData.seed, opts.nodeCachedData.path, scriptSrc);
                         _this._fs.readFile(cachedDataPath_1, function (err, cachedData) {
                             // create script options
                             var options = {
@@ -818,8 +815,8 @@ var AMDLoader;
             }
             return script;
         };
-        NodeScriptLoader.prototype._getCachedDataPath = function (basedir, filename) {
-            var hash = this._crypto.createHash('md5').update(filename, 'utf8').update(this._jsflags, 'utf8').digest('hex');
+        NodeScriptLoader.prototype._getCachedDataPath = function (seed, basedir, filename) {
+            var hash = this._crypto.createHash('md5').update(filename, 'utf8').update(seed, 'utf8').digest('hex');
             var basename = this._path.basename(filename).replace(/\.js$/, '');
             return this._path.join(basedir, basename + "-" + hash + ".code");
         };
@@ -827,25 +824,25 @@ var AMDLoader;
             var _this = this;
             if (script.cachedDataRejected) {
                 // data rejected => delete cache file
-                moduleManager.getConfig().getOptionsLiteral().onNodeCachedData({
+                moduleManager.getConfig().getOptionsLiteral().nodeCachedData.onData({
                     errorCode: 'cachedDataRejected',
                     path: cachedDataPath
                 });
                 NodeScriptLoader._runSoon(function () {
                     return _this._fs.unlink(cachedDataPath, function (err) {
                         if (err) {
-                            moduleManager.getConfig().getOptionsLiteral().onNodeCachedData({
+                            moduleManager.getConfig().getOptionsLiteral().nodeCachedData.onData({
                                 errorCode: 'unlink',
                                 path: cachedDataPath,
                                 detail: err
                             });
                         }
                     });
-                }, moduleManager.getConfig().getOptionsLiteral().nodeCachedDataWriteDelay);
+                }, moduleManager.getConfig().getOptionsLiteral().nodeCachedData.writeDelay);
             }
             else if (script.cachedDataProduced) {
                 // data produced => tell outside world
-                moduleManager.getConfig().getOptionsLiteral().onNodeCachedData(undefined, {
+                moduleManager.getConfig().getOptionsLiteral().nodeCachedData.onData(undefined, {
                     path: cachedDataPath,
                     length: script.cachedData.length
                 });
@@ -853,14 +850,14 @@ var AMDLoader;
                 NodeScriptLoader._runSoon(function () {
                     return _this._fs.writeFile(cachedDataPath, script.cachedData, function (err) {
                         if (err) {
-                            moduleManager.getConfig().getOptionsLiteral().onNodeCachedData({
+                            moduleManager.getConfig().getOptionsLiteral().nodeCachedData.onData({
                                 errorCode: 'writeFile',
                                 path: cachedDataPath,
                                 detail: err
                             });
                         }
                     });
-                }, moduleManager.getConfig().getOptionsLiteral().nodeCachedDataWriteDelay);
+                }, moduleManager.getConfig().getOptionsLiteral().nodeCachedData.writeDelay);
             }
         };
         NodeScriptLoader._runSoon = function (callback, minTimeout) {

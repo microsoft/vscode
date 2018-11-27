@@ -424,7 +424,7 @@ registerSingleton(ITimerService, TimerService, true);
 
 export function didUseCachedData(): boolean {
 	// We surely don't use cached data when we don't tell the loader to do so
-	if (!Boolean((<any>global).require.getConfig().nodeCachedDataDir)) {
+	if (!Boolean((<any>global).require.getConfig().nodeCachedData)) {
 		return false;
 	}
 	// whenever cached data is produced or rejected a onNodeCachedData-callback is invoked. That callback

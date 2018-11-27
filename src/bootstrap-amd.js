@@ -18,8 +18,7 @@ loader.config({
 	catchError: true,
 	nodeRequire: require,
 	nodeMain: __filename,
-	'vs/nls': nlsConfig,
-	nodeCachedDataDir: process.env['VSCODE_NODE_CACHED_DATA_DIR']
+	'vs/nls': nlsConfig
 });
 
 // Running in Electron
@@ -40,6 +39,14 @@ exports.load = function (entrypoint, onLoad, onError) {
 	if (!entrypoint) {
 		return;
 	}
+
+	// cached data config
+	loader.config({
+		nodeCachedData: {
+			path: process.env['VSCODE_NODE_CACHED_DATA_DIR'],
+			seed: entrypoint
+		}
+	});
 
 	onLoad = onLoad || function () { };
 	onError = onError || function (err) { console.error(err); };

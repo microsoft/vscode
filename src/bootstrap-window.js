@@ -91,7 +91,10 @@ exports.load = function (modulePaths, resultCallback, options) {
 	const loaderConfig = {
 		baseUrl: bootstrap.uriFromPath(configuration.appRoot) + '/out',
 		'vs/nls': nlsConfig,
-		nodeCachedDataDir: configuration.nodeCachedDataDir,
+		nodeCachedData: {
+			path: configuration.nodeCachedDataDir,
+			seed: modulePaths.join('')
+		},
 		nodeModules: [/*BUILD->INSERT_NODE_MODULES*/]
 	};
 
