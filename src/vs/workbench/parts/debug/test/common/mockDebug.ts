@@ -123,7 +123,7 @@ export class MockDebugService implements IDebugService {
 }
 
 export class MockSession implements IDebugSession {
-	getReplElements(): ReadonlyArray<IReplElement> {
+	getReplElements(): IReplElement[] {
 		return [];
 	}
 

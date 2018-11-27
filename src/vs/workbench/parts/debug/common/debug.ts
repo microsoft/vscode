@@ -161,7 +161,7 @@ export interface IDebugSession extends ITreeElement {
 	getAllThreads(): IThread[];
 	clearThreads(removeThreads: boolean, reference?: number): void;
 
-	getReplElements(): ReadonlyArray<IReplElement>;
+	getReplElements(): IReplElement[];
 
 	removeReplExpressions(): void;
 	addReplExpression(stackFrame: IStackFrame, name: string): Promise<void>;

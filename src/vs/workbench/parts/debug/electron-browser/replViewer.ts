@@ -16,8 +16,7 @@ import { ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IExpressionContainer, IExpression, IReplElementSource } from 'vs/workbench/parts/debug/common/debug';
 import { RawObjectReplElement, Expression, SimpleReplElement, Variable } from 'vs/workbench/parts/debug/common/debugModel';
 import { renderVariable, renderExpressionValue, IVariableTemplateData, BaseDebugController } from 'vs/workbench/parts/debug/browser/baseDebugView';
-import { ReplCollapseAllAction } from 'vs/workbench/parts/debug/browser/debugActions';
-import { CopyAction, CopyAllAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
+import { CopyAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LinkDetector } from 'vs/workbench/parts/debug/browser/linkDetector';
@@ -316,7 +315,7 @@ export class ReplExpressionsAccessibilityProvider implements IAccessibilityProvi
 
 export class ReplExpressionsActionProvider implements IActionProvider {
 
-	constructor(private clearReplAction: Action, private toFocus: { focus(): void }) {
+	constructor(private clearReplAction: Action) {
 		// noop
 	}
 
@@ -335,8 +334,8 @@ export class ReplExpressionsActionProvider implements IActionProvider {
 	public getSecondaryActions(tree: ITree, element: any): IAction[] {
 		const actions: IAction[] = [];
 		actions.push(new CopyAction(CopyAction.ID, CopyAction.LABEL));
-		actions.push(new CopyAllAction(CopyAllAction.ID, CopyAllAction.LABEL, tree));
-		actions.push(new ReplCollapseAllAction(tree, this.toFocus));
+		// actions.push(new CopyAllAction(CopyAllAction.ID, CopyAllAction.LABEL, tree));
+		// actions.push(new ReplCollapseAllAction(tree, this.toFocus));
 		actions.push(new Separator());
 		actions.push(this.clearReplAction);
 

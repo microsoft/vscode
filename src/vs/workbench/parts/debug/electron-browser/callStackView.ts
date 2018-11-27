@@ -652,11 +652,6 @@ class CallStackDataSource implements IDataSource<CallStackItem> {
 }
 
 class CallStackAccessibilityProvider implements IAccessibilityProvider<CallStackItem> {
-
-	constructor() {
-		// noop
-	}
-
 	getAriaLabel(element: CallStackItem): string {
 		if (element instanceof Thread) {
 			return nls.localize('threadAriaLabel', "Thread {0}, callstack, debug", (<Thread>element).name);
