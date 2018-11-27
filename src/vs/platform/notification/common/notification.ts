@@ -14,7 +14,23 @@ export const INotificationService = createDecorator<INotificationService>('notif
 
 export type NotificationMessage = string | Error;
 
-export interface INotification {
+export interface INotificationProperties {
+
+	/**
+	 * Sticky notifications are not automatically removed after a certain timeout. By
+	 * default, notifications with primary actions and severity error are always sticky.
+	 */
+	sticky?: boolean;
+
+	/**
+	 * Silent notifications are not shown to the user unless the notification center
+	 * is opened. The status bar will still indicate all number of notifications to
+	 * catch some attention.
+	 */
+	silent?: boolean;
+}
+
+export interface INotification extends INotificationProperties {
 
 	/**
 	 * The severity of the notification. Either `Info`, `Warning` or `Error`.
@@ -45,12 +61,6 @@ export interface INotification {
 	 * this usecase and much easier to use!
 	 */
 	actions?: INotificationActions;
-
-	/**
-	 * Sticky notifications are not automatically removed after a certain timeout. By
-	 * default, notifications with primary actions and severity error are always sticky.
-	 */
-	sticky?: boolean;
 }
 
 export interface INotificationActions {
@@ -153,14 +163,7 @@ export interface IPromptChoice {
 	run: () => void;
 }
 
-export interface IPromptOptions {
-
-	/**
-	 * Sticky prompts are not automatically removed after a certain timeout.
-	 *
-	 * Note: Prompts of severity ERROR are always sticky.
-	 */
-	sticky?: boolean;
+export interface IPromptOptions extends INotificationProperties {
 
 	/**
 	 * Will be called if the user closed the notification without picking

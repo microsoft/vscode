@@ -13,6 +13,11 @@ import { fillInContextMenuActions, fillInActionBarActions } from 'vs/platform/ac
 import { ISCMProvider, ISCMResource, ISCMResourceGroup } from 'vs/workbench/services/scm/common/scm';
 import { getSCMResourceContextKey } from './scmUtil';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { equals } from 'vs/base/common/arrays';
+
+function actionEquals(a: IAction, b: IAction): boolean {
+	return a.id === b.id;
+}
 
 export class SCMMenus implements IDisposable {
 
@@ -49,10 +54,18 @@ export class SCMMenus implements IDisposable {
 	}
 
 	private updateTitleActions(): void {
-		this.titleActions = [];
-		this.titleSecondaryActions = [];
-		// TODO@joao: second arg used to be null
-		fillInActionBarActions(this.titleMenu, { shouldForwardArgs: true }, { primary: this.titleActions, secondary: this.titleSecondaryActions });
+		const primary: IAction[] = [];
+		const secondary: IAction[] = [];
+
+		fillInActionBarActions(this.titleMenu, { shouldForwardArgs: true }, { primary, secondary });
+
+		if (equals(primary, this.titleActions, actionEquals) && equals(secondary, this.titleSecondaryActions, actionEquals)) {
+			return;
+		}
+
+		this.titleActions = primary;
+		this.titleSecondaryActions = secondary;
+
 		this._onDidChangeTitle.fire();
 	}
 

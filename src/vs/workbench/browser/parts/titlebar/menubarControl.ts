@@ -698,7 +698,7 @@ export class MenubarControl extends Disposable {
 			// Create the top level menu button element
 			if (firstTimeSetup) {
 
-				const buttonElement = $('div.menubar-menu-button', { 'role': 'menuitem', 'tabindex': 0, 'aria-label': cleanMenuLabel, 'aria-haspopup': true });
+				const buttonElement = $('div.menubar-menu-button', { 'role': 'menuitem', 'tabindex': -1, 'aria-label': cleanMenuLabel, 'aria-haspopup': true });
 				const titleElement = $('div.menubar-menu-title', { 'role': 'none', 'aria-hidden': true });
 
 				buttonElement.appendChild(titleElement);
@@ -842,9 +842,9 @@ export class MenubarControl extends Disposable {
 				let eventHandled = true;
 				const key = !!e.key ? KeyCodeUtils.fromString(e.key) : KeyCode.Unknown;
 
-				if (event.equals(KeyCode.LeftArrow) || (event.shiftKey && event.keyCode === KeyCode.Tab)) {
+				if (event.equals(KeyCode.LeftArrow)) {
 					this.focusPrevious();
-				} else if (event.equals(KeyCode.RightArrow) || event.equals(KeyCode.Tab)) {
+				} else if (event.equals(KeyCode.RightArrow)) {
 					this.focusNext();
 				} else if (event.equals(KeyCode.Escape) && this.isFocused && !this.isOpen) {
 					this.setUnfocusedState();

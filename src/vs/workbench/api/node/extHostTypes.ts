@@ -1990,6 +1990,7 @@ export class DebugAdapterServer implements vscode.DebugAdapterServer {
 	}
 }
 
+/*
 export class DebugAdapterImplementation implements vscode.DebugAdapterImplementation {
 	readonly implementation: any;
 
@@ -1997,6 +1998,7 @@ export class DebugAdapterImplementation implements vscode.DebugAdapterImplementa
 		this.implementation = transport;
 	}
 }
+*/
 
 export enum LogLevel {
 	Trace = 1,

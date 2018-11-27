@@ -53,7 +53,7 @@ export interface ILifecycleService {
 	 * vetoed the shutdown sequence. At this point listeners are ensured that the application will
 	 * quit without veto.
 	 */
-	onShutdown: Event<void>;
+	onWillShutdown: Event<void>;
 
 	/**
 	 * We provide our own event when we close a window because the general window.on('close')
@@ -86,9 +86,6 @@ export interface ILifecycleService {
 	 * Forcefully shutdown the application. No shutdown handlers are triggered.
 	 */
 	kill(code?: number): void;
-
-	ready(): void;
-	registerWindow(window: ICodeWindow): void;
 }
 
 export class LifecycleService extends Disposable implements ILifecycleService {
@@ -112,8 +109,8 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 	private readonly _onBeforeShutdown = this._register(new Emitter<void>());
 	readonly onBeforeShutdown: Event<void> = this._onBeforeShutdown.event;
 
-	private readonly _onShutdown = this._register(new Emitter<void>());
-	readonly onShutdown: Event<void> = this._onShutdown.event;
+	private readonly _onWillShutdown = this._register(new Emitter<void>());
+	readonly onWillShutdown: Event<void> = this._onWillShutdown.event;
 
 	private readonly _onBeforeWindowClose = this._register(new Emitter<ICodeWindow>());
 	readonly onBeforeWindowClose: Event<ICodeWindow> = this._onBeforeWindowClose.event;
@@ -163,7 +160,7 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 			// the onShutdown() event directly because there is no veto to be expected.
 			if (isMacintosh && this.windowCounter === 0) {
 				this.logService.trace('Lifecycle#onShutdown.fire()');
-				this._onShutdown.fire();
+				this._onWillShutdown.fire();
 			}
 		});
 
@@ -228,7 +225,7 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 			// the application continues running (unless quit was actually requested)
 			if (this.windowCounter === 0 && (!isMacintosh || this._quitRequested)) {
 				this.logService.trace('Lifecycle#onShutdown.fire()');
-				this._onShutdown.fire();
+				this._onWillShutdown.fire();
 			}
 		});
 	}
@@ -363,12 +360,6 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 		return this.pendingQuitPromise;
 	}
 
-	kill(code?: number): void {
-		this.logService.trace('Lifecycle#kill()');
-
-		app.exit(code);
-	}
-
 	relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): void {
 		this.logService.trace('Lifecycle#relaunch()');
 
@@ -386,9 +377,11 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 			}
 		}
 
-		let vetoed = false;
+		let quitVetoed = false;
 		app.once('quit', () => {
-			if (!vetoed) {
+			if (!quitVetoed) {
+
+				// Remember the reason for quit was to restart
 				this.stateService.setItem(LifecycleService.QUIT_FROM_RESTART_MARKER, true);
 
 				// Windows: we are about to restart and as such we need to restore the original
@@ -406,12 +399,19 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 					this.logService.error(err);
 				}
 
+				// relaunch after we are sure there is no veto
 				app.relaunch({ args });
 			}
 		});
 
-		this.quit().then(veto => {
-			vetoed = veto;
-		});
+		// app.relaunch() does not quit automatically, so we quit first,
+		// check for vetoes and then relaunch from the app.on('quit') event
+		this.quit().then(veto => quitVetoed = veto);
+	}
+
+	kill(code?: number): void {
+		this.logService.trace('Lifecycle#kill()');
+
+		app.exit(code);
 	}
 }

@@ -109,6 +109,10 @@ export class NotificationsToasts extends Themable {
 			return; // do not show toasts while notification center is visibles
 		}
 
+		if (item.silent) {
+			return; // do not show toats for silenced notifications
+		}
+
 		// Lazily create toasts containers
 		if (!this.notificationsToastsContainer) {
 			this.notificationsToastsContainer = document.createElement('div');

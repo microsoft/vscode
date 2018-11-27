@@ -14,6 +14,10 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { writeFile } from 'vs/base/node/pfs';
 import { IExtensionHostProfileService } from 'vs/workbench/parts/extensions/electron-browser/runtimeExtensionsEditor';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { localize } from 'vs/nls';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { RuntimeExtensionsInput } from 'vs/workbench/services/extensions/electron-browser/runtimeExtensionsInput';
 
 export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchContribution {
 
@@ -24,6 +28,8 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 		@IExtensionHostProfileService private readonly _extensionProfileService: IExtensionHostProfileService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILogService private readonly _logService: ILogService,
+		@INotificationService private readonly _notificationService: INotificationService,
+		@IEditorService private readonly _editorService: IEditorService,
 	) {
 		super();
 		this._register(_extensionService.onDidChangeResponsiveChange(this._onDidChangeResponsiveChange, this));
@@ -120,11 +126,27 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 				return;
 			}
 
-			const didPrompt = duration > 5e6 && top!.percentage > 90 && this._extensionProfileService.setUnresponsiveProfile(extension.id, profile);
+			// add to running extensions view
+			this._extensionProfileService.setUnresponsiveProfile(extension.id, profile);
+
+			// user-facing message when very bad...
+			const prompt = top.percentage >= 99 && top.total >= 5e6;
+			if (prompt) {
+				this._notificationService.prompt(
+					Severity.Info,
+					localize('unresponsive-exthost', "Extension '{0}' froze the extension host for more than {1} seconds.", extension.displayName || extension.name, Math.round(duration / 1e6)),
+					[{
+						label: localize('show', 'Show Extensions'),
+						run: () => this._editorService.openEditor(new RuntimeExtensionsInput())
+					}],
+					{ silent: true }
+				);
+			}
+
 			const path = join(tmpdir(), `exthost-${Math.random().toString(16).slice(2, 8)}.cpuprofile`);
 			await writeFile(path, JSON.stringify(profile.data));
 
-			this._logService.warn(`UNRESPONSIVE extension host, 'top.id' took ${top!.percentage}% of ${duration / 1e3}ms, saved PROFILE here: '${path}'`, data);
+			this._logService.warn(`UNRESPONSIVE extension host, '${top.id}' took ${top!.percentage}% of ${duration / 1e3}ms, saved PROFILE here: '${path}'`, data);
 
 			/* __GDPR__
 				"exthostunresponsive" : {
@@ -136,7 +158,7 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 			this._telemetryService.publicLog('exthostunresponsive', {
 				duration,
 				data,
-				prompt: didPrompt ? 1 : 0
+				prompt
 			});
 		});
 	}
