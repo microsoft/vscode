@@ -91,12 +91,16 @@ exports.load = function (modulePaths, resultCallback, options) {
 	const loaderConfig = {
 		baseUrl: bootstrap.uriFromPath(configuration.appRoot) + '/out',
 		'vs/nls': nlsConfig,
-		nodeCachedData: {
-			path: configuration.nodeCachedDataDir,
-			seed: modulePaths.join('')
-		},
 		nodeModules: [/*BUILD->INSERT_NODE_MODULES*/]
 	};
+
+	// cached data config
+	if (configuration.nodeCachedDataDir) {
+		loaderConfig.nodeCachedData = {
+			path: configuration.nodeCachedDataDir,
+			seed: modulePaths.join('')
+		};
+	}
 
 	if (options && typeof options.beforeLoaderConfig === 'function') {
 		options.beforeLoaderConfig(configuration, loaderConfig);

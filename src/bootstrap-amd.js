@@ -41,12 +41,14 @@ exports.load = function (entrypoint, onLoad, onError) {
 	}
 
 	// cached data config
-	loader.config({
-		nodeCachedData: {
-			path: process.env['VSCODE_NODE_CACHED_DATA_DIR'],
-			seed: entrypoint
-		}
-	});
+	if (process.env['VSCODE_NODE_CACHED_DATA_DIR']) {
+		loader.config({
+			nodeCachedData: {
+				path: process.env['VSCODE_NODE_CACHED_DATA_DIR'],
+				seed: entrypoint
+			}
+		});
+	}
 
 	onLoad = onLoad || function () { };
 	onError = onError || function (err) { console.error(err); };
