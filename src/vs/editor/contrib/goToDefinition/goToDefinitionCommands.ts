@@ -287,7 +287,7 @@ export class GoToDeclarationAction extends DeclarationAction {
 				EditorContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.F12,
+				primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.F12,
 				weight: KeybindingWeight.EditorContrib
 			},
 			menuOpts: {
@@ -320,7 +320,7 @@ export class PeekDeclarationAction extends DeclarationAction {
 				EditorContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.Alt | KeyCode.F12,
+				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F12,
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F10 },
 				weight: KeybindingWeight.EditorContrib
 			},
