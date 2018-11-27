@@ -49,7 +49,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import product from 'vs/platform/node/product';
-import { IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickPickItem, IQuickInputService, IQuickPick } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { clipboard } from 'electron';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -2793,8 +2793,36 @@ export class InstallExtensionPreviousVersionAction extends Action {
 	}
 
 	run(): Thenable<any> {
-		return this.quickInputService.pick(this.getEntries(), { placeHolder: localize('selectExtension', "Select Extension") })
-			.then(pick => pick && this.install(pick.extension, pick.version));
+		return new Promise(async (c, e) => {
+			const disposables: IDisposable[] = [];
+			let pick: (IQuickPickItem & { extension: IExtension, version: string });
+			const quickPick: IQuickPick<(IQuickPickItem & { extension: IExtension, version: string })> = this.quickInputService.createQuickPick();
+			disposables.push(quickPick.onDidHide(async () => {
+				if (pick && pick.extension) {
+					await this.install(pick.extension, pick.version);
+				}
+				dispose(disposables);
+				c();
+			}));
+			disposables.push(quickPick.onDidChangeSelection(([selected]) => {
+				pick = selected;
+				quickPick.hide();
+			}));
+			quickPick.placeholder = localize('selectExtension', "Select Extension");
+			quickPick.show();
+			quickPick.busy = true;
+			const entries = await this.getEntries();
+			quickPick.busy = false;
+			if (entries.length) {
+				quickPick.items = entries;
+			} else {
+				quickPick.items = [{
+					extension: void 0,
+					version: void 0,
+					label: localize('no extensions', "No extensions available")
+				}];
+			}
+		});
 	}
 
 	private async getEntries(): Promise<(IQuickPickItem & { extension: IExtension, version: string })[]> {
