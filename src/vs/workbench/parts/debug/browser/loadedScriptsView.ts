@@ -30,10 +30,7 @@ import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IResourceResultsNavigationOptions, IOpenResourceOptions, DataTreeResourceNavigator } from 'vs/platform/list/browser/listService';
-import { Emitter, Event } from 'vs/base/common/event';
-
+import { DataTreeResourceNavigator } from 'vs/platform/list/browser/listService';
 
 const SMART = true;
 
