@@ -47,7 +47,7 @@ import { FocusSessionActionItem } from 'vs/workbench/parts/debug/browser/debugAc
 import { CompletionContext, CompletionList, CompletionProviderRegistry } from 'vs/editor/common/modes';
 import { first } from 'vs/base/common/arrays';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { DataTree, IDataSource } from 'vs/base/browser/ui/tree/dataTree';
+import { IDataSource } from 'vs/base/browser/ui/tree/dataTree';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { Variable, Expression, SimpleReplElement, RawObjectReplElement } from 'vs/workbench/parts/debug/common/debugModel';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
@@ -64,6 +64,8 @@ import { ReplCollapseAllAction } from 'vs/workbench/parts/debug/browser/debugAct
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { removeAnsiEscapeCodes, isFullWidthCharacter, endsWith } from 'vs/base/common/strings';
+import { WorkbenchDataTree, IListService } from 'vs/platform/list/browser/listService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const $ = dom.$;
 
@@ -89,7 +91,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	private static readonly REPL_INPUT_MAX_HEIGHT = 170;
 
 	private history: HistoryNavigator<string>;
-	private tree: DataTree<IReplElement>;
+	private tree: WorkbenchDataTree<IReplElement>;
 	private dataSource: ReplDataSource;
 	private container: HTMLElement;
 	private treeContainer: HTMLElement;
@@ -112,7 +114,9 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		@IModelService private modelService: IModelService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@IContextMenuService private contextMenuService: IContextMenuService
+		@IContextMenuService private contextMenuService: IContextMenuService,
+		@IListService private listService: IListService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(REPL_ID, telemetryService, themeService, storageService);
 
@@ -320,7 +324,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		this.createReplInput(this.container);
 
 		this.dataSource = new ReplDataSource();
-		this.tree = new DataTree(this.treeContainer, new ReplDelegate(), [
+		this.tree = new WorkbenchDataTree(this.treeContainer, new ReplDelegate(), [
 			this.instantiationService.createInstance(VariablesRenderer),
 			this.instantiationService.createInstance(ReplSimpleElementsRenderer),
 			new ReplExpressionsRenderer(),
@@ -328,7 +332,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		], this.dataSource, {
 				ariaLabel: nls.localize('replAriaLabel', "Read Eval Print Loop Panel"),
 				accessibilityProvider: new ReplAccessibilityProvider()
-			});
+			}, this.contextKeyService, this.listService, this.themeService, this.configurationService);
 
 		this.toDispose.push(this.tree.onContextMenu(e => this.onContextMenu(e)));
 		// Make sure to select the session if debugging is already active

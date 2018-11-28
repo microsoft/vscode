@@ -25,12 +25,13 @@ import { ltrim } from 'vs/base/common/strings';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { ResourceLabel, IResourceLabel, IResourceLabelOptions } from 'vs/workbench/browser/labels';
 import { FileKind } from 'vs/platform/files/common/files';
-import { DataTree, IDataSource } from 'vs/base/browser/ui/tree/dataTree';
+import { IDataSource } from 'vs/base/browser/ui/tree/dataTree';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { DataTreeResourceNavigator } from 'vs/platform/list/browser/listService';
+import { WorkbenchDataTree, IListService, TreeResourceNavigator2 } from 'vs/platform/list/browser/listService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 const SMART = true;
 
@@ -357,7 +358,7 @@ export class LoadedScriptsView extends ViewletPanel {
 
 	private treeContainer: HTMLElement;
 	private loadedScriptsItemType: IContextKey<string>;
-	private tree: DataTree<any>;
+	private tree: WorkbenchDataTree<any>;
 	private changeScheduler: RunOnceScheduler;
 	private treeNeedsRefreshOnVisible: boolean;
 
@@ -368,10 +369,12 @@ export class LoadedScriptsView extends ViewletPanel {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IEditorService private editorService: IEditorService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IDebugService private debugService: IDebugService
+		@IDebugService private debugService: IDebugService,
+		@IListService private listService: IListService,
+		@IThemeService private themeService: IThemeService
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('loadedScriptsSection', "Loaded Scripts Section") }, keybindingService, contextMenuService, configurationService);
 		this.loadedScriptsItemType = CONTEXT_LOADED_SCRIPTS_ITEM_TYPE.bindTo(contextKeyService);
@@ -385,7 +388,7 @@ export class LoadedScriptsView extends ViewletPanel {
 
 		const root = new RootTreeItem(this.debugService.getModel(), this.environmentService, this.contextService);
 
-		this.tree = new DataTree(this.treeContainer, new LoadedScriptsDelegate(),
+		this.tree = new WorkbenchDataTree(this.treeContainer, new LoadedScriptsDelegate(),
 			[
 				this.instantiationService.createInstance(LoadedScriptsRenderer)
 			],
@@ -394,7 +397,8 @@ export class LoadedScriptsView extends ViewletPanel {
 				accessibilityProvider: new LoadedSciptsAccessibilityProvider(),
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'loadedScriptsAriaLabel' }, "Debug Loaded Scripts"),
 				identityProvider: element => element.getId()
-			}
+			},
+			this.contextKeyService, this.listService, this.themeService, this.configurationService
 		);
 
 		this.changeScheduler = new RunOnceScheduler(() => {
@@ -405,7 +409,7 @@ export class LoadedScriptsView extends ViewletPanel {
 		}, 300);
 		this.disposables.push(this.changeScheduler);
 
-		const loadedScriptsNavigator = new DataTreeResourceNavigator(this.tree);
+		const loadedScriptsNavigator = new TreeResourceNavigator2(this.tree);
 		this.disposables.push(loadedScriptsNavigator);
 		this.disposables.push(loadedScriptsNavigator.openResource(e => {
 			if (e.element instanceof BaseTreeItem) {

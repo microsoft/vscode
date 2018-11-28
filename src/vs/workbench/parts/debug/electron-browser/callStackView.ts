@@ -25,12 +25,13 @@ import { IViewletPanelOptions, ViewletPanel } from 'vs/workbench/browser/parts/v
 import { ILabelService } from 'vs/platform/label/common/label';
 import { DebugSession } from 'vs/workbench/parts/debug/electron-browser/debugSession';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { DataTree, IDataSource } from 'vs/base/browser/ui/tree/dataTree';
+import { IDataSource } from 'vs/base/browser/ui/tree/dataTree';
 import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/abstractTree';
 import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
-import { DataTreeResourceNavigator } from 'vs/platform/list/browser/listService';
+import { TreeResourceNavigator2, WorkbenchDataTree, IListService } from 'vs/platform/list/browser/listService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 const $ = dom.$;
 
@@ -45,7 +46,7 @@ export class CallStackView extends ViewletPanel {
 	private ignoreSelectionChangedEvent: boolean;
 	private callStackItemType: IContextKey<string>;
 	private dataSource: CallStackDataSource;
-	private tree: DataTree<CallStackItem>;
+	private tree: WorkbenchDataTree<CallStackItem>;
 	private contributedContextMenu: IMenu;
 
 	constructor(
@@ -57,7 +58,9 @@ export class CallStackView extends ViewletPanel {
 		@IEditorService private editorService: IEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IMenuService menuService: IMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IThemeService private themeService: IThemeService,
+		@IListService private listService: IListService
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('callstackSection', "Call Stack Section") }, keybindingService, contextMenuService, configurationService);
 		this.callStackItemType = CONTEXT_CALLSTACK_ITEM_TYPE.bindTo(contextKeyService);
@@ -100,7 +103,7 @@ export class CallStackView extends ViewletPanel {
 		const treeContainer = renderViewTree(container);
 
 		this.dataSource = new CallStackDataSource(this.debugService);
-		this.tree = new DataTree(treeContainer, new CallStackDelegate(), [
+		this.tree = new WorkbenchDataTree(treeContainer, new CallStackDelegate(), [
 			new SessionsRenderer(),
 			new ThreadsRenderer(),
 			this.instantiationService.createInstance(StackFramesRenderer),
@@ -110,9 +113,9 @@ export class CallStackView extends ViewletPanel {
 		], this.dataSource, {
 				accessibilityProvider: new CallStackAccessibilityProvider(),
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'callStackAriaLabel' }, "Debug Call Stack"),
-			});
+			}, this.contextKeyService, this.listService, this.themeService, this.configurationService);
 
-		const callstackNavigator = new DataTreeResourceNavigator(this.tree);
+		const callstackNavigator = new TreeResourceNavigator2(this.tree);
 		this.disposables.push(callstackNavigator);
 		this.disposables.push(callstackNavigator.openResource(e => {
 			if (this.ignoreSelectionChangedEvent) {
