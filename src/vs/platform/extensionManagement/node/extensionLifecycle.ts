@@ -26,22 +26,30 @@ export class ExtensionsLifecycle extends Disposable {
 		super();
 	}
 
-	postUninstall(extension: ILocalExtension): Promise<void> {
-		return this.parseAndRun(extension, 'uninstall');
-	}
-
-	postInstall(extension: ILocalExtension): Promise<void> {
-		return this.parseAndRun(extension, 'install');
-	}
-
-	private async parseAndRun(extension: ILocalExtension, type: string): Promise<void> {
-		const script = this.parseScript(extension, type);
+	postUninstall(extension: ILocalExtension): Thenable<void> {
+		const script = this.parseScript(extension, 'uninstall');
 		if (script) {
-			this.logService.info(extension.identifier.id, `Running ${type} hook`);
-			await this.processesLimiter.queue(() =>
-				this.runLifecycleHook(script.script, script.args, extension)
-					.then(() => this.logService.info(extension.identifier.id, `Finished running ${type} hook`), err => this.logService.error(extension.identifier.id, `Failed to run ${type} hook: ${err}`)));
+			this.logService.info(extension.identifier.id, `Running post uninstall script`);
+			return this.processesLimiter.queue(() =>
+				this.runLifecycleHook(script.script, 'uninstall', script.args, true, extension)
+					.then(() => this.logService.info(extension.identifier.id, `Finished running post uninstall script`), err => this.logService.error(extension.identifier.id, `Failed to run post uninstall script: ${err}`)));
 		}
+		return Promise.resolve();
+	}
+
+	postInstall(extension: ILocalExtension): Thenable<void> {
+		const script = this.parseScript(extension, 'install');
+		if (script) {
+			this.logService.info(extension.identifier.id, `Running post install script`);
+			return this.processesLimiter.queue(() =>
+				this.runLifecycleHook(script.script, 'install', script.args, false, extension)
+					.then(() => this.logService.info(extension.identifier.id, `Finished running post install script`),
+						err => {
+							this.logService.error(extension.identifier.id, `Failed to run post install script: ${err}`);
+							return Promise.reject(err);
+						}));
+		}
+		return Promise.resolve();
 	}
 
 	private parseScript(extension: ILocalExtension, type: string): { script: string, args: string[] } | null {
@@ -57,16 +65,18 @@ export class ExtensionsLifecycle extends Disposable {
 		return null;
 	}
 
-	private runLifecycleHook(lifecycleHook: string, args: string[], extension: ILocalExtension): Thenable<void> {
+	private runLifecycleHook(lifecycleHook: string, lifecycleType: string, args: string[], timeout: boolean, extension: ILocalExtension): Thenable<void> {
 		const extensionStoragePath = posix.join(this.environmentService.globalStorageHome, extension.identifier.id.toLocaleLowerCase());
 		return new Promise<void>((c, e) => {
 
-			const extensionLifecycleProcess = this.start(lifecycleHook, args, extension, extensionStoragePath);
+			const extensionLifecycleProcess = this.start(lifecycleHook, lifecycleType, args, extension, extensionStoragePath);
 			let timeoutHandler;
 
 			const onexit = (error?: string) => {
-				clearTimeout(timeoutHandler);
-				timeoutHandler = null;
+				if (timeoutHandler) {
+					clearTimeout(timeoutHandler);
+					timeoutHandler = null;
+				}
 				if (error) {
 					e(error);
 				} else {
@@ -76,28 +86,26 @@ export class ExtensionsLifecycle extends Disposable {
 
 			// on error
 			extensionLifecycleProcess.on('error', (err) => {
-				if (timeoutHandler) {
-					onexit(toErrorMessage(err) || 'Unknown');
-				}
+				onexit(toErrorMessage(err) || 'Unknown');
 			});
 
 			// on exit
 			extensionLifecycleProcess.on('exit', (code: number, signal: string) => {
-				if (timeoutHandler) {
-					onexit(code ? `Process exited with code ${code}` : void 0);
-				}
+				onexit(code ? `post-${lifecycleType} process exited with code ${code}` : void 0);
 			});
 
-			// timeout: kill process after waiting for 5s
-			timeoutHandler = setTimeout(() => {
-				timeoutHandler = null;
-				extensionLifecycleProcess.kill();
-				e('timed out');
-			}, 5000);
+			if (timeout) {
+				// timeout: kill process after waiting for 5s
+				timeoutHandler = setTimeout(() => {
+					timeoutHandler = null;
+					extensionLifecycleProcess.kill();
+					e('timed out');
+				}, 5000);
+			}
 		});
 	}
 
-	private start(uninstallHook: string, args: string[], extension: ILocalExtension, extensionStoragePath: string): ChildProcess {
+	private start(uninstallHook: string, lifecycleType: string, args: string[], extension: ILocalExtension, extensionStoragePath: string): ChildProcess {
 		const opts = {
 			silent: true,
 			execArgv: undefined,
@@ -105,19 +113,24 @@ export class ExtensionsLifecycle extends Disposable {
 				VSCODE_EXTENSION_STORAGE_LOCATION: extensionStoragePath
 			})
 		};
-		const extensionUninstallProcess = fork(uninstallHook, ['--type=extensionUninstall', ...args], opts);
+		const extensionUninstallProcess = fork(uninstallHook, [`--type=extension-post-${lifecycleType}`, ...args], opts);
 
 		// Catch all output coming from the process
 		type Output = { data: string, format: string[] };
 		extensionUninstallProcess.stdout.setEncoding('utf8');
 		extensionUninstallProcess.stderr.setEncoding('utf8');
+
 		const onStdout = fromNodeEventEmitter<string>(extensionUninstallProcess.stdout, 'data');
 		const onStderr = fromNodeEventEmitter<string>(extensionUninstallProcess.stderr, 'data');
+
+		// Log output
+		onStdout(data => this.logService.info(extension.identifier.id, `post-${lifecycleType}`, data));
+		onStderr(data => this.logService.error(extension.identifier.id, `post-${lifecycleType}`, data));
+
 		const onOutput = anyEvent(
 			mapEvent(onStdout, o => ({ data: `%c${o}`, format: [''] })),
 			mapEvent(onStderr, o => ({ data: `%c${o}`, format: ['color: red'] }))
 		);
-
 		// Debounce all output, so we can render it in the Chrome console as a group
 		const onDebouncedOutput = debounceEvent<Output>(onOutput, (r, o) => {
 			return r
@@ -125,7 +138,7 @@ export class ExtensionsLifecycle extends Disposable {
 				: { data: o.data, format: o.format };
 		}, 100);
 
-		// Print out extension host output
+		// Print out output
 		onDebouncedOutput(data => {
 			console.group(extension.identifier.id);
 			console.log(data.data, ...data.format);
