@@ -23,7 +23,7 @@ import { CollapseAction2 } from 'vs/workbench/browser/viewlet';
 import { first } from 'vs/base/common/arrays';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { memoize } from 'vs/base/common/decorators';
-import { DataTree } from 'vs/base/browser/ui/tree/dataTree';
+import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 
 export abstract class AbstractDebugAction extends Action {
 
@@ -798,7 +798,7 @@ export class ReverseContinueAction extends AbstractDebugAction {
 }
 
 export class ReplCollapseAllAction extends CollapseAction2 {
-	constructor(tree: DataTree<any>, private toFocus: { focus(): void; }) {
+	constructor(tree: AsyncDataTree<any>, private toFocus: { focus(): void; }) {
 		super(tree, true, undefined);
 	}
 

@@ -47,24 +47,23 @@ import { FocusSessionActionItem } from 'vs/workbench/parts/debug/browser/debugAc
 import { CompletionContext, CompletionList, CompletionProviderRegistry } from 'vs/editor/common/modes';
 import { first } from 'vs/base/common/arrays';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IDataSource } from 'vs/base/browser/ui/tree/dataTree';
+import { IDataSource } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { Variable, Expression, SimpleReplElement, RawObjectReplElement } from 'vs/workbench/parts/debug/common/debugModel';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { VariablesRenderer } from 'vs/workbench/parts/debug/electron-browser/variablesView';
-import { ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
+import { ITreeRenderer, ITreeNode, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { renderExpressionValue } from 'vs/workbench/parts/debug/browser/baseDebugView';
 import { handleANSIOutput } from 'vs/workbench/parts/debug/browser/debugANSIHandling';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { LinkDetector } from 'vs/workbench/parts/debug/browser/linkDetector';
-import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/abstractTree';
 import { CopyAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
 import { ReplCollapseAllAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { removeAnsiEscapeCodes, isFullWidthCharacter, endsWith } from 'vs/base/common/strings';
-import { WorkbenchDataTree, IListService } from 'vs/platform/list/browser/listService';
+import { WorkbenchAsyncDataTree, IListService } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -93,7 +92,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	private static readonly REPL_INPUT_MAX_HEIGHT = 170;
 
 	private history: HistoryNavigator<string>;
-	private tree: WorkbenchDataTree<IReplElement>;
+	private tree: WorkbenchAsyncDataTree<IReplElement>;
 	private dataSource: ReplDataSource;
 	private replDelegate: ReplDelegate;
 	private container: HTMLElement;
@@ -340,7 +339,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 		this.dataSource = new ReplDataSource();
 		this.replDelegate = new ReplDelegate();
-		this.tree = new WorkbenchDataTree(this.treeContainer, this.replDelegate, [
+		this.tree = new WorkbenchAsyncDataTree(this.treeContainer, this.replDelegate, [
 			this.instantiationService.createInstance(VariablesRenderer),
 			this.instantiationService.createInstance(ReplSimpleElementsRenderer),
 			new ReplExpressionsRenderer(),
