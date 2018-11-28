@@ -154,7 +154,7 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 	constructor(
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
-		renderers: ITreeRenderer<T, TFilterData, any>[],
+		renderers: ITreeRenderer<any /* TODO@joao */, TFilterData, any>[],
 		private dataSource: IDataSource<T>,
 		options?: ITreeOptions<T, TFilterData>
 	) {

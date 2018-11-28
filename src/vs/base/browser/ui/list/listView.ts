@@ -65,7 +65,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private itemId: number;
 	private rangeMap: RangeMap;
 	private cache: RowCache<T>;
-	private renderers = new Map<string, IListRenderer<T, any>>();
+	private renderers = new Map<string, IListRenderer<any /* TODO@joao */, any>>();
 	private lastRenderTop: number;
 	private lastRenderHeight: number;
 	private renderWidth = 0;
@@ -85,7 +85,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	constructor(
 		container: HTMLElement,
 		private virtualDelegate: IListVirtualDelegate<T>,
-		renderers: IListRenderer<T, any>[],
+		renderers: IListRenderer<any /* TODO@joao */, any>[],
 		options: IListViewOptions = DefaultOptions
 	) {
 		this.items = [];

@@ -215,7 +215,7 @@ export class WorkbenchList<T> extends List<T> {
 	constructor(
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
-		renderers: IListRenderer<T, any>[],
+		renderers: IListRenderer<any /* TODO@joao */, any>[],
 		options: IListOptions<T>,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
@@ -881,7 +881,7 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 	constructor(
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
-		renderers: ITreeRenderer<T, TFilterData, any>[],
+		renderers: ITreeRenderer<any /* TODO@joao */, TFilterData, any>[],
 		options: ITreeOptions2<T, TFilterData>,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
@@ -943,7 +943,7 @@ export class WorkbenchDataTree<T extends NonNullable<any>, TFilterData = void> e
 	constructor(
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
-		renderers: ITreeRenderer<T, TFilterData, any>[],
+		renderers: ITreeRenderer<any /* TODO@joao */, TFilterData, any>[],
 		dataSource: IDataSource<T>,
 		options: ITreeOptions2<T, TFilterData>,
 		@IContextKeyService contextKeyService: IContextKeyService,

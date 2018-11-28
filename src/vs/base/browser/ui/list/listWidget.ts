@@ -839,7 +839,7 @@ class PipelineRenderer<T> implements IListRenderer<T, any> {
 
 	constructor(
 		private _templateId: string,
-		private renderers: IListRenderer<T, any>[]
+		private renderers: IListRenderer<any /* TODO@joao */, any>[]
 	) { }
 
 	get templateId(): string {
@@ -963,7 +963,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	constructor(
 		container: HTMLElement,
 		virtualDelegate: IListVirtualDelegate<T>,
-		renderers: IListRenderer<T, any>[],
+		renderers: IListRenderer<any /* TODO@joao */, any>[],
 		options: IListOptions<T> = DefaultOptions
 	) {
 		this.focus = new FocusTrait(i => this.getElementDomId(i));
