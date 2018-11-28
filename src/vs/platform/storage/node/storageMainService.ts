@@ -12,6 +12,7 @@ import { IStorage, Storage, IStorageLoggingOptions } from 'vs/base/node/storage'
 import { join } from 'path';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { mark } from 'vs/base/common/performance';
+import { IStorageChangeEvent } from 'vs/platform/storage/common/storage';
 
 export const IStorageMainService = createDecorator<IStorageMainService>('storageMainService');
 
@@ -30,6 +31,11 @@ export interface IStorageMainService {
 	 * down.
 	 */
 	readonly onWillSaveState: Event<void>;
+
+	/**
+	 * Retrieve all elements stored in storage.
+	 */
+	readonly items: Map<string, string>;
 
 	/**
 	 * Retrieve an element stored with the given key from storage. Use
@@ -61,10 +67,11 @@ export interface IStorageMainService {
 	 * Delete an element stored under the provided key from storage.
 	 */
 	remove(key: string): void;
-}
 
-export interface IStorageChangeEvent {
-	key: string;
+	/**
+	 * Check the integrity of the underlying database.
+	 */
+	checkIntegrity(full: boolean): Thenable<string>;
 }
 
 export class StorageMainService extends Disposable implements IStorageMainService {
@@ -78,6 +85,8 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 	private _onWillSaveState: Emitter<void> = this._register(new Emitter<void>());
 	get onWillSaveState(): Event<void> { return this._onWillSaveState.event; }
+
+	get items(): Map<string, string> { return this.storage.items; }
 
 	private storage: IStorage;
 
@@ -166,5 +175,9 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 		// Do it
 		return this.storage.close().then(() => this.logService.trace('StorageMainService#close() - finished'));
+	}
+
+	checkIntegrity(full: boolean): Thenable<string> {
+		return this.storage.checkIntegrity(full);
 	}
 }

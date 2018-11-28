@@ -88,8 +88,11 @@ export const enum StorageScope {
 	WORKSPACE
 }
 
-export interface IWorkspaceStorageChangeEvent {
+export interface IStorageChangeEvent {
 	key: string;
+}
+
+export interface IWorkspaceStorageChangeEvent extends IStorageChangeEvent {
 	scope: StorageScope;
 }
 

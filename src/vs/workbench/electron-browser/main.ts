@@ -48,6 +48,7 @@ import { basename } from 'path';
 import { createHash } from 'crypto';
 import { IdleValue } from 'vs/base/common/async';
 import { setGlobalLeakWarningThreshold } from 'vs/base/common/event';
+import { GlobalStorageDatabaseChannelClient } from 'vs/platform/storage/node/storageIpc';
 
 gracefulFs.gracefulify(fs); // enable gracefulFs
 
@@ -103,7 +104,7 @@ function revive(workbench: IWindowConfiguration) {
 
 function openWorkbench(configuration: IWindowConfiguration): Promise<void> {
 	const mainProcessClient = new ElectronIPCClient(`window:${configuration.windowId}`);
-	const mainServices = createMainProcessServices(mainProcessClient, configuration);
+	const mainServices = createMainProcessServices(mainProcessClient);
 
 	const environmentService = new EnvironmentService(configuration, configuration.execPath);
 
@@ -119,7 +120,7 @@ function openWorkbench(configuration: IWindowConfiguration): Promise<void> {
 			createWorkspaceService(payload, environmentService, logService),
 
 			// Create and initialize storage service
-			createStorageService(payload, environmentService, logService)
+			createStorageService(payload, environmentService, logService, mainProcessClient)
 		]).then(services => {
 			const workspaceService = services[0];
 			const storageService = new DelegatingStorageService(services[1], createStorageLegacyService(workspaceService, environmentService), logService, workspaceService);
@@ -238,9 +239,9 @@ function createWorkspaceService(payload: IWorkspaceInitializationPayload, enviro
 	});
 }
 
-function createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService, logService: ILogService): Thenable<StorageService> {
+function createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService, logService: ILogService, mainProcessClient: ElectronIPCClient): Thenable<StorageService> {
 	const useInMemoryStorage = !!environmentService.extensionTestsPath; // no storage during extension tests!
-	const storageService = new StorageService({ disableGlobalStorage: true, storeInMemory: useInMemoryStorage }, logService, environmentService);
+	const storageService = new StorageService({ storeInMemory: useInMemoryStorage, globalStorage: new GlobalStorageDatabaseChannelClient(mainProcessClient.getChannel('storage')) }, logService, environmentService);
 
 	return storageService.initialize(payload).then(() => storageService, error => {
 		onUnexpectedError(error);
@@ -299,7 +300,7 @@ function createLogService(mainProcessClient: ElectronIPCClient, configuration: I
 	return new FollowerLogService(logLevelClient, logService);
 }
 
-function createMainProcessServices(mainProcessClient: ElectronIPCClient, configuration: IWindowConfiguration): ServiceCollection {
+function createMainProcessServices(mainProcessClient: ElectronIPCClient): ServiceCollection {
 	const serviceCollection = new ServiceCollection();
 
 	const windowsChannel = mainProcessClient.getChannel('windows');

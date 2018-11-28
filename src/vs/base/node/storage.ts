@@ -43,10 +43,11 @@ enum StorageState {
 
 export interface IStorage extends IDisposable {
 
+	readonly items: Map<string, string>;
 	readonly size: number;
 	readonly onDidChangeStorage: Event<string>;
 
-	init(): Promise<void>;
+	init(): Thenable<void>;
 
 	get(key: string, fallbackValue: string): string;
 	get(key: string, fallbackValue?: string): string | undefined;
@@ -62,8 +63,16 @@ export interface IStorage extends IDisposable {
 
 	close(): Thenable<void>;
 
-	getItems(): Promise<Map<string, string>>;
-	checkIntegrity(full: boolean): Promise<string>;
+	checkIntegrity(full: boolean): Thenable<string>;
+}
+
+export interface IStorageDatabase {
+	getItems(): Thenable<Map<string, string>>;
+	updateItems(request: IUpdateRequest): Thenable<void>;
+
+	close(): Thenable<void>;
+
+	checkIntegrity(full: boolean): Thenable<string>;
 }
 
 export class Storage extends Disposable implements IStorage {
@@ -76,9 +85,10 @@ export class Storage extends Disposable implements IStorage {
 	private _onDidChangeStorage: Emitter<string> = this._register(new Emitter<string>());
 	get onDidChangeStorage(): Event<string> { return this._onDidChangeStorage.event; }
 
+	protected storage: IStorageDatabase;
+
 	private state = StorageState.None;
 
-	private storage: SQLiteStorageImpl;
 	private cache: Map<string, string> = new Map<string, string>();
 
 	private flushDelayer: ThrottledDelayer<void>;
@@ -86,19 +96,23 @@ export class Storage extends Disposable implements IStorage {
 	private pendingDeletes: Set<string> = new Set<string>();
 	private pendingInserts: Map<string, string> = new Map();
 
-	constructor(private options: IStorageOptions) {
+	constructor(private options: IStorageOptions, storage?: IStorageDatabase) {
 		super();
 
-		this.storage = new SQLiteStorageImpl(options);
+		this.storage = storage || new SQLiteStorageImpl(options);
 
 		this.flushDelayer = this._register(new ThrottledDelayer(Storage.FLUSH_DELAY));
+	}
+
+	get items(): Map<string, string> {
+		return this.cache;
 	}
 
 	get size(): number {
 		return this.cache.size;
 	}
 
-	init(): Promise<void> {
+	init(): Thenable<void> {
 		if (this.state !== StorageState.None) {
 			return Promise.resolve(); // either closed or already initialized
 		}
@@ -236,11 +250,7 @@ export class Storage extends Disposable implements IStorage {
 		return this.storage.updateItems(updateRequest);
 	}
 
-	getItems(): Promise<Map<string, string>> {
-		return this.storage.getItems();
-	}
-
-	checkIntegrity(full: boolean): Promise<string> {
+	checkIntegrity(full: boolean): Thenable<string> {
 		return this.storage.checkIntegrity(full);
 	}
 }
@@ -255,7 +265,7 @@ interface IOpenDatabaseResult {
 	path: string;
 }
 
-export class SQLiteStorageImpl {
+export class SQLiteStorageImpl implements IStorageDatabase {
 
 	private static measuredRequireDuration: boolean; // TODO@Ben remove me after a while
 
@@ -604,10 +614,9 @@ class SQLiteStorageLogger {
 
 export class NullStorage extends Disposable implements IStorage {
 
+	readonly items = new Map<string, string>();
 	readonly size = 0;
 	readonly onDidChangeStorage = Event.None;
-
-	private items = new Map<string, string>();
 
 	init(): Promise<void> { return Promise.resolve(); }
 
@@ -639,10 +648,6 @@ export class NullStorage extends Disposable implements IStorage {
 
 	close(): Promise<void> {
 		return Promise.resolve();
-	}
-
-	getItems(): Promise<Map<string, string>> {
-		return Promise.resolve(this.items);
 	}
 
 	checkIntegrity(full: boolean): Promise<string> {

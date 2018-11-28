@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Storage, SQLiteStorageImpl, IStorageOptions } from 'vs/base/node/storage';
+import { Storage, SQLiteStorageImpl, IStorageOptions, IStorageDatabase } from 'vs/base/node/storage';
 import { generateUuid } from 'vs/base/common/uuid';
 import { join } from 'path';
 import { tmpdir } from 'os';
@@ -519,7 +519,13 @@ suite('SQLite Storage Library', () => {
 		const storageDir = uniqueStorageDir();
 		await mkdirp(storageDir);
 
-		const storage = new Storage({ path: join(storageDir, 'storage.db') });
+		class TestStorage extends Storage {
+			getStorage(): IStorageDatabase {
+				return this.storage;
+			}
+		}
+
+		const storage = new TestStorage({ path: join(storageDir, 'storage.db') });
 
 		await storage.init();
 
@@ -551,7 +557,7 @@ suite('SQLite Storage Library', () => {
 		storage.set('foo3', 'bar');
 		await storage.set('some/foo3/path', 'some/bar/path');
 
-		const items = await storage.getItems();
+		const items = await storage.getStorage().getItems();
 		equal(items.get('foo'), 'bar');
 		equal(items.get('some/foo/path'), 'some/bar/path');
 		equal(items.has('foo1'), false);

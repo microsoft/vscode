@@ -7,7 +7,7 @@ import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IWorkspaceStorageChangeEvent, IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { Storage, IStorageLoggingOptions, NullStorage, IStorage, StorageHint } from 'vs/base/node/storage';
+import { Storage, IStorageLoggingOptions, NullStorage, IStorage, StorageHint, IStorageDatabase } from 'vs/base/node/storage';
 import { IStorageLegacyService, StorageLegacyScope } from 'vs/platform/storage/common/storageLegacyService';
 import { startsWith, endsWith } from 'vs/base/common/strings';
 import { Action } from 'vs/base/common/actions';
@@ -25,6 +25,7 @@ import { StorageObject, parseMultiRootStorage, parseFolderStorage, parseNoWorksp
 export interface IStorageServiceOptions {
 	storeInMemory?: boolean;
 	disableGlobalStorage?: boolean;
+	globalStorage?: IStorageDatabase;
 }
 
 export class StorageService extends Disposable implements IStorageService {
@@ -61,7 +62,6 @@ export class StorageService extends Disposable implements IStorageService {
 	}
 
 	private globalStorage: IStorage;
-	private globalStorageWorkspacePath: string;
 
 	private workspaceStoragePath: string;
 	private workspaceStorage: IStorage;
@@ -92,8 +92,7 @@ export class StorageService extends Disposable implements IStorageService {
 		};
 
 		// Global Storage
-		this.globalStorageWorkspacePath = options.storeInMemory ? Storage.IN_MEMORY_PATH : Storage.IN_MEMORY_PATH;
-		this.globalStorage = options.disableGlobalStorage ? new NullStorage() : new Storage({ path: this.globalStorageWorkspacePath, logging: this.loggingOptions });
+		this.globalStorage = options.disableGlobalStorage ? new NullStorage() : new Storage(Object.create(null), options.globalStorage);
 		this._register(this.globalStorage.onDidChangeStorage(key => this.handleDidChangeStorage(key, StorageScope.GLOBAL)));
 
 		// Workspace Storage (in-memory only, other users require the initalize() call)
@@ -107,51 +106,52 @@ export class StorageService extends Disposable implements IStorageService {
 	}
 
 	initialize(payload: IWorkspaceInitializationPayload): Thenable<void> {
+		return Promise.all([
+			this.globalStorage.init(),
 
-		// Prepare workspace storage folder for DB
-		return this.prepareWorkspaceStorageFolder(payload).then(result => {
-			let workspaceStoragePath: string;
-			let workspaceStorageExists: Thenable<boolean>;
-			if (this.options.storeInMemory) {
-				workspaceStoragePath = Storage.IN_MEMORY_PATH;
-				workspaceStorageExists = Promise.resolve(true);
-			} else {
-				workspaceStoragePath = join(result.path, StorageService.WORKSPACE_STORAGE_NAME);
+			// Prepare workspace storage folder for DB
+			this.prepareWorkspaceStorageFolder(payload).then(result => {
+				let workspaceStoragePath: string;
+				let workspaceStorageExists: Thenable<boolean>;
+				if (this.options.storeInMemory) {
+					workspaceStoragePath = Storage.IN_MEMORY_PATH;
+					workspaceStorageExists = Promise.resolve(true);
+				} else {
+					workspaceStoragePath = join(result.path, StorageService.WORKSPACE_STORAGE_NAME);
 
-				mark('willCheckWorkspaceStorageExists');
-				workspaceStorageExists = exists(workspaceStoragePath).then(exists => {
-					mark('didCheckWorkspaceStorageExists');
+					mark('willCheckWorkspaceStorageExists');
+					workspaceStorageExists = exists(workspaceStoragePath).then(exists => {
+						mark('didCheckWorkspaceStorageExists');
 
-					return exists;
-				});
-			}
+						return exists;
+					});
+				}
 
-			return workspaceStorageExists.then(exists => {
+				return workspaceStorageExists.then(exists => {
 
-				// Create workspace storage and initalize
-				mark('willInitWorkspaceStorage');
-				return this.createWorkspaceStorage(workspaceStoragePath, result.wasCreated ? StorageHint.STORAGE_DOES_NOT_EXIST : void 0).init().then(() => {
-					mark('didInitWorkspaceStorage');
-				}, error => {
-					mark('didInitWorkspaceStorage');
+					// Create workspace storage and initalize
+					mark('willInitWorkspaceStorage');
+					return this.createWorkspaceStorage(workspaceStoragePath, result.wasCreated ? StorageHint.STORAGE_DOES_NOT_EXIST : void 0).init().then(() => {
+						mark('didInitWorkspaceStorage');
+					}, error => {
+						mark('didInitWorkspaceStorage');
 
-					return Promise.reject(error);
-				}).then(() => {
+						return Promise.reject(error);
+					}).then(() => {
 
-					// Migrate storage if this is the first start and we are not using in-memory
-					let migrationPromise: Thenable<void>;
-					if (!this.options.storeInMemory && !exists) {
-						migrationPromise = this.migrateWorkspaceStorage(payload);
-					} else {
-						migrationPromise = Promise.resolve();
-					}
+						// Migrate storage if this is the first start and we are not using in-memory
+						let migrationPromise: Thenable<void>;
+						if (!this.options.storeInMemory && !exists) {
+							migrationPromise = this.migrateWorkspaceStorage(payload);
+						} else {
+							migrationPromise = Promise.resolve();
+						}
 
-					return migrationPromise.then(() => {
-						return this.globalStorage.init();
+						return migrationPromise;
 					});
 				});
-			});
-		});
+			})
+		]).then(() => void 0);
 	}
 
 	// TODO@Ben remove migration after a while
@@ -379,14 +379,14 @@ export class StorageService extends Disposable implements IStorageService {
 		return scope === StorageScope.GLOBAL ? this.globalStorage.size : this.workspaceStorage.size;
 	}
 
-	checkIntegrity(scope: StorageScope, full: boolean): Promise<string> {
+	checkIntegrity(scope: StorageScope, full: boolean): Thenable<string> {
 		return scope === StorageScope.GLOBAL ? this.globalStorage.checkIntegrity(full) : this.workspaceStorage.checkIntegrity(full);
 	}
 
 	logStorage(): Promise<void> {
 		return Promise.all([
-			this.globalStorage.getItems(),
-			this.workspaceStorage.getItems(),
+			this.globalStorage.items,
+			this.workspaceStorage.items,
 			this.globalStorage.checkIntegrity(true /* full */),
 			this.workspaceStorage.checkIntegrity(true /* full */)
 		]).then(result => {
@@ -412,7 +412,7 @@ export class StorageService extends Disposable implements IStorageService {
 				workspaceItemsParsed.set(key, safeParse(value));
 			});
 
-			console.group(`Storage: Global (integrity: ${result[2]}, load: ${getDuration('main:willInitGlobalStorage', 'main:didInitGlobalStorage')}, path: ${this.globalStorageWorkspacePath})`);
+			console.group(`Storage: Global (integrity: ${result[2]}, load: ${getDuration('main:willInitGlobalStorage', 'main:didInitGlobalStorage')})`);
 			let globalValues: { key: string, value: string }[] = [];
 			globalItems.forEach((value, key) => {
 				globalValues.push({ key, value });
