@@ -183,12 +183,12 @@ export interface ITreeEvent<T> {
 
 export interface ITreeMouseEvent<T> {
 	browserEvent: MouseEvent;
-	element: T | undefined;
+	element: T | null;
 }
 
 export interface ITreeContextMenuEvent<T> {
 	browserEvent: UIEvent;
-	element: T | undefined;
+	element: T | null;
 	anchor: HTMLElement | { x: number; y: number; } | undefined;
 }
 
@@ -202,13 +202,13 @@ function asTreeEvent<T>(event: IListEvent<ITreeNode<T, any>>): ITreeEvent<T> {
 function asTreeMouseEvent<T>(event: IListMouseEvent<ITreeNode<T, any>>): ITreeMouseEvent<T> {
 	return {
 		browserEvent: event.browserEvent,
-		element: event.element && event.element.element
+		element: event.element ? event.element.element : null
 	};
 }
 
 function asTreeContextMenuEvent<T>(event: IListContextMenuEvent<ITreeNode<T, any>>): ITreeContextMenuEvent<T> {
 	return {
-		element: event.element && event.element.element,
+		element: event.element ? event.element.element : null,
 		browserEvent: event.browserEvent,
 		anchor: event.anchor
 	};
