@@ -167,6 +167,7 @@ export class SearchWidget extends Widget {
 	public setWidth(width: number) {
 		this.searchInput.setWidth(width);
 		this.replaceInput.width = width - 28;
+		this.replaceInput.layout();
 	}
 
 	public clear() {
