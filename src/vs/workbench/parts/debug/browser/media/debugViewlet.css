@@ -9,6 +9,10 @@
 	height: 100%;
 }
 
+.debug-view-content {
+	height: 100%;
+}
+
 /* Actionbar actions */
 
 .monaco-workbench .debug-action.configure {

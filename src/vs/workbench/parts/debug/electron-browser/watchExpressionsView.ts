@@ -121,7 +121,7 @@ export class WatchExpressionsView extends ViewletPanel {
 		// double click on primitive value: open input box to be able to select and copy value.
 		if (element instanceof Expression) {
 			this.debugService.getViewModel().setSelectedExpression(element);
-		} else if (element === null) {
+		} else if (!element) {
 			// Double click in watch panel triggers to add a new watch expression
 			this.debugService.addWatchExpression();
 		}
