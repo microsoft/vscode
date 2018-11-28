@@ -750,7 +750,7 @@ class ReplDataSource implements IDataSource<IReplElement> {
 	input: IDebugSession;
 
 	hasChildren(element: IReplElement | null): boolean {
-		return element === null || (<IExpressionContainer>element).hasChildren;
+		return element === null || !!(<IExpressionContainer>element).hasChildren;
 	}
 
 	getChildren(element: IReplElement | null): Thenable<IReplElement[]> {
