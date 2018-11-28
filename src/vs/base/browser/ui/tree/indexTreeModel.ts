@@ -39,6 +39,7 @@ function getVisibleState(visibility: boolean | TreeVisibility): TreeVisibility {
 }
 
 export interface IIndexTreeModelOptions<T, TFilterData> {
+	collapseByDefault?: boolean; // defaults to false
 	filter?: ITreeFilter<T, TFilterData>;
 }
 
@@ -64,9 +65,11 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 	private _onDidChangeRenderNodeCount = new Emitter<ITreeNode<T, TFilterData>>();
 	readonly onDidChangeRenderNodeCount: Event<ITreeNode<T, TFilterData>> = this.eventBufferer.wrapEvent(this._onDidChangeRenderNodeCount.event);
 
+	private collapseByDefault: boolean;
 	private filter?: ITreeFilter<T, TFilterData>;
 
 	constructor(private list: ISpliceable<ITreeNode<T, TFilterData>>, options: IIndexTreeModelOptions<T, TFilterData> = {}) {
+		this.collapseByDefault = typeof options.collapseByDefault === 'undefined' ? false : options.collapseByDefault;
 		this.filter = options.filter;
 	}
 
@@ -194,8 +197,8 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 			element: treeElement.element,
 			children: [],
 			depth: parent.depth + 1,
-			collapsible: typeof treeElement.collapsible === 'boolean' ? treeElement.collapsible : (typeof treeElement.collapsed === 'boolean'),
-			collapsed: !!treeElement.collapsed,
+			collapsible: typeof treeElement.collapsible === 'boolean' ? treeElement.collapsible : (typeof treeElement.collapsed !== 'undefined'),
+			collapsed: typeof treeElement.collapsed === 'undefined' ? this.collapseByDefault : treeElement.collapsed,
 			renderNodeCount: 1,
 			visible: true,
 			filterData: undefined

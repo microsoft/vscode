@@ -11,10 +11,10 @@ import { append, $, toggleClass } from 'vs/base/browser/dom';
 import { Event, Relay, chain, mapEvent } from 'vs/base/common/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { ITreeModel, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeOptions } from 'vs/base/browser/ui/tree/tree';
+import { ITreeModel, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeFilter } from 'vs/base/browser/ui/tree/tree';
 import { ISpliceable } from 'vs/base/common/sequence';
 
-export function createComposedTreeListOptions<T, R extends { element: T }>(options?: IListOptions<T>): IListOptions<R> | undefined {
+export function createComposedTreeListOptions<T, R extends { element: T }, O extends IListOptions<R>>(options?: IListOptions<T>): O | undefined {
 	if (!options) {
 		return undefined;
 	}
@@ -60,7 +60,7 @@ export function createComposedTreeListOptions<T, R extends { element: T }>(optio
 		identityProvider,
 		multipleSelectionController,
 		accessibilityProvider
-	};
+	} as O;
 }
 
 export class ComposedTreeDelegate<T, N extends { element: T }> implements IListVirtualDelegate<N> {
@@ -196,6 +196,10 @@ function asTreeContextMenuEvent<T>(event: IListContextMenuEvent<ITreeNode<T, any
 	};
 }
 
+export interface IAbstractTreeOptions<T, TFilterData = void> extends IListOptions<T> {
+	filter?: ITreeFilter<T, TFilterData>;
+}
+
 export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable {
 
 	private view: List<ITreeNode<T, TFilterData>>;
@@ -220,7 +224,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
 		renderers: ITreeRenderer<any /* TODO@joao */, TFilterData, any>[],
-		options: ITreeOptions<T, TFilterData> = {}
+		options: IAbstractTreeOptions<T, TFilterData> = {}
 	) {
 		const treeDelegate = new ComposedTreeDelegate<T, ITreeNode<T, TFilterData>>(delegate);
 
@@ -480,7 +484,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.model.toggleCollapsed(location);
 	}
 
-	protected abstract createModel(view: ISpliceable<ITreeNode<T, TFilterData>>, options: ITreeOptions<T, TFilterData>): ITreeModel<T, TFilterData, TRef>;
+	protected abstract createModel(view: ISpliceable<ITreeNode<T, TFilterData>>, options: IAbstractTreeOptions<T, TFilterData>): ITreeModel<T, TFilterData, TRef>;
 
 	dispose(): void {
 		this.disposables = dispose(this.disposables);

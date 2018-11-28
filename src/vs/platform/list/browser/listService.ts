@@ -32,9 +32,9 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { attachInputBoxStyler, attachListStyler, computeStyles, defaultListStyles } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { InputFocusedContextKey } from 'vs/platform/workbench/common/contextkeys';
-import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
-import { ITreeOptions as ITreeOptions2, ITreeEvent, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
-import { AsyncDataTree, IDataSource } from 'vs/base/browser/ui/tree/asyncDataTree';
+import { ObjectTree, IObjectTreeOptions } from 'vs/base/browser/ui/tree/objectTree';
+import { ITreeEvent, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
+import { AsyncDataTree, IDataSource, IAsyncDataTreeOptions } from 'vs/base/browser/ui/tree/asyncDataTree';
 
 export type ListWidget = List<any> | PagedList<any> | ITree | ObjectTree<any, any> | AsyncDataTree<any, any>;
 
@@ -881,7 +881,7 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
 		renderers: ITreeRenderer<any /* TODO@joao */, TFilterData, any>[],
-		options: ITreeOptions2<T, TFilterData>,
+		options: IObjectTreeOptions<T, TFilterData>,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
@@ -944,7 +944,7 @@ export class WorkbenchAsyncDataTree<T extends NonNullable<any>, TFilterData = vo
 		delegate: IListVirtualDelegate<T>,
 		renderers: ITreeRenderer<any /* TODO@joao */, TFilterData, any>[],
 		dataSource: IDataSource<T>,
-		options: ITreeOptions2<T, TFilterData>,
+		options: IAsyncDataTreeOptions<T, TFilterData>,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,

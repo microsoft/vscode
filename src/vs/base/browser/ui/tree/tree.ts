@@ -6,7 +6,6 @@
 import { Event } from 'vs/base/common/event';
 import { Iterator } from 'vs/base/common/iterator';
 import { IListRenderer } from 'vs/base/browser/ui/list/list';
-import { IListOptions } from 'vs/base/browser/ui/list/listWidget';
 
 export const enum TreeVisibility {
 
@@ -110,10 +109,6 @@ export interface ITreeModel<T, TFilterData, TRef> {
 export interface ITreeRenderer<T, TFilterData, TTemplateData> extends IListRenderer<ITreeNode<T, TFilterData>, TTemplateData> {
 	renderTwistie?(element: T, twistieElement: HTMLElement): void;
 	onDidChangeTwistieState?: Event<T>;
-}
-
-export interface ITreeOptions<T, TFilterData = void> extends IListOptions<T> {
-	filter?: ITreeFilter<T, TFilterData>;
 }
 
 export interface ITreeEvent<T> {

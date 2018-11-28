@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ComposedTreeDelegate, createComposedTreeListOptions } from 'vs/base/browser/ui/tree/abstractTree';
-import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
+import { ComposedTreeDelegate, createComposedTreeListOptions, IAbstractTreeOptions } from 'vs/base/browser/ui/tree/abstractTree';
+import { ObjectTree, IObjectTreeOptions } from 'vs/base/browser/ui/tree/objectTree';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ITreeElement, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeOptions } from 'vs/base/browser/ui/tree/tree';
+import { ITreeElement, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Emitter, Event, mapEvent } from 'vs/base/common/event';
 import { timeout, always } from 'vs/base/common/async';
@@ -123,6 +123,8 @@ export interface IChildrenResolutionEvent<T> {
 	readonly reason: ChildrenResolutionReason;
 }
 
+export interface IAsyncDataTreeOptions<T, TFilterData = void> extends IAbstractTreeOptions<T, TFilterData> { }
+
 export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> implements IDisposable {
 
 	private tree: ObjectTree<IAsyncDataTreeNode<T>, TFilterData>;
@@ -154,11 +156,12 @@ export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> imple
 		delegate: IListVirtualDelegate<T>,
 		renderers: ITreeRenderer<any /* TODO@joao */, TFilterData, any>[],
 		private dataSource: IDataSource<T>,
-		options?: ITreeOptions<T, TFilterData>
+		options?: IAsyncDataTreeOptions<T, TFilterData>
 	) {
 		const objectTreeDelegate = new ComposedTreeDelegate<T | null, IAsyncDataTreeNode<T>>(delegate);
 		const objectTreeRenderers = renderers.map(r => new DataTreeRenderer(r, this._onDidChangeNodeState.event));
-		const objectTreeOptions = createComposedTreeListOptions<T | null, IAsyncDataTreeNode<T>>(options);
+		const objectTreeOptions = createComposedTreeListOptions<T | null, IAsyncDataTreeNode<T>, IObjectTreeOptions<IAsyncDataTreeNode<T>, TFilterData>>(options);
+		objectTreeOptions.collapseByDefault = true;
 
 		this.tree = new ObjectTree(container, objectTreeDelegate, objectTreeRenderers, objectTreeOptions);
 		this.root = {
@@ -395,8 +398,7 @@ export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> imple
 								state: AsyncDataTreeNodeState.Uninitialized,
 								parent: node
 							},
-							collapsible,
-							collapsed: true
+							collapsible
 						};
 					};
 

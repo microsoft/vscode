@@ -4,14 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Iterator, ISequence } from 'vs/base/common/iterator';
-import { AbstractTree } from 'vs/base/browser/ui/tree/abstractTree';
+import { AbstractTree, IAbstractTreeOptions } from 'vs/base/browser/ui/tree/abstractTree';
 import { ISpliceable } from 'vs/base/common/sequence';
-import { ITreeNode, ITreeModel, ITreeElement, ITreeOptions } from 'vs/base/browser/ui/tree/tree';
+import { ITreeNode, ITreeModel, ITreeElement, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
+import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+
+export interface IObjectTreeOptions<T, TFilterData = void> extends IAbstractTreeOptions<T, TFilterData> {
+	collapseByDefault?: boolean; // defaults to false
+}
 
 export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends AbstractTree<T | null, TFilterData, T | null> {
 
 	protected model: ObjectTreeModel<T, TFilterData>;
+
+	constructor(
+		container: HTMLElement,
+		delegate: IListVirtualDelegate<T>,
+		renderers: ITreeRenderer<any /* TODO@joao */, TFilterData, any>[],
+		options: IObjectTreeOptions<T, TFilterData> = {}
+	) {
+		super(container, delegate, renderers, options);
+	}
 
 	setChildren(
 		element: T | null,
@@ -22,7 +36,7 @@ export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends 
 		return this.model.setChildren(element, children, onDidCreateNode, onDidDeleteNode);
 	}
 
-	protected createModel(view: ISpliceable<ITreeNode<T, TFilterData>>, options: ITreeOptions<T, TFilterData>): ITreeModel<T, TFilterData, T> {
+	protected createModel(view: ISpliceable<ITreeNode<T, TFilterData>>, options: IObjectTreeOptions<T, TFilterData>): ITreeModel<T, TFilterData, T> {
 		return new ObjectTreeModel(view, options);
 	}
 }

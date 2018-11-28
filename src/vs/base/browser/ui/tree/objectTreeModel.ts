@@ -9,6 +9,8 @@ import { IndexTreeModel, IIndexTreeModelOptions } from 'vs/base/browser/ui/tree/
 import { Event } from 'vs/base/common/event';
 import { ITreeModel, ITreeNode, ITreeElement } from 'vs/base/browser/ui/tree/tree';
 
+export interface IObjectTreeModelOptions<T, TFilterData> extends IIndexTreeModelOptions<T, TFilterData> { }
+
 export class ObjectTreeModel<T extends NonNullable<any>, TFilterData = void> implements ITreeModel<T, TFilterData, T> {
 
 	private model: IndexTreeModel<T, TFilterData>;
@@ -19,7 +21,7 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData = void> imp
 
 	get size(): number { return this.nodes.size; }
 
-	constructor(list: ISpliceable<ITreeNode<T, TFilterData>>, options: IIndexTreeModelOptions<T, TFilterData> = {}) {
+	constructor(list: ISpliceable<ITreeNode<T, TFilterData>>, options: IObjectTreeModelOptions<T, TFilterData> = {}) {
 		this.model = new IndexTreeModel(list, options);
 		this.onDidChangeCollapseState = this.model.onDidChangeCollapseState;
 		this.onDidChangeRenderNodeCount = this.model.onDidChangeRenderNodeCount;
