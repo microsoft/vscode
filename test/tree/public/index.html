@@ -107,7 +107,7 @@
 				const renderer = {
 					templateId: 'template',
 					renderTemplate(container) { return container; },
-					renderElement(element, index, container) { container.textContent = element.name; },
+					renderElement(node, index, container) { container.textContent = node.element.element.name; },
 					disposeElement() { },
 					disposeTemplate() { }
 				};
@@ -137,13 +137,13 @@
 				};
 
 				const dataSource = new class {
-					hasChildren(element) {
-						return element === null || element.type === 'dir';
+					hasChildren(node) {
+						return node === null || node.element.type === 'dir';
 					}
-					getChildren(element) {
+					getChildren(node) {
 						return new Promise((c, e) => {
 							const xhr = new XMLHttpRequest();
-							xhr.open('GET', element ? `/api/readdir?path=${element.path}` : '/api/readdir');
+							xhr.open('GET', node ? `/api/readdir?path=${node.element.path}` : '/api/readdir');
 							xhr.send();
 							xhr.onreadystatechange = function () {
 								if (this.readyState == 4 && this.status == 200) {
@@ -152,7 +152,7 @@
 										collapsible: element.type === 'dir'
 									}));
 
-									if (element && /\//.test(element.path)) {
+									if (node && /\//.test(node.element.path)) {
 										setTimeout(() => c(els), 2500);
 									} else {
 										c(els);
