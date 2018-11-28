@@ -397,7 +397,7 @@ export class LoadedScriptsView extends ViewletPanel {
 			{
 				accessibilityProvider: new LoadedSciptsAccessibilityProvider(),
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'loadedScriptsAriaLabel' }, "Debug Loaded Scripts"),
-				identityProvider: element => element.getId()
+				// identityProvider: element => element.getId()
 			},
 			this.contextKeyService, this.listService, this.themeService, this.configurationService
 		);
