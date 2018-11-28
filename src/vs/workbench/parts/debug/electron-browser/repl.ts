@@ -67,6 +67,7 @@ import { removeAnsiEscapeCodes, isFullWidthCharacter, endsWith } from 'vs/base/c
 import { WorkbenchDataTree, IListService } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 const $ = dom.$;
 
@@ -87,7 +88,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	_serviceBrand: any;
 
 	private static readonly HALF_WIDTH_TYPICAL = 'n';
-	private static readonly REFRESH_DELAY = 500; // delay in ms to refresh the repl for new elements to show
+	private static readonly REFRESH_DELAY = 100; // delay in ms to refresh the repl for new elements to show
 	private static readonly REPL_INPUT_INITIAL_HEIGHT = 19;
 	private static readonly REPL_INPUT_MAX_HEIGHT = 170;
 
@@ -99,7 +100,6 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	private treeContainer: HTMLElement;
 	private replInput: CodeEditorWidget;
 	private replInputContainer: HTMLElement;
-	private refreshTimeoutHandle: any;
 	private dimension: dom.Dimension;
 	private replInputHeight: number;
 	private model: ITextModel;
@@ -317,6 +317,19 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		return this.scopedInstantiationService.createInstance(ClearReplAction, ClearReplAction.ID, ClearReplAction.LABEL);
 	}
 
+	@memoize
+	private get refreshScheduler(): RunOnceScheduler {
+		return new RunOnceScheduler(() => {
+			const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight === this.tree.scrollHeight;
+			this.tree.refresh(null).then(() => {
+				if (lastElementVisible) {
+					// Only scroll if we were scrolled all the way down before tree refreshed #10486
+					this.tree.scrollTop = this.tree.scrollHeight - this.tree.renderHeight;
+				}
+			}, errors.onUnexpectedError);
+		}, Repl.REFRESH_DELAY);
+	}
+
 	// --- Creation
 
 	create(parent: HTMLElement): void {
@@ -421,21 +434,11 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 	private refreshReplElements(noDelay: boolean): void {
 		if (this.tree && this.isVisible()) {
-			if (this.refreshTimeoutHandle) {
-				return; // refresh already triggered
+			if (this.refreshScheduler.isScheduled()) {
+				return;
 			}
 
-			const delay = noDelay ? 0 : Repl.REFRESH_DELAY;
-			this.refreshTimeoutHandle = setTimeout(() => {
-				this.refreshTimeoutHandle = null;
-				const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight === this.tree.scrollHeight;
-				this.tree.refresh(null).then(() => {
-					if (lastElementVisible) {
-						// Only scroll if we were scrolled all the way down before tree refreshed #10486
-						this.tree.scrollTop = this.tree.scrollHeight - this.tree.renderHeight;
-					}
-				}, errors.onUnexpectedError);
-			}, delay);
+			this.refreshScheduler.schedule(noDelay ? 0 : undefined);
 		}
 	}
 
