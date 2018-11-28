@@ -196,21 +196,21 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 	// Data Tree
 
 	refresh(element: T | null): Thenable<void> {
-		return this.refreshNode(this.getNode(element), ChildrenResolutionReason.Refresh);
+		return this.refreshNode(this.getDataNode(element), ChildrenResolutionReason.Refresh);
 	}
 
 	// Tree
 
-	get visibleNodeCount(): number {
-		return this.tree.visibleNodeCount;
+	getNode(element: T | null): ITreeNode<T, TFilterData> {
+		return new DataTreeNodeWrapper(this.tree.getNode(this.getDataNode(element)));
 	}
 
 	collapse(element: T): boolean {
-		return this.tree.collapse(this.getNode(element));
+		return this.tree.collapse(this.getDataNode(element));
 	}
 
 	expand(element: T): Thenable<boolean> {
-		const node = this.getNode(element);
+		const node = this.getDataNode(element);
 
 		if (!this.tree.isCollapsed(node)) {
 			return Promise.resolve(false);
@@ -227,7 +227,7 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 	}
 
 	toggleCollapsed(element: T): void {
-		this.tree.toggleCollapsed(this.getNode(element));
+		this.tree.toggleCollapsed(this.getDataNode(element));
 	}
 
 	collapseAll(): void {
@@ -235,11 +235,11 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 	}
 
 	isCollapsed(element: T): boolean {
-		return this.tree.isCollapsed(this.getNode(element));
+		return this.tree.isCollapsed(this.getDataNode(element));
 	}
 
 	isExpanded(element: T): boolean {
-		return this.tree.isExpanded(this.getNode(element));
+		return this.tree.isExpanded(this.getDataNode(element));
 	}
 
 	refilter(): void {
@@ -247,7 +247,7 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 	}
 
 	setSelection(elements: T[], browserEvent?: UIEvent): void {
-		const nodes = elements.map(e => this.getNode(e));
+		const nodes = elements.map(e => this.getDataNode(e));
 		this.tree.setSelection(nodes, browserEvent);
 	}
 
@@ -257,7 +257,7 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 	}
 
 	setFocus(elements: T[], browserEvent?: UIEvent): void {
-		const nodes = elements.map(e => this.getNode(e));
+		const nodes = elements.map(e => this.getDataNode(e));
 		this.tree.setFocus(nodes, browserEvent);
 	}
 
@@ -291,38 +291,44 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 	}
 
 	open(elements: T[]): void {
-		const nodes = elements.map(e => this.getNode(e));
+		const nodes = elements.map(e => this.getDataNode(e));
 		this.tree.open(nodes);
 	}
 
 	reveal(element: T, relativeTop?: number): void {
-		this.tree.reveal(this.getNode(element), relativeTop);
+		this.tree.reveal(this.getDataNode(element), relativeTop);
 	}
 
 	getRelativeTop(element: T): number | null {
-		return this.tree.getRelativeTop(this.getNode(element));
+		return this.tree.getRelativeTop(this.getDataNode(element));
 	}
 
 	// Tree navigation
 
 	getParentElement(element: T): T | null {
-		const node = this.tree.getParentElement(this.getNode(element));
+		const node = this.tree.getParentElement(this.getDataNode(element));
 		return node && node.element;
 	}
 
 	getFirstElementChild(element: T | null = null): T | null {
-		const node = this.tree.getFirstElementChild(this.getNode(element));
+		const node = this.tree.getFirstElementChild(this.getDataNode(element));
 		return node && node.element;
 	}
 
 	getLastElementAncestor(element: T | null = null): T | null {
-		const node = this.tree.getLastElementAncestor(this.getNode(element));
+		const node = this.tree.getLastElementAncestor(this.getDataNode(element));
 		return node && node.element;
+	}
+
+	// List
+
+	get visibleNodeCount(): number {
+		return this.tree.visibleNodeCount;
 	}
 
 	// Implementation
 
-	private getNode(element: T | null): IDataTreeNode<T> {
+	private getDataNode(element: T | null): IDataTreeNode<T> {
 		const node: IDataTreeNode<T> = this.nodes.get(element);
 
 		if (typeof node === 'undefined') {
