@@ -35,8 +35,9 @@ import { InputFocusedContextKey } from 'vs/platform/workbench/common/contextkeys
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { ITreeOptions as ITreeOptions2, ITreeEvent } from 'vs/base/browser/ui/tree/abstractTree';
 import { ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
+import { DataTree, IDataSource } from 'vs/base/browser/ui/tree/dataTree';
 
-export type ListWidget = List<any> | PagedList<any> | ITree | ObjectTree<any, any>;
+export type ListWidget = List<any> | PagedList<any> | ITree | ObjectTree<any, any> | DataTree<any, any>;
 
 export const IListService = createDecorator<IListService>('listService');
 
@@ -888,6 +889,69 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super(container, delegate, renderers, {
+			keyboardSupport: false,
+			selectOnMouseDown: true,
+			styleController: new DefaultStyleController(getSharedListStyleSheet()),
+			...computeStyles(themeService.getTheme(), defaultListStyles),
+			...handleListControllers(options, configurationService)
+		});
+
+		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
+
+		const listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
+		listSupportsMultiSelect.set(!(options.multipleSelectionSupport === false));
+
+		this.hasSelectionOrFocus = WorkbenchListHasSelectionOrFocus.bindTo(this.contextKeyService);
+		this.hasDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
+		this.hasMultiSelection = WorkbenchListMultiSelection.bindTo(this.contextKeyService);
+
+		this.disposables.push(
+			this.contextKeyService,
+			(listService as ListService).register(this),
+			attachListStyler(this, themeService),
+			this.onDidChangeSelection(() => {
+				const selection = this.getSelection();
+				const focus = this.getFocus();
+
+				this.hasSelectionOrFocus.set(selection.length > 0 || focus.length > 0);
+				this.hasMultiSelection.set(selection.length > 1);
+				this.hasDoubleSelection.set(selection.length === 2);
+			}),
+			this.onDidChangeFocus(() => {
+				const selection = this.getSelection();
+				const focus = this.getFocus();
+
+				this.hasSelectionOrFocus.set(selection.length > 0 || focus.length > 0);
+			})
+		);
+	}
+
+	dispose(): void {
+		super.dispose();
+		this.disposables = dispose(this.disposables);
+	}
+}
+
+export class WorkbenchDataTree<T extends NonNullable<any>, TFilterData = void> extends DataTree<T, TFilterData> {
+
+	readonly contextKeyService: IContextKeyService;
+
+	private hasSelectionOrFocus: IContextKey<boolean>;
+	private hasDoubleSelection: IContextKey<boolean>;
+	private hasMultiSelection: IContextKey<boolean>;
+
+	constructor(
+		container: HTMLElement,
+		delegate: IListVirtualDelegate<T>,
+		renderers: ITreeRenderer<T, TFilterData, any>[],
+		dataSource: IDataSource<T>,
+		options: ITreeOptions2<T, TFilterData>,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IListService listService: IListService,
+		@IThemeService themeService: IThemeService,
+		@IConfigurationService configurationService: IConfigurationService
+	) {
+		super(container, delegate, renderers, dataSource, {
 			keyboardSupport: false,
 			selectOnMouseDown: true,
 			styleController: new DefaultStyleController(getSharedListStyleSheet()),

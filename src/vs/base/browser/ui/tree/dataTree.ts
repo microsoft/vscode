@@ -11,6 +11,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Emitter, Event, mapEvent } from 'vs/base/common/event';
 import { timeout } from 'vs/base/common/async';
 import { ISequence } from 'vs/base/common/iterator';
+import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
 
 export interface IDataSource<T extends NonNullable<any>> {
 	hasChildren(element: T | null): boolean;
@@ -130,7 +131,7 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 
 	private _onDidChangeNodeState = new Emitter<IDataTreeNode<T>>();
 
-	private disposables: IDisposable[] = [];
+	protected disposables: IDisposable[] = [];
 
 	get onDidChangeFocus(): Event<ITreeEvent<T>> { return mapEvent(this.tree.onDidChangeFocus, asTreeEvent); }
 	get onDidChangeSelection(): Event<ITreeEvent<T>> { return mapEvent(this.tree.onDidChangeSelection, asTreeEvent); }
@@ -142,8 +143,8 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 	get onMouseClick(): Event<ITreeMouseEvent<T>> { return mapEvent(this.tree.onMouseClick, asTreeMouseEvent); }
 	get onMouseDblClick(): Event<ITreeMouseEvent<T>> { return mapEvent(this.tree.onMouseDblClick, asTreeMouseEvent); }
 	get onContextMenu(): Event<ITreeContextMenuEvent<T>> { return mapEvent(this.tree.onContextMenu, asTreeContextMenuEvent); }
-	get onDidDOMFocus(): Event<void> { return this.tree.onDidFocus; }
-	get onDidDOMBlur(): Event<void> { return this.tree.onDidBlur; }
+	get onDidFocus(): Event<void> { return this.tree.onDidFocus; }
+	get onDidBlur(): Event<void> { return this.tree.onDidBlur; }
 
 	get onDidDispose(): Event<void> { return this.tree.onDidDispose; }
 
@@ -170,6 +171,12 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 		this.tree.onDidChangeCollapseState(this._onDidChangeCollapseState, this, this.disposables);
 	}
 
+	// Widget
+
+	getHTMLElement(): HTMLElement {
+		return this.tree.getHTMLElement();
+	}
+
 	domFocus(): void {
 		this.tree.domFocus();
 	}
@@ -178,99 +185,14 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 		this.tree.layout(height);
 	}
 
+	style(styles: IListStyles): void {
+		this.tree.style(styles);
+	}
+
+	// Data Tree
+
 	refresh(element: T | null): Thenable<void> {
 		return this.refreshNode(this.getNode(element), ChildrenResolutionReason.Refresh);
-	}
-
-	private getNode(element: T | null): IDataTreeNode<T> {
-		const node: IDataTreeNode<T> = this.nodes.get(element);
-
-		if (typeof node === 'undefined') {
-			throw new Error(`Data tree node not found: ${element}`);
-		}
-
-		return node;
-	}
-
-	private refreshNode(node: IDataTreeNode<T>, reason: ChildrenResolutionReason): Thenable<void> {
-		const hasChildren = this.dataSource.hasChildren(node.element);
-
-		if (!hasChildren) {
-			this.setChildren(node === this.root ? null : node);
-			return Promise.resolve();
-		} else {
-			node.state = DataTreeNodeState.Loading;
-			this._onDidChangeNodeState.fire(node);
-
-			const slowTimeout = timeout(800);
-
-			slowTimeout.then(() => {
-				node.state = DataTreeNodeState.Slow;
-				this._onDidChangeNodeState.fire(node);
-			}, _ => null);
-
-			return this.dataSource.getChildren(node.element)
-				.then(children => {
-					slowTimeout.cancel();
-					node.state = DataTreeNodeState.Loaded;
-					this._onDidChangeNodeState.fire(node);
-
-					const createTreeElement = (element: T): ITreeElement<IDataTreeNode<T>> => {
-						const collapsible = this.dataSource.hasChildren(element);
-
-						return {
-							element: {
-								element: element,
-								state: DataTreeNodeState.Uninitialized,
-								parent: node
-							},
-							collapsible,
-							collapsed: true
-						};
-					};
-
-					const nodeChildren = children.map<ITreeElement<IDataTreeNode<T>>>(createTreeElement);
-					this.setChildren(node === this.root ? null : node, nodeChildren);
-					this._onDidResolveChildren.fire({ element: node.element, reason });
-				}, err => {
-					slowTimeout.cancel();
-					node.state = DataTreeNodeState.Uninitialized;
-					this._onDidChangeNodeState.fire(node);
-
-					if (node !== this.root) {
-						this.tree.collapse(node);
-					}
-
-					return Promise.reject(err);
-				});
-		}
-	}
-
-	private _onDidChangeCollapseState(treeNode: ITreeNode<IDataTreeNode<T>, any>): void {
-		if (!treeNode.collapsed && treeNode.element.state === DataTreeNodeState.Uninitialized) {
-			this.refreshNode(treeNode.element, ChildrenResolutionReason.Expand);
-		}
-	}
-
-	private setChildren(element: IDataTreeNode<T> | null, children?: ISequence<ITreeElement<IDataTreeNode<T>>>): void {
-		const insertedElements = new Set<T>();
-
-		const onDidCreateNode = (node: ITreeNode<IDataTreeNode<T>, TFilterData>) => {
-			if (node.element.element) {
-				insertedElements.add(node.element.element);
-				this.nodes.set(node.element.element, node.element);
-			}
-		};
-
-		const onDidDeleteNode = (node: ITreeNode<IDataTreeNode<T>, TFilterData>) => {
-			if (node.element.element) {
-				if (!insertedElements.has(node.element.element)) {
-					this.nodes.delete(node.element.element);
-				}
-			}
-		};
-
-		this.tree.setChildren(element, children, onDidCreateNode, onDidDeleteNode);
 	}
 
 	// Tree
@@ -363,6 +285,114 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 	getRelativeTop(element: T): number | null {
 		return this.tree.getRelativeTop(this.getNode(element));
 	}
+
+	// Tree navigation
+
+	getParentElement(element: T): T | null {
+		return this.tree.getParentElement(this.getNode(element)).element;
+	}
+
+	getFirstElementChild(element: T | null = null): T | null {
+		return this.tree.getFirstElementChild(this.getNode(element)).element;
+	}
+
+	getLastElementAncestor(element: T | null = null): T | null {
+		return this.tree.getLastElementAncestor(this.getNode(element)).element;
+	}
+
+	// Implementation
+
+	private getNode(element: T | null): IDataTreeNode<T> {
+		const node: IDataTreeNode<T> = this.nodes.get(element);
+
+		if (typeof node === 'undefined') {
+			throw new Error(`Data tree node not found: ${element}`);
+		}
+
+		return node;
+	}
+
+	private refreshNode(node: IDataTreeNode<T>, reason: ChildrenResolutionReason): Thenable<void> {
+		const hasChildren = this.dataSource.hasChildren(node.element);
+
+		if (!hasChildren) {
+			this.setChildren(node === this.root ? null : node);
+			return Promise.resolve();
+		} else {
+			node.state = DataTreeNodeState.Loading;
+			this._onDidChangeNodeState.fire(node);
+
+			const slowTimeout = timeout(800);
+
+			slowTimeout.then(() => {
+				node.state = DataTreeNodeState.Slow;
+				this._onDidChangeNodeState.fire(node);
+			}, _ => null);
+
+			return this.dataSource.getChildren(node.element)
+				.then(children => {
+					slowTimeout.cancel();
+					node.state = DataTreeNodeState.Loaded;
+					this._onDidChangeNodeState.fire(node);
+
+					const createTreeElement = (element: T): ITreeElement<IDataTreeNode<T>> => {
+						const collapsible = this.dataSource.hasChildren(element);
+
+						return {
+							element: {
+								element: element,
+								state: DataTreeNodeState.Uninitialized,
+								parent: node
+							},
+							collapsible,
+							collapsed: true
+						};
+					};
+
+					const nodeChildren = children.map<ITreeElement<IDataTreeNode<T>>>(createTreeElement);
+					this.setChildren(node === this.root ? null : node, nodeChildren);
+					this._onDidResolveChildren.fire({ element: node.element, reason });
+				}, err => {
+					slowTimeout.cancel();
+					node.state = DataTreeNodeState.Uninitialized;
+					this._onDidChangeNodeState.fire(node);
+
+					if (node !== this.root) {
+						this.tree.collapse(node);
+					}
+
+					return Promise.reject(err);
+				});
+		}
+	}
+
+	private _onDidChangeCollapseState(treeNode: ITreeNode<IDataTreeNode<T>, any>): void {
+		if (!treeNode.collapsed && treeNode.element.state === DataTreeNodeState.Uninitialized) {
+			this.refreshNode(treeNode.element, ChildrenResolutionReason.Expand);
+		}
+	}
+
+	private setChildren(element: IDataTreeNode<T> | null, children?: ISequence<ITreeElement<IDataTreeNode<T>>>): void {
+		const insertedElements = new Set<T>();
+
+		const onDidCreateNode = (node: ITreeNode<IDataTreeNode<T>, TFilterData>) => {
+			if (node.element.element) {
+				insertedElements.add(node.element.element);
+				this.nodes.set(node.element.element, node.element);
+			}
+		};
+
+		const onDidDeleteNode = (node: ITreeNode<IDataTreeNode<T>, TFilterData>) => {
+			if (node.element.element) {
+				if (!insertedElements.has(node.element.element)) {
+					this.nodes.delete(node.element.element);
+				}
+			}
+		};
+
+		this.tree.setChildren(element, children, onDidCreateNode, onDidDeleteNode);
+	}
+
 
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
