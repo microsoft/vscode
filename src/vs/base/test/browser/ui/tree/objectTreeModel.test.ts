@@ -53,7 +53,7 @@ suite('ObjectTreeModel', function () {
 		assert.deepEqual(toArray(list), [3, 4, 5]);
 		assert.equal(model.size, 3);
 
-		model.setChildren(null);
+		model.setChildren(null, Iterator.empty());
 		assert.deepEqual(toArray(list), []);
 		assert.equal(model.size, 0);
 	});
@@ -85,11 +85,11 @@ suite('ObjectTreeModel', function () {
 		assert.deepEqual(toArray(list), [0, 10, 11, 12, 120, 121, 1, 2]);
 		assert.equal(model.size, 8);
 
-		model.setChildren(0);
+		model.setChildren(0, Iterator.empty());
 		assert.deepEqual(toArray(list), [0, 1, 2]);
 		assert.equal(model.size, 3);
 
-		model.setChildren(null);
+		model.setChildren(null, Iterator.empty());
 		assert.deepEqual(toArray(list), []);
 		assert.equal(model.size, 0);
 	});

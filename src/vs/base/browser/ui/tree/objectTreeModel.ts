@@ -41,7 +41,8 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData = void> imp
 
 	setChildren(
 		element: T | null,
-		children?: ISequence<ITreeElement<T>>,
+		// TODO@joao also use identity provider to preserve children when `children` is undefined!!!
+		children: ISequence<ITreeElement<T>> | undefined,
 		onDidCreateNode?: (node: ITreeNode<T, TFilterData>) => void,
 		onDidDeleteNode?: (node: ITreeNode<T, TFilterData>) => void
 	): Iterator<ITreeElement<T>> {
