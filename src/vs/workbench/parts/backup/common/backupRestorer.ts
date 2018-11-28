@@ -25,7 +25,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 	}
 
 	private restoreBackups(): void {
-		this.lifecycleService.when(LifecyclePhase.Running).then(() => this.doRestoreBackups());
+		this.lifecycleService.when(LifecyclePhase.Restored).then(() => this.doRestoreBackups());
 	}
 
 	private doRestoreBackups(): Thenable<URI[]> {

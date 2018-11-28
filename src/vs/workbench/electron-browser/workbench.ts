@@ -9,7 +9,7 @@ import { localize } from 'vs/nls';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import * as DOM from 'vs/base/browser/dom';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
 import * as browser from 'vs/base/browser/browser';
 import * as perf from 'vs/base/common/performance';
 import * as errors from 'vs/base/common/errors';
@@ -72,7 +72,7 @@ import { ProgressService2 } from 'vs/workbench/services/progress/browser/progres
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
+import { ShutdownReason, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecycleService';
 import { IWindowService, IWindowConfiguration, IPath, MenuBarVisibility, getTitleBarStyle } from 'vs/platform/windows/common/windows';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
@@ -287,6 +287,9 @@ export class Workbench extends Disposable implements IPartService {
 		if (this.environmentService.driverHandle) {
 			registerWindowDriver(this.mainProcessClient, this.configuration.windowId, this.instantiationService).then(disposable => this._register(disposable));
 		}
+
+		// Set lifecycle phase to `Ready`
+		this.lifecycleService.phase = LifecyclePhase.Ready;
 
 		// Restore Parts
 		return this.restoreParts();
@@ -773,6 +776,17 @@ export class Workbench extends Disposable implements IPartService {
 
 		const onRestored = (error?: Error): IWorkbenchStartedInfo => {
 			this.workbenchCreated = true;
+
+			// Set lifecycle phase to `Restored`
+			this.lifecycleService.phase = LifecyclePhase.Restored;
+
+			// Set lifecycle phase to `Runnning For A Bit` after a short delay
+			let eventuallPhaseTimeoutHandle = runWhenIdle(() => {
+				eventuallPhaseTimeoutHandle = void 0;
+				this.lifecycleService.phase = LifecyclePhase.Eventually;
+			}, 5000);
+
+			this._register(eventuallPhaseTimeoutHandle);
 
 			if (error) {
 				errors.onUnexpectedError(error);

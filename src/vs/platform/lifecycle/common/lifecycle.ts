@@ -84,17 +84,35 @@ export function StartupKindToString(startupKind: StartupKind): string {
 }
 
 export const enum LifecyclePhase {
+
+	/**
+	 * The first phase signals that we are about to startup getting ready.
+	 */
 	Starting = 1,
-	Restoring = 2,
-	Running = 3,
+
+	/**
+	 * Services are ready and the view is about to restore its state.
+	 */
+	Ready = 2,
+
+	/**
+	 * Views, panels and editors have restored. For editors this means, that
+	 * they show their contents fully.
+	 */
+	Restored = 3,
+
+	/**
+	 * The last phase after views, panels and editors have restored and
+	 * some time has passed (few seconds).
+	 */
 	Eventually = 4
 }
 
 export function LifecyclePhaseToString(phase: LifecyclePhase) {
 	switch (phase) {
 		case LifecyclePhase.Starting: return 'Starting';
-		case LifecyclePhase.Restoring: return 'Restoring';
-		case LifecyclePhase.Running: return 'Running';
+		case LifecyclePhase.Ready: return 'Ready';
+		case LifecyclePhase.Restored: return 'Restored';
 		case LifecyclePhase.Eventually: return 'Eventually';
 	}
 }
@@ -142,7 +160,7 @@ export const NullLifecycleService: ILifecycleService = {
 	_serviceBrand: null,
 	onWillShutdown: Event.None,
 	onShutdown: Event.None,
-	phase: LifecyclePhase.Running,
+	phase: LifecyclePhase.Restored,
 	startupKind: StartupKind.NewWindow,
 	when() { return Promise.resolve(); }
 };
