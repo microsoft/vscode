@@ -764,7 +764,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		// Actually move the editor if a specific index is provided and we figure
-		// out that the the editor is already opened at a different index. This
+		// out that the editor is already opened at a different index. This
 		// ensures the right set of events are fired to the outside.
 		if (typeof openEditorOptions.index === 'number') {
 			const indexOfEditor = this._group.indexOf(editor);
