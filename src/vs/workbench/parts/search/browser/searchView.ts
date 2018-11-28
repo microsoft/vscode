@@ -303,6 +303,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 	private createSearchWidget(container: HTMLElement): void {
 		let contentPattern = this.viewletState['query.contentPattern'] || '';
+		const replaceText = this.viewletState['query.replaceText'] || '';
 		let isRegex = this.viewletState['query.regex'] === true;
 		let isWholeWords = this.viewletState['query.wholeWords'] === true;
 		let isCaseSensitive = this.viewletState['query.caseSensitive'] === true;
@@ -313,6 +314,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 		this.searchWidget = this._register(this.instantiationService.createInstance(SearchWidget, container, <ISearchWidgetOptions>{
 			value: contentPattern,
+			replaceValue: replaceText,
 			isRegex: isRegex,
 			isCaseSensitive: isCaseSensitive,
 			isWholeWords: isWholeWords,
@@ -1572,6 +1574,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 		const isReplaceShown = this.searchAndReplaceWidget.isReplaceShown();
 		this.viewletState['view.showReplace'] = isReplaceShown;
+		this.viewletState['query.replaceText'] = isReplaceShown && this.searchWidget.getReplaceValue();
 
 		const history: ISearchHistoryValues = Object.create(null);
 
