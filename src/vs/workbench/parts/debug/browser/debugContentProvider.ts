@@ -16,6 +16,7 @@ import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 /**
  * Debug URI format
@@ -34,6 +35,8 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 
 	private static INSTANCE: DebugContentProvider;
 
+	private readonly pendingUpdates = new Map<string, CancellationTokenSource>();
+
 	constructor(
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IDebugService private debugService: IDebugService,
@@ -43,6 +46,10 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 	) {
 		textModelResolverService.registerTextModelContentProvider(DEBUG_SCHEME, this);
 		DebugContentProvider.INSTANCE = this;
+	}
+
+	dispose(): void {
+		this.pendingUpdates.forEach(cancellationSource => cancellationSource.dispose());
 	}
 
 	provideTextContent(resource: uri): Promise<ITextModel> {
@@ -99,9 +106,26 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 			if (response && response.body) {
 
 				if (model) {
+
+					const newContent = response.body.content;
+
+					// cancel and dispose an existing update
+					const cancellationSource = this.pendingUpdates.get(model.id);
+					if (cancellationSource) {
+						cancellationSource.cancel();
+					}
+
+					// create and keep update token
+					const myToken = new CancellationTokenSource();
+					this.pendingUpdates.set(model.id, myToken);
+
 					// update text model
-					return this.editorWorkerService.computeMoreMinimalEdits(model.uri, [{ text: response.body.content, range: model.getFullModelRange() }]).then(edits => {
-						if (edits.length > 0) {
+					return this.editorWorkerService.computeMoreMinimalEdits(model.uri, [{ text: newContent, range: model.getFullModelRange() }]).then(edits => {
+
+						// remove token
+						this.pendingUpdates.delete(model.id);
+
+						if (!myToken.token.isCancellationRequested && edits.length > 0) {
 							// use the evil-edit as these models show in readonly-editor only
 							model.applyEdits(edits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
 						}
