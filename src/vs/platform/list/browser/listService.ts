@@ -33,8 +33,7 @@ import { attachInputBoxStyler, attachListStyler, computeStyles, defaultListStyle
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { InputFocusedContextKey } from 'vs/platform/workbench/common/contextkeys';
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
-import { ITreeOptions as ITreeOptions2, ITreeEvent } from 'vs/base/browser/ui/tree/abstractTree';
-import { ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
+import { ITreeOptions as ITreeOptions2, ITreeEvent, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { AsyncDataTree, IDataSource } from 'vs/base/browser/ui/tree/asyncDataTree';
 
 export type ListWidget = List<any> | PagedList<any> | ITree | ObjectTree<any, any> | AsyncDataTree<any, any>;

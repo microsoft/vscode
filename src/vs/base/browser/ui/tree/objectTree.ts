@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Iterator, ISequence } from 'vs/base/common/iterator';
-import { AbstractTree, ITreeOptions } from 'vs/base/browser/ui/tree/abstractTree';
+import { AbstractTree } from 'vs/base/browser/ui/tree/abstractTree';
 import { ISpliceable } from 'vs/base/common/sequence';
-import { ITreeNode, ITreeModel, ITreeElement } from 'vs/base/browser/ui/tree/tree';
+import { ITreeNode, ITreeModel, ITreeElement, ITreeOptions } from 'vs/base/browser/ui/tree/tree';
 import { ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
 
 export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends AbstractTree<T | null, TFilterData, T | null> {

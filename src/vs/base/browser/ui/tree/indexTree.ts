@@ -5,10 +5,10 @@
 
 import 'vs/css!./media/tree';
 import { Iterator, ISequence } from 'vs/base/common/iterator';
-import { AbstractTree, ITreeOptions } from 'vs/base/browser/ui/tree/abstractTree';
+import { AbstractTree } from 'vs/base/browser/ui/tree/abstractTree';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { IndexTreeModel } from 'vs/base/browser/ui/tree/indexTreeModel';
-import { ITreeElement, ITreeModel, ITreeNode } from 'vs/base/browser/ui/tree/tree';
+import { ITreeElement, ITreeModel, ITreeNode, ITreeOptions } from 'vs/base/browser/ui/tree/tree';
 
 export class IndexTree<T, TFilterData = void> extends AbstractTree<T, TFilterData, number[]> {
 
