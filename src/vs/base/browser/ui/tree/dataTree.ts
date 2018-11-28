@@ -178,6 +178,18 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 		return this.tree.getHTMLElement();
 	}
 
+	get scrollTop(): number {
+		return this.tree.scrollTop;
+	}
+
+	set scrollTop(scrollTop: number) {
+		this.tree.scrollTop = scrollTop;
+	}
+
+	get scrollHeight(): number {
+		return this.tree.scrollHeight;
+	}
+
 	domFocus(): void {
 		this.tree.domFocus();
 	}
