@@ -1058,6 +1058,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		return this.view.scrollHeight;
 	}
 
+	get renderHeight(): number {
+		return this.view.renderHeight;
+	}
+
 	domFocus(): void {
 		this.view.domNode.focus();
 	}

@@ -190,6 +190,10 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 		return this.tree.scrollHeight;
 	}
 
+	get renderHeight(): number {
+		return this.tree.renderHeight;
+	}
+
 	domFocus(): void {
 		this.tree.domFocus();
 	}
