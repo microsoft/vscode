@@ -1031,6 +1031,14 @@ export interface DocumentColorProvider {
 	 */
 	provideColorPresentations(model: model.ITextModel, colorInfo: IColorInformation, token: CancellationToken): ProviderResult<IColorPresentation[]>;
 }
+
+export interface SelectionRangeProvider {
+	/**
+	 * Provide ranges that should be selected from the given position.
+	 */
+	provideSelectionRanges(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<Range[]>;
+}
+
 export interface FoldingContext {
 }
 /**
@@ -1336,6 +1344,11 @@ export const LinkProviderRegistry = new LanguageFeatureRegistry<LinkProvider>();
  * @internal
  */
 export const ColorProviderRegistry = new LanguageFeatureRegistry<DocumentColorProvider>();
+
+/**
+ * @internal
+ */
+export const SelectionRangeRegistry = new LanguageFeatureRegistry<SelectionRangeProvider>();
 
 /**
  * @internal

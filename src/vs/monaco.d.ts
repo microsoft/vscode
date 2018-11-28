@@ -5294,6 +5294,13 @@ declare namespace monaco.languages {
 		provideColorPresentations(model: editor.ITextModel, colorInfo: IColorInformation, token: CancellationToken): ProviderResult<IColorPresentation[]>;
 	}
 
+	export interface SelectionRangeProvider {
+		/**
+		 * Provide ranges that should be selected from the given position.
+		 */
+		provideSelectionRanges(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<Range[]>;
+	}
+
 	export interface FoldingContext {
 	}
 
