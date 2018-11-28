@@ -289,15 +289,18 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 	// Tree navigation
 
 	getParentElement(element: T): T | null {
-		return this.tree.getParentElement(this.getNode(element)).element;
+		const node = this.tree.getParentElement(this.getNode(element));
+		return node && node.element;
 	}
 
 	getFirstElementChild(element: T | null = null): T | null {
-		return this.tree.getFirstElementChild(this.getNode(element)).element;
+		const node = this.tree.getFirstElementChild(this.getNode(element));
+		return node && node.element;
 	}
 
 	getLastElementAncestor(element: T | null = null): T | null {
-		return this.tree.getLastElementAncestor(this.getNode(element)).element;
+		const node = this.tree.getLastElementAncestor(this.getNode(element));
+		return node && node.element;
 	}
 
 	// Implementation

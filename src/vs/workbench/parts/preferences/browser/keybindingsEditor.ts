@@ -552,6 +552,10 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	}
 
 	private onContextMenu(e: IListContextMenuEvent<IListEntry>): void {
+		if (!e.element) {
+			return;
+		}
+
 		if (e.element.templateId === KEYBINDING_ENTRY_TEMPLATE_ID) {
 			this.selectEntry(<IKeybindingItemEntry>e.element);
 			this.contextMenuService.showContextMenu({

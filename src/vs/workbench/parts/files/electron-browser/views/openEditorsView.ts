@@ -385,6 +385,10 @@ export class OpenEditorsView extends ViewletPanel {
 	}
 
 	private onListContextMenu(e: IListContextMenuEvent<OpenEditor | IEditorGroup>): void {
+		if (!e.element) {
+			return;
+		}
+
 		const element = e.element;
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,

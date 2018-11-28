@@ -410,6 +410,10 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		this._list.splice(0, this._list.length, this._elements);
 
 		this._list.onContextMenu((e) => {
+			if (!e.element) {
+				return;
+			}
+
 			const actions: IAction[] = [];
 
 			actions.push(new ReportExtensionIssueAction(e.element));

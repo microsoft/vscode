@@ -508,11 +508,18 @@ class MouseController<T> implements IDisposable {
 		const selection = this.list.getSelection();
 		reference = reference === undefined ? selection[0] : reference;
 
+		const focus = e.index;
+
+		if (typeof focus === 'undefined') {
+			this.list.setFocus([], e.browserEvent);
+			this.list.setSelection([], e.browserEvent);
+			return;
+		}
+
 		if (this.multipleSelectionSupport && this.isSelectionRangeChangeEvent(e)) {
 			return this.changeSelection(e, reference);
 		}
 
-		const focus = e.index;
 		if (selection.every(s => s !== focus)) {
 			this.list.setFocus([focus], e.browserEvent);
 		}
@@ -556,7 +563,7 @@ class MouseController<T> implements IDisposable {
 	}
 
 	private changeSelection(e: IListMouseEvent<T> | IListTouchEvent<T>, reference: number | undefined): void {
-		const focus = e.index;
+		const focus = e.index!;
 
 		if (this.isSelectionRangeChangeEvent(e) && reference !== undefined) {
 			const min = Math.min(reference, focus);

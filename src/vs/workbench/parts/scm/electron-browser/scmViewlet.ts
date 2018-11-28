@@ -316,8 +316,11 @@ class MainPanel extends ViewletPanel {
 	}
 
 	private onListContextMenu(e: IListContextMenuEvent<ISCMRepository>): void {
-		const repository = e.element;
+		if (!e.element) {
+			return;
+		}
 
+		const repository = e.element;
 		const contextKeyService = this.contextKeyService.createScoped();
 		const scmProviderKey = contextKeyService.createKey<string | undefined>('scmProvider', void 0);
 		scmProviderKey.set(repository.provider.contextValue);
@@ -986,6 +989,10 @@ export class RepositoryPanel extends ViewletPanel {
 	}
 
 	private onListContextMenu(e: IListContextMenuEvent<ISCMResourceGroup | ISCMResource>): void {
+		if (!e.element) {
+			return;
+		}
+
 		const element = e.element;
 		let actions: IAction[];
 
