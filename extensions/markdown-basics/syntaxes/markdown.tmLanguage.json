@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/47e0c947d0a8d13c07e06a086a5c0c9bbffc6cf6",
+	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/97b45ff162bfccd4770a0f6851e7d7937fc884b6",
 	"name": "Markdown",
 	"scopeName": "text.html.markdown",
 	"patterns": [
@@ -31,151 +31,7 @@
 					"include": "#lists"
 				},
 				{
-					"include": "#fenced_code_block_css"
-				},
-				{
-					"include": "#fenced_code_block_basic"
-				},
-				{
-					"include": "#fenced_code_block_ini"
-				},
-				{
-					"include": "#fenced_code_block_java"
-				},
-				{
-					"include": "#fenced_code_block_lua"
-				},
-				{
-					"include": "#fenced_code_block_makefile"
-				},
-				{
-					"include": "#fenced_code_block_perl"
-				},
-				{
-					"include": "#fenced_code_block_r"
-				},
-				{
-					"include": "#fenced_code_block_ruby"
-				},
-				{
-					"include": "#fenced_code_block_php"
-				},
-				{
-					"include": "#fenced_code_block_sql"
-				},
-				{
-					"include": "#fenced_code_block_vs_net"
-				},
-				{
-					"include": "#fenced_code_block_xml"
-				},
-				{
-					"include": "#fenced_code_block_xsl"
-				},
-				{
-					"include": "#fenced_code_block_yaml"
-				},
-				{
-					"include": "#fenced_code_block_dosbatch"
-				},
-				{
-					"include": "#fenced_code_block_clojure"
-				},
-				{
-					"include": "#fenced_code_block_coffee"
-				},
-				{
-					"include": "#fenced_code_block_c"
-				},
-				{
-					"include": "#fenced_code_block_cpp"
-				},
-				{
-					"include": "#fenced_code_block_diff"
-				},
-				{
-					"include": "#fenced_code_block_dockerfile"
-				},
-				{
-					"include": "#fenced_code_block_git_commit"
-				},
-				{
-					"include": "#fenced_code_block_git_rebase"
-				},
-				{
-					"include": "#fenced_code_block_go"
-				},
-				{
-					"include": "#fenced_code_block_groovy"
-				},
-				{
-					"include": "#fenced_code_block_pug"
-				},
-				{
-					"include": "#fenced_code_block_js"
-				},
-				{
-					"include": "#fenced_code_block_js_regexp"
-				},
-				{
-					"include": "#fenced_code_block_json"
-				},
-				{
-					"include": "#fenced_code_block_jsonc"
-				},
-				{
-					"include": "#fenced_code_block_less"
-				},
-				{
-					"include": "#fenced_code_block_objc"
-				},
-				{
-					"include": "#fenced_code_block_scss"
-				},
-				{
-					"include": "#fenced_code_block_perl6"
-				},
-				{
-					"include": "#fenced_code_block_powershell"
-				},
-				{
-					"include": "#fenced_code_block_python"
-				},
-				{
-					"include": "#fenced_code_block_regexp_python"
-				},
-				{
-					"include": "#fenced_code_block_rust"
-				},
-				{
-					"include": "#fenced_code_block_scala"
-				},
-				{
-					"include": "#fenced_code_block_shell"
-				},
-				{
-					"include": "#fenced_code_block_ts"
-				},
-				{
-					"include": "#fenced_code_block_tsx"
-				},
-				{
-					"include": "#fenced_code_block_csharp"
-				},
-				{
-					"include": "#fenced_code_block_fsharp"
-				},
-				{
-					"include": "#fenced_code_block_dart"
-				},
-				{
-					"include": "#fenced_code_block_handlebars"
-				},
-				{
-					"include": "#fenced_code_block_markdown"
-				},
-				{
-					"include": "#fenced_code_block_unknown"
+					"include": "#fenced_code_block"
 				},
 				{
 					"include": "#raw_block"
@@ -1298,6 +1154,39 @@
 						}
 					]
 				},
+				"fenced_code_block_swift": {
+					"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(swift)(\\s+[^`~]*)?$)",
+					"name": "markup.fenced_code.block.markdown",
+					"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
+					"beginCaptures": {
+						"3": {
+							"name": "punctuation.definition.markdown"
+						},
+						"5": {
+							"name": "fenced_code.block.language"
+						},
+						"6": {
+							"name": "fenced_code.block.language.attributes"
+						}
+					},
+					"endCaptures": {
+						"3": {
+							"name": "punctuation.definition.markdown"
+						}
+					},
+					"patterns": [
+						{
+							"begin": "(^|\\G)(\\s*)(.*)",
+							"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+							"contentName": "meta.embedded.block.swift",
+							"patterns": [
+								{
+									"include": "source.swift"
+								}
+							]
+						}
+					]
+				},
 				"fenced_code_block_scss": {
 					"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(scss)(\\s+[^`~]*)?$)",
 					"name": "markup.fenced_code.block.markdown",
@@ -1790,6 +1679,160 @@
 									"include": "text.html.markdown"
 								}
 							]
+						}
+					]
+				},
+				"fenced_code_block": {
+					"patterns": [
+						{
+							"include": "#fenced_code_block_css"
+						},
+						{
+							"include": "#fenced_code_block_basic"
+						},
+						{
+							"include": "#fenced_code_block_ini"
+						},
+						{
+							"include": "#fenced_code_block_java"
+						},
+						{
+							"include": "#fenced_code_block_lua"
+						},
+						{
+							"include": "#fenced_code_block_makefile"
+						},
+						{
+							"include": "#fenced_code_block_perl"
+						},
+						{
+							"include": "#fenced_code_block_r"
+						},
+						{
+							"include": "#fenced_code_block_ruby"
+						},
+						{
+							"include": "#fenced_code_block_php"
+						},
+						{
+							"include": "#fenced_code_block_sql"
+						},
+						{
+							"include": "#fenced_code_block_vs_net"
+						},
+						{
+							"include": "#fenced_code_block_xml"
+						},
+						{
+							"include": "#fenced_code_block_xsl"
+						},
+						{
+							"include": "#fenced_code_block_yaml"
+						},
+						{
+							"include": "#fenced_code_block_dosbatch"
+						},
+						{
+							"include": "#fenced_code_block_clojure"
+						},
+						{
+							"include": "#fenced_code_block_coffee"
+						},
+						{
+							"include": "#fenced_code_block_c"
+						},
+						{
+							"include": "#fenced_code_block_cpp"
+						},
+						{
+							"include": "#fenced_code_block_diff"
+						},
+						{
+							"include": "#fenced_code_block_dockerfile"
+						},
+						{
+							"include": "#fenced_code_block_git_commit"
+						},
+						{
+							"include": "#fenced_code_block_git_rebase"
+						},
+						{
+							"include": "#fenced_code_block_go"
+						},
+						{
+							"include": "#fenced_code_block_groovy"
+						},
+						{
+							"include": "#fenced_code_block_pug"
+						},
+						{
+							"include": "#fenced_code_block_js"
+						},
+						{
+							"include": "#fenced_code_block_js_regexp"
+						},
+						{
+							"include": "#fenced_code_block_json"
+						},
+						{
+							"include": "#fenced_code_block_jsonc"
+						},
+						{
+							"include": "#fenced_code_block_less"
+						},
+						{
+							"include": "#fenced_code_block_objc"
+						},
+						{
+							"include": "#fenced_code_block_swift"
+						},
+						{
+							"include": "#fenced_code_block_scss"
+						},
+						{
+							"include": "#fenced_code_block_perl6"
+						},
+						{
+							"include": "#fenced_code_block_powershell"
+						},
+						{
+							"include": "#fenced_code_block_python"
+						},
+						{
+							"include": "#fenced_code_block_regexp_python"
+						},
+						{
+							"include": "#fenced_code_block_rust"
+						},
+						{
+							"include": "#fenced_code_block_scala"
+						},
+						{
+							"include": "#fenced_code_block_shell"
+						},
+						{
+							"include": "#fenced_code_block_ts"
+						},
+						{
+							"include": "#fenced_code_block_tsx"
+						},
+						{
+							"include": "#fenced_code_block_csharp"
+						},
+						{
+							"include": "#fenced_code_block_fsharp"
+						},
+						{
+							"include": "#fenced_code_block_dart"
+						},
+						{
+							"include": "#fenced_code_block_handlebars"
+						},
+						{
+							"include": "#fenced_code_block_markdown"
+						},
+						{
+							"include": "#fenced_code_block_unknown"
 						}
 					]
 				},
