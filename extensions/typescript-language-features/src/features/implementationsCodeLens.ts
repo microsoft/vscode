@@ -26,10 +26,9 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 		const args = typeConverters.Position.toFileLocationRequestArgs(codeLens.file, codeLens.range.start);
 		const response = await this.client.execute('implementation', args, token, /* lowPriority */ true);
 		if (response.type !== 'response' || !response.body) {
-			codeLens.command = {
-				title: localize('implementationsErrorLabel', 'Could not determine implementations'),
-				command: ''
-			};
+			codeLens.command = response.type === 'cancelled'
+				? TypeScriptBaseCodeLensProvider.cancelledCommand
+				: TypeScriptBaseCodeLensProvider.errorCommand;
 			return codeLens;
 		}
 

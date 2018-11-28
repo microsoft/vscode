@@ -22,10 +22,9 @@ class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLensProvide
 		const args = typeConverters.Position.toFileLocationRequestArgs(codeLens.file, codeLens.range.start);
 		const response = await this.client.execute('references', args, token, /* lowPriority */ true);
 		if (response.type !== 'response' || !response.body) {
-			codeLens.command = {
-				title: localize('referenceErrorLabel', 'Could not determine references'),
-				command: ''
-			};
+			codeLens.command = response.type === 'cancelled'
+				? TypeScriptBaseCodeLensProvider.cancelledCommand
+				: TypeScriptBaseCodeLensProvider.errorCommand;
 			return codeLens;
 		}
 
