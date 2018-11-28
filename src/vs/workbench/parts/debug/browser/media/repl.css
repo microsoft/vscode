@@ -21,7 +21,7 @@
 	visibility: hidden;
 }
 
-.monaco-workbench .repl .repl-tree .monaco-list .monaco-list-row > .monaco-tl-contents {
+.monaco-workbench .repl .repl-tree .monaco-list .monaco-list-row .monaco-tl-contents {
 	line-height: 18px;
 	user-select: text;
 	/* Wrap words but also do not trim whitespace #6275 */
@@ -77,17 +77,13 @@
 	border-top: 1px solid rgba(128, 128, 128, 0.35);
 }
 
-.monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-rows > .monaco-tree-row {
-	cursor: default;
-}
-
 /* Disable repl hover highlight in tree. */
 .monaco-workbench .repl .repl-tree .monaco-list .monaco-list-rows > .monaco-list-row:hover:not(.highlighted):not(.selected):not(.focused)  {
 	background-color: inherit;
 }
 
 /* Only show 'stale expansion' info when the element gets expanded. */
-.monaco-workbench .repl .repl-tree .monaco-list .monaco-list-rows > .monaco-list-row:not(.expanded) > .content.input-output-pair > .output > .annotation::before  {
+.monaco-workbench .repl .repl-tree .monaco-list .monaco-list-rows > .monaco-list-row:not(.expanded) .input-output-pair > .output > .annotation::before  {
 	content: '';
 }
 

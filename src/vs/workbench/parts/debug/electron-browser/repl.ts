@@ -93,6 +93,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	private history: HistoryNavigator<string>;
 	private tree: WorkbenchDataTree<IReplElement>;
 	private dataSource: ReplDataSource;
+	private replDelegate: ReplDelegate;
 	private container: HTMLElement;
 	private treeContainer: HTMLElement;
 	private replInput: CodeEditorWidget;
@@ -257,8 +258,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	layout(dimension: dom.Dimension): void {
 		this.dimension = dimension;
 		if (this.tree) {
-			// todo@isidor check width
-			// this.renderer.setWidth(dimension.width - 25, this.characterWidth);
+			this.replDelegate.setWidth(dimension.width - 25, this.characterWidth);
 			const treeHeight = dimension.height - this.replInputHeight;
 			this.treeContainer.style.height = `${treeHeight}px`;
 			this.tree.layout(treeHeight);
@@ -324,7 +324,8 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		this.createReplInput(this.container);
 
 		this.dataSource = new ReplDataSource();
-		this.tree = new WorkbenchDataTree(this.treeContainer, new ReplDelegate(), [
+		this.replDelegate = new ReplDelegate();
+		this.tree = new WorkbenchDataTree(this.treeContainer, this.replDelegate, [
 			this.instantiationService.createInstance(VariablesRenderer),
 			this.instantiationService.createInstance(ReplSimpleElementsRenderer),
 			new ReplExpressionsRenderer(),
