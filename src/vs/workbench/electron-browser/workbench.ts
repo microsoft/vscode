@@ -9,7 +9,7 @@ import { localize } from 'vs/nls';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import * as DOM from 'vs/base/browser/dom';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
 import * as browser from 'vs/base/browser/browser';
 import * as perf from 'vs/base/common/performance';
 import * as errors from 'vs/base/common/errors';
@@ -72,7 +72,7 @@ import { ProgressService2 } from 'vs/workbench/services/progress/browser/progres
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
+import { ShutdownReason, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecycleService';
 import { IWindowService, IWindowConfiguration, IPath, MenuBarVisibility, getTitleBarStyle } from 'vs/platform/windows/common/windows';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
@@ -188,7 +188,7 @@ export class Workbench extends Disposable implements IPartService {
 	private workbenchParams: WorkbenchParams;
 	private workbench: HTMLElement;
 	private workbenchStarted: boolean;
-	private workbenchCreated: boolean;
+	private workbenchRestored: boolean;
 	private workbenchShutdown: boolean;
 
 	private editorService: EditorService;
@@ -504,9 +504,6 @@ export class Workbench extends Disposable implements IPartService {
 	}
 
 	private onFullscreenChanged(): void {
-		if (!this.isCreated) {
-			return; // we need to be ready
-		}
 
 		// Apply as CSS class
 		const isFullscreen = browser.isFullscreen();
@@ -772,7 +769,18 @@ export class Workbench extends Disposable implements IPartService {
 		}
 
 		const onRestored = (error?: Error): IWorkbenchStartedInfo => {
-			this.workbenchCreated = true;
+			this.workbenchRestored = true;
+
+			// Set lifecycle phase to `Restored`
+			this.lifecycleService.phase = LifecyclePhase.Restored;
+
+			// Set lifecycle phase to `Runnning For A Bit` after a short delay
+			let eventuallPhaseTimeoutHandle = runWhenIdle(() => {
+				eventuallPhaseTimeoutHandle = void 0;
+				this.lifecycleService.phase = LifecyclePhase.Eventually;
+			}, 5000);
+
+			this._register(eventuallPhaseTimeoutHandle);
 
 			if (error) {
 				errors.onUnexpectedError(error);
@@ -1147,8 +1155,8 @@ export class Workbench extends Disposable implements IPartService {
 
 	get onEditorLayout(): Event<IDimension> { return this.editorPart.onDidLayout; }
 
-	isCreated(): boolean {
-		return !!(this.workbenchCreated && this.workbenchStarted);
+	isRestored(): boolean {
+		return !!(this.workbenchRestored && this.workbenchStarted);
 	}
 
 	hasFocus(part: Parts): boolean {

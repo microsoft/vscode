@@ -28,7 +28,6 @@ import { overviewRulerError, overviewRulerInfo, overviewRulerWarning } from 'vs/
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IMarker, IMarkerService, MarkerSeverity, MarkerTag } from 'vs/platform/markers/common/markers';
 import { ThemeColor, themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { localize } from 'vs/nls';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -199,8 +198,16 @@ class ModelMarkerHandler {
 			// Hence, escape all input strings
 			hoverMessage.sanitize = false;
 
-			hoverMessage.appendMarkdown(`<div style='font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback"; white-space: pre-wrap;'>`);
-			hoverMessage.appendMarkdown(`<span>${escape(message.trim())}</span>`);
+			hoverMessage.appendMarkdown(`<div>`);
+			hoverMessage.appendMarkdown(`<span style='font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback"; white-space: pre-wrap;'>${escape(message.trim())}</span>`);
+			if (source) {
+				hoverMessage.appendMarkdown(`<span style='opacity: 0.6; padding-left:6px;'>${escape(source)}</span>`);
+				if (code) {
+					hoverMessage.appendMarkdown(`<span style='opacity: 0.6; padding-left:2px;'>(${escape(code)})</span>`);
+				}
+			} else if (code) {
+				hoverMessage.appendMarkdown(`<span style='opacity: 0.6; padding-left:6px;'>(${escape(code)})</span>`);
+			}
 			hoverMessage.appendMarkdown(`</div>`);
 
 			if (isNonEmptyArray(relatedInformation)) {
@@ -212,20 +219,6 @@ class ModelMarkerHandler {
 					hoverMessage.appendMarkdown(`</li>`);
 				}
 				hoverMessage.appendMarkdown(`</ul>`);
-			}
-
-			if (source || code) {
-				hoverMessage.appendMarkdown(`<div style='margin-top: 4px'>`);
-				if (source) {
-					hoverMessage.appendMarkdown(`<span style='opacity: 0.6; padding-right:4px;'>${localize('source', "Source")}:</span><span>${escape(source)}</span>`);
-					if (code) {
-						hoverMessage.appendMarkdown(`<span style='padding-right:4px;'>,</span>`);
-					}
-				}
-				if (code) {
-					hoverMessage.appendMarkdown(`<span style='opacity: 0.6; padding-right:4px;'>${localize('code', "Code")}:</span><span>${escape(code)}</span>`);
-				}
-				hoverMessage.appendMarkdown(`</div>`);
 			}
 		}
 

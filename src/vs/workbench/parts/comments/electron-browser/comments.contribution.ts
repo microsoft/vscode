@@ -36,6 +36,6 @@ Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescri
 ));
 
 // Register view location updater
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(CommentPanelVisibilityUpdater, LifecyclePhase.Restoring);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(CommentPanelVisibilityUpdater, LifecyclePhase.Starting);
 
 registerSingleton(ICommentService, CommentService);

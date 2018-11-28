@@ -398,7 +398,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.keybindingsListContainer = DOM.append(parent, $('.keybindings-list-container'));
 
 		this.keybindingsList = this._register(this.instantiationService.createInstance(WorkbenchList, this.keybindingsListContainer, new Delegate(), [new KeybindingHeaderRenderer(), new KeybindingItemRenderer(this, this.keybindingsService)],
-			{ identityProvider: e => e.id, mouseSupport: true, ariaLabel: localize('keybindingsLabel', "Keybindings"), setRowLineHeight: false })) as WorkbenchList<IListEntry>;
+			{ identityProvider: { getId: e => e.id }, mouseSupport: true, ariaLabel: localize('keybindingsLabel', "Keybindings"), setRowLineHeight: false })) as WorkbenchList<IListEntry>;
 		this._register(this.keybindingsList.onContextMenu(e => this.onContextMenu(e)));
 		this._register(this.keybindingsList.onFocusChange(e => this.onFocusChange(e)));
 		this._register(this.keybindingsList.onDidFocus(() => {
@@ -552,6 +552,10 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	}
 
 	private onContextMenu(e: IListContextMenuEvent<IListEntry>): void {
+		if (!e.element) {
+			return;
+		}
+
 		if (e.element.templateId === KEYBINDING_ENTRY_TEMPLATE_ID) {
 			this.selectEntry(<IKeybindingItemEntry>e.element);
 			this.contextMenuService.showContextMenu({

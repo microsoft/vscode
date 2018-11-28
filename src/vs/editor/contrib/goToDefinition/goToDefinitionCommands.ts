@@ -27,6 +27,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition, getDeclarationsAtPosition } from './goToDefinition';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 
 export class DefinitionActionConfig {
@@ -175,17 +176,17 @@ export class DefinitionAction extends EditorAction {
 	}
 }
 
-const goToDeclarationKb = platform.isWeb
+const goToDefinitionKb = platform.isWeb
 	? KeyMod.CtrlCmd | KeyCode.F12
 	: KeyCode.F12;
 
 export class GoToDefinitionAction extends DefinitionAction {
 
-	public static readonly ID = 'editor.action.goToDeclaration';
+	static readonly id = 'editor.action.revealDefinition';
 
 	constructor() {
 		super(new DefinitionActionConfig(), {
-			id: GoToDefinitionAction.ID,
+			id: GoToDefinitionAction.id,
 			label: nls.localize('actions.goToDecl.label', "Go to Definition"),
 			alias: 'Go to Definition',
 			precondition: ContextKeyExpr.and(
@@ -193,7 +194,7 @@ export class GoToDefinitionAction extends DefinitionAction {
 				EditorContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: goToDeclarationKb,
+				primary: goToDefinitionKb,
 				weight: KeybindingWeight.EditorContrib
 			},
 			menuOpts: {
@@ -201,16 +202,17 @@ export class GoToDefinitionAction extends DefinitionAction {
 				order: 1.1
 			}
 		});
+		CommandsRegistry.registerCommandAlias('editor.action.goToDeclaration', GoToDefinitionAction.id);
 	}
 }
 
 export class OpenDefinitionToSideAction extends DefinitionAction {
 
-	public static readonly ID = 'editor.action.openDeclarationToTheSide';
+	static readonly id = 'editor.action.revealDefinitionAside';
 
 	constructor() {
 		super(new DefinitionActionConfig(true), {
-			id: OpenDefinitionToSideAction.ID,
+			id: OpenDefinitionToSideAction.id,
 			label: nls.localize('actions.goToDeclToSide.label', "Open Definition to the Side"),
 			alias: 'Open Definition to the Side',
 			precondition: ContextKeyExpr.and(
@@ -218,17 +220,21 @@ export class OpenDefinitionToSideAction extends DefinitionAction {
 				EditorContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, goToDeclarationKb),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, goToDefinitionKb),
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
+		CommandsRegistry.registerCommandAlias('editor.action.openDeclarationToTheSide', OpenDefinitionToSideAction.id);
 	}
 }
 
 export class PeekDefinitionAction extends DefinitionAction {
+
+	static readonly id = 'editor.action.peekDefinition';
+
 	constructor() {
 		super(new DefinitionActionConfig(void 0, true, false), {
-			id: 'editor.action.previewDeclaration',
+			id: PeekDefinitionAction.id,
 			label: nls.localize('actions.previewDecl.label', "Peek Definition"),
 			alias: 'Peek Definition',
 			precondition: ContextKeyExpr.and(
@@ -246,6 +252,7 @@ export class PeekDefinitionAction extends DefinitionAction {
 				order: 1.2
 			}
 		});
+		CommandsRegistry.registerCommandAlias('editor.action.previewDeclaration', PeekDefinitionAction.id);
 	}
 }
 
@@ -268,11 +275,11 @@ export class DeclarationAction extends DefinitionAction {
 
 export class GoToDeclarationAction extends DeclarationAction {
 
-	public static readonly ID = 'editor.action.goToRealDeclaration';
+	static readonly id = 'editor.action.revealDeclaration';
 
 	constructor() {
 		super(new DefinitionActionConfig(), {
-			id: GoToDeclarationAction.ID,
+			id: GoToDeclarationAction.id,
 			label: nls.localize('actions.goToDeclaration.label', "Go to Declaration"),
 			alias: 'Go to Declaration',
 			precondition: ContextKeyExpr.and(
@@ -280,7 +287,7 @@ export class GoToDeclarationAction extends DeclarationAction {
 				EditorContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.F12,
+				primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.F12,
 				weight: KeybindingWeight.EditorContrib
 			},
 			menuOpts: {
@@ -313,7 +320,7 @@ export class PeekDeclarationAction extends DeclarationAction {
 				EditorContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.Alt | KeyCode.F12,
+				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F12,
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F10 },
 				weight: KeybindingWeight.EditorContrib
 			},

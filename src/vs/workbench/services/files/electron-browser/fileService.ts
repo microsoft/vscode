@@ -105,13 +105,13 @@ export class FileService extends Disposable implements IFileService {
 	private registerListeners(): void {
 
 		// Wait until we are fully running before starting file watchers
-		this.lifecycleService.when(LifecyclePhase.Running).then(() => {
+		this.lifecycleService.when(LifecyclePhase.Restored).then(() => {
 			this.setupFileWatching();
 		});
 
 		// Workbench State Change
 		this._register(this.contextService.onDidChangeWorkbenchState(() => {
-			if (this.lifecycleService.phase >= LifecyclePhase.Running) {
+			if (this.lifecycleService.phase >= LifecyclePhase.Restored) {
 				this.setupFileWatching();
 			}
 		}));

@@ -14,12 +14,12 @@ import {
 	IMainContext, IBreakpointsDeltaDto, ISourceMultiBreakpointDto, IFunctionBreakpointDto, IDebugSessionDto
 } from 'vs/workbench/api/node/extHost.protocol';
 import * as vscode from 'vscode';
-import { Disposable, Position, Location, SourceBreakpoint, FunctionBreakpoint, DebugAdapterServer, DebugAdapterExecutable, DebugAdapterImplementation } from 'vs/workbench/api/node/extHostTypes';
+import { Disposable, Position, Location, SourceBreakpoint, FunctionBreakpoint, DebugAdapterServer, DebugAdapterExecutable } from 'vs/workbench/api/node/extHostTypes';
 import { ExecutableDebugAdapter, SocketDebugAdapter, AbstractDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
-import { ITerminalSettings, IDebuggerContribution, IConfig, IDebugAdapter, IDebugAdapterServer, IDebugAdapterExecutable, IDebugAdapterImplementation, IAdapterDescriptor } from 'vs/workbench/parts/debug/common/debug';
+import { ITerminalSettings, IDebuggerContribution, IConfig, IDebugAdapter, IDebugAdapterServer, IDebugAdapterExecutable, IAdapterDescriptor } from 'vs/workbench/parts/debug/common/debug';
 import { getTerminalLauncher, hasChildprocesses, prepareCommand } from 'vs/workbench/parts/debug/node/terminals';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/node/variableResolver';
@@ -240,6 +240,14 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 		if (!provider) {
 			return new Disposable(() => { });
+		}
+
+		if (provider.debugAdapterExecutable) {
+			console.error('DebugConfigurationProvider.debugAdapterExecutable is deprecated and will be removed soon; please use DebugAdapterDescriptorFactory.createDebugAdapterDescriptor instead.');
+		}
+
+		if (provider.provideDebugAdapterTracker) {
+			// console.error('DebugConfigurationProvider.provideDebugAdapterTracker is deprecated and will be removed soon; please use DebugAdapterTrackerFactory.createDebugAdapterTracker instead.');
 		}
 
 		let handle = this._configProviderHandleCounter++;
@@ -628,12 +636,12 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 				port: x.port,
 				host: x.host
 			};
-		} else if (x instanceof DebugAdapterImplementation) {
+		} else /* if (x instanceof DebugAdapterImplementation) {
 			return <IDebugAdapterImplementation>{
 				type: 'implementation',
 				implementation: x.implementation
 			};
-		} else {
+		} else */ {
 			throw new Error('unexpected type');
 		}
 	}

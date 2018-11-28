@@ -10,6 +10,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalConfigHelper, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, TERMINAL_PANEL_ID, ITerminalTab, ITerminalProcessExtHostProxy, ITerminalProcessExtHostRequest, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN } from 'vs/workbench/parts/terminal/common/terminal';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 
 export abstract class TerminalService implements ITerminalService {
@@ -89,7 +90,7 @@ export abstract class TerminalService implements ITerminalService {
 	public abstract getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance;
 	public abstract selectDefaultWindowsShell(): Promise<string>;
 	public abstract setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
-	public abstract requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number): void;
+	public abstract requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI, cols: number, rows: number): void;
 
 	private _onWillShutdown(): boolean | PromiseLike<boolean> {
 		if (this.terminalInstances.length === 0) {

@@ -35,12 +35,14 @@ bootstrapWindow.load([
 			showPartsSplash(windowConfig);
 		},
 		beforeLoaderConfig: function (windowConfig, loaderConfig) {
-			const onNodeCachedData = window['MonacoEnvironment'].onNodeCachedData = [];
-			loaderConfig.onNodeCachedData = function () {
-				onNodeCachedData.push(arguments);
-			};
-
 			loaderConfig.recordStats = !!windowConfig.performance;
+			if (loaderConfig.nodeCachedData) {
+				const onNodeCachedData = window['MonacoEnvironment'].onNodeCachedData = [];
+				loaderConfig.nodeCachedData.onData = function () {
+					onNodeCachedData.push(arguments);
+				};
+			}
+
 		},
 		beforeRequire: function () {
 			perf.mark('willLoadWorkbenchMain');

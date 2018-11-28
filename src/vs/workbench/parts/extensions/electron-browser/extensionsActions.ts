@@ -16,7 +16,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet, AutoUpdateConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/parts/extensions/common/extensionsFileTemplate';
-import { LocalExtensionType, IExtensionEnablementService, IExtensionTipsService, EnablementState, ExtensionsLabel, IExtensionRecommendation, IGalleryExtension, IExtensionsConfigContent, IExtensionManagementServerService, IExtensionGalleryService, INSTALL_ERROR_MALICIOUS, INSTALL_ERROR_INCOMPATIBLE } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { LocalExtensionType, IExtensionEnablementService, IExtensionTipsService, EnablementState, ExtensionsLabel, IExtensionRecommendation, IGalleryExtension, IExtensionsConfigContent, IExtensionManagementServerService, IExtensionGalleryService, INSTALL_ERROR_MALICIOUS, INSTALL_ERROR_INCOMPATIBLE, IGalleryExtensionVersion } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { isUIExtension } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -84,6 +84,40 @@ const promptDownloadManually = (extension: IGalleryExtension, message: string, e
 		return Promise.resolve();
 	}
 };
+
+function getRelativeDateLabel(date: Date): string {
+	const delta = new Date().getTime() - date.getTime();
+
+	const year = 365 * 24 * 60 * 60 * 1000;
+	if (delta > year) {
+		const noOfYears = Math.floor(delta / year);
+		return noOfYears > 1 ? localize('noOfYearsAgo', "{0} years ago", noOfYears) : localize('one year ago', "1 year ago");
+	}
+
+	const month = 30 * 24 * 60 * 60 * 1000;
+	if (delta > month) {
+		const noOfMonths = Math.floor(delta / month);
+		return noOfMonths > 1 ? localize('noOfMonthsAgo', "{0} months ago", noOfMonths) : localize('one month ago', "1 month ago");
+	}
+
+	const day = 24 * 60 * 60 * 1000;
+	if (delta > day) {
+		const noOfDays = Math.floor(delta / day);
+		return noOfDays > 1 ? localize('noOfDaysAgo', "{0} days ago", noOfDays) : localize('one day ago', "1 day ago");
+	}
+
+	const hour = 60 * 60 * 1000;
+	if (delta > hour) {
+		const noOfHours = Math.floor(delta / day);
+		return noOfHours > 1 ? localize('noOfHoursAgo', "{0} hours ago", noOfHours) : localize('one hour ago', "1 hour ago");
+	}
+
+	if (delta > 0) {
+		return localize('just now', "Just now");
+	}
+
+	return '';
+}
 
 export interface IExtensionAction extends IAction {
 	extension: IExtension;
@@ -460,6 +494,7 @@ export abstract class DropDownAction extends Action {
 
 		for (const group of actionsGroups) {
 			for (const action of group) {
+				this.disposables.push(action);
 				if (action instanceof Action) {
 					action.onDidChange(({ enabled }) => {
 						if (!isUndefinedOrNull(enabled)) {
@@ -561,6 +596,7 @@ export class ManageExtensionAction extends DropDownAction {
 			instantiationService.createInstance(DisableForWorkspaceAction, DisableForWorkspaceAction.LABEL)
 		]);
 		groups.push([instantiationService.createInstance(UninstallAction)]);
+		groups.push([instantiationService.createInstance(InstallAnotherVersionAction)]);
 		groups.push([instantiationService.createInstance(ExtensionInfoAction)]);
 		super(ManageExtensionAction.ID, '', '', true, groups, true, instantiationService);
 
@@ -587,6 +623,66 @@ export class ManageExtensionAction extends DropDownAction {
 			this.class = this.enabled || state === ExtensionState.Uninstalling ? ManageExtensionAction.Class : ManageExtensionAction.HideManageExtensionClass;
 			this.tooltip = state === ExtensionState.Uninstalling ? localize('ManageExtensionAction.uninstallingTooltip', "Uninstalling") : '';
 		}
+	}
+}
+
+export class InstallAnotherVersionAction extends Action {
+
+	static readonly ID = 'workbench.extensions.action.install.anotherVersion';
+	static LABEL = localize('install another version', "Install Another Version...");
+
+	private disposables: IDisposable[] = [];
+
+	private _extension: IExtension;
+	get extension(): IExtension { return this._extension; }
+	set extension(extension: IExtension) { this._extension = extension; this.update(); }
+
+	constructor(
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
+		@IQuickInputService private quickInputService: IQuickInputService,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@INotificationService private notificationService: INotificationService,
+		@IOpenerService private openerService: IOpenerService
+	) {
+		super(InstallAnotherVersionAction.ID, InstallAnotherVersionAction.LABEL);
+		extensionsWorkbenchService.onChange(extension => this.update(extension), this, this.disposables);
+	}
+
+	private update(extension?: IExtension) {
+		if (extension && this.extension && !areSameExtensions(this.extension, extension)) {
+			return;
+		}
+		this.enabled = this.extension && !!this.extension.gallery;
+	}
+
+	run(): Thenable<any> {
+		return this.quickInputService.pick(this.getVersionEntries(), { placeHolder: localize('selectVersion', "Select Version to Install"), matchOnDetail: true })
+			.then(pick => {
+				if (pick) {
+					if (this.extension.version === pick.id) {
+						return Promise.resolve();
+					}
+					return (pick.latest ? this.extensionsWorkbenchService.install(this.extension) : this.extensionsWorkbenchService.installVersion(this.extension, pick.id))
+						.then(() => {
+							alert(localize('installExtensionComplete', "Installing extension {0} is completed. Please reload Visual Studio Code to enable it.", this.extension.displayName));
+						}, err => {
+							if (!this.extension.gallery) {
+								return this.notificationService.error(err);
+							}
+
+							console.error(err);
+
+							return promptDownloadManually(this.extension.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", this.extension.id), err, this.instantiationService, this.notificationService, this.openerService);
+						});
+				}
+				return null;
+			});
+	}
+
+	private getVersionEntries(): Promise<(IQuickPickItem & { latest: boolean })[]> {
+		return this.extensionGalleryService.getAllVersions(this.extension.gallery, true)
+			.then(allVersions => allVersions.map((v, i) => ({ id: v.version, label: v.version, description: `${getRelativeDateLabel(new Date(Date.parse(v.date)))}${v.version === this.extension.version ? ` (${localize('current', "Current")})` : ''}`, latest: i === 0 })));
 	}
 }
 
@@ -744,7 +840,8 @@ export class InstallInRemoteServerAction extends Action implements IExtensionAct
 		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
 		@IExtensionService private extensionService: IExtensionService
 	) {
-		super(EnableForWorkspaceAction.ID, InstallInRemoteServerAction.LABEL);
+		super(InstallInRemoteServerAction.ID, InstallInRemoteServerAction.LABEL);
+
 		this.disposables.push(extensionWorkbenchService.onChange(extension => this.update(extension)));
 		this.update();
 	}
@@ -2642,7 +2739,8 @@ export class ReinstallAction extends Action {
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IQuickInputService private quickInputService: IQuickInputService,
 		@INotificationService private notificationService: INotificationService,
-		@IWindowService private windowService: IWindowService
+		@IWindowService private windowService: IWindowService,
+		@IViewletService private viewletService: IViewletService
 	) {
 		super(id, label);
 	}
@@ -2651,12 +2749,12 @@ export class ReinstallAction extends Action {
 		return this.extensionsWorkbenchService.local.filter(l => l.type === LocalExtensionType.User && l.local).length > 0;
 	}
 
-	run(): Promise<any> {
-		return Promise.resolve(this.quickInputService.pick(this.getEntries(), { placeHolder: localize('selectExtension', "Select Extension to Reinstall") }))
+	run(): Thenable<any> {
+		return this.quickInputService.pick(this.getEntries(), { placeHolder: localize('selectExtensionToReinstall', "Select Extension to Reinstall") })
 			.then(pick => pick && this.reinstallExtension(pick.extension));
 	}
 
-	private getEntries() {
+	private getEntries(): Thenable<(IQuickPickItem & { extension: IExtension })[]> {
 		return this.extensionsWorkbenchService.queryLocal()
 			.then(local => {
 				const entries = local
@@ -2673,19 +2771,105 @@ export class ReinstallAction extends Action {
 			});
 	}
 
-	private reinstallExtension(extension: IExtension): Promise<void> {
-		return this.extensionsWorkbenchService.reinstall(extension)
-			.then(() => {
-				this.notificationService.prompt(
-					Severity.Info,
-					localize('ReinstallAction.success', "Successfully reinstalled the extension."),
-					[{
-						label: localize('ReinstallAction.reloadNow', "Reload Now"),
-						run: () => this.windowService.reloadWindow()
-					}],
-					{ sticky: true }
-				);
-			}, error => this.notificationService.error(error));
+	private reinstallExtension(extension: IExtension): Thenable<void> {
+		return this.viewletService.openViewlet(VIEWLET_ID)
+			.then((viewlet: IExtensionsViewlet) => {
+				viewlet.search('');
+				return this.extensionsWorkbenchService.reinstall(extension)
+					.then(() => {
+						this.notificationService.prompt(
+							Severity.Info,
+							localize('ReinstallAction.success', "Successfully reinstalled the extension."),
+							[{
+								label: localize('ReinstallAction.reloadNow', "Reload Now"),
+								run: () => this.windowService.reloadWindow()
+							}],
+							{ sticky: true }
+						);
+					}, error => this.notificationService.error(error));
+			});
+	}
+}
+
+export class InstallSpecificVersionOfExtensionAction extends Action {
+
+	static readonly ID = 'workbench.extensions.action.install.specificVersion';
+	static LABEL = localize('install previous version', "Install Specific Version of Extension...");
+
+	constructor(
+		id: string = InstallSpecificVersionOfExtensionAction.ID, label: string = InstallSpecificVersionOfExtensionAction.LABEL,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
+		@IQuickInputService private quickInputService: IQuickInputService,
+		@INotificationService private notificationService: INotificationService,
+		@IWindowService private windowService: IWindowService,
+		@IViewletService private viewletService: IViewletService
+	) {
+		super(id, label);
+	}
+
+	get enabled(): boolean {
+		return this.extensionsWorkbenchService.local.some(l => this.isEnabled(l));
+	}
+
+	async run(): Promise<any> {
+		const extensionPick = await this.quickInputService.pick(this.getExtensionEntries(), { placeHolder: localize('selectExtension', "Select Extension"), matchOnDetail: true });
+		if (extensionPick && extensionPick.extension) {
+			const versionPick = await this.quickInputService.pick(extensionPick.versions.map(v => ({ id: v.version, label: v.version, description: `${getRelativeDateLabel(new Date(Date.parse(v.date)))}${v.version === extensionPick.extension.version ? ` (${localize('current', "Current")})` : ''}` })), { placeHolder: localize('selectVersion', "Select Version to Install"), matchOnDetail: true });
+			if (versionPick) {
+				if (extensionPick.extension.version !== versionPick.id) {
+					await this.install(extensionPick.extension, versionPick.id === extensionPick.versions[0].version ? void 0 : versionPick.id);
+				}
+			}
+		}
+	}
+
+	private isEnabled(extension: IExtension): boolean {
+		return extension.gallery && (extension.enablementState === EnablementState.Enabled || extension.enablementState === EnablementState.WorkspaceEnabled);
+	}
+
+	private async getExtensionEntries(): Promise<(IQuickPickItem & { extension: IExtension, versions: IGalleryExtensionVersion[] })[]> {
+		const installed = await this.extensionsWorkbenchService.queryLocal();
+		const versionsPromises: Thenable<{ extension: IExtension, versions: IGalleryExtensionVersion[] }>[] = [];
+		for (const extension of installed) {
+			if (this.isEnabled(extension)) {
+				versionsPromises.push(this.extensionGalleryService.getAllVersions(extension.gallery, true)
+					.then(versions => (versions.length ? { extension, versions } : null)));
+			}
+		}
+
+		const extensions = await Promise.all(versionsPromises);
+		return extensions
+			.filter(e => !!e)
+			.sort((e1, e2) => e1.extension.displayName.localeCompare(e2.extension.displayName))
+			.map(({ extension, versions }) => {
+				return {
+					id: extension.id,
+					label: extension.displayName || extension.id,
+					description: extension.id,
+					extension,
+					versions
+				} as (IQuickPickItem & { extension: IExtension, versions: IGalleryExtensionVersion[] });
+			});
+	}
+
+	private install(extension: IExtension, version: string): Thenable<void> {
+		return this.viewletService.openViewlet(VIEWLET_ID)
+			.then((viewlet: IExtensionsViewlet) => {
+				viewlet.search('');
+				return this.extensionsWorkbenchService.installVersion(extension, version)
+					.then(() => {
+						this.notificationService.prompt(
+							Severity.Info,
+							localize('Install Success', "Successfully installed the extension."),
+							[{
+								label: localize('InstallAnotherVersionExtensionAction.reloadNow', "Reload Now"),
+								run: () => this.windowService.reloadWindow()
+							}],
+							{ sticky: true }
+						);
+					}, error => this.notificationService.error(error));
+			});
 	}
 }
 

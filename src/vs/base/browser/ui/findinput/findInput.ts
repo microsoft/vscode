@@ -286,6 +286,7 @@ export class FindInput extends Widget {
 	private setInputWidth(): void {
 		let w = this.width - this.caseSensitive.width() - this.wholeWords.width() - this.regex.width();
 		this.inputBox.width = w;
+		this.inputBox.layout();
 	}
 
 	private buildDomNode(appendCaseSensitiveLabel: string, appendWholeWordsLabel: string, appendRegexLabel: string, history: string[], flexibleHeight: boolean): void {

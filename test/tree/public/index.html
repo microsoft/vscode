@@ -42,7 +42,7 @@
 
 		require.config({ baseUrl: '/static' });
 
-		require(['vs/base/browser/ui/tree/indexTree', 'vs/base/browser/ui/tree/dataTree', 'vs/base/browser/ui/tree/tree', 'vs/base/common/iterator'], ({ IndexTree }, { DataTree }, { TreeVisibility }, { iter }) => {
+		require(['vs/base/browser/ui/tree/indexTree', 'vs/base/browser/ui/tree/asyncDataTree', 'vs/base/browser/ui/tree/tree', 'vs/base/common/iterator'], ({ IndexTree }, { AsyncDataTree }, { TreeVisibility }, { iter }) => {
 			function createIndexTree(opts) {
 				opts = opts || {};
 
@@ -98,7 +98,7 @@
 				return { tree, treeFilter };
 			}
 
-			function createDataTree() {
+			function createAsyncDataTree() {
 				const delegate = {
 					getHeight() { return 22; },
 					getTemplateId() { return 'template'; }
@@ -107,7 +107,7 @@
 				const renderer = {
 					templateId: 'template',
 					renderTemplate(container) { return container; },
-					renderElement(element, index, container) { container.textContent = element.name; },
+					renderElement(node, index, container) { container.textContent = node.element.element.name; },
 					disposeElement() { },
 					disposeTemplate() { }
 				};
@@ -137,13 +137,13 @@
 				};
 
 				const dataSource = new class {
-					hasChildren(element) {
-						return element === null || element.type === 'dir';
+					hasChildren(node) {
+						return node === null || node.element.type === 'dir';
 					}
-					getChildren(element) {
+					getChildren(node) {
 						return new Promise((c, e) => {
 							const xhr = new XMLHttpRequest();
-							xhr.open('GET', element ? `/api/readdir?path=${element.path}` : '/api/readdir');
+							xhr.open('GET', node ? `/api/readdir?path=${node.element.path}` : '/api/readdir');
 							xhr.send();
 							xhr.onreadystatechange = function () {
 								if (this.readyState == 4 && this.status == 200) {
@@ -152,7 +152,7 @@
 										collapsible: element.type === 'dir'
 									}));
 
-									if (element && /\//.test(element.path)) {
+									if (node && /\//.test(node.element.path)) {
 										setTimeout(() => c(els), 2500);
 									} else {
 										c(els);
@@ -163,7 +163,7 @@
 					}
 				}
 
-				const tree = new DataTree(container, delegate, [renderer], dataSource, { filter: treeFilter });
+				const tree = new AsyncDataTree(container, delegate, [renderer], dataSource, { filter: treeFilter });
 
 				return { tree, treeFilter };
 			}
@@ -190,7 +190,7 @@
 					break;
 				}
 				case '?data': {
-					const { tree, treeFilter } = createDataTree();
+					const { tree, treeFilter } = createAsyncDataTree();
 
 					collapseall.onclick = () => perf('collapse all', () => tree.collapseAll());
 					renderwidth.onclick = () => perf('renderwidth', () => tree.layoutWidth(Math.random()));
