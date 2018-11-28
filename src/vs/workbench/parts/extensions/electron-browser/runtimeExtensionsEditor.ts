@@ -18,7 +18,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IExtensionService, IExtensionDescription, IExtensionsStatus, IExtensionHostProfile } from 'vs/workbench/services/extensions/common/extensions';
 import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
-import { append, $, addClass, toggleClass, Dimension } from 'vs/base/browser/dom';
+import { append, $, addClass, toggleClass, Dimension, clearNode } from 'vs/base/browser/dom';
 import { ActionBar, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -256,20 +256,10 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 			root: HTMLElement;
 			element: HTMLElement;
 			name: HTMLElement;
-
+			msgContainer: HTMLElement;
+			actionbar: ActionBar;
 			activationTime: HTMLElement;
 			profileTime: HTMLElement;
-			unresponsiveWarn: HTMLElement;
-
-			profileTimeline: HTMLElement;
-
-			msgIcon: HTMLElement;
-			msgLabel: HTMLElement;
-
-			msgIcon2: HTMLElement;
-			msgLabel2: HTMLElement;
-
-			actionbar: ActionBar;
 			disposables: IDisposable[];
 			elementDisposables: IDisposable[];
 		}
@@ -283,24 +273,14 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				const name = append(desc, $('div.name'));
 
 				const msgContainer = append(desc, $('div.msg'));
-				const msgIcon = append(msgContainer, $('.'));
-				const msgLabel = append(msgContainer, $('span.msg-label'));
 
-				const msgIcon2 = append(msgContainer, $('.'));
-				const msgLabel2 = append(msgContainer, $('span.msg-label'));
+				const actionbar = new ActionBar(desc, { animated: false });
+				actionbar.onDidRun(({ error }) => error && this._notificationService.error(error));
+
 
 				const timeContainer = append(element, $('.time'));
 				const activationTime = append(timeContainer, $('div.activation-time'));
 				const profileTime = append(timeContainer, $('div.profile-time'));
-				const unresponsiveWarn = append(timeContainer, $('div.unresponsive-warn'));
-
-				const profileTimeline = append(element, $('div.profile-timeline'));
-
-				const actionbar = new ActionBar(element, {
-					animated: false
-				});
-				actionbar.onDidRun(({ error }) => error && this._notificationService.error(error));
-				actionbar.push(new ReportExtensionIssueAction(), { icon: true, label: true });
 
 				const disposables = [actionbar];
 
@@ -311,12 +291,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 					actionbar,
 					activationTime,
 					profileTime,
-					unresponsiveWarn,
-					profileTimeline,
-					msgIcon,
-					msgLabel,
-					msgIcon2,
-					msgLabel2,
+					msgContainer,
 					disposables,
 					elementDisposables: []
 				};
@@ -333,8 +308,11 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				const activationTimes = element.status.activationTimes;
 				let syncTime = activationTimes.codeLoadingTime + activationTimes.activateCallTime;
 				data.activationTime.textContent = activationTimes.startup ? `Startup Activation: ${syncTime}ms` : `Activation: ${syncTime}ms`;
-				data.actionbar.context = element;
-				toggleClass(data.actionbar.getContainer(), 'hidden', element.marketplaceInfo && element.marketplaceInfo.type === LocalExtensionType.User && (!element.description.repository || !element.description.repository.url));
+
+				data.actionbar.clear();
+				if (element.unresponsiveProfile || isNonEmptyArray(element.status.runtimeErrors)) {
+					data.actionbar.push(new ReportExtensionIssueAction(element), { icon: true, label: true });
+				}
 
 				let title: string;
 				if (activationTimes.activationEvent === '*') {
@@ -376,65 +354,45 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 					}, "Activated on {0}", activationTimes.activationEvent);
 				}
 				data.activationTime.title = title;
+
+				clearNode(data.msgContainer);
+
+				if (this._extensionHostProfileService.getUnresponsiveProfile(element.description.id)) {
+					const el = $('span');
+					el.innerHTML = renderOcticons(` $(alert) Unresponsive`);
+					el.title = nls.localize('unresponsive.title', "Extension has caused the extension host to freeze.");
+					data.msgContainer.appendChild(el);
+				}
+
 				if (isNonEmptyArray(element.status.runtimeErrors)) {
-					data.msgIcon.className = 'octicon octicon-bug';
-					data.msgLabel.textContent = nls.localize('errors', "{0} uncaught errors", element.status.runtimeErrors.length);
-				} else if (element.status.messages && element.status.messages.length > 0) {
-					data.msgIcon.className = 'octicon octicon-alert';
-					data.msgLabel.textContent = element.status.messages[0].message;
-				} else {
-					data.msgIcon.className = '';
-					data.msgLabel.textContent = '';
+					const el = $('span');
+					el.innerHTML = renderOcticons(`$(bug) ${nls.localize('errors', "{0} uncaught errors", element.status.runtimeErrors.length)}`);
+					data.msgContainer.appendChild(el);
+				}
+
+				if (element.status.messages && element.status.messages.length > 0) {
+					const el = $('span');
+					el.innerHTML = renderOcticons(`$(alert) ${element.status.messages[0].message}`);
+					data.msgContainer.appendChild(el);
 				}
 
 				if (element.description.extensionLocation.scheme !== 'file') {
-					data.msgIcon2.className = 'octicon octicon-rss';
-					data.msgLabel2.textContent = element.description.extensionLocation.authority;
+					const el = $('span');
+					el.innerHTML = renderOcticons(`$(rss) ${element.description.extensionLocation.authority}`);
+					data.msgContainer.appendChild(el);
 					this.remoteAuthorityResolverService.getRemoteAuthorityResolver(element.description.extensionLocation.authority).then(resolver => {
 						if (resolver && resolver.label.length) {
-							data.msgLabel2.textContent = resolver.label;
+							el.innerHTML = renderOcticons(`$(rss) ${resolver.label}`);
 						}
 					});
-				} else {
-					data.msgIcon2.className = '';
-					data.msgLabel2.textContent = '';
 				}
 
 				if (this._profileInfo) {
 					data.profileTime.textContent = `Profile: ${(element.profileInfo.totalTime / 1000).toFixed(2)}ms`;
-					const elementSegments = element.profileInfo.segments;
-					let inner = '<rect x="0" y="99" width="100" height="1" />';
-					for (let i = 0, len = elementSegments.length / 2; i < len; i++) {
-						const absoluteStart = elementSegments[2 * i];
-						const absoluteEnd = elementSegments[2 * i + 1];
-
-						const start = absoluteStart - this._profileInfo.startTime;
-						const end = absoluteEnd - this._profileInfo.startTime;
-
-						const absoluteDuration = this._profileInfo.endTime - this._profileInfo.startTime;
-
-						const xStart = start / absoluteDuration * 100;
-						const xEnd = end / absoluteDuration * 100;
-
-						inner += `<rect x="${xStart}" y="0" width="${xEnd - xStart}" height="100" />`;
-					}
-					let svg = `<svg class="profile-timeline-svg" preserveAspectRatio="none" height="16" viewBox="0 0 100 100">${inner}</svg>`;
-
-					data.profileTimeline.innerHTML = svg;
-					data.profileTimeline.style.display = 'inherit';
 				} else {
 					data.profileTime.textContent = '';
-					data.profileTimeline.innerHTML = '';
 				}
 
-				const unresponsiveProfile = this._extensionHostProfileService.getUnresponsiveProfile(element.description.id);
-				if (unresponsiveProfile && (!this._profileInfo || this._profileInfo === unresponsiveProfile)) {
-					data.unresponsiveWarn.innerHTML = renderOcticons(`Unresponsive $(alert)`);
-					data.unresponsiveWarn.title = nls.localize('unresponsive.title', "Extension has caused the extension host to freeze.");
-				} else {
-					data.unresponsiveWarn.innerHTML = '';
-					data.unresponsiveWarn.title = '';
-				}
 			},
 
 			disposeElement: () => null,
@@ -453,6 +411,9 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 		this._list.onContextMenu((e) => {
 			const actions: IAction[] = [];
+
+			actions.push(new ReportExtensionIssueAction(e.element));
+			actions.push(new Separator());
 
 			if (e.element.marketplaceInfo && e.element.marketplaceInfo.type === LocalExtensionType.User) {
 				actions.push(this._instantiationService.createInstance(DisableForWorkspaceAction, DisableForWorkspaceAction.LABEL));
@@ -503,22 +464,27 @@ export class ShowRuntimeExtensionsAction extends Action {
 }
 
 class ReportExtensionIssueAction extends Action {
-	static readonly ID = 'workbench.extensions.action.reportExtensionIssue';
-	static LABEL = nls.localize('reportExtensionIssue', "Report Issue");
 
-	constructor(
-		id: string = ReportExtensionIssueAction.ID, label: string = ReportExtensionIssueAction.LABEL
-	) {
-		super(id, label, 'extension-action report-issue');
+	private static readonly _id = 'workbench.extensions.action.reportExtensionIssue';
+	private static _label = nls.localize('reportExtensionIssue', "Report Issue");
+
+	private readonly _url: string;
+
+	constructor(extension: IRuntimeExtension) {
+		super(ReportExtensionIssueAction._id, ReportExtensionIssueAction._label, 'extension-action report-issue');
+		this.enabled = extension.marketplaceInfo
+			&& extension.marketplaceInfo.type === LocalExtensionType.User
+			&& Boolean(extension.description.repository) && Boolean(extension.description.repository.url);
+
+		this._url = ReportExtensionIssueAction._generateNewIssueUrl(extension);
 	}
 
-	run(extension: IRuntimeExtension): Promise<any> {
-		window.open(this.generateNewIssueUrl(extension));
-
+	run(): Promise<any> {
+		window.open(this._url);
 		return Promise.resolve(null);
 	}
 
-	private generateNewIssueUrl(extension: IRuntimeExtension): string {
+	private static _generateNewIssueUrl(extension: IRuntimeExtension): string {
 		let baseUrl = extension.marketplaceInfo && extension.marketplaceInfo.type === LocalExtensionType.User && extension.description.repository ? extension.description.repository.url : undefined;
 		if (!!baseUrl) {
 			baseUrl = `${baseUrl.indexOf('.git') !== -1 ? baseUrl.substr(0, baseUrl.length - 4) : baseUrl}/issues/new/`;

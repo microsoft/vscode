@@ -295,11 +295,11 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	}
 
 	getFirstElementChild(location: TRef | null = null): T | null {
-		return this.model.getFirstChildElement(location);
+		return this.model.getFirstElementChild(location);
 	}
 
 	getLastElementAncestor(location: TRef | null = null): T | null {
-		return this.model.getLastAncestorElement(location);
+		return this.model.getLastElementAncestor(location);
 	}
 
 	// Tree

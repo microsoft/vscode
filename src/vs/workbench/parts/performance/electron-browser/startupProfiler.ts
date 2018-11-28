@@ -104,4 +104,4 @@ class StartupProfiler implements IWorkbenchContribution {
 }
 
 const registry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
-registry.registerWorkbenchContribution(StartupProfiler, LifecyclePhase.Running);
+registry.registerWorkbenchContribution(StartupProfiler, LifecyclePhase.Restored);

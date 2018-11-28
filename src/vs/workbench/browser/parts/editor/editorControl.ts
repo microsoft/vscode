@@ -168,7 +168,7 @@ export class EditorControl extends Disposable {
 
 		// Show progress while setting input after a certain timeout. If the workbench is opening
 		// be more relaxed about progress showing by increasing the delay a little bit to reduce flicker.
-		const operation = this.editorOperation.start(this.partService.isCreated() ? 800 : 3200);
+		const operation = this.editorOperation.start(this.partService.isRestored() ? 800 : 3200);
 
 		// Call into editor control
 		const editorWillChange = !inputMatches;

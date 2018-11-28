@@ -425,7 +425,7 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 		return node === this.root ? null : node.element;
 	}
 
-	getFirstChildElement(location: number[]): T | null {
+	getFirstElementChild(location: number[]): T | null {
 		const node = this.getTreeNode(location);
 
 		if (node.children.length === 0) {
@@ -435,7 +435,7 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 		return node.children[0].element;
 	}
 
-	getLastAncestorElement(location: number[]): T | null {
+	getLastElementAncestor(location: number[]): T | null {
 		const node = this.getTreeNode(location);
 
 		if (node.children.length === 0) {

@@ -18,6 +18,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { localize } from 'vs/nls';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { RuntimeExtensionsInput } from 'vs/workbench/services/extensions/electron-browser/runtimeExtensionsInput';
+import { generateUuid } from 'vs/base/common/uuid';
 
 export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchContribution {
 
@@ -107,6 +108,7 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 		}
 		data = data.slice(0, anchor + 1);
 
+		const id = generateUuid();
 		const duration = profile.endTime - profile.startTime;
 		const percentage = duration / 100;
 		let top: NamedSlice | undefined;
@@ -137,7 +139,15 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 					localize('unresponsive-exthost', "Extension '{0}' froze the extension host for more than {1} seconds.", extension.displayName || extension.name, Math.round(duration / 1e6)),
 					[{
 						label: localize('show', 'Show Extensions'),
-						run: () => this._editorService.openEditor(new RuntimeExtensionsInput())
+						run: () => {
+							this._editorService.openEditor(new RuntimeExtensionsInput());
+							/* __GDPR__
+								"exthostunresponsive-more" : {
+									"id" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+								}
+							*/
+							this._telemetryService.publicLog('exthostunresponsive-more', { id });
+						}
 					}],
 					{ silent: true }
 				);
@@ -150,12 +160,14 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 
 			/* __GDPR__
 				"exthostunresponsive" : {
+					"id" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 					"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 					"data": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 					"prompt" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 				}
 			*/
 			this._telemetryService.publicLog('exthostunresponsive', {
+				id,
 				duration,
 				data,
 				prompt

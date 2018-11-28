@@ -56,6 +56,7 @@ class BaseTreeItem {
 
 	setSource(session: IDebugSession, source: Source): void {
 		this._source = source;
+		this._children = {};
 		if (source.raw && source.raw.sources) {
 			for (const src of source.raw.sources) {
 				const s = new BaseTreeItem(this, src.name);
@@ -430,6 +431,7 @@ export class LoadedScriptsView extends ViewletPanel {
 				let sessionRoot: SessionTreeItem;
 				switch (event.reason) {
 					case 'new':
+					case 'changed':
 						sessionRoot = root.add(session);
 						sessionRoot.addPath(event.source);
 						if (this.isVisible) {

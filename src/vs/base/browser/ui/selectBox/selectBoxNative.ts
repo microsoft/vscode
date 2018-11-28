@@ -165,10 +165,10 @@ export class SelectBoxNative implements ISelectBoxDelegate {
 	}
 
 	private createOption(value: string, index: number, disabled?: boolean): HTMLOptionElement {
-		let option = document.createElement('option');
+		const option = document.createElement('option');
 		option.value = value;
 		option.text = value;
-		option.disabled = disabled;
+		option.disabled = !!disabled;
 
 		return option;
 	}

@@ -61,3 +61,11 @@ export class KindModifiers {
 		KindModifiers.jsonFile,
 	];
 }
+
+export class DisplayPartKind {
+	public static readonly functionName = 'functionName';
+	public static readonly methodName = 'methodName';
+	public static readonly parameterName = 'parameterName';
+	public static readonly punctuation = 'punctuation';
+	public static readonly text = 'text';
+}
