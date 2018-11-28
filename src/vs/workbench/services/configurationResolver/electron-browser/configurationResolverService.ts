@@ -83,7 +83,7 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 		}, envVariables);
 	}
 
-	public resolveWithInteraction(folder: IWorkspaceFolder, config: any, variables?: IStringDictionary<string>): TPromise<any> {
+	public resolveWithInteraction(folder: IWorkspaceFolder, config: any, section?: string, variables?: IStringDictionary<string>): TPromise<any> {
 		// then substitute remaining variables in VS Code core
 		config = this.resolveAny(folder, config);
 
@@ -92,7 +92,7 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 				return undefined;
 			}
 
-			return this.resolveWithInputs(folder, config).then(inputMapping => {
+			return this.resolveWithInputs(folder, config, section).then(inputMapping => {
 				if (!inputMapping) {
 					return undefined;
 				}
@@ -159,10 +159,10 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 		return sequence(factory).then(() => cancelled ? undefined : commandValueMapping);
 	}
 
-	public resolveWithInputs(folder: IWorkspaceFolder, config: any): Promise<IStringDictionary<string>> {
-		if (folder) {
+	public resolveWithInputs(folder: IWorkspaceFolder, config: any, section: string): Promise<IStringDictionary<string>> {
+		if (folder && section) {
 			let result = this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY
-				? Objects.deepClone(this.configurationService.getValue<any>('tasks', { resource: folder.uri }))
+				? Objects.deepClone(this.configurationService.getValue<any>(section, { resource: folder.uri }))
 				: undefined;
 			let inputsArray = result ? this.parseConfigurationInputs(result.inputs) : undefined;
 			const inputs = new Map<string, ConfiguredInput>();
@@ -194,7 +194,7 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 			return () => {
 				if (inputs && inputs.has(commandVariable)) {
 					const input = inputs.get(commandVariable);
-					if (input.type === ConfiguredInputType.prompt) {
+					if (input.type === ConfiguredInputType.Prompt) {
 						let inputOptions: IInputOptions = { prompt: input.description };
 						if (input.default) {
 							inputOptions.value = input.default;
@@ -271,14 +271,14 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 				if (Types.isString(item.label) && Types.isString(item.description) && Types.isString(item.type)) {
 					let type: ConfiguredInputType;
 					switch (item.type) {
-						case 'prompt': type = ConfiguredInputType.prompt; break;
-						case 'pick': type = ConfiguredInputType.pick; break;
+						case 'prompt': type = ConfiguredInputType.Prompt; break;
+						case 'pick': type = ConfiguredInputType.Pick; break;
 						default: {
 							throw new Error(nls.localize('unknownInputTypeProvided', "Input '{0}' can only be of type 'prompt' or 'pick'.", item.label));
 						}
 					}
 					let options: string[];
-					if (type === ConfiguredInputType.pick) {
+					if (type === ConfiguredInputType.Pick) {
 						if (Types.isStringArray(item.options)) {
 							options = item.options;
 						} else {

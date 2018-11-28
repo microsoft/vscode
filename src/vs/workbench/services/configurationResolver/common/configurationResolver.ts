@@ -28,12 +28,12 @@ export interface IConfigurationResolverService {
 	 * If a "variables" dictionary (with names -> command ids) is given,
 	 * command variables are first mapped through it before being resolved.
 	 */
-	resolveWithInteraction(folder: IWorkspaceFolder, config: any, variables?: IStringDictionary<string>): TPromise<any>;
+	resolveWithInteraction(folder: IWorkspaceFolder, config: any, section?: string, variables?: IStringDictionary<string>): TPromise<any>;
 }
 
-export enum ConfiguredInputType {
-	prompt,
-	pick
+export const enum ConfiguredInputType {
+	Prompt,
+	Pick
 }
 
 export interface ConfiguredInput {

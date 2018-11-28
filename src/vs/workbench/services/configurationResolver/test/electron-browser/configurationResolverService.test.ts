@@ -285,7 +285,7 @@ suite('Configuration Resolver Service', () => {
 		const commandVariables = Object.create(null);
 		commandVariables['commandVariable1'] = 'command1';
 
-		return configurationResolverService.resolveWithInteraction(undefined, configuration, commandVariables).then(result => {
+		return configurationResolverService.resolveWithInteraction(undefined, configuration, undefined, commandVariables).then(result => {
 
 			assert.deepEqual(result, {
 				'name': 'Attach to Process',
@@ -318,7 +318,7 @@ suite('Configuration Resolver Service', () => {
 		const commandVariables = Object.create(null);
 		commandVariables['commandVariable1'] = 'command1';
 
-		return configurationResolverService.resolveWithInteraction(undefined, configuration, commandVariables).then(result => {
+		return configurationResolverService.resolveWithInteraction(undefined, configuration, undefined, commandVariables).then(result => {
 
 			assert.deepEqual(result, {
 				'name': 'Attach to Process',
@@ -349,7 +349,7 @@ suite('Configuration Resolver Service', () => {
 		const commandVariables = Object.create(null);
 		commandVariables['commandVariable1'] = 'command1';
 
-		return configurationResolverService.resolveWithInteraction(undefined, configuration, commandVariables).then(result => {
+		return configurationResolverService.resolveWithInteraction(undefined, configuration, undefined, commandVariables).then(result => {
 
 			assert.deepEqual(result, {
 				'name': 'Attach to Process',
@@ -374,7 +374,7 @@ suite('Configuration Resolver Service', () => {
 			'outDir': null
 		};
 
-		return configurationResolverService.resolveWithInteraction(workspace, configuration).then(result => {
+		return configurationResolverService.resolveWithInteraction(workspace, configuration, 'tasks').then(result => {
 
 			assert.deepEqual(result, {
 				'name': 'Attach to Process',
@@ -401,7 +401,7 @@ suite('Configuration Resolver Service', () => {
 			'outDir': null
 		};
 
-		return configurationResolverService.resolveWithInteraction(workspace, configuration).then(result => {
+		return configurationResolverService.resolveWithInteraction(workspace, configuration, 'tasks').then(result => {
 
 			assert.deepEqual(result, {
 				'name': 'Attach to Process',
@@ -428,7 +428,7 @@ suite('Configuration Resolver Service', () => {
 			'outDir': null
 		};
 
-		return configurationResolverService.resolveWithInteraction(workspace, configuration).then(result => {
+		return configurationResolverService.resolveWithInteraction(workspace, configuration, 'tasks').then(result => {
 
 			assert.deepEqual(result, {
 				'name': 'resolvedEnterinput3',
