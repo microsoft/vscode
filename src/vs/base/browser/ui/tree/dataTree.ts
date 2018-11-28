@@ -9,7 +9,7 @@ import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeElement, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Emitter, Event, mapEvent } from 'vs/base/common/event';
-import { timeout } from 'vs/base/common/async';
+import { timeout, always } from 'vs/base/common/async';
 import { ISequence } from 'vs/base/common/iterator';
 import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
 
@@ -131,6 +131,7 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 	private tree: ObjectTree<IDataTreeNode<T>, TFilterData>;
 	private root: IDataTreeNode<T>;
 	private nodes = new Map<T | null, IDataTreeNode<T>>();
+	private refreshPromises = new Map<IDataTreeNode<T>, Thenable<void>>();
 
 	private _onDidChangeNodeState = new Emitter<IDataTreeNode<T>>();
 
@@ -208,8 +209,21 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 		return this.tree.collapse(this.getNode(element));
 	}
 
-	expand(element: T): boolean {
-		return this.tree.expand(this.getNode(element));
+	expand(element: T): Thenable<boolean> {
+		const node = this.getNode(element);
+
+		if (!this.tree.isCollapsed(node)) {
+			return Promise.resolve(false);
+		}
+
+		if (node.element!.state === DataTreeNodeState.Uninitialized) {
+			const result = this.refreshNode(node, ChildrenResolutionReason.Expand);
+			this.tree.expand(node);
+			return result.then(() => true);
+		}
+
+		this.tree.expand(node);
+		return Promise.resolve(true);
 	}
 
 	toggleCollapsed(element: T): void {
@@ -319,6 +333,18 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 	}
 
 	private refreshNode(node: IDataTreeNode<T>, reason: ChildrenResolutionReason): Thenable<void> {
+		let result = this.refreshPromises.get(node);
+
+		if (result) {
+			return result;
+		}
+
+		result = this.doRefresh(node, reason);
+		this.refreshPromises.set(node, result);
+		return always(result, () => this.refreshPromises.delete(node));
+	}
+
+	private doRefresh(node: IDataTreeNode<T>, reason: ChildrenResolutionReason): Thenable<void> {
 		const hasChildren = this.dataSource.hasChildren(node.element);
 
 		if (!hasChildren) {
@@ -398,7 +424,6 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 
 		this.tree.setChildren(element, children, onDidCreateNode, onDidDeleteNode);
 	}
-
 
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
