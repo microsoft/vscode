@@ -230,9 +230,12 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			session.addReplExpression(this.debugService.getViewModel().focusedStackFrame, this.replInput.getValue());
 			this.history.add(this.replInput.getValue());
 			this.replInput.setValue('');
-			// Trigger a layout to shrink a potential multi line input
+			const shouldRelayout = this.replInputHeight > Repl.REPL_INPUT_INITIAL_HEIGHT;
 			this.replInputHeight = Repl.REPL_INPUT_INITIAL_HEIGHT;
-			this.layout(this.dimension);
+			if (shouldRelayout) {
+				// Trigger a layout to shrink a potential multi line input
+				this.layout(this.dimension);
+			}
 		}
 	}
 
