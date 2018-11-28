@@ -288,9 +288,6 @@ export class Workbench extends Disposable implements IPartService {
 			registerWindowDriver(this.mainProcessClient, this.configuration.windowId, this.instantiationService).then(disposable => this._register(disposable));
 		}
 
-		// Set lifecycle phase to `Ready`
-		this.lifecycleService.phase = LifecyclePhase.Ready;
-
 		// Restore Parts
 		return this.restoreParts();
 	}

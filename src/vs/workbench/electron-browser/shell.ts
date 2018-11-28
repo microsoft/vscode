@@ -531,6 +531,9 @@ export class WorkbenchShell extends Disposable {
 
 		// Listeners
 		this.registerListeners();
+
+		// Set lifecycle phase to `Ready`
+		this.lifecycleService.phase = LifecyclePhase.Ready;
 	}
 
 	private registerListeners(): void {
