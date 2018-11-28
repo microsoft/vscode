@@ -429,13 +429,12 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			const delay = noDelay ? 0 : Repl.REFRESH_DELAY;
 			this.refreshTimeoutHandle = setTimeout(() => {
 				this.refreshTimeoutHandle = null;
-				// todo@isidor fix scroll position
-				// const previousScrollPosition = this.tree.getScrollPosition();
+				const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight === this.tree.scrollHeight;
 				this.tree.refresh(null).then(() => {
-					// if (previousScrollPosition === 1) {
-					// Only scroll if we were scrolled all the way down before tree refreshed #10486
-					// this.tree.setScrollPosition(1);
-					// }
+					if (lastElementVisible) {
+						// Only scroll if we were scrolled all the way down before tree refreshed #10486
+						this.tree.scrollTop = this.tree.scrollHeight - this.tree.renderHeight;
+					}
 				}, errors.onUnexpectedError);
 			}, delay);
 		}
