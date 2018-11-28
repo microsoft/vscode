@@ -268,6 +268,18 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		return this.view.getHTMLElement();
 	}
 
+	get scrollTop(): number {
+		return this.view.scrollTop;
+	}
+
+	set scrollTop(scrollTop: number) {
+		this.view.scrollTop = scrollTop;
+	}
+
+	get scrollHeight(): number {
+		return this.view.scrollHeight;
+	}
+
 	domFocus(): void {
 		this.view.domFocus();
 	}
