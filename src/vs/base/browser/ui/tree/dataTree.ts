@@ -12,6 +12,7 @@ import { Emitter, Event, mapEvent } from 'vs/base/common/event';
 import { timeout, always } from 'vs/base/common/async';
 import { ISequence } from 'vs/base/common/iterator';
 import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
+import { toggleClass } from 'vs/base/browser/dom';
 
 export interface IDataSource<T extends NonNullable<any>> {
 	hasChildren(element: T | null): boolean;
@@ -72,11 +73,7 @@ class DataTreeRenderer<T, TFilterData, TTemplateData> implements ITreeRenderer<I
 	}
 
 	renderTwistie(element: IDataTreeNode<T>, twistieElement: HTMLElement): boolean {
-		if (element.state === DataTreeNodeState.Slow) {
-			twistieElement.innerText = '🤨';
-			return true;
-		}
-
+		toggleClass(twistieElement, 'loading', element.state === DataTreeNodeState.Slow);
 		return false;
 	}
 

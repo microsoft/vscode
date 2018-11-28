@@ -151,16 +151,12 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 	}
 
 	private renderTwistie(node: ITreeNode<T, TFilterData>, twistieElement: HTMLElement) {
-		if (this.renderer.renderTwistie && this.renderer.renderTwistie(node.element, twistieElement)) {
-			return;
+		if (this.renderer.renderTwistie) {
+			this.renderer.renderTwistie(node.element, twistieElement);
 		}
 
-		TreeRenderer.renderDefaultTwistie(node, twistieElement);
-	}
-
-	private static renderDefaultTwistie<T>(node: ITreeNode<T, any>, twistie: HTMLElement): void {
-		toggleClass(twistie, 'collapsible', node.collapsible);
-		toggleClass(twistie, 'collapsed', node.collapsed);
+		toggleClass(twistieElement, 'collapsible', node.collapsible);
+		toggleClass(twistieElement, 'collapsed', node.collapsed);
 	}
 
 	dispose(): void {

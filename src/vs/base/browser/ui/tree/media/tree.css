@@ -52,3 +52,15 @@
 .hc-black .monaco-tl-twistie.collapsible.collapsed {
 	background-image: url("collapsed-hc.svg");
 }
+
+.monaco-tl-twistie.loading {
+	background-image: url("loading.svg");
+}
+
+.vs-dark .monaco-tl-twistie.loading {
+	background-image: url("loading-dark.svg");
+}
+
+.hc-black .monaco-tl-twistie.loading {
+	background-image: url("loading-hc.svg");
+}

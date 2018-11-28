@@ -107,7 +107,7 @@ export interface ITreeModel<T, TFilterData, TRef> {
 }
 
 export interface ITreeRenderer<T, TFilterData, TTemplateData> extends IListRenderer<ITreeNode<T, TFilterData>, TTemplateData> {
-	renderTwistie?(element: T, twistieElement: HTMLElement): boolean;
+	renderTwistie?(element: T, twistieElement: HTMLElement): void;
 	onDidChangeTwistieState?: Event<T>;
 }
 
