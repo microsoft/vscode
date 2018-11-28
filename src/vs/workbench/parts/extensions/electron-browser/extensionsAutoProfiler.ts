@@ -13,12 +13,13 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { writeFile } from 'vs/base/node/pfs';
-import { IExtensionHostProfileService } from 'vs/workbench/parts/extensions/electron-browser/runtimeExtensionsEditor';
+import { IExtensionHostProfileService, ReportExtensionIssueAction } from 'vs/workbench/parts/extensions/electron-browser/runtimeExtensionsEditor';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { localize } from 'vs/nls';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { RuntimeExtensionsInput } from 'vs/workbench/services/extensions/electron-browser/runtimeExtensionsInput';
 import { generateUuid } from 'vs/base/common/uuid';
+import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
 
 export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchContribution {
 
@@ -27,6 +28,7 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 	constructor(
 		@IExtensionService private _extensionService: IExtensionService,
 		@IExtensionHostProfileService private readonly _extensionProfileService: IExtensionHostProfileService,
+		@IExtensionsWorkbenchService private readonly _anotherExtensionService: IExtensionsWorkbenchService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILogService private readonly _logService: ILogService,
 		@INotificationService private readonly _notificationService: INotificationService,
@@ -80,7 +82,7 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 		}
 	}
 
-	private _processCpuProfile(profile: IExtensionHostProfile) {
+	private async _processCpuProfile(profile: IExtensionHostProfile) {
 
 		interface NamedSlice {
 			id: string;
@@ -108,7 +110,6 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 		}
 		data = data.slice(0, anchor + 1);
 
-		const id = generateUuid();
 		const duration = profile.endTime - profile.startTime;
 		const percentage = duration / 100;
 		let top: NamedSlice | undefined;
@@ -123,55 +124,77 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 			return;
 		}
 
-		this._extensionService.getExtension(top.id).then(async extension => {
-			if (!extension) {
-				return;
+		const extension = await this._extensionService.getExtension(top.id);
+		if (!extension) {
+			// not an extension => idle, gc, self?
+			return;
+		}
+
+		// add to running extensions view
+		this._extensionProfileService.setUnresponsiveProfile(extension.id, profile);
+
+		// print message to log
+		const path = join(tmpdir(), `exthost-${Math.random().toString(16).slice(2, 8)}.cpuprofile`);
+		await writeFile(path, JSON.stringify(profile.data));
+		this._logService.warn(`UNRESPONSIVE extension host, '${top.id}' took ${top!.percentage}% of ${duration / 1e3}ms, saved PROFILE here: '${path}'`, data);
+
+		// send telemetry
+		const id = generateUuid();
+
+		/* __GDPR__
+			"exthostunresponsive" : {
+				"id" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+				"data": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 			}
-
-			// add to running extensions view
-			this._extensionProfileService.setUnresponsiveProfile(extension.id, profile);
-
-			// user-facing message when very bad...
-			const prompt = top.percentage >= 99 && top.total >= 5e6;
-			if (prompt) {
-				this._notificationService.prompt(
-					Severity.Info,
-					localize('unresponsive-exthost', "Extension '{0}' froze the extension host for more than {1} seconds.", extension.displayName || extension.name, Math.round(duration / 1e6)),
-					[{
-						label: localize('show', 'Show Extensions'),
-						run: () => {
-							this._editorService.openEditor(new RuntimeExtensionsInput());
-							/* __GDPR__
-								"exthostunresponsive-more" : {
-									"id" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-								}
-							*/
-							this._telemetryService.publicLog('exthostunresponsive-more', { id });
-						}
-					}],
-					{ silent: true }
-				);
-			}
-
-			const path = join(tmpdir(), `exthost-${Math.random().toString(16).slice(2, 8)}.cpuprofile`);
-			await writeFile(path, JSON.stringify(profile.data));
-
-			this._logService.warn(`UNRESPONSIVE extension host, '${top.id}' took ${top!.percentage}% of ${duration / 1e3}ms, saved PROFILE here: '${path}'`, data);
-
-			/* __GDPR__
-				"exthostunresponsive" : {
-					"id" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-					"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-					"data": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-					"prompt" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-				}
-			*/
-			this._telemetryService.publicLog('exthostunresponsive', {
-				id,
-				duration,
-				data,
-				prompt
-			});
+		*/
+		this._telemetryService.publicLog('exthostunresponsive', {
+			id,
+			duration,
+			data,
 		});
+
+		// prompt: when really slow/greedy
+		if (!(top.percentage >= 99 && top.total >= 5e6)) {
+			return;
+		}
+
+		// prompt: only when you can file an issue
+		const reportAction = new ReportExtensionIssueAction({
+			marketplaceInfo: this._anotherExtensionService.local.filter(value => value.id === extension.id)[0],
+			description: extension,
+			unresponsiveProfile: profile,
+			status: undefined,
+		});
+		if (!reportAction.enabled) {
+			return;
+		}
+
+		// user-facing message when very bad...
+		this._notificationService.prompt(
+			Severity.Info,
+			localize(
+				'unresponsive-exthost',
+				"The extension '{0}' took a very long time to complete its last task and it has prevented other extensions from running.",
+				extension.displayName || extension.name
+			),
+			[{
+				label: localize('show', 'Show Extensions'),
+				run: () => this._editorService.openEditor(new RuntimeExtensionsInput())
+			},
+			{
+				label: localize('report', "Report Issue"),
+				run: () => {
+					/* __GDPR__
+						"exthostunresponsive/report" : {
+							"id" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+						}
+					*/
+					this._telemetryService.publicLog('exthostunresponsive/report', { id });
+					return reportAction.run();
+				}
+			}],
+			{ silent: true }
+		);
 	}
 }

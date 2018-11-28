@@ -463,14 +463,19 @@ export class ShowRuntimeExtensionsAction extends Action {
 	}
 }
 
-class ReportExtensionIssueAction extends Action {
+export class ReportExtensionIssueAction extends Action {
 
 	private static readonly _id = 'workbench.extensions.action.reportExtensionIssue';
 	private static _label = nls.localize('reportExtensionIssue', "Report Issue");
 
 	private readonly _url: string;
 
-	constructor(extension: IRuntimeExtension) {
+	constructor(extension: {
+		description: IExtensionDescription;
+		marketplaceInfo: IExtension;
+		status: IExtensionsStatus;
+		unresponsiveProfile?: IExtensionHostProfile
+	}) {
 		super(ReportExtensionIssueAction._id, ReportExtensionIssueAction._label, 'extension-action report-issue');
 		this.enabled = extension.marketplaceInfo
 			&& extension.marketplaceInfo.type === LocalExtensionType.User
@@ -484,7 +489,12 @@ class ReportExtensionIssueAction extends Action {
 		return Promise.resolve(null);
 	}
 
-	private static _generateNewIssueUrl(extension: IRuntimeExtension): string {
+	private static _generateNewIssueUrl(extension: {
+		description: IExtensionDescription;
+		marketplaceInfo: IExtension;
+		status: IExtensionsStatus;
+		unresponsiveProfile?: IExtensionHostProfile
+	}): string {
 		let baseUrl = extension.marketplaceInfo && extension.marketplaceInfo.type === LocalExtensionType.User && extension.description.repository ? extension.description.repository.url : undefined;
 		if (!!baseUrl) {
 			baseUrl = `${baseUrl.indexOf('.git') !== -1 ? baseUrl.substr(0, baseUrl.length - 4) : baseUrl}/issues/new/`;
