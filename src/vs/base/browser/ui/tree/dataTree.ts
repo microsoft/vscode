@@ -38,7 +38,7 @@ interface IDataTreeListTemplateData<T> {
 
 class DataTreeNodeWrapper<T, TFilterData> implements ITreeNode<T, TFilterData> {
 
-	get element(): T { return this.node.element.element!; }
+	get element(): T { return this.node.element!.element!; }
 	get parent(): ITreeNode<T, TFilterData> | undefined { return this.node.parent && new DataTreeNodeWrapper(this.node.parent); }
 	get children(): ITreeNode<T, TFilterData>[] { return this.node.children.map(node => new DataTreeNodeWrapper(node)); }
 	get depth(): number { return this.node.depth; }
@@ -47,7 +47,7 @@ class DataTreeNodeWrapper<T, TFilterData> implements ITreeNode<T, TFilterData> {
 	get visible(): boolean { return this.node.visible; }
 	get filterData(): TFilterData | undefined { return this.node.filterData; }
 
-	constructor(private node: ITreeNode<IDataTreeNode<T>, TFilterData>) { }
+	constructor(private node: ITreeNode<IDataTreeNode<T> | null, TFilterData>) { }
 }
 
 class DataTreeRenderer<T, TFilterData, TTemplateData> implements ITreeRenderer<IDataTreeNode<T>, TFilterData, IDataTreeListTemplateData<TTemplateData>> {
@@ -136,7 +136,7 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 
 	get onDidChangeFocus(): Event<ITreeEvent<T>> { return mapEvent(this.tree.onDidChangeFocus, asTreeEvent); }
 	get onDidChangeSelection(): Event<ITreeEvent<T>> { return mapEvent(this.tree.onDidChangeSelection, asTreeEvent); }
-	get onDidChangeCollapseState(): Event<T> { return mapEvent(this.tree.onDidChangeCollapseState, e => e.element.element!); }
+	get onDidChangeCollapseState(): Event<T> { return mapEvent(this.tree.onDidChangeCollapseState, e => e.element!.element!); }
 
 	private _onDidResolveChildren = new Emitter<IChildrenResolutionEvent<T>>();
 	readonly onDidResolveChildren: Event<IChildrenResolutionEvent<T>> = this._onDidResolveChildren.event;
@@ -210,8 +210,10 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 
 	// Tree
 
-	getNode(element: T | null): ITreeNode<T, TFilterData> {
-		return new DataTreeNodeWrapper(this.tree.getNode(this.getDataNode(element)));
+	getNode(element: T | null): ITreeNode<T | null, TFilterData> {
+		const dataNode = this.getDataNode(element);
+		const node = this.tree.getNode(dataNode === this.root ? null : dataNode);
+		return new DataTreeNodeWrapper<T | null, TFilterData>(node);
 	}
 
 	collapse(element: T): boolean {
@@ -262,7 +264,7 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 
 	getSelection(): T[] {
 		const nodes = this.tree.getSelection();
-		return nodes.map(n => n.element!);
+		return nodes.map(n => n!.element!);
 	}
 
 	setFocus(elements: T[], browserEvent?: UIEvent): void {
@@ -296,7 +298,7 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 
 	getFocus(): T[] {
 		const nodes = this.tree.getFocus();
-		return nodes.map(n => n.element!);
+		return nodes.map(n => n!.element!);
 	}
 
 	open(elements: T[]): void {
@@ -320,12 +322,14 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 	}
 
 	getFirstElementChild(element: T | null = null): T | null {
-		const node = this.tree.getFirstElementChild(this.getDataNode(element));
+		const dataNode = this.getDataNode(element);
+		const node = this.tree.getFirstElementChild(dataNode === this.root ? null : dataNode);
 		return node && node.element;
 	}
 
 	getLastElementAncestor(element: T | null = null): T | null {
-		const node = this.tree.getLastElementAncestor(this.getDataNode(element));
+		const dataNode = this.getDataNode(element);
+		const node = this.tree.getLastElementAncestor(dataNode === this.root ? null : dataNode);
 		return node && node.element;
 	}
 
