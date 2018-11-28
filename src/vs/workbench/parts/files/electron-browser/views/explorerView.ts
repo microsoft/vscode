@@ -350,8 +350,8 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 				return;
 			}
 
-			// Return now if the workbench has not yet been created - in this case the workbench takes care of restoring last used editors
-			if (!this.partService.isCreated()) {
+			// Return now if the workbench has not yet been restored - in this case the workbench takes care of restoring last used editors
+			if (!this.partService.isRestored()) {
 				return;
 			}
 
@@ -795,7 +795,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			this.decorationProvider.changed(targetsToResolve.map(t => t.root.resource));
 			return result;
 		});
-		this.progressService.showWhile(promise, this.partService.isCreated() ? 800 : 1200 /* less ugly initial startup */);
+		this.progressService.showWhile(promise, this.partService.isRestored() ? 800 : 1200 /* less ugly initial startup */);
 
 		return promise;
 	}

@@ -718,8 +718,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 				return false;
 			}
 
-			if (this.partService.isCreated() && !this.fileService.canHandleResource(inputResource)) {
-				return false; // make sure to only check this when workbench has started (for https://github.com/Microsoft/vscode/issues/48275)
+			if (this.partService.isRestored() && !this.fileService.canHandleResource(inputResource)) {
+				return false; // make sure to only check this when workbench has restored (for https://github.com/Microsoft/vscode/issues/48275)
 			}
 
 			return inputResource.toString() === resource.toString();

@@ -188,7 +188,7 @@ export class Workbench extends Disposable implements IPartService {
 	private workbenchParams: WorkbenchParams;
 	private workbench: HTMLElement;
 	private workbenchStarted: boolean;
-	private workbenchCreated: boolean;
+	private workbenchRestored: boolean;
 	private workbenchShutdown: boolean;
 
 	private editorService: EditorService;
@@ -504,9 +504,6 @@ export class Workbench extends Disposable implements IPartService {
 	}
 
 	private onFullscreenChanged(): void {
-		if (!this.isCreated) {
-			return; // we need to be ready
-		}
 
 		// Apply as CSS class
 		const isFullscreen = browser.isFullscreen();
@@ -772,7 +769,7 @@ export class Workbench extends Disposable implements IPartService {
 		}
 
 		const onRestored = (error?: Error): IWorkbenchStartedInfo => {
-			this.workbenchCreated = true;
+			this.workbenchRestored = true;
 
 			// Set lifecycle phase to `Restored`
 			this.lifecycleService.phase = LifecyclePhase.Restored;
@@ -1158,8 +1155,8 @@ export class Workbench extends Disposable implements IPartService {
 
 	get onEditorLayout(): Event<IDimension> { return this.editorPart.onDidLayout; }
 
-	isCreated(): boolean {
-		return !!(this.workbenchCreated && this.workbenchStarted);
+	isRestored(): boolean {
+		return !!(this.workbenchRestored && this.workbenchStarted);
 	}
 
 	hasFocus(part: Parts): boolean {
