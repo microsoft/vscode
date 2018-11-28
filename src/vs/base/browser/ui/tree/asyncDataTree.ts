@@ -160,7 +160,7 @@ export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> imple
 	) {
 		const objectTreeDelegate = new ComposedTreeDelegate<T | null, IAsyncDataTreeNode<T>>(delegate);
 		const objectTreeRenderers = renderers.map(r => new DataTreeRenderer(r, this._onDidChangeNodeState.event));
-		const objectTreeOptions = createComposedTreeListOptions<T | null, IAsyncDataTreeNode<T>, IObjectTreeOptions<IAsyncDataTreeNode<T>, TFilterData>>(options);
+		const objectTreeOptions = createComposedTreeListOptions<T | null, IAsyncDataTreeNode<T>, IObjectTreeOptions<IAsyncDataTreeNode<T>, TFilterData>>(options) || {};
 		objectTreeOptions.collapseByDefault = true;
 
 		this.tree = new ObjectTree(container, objectTreeDelegate, objectTreeRenderers, objectTreeOptions);
