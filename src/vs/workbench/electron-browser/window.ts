@@ -176,13 +176,13 @@ export class ElectronWindow extends Themable {
 
 		// Fullscreen Events
 		ipc.on('vscode:enterFullScreen', () => {
-			this.lifecycleService.when(LifecyclePhase.Running).then(() => {
+			this.lifecycleService.when(LifecyclePhase.Ready).then(() => {
 				browser.setFullscreen(true);
 			});
 		});
 
 		ipc.on('vscode:leaveFullScreen', () => {
-			this.lifecycleService.when(LifecyclePhase.Running).then(() => {
+			this.lifecycleService.when(LifecyclePhase.Ready).then(() => {
 				browser.setFullscreen(false);
 			});
 		});
@@ -191,7 +191,7 @@ export class ElectronWindow extends Themable {
 		ipc.on('vscode:enterHighContrast', () => {
 			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 			if (windowConfig && windowConfig.autoDetectHighContrast) {
-				this.lifecycleService.when(LifecyclePhase.Running).then(() => {
+				this.lifecycleService.when(LifecyclePhase.Ready).then(() => {
 					this.themeService.setColorTheme(VS_HC_THEME, null);
 				});
 			}
@@ -200,7 +200,7 @@ export class ElectronWindow extends Themable {
 		ipc.on('vscode:leaveHighContrast', () => {
 			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 			if (windowConfig && windowConfig.autoDetectHighContrast) {
-				this.lifecycleService.when(LifecyclePhase.Running).then(() => {
+				this.lifecycleService.when(LifecyclePhase.Ready).then(() => {
 					this.themeService.restoreColorTheme();
 				});
 			}
@@ -278,16 +278,16 @@ export class ElectronWindow extends Themable {
 			return null;
 		};
 
-		// Emit event when vscode has loaded
-		this.lifecycleService.when(LifecyclePhase.Running).then(() => {
-			ipc.send('vscode:workbenchLoaded', this.windowService.getCurrentWindowId());
+		// Emit event when vscode is ready
+		this.lifecycleService.when(LifecyclePhase.Ready).then(() => {
+			ipc.send('vscode:workbenchReady', this.windowService.getCurrentWindowId());
 		});
 
 		// Integrity warning
 		this.integrityService.isPure().then(res => this.titleService.updateProperties({ isPure: res.isPure }));
 
 		// Root warning
-		this.lifecycleService.when(LifecyclePhase.Running).then(() => {
+		this.lifecycleService.when(LifecyclePhase.Ready).then(() => {
 			let isAdminPromise: Promise<boolean>;
 			if (isWindows) {
 				isAdminPromise = import('native-is-elevated').then(isElevated => isElevated());
@@ -374,7 +374,7 @@ export class ElectronWindow extends Themable {
 	}
 
 	private resolveKeybindings(actionIds: string[]): Promise<{ id: string; label: string, isNative: boolean; }[]> {
-		return Promise.all([this.lifecycleService.when(LifecyclePhase.Running), this.extensionService.whenInstalledExtensionsRegistered()]).then(() => {
+		return Promise.all([this.lifecycleService.when(LifecyclePhase.Ready), this.extensionService.whenInstalledExtensionsRegistered()]).then(() => {
 			return arrays.coalesce(actionIds.map(id => {
 				const binding = this.keybindingService.lookupKeybinding(id);
 				if (!binding) {
@@ -454,7 +454,7 @@ export class ElectronWindow extends Themable {
 	}
 
 	private openResources(resources: (IResourceInput | IUntitledResourceInput)[], diffMode: boolean): Thenable<any> {
-		return this.lifecycleService.when(LifecyclePhase.Running).then(() => {
+		return this.lifecycleService.when(LifecyclePhase.Restored).then(() => {
 
 			// In diffMode we open 2 resources as diff
 			if (diffMode && resources.length === 2) {

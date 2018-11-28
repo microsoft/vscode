@@ -61,14 +61,14 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData = void> imp
 		return this.model.getParentElement(location);
 	}
 
-	getFirstChildElement(ref: T | null = null): T | null {
+	getFirstElementChild(ref: T | null = null): T | null {
 		const location = this.getElementLocation(ref);
-		return this.model.getFirstChildElement(location);
+		return this.model.getFirstElementChild(location);
 	}
 
-	getLastAncestorElement(ref: T | null = null): T | null {
+	getLastElementAncestor(ref: T | null = null): T | null {
 		const location = this.getElementLocation(ref);
-		return this.model.getLastAncestorElement(location);
+		return this.model.getLastElementAncestor(location);
 	}
 
 	getListIndex(element: T): number {

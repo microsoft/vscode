@@ -1056,4 +1056,21 @@ suite('Editor Contrib - Line Comment in mixed modes', () => {
 			new Selection(2, 8, 2, 8),
 		);
 	});
+
+	test.skip('issue #63822: Commenting code in JSX tag body from line 0', () => {
+		testLineCommentCommand(
+			[
+				'<div>',
+				'',
+				'</div>',
+			],
+			new Selection(2, 1, 2, 1),
+			[
+				'<div>',
+				'{/* */}',
+				'</div>',
+			],
+			new Selection(2, 1, 2, 1),
+		);
+	});
 });
