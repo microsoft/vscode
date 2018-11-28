@@ -100,7 +100,6 @@ import { ILabelService, LabelService } from 'vs/platform/label/common/label';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadService } from 'vs/platform/download/node/downloadService';
 import { DownloadServiceChannel } from 'vs/platform/download/node/downloadIpc';
-import { runWhenIdle } from 'vs/base/common/async';
 import { TextResourcePropertiesService } from 'vs/workbench/services/textfile/electron-browser/textResourcePropertiesService';
 import { MulitExtensionManagementService } from 'vs/platform/extensionManagement/node/multiExtensionManagement';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
@@ -189,7 +188,7 @@ export class WorkbenchShell extends Disposable {
 			this.logService.warn('Workbench did not finish loading in 10 seconds, that might be a problem that should be reported.');
 		}, 10000);
 
-		this.lifecycleService.when(LifecyclePhase.Running).then(() => {
+		this.lifecycleService.when(LifecyclePhase.Restored).then(() => {
 			clearTimeout(timeoutHandle);
 		});
 	}
@@ -208,14 +207,8 @@ export class WorkbenchShell extends Disposable {
 		try {
 			const workbench = instantiationService.createInstance(Workbench, container, this.configuration, serviceCollection, this.lifecycleService, this.mainProcessClient);
 
-			// Set lifecycle phase to `Restoring`
-			this.lifecycleService.phase = LifecyclePhase.Restoring;
-
 			// Startup Workbench
 			workbench.startup().then(startupInfos => {
-
-				// Set lifecycle phase to `Runnning`
-				this.lifecycleService.phase = LifecyclePhase.Running;
 
 				// Startup Telemetry
 				this.logStartupTelemetry(startupInfos);
@@ -224,14 +217,6 @@ export class WorkbenchShell extends Disposable {
 				if (!this.environmentService.extensionTestsPath) {
 					this.logStorageTelemetry();
 				}
-
-				// Set lifecycle phase to `Runnning For A Bit` after a short delay
-				let eventuallPhaseTimeoutHandle = runWhenIdle(() => {
-					eventuallPhaseTimeoutHandle = void 0;
-					this.lifecycleService.phase = LifecyclePhase.Eventually;
-				}, 5000);
-
-				this._register(eventuallPhaseTimeoutHandle);
 			}, error => handleStartupError(this.logService, error));
 
 			return workbench;
@@ -546,6 +531,9 @@ export class WorkbenchShell extends Disposable {
 
 		// Listeners
 		this.registerListeners();
+
+		// Set lifecycle phase to `Ready`
+		this.lifecycleService.phase = LifecyclePhase.Ready;
 	}
 
 	private registerListeners(): void {

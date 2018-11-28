@@ -115,7 +115,7 @@ export class FileDataSource implements IDataSource {
 				return []; // we could not resolve any children because of an error
 			});
 
-			this.progressService.showWhile(promise, this.partService.isCreated() ? 800 : 3200 /* less ugly initial startup */);
+			this.progressService.showWhile(promise, this.partService.isRestored() ? 800 : 3200 /* less ugly initial startup */);
 
 			return promise;
 		}
