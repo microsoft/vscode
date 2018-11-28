@@ -409,6 +409,8 @@ definitions.taskDescription.properties.isTestCommand.deprecationMessage = nls.lo
 	'The property isTestCommand is deprecated. Use the group property instead. See also the 1.14 release notes.'
 );
 
+fixReferences(taskDescription);
+
 taskDefinitions.push({
 	$ref: '#/definitions/taskDescription'
 } as IJSONSchema);

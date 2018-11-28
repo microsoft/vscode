@@ -5,8 +5,8 @@
 
 import 'vs/css!./media/tree';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IListOptions, List, IIdentityProvider, IMultipleSelectionController, IListStyles, IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListEvent, IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
+import { IListOptions, List, IMultipleSelectionController, IListStyles, IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListEvent, IListContextMenuEvent, IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { append, $, toggleClass } from 'vs/base/browser/dom';
 import { Event, Relay, chain, mapEvent } from 'vs/base/common/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -23,7 +23,11 @@ export function createComposedTreeListOptions<T, R extends { element: T }>(optio
 
 	if (options.identityProvider) {
 		const ip = options.identityProvider;
-		identityProvider = el => ip(el.element);
+		identityProvider = {
+			getId(el) {
+				return ip.getId(el.element);
+			}
+		};
 	}
 
 	let multipleSelectionController: IMultipleSelectionController<R> | undefined = undefined;

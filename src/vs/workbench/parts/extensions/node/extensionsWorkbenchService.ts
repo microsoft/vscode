@@ -672,11 +672,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 
 	install(extension: string | IExtension): Promise<void> {
 		if (typeof extension === 'string') {
-			return this.progressService.withProgress({
-				location: ProgressLocation.Extensions,
-				title: nls.localize('installingVSIXExtension', 'Installing extension from VSIX...'),
-				source: `${extension}`
-			}, () => this.extensionService.install(URI.file(extension)).then(extensionIdentifier => this.checkAndEnableDisabledDependencies(extensionIdentifier)));
+			return this.installWithProgress(this.extensionService.install(URI.file(extension)).then(extensionIdentifier => this.checkAndEnableDisabledDependencies(extensionIdentifier)));
 		}
 
 		if (!(extension instanceof Extension)) {
@@ -694,11 +690,10 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 			return Promise.reject(new Error('Missing gallery'));
 		}
 
-		return this.progressService.withProgress({
-			location: ProgressLocation.Extensions,
-			title: nls.localize('installingMarketPlaceExtension', 'Installing extension from Marketplace....'),
-			source: `${extension.id}`
-		}, () => this.extensionService.installFromGallery(gallery).then(() => this.checkAndEnableDisabledDependencies(gallery.identifier)));
+		return this.installWithProgress(
+			this.extensionService.installFromGallery(gallery)
+				.then(() => this.checkAndEnableDisabledDependencies(gallery.identifier))
+			, gallery.displayName);
 	}
 
 	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): Promise<void> {
@@ -740,11 +735,10 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 				if (!gallery) {
 					return null;
 				}
-				return this.progressService.withProgress({
-					location: ProgressLocation.Extensions,
-					source: `${extension.id}`
-				}, () => this.extensionService.installFromGallery(gallery))
-					.then(() => this.ignoreAutoUpdate(gallery.identifier.id, version));
+				return this.installWithProgress(
+					this.extensionService.installFromGallery(gallery)
+						.then(() => this.ignoreAutoUpdate(gallery.identifier.id, version))
+					, gallery.displayName);
 			});
 	}
 
@@ -764,6 +758,14 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 			location: ProgressLocation.Extensions,
 			source: `${toReinstall[0].identifier.id}`
 		}, () => Promise.all(toReinstall.map(local => this.extensionService.reinstallFromGallery(local))).then(() => null));
+	}
+
+	private installWithProgress(installTask: Promise<void>, extensionName?: string): Promise<void> {
+		const title = extensionName ? nls.localize('installing named extension', "Installing '{0}' extension....", extensionName) : nls.localize('installing extension', 'Installing extension....');
+		return this.progressService.withProgress({
+			location: ProgressLocation.Extensions,
+			title
+		}, () => installTask).then(() => null);
 	}
 
 	private checkAndEnableDisabledDependencies(extensionIdentifier: IExtensionIdentifier): Promise<void> {

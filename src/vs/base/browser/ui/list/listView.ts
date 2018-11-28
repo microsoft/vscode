@@ -10,7 +10,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { Event, mapEvent, filterEvent } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { ScrollEvent, ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { ScrollEvent, ScrollbarVisibility, INewScrollDimensions } from 'vs/base/common/scrollable';
 import { RangeMap, shift } from './rangeMap';
 import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListTouchEvent, IListGestureEvent } from './list';
 import { RowCache, IRow } from './rowCache';
@@ -73,7 +73,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private rowsContainer: HTMLElement;
 	private scrollableElement: ScrollableElement;
 	private _scrollHeight: number;
-	private didRequestScrollableElementUpdate: boolean = false;
+	private scrollableElementUpdateDisposable: IDisposable | null = null;
 	private splicing = false;
 	private dragAndDropScrollInterval: number;
 	private dragAndDropScrollTimeout: number;
@@ -228,13 +228,11 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		this._scrollHeight = this.getContentHeight();
 		this.rowsContainer.style.height = `${this._scrollHeight}px`;
 
-		if (!this.didRequestScrollableElementUpdate) {
-			DOM.scheduleAtNextAnimationFrame(() => {
+		if (!this.scrollableElementUpdateDisposable) {
+			this.scrollableElementUpdateDisposable = DOM.scheduleAtNextAnimationFrame(() => {
 				this.scrollableElement.setScrollDimensions({ scrollHeight: this._scrollHeight });
-				this.didRequestScrollableElementUpdate = false;
+				this.scrollableElementUpdateDisposable = null;
 			});
-
-			this.didRequestScrollableElementUpdate = true;
 		}
 	}
 
@@ -273,9 +271,17 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	layout(height?: number): void {
-		this.scrollableElement.setScrollDimensions({
+		let scrollDimensions: INewScrollDimensions = {
 			height: height || DOM.getContentHeight(this.domNode)
-		});
+		};
+
+		if (this.scrollableElementUpdateDisposable) {
+			this.scrollableElementUpdateDisposable.dispose();
+			this.scrollableElementUpdateDisposable = null;
+			scrollDimensions.scrollHeight = this._scrollHeight;
+		}
+
+		this.scrollableElement.setScrollDimensions(scrollDimensions);
 	}
 
 	layoutWidth(width: number): void {
@@ -379,6 +385,12 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	setScrollTop(scrollTop: number): void {
+		if (this.scrollableElementUpdateDisposable) {
+			this.scrollableElementUpdateDisposable.dispose();
+			this.scrollableElementUpdateDisposable = null;
+			this.scrollableElement.setScrollDimensions({ scrollHeight: this._scrollHeight });
+		}
+
 		this.scrollableElement.setScrollPosition({ scrollTop });
 	}
 

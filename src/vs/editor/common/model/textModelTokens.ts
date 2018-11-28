@@ -11,7 +11,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { ITextBuffer } from 'vs/editor/common/model';
 import { IModelTokensChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { ColorId, FontStyle, IState, ITokenizationSupport, LanguageId, LanguageIdentifier, MetadataConsts, StandardTokenType } from 'vs/editor/common/modes';
+import { ColorId, FontStyle, IState, ITokenizationSupport, LanguageId, LanguageIdentifier, MetadataConsts, StandardTokenType, TokenMetadata } from 'vs/editor/common/modes';
 import { nullTokenize2 } from 'vs/editor/common/modes/nullMode';
 
 function getDefaultMetadata(topLevelLanguageId: LanguageId): number {
@@ -262,8 +262,15 @@ export class ModelLinesTokens {
 		}
 
 		if (lineTextLength === 0) {
-			target._lineTokens = EMPTY_LINE_TOKENS;
-			return;
+			let hasDifferentLanguageId = false;
+			if (tokens && tokens.length > 1) {
+				hasDifferentLanguageId = (TokenMetadata.getLanguageId(tokens[1]) !== topLevelLanguageId);
+			}
+
+			if (!hasDifferentLanguageId) {
+				target._lineTokens = EMPTY_LINE_TOKENS;
+				return;
+			}
 		}
 
 		if (!tokens || tokens.length === 0) {

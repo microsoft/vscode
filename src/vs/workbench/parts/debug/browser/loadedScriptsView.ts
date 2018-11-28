@@ -32,6 +32,7 @@ import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { WorkbenchDataTree, IListService, TreeResourceNavigator2 } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { DebugContentProvider } from 'vs/workbench/parts/debug/browser/debugContentProvider';
 
 const SMART = true;
 
@@ -442,6 +443,9 @@ export class LoadedScriptsView extends ViewletPanel {
 							this.changeScheduler.schedule();
 						} else {
 							this.treeNeedsRefreshOnVisible = true;
+						}
+						if (event.reason === 'changed') {
+							DebugContentProvider.refreshDebugContent(event.source.uri);
 						}
 						break;
 					case 'removed':

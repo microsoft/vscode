@@ -289,6 +289,12 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		this.filter = new Filter();
 		const accessibilityProvider = this.instantiationService.createInstance(MarkersTreeAccessibilityProvider);
 
+		const identityProvider = {
+			getId(element: TreeElement) {
+				return element.hash;
+			}
+		};
+
 		this.tree = this.instantiationService.createInstance(WorkbenchObjectTree,
 			this.treeContainer,
 			virtualDelegate,
@@ -296,7 +302,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 			{
 				filter: this.filter,
 				accessibilityProvider,
-				identityProvider: (element: TreeElement) => element.hash
+				identityProvider
 			}
 		) as any as WorkbenchObjectTree<TreeElement, FilterData>;
 
