@@ -14,12 +14,12 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { ITreeModel, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeFilter } from 'vs/base/browser/ui/tree/tree';
 import { ISpliceable } from 'vs/base/common/sequence';
 
-export function createComposedTreeListOptions<T, R extends { element: T }, O extends IListOptions<R>>(options?: IListOptions<T>): O | undefined {
+function asListOptions<T, TFilterData>(options?: IAbstractTreeOptions<T, TFilterData>): IListOptions<ITreeNode<T, TFilterData>> | undefined {
 	if (!options) {
 		return undefined;
 	}
 
-	let identityProvider: IIdentityProvider<R> | undefined = undefined;
+	let identityProvider: IIdentityProvider<ITreeNode<T, TFilterData>> | undefined = undefined;
 
 	if (options.identityProvider) {
 		const ip = options.identityProvider;
@@ -30,7 +30,7 @@ export function createComposedTreeListOptions<T, R extends { element: T }, O ext
 		};
 	}
 
-	let multipleSelectionController: IMultipleSelectionController<R> | undefined = undefined;
+	let multipleSelectionController: IMultipleSelectionController<ITreeNode<T, TFilterData>> | undefined = undefined;
 
 	if (options.multipleSelectionController) {
 		const msc = options.multipleSelectionController;
@@ -44,7 +44,7 @@ export function createComposedTreeListOptions<T, R extends { element: T }, O ext
 		};
 	}
 
-	let accessibilityProvider: IAccessibilityProvider<R> | undefined = undefined;
+	let accessibilityProvider: IAccessibilityProvider<ITreeNode<T, TFilterData>> | undefined = undefined;
 
 	if (options.accessibilityProvider) {
 		const ap = options.accessibilityProvider;
@@ -60,7 +60,7 @@ export function createComposedTreeListOptions<T, R extends { element: T }, O ext
 		identityProvider,
 		multipleSelectionController,
 		accessibilityProvider
-	} as O;
+	};
 }
 
 export class ComposedTreeDelegate<T, N extends { element: T }> implements IListVirtualDelegate<N> {
@@ -232,7 +232,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		const treeRenderers = renderers.map(r => new TreeRenderer<T, TFilterData, any>(r, onDidChangeCollapseStateRelay.event));
 		this.disposables.push(...treeRenderers);
 
-		this.view = new List(container, treeDelegate, treeRenderers, createComposedTreeListOptions(options));
+		this.view = new List(container, treeDelegate, treeRenderers, asListOptions(options));
 
 		this.model = this.createModel(this.view, options);
 		onDidChangeCollapseStateRelay.input = this.model.onDidChangeCollapseState;

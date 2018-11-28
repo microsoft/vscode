@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ComposedTreeDelegate, createComposedTreeListOptions, IAbstractTreeOptions } from 'vs/base/browser/ui/tree/abstractTree';
+import { ComposedTreeDelegate, IAbstractTreeOptions } from 'vs/base/browser/ui/tree/abstractTree';
 import { ObjectTree, IObjectTreeOptions } from 'vs/base/browser/ui/tree/objectTree';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ITreeElement, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
+import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
+import { ITreeElement, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeFilter } from 'vs/base/browser/ui/tree/tree';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Emitter, Event, mapEvent } from 'vs/base/common/event';
 import { timeout, always } from 'vs/base/common/async';
 import { ISequence } from 'vs/base/common/iterator';
-import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
+import { IListStyles, IMultipleSelectionController, IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { toggleClass } from 'vs/base/browser/dom';
 
 export interface IDataSource<T extends NonNullable<any>> {
@@ -125,6 +125,68 @@ export interface IChildrenResolutionEvent<T> {
 
 export interface IAsyncDataTreeOptions<T, TFilterData = void> extends IAbstractTreeOptions<T, TFilterData> { }
 
+function asObjectTreeOptions<T, TFilterData>(options?: IAsyncDataTreeOptions<T, TFilterData>): IObjectTreeOptions<IAsyncDataTreeNode<T>, TFilterData> | undefined {
+	if (!options) {
+		return undefined;
+	}
+
+	let identityProvider: IIdentityProvider<IAsyncDataTreeNode<T>> | undefined = undefined;
+
+	if (options.identityProvider) {
+		const ip = options.identityProvider;
+		identityProvider = {
+			getId(el) {
+				return ip.getId(el.element!);
+			}
+		};
+	}
+
+	let multipleSelectionController: IMultipleSelectionController<IAsyncDataTreeNode<T>> | undefined = undefined;
+
+	if (options.multipleSelectionController) {
+		const msc = options.multipleSelectionController;
+		multipleSelectionController = {
+			isSelectionSingleChangeEvent(e) {
+				return msc.isSelectionSingleChangeEvent({ ...e, element: e.element } as any);
+			},
+			isSelectionRangeChangeEvent(e) {
+				return msc.isSelectionRangeChangeEvent({ ...e, element: e.element } as any);
+			}
+		};
+	}
+
+	let accessibilityProvider: IAccessibilityProvider<IAsyncDataTreeNode<T>> | undefined = undefined;
+
+	if (options.accessibilityProvider) {
+		const ap = options.accessibilityProvider;
+		accessibilityProvider = {
+			getAriaLabel(e) {
+				return ap.getAriaLabel(e.element!);
+			}
+		};
+	}
+
+	let filter: ITreeFilter<IAsyncDataTreeNode<T>, TFilterData> | undefined = undefined;
+
+	if (options.filter) {
+		const f = options.filter;
+		filter = {
+			filter(element, parentVisibility) {
+				return f.filter(element.element!, parentVisibility);
+			}
+		};
+	}
+
+	return {
+		...options,
+		identityProvider,
+		multipleSelectionController,
+		accessibilityProvider,
+		filter
+	};
+}
+
+
 export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> implements IDisposable {
 
 	private tree: ObjectTree<IAsyncDataTreeNode<T>, TFilterData>;
@@ -160,7 +222,7 @@ export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> imple
 	) {
 		const objectTreeDelegate = new ComposedTreeDelegate<T | null, IAsyncDataTreeNode<T>>(delegate);
 		const objectTreeRenderers = renderers.map(r => new DataTreeRenderer(r, this._onDidChangeNodeState.event));
-		const objectTreeOptions = createComposedTreeListOptions<T | null, IAsyncDataTreeNode<T>, IObjectTreeOptions<IAsyncDataTreeNode<T>, TFilterData>>(options) || {};
+		const objectTreeOptions = asObjectTreeOptions(options) || {};
 		objectTreeOptions.collapseByDefault = true;
 
 		this.tree = new ObjectTree(container, objectTreeDelegate, objectTreeRenderers, objectTreeOptions);
