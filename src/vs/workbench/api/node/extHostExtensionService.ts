@@ -91,11 +91,15 @@ class ExtensionStoragePath {
 		return this._ready;
 	}
 
-	value(extension: IExtensionDescription): string {
+	workspaceValue(extension: IExtensionDescription): string {
 		if (this._value) {
 			return join(this._value, extension.id);
 		}
 		return undefined;
+	}
+
+	globalValue(extension: IExtensionDescription): string {
+		return join(this._environment.globalStorageHome, extension.id);
 	}
 
 	private async _getOrCreateWorkspaceStoragePath(): Promise<string> {
@@ -383,7 +387,8 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 				workspaceState,
 				subscriptions: [],
 				get extensionPath() { return extensionDescription.extensionLocation.fsPath; },
-				storagePath: this._storagePath.value(extensionDescription),
+				storagePath: this._storagePath.workspaceValue(extensionDescription),
+				globalStoragePath: this._storagePath.globalValue(extensionDescription),
 				asAbsolutePath: (relativePath: string) => { return join(extensionDescription.extensionLocation.fsPath, relativePath); },
 				logPath: that._extHostLogService.getLogDirectory(extensionDescription.id)
 			});

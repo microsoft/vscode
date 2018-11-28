@@ -1147,4 +1147,18 @@ declare module 'vscode' {
 	}
 	//#endregion
 
+	//#region Extension Context
+	export interface ExtensionContext {
+
+		/**
+		 * An absolute file path in which the extension can store gloabal state.
+		 * The directory might not exist on disk and creation is
+		 * up to the extension. However, the parent directory is guaranteed to be existent.
+		 *
+		 * Use [`globalState`](#ExtensionContext.globalState) to store key value data.
+		 */
+		globalStoragePath: string;
+
+	}
+	//#endregion
 }
