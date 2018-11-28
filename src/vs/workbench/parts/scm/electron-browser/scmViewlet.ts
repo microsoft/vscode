@@ -262,10 +262,9 @@ class MainPanel extends ViewletPanel {
 	protected renderBody(container: HTMLElement): void {
 		const delegate = new ProvidersListDelegate();
 		const renderer = this.instantiationService.createInstance(ProviderRenderer);
+		const identityProvider = { getId: r => r.provider.id };
 
-		this.list = this.instantiationService.createInstance(WorkbenchList, container, delegate, [renderer], {
-			identityProvider: repository => repository.provider.id
-		}) as WorkbenchList<ISCMRepository>;
+		this.list = this.instantiationService.createInstance(WorkbenchList, container, delegate, [renderer], { identityProvider }) as WorkbenchList<ISCMRepository>;
 
 		this.list.onSelectionChange(this.onListSelectionChange, this, this.disposables);
 		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
@@ -580,16 +579,18 @@ class ProviderListDelegate implements IListVirtualDelegate<ISCMResourceGroup | I
 	}
 }
 
-function scmResourceIdentityProvider(r: ISCMResourceGroup | ISCMResource): string {
-	if (isSCMResource(r)) {
-		const group = r.resourceGroup;
-		const provider = group.provider;
-		return `${provider.contextValue}/${group.id}/${r.sourceUri.toString()}`;
-	} else {
-		const provider = r.provider;
-		return `${provider.contextValue}/${r.id}`;
+const scmResourceIdentityProvider = {
+	getId(r: ISCMResourceGroup | ISCMResource): string {
+		if (isSCMResource(r)) {
+			const group = r.resourceGroup;
+			const provider = group.provider;
+			return `${provider.contextValue}/${group.id}/${r.sourceUri.toString()}`;
+		} else {
+			const provider = r.provider;
+			return `${provider.contextValue}/${r.id}`;
+		}
 	}
-}
+};
 
 function isGroupVisible(group: ISCMResourceGroup) {
 	return group.elements.length > 0 || !group.hideWhenEmpty;

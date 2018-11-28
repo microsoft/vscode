@@ -49,3 +49,7 @@ export interface IListContextMenuEvent<T> {
 	index: number | undefined;
 	anchor: HTMLElement | { x: number; y: number; } | undefined;
 }
+
+export interface IIdentityProvider<T> {
+	getId(element: T): { toString(): string; };
+}

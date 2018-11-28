@@ -16,7 +16,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Event, Emitter, EventBufferer, chain, mapEvent, anyEvent } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
-import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent } from './list';
+import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent, IIdentityProvider } from './list';
 import { ListView, IListViewOptions } from './listView';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
@@ -24,10 +24,6 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { CombinedSpliceable } from 'vs/base/browser/ui/list/splice';
 import { clamp } from 'vs/base/common/numbers';
-
-export interface IIdentityProvider<T, R extends string | number = string | number> {
-	(element: T): R;
-}
 
 interface ITraitChangeEvent {
 	indexes: number[];
@@ -187,7 +183,7 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 class FocusTrait<T> extends Trait<T> {
 
 	constructor(
-		private getDomId: IIdentityProvider<number, string>
+		private getDomId: (index: number) => string
 	) {
 		super('focused');
 	}
@@ -215,17 +211,16 @@ class TraitSpliceable<T> implements ISpliceable<T> {
 	constructor(
 		private trait: Trait<T>,
 		private view: ListView<T>,
-		private getId?: IIdentityProvider<T>
+		private identityProvider?: IIdentityProvider<T>
 	) { }
 
 	splice(start: number, deleteCount: number, elements: T[]): void {
-		if (!this.getId) {
+		if (!this.identityProvider) {
 			return this.trait.splice(start, deleteCount, elements.map(e => false));
 		}
 
-		const getId = this.getId;
-		const pastElementsWithTrait = this.trait.get().map(i => getId(this.view.element(i)));
-		const elementsWithTrait = elements.map(e => pastElementsWithTrait.indexOf(getId(e)) > -1);
+		const pastElementsWithTrait = this.trait.get().map(i => this.identityProvider!.getId(this.view.element(i)).toString());
+		const elementsWithTrait = elements.map(e => pastElementsWithTrait.indexOf(this.identityProvider!.getId(e).toString()) > -1);
 
 		this.trait.splice(start, deleteCount, elementsWithTrait);
 	}
