@@ -1185,22 +1185,30 @@ export class CommandCenter {
 		}
 
 		const enableSmartCommit = config.get<boolean>('enableSmartCommit') === true;
+		const preventEnableSmartCommitPrompt = config.get<boolean>('preventEnableSmartCommitPrompt') === true;
 		const enableCommitSigning = config.get<boolean>('enableCommitSigning') === true;
 		const noStagedChanges = repository.indexGroup.resourceStates.length === 0;
 		const noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0;
 
 		// no changes, and the user has not configured to commit all in this case
 		if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit) {
-
+			if (preventEnableSmartCommitPrompt) {
+				return false; // do not commit
+			}
 			// prompt the user if we want to commit all or not
 			const message = localize('no staged changes', "There are no staged changes to commit.\n\nWould you like to automatically stage all your changes and commit them directly?");
 			const yes = localize('yes', "Yes");
 			const always = localize('always', "Always");
-			const pick = await window.showWarningMessage(message, { modal: true }, yes, always);
+			const never = localize('neverAgain', "Don't Show Again");
+			// const always = localize('always', "Always");
+			const pick = await window.showWarningMessage(message, { modal: true }, yes, always, never);
 
 			if (pick === always) {
 				config.update('enableSmartCommit', true, true);
 			} else if (pick !== yes) {
+				if (never) {
+					config.update('preventEnableSmartCommitPrompt', true, true);
+				}
 				return false; // do not commit on cancel
 			}
 		}

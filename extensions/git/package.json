@@ -1097,6 +1097,12 @@
           "description": "%config.enableSmartCommit%",
           "default": false
         },
+        "git.preventEnableSmartCommitPrompt": {
+          "type": "boolean",
+          "scope": "resource",
+          "description": "%config.preventEnableSmartCommitPrompt%",
+          "default": false
+        },
         "git.enableCommitSigning": {
           "type": "boolean",
           "scope": "resource",
