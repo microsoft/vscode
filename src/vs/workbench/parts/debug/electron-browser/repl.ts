@@ -66,6 +66,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { removeAnsiEscapeCodes, isFullWidthCharacter, endsWith } from 'vs/base/common/strings';
 import { WorkbenchDataTree, IListService } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 
 const $ = dom.$;
 
@@ -117,7 +118,8 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IListService private listService: IListService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@ITextResourcePropertiesService private textResourcePropertiesService: ITextResourcePropertiesService
 	) {
 		super(REPL_ID, telemetryService, themeService, storageService);
 
@@ -240,22 +242,19 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	}
 
 	getVisibleContent(): string {
-		console.log(this.characterWidth);
-		return '';
-		// TODO@Isidor
-		// let text = '';
-		// const lineDelimiter = isWindows ? '\r\n' : '\n';
+		let text = '';
+		const lineDelimiter = this.textResourcePropertiesService.getEOL(this.model.uri);
+		const traverseAndAppend = (node: ITreeNode<IReplElement, void>) => {
+			node.children.forEach(child => {
+				text += child.element.toString() + lineDelimiter;
+				if (!child.collapsed && child.children.length) {
+					traverseAndAppend(child);
+				}
+			});
+		};
+		traverseAndAppend(this.tree.getNode(null));
 
-		// const navigator = this.tree.getNavigator();
-		// // skip first navigator element - the root node
-		// while (navigator.next()) {
-		// 	if (text) {
-		// 		text += lineDelimiter;
-		// 	}
-		// 	text += navigator.current().toString();
-		// }
-
-		// return removeAnsiEscapeCodes(text);
+		return removeAnsiEscapeCodes(text);
 	}
 
 	layout(dimension: dom.Dimension): void {
