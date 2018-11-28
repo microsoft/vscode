@@ -147,10 +147,7 @@ export class StorageService extends Disposable implements IStorageService {
 					}
 
 					return migrationPromise.then(() => {
-						mark('willInitGlobalStorage');
-						return this.globalStorage.init().then(() => {
-							mark('didInitGlobalStorage');
-						});
+						return this.globalStorage.init();
 					});
 				});
 			});
@@ -415,7 +412,7 @@ export class StorageService extends Disposable implements IStorageService {
 				workspaceItemsParsed.set(key, safeParse(value));
 			});
 
-			console.group(`Storage: Global (integrity: ${result[2]}, load: ${getDuration('willInitGlobalStorage', 'didInitGlobalStorage')}, path: ${this.globalStorageWorkspacePath})`);
+			console.group(`Storage: Global (integrity: ${result[2]}, load: ${getDuration('main:willInitGlobalStorage', 'main:didInitGlobalStorage')}, path: ${this.globalStorageWorkspacePath})`);
 			let globalValues: { key: string, value: string }[] = [];
 			globalItems.forEach((value, key) => {
 				globalValues.push({ key, value });

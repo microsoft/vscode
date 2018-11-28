@@ -235,7 +235,8 @@ export class SearchRenderer extends Disposable implements IRenderer {
 		const replace = DOM.append(parent, DOM.$('span.replaceMatch'));
 		const after = DOM.append(parent, DOM.$('span'));
 		const lineNumber = DOM.append(container, DOM.$('span.matchLineNum'));
-		const actions = new ActionBar(container, { animated: false });
+		const actionBarContainer = DOM.append(container, DOM.$('span.actionBarContainer'));
+		const actions = new ActionBar(actionBarContainer, { animated: false });
 
 		return {
 			parent,

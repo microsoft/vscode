@@ -26,9 +26,11 @@ class Info {
 
 	static getTimerInfo(metrics: IStartupMetrics, nodeModuleLoadTime?: number): { [name: string]: Info } {
 		const table: { [name: string]: Info } = Object.create(null);
-		table['start => app.isReady'] = new Info(metrics.timers.ellapsedAppReady, '[main]', metrics.initialStartup);
-		table['nls:start => nls:end'] = new Info(metrics.timers.ellapsedNlsGeneration, '[main]', metrics.initialStartup);
-		table['app.isReady => window.loadUrl()'] = new Info(metrics.timers.ellapsedWindowLoad, '[main]', metrics.initialStartup);
+		table['start => app.isReady'] = new Info(metrics.timers.ellapsedAppReady, '[main]', `initial startup: ${metrics.initialStartup}`);
+		table['nls:start => nls:end'] = new Info(metrics.timers.ellapsedNlsGeneration, '[main]', `initial startup: ${metrics.initialStartup}`);
+		table['app.isReady => window.loadUrl()'] = new Info(metrics.timers.ellapsedWindowLoad, '[main]', `initial startup: ${metrics.initialStartup}`);
+
+		table['init global storage'] = new Info(metrics.timers.ellapsedGlobalStorageInit, '[main]', `initial startup: ${metrics.initialStartup}`);
 
 		table['window.loadUrl() => begin to require(workbench.main.js)'] = new Info(metrics.timers.ellapsedWindowLoadToRequire, '[main->renderer]', StartupKindToString(metrics.windowKind));
 		table['require(workbench.main.js)'] = new Info(metrics.timers.ellapsedRequire, '[renderer]', `cached data: ${(metrics.didUseCachedData ? 'YES' : 'NO')}${nodeModuleLoadTime ? `, node_modules took ${nodeModuleLoadTime}ms` : ''}`);

@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { readFile } from 'vs/base/node/pfs';
 import * as semver from 'semver';
 import { Event, Emitter } from 'vs/base/common/event';
-import { index } from 'vs/base/common/arrays';
+import { index, distinct } from 'vs/base/common/arrays';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -17,7 +17,7 @@ import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions, IExtensionManifest,
 	InstallExtensionEvent, DidInstallExtensionEvent, LocalExtensionType, DidUninstallExtensionEvent, IExtensionEnablementService, IExtensionIdentifier, EnablementState, IExtensionManagementServerService
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { getGalleryExtensionIdFromLocal, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, getMaliciousExtensionsSet } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { getGalleryExtensionIdFromLocal, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, getMaliciousExtensionsSet, getLocalExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWindowService } from 'vs/platform/windows/common/windows';
@@ -36,6 +36,7 @@ import { groupBy } from 'vs/base/common/collections';
 import { Schemas } from 'vs/base/common/network';
 import * as resources from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -389,7 +390,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		@ILogService private logService: ILogService,
 		@IProgressService2 private progressService: IProgressService2,
 		@IExtensionService private runtimeExtensionService: IExtensionService,
-		@IExtensionManagementServerService private extensionManagementServerService: IExtensionManagementServerService
+		@IExtensionManagementServerService private extensionManagementServerService: IExtensionManagementServerService,
+		@IStorageService private storageService: IStorageService
 	) {
 		this.stateProvider = ext => this.getExtensionState(ext);
 
@@ -417,7 +419,10 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 			}
 		}, this, this.disposables);
 
-		this.queryLocal().then(() => this.eventuallySyncWithGallery(true));
+		this.queryLocal().then(() => {
+			this.resetIgnoreAutoUpdateExtensions();
+			this.eventuallySyncWithGallery(true);
+		});
 	}
 
 	get local(): IExtension[] {
@@ -647,7 +652,9 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 			return Promise.resolve(null);
 		}
 
-		const toUpdate = this.local.filter(e => e.outdated && (e.state !== ExtensionState.Installing));
+		const toUpdate = this.local.filter(e =>
+			e.outdated && e.state !== ExtensionState.Installing
+			&& e.local && !this.isAutoUpdateIgnored(e.local.galleryIdentifier.id, e.local.manifest.version));
 		return Promise.all(toUpdate.map(e => this.install(e)));
 	}
 
@@ -717,6 +724,28 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 			title: nls.localize('uninstallingExtension', 'Uninstalling extension....'),
 			source: `${toUninstall[0].identifier.id}`
 		}, () => Promise.all(toUninstall.map(local => this.extensionService.uninstall(local))).then(() => null));
+	}
+
+	installVersion(extension: IExtension, version: string): Promise<void> {
+		if (!(extension instanceof Extension)) {
+			return Promise.resolve();
+		}
+
+		if (!extension.gallery) {
+			return Promise.resolve();
+		}
+
+		return this.galleryService.getExtension(extension.gallery.identifier, version)
+			.then(gallery => {
+				if (!gallery) {
+					return null;
+				}
+				return this.progressService.withProgress({
+					location: ProgressLocation.Extensions,
+					source: `${extension.id}`
+				}, () => this.extensionService.installFromGallery(gallery))
+					.then(() => this.ignoreAutoUpdate(gallery.identifier.id, version));
+			});
 	}
 
 	reinstall(extension: IExtension): Promise<void> {
@@ -1040,6 +1069,35 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 				});
 			});
 		}).then(undefined, error => this.onError(error));
+	}
+
+
+	private _ignoredAutoUpdateExtensions: string[];
+	get ignoredAutoUpdateExtensions(): string[] {
+		if (!this._ignoredAutoUpdateExtensions) {
+			this._ignoredAutoUpdateExtensions = JSON.parse(this.storageService.get('extensions.ignoredAutoUpdateExtension', StorageScope.GLOBAL, '[]') || '[]');
+		}
+		return this._ignoredAutoUpdateExtensions;
+	}
+
+	set ignoredAutoUpdateExtensions(extensionIds: string[]) {
+		this._ignoredAutoUpdateExtensions = distinct(extensionIds.map(id => id.toLowerCase()));
+		this.storageService.store('extensions.ignoredAutoUpdateExtension', JSON.stringify(this._ignoredAutoUpdateExtensions), StorageScope.GLOBAL);
+	}
+
+	private ignoreAutoUpdate(galleryId: string, version: string): void {
+		if (!this.isAutoUpdateIgnored(galleryId, version)) {
+			this.ignoredAutoUpdateExtensions = [...this.ignoredAutoUpdateExtensions, getLocalExtensionId(galleryId, version)];
+		}
+	}
+
+	private isAutoUpdateIgnored(galleryId: string, version: string): boolean {
+		const extensionId = getLocalExtensionId(galleryId, version).toLowerCase();
+		return this.ignoredAutoUpdateExtensions.indexOf(extensionId) !== -1;
+	}
+
+	private resetIgnoreAutoUpdateExtensions(): void {
+		this.ignoredAutoUpdateExtensions = this.ignoredAutoUpdateExtensions.filter(extensionId => this.local.some(local => local.local && local.local.identifier.id.toLowerCase() === extensionId));
 	}
 
 	dispose(): void {

@@ -7,11 +7,9 @@ import { localize } from 'vs/nls';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
 import * as path from 'path';
-import * as semver from 'semver';
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { sequence } from 'vs/base/common/async';
-import { IPager } from 'vs/base/common/paging';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -39,7 +37,7 @@ import { ILogService, getLogLevel } from 'vs/platform/log/common/log';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { CommandLineDialogService } from 'vs/platform/dialogs/node/dialogService';
-import { areSameExtensions, getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { areSameExtensions, getGalleryExtensionIdFromLocal, adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { getManifest } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
@@ -55,6 +53,17 @@ function getId(manifest: IExtensionManifest, withVersion?: boolean): string {
 		return `${manifest.publisher}.${manifest.name}`;
 	}
 }
+
+const EXTENSION_ID_REGEX = /^([^.]+\..+)@(\d+\.\d+\.\d+(-.*)?)$/;
+
+export function getIdAndVersion(id: string): [string, string] {
+	const matches = EXTENSION_ID_REGEX.exec(id);
+	if (matches && matches[1]) {
+		return [adoptToGalleryExtensionId(matches[1]), matches[2]];
+	}
+	return [adoptToGalleryExtensionId(id), void 0];
+}
+
 
 type Task = { (): TPromise<void> };
 
@@ -117,10 +126,11 @@ class Main {
 
 		const galleryTasks: Task[] = extensions
 			.filter(e => !/\.vsix$/i.test(e))
-			.map(id => () => {
+			.map(e => () => {
+				const [id, version] = getIdAndVersion(e);
 				return this.extensionManagementService.getInstalled(LocalExtensionType.User)
-					.then(installed => this.extensionGalleryService.query({ names: [id], source: 'cli' })
-						.then<IPager<IGalleryExtension>>(null, err => {
+					.then(installed => this.extensionGalleryService.getExtension({ id }, version)
+						.then<IGalleryExtension>(null, err => {
 							if (err.responseText) {
 								try {
 									const response = JSON.parse(err.responseText);
@@ -131,19 +141,16 @@ class Main {
 							}
 							return TPromise.wrapError(err);
 						})
-						.then(result => {
-							const [extension] = result.firstPage;
-
+						.then(extension => {
 							if (!extension) {
-								return TPromise.wrapError(new Error(`${notFound(id)}\n${useId}`));
+								return TPromise.wrapError(new Error(`${notFound(version ? `${id}@${version}` : id)}\n${useId}`));
 							}
 
 							const [installedExtension] = installed.filter(e => areSameExtensions({ id: getGalleryExtensionIdFromLocal(e) }, { id }));
 							if (installedExtension) {
-								const outdated = semver.gt(extension.version, installedExtension.manifest.version);
-								if (outdated) {
-									if (force) {
-										console.log(localize('updateMessage', "Updating the Extension '{0}' to a newer version {1}", id, extension.version));
+								if (extension.version !== installedExtension.manifest.version) {
+									if (version || force) {
+										console.log(localize('updateMessage', "Updating the Extension '{0}' to the version {1}", id, extension.version));
 										return this.installFromGallery(id, extension);
 									} else {
 										const updateMessage = localize('updateConfirmationMessage', "Extension '{0}' v{1} is already installed, but a newer version {2} is available in the marketplace. Would you like to update?", id, installedExtension.manifest.version, extension.version);
@@ -157,7 +164,7 @@ class Main {
 											});
 									}
 								} else {
-									console.log(localize('alreadyInstalled', "Extension '{0}' is already installed.", id));
+									console.log(localize('alreadyInstalled', "Extension '{0}' is already installed.", version ? `${id}@${version}` : id));
 									return TPromise.as(null);
 								}
 							} else {
