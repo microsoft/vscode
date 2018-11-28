@@ -444,8 +444,6 @@ export class LoadedScriptsView extends ViewletPanel {
 							this.treeNeedsRefreshOnVisible = true;
 						}
 						break;
-					case 'changed':
-						break;
 					case 'removed':
 						sessionRoot = root.find(session);
 						if (sessionRoot && sessionRoot.removePath(event.source)) {
