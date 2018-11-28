@@ -469,6 +469,7 @@ export class ReportExtensionIssueAction extends Action {
 	private static _label = nls.localize('reportExtensionIssue', "Report Issue");
 
 	private readonly _url: string;
+	private readonly _task: () => Promise<any>;
 
 	constructor(extension: {
 		description: IExtensionDescription;
@@ -481,12 +482,16 @@ export class ReportExtensionIssueAction extends Action {
 			&& extension.marketplaceInfo.type === LocalExtensionType.User
 			&& Boolean(extension.description.repository) && Boolean(extension.description.repository.url);
 
-		this._url = ReportExtensionIssueAction._generateNewIssueUrl(extension);
+		const { url, task } = ReportExtensionIssueAction._generateNewIssueUrl(extension);
+		this._url = url;
+		this._task = task;
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<void> {
+		if (this._task) {
+			await this._task();
+		}
 		window.open(this._url);
-		return Promise.resolve(null);
 	}
 
 	private static _generateNewIssueUrl(extension: {
@@ -494,7 +499,9 @@ export class ReportExtensionIssueAction extends Action {
 		marketplaceInfo: IExtension;
 		status: IExtensionsStatus;
 		unresponsiveProfile?: IExtensionHostProfile
-	}): string {
+	}): { url: string, task?: () => Promise<any> } {
+
+		let task: () => Promise<any>;
 		let baseUrl = extension.marketplaceInfo && extension.marketplaceInfo.type === LocalExtensionType.User && extension.description.repository ? extension.description.repository.url : undefined;
 		if (!!baseUrl) {
 			baseUrl = `${baseUrl.indexOf('.git') !== -1 ? baseUrl.substr(0, baseUrl.length - 4) : baseUrl}/issues/new/`;
@@ -508,7 +515,11 @@ export class ReportExtensionIssueAction extends Action {
 			// unresponsive extension host caused
 			reason = 'Performance';
 			let path = join(os.homedir(), `${extension.description.id}-unresponsive.cpuprofile.txt`);
-			writeFile(path, JSON.stringify(extension.unresponsiveProfile.data)).catch(onUnexpectedError);
+			task = async () => {
+				const profiler = await import('v8-inspect-profiler');
+				const data = profiler.rewriteAbsolutePaths({ profile: <any>extension.unresponsiveProfile.data }, 'pii_removed');
+				writeFile(path, JSON.stringify(data)).catch(onUnexpectedError);
+			};
 			message = `:warning: Make sure to **attach** this file from your *home*-directory: \`${path}\` :warning:`;
 
 		} else {
@@ -528,7 +539,10 @@ export class ReportExtensionIssueAction extends Action {
 - VSCode version: \`${pkg.version}\`\n\n${message}`
 		);
 
-		return `${baseUrl}${queryStringPrefix}body=${body}`;
+		return {
+			url: `${baseUrl}${queryStringPrefix}body=${body}`,
+			task
+		};
 	}
 }
 
