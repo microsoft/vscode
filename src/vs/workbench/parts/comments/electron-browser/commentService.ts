@@ -186,7 +186,8 @@ export class CommentService extends Disposable implements ICommentService {
 							owner: owner,
 							threads: commentInfo.threads,
 							commentingRanges: commentInfo.commentingRanges,
-							reply: commentInfo.reply
+							reply: commentInfo.reply,
+							draftMode: commentInfo.draftMode
 						};
 					} else {
 						return null;
