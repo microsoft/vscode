@@ -672,7 +672,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 
 	install(extension: string | IExtension): Promise<void> {
 		if (typeof extension === 'string') {
-			return this.installWithProgress(this.extensionService.install(URI.file(extension)).then(extensionIdentifier => this.checkAndEnableDisabledDependencies(extensionIdentifier)));
+			return this.installWithProgress(() => this.extensionService.install(URI.file(extension)).then(extensionIdentifier => this.checkAndEnableDisabledDependencies(extensionIdentifier)));
 		}
 
 		if (!(extension instanceof Extension)) {
@@ -691,7 +691,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		}
 
 		return this.installWithProgress(
-			this.extensionService.installFromGallery(gallery)
+			() => this.extensionService.installFromGallery(gallery)
 				.then(() => this.checkAndEnableDisabledDependencies(gallery.identifier))
 			, gallery.displayName);
 	}
@@ -736,7 +736,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 					return null;
 				}
 				return this.installWithProgress(
-					this.extensionService.installFromGallery(gallery)
+					() => this.extensionService.installFromGallery(gallery)
 						.then(() => this.ignoreAutoUpdate(gallery.identifier.id, version))
 					, gallery.displayName);
 			});
@@ -760,12 +760,12 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		}, () => Promise.all(toReinstall.map(local => this.extensionService.reinstallFromGallery(local))).then(() => null));
 	}
 
-	private installWithProgress(installTask: Promise<void>, extensionName?: string): Promise<void> {
+	private installWithProgress(installTask: () => Promise<void>, extensionName?: string): Promise<void> {
 		const title = extensionName ? nls.localize('installing named extension', "Installing '{0}' extension....", extensionName) : nls.localize('installing extension', 'Installing extension....');
 		return this.progressService.withProgress({
 			location: ProgressLocation.Extensions,
 			title
-		}, () => installTask).then(() => null);
+		}, () => installTask());
 	}
 
 	private checkAndEnableDisabledDependencies(extensionIdentifier: IExtensionIdentifier): Promise<void> {

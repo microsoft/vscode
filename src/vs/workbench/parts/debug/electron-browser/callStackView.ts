@@ -25,12 +25,11 @@ import { IViewletPanelOptions, ViewletPanel } from 'vs/workbench/browser/parts/v
 import { ILabelService } from 'vs/platform/label/common/label';
 import { DebugSession } from 'vs/workbench/parts/debug/electron-browser/debugSession';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { IDataSource } from 'vs/base/browser/ui/tree/dataTree';
-import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/abstractTree';
+import { IDataSource } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
-import { TreeResourceNavigator2, WorkbenchDataTree, IListService } from 'vs/platform/list/browser/listService';
+import { ITreeRenderer, ITreeNode, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
+import { TreeResourceNavigator2, WorkbenchAsyncDataTree, IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 const $ = dom.$;
@@ -46,7 +45,7 @@ export class CallStackView extends ViewletPanel {
 	private ignoreSelectionChangedEvent: boolean;
 	private callStackItemType: IContextKey<string>;
 	private dataSource: CallStackDataSource;
-	private tree: WorkbenchDataTree<CallStackItem>;
+	private tree: WorkbenchAsyncDataTree<CallStackItem>;
 	private contributedContextMenu: IMenu;
 
 	constructor(
@@ -103,7 +102,7 @@ export class CallStackView extends ViewletPanel {
 		const treeContainer = renderViewTree(container);
 
 		this.dataSource = new CallStackDataSource(this.debugService);
-		this.tree = new WorkbenchDataTree(treeContainer, new CallStackDelegate(), [
+		this.tree = new WorkbenchAsyncDataTree(treeContainer, new CallStackDelegate(), [
 			new SessionsRenderer(),
 			new ThreadsRenderer(),
 			this.instantiationService.createInstance(StackFramesRenderer),

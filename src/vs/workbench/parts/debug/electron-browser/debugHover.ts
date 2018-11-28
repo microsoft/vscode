@@ -24,7 +24,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { getExactExpressionStartAndEnd } from 'vs/workbench/parts/debug/common/debugUtils';
-import { DataTree, IDataSource } from 'vs/base/browser/ui/tree/dataTree';
+import { AsyncDataTree, IDataSource } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 
@@ -39,7 +39,7 @@ export class DebugHoverWidget implements IContentWidget {
 
 	private _isVisible: boolean;
 	private domNode: HTMLElement;
-	private tree: DataTree<IExpression>;
+	private tree: AsyncDataTree<IExpression>;
 	private showAtPosition: Position;
 	private highlightDecorations: string[];
 	private complexValueContainer: HTMLElement;
@@ -71,7 +71,7 @@ export class DebugHoverWidget implements IContentWidget {
 		treeContainer.setAttribute('role', 'tree');
 		this.dataSource = new DebugHoverDataSource();
 
-		this.tree = new DataTree(treeContainer, new DebugHoverDelegate(), [this.instantiationService.createInstance(VariablesRenderer)],
+		this.tree = new AsyncDataTree(treeContainer, new DebugHoverDelegate(), [this.instantiationService.createInstance(VariablesRenderer)],
 			this.dataSource, {
 				ariaLabel: nls.localize('treeAriaLabel', "Debug Hover"),
 				accessibilityProvider: new DebugHoverAccessibilityProvider(),

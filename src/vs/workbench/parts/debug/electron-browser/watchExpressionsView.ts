@@ -20,14 +20,14 @@ import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { renderExpressionValue, renderViewTree, IInputBoxOptions, AbstractExpressionsRenderer, IExpressionTemplateData } from 'vs/workbench/parts/debug/browser/baseDebugView';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewletPanelOptions, ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
-import { IDataSource } from 'vs/base/browser/ui/tree/dataTree';
+import { IDataSource } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { ITreeContextMenuEvent, ITreeMouseEvent } from 'vs/base/browser/ui/tree/abstractTree';
 import { VariablesRenderer, variableSetEmitter } from 'vs/workbench/parts/debug/electron-browser/variablesView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { WorkbenchDataTree, IListService } from 'vs/platform/list/browser/listService';
+import { WorkbenchAsyncDataTree, IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ITreeMouseEvent, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 
 const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
 
@@ -35,7 +35,7 @@ export class WatchExpressionsView extends ViewletPanel {
 
 	private onWatchExpressionsUpdatedScheduler: RunOnceScheduler;
 	private needsRefresh: boolean;
-	private tree: WorkbenchDataTree<IExpression>;
+	private tree: WorkbenchAsyncDataTree<IExpression>;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -63,7 +63,7 @@ export class WatchExpressionsView extends ViewletPanel {
 
 		const expressionsRenderer = this.instantiationService.createInstance(WatchExpressionsRenderer);
 		this.disposables.push(expressionsRenderer);
-		this.tree = new WorkbenchDataTree(treeContainer, new WatchExpressionsDelegate(), [expressionsRenderer, this.instantiationService.createInstance(VariablesRenderer)],
+		this.tree = new WorkbenchAsyncDataTree(treeContainer, new WatchExpressionsDelegate(), [expressionsRenderer, this.instantiationService.createInstance(VariablesRenderer)],
 			new WatchExpressionsDataSource(this.debugService), {
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'watchAriaTreeLabel' }, "Debug Watch Expressions"),
 				accessibilityProvider: new WatchExpressionsAccessibilityProvider(),

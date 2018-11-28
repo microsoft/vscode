@@ -42,7 +42,7 @@
 
 		require.config({ baseUrl: '/static' });
 
-		require(['vs/base/browser/ui/tree/indexTree', 'vs/base/browser/ui/tree/dataTree', 'vs/base/browser/ui/tree/tree', 'vs/base/common/iterator'], ({ IndexTree }, { DataTree }, { TreeVisibility }, { iter }) => {
+		require(['vs/base/browser/ui/tree/indexTree', 'vs/base/browser/ui/tree/asyncDataTree', 'vs/base/browser/ui/tree/tree', 'vs/base/common/iterator'], ({ IndexTree }, { AsyncDataTree }, { TreeVisibility }, { iter }) => {
 			function createIndexTree(opts) {
 				opts = opts || {};
 
@@ -98,7 +98,7 @@
 				return { tree, treeFilter };
 			}
 
-			function createDataTree() {
+			function createAsyncDataTree() {
 				const delegate = {
 					getHeight() { return 22; },
 					getTemplateId() { return 'template'; }
@@ -163,7 +163,7 @@
 					}
 				}
 
-				const tree = new DataTree(container, delegate, [renderer], dataSource, { filter: treeFilter });
+				const tree = new AsyncDataTree(container, delegate, [renderer], dataSource, { filter: treeFilter });
 
 				return { tree, treeFilter };
 			}
@@ -190,7 +190,7 @@
 					break;
 				}
 				case '?data': {
-					const { tree, treeFilter } = createDataTree();
+					const { tree, treeFilter } = createAsyncDataTree();
 
 					collapseall.onclick = () => perf('collapse all', () => tree.collapseAll());
 					renderwidth.onclick = () => perf('renderwidth', () => tree.layoutWidth(Math.random()));

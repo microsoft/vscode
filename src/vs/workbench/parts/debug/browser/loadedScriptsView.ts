@@ -25,12 +25,12 @@ import { ltrim } from 'vs/base/common/strings';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { ResourceLabel, IResourceLabel, IResourceLabelOptions } from 'vs/workbench/browser/labels';
 import { FileKind } from 'vs/platform/files/common/files';
-import { IDataSource } from 'vs/base/browser/ui/tree/dataTree';
+import { IDataSource } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { WorkbenchDataTree, IListService, TreeResourceNavigator2 } from 'vs/platform/list/browser/listService';
+import { WorkbenchAsyncDataTree, IListService, TreeResourceNavigator2 } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { DebugContentProvider } from 'vs/workbench/parts/debug/browser/debugContentProvider';
 
@@ -359,7 +359,7 @@ export class LoadedScriptsView extends ViewletPanel {
 
 	private treeContainer: HTMLElement;
 	private loadedScriptsItemType: IContextKey<string>;
-	private tree: WorkbenchDataTree<any>;
+	private tree: WorkbenchAsyncDataTree<any>;
 	private changeScheduler: RunOnceScheduler;
 	private treeNeedsRefreshOnVisible: boolean;
 
@@ -389,7 +389,7 @@ export class LoadedScriptsView extends ViewletPanel {
 
 		const root = new RootTreeItem(this.debugService.getModel(), this.environmentService, this.contextService);
 
-		this.tree = new WorkbenchDataTree(this.treeContainer, new LoadedScriptsDelegate(),
+		this.tree = new WorkbenchAsyncDataTree(this.treeContainer, new LoadedScriptsDelegate(),
 			[
 				this.instantiationService.createInstance(LoadedScriptsRenderer)
 			],
