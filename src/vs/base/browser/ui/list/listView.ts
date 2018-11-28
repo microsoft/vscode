@@ -65,14 +65,14 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private itemId: number;
 	private rangeMap: RangeMap;
 	private cache: RowCache<T>;
-	private renderers = new Map<string, IListRenderer<T, any>>();
+	private renderers = new Map<string, IListRenderer<any /* TODO@joao */, any>>();
 	private lastRenderTop: number;
 	private lastRenderHeight: number;
 	private renderWidth = 0;
 	private gesture: Gesture;
 	private rowsContainer: HTMLElement;
 	private scrollableElement: ScrollableElement;
-	private scrollHeight: number;
+	private _scrollHeight: number;
 	private didRequestScrollableElementUpdate: boolean = false;
 	private splicing = false;
 	private dragAndDropScrollInterval: number;
@@ -85,7 +85,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	constructor(
 		container: HTMLElement,
 		private virtualDelegate: IListVirtualDelegate<T>,
-		renderers: IListRenderer<T, any>[],
+		renderers: IListRenderer<any /* TODO@joao */, any>[],
 		options: IListViewOptions = DefaultOptions
 	) {
 		this.items = [];
@@ -225,12 +225,12 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	private updateScrollHeight(): void {
-		this.scrollHeight = this.getContentHeight();
-		this.rowsContainer.style.height = `${this.scrollHeight}px`;
+		this._scrollHeight = this.getContentHeight();
+		this.rowsContainer.style.height = `${this._scrollHeight}px`;
 
 		if (!this.didRequestScrollableElementUpdate) {
 			DOM.scheduleAtNextAnimationFrame(() => {
-				this.scrollableElement.setScrollDimensions({ scrollHeight: this.scrollHeight });
+				this.scrollableElement.setScrollDimensions({ scrollHeight: this._scrollHeight });
 				this.didRequestScrollableElementUpdate = false;
 			});
 
@@ -388,6 +388,10 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	set scrollTop(scrollTop: number) {
 		this.setScrollTop(scrollTop);
+	}
+
+	get scrollHeight(): number {
+		return this._scrollHeight;
 	}
 
 	// Events

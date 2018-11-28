@@ -9,9 +9,10 @@ import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeElement, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Emitter, Event, mapEvent } from 'vs/base/common/event';
-import { timeout } from 'vs/base/common/async';
+import { timeout, always } from 'vs/base/common/async';
 import { ISequence } from 'vs/base/common/iterator';
 import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
+import { toggleClass } from 'vs/base/browser/dom';
 
 export interface IDataSource<T extends NonNullable<any>> {
 	hasChildren(element: T | null): boolean;
@@ -35,15 +36,18 @@ interface IDataTreeListTemplateData<T> {
 	templateData: T;
 }
 
-function unpack<T, TFilterData>(node: ITreeNode<IDataTreeNode<T>, TFilterData>): ITreeNode<T, TFilterData> {
-	return new Proxy(Object.create(null), {
-		get: (_: any, name: string) => {
-			switch (name) {
-				case 'element': return node.element.element;
-				default: return node[name];
-			}
-		}
-	});
+class DataTreeNodeWrapper<T, TFilterData> implements ITreeNode<T, TFilterData> {
+
+	get element(): T { return this.node.element.element!; }
+	get parent(): ITreeNode<T, TFilterData> | undefined { return this.node.parent && new DataTreeNodeWrapper(this.node.parent); }
+	get children(): ITreeNode<T, TFilterData>[] { return this.node.children.map(node => new DataTreeNodeWrapper(node)); }
+	get depth(): number { return this.node.depth; }
+	get collapsible(): boolean { return this.node.collapsible; }
+	get collapsed(): boolean { return this.node.collapsed; }
+	get visible(): boolean { return this.node.visible; }
+	get filterData(): TFilterData | undefined { return this.node.filterData; }
+
+	constructor(private node: ITreeNode<IDataTreeNode<T>, TFilterData>) { }
 }
 
 class DataTreeRenderer<T, TFilterData, TTemplateData> implements ITreeRenderer<IDataTreeNode<T>, TFilterData, IDataTreeListTemplateData<TTemplateData>> {
@@ -64,21 +68,17 @@ class DataTreeRenderer<T, TFilterData, TTemplateData> implements ITreeRenderer<I
 		return { templateData };
 	}
 
-	renderElement(element: ITreeNode<IDataTreeNode<T>, TFilterData>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>): void {
-		this.renderer.renderElement(unpack(element), index, templateData.templateData);
+	renderElement(node: ITreeNode<IDataTreeNode<T>, TFilterData>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>): void {
+		this.renderer.renderElement(new DataTreeNodeWrapper(node), index, templateData.templateData);
 	}
 
 	renderTwistie(element: IDataTreeNode<T>, twistieElement: HTMLElement): boolean {
-		if (element.state === DataTreeNodeState.Slow) {
-			twistieElement.innerText = '🤨';
-			return true;
-		}
-
+		toggleClass(twistieElement, 'loading', element.state === DataTreeNodeState.Slow);
 		return false;
 	}
 
-	disposeElement(element: ITreeNode<IDataTreeNode<T>, TFilterData>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>): void {
-		this.renderer.disposeElement(unpack(element), index, templateData.templateData);
+	disposeElement(node: ITreeNode<IDataTreeNode<T>, TFilterData>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>): void {
+		this.renderer.disposeElement(new DataTreeNodeWrapper(node), index, templateData.templateData);
 	}
 
 	disposeTemplate(templateData: IDataTreeListTemplateData<TTemplateData>): void {
@@ -128,6 +128,7 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 	private tree: ObjectTree<IDataTreeNode<T>, TFilterData>;
 	private root: IDataTreeNode<T>;
 	private nodes = new Map<T | null, IDataTreeNode<T>>();
+	private refreshPromises = new Map<IDataTreeNode<T>, Thenable<void>>();
 
 	private _onDidChangeNodeState = new Emitter<IDataTreeNode<T>>();
 
@@ -151,7 +152,7 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 	constructor(
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
-		renderers: ITreeRenderer<T, TFilterData, any>[],
+		renderers: ITreeRenderer<any /* TODO@joao */, TFilterData, any>[],
 		private dataSource: IDataSource<T>,
 		options?: ITreeOptions<T, TFilterData>
 	) {
@@ -192,25 +193,38 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 	// Data Tree
 
 	refresh(element: T | null): Thenable<void> {
-		return this.refreshNode(this.getNode(element), ChildrenResolutionReason.Refresh);
+		return this.refreshNode(this.getDataNode(element), ChildrenResolutionReason.Refresh);
 	}
 
 	// Tree
 
-	get visibleNodeCount(): number {
-		return this.tree.visibleNodeCount;
+	getNode(element: T | null): ITreeNode<T, TFilterData> {
+		return new DataTreeNodeWrapper(this.tree.getNode(this.getDataNode(element)));
 	}
 
 	collapse(element: T): boolean {
-		return this.tree.collapse(this.getNode(element));
+		return this.tree.collapse(this.getDataNode(element));
 	}
 
-	expand(element: T): boolean {
-		return this.tree.expand(this.getNode(element));
+	expand(element: T): Thenable<boolean> {
+		const node = this.getDataNode(element);
+
+		if (!this.tree.isCollapsed(node)) {
+			return Promise.resolve(false);
+		}
+
+		if (node.element!.state === DataTreeNodeState.Uninitialized) {
+			const result = this.refreshNode(node, ChildrenResolutionReason.Expand);
+			this.tree.expand(node);
+			return result.then(() => true);
+		}
+
+		this.tree.expand(node);
+		return Promise.resolve(true);
 	}
 
 	toggleCollapsed(element: T): void {
-		this.tree.toggleCollapsed(this.getNode(element));
+		this.tree.toggleCollapsed(this.getDataNode(element));
 	}
 
 	collapseAll(): void {
@@ -218,11 +232,11 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 	}
 
 	isCollapsed(element: T): boolean {
-		return this.tree.isCollapsed(this.getNode(element));
+		return this.tree.isCollapsed(this.getDataNode(element));
 	}
 
 	isExpanded(element: T): boolean {
-		return this.tree.isExpanded(this.getNode(element));
+		return this.tree.isExpanded(this.getDataNode(element));
 	}
 
 	refilter(): void {
@@ -230,7 +244,7 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 	}
 
 	setSelection(elements: T[], browserEvent?: UIEvent): void {
-		const nodes = elements.map(e => this.getNode(e));
+		const nodes = elements.map(e => this.getDataNode(e));
 		this.tree.setSelection(nodes, browserEvent);
 	}
 
@@ -240,7 +254,7 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 	}
 
 	setFocus(elements: T[], browserEvent?: UIEvent): void {
-		const nodes = elements.map(e => this.getNode(e));
+		const nodes = elements.map(e => this.getDataNode(e));
 		this.tree.setFocus(nodes, browserEvent);
 	}
 
@@ -274,38 +288,44 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 	}
 
 	open(elements: T[]): void {
-		const nodes = elements.map(e => this.getNode(e));
+		const nodes = elements.map(e => this.getDataNode(e));
 		this.tree.open(nodes);
 	}
 
 	reveal(element: T, relativeTop?: number): void {
-		this.tree.reveal(this.getNode(element), relativeTop);
+		this.tree.reveal(this.getDataNode(element), relativeTop);
 	}
 
 	getRelativeTop(element: T): number | null {
-		return this.tree.getRelativeTop(this.getNode(element));
+		return this.tree.getRelativeTop(this.getDataNode(element));
 	}
 
 	// Tree navigation
 
 	getParentElement(element: T): T | null {
-		const node = this.tree.getParentElement(this.getNode(element));
+		const node = this.tree.getParentElement(this.getDataNode(element));
 		return node && node.element;
 	}
 
 	getFirstElementChild(element: T | null = null): T | null {
-		const node = this.tree.getFirstElementChild(this.getNode(element));
+		const node = this.tree.getFirstElementChild(this.getDataNode(element));
 		return node && node.element;
 	}
 
 	getLastElementAncestor(element: T | null = null): T | null {
-		const node = this.tree.getLastElementAncestor(this.getNode(element));
+		const node = this.tree.getLastElementAncestor(this.getDataNode(element));
 		return node && node.element;
+	}
+
+	// List
+
+	get visibleNodeCount(): number {
+		return this.tree.visibleNodeCount;
 	}
 
 	// Implementation
 
-	private getNode(element: T | null): IDataTreeNode<T> {
+	private getDataNode(element: T | null): IDataTreeNode<T> {
 		const node: IDataTreeNode<T> = this.nodes.get(element);
 
 		if (typeof node === 'undefined') {
@@ -316,6 +336,18 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 	}
 
 	private refreshNode(node: IDataTreeNode<T>, reason: ChildrenResolutionReason): Thenable<void> {
+		let result = this.refreshPromises.get(node);
+
+		if (result) {
+			return result;
+		}
+
+		result = this.doRefresh(node, reason);
+		this.refreshPromises.set(node, result);
+		return always(result, () => this.refreshPromises.delete(node));
+	}
+
+	private doRefresh(node: IDataTreeNode<T>, reason: ChildrenResolutionReason): Thenable<void> {
 		const hasChildren = this.dataSource.hasChildren(node.element);
 
 		if (!hasChildren) {
@@ -395,7 +427,6 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 
 		this.tree.setChildren(element, children, onDidCreateNode, onDidDeleteNode);
 	}
-
 
 	dispose(): void {
 		this.disposables = dispose(this.disposables);

@@ -151,16 +151,12 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 	}
 
 	private renderTwistie(node: ITreeNode<T, TFilterData>, twistieElement: HTMLElement) {
-		if (this.renderer.renderTwistie && this.renderer.renderTwistie(node.element, twistieElement)) {
-			return;
+		if (this.renderer.renderTwistie) {
+			this.renderer.renderTwistie(node.element, twistieElement);
 		}
 
-		TreeRenderer.renderDefaultTwistie(node, twistieElement);
-	}
-
-	private static renderDefaultTwistie<T>(node: ITreeNode<T, any>, twistie: HTMLElement): void {
-		toggleClass(twistie, 'collapsible', node.collapsible);
-		toggleClass(twistie, 'collapsed', node.collapsed);
+		toggleClass(twistieElement, 'collapsible', node.collapsible);
+		toggleClass(twistieElement, 'collapsed', node.collapsed);
 	}
 
 	dispose(): void {
@@ -183,12 +179,12 @@ export interface ITreeEvent<T> {
 
 export interface ITreeMouseEvent<T> {
 	browserEvent: MouseEvent;
-	element: T | undefined;
+	element: T | null;
 }
 
 export interface ITreeContextMenuEvent<T> {
 	browserEvent: UIEvent;
-	element: T | undefined;
+	element: T | null;
 	anchor: HTMLElement | { x: number; y: number; } | undefined;
 }
 
@@ -202,13 +198,13 @@ function asTreeEvent<T>(event: IListEvent<ITreeNode<T, any>>): ITreeEvent<T> {
 function asTreeMouseEvent<T>(event: IListMouseEvent<ITreeNode<T, any>>): ITreeMouseEvent<T> {
 	return {
 		browserEvent: event.browserEvent,
-		element: event.element && event.element.element
+		element: event.element ? event.element.element : null
 	};
 }
 
 function asTreeContextMenuEvent<T>(event: IListContextMenuEvent<ITreeNode<T, any>>): ITreeContextMenuEvent<T> {
 	return {
-		element: event.element && event.element.element,
+		element: event.element ? event.element.element : null,
 		browserEvent: event.browserEvent,
 		anchor: event.anchor
 	};
@@ -237,7 +233,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	constructor(
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
-		renderers: ITreeRenderer<T, TFilterData, any>[],
+		renderers: ITreeRenderer<any /* TODO@joao */, TFilterData, any>[],
 		options: ITreeOptions<T, TFilterData> = {}
 	) {
 		const treeDelegate = new ComposedTreeDelegate<T, ITreeNode<T, TFilterData>>(delegate);
