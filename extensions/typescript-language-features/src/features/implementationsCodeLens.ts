@@ -24,7 +24,7 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 		const codeLens = inputCodeLens as ReferencesCodeLens;
 
 		const args = typeConverters.Position.toFileLocationRequestArgs(codeLens.file, codeLens.range.start);
-		const response = await this.client.execute('implementation', args, token);
+		const response = await this.client.execute('implementation', args, token, /* lowPriority */ true);
 		if (response.type !== 'response' || !response.body) {
 			codeLens.command = {
 				title: localize('implementationsErrorLabel', 'Could not determine implementations'),
