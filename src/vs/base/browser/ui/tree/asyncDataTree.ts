@@ -19,46 +19,46 @@ export interface IDataSource<T extends NonNullable<any>> {
 	getChildren(element: T | null): Thenable<T[]>;
 }
 
-enum DataTreeNodeState {
+enum AsyncDataTreeNodeState {
 	Uninitialized,
 	Loaded,
 	Loading,
 	Slow
 }
 
-interface IDataTreeNode<T extends NonNullable<any>> {
+interface IAsyncDataTreeNode<T extends NonNullable<any>> {
 	readonly element: T | null;
-	readonly parent: IDataTreeNode<T> | null;
-	state: DataTreeNodeState;
+	readonly parent: IAsyncDataTreeNode<T> | null;
+	state: AsyncDataTreeNodeState;
 }
 
 interface IDataTreeListTemplateData<T> {
 	templateData: T;
 }
 
-class DataTreeNodeWrapper<T, TFilterData> implements ITreeNode<T, TFilterData> {
+class AsyncDataTreeNodeWrapper<T, TFilterData> implements ITreeNode<T, TFilterData> {
 
 	get element(): T { return this.node.element!.element!; }
-	get parent(): ITreeNode<T, TFilterData> | undefined { return this.node.parent && new DataTreeNodeWrapper(this.node.parent); }
-	get children(): ITreeNode<T, TFilterData>[] { return this.node.children.map(node => new DataTreeNodeWrapper(node)); }
+	get parent(): ITreeNode<T, TFilterData> | undefined { return this.node.parent && new AsyncDataTreeNodeWrapper(this.node.parent); }
+	get children(): ITreeNode<T, TFilterData>[] { return this.node.children.map(node => new AsyncDataTreeNodeWrapper(node)); }
 	get depth(): number { return this.node.depth; }
 	get collapsible(): boolean { return this.node.collapsible; }
 	get collapsed(): boolean { return this.node.collapsed; }
 	get visible(): boolean { return this.node.visible; }
 	get filterData(): TFilterData | undefined { return this.node.filterData; }
 
-	constructor(private node: ITreeNode<IDataTreeNode<T> | null, TFilterData>) { }
+	constructor(private node: ITreeNode<IAsyncDataTreeNode<T> | null, TFilterData>) { }
 }
 
-class DataTreeRenderer<T, TFilterData, TTemplateData> implements ITreeRenderer<IDataTreeNode<T>, TFilterData, IDataTreeListTemplateData<TTemplateData>> {
+class DataTreeRenderer<T, TFilterData, TTemplateData> implements ITreeRenderer<IAsyncDataTreeNode<T>, TFilterData, IDataTreeListTemplateData<TTemplateData>> {
 
 	readonly templateId: string;
-	private renderedNodes = new Map<IDataTreeNode<T>, IDataTreeListTemplateData<TTemplateData>>();
+	private renderedNodes = new Map<IAsyncDataTreeNode<T>, IDataTreeListTemplateData<TTemplateData>>();
 	private disposables: IDisposable[] = [];
 
 	constructor(
 		private renderer: ITreeRenderer<T, TFilterData, TTemplateData>,
-		readonly onDidChangeTwistieState: Event<IDataTreeNode<T>>
+		readonly onDidChangeTwistieState: Event<IAsyncDataTreeNode<T>>
 	) {
 		this.templateId = renderer.templateId;
 	}
@@ -68,17 +68,17 @@ class DataTreeRenderer<T, TFilterData, TTemplateData> implements ITreeRenderer<I
 		return { templateData };
 	}
 
-	renderElement(node: ITreeNode<IDataTreeNode<T>, TFilterData>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>): void {
-		this.renderer.renderElement(new DataTreeNodeWrapper(node), index, templateData.templateData);
+	renderElement(node: ITreeNode<IAsyncDataTreeNode<T>, TFilterData>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>): void {
+		this.renderer.renderElement(new AsyncDataTreeNodeWrapper(node), index, templateData.templateData);
 	}
 
-	renderTwistie(element: IDataTreeNode<T>, twistieElement: HTMLElement): boolean {
-		toggleClass(twistieElement, 'loading', element.state === DataTreeNodeState.Slow);
+	renderTwistie(element: IAsyncDataTreeNode<T>, twistieElement: HTMLElement): boolean {
+		toggleClass(twistieElement, 'loading', element.state === AsyncDataTreeNodeState.Slow);
 		return false;
 	}
 
-	disposeElement(node: ITreeNode<IDataTreeNode<T>, TFilterData>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>): void {
-		this.renderer.disposeElement(new DataTreeNodeWrapper(node), index, templateData.templateData);
+	disposeElement(node: ITreeNode<IAsyncDataTreeNode<T>, TFilterData>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>): void {
+		this.renderer.disposeElement(new AsyncDataTreeNodeWrapper(node), index, templateData.templateData);
 	}
 
 	disposeTemplate(templateData: IDataTreeListTemplateData<TTemplateData>): void {
@@ -91,21 +91,21 @@ class DataTreeRenderer<T, TFilterData, TTemplateData> implements ITreeRenderer<I
 	}
 }
 
-function asTreeEvent<T>(e: ITreeEvent<IDataTreeNode<T>>): ITreeEvent<T> {
+function asTreeEvent<T>(e: ITreeEvent<IAsyncDataTreeNode<T>>): ITreeEvent<T> {
 	return {
 		browserEvent: e.browserEvent,
 		elements: e.elements.map(e => e.element!)
 	};
 }
 
-function asTreeMouseEvent<T>(e: ITreeMouseEvent<IDataTreeNode<T>>): ITreeMouseEvent<T> {
+function asTreeMouseEvent<T>(e: ITreeMouseEvent<IAsyncDataTreeNode<T>>): ITreeMouseEvent<T> {
 	return {
 		browserEvent: e.browserEvent,
 		element: e.element && e.element.element!
 	};
 }
 
-function asTreeContextMenuEvent<T>(e: ITreeContextMenuEvent<IDataTreeNode<T>>): ITreeContextMenuEvent<T> {
+function asTreeContextMenuEvent<T>(e: ITreeContextMenuEvent<IAsyncDataTreeNode<T>>): ITreeContextMenuEvent<T> {
 	return {
 		browserEvent: e.browserEvent,
 		element: e.element && e.element.element!,
@@ -123,14 +123,14 @@ export interface IChildrenResolutionEvent<T> {
 	readonly reason: ChildrenResolutionReason;
 }
 
-export class DataTree<T extends NonNullable<any>, TFilterData = void> implements IDisposable {
+export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> implements IDisposable {
 
-	private tree: ObjectTree<IDataTreeNode<T>, TFilterData>;
-	private root: IDataTreeNode<T>;
-	private nodes = new Map<T | null, IDataTreeNode<T>>();
-	private refreshPromises = new Map<IDataTreeNode<T>, Thenable<void>>();
+	private tree: ObjectTree<IAsyncDataTreeNode<T>, TFilterData>;
+	private root: IAsyncDataTreeNode<T>;
+	private nodes = new Map<T | null, IAsyncDataTreeNode<T>>();
+	private refreshPromises = new Map<IAsyncDataTreeNode<T>, Thenable<void>>();
 
-	private _onDidChangeNodeState = new Emitter<IDataTreeNode<T>>();
+	private _onDidChangeNodeState = new Emitter<IAsyncDataTreeNode<T>>();
 
 	protected disposables: IDisposable[] = [];
 
@@ -156,15 +156,15 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 		private dataSource: IDataSource<T>,
 		options?: ITreeOptions<T, TFilterData>
 	) {
-		const objectTreeDelegate = new ComposedTreeDelegate<T | null, IDataTreeNode<T>>(delegate);
+		const objectTreeDelegate = new ComposedTreeDelegate<T | null, IAsyncDataTreeNode<T>>(delegate);
 		const objectTreeRenderers = renderers.map(r => new DataTreeRenderer(r, this._onDidChangeNodeState.event));
-		const objectTreeOptions = createComposedTreeListOptions<T | null, IDataTreeNode<T>>(options);
+		const objectTreeOptions = createComposedTreeListOptions<T | null, IAsyncDataTreeNode<T>>(options);
 
 		this.tree = new ObjectTree(container, objectTreeDelegate, objectTreeRenderers, objectTreeOptions);
 		this.root = {
 			element: null,
 			parent: null,
-			state: DataTreeNodeState.Uninitialized,
+			state: AsyncDataTreeNodeState.Uninitialized,
 		};
 
 		this.nodes.set(null, this.root);
@@ -213,7 +213,7 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 	getNode(element: T | null): ITreeNode<T | null, TFilterData> {
 		const dataNode = this.getDataNode(element);
 		const node = this.tree.getNode(dataNode === this.root ? null : dataNode);
-		return new DataTreeNodeWrapper<T | null, TFilterData>(node);
+		return new AsyncDataTreeNodeWrapper<T | null, TFilterData>(node);
 	}
 
 	collapse(element: T): boolean {
@@ -227,7 +227,7 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 			return Promise.resolve(false);
 		}
 
-		if (node.element!.state === DataTreeNodeState.Uninitialized) {
+		if (node.element!.state === AsyncDataTreeNodeState.Uninitialized) {
 			const result = this.refreshNode(node, ChildrenResolutionReason.Expand);
 			this.tree.expand(node);
 			return result.then(() => true);
@@ -341,8 +341,8 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 
 	// Implementation
 
-	private getDataNode(element: T | null): IDataTreeNode<T> {
-		const node: IDataTreeNode<T> = this.nodes.get(element);
+	private getDataNode(element: T | null): IAsyncDataTreeNode<T> {
+		const node: IAsyncDataTreeNode<T> = this.nodes.get(element);
 
 		if (typeof node === 'undefined') {
 			throw new Error(`Data tree node not found: ${element}`);
@@ -351,7 +351,7 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 		return node;
 	}
 
-	private refreshNode(node: IDataTreeNode<T>, reason: ChildrenResolutionReason): Thenable<void> {
+	private refreshNode(node: IAsyncDataTreeNode<T>, reason: ChildrenResolutionReason): Thenable<void> {
 		let result = this.refreshPromises.get(node);
 
 		if (result) {
@@ -363,36 +363,36 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 		return always(result, () => this.refreshPromises.delete(node));
 	}
 
-	private doRefresh(node: IDataTreeNode<T>, reason: ChildrenResolutionReason): Thenable<void> {
+	private doRefresh(node: IAsyncDataTreeNode<T>, reason: ChildrenResolutionReason): Thenable<void> {
 		const hasChildren = this.dataSource.hasChildren(node.element);
 
 		if (!hasChildren) {
 			this.setChildren(node === this.root ? null : node);
 			return Promise.resolve();
 		} else {
-			node.state = DataTreeNodeState.Loading;
+			node.state = AsyncDataTreeNodeState.Loading;
 			this._onDidChangeNodeState.fire(node);
 
 			const slowTimeout = timeout(800);
 
 			slowTimeout.then(() => {
-				node.state = DataTreeNodeState.Slow;
+				node.state = AsyncDataTreeNodeState.Slow;
 				this._onDidChangeNodeState.fire(node);
 			}, _ => null);
 
 			return this.dataSource.getChildren(node.element)
 				.then(children => {
 					slowTimeout.cancel();
-					node.state = DataTreeNodeState.Loaded;
+					node.state = AsyncDataTreeNodeState.Loaded;
 					this._onDidChangeNodeState.fire(node);
 
-					const createTreeElement = (element: T): ITreeElement<IDataTreeNode<T>> => {
+					const createTreeElement = (element: T): ITreeElement<IAsyncDataTreeNode<T>> => {
 						const collapsible = this.dataSource.hasChildren(element);
 
 						return {
 							element: {
 								element: element,
-								state: DataTreeNodeState.Uninitialized,
+								state: AsyncDataTreeNodeState.Uninitialized,
 								parent: node
 							},
 							collapsible,
@@ -400,12 +400,12 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 						};
 					};
 
-					const nodeChildren = children.map<ITreeElement<IDataTreeNode<T>>>(createTreeElement);
+					const nodeChildren = children.map<ITreeElement<IAsyncDataTreeNode<T>>>(createTreeElement);
 					this.setChildren(node === this.root ? null : node, nodeChildren);
 					this._onDidResolveChildren.fire({ element: node.element, reason });
 				}, err => {
 					slowTimeout.cancel();
-					node.state = DataTreeNodeState.Uninitialized;
+					node.state = AsyncDataTreeNodeState.Uninitialized;
 					this._onDidChangeNodeState.fire(node);
 
 					if (node !== this.root) {
@@ -417,23 +417,23 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 		}
 	}
 
-	private _onDidChangeCollapseState(treeNode: ITreeNode<IDataTreeNode<T>, any>): void {
-		if (!treeNode.collapsed && treeNode.element.state === DataTreeNodeState.Uninitialized) {
+	private _onDidChangeCollapseState(treeNode: ITreeNode<IAsyncDataTreeNode<T>, any>): void {
+		if (!treeNode.collapsed && treeNode.element.state === AsyncDataTreeNodeState.Uninitialized) {
 			this.refreshNode(treeNode.element, ChildrenResolutionReason.Expand);
 		}
 	}
 
-	private setChildren(element: IDataTreeNode<T> | null, children?: ISequence<ITreeElement<IDataTreeNode<T>>>): void {
+	private setChildren(element: IAsyncDataTreeNode<T> | null, children?: ISequence<ITreeElement<IAsyncDataTreeNode<T>>>): void {
 		const insertedElements = new Set<T>();
 
-		const onDidCreateNode = (node: ITreeNode<IDataTreeNode<T>, TFilterData>) => {
+		const onDidCreateNode = (node: ITreeNode<IAsyncDataTreeNode<T>, TFilterData>) => {
 			if (node.element.element) {
 				insertedElements.add(node.element.element);
 				this.nodes.set(node.element.element, node.element);
 			}
 		};
 
-		const onDidDeleteNode = (node: ITreeNode<IDataTreeNode<T>, TFilterData>) => {
+		const onDidDeleteNode = (node: ITreeNode<IAsyncDataTreeNode<T>, TFilterData>) => {
 			if (node.element.element) {
 				if (!insertedElements.has(node.element.element)) {
 					this.nodes.delete(node.element.element);
