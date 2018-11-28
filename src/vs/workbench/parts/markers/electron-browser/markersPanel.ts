@@ -27,7 +27,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { Iterator } from 'vs/base/common/iterator';
 import { ITreeElement, ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { debounceEvent, Relay, Event, Emitter } from 'vs/base/common/event';
-import { WorkbenchObjectTree, ObjectTreeResourceNavigator } from 'vs/platform/list/browser/listService';
+import { WorkbenchObjectTree, TreeResourceNavigator2 } from 'vs/platform/list/browser/listService';
 import { FilterOptions } from 'vs/workbench/parts/markers/electron-browser/markersFilterOptions';
 import { IExpression, getEmptyExpression } from 'vs/base/common/glob';
 import { mixin, deepClone } from 'vs/base/common/objects';
@@ -314,7 +314,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 			relatedInformationFocusContextKey.set(false);
 		}));
 
-		const markersNavigator = this._register(new ObjectTreeResourceNavigator(this.tree, { openOnFocus: true }));
+		const markersNavigator = this._register(new TreeResourceNavigator2(this.tree, { openOnFocus: true }));
 		this._register(debounceEvent(markersNavigator.openResource, (last, event) => event, 75, true)(options => {
 			this.openFileAtElement(options.element, options.editorOptions.preserveFocus, options.sideBySide, options.editorOptions.pinned);
 		}));

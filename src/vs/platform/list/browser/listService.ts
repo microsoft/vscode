@@ -576,12 +576,12 @@ export interface IResourceResultsNavigationOptions {
 	openOnFocus: boolean;
 }
 
-export class ObjectTreeResourceNavigator<T, TFilterData> extends Disposable {
+export class TreeResourceNavigator2<T, TFilterData> extends Disposable {
 
 	private readonly _openResource: Emitter<IOpenEvent<T>> = new Emitter<IOpenEvent<T>>();
 	readonly openResource: Event<IOpenEvent<T>> = this._openResource.event;
 
-	constructor(private tree: WorkbenchObjectTree<T, TFilterData>, private options?: IResourceResultsNavigationOptions) {
+	constructor(private tree: WorkbenchObjectTree<T, TFilterData> | WorkbenchDataTree<T, TFilterData>, private options?: IResourceResultsNavigationOptions) {
 		super();
 
 		this.registerListeners();
