@@ -134,7 +134,7 @@ export class PagedList<T> implements IDisposable {
 	}
 
 	get onContextMenu(): Event<IListContextMenuEvent<T>> {
-		return mapEvent(this.list.onContextMenu, ({ element, index, anchor, browserEvent }) => ({ element: this._model.get(element!), index, anchor, browserEvent }));
+		return mapEvent(this.list.onContextMenu, ({ element, index, anchor, browserEvent }) => (typeof element === 'undefined' ? { element, index, anchor, browserEvent } : { element: this._model.get(element), index, anchor, browserEvent }));
 	}
 
 	get model(): IPagedModel<T> {
