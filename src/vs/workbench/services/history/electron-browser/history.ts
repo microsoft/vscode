@@ -99,7 +99,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private static readonly STORAGE_KEY = 'history.entries';
 	private static readonly MAX_HISTORY_ITEMS = 200;
-	private static readonly MAX_STACK_ITEMS = 20;
+	private static readonly MAX_STACK_ITEMS = 50;
 	private static readonly MAX_RECENTLY_CLOSED_EDITORS = 20;
 
 	private activeEditorListeners: IDisposable[];
