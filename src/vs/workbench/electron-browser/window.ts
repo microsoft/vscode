@@ -104,7 +104,7 @@ export class ElectronWindow extends Themable {
 
 		// Support runAction event
 		ipc.on('vscode:runAction', (event: any, request: IRunActionInWindowRequest) => {
-			const args: any[] = [];
+			const args: any[] = request.args || [];
 
 			// If we run an action from the touchbar, we fill in the currently active resource
 			// as payload because the touch bar items are context aware depending on the editor

@@ -21,8 +21,9 @@ const DEFAULT_BACKGROUND_COLOR = '#1E1E1E';
 export class IssueService implements IIssueService {
 	_serviceBrand: any;
 	_issueWindow: BrowserWindow | null;
-	_issueParentWindow: BrowserWindow;
+	_issueParentWindow: BrowserWindow | null;
 	_processExplorerWindow: BrowserWindow | null;
+	_processExplorerParentWindow: BrowserWindow | null;
 
 	constructor(
 		private machineId: string,
@@ -49,9 +50,23 @@ export class IssueService implements IIssueService {
 			});
 		});
 
-		ipcMain.on('vscode:workbenchCommand', (event, arg) => {
-			if (this._issueParentWindow) {
-				this._issueParentWindow.webContents.send('vscode:runAction', { id: arg, from: 'issueReporter' });
+		ipcMain.on('vscode:workbenchCommand', (_, commandInfo) => {
+			const { id, from, args } = commandInfo;
+
+			let parentWindow: BrowserWindow | null;
+			switch (from) {
+				case 'issueReporter':
+					parentWindow = this._issueParentWindow;
+					break;
+				case 'processExplorer':
+					parentWindow = this._processExplorerParentWindow;
+					break;
+				default:
+					throw new Error(`Unexpected command source: ${from}`);
+			}
+
+			if (parentWindow) {
+				parentWindow.webContents.send('vscode:runAction', { id, from, args });
 			}
 		});
 
@@ -75,10 +90,11 @@ export class IssueService implements IIssueService {
 
 	openReporter(data: IssueReporterData): Promise<void> {
 		return new Promise(_ => {
-			this._issueParentWindow = BrowserWindow.getFocusedWindow();
-			if (this._issueParentWindow) {
-				const position = this.getWindowPosition(this._issueParentWindow, 700, 800);
-				if (!this._issueWindow) {
+			if (!this._issueWindow) {
+				this._issueParentWindow = BrowserWindow.getFocusedWindow();
+				if (this._issueParentWindow) {
+					const position = this.getWindowPosition(this._issueParentWindow, 700, 800);
+
 					this._issueWindow = new BrowserWindow({
 						width: position.width,
 						height: position.height,
@@ -107,7 +123,9 @@ export class IssueService implements IIssueService {
 						}
 					});
 				}
+			}
 
+			if (this._issueWindow) {
 				this._issueWindow.focus();
 			}
 		});
@@ -117,9 +135,9 @@ export class IssueService implements IIssueService {
 		return new Promise(_ => {
 			// Create as singleton
 			if (!this._processExplorerWindow) {
-				const parentWindow = BrowserWindow.getFocusedWindow();
-				if (parentWindow) {
-					const position = this.getWindowPosition(parentWindow, 800, 300);
+				this._processExplorerParentWindow = BrowserWindow.getFocusedWindow();
+				if (this._processExplorerParentWindow) {
+					const position = this.getWindowPosition(this._processExplorerParentWindow, 800, 300);
 					this._processExplorerWindow = new BrowserWindow({
 						skipTaskbar: true,
 						resizable: true,
@@ -156,18 +174,18 @@ export class IssueService implements IIssueService {
 
 					this._processExplorerWindow.on('close', () => this._processExplorerWindow = null);
 
-					parentWindow.on('close', () => {
+					this._processExplorerParentWindow.on('close', () => {
 						if (this._processExplorerWindow) {
 							this._processExplorerWindow.close();
 							this._processExplorerWindow = null;
 						}
 					});
 				}
+			}
 
-				// Focus
-				if (this._processExplorerWindow) {
-					this._processExplorerWindow.focus();
-				}
+			// Focus
+			if (this._processExplorerWindow) {
+				this._processExplorerWindow.focus();
 			}
 		});
 	}

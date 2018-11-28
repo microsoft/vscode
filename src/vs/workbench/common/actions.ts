@@ -110,7 +110,11 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 
 				const from = args && args.from || 'keybinding';
 
-				return Promise.resolve(actionInstance.run(undefined, { from })).then(() => {
+				if (args) {
+					delete args.from;
+				}
+
+				return Promise.resolve(actionInstance.run(args, { from })).then(() => {
 					actionInstance.dispose();
 				}, err => {
 					actionInstance.dispose();
