@@ -73,8 +73,8 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 		return this.recursiveResolve(workspaceFolder ? workspaceFolder.uri : undefined, result, commandValueMapping);
 	}
 
-	public resolveWithCommands(folder: IWorkspaceFolder, config: any): TPromise<any> {
-		throw new Error('resolveWithCommands not implemented.');
+	public resolveWithInteraction(folder: IWorkspaceFolder, config: any): TPromise<any> {
+		throw new Error('resolveWithInteraction not implemented.');
 	}
 
 	private recursiveResolve(folderUri: uri, value: any, commandValueMapping?: IStringDictionary<string>): any {
@@ -136,6 +136,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 					throw new Error(localize('missingConfigName', "'{0}' can not be resolved because no settings name is given.", match));
 
 				case 'command':
+				case 'input':
 					if (argument && commandValueMapping) {
 						const v = commandValueMapping[argument];
 						if (typeof v === 'string') {

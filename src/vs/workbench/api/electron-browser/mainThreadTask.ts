@@ -460,7 +460,9 @@ export class MainThreadTask implements MainThreadTaskShape {
 			if (TaskHandleDTO.is(value)) {
 				let workspaceFolder = this._workspaceContextServer.getWorkspaceFolder(URI.revive(value.workspaceFolder));
 				this._taskService.getTask(workspaceFolder, value.id, true).then((task: Task) => {
-					this._taskService.run(task);
+					this._taskService.run(task).then(undefined, reason => {
+						// eat the error, it has already been surfaced to the user and we don't care about it here
+					});
 					let result: TaskExecutionDTO = {
 						id: value.id,
 						task: TaskDTO.from(task)
@@ -471,7 +473,9 @@ export class MainThreadTask implements MainThreadTaskShape {
 				});
 			} else {
 				let task = TaskDTO.to(value, this._workspaceContextServer, true);
-				this._taskService.run(task);
+				this._taskService.run(task).then(undefined, reason => {
+					// eat the error, it has already been surfaced to the user and we don't care about it here
+				});
 				let result: TaskExecutionDTO = {
 					id: task._id,
 					task: TaskDTO.from(task)

@@ -418,6 +418,24 @@ tasks.items = {
 	oneOf: taskDefinitions
 };
 
+let inputDescription: IJSONSchema = definitions.inputDescription;
+let inputDefinitions: IJSONSchema[] = [];
+let selectionInputConfiguration: IJSONSchema = Objects.deepClone(inputDescription);
+selectionInputConfiguration.properties.options = {
+	type: 'array',
+	description: nls.localize('JsonSchema.tasks.inputOptions', 'Options to select from.'),
+	items: {
+		type: 'string'
+	}
+};
+inputDefinitions.push(Objects.deepClone(inputDescription));
+inputDefinitions.push(selectionInputConfiguration);
+
+let inputs = definitions.taskRunnerConfiguration.properties.inputs;
+inputs.items = {
+	oneOf: inputDefinitions
+};
+
 definitions.commandConfiguration.properties.isShellCommand = Objects.deepClone(shellCommand);
 definitions.options.properties.shell = {
 	$ref: '#/definitions/shellConfiguration'

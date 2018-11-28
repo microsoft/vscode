@@ -1271,7 +1271,9 @@ class TaskService extends Disposable implements ITaskService {
 		}
 		this._taskSystem.terminate(task).then((response) => {
 			if (response.success) {
-				this.run(task);
+				this.run(task).then(undefined, reason => {
+					// eat the error, it has already been surfaced to the user and we don't care about it here
+				});
 			} else {
 				this.notificationService.warn(nls.localize('TaskSystem.restartFailed', 'Failed to terminate and restart task {0}', Types.isString(task) ? task : task.name));
 			}
@@ -1955,7 +1957,9 @@ class TaskService extends Disposable implements ITaskService {
 				for (let folder of folders) {
 					let task = resolver.resolve(folder, identifier);
 					if (task) {
-						this.run(task);
+						this.run(task).then(undefined, reason => {
+							// eat the error, it has already been surfaced to the user and we don't care about it here
+						});
 						return;
 					}
 				}
@@ -1984,7 +1988,9 @@ class TaskService extends Disposable implements ITaskService {
 					if (task === null) {
 						this.runConfigureTasks();
 					} else {
-						this.run(task, { attachProblemMatcher: true });
+						this.run(task, { attachProblemMatcher: true }).then(undefined, reason => {
+							// eat the error, it has already been surfaced to the user and we don't care about it here
+						});
 					}
 				});
 		});
@@ -2040,7 +2046,9 @@ class TaskService extends Disposable implements ITaskService {
 			if (tasks.length > 0) {
 				let { defaults, users } = this.splitPerGroupType(tasks);
 				if (defaults.length === 1) {
-					this.run(defaults[0]);
+					this.run(defaults[0]).then(undefined, reason => {
+						// eat the error, it has already been surfaced to the user and we don't care about it here
+					});
 					return;
 				} else if (defaults.length + users.length > 0) {
 					tasks = defaults.concat(users);
@@ -2061,7 +2069,9 @@ class TaskService extends Disposable implements ITaskService {
 							this.runConfigureDefaultBuildTask();
 							return;
 						}
-						this.run(task, { attachProblemMatcher: true });
+						this.run(task, { attachProblemMatcher: true }).then(undefined, reason => {
+							// eat the error, it has already been surfaced to the user and we don't care about it here
+						});
 					});
 			});
 		});
@@ -2084,7 +2094,9 @@ class TaskService extends Disposable implements ITaskService {
 			if (tasks.length > 0) {
 				let { defaults, users } = this.splitPerGroupType(tasks);
 				if (defaults.length === 1) {
-					this.run(defaults[0]);
+					this.run(defaults[0]).then(undefined, reason => {
+						// eat the error, it has already been surfaced to the user and we don't care about it here
+					});
 					return;
 				} else if (defaults.length + users.length > 0) {
 					tasks = defaults.concat(users);
@@ -2105,7 +2117,9 @@ class TaskService extends Disposable implements ITaskService {
 						this.runConfigureTasks();
 						return;
 					}
-					this.run(task);
+					this.run(task).then(undefined, reason => {
+						// eat the error, it has already been surfaced to the user and we don't care about it here
+					});
 				});
 			});
 		});

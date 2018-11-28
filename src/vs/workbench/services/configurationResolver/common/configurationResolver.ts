@@ -24,9 +24,22 @@ export interface IConfigurationResolverService {
 	resolveAny(folder: IWorkspaceFolder, config: any, commandValueMapping?: IStringDictionary<string>): any;
 
 	/**
-	 * Recursively resolves all variables (including commands) in the given config and returns a copy of it with substituted values.
+	 * Recursively resolves all variables (including commands and user input) in the given config and returns a copy of it with substituted values.
 	 * If a "variables" dictionary (with names -> command ids) is given,
 	 * command variables are first mapped through it before being resolved.
 	 */
-	resolveWithCommands(folder: IWorkspaceFolder, config: any, variables?: IStringDictionary<string>): TPromise<any>;
+	resolveWithInteraction(folder: IWorkspaceFolder, config: any, variables?: IStringDictionary<string>): TPromise<any>;
+}
+
+export enum ConfiguredInputType {
+	prompt,
+	pick
+}
+
+export interface ConfiguredInput {
+	label: string;
+	description: string;
+	default?: string;
+	type: ConfiguredInputType;
+	options?: string[];
 }

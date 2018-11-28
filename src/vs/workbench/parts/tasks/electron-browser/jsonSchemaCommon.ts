@@ -172,6 +172,30 @@ const schema: IJSONSchema = {
 				}
 			}
 		},
+		inputDescription: {
+			type: 'object',
+			required: ['label', 'type', 'description'],
+			additionalProperties: false,
+			properties: {
+				label: {
+					type: 'string',
+					description: nls.localize('JsonSchema.tasks.inputLabel', "The input\'s label")
+				},
+				type: {
+					type: 'string',
+					description: nls.localize('JsonSchema.tasks.inputType', 'The input\'s type. Use prompt for free string input and selection for choosing from values'),
+					enum: ['prompt', 'pick']
+				},
+				description: {
+					type: 'string',
+					description: nls.localize('JsonSchema.tasks.inputDescription', 'Description to show for for using input.'),
+				},
+				default: {
+					type: 'string',
+					description: nls.localize('JsonSchema.tasks.inputDefault', 'Default value for the input.'),
+				}
+			}
+		},
 		taskRunnerConfiguration: {
 			type: 'object',
 			required: [],
@@ -234,6 +258,14 @@ const schema: IJSONSchema = {
 					items: {
 						type: 'object',
 						$ref: '#/definitions/taskDescription'
+					}
+				},
+				inputs: {
+					type: 'array',
+					description: nls.localize('JsonSchema.inputs', 'The task inputs. Used for getting user input.'),
+					items: {
+						type: 'object',
+						$ref: '#/definitions/inputDescription'
 					}
 				}
 			}
