@@ -36,14 +36,15 @@ interface IDataTreeListTemplateData<T> {
 }
 
 class DataTreeNodeWrapper<T, TFilterData> implements ITreeNode<T, TFilterData> {
-	get element(): T { return this.node.element.element; }
-	get parent(): ITreeNode<T, TFilterData> { return new DataTreeNodeWrapper(this.node.parent); }
+
+	get element(): T { return this.node.element.element!; }
+	get parent(): ITreeNode<T, TFilterData> | undefined { return this.node.parent && new DataTreeNodeWrapper(this.node.parent); }
 	get children(): ITreeNode<T, TFilterData>[] { return this.node.children.map(node => new DataTreeNodeWrapper(node)); }
 	get depth(): number { return this.node.depth; }
 	get collapsible(): boolean { return this.node.collapsible; }
 	get collapsed(): boolean { return this.node.collapsed; }
 	get visible(): boolean { return this.node.visible; }
-	get filterData(): TFilterData { return this.node.filterData; }
+	get filterData(): TFilterData | undefined { return this.node.filterData; }
 
 	constructor(private node: ITreeNode<IDataTreeNode<T>, TFilterData>) { }
 }
