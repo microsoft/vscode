@@ -219,21 +219,17 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 			};
 		}
 
-		result = result.filter((element) => element.status.activationTimes);
+		result = result.filter(element => element.status.activationTimes);
 
-		if (this._profileInfo) {
-			// sort descending by time spent in the profiler
-			result = result.sort((a, b) => {
-				if (a.unresponsiveProfile === this._profileInfo && !b.unresponsiveProfile) {
-					return -1;
-				} else if (!a.unresponsiveProfile && b.unresponsiveProfile === this._profileInfo) {
-					return 1;
-				} else if (a.profileInfo.totalTime === b.profileInfo.totalTime) {
-					return a.originalIndex - b.originalIndex;
-				}
-				return b.profileInfo.totalTime - a.profileInfo.totalTime;
-			});
-		}
+		// bubble up extensions that have caused slowness
+		result = result.sort((a, b) => {
+			if (a.unresponsiveProfile === this._profileInfo && !b.unresponsiveProfile) {
+				return -1;
+			} else if (!a.unresponsiveProfile && b.unresponsiveProfile === this._profileInfo) {
+				return 1;
+			}
+			return a.originalIndex - b.originalIndex;
+		});
 
 		return result;
 	}
@@ -467,28 +463,45 @@ export class ShowRuntimeExtensionsAction extends Action {
 	}
 }
 
-class ReportExtensionIssueAction extends Action {
+export class ReportExtensionIssueAction extends Action {
 
 	private static readonly _id = 'workbench.extensions.action.reportExtensionIssue';
 	private static _label = nls.localize('reportExtensionIssue', "Report Issue");
 
 	private readonly _url: string;
+	private readonly _task: () => Promise<any>;
 
-	constructor(extension: IRuntimeExtension) {
+	constructor(extension: {
+		description: IExtensionDescription;
+		marketplaceInfo: IExtension;
+		status: IExtensionsStatus;
+		unresponsiveProfile?: IExtensionHostProfile
+	}) {
 		super(ReportExtensionIssueAction._id, ReportExtensionIssueAction._label, 'extension-action report-issue');
 		this.enabled = extension.marketplaceInfo
 			&& extension.marketplaceInfo.type === LocalExtensionType.User
 			&& Boolean(extension.description.repository) && Boolean(extension.description.repository.url);
 
-		this._url = ReportExtensionIssueAction._generateNewIssueUrl(extension);
+		const { url, task } = ReportExtensionIssueAction._generateNewIssueUrl(extension);
+		this._url = url;
+		this._task = task;
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<void> {
+		if (this._task) {
+			await this._task();
+		}
 		window.open(this._url);
-		return Promise.resolve(null);
 	}
 
-	private static _generateNewIssueUrl(extension: IRuntimeExtension): string {
+	private static _generateNewIssueUrl(extension: {
+		description: IExtensionDescription;
+		marketplaceInfo: IExtension;
+		status: IExtensionsStatus;
+		unresponsiveProfile?: IExtensionHostProfile
+	}): { url: string, task?: () => Promise<any> } {
+
+		let task: () => Promise<any>;
 		let baseUrl = extension.marketplaceInfo && extension.marketplaceInfo.type === LocalExtensionType.User && extension.description.repository ? extension.description.repository.url : undefined;
 		if (!!baseUrl) {
 			baseUrl = `${baseUrl.indexOf('.git') !== -1 ? baseUrl.substr(0, baseUrl.length - 4) : baseUrl}/issues/new/`;
@@ -502,7 +515,11 @@ class ReportExtensionIssueAction extends Action {
 			// unresponsive extension host caused
 			reason = 'Performance';
 			let path = join(os.homedir(), `${extension.description.id}-unresponsive.cpuprofile.txt`);
-			writeFile(path, JSON.stringify(extension.unresponsiveProfile.data)).catch(onUnexpectedError);
+			task = async () => {
+				const profiler = await import('v8-inspect-profiler');
+				const data = profiler.rewriteAbsolutePaths({ profile: <any>extension.unresponsiveProfile.data }, 'pii_removed');
+				writeFile(path, JSON.stringify(data)).catch(onUnexpectedError);
+			};
 			message = `:warning: Make sure to **attach** this file from your *home*-directory: \`${path}\` :warning:`;
 
 		} else {
@@ -522,7 +539,10 @@ class ReportExtensionIssueAction extends Action {
 - VSCode version: \`${pkg.version}\`\n\n${message}`
 		);
 
-		return `${baseUrl}${queryStringPrefix}body=${body}`;
+		return {
+			url: `${baseUrl}${queryStringPrefix}body=${body}`,
+			task
+		};
 	}
 }
 

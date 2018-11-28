@@ -32,12 +32,11 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { attachInputBoxStyler, attachListStyler, computeStyles, defaultListStyles } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { InputFocusedContextKey } from 'vs/platform/workbench/common/contextkeys';
-import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
-import { ITreeOptions as ITreeOptions2, ITreeEvent } from 'vs/base/browser/ui/tree/abstractTree';
-import { ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
-import { DataTree, IDataSource } from 'vs/base/browser/ui/tree/dataTree';
+import { ObjectTree, IObjectTreeOptions } from 'vs/base/browser/ui/tree/objectTree';
+import { ITreeEvent, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
+import { AsyncDataTree, IDataSource, IAsyncDataTreeOptions } from 'vs/base/browser/ui/tree/asyncDataTree';
 
-export type ListWidget = List<any> | PagedList<any> | ITree | ObjectTree<any, any> | DataTree<any, any>;
+export type ListWidget = List<any> | PagedList<any> | ITree | ObjectTree<any, any> | AsyncDataTree<any, any>;
 
 export const IListService = createDecorator<IListService>('listService');
 
@@ -581,7 +580,7 @@ export class TreeResourceNavigator2<T, TFilterData> extends Disposable {
 	private readonly _openResource: Emitter<IOpenEvent<T>> = new Emitter<IOpenEvent<T>>();
 	readonly openResource: Event<IOpenEvent<T>> = this._openResource.event;
 
-	constructor(private tree: WorkbenchObjectTree<T, TFilterData> | WorkbenchDataTree<T, TFilterData>, private options?: IResourceResultsNavigationOptions) {
+	constructor(private tree: WorkbenchObjectTree<T, TFilterData> | WorkbenchAsyncDataTree<T, TFilterData>, private options?: IResourceResultsNavigationOptions) {
 		super();
 
 		this.registerListeners();
@@ -882,7 +881,7 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
 		renderers: ITreeRenderer<any /* TODO@joao */, TFilterData, any>[],
-		options: ITreeOptions2<T, TFilterData>,
+		options: IObjectTreeOptions<T, TFilterData>,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
@@ -932,7 +931,7 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 	}
 }
 
-export class WorkbenchDataTree<T extends NonNullable<any>, TFilterData = void> extends DataTree<T, TFilterData> {
+export class WorkbenchAsyncDataTree<T extends NonNullable<any>, TFilterData = void> extends AsyncDataTree<T, TFilterData> {
 
 	readonly contextKeyService: IContextKeyService;
 
@@ -945,7 +944,7 @@ export class WorkbenchDataTree<T extends NonNullable<any>, TFilterData = void> e
 		delegate: IListVirtualDelegate<T>,
 		renderers: ITreeRenderer<any /* TODO@joao */, TFilterData, any>[],
 		dataSource: IDataSource<T>,
-		options: ITreeOptions2<T, TFilterData>,
+		options: IAsyncDataTreeOptions<T, TFilterData>,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,

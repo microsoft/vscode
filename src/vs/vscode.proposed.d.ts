@@ -1090,6 +1090,15 @@ declare module 'vscode' {
 
 	//#region Tree View
 
+	export interface TreeView<T> {
+
+		/**
+		 * An optional human-readable message that will be rendered in the view.
+		 */
+		message?: string | MarkdownString;
+
+	}
+
 	/**
 	 * Label describing the [Tree item](#TreeItem)
 	 */
@@ -1147,4 +1156,18 @@ declare module 'vscode' {
 	}
 	//#endregion
 
+	//#region Extension Context
+	export interface ExtensionContext {
+
+		/**
+		 * An absolute file path in which the extension can store gloabal state.
+		 * The directory might not exist on disk and creation is
+		 * up to the extension. However, the parent directory is guaranteed to be existent.
+		 *
+		 * Use [`globalState`](#ExtensionContext.globalState) to store key value data.
+		 */
+		globalStoragePath: string;
+
+	}
+	//#endregion
 }

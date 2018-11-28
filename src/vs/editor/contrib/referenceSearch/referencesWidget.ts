@@ -26,7 +26,7 @@ import * as nls from 'vs/nls';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { WorkbenchDataTree } from 'vs/platform/list/browser/listService';
+import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { activeContrastBorder, contrastBorder, registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { PeekViewWidget } from './peekViewWidget';
@@ -236,7 +236,7 @@ export class ReferenceWidget extends PeekViewWidget {
 	private _onDidSelectReference = new Emitter<SelectionEvent>();
 
 	private _treeDataSource: DataSource;
-	private _tree: WorkbenchDataTree<TreeElement>;
+	private _tree: WorkbenchAsyncDataTree<TreeElement>;
 	private _treeContainer: HTMLElement;
 	private _sash: VSash;
 	private _preview: ICodeEditor;
@@ -358,11 +358,11 @@ export class ReferenceWidget extends PeekViewWidget {
 		this._treeDataSource = this._instantiationService.createInstance(DataSource);
 
 		this._tree = this._instantiationService.createInstance(
-			WorkbenchDataTree, this._treeContainer, new Delegate(),
+			WorkbenchAsyncDataTree, this._treeContainer, new Delegate(),
 			renderer as any,
 			this._treeDataSource,
 			treeOptions
-		) as any as WorkbenchDataTree<TreeElement>;
+		) as any as WorkbenchAsyncDataTree<TreeElement>;
 
 		ctxReferenceWidgetSearchTreeFocused.bindTo(this._tree.contextKeyService);
 

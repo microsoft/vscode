@@ -50,6 +50,7 @@ export interface IEnvironment {
 	appSettingsHome: URI;
 	extensionDevelopmentLocationURI: URI;
 	extensionTestsPath: string;
+	globalStorageHome: string;
 }
 
 export interface IWorkspaceData {
