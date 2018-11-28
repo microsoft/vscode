@@ -219,21 +219,17 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 			};
 		}
 
-		result = result.filter((element) => element.status.activationTimes);
+		result = result.filter(element => element.status.activationTimes);
 
-		if (this._profileInfo) {
-			// sort descending by time spent in the profiler
-			result = result.sort((a, b) => {
-				if (a.unresponsiveProfile === this._profileInfo && !b.unresponsiveProfile) {
-					return -1;
-				} else if (!a.unresponsiveProfile && b.unresponsiveProfile === this._profileInfo) {
-					return 1;
-				} else if (a.profileInfo.totalTime === b.profileInfo.totalTime) {
-					return a.originalIndex - b.originalIndex;
-				}
-				return b.profileInfo.totalTime - a.profileInfo.totalTime;
-			});
-		}
+		// bubble up extensions that have caused slowness
+		result = result.sort((a, b) => {
+			if (a.unresponsiveProfile === this._profileInfo && !b.unresponsiveProfile) {
+				return -1;
+			} else if (!a.unresponsiveProfile && b.unresponsiveProfile === this._profileInfo) {
+				return 1;
+			}
+			return a.originalIndex - b.originalIndex;
+		});
 
 		return result;
 	}
