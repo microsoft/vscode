@@ -52,7 +52,11 @@ export class ExtHostComments implements ExtHostCommentsShape {
 	): vscode.Disposable {
 		const handle = ExtHostComments.handlePool++;
 		this._documentProviders.set(handle, provider);
-		this._proxy.$registerDocumentCommentProvider(handle);
+		this._proxy.$registerDocumentCommentProvider(handle, {
+			startDraftLabel: provider.startDraftLabel,
+			deleteDraftLabel: provider.deleteDraftLabel,
+			finishDraftLabel: provider.finishDraftLabel
+		});
 		this.registerListeners(handle, provider);
 
 		return {
@@ -117,6 +121,13 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		});
 	}
 
+	$getStartDraftLabel(handle: number): Thenable<string> {
+		const provider = this._documentProviders.get(handle);
+		return asThenable(() => {
+			return provider.startDraftLabel;
+		});
+	}
+
 	$provideDocumentComments(handle: number, uri: UriComponents): Thenable<modes.CommentInfo> {
 		const data = this._documents.getDocumentData(URI.revive(uri));
 		if (!data || !data.document) {
@@ -157,7 +168,8 @@ export class ExtHostComments implements ExtHostCommentsShape {
 function convertCommentInfo(owner: number, provider: vscode.DocumentCommentProvider, vscodeCommentInfo: vscode.CommentInfo, commandsConverter: CommandsConverter): modes.CommentInfo {
 	return {
 		threads: vscodeCommentInfo.threads.map(x => convertToCommentThread(provider, x, commandsConverter)),
-		commentingRanges: vscodeCommentInfo.commentingRanges ? vscodeCommentInfo.commentingRanges.map(range => extHostTypeConverter.Range.from(range)) : []
+		commentingRanges: vscodeCommentInfo.commentingRanges ? vscodeCommentInfo.commentingRanges.map(range => extHostTypeConverter.Range.from(range)) : [],
+		draftMode: provider.startDraft ? (vscodeCommentInfo.inDraftMode ? modes.DraftMode.InDraft : modes.DraftMode.NotInDraft) : modes.DraftMode.NotSupported
 	};
 }
 

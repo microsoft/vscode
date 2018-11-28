@@ -65,6 +65,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 	private _commentGlyph: CommentGlyphWidget;
 	private _owner: string;
 	private _pendingComment: string;
+	private _draftMode: modes.DraftMode;
 	private _localToDispose: IDisposable[];
 	private _globalToDispose: IDisposable[];
 	private _markdownRenderer: MarkdownRenderer;
@@ -91,6 +92,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		owner: string,
 		commentThread: modes.CommentThread,
 		pendingComment: string,
+		draftMode: modes.DraftMode,
 		options: IOptions = {}
 	) {
 		super(editor, options);
@@ -98,6 +100,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._owner = owner;
 		this._commentThread = commentThread;
 		this._pendingComment = pendingComment;
+		this._draftMode = draftMode;
 		this._isCollapsed = commentThread.collapsibleState !== modes.CommentThreadCollapsibleState.Expanded;
 		this._globalToDispose = [];
 		this._localToDispose = [];
@@ -347,6 +350,27 @@ export class ReviewZoneWidget extends ZoneWidget {
 			let lineNumber = this._commentGlyph.getPosition().position.lineNumber;
 			this.createComment(lineNumber);
 		});
+
+		if (this._draftMode !== modes.DraftMode.NotSupported) {
+			// render draft button
+			const draftButton = new Button(formActions);
+			attachButtonStyler(draftButton, this.themeService);
+			draftButton.label = this.commentService.getStartDraftLabel(this._owner);
+
+			draftButton.enabled = model.getValueLength() > 0;
+			this._localToDispose.push(this._commentEditor.onDidChangeModelContent(_ => {
+				if (this._commentEditor.getValue()) {
+					draftButton.enabled = true;
+				} else {
+					draftButton.enabled = false;
+				}
+			}));
+
+			// draftButton.onDidClick(async () => {
+			// 	let lineNumber = this._commentGlyph.getPosition().position.lineNumber;
+			// 	this.createComment(lineNumber);
+			// });
+		}
 
 		this._resizeObserver = new MutationObserver(this._refresh.bind(this));
 

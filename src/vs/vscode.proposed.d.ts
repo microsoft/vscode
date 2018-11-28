@@ -809,6 +809,11 @@ declare module 'vscode' {
 		 * The ranges of the document which support commenting.
 		 */
 		commentingRanges?: Range[];
+
+		/**
+		 * If it's in draft mode or not
+		 */
+		inDraftMode?: boolean;
 	}
 
 	export enum CommentThreadCollapsibleState {
@@ -903,6 +908,8 @@ declare module 'vscode' {
 		 * The command to be executed if the comment is selected in the Comments Panel
 		 */
 		command?: Command;
+
+		isDraft?: boolean;
 	}
 
 	export interface CommentThreadChangedEvent {
@@ -947,6 +954,14 @@ declare module 'vscode' {
 		 * Called when a user deletes the comment.
 		 */
 		deleteComment?(document: TextDocument, comment: Comment, token: CancellationToken): Promise<void>;
+
+		startDraft?(token: CancellationToken): Promise<void>;
+		deleteDraft?(token: CancellationToken): Promise<void>;
+		finishDraft?(token: CancellationToken): Promise<void>;
+
+		startDraftLabel?: string;
+		deleteDraftLabel?: string;
+		finishDraftLabel?: string;
 
 		/**
 		 * Notify of updates to comment threads.
