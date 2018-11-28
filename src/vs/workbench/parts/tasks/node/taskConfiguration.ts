@@ -121,7 +121,7 @@ export interface PresentationOptionsConfig {
 
 export interface RunOptionsConfig {
 	rerunBehavior?: string;
-	startAutomatically?: boolean;
+	runOn?: string;
 }
 
 export interface TaskIdentifier {
@@ -649,11 +649,26 @@ export namespace RerunBehavior {
 	}
 }
 
+export namespace RunOnOptions {
+	export function fromString(value: string | undefined): Tasks.RunOnOptions {
+		if (!value) {
+			return Tasks.RunOnOptions.default;
+		}
+		switch (value.toLowerCase()) {
+			case 'folderopen':
+				return Tasks.RunOnOptions.folderOpen;
+			case 'default':
+			default:
+				return Tasks.RunOnOptions.default;
+		}
+	}
+}
+
 export namespace RunOptions {
 	export function fromConfiguration(value: RunOptionsConfig | undefined): Tasks.RunOptions {
 		return {
 			rerunBehavior: value ? RerunBehavior.fromString(value.rerunBehavior) : Tasks.RerunBehavior.reevaluate,
-			startAutomatically: value ? value.startAutomatically : false
+			runOn: value ? RunOnOptions.fromString(value.runOn) : Tasks.RunOnOptions.default
 		};
 	}
 }

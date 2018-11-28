@@ -426,9 +426,14 @@ export enum RerunBehavior {
 	useEvaluated = 2,
 }
 
+export enum RunOnOptions {
+	default = 1,
+	folderOpen = 2
+}
+
 export interface RunOptions {
 	rerunBehavior?: RerunBehavior;
-	startAutomatically?: boolean;
+	runOn?: RunOnOptions;
 }
 export interface CommonTask {
 

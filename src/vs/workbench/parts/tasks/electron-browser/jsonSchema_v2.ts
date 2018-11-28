@@ -289,9 +289,11 @@ const runOptions: IJSONSchema = {
 			enum: ['reevauate', 'useEvaluated'],
 			description: nls.localize('JsonSchema.tasks.rerunBehavior', 'The task\'s behavior on rerun')
 		},
-		startAutomatically: {
-			type: 'boolean',
-			description: nls.localize('JsonSchema.tasks.startAutomatically', 'Whether the task should be started automatically when the workspace or folder is opened.')
+		runOn: {
+			type: 'string',
+			enum: ['default', 'folderOpen'],
+			description: nls.localize('JsonSchema.tasks.runOn', 'Configures when the task should be run. If set to folderOpen, then the task will be run automatically when the folder is opened.'),
+			default: 'default'
 		},
 	},
 	description: nls.localize('JsonSchema.tasks.runOptions', 'The task\'s run related options')

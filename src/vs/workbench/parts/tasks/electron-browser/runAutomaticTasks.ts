@@ -7,6 +7,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ITaskService } from 'vs/workbench/parts/tasks/common/taskService';
 import { forEach } from 'vs/base/common/collections';
+import { RunOnOptions } from 'vs/workbench/parts/tasks/common/tasks';
 
 export class RunAutomaticTasks extends Disposable implements IWorkbenchContribution {
 	constructor(
@@ -16,19 +17,21 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		taskService.getWorkspaceTasks().then(workspaceTaskResult => {
 			workspaceTaskResult.forEach(resultElement => {
 				resultElement.set.tasks.forEach(task => {
-					if (task.runOptions.startAutomatically) {
+					if (task.runOptions.runOn === RunOnOptions.folderOpen) {
 						taskService.run(task);
 					}
 				});
-				forEach(resultElement.configurations.byIdentifier, (configedTask) => {
-					if (configedTask.value.runOptions.startAutomatically) {
-						taskService.getTask(resultElement.workspaceFolder, configedTask.value._id, true).then(task => {
-							if (task) {
-								taskService.run(task);
-							}
-						});
-					}
-				});
+				if (resultElement.configurations) {
+					forEach(resultElement.configurations.byIdentifier, (configedTask) => {
+						if (configedTask.value.runOptions.runOn === RunOnOptions.folderOpen) {
+							taskService.getTask(resultElement.workspaceFolder, configedTask.value._id, true).then(task => {
+								if (task) {
+									taskService.run(task);
+								}
+							});
+						}
+					});
+				}
 			});
 		});
 	}
