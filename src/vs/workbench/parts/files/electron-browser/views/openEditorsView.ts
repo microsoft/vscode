@@ -417,12 +417,8 @@ export class OpenEditorsView extends ViewletPanel {
 		}
 
 		// Trigger a 'repaint' when decoration settings change
-		if (event.affectsConfiguration('explorer.decorations')) {
-			this.listRefreshScheduler.schedule();
-		}
-
 		// In case the labelFormat setting change, label description needs to change
-		if (event.affectsConfiguration('workbench.editor.labelFormat')) {
+		if (event.affectsConfiguration('explorer.decorations') || event.affectsConfiguration('workbench.editor.labelFormat')) {
 			this.listRefreshScheduler.schedule();
 		}
 	}
@@ -713,7 +709,11 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 			resource: toResource(editor.editor, { supportSideBySide: true }),
 			name: editor.editor.getName(),
 			description: editor.editor.getDescription(this.getVerbosity(labelFormat))
-		});
+		},
+			{
+				title: editor.editor.getTitle(),
+				italic: !this.editorGroupService.getGroup(index).isPinned
+			});
 	}
 
 	private getVerbosity(style: string): Verbosity {
