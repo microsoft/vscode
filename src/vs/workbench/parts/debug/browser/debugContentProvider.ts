@@ -13,6 +13,9 @@ import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/s
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { DEBUG_SCHEME, IDebugService, IDebugSession } from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { Range } from 'vs/editor/common/core/range';
 
 /**
  * Debug URI format
@@ -29,16 +32,43 @@ import { Source } from 'vs/workbench/parts/debug/common/debugSource';
  */
 export class DebugContentProvider implements IWorkbenchContribution, ITextModelContentProvider {
 
+	private static INSTANCE: DebugContentProvider;
+
 	constructor(
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IDebugService private debugService: IDebugService,
 		@IModelService private modelService: IModelService,
-		@IModeService private modeService: IModeService
+		@IModeService private modeService: IModeService,
+		@IEditorWorkerService private editorWorkerService: IEditorWorkerService
 	) {
 		textModelResolverService.registerTextModelContentProvider(DEBUG_SCHEME, this);
+		DebugContentProvider.INSTANCE = this;
 	}
 
 	provideTextContent(resource: uri): Promise<ITextModel> {
+		return this.createOrUpdateContentModel(resource, true);
+	}
+
+	/**
+	 * Reload the model content of the given resource.
+	 * If there is no model for the given resource, this method does nothing.
+	 */
+	static refreshDebugContent(resource: uri): void {
+		if (DebugContentProvider.INSTANCE) {
+			DebugContentProvider.INSTANCE.createOrUpdateContentModel(resource, false);
+		}
+	}
+
+	/**
+	 * Create or reload the model content of the given resource.
+	 */
+	private createOrUpdateContentModel(resource: uri, createIfNotExists: boolean): Promise<ITextModel> {
+
+		const model = this.modelService.getModel(resource);
+		if (!model && !createIfNotExists) {
+			// nothing to do
+			return undefined;
+		}
 
 		let session: IDebugSession;
 
@@ -67,9 +97,22 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 		return session.loadSource(resource).then(response => {
 
 			if (response && response.body) {
-				const mime = response.body.mimeType || guessMimeTypes(resource.path)[0];
-				const languageSelection = this.modeService.create(mime);
-				return this.modelService.createModel(response.body.content, languageSelection, resource);
+
+				if (model) {
+					// update text model
+					return this.editorWorkerService.computeMoreMinimalEdits(model.uri, [{ text: response.body.content, range: model.getFullModelRange() }]).then(edits => {
+						if (edits.length > 0) {
+							// use the evil-edit as these models show in readonly-editor only
+							model.applyEdits(edits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
+						}
+						return model;
+					});
+				} else {
+					// create text model
+					const mime = response.body.mimeType || guessMimeTypes(resource.path)[0];
+					const languageSelection = this.modeService.create(mime);
+					return this.modelService.createModel(response.body.content, languageSelection, resource);
+				}
 			}
 
 			return createErrModel();
