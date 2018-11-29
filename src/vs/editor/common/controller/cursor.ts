@@ -108,9 +108,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 	private _isDoingComposition: boolean;
 	private _columnSelectData: IColumnSelectData | null;
 	private _prevEditOperationType: EditOperationType;
-
-	public prevChar: string;
-
+	
 	constructor(configuration: editorCommon.IConfiguration, model: ITextModel, viewModel: IViewModel) {
 		super();
 		this._configuration = configuration;
