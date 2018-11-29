@@ -5,13 +5,13 @@
 
 import { ComposedTreeDelegate, IAbstractTreeOptions } from 'vs/base/browser/ui/tree/abstractTree';
 import { ObjectTree, IObjectTreeOptions } from 'vs/base/browser/ui/tree/objectTree';
-import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { ITreeElement, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeFilter } from 'vs/base/browser/ui/tree/tree';
+import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { ITreeElement, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Emitter, Event, mapEvent } from 'vs/base/common/event';
 import { timeout, always } from 'vs/base/common/async';
 import { ISequence } from 'vs/base/common/iterator';
-import { IListStyles, IMultipleSelectionController, IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { toggleClass } from 'vs/base/browser/dom';
 
 export interface IDataSource<T extends NonNullable<any>> {
@@ -123,69 +123,36 @@ export interface IChildrenResolutionEvent<T> {
 	readonly reason: ChildrenResolutionReason;
 }
 
-export interface IAsyncDataTreeOptions<T, TFilterData = void> extends IAbstractTreeOptions<T, TFilterData> { }
-
 function asObjectTreeOptions<T, TFilterData>(options?: IAsyncDataTreeOptions<T, TFilterData>): IObjectTreeOptions<IAsyncDataTreeNode<T>, TFilterData> | undefined {
-	if (!options) {
-		return undefined;
-	}
-
-	let identityProvider: IIdentityProvider<IAsyncDataTreeNode<T>> | undefined = undefined;
-
-	if (options.identityProvider) {
-		const ip = options.identityProvider;
-		identityProvider = {
+	return options && {
+		...options,
+		identityProvider: options.identityProvider && {
 			getId(el) {
-				return ip.getId(el.element!);
+				return options.identityProvider!.getId(el.element!);
 			}
-		};
-	}
-
-	let multipleSelectionController: IMultipleSelectionController<IAsyncDataTreeNode<T>> | undefined = undefined;
-
-	if (options.multipleSelectionController) {
-		const msc = options.multipleSelectionController;
-		multipleSelectionController = {
+		},
+		multipleSelectionController: options.multipleSelectionController && {
 			isSelectionSingleChangeEvent(e) {
-				return msc.isSelectionSingleChangeEvent({ ...e, element: e.element } as any);
+				return options.multipleSelectionController!.isSelectionSingleChangeEvent({ ...e, element: e.element } as any);
 			},
 			isSelectionRangeChangeEvent(e) {
-				return msc.isSelectionRangeChangeEvent({ ...e, element: e.element } as any);
+				return options.multipleSelectionController!.isSelectionRangeChangeEvent({ ...e, element: e.element } as any);
 			}
-		};
-	}
-
-	let accessibilityProvider: IAccessibilityProvider<IAsyncDataTreeNode<T>> | undefined = undefined;
-
-	if (options.accessibilityProvider) {
-		const ap = options.accessibilityProvider;
-		accessibilityProvider = {
+		},
+		accessibilityProvider: options.accessibilityProvider && {
 			getAriaLabel(e) {
-				return ap.getAriaLabel(e.element!);
+				return options.accessibilityProvider!.getAriaLabel(e.element!);
 			}
-		};
-	}
-
-	let filter: ITreeFilter<IAsyncDataTreeNode<T>, TFilterData> | undefined = undefined;
-
-	if (options.filter) {
-		const f = options.filter;
-		filter = {
+		},
+		filter: options.filter && {
 			filter(element, parentVisibility) {
-				return f.filter(element.element!, parentVisibility);
+				return options.filter!.filter(element.element!, parentVisibility);
 			}
-		};
-	}
-
-	return {
-		...options,
-		identityProvider,
-		multipleSelectionController,
-		accessibilityProvider,
-		filter
+		}
 	};
 }
 
+export interface IAsyncDataTreeOptions<T, TFilterData = void> extends IAbstractTreeOptions<T, TFilterData> { }
 
 export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> implements IDisposable {
 
