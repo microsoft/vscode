@@ -615,67 +615,6 @@ class SQLiteStorageDatabaseLogger {
 	}
 }
 
-export class NullStorage extends Disposable implements IStorage {
-
-	readonly items = new Map<string, string>();
-	readonly size = 0;
-	readonly onDidChangeStorage = Event.None;
-
-	init(): Promise<void> { return Promise.resolve(); }
-
-	get(key: string, fallbackValue: string): string;
-	get(key: string, fallbackValue?: string): string | undefined;
-	get(key: string, fallbackValue?: string): string | undefined {
-		return void 0;
-	}
-
-	getBoolean(key: string, fallbackValue: boolean): boolean;
-	getBoolean(key: string, fallbackValue?: boolean): boolean | undefined;
-	getBoolean(key: string, fallbackValue?: boolean): boolean | undefined {
-		return void 0;
-	}
-
-	getInteger(key: string, fallbackValue: number): number;
-	getInteger(key: string, fallbackValue?: number): number | undefined;
-	getInteger(key: string, fallbackValue?: number): number | undefined {
-		return void 0;
-	}
-
-	set(key: string, value: any): Promise<void> {
-		return Promise.resolve();
-	}
-
-	delete(key: string): Promise<void> {
-		return Promise.resolve();
-	}
-
-	close(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	checkIntegrity(full: boolean): Promise<string> {
-		return Promise.resolve('ok');
-	}
-}
-
-export class NullStorageDatabase implements IStorageDatabase {
-	getItems(): Thenable<Map<string, string>> {
-		return Promise.resolve(new Map());
-	}
-
-	updateItems(request: IUpdateRequest): Thenable<void> {
-		return Promise.resolve();
-	}
-
-	close(): Thenable<void> {
-		return Promise.resolve();
-	}
-
-	checkIntegrity(full: boolean): Thenable<string> {
-		return Promise.resolve('ok');
-	}
-}
-
 export class InMemoryStorageDatabase implements IStorageDatabase {
 	private items = new Map<string, string>();
 
