@@ -393,49 +393,55 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 		switch (this._draftMode) {
 			case modes.DraftMode.InDraft:
-				const deletedraftButton = new Button(container);
-				attachButtonStyler(deletedraftButton, this.themeService);
-				deletedraftButton.label = this.commentService.getDeleteDraftLabel(this._owner);
+				const deleteDraftLabel = this.commentService.getDeleteDraftLabel(this._owner);
+				if (deleteDraftLabel) {
+					const deletedraftButton = new Button(container);
+					attachButtonStyler(deletedraftButton, this.themeService);
+					deletedraftButton.label = deleteDraftLabel;
+					deletedraftButton.enabled = true;
 
-				deletedraftButton.enabled = true;
+					deletedraftButton.onDidClick(async () => {
+						await this.commentService.deleteDraft(this._owner);
+					});
+				}
 
-				deletedraftButton.onDidClick(async () => {
-					await this.commentService.deleteDraft(this._owner);
-				});
+				const submitDraftLabel = this.commentService.getFinishDraftLabel(this._owner);
+				if (submitDraftLabel) {
+					const submitdraftButton = new Button(container);
+					attachButtonStyler(submitdraftButton, this.themeService);
+					submitdraftButton.label = this.commentService.getFinishDraftLabel(this._owner);
+					submitdraftButton.enabled = true;
 
-				const submitdraftButton = new Button(container);
-				attachButtonStyler(submitdraftButton, this.themeService);
-				submitdraftButton.label = this.commentService.getFinishDraftLabel(this._owner);
-
-				submitdraftButton.enabled = true;
-
-				submitdraftButton.onDidClick(async () => {
-					let lineNumber = this._commentGlyph.getPosition().position.lineNumber;
-					await this.createComment(lineNumber);
-					await this.commentService.finishDraft(this._owner);
-				});
+					submitdraftButton.onDidClick(async () => {
+						let lineNumber = this._commentGlyph.getPosition().position.lineNumber;
+						await this.createComment(lineNumber);
+						await this.commentService.finishDraft(this._owner);
+					});
+				}
 
 				break;
 			case modes.DraftMode.NotInDraft:
-				// render draft button
-				const draftButton = new Button(container);
-				attachButtonStyler(draftButton, this.themeService);
-				draftButton.label = this.commentService.getStartDraftLabel(this._owner);
+				const startDraftLabel = this.commentService.getStartDraftLabel(this._owner);
+				if (startDraftLabel) {
+					const draftButton = new Button(container);
+					attachButtonStyler(draftButton, this.themeService);
+					draftButton.label = this.commentService.getStartDraftLabel(this._owner);
 
-				draftButton.enabled = model.getValueLength() > 0;
-				this._localToDispose.push(this._commentEditor.onDidChangeModelContent(_ => {
-					if (this._commentEditor.getValue()) {
-						draftButton.enabled = true;
-					} else {
-						draftButton.enabled = false;
-					}
-				}));
+					draftButton.enabled = model.getValueLength() > 0;
+					this._localToDispose.push(this._commentEditor.onDidChangeModelContent(_ => {
+						if (this._commentEditor.getValue()) {
+							draftButton.enabled = true;
+						} else {
+							draftButton.enabled = false;
+						}
+					}));
 
-				draftButton.onDidClick(async () => {
-					await this.commentService.startDraft(this._owner);
-					let lineNumber = this._commentGlyph.getPosition().position.lineNumber;
-					await this.createComment(lineNumber);
-				});
+					draftButton.onDidClick(async () => {
+						await this.commentService.startDraft(this._owner);
+						let lineNumber = this._commentGlyph.getPosition().position.lineNumber;
+						await this.createComment(lineNumber);
+					});
+				}
 
 				break;
 		}
