@@ -39,6 +39,7 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { CommentNode } from 'vs/workbench/parts/comments/electron-browser/commentNode';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { ITextModel } from 'vs/editor/common/model';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 const COLLAPSE_ACTION_CLASS = 'expand-review-action octicon octicon-x';
@@ -332,45 +333,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._error = dom.append(this._commentForm, dom.$('.validation-error.hidden'));
 
 		const formActions = dom.append(this._commentForm, dom.$('.form-actions'));
-
-		const button = new Button(formActions);
-		attachButtonStyler(button, this.themeService);
-		button.label = 'Add comment';
-
-		button.enabled = model.getValueLength() > 0;
-		this._localToDispose.push(this._commentEditor.onDidChangeModelContent(_ => {
-			if (this._commentEditor.getValue()) {
-				button.enabled = true;
-			} else {
-				button.enabled = false;
-			}
-		}));
-
-		button.onDidClick(async () => {
-			let lineNumber = this._commentGlyph.getPosition().position.lineNumber;
-			this.createComment(lineNumber);
-		});
-
-		if (this._draftMode !== modes.DraftMode.NotSupported) {
-			// render draft button
-			const draftButton = new Button(formActions);
-			attachButtonStyler(draftButton, this.themeService);
-			draftButton.label = this.commentService.getStartDraftLabel(this._owner);
-
-			draftButton.enabled = model.getValueLength() > 0;
-			this._localToDispose.push(this._commentEditor.onDidChangeModelContent(_ => {
-				if (this._commentEditor.getValue()) {
-					draftButton.enabled = true;
-				} else {
-					draftButton.enabled = false;
-				}
-			}));
-
-			// draftButton.onDidClick(async () => {
-			// 	let lineNumber = this._commentGlyph.getPosition().position.lineNumber;
-			// 	this.createComment(lineNumber);
-			// });
-		}
+		this.createCommentWidgetActions(formActions, model);
 
 		this._resizeObserver = new MutationObserver(this._refresh.bind(this));
 
@@ -393,6 +356,77 @@ export class ReviewZoneWidget extends ZoneWidget {
 				dom.addClass(this._commentForm, 'expand');
 			}
 			this._commentEditor.focus();
+		}
+	}
+
+	private createCommentWidgetActions(container: HTMLElement, model: ITextModel) {
+		const button = new Button(container);
+		attachButtonStyler(button, this.themeService);
+		button.label = 'Add comment';
+
+		button.enabled = model.getValueLength() > 0;
+		this._localToDispose.push(this._commentEditor.onDidChangeModelContent(_ => {
+			if (this._commentEditor.getValue()) {
+				button.enabled = true;
+			} else {
+				button.enabled = false;
+			}
+		}));
+
+		button.onDidClick(async () => {
+			let lineNumber = this._commentGlyph.getPosition().position.lineNumber;
+			this.createComment(lineNumber);
+		});
+
+		if (this._draftMode === modes.DraftMode.NotSupported) {
+			return;
+		}
+
+		switch (this._draftMode) {
+			case modes.DraftMode.InDraft:
+				const deletedraftButton = new Button(container);
+				attachButtonStyler(deletedraftButton, this.themeService);
+				deletedraftButton.label = this.commentService.getDeleteDraftLabel(this._owner);
+
+				deletedraftButton.enabled = true;
+
+				deletedraftButton.onDidClick(async () => {
+					await this.commentService.deleteDraft(this._owner);
+				});
+
+				const submitdraftButton = new Button(container);
+				attachButtonStyler(submitdraftButton, this.themeService);
+				submitdraftButton.label = this.commentService.getFinishDraftLabel(this._owner);
+
+				submitdraftButton.enabled = true;
+
+				submitdraftButton.onDidClick(async () => {
+					await this.commentService.finishDraft(this._owner);
+				});
+
+				break;
+			case modes.DraftMode.NotInDraft:
+				// render draft button
+				const draftButton = new Button(container);
+				attachButtonStyler(draftButton, this.themeService);
+				draftButton.label = this.commentService.getStartDraftLabel(this._owner);
+
+				draftButton.enabled = model.getValueLength() > 0;
+				this._localToDispose.push(this._commentEditor.onDidChangeModelContent(_ => {
+					if (this._commentEditor.getValue()) {
+						draftButton.enabled = true;
+					} else {
+						draftButton.enabled = false;
+					}
+				}));
+
+				draftButton.onDidClick(async () => {
+					await this.commentService.startDraft(this._owner);
+					let lineNumber = this._commentGlyph.getPosition().position.lineNumber;
+					await this.createComment(lineNumber);
+				});
+
+				break;
 		}
 	}
 

@@ -1202,6 +1202,7 @@ export interface Comment {
 	readonly canEdit?: boolean;
 	readonly canDelete?: boolean;
 	readonly command?: Command;
+	readonly isDraft?: boolean;
 }
 
 /**

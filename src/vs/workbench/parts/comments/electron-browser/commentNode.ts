@@ -99,6 +99,11 @@ export class CommentNode extends Disposable {
 		const author = dom.append(header, dom.$('strong.author'));
 		author.innerText = this.comment.userName;
 
+		if (this.comment.isDraft) {
+			const isPendingLabel = dom.append(header, dom.$('span.isPending'));
+			isPendingLabel.innerText = 'Pending';
+		}
+
 		const actions: Action[] = [];
 		if (this.comment.canEdit) {
 			this._editAction = this.createEditAction(commentDetailsContainer);

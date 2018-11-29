@@ -121,6 +121,27 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		});
 	}
 
+	$startDraft(handle: number): Thenable<void> {
+		const provider = this._documentProviders.get(handle);
+		return asThenable(() => {
+			return provider.startDraft(CancellationToken.None);
+		});
+	}
+
+	$deleteDraft(handle: number): Thenable<void> {
+		const provider = this._documentProviders.get(handle);
+		return asThenable(() => {
+			return provider.deleteDraft(CancellationToken.None);
+		});
+	}
+
+	$finishDraft(handle: number): Thenable<void> {
+		const provider = this._documentProviders.get(handle);
+		return asThenable(() => {
+			return provider.finishDraft(CancellationToken.None);
+		});
+	}
+
 	$getStartDraftLabel(handle: number): Thenable<string> {
 		const provider = this._documentProviders.get(handle);
 		return asThenable(() => {
@@ -209,7 +230,8 @@ function convertFromComment(comment: modes.Comment): vscode.Comment {
 		userName: comment.userName,
 		userIconPath: userIconPath,
 		canEdit: comment.canEdit,
-		canDelete: comment.canDelete
+		canDelete: comment.canDelete,
+		isDraft: comment.isDraft
 	};
 }
 
@@ -224,6 +246,7 @@ function convertToComment(provider: vscode.DocumentCommentProvider | vscode.Work
 		userIconPath: iconPath,
 		canEdit: canEdit,
 		canDelete: canDelete,
-		command: vscodeComment.command ? commandsConverter.toInternal(vscodeComment.command) : null
+		command: vscodeComment.command ? commandsConverter.toInternal(vscodeComment.command) : null,
+		isDraft: vscodeComment.isDraft
 	};
 }

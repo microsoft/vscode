@@ -927,6 +927,11 @@ declare module 'vscode' {
 		 * Changed comment threads.
 		 */
 		readonly changed: CommentThread[];
+
+		/**
+		 * Changed draft mode
+		 */
+		readonly inDraftMode: boolean;
 	}
 
 	interface DocumentCommentProvider {

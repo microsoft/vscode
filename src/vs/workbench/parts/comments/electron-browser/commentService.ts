@@ -49,6 +49,9 @@ export interface ICommentService {
 	editComment(owner: string, resource: URI, comment: Comment, text: string): Promise<void>;
 	deleteComment(owner: string, resource: URI, comment: Comment): Promise<boolean>;
 	getComments(resource: URI): Promise<ICommentInfo[]>;
+	startDraft(owner: string): void;
+	deleteDraft(owner: string): void;
+	finishDraft(owner: string): void;
 	getStartDraftLabel(owner: string): string;
 	getDeleteDraftLabel(owner: string): string;
 	getFinishDraftLabel(owner: string): string;
@@ -143,6 +146,36 @@ export class CommentService extends Disposable implements ICommentService {
 		}
 
 		return Promise.resolve(false);
+	}
+
+	async startDraft(owner: string): Promise<void> {
+		const commentProvider = this._commentProviders.get(owner);
+
+		if (commentProvider && commentProvider.startDraft) {
+			return commentProvider.startDraft(CancellationToken.None);
+		} else {
+			throw new Error('Not supported');
+		}
+	}
+
+	async deleteDraft(owner: string): Promise<void> {
+		const commentProvider = this._commentProviders.get(owner);
+
+		if (commentProvider && commentProvider.deleteDraft) {
+			return commentProvider.deleteDraft(CancellationToken.None);
+		} else {
+			throw new Error('Not supported');
+		}
+	}
+
+	async finishDraft(owner: string): Promise<void> {
+		const commentProvider = this._commentProviders.get(owner);
+
+		if (commentProvider && commentProvider.finishDraft) {
+			return commentProvider.finishDraft(CancellationToken.None);
+		} else {
+			throw new Error('Not supported');
+		}
 	}
 
 	getStartDraftLabel(owner: string): string | null {
