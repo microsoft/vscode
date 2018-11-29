@@ -594,7 +594,7 @@ export class MenubarControl extends Disposable {
 			this.container.style.height = `${dimension.height}px`;
 		}
 
-		this.menubar.update({ enableMnemonics: this.currentEnableMenuBarMnemonics, visibility: this.currentMenubarVisibility });
+		this.menubar.update({ enableMnemonics: this.currentEnableMenuBarMnemonics, visibility: this.currentMenubarVisibility, getKeybinding: (action) => this.keybindingService.lookupKeybinding(action.id) });
 	}
 
 	public getMenubarItemsDimensions(): DOM.Dimension {

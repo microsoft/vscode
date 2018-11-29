@@ -595,8 +595,22 @@ class SubmenuActionItem extends MenuActionItem {
 		if (!this.parentData.submenu) {
 			this.submenuContainer = append(this.element, $('div.monaco-submenu'));
 			addClasses(this.submenuContainer, 'menubar-menu-items-holder', 'context-view');
-			this.submenuContainer.style.left = `${getClientArea(this.element).width}px`;
-			this.submenuContainer.style.top = `${this.element.offsetTop - this.parentData.parent.scrollOffset}px`;
+
+			this.parentData.submenu = new Menu(this.submenuContainer, this.submenuActions, this.submenuOptions);
+			if (this.menuStyle) {
+				this.parentData.submenu.style(this.menuStyle);
+			}
+
+			const boundingRect = this.element.getBoundingClientRect();
+			const childBoundingRect = this.submenuContainer.getBoundingClientRect();
+
+			if (window.innerWidth <= boundingRect.right + childBoundingRect.width) {
+				this.submenuContainer.style.left = '10px';
+				this.submenuContainer.style.top = `${this.element.offsetTop - this.parentData.parent.scrollOffset + boundingRect.height}px`;
+			} else {
+				this.submenuContainer.style.left = `${this.element.offsetWidth}px`;
+				this.submenuContainer.style.top = `${this.element.offsetTop - this.parentData.parent.scrollOffset}px`;
+			}
 
 			this.submenuDisposables.push(addDisposableListener(this.submenuContainer, EventType.KEY_UP, e => {
 				let event = new StandardKeyboardEvent(e as KeyboardEvent);
@@ -619,10 +633,6 @@ class SubmenuActionItem extends MenuActionItem {
 				}
 			}));
 
-			this.parentData.submenu = new Menu(this.submenuContainer, this.submenuActions, this.submenuOptions);
-			if (this.menuStyle) {
-				this.parentData.submenu.style(this.menuStyle);
-			}
 
 			this.submenuDisposables.push(this.parentData.submenu.onDidCancel(() => {
 				this.parentData.parent.focus();
