@@ -229,6 +229,8 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		const session: IDebugSession = this.dataSource.input;
 		if (session) {
 			session.addReplExpression(this.debugService.getViewModel().focusedStackFrame, this.replInput.getValue());
+			// Reveal last element when we add new expression
+			this.tree.scrollTop = this.tree.scrollHeight - this.tree.renderHeight;
 			this.history.add(this.replInput.getValue());
 			this.replInput.setValue('');
 			const shouldRelayout = this.replInputHeight > Repl.REPL_INPUT_INITIAL_HEIGHT;
