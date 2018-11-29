@@ -390,6 +390,34 @@ suite('TextModelWithTokens regression tests', () => {
 		model.dispose();
 		registration.dispose();
 	});
+
+	test('issue #63822: Wrong embedded language detected for empty lines', () => {
+		const outerMode = new LanguageIdentifier('outerMode', 3);
+		const innerMode = new LanguageIdentifier('innerMode', 4);
+
+		const tokenizationSupport: ITokenizationSupport = {
+			getInitialState: () => NULL_STATE,
+			tokenize: undefined,
+			tokenize2: (line, state) => {
+				let tokens = new Uint32Array(2);
+				tokens[0] = 0;
+				tokens[1] = (
+					innerMode.id << MetadataConsts.LANGUAGEID_OFFSET
+				) >>> 0;
+				return new TokenizationResult2(tokens, state);
+			}
+		};
+
+		let registration = TokenizationRegistry.register(outerMode.language, tokenizationSupport);
+
+		let model = TextModel.createFromString('A model with one line', undefined, outerMode);
+
+		model.forceTokenization(1);
+		assert.equal(model.getLanguageIdAtPosition(1, 1), innerMode.id);
+
+		model.dispose();
+		registration.dispose();
+	});
 });
 
 suite('TextModel.getLineIndentGuide', () => {

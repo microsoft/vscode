@@ -53,10 +53,10 @@ registerSingleton(IExtensionTipsService, ExtensionTipsService);
 registerSingleton(IExtensionHostProfileService, ExtensionHostProfileService);
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(StatusUpdater, LifecyclePhase.Running);
+workbenchRegistry.registerWorkbenchContribution(StatusUpdater, LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(MaliciousExtensionChecker, LifecyclePhase.Eventually);
 workbenchRegistry.registerWorkbenchContribution(ConfigureRecommendedExtensionsCommandsContributor, LifecyclePhase.Eventually);
-workbenchRegistry.registerWorkbenchContribution(KeymapExtensions, LifecyclePhase.Running);
+workbenchRegistry.registerWorkbenchContribution(KeymapExtensions, LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(ExtensionsViewletViewsContribution, LifecyclePhase.Starting);
 workbenchRegistry.registerWorkbenchContribution(ExtensionActivationProgress, LifecyclePhase.Eventually);
 workbenchRegistry.registerWorkbenchContribution(ExtensionsAutoProfiler, LifecyclePhase.Eventually);

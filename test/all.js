@@ -197,7 +197,9 @@ function main() {
 	} else if (argv.run) {
 		var tests = (typeof argv.run === 'string') ? [argv.run] : argv.run;
 		var modulesToLoad = tests.map(function(test) {
-			return path.relative(src, path.resolve(test)).replace(/(\.js)|(\.d\.ts)|(\.js\.map)$/, '');
+			test = test.replace(/^src/, 'out');
+			test = test.replace(/\.ts$/, '.js');
+			return path.relative(src, path.resolve(test)).replace(/(\.js)|(\.js\.map)$/, '').replace(/\\/g, '/');
 		});
 		loadFunc = cb => {
 			define(modulesToLoad, () => cb(null), cb);

@@ -216,9 +216,9 @@ export class WindowsManager implements IWindowsMainService {
 			});
 		});
 
-		// React to workbench loaded events from windows
-		ipc.on('vscode:workbenchLoaded', (event: any, windowId: number) => {
-			this.logService.trace('IPC#vscode-workbenchLoaded');
+		// React to workbench ready events from windows
+		ipc.on('vscode:workbenchReady', (event: any, windowId: number) => {
+			this.logService.trace('IPC#vscode-workbenchReady');
 
 			const win = this.getWindowById(windowId);
 			if (win) {

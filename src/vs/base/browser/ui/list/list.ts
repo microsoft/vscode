@@ -28,24 +28,28 @@ export interface IListEvent<T> {
 export interface IListMouseEvent<T> {
 	browserEvent: MouseEvent;
 	element: T | undefined;
-	index: number;
+	index: number | undefined;
 }
 
 export interface IListTouchEvent<T> {
 	browserEvent: TouchEvent;
 	element: T | undefined;
-	index: number;
+	index: number | undefined;
 }
 
 export interface IListGestureEvent<T> {
 	browserEvent: GestureEvent;
 	element: T | undefined;
-	index: number;
+	index: number | undefined;
 }
 
 export interface IListContextMenuEvent<T> {
 	browserEvent: UIEvent;
 	element: T | undefined;
-	index: number;
+	index: number | undefined;
 	anchor: HTMLElement | { x: number; y: number; } | undefined;
+}
+
+export interface IIdentityProvider<T> {
+	getId(element: T): { toString(): string; };
 }

@@ -449,7 +449,7 @@ export class TestPartService implements IPartService {
 		return this._onEditorLayout.event;
 	}
 
-	public isCreated(): boolean {
+	public isRestored(): boolean {
 		return true;
 	}
 

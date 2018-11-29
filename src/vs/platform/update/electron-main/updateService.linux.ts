@@ -82,7 +82,7 @@ export class LinuxUpdateService extends AbstractUpdateService {
 		// If the application was installed as a snap, updates happen in the
 		// background automatically, we just need to check to see if an update
 		// has already happened.
-		realpath(`/snap/${product.applicationName}/current`, (err, resolvedCurrentSnapPath) => {
+		realpath(`${path.dirname(process.env.SNAP!)}/current`, (err, resolvedCurrentSnapPath) => {
 			if (err) {
 				this.logService.error('update#checkForSnapUpdate(): Could not get realpath of application.');
 				return;

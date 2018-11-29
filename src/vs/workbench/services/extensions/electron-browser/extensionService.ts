@@ -103,12 +103,12 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 	private _startDelayed(lifecycleService: ILifecycleService): void {
 		// delay extension host creation and extension scanning
-		// until the workbench is restoring. we cannot defer the
-		// extension host more (LifecyclePhase.Running) because
+		// until the workbench is running. we cannot defer the
+		// extension host more (LifecyclePhase.Restored) because
 		// some editors require the extension host to restore
 		// and this would result in a deadlock
 		// see https://github.com/Microsoft/vscode/issues/41322
-		lifecycleService.when(LifecyclePhase.Restoring).then(() => {
+		lifecycleService.when(LifecyclePhase.Ready).then(() => {
 			// reschedule to ensure this runs after restoring viewlets, panels, and editors
 			runWhenIdle(() => {
 				perf.mark('willLoadExtensions');

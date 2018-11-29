@@ -200,7 +200,7 @@ export class WatermarkContribution implements IWorkbenchContribution {
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(WatermarkContribution, LifecyclePhase.Running);
+	.registerWorkbenchContribution(WatermarkContribution, LifecyclePhase.Restored);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({
