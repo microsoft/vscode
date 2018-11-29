@@ -245,6 +245,10 @@ export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> imple
 		return this.tree.scrollHeight;
 	}
 
+	get renderHeight(): number {
+		return this.tree.renderHeight;
+	}
+
 	domFocus(): void {
 		this.tree.domFocus();
 	}

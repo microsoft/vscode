@@ -270,6 +270,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		return this.view.scrollHeight;
 	}
 
+	get renderHeight(): number {
+		return this.view.renderHeight;
+	}
+
 	domFocus(): void {
 		this.view.domFocus();
 	}

@@ -18,7 +18,7 @@ export class ReplModel {
 
 	constructor(private session: IDebugSession) { }
 
-	getReplElements(): ReadonlyArray<IReplElement> {
+	getReplElements(): IReplElement[] {
 		return this.replElements;
 	}
 
