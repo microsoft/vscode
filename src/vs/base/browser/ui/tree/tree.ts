@@ -107,10 +107,22 @@ export interface ITreeModel<T, TFilterData, TRef> {
 }
 
 export interface ITreeRenderer<T, TFilterData, TTemplateData> extends IListRenderer<ITreeNode<T, TFilterData>, TTemplateData> {
-	renderTwistie?(element: T, twistieElement: HTMLElement): boolean;
+	renderTwistie?(element: T, twistieElement: HTMLElement): void;
 	onDidChangeTwistieState?: Event<T>;
 }
 
-export interface ITreeModelOptions<T, TFilterData> {
-	filter?: ITreeFilter<T, TFilterData>;
+export interface ITreeEvent<T> {
+	elements: T[];
+	browserEvent?: UIEvent;
+}
+
+export interface ITreeMouseEvent<T> {
+	browserEvent: MouseEvent;
+	element: T | null;
+}
+
+export interface ITreeContextMenuEvent<T> {
+	browserEvent: UIEvent;
+	element: T | null;
+	anchor: HTMLElement | { x: number; y: number; } | undefined;
 }

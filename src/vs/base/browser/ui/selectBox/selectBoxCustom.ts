@@ -780,8 +780,8 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 			.on(e => this.onMouseUp(e), this, this.toDispose);
 
 		this.toDispose.push(
-			this.selectList.onDidBlur(e => this.onListBlur()),
-			this.selectList.onMouseOver(e => this.selectList.setFocus([e.index])),
+			this.selectList.onDidBlur(_ => this.onListBlur()),
+			this.selectList.onMouseOver(e => typeof e.index !== 'undefined' && this.selectList.setFocus([e.index])),
 			this.selectList.onFocusChange(e => this.onListFocus(e))
 		);
 

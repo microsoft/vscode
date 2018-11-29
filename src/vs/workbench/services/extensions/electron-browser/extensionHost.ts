@@ -424,7 +424,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 						appRoot: this._environmentService.appRoot ? URI.file(this._environmentService.appRoot) : void 0,
 						appSettingsHome: this._environmentService.appSettingsHome ? URI.file(this._environmentService.appSettingsHome) : void 0,
 						extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
-						extensionTestsPath: this._environmentService.extensionTestsPath
+						extensionTestsPath: this._environmentService.extensionTestsPath,
+						globalStorageHome: this._environmentService.globalStorageHome
 					},
 					workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : {
 						configuration: workspace.configuration,

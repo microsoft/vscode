@@ -23,6 +23,7 @@ export interface IExtensionContext {
 	globalState: IExtensionMemento;
 	extensionPath: string;
 	storagePath: string;
+	globalStoragePath: string;
 	asAbsolutePath(relativePath: string): string;
 	readonly logPath: string;
 }

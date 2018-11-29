@@ -28,6 +28,7 @@ import { ltrim } from 'vs/base/common/strings';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { ResourceLabel, IResourceLabel, IResourceLabelOptions } from 'vs/workbench/browser/labels';
 import { FileKind } from 'vs/platform/files/common/files';
+import { DebugContentProvider } from 'vs/workbench/parts/debug/browser/debugContentProvider';
 
 const SMART = true;
 
@@ -433,6 +434,9 @@ export class LoadedScriptsView extends TreeViewsViewletPanel {
 						sessionRoot.addPath(event.source);
 						nextRefreshIsRecursive = true;
 						refreshScheduler.schedule();
+						if (event.reason === 'changed') {
+							DebugContentProvider.refreshDebugContent(event.source.uri);
+						}
 						break;
 					case 'removed':
 						sessionRoot = root.find(session);

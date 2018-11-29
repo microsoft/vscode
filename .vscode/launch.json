@@ -22,13 +22,11 @@
 			]
 		},
 		{
-			"type": "node",
+			"type": "chrome",
 			"request": "attach",
 			"name": "Attach to Shared Process",
-			"port": 5871,
-			"outFiles": [
-				"${workspaceFolder}/out/**/*.js"
-			]
+			"port": 9222,
+			"urlFilter": "*"
 		},
 		{
 			"type": "node",

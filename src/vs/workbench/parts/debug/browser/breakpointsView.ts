@@ -74,7 +74,7 @@ export class BreakpointsView extends ViewletPanel {
 			this.instantiationService.createInstance(FunctionBreakpointsRenderer),
 			new FunctionBreakpointInputRenderer(this.debugService, this.contextViewService, this.themeService)
 		], {
-				identityProvider: element => element.getId(),
+				identityProvider: { getId: element => element.getId() },
 				multipleSelectionSupport: false
 			}) as WorkbenchList<IEnablement>;
 
@@ -134,6 +134,10 @@ export class BreakpointsView extends ViewletPanel {
 	}
 
 	private onListContextMenu(e: IListContextMenuEvent<IEnablement>): void {
+		if (!e.element) {
+			return;
+		}
+
 		const actions: IAction[] = [];
 		const element = e.element;
 
