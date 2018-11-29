@@ -535,7 +535,7 @@ export class DelegatingStorageService extends Disposable implements IStorageServ
 
 	get(key: string, scope: StorageScope, fallbackValue: string): string;
 	get(key: string, scope: StorageScope, fallbackValue?: string): string | undefined {
-		if (scope === StorageScope.WORKSPACE && !this.useLegacyWorkspaceStorage) {
+		if (!this.useLegacyWorkspaceStorage) {
 			return this.storageService.get(key, scope, fallbackValue);
 		}
 
@@ -544,7 +544,7 @@ export class DelegatingStorageService extends Disposable implements IStorageServ
 
 	getBoolean(key: string, scope: StorageScope, fallbackValue: boolean): boolean;
 	getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): boolean | undefined {
-		if (scope === StorageScope.WORKSPACE && !this.useLegacyWorkspaceStorage) {
+		if (!this.useLegacyWorkspaceStorage) {
 			return this.storageService.getBoolean(key, scope, fallbackValue);
 		}
 
@@ -553,7 +553,7 @@ export class DelegatingStorageService extends Disposable implements IStorageServ
 
 	getInteger(key: string, scope: StorageScope, fallbackValue: number): number;
 	getInteger(key: string, scope: StorageScope, fallbackValue?: number): number | undefined {
-		if (scope === StorageScope.WORKSPACE && !this.useLegacyWorkspaceStorage) {
+		if (!this.useLegacyWorkspaceStorage) {
 			return this.storageService.getInteger(key, scope, fallbackValue);
 		}
 
