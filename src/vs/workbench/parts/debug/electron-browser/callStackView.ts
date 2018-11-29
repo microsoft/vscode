@@ -227,19 +227,12 @@ export class CallStackView extends ViewletPanel {
 				updateSelectionAndReveal(session);
 			}
 		} else {
-			this.tryToExpandElement(thread.session);
-			this.tryToExpandElement(thread);
-
+			const expansionsPromise = this.tree.expand(thread.session).then(() => this.tree.expand(thread));
 			if (stackFrame) {
-				updateSelectionAndReveal(stackFrame);
+				// TODO@isidor need better error handling
+				expansionsPromise.then(() => updateSelectionAndReveal(stackFrame));
 			}
 		}
-	}
-
-	private tryToExpandElement(element: CallStackItem): void {
-		try {
-			this.tree.expand(element);
-		} catch (e) { }
 	}
 
 	setVisible(visible: boolean): void {
