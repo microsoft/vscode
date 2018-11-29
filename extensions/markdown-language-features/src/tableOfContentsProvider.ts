@@ -49,8 +49,7 @@ export class TableOfContentsProvider {
 
 	private async buildToc(document: SkinnyTextDocument): Promise<TocEntry[]> {
 		const toc: TocEntry[] = [];
-		const UNICODE_NEWLINE_REGEX = /\u2028|\u2029/g;
-		const tokens = await this.engine.parse(document.uri, document.getText().replace(UNICODE_NEWLINE_REGEX, ''));
+		const tokens = await this.engine.parse(document.uri, document.getText());
 
 		const slugCount = new Map<string, number>();
 
