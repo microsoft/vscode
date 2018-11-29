@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorModel } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -75,7 +74,7 @@ export class BinaryEditorModel extends EditorModel {
 		return this.etag;
 	}
 
-	load(): TPromise<EditorModel> {
+	load(): Thenable<EditorModel> {
 
 		// Make sure to resolve up to date stat for file resources
 		if (this.fileService.canHandleResource(this.resource)) {
@@ -87,6 +86,6 @@ export class BinaryEditorModel extends EditorModel {
 			});
 		}
 
-		return TPromise.wrap(this);
+		return Promise.resolve(this);
 	}
 }

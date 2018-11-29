@@ -53,7 +53,7 @@ export default class MarkdownFoldingProvider implements vscode.FoldingRangeProvi
 			this.getRegions(document),
 			this.getHeaderFoldingRanges(document),
 			this.getBlockFoldingRanges(document)]);
-		return [].concat.apply([], foldables).slice(0, rangeLimit);
+		return ([] as vscode.FoldingRange[]).concat.apply([], foldables).slice(0, rangeLimit);
 	}
 
 	private async getHeaderFoldingRanges(document: vscode.TextDocument) {

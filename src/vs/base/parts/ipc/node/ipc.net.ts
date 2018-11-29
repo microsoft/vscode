@@ -231,15 +231,15 @@ export class Server extends IPCServer {
 	}
 }
 
-export class Client extends IPCClient {
+export class Client<TContext = string> extends IPCClient<TContext> {
 
-	static fromSocket(socket: Socket, id: string): Client {
+	static fromSocket<TContext = string>(socket: Socket, id: TContext): Client<TContext> {
 		return new Client(new Protocol(socket), id);
 	}
 
 	get onClose(): Event<void> { return this.protocol.onClose; }
 
-	constructor(private protocol: Protocol, id: string) {
+	constructor(private protocol: Protocol, id: TContext) {
 		super(protocol, id);
 	}
 

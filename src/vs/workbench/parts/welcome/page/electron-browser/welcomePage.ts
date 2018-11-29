@@ -5,8 +5,8 @@
 
 import 'vs/css!./welcomePage';
 import { URI } from 'vs/base/common/uri';
+import * as strings from 'vs/base/common/strings';
 import * as path from 'path';
-import { readdir } from 'vs/base/node/extfs';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import * as arrays from 'vs/base/common/arrays';
 import { WalkThroughInput } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughInput';
@@ -41,6 +41,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { TimeoutTimer } from 'vs/base/common/async';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { IFileService } from 'vs/platform/files/common/files';
 
 used();
 
@@ -55,6 +56,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IEditorService editorService: IEditorService,
 		@IBackupFileService backupFileService: IBackupFileService,
+		@IFileService fileService: IFileService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@ICommandService private commandService: ICommandService,
@@ -66,33 +68,34 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 				if (!activeEditor && !hasBackups) {
 					const openWithReadme = configurationService.getValue(configurationKey) === 'readme';
 					if (openWithReadme) {
-						const workSpaceFolders = contextService.getWorkspace().folders.map(el => el.uri);
-						for (let i = 0; i < workSpaceFolders.length; i += 1) {
-							const workSpaceFolder = workSpaceFolders[i];
-							let foldersChecked = 0;
-							readdir(workSpaceFolder.path, (err, files) => {
-								foldersChecked += 1;
-								if (err) {
-									onUnexpectedError(err);
-								} else {
-									for (const content of files) {
-										if (content.toLowerCase().lastIndexOf('readme', 0) === 0) {
-											const readmeLocation = path.join(workSpaceFolder.path, content);
-											if (readmeLocation.toLowerCase().slice(readmeLocation.length - 3) === '.md') {
-												return !editorService.activeEditor && this.commandService
-													.executeCommand('markdown.showPreview', URI.file(readmeLocation));
-											}
-											return !editorService.activeEditor && editorService
-												.openEditor({ resource: URI.file(readmeLocation) });
-										}
+						return Promise.all(contextService.getWorkspace().folders.map(folder => {
+							const folderUri = folder.uri;
+							return fileService.readFolder(folderUri)
+								.then(files => {
+									const file = arrays.find(files.sort(), file => strings.startsWith(file.toLowerCase(), 'readme'));
+									if (file) {
+										return folderUri.with({
+											path: path.posix.join(folderUri.path, file)
+										});
 									}
-								}
-								if (foldersChecked === workSpaceFolders.length - 1) {
-									return instantiationService.createInstance(WelcomePage).openEditor();
+									return undefined;
+								}, onUnexpectedError);
+						})).then(results => results.filter(result => !!result))
+							.then<any>(readmes => {
+								if (!editorService.activeEditor) {
+									if (readmes.length) {
+										const isMarkDown = (readme: URI) => strings.endsWith(readme.path.toLowerCase(), '.md');
+										return Promise.all([
+											this.commandService.executeCommand('markdown.showPreview', null, readmes.filter(isMarkDown), { locked: true }),
+											editorService.openEditors(readmes.filter(readme => !isMarkDown(readme))
+												.map(readme => ({ resource: readme }))),
+										]);
+									} else {
+										return instantiationService.createInstance(WelcomePage).openEditor();
+									}
 								}
 								return undefined;
 							});
-						}
 					} else {
 						return instantiationService.createInstance(WelcomePage).openEditor();
 					}

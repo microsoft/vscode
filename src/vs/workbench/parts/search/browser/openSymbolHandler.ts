@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { QuickOpenHandler, EditorQuickOpenEntry } from 'vs/workbench/browser/quickopen';
@@ -82,7 +81,7 @@ class SymbolEntry extends EditorQuickOpenEntry {
 		}
 
 		// open after resolving
-		TPromise.as(this.bearingResolve).then(() => {
+		Promise.resolve(this.bearingResolve).then(() => {
 			const scheme = this.bearing.location.uri ? this.bearing.location.uri.scheme : void 0;
 			if (scheme === Schemas.http || scheme === Schemas.https) {
 				if (mode === Mode.OPEN || mode === Mode.OPEN_IN_BACKGROUND) {
@@ -157,14 +156,14 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 		return true;
 	}
 
-	getResults(searchValue: string, token: CancellationToken): TPromise<QuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken): Thenable<QuickOpenModel> {
 		searchValue = searchValue.trim();
 
-		let promise: TPromise<QuickOpenEntry[]>;
+		let promise: Thenable<QuickOpenEntry[]>;
 		if (!this.options.skipDelay) {
 			promise = this.delayer.trigger(() => {
 				if (token.isCancellationRequested) {
-					return TPromise.wrap([]);
+					return Promise.resolve([]);
 				}
 
 				return this.doGetResults(searchValue, token);
@@ -176,7 +175,7 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 		return promise.then(e => new QuickOpenModel(e));
 	}
 
-	private doGetResults(searchValue: string, token: CancellationToken): TPromise<SymbolEntry[]> {
+	private doGetResults(searchValue: string, token: CancellationToken): Thenable<SymbolEntry[]> {
 		return getWorkspaceSymbols(searchValue, token).then(tuples => {
 			if (token.isCancellationRequested) {
 				return [];

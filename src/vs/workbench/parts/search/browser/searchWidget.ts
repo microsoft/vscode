@@ -37,6 +37,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 export interface ISearchWidgetOptions {
 	value?: string;
+	replaceValue?: string;
 	isRegex?: boolean;
 	isCaseSensitive?: boolean;
 	isWholeWords?: boolean;
@@ -167,6 +168,7 @@ export class SearchWidget extends Widget {
 	public setWidth(width: number) {
 		this.searchInput.setWidth(width);
 		this.replaceInput.width = width - 28;
+		this.replaceInput.layout();
 	}
 
 	public clear() {
@@ -281,7 +283,8 @@ export class SearchWidget extends Widget {
 			appendCaseSensitiveLabel: appendKeyBindingLabel('', this.keyBindingService.lookupKeybinding(Constants.ToggleCaseSensitiveCommandId), this.keyBindingService),
 			appendWholeWordsLabel: appendKeyBindingLabel('', this.keyBindingService.lookupKeybinding(Constants.ToggleWholeWordCommandId), this.keyBindingService),
 			appendRegexLabel: appendKeyBindingLabel('', this.keyBindingService.lookupKeybinding(Constants.ToggleRegexCommandId), this.keyBindingService),
-			history: options.searchHistory
+			history: options.searchHistory,
+			flexibleHeight: true
 		};
 
 		let searchInputContainer = dom.append(parent, dom.$('.search-container.input-box'));
@@ -329,10 +332,12 @@ export class SearchWidget extends Widget {
 		this.replaceInput = this._register(new ContextScopedHistoryInputBox(replaceBox, this.contextViewService, {
 			ariaLabel: nls.localize('label.Replace', 'Replace: Type replace term and press Enter to preview or Escape to cancel'),
 			placeholder: nls.localize('search.replace.placeHolder', "Replace"),
-			history: options.replaceHistory || []
+			history: options.replaceHistory || [],
+			flexibleHeight: true
 		}, this.contextKeyService));
 		this._register(attachInputBoxStyler(this.replaceInput, this.themeService));
 		this.onkeydown(this.replaceInput.inputElement, (keyboardEvent) => this.onReplaceInputKeyDown(keyboardEvent));
+		this.replaceInput.value = options.replaceValue || '';
 		this.replaceInput.onDidChange(() => this._onReplaceValueChanged.fire());
 		this.searchInput.inputBox.onDidChange(() => this.onSearchInputChanged());
 
@@ -376,6 +381,7 @@ export class SearchWidget extends Widget {
 		if (currentState !== newState) {
 			this.replaceActive.set(newState);
 			this._onReplaceStateChange.fire(newState);
+			this.replaceInput.layout();
 		}
 	}
 
@@ -429,6 +435,20 @@ export class SearchWidget extends Widget {
 			}
 			keyboardEvent.preventDefault();
 		}
+
+		else if (keyboardEvent.equals(KeyCode.UpArrow)) {
+			const ta = this.searchInput.domNode.querySelector('textarea');
+			if (ta && ta.selectionStart > 0) {
+				keyboardEvent.stopPropagation();
+			}
+		}
+
+		else if (keyboardEvent.equals(KeyCode.DownArrow)) {
+			const ta = this.searchInput.domNode.querySelector('textarea');
+			if (ta && ta.selectionEnd < ta.value.length) {
+				keyboardEvent.stopPropagation();
+			}
+		}
 	}
 
 	private onCaseSensitiveKeyDown(keyboardEvent: IKeyboardEvent) {
@@ -465,6 +485,20 @@ export class SearchWidget extends Widget {
 		else if (keyboardEvent.equals(KeyMod.Shift | KeyCode.Tab)) {
 			this.searchInput.focus();
 			keyboardEvent.preventDefault();
+		}
+
+		else if (keyboardEvent.equals(KeyCode.UpArrow)) {
+			const ta = this.searchInput.domNode.querySelector('textarea');
+			if (ta && ta.selectionStart > 0) {
+				keyboardEvent.stopPropagation();
+			}
+		}
+
+		else if (keyboardEvent.equals(KeyCode.DownArrow)) {
+			const ta = this.searchInput.domNode.querySelector('textarea');
+			if (ta && ta.selectionEnd < ta.value.length) {
+				keyboardEvent.stopPropagation();
+			}
 		}
 	}
 

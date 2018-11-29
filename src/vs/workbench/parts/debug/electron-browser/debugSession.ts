@@ -144,7 +144,7 @@ export class DebugSession implements IDebugSession {
 
 		return dbgr.getCustomTelemetryService().then(customTelemetryService => {
 
-			return dbgr.createDebugAdapter(this, this.root, this._configuration.resolved, this.outputService).then(debugAdapter => {
+			return dbgr.createDebugAdapter(this, this.outputService).then(debugAdapter => {
 
 				this.raw = new RawDebugSession(debugAdapter, dbgr, this.telemetryService, customTelemetryService);
 
@@ -770,8 +770,10 @@ export class DebugSession implements IDebugSession {
 	getSource(raw: DebugProtocol.Source): Source {
 		let source = new Source(raw, this.getId());
 		const uriKey = this.getUriKey(source.uri);
-		if (this.sources.has(uriKey)) {
-			source = this.sources.get(uriKey);
+		const found = this.sources.get(uriKey);
+		if (found) {
+			source = found;
+			// merge attributes of new into existing
 			source.raw = mixin(source.raw, raw);
 			if (source.raw && raw) {
 				// Always take the latest presentation hint from adapter #42139
@@ -785,12 +787,13 @@ export class DebugSession implements IDebugSession {
 	}
 
 	private getUriKey(uri: URI): string {
+		// TODO: the following code does not make sense if uri originates from a different platform
 		return platform.isLinux ? uri.toString() : uri.toString().toLowerCase();
 	}
 
 	// REPL
 
-	getReplElements(): ReadonlyArray<IReplElement> {
+	getReplElements(): IReplElement[] {
 		return this.repl.getReplElements();
 	}
 

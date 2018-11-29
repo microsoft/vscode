@@ -7,7 +7,7 @@ import * as paths from 'vs/base/common/paths';
 import { URI } from 'vs/base/common/uri';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { IMarker, MarkerSeverity, IRelatedInformation } from 'vs/platform/markers/common/markers';
-import { groupBy, flatten, isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { values } from 'vs/base/common/map';
 import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -147,9 +147,7 @@ export class MarkersModel {
 				let relatedInformation: RelatedInformation[] | undefined = undefined;
 
 				if (rawMarker.relatedInformation) {
-					const groupedByResource = groupBy(rawMarker.relatedInformation, compareMarkersByUri);
-					groupedByResource.sort((a, b) => compareUris(a[0].resource, b[0].resource));
-					relatedInformation = flatten(groupedByResource).map(r => new RelatedInformation(resource, rawMarker, r));
+					relatedInformation = rawMarker.relatedInformation.map(r => new RelatedInformation(resource, rawMarker, r));
 				}
 
 				return new Marker(rawMarker, relatedInformation);

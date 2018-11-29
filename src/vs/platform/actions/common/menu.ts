@@ -31,16 +31,16 @@ export class Menu implements IMenu {
 		debounceEvent(
 			filterEvent(MenuRegistry.onDidChangeMenu, menuId => menuId === this._id),
 			() => { },
-			100
+			50
 		)(this._build, this, this._disposables);
 
-		// when context keys change we need to change if the menu also
+		// when context keys change we need to check if the menu also
 		// has changed
-		this._contextKeyService.onDidChangeContext(event => {
-			if (event.affectsSome(this._contextKeys)) {
-				this._onDidChange.fire();
-			}
-		}, this, this._disposables);
+		debounceEvent(
+			this._contextKeyService.onDidChangeContext,
+			(last, event) => last || event.affectsSome(this._contextKeys),
+			50
+		)(e => e && this._onDidChange.fire(), this, this._disposables);
 	}
 
 	private _build(): void {
@@ -56,9 +56,9 @@ export class Menu implements IMenu {
 
 		for (let item of menuItems) {
 			// group by groupId
-			const groupName = item.group;
+			const groupName = item.group || '';
 			if (!group || group[0] !== groupName) {
-				group = [groupName || '', []];
+				group = [groupName, []];
 				this._menuGroups.push(group);
 			}
 			group![1].push(item);

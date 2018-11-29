@@ -54,7 +54,9 @@ class RemoteFileSystemProvider implements IFileSystemProvider {
 	private readonly _registration: IDisposable;
 
 	readonly onDidChangeFile: Event<IFileChange[]> = this._onDidChange.event;
+
 	readonly capabilities: FileSystemProviderCapabilities;
+	readonly onDidChangeCapabilities: Event<void> = Event.None;
 
 	constructor(
 		fileService: IFileService,

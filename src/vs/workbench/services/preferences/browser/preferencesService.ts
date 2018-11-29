@@ -266,16 +266,16 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 					const activeEditorGroup = this.editorGroupService.activeGroup;
 					const sideEditorGroup = this.editorGroupService.addGroup(activeEditorGroup.id, GroupDirection.RIGHT);
 					return Promise.all([
-						this.editorService.openEditor({ resource: this.defaultKeybindingsResource, options: { pinned: true, preserveFocus: true }, label: nls.localize('defaultKeybindings', "Default Keybindings"), description: '' }),
-						this.editorService.openEditor({ resource: editableKeybindings, options: { pinned: true } }, sideEditorGroup.id)
+						this.editorService.openEditor({ resource: this.defaultKeybindingsResource, options: { pinned: true, preserveFocus: true, revealIfOpened: true }, label: nls.localize('defaultKeybindings', "Default Keybindings"), description: '' }),
+						this.editorService.openEditor({ resource: editableKeybindings, options: { pinned: true, revealIfOpened: true } }, sideEditorGroup.id)
 					]).then(editors => void 0);
 				} else {
-					return this.editorService.openEditor({ resource: editableKeybindings, options: { pinned: true } }).then(() => void 0);
+					return this.editorService.openEditor({ resource: editableKeybindings, options: { pinned: true, revealIfOpened: true } }).then(() => void 0);
 				}
 			});
 		}
 
-		return this.editorService.openEditor(this.instantiationService.createInstance(KeybindingsEditorInput), { pinned: true }).then(() => null);
+		return this.editorService.openEditor(this.instantiationService.createInstance(KeybindingsEditorInput), { pinned: true, revealIfOpened: true }).then(() => null);
 	}
 
 	openDefaultKeybindingsFile(): Thenable<IEditor> {
@@ -288,7 +288,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 				.then((settingsModel: IPreferencesEditorModel<ISetting>) => {
 					const codeEditor = getCodeEditor(editor.getControl());
 					if (codeEditor) {
-						this.getPosition(language, settingsModel, codeEditor)
+						this.addLanguageOverrideEntry(language, settingsModel, codeEditor)
 							.then(position => {
 								if (codeEditor) {
 									codeEditor.setPosition(position);
@@ -531,7 +531,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		];
 	}
 
-	private getPosition(language: string, settingsModel: IPreferencesEditorModel<ISetting>, codeEditor: ICodeEditor): Thenable<IPosition> {
+	private addLanguageOverrideEntry(language: string, settingsModel: IPreferencesEditorModel<ISetting>, codeEditor: ICodeEditor): Thenable<IPosition> {
 		const languageKey = `[${language}]`;
 		let setting = settingsModel.getPreference(languageKey);
 		const model = codeEditor.getModel();
@@ -540,15 +540,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		if (setting) {
 			if (setting.overrides.length) {
 				const lastSetting = setting.overrides[setting.overrides.length - 1];
-				let content;
-				if (lastSetting.valueRange.endLineNumber === setting.range.endLineNumber) {
-					content = ',' + eol + this.spaces(2, configuration.editor) + eol + this.spaces(1, configuration.editor);
-				} else {
-					content = ',' + eol + this.spaces(2, configuration.editor);
-				}
-				const editOperation = EditOperation.insert(new Position(lastSetting.valueRange.endLineNumber, lastSetting.valueRange.endColumn), content);
-				model.pushEditOperations([], [editOperation], () => []);
-				return Promise.resolve({ lineNumber: lastSetting.valueRange.endLineNumber + 1, column: model.getLineMaxColumn(lastSetting.valueRange.endLineNumber + 1) });
+				return Promise.resolve({ lineNumber: lastSetting.valueRange.endLineNumber, column: model.getLineMaxColumn(lastSetting.valueRange.endLineNumber) });
 			}
 			return Promise.resolve({ lineNumber: setting.valueRange.startLineNumber, column: setting.valueRange.startColumn + 1 });
 		}

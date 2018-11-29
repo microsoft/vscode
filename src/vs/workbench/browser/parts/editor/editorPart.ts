@@ -23,7 +23,6 @@ import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorGroup';
-import { TValueCallback, TPromise } from 'vs/base/common/winjs.base';
 import { always } from 'vs/base/common/async';
 import { EditorDropTarget } from 'vs/workbench/browser/parts/editor/editorDropTarget';
 import { localize } from 'vs/nls';
@@ -130,8 +129,8 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	private gridWidget: SerializableGrid<IEditorGroupView>;
 	private gridWidgetView: GridWidgetView<IEditorGroupView>;
 
-	private _whenRestored: TPromise<void>;
-	private whenRestoredComplete: TValueCallback<void>;
+	private _whenRestored: Thenable<void>;
+	private whenRestoredResolve: () => void;
 
 	element: HTMLElement;
 
@@ -155,9 +154,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		this.workspaceMemento = this.getMemento(StorageScope.WORKSPACE);
 		this.globalMemento = this.getMemento(StorageScope.GLOBAL);
 
-		this._whenRestored = new TPromise(resolve => {
-			this.whenRestoredComplete = resolve;
-		});
+		this._whenRestored = new Promise(resolve => (this.whenRestoredResolve = resolve));
 
 		this.registerListeners();
 	}
@@ -230,7 +227,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		return this.gridWidget.orientation === Orientation.VERTICAL ? GroupOrientation.VERTICAL : GroupOrientation.HORIZONTAL;
 	}
 
-	get whenRestored(): TPromise<void> {
+	get whenRestored(): Thenable<void> {
 		return this._whenRestored;
 	}
 
@@ -829,7 +826,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		}
 
 		// Signal restored
-		always(TPromise.join(this.groups.map(group => group.whenRestored)), () => this.whenRestoredComplete(void 0));
+		always(Promise.all(this.groups.map(group => group.whenRestored)), () => this.whenRestoredResolve());
 
 		// Update container
 		this.updateContainer();

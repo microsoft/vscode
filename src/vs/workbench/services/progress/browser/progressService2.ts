@@ -10,7 +10,6 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IProgressService2, IProgressOptions, IProgressStep, ProgressLocation, IProgress, emptyProgress, Progress } from 'vs/platform/progress/common/progress';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { StatusbarAlignment, IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { always, timeout } from 'vs/base/common/async';
 import { ProgressBadge, IActivityService } from 'vs/workbench/services/activity/common/activity';
 import { INotificationService, Severity, INotificationHandle, INotificationActions } from 'vs/platform/notification/common/notification';
@@ -29,9 +28,7 @@ export class ProgressService2 implements IProgressService2 {
 		@IViewletService private readonly _viewletService: IViewletService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IStatusbarService private readonly _statusbarService: IStatusbarService,
-	) {
-		//
-	}
+	) { }
 
 	withProgress<P extends Thenable<R>, R=any>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => P, onDidCancel?: () => void): P {
 
@@ -146,12 +143,12 @@ export class ProgressService2 implements IProgressService2 {
 						super('progress.cancel', localize('cancel', "Cancel"), null, true);
 					}
 
-					run(): TPromise<any> {
+					run(): Thenable<any> {
 						if (typeof onDidCancel === 'function') {
 							onDidCancel();
 						}
 
-						return TPromise.as(undefined);
+						return Promise.resolve(void 0);
 					}
 				};
 				toDispose.push(cancelAction);
@@ -233,7 +230,7 @@ export class ProgressService2 implements IProgressService2 {
 		// show in viewlet
 		const viewletProgress = this._viewletService.getProgressIndicator(viewletId);
 		if (viewletProgress) {
-			viewletProgress.showWhile(TPromise.wrap(promise));
+			viewletProgress.showWhile(promise);
 		}
 
 		// show activity bar

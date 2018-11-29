@@ -67,10 +67,8 @@ export class QueryBuilder {
 	) { }
 
 	text(contentPattern: IPatternInfo, folderResources?: uri[], options: ITextQueryBuilderOptions = {}): ITextQuery {
-		contentPattern.isCaseSensitive = this.isCaseSensitive(contentPattern);
-		contentPattern.isMultiline = this.isMultiline(contentPattern);
+		contentPattern = this.getContentPattern(contentPattern);
 		const searchConfig = this.configurationService.getValue<ISearchConfiguration>();
-		contentPattern.wordSeparators = searchConfig.editor.wordSeparators;
 
 		const fallbackToPCRE = folderResources && folderResources.some(folder => {
 			const folderConfig = this.configurationService.getValue<ISearchConfiguration>({ resource: folder });
@@ -89,6 +87,28 @@ export class QueryBuilder {
 			afterContext: options.afterContext,
 			userDisabledExcludesAndIgnoreFiles: options.disregardExcludeSettings && options.disregardIgnoreFiles
 		};
+	}
+
+	/**
+	 * Adjusts input pattern for config
+	 */
+	private getContentPattern(inputPattern: IPatternInfo): IPatternInfo {
+		const searchConfig = this.configurationService.getValue<ISearchConfiguration>();
+
+		const newPattern = {
+			...inputPattern,
+			wordSeparators: searchConfig.editor.wordSeparators
+		};
+
+		if (this.isCaseSensitive(inputPattern)) {
+			newPattern.isCaseSensitive = true;
+		}
+
+		if (this.isMultiline(inputPattern)) {
+			newPattern.isMultiline = true;
+		}
+
+		return newPattern;
 	}
 
 	file(folderResources: uri[] | undefined, options: IFileQueryBuilderOptions = {}): IFileQuery {
@@ -165,7 +185,11 @@ export class QueryBuilder {
 			return true;
 		}
 
-		return false;
+		if (contentPattern.pattern.indexOf('\n') >= 0) {
+			return true;
+		}
+
+		return !!contentPattern.isMultiline;
 	}
 
 	/**
@@ -174,7 +198,7 @@ export class QueryBuilder {
 	 *
 	 * Public for test.
 	 */
-	public parseSearchPaths(pattern: string): ISearchPathsResult {
+	public parseSearchPaths(pattern: string, expandSearchPaths = true): ISearchPathsResult {
 		const isSearchPath = (segment: string) => {
 			// A segment is a search path if it is an absolute path or starts with ./, ../, .\, or ..\
 			return paths.isAbsolute(segment) || /^\.\.?[\/\\]/.test(segment);
@@ -196,9 +220,15 @@ export class QueryBuilder {
 		const exprSegments = arrays.flatten(expandedExprSegments);
 
 		const result: ISearchPathsResult = {};
-		const searchPaths = this.expandSearchPathPatterns(groups.searchPaths);
-		if (searchPaths && searchPaths.length) {
-			result.searchPaths = searchPaths;
+		if (expandSearchPaths) {
+			const searchPaths = this.expandSearchPathPatterns(groups.searchPaths);
+			if (searchPaths && searchPaths.length) {
+				result.searchPaths = searchPaths;
+			}
+		} else if (groups.searchPaths) {
+			exprSegments.push(...groups.searchPaths
+				.map(p => strings.ltrim(p, './'))
+				.map(p => strings.ltrim(p, '.\\')));
 		}
 
 		const includePattern = patternListToIExpression(exprSegments);
@@ -214,7 +244,7 @@ export class QueryBuilder {
 	 * but the result is a single IExpression that encapsulates all the exclude patterns.
 	 */
 	public parseExcludePattern(pattern: string): glob.IExpression | undefined {
-		const result = this.parseSearchPaths(pattern);
+		const result = this.parseSearchPaths(pattern, false);
 		let excludeExpression = glob.getEmptyExpression();
 		if (result.pattern) {
 			excludeExpression = objects.mixin(excludeExpression, result.pattern);

@@ -681,25 +681,6 @@ export namespace CompletionItemKind {
 	}
 }
 
-export namespace CompletionItemInsertTextRule {
-
-	export function from(rule: types.CompletionItemInsertTextRule): modes.CompletionItemInsertTextRule {
-		let result = 0;
-		if ((rule & types.CompletionItemInsertTextRule.KeepWhitespace)) {
-			result += modes.CompletionItemInsertTextRule.KeepWhitespace;
-		}
-		return result;
-	}
-
-	export function to(rule: modes.CompletionItemInsertTextRule): types.CompletionItemInsertTextRule {
-		let result = 0;
-		if ((rule & modes.CompletionItemInsertTextRule.KeepWhitespace)) {
-			result += types.CompletionItemInsertTextRule.KeepWhitespace;
-		}
-		return result;
-	}
-}
-
 export namespace CompletionItem {
 
 	export function to(suggestion: modes.CompletionItem): types.CompletionItem {
@@ -713,7 +694,7 @@ export namespace CompletionItem {
 		result.preselect = suggestion.preselect;
 		result.commitCharacters = suggestion.commitCharacters;
 		result.range = Range.to(suggestion.range);
-		result.insertTextRules = CompletionItemInsertTextRule.to(suggestion.insertTextRules);
+		result.keepWhitespace = Boolean(suggestion.insertTextRules & modes.CompletionItemInsertTextRule.KeepWhitespace);
 		// 'inserText'-logic
 		if (suggestion.insertTextRules & modes.CompletionItemInsertTextRule.InsertAsSnippet) {
 			result.insertText = new types.SnippetString(suggestion.insertText);

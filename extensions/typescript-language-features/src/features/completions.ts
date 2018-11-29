@@ -18,9 +18,9 @@ import * as Previewer from '../utils/previewer';
 import * as typeConverters from '../utils/typeConverters';
 import TypingsStatus from '../utils/typingsStatus';
 import FileConfigurationManager from './fileConfigurationManager';
+import { snippetForFunctionCall } from '../utils/snippetForFunctionCall';
 
 const localize = nls.loadMessageBundle();
-
 
 interface CommitCharactersSettings {
 	readonly isNewIdentifierLocation: boolean;
@@ -37,7 +37,8 @@ class MyCompletionItem extends vscode.CompletionItem {
 		line: string,
 		public readonly tsEntry: Proto.CompletionEntry,
 		useCodeSnippetsOnMethodSuggest: boolean,
-		public readonly commitCharactersSettings: CommitCharactersSettings
+		public readonly commitCharactersSettings: CommitCharactersSettings,
+		public readonly metadata: any | undefined,
 	) {
 		super(tsEntry.name, MyCompletionItem.convertKind(tsEntry.kind));
 
@@ -62,6 +63,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 
 		if (tsEntry.insertText) {
 			this.insertText = tsEntry.insertText;
+			this.filterText = tsEntry.insertText;
 
 			if (tsEntry.replacementSpan) {
 				this.range = typeConverters.Range.fromTextSpan(tsEntry.replacementSpan);
@@ -223,7 +225,6 @@ class CompositeCommand implements Command {
 	}
 }
 
-
 class CompletionAcceptedCommand implements Command {
 	public static readonly ID = '_typescript.onCompletionAccepted';
 	public readonly id = CompletionAcceptedCommand.ID;
@@ -359,12 +360,13 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			...typeConverters.Position.toFileLocationRequestArgs(file, position),
 			includeExternalModuleExports: completionConfiguration.autoImportSuggestions,
 			includeInsertTextCompletions: true,
-			triggerCharacter: this.getTsTriggerCharacter(context)
+			triggerCharacter: this.getTsTriggerCharacter(context),
 		};
 
 		let isNewIdentifierLocation = true;
 		let isIncomplete = false;
-		let msg: ReadonlyArray<Proto.CompletionEntry>;
+		let entries: ReadonlyArray<Proto.CompletionEntry>;
+		let metadata: any | undefined;
 		if (this.client.apiVersion.gte(API.v300)) {
 			const response = await this.client.interuptGetErr(() => this.client.execute('completionInfo', args, token));
 			if (response.type !== 'response' || !response.body) {
@@ -372,24 +374,26 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			}
 			isNewIdentifierLocation = response.body.isNewIdentifierLocation;
 			isIncomplete = (response as any).metadata && (response as any).metadata.isIncomplete;
-			msg = response.body.entries;
+			entries = response.body.entries;
+			metadata = response.metadata;
 		} else {
 			const response = await this.client.interuptGetErr(() => this.client.execute('completions', args, token));
 			if (response.type !== 'response' || !response.body) {
 				return null;
 			}
 
-			msg = response.body;
+			entries = response.body;
+			metadata = response.metadata;
 		}
 
 		const isInValidCommitCharacterContext = this.isInValidCommitCharacterContext(document, position);
-		const items = msg
+		const items = entries
 			.filter(entry => !shouldExcludeCompletionEntry(entry, completionConfiguration))
 			.map(entry => new MyCompletionItem(position, document, line.text, entry, completionConfiguration.useCodeSnippetsOnMethodSuggest, {
 				isNewIdentifierLocation,
 				isInValidCommitCharacterContext,
 				enableCallCompletions: !completionConfiguration.useCodeSnippetsOnMethodSuggest
-			}));
+			}, metadata));
 		return new vscode.CompletionList(items, isIncomplete);
 	}
 
@@ -424,7 +428,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			]
 		};
 
-		const response = await this.client.execute('completionEntryDetails', args, token);
+		const response = await this.client.interuptGetErr(() => this.client.execute('completionEntryDetails', args, token));
 		if (response.type !== 'response' || !response.body) {
 			return item;
 		}
@@ -450,7 +454,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		if (detail && item.useCodeSnippet) {
 			const shouldCompleteFunction = await this.isValidFunctionCompletionContext(filepath, item.position, token);
 			if (shouldCompleteFunction) {
-				item.insertText = this.snippetForFunctionCall(item, detail);
+				item.insertText = snippetForFunctionCall(item, detail.displayParts);
 				commands.push({ title: 'triggerParameterHints', command: 'editor.action.triggerParameterHints' });
 			}
 		}
@@ -619,63 +623,6 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		} catch (e) {
 			return true;
 		}
-	}
-
-	private snippetForFunctionCall(
-		item: vscode.CompletionItem,
-		detail: Proto.CompletionEntryDetails
-	): vscode.SnippetString {
-		let hasOptionalParameters = false;
-		let hasAddedParameters = false;
-
-		const snippet = new vscode.SnippetString();
-		const methodName = detail.displayParts.find(part => part.kind === 'methodName');
-		if (item.insertText) {
-			if (typeof item.insertText === 'string') {
-				snippet.appendText(item.insertText);
-			} else {
-				return item.insertText;
-			}
-		} else {
-			snippet.appendText((methodName && methodName.text) || item.label);
-		}
-		snippet.appendText('(');
-
-		let parenCount = 0;
-		let i = 0;
-		for (; i < detail.displayParts.length; ++i) {
-			const part = detail.displayParts[i];
-			// Only take top level paren names
-			if (part.kind === 'parameterName' && parenCount === 1) {
-				const next = detail.displayParts[i + 1];
-				// Skip optional parameters
-				const nameIsFollowedByOptionalIndicator = next && next.text === '?';
-				if (!nameIsFollowedByOptionalIndicator) {
-					if (hasAddedParameters) {
-						snippet.appendText(', ');
-					}
-					hasAddedParameters = true;
-					snippet.appendPlaceholder(part.text);
-				}
-				hasOptionalParameters = hasOptionalParameters || nameIsFollowedByOptionalIndicator;
-			} else if (part.kind === 'punctuation') {
-				if (part.text === '(') {
-					++parenCount;
-				} else if (part.text === ')') {
-					--parenCount;
-				} else if (part.text === '...' && parenCount === 1) {
-					// Found rest parmeter. Do not fill in any further arguments
-					hasOptionalParameters = true;
-					break;
-				}
-			}
-		}
-		if (hasOptionalParameters) {
-			snippet.appendTabstop();
-		}
-		snippet.appendText(')');
-		snippet.appendTabstop(0);
-		return snippet;
 	}
 }
 

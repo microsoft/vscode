@@ -10,7 +10,7 @@ import * as dom from 'vs/base/browser/dom';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import * as modes from 'vs/editor/common/modes';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { RunOnceScheduler, createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
+import { createCancelablePromise, CancelablePromise, Delayer } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Event, Emitter, chain } from 'vs/base/common/event';
 import { domEvent, stop } from 'vs/base/browser/event';
@@ -55,8 +55,7 @@ export class ParameterHintsModel extends Disposable {
 	private triggerChars = new CharacterSet();
 	private retriggerChars = new CharacterSet();
 
-	private triggerContext: modes.SignatureHelpContext | undefined;
-	private throttledDelayer: RunOnceScheduler;
+	private throttledDelayer: Delayer<boolean>;
 	private provideSignatureHelpRequest?: CancelablePromise<modes.SignatureHelp | null | undefined>;
 
 	constructor(
@@ -69,7 +68,7 @@ export class ParameterHintsModel extends Disposable {
 		this.enabled = false;
 		this.triggerCharactersListeners = [];
 
-		this.throttledDelayer = new RunOnceScheduler(() => this.doTrigger(), delay);
+		this.throttledDelayer = new Delayer(delay);
 
 		this._register(this.editor.onDidChangeConfiguration(() => this.onEditorConfigurationChange()));
 		this._register(this.editor.onDidChangeModel(e => this.onModelChanged()));
@@ -86,7 +85,6 @@ export class ParameterHintsModel extends Disposable {
 	cancel(silent: boolean = false): void {
 		this.active = false;
 		this.pending = false;
-		this.triggerContext = undefined;
 
 		this.throttledDelayer.cancel();
 
@@ -101,44 +99,36 @@ export class ParameterHintsModel extends Disposable {
 	}
 
 	trigger(context: TriggerContext, delay?: number): void {
-		let model = this.editor.getModel();
+
+		const model = this.editor.getModel();
 		if (model === null || !modes.SignatureHelpProviderRegistry.has(model)) {
 			return;
 		}
 
-		const wasTriggered = this.isTriggered;
-		this.cancel(true);
-
-		this.triggerContext = {
-			triggerReason: context.triggerReason,
-			triggerCharacter: context.triggerCharacter,
-			isRetrigger: wasTriggered
-		};
-
-		return this.throttledDelayer.schedule(delay);
+		this.throttledDelayer.trigger(
+			() => this.doTrigger({
+				triggerReason: context.triggerReason,
+				triggerCharacter: context.triggerCharacter,
+				isRetrigger: this.isTriggered,
+			}), delay).then(undefined, onUnexpectedError);
 	}
 
-	private doTrigger(): void {
-		if (this.provideSignatureHelpRequest) {
-			this.provideSignatureHelpRequest.cancel();
+	private doTrigger(triggerContext: modes.SignatureHelpContext): Promise<boolean> {
+		this.cancel(true);
+
+		if (!this.editor.hasModel()) {
+			return Promise.resolve(false);
 		}
 
-		let model = this.editor.getModel();
-		let position = this.editor.getPosition();
-
-		if (model === null || position === null) {
-			return;
-		}
+		const model = this.editor.getModel();
+		const position = this.editor.getPosition();
 
 		this.pending = true;
-
-		const triggerContext = this.triggerContext || { triggerReason: modes.SignatureHelpTriggerReason.Invoke, isRetrigger: false };
-		this.triggerContext = undefined;
 
 		this.provideSignatureHelpRequest = createCancelablePromise(token =>
 			provideSignatureHelp(model!, position!, triggerContext, token));
 
-		this.provideSignatureHelpRequest.then(result => {
+		return this.provideSignatureHelpRequest.then(result => {
 			this.pending = false;
 
 			if (!result || !result.signatures || result.signatures.length === 0) {
@@ -155,11 +145,12 @@ export class ParameterHintsModel extends Disposable {
 		}).catch(error => {
 			this.pending = false;
 			onUnexpectedError(error);
+			return false;
 		});
 	}
 
 	private get isTriggered(): boolean {
-		return this.active || this.pending || this.throttledDelayer.isScheduled();
+		return this.active || this.pending || this.throttledDelayer.isTriggered();
 	}
 
 	private onModelChanged(): void {

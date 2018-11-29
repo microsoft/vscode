@@ -16,7 +16,7 @@ export interface ITelemetryEvent {
 export interface IRawSearchService {
 	fileSearch(search: IRawFileQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
 	textSearch(search: IRawTextQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
-	clearCache(cacheKey: string): Promise<void>;
+	clearCache(cacheKey: string): Thenable<void>;
 }
 
 export interface IRawFileMatch {

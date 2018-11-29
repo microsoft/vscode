@@ -99,7 +99,7 @@ class LanguagePacksCache extends Disposable {
 
 	private languagePacks: { [language: string]: ILanguagePack } = {};
 	private languagePacksFilePath: string;
-	private languagePacksFileLimiter: Queue<void>;
+	private languagePacksFileLimiter: Queue<any>;
 
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,
@@ -107,7 +107,7 @@ class LanguagePacksCache extends Disposable {
 	) {
 		super();
 		this.languagePacksFilePath = posix.join(environmentService.userDataPath, 'languagepacks.json');
-		this.languagePacksFileLimiter = new Queue<void>();
+		this.languagePacksFileLimiter = new Queue();
 	}
 
 	getLanguagePacks(): Thenable<{ [language: string]: ILanguagePack }> {

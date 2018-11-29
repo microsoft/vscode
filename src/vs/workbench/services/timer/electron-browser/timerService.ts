@@ -13,7 +13,7 @@ import { IWindowService, IWindowsService } from 'vs/platform/windows/common/wind
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -53,6 +53,7 @@ export interface IMemoryInfo {
 		"timers.ellapsedExtensions" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedExtensionsReady" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedRequire" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.ellapsedGlobalStorageInit" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedWorkspaceStorageRequire" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedWorkspaceStorageInit" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedViewletRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
@@ -193,6 +194,15 @@ export interface IStartupMetrics {
 		 *
 		 */
 		ellapsedWindowLoadToRequire: number;
+
+		/**
+		 * The time it took to require the global storage DB, connect to it
+		 * and load the initial set of values.
+		 *
+		 * * Happens in the main-process
+		 * * Measured with the `main:willInitGlobalStorage` and `main:didInitGlobalStorage` performance marks.
+		 */
+		ellapsedGlobalStorageInit: number;
 
 		/**
 		 * The time it took to require the workspace storage DB.
@@ -388,6 +398,7 @@ class TimerService implements ITimerService {
 				ellapsedWindowLoad: initialStartup ? perf.getDuration('main:appReady', 'main:loadWindow') : undefined,
 				ellapsedWindowLoadToRequire: perf.getDuration('main:loadWindow', 'willLoadWorkbenchMain'),
 				ellapsedRequire: perf.getDuration('willLoadWorkbenchMain', 'didLoadWorkbenchMain'),
+				ellapsedGlobalStorageInit: perf.getDuration('main:willInitGlobalStorage', 'main:didInitGlobalStorage'),
 				ellapsedWorkspaceStorageRequire: perf.getDuration('willRequireSQLite', 'didRequireSQLite'),
 				ellapsedWorkspaceStorageInit: perf.getDuration('willInitWorkspaceStorage', 'didInitWorkspaceStorage'),
 				ellapsedExtensions: perf.getDuration('willLoadExtensions', 'didLoadExtensions'),
@@ -424,13 +435,13 @@ registerSingleton(ITimerService, TimerService, true);
 
 export function didUseCachedData(): boolean {
 	// We surely don't use cached data when we don't tell the loader to do so
-	if (!Boolean((<any>global).require.getConfig().nodeCachedDataDir)) {
+	if (!Boolean((<any>global).require.getConfig().nodeCachedData)) {
 		return false;
 	}
 	// whenever cached data is produced or rejected a onNodeCachedData-callback is invoked. That callback
 	// stores data in the `MonacoEnvironment.onNodeCachedData` global. See:
 	// https://github.com/Microsoft/vscode/blob/efe424dfe76a492eab032343e2fa4cfe639939f0/src/vs/workbench/electron-browser/bootstrap/index.js#L299
-	if (!isFalsyOrEmpty(MonacoEnvironment.onNodeCachedData)) {
+	if (isNonEmptyArray(MonacoEnvironment.onNodeCachedData)) {
 		return false;
 	}
 	return true;

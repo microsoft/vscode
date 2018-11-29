@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IMessagePassingProtocol, IPCServer, ClientConnectionEvent, IPCClient, IChannel } from 'vs/base/parts/ipc/node/ipc';
+import { IMessagePassingProtocol, IPCServer, ClientConnectionEvent, IPCClient, IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
 import { Emitter, toPromise, Event } from 'vs/base/common/event';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
@@ -54,7 +54,7 @@ function createProtocolPair(): [IMessagePassingProtocol, IMessagePassingProtocol
 	return [one, other];
 }
 
-class TestIPCClient extends IPCClient {
+class TestIPCClient extends IPCClient<string> {
 
 	private _onDidDisconnect = new Emitter<void>();
 	readonly onDidDisconnect = this._onDidDisconnect.event;
@@ -69,7 +69,7 @@ class TestIPCClient extends IPCClient {
 	}
 }
 
-class TestIPCServer extends IPCServer {
+class TestIPCServer extends IPCServer<string> {
 
 	private onDidClientConnect: Emitter<ClientConnectionEvent>;
 
@@ -79,7 +79,7 @@ class TestIPCServer extends IPCServer {
 		this.onDidClientConnect = onDidClientConnect;
 	}
 
-	createConnection(id: string): IPCClient {
+	createConnection(id: string): IPCClient<string> {
 		const [pc, ps] = createProtocolPair();
 		const client = new TestIPCClient(pc, id);
 
@@ -138,23 +138,11 @@ class TestService implements ITestService {
 	}
 }
 
-interface ITestChannel extends IChannel {
-	call(command: 'marco'): Thenable<string>;
-	call(command: 'error'): Thenable<void>;
-	call(command: 'neverComplete'): Thenable<void>;
-	call(command: 'neverCompleteCT', arg: undefined, cancellationToken: CancellationToken): Thenable<void>;
-	call(command: 'buffersLength', arg: [Buffer, Buffer]): Thenable<void>;
-	call<T>(command: string, arg?: any, cancellationToken?: CancellationToken): Thenable<T>;
-
-	listen(event: 'pong'): Event<string>;
-	listen<T>(event: string, arg?: any): Event<T>;
-}
-
-class TestChannel implements ITestChannel {
+class TestChannel implements IServerChannel {
 
 	constructor(private service: ITestService) { }
 
-	call(command: string, arg?: any, cancellationToken?: CancellationToken): Thenable<any> {
+	call(_, command: string, arg?: any, cancellationToken?: CancellationToken): Thenable<any> {
 		switch (command) {
 			case 'marco': return this.service.marco();
 			case 'error': return this.service.error(arg);
@@ -165,7 +153,7 @@ class TestChannel implements ITestChannel {
 		}
 	}
 
-	listen(event: string, arg?: any): Event<any> {
+	listen(_, event: string, arg?: any): Event<any> {
 		switch (event) {
 			case 'pong': return this.service.pong;
 			default: throw new Error('not implemented');
@@ -179,7 +167,7 @@ class TestChannelClient implements ITestService {
 		return this.channel.listen('pong');
 	}
 
-	constructor(private channel: ITestChannel) { }
+	constructor(private channel: IChannel) { }
 
 	marco(): Thenable<string> {
 		return this.channel.call('marco');

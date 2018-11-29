@@ -14,6 +14,10 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Color } from 'vs/base/common/color';
+import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { Event, Emitter } from 'vs/base/common/event';
+import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 
 export const MENU_MNEMONIC_REGEX: RegExp = /\(&{1,2}(.)\)|&{1,2}(.)/;
 export const MENU_ESCAPED_MNEMONIC_REGEX: RegExp = /(?:&amp;){1,2}(.)/;
@@ -25,6 +29,7 @@ export interface IMenuOptions {
 	getKeyBinding?: (action: IAction) => ResolvedKeybinding;
 	ariaLabel?: string;
 	enableMnemonics?: boolean;
+	anchorAlignment?: AnchorAlignment;
 }
 
 export interface IMenuStyles {
@@ -52,17 +57,20 @@ interface ISubMenuData {
 export class Menu extends ActionBar {
 	private mnemonics: Map<KeyCode, Array<MenuActionItem>>;
 	private menuDisposables: IDisposable[];
+	private scrollableElement: DomScrollableElement;
+	private menuElement: HTMLElement;
+
+	private readonly _onScroll: Emitter<void>;
 
 	constructor(container: HTMLElement, actions: IAction[], options: IMenuOptions = {}) {
 
 		addClass(container, 'monaco-menu-container');
 		container.setAttribute('role', 'presentation');
-		let menuContainer = document.createElement('div');
-		addClass(menuContainer, 'monaco-menu');
-		menuContainer.setAttribute('role', 'presentation');
-		container.appendChild(menuContainer);
+		const menuElement = document.createElement('div');
+		addClass(menuElement, 'monaco-menu');
+		menuElement.setAttribute('role', 'presentation');
 
-		super(menuContainer, {
+		super(menuElement, {
 			orientation: ActionsOrientation.VERTICAL,
 			actionItemProvider: action => this.doGetActionItem(action, options, parentData),
 			context: options.context,
@@ -71,6 +79,10 @@ export class Menu extends ActionBar {
 			triggerKeys: { keys: [KeyCode.Enter], keyDown: true }
 		});
 
+		this.menuElement = menuElement;
+
+		this._onScroll = this._register(new Emitter<void>());
+
 		this.actionsList.setAttribute('role', 'menu');
 
 		this.actionsList.tabIndex = 0;
@@ -78,7 +90,7 @@ export class Menu extends ActionBar {
 		this.menuDisposables = [];
 
 		if (options.enableMnemonics) {
-			this.menuDisposables.push(addDisposableListener(menuContainer, EventType.KEY_DOWN, (e) => {
+			this.menuDisposables.push(addDisposableListener(menuElement, EventType.KEY_DOWN, (e) => {
 				const key = KeyCodeUtils.fromString(e.key);
 				if (this.mnemonics.has(key)) {
 					EventHelper.stop(e, true);
@@ -139,6 +151,36 @@ export class Menu extends ActionBar {
 		this.mnemonics = new Map<KeyCode, Array<MenuActionItem>>();
 
 		this.push(actions, { icon: true, label: true, isMenu: true });
+
+		// Scroll Logic
+		this.scrollableElement = this._register(new DomScrollableElement(menuElement, {
+			alwaysConsumeMouseWheel: true,
+			horizontal: ScrollbarVisibility.Hidden,
+			vertical: ScrollbarVisibility.Visible,
+			verticalScrollbarSize: 7,
+			handleMouseWheel: true,
+			useShadows: true
+		}));
+
+		const scrollElement = this.scrollableElement.getDomNode();
+		scrollElement.style.position = null;
+
+		menuElement.style.maxHeight = `${Math.max(10, window.innerHeight - container.getBoundingClientRect().top - 30)}px`;
+
+		this.scrollableElement.onScroll(() => {
+			this._onScroll.fire();
+		}, this, this.menuDisposables);
+
+		this._register(addDisposableListener(this.menuElement, EventType.SCROLL, (e) => {
+			this.scrollableElement.scanDomNode();
+		}));
+
+		container.appendChild(this.scrollableElement.getDomNode());
+		this.scrollableElement.scanDomNode();
+
+		this.items.filter(item => !(item instanceof MenuSeparatorActionItem)).forEach((item: MenuActionItem, index: number, array: any[]) => {
+			item.updatePositionInSet(index + 1, array.length);
+		});
 	}
 
 	style(style: IMenuStyles): void {
@@ -161,6 +203,18 @@ export class Menu extends ActionBar {
 				}
 			});
 		}
+	}
+
+	getContainer(): HTMLElement {
+		return this.scrollableElement.getDomNode();
+	}
+
+	public get onScroll(): Event<void> {
+		return this._onScroll.event;
+	}
+
+	get scrollOffset(): number {
+		return this.menuElement.scrollTop;
 	}
 
 	private focusItemByElement(element: HTMLElement) {
@@ -323,6 +377,11 @@ class MenuActionItem extends BaseActionItem {
 		this.applyStyle();
 	}
 
+	updatePositionInSet(pos: number, setSize: number): void {
+		this.item.setAttribute('aria-posinset', `${pos}`);
+		this.item.setAttribute('aria-setsize', `${setSize}`);
+	}
+
 	updateLabel(): void {
 		if (this.options.label) {
 			let label = this.getAction().label;
@@ -410,6 +469,10 @@ class MenuActionItem extends BaseActionItem {
 	}
 
 	protected applyStyle(): void {
+		if (!this.menuStyle) {
+			return;
+		}
+
 		const isSelected = hasClass(this.element, 'focused');
 		const fgColor = isSelected && this.menuStyle.selectionForegroundColor ? this.menuStyle.selectionForegroundColor : this.menuStyle.foregroundColor;
 		const bgColor = isSelected && this.menuStyle.selectionBackgroundColor ? this.menuStyle.selectionBackgroundColor : this.menuStyle.backgroundColor;
@@ -501,6 +564,11 @@ class SubmenuActionItem extends MenuActionItem {
 				this.hideScheduler.schedule();
 			}
 		}));
+
+		this._register(this.parentData.parent.onScroll(() => {
+			this.parentData.parent.focus(false);
+			this.cleanupExistingSubmenu(false);
+		}));
 	}
 
 	onClick(e: EventLike): void {
@@ -528,6 +596,7 @@ class SubmenuActionItem extends MenuActionItem {
 			this.submenuContainer = append(this.element, $('div.monaco-submenu'));
 			addClasses(this.submenuContainer, 'menubar-menu-items-holder', 'context-view');
 			this.submenuContainer.style.left = `${getClientArea(this.element).width}px`;
+			this.submenuContainer.style.top = `${this.element.offsetTop - this.parentData.parent.scrollOffset}px`;
 
 			this.submenuDisposables.push(addDisposableListener(this.submenuContainer, EventType.KEY_UP, e => {
 				let event = new StandardKeyboardEvent(e as KeyboardEvent);
@@ -574,6 +643,11 @@ class SubmenuActionItem extends MenuActionItem {
 
 	protected applyStyle(): void {
 		super.applyStyle();
+
+		if (!this.menuStyle) {
+			return;
+		}
+
 		const isSelected = hasClass(this.element, 'focused');
 		const fgColor = isSelected && this.menuStyle.selectionForegroundColor ? this.menuStyle.selectionForegroundColor : this.menuStyle.foregroundColor;
 

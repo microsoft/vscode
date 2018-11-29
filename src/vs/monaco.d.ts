@@ -182,7 +182,7 @@ declare namespace monaco {
 			fragment?: string;
 		}): Uri;
 		/**
-		 * Creates a string presentation for this Uri. It's guaranteed that calling
+		 * Creates a string representation for this Uri. It's guaranteed that calling
 		 * `Uri.parse` with the result of this function creates an Uri which is equal
 		 * to this Uri.
 		 *
@@ -2392,16 +2392,14 @@ declare namespace monaco.editor {
 		arrowSize?: number;
 		/**
 		 * Render vertical scrollbar.
-		 * Accepted values: 'auto', 'visible', 'hidden'.
 		 * Defaults to 'auto'.
 		 */
-		vertical?: string;
+		vertical?: 'auto' | 'visible' | 'hidden';
 		/**
 		 * Render horizontal scrollbar.
-		 * Accepted values: 'auto', 'visible', 'hidden'.
 		 * Defaults to 'auto'.
 		 */
-		horizontal?: string;
+		horizontal?: 'auto' | 'visible' | 'hidden';
 		/**
 		 * Cast horizontal and vertical shadows when the content is scrolled.
 		 * Defaults to true.
@@ -4762,7 +4760,7 @@ declare namespace monaco.languages {
 		preselect?: boolean;
 		/**
 		 * A string or snippet that should be inserted in a document when selecting
-		 * this completion. When `falsy` the [label](#CompletionItem.label)
+		 * this completion.
 		 * is used.
 		 */
 		insertText: string;
@@ -4941,8 +4939,8 @@ declare namespace monaco.languages {
 	 * the [parameter hints](https://code.visualstudio.com/docs/editor/intellisense)-feature.
 	 */
 	export interface SignatureHelpProvider {
-		readonly signatureHelpTriggerCharacters: ReadonlyArray<string>;
-		readonly signatureHelpRetriggerCharacters: ReadonlyArray<string>;
+		readonly signatureHelpTriggerCharacters?: ReadonlyArray<string>;
+		readonly signatureHelpRetriggerCharacters?: ReadonlyArray<string>;
 		/**
 		 * Provide help for the signature at the given position and document.
 		 */
@@ -5150,10 +5148,6 @@ declare namespace monaco.languages {
 		range: IRange;
 		text: string;
 		eol?: editor.EndOfLineSequence;
-	} | {
-		range: undefined;
-		text: undefined;
-		eol: editor.EndOfLineSequence;
 	};
 
 	/**
@@ -5298,6 +5292,13 @@ declare namespace monaco.languages {
 		 * Provide the string representations for a color.
 		 */
 		provideColorPresentations(model: editor.ITextModel, colorInfo: IColorInformation, token: CancellationToken): ProviderResult<IColorPresentation[]>;
+	}
+
+	export interface SelectionRangeProvider {
+		/**
+		 * Provide ranges that should be selected from the given position.
+		 */
+		provideSelectionRanges(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<Range[]>;
 	}
 
 	export interface FoldingContext {

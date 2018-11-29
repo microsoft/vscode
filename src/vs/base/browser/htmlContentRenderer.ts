@@ -6,7 +6,7 @@
 import * as DOM from 'vs/base/browser/dom';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { escape } from 'vs/base/common/strings';
-import { removeMarkdownEscapes, IMarkdownString } from 'vs/base/common/htmlContent';
+import { removeMarkdownEscapes, IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import * as marked from 'vs/base/common/marked/marked';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -122,6 +122,12 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 			return text;
 
 		} else {
+			// HTML Encode href
+			href = href.replace(/&/g, '&amp;')
+				.replace(/</g, '&lt;')
+				.replace(/>/g, '&gt;')
+				.replace(/"/g, '&quot;')
+				.replace(/'/g, '&#39;');
 			return `<a href="#" data-href="${href}" title="${title || href}">${text}</a>`;
 		}
 	};
@@ -176,11 +182,11 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 	}
 
 	const markedOptions: marked.MarkedOptions = {
-		sanitize: true,
+		sanitize: markdown instanceof MarkdownString ? markdown.sanitize : true,
 		renderer
 	};
 
-	element.innerHTML = marked(markdown.value, markedOptions);
+	element.innerHTML = marked.parse(markdown.value, markedOptions);
 	signalInnerHTML!();
 
 	return element;

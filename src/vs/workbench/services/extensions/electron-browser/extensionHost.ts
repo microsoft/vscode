@@ -18,9 +18,8 @@ import * as objects from 'vs/base/common/objects';
 import { isWindows } from 'vs/base/common/platform';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IRemoteConsoleLog, log, parse } from 'vs/base/node/console';
-import { findFreePort } from 'vs/base/node/ports';
+import { findFreePort, randomPort } from 'vs/base/node/ports';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
 import { Protocol, generateRandomPipeName } from 'vs/base/parts/ipc/node/ipc.net';
 import { IBroadcast, IBroadcastService } from 'vs/platform/broadcast/electron-browser/broadcastService';
@@ -43,7 +42,7 @@ import { IExtensionDescription } from 'vs/workbench/services/extensions/common/e
 
 export interface IExtensionHostStarter {
 	readonly onCrashed: Event<[number, string]>;
-	start(): TPromise<IMessagePassingProtocol>;
+	start(): Promise<IMessagePassingProtocol>;
 	getInspectPort(): number;
 	dispose(): void;
 }
@@ -91,7 +90,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 	private _inspectPort: number;
 	private _extensionHostProcess: ChildProcess;
 	private _extensionHostConnection: Socket;
-	private _messageProtocol: TPromise<IMessagePassingProtocol>;
+	private _messageProtocol: Promise<IMessagePassingProtocol>;
 
 	constructor(
 		private readonly _extensions: Promise<IExtensionDescription[]>,
@@ -125,7 +124,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
 		this._toDispose = [];
 		this._toDispose.push(this._onCrashed);
-		this._toDispose.push(this._lifecycleService.onWillShutdown((e) => this._onWillShutdown(e)));
+		this._toDispose.push(this._lifecycleService.onWillShutdown(e => this._onWillShutdown(e)));
 		this._toDispose.push(this._lifecycleService.onShutdown(reason => this.terminate()));
 		this._toDispose.push(this._broadcastService.onBroadcast(b => this._onBroadcast(b)));
 
@@ -158,14 +157,14 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		}
 	}
 
-	public start(): TPromise<IMessagePassingProtocol> {
+	public start(): Promise<IMessagePassingProtocol> {
 		if (this._terminating) {
 			// .terminate() was called
 			return null;
 		}
 
 		if (!this._messageProtocol) {
-			this._messageProtocol = TPromise.join([this._tryListenOnPipe(), this._tryFindDebugPort()]).then(data => {
+			this._messageProtocol = Promise.all([this._tryListenOnPipe(), this._tryFindDebugPort()]).then(data => {
 				const pipeName = data[0];
 				const portData = data[1];
 
@@ -311,7 +310,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 	 */
 	private _tryFindDebugPort(): Promise<{ expected: number; actual: number }> {
 		let expected: number;
-		let startPort = 9333;
+		let startPort = randomPort();
 		if (typeof this._environmentService.debugExtensionHost.port === 'number') {
 			startPort = expected = this._environmentService.debugExtensionHost.port;
 		}
@@ -412,8 +411,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		});
 	}
 
-	private _createExtHostInitData(): TPromise<IInitData> {
-		return TPromise.join([this._telemetryService.getTelemetryInfo(), this._extensions])
+	private _createExtHostInitData(): Promise<IInitData> {
+		return Promise.all([this._telemetryService.getTelemetryInfo(), this._extensions])
 			.then(([telemetryInfo, extensionDescriptions]) => {
 				const configurationData: IConfigurationInitData = { ...this._configurationService.getConfigurationData(), configurationScopes: {} };
 				const workspace = this._contextService.getWorkspace();
@@ -425,7 +424,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 						appRoot: this._environmentService.appRoot ? URI.file(this._environmentService.appRoot) : void 0,
 						appSettingsHome: this._environmentService.appSettingsHome ? URI.file(this._environmentService.appSettingsHome) : void 0,
 						extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
-						extensionTestsPath: this._environmentService.extensionTestsPath
+						extensionTestsPath: this._environmentService.extensionTestsPath,
+						globalStorageHome: this._environmentService.globalStorageHome
 					},
 					workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : {
 						configuration: workspace.configuration,
@@ -563,7 +563,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 				}
 			});
 
-			event.veto(timeout(100 /* wait a bit for IPC to get delivered */).then(() => false));
+			event.join(timeout(100 /* wait a bit for IPC to get delivered */));
 		}
 	}
 }

@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter, fromNodeEventEmitter, filterEvent, debounceEvent } from 'vs/base/common/event';
-import { Throttler, timeout } from 'vs/base/common/async';
+import { timeout } from 'vs/base/common/async';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import product from 'vs/platform/node/product';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IUpdateService, State, StateType, AvailableForDownload, UpdateType } from 'vs/platform/update/common/update';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -21,7 +20,6 @@ abstract class AbstractUpdateService2 implements IUpdateService {
 	_serviceBrand: any;
 
 	private _state: State = State.Uninitialized;
-	private throttler: Throttler = new Throttler();
 
 	private _onStateChange = new Emitter<State>();
 	get onStateChange(): Event<State> { return this._onStateChange.event; }
@@ -61,49 +59,49 @@ abstract class AbstractUpdateService2 implements IUpdateService {
 			});
 	}
 
-	checkForUpdates(context: any): TPromise<void> {
+	async checkForUpdates(context: any): Promise<void> {
 		this.logService.trace('update#checkForUpdates, state = ', this.state.type);
 
 		if (this.state.type !== StateType.Idle) {
-			return TPromise.as(void 0);
+			return;
 		}
 
-		return this.throttler.queue(() => TPromise.as(this.doCheckForUpdates(context)));
+		this.doCheckForUpdates(context);
 	}
 
-	downloadUpdate(): TPromise<void> {
+	async downloadUpdate(): Promise<void> {
 		this.logService.trace('update#downloadUpdate, state = ', this.state.type);
 
 		if (this.state.type !== StateType.AvailableForDownload) {
-			return TPromise.as(void 0);
+			return;
 		}
 
-		return this.doDownloadUpdate(this.state);
+		await this.doDownloadUpdate(this.state);
 	}
 
-	protected doDownloadUpdate(state: AvailableForDownload): TPromise<void> {
-		return TPromise.as(void 0);
+	protected doDownloadUpdate(state: AvailableForDownload): Promise<void> {
+		return Promise.resolve(void 0);
 	}
 
-	applyUpdate(): TPromise<void> {
+	async applyUpdate(): Promise<void> {
 		this.logService.trace('update#applyUpdate, state = ', this.state.type);
 
 		if (this.state.type !== StateType.Downloaded) {
-			return TPromise.as(void 0);
+			return;
 		}
 
-		return this.doApplyUpdate();
+		await this.doApplyUpdate();
 	}
 
-	protected doApplyUpdate(): TPromise<void> {
-		return TPromise.as(void 0);
+	protected doApplyUpdate(): Thenable<void> {
+		return Promise.resolve(void 0);
 	}
 
-	quitAndInstall(): TPromise<void> {
+	quitAndInstall(): Thenable<void> {
 		this.logService.trace('update#quitAndInstall, state = ', this.state.type);
 
 		if (this.state.type !== StateType.Ready) {
-			return TPromise.as(void 0);
+			return Promise.resolve(void 0);
 		}
 
 		this.logService.trace('update#quitAndInstall(): before lifecycle quit()');
@@ -118,7 +116,7 @@ abstract class AbstractUpdateService2 implements IUpdateService {
 			this.doQuitAndInstall();
 		});
 
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 
 
@@ -130,7 +128,7 @@ abstract class AbstractUpdateService2 implements IUpdateService {
 		// noop
 	}
 
-	abstract isLatestVersion(): TPromise<boolean | undefined>;
+	abstract isLatestVersion(): Thenable<boolean | undefined>;
 	protected abstract doCheckForUpdates(context: any): void;
 }
 
@@ -155,7 +153,7 @@ export class SnapUpdateService extends AbstractUpdateService2 {
 		const onDebouncedCurrentChange = debounceEvent(onCurrentChange, (_, e) => e, 2000);
 		const listener = onDebouncedCurrentChange(this.checkForUpdates, this);
 
-		lifecycleService.onShutdown(() => {
+		lifecycleService.onWillShutdown(() => {
 			listener.dispose();
 			watcher.close();
 		});
@@ -204,8 +202,8 @@ export class SnapUpdateService extends AbstractUpdateService2 {
 		});
 	}
 
-	private isUpdateAvailable(): TPromise<boolean> {
-		return new TPromise((c, e) => {
+	private isUpdateAvailable(): Thenable<boolean> {
+		return new Promise((c, e) => {
 			realpath(`/snap/${product.applicationName}/current`, (err, resolvedCurrentSnapPath) => {
 				if (err) { return e(err); }
 
@@ -215,8 +213,8 @@ export class SnapUpdateService extends AbstractUpdateService2 {
 		});
 	}
 
-	isLatestVersion(): TPromise<boolean | undefined> {
-		return this.isUpdateAvailable().then(null, err => {
+	isLatestVersion(): Thenable<boolean | undefined> {
+		return this.isUpdateAvailable().then(undefined, err => {
 			this.logService.error('update#checkForSnapUpdate(): Could not get realpath of application.');
 			return undefined;
 		});

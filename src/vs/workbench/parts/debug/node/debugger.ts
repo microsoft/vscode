@@ -17,6 +17,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { ExecutableDebugAdapter, SocketDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+import * as ConfigurationResolverUtils from 'vs/workbench/services/configurationResolver/common/configurationResolverUtils';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { memoize } from 'vs/base/common/decorators';
@@ -40,44 +41,62 @@ export class Debugger implements IDebugger {
 		this.mergedExtensionDescriptions = [extensionDescription];
 	}
 
+	public createDebugAdapter(session: IDebugSession, outputService: IOutputService): Promise<IDebugAdapter> {
+		return new Promise<IDebugAdapter>((resolve, reject) => {
+			this.configurationManager.activateDebuggers('onDebugAdapterProtocolTracker', this.type).then(_ => {
+				resolve(this._createDebugAdapter(session, outputService));
+			}, reject);
+		});
+	}
 
-	createDebugAdapter(session: IDebugSession, root: IWorkspaceFolder, config: IConfig, outputService: IOutputService): Promise<IDebugAdapter> {
+	private _createDebugAdapter(session: IDebugSession, outputService: IOutputService): Promise<IDebugAdapter> {
 		if (this.inExtHost()) {
-			return Promise.resolve(this.configurationManager.createDebugAdapter(session, root, config));
+			return Promise.resolve(this.configurationManager.createDebugAdapter(session));
 		} else {
-			return this.getAdapterDescriptor(session, root, config).then(adapterDescriptor => {
+			return this.getAdapterDescriptor(session).then(adapterDescriptor => {
 				switch (adapterDescriptor.type) {
-					case 'server':
-						return new SocketDebugAdapter(adapterDescriptor);
 					case 'executable':
 						return new ExecutableDebugAdapter(adapterDescriptor, this.type, outputService);
+					case 'server':
+						return new SocketDebugAdapter(adapterDescriptor);
+					case 'implementation':
+						// TODO@AW: this.inExtHost() should now return true
+						return Promise.resolve(this.configurationManager.createDebugAdapter(session));
 					default:
-						throw new Error('Cannot create debug adapter.');
+						throw new Error('unknown type');
+				}
+			}).catch(err => {
+				if (err && err.message) {
+					throw new Error(nls.localize('cannot.create.da.with.err', "Cannot create debug adapter ({0}).", err.message));
+				} else {
+					throw new Error(nls.localize('cannot.create.da', "Cannot create debug adapter."));
 				}
 			});
 		}
 	}
 
-	private getAdapterDescriptor(session: IDebugSession, root: IWorkspaceFolder, config: IConfig): Promise<IAdapterDescriptor> {
+	private getAdapterDescriptor(session: IDebugSession): Promise<IAdapterDescriptor> {
 
 		// a "debugServer" attribute in the launch config takes precedence
-		if (typeof config.debugServer === 'number') {
+		if (typeof session.configuration.debugServer === 'number') {
 			return Promise.resolve(<IDebugAdapterServer>{
 				type: 'server',
-				port: config.debugServer
+				port: session.configuration.debugServer
 			});
 		}
 
 		// try the proposed and the deprecated "provideDebugAdapter" API
-		return this.configurationManager.provideDebugAdapter(session, root ? root.uri : undefined, config).then(adapter => {
+		return this.configurationManager.provideDebugAdapter(session).then(adapter => {
 
 			if (adapter) {
+				console.info('DebugConfigurationProvider.debugAdapterExecutable is deprecated and will be removed soon; please use DebugAdapterDescriptorFactory.createDebugAdapterDescriptor instead.');
 				return adapter;
 			}
 
 			// try deprecated command based extension API "adapterExecutableCommand" to determine the executable
 			if (this.debuggerContribution.adapterExecutableCommand) {
-				const rootFolder = root ? root.uri.toString() : undefined;
+				console.info('debugAdapterExecutable attribute in package.json is deprecated and support for it will be removed soon; please use DebugAdapterDescriptorFactory.createDebugAdapterDescriptor instead.');
+				const rootFolder = session.root ? session.root.uri.toString() : undefined;
 				return this.commandService.executeCommand<IDebugAdapterExecutable>(this.debuggerContribution.adapterExecutableCommand, rootFolder).then((ae: { command: string, args: string[] }) => {
 					return <IAdapterDescriptor>{
 						type: 'executable',
@@ -88,7 +107,11 @@ export class Debugger implements IDebugger {
 			}
 
 			// fallback: use executable information from package.json
-			return ExecutableDebugAdapter.platformAdapterExecutable(this.mergedExtensionDescriptions, this.type);
+			const ae = ExecutableDebugAdapter.platformAdapterExecutable(this.mergedExtensionDescriptions, this.type);
+			if (ae === undefined) {
+				throw new Error('no executable specified in package.json');
+			}
+			return ae;
 		});
 	}
 
@@ -102,7 +125,7 @@ export class Debugger implements IDebugger {
 		}
 	}
 
-	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<void> {
+	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined> {
 		const config = this.configurationService.getValue<ITerminalSettings>('terminal');
 		return this.configurationManager.runInTerminal(this.inExtHost() ? this.type : '*', args, config);
 	}
@@ -288,9 +311,7 @@ export class Debugger implements IDebugger {
 			};
 			Object.keys(attributes.properties).forEach(name => {
 				// Use schema allOf property to get independent error reporting #21113
-				attributes.properties[name].pattern = attributes.properties[name].pattern || '^(?!.*\\$\\{(env|config|command)\\.)';
-				attributes.properties[name].patternErrorMessage = attributes.properties[name].patternErrorMessage ||
-					nls.localize('deprecatedVariables', "'env.', 'config.' and 'command.' are deprecated, use 'env:', 'config:' and 'command:' instead.");
+				ConfigurationResolverUtils.applyDeprecatedVariableMessage(attributes.properties[name]);
 			});
 
 			return attributes;

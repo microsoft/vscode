@@ -10,7 +10,7 @@ import Logger from './logger';
 enum Trace {
 	Off,
 	Messages,
-	Verbose
+	Verbose,
 }
 
 namespace Trace {

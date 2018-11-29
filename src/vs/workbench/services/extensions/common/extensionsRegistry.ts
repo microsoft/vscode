@@ -215,6 +215,11 @@ export const schema = {
 						body: 'onDebugResolve:${6:type}'
 					},
 					{
+						label: 'onDebugAdapterProtocolTracker',
+						description: nls.localize('vscode.extension.activationEvents.onDebugAdapterProtocolTracker', 'An activation event emitted whenever a debug session with the specific type is about to be launched and a debug protocol tracker might be needed.'),
+						body: 'onDebugAdapterProtocolTracker:${6:type}'
+					},
+					{
 						label: 'workspaceContains',
 						description: nls.localize('vscode.extension.activationEvents.workspaceContains', 'An activation event emitted whenever a folder is opened that contains at least a file matching the specified glob pattern.'),
 						body: 'workspaceContains:${4:filePattern}'

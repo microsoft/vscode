@@ -22,7 +22,7 @@ export class Editor {
 
 	async findReferences(filename: string, term: string, line: number): Promise<References> {
 		await this.clickOnTerm(filename, term, line);
-		await this.commands.runCommand('Find All References');
+		await this.commands.runCommand('Peek References');
 		const references = new References(this.code);
 		await references.waitUntilOpen();
 		return references;
@@ -40,7 +40,7 @@ export class Editor {
 
 	async gotoDefinition(filename: string, term: string, line: number): Promise<void> {
 		await this.clickOnTerm(filename, term, line);
-		await this.commands.runCommand('Go to Definition');
+		await this.commands.runCommand('Go to Implementation');
 	}
 
 	async peekDefinition(filename: string, term: string, line: number): Promise<References> {

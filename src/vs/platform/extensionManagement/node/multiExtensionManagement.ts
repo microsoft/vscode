@@ -9,12 +9,13 @@ import {
 	IExtensionManagementServerService, IExtensionManagementServer, IExtensionGalleryService
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { flatten } from 'vs/base/common/arrays';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { isUIExtension } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IRemoteAuthorityResolverService, IRemoteAuthorityResolver } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { getManifest } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 
 export class MulitExtensionManagementService extends Disposable implements IExtensionManagementService {
 
@@ -30,10 +31,11 @@ export class MulitExtensionManagementService extends Disposable implements IExte
 	constructor(
 		@IExtensionManagementServerService private extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IRemoteAuthorityResolverService private remoteAuthorityResolverService: IRemoteAuthorityResolverService
 	) {
 		super();
-		this.servers = this.extensionManagementServerService.otherExtensionManagementServer ? [this.extensionManagementServerService.localExtensionManagementServer, this.extensionManagementServerService.otherExtensionManagementServer] : [this.extensionManagementServerService.localExtensionManagementServer];
+		this.servers = this.extensionManagementServerService.remoteExtensionManagementServer ? [this.extensionManagementServerService.localExtensionManagementServer, this.extensionManagementServerService.remoteExtensionManagementServer] : [this.extensionManagementServerService.localExtensionManagementServer];
 
 		this.onInstallExtension = this._register(this.servers.reduce((emitter: EventMultiplexer<InstallExtensionEvent>, server) => { emitter.add(server.extensionManagementService.onInstallExtension); return emitter; }, new EventMultiplexer<InstallExtensionEvent>())).event;
 		this.onDidInstallExtension = this._register(this.servers.reduce((emitter: EventMultiplexer<DidInstallExtensionEvent>, server) => { emitter.add(server.extensionManagementService.onDidInstallExtension); return emitter; }, new EventMultiplexer<DidInstallExtensionEvent>())).event;
@@ -67,25 +69,24 @@ export class MulitExtensionManagementService extends Disposable implements IExte
 	}
 
 	install(vsix: URI): Promise<IExtensionIdentifier> {
-		return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.install(vsix)
-			.then(extensionIdentifer => this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.getInstalled(LocalExtensionType.User)
-				.then(installed => {
-					const extension = installed.filter(i => areSameExtensions(i.identifier, extensionIdentifer))[0];
-					if (this.extensionManagementServerService.otherExtensionManagementServer && extension && !isUIExtension(extension.manifest, this.configurationService)) {
-						return this.extensionManagementServerService.otherExtensionManagementServer.extensionManagementService.install(vsix)
-							.then(() => extensionIdentifer);
-					}
-					return extensionIdentifer;
-				}));
+		if (!this.extensionManagementServerService.remoteExtensionManagementServer) {
+			return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.install(vsix);
+		}
+		return Promise.all([getManifest(vsix.fsPath), this.hasToSyncExtensions()])
+			.then(([manifest, syncExtensions]) => {
+				const servers = isUIExtension(manifest, this.configurationService) ? [this.extensionManagementServerService.localExtensionManagementServer] : syncExtensions ? this.servers : [this.extensionManagementServerService.remoteExtensionManagementServer];
+				return Promise.all(servers.map(server => server.extensionManagementService.install(vsix)))
+					.then(() => null);
+			});
 	}
 
 	installFromGallery(gallery: IGalleryExtension): Promise<void> {
-		if (!this.extensionManagementServerService.otherExtensionManagementServer) {
+		if (!this.extensionManagementServerService.remoteExtensionManagementServer) {
 			return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.installFromGallery(gallery);
 		}
-		return this.extensionGalleryService.getManifest(gallery, CancellationToken.None)
-			.then(manifest => {
-				const servers = !isUIExtension(manifest, this.configurationService) ? this.servers : [this.extensionManagementServerService.localExtensionManagementServer];
+		return Promise.all([this.extensionGalleryService.getManifest(gallery, CancellationToken.None), this.hasToSyncExtensions()])
+			.then(([manifest, syncExtensions]) => {
+				const servers = isUIExtension(manifest, this.configurationService) ? [this.extensionManagementServerService.localExtensionManagementServer] : syncExtensions ? this.servers : [this.extensionManagementServerService.remoteExtensionManagementServer];
 				return Promise.all(servers.map(server => server.extensionManagementService.installFromGallery(gallery)))
 					.then(() => null);
 			});
@@ -97,5 +98,16 @@ export class MulitExtensionManagementService extends Disposable implements IExte
 
 	private getServer(extension: ILocalExtension): IExtensionManagementServer {
 		return this.extensionManagementServerService.getExtensionManagementServer(extension.location);
+	}
+
+	private _remoteAuthorityResolverPromise: Thenable<IRemoteAuthorityResolver>;
+	private hasToSyncExtensions(): Thenable<boolean> {
+		if (!this.extensionManagementServerService.remoteExtensionManagementServer) {
+			return Promise.resolve(false);
+		}
+		if (!this._remoteAuthorityResolverPromise) {
+			this._remoteAuthorityResolverPromise = this.remoteAuthorityResolverService.getRemoteAuthorityResolver(this.extensionManagementServerService.remoteExtensionManagementServer.authority);
+		}
+		return this._remoteAuthorityResolverPromise.then(({ syncExtensions }) => !!syncExtensions);
 	}
 }

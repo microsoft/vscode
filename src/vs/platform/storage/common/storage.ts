@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { isUndefinedOrNull } from 'vs/base/common/types';
 
 export const IStorageService = createDecorator<IStorageService>('storageService');
 
@@ -91,32 +93,88 @@ export interface IWorkspaceStorageChangeEvent {
 	scope: StorageScope;
 }
 
-export const NullStorageService: IStorageService = new class implements IStorageService {
+export const InMemoryStorageService: IStorageService = new class extends Disposable implements IStorageService {
 	_serviceBrand = undefined;
 
-	onDidChangeStorage = Event.None;
-	onWillSaveState = Event.None;
+	private _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
+	get onDidChangeStorage(): Event<IWorkspaceStorageChangeEvent> { return this._onDidChangeStorage.event; }
+
+	readonly onWillSaveState = Event.None;
+
+	private globalCache: Map<string, string> = new Map<string, string>();
+	private workspaceCache: Map<string, string> = new Map<string, string>();
+
+	private getCache(scope: StorageScope): Map<string, string> {
+		return scope === StorageScope.GLOBAL ? this.globalCache : this.workspaceCache;
+	}
 
 	get(key: string, scope: StorageScope, fallbackValue: string): string;
 	get(key: string, scope: StorageScope, fallbackValue?: string): string | undefined {
-		return fallbackValue;
+		const value = this.getCache(scope).get(key);
+
+		if (isUndefinedOrNull(value)) {
+			return fallbackValue;
+		}
+
+		return value;
 	}
 
 	getBoolean(key: string, scope: StorageScope, fallbackValue: boolean): boolean;
 	getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): boolean | undefined {
-		return fallbackValue;
+		const value = this.getCache(scope).get(key);
+
+		if (isUndefinedOrNull(value)) {
+			return fallbackValue;
+		}
+
+		return value === 'true';
 	}
 
 	getInteger(key: string, scope: StorageScope, fallbackValue: number): number;
 	getInteger(key: string, scope: StorageScope, fallbackValue?: number): number | undefined {
-		return fallbackValue;
+		const value = this.getCache(scope).get(key);
+
+		if (isUndefinedOrNull(value)) {
+			return fallbackValue;
+		}
+
+		return parseInt(value, 10);
 	}
 
 	store(key: string, value: any, scope: StorageScope): Promise<void> {
+
+		// We remove the key for undefined/null values
+		if (isUndefinedOrNull(value)) {
+			return this.remove(key, scope);
+		}
+
+		// Otherwise, convert to String and store
+		const valueStr = String(value);
+
+		// Return early if value already set
+		const currentValue = this.getCache(scope).get(key);
+		if (currentValue === valueStr) {
+			return Promise.resolve();
+		}
+
+		// Update in cache
+		this.getCache(scope).set(key, valueStr);
+
+		// Events
+		this._onDidChangeStorage.fire({ scope, key });
+
 		return Promise.resolve();
 	}
 
 	remove(key: string, scope: StorageScope): Promise<void> {
+		const wasDeleted = this.getCache(scope).delete(key);
+		if (!wasDeleted) {
+			return Promise.resolve(); // Return early if value already deleted
+		}
+
+		// Events
+		this._onDidChangeStorage.fire({ scope, key });
+
 		return Promise.resolve();
 	}
 };

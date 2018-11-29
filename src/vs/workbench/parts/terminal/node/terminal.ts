@@ -56,6 +56,9 @@ function getTerminalDefaultShellUnixLike(): string {
 				unixLikeTerminal = '/bin/bash';
 			}
 		}
+		if (platform.isWindows) {
+			unixLikeTerminal = '/bin/bash'; // for WSL
+		}
 		_TERMINAL_DEFAULT_SHELL_UNIX_LIKE = unixLikeTerminal;
 	}
 	return _TERMINAL_DEFAULT_SHELL_UNIX_LIKE;

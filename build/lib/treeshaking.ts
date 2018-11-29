@@ -110,7 +110,7 @@ function createTypeScriptLanguageService(options: ITreeShakingOptions): ts.Langu
 
 	// Add fake usage files
 	options.inlineEntryPoints.forEach((inlineEntryPoint, index) => {
-		FILES[`inlineEntryPoint:${index}.ts`] = inlineEntryPoint;
+		FILES[`inlineEntryPoint.${index}.ts`] = inlineEntryPoint;
 	});
 
 	// Add additional typings
@@ -445,7 +445,7 @@ function markNodes(languageService: ts.LanguageService, options: ITreeShakingOpt
 
 	options.entryPoints.forEach(moduleId => enqueueFile(moduleId + '.ts'));
 	// Add fake usage files
-	options.inlineEntryPoints.forEach((_, index) => enqueueFile(`inlineEntryPoint:${index}.ts`));
+	options.inlineEntryPoints.forEach((_, index) => enqueueFile(`inlineEntryPoint.${index}.ts`));
 
 	let step = 0;
 

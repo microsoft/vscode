@@ -6,7 +6,6 @@
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import * as errors from 'vs/base/common/errors';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as arrays from 'vs/base/common/arrays';
 import * as objects from 'vs/base/common/objects';
 import * as DOM from 'vs/base/browser/dom';
@@ -44,14 +43,14 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 const TextInputActions: IAction[] = [
-	new Action('undo', nls.localize('undo', "Undo"), null, true, () => document.execCommand('undo') && TPromise.as(true)),
-	new Action('redo', nls.localize('redo', "Redo"), null, true, () => document.execCommand('redo') && TPromise.as(true)),
+	new Action('undo', nls.localize('undo', "Undo"), null, true, () => document.execCommand('undo') && Promise.resolve(true)),
+	new Action('redo', nls.localize('redo', "Redo"), null, true, () => document.execCommand('redo') && Promise.resolve(true)),
 	new Separator(),
-	new Action('editor.action.clipboardCutAction', nls.localize('cut', "Cut"), null, true, () => document.execCommand('cut') && TPromise.as(true)),
-	new Action('editor.action.clipboardCopyAction', nls.localize('copy', "Copy"), null, true, () => document.execCommand('copy') && TPromise.as(true)),
-	new Action('editor.action.clipboardPasteAction', nls.localize('paste', "Paste"), null, true, () => document.execCommand('paste') && TPromise.as(true)),
+	new Action('editor.action.clipboardCutAction', nls.localize('cut', "Cut"), null, true, () => document.execCommand('cut') && Promise.resolve(true)),
+	new Action('editor.action.clipboardCopyAction', nls.localize('copy', "Copy"), null, true, () => document.execCommand('copy') && Promise.resolve(true)),
+	new Action('editor.action.clipboardPasteAction', nls.localize('paste', "Paste"), null, true, () => document.execCommand('paste') && Promise.resolve(true)),
 	new Separator(),
-	new Action('editor.action.selectAll', nls.localize('selectAll', "Select All"), null, true, () => document.execCommand('selectAll') && TPromise.as(true))
+	new Action('editor.action.selectAll', nls.localize('selectAll', "Select All"), null, true, () => document.execCommand('selectAll') && Promise.resolve(true))
 ];
 
 export class ElectronWindow extends Themable {
@@ -177,13 +176,13 @@ export class ElectronWindow extends Themable {
 
 		// Fullscreen Events
 		ipc.on('vscode:enterFullScreen', () => {
-			this.lifecycleService.when(LifecyclePhase.Running).then(() => {
+			this.lifecycleService.when(LifecyclePhase.Ready).then(() => {
 				browser.setFullscreen(true);
 			});
 		});
 
 		ipc.on('vscode:leaveFullScreen', () => {
-			this.lifecycleService.when(LifecyclePhase.Running).then(() => {
+			this.lifecycleService.when(LifecyclePhase.Ready).then(() => {
 				browser.setFullscreen(false);
 			});
 		});
@@ -192,7 +191,7 @@ export class ElectronWindow extends Themable {
 		ipc.on('vscode:enterHighContrast', () => {
 			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 			if (windowConfig && windowConfig.autoDetectHighContrast) {
-				this.lifecycleService.when(LifecyclePhase.Running).then(() => {
+				this.lifecycleService.when(LifecyclePhase.Ready).then(() => {
 					this.themeService.setColorTheme(VS_HC_THEME, null);
 				});
 			}
@@ -201,7 +200,7 @@ export class ElectronWindow extends Themable {
 		ipc.on('vscode:leaveHighContrast', () => {
 			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 			if (windowConfig && windowConfig.autoDetectHighContrast) {
-				this.lifecycleService.when(LifecyclePhase.Running).then(() => {
+				this.lifecycleService.when(LifecyclePhase.Ready).then(() => {
 					this.themeService.restoreColorTheme();
 				});
 			}
@@ -279,16 +278,16 @@ export class ElectronWindow extends Themable {
 			return null;
 		};
 
-		// Emit event when vscode has loaded
-		this.lifecycleService.when(LifecyclePhase.Running).then(() => {
-			ipc.send('vscode:workbenchLoaded', this.windowService.getCurrentWindowId());
+		// Emit event when vscode is ready
+		this.lifecycleService.when(LifecyclePhase.Ready).then(() => {
+			ipc.send('vscode:workbenchReady', this.windowService.getCurrentWindowId());
 		});
 
 		// Integrity warning
 		this.integrityService.isPure().then(res => this.titleService.updateProperties({ isPure: res.isPure }));
 
 		// Root warning
-		this.lifecycleService.when(LifecyclePhase.Running).then(() => {
+		this.lifecycleService.when(LifecyclePhase.Restored).then(() => {
 			let isAdminPromise: Promise<boolean>;
 			if (isWindows) {
 				isAdminPromise = import('native-is-elevated').then(isElevated => isElevated());
@@ -374,8 +373,8 @@ export class ElectronWindow extends Themable {
 		}
 	}
 
-	private resolveKeybindings(actionIds: string[]): TPromise<{ id: string; label: string, isNative: boolean; }[]> {
-		return TPromise.join([this.lifecycleService.when(LifecyclePhase.Running), this.extensionService.whenInstalledExtensionsRegistered()]).then(() => {
+	private resolveKeybindings(actionIds: string[]): Promise<{ id: string; label: string, isNative: boolean; }[]> {
+		return Promise.all([this.lifecycleService.when(LifecyclePhase.Restored), this.extensionService.whenInstalledExtensionsRegistered()]).then(() => {
 			return arrays.coalesce(actionIds.map(id => {
 				const binding = this.keybindingService.lookupKeybinding(id);
 				if (!binding) {
@@ -455,7 +454,7 @@ export class ElectronWindow extends Themable {
 	}
 
 	private openResources(resources: (IResourceInput | IUntitledResourceInput)[], diffMode: boolean): Thenable<any> {
-		return this.lifecycleService.when(LifecyclePhase.Running).then((): TPromise<any> => {
+		return this.lifecycleService.when(LifecyclePhase.Restored).then(() => {
 
 			// In diffMode we open 2 resources as diff
 			if (diffMode && resources.length === 2) {

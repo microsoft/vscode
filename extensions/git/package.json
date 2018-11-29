@@ -266,6 +266,11 @@
         "category": "Git"
       },
       {
+        "command": "git.fetchPrune",
+        "title": "%command.fetchPrune%",
+        "category": "Git"
+      },
+      {
         "command": "git.fetchAll",
         "title": "%command.fetchAll%",
         "category": "Git"
@@ -531,6 +536,10 @@
         },
         {
           "command": "git.fetch",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.fetchPrune",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
@@ -815,7 +824,12 @@
         },
         {
           "command": "git.openFile2",
-          "when": "scmProvider == git && scmResourceGroup == merge && config.git.showInlineOpenFileAction",
+          "when": "scmProvider == git && scmResourceGroup == merge && config.git.showInlineOpenFileAction && config.git.openDiffOnClick",
+          "group": "inline0"
+        },
+        {
+          "command": "git.openChange",
+          "when": "scmProvider == git && scmResourceGroup == merge && config.git.showInlineOpenFileAction && !config.git.openDiffOnClick",
           "group": "inline0"
         },
         {
@@ -845,7 +859,12 @@
         },
         {
           "command": "git.openFile2",
-          "when": "scmProvider == git && scmResourceGroup == index && config.git.showInlineOpenFileAction",
+          "when": "scmProvider == git && scmResourceGroup == index && config.git.showInlineOpenFileAction && config.git.openDiffOnClick",
+          "group": "inline0"
+        },
+        {
+          "command": "git.openChange",
+          "when": "scmProvider == git && scmResourceGroup == index && config.git.showInlineOpenFileAction && !config.git.openDiffOnClick",
           "group": "inline0"
         },
         {
@@ -885,7 +904,12 @@
         },
         {
           "command": "git.openFile2",
-          "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.showInlineOpenFileAction",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.showInlineOpenFileAction && config.git.openDiffOnClick",
+          "group": "inline0"
+        },
+        {
+          "command": "git.openChange",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.showInlineOpenFileAction && !config.git.openDiffOnClick",
           "group": "inline0"
         },
         {
@@ -1096,6 +1120,21 @@
           "default": true,
           "description": "%config.promptToSaveFilesBeforeCommit%"
         },
+        "git.postCommitCommand": {
+          "type": "string",
+          "enum": [
+            "none",
+            "push",
+            "sync"
+          ],
+          "enumDescriptions": [
+            "%config.postCommitCommand.none%",
+            "%config.postCommitCommand.push%",
+            "%config.postCommitCommand.sync%"
+          ],
+          "markdownDescription": "%config.postCommitCommand%",
+          "default": "none"
+        },
         "git.showInlineOpenFileAction": {
           "type": "boolean",
           "default": true,
@@ -1189,6 +1228,11 @@
           "type": "boolean",
           "default": true,
           "description": "%config.confirmForcePush%"
+        },
+        "git.openDiffOnClick": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.openDiffOnClick%"
         }
       }
     },

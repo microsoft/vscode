@@ -5,13 +5,10 @@
 
 import * as chokidar from 'vscode-chokidar';
 import * as fs from 'fs';
-
 import * as gracefulFs from 'graceful-fs';
 gracefulFs.gracefulify(fs);
 import * as paths from 'vs/base/common/paths';
 import * as glob from 'vs/base/common/glob';
-
-import { TPromise } from 'vs/base/common/winjs.base';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import * as strings from 'vs/base/common/strings';
@@ -43,7 +40,7 @@ export class ChokidarWatcherService implements IWatcherService {
 	private _watchers: { [watchPath: string]: IWatcher };
 	private _watcherCount: number;
 
-	private _pollingInterval: number;
+	private _pollingInterval?: number;
 	private _verboseLogging: boolean;
 
 	private spamCheckStartTime: number;
@@ -61,12 +58,13 @@ export class ChokidarWatcherService implements IWatcherService {
 		return this.onWatchEvent;
 	}
 
-	public setVerboseLogging(enabled: boolean): TPromise<void> {
+	public setVerboseLogging(enabled: boolean): Thenable<void> {
 		this._verboseLogging = enabled;
-		return TPromise.as(null);
+
+		return Promise.resolve();
 	}
 
-	public setRoots(requests: IWatcherRequest[]): TPromise<void> {
+	public setRoots(requests: IWatcherRequest[]): Thenable<void> {
 		const watchers = Object.create(null);
 		const newRequests: string[] = [];
 
@@ -93,7 +91,7 @@ export class ChokidarWatcherService implements IWatcherService {
 		}
 
 		this._watchers = watchers;
-		return TPromise.as(null);
+		return Promise.resolve();
 	}
 
 	// for test purposes
@@ -134,7 +132,7 @@ export class ChokidarWatcherService implements IWatcherService {
 			console.warn(`Watcher basePath does not match version on disk and was corrected (original: ${basePath}, real: ${realBasePath})`);
 		}
 
-		let chokidarWatcher = chokidar.watch(realBasePath, watcherOpts);
+		let chokidarWatcher: chokidar.FSWatcher | null = chokidar.watch(realBasePath, watcherOpts);
 		this._watcherCount++;
 
 		// Detect if for some reason the native watcher library fails to load
@@ -143,7 +141,7 @@ export class ChokidarWatcherService implements IWatcherService {
 		}
 
 		let undeliveredFileEvents: watcherCommon.IRawFileChange[] = [];
-		let fileEventDelayer = new ThrottledDelayer(ChokidarWatcherService.FS_EVENT_DELAY);
+		let fileEventDelayer: ThrottledDelayer<undefined> | null = new ThrottledDelayer(ChokidarWatcherService.FS_EVENT_DELAY);
 
 		const watcher: IWatcher = {
 			requests,
@@ -228,24 +226,26 @@ export class ChokidarWatcherService implements IWatcherService {
 			// Add to buffer
 			undeliveredFileEvents.push(event);
 
-			// Delay and send buffer
-			fileEventDelayer.trigger(() => {
-				const events = undeliveredFileEvents;
-				undeliveredFileEvents = [];
+			if (fileEventDelayer) {
+				// Delay and send buffer
+				fileEventDelayer.trigger(() => {
+					const events = undeliveredFileEvents;
+					undeliveredFileEvents = [];
 
-				// Broadcast to clients normalized
-				const res = watcherCommon.normalize(events);
-				this._onWatchEvent.fire(res);
+					// Broadcast to clients normalized
+					const res = watcherCommon.normalize(events);
+					this._onWatchEvent.fire(res);
 
-				// Logging
-				if (this._verboseLogging) {
-					res.forEach(r => {
-						console.log(` >> normalized  ${r.type === FileChangeType.ADDED ? '[ADDED]' : r.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${r.path}`);
-					});
-				}
+					// Logging
+					if (this._verboseLogging) {
+						res.forEach(r => {
+							console.log(` >> normalized  ${r.type === FileChangeType.ADDED ? '[ADDED]' : r.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${r.path}`);
+						});
+					}
 
-				return TPromise.as(null);
-			});
+					return Promise.resolve();
+				});
+			}
 		});
 
 		chokidarWatcher.on('error', (error: Error) => {
@@ -270,16 +270,14 @@ export class ChokidarWatcherService implements IWatcherService {
 		return watcher;
 	}
 
-	public stop(): TPromise<void> {
+	public stop(): Thenable<void> {
 		for (let path in this._watchers) {
 			let watcher = this._watchers[path];
 			watcher.stop();
 		}
 		this._watchers = Object.create(null);
-		return TPromise.as(void 0);
+		return Promise.resolve();
 	}
-
-
 }
 
 function isIgnored(path: string, requests: ExtendedWatcherRequest[]): boolean {

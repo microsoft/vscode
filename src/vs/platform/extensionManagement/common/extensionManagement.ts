@@ -179,6 +179,11 @@ export interface IExtensionIdentifier {
 	uuid?: string;
 }
 
+export interface IGalleryExtensionVersion {
+	version: string;
+	date: string;
+}
+
 export interface IGalleryExtension {
 	name: string;
 	identifier: IExtensionIdentifier;
@@ -279,7 +284,8 @@ export interface IExtensionGalleryService {
 	getManifest(extension: IGalleryExtension, token: CancellationToken): Promise<IExtensionManifest>;
 	getChangelog(extension: IGalleryExtension, token: CancellationToken): Promise<string>;
 	getCoreTranslation(extension: IGalleryExtension, languageId: string): Promise<ITranslation>;
-	loadCompatibleVersion(extension: IGalleryExtension): Promise<IGalleryExtension>;
+	loadCompatibleVersion(extension: IGalleryExtension, fromVersion?: string): Promise<IGalleryExtension>;
+	getAllVersions(extension: IGalleryExtension, compatible: boolean): Promise<IGalleryExtensionVersion[]>;
 	loadAllDependencies(dependencies: IExtensionIdentifier[], token: CancellationToken): Promise<IGalleryExtension[]>;
 	getExtensionsReport(): Promise<IReportedExtension[]>;
 	getExtension(id: IExtensionIdentifier, version?: string): Promise<IGalleryExtension>;
@@ -339,7 +345,7 @@ export interface IExtensionManagementServer {
 export interface IExtensionManagementServerService {
 	_serviceBrand: any;
 	readonly localExtensionManagementServer: IExtensionManagementServer | null;
-	readonly otherExtensionManagementServer: IExtensionManagementServer | null;
+	readonly remoteExtensionManagementServer: IExtensionManagementServer | null;
 	getExtensionManagementServer(location: URI): IExtensionManagementServer | null;
 }
 
@@ -426,8 +432,6 @@ export interface IExtensionTipsService {
 	getOtherRecommendations(): Promise<IExtensionRecommendation[]>;
 	getWorkspaceRecommendations(): Promise<IExtensionRecommendation[]>;
 	getKeymapRecommendations(): IExtensionRecommendation[];
-	getAllRecommendations(): Promise<IExtensionRecommendation[]>;
-	getKeywordsForExtension(extension: string): string[];
 	toggleIgnoredRecommendation(extensionId: string, shouldIgnore: boolean): void;
 	getAllIgnoredRecommendations(): { global: string[], workspace: string[] };
 	onRecommendationChange: Event<RecommendationChangeNotification>;

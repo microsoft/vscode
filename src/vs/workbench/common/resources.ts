@@ -22,14 +22,14 @@ export class ResourceContextKey extends Disposable implements IContextKey<URI> {
 	static IsFileSystemResource = new RawContextKey<boolean>('isFileSystemResource', false);
 	static IsFileSystemResourceOrUntitled = new RawContextKey<boolean>('isFileSystemResourceOrUntitled', false);
 
-	private _resourceKey: IContextKey<URI>;
-	private _schemeKey: IContextKey<string>;
-	private _filenameKey: IContextKey<string>;
-	private _langIdKey: IContextKey<string | null>;
-	private _extensionKey: IContextKey<string>;
-	private _hasResource: IContextKey<boolean>;
-	private _isfileSystemResource: IContextKey<boolean>;
-	private _isFileSystemResourceOrUntitled: IContextKey<boolean>;
+	private readonly _resourceKey: IContextKey<URI>;
+	private readonly _schemeKey: IContextKey<string>;
+	private readonly _filenameKey: IContextKey<string>;
+	private readonly _langIdKey: IContextKey<string | null>;
+	private readonly _extensionKey: IContextKey<string>;
+	private readonly _hasResource: IContextKey<boolean>;
+	private readonly _isFileSystemResource: IContextKey<boolean>;
+	private readonly _isFileSystemResourceOrUntitled: IContextKey<boolean>;
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -44,25 +44,27 @@ export class ResourceContextKey extends Disposable implements IContextKey<URI> {
 		this._resourceKey = ResourceContextKey.Resource.bindTo(contextKeyService);
 		this._extensionKey = ResourceContextKey.Extension.bindTo(contextKeyService);
 		this._hasResource = ResourceContextKey.HasResource.bindTo(contextKeyService);
-		this._isfileSystemResource = ResourceContextKey.IsFileSystemResource.bindTo(contextKeyService);
+		this._isFileSystemResource = ResourceContextKey.IsFileSystemResource.bindTo(contextKeyService);
 		this._isFileSystemResourceOrUntitled = ResourceContextKey.IsFileSystemResourceOrUntitled.bindTo(contextKeyService);
 
 		this._register(_fileService.onDidChangeFileSystemProviderRegistrations(() => {
 			const resource = this._resourceKey.get();
-			this._isfileSystemResource.set(Boolean(resource && _fileService.canHandleResource(resource)));
-			this._isFileSystemResourceOrUntitled.set(this._isfileSystemResource.get() || this._schemeKey.get() === Schemas.untitled);
+			this._isFileSystemResource.set(Boolean(resource && _fileService.canHandleResource(resource)));
+			this._isFileSystemResourceOrUntitled.set(this._isFileSystemResource.get() || this._schemeKey.get() === Schemas.untitled);
 		}));
 	}
 
 	set(value: URI) {
-		this._resourceKey.set(value);
-		this._schemeKey.set(value && value.scheme);
-		this._filenameKey.set(value && paths.basename(value.fsPath));
-		this._langIdKey.set(value ? this._modeService.getModeIdByFilepathOrFirstLine(value.fsPath) : null);
-		this._extensionKey.set(value && paths.extname(value.fsPath));
-		this._hasResource.set(!!value);
-		this._isfileSystemResource.set(value && this._fileService.canHandleResource(value));
-		this._isFileSystemResourceOrUntitled.set(this._isfileSystemResource.get() || this._schemeKey.get() === Schemas.untitled);
+		if (!ResourceContextKey._uriEquals(this._resourceKey.get(), value)) {
+			this._resourceKey.set(value);
+			this._schemeKey.set(value && value.scheme);
+			this._filenameKey.set(value && paths.basename(value.fsPath));
+			this._langIdKey.set(value ? this._modeService.getModeIdByFilepathOrFirstLine(value.fsPath) : null);
+			this._extensionKey.set(value && paths.extname(value.fsPath));
+			this._hasResource.set(!!value);
+			this._isFileSystemResource.set(value && this._fileService.canHandleResource(value));
+			this._isFileSystemResourceOrUntitled.set(this._isFileSystemResource.get() || this._schemeKey.get() === Schemas.untitled);
+		}
 	}
 
 	reset(): void {
@@ -72,9 +74,26 @@ export class ResourceContextKey extends Disposable implements IContextKey<URI> {
 		this._langIdKey.reset();
 		this._extensionKey.reset();
 		this._hasResource.reset();
+		this._isFileSystemResource.reset();
+		this._isFileSystemResourceOrUntitled.reset();
 	}
 
 	get(): URI | undefined {
 		return this._resourceKey.get();
+	}
+
+	private static _uriEquals(a: URI | undefined | null, b: URI | undefined | null): boolean {
+		if (a === b) {
+			return true;
+		}
+		if (!a || !b) {
+			return false;
+		}
+		return a.scheme === b.scheme // checks for not equals (fail fast)
+			&& a.authority === b.authority
+			&& a.path === b.path
+			&& a.query === b.query
+			&& a.fragment === b.fragment
+			&& a.toString() === b.toString(); // for equal we use the normalized toString-form
 	}
 }

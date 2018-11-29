@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRemoteAuthorityResolverService, ResolvedAuthority, IResolvingProgressEvent } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IRemoteAuthorityResolverService, ResolvedAuthority, IResolvingProgressEvent, IRemoteAuthorityResolver } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -31,7 +31,7 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 		throw new Error(`Not implemented`);
 	}
 
-	async getLabel(authority: string): Promise<string | null> {
+	async getRemoteAuthorityResolver(authority: string): Promise<IRemoteAuthorityResolver | null> {
 		throw new Error(`Not implemented`);
 	}
 }

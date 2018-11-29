@@ -473,7 +473,7 @@ const schema: IJSONSchema = {
 		},
 		wordPattern: {
 			default: '',
-			description: nls.localize('schema.wordPattern', 'The word definition for the language.'),
+			description: nls.localize('schema.wordPattern', 'Defines what is considered to be a word in the programming language.'),
 			type: ['string', 'object'],
 			properties: {
 				pattern: {

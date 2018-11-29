@@ -183,6 +183,7 @@
 	-webkit-app-region: no-drag;
 	zoom: 1;
 	white-space: nowrap;
+	outline: 0;
 }
 
 .monaco-workbench .menubar .menubar-menu-items-holder {

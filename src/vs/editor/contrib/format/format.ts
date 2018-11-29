@@ -5,7 +5,7 @@
 
 import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { registerDefaultLanguageCommand, registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
@@ -39,7 +39,7 @@ export function getDocumentRangeFormattingEdits(model: ITextModel, range: Range,
 	return first(providers.map(provider => () => {
 		return Promise.resolve(provider.provideDocumentRangeFormattingEdits(model, range, options, token))
 			.then(undefined, onUnexpectedExternalError);
-	}), result => !isFalsyOrEmpty(result));
+	}), isNonEmptyArray);
 }
 
 export function getDocumentFormattingEdits(model: ITextModel, options: FormattingOptions, token: CancellationToken): Promise<TextEdit[] | null | undefined> {
@@ -53,7 +53,7 @@ export function getDocumentFormattingEdits(model: ITextModel, options: Formattin
 	return first(providers.map(provider => () => {
 		return Promise.resolve(provider.provideDocumentFormattingEdits(model, options, token))
 			.then(undefined, onUnexpectedExternalError);
-	}), result => !isFalsyOrEmpty(result));
+	}), isNonEmptyArray);
 }
 
 export function getOnTypeFormattingEdits(model: ITextModel, position: Position, ch: string, options: FormattingOptions): Promise<TextEdit[] | null | undefined> {

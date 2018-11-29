@@ -10,7 +10,7 @@ import { CharCode } from 'vs/base/common/charCode';
  */
 export const empty = '';
 
-export function isFalsyOrWhitespace(str: string): boolean {
+export function isFalsyOrWhitespace(str: string | undefined): boolean {
 	if (!str || typeof str !== 'string') {
 		return true;
 	}

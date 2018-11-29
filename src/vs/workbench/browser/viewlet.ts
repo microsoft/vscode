@@ -21,6 +21,7 @@ import { URI } from 'vs/base/common/uri';
 import { ToggleSidebarPositionAction } from 'vs/workbench/browser/actions/toggleSidebarPosition';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 
 export abstract class Viewlet extends Composite implements IViewlet {
 
@@ -179,6 +180,16 @@ export class CollapseAction extends Action {
 			viewer.focusFirst();
 
 			return Promise.resolve(null);
+		});
+	}
+}
+
+// Collapse All action for the new tree
+export class CollapseAction2 extends Action {
+	constructor(tree: AsyncDataTree<any>, enabled: boolean, clazz: string) {
+		super('workbench.action.collapse', nls.localize('collapse', "Collapse All"), clazz, enabled, () => {
+			tree.collapseAll();
+			return Promise.resolve(undefined);
 		});
 	}
 }

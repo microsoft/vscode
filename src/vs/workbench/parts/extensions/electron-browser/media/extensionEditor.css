@@ -125,12 +125,8 @@
 	padding: 1px 6px;
 }
 
-.extension-editor > .header > .details > .recommendation {
-	display: none;
-}
 
-.extension-editor > .header.recommended > .details > .recommendation,
-.extension-editor > .header.recommendation-ignored > .details > .recommendation {
+.extension-editor > .header > .details > .subtext-container {
 	display: block;
 	float: left;
 	margin-top: 0;
@@ -138,39 +134,22 @@
 	font-style: italic;
 }
 
-.extension-editor > .header.recommended > .details > .recommendation > .monaco-action-bar,
-.extension-editor > .header.recommendation-ignored > .details > .recommendation > .monaco-action-bar {
+.extension-editor > .header > .details > .subtext-container > .monaco-action-bar {
 	float: left;
 	margin-top: 2px;
 	font-style: normal;
 }
 
-.extension-editor > .header > .details > .recommendation > .recommendation-text {
+.extension-editor > .header > .details > .subtext-container > .subtext {
 	float:left;
 	margin-top: 5px;
 	margin-right: 4px;
 }
-.extension-editor > .header > .details > .recommendation > .monaco-action-bar .action-label {
+.extension-editor > .header > .details > .subtext-container > .monaco-action-bar .action-label {
 	margin-top: 4px;
 	margin-left: 4px;
 	padding-top: 0;
 	padding-bottom: 2px;
-}
-
-.extension-editor > .header.recommendation-ignored > .details > .recommendation > .monaco-action-bar .ignore {
-	display: none;
-}
-
-.extension-editor > .header.recommendation-ignored > .details > .recommendation > .monaco-action-bar .undo-ignore {
-	display: block;
-}
-
-.extension-editor > .header.recommended > .details > .recommendation > .monaco-action-bar .ignore {
-	display: block;
-}
-
-.extension-editor > .header.recommended > .details > .recommendation > .monaco-action-bar .undo-ignore {
-	display: none;
 }
 
 .extension-editor > .body {
