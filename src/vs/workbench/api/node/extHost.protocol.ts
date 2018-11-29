@@ -1041,7 +1041,6 @@ export interface ExtHostCommentsShape {
 	$startDraft(handle: number): Thenable<void>;
 	$deleteDraft(handle: number): Thenable<void>;
 	$finishDraft(handle: number): Thenable<void>;
-	$getStartDraftLabel(handle: number): Thenable<string>;
 	$provideWorkspaceComments(handle: number): Thenable<modes.CommentThread[]>;
 }
 

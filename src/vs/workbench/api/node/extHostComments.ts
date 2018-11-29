@@ -142,13 +142,6 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		});
 	}
 
-	$getStartDraftLabel(handle: number): Thenable<string> {
-		const provider = this._documentProviders.get(handle);
-		return asThenable(() => {
-			return provider.startDraftLabel;
-		});
-	}
-
 	$provideDocumentComments(handle: number, uri: UriComponents): Thenable<modes.CommentInfo> {
 		const data = this._documents.getDocumentData(URI.revive(uri));
 		if (!data || !data.document) {
