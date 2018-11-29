@@ -53,8 +53,8 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 
 		this._toDispose.push(_webviewService.registerReviver(MainThreadWebviews.viewType, this));
 
-		lifecycleService.onWillShutdown(e => {
-			e.veto(this._onWillShutdown());
+		lifecycleService.onBeforeShutdown(e => {
+			e.veto(this._onBeforeShutdown());
 		}, this, this._toDispose);
 	}
 
@@ -183,7 +183,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		return this._revivers.has(webview.state.viewType) || !!webview.reviver;
 	}
 
-	private _onWillShutdown(): boolean {
+	private _onBeforeShutdown(): boolean {
 		this._webviews.forEach((view) => {
 			if (this.canRevive(view)) {
 				view.state.state = view.webviewState;

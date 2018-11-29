@@ -182,7 +182,7 @@ declare namespace monaco {
 			fragment?: string;
 		}): Uri;
 		/**
-		 * Creates a string presentation for this Uri. It's guaranteed that calling
+		 * Creates a string representation for this Uri. It's guaranteed that calling
 		 * `Uri.parse` with the result of this function creates an Uri which is equal
 		 * to this Uri.
 		 *
@@ -5292,6 +5292,13 @@ declare namespace monaco.languages {
 		 * Provide the string representations for a color.
 		 */
 		provideColorPresentations(model: editor.ITextModel, colorInfo: IColorInformation, token: CancellationToken): ProviderResult<IColorPresentation[]>;
+	}
+
+	export interface SelectionRangeProvider {
+		/**
+		 * Provide ranges that should be selected from the given position.
+		 */
+		provideSelectionRanges(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<Range[]>;
 	}
 
 	export interface FoldingContext {

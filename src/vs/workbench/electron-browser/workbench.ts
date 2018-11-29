@@ -6,11 +6,10 @@
 import 'vs/css!./media/workbench';
 
 import { localize } from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import * as DOM from 'vs/base/browser/dom';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
 import * as browser from 'vs/base/browser/browser';
 import * as perf from 'vs/base/common/performance';
 import * as errors from 'vs/base/common/errors';
@@ -73,9 +72,9 @@ import { ProgressService2 } from 'vs/workbench/services/progress/browser/progres
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
+import { ShutdownReason, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecycleService';
-import { IWindowService, IWindowConfiguration as IWindowSettings, IWindowConfiguration, IPath, MenuBarVisibility } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowConfiguration, IPath, MenuBarVisibility, getTitleBarStyle } from 'vs/platform/windows/common/windows';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IMenuService, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { MenuService } from 'vs/platform/actions/common/menuService';
@@ -189,7 +188,7 @@ export class Workbench extends Disposable implements IPartService {
 	private workbenchParams: WorkbenchParams;
 	private workbench: HTMLElement;
 	private workbenchStarted: boolean;
-	private workbenchCreated: boolean;
+	private workbenchRestored: boolean;
 	private workbenchShutdown: boolean;
 
 	private editorService: EditorService;
@@ -257,7 +256,7 @@ export class Workbench extends Disposable implements IPartService {
 			(configuration.filesToDiff && configuration.filesToDiff.length > 0);
 	}
 
-	startup(): TPromise<IWorkbenchStartedInfo> {
+	startup(): Thenable<IWorkbenchStartedInfo> {
 		this.workbenchStarted = true;
 
 		// Create Workbench Container
@@ -357,7 +356,7 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection.set(IContextViewService, this.contextViewService);
 
 		// Use themable context menus when custom titlebar is enabled to match custom menubar
-		if (!isMacintosh && this.getCustomTitleBarStyle() === 'custom') {
+		if (!isMacintosh && this.useCustomTitleBarStyle()) {
 			serviceCollection.set(IContextMenuService, new SyncDescriptor(HTMLContextMenuService, [null]));
 		} else {
 			serviceCollection.set(IContextMenuService, new SyncDescriptor(NativeContextMenuService));
@@ -478,7 +477,7 @@ export class Workbench extends Disposable implements IPartService {
 	private registerListeners(): void {
 
 		// Lifecycle
-		this._register(this.lifecycleService.onWillShutdown(e => this.saveState(e.reason)));
+		this._register(this.lifecycleService.onBeforeShutdown(e => this.saveState(e.reason)));
 
 		// Listen to visible editor changes
 		this._register(this.editorService.onDidVisibleEditorsChange(() => this.onDidVisibleEditorsChange()));
@@ -505,9 +504,6 @@ export class Workbench extends Disposable implements IPartService {
 	}
 
 	private onFullscreenChanged(): void {
-		if (!this.isCreated) {
-			return; // we need to be ready
-		}
 
 		// Apply as CSS class
 		const isFullscreen = browser.isFullscreen();
@@ -522,8 +518,7 @@ export class Workbench extends Disposable implements IPartService {
 		}
 
 		// Changing fullscreen state of the window has an impact on custom title bar visibility, so we need to update
-		const hasCustomTitle = this.getCustomTitleBarStyle() === 'custom';
-		if (hasCustomTitle) {
+		if (this.useCustomTitleBarStyle()) {
 			this._onTitleBarVisibilityChange.fire();
 			this.layout(); // handle title bar when fullscreen changes
 		}
@@ -709,22 +704,29 @@ export class Workbench extends Disposable implements IPartService {
 		updateSplitEditorsVerticallyContext();
 	}
 
-	private restoreParts(): TPromise<IWorkbenchStartedInfo> {
+	private restoreParts(): Thenable<IWorkbenchStartedInfo> {
 		const restorePromises: Thenable<any>[] = [];
 
 		// Restore Editorpart
 		perf.mark('willRestoreEditors');
 		restorePromises.push(this.editorPart.whenRestored.then(() => {
-			return this.resolveEditorsToOpen().then(inputs => {
-				if (inputs.length) {
-					return this.editorService.openEditors(inputs);
+
+			function openEditors(editors: IResourceEditor[], editorService: IEditorService) {
+				if (editors.length) {
+					return editorService.openEditors(editors);
 				}
 
-				return TPromise.as(void 0);
-			});
-		}).then(() => {
-			perf.mark('didRestoreEditors');
-		}));
+				return Promise.resolve();
+			}
+
+			const editorsToOpen = this.resolveEditorsToOpen();
+
+			if (Array.isArray(editorsToOpen)) {
+				return openEditors(editorsToOpen, this.editorService);
+			}
+
+			return editorsToOpen.then(editors => openEditors(editors, this.editorService));
+		}).then(() => perf.mark('didRestoreEditors')));
 
 		// Restore Sidebar
 		let viewletIdToRestore: string;
@@ -742,9 +744,7 @@ export class Workbench extends Disposable implements IPartService {
 			perf.mark('willRestoreViewlet');
 			restorePromises.push(this.viewletService.openViewlet(viewletIdToRestore)
 				.then(viewlet => viewlet || this.viewletService.openViewlet(this.viewletService.getDefaultViewletId()))
-				.then(() => {
-					perf.mark('didRestoreViewlet');
-				}));
+				.then(() => perf.mark('didRestoreViewlet')));
 		}
 
 		// Restore Panel
@@ -769,7 +769,18 @@ export class Workbench extends Disposable implements IPartService {
 		}
 
 		const onRestored = (error?: Error): IWorkbenchStartedInfo => {
-			this.workbenchCreated = true;
+			this.workbenchRestored = true;
+
+			// Set lifecycle phase to `Restored`
+			this.lifecycleService.phase = LifecyclePhase.Restored;
+
+			// Set lifecycle phase to `Runnning For A Bit` after a short delay
+			let eventuallPhaseTimeoutHandle = runWhenIdle(() => {
+				eventuallPhaseTimeoutHandle = void 0;
+				this.lifecycleService.phase = LifecyclePhase.Eventually;
+			}, 5000);
+
+			this._register(eventuallPhaseTimeoutHandle);
 
 			if (error) {
 				errors.onUnexpectedError(error);
@@ -783,7 +794,7 @@ export class Workbench extends Disposable implements IPartService {
 			};
 		};
 
-		return TPromise.join(restorePromises).then(() => onRestored(), error => onRestored(error));
+		return Promise.all(restorePromises).then(() => onRestored(), error => onRestored(error));
 	}
 
 	private shouldRestoreLastOpenedViewlet(): boolean {
@@ -799,7 +810,7 @@ export class Workbench extends Disposable implements IPartService {
 		return restore;
 	}
 
-	private resolveEditorsToOpen(): TPromise<IResourceEditor[]> {
+	private resolveEditorsToOpen(): Thenable<IResourceEditor[]> | IResourceEditor[] {
 		const config = this.workbenchParams.configuration;
 
 		// Files to open, diff or create
@@ -808,38 +819,38 @@ export class Workbench extends Disposable implements IPartService {
 			// Files to diff is exclusive
 			const filesToDiff = this.toInputs(config.filesToDiff, false);
 			if (filesToDiff && filesToDiff.length === 2) {
-				return TPromise.as([<IResourceDiffInput>{
+				return [<IResourceDiffInput>{
 					leftResource: filesToDiff[0].resource,
 					rightResource: filesToDiff[1].resource,
 					options: { pinned: true },
 					forceFile: true
-				}]);
+				}];
 			}
 
 			const filesToCreate = this.toInputs(config.filesToCreate, true);
 			const filesToOpen = this.toInputs(config.filesToOpen, false);
 
 			// Otherwise: Open/Create files
-			return TPromise.as([...filesToOpen, ...filesToCreate]);
+			return [...filesToOpen, ...filesToCreate];
 		}
 
 		// Empty workbench
 		else if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY && this.openUntitledFile()) {
 			const isEmpty = this.editorGroupService.count === 1 && this.editorGroupService.activeGroup.count === 0;
 			if (!isEmpty) {
-				return TPromise.as([]); // do not open any empty untitled file if we restored editors from previous session
+				return []; // do not open any empty untitled file if we restored editors from previous session
 			}
 
 			return this.backupFileService.hasBackups().then(hasBackups => {
 				if (hasBackups) {
-					return TPromise.as([]); // do not open any empty untitled file if we have backups to restore
+					return []; // do not open any empty untitled file if we have backups to restore
 				}
 
-				return TPromise.as([<IUntitledResourceInput>{}]);
+				return [<IUntitledResourceInput>{}];
 			});
 		}
 
-		return TPromise.as([]);
+		return [];
 	}
 
 	private toInputs(paths: IPath[], isNew: boolean): (IResourceInput | IUntitledResourceInput)[] {
@@ -933,26 +944,8 @@ export class Workbench extends Disposable implements IPartService {
 		this.panelPosition = (panelPosition === 'right') ? Position.RIGHT : Position.BOTTOM;
 	}
 
-	private getCustomTitleBarStyle(): 'custom' {
-		const isDev = !this.environmentService.isBuilt || this.environmentService.isExtensionDevelopment;
-		if (isMacintosh && isDev) {
-			return null; // not enabled when developing due to https://github.com/electron/electron/issues/3647
-		}
-
-		const windowConfig = this.configurationService.getValue<IWindowSettings>();
-		if (windowConfig && windowConfig.window) {
-			const useNativeTabs = isMacintosh && windowConfig.window.nativeTabs;
-			if (useNativeTabs) {
-				return null; // native tabs on sierra do not work with custom title style
-			}
-
-			const style = windowConfig.window.titleBarStyle;
-			if (style === 'custom') {
-				return style;
-			}
-		}
-
-		return null;
+	private useCustomTitleBarStyle(): boolean {
+		return getTitleBarStyle(this.configurationService, this.environmentService) === 'custom';
 	}
 
 	private setStatusBarHidden(hidden: boolean, skipLayout?: boolean): void {
@@ -1039,7 +1032,7 @@ export class Workbench extends Disposable implements IPartService {
 
 
 		// Menubar visibility changes
-		if ((isWindows || isLinux) && this.getCustomTitleBarStyle() === 'custom') {
+		if ((isWindows || isLinux) && this.useCustomTitleBarStyle()) {
 			this.titlebarPart.onMenubarVisibilityChange()(e => this.onMenubarToggled(e));
 		}
 
@@ -1149,7 +1142,7 @@ export class Workbench extends Disposable implements IPartService {
 		}
 	}
 
-	dispose(reason = ShutdownReason.QUIT): void {
+	dispose(): void {
 		super.dispose();
 
 		this.workbenchShutdown = true;
@@ -1162,8 +1155,8 @@ export class Workbench extends Disposable implements IPartService {
 
 	get onEditorLayout(): Event<IDimension> { return this.editorPart.onDidLayout; }
 
-	isCreated(): boolean {
-		return !!(this.workbenchCreated && this.workbenchStarted);
+	isRestored(): boolean {
+		return !!(this.workbenchRestored && this.workbenchStarted);
 	}
 
 	hasFocus(part: Parts): boolean {
@@ -1205,7 +1198,7 @@ export class Workbench extends Disposable implements IPartService {
 	isVisible(part: Parts): boolean {
 		switch (part) {
 			case Parts.TITLEBAR_PART:
-				if (this.getCustomTitleBarStyle() !== 'custom') {
+				if (!this.useCustomTitleBarStyle()) {
 					return false;
 				} else if (!browser.isFullscreen()) {
 					return true;

@@ -505,137 +505,6 @@ declare module 'vscode' {
 	//#region André: debug
 
 	/**
-	 * Represents a debug adapter executable and optional arguments and runtime options passed to it.
-	 */
-	export class DebugAdapterExecutable {
-
-		/**
-		 * Creates a description for a debug adapter based on an executable program.
-		 *
-		 * @param command The command or executable path that implements the debug adapter.
-		 * @param args Optional arguments to be passed to the command or executable.
-		 * @param options Optional options to be used when starting the command or executable.
-		 */
-		constructor(command: string, args?: string[], options?: DebugAdapterExecutableOptions);
-
-		/**
-		 * The command or path of the debug adapter executable.
-		 * A command must be either an absolute path of an executable or the name of an command to be looked up via the PATH environment variable.
-		 * The special value 'node' will be mapped to VS Code's built-in Node.js runtime.
-		 */
-		readonly command: string;
-
-		/**
-		 * The arguments passed to the debug adapter executable. Defaults to an empty array.
-		 */
-		readonly args: string[];
-
-		/**
-		 * Optional options to be used when the debug adapter is started.
-		 * Defaults to undefined.
-		 */
-		readonly options?: DebugAdapterExecutableOptions;
-	}
-
-	/**
-	 * Options for a debug adapter executable.
-	 */
-	export interface DebugAdapterExecutableOptions {
-
-		/**
-		 * The additional environment of the executed program or shell. If omitted
-		 * the parent process' environment is used. If provided it is merged with
-		 * the parent process' environment.
-		 */
-		env?: { [key: string]: string };
-
-		/**
-		 * The current working directory for the executed debug adapter.
-		 */
-		cwd?: string;
-	}
-
-	/**
-	 * Represents a debug adapter running as a socket based server.
-	 */
-	export class DebugAdapterServer {
-
-		/**
-		 * The port.
-		 */
-		readonly port: number;
-
-		/**
-		 * The host.
-		 */
-		readonly host?: string;
-
-		/**
-		 * Create a description for a debug adapter running as a socket based server.
-		 */
-		constructor(port: number, host?: string);
-	}
-
-	/**
-	 * Represents a debug adapter that is implemented in the extension.
-	 */
-	export class DebugAdapterImplementation {
-
-		readonly implementation: any;
-
-		/**
-		 * Create a description for a debug adapter directly implemented in the extension.
-		 * The implementation's "type": TBD
-		 */
-		constructor(implementation: any);
-	}
-
-	export type DebugAdapterDescriptor = DebugAdapterExecutable | DebugAdapterServer | DebugAdapterImplementation;
-
-	export interface DebugAdapterProvider {
-		/**
-		 * 'provideDebugAdapter' is called at the start of a debug session to provide details about the debug adapter to use.
-		 * These details must be returned as objects of type [DebugAdapterDescriptor](#DebugAdapterDescriptor).
-		 * Currently two types of debug adapters are supported:
-		 * - a debug adapter executable is specified as a command path and arguments (see [DebugAdapterExecutable](#DebugAdapterExecutable)),
-		 * - a debug adapter server reachable via a communication port (see [DebugAdapterServer](#DebugAdapterServer)).
-		 * If the method is not implemented the default behavior is this:
-		 *   provideDebugAdapter(session: DebugSession, executable: DebugAdapterExecutable) {
-		 *      if (typeof session.configuration.debugServer === 'number') {
-		 *         return new DebugAdapterServer(session.configuration.debugServer);
-		 *      }
-		 *      return executable;
-		 *   }
-		 * @param session The [debug session](#DebugSession) for which the debug adapter will be used.
-		 * @param executable The debug adapter's executable information as specified in the package.json (or undefined if no such information exists).
-		 * @return a [debug adapter descriptor](#DebugAdapterDescriptor) or undefined.
-		 */
-		provideDebugAdapter(session: DebugSession, executable: DebugAdapterExecutable | undefined): ProviderResult<DebugAdapterDescriptor>;
-	}
-
-	export namespace debug {
-		/**
-		 * Register a [debug adapter provider](#DebugAdapterProvider) for a specific debug type.
-		 * An extension is only allowed to register a DebugAdapterProvider for the debug type(s) defined by the extension. Otherwise an error is thrown.
-		 * Registering more than one DebugAdapterProvider for a debug type results in an error.
-		 *
-		 * @param type The debug type for which the provider is registered.
-		 * @param provider The [debug adapter provider](#DebugAdapterProvider) to register.
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
-		 */
-		export function registerDebugAdapterProvider(debugType: string, provider: DebugAdapterProvider): Disposable;
-
-		/**
-		 * Register a factory callback for the given debug type that is is called at the start of a debug session in order
-		 * to return a "tracker" object that provides read-access to the communication between VS Code and a debug adapter.
-		 *
-		 * @param debugType A specific debug type or '*' for matching all debug types.
-		 * @param callback A factory callback that is called at the start of a debug session to return a tracker object or `undefined`.
-		 */
-		export function registerDebugAdapterTracker(debugType: string, callback: (session: DebugSession) => DebugAdapterTracker | undefined): Disposable;
-	}
-
-	/**
 	 * A Debug Adapter Tracker is a means to track the communication between VS Code and a Debug Adapter.
 	 */
 	export interface DebugAdapterTracker {
@@ -650,15 +519,40 @@ declare module 'vscode' {
 		debugAdapterExit?(code?: number, signal?: string): void;
 	}
 
+	export interface DebugAdapterTrackerFactory {
+		/**
+		 * The method 'createDebugAdapterTracker' is called at the start of a debug session in order
+		 * to return a "tracker" object that provides read-access to the communication between VS Code and a debug adapter.
+		 *
+		 * @param session The [debug session](#DebugSession) for which the debug adapter tracker will be used.
+		 * @return A [debug adapter tracker](#DebugAdapterTracker) or undefined.
+		 */
+		createDebugAdapterTracker(session: DebugSession): ProviderResult<DebugAdapterTracker>;
+	}
+
+	export namespace debug {
+		/**
+		 * Register a debug adapter tracker factory for the given debug type.
+		 *
+		 * @param debugType The debug type for which the factory is registered or '*' for matching all debug types.
+		 * @param factory The [debug adapter tracker factory](#DebugAdapterTrackerFactory) to register.
+		 * @return A [disposable](#Disposable) that unregisters this factory when being disposed.
+		 */
+		export function registerDebugAdapterTrackerFactory(debugType: string, factory: DebugAdapterTrackerFactory): Disposable;
+	}
+
+	// deprecated
+
 	export interface DebugConfigurationProvider {
 		/**
-		 * Deprecated, use DebugAdapterProvider.provideDebugAdapter instead.
-		 * @deprecated Use DebugAdapterProvider.provideDebugAdapter instead
+		 * Deprecated, use DebugAdapterDescriptorFactory.provideDebugAdapter instead.
+		 * @deprecated Use DebugAdapterDescriptorFactory.createDebugAdapterDescriptor instead
 		 */
 		debugAdapterExecutable?(folder: WorkspaceFolder | undefined, token?: CancellationToken): ProviderResult<DebugAdapterExecutable>;
 
 		/**
-		 * Preliminary API, do not use in production.
+		 * Deprecated, use DebugAdapterTrackerFactory.createDebugAdapterTracker instead.
+		 * @deprecated Use DebugAdapterTrackerFactory.createDebugAdapterTracker instead
 		 *
 		 * The optional method 'provideDebugAdapterTracker' is called at the start of a debug session to provide a tracker that gives access to the communication between VS Code and a Debug Adapter.
 		 * @param session The [debug session](#DebugSession) for which the tracker will be used.
@@ -1196,7 +1090,7 @@ declare module 'vscode' {
 
 	//#region Tree View
 
-	export interface TreeView<T> extends Disposable {
+	export interface TreeView<T> {
 
 		/**
 		 * An optional human-readable message that will be rendered in the view.
@@ -1223,14 +1117,6 @@ declare module 'vscode' {
 
 	}
 
-	export interface TreeItem {
-		/**
-		 * A human readable string which is rendered less prominent.
-		 * When `true`, it is derived from [resourceUri](#TreeItem.resourceUri) and when `falsy`, it is not shown.
-		 */
-		description?: string | boolean;
-	}
-
 	export class TreeItem2 extends TreeItem {
 		/**
 		 * Label describing this item. When `falsy`, it is derived from [resourceUri](#TreeItem.resourceUri).
@@ -1246,15 +1132,42 @@ declare module 'vscode' {
 	//#endregion
 
 	//#region Task
-	/**
-	 * Controls how the task is presented in the UI.
-	 */
-	export interface TaskPresentationOptions {
+	export enum RerunBehavior {
+		reevaluate = 1,
+		useEvaluated = 2,
+	}
+
+
+	export interface RunOptions {
 		/**
-		 * Controls whether the terminal is cleared before executing the task.
+		 * Controls the behavior of a task when it is rerun.
 		 */
-		clear?: boolean;
+		rerunBehavior?: RerunBehavior;
+	}
+
+	/**
+	 * A task to execute
+	 */
+	export class Task2 extends Task {
+		/**
+		 * Run options for the task.  Defaults to an empty literal.
+		 */
+		runOptions: RunOptions;
 	}
 	//#endregion
 
+	//#region Extension Context
+	export interface ExtensionContext {
+
+		/**
+		 * An absolute file path in which the extension can store gloabal state.
+		 * The directory might not exist on disk and creation is
+		 * up to the extension. However, the parent directory is guaranteed to be existent.
+		 *
+		 * Use [`globalState`](#ExtensionContext.globalState) to store key value data.
+		 */
+		globalStoragePath: string;
+
+	}
+	//#endregion
 }

@@ -11,7 +11,6 @@ import { Dimension } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorPartOptions } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorInput, IFileEditorInput, IEditorInputFactory, IEditorInputFactoryRegistry, Extensions as EditorExtensions, EditorOptions, CloseDirection } from 'vs/workbench/common/editor';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -36,7 +35,7 @@ export class TestEditorInput extends EditorInput implements IFileEditorInput {
 	constructor(private resource: URI) { super(); }
 
 	getTypeId() { return 'testEditorInputForEditorGroupService'; }
-	resolve(): TPromise<IEditorModel> { return null; }
+	resolve(): Thenable<IEditorModel> { return Promise.resolve(); }
 	matches(other: TestEditorInput): boolean { return other && this.resource.toString() === other.resource.toString() && other instanceof TestEditorInput; }
 	setEncoding(encoding: string) { }
 	getEncoding(): string { return null; }
@@ -89,7 +88,7 @@ suite('Editor groups service', () => {
 		return part;
 	}
 
-	test('groups basics', function () {
+	test('groups basics', async function () {
 		const part = createPart();
 
 		let activeGroupChangeCounter = 0;
@@ -365,10 +364,12 @@ suite('Editor groups service', () => {
 		part.dispose();
 	});
 
-	test('editor basics', function () {
+	test('editor basics', async function () {
 		const part = createPart();
 		const group = part.activeGroup;
 		assert.equal(group.isEmpty(), true);
+
+		await part.whenRestored;
 
 		let editorWillOpenCounter = 0;
 		const editorWillOpenListener = group.onWillOpenEditor(() => {
@@ -408,58 +409,56 @@ suite('Editor groups service', () => {
 		const input = new TestEditorInput(URI.file('foo/bar'));
 		const inputInactive = new TestEditorInput(URI.file('foo/bar/inactive'));
 
-		return group.openEditor(input, EditorOptions.create({ pinned: true })).then(() => {
-			return group.openEditor(inputInactive, EditorOptions.create({ inactive: true })).then(() => {
-				assert.equal(group.isActive(input), true);
-				assert.equal(group.isActive(inputInactive), false);
-				assert.equal(group.isOpened(input), true);
-				assert.equal(group.isOpened(inputInactive), true);
-				assert.equal(group.isEmpty(), false);
-				assert.equal(group.count, 2);
-				assert.equal(editorWillOpenCounter, 2);
-				assert.equal(editorDidOpenCounter, 2);
-				assert.equal(activeEditorChangeCounter, 1);
-				assert.equal(group.getEditor(0), input);
-				assert.equal(group.getEditor(1), inputInactive);
-				assert.equal(group.getIndexOfEditor(input), 0);
-				assert.equal(group.getIndexOfEditor(inputInactive), 1);
+		await group.openEditor(input, EditorOptions.create({ pinned: true }));
+		await group.openEditor(inputInactive, EditorOptions.create({ inactive: true }));
 
-				assert.equal(group.previewEditor, inputInactive);
-				assert.equal(group.isPinned(inputInactive), false);
-				group.pinEditor(inputInactive);
-				assert.equal(editorPinCounter, 1);
-				assert.equal(group.isPinned(inputInactive), true);
-				assert.ok(!group.previewEditor);
+		assert.equal(group.isActive(input), true);
+		assert.equal(group.isActive(inputInactive), false);
+		assert.equal(group.isOpened(input), true);
+		assert.equal(group.isOpened(inputInactive), true);
+		assert.equal(group.isEmpty(), false);
+		assert.equal(group.count, 2);
+		assert.equal(editorWillOpenCounter, 2);
+		assert.equal(editorDidOpenCounter, 2);
+		assert.equal(activeEditorChangeCounter, 1);
+		assert.equal(group.getEditor(0), input);
+		assert.equal(group.getEditor(1), inputInactive);
+		assert.equal(group.getIndexOfEditor(input), 0);
+		assert.equal(group.getIndexOfEditor(inputInactive), 1);
 
-				assert.equal(group.activeEditor, input);
-				assert.ok(group.activeControl instanceof TestEditorControl);
-				assert.equal(group.editors.length, 2);
+		assert.equal(group.previewEditor, inputInactive);
+		assert.equal(group.isPinned(inputInactive), false);
+		group.pinEditor(inputInactive);
+		assert.equal(editorPinCounter, 1);
+		assert.equal(group.isPinned(inputInactive), true);
+		assert.ok(!group.previewEditor);
 
-				const mru = group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE);
-				assert.equal(mru[0], input);
-				assert.equal(mru[1], inputInactive);
+		assert.equal(group.activeEditor, input);
+		assert.ok(group.activeControl instanceof TestEditorControl);
+		assert.equal(group.editors.length, 2);
 
-				return group.openEditor(inputInactive).then(() => {
-					assert.equal(activeEditorChangeCounter, 2);
-					assert.equal(group.activeEditor, inputInactive);
+		const mru = group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE);
+		assert.equal(mru[0], input);
+		assert.equal(mru[1], inputInactive);
 
-					return group.closeEditor(inputInactive).then(() => {
-						assert.equal(activeEditorChangeCounter, 3);
-						assert.equal(editorCloseCounter1, 1);
-						assert.equal(editorCloseCounter2, 1);
-						assert.equal(editorWillCloseCounter, 1);
+		await group.openEditor(inputInactive);
+		assert.equal(activeEditorChangeCounter, 2);
+		assert.equal(group.activeEditor, inputInactive);
 
-						assert.equal(group.activeEditor, input);
+		await group.closeEditor(inputInactive);
 
-						editorCloseListener.dispose();
-						editorWillCloseListener.dispose();
-						editorWillOpenListener.dispose();
-						editorGroupChangeListener.dispose();
-						part.dispose();
-					});
-				});
-			});
-		});
+		assert.equal(activeEditorChangeCounter, 3);
+		assert.equal(editorCloseCounter1, 1);
+		assert.equal(editorCloseCounter2, 1);
+		assert.equal(editorWillCloseCounter, 1);
+
+		assert.equal(group.activeEditor, input);
+
+		editorCloseListener.dispose();
+		editorWillCloseListener.dispose();
+		editorWillOpenListener.dispose();
+		editorGroupChangeListener.dispose();
+		part.dispose();
 	});
 
 	test('openEditors / closeEditors', function () {

@@ -6,7 +6,7 @@
 import 'vs/css!./media/scrollbars';
 import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { IMouseEvent, StandardWheelEvent } from 'vs/base/browser/mouseEvent';
+import { IMouseEvent, StandardWheelEvent, IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { ScrollbarHost } from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
 import { HorizontalScrollbar } from 'vs/base/browser/ui/scrollbar/horizontalScrollbar';
 import { ScrollableElementChangeOptions, ScrollableElementCreationOptions, ScrollableElementResolvedOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
@@ -307,11 +307,11 @@ export abstract class AbstractScrollableElement extends Widget {
 
 		// Start listening (if necessary)
 		if (shouldListen) {
-			let onMouseWheel = (browserEvent: WheelEvent) => {
+			let onMouseWheel = (browserEvent: IMouseWheelEvent) => {
 				this._onMouseWheel(new StandardWheelEvent(browserEvent));
 			};
 
-			this._mouseWheelToDispose.push(dom.addDisposableListener(this._listenOnDomNode, 'wheel', onMouseWheel));
+			this._mouseWheelToDispose.push(dom.addDisposableListener(this._listenOnDomNode, 'mousewheel', onMouseWheel));
 		}
 	}
 

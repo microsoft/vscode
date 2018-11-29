@@ -15,8 +15,8 @@ export function readdir(path: string): Promise<string[]> {
 	return nfcall(extfs.readdir, path);
 }
 
-export function exists(path: string): TPromise<boolean> {
-	return new TPromise(c => fs.exists(path, c));
+export function exists(path: string): Promise<boolean> {
+	return new Promise(c => fs.exists(path, c));
 }
 
 export function chmod(path: string, mode: number): Promise<boolean> {
@@ -24,13 +24,12 @@ export function chmod(path: string, mode: number): Promise<boolean> {
 }
 
 export import mkdirp = extfs.mkdirp;
-import { TPromise } from 'vs/base/common/winjs.base';
 
 export function rimraf(path: string): Promise<void> {
 	return lstat(path).then(stat => {
 		if (stat.isDirectory() && !stat.isSymbolicLink()) {
 			return readdir(path)
-				.then(children => TPromise.join(children.map(child => rimraf(join(path, child)))))
+				.then(children => Promise.all(children.map(child => rimraf(join(path, child)))))
 				.then(() => rmdir(path));
 		} else {
 			return unlink(path);
@@ -40,7 +39,7 @@ export function rimraf(path: string): Promise<void> {
 			return void 0;
 		}
 
-		return TPromise.wrapError(err);
+		return Promise.reject(err);
 	});
 }
 
@@ -64,12 +63,24 @@ export function rename(oldPath: string, newPath: string): Promise<void> {
 	return nfcall(fs.rename, oldPath, newPath);
 }
 
+export function renameIgnoreError(oldPath: string, newPath: string): Promise<void> {
+	return new Promise(resolve => {
+		fs.rename(oldPath, newPath, () => resolve());
+	});
+}
+
 export function rmdir(path: string): Promise<void> {
 	return nfcall(fs.rmdir, path);
 }
 
 export function unlink(path: string): Promise<void> {
 	return nfcall(fs.unlink, path);
+}
+
+export function unlinkIgnoreError(path: string): Promise<void> {
+	return new Promise(resolve => {
+		fs.unlink(path, () => resolve());
+	});
 }
 
 export function symlink(target: string, path: string, type?: string): Promise<void> {
@@ -136,7 +147,7 @@ function ensureWriteFileQueue(queueKey: string): Queue<void> {
 */
 export function readDirsInDir(dirPath: string): Promise<string[]> {
 	return readdir(dirPath).then(children => {
-		return TPromise.join(children.map(c => dirExists(join(dirPath, c)))).then(exists => {
+		return Promise.all(children.map(c => dirExists(join(dirPath, c)))).then(exists => {
 			return children.filter((_, i) => exists[i]);
 		});
 	});
@@ -170,10 +181,10 @@ export function del(path: string, tmp = getTmpDir()): Promise<void> {
 	return nfcall(extfs.del, path, tmp);
 }
 
-export function whenDeleted(path: string): TPromise<void> {
+export function whenDeleted(path: string): Promise<void> {
 
 	// Complete when wait marker file is deleted
-	return new TPromise<void>(c => {
+	return new Promise<void>(resolve => {
 		let running = false;
 		const interval = setInterval(() => {
 			if (!running) {
@@ -183,7 +194,7 @@ export function whenDeleted(path: string): TPromise<void> {
 
 					if (!exists) {
 						clearInterval(interval);
-						c(void 0);
+						resolve(void 0);
 					}
 				});
 			}

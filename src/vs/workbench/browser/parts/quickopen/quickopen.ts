@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
@@ -51,7 +50,7 @@ export class BaseQuickOpenNavigateAction extends Action {
 		super(id, label);
 	}
 
-	run(event?: any): TPromise<any> {
+	run(event?: any): Thenable<any> {
 		const keys = this.keybindingService.lookupKeybindings(this.id);
 		const quickNavigate = this.quickNavigate ? { keybindings: keys } : void 0;
 

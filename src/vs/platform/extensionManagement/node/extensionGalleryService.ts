@@ -7,7 +7,7 @@ import { tmpdir } from 'os';
 import * as path from 'path';
 import { distinct } from 'vs/base/common/arrays';
 import { getErrorMessage, isPromiseCanceledError, canceled } from 'vs/base/common/errors';
-import { StatisticType, IGalleryExtension, IExtensionGalleryService, IGalleryExtensionAsset, IQueryOptions, SortBy, SortOrder, IExtensionManifest, IExtensionIdentifier, IReportedExtension, InstallOperation, ITranslation } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { StatisticType, IGalleryExtension, IExtensionGalleryService, IGalleryExtensionAsset, IQueryOptions, SortBy, SortOrder, IExtensionManifest, IExtensionIdentifier, IReportedExtension, InstallOperation, ITranslation, IGalleryExtensionVersion } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId, getGalleryExtensionTelemetryData, adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { assign, getOrDefault } from 'vs/base/common/objects';
 import { IRequestService } from 'vs/platform/request/node/request';
@@ -578,11 +578,38 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		return this.getDependenciesReccursively(extensions.map(e => e.id), [], token);
 	}
 
-	loadCompatibleVersion(extension: IGalleryExtension): Promise<IGalleryExtension> {
-		if (extension.properties.engine && isEngineValid(extension.properties.engine)) {
-			return Promise.resolve(extension);
+	getAllVersions(extension: IGalleryExtension, compatible: boolean): Promise<IGalleryExtensionVersion[]> {
+		let query = new Query()
+			.withFlags(Flags.IncludeVersions, Flags.IncludeFiles, Flags.IncludeVersionProperties)
+			.withPage(1, 1)
+			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code')
+			.withFilter(FilterType.ExcludeWithFlags, flagsToString(Flags.Unpublished));
+
+		if (extension.identifier.uuid) {
+			query = query.withFilter(FilterType.ExtensionId, extension.identifier.uuid);
+		} else {
+			query = query.withFilter(FilterType.ExtensionName, extension.identifier.id);
 		}
 
+		return this.queryGallery(query, CancellationToken.None).then(({ galleryExtensions }) => {
+			if (galleryExtensions.length) {
+				if (compatible) {
+					return Promise.all(galleryExtensions[0].versions.map(v => this.getEngine(v).then(engine => isEngineValid(engine) ? v : null)))
+						.then(versions => versions
+							.filter(v => !!v)
+							.map(v => ({ version: v.version, date: v.lastUpdated })));
+				} else {
+					return galleryExtensions[0].versions.map(v => ({ version: v.version, date: v.lastUpdated }));
+				}
+			}
+			return [];
+		});
+	}
+
+	loadCompatibleVersion(extension: IGalleryExtension, fromVersion: string = extension.version): Promise<IGalleryExtension> {
+		if (extension.version === fromVersion && extension.properties.engine && isEngineValid(extension.properties.engine)) {
+			return Promise.resolve(extension);
+		}
 		const query = new Query()
 			.withFlags(Flags.IncludeVersions, Flags.IncludeFiles, Flags.IncludeVersionProperties)
 			.withPage(1, 1)
@@ -599,19 +626,38 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 					return null;
 				}
 
-				return this.getLastValidExtensionVersion(rawExtension, rawExtension.versions)
+				const versions: IRawGalleryExtensionVersion[] = this.getVersionsFrom(rawExtension.versions, fromVersion);
+				if (!versions.length) {
+					return null;
+				}
+
+				return this.getLastValidExtensionVersion(rawExtension, versions)
 					.then(rawVersion => {
 						if (rawVersion) {
-							extension.properties.dependencies = getExtensions(rawVersion, PropertyType.Dependency);
-							extension.properties.engine = getEngine(rawVersion);
-							extension.properties.localizedLanguages = getLocalizedLanguages(rawVersion);
-							extension.assets.download = getVersionAsset(rawVersion, AssetType.VSIX);
-							extension.version = rawVersion.version;
-							return extension;
+							return toExtension(rawExtension, rawVersion, 0, query);
 						}
 						return null;
 					});
 			});
+	}
+
+	private getVersionsFrom(versions: IRawGalleryExtensionVersion[], version: string): IRawGalleryExtensionVersion[] {
+		if (versions[0].version === version) {
+			return versions;
+		}
+		const result: IRawGalleryExtensionVersion[] = [];
+		let currentVersion: IRawGalleryExtensionVersion = null;
+		for (const v of versions) {
+			if (!currentVersion) {
+				if (v.version === version) {
+					currentVersion = v;
+				}
+			}
+			if (currentVersion) {
+				result.push(v);
+			}
+		}
+		return result;
 	}
 
 	private loadDependencies(extensionNames: string[], token: CancellationToken): Promise<IGalleryExtension[]> {
@@ -749,26 +795,34 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		return null;
 	}
 
+	private getEngine(version: IRawGalleryExtensionVersion): Promise<string> {
+		const engine = getEngine(version);
+		if (engine) {
+			return Promise.resolve(engine);
+		}
+
+		const asset = getVersionAsset(version, AssetType.Manifest);
+		const headers = { 'Accept-Encoding': 'gzip' };
+
+		return this.getAsset(asset, { headers })
+			.then(context => asJson<IExtensionManifest>(context))
+			.then(manifest => manifest.engines.vscode);
+	}
+
 	private getLastValidExtensionVersionReccursively(extension: IRawGalleryExtension, versions: IRawGalleryExtensionVersion[]): Promise<IRawGalleryExtensionVersion> {
 		if (!versions.length) {
 			return null;
 		}
 
 		const version = versions[0];
-		const asset = getVersionAsset(version, AssetType.Manifest);
-		const headers = { 'Accept-Encoding': 'gzip' };
-
-		return this.getAsset(asset, { headers })
-			.then(context => asJson<IExtensionManifest>(context))
-			.then(manifest => {
-				const engine = manifest.engines.vscode;
-
+		return this.getEngine(version)
+			.then(engine => {
 				if (!isEngineValid(engine)) {
 					return this.getLastValidExtensionVersionReccursively(extension, versions.slice(1));
 				}
 
 				version.properties = version.properties || [];
-				version.properties.push({ key: PropertyType.Engine, value: manifest.engines.vscode });
+				version.properties.push({ key: PropertyType.Engine, value: engine });
 				return version;
 			});
 	}

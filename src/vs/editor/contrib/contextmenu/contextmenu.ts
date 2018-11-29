@@ -21,11 +21,6 @@ import { IContextMenuService, IContextViewService } from 'vs/platform/contextvie
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
-export interface IPosition {
-	x: number;
-	y: number;
-}
-
 export class ContextMenuController implements IEditorContribution {
 
 	private static readonly ID = 'editor.contrib.contextmenu';
@@ -93,16 +88,16 @@ export class ContextMenuController implements IEditorContribution {
 		}
 
 		// Unless the user triggerd the context menu through Shift+F10, use the mouse position as menu position
-		let forcedPosition: IPosition;
+		let anchor: IAnchor;
 		if (e.target.type !== MouseTargetType.TEXTAREA) {
-			forcedPosition = { x: e.event.posx, y: e.event.posy + 1 };
+			anchor = { x: e.event.posx - 1, width: 2, y: e.event.posy - 1, height: 2 };
 		}
 
 		// Show the context menu
-		this.showContextMenu(forcedPosition);
+		this.showContextMenu(anchor);
 	}
 
-	public showContextMenu(forcedPosition?: IPosition): void {
+	public showContextMenu(anchor?: IAnchor): void {
 		if (!this._editor.getConfiguration().contribInfo.contextmenu) {
 			return; // Context menu is turned off through configuration
 		}
@@ -117,7 +112,7 @@ export class ContextMenuController implements IEditorContribution {
 
 		// Show menu if we have actions to show
 		if (menuActions.length > 0) {
-			this._doShowContextMenu(menuActions, forcedPosition);
+			this._doShowContextMenu(menuActions, anchor);
 		}
 	}
 
@@ -137,7 +132,7 @@ export class ContextMenuController implements IEditorContribution {
 		return result;
 	}
 
-	private _doShowContextMenu(actions: IAction[], forcedPosition: IPosition | null = null): void {
+	private _doShowContextMenu(actions: IAction[], anchor: IAnchor | null = null): void {
 
 		// Disable hover
 		const oldHoverSetting = this._editor.getConfiguration().contribInfo.hover;
@@ -147,7 +142,6 @@ export class ContextMenuController implements IEditorContribution {
 			}
 		});
 
-		let anchor: IAnchor = forcedPosition;
 		if (!anchor) {
 			// Ensure selection is visible
 			this._editor.revealPosition(this._editor.getPosition(), ScrollType.Immediate);

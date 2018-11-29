@@ -4713,6 +4713,11 @@ declare module 'vscode' {
 		 * Controls whether to show the "Terminal will be reused by tasks, press any key to close it" message.
 		 */
 		showReuseMessage?: boolean;
+
+		/**
+		 * Controls whether the terminal is cleared before executing the task.
+		 */
+		clear?: boolean;
 	}
 
 	/**
@@ -5009,9 +5014,23 @@ declare module 'vscode' {
 	export class Task {
 
 		/**
+		 * Creates a new task.
+		 *
+		 * @param definition The task definition as defined in the taskDefinitions extension point.
+		 * @param scope Specifies the task's scope. It is either a global or a workspace task or a task for a specific workspace folder.
+		 * @param name The task's name. Is presented in the user interface.
+		 * @param source The task's source (e.g. 'gulp', 'npm', ...). Is presented in the user interface.
+		 * @param execution The process or shell execution.
+		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
+		 *  or '$eslint'. Problem matchers can be contributed by an extension using
+		 *  the `problemMatchers` extension point.
+		 */
+		constructor(taskDefinition: TaskDefinition, scope: WorkspaceFolder | TaskScope.Global | TaskScope.Workspace, name: string, source: string, execution?: ProcessExecution | ShellExecution, problemMatchers?: string | string[]);
+
+		/**
 		 * ~~Creates a new task.~~
 		 *
-		 * @deprecated Use the new constructors that allow specifying a target for the task.
+		 * @deprecated Use the new constructors that allow specifying a scope for the task.
 		 *
 		 * @param definition The task definition as defined in the taskDefinitions extension point.
 		 * @param name The task's name. Is presented in the user interface.
@@ -5024,20 +5043,6 @@ declare module 'vscode' {
 		constructor(taskDefinition: TaskDefinition, name: string, source: string, execution?: ProcessExecution | ShellExecution, problemMatchers?: string | string[]);
 
 		/**
-		 * Creates a new task.
-		 *
-		 * @param definition The task definition as defined in the taskDefinitions extension point.
-		 * @param target Specifies the task's target. It is either a global or a workspace task or a task for a specific workspace folder.
-		 * @param name The task's name. Is presented in the user interface.
-		 * @param source The task's source (e.g. 'gulp', 'npm', ...). Is presented in the user interface.
-		 * @param execution The process or shell execution.
-		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
-		 *  or '$eslint'. Problem matchers can be contributed by an extension using
-		 *  the `problemMatchers` extension point.
-		 */
-		constructor(taskDefinition: TaskDefinition, target: WorkspaceFolder | TaskScope.Global | TaskScope.Workspace, name: string, source: string, execution?: ProcessExecution | ShellExecution, problemMatchers?: string | string[]);
-
-		/**
 		 * The task's definition.
 		 */
 		definition: TaskDefinition;
@@ -5045,7 +5050,7 @@ declare module 'vscode' {
 		/**
 		 * The task's scope.
 		 */
-		scope?: TaskScope.Global | TaskScope.Workspace | WorkspaceFolder;
+		readonly scope?: TaskScope.Global | TaskScope.Workspace | WorkspaceFolder;
 
 		/**
 		 * The task's name
@@ -5055,7 +5060,7 @@ declare module 'vscode' {
 		/**
 		 * The task's execution engine
 		 */
-		execution: ProcessExecution | ShellExecution;
+		execution?: ProcessExecution | ShellExecution;
 
 		/**
 		 * Whether the task is a background task or not.
@@ -6489,7 +6494,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Options for creating a [TreeView](#TreeView]
+	 * Options for creating a [TreeView](#TreeView)
 	 */
 	export interface TreeViewOptions<T> {
 
@@ -6648,6 +6653,12 @@ declare module 'vscode' {
 		 * When a [ThemeIcon](#ThemeIcon) is specified, icon is derived from the current file icon theme for the specified theme icon using [resourceUri](#TreeItem.resourceUri) (if provided).
 		 */
 		iconPath?: string | Uri | { light: string | Uri; dark: string | Uri } | ThemeIcon;
+
+		/**
+		 * A human readable string which is rendered less prominent.
+		 * When `true`, it is derived from [resourceUri](#TreeItem.resourceUri) and when `falsy`, it is not shown.
+		 */
+		description?: string | boolean;
 
 		/**
 		 * The [uri](#Uri) of the resource representing this item.
@@ -8301,6 +8312,101 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents a debug adapter executable and optional arguments and runtime options passed to it.
+	 */
+	export class DebugAdapterExecutable {
+
+		/**
+		 * Creates a description for a debug adapter based on an executable program.
+		 *
+		 * @param command The command or executable path that implements the debug adapter.
+		 * @param args Optional arguments to be passed to the command or executable.
+		 * @param options Optional options to be used when starting the command or executable.
+		 */
+		constructor(command: string, args?: string[], options?: DebugAdapterExecutableOptions);
+
+		/**
+		 * The command or path of the debug adapter executable.
+		 * A command must be either an absolute path of an executable or the name of an command to be looked up via the PATH environment variable.
+		 * The special value 'node' will be mapped to VS Code's built-in Node.js runtime.
+		 */
+		readonly command: string;
+
+		/**
+		 * The arguments passed to the debug adapter executable. Defaults to an empty array.
+		 */
+		readonly args: string[];
+
+		/**
+		 * Optional options to be used when the debug adapter is started.
+		 * Defaults to undefined.
+		 */
+		readonly options?: DebugAdapterExecutableOptions;
+	}
+
+	/**
+	 * Options for a debug adapter executable.
+	 */
+	export interface DebugAdapterExecutableOptions {
+
+		/**
+		 * The additional environment of the executed program or shell. If omitted
+		 * the parent process' environment is used. If provided it is merged with
+		 * the parent process' environment.
+		 */
+		env?: { [key: string]: string };
+
+		/**
+		 * The current working directory for the executed debug adapter.
+		 */
+		cwd?: string;
+	}
+
+	/**
+	 * Represents a debug adapter running as a socket based server.
+	 */
+	export class DebugAdapterServer {
+
+		/**
+		 * The port.
+		 */
+		readonly port: number;
+
+		/**
+		 * The host.
+		 */
+		readonly host?: string;
+
+		/**
+		 * Create a description for a debug adapter running as a socket based server.
+		 */
+		constructor(port: number, host?: string);
+	}
+
+	export type DebugAdapterDescriptor = DebugAdapterExecutable | DebugAdapterServer;
+
+	export interface DebugAdapterDescriptorFactory {
+		/**
+		 * 'createDebugAdapterDescriptor' is called at the start of a debug session to provide details about the debug adapter to use.
+		 * These details must be returned as objects of type [DebugAdapterDescriptor](#DebugAdapterDescriptor).
+		 * Currently two types of debug adapters are supported:
+		 * - a debug adapter executable is specified as a command path and arguments (see [DebugAdapterExecutable](#DebugAdapterExecutable)),
+		 * - a debug adapter server reachable via a communication port (see [DebugAdapterServer](#DebugAdapterServer)).
+		 * If the method is not implemented the default behavior is this:
+		 *   createDebugAdapter(session: DebugSession, executable: DebugAdapterExecutable) {
+		 *      if (typeof session.configuration.debugServer === 'number') {
+		 *         return new DebugAdapterServer(session.configuration.debugServer);
+		 *      }
+		 *      return executable;
+		 *   }
+		 * @param session The [debug session](#DebugSession) for which the debug adapter will be used.
+		 * @param executable The debug adapter's executable information as specified in the package.json (or undefined if no such information exists).
+		 * @return a [debug adapter descriptor](#DebugAdapterDescriptor) or undefined.
+		 */
+		createDebugAdapterDescriptor(session: DebugSession, executable: DebugAdapterExecutable | undefined): ProviderResult<DebugAdapterDescriptor>;
+	}
+
+	/**
 	 * Represents the debug console.
 	 */
 	export interface DebugConsole {
@@ -8412,6 +8518,7 @@ declare module 'vscode' {
 
 		/**
 		 * The currently active [debug console](#DebugConsole).
+		 * If no debug session is active, output sent to the debug console is not shown.
 		 */
 		export let activeDebugConsole: DebugConsole;
 
@@ -8458,6 +8565,17 @@ declare module 'vscode' {
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerDebugConfigurationProvider(debugType: string, provider: DebugConfigurationProvider): Disposable;
+
+		/**
+		 * Register a [debug adapter descriptor factory](#DebugAdapterDescriptorFactory) for a specific debug type.
+		 * An extension is only allowed to register a DebugAdapterDescriptorFactory for the debug type(s) defined by the extension. Otherwise an error is thrown.
+		 * Registering more than one DebugAdapterDescriptorFactory for a debug type results in an error.
+		 *
+		 * @param debugType The debug type for which the factory is registered.
+		 * @param factory The [debug adapter descriptor factory](#DebugAdapterDescriptorFactory) to register.
+		 * @return A [disposable](#Disposable) that unregisters this factory when being disposed.
+		 */
+		export function registerDebugAdapterDescriptorFactory(debugType: string, factory: DebugAdapterDescriptorFactory): Disposable;
 
 		/**
 		 * Start debugging by using either a named launch or named compound configuration,

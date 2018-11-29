@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as paths from 'vs/base/common/paths';
 import { URI } from 'vs/base/common/uri';
 import * as glob from 'vs/base/common/glob';
@@ -71,51 +70,51 @@ export interface IFileService {
 	 * the stat service is asked to automatically resolve child folders that only
 	 * contain a single element.
 	 */
-	resolveFile(resource: URI, options?: IResolveFileOptions): TPromise<IFileStat>;
+	resolveFile(resource: URI, options?: IResolveFileOptions): Thenable<IFileStat>;
 
 	/**
 	 * Same as resolveFile but supports resolving multiple resources in parallel.
 	 * If one of the resolve targets fails to resolve returns a fake IFileStat instead of making the whole call fail.
 	 */
-	resolveFiles(toResolve: { resource: URI, options?: IResolveFileOptions }[]): TPromise<IResolveFileResult[]>;
+	resolveFiles(toResolve: { resource: URI, options?: IResolveFileOptions }[]): Thenable<IResolveFileResult[]>;
 
 	/**
 	 * Finds out if a file identified by the resource exists.
 	 */
-	existsFile(resource: URI): TPromise<boolean>;
+	existsFile(resource: URI): Thenable<boolean>;
 
 	/**
 	 * Resolve the contents of a file identified by the resource.
 	 *
 	 * The returned object contains properties of the file and the full value as string.
 	 */
-	resolveContent(resource: URI, options?: IResolveContentOptions): TPromise<IContent>;
+	resolveContent(resource: URI, options?: IResolveContentOptions): Thenable<IContent>;
 
 	/**
 	 * Resolve the contents of a file identified by the resource.
 	 *
 	 * The returned object contains properties of the file and the value as a readable stream.
 	 */
-	resolveStreamContent(resource: URI, options?: IResolveContentOptions): TPromise<IStreamContent>;
+	resolveStreamContent(resource: URI, options?: IResolveContentOptions): Thenable<IStreamContent>;
 
 	/**
 	 * Updates the content replacing its previous value.
 	 */
-	updateContent(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): TPromise<IFileStat>;
+	updateContent(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): Thenable<IFileStat>;
 
 	/**
 	 * Moves the file to a new path identified by the resource.
 	 *
 	 * The optional parameter overwrite can be set to replace an existing file at the location.
 	 */
-	moveFile(source: URI, target: URI, overwrite?: boolean): TPromise<IFileStat>;
+	moveFile(source: URI, target: URI, overwrite?: boolean): Thenable<IFileStat>;
 
 	/**
 	 * Copies the file to a path identified by the resource.
 	 *
 	 * The optional parameter overwrite can be set to replace an existing file at the location.
 	 */
-	copyFile(source: URI, target: URI, overwrite?: boolean): TPromise<IFileStat>;
+	copyFile(source: URI, target: URI, overwrite?: boolean): Thenable<IFileStat>;
 
 	/**
 	 * Creates a new file with the given path. The returned promise
@@ -123,26 +122,26 @@ export interface IFileService {
 	 *
 	 * The optional parameter content can be used as value to fill into the new file.
 	 */
-	createFile(resource: URI, content?: string, options?: ICreateFileOptions): TPromise<IFileStat>;
+	createFile(resource: URI, content?: string, options?: ICreateFileOptions): Thenable<IFileStat>;
 
 	/**
 	 * Reads a folder's content with the given path. The returned promise
 	 * will have the list of children as a result.
 	 */
-	readFolder(resource: URI): TPromise<string[]>;
+	readFolder(resource: URI): Thenable<string[]>;
 
 	/**
 	 * Creates a new folder with the given path. The returned promise
 	 * will have the stat model object as a result.
 	 */
-	createFolder(resource: URI): TPromise<IFileStat>;
+	createFolder(resource: URI): Thenable<IFileStat>;
 
 	/**
 	 * Deletes the provided file. The optional useTrash parameter allows to
 	 * move the file to trash. The optional recursive parameter allows to delete
 	 * non-empty folders recursively.
 	 */
-	del(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): TPromise<void>;
+	del(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): Thenable<void>;
 
 	/**
 	 * Allows to start a watcher that reports file change events on the provided resource.

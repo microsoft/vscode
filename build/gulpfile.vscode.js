@@ -32,6 +32,7 @@ const i18n = require('./lib/i18n');
 const deps = require('./dependencies');
 const getElectronVersion = require('./lib/electron').getElectronVersion;
 const createAsar = require('./lib/asar').createAsar;
+const minimist = require('minimist');
 
 const productionDependencies = deps.getProductionDependencies(path.dirname(__dirname));
 // @ts-ignore
@@ -478,7 +479,7 @@ gulp.task('vscode-translations-push', ['optimize-vscode'], function () {
 	).pipe(i18n.pushXlfFiles(apiHostname, apiName, apiToken));
 });
 
-gulp.task('vscode-translations-push-test', ['optimize-vscode'], function () {
+gulp.task('vscode-translations-export', ['optimize-vscode'], function () {
 	const pathToMetadata = './out-vscode/nls.metadata.json';
 	const pathToExtensions = './extensions/*';
 	const pathToSetup = 'build/win32/**/{Default.isl,messages.en.isl}';
@@ -487,20 +488,26 @@ gulp.task('vscode-translations-push-test', ['optimize-vscode'], function () {
 		gulp.src(pathToMetadata).pipe(i18n.createXlfFilesForCoreBundle()),
 		gulp.src(pathToSetup).pipe(i18n.createXlfFilesForIsl()),
 		gulp.src(pathToExtensions).pipe(i18n.createXlfFilesForExtensions())
-	).pipe(i18n.findObsoleteResources(apiHostname, apiName, apiToken)
-	).pipe(vfs.dest('../vscode-transifex-input'));
+	).pipe(vfs.dest('../vscode-translations-export'));
 });
 
 gulp.task('vscode-translations-pull', function () {
 	return es.merge([...i18n.defaultLanguages, ...i18n.extraLanguages].map(language => {
 		let includeDefault = !!innoSetupConfig[language.id].defaultInfo;
-		return i18n.pullSetupXlfFiles(apiHostname, apiName, apiToken, language, includeDefault).pipe(vfs.dest(`../vscode-localization/${language.id}/setup`));
+		return i18n.pullSetupXlfFiles(apiHostname, apiName, apiToken, language, includeDefault).pipe(vfs.dest(`../vscode-translations-import/${language.id}/setup`));
 	}));
 });
 
 gulp.task('vscode-translations-import', function () {
+	var options = minimist(process.argv.slice(2), {
+		string: 'location',
+		default: {
+			location: '../vscode-translations-import'
+		}
+	});
 	return es.merge([...i18n.defaultLanguages, ...i18n.extraLanguages].map(language => {
-		return gulp.src(`../vscode-localization/${language.id}/setup/*/*.xlf`)
+		let id = language.transifexId || language.id;
+		return gulp.src(`${options.location}/${id}/setup/*/*.xlf`)
 			.pipe(i18n.prepareIslFiles(language, innoSetupConfig[language.id]))
 			.pipe(vfs.dest(`./build/win32/i18n`));
 	}));

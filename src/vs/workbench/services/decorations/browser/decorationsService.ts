@@ -339,7 +339,7 @@ export class FileDecorationsService implements IDecorationsService {
 
 	private readonly _data = new LinkedList<DecorationProviderWrapper>();
 	private readonly _onDidChangeDecorationsDelayed = new Emitter<URI | URI[]>();
-	private readonly _onDidChangeDecorations = new Emitter<IResourceDecorationChangeEvent>();
+	private readonly _onDidChangeDecorations = new Emitter<IResourceDecorationChangeEvent>({ leakWarningThreshold: 500 });
 	private readonly _decorationStyles: DecorationStyles;
 	private readonly _disposables: IDisposable[];
 
@@ -347,7 +347,8 @@ export class FileDecorationsService implements IDecorationsService {
 		this._onDidChangeDecorations.event,
 		debounceEvent<URI | URI[], FileDecorationChangeEvent>(
 			this._onDidChangeDecorationsDelayed.event,
-			FileDecorationChangeEvent.debouncer
+			FileDecorationChangeEvent.debouncer,
+			undefined, undefined, 500
 		)
 	);
 

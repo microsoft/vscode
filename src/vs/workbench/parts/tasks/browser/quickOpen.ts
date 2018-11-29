@@ -15,7 +15,7 @@ import * as Model from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 
 import { Task, CustomTask, ContributedTask } from 'vs/workbench/parts/tasks/common/tasks';
-import { ITaskService, RunOptions } from 'vs/workbench/parts/tasks/common/taskService';
+import { ITaskService, ProblemMatcherRunOptions } from 'vs/workbench/parts/tasks/common/taskService';
 import { ActionBarContributor, ContributableActionProvider } from 'vs/workbench/browser/actions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
@@ -48,7 +48,7 @@ export class TaskEntry extends Model.QuickOpenEntry {
 		return this._task;
 	}
 
-	protected doRun(task: CustomTask | ContributedTask, options?: RunOptions): boolean {
+	protected doRun(task: CustomTask | ContributedTask, options?: ProblemMatcherRunOptions): boolean {
 		this.taskService.run(task, options);
 		if (!task.command || task.command.presentation.focus) {
 			this.quickOpenService.close();
@@ -86,7 +86,7 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 		this.tasks = undefined;
 	}
 
-	public getResults(input: string, token: CancellationToken): TPromise<Model.QuickOpenModel> {
+	public getResults(input: string, token: CancellationToken): Thenable<Model.QuickOpenModel> {
 		return this.tasks.then((tasks) => {
 			let entries: Model.QuickOpenEntry[] = [];
 			if (tasks.length === 0 || token.isCancellationRequested) {
@@ -172,7 +172,7 @@ class CustomizeTaskAction extends Action {
 		this.class = 'quick-open-task-configure';
 	}
 
-	public run(element: any): TPromise<any> {
+	public run(element: any): Thenable<any> {
 		let task = this.getTask(element);
 		if (ContributedTask.is(task)) {
 			return this.taskService.customize(task, undefined, true).then(() => {

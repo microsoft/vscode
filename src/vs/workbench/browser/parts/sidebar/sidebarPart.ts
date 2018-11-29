@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/sidebarpart';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
@@ -29,6 +28,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { Dimension, EventType, addDisposableListener, trackFocus } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 
 const SideBarFocusContextId = 'sideBarFocus';
 export const SidebarFocusContext = new RawContextKey<boolean>(SideBarFocusContextId, false);
@@ -162,6 +162,10 @@ export class SidebarPart extends CompositePart<Viewlet> {
 		return super.layout(dimension);
 	}
 
+	protected getTitleAreaDropDownAnchorAlignment(): AnchorAlignment {
+		return this.partService.getSideBarPosition() === SideBarPosition.LEFT ? AnchorAlignment.LEFT : AnchorAlignment.RIGHT;
+	}
+
 	private onTitleAreaContextMenu(event: StandardMouseEvent): void {
 		const activeViewlet = this.getActiveViewlet() as Viewlet;
 		if (activeViewlet) {
@@ -193,7 +197,7 @@ class FocusSideBarAction extends Action {
 		super(id, label);
 	}
 
-	run(): TPromise<any> {
+	run(): Thenable<any> {
 
 		// Show side bar
 		if (!this.partService.isVisible(Parts.SIDEBAR_PART)) {
@@ -205,6 +209,7 @@ class FocusSideBarAction extends Action {
 		if (viewlet) {
 			viewlet.focus();
 		}
+
 		return Promise.resolve(true);
 	}
 }

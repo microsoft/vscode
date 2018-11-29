@@ -21,7 +21,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDebugConfigurationProvider, ICompound, IDebugConfiguration, IConfig, IGlobalConfig, IConfigurationManager, ILaunch, IDebugAdapterProvider, IDebugAdapter, ITerminalSettings, ITerminalLauncher, IDebugSession, IAdapterDescriptor, CONTEXT_DEBUG_CONFIGURATION_TYPE, IDebugAdapterFactory } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugConfigurationProvider, ICompound, IDebugConfiguration, IConfig, IGlobalConfig, IConfigurationManager, ILaunch, IDebugAdapterDescriptorFactory, IDebugAdapter, ITerminalSettings, ITerminalLauncher, IDebugSession, IAdapterDescriptor, CONTEXT_DEBUG_CONFIGURATION_TYPE, IDebugAdapterFactory, IDebugAdapterTrackerFactory } from 'vs/workbench/parts/debug/common/debug';
 import { Debugger } from 'vs/workbench/parts/debug/node/debugger';
 import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -49,7 +49,8 @@ export class ConfigurationManager implements IConfigurationManager {
 	private toDispose: IDisposable[];
 	private _onDidSelectConfigurationName = new Emitter<void>();
 	private configProviders: IDebugConfigurationProvider[];
-	private adapterProviders: IDebugAdapterProvider[];
+	private adapterProviders: IDebugAdapterDescriptorFactory[];
+	private adapterTrackerFactories: IDebugAdapterTrackerFactory[];
 	private debugAdapterFactories: Map<string, IDebugAdapterFactory>;
 	private terminalLauncher: ITerminalLauncher;
 	private debugConfigurationTypeContext: IContextKey<string>;
@@ -68,6 +69,7 @@ export class ConfigurationManager implements IConfigurationManager {
 	) {
 		this.configProviders = [];
 		this.adapterProviders = [];
+		this.adapterTrackerFactories = [];
 		this.debuggers = [];
 		this.toDispose = [];
 		this.registerListeners(lifecycleService);
@@ -121,16 +123,16 @@ export class ConfigurationManager implements IConfigurationManager {
 
 	// debug adapter
 
-	public registerDebugAdapterProvider(debugAdapterProvider: IDebugAdapterProvider): IDisposable {
+	public registerDebugAdapterDescriptorFactory(debugAdapterProvider: IDebugAdapterDescriptorFactory): IDisposable {
 		this.adapterProviders.push(debugAdapterProvider);
 		return {
 			dispose: () => {
-				this.unregisterDebugAdapterProvider(debugAdapterProvider);
+				this.unregisterDebugAdapterDescriptorFactory(debugAdapterProvider);
 			}
 		};
 	}
 
-	public unregisterDebugAdapterProvider(debugAdapterProvider: IDebugAdapterProvider): void {
+	public unregisterDebugAdapterDescriptorFactory(debugAdapterProvider: IDebugAdapterDescriptorFactory): void {
 		const ix = this.adapterProviders.indexOf(debugAdapterProvider);
 		if (ix >= 0) {
 			this.configProviders.splice(ix, 1);
@@ -150,13 +152,31 @@ export class ConfigurationManager implements IConfigurationManager {
 		}
 
 		// try new proposed API
-		const providers = this.adapterProviders.filter(p => p.type === config.type && p.provideDebugAdapter);
+		const providers = this.adapterProviders.filter(p => p.type === config.type && p.createDebugAdapterDescriptor);
 		if (providers.length === 1) {
-			return providers[0].provideDebugAdapter(session);
+			return providers[0].createDebugAdapterDescriptor(session);
 		} else {
 			// TODO@AW handle n > 1 case
 		}
 		return Promise.resolve(undefined);
+	}
+
+	// debug adapter trackers
+
+	public registerDebugAdapterTrackerFactory(debugAdapterTrackerFactory: IDebugAdapterTrackerFactory): IDisposable {
+		this.adapterTrackerFactories.push(debugAdapterTrackerFactory);
+		return {
+			dispose: () => {
+				this.unregisterDebugAdapterTrackerFactory(debugAdapterTrackerFactory);
+			}
+		};
+	}
+
+	public unregisterDebugAdapterTrackerFactory(debugAdapterTrackerFactory: IDebugAdapterTrackerFactory): void {
+		const ix = this.adapterTrackerFactories.indexOf(debugAdapterTrackerFactory);
+		if (ix >= 0) {
+			this.configProviders.splice(ix, 1);
+		}
 	}
 
 	// debug configurations
@@ -184,13 +204,21 @@ export class ConfigurationManager implements IConfigurationManager {
 	}
 
 	public needsToRunInExtHost(debugType: string): boolean {
+
+		// if the given debugType matches any registered tracker factory we need to run the DA in the EH
+		const providers = this.adapterTrackerFactories.filter(p => p.type === debugType || p.type === '*');
+		if (providers.length > 0) {
+			return true;
+		}
+
+		// TODO@AW deprecated
 		// if the given debugType matches any registered provider that has a provideTracker method, we need to run the DA in the EH
-		const providers = this.configProviders.filter(p => p.hasTracker && (p.type === debugType || p.type === '*'));
-		return providers.length > 0;
+		const providers2 = this.configProviders.filter(p => p.hasTracker && (p.type === debugType || p.type === '*'));
+		return providers2.length > 0;
 	}
 
 	public resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: IConfig): Thenable<IConfig> {
-		return this.activateDebuggers(`onDebugResolve:${type}`).then(() => {
+		return this.activateDebuggers('onDebugResolve', type).then(() => {
 			// pipe the config through the promises sequentially. append at the end the '*' types
 			const providers = this.configProviders.filter(p => p.type === type && p.resolveDebugConfiguration)
 				.concat(this.configProviders.filter(p => p.type === '*' && p.resolveDebugConfiguration));
@@ -413,8 +441,17 @@ export class ConfigurationManager implements IConfigurationManager {
 		});
 	}
 
-	private activateDebuggers(activationEvent: string): Thenable<void> {
-		return this.extensionService.activateByEvent(activationEvent).then(() => this.extensionService.activateByEvent('onDebug'));
+	public activateDebuggers(activationEvent: string, debugType?: string): Thenable<void> {
+		const thenables: Thenable<any>[] = [
+			this.extensionService.activateByEvent(activationEvent),
+			this.extensionService.activateByEvent('onDebug')
+		];
+		if (debugType) {
+			thenables.push(this.extensionService.activateByEvent(`${activationEvent}:${debugType}`));
+		}
+		return Promise.all(thenables).then(_ => {
+			return void 0;
+		});
 	}
 
 	private saveState(): void {
@@ -533,7 +570,7 @@ class Launch implements ILaunch {
 			}
 			const selection = startLineNumber > 1 ? { startLineNumber, startColumn: 4 } : undefined;
 
-			return this.editorService.openEditor({
+			return Promise.resolve(this.editorService.openEditor({
 				resource,
 				options: {
 					selection,
@@ -541,7 +578,7 @@ class Launch implements ILaunch {
 					pinned: created,
 					revealIfVisible: true
 				},
-			}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(editor => ({ editor, created }));
+			}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(editor => ({ editor, created })));
 		}, (error) => {
 			throw new Error(nls.localize('DebugConfig.failed', "Unable to create 'launch.json' file inside the '.vscode' folder ({0}).", error));
 		});

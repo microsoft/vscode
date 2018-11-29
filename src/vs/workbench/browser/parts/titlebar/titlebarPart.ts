@@ -8,7 +8,7 @@ import * as paths from 'vs/base/common/paths';
 import { Part } from 'vs/workbench/browser/part';
 import { ITitleService, ITitleProperties } from 'vs/workbench/services/title/common/titleService';
 import { getZoomFactor } from 'vs/base/browser/browser';
-import { IWindowService, IWindowsService, MenuBarVisibility } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowsService, MenuBarVisibility, getTitleBarStyle } from 'vs/platform/windows/common/windows';
 import * as errors from 'vs/base/common/errors';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -509,7 +509,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	layout(dimension: Dimension): Dimension[] {
-		if (this.configurationService.getValue<string>('window.titleBarStyle') === 'custom') {
+		if (getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
 			// Only prevent zooming behavior on macOS or when the menubar is not visible
 			if (isMacintosh || this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'hidden') {
 				this.title.style.zoom = `${1.0 / getZoomFactor()}`;

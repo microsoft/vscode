@@ -37,6 +37,8 @@ import { EditorCommandsContextActionRunner, IEditorCommandsContext, IEditorInput
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { Themable } from 'vs/workbench/common/theme';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
+import { IFileService } from 'vs/platform/files/common/files';
 
 export interface IToolbarActions {
 	primary: IAction[];
@@ -73,7 +75,8 @@ export abstract class TitleControl extends Themable {
 		@IQuickOpenService protected quickOpenService: IQuickOpenService,
 		@IThemeService themeService: IThemeService,
 		@IExtensionService private extensionService: IExtensionService,
-		@IConfigurationService protected configurationService: IConfigurationService
+		@IConfigurationService protected configurationService: IConfigurationService,
+		@IFileService private readonly fileService: IFileService,
 	) {
 		super(themeService);
 
@@ -107,6 +110,12 @@ export abstract class TitleControl extends Themable {
 		if (config.getValue()) {
 			this.breadcrumbsControl = this.instantiationService.createInstance(BreadcrumbsControl, container, options, this.group);
 		}
+
+		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(() => {
+			if (this.breadcrumbsControl && this.breadcrumbsControl.update()) {
+				this.handleBreadcrumbsEnablementChange();
+			}
+		}));
 	}
 
 	protected abstract handleBreadcrumbsEnablementChange(): void;
@@ -119,7 +128,8 @@ export abstract class TitleControl extends Themable {
 			orientation: ActionsOrientation.HORIZONTAL,
 			ariaLabel: localize('araLabelEditorActions', "Editor actions"),
 			getKeyBinding: action => this.getKeybinding(action),
-			actionRunner: this._register(new EditorCommandsContextActionRunner(context))
+			actionRunner: this._register(new EditorCommandsContextActionRunner(context)),
+			anchorAlignmentProvider: () => AnchorAlignment.RIGHT
 		}));
 
 		// Context

@@ -160,6 +160,7 @@ export class InputBox extends Widget {
 
 		if (this.options.flexibleHeight) {
 			this.mirror = dom.append(wrapper, $('div.mirror'));
+			this.mirror.innerHTML = '&nbsp;';
 		} else {
 			this.input.type = this.options.type || 'text';
 			this.input.setAttribute('wrap', 'off');
@@ -291,6 +292,9 @@ export class InputBox extends Widget {
 
 	public set width(width: number) {
 		this.input.style.width = width + 'px';
+		if (this.mirror) {
+			this.mirror.style.width = width + 'px';
+		}
 	}
 
 	public showMessage(message: IMessage, force?: boolean): void {
@@ -440,9 +444,16 @@ export class InputBox extends Widget {
 		}
 
 		const value = this.value || this.placeholder;
-		let lastCharCode = value.charCodeAt(value.length - 1);
-		let suffix = lastCharCode === 10 ? ' ' : '';
-		this.mirror.textContent = value + suffix;
+		const lastCharCode = value.charCodeAt(value.length - 1);
+		const suffix = lastCharCode === 10 ? ' ' : '';
+		const mirrorTextContent = value + suffix;
+
+		if (mirrorTextContent) {
+			this.mirror.textContent = value + suffix;
+		} else {
+			this.mirror.innerHTML = '&nbsp;';
+		}
+
 		this.layout();
 	}
 

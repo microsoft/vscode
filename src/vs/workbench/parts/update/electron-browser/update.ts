@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 import severity from 'vs/base/common/severity';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction, Action } from 'vs/base/common/actions';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -47,12 +46,12 @@ export class OpenLatestReleaseNotesInBrowserAction extends Action {
 		super('update.openLatestReleaseNotes', nls.localize('releaseNotes', "Release Notes"), null, true);
 	}
 
-	run(): TPromise<any> {
+	run(): Thenable<any> {
 		if (product.releaseNotesUrl) {
 			const uri = URI.parse(product.releaseNotesUrl);
 			return this.openerService.open(uri);
 		}
-		return TPromise.as(void 0);
+		return Promise.resolve(false);
 	}
 }
 
@@ -67,18 +66,18 @@ export abstract class AbstractShowReleaseNotesAction extends Action {
 		super(id, label, null, true);
 	}
 
-	run(): TPromise<boolean> {
+	run(): Thenable<boolean> {
 		if (!this.enabled) {
-			return TPromise.as(false);
+			return Promise.resolve(false);
 		}
 
 		this.enabled = false;
 
-		return TPromise.wrap(showReleaseNotes(this.instantiationService, this.version)
+		return showReleaseNotes(this.instantiationService, this.version)
 			.then(null, () => {
 				const action = this.instantiationService.createInstance(OpenLatestReleaseNotesInBrowserAction);
 				return action.run().then(() => false);
-			}));
+			});
 	}
 }
 
@@ -158,7 +157,9 @@ class NeverShowAgain {
 		// Hide notification
 		notification.close();
 
-		return TPromise.wrap(this.storageService.store(this.key, true, StorageScope.GLOBAL));
+		this.storageService.store(this.key, true, StorageScope.GLOBAL);
+
+		return Promise.resolve(true);
 	});
 
 	constructor(key: string, @IStorageService private storageService: IStorageService) {

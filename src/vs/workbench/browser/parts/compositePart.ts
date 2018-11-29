@@ -31,6 +31,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Dimension, append, $, addClass, hide, show, addClasses } from 'vs/base/browser/dom';
+import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 
 export interface ICompositeTitleLabel {
 
@@ -220,7 +221,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		// Report progress for slow loading composites (but only if we did not create the composites before already)
 		const progressService = this.mapProgressServiceToComposite[composite.getId()];
 		if (progressService && !compositeContainer) {
-			this.mapProgressServiceToComposite[composite.getId()].showWhile(Promise.resolve(), this.partService.isCreated() ? 800 : 3200 /* less ugly initial startup */);
+			this.mapProgressServiceToComposite[composite.getId()].showWhile(Promise.resolve(), this.partService.isRestored() ? 800 : 3200 /* less ugly initial startup */);
 		}
 
 		// Fill Content and Actions
@@ -391,7 +392,8 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		this.toolBar = this._register(new ToolBar(titleActionsContainer, this.contextMenuService, {
 			actionItemProvider: action => this.actionItemProvider(action as Action),
 			orientation: ActionsOrientation.HORIZONTAL,
-			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id)
+			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
+			anchorAlignmentProvider: () => this.getTitleAreaDropDownAnchorAlignment()
 		}));
 
 		return titleArea;
@@ -451,6 +453,10 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 	protected getSecondaryActions(): IAction[] {
 		return [];
+	}
+
+	protected getTitleAreaDropDownAnchorAlignment(): AnchorAlignment {
+		return AnchorAlignment.RIGHT;
 	}
 
 	layout(dimension: Dimension): Dimension[] {

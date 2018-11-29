@@ -88,21 +88,21 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		return TPromise.as(null);
 	}
 
-	showMessageBox(windowId: number, options: Electron.MessageBoxOptions): TPromise<IMessageBoxResult> {
+	showMessageBox(windowId: number, options: Electron.MessageBoxOptions): Thenable<IMessageBoxResult> {
 		this.logService.trace('windowsService#showMessageBox', windowId);
 		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
 		return this.windowsMainService.showMessageBox(options, codeWindow);
 	}
 
-	showSaveDialog(windowId: number, options: Electron.SaveDialogOptions): TPromise<string> {
+	showSaveDialog(windowId: number, options: Electron.SaveDialogOptions): Thenable<string> {
 		this.logService.trace('windowsService#showSaveDialog', windowId);
 		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
 		return this.windowsMainService.showSaveDialog(options, codeWindow);
 	}
 
-	showOpenDialog(windowId: number, options: Electron.OpenDialogOptions): TPromise<string[]> {
+	showOpenDialog(windowId: number, options: Electron.OpenDialogOptions): Thenable<string[]> {
 		this.logService.trace('windowsService#showOpenDialog', windowId);
 		const codeWindow = this.windowsMainService.getWindowById(windowId);
 

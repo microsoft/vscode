@@ -82,7 +82,7 @@ export class NotificationsToasts extends Themable {
 	private registerListeners(): void {
 
 		// Wait for the running phase to ensure we can draw notifications properly
-		this.lifecycleService.when(LifecyclePhase.Running).then(() => {
+		this.lifecycleService.when(LifecyclePhase.Ready).then(() => {
 
 			// Show toast for initial notifications if any
 			this.model.notifications.forEach(notification => this.addToast(notification));
@@ -107,6 +107,10 @@ export class NotificationsToasts extends Themable {
 	private addToast(item: INotificationViewItem): void {
 		if (this.isNotificationsCenterVisible) {
 			return; // do not show toasts while notification center is visibles
+		}
+
+		if (item.silent) {
+			return; // do not show toats for silenced notifications
 		}
 
 		// Lazily create toasts containers

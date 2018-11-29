@@ -537,9 +537,13 @@ export interface IDebugConfigurationProvider {
 	hasTracker: boolean;
 }
 
-export interface IDebugAdapterProvider {
+export interface IDebugAdapterDescriptorFactory {
 	readonly type: string;
-	provideDebugAdapter(session: IDebugSession): Promise<IAdapterDescriptor>;
+	createDebugAdapterDescriptor(session: IDebugSession): Promise<IAdapterDescriptor>;
+}
+
+export interface IDebugAdapterTrackerFactory {
+	readonly type: string;
 }
 
 export interface ITerminalLauncher {
@@ -586,14 +590,19 @@ export interface IConfigurationManager {
 	 */
 	onDidSelectConfiguration: Event<void>;
 
+	activateDebuggers(activationEvent: string, debugType?: string): Thenable<void>;
+
 	needsToRunInExtHost(debugType: string): boolean;
 	hasDebugConfigurationProvider(debugType: string): boolean;
 
 	registerDebugConfigurationProvider(debugConfigurationProvider: IDebugConfigurationProvider): IDisposable;
 	unregisterDebugConfigurationProvider(debugConfigurationProvider: IDebugConfigurationProvider): void;
 
-	registerDebugAdapterProvider(debugConfigurationProvider: IDebugAdapterProvider): IDisposable;
-	unregisterDebugAdapterProvider(debugConfigurationProvider: IDebugAdapterProvider): void;
+	registerDebugAdapterDescriptorFactory(debugAdapterDescriptorFactory: IDebugAdapterDescriptorFactory): IDisposable;
+	unregisterDebugAdapterDescriptorFactory(debugAdapterDescriptorFactory: IDebugAdapterDescriptorFactory): void;
+
+	registerDebugAdapterTrackerFactory(debugAdapterTrackerFactory: IDebugAdapterTrackerFactory): IDisposable;
+	unregisterDebugAdapterTrackerFactory(debugAdapterTrackerFactory: IDebugAdapterTrackerFactory): void;
 
 	resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: any): Thenable<any>;
 	provideDebugAdapter(session: IDebugSession): Promise<IAdapterDescriptor | undefined>;

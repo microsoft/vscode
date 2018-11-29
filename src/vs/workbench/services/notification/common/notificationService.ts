@@ -88,7 +88,7 @@ export class NotificationService extends Disposable implements INotificationServ
 		});
 
 		// Show notification with actions
-		handle = this.notify({ severity, message, actions, sticky: options && options.sticky });
+		handle = this.notify({ severity, message, actions, sticky: options && options.sticky, silent: options && options.silent });
 
 		once(handle.onDidClose)(() => {
 

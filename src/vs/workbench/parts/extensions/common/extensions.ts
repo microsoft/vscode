@@ -85,6 +85,7 @@ export interface IExtensionsWorkbenchService {
 	install(vsix: string): Promise<void>;
 	install(extension: IExtension, promptToInstallDependencies?: boolean): Promise<void>;
 	uninstall(extension: IExtension): Promise<void>;
+	installVersion(extension: IExtension, version: string): Promise<void>;
 	reinstall(extension: IExtension): Promise<void>;
 	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): Promise<void>;
 	loadDependencies(extension: IExtension, token: CancellationToken): Promise<IExtensionDependencies>;

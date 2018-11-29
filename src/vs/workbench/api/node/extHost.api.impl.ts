@@ -678,11 +678,11 @@ export function createApiFactory(
 			registerDebugConfigurationProvider(debugType: string, provider: vscode.DebugConfigurationProvider) {
 				return extHostDebugService.registerDebugConfigurationProvider(debugType, provider);
 			},
-			registerDebugAdapterProvider(debugType: string, provider: vscode.DebugAdapterProvider) {
-				return extHostDebugService.registerDebugAdapterProvider(extension, debugType, provider);
+			registerDebugAdapterDescriptorFactory(debugType: string, factory: vscode.DebugAdapterDescriptorFactory) {
+				return extHostDebugService.registerDebugAdapterDescriptorFactory(extension, debugType, factory);
 			},
-			registerDebugAdapterTracker(debugType: string, callback: (session: vscode.DebugSession) => vscode.DebugAdapterTracker | undefined) {
-				return extHostDebugService.registerDebugAdapterTracker(debugType, callback);
+			registerDebugAdapterTrackerFactory(debugType: string, factory: vscode.DebugAdapterTrackerFactory) {
+				return extHostDebugService.registerDebugAdapterTrackerFactory(debugType, factory);
 			},
 			startDebugging(folder: vscode.WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration) {
 				return extHostDebugService.startDebugging(folder, nameOrConfig);
@@ -752,7 +752,6 @@ export function createApiFactory(
 			ConfigurationTarget: extHostTypes.ConfigurationTarget,
 			DebugAdapterExecutable: extHostTypes.DebugAdapterExecutable,
 			DebugAdapterServer: extHostTypes.DebugAdapterServer,
-			DebugAdapterImplementation: extHostTypes.DebugAdapterImplementation,
 			DecorationRangeBehavior: extHostTypes.DecorationRangeBehavior,
 			Diagnostic: extHostTypes.Diagnostic,
 			DiagnosticRelatedInformation: extHostTypes.DiagnosticRelatedInformation,
@@ -784,6 +783,7 @@ export function createApiFactory(
 			QuickInputButtons: extHostTypes.QuickInputButtons,
 			Range: extHostTypes.Range,
 			RelativePattern: extHostTypes.RelativePattern,
+			RerunBehavior: extHostTypes.RerunBehavior,
 			Selection: extHostTypes.Selection,
 			ShellExecution: extHostTypes.ShellExecution,
 			ShellQuoting: extHostTypes.ShellQuoting,
@@ -797,6 +797,7 @@ export function createApiFactory(
 			SymbolInformation: extHostTypes.SymbolInformation,
 			SymbolKind: extHostTypes.SymbolKind,
 			Task: extHostTypes.Task,
+			Task2: extHostTypes.Task,
 			TaskGroup: extHostTypes.TaskGroup,
 			TaskPanelKind: extHostTypes.TaskPanelKind,
 			TaskRevealKind: extHostTypes.TaskRevealKind,

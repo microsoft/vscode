@@ -32,7 +32,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TreeResourceNavigator, WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IProgressService } from 'vs/platform/progress/common/progress';
-import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchHistoryService, ISearchHistoryValues, ISearchProgressItem, ITextQuery, VIEW_ID, SearchErrorCode } from 'vs/platform/search/common/search';
+import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchHistoryService, ISearchHistoryValues, ISearchProgressItem, ITextQuery, VIEW_ID, SearchErrorCode, ISearchConfigurationProperties } from 'vs/platform/search/common/search';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { diffInserted, diffInsertedOutline, diffRemoved, diffRemovedOutline, editorFindMatchHighlight, editorFindMatchHighlightBorder, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -92,6 +92,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	private actions: (RefreshAction | CollapseDeepestExpandedLevelAction | ClearSearchResultsAction | CancelSearchAction)[] = [];
 	private tree: WorkbenchTree;
 	private viewletState: object;
+	private globalMemento: object;
 	private messagesElement: HTMLElement;
 	private messageDisposables: IDisposable[] = [];
 	private searchWidgetsContainerElement: HTMLElement;
@@ -150,6 +151,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 		this.queryBuilder = this.instantiationService.createInstance(QueryBuilder);
 		this.viewletState = this.getMemento(StorageScope.WORKSPACE);
+		this.globalMemento = this.getMemento(StorageScope.GLOBAL);
 
 		this._register(this.fileService.onFileChanges(e => this.onFilesChanged(e)));
 		this._register(this.untitledEditorService.onDidChangeDirty(e => this.onUntitledDidChangeDirty(e)));
@@ -301,6 +303,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 	private createSearchWidget(container: HTMLElement): void {
 		let contentPattern = this.viewletState['query.contentPattern'] || '';
+		const replaceText = this.viewletState['query.replaceText'] || '';
 		let isRegex = this.viewletState['query.regex'] === true;
 		let isWholeWords = this.viewletState['query.wholeWords'] === true;
 		let isCaseSensitive = this.viewletState['query.caseSensitive'] === true;
@@ -311,6 +314,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 		this.searchWidget = this._register(this.instantiationService.createInstance(SearchWidget, container, <ISearchWidgetOptions>{
 			value: contentPattern,
+			replaceValue: replaceText,
 			isRegex: isRegex,
 			isCaseSensitive: isCaseSensitive,
 			isWholeWords: isWholeWords,
@@ -377,10 +381,9 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	}
 
 	private refreshAndUpdateCount(event?: IChangeEvent): Thenable<void> {
-		return this.refreshTree(event).then(() => {
-			this.searchWidget.setReplaceAllActionState(!this.viewModel.searchResult.isEmpty());
-			this.updateSearchResultCount(this.viewModel.searchResult.query.userDisabledExcludesAndIgnoreFiles);
-		});
+		this.searchWidget.setReplaceAllActionState(!this.viewModel.searchResult.isEmpty());
+		this.updateSearchResultCount(this.viewModel.searchResult.query.userDisabledExcludesAndIgnoreFiles);
+		return this.refreshTree(event);
 	}
 
 	private refreshTree(event?: IChangeEvent): Thenable<any> {
@@ -785,11 +788,9 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			return;
 		}
 
-		if (this.size.width >= SearchView.WIDE_VIEW_SIZE) {
-			dom.addClass(this.getContainer(), SearchView.WIDE_CLASS_NAME);
-		} else {
-			dom.removeClass(this.getContainer(), SearchView.WIDE_CLASS_NAME);
-		}
+		const actionsPosition = this.configurationService.getValue<ISearchConfigurationProperties>('search').actionsPosition;
+		const useWideLayout = this.size.width >= SearchView.WIDE_VIEW_SIZE && actionsPosition === 'auto';
+		dom.toggleClass(this.getContainer(), SearchView.WIDE_CLASS_NAME, useWideLayout);
 
 		this.searchWidget.setWidth(this.size.width - 28 /* container margin */);
 
@@ -1053,8 +1054,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			_reason: 'searchView',
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorService, this.contextService),
 			maxResults: SearchView.MAX_TEXT_RESULTS,
-			disregardIgnoreFiles: !useExcludesAndIgnoreFiles,
-			disregardExcludeSettings: !useExcludesAndIgnoreFiles,
+			disregardIgnoreFiles: !useExcludesAndIgnoreFiles || undefined,
+			disregardExcludeSettings: !useExcludesAndIgnoreFiles || undefined,
 			excludePattern,
 			includePattern,
 			previewOptions: {
@@ -1252,12 +1253,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 							run: () => this.openSettings('search.useLegacySearch')
 						}]);
 				} else if (e.code === SearchErrorCode.regexParseError && !this.configurationService.getValue('search.usePCRE2')) {
-					// If the regex parsed in JS but not rg, it likely uses features that are supported in JS and PCRE2 but not Rust
-					this.notificationService.prompt(Severity.Info, nls.localize('rgRegexError', "You can enable \"search.usePCRE2\" to enable some extra regex features like lookbehind and backreferences."),
-						[{
-							label: nls.localize('otherEncodingWarning.openSettingsLabel', "Open Settings"),
-							run: () => this.openSettings('search.usePCRE2')
-						}]);
+					this.showPcre2Hint();
 				}
 			}
 		};
@@ -1322,6 +1318,23 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this.searchWidget.setReplaceAllActionState(false);
 
 		this.viewModel.search(query, onProgress).then(onComplete, onError);
+	}
+
+	private showPcre2Hint(): void {
+		if (!this.globalMemento['disablePcre2Hint']) {
+			// If the regex parsed in JS but not rg, it likely uses features that are supported in JS and PCRE2 but not Rust
+			this.notificationService.prompt(Severity.Info, nls.localize('rgRegexError', "You can enable \"search.usePCRE2\" to enable some extra regex features like lookbehind and backreferences."), [
+				{
+					label: nls.localize('neverAgain', "Don't Show Again"),
+					run: () => this.globalMemento['disablePcre2Hint'] = true,
+					isSecondary: true
+				},
+				{
+					label: nls.localize('otherEncodingWarning.openSettingsLabel', "Open Settings"),
+					run: () => this.openSettings('search.usePCRE2')
+				}
+			]);
+		}
 	}
 
 	private addClickEvents = (element: HTMLElement, handler: (event: any) => void): void => {
@@ -1561,6 +1574,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 		const isReplaceShown = this.searchAndReplaceWidget.isReplaceShown();
 		this.viewletState['view.showReplace'] = isReplaceShown;
+		this.viewletState['query.replaceText'] = isReplaceShown && this.searchWidget.getReplaceValue();
 
 		const history: ISearchHistoryValues = Object.create(null);
 

@@ -4,7 +4,7 @@ tsconfig.json
 out/test/**
 out/**
 extension.webpack.config.js
-OSSREADME.json
+cgmanifest.json
 yarn.lock
 preview-src/**
 webpack.config.js

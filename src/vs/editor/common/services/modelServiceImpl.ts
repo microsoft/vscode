@@ -197,42 +197,28 @@ class ModelMarkerHandler {
 			// Disable markdown renderer sanitize to allow html
 			// Hence, escape all input strings
 			hoverMessage.sanitize = false;
+
+			hoverMessage.appendMarkdown(`<div>`);
+			hoverMessage.appendMarkdown(`<span style='font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback"; white-space: pre-wrap;'>${escape(message.trim())}</span>`);
 			if (source) {
-				hoverMessage.appendMarkdown(`<span style='opacity: 0.6'>[${escape(source)}]</span>`);
-				hoverMessage.appendText(' ');
-			}
-
-			message = message.trim();
-			const lines = message.split(/\r\n|\r|\n/g);
-			if (lines.length > 1) {
-				if (source) {
-					hoverMessage.appendMarkdown(`</br>`);
+				hoverMessage.appendMarkdown(`<span style='opacity: 0.6; padding-left:6px;'>${escape(source)}</span>`);
+				if (code) {
+					hoverMessage.appendMarkdown(`<span style='opacity: 0.6; padding-left:2px;'>(${escape(code)})</span>`);
 				}
-				for (const line of lines) {
-					hoverMessage.appendText(line);
-					hoverMessage.appendMarkdown(`</br>`);
-				}
-			} else {
-				hoverMessage.appendText(message);
+			} else if (code) {
+				hoverMessage.appendMarkdown(`<span style='opacity: 0.6; padding-left:6px;'>(${escape(code)})</span>`);
 			}
-
-			if (code) {
-				if (lines.length === 1) {
-					hoverMessage.appendText(' ');
-				}
-				hoverMessage.appendMarkdown(`<span style='opacity: 0.6'>[${escape(code)}]</span>`);
-			}
+			hoverMessage.appendMarkdown(`</div>`);
 
 			if (isNonEmptyArray(relatedInformation)) {
-				hoverMessage.appendMarkdown(`\n`);
+				hoverMessage.appendMarkdown(`<ul>`);
 				for (const { message, resource, startLineNumber, startColumn } of relatedInformation) {
-					hoverMessage.appendMarkdown(
-						escape(`* [${basename(resource.path)}(${startLineNumber}, ${startColumn})](${resource.toString(false)}#${startLineNumber},${startColumn}): `)
-					);
-					hoverMessage.appendText(`${escape(message)}`);
-					hoverMessage.appendMarkdown(`\n`);
+					hoverMessage.appendMarkdown(`<li>`);
+					hoverMessage.appendMarkdown(`<a href='#' data-href='${resource.toString(false)}#${startLineNumber},${startColumn}'>${escape(basename(resource.path))}(${startLineNumber}, ${startColumn})</a>`);
+					hoverMessage.appendMarkdown(`<span>: ${escape(message)}</span>`);
+					hoverMessage.appendMarkdown(`</li>`);
 				}
-				hoverMessage.appendMarkdown(`\n`);
+				hoverMessage.appendMarkdown(`</ul>`);
 			}
 		}
 
@@ -282,7 +268,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 	private readonly _onModelRemoved: Emitter<ITextModel> = this._register(new Emitter<ITextModel>());
 	public readonly onModelRemoved: Event<ITextModel> = this._onModelRemoved.event;
 
-	private readonly _onModelModeChanged: Emitter<{ model: ITextModel; oldModeId: string; }> = this._register(new Emitter<{ model: ITextModel; oldModeId: string; }>());
+	private readonly _onModelModeChanged: Emitter<{ model: ITextModel; oldModeId: string; }> = this._register(new Emitter<{ model: ITextModel; oldModeId: string; }>({ leakWarningThreshold: 500 }));
 	public readonly onModelModeChanged: Event<{ model: ITextModel; oldModeId: string; }> = this._onModelModeChanged.event;
 
 	private _modelCreationOptionsByLanguageAndResource: {

@@ -16,7 +16,6 @@ import { IWindowService, IWindowsService } from 'vs/platform/windows/common/wind
 import { IExperimentService, ExperimentState } from 'vs/workbench/parts/experiments/node/experimentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { language, locale } from 'vs/base/common/platform';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 export class TelemetryOptOut implements IWorkbenchContribution {
@@ -83,7 +82,7 @@ export class TelemetryOptOut implements IWorkbenchContribution {
 		let yesLabel = localize('telemetryOptOut.OptIn', "Yes, glad to help");
 		let noLabel = localize('telemetryOptOut.OptOut', "No, thanks");
 
-		let queryPromise = TPromise.as(undefined);
+		let queryPromise = Promise.resolve(undefined);
 		if ((locale !== language && locale !== 'en' && locale.indexOf('en-') === -1)) {
 			queryPromise = this.galleryService.query({ text: `tag:lp-${locale}` }).then(tagResult => {
 				if (!tagResult || !tagResult.total) {

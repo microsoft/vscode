@@ -10,7 +10,6 @@ import * as platform from 'vs/base/common/platform';
 import * as watcher from 'vs/workbench/services/files/node/watcher/common';
 import * as nsfw from 'vscode-nsfw';
 import { IWatcherService, IWatcherRequest, IWatcherOptions, IWatchError } from 'vs/workbench/services/files/node/watcher/nsfw/watcher';
-import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { normalizeNFC } from 'vs/base/common/normalization';
@@ -28,7 +27,7 @@ interface IWatcherObjet {
 }
 
 interface IPathWatcher {
-	ready: TPromise<IWatcherObjet>;
+	ready: Thenable<IWatcherObjet>;
 	watcher?: IWatcherObjet;
 	ignored: glob.ParsedPattern[];
 }
@@ -52,9 +51,9 @@ export class NsfwWatcherService implements IWatcherService {
 		let undeliveredFileEvents: watcher.IRawFileChange[] = [];
 		const fileEventDelayer = new ThrottledDelayer(NsfwWatcherService.FS_EVENT_DELAY);
 
-		let readyPromiseCallback: TValueCallback<IWatcherObjet>;
+		let readyPromiseResolve: (watcher: IWatcherObjet) => void;
 		this._pathWatchers[request.basePath] = {
-			ready: new TPromise<IWatcherObjet>(c => readyPromiseCallback = c),
+			ready: new Promise<IWatcherObjet>(resolve => readyPromiseResolve = resolve),
 			ignored: Array.isArray(request.ignored) ? request.ignored.map(ignored => glob.parse(ignored)) : []
 		};
 
@@ -167,18 +166,18 @@ export class NsfwWatcherService implements IWatcherService {
 					});
 				}
 
-				return TPromise.as(null);
+				return Promise.resolve(null);
 			});
 		}).then(watcher => {
 			this._pathWatchers[request.basePath].watcher = watcher;
 			const startPromise = watcher.start();
-			startPromise.then(() => readyPromiseCallback(watcher));
+			startPromise.then(() => readyPromiseResolve(watcher));
 			return startPromise;
 		});
 	}
 
-	public setRoots(roots: IWatcherRequest[]): TPromise<void> {
-		const promises: TPromise<void>[] = [];
+	public setRoots(roots: IWatcherRequest[]): Thenable<void> {
+		const promises: Thenable<void>[] = [];
 		const normalizedRoots = this._normalizeRoots(roots);
 
 		// Gather roots that are not currently being watched
@@ -212,22 +211,22 @@ export class NsfwWatcherService implements IWatcherService {
 			}
 		});
 
-		return TPromise.join(promises).then(() => void 0);
+		return Promise.all(promises).then(() => void 0);
 	}
 
-	public setVerboseLogging(enabled: boolean): TPromise<void> {
+	public setVerboseLogging(enabled: boolean): Thenable<void> {
 		this._verboseLogging = enabled;
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
-	public stop(): TPromise<void> {
+	public stop(): Thenable<void> {
 		for (let path in this._pathWatchers) {
 			let watcher = this._pathWatchers[path];
 			watcher.ready.then(watcher => watcher.stop());
 			delete this._pathWatchers[path];
 		}
 		this._pathWatchers = Object.create(null);
-		return TPromise.as(void 0);
+		return Promise.resolve();
 	}
 
 	/**
