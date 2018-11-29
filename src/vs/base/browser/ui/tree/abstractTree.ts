@@ -296,7 +296,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		return this.model.getFirstElementChild(location);
 	}
 
-	getLastElementAncestor(location: TRef): T | undefined {
+	getLastElementAncestor(location?: TRef): T | undefined {
 		return this.model.getLastElementAncestor(location);
 	}
 

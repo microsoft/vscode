@@ -443,7 +443,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		return node.children[0].element;
 	}
 
-	getLastElementAncestor(location: number[]): T | undefined {
+	getLastElementAncestor(location: number[] = []): T | undefined {
 		const node = this.getTreeNode(location);
 
 		if (node.children.length === 0) {
