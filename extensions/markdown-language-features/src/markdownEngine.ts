@@ -109,13 +109,14 @@ export class MarkdownEngine {
 	}
 
 	public async parse(document: vscode.Uri, source: string): Promise<Token[]> {
+		const UNICODE_NEWLINE_REGEX = /\u2028|\u2029/g;
 		const { text, offset } = this.stripFrontmatter(source);
 		this.currentDocument = document;
 		this._slugCount = new Map<string, number>();
 
 		const engine = await this.getEngine(document);
 
-		return engine.parse(text, {}).map(token => {
+		return engine.parse(text.replace(UNICODE_NEWLINE_REGEX, ''), {}).map(token => {
 			if (token.map) {
 				token.map[0] += offset;
 				token.map[1] += offset;

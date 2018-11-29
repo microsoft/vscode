@@ -307,7 +307,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			if (this.autoReveal) {
 				const selection = this.explorerViewer.getSelection();
 				if (selection.length > 0) {
-					this.reveal(selection[0]);
+					this.reveal(selection[0], 0.5);
 				}
 			}
 
@@ -350,8 +350,8 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 				return;
 			}
 
-			// Return now if the workbench has not yet been created - in this case the workbench takes care of restoring last used editors
-			if (!this.partService.isCreated()) {
+			// Return now if the workbench has not yet been restored - in this case the workbench takes care of restoring last used editors
+			if (!this.partService.isRestored()) {
 				return;
 			}
 
@@ -504,7 +504,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 						p.addChild(childElement);
 						// Refresh the Parent (View)
 						this.explorerViewer.refresh(p).then(() => {
-							return this.reveal(childElement).then(() => {
+							return this.reveal(childElement, 0.5).then(() => {
 
 								// Focus new element
 								this.explorerViewer.setFocus(childElement);
@@ -715,7 +715,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 				if (!this.explorerViewer.getHighlight()) {
 					return this.doRefresh(newRoots.map(r => r.uri)).then(() => {
 						if (newRoots.length === 1) {
-							return this.reveal(this.model.findClosest(newRoots[0].uri));
+							return this.reveal(this.model.findClosest(newRoots[0].uri), 0.5);
 						}
 
 						return undefined;
@@ -795,7 +795,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			this.decorationProvider.changed(targetsToResolve.map(t => t.root.resource));
 			return result;
 		});
-		this.progressService.showWhile(promise, this.partService.isCreated() ? 800 : 1200 /* less ugly initial startup */);
+		this.progressService.showWhile(promise, this.partService.isRestored() ? 800 : 1200 /* less ugly initial startup */);
 
 		return promise;
 	}
@@ -929,7 +929,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		// If path already selected, just reveal and return
 		const selection = this.hasSingleSelection(resource);
 		if (selection) {
-			return reveal ? this.reveal(selection) : Promise.resolve(null);
+			return reveal ? this.reveal(selection, 0.5) : Promise.resolve(null);
 		}
 
 		// First try to get the stat object from the input to avoid a roundtrip
@@ -984,7 +984,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		// Reveal depending on flag
 		let revealPromise: TPromise<void>;
 		if (reveal) {
-			revealPromise = this.reveal(fileStat);
+			revealPromise = this.reveal(fileStat, 0.5);
 		} else {
 			revealPromise = Promise.resolve(null);
 		}

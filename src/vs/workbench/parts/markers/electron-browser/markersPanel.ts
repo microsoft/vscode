@@ -25,15 +25,14 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Iterator } from 'vs/base/common/iterator';
-import { ITreeElement, ITreeNode } from 'vs/base/browser/ui/tree/tree';
+import { ITreeElement, ITreeNode, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { debounceEvent, Relay, Event, Emitter } from 'vs/base/common/event';
-import { WorkbenchObjectTree, ObjectTreeResourceNavigator } from 'vs/platform/list/browser/listService';
+import { WorkbenchObjectTree, TreeResourceNavigator2 } from 'vs/platform/list/browser/listService';
 import { FilterOptions } from 'vs/workbench/parts/markers/electron-browser/markersFilterOptions';
 import { IExpression, getEmptyExpression } from 'vs/base/common/glob';
 import { mixin, deepClone } from 'vs/base/common/objects';
 import { IWorkspaceFolder, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { isAbsolute, join } from 'vs/base/common/paths';
-import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/abstractTree';
 import { FilterData, FileResourceMarkersRenderer, Filter, VirtualDelegate, ResourceMarkersRenderer, MarkerRenderer, RelatedInformationRenderer, TreeElement, MarkersTreeAccessibilityProvider } from 'vs/workbench/parts/markers/electron-browser/markersTreeViewer';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Separator, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -289,6 +288,12 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		this.filter = new Filter();
 		const accessibilityProvider = this.instantiationService.createInstance(MarkersTreeAccessibilityProvider);
 
+		const identityProvider = {
+			getId(element: TreeElement) {
+				return element.hash;
+			}
+		};
+
 		this.tree = this.instantiationService.createInstance(WorkbenchObjectTree,
 			this.treeContainer,
 			virtualDelegate,
@@ -296,7 +301,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 			{
 				filter: this.filter,
 				accessibilityProvider,
-				identityProvider: (element: TreeElement) => element.hash
+				identityProvider
 			}
 		) as any as WorkbenchObjectTree<TreeElement, FilterData>;
 
@@ -314,7 +319,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 			relatedInformationFocusContextKey.set(false);
 		}));
 
-		const markersNavigator = this._register(new ObjectTreeResourceNavigator(this.tree, { openOnFocus: true }));
+		const markersNavigator = this._register(new TreeResourceNavigator2(this.tree, { openOnFocus: true }));
 		this._register(debounceEvent(markersNavigator.openResource, (last, event) => event, 75, true)(options => {
 			this.openFileAtElement(options.element, options.editorOptions.preserveFocus, options.sideBySide, options.editorOptions.pinned);
 		}));

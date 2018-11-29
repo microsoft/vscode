@@ -215,4 +215,4 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 }
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(SettingsChangeRelauncher, LifecyclePhase.Running);
+workbenchRegistry.registerWorkbenchContribution(SettingsChangeRelauncher, LifecyclePhase.Restored);

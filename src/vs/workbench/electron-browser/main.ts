@@ -103,7 +103,7 @@ function revive(workbench: IWindowConfiguration) {
 
 function openWorkbench(configuration: IWindowConfiguration): Promise<void> {
 	const mainProcessClient = new ElectronIPCClient(`window:${configuration.windowId}`);
-	const mainServices = createMainProcessServices(mainProcessClient, configuration);
+	const mainServices = createMainProcessServices(mainProcessClient);
 
 	const environmentService = new EnvironmentService(configuration, configuration.execPath);
 
@@ -137,7 +137,7 @@ function openWorkbench(configuration: IWindowConfiguration): Promise<void> {
 				}, mainServices, mainProcessClient, configuration);
 
 				// Gracefully Shutdown Storage
-				shell.onShutdown(event => {
+				shell.onWillShutdown(event => {
 					event.join(storageService.close());
 				});
 
@@ -299,7 +299,7 @@ function createLogService(mainProcessClient: ElectronIPCClient, configuration: I
 	return new FollowerLogService(logLevelClient, logService);
 }
 
-function createMainProcessServices(mainProcessClient: ElectronIPCClient, configuration: IWindowConfiguration): ServiceCollection {
+function createMainProcessServices(mainProcessClient: ElectronIPCClient): ServiceCollection {
 	const serviceCollection = new ServiceCollection();
 
 	const windowsChannel = mainProcessClient.getChannel('windows');

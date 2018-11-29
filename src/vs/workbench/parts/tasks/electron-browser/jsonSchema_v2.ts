@@ -281,16 +281,20 @@ const identifier: IJSONSchema = {
 	deprecationMessage: nls.localize('JsonSchema.tasks.identifier.deprecated', 'User defined identifiers are deprecated. For custom task use the name as a reference and for tasks provided by extensions use their defined task identifier.')
 };
 
-const rerunBehavior: IJSONSchema = {
-	type: 'string',
-	enum: ['reevauate', 'useEvaluated'],
-	description: nls.localize('JsonSchema.tasks.rerunBehavior', 'The task\'s behavior on rerun')
-};
-
 const runOptions: IJSONSchema = {
 	type: 'object',
 	properties: {
-		rerunBehavior: Objects.deepClone(rerunBehavior),
+		rerunBehavior: {
+			type: 'string',
+			enum: ['reevauate', 'useEvaluated'],
+			description: nls.localize('JsonSchema.tasks.rerunBehavior', 'The task\'s behavior on rerun')
+		},
+		runOn: {
+			type: 'string',
+			enum: ['default', 'folderOpen'],
+			description: nls.localize('JsonSchema.tasks.runOn', 'Configures when the task should be run. If set to folderOpen, then the task will be run automatically when the folder is opened.'),
+			default: 'default'
+		},
 	},
 	description: nls.localize('JsonSchema.tasks.runOptions', 'The task\'s run related options')
 };
@@ -408,6 +412,8 @@ definitions.taskDescription.properties.isTestCommand.deprecationMessage = nls.lo
 	'JsonSchema.tasks.isTestCommand.deprecated',
 	'The property isTestCommand is deprecated. Use the group property instead. See also the 1.14 release notes.'
 );
+
+fixReferences(taskDescription);
 
 taskDefinitions.push({
 	$ref: '#/definitions/taskDescription'

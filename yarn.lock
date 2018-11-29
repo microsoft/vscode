@@ -2617,7 +2617,7 @@ event-emitter@~0.3.5:
     d "1"
     es5-ext "~0.10.14"
 
-event-stream@^3.1.7, event-stream@^3.3.1, event-stream@^3.3.4, event-stream@~3.3.4:
+event-stream@3.3.4, event-stream@^3.3.4:
   version "3.3.4"
   resolved "https://registry.yarnpkg.com/event-stream/-/event-stream-3.3.4.tgz#4ab4c9a0f5a54db9338b4c34d86bfce8f4b35571"
   integrity sha1-SrTJoPWlTbkzi0w02Gv86PSzVXE=
@@ -3564,17 +3564,17 @@ growl@1.9.2:
   resolved "https://registry.yarnpkg.com/growl/-/growl-1.9.2.tgz#0ea7743715db8d8de2c5ede1775e1b45ac85c02f"
   integrity sha1-Dqd0NxXbjY3ixe3hd14bRayFwC8=
 
-gulp-atom-electron@^1.19.0:
-  version "1.19.0"
-  resolved "https://registry.yarnpkg.com/gulp-atom-electron/-/gulp-atom-electron-1.19.0.tgz#ed244351bcfa403185b636c3253dc0d6e9fe3c7f"
-  integrity sha512-NYX/Fc3lGG/tlKfQh95ZIOtG1eW5mYC9JmoBqqJWw486eqHPMELqqDyAvlFog+dd9E55b6lbZVWcZXt79wGhqA==
+gulp-atom-electron@^1.19.2:
+  version "1.19.2"
+  resolved "https://registry.yarnpkg.com/gulp-atom-electron/-/gulp-atom-electron-1.19.2.tgz#e61e0278b77d3bbc78603e3564cebfce0a224d79"
+  integrity sha512-fARwXJmKRAjtYlBw3u4GltNAtnvAp+Mj9d/jWJFEw/kbRzAZuwd7N359tz2HA99NA7Z8cVW2kTW0IutQDoifWA==
   dependencies:
-    event-stream "^3.1.7"
+    event-stream "3.3.4"
     github-releases-ms "^0.5.0"
     gulp-filter "^4.0.0"
     gulp-rename "1.2.2"
-    gulp-symdest "^1.0.0"
-    gulp-vinyl-zip "^1.2.0"
+    gulp-symdest "^1.1.1"
+    gulp-vinyl-zip "^2.1.2"
     mkdirp "^0.5.1"
     object-assign "^4.0.1"
     plist "^3.0.1"
@@ -3586,14 +3586,14 @@ gulp-atom-electron@^1.19.0:
     vinyl "^2.2.0"
     vinyl-fs "^3.0.3"
 
-gulp-azure-storage@^0.7.0:
-  version "0.7.1"
-  resolved "https://registry.yarnpkg.com/gulp-azure-storage/-/gulp-azure-storage-0.7.1.tgz#9060ecdec4e1e239fe5259d9d7101da235acdbc6"
-  integrity sha1-kGDs3sTh4jn+UlnZ1xAdojWs28Y=
+gulp-azure-storage@^0.8.2:
+  version "0.8.2"
+  resolved "https://registry.yarnpkg.com/gulp-azure-storage/-/gulp-azure-storage-0.8.2.tgz#2dba8946f141f746c2c0b83c032530d79905b40e"
+  integrity sha512-oiVt+DL3e/cgGrr7dlI5aTbpjVYMcosDdYmkBf4s1rfTsdNFUH8cQu+/IoT4MWm1cmgN/TX1I48NnN69JSRTJA==
   dependencies:
     azure-storage "^1.3.1"
     delayed-stream "0.0.6"
-    event-stream "^3.1.7"
+    event-stream "3.3.4"
     mime "^1.3.4"
     optimist "^0.6.1"
     progress "^1.1.8"
@@ -3696,14 +3696,14 @@ gulp-plumber@^1.2.0:
     plugin-error "^0.1.2"
     through2 "^2.0.3"
 
-gulp-remote-src@^0.4.0:
-  version "0.4.3"
-  resolved "https://registry.yarnpkg.com/gulp-remote-src/-/gulp-remote-src-0.4.3.tgz#5728cfd643433dd4845ddef0969f0f971a2ab4a1"
-  integrity sha1-VyjP1kNDPdSEXd7wlp8PlxoqtKE=
+gulp-remote-src@^0.4.4:
+  version "0.4.4"
+  resolved "https://registry.yarnpkg.com/gulp-remote-src/-/gulp-remote-src-0.4.4.tgz#4a4d18fac0ffedde94a7855953de90db00a1d1b1"
+  integrity sha512-mo7lGgZmNXyTbcUzfjSnUVkx1pnqqiwv/pPaIrYdTO77hq0WNTxXLAzQdoYOnyJ0mfVLNmNl9AGqWLiAzTPMMA==
   dependencies:
-    event-stream "~3.3.4"
+    event-stream "3.3.4"
     node.extend "~1.1.2"
-    request "~2.79.0"
+    request "^2.88.0"
     through2 "~2.0.3"
     vinyl "~2.0.1"
 
@@ -3742,12 +3742,12 @@ gulp-sourcemaps@1.6.0:
     through2 "^2.0.0"
     vinyl "^1.0.0"
 
-gulp-symdest@^1.0.0:
-  version "1.1.0"
-  resolved "https://registry.yarnpkg.com/gulp-symdest/-/gulp-symdest-1.1.0.tgz#c165320732d192ce56fd94271ffa123234bf2ae0"
-  integrity sha1-wWUyBzLRks5W/ZQnH/oSMjS/KuA=
+gulp-symdest@^1.1.1:
+  version "1.1.1"
+  resolved "https://registry.yarnpkg.com/gulp-symdest/-/gulp-symdest-1.1.1.tgz#b0a6df3d43a0537165946ab8e38c1b7080a66fac"
+  integrity sha512-UHd3MokfIN7SrFdsbV5uZTwzBpL0ZSTu7iq98fuDqBGZ0dlHxgbQBJwfd6qjCW83snkQ3Hz9IY4sMRMz2iTq7w==
   dependencies:
-    event-stream "^3.3.1"
+    event-stream "3.3.4"
     mkdirp "^0.5.1"
     queue "^3.1.0"
     vinyl-fs "^2.4.3"
@@ -3845,16 +3845,16 @@ gulp-util@~2.2.14:
     through2 "^0.5.0"
     vinyl "^0.2.1"
 
-gulp-vinyl-zip@^1.2.0, gulp-vinyl-zip@^1.2.2:
-  version "1.4.0"
-  resolved "https://registry.yarnpkg.com/gulp-vinyl-zip/-/gulp-vinyl-zip-1.4.0.tgz#56382f2ccb57231bb0478c78737ccd572973bee1"
-  integrity sha1-VjgvLMtXIxuwR4x4c3zNVylzvuE=
+gulp-vinyl-zip@^2.1.2:
+  version "2.1.2"
+  resolved "https://registry.yarnpkg.com/gulp-vinyl-zip/-/gulp-vinyl-zip-2.1.2.tgz#b79cc1a0e2c3b158ffee294590ade1e9caaf5e7b"
+  integrity sha512-wJn09jsb8PyvUeyFF7y7ImEJqJwYy40BqL9GKfJs6UGpaGW9A+N68Q+ajsIpb9AeR6lAdjMbIdDPclIGo1/b7Q==
   dependencies:
-    event-stream "^3.3.1"
-    queue "^3.0.10"
-    through2 "^0.6.3"
-    vinyl "^0.4.6"
-    vinyl-fs "^2.0.0"
+    event-stream "3.3.4"
+    queue "^4.2.1"
+    through2 "^2.0.3"
+    vinyl "^2.0.2"
+    vinyl-fs "^3.0.3"
     yauzl "^2.2.1"
     yazl "^2.2.1"
 
@@ -7182,6 +7182,13 @@ queue@^3.0.10, queue@^3.1.0:
   dependencies:
     inherits "~2.0.0"
 
+queue@^4.2.1:
+  version "4.5.0"
+  resolved "https://registry.yarnpkg.com/queue/-/queue-4.5.0.tgz#0f125191a983e3c38fcc0c0c75087d358d0857f4"
+  integrity sha512-DwxpAnqJuoQa+wyDgQuwkSshkhlqIlWEvwvdAY27fDPunZ2cVJzXU4JyjY+5l7zs7oGLaYAQm4MbLOVFAHFBzA==
+  dependencies:
+    inherits "~2.0.0"
+
 randomatic@^1.1.3:
   version "1.1.5"
   resolved "https://registry.yarnpkg.com/randomatic/-/randomatic-1.1.5.tgz#5e9ef5f2d573c67bd2b8124ae90b5156e457840b"
@@ -7479,7 +7486,7 @@ replacestream@^4.0.0:
     object-assign "^4.0.1"
     readable-stream "^2.0.2"
 
-request@2.79.0, request@~2.79.0:
+request@2.79.0:
   version "2.79.0"
   resolved "https://registry.yarnpkg.com/request/-/request-2.79.0.tgz#4dfe5bf6be8b8cdc37fcf93e04b65577722710de"
   integrity sha1-Tf5b9r6LjNw3/Pk+BLZVd3InEN4=
@@ -8516,7 +8523,7 @@ through2@^0.5.0, through2@~0.5.0:
     readable-stream "~1.0.17"
     xtend "~3.0.0"
 
-through2@^0.6.0, through2@^0.6.1, through2@^0.6.3, through2@~0.6.3:
+through2@^0.6.0, through2@^0.6.1, through2@~0.6.3:
   version "0.6.5"
   resolved "https://registry.yarnpkg.com/through2/-/through2-0.6.5.tgz#41ab9c67b29d57209071410e1d7a7a968cd3ad48"
   integrity sha1-QaucZ7KdVyCQcUEOHXp6lozTrUg=
@@ -9132,7 +9139,7 @@ vinyl-fs@^0.3.0, vinyl-fs@^0.3.13:
     through2 "^0.6.1"
     vinyl "^0.4.0"
 
-vinyl-fs@^2.0.0, vinyl-fs@^2.4.3:
+vinyl-fs@^2.4.3:
   version "2.4.4"
   resolved "https://registry.yarnpkg.com/vinyl-fs/-/vinyl-fs-2.4.4.tgz#be6ff3270cb55dfd7d3063640de81f25d7532239"
   integrity sha1-vm/zJwy1Xf19MGNkDegfJddTIjk=
@@ -9205,7 +9212,7 @@ vinyl@^0.2.1:
   dependencies:
     clone-stats "~0.0.1"
 
-vinyl@^0.4.0, vinyl@^0.4.3, vinyl@^0.4.5, vinyl@^0.4.6:
+vinyl@^0.4.0, vinyl@^0.4.3, vinyl@^0.4.5:
   version "0.4.6"
   resolved "https://registry.yarnpkg.com/vinyl/-/vinyl-0.4.6.tgz#2f356c87a550a255461f36bbeb2a5ba8bf784847"
   integrity sha1-LzVsh6VQolVGHza76ypbqL94SEc=
@@ -9243,7 +9250,7 @@ vinyl@^2.0.0, vinyl@^2.1.0:
     remove-trailing-separator "^1.0.1"
     replace-ext "^1.0.0"
 
-vinyl@^2.2.0:
+vinyl@^2.0.2, vinyl@^2.2.0:
   version "2.2.0"
   resolved "https://registry.yarnpkg.com/vinyl/-/vinyl-2.2.0.tgz#d85b07da96e458d25b2ffe19fece9f2caa13ed86"
   integrity sha512-MBH+yP0kC/GQ5GwBqrTPTzEfiiLjta7hTtvQtbxBgTeSXsmKQRQecjibMbxIXzVT3Y9KJK+drOz1/k+vsu8Nkg==
@@ -9398,10 +9405,10 @@ vscode-proxy-agent@0.1.1:
     https-proxy-agent "2.2.1"
     socks-proxy-agent "4.0.1"
 
-vscode-ripgrep@^1.2.4:
-  version "1.2.4"
-  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.2.4.tgz#b3cfbe08ed13f6cf6b134147ea4d982970ab4f70"
-  integrity sha512-TysaK20aCSfsFIQGd0DfMshjkHof0fG6zx7DoO0tdWNAZgsvoqLtOWdqHcocICRZ3RSpdiMiEJRaMK+iOzx16w==
+vscode-ripgrep@^1.2.5:
+  version "1.2.5"
+  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.2.5.tgz#2093c8f36d52bd2dab9eb45b003dd02533c5499c"
+  integrity sha512-n5XBm9od5hahpljw9T8wbkuMnAY7LlAG1OyEEtcCZEX9aCHFuBKSP0IcvciGRTbtWRovNuT83A2iRjt6PL3bLg==
 
 vscode-sqlite3@4.0.5:
   version "4.0.5"

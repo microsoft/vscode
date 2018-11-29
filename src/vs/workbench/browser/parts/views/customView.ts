@@ -35,7 +35,7 @@ import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { localize } from 'vs/nls';
 import { timeout } from 'vs/base/common/async';
 import { CollapseAllAction } from 'vs/base/parts/tree/browser/treeDefaults';
-import { editorFindMatchHighlight, editorFindMatchHighlightBorder } from 'vs/platform/theme/common/colorRegistry';
+import { editorFindMatchHighlight, editorFindMatchHighlightBorder, textLinkForeground, textCodeBlockBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { isString } from 'vs/base/common/types';
 import { renderMarkdown, RenderOptions } from 'vs/base/browser/htmlContentRenderer';
@@ -44,6 +44,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IMarkdownRenderResult } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { dirname } from 'vs/base/common/resources';
+import { escape } from 'vs/base/common/strings';
 
 export class CustomTreeViewPanel extends ViewletPanel {
 
@@ -188,6 +189,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	private _hasIconForLeafNode = false;
 	private _showCollapseAllAction = false;
 
+	private focused: boolean = false;
 	private domNode: HTMLElement;
 	private treeContainer: HTMLElement;
 	private _messageValue: string | IMarkdownString | undefined;
@@ -352,7 +354,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	}
 
 	focus(): void {
-		if (this.tree) {
+		if (this.tree && this.root.children && this.root.children.length > 0) {
 			// Make sure the current selected element is revealed
 			const selectedElement = this.tree.getSelection()[0];
 			if (selectedElement) {
@@ -361,6 +363,8 @@ export class CustomTreeView extends Disposable implements ITreeView {
 
 			// Pass Focus to Viewer
 			this.tree.domFocus();
+		} else if (this._messageValue) {
+			this.messageElement.focus();
 		}
 	}
 
@@ -371,7 +375,11 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	private create() {
 		this.domNode = DOM.$('.tree-explorer-viewlet-tree-view');
 		this.messageElement = DOM.append(this.domNode, DOM.$('.message'));
+		this.messageElement.setAttribute('tabindex', '0');
 		this.treeContainer = DOM.append(this.domNode, DOM.$('.customview-tree'));
+		const focusTracker = this._register(DOM.trackFocus(this.domNode));
+		this._register(focusTracker.onDidFocus(() => this.focused = true));
+		this._register(focusTracker.onDidBlur(() => this.focused = false));
 	}
 
 	private createTree() {
@@ -406,7 +414,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 			this.resetMessageElement();
 			this._messageValue = message;
 			if (isString(this._messageValue)) {
-				this.messageElement.innerText = this._messageValue;
+				this.messageElement.innerText = escape(this._messageValue);
 			} else {
 				this.markdownResult = this.markdownRenderer.render(this._messageValue);
 				DOM.append(this.messageElement, this.markdownResult.element);
@@ -507,7 +515,12 @@ export class CustomTreeView extends Disposable implements ITreeView {
 
 	private doRefresh(elements: ITreeItem[]): Promise<void> {
 		if (this.tree) {
-			return Promise.all(elements.map(e => this.tree.refresh(e))).then(() => null);
+			return Promise.all(elements.map(e => this.tree.refresh(e)))
+				.then(() => {
+					if (this.focused) {
+						this.focus();
+					}
+				});
 		}
 		return Promise.resolve(null);
 	}
@@ -582,6 +595,14 @@ registerThemingParticipant((theme, collector) => {
 	if (findMatchHighlightColorBorder) {
 		collector.addRule(`.file-icon-themable-tree .monaco-tree-row .content .monaco-highlighted-label .highlight { color: unset !important; border: 1px dotted ${findMatchHighlightColorBorder}; box-sizing: border-box; }`);
 	}
+	const link = theme.getColor(textLinkForeground);
+	if (link) {
+		collector.addRule(`.tree-explorer-viewlet-tree-view > .message a { color: ${link}; }`);
+	}
+	const codeBackground = theme.getColor(textCodeBlockBackground);
+	if (codeBackground) {
+		collector.addRule(`.tree-explorer-viewlet-tree-view > .message code { background-color: ${codeBackground}; }`);
+	}
 });
 
 class TreeRenderer implements IRenderer {
@@ -626,12 +647,12 @@ class TreeRenderer implements IRenderer {
 	renderElement(tree: ITree, node: ITreeItem, templateId: string, templateData: ITreeExplorerTemplateData): void {
 		const resource = node.resourceUri ? URI.revive(node.resourceUri) : null;
 		const treeItemLabel: ITreeItemLabel = node.label ? node.label : resource ? { label: basename(resource.path) } : void 0;
-		const description = isString(node.description) ? node.description : resource && node.description === true ? this.labelService.getUriLabel(dirname(resource), { relative: true }) : void 0;
-		const label = treeItemLabel ? treeItemLabel.label : void 0;
+		const description = isString(node.description) ? escape(node.description) : resource && node.description === true ? this.labelService.getUriLabel(dirname(resource), { relative: true }) : void 0;
+		const label = treeItemLabel ? escape(treeItemLabel.label) : void 0;
 		const matches = treeItemLabel && treeItemLabel.highlights ? treeItemLabel.highlights.map(([start, end]) => ({ start, end })) : void 0;
 		const icon = this.themeService.getTheme().type === LIGHT ? node.icon : node.iconDark;
 		const iconUrl = icon ? URI.revive(icon) : null;
-		const title = node.tooltip ? node.tooltip : resource ? void 0 : label;
+		const title = node.tooltip ? node.tooltip : resource ? void 0 : treeItemLabel ? treeItemLabel.label : void 0;
 
 		// reset
 		templateData.resourceLabel.clear();

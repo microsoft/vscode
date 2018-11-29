@@ -142,7 +142,7 @@ class SnippetsService implements ISnippetsService {
 		@IFileService private readonly _fileService: IFileService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 	) {
-		this._pendingWork.push(Promise.resolve(lifecycleService.when(LifecyclePhase.Running).then(() => {
+		this._pendingWork.push(Promise.resolve(lifecycleService.when(LifecyclePhase.Restored).then(() => {
 			this._initExtensionSnippets();
 			this._initUserSnippets();
 			this._initWorkspaceSnippets();

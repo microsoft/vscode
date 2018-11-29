@@ -399,6 +399,13 @@ export class IssueReporter extends Disposable {
 				}
 			}
 
+			// Cmd/Ctrl + w closes issue window
+			if (cmdOrCtrlKey && e.keyCode === 87) {
+				e.stopPropagation();
+				e.preventDefault();
+				ipcRenderer.send('vscode:closeIssueReporter');
+			}
+
 			// Cmd/Ctrl + zooms in
 			if (cmdOrCtrlKey && e.keyCode === 187) {
 				this.applyZoom(webFrame.getZoomLevel() + 1);
