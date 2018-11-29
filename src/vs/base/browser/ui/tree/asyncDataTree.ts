@@ -27,7 +27,7 @@ enum AsyncDataTreeNodeState {
 }
 
 interface IAsyncDataTreeNode<T extends NonNullable<any>> {
-	readonly element: T | null;
+	element: T | null;
 	readonly parent: IAsyncDataTreeNode<T> | null;
 	readonly id?: string | null;
 	readonly children?: IAsyncDataTreeNode<T>[];
@@ -259,7 +259,7 @@ export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> imple
 
 	// Data Tree
 
-	refresh(element: T | null, recursive = false): Thenable<void> {
+	refresh(element: T | null, recursive = true): Thenable<void> {
 		return this.refreshNode(this.getDataNode(element), recursive, ChildrenResolutionReason.Refresh);
 	}
 
@@ -405,7 +405,15 @@ export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> imple
 		return node;
 	}
 
-	private refreshNode(node: IAsyncDataTreeNode<T>, recursive: boolean, reason: ChildrenResolutionReason): Thenable<void> {
+	private async refreshNode(node: IAsyncDataTreeNode<T>, recursive: boolean, reason: ChildrenResolutionReason): Promise<void> {
+		await this._refreshNode(node, recursive, reason);
+
+		if (recursive && node.children) {
+			await Promise.all(node.children.map(child => this.refreshNode(child, recursive, reason)));
+		}
+	}
+
+	private _refreshNode(node: IAsyncDataTreeNode<T>, recursive: boolean, reason: ChildrenResolutionReason): Thenable<void> {
 		let result = this.refreshPromises.get(node);
 
 		if (result) {
@@ -422,6 +430,8 @@ export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> imple
 
 		if (!hasChildren) {
 			this.setChildren(node, [], recursive);
+			return Promise.resolve();
+		} else if (node !== this.root && this.tree.isCollapsed(node)) {
 			return Promise.resolve();
 		} else {
 			node.state = AsyncDataTreeNodeState.Loading;
@@ -499,19 +509,20 @@ export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> imple
 				};
 			}
 
-			// TODO
-			// if (recursive) {
-			// 	asyncDataTreeNode.state = AsyncDataTreeNodeState.Uninitialized;
+			asyncDataTreeNode.element = element;
 
-			// 	if (this.tree.isCollapsed(asyncDataTreeNode)) {
-			// 		asyncDataTreeNode.children!.length = 0;
+			if (recursive) {
+				asyncDataTreeNode.state = AsyncDataTreeNodeState.Uninitialized;
 
-			// 		return {
-			// 			element: asyncDataTreeNode,
-			// 			collapsible: this.dataSource.hasChildren(element),
-			// 		};
-			// 	}
-			// }
+				if (this.tree.isCollapsed(asyncDataTreeNode)) {
+					asyncDataTreeNode.children!.length = 0;
+
+					return {
+						element: asyncDataTreeNode,
+						collapsible: this.dataSource.hasChildren(element),
+					};
+				}
+			}
 
 			return {
 				element: asyncDataTreeNode,
