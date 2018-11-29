@@ -492,6 +492,10 @@ class MouseController<T> implements IDisposable {
 	}
 
 	private onMouseDown(e: IListMouseEvent<T> | IListTouchEvent<T>): void {
+		if (e.browserEvent instanceof MouseEvent && e.browserEvent.button === 2) {
+			return;
+		}
+
 		if (this.options.focusOnMouseDown === false) {
 			e.browserEvent.preventDefault();
 			e.browserEvent.stopPropagation();
