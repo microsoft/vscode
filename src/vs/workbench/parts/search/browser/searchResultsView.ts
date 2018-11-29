@@ -213,7 +213,8 @@ export class SearchRenderer extends Disposable implements IRenderer {
 		const label = this.instantiationService.createInstance(FileLabel, folderMatchElement, void 0);
 		const badge = new CountBadge(DOM.append(folderMatchElement, DOM.$('.badge')));
 		this._register(attachBadgeStyler(badge, this.themeService));
-		const actions = new ActionBar(folderMatchElement, { animated: false });
+		const actionBarContainer = DOM.append(folderMatchElement, DOM.$('span.actionBarContainer'));
+		const actions = new ActionBar(actionBarContainer, { animated: false });
 		return { label, badge, actions };
 	}
 
@@ -222,7 +223,8 @@ export class SearchRenderer extends Disposable implements IRenderer {
 		const label = this.instantiationService.createInstance(FileLabel, fileMatchElement, void 0);
 		const badge = new CountBadge(DOM.append(fileMatchElement, DOM.$('.badge')));
 		this._register(attachBadgeStyler(badge, this.themeService));
-		const actions = new ActionBar(fileMatchElement, { animated: false });
+		const actionBarContainer = DOM.append(fileMatchElement, DOM.$('span.actionBarContainer'));
+		const actions = new ActionBar(actionBarContainer, { animated: false });
 		return { el: fileMatchElement, label, badge, actions };
 	}
 
