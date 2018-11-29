@@ -22,10 +22,17 @@ import { snippetForFunctionCall } from '../utils/snippetForFunctionCall';
 
 const localize = nls.loadMessageBundle();
 
-interface CommitCharactersSettings {
+interface DotAccessorContext {
+	readonly range: vscode.Range;
+	readonly text: string;
+}
+
+interface CompletionContext {
 	readonly isNewIdentifierLocation: boolean;
+	readonly isMemberCompletion: boolean;
 	readonly isInValidCommitCharacterContext: boolean;
 	readonly enableCallCompletions: boolean;
+	readonly dotAccessorContext?: DotAccessorContext;
 }
 
 class MyCompletionItem extends vscode.CompletionItem {
@@ -37,7 +44,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 		line: string,
 		public readonly tsEntry: Proto.CompletionEntry,
 		useCodeSnippetsOnMethodSuggest: boolean,
-		public readonly commitCharactersSettings: CommitCharactersSettings,
+		public readonly completionContext: CompletionContext,
 		public readonly metadata: any | undefined,
 	) {
 		super(tsEntry.name, MyCompletionItem.convertKind(tsEntry.kind));
@@ -67,17 +74,22 @@ class MyCompletionItem extends vscode.CompletionItem {
 
 			if (tsEntry.replacementSpan) {
 				this.range = typeConverters.Range.fromTextSpan(tsEntry.replacementSpan);
-				if (this.insertText[0] === '[') { // o.x -> o['x']
-					const textBeingReplaced = document.getText(this.range);
-					this.filterText = textBeingReplaced + this.label;
-				}
-
 				// Make sure we only replace a single line at most
 				if (!this.range.isSingleLine) {
 					this.range = new vscode.Range(this.range.start.line, this.range.start.character, this.range.start.line, line.length);
 				}
 			}
 		}
+
+		// For #63100, always add fake insert text for member completions
+		if (completionContext.isMemberCompletion && completionContext.dotAccessorContext) {
+			this.range = completionContext.dotAccessorContext.range;
+			this.filterText = completionContext.dotAccessorContext.text + this.label;
+			if (!this.insertText) {
+				this.insertText = completionContext.dotAccessorContext.text + this.label;
+			}
+		}
+
 
 		if (tsEntry.kindModifiers) {
 			const kindModifiers = new Set(tsEntry.kindModifiers.split(/\s+/g));
@@ -176,7 +188,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 
 	@memoize
 	public get commitCharacters(): string[] | undefined {
-		if (this.commitCharactersSettings.isNewIdentifierLocation || !this.commitCharactersSettings.isInValidCommitCharacterContext) {
+		if (this.completionContext.isNewIdentifierLocation || !this.completionContext.isInValidCommitCharacterContext) {
 			return undefined;
 		}
 
@@ -206,7 +218,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 			case PConst.Kind.keyword:
 			case PConst.Kind.parameter:
 				commitCharacters.push('.', ',', ';');
-				if (this.commitCharactersSettings.enableCallCompletions) {
+				if (this.completionContext.enableCallCompletions) {
 					commitCharacters.push('(');
 				}
 				break;
@@ -366,6 +378,8 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 
 		let isNewIdentifierLocation = true;
 		let isIncomplete = false;
+		let isMemberCompletion = false;
+		let dotAccessorContext: DotAccessorContext | undefined;
 		let entries: ReadonlyArray<Proto.CompletionEntry>;
 		let metadata: any | undefined;
 		if (this.client.apiVersion.gte(API.v300)) {
@@ -374,6 +388,15 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 				return null;
 			}
 			isNewIdentifierLocation = response.body.isNewIdentifierLocation;
+			isMemberCompletion = response.body.isMemberCompletion;
+			if (isMemberCompletion) {
+				const dotMatch = line.text.slice(0, position.character).match(/\.\s*$/) || undefined;
+				if (dotMatch) {
+					const range = new vscode.Range(position.translate({ characterDelta: -dotMatch[0].length }), position);
+					const text = document.getText(range);
+					dotAccessorContext = { range, text };
+				}
+			}
 			isIncomplete = (response as any).metadata && (response as any).metadata.isIncomplete;
 			entries = response.body.entries;
 			metadata = response.metadata;
@@ -392,6 +415,8 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			.filter(entry => !shouldExcludeCompletionEntry(entry, completionConfiguration))
 			.map(entry => new MyCompletionItem(position, document, line.text, entry, completionConfiguration.useCodeSnippetsOnMethodSuggest, {
 				isNewIdentifierLocation,
+				isMemberCompletion,
+				dotAccessorContext,
 				isInValidCommitCharacterContext,
 				enableCallCompletions: !completionConfiguration.useCodeSnippetsOnMethodSuggest
 			}, metadata));
