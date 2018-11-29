@@ -33,7 +33,12 @@ class SelectionRanges {
 		if (index < 0 || index >= this.ranges.length) {
 			return this;
 		}
-		return new SelectionRanges(index, this.ranges);
+		const res = new SelectionRanges(index, this.ranges);
+		if (res.ranges[index].equalsRange(this.ranges[this.index])) {
+			// next range equals this range, retry with next-next
+			return res.mov(fwd);
+		}
+		return res;
 	}
 }
 
