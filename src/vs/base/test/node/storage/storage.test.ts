@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Storage, SQLiteStorageDatabase, IStorageDatabase, ISQLiteStorageDatabaseOptions } from 'vs/base/node/storage';
+import { Storage, SQLiteStorageDatabase, IStorageDatabase, ISQLiteStorageDatabaseOptions, IStorageItemsChangeEvent } from 'vs/base/node/storage';
 import { generateUuid } from 'vs/base/common/uuid';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { equal, ok } from 'assert';
 import { mkdirp, del, writeFile } from 'vs/base/node/pfs';
 import { timeout } from 'vs/base/common/async';
+import { Event, Emitter } from 'vs/base/common/event';
 
 suite('Storage Library', () => {
 
@@ -88,6 +89,62 @@ suite('Storage Library', () => {
 		let deletePromiseResolved = false;
 		await Promise.all([delete1Promise, delete2Promise, delete3Promise]).then(() => deletePromiseResolved = true);
 		equal(deletePromiseResolved, true);
+
+		await storage.close();
+		await del(storageDir, tmpdir());
+	});
+
+	test('external changes', async () => {
+		const storageDir = uniqueStorageDir();
+		await mkdirp(storageDir);
+
+		class TestSQLiteStorageDatabase extends SQLiteStorageDatabase {
+			private _onDidChangeItemsExternal: Emitter<IStorageItemsChangeEvent> = new Emitter<IStorageItemsChangeEvent>();
+			get onDidChangeItemsExternal(): Event<IStorageItemsChangeEvent> { return this._onDidChangeItemsExternal.event; }
+
+			fireDidChangeItemsExternal(event: IStorageItemsChangeEvent): void {
+				this._onDidChangeItemsExternal.fire(event);
+			}
+		}
+
+		const database = new TestSQLiteStorageDatabase(join(storageDir, 'storage.db'));
+		const storage = new Storage(database);
+
+		let changes = new Set<string>();
+		storage.onDidChangeStorage(key => {
+			changes.add(key);
+		});
+
+		await storage.init();
+
+		await storage.set('foo', 'bar');
+		ok(changes.has('foo'));
+		changes.clear();
+
+		// Nothing happens if changing to same value
+		const change = new Map<string, string>();
+		change.set('foo', 'bar');
+		database.fireDidChangeItemsExternal({ items: change });
+		equal(changes.size, 0);
+
+		// Change is accepted if valid
+		change.set('foo', 'bar1');
+		database.fireDidChangeItemsExternal({ items: change });
+		ok(changes.has('foo'));
+		equal(storage.get('foo'), 'bar1');
+		changes.clear();
+
+		// Delete is accepted
+		change.set('foo', null);
+		database.fireDidChangeItemsExternal({ items: change });
+		ok(changes.has('foo'));
+		equal(storage.get('foo', null), null);
+		changes.clear();
+
+		// Nothing happens if changing to same value
+		change.set('foo', null);
+		database.fireDidChangeItemsExternal({ items: change });
+		equal(changes.size, 0);
 
 		await storage.close();
 		await del(storageDir, tmpdir());

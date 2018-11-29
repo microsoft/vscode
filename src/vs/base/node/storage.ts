@@ -26,13 +26,19 @@ export interface IStorageOptions {
 	hint?: StorageHint;
 }
 
-
 export interface IUpdateRequest {
 	insert?: Map<string, string>;
 	delete?: Set<string>;
 }
 
+export interface IStorageItemsChangeEvent {
+	items: Map<string, string>;
+}
+
 export interface IStorageDatabase {
+
+	readonly onDidChangeItemsExternal: Event<IStorageItemsChangeEvent>;
+
 	getItems(): Thenable<Map<string, string>>;
 	updateItems(request: IUpdateRequest): Thenable<void>;
 
@@ -96,6 +102,46 @@ export class Storage extends Disposable implements IStorage {
 		super();
 
 		this.flushDelayer = this._register(new ThrottledDelayer(Storage.FLUSH_DELAY));
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this._register(this.database.onDidChangeItemsExternal(e => this.onDidChangeItemsExternal(e)));
+	}
+
+	private onDidChangeItemsExternal(e: IStorageItemsChangeEvent): void {
+		// items that change external require us to update our
+		// caches with the values. we just accept the value and
+		// emit an event if there is a change.
+		e.items.forEach((value, key) => this.accept(key, value));
+	}
+
+	private accept(key: string, value: string): void {
+		if (this.state === StorageState.Closed) {
+			return; // Return early if we are already closed
+		}
+
+		let changed = false;
+
+		// Item got removed, check for deletion
+		if (isUndefinedOrNull(value)) {
+			changed = this.cache.delete(key);
+		}
+
+		// Item got updated, check for change
+		else {
+			const currentValue = this.cache.get(key);
+			if (currentValue !== value) {
+				this.cache.set(key, value);
+				changed = true;
+			}
+		}
+
+		// Signal to outside listeners
+		if (changed) {
+			this._onDidChangeStorage.fire(key);
+		}
 	}
 
 	get items(): Map<string, string> {
@@ -269,6 +315,8 @@ export interface ISQLiteStorageDatabaseLoggingOptions {
 export class SQLiteStorageDatabase implements IStorageDatabase {
 
 	static IN_MEMORY_PATH = ':memory:';
+
+	get onDidChangeItemsExternal(): Event<IStorageItemsChangeEvent> { return Event.None; } // since we are the only client, there can be no external changes
 
 	private static measuredRequireDuration: boolean; // TODO@Ben remove me after a while
 
@@ -616,6 +664,9 @@ class SQLiteStorageDatabaseLogger {
 }
 
 export class InMemoryStorageDatabase implements IStorageDatabase {
+
+	readonly onDidChangeItemsExternal = Event.None;
+
 	private items = new Map<string, string>();
 
 	getItems(): Thenable<Map<string, string>> {

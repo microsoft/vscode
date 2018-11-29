@@ -593,7 +593,7 @@ export class CodeApplication extends Disposable {
 		this.electronIpcServer.registerChannel('url', urlChannel);
 
 		const storageMainService = accessor.get(IStorageMainService);
-		const storageChannel = new GlobalStorageDatabaseChannel(storageMainService as StorageMainService);
+		const storageChannel = this._register(new GlobalStorageDatabaseChannel(storageMainService as StorageMainService));
 		this.electronIpcServer.registerChannel('storage', storageChannel);
 
 		// Log level management
