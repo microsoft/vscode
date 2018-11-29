@@ -7,7 +7,7 @@ import * as sinon from 'sinon';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ILifecycleService, WillShutdownEvent, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, BeforeShutdownEvent, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { workbenchInstantiationService, TestLifecycleService, TestTextFileService, TestWindowsService, TestContextService, TestFileService } from 'vs/workbench/test/workbenchTestServices';
 import { toResource } from 'vs/base/test/common/utils';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -37,7 +37,7 @@ class ServiceAccessor {
 	}
 }
 
-class ShutdownEventImpl implements WillShutdownEvent {
+class BeforeShutdownEventImpl implements BeforeShutdownEvent {
 
 	public value: boolean | TPromise<boolean>;
 	public reason = ShutdownReason.CLOSE;
@@ -69,7 +69,7 @@ suite('Files - TextFileService', () => {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
 
-		const event = new ShutdownEventImpl();
+		const event = new BeforeShutdownEventImpl();
 		accessor.lifecycleService.fireWillShutdown(event);
 
 		const veto = event.value;
@@ -94,7 +94,7 @@ suite('Files - TextFileService', () => {
 
 			assert.equal(service.getDirty().length, 1);
 
-			const event = new ShutdownEventImpl();
+			const event = new BeforeShutdownEventImpl();
 			accessor.lifecycleService.fireWillShutdown(event);
 
 			assert.ok(event.value);
@@ -114,7 +114,7 @@ suite('Files - TextFileService', () => {
 
 			assert.equal(service.getDirty().length, 1);
 
-			const event = new ShutdownEventImpl();
+			const event = new BeforeShutdownEventImpl();
 			accessor.lifecycleService.fireWillShutdown(event);
 
 			const veto = event.value;
@@ -145,7 +145,7 @@ suite('Files - TextFileService', () => {
 
 			assert.equal(service.getDirty().length, 1);
 
-			const event = new ShutdownEventImpl();
+			const event = new BeforeShutdownEventImpl();
 			accessor.lifecycleService.fireWillShutdown(event);
 
 			return (<TPromise<boolean>>event.value).then(veto => {
@@ -450,7 +450,7 @@ suite('Files - TextFileService', () => {
 
 				assert.equal(service.getDirty().length, 1);
 
-				const event = new ShutdownEventImpl();
+				const event = new BeforeShutdownEventImpl();
 				event.reason = shutdownReason;
 				accessor.lifecycleService.fireWillShutdown(event);
 

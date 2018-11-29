@@ -124,7 +124,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
 		this._toDispose = [];
 		this._toDispose.push(this._onCrashed);
-		this._toDispose.push(this._lifecycleService.onWillShutdown((e) => this._onWillShutdown(e)));
+		this._toDispose.push(this._lifecycleService.onWillShutdown(e => this._onWillShutdown(e)));
 		this._toDispose.push(this._lifecycleService.onShutdown(reason => this.terminate()));
 		this._toDispose.push(this._broadcastService.onBroadcast(b => this._onBroadcast(b)));
 
@@ -563,7 +563,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 				}
 			});
 
-			event.veto(timeout(100 /* wait a bit for IPC to get delivered */).then(() => false));
+			event.join(timeout(100 /* wait a bit for IPC to get delivered */));
 		}
 	}
 }
