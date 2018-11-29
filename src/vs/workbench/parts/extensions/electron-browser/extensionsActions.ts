@@ -1197,7 +1197,6 @@ export class ReloadAction extends Action {
 	private throttler: Throttler;
 
 	constructor(
-		private useLongLabel: boolean,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IWindowService private windowService: IWindowService,
 		@IExtensionService private extensionService: IExtensionService,
@@ -1235,18 +1234,14 @@ export class ReloadAction extends Action {
 				.then(runningExtensions => this.computeReloadState(runningExtensions, installed));
 		}).then(() => {
 			this.class = this.enabled ? ReloadAction.EnabledClass : ReloadAction.DisabledClass;
-			if (this.useLongLabel) {
-				this.label = this.tooltip;
-				this.tooltip = '';
-			} else {
-				this.label = localize('reloadAction', "Reload");
-			}
+			this.label = localize('reloadAction', "Reload");
 		});
 	}
 
 	private computeReloadState(runningExtensions: IExtensionDescription[], installed: IExtension): void {
 		const isUninstalled = this.extension.state === ExtensionState.Uninstalled;
 		const isDisabled = this.extension.local ? !this.extensionEnablementService.isEnabled(this.extension.local) : false;
+		const isEnabled = this.extension.local ? this.extensionEnablementService.isEnabled(this.extension.local) : false;
 		const runningExtension = runningExtensions.filter(e => areSameExtensions(e, this.extension))[0];
 
 		if (installed && installed.local) {
@@ -1255,38 +1250,35 @@ export class ReloadAction extends Action {
 				if (isDifferentVersionRunning && !isDisabled) {
 					// Requires reload to run the updated extension
 					this.enabled = true;
-					this.tooltip = localize('postUpdateTooltip', "Reload to Update");
+					this.tooltip = localize('postUpdateTooltip', "Please reload Visual Studio Code to complete the updating of this extension.");
 					return;
 				}
 				if (isDisabled) {
 					// Requires reload to disable the extension
 					this.enabled = true;
-					this.tooltip = localize('postDisableTooltip', "Reload to Deactivate");
+					this.tooltip = localize('postDisableTooltip', "Please reload Visual Studio Code to complete the disabling of this extension.");
 					return;
 				}
 			} else {
 				const uiExtension = isUIExtension(installed.local.manifest, this.configurationService);
 				if (!isDisabled) {
+					let enableReload = true;
 					if (this.extensionManagementServerService.remoteExtensionManagementServer) {
 						if (uiExtension) {
 							// Only UI extension from local server requires reload if it is not running on the server
-							if (installed.locals.some(local => this.extensionManagementServerService.getExtensionManagementServer(local.location).authority === this.extensionManagementServerService.localExtensionManagementServer.authority)) {
-								// Requires reload to enable the extension
-								this.enabled = true;
-								this.tooltip = localize('postEnableTooltip', "Reload to Activate");
-								return;
-							}
+							enableReload = installed.locals.some(local => this.extensionManagementServerService.getExtensionManagementServer(local.location).authority === this.extensionManagementServerService.localExtensionManagementServer.authority);
 						} else {
-							if (installed.locals.some(local => this.extensionManagementServerService.getExtensionManagementServer(local.location).authority === this.extensionManagementServerService.remoteExtensionManagementServer.authority)) {
-								// Requires reload to enable the extension
-								this.enabled = true;
-								this.tooltip = localize('postEnableTooltip', "Reload to Activate");
-								return;
-							}
+							enableReload = installed.locals.some(local => this.extensionManagementServerService.getExtensionManagementServer(local.location).authority === this.extensionManagementServerService.remoteExtensionManagementServer.authority);
 						}
-					} else {
+					}
+
+					if (enableReload === true) {
 						this.enabled = true;
-						this.tooltip = localize('postEnableTooltip', "Reload to Activate");
+						if (!isEnabled) {
+							this.tooltip = localize('postInstallTooltip', "Please reload Visual Studio Code to complete the installing of this extension.");
+						} else {
+							this.tooltip = localize('postEnableTooltip', "Please reload Visual Studio Code to complete the enabling of this extension.");
+						}
 						return;
 					}
 				}
@@ -1297,7 +1289,7 @@ export class ReloadAction extends Action {
 		if (isUninstalled && runningExtension) {
 			// Requires reload to deactivate the extension
 			this.enabled = true;
-			this.tooltip = localize('postUninstallTooltip', "Reload to Deactivate");
+			this.tooltip = localize('postUninstallTooltip', "Please reload Visual Studio Code to complete the uninstalling of this extension.");
 			return;
 		}
 	}

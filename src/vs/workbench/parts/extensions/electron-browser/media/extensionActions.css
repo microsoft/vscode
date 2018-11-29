@@ -26,6 +26,8 @@
 	font-size: 80%;
 }
 
+.monaco-action-bar .action-item.disabled .action-label.extension-action.ignore,
+.monaco-action-bar .action-item.disabled .action-label.extension-action.undo-ignore,
 .monaco-action-bar .action-item.disabled .action-label.extension-action.install:not(.installing),
 .monaco-action-bar .action-item.disabled .action-label.extension-action.uninstall:not(.uninstalling),
 .monaco-action-bar .action-item.disabled .action-label.extension-action.update,
