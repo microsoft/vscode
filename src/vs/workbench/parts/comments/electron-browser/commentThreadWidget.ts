@@ -35,7 +35,6 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { CommentNode } from 'vs/workbench/parts/comments/electron-browser/commentNode';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -262,10 +261,8 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._commentEditor.layout({ height: (this._commentEditor.hasWidgetFocus() ? 5 : 1) * 18, width: widthInPixel - 54 /* margin 20px * 10 + scrollbar 14px*/ });
 	}
 
-	display(lineNumber: number, commentsOptions: ModelDecorationOptions) {
-		this._commentGlyph = new CommentGlyphWidget(this.editor, lineNumber, commentsOptions, () => {
-			this.toggleExpand();
-		});
+	display(lineNumber: number) {
+		this._commentGlyph = new CommentGlyphWidget(this.editor, lineNumber);
 
 		this._localToDispose.push(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
 		this._localToDispose.push(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
