@@ -512,6 +512,12 @@ export class ReferenceWidget extends PeekViewWidget {
 
 	private async _revealReference(reference: OneReference, revealParent: boolean): Promise<void> {
 
+		// check if there is anything to do...
+		const currentSelection = this._tree.getSelection();
+		if (currentSelection.length === 1 && currentSelection[0] === reference) {
+			return;
+		}
+
 		// Update widget header
 		if (reference.uri.scheme !== Schemas.inMemory) {
 			this.setTitle(basenameOrAuthority(reference.uri), this._uriLabel.getUriLabel(dirname(reference.uri)));
