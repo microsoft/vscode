@@ -8,7 +8,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import * as dom from 'vs/base/browser/dom';
 import * as arrays from 'vs/base/common/arrays';
-import { ISelectBoxDelegate, ISelectBoxOptions, ISelectBoxStyles, ISelectData } from 'vs/base/browser/ui/selectBox/selectBox';
+import { ISelectBoxDelegate, ISelectOptionItem, ISelectBoxOptions, ISelectBoxStyles, ISelectData } from 'vs/base/browser/ui/selectBox/selectBox';
 import { isMacintosh } from 'vs/base/common/platform';
 
 export class SelectBoxNative implements ISelectBoxDelegate {
@@ -21,10 +21,12 @@ export class SelectBoxNative implements ISelectBoxDelegate {
 	private toDispose: IDisposable[];
 	private styles: ISelectBoxStyles;
 
-	constructor(options: string[], selected: number, styles: ISelectBoxStyles, selectBoxOptions?: ISelectBoxOptions) {
-
+	// constructor(options: string[], selected: number, styles: ISelectBoxStyles, selectBoxOptions?: ISelectBoxOptions) {
+	constructor(options: ISelectOptionItem[], selected: number, styles: ISelectBoxStyles, selectBoxOptions?: ISelectBoxOptions) {
 		this.toDispose = [];
 		this.selectBoxOptions = selectBoxOptions || Object.create(null);
+
+		this.options = <string[]>options.map((option) => option.optionText);
 
 		this.selectElement = document.createElement('select');
 
@@ -83,10 +85,12 @@ export class SelectBoxNative implements ISelectBoxDelegate {
 		return this._onDidSelect.event;
 	}
 
-	public setOptions(options: string[], selected?: number, disabled?: number): void {
+	public setOptions(options: ISelectOptionItem[], selected?: number, disabled?: number): void {
+		// public setOptions(options: string[], selected?: number, disabled?: number): void {
 
-		if (!this.options || !arrays.equals(this.options, options)) {
-			this.options = options;
+		let optionStrings = <string[]>options.map((option) => option.optionText);
+		if (!this.options || !arrays.equals(this.options, optionStrings)) {
+			this.options = optionStrings;
 			this.selectElement.options.length = 0;
 
 			let i = 0;
@@ -121,10 +125,6 @@ export class SelectBoxNative implements ISelectBoxDelegate {
 		this.selectElement.setAttribute('aria-label', label);
 	}
 
-	public setDetailsProvider(provider: any): void {
-		console.error('details are not available for native select boxes');
-	}
-
 	public focus(): void {
 		if (this.selectElement) {
 			this.selectElement.focus();
@@ -140,7 +140,8 @@ export class SelectBoxNative implements ISelectBoxDelegate {
 	public render(container: HTMLElement): void {
 		dom.addClass(container, 'select-container');
 		container.appendChild(this.selectElement);
-		this.setOptions(this.options, this.selected);
+		let optionItems = <ISelectOptionItem[]>this.options.map((option) => <ISelectOptionItem>{ optionText: option });
+		this.setOptions(optionItems, this.selected);
 		this.applyStyles();
 	}
 
