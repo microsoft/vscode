@@ -27,7 +27,7 @@ import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension
 import { RatingsWidget, InstallCountWidget } from 'vs/workbench/parts/extensions/browser/extensionsWidgets';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { CombinedInstallAction, UpdateAction, EnableAction, DisableAction, ReloadAction, MaliciousStatusLabelAction, DisabledStatusLabelAction, IgnoreExtensionRecommendationAction, UndoIgnoreExtensionRecommendationAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
+import { CombinedInstallAction, UpdateAction, ExtensionEditorDropDownAction, ReloadAction, MaliciousStatusLabelAction, DisabledStatusLabelAction, IgnoreExtensionRecommendationAction, UndoIgnoreExtensionRecommendationAction, EnableDropDownAction, DisableDropDownAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { WebviewElement } from 'vs/workbench/parts/webview/electron-browser/webviewElement';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -48,6 +48,7 @@ import { ExtensionsTree, IExtensionData } from 'vs/workbench/parts/extensions/br
 import { ShowCurrentReleaseNotesAction } from 'vs/workbench/parts/update/electron-browser/update';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 function renderBody(body: string): string {
 	const styleSheetPath = require.toUrl('./media/markdown.css').replace('file://', 'vscode-core-resource://');
@@ -188,7 +189,8 @@ export class ExtensionEditor extends BaseEditor {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IPartService private readonly partService: IPartService,
 		@IExtensionTipsService private readonly extensionTipsService: IExtensionTipsService,
-		@IStorageService storageService: IStorageService
+		@IStorageService storageService: IStorageService,
+		@IExtensionService private extensionService: IExtensionService
 	) {
 		super(ExtensionEditor.ID, telemetryService, themeService, storageService);
 		this.disposables = [];
@@ -236,11 +238,8 @@ export class ExtensionEditor extends BaseEditor {
 		this.extensionActionBar = new ActionBar(extensionActions, {
 			animated: false,
 			actionItemProvider: (action: Action) => {
-				if (action.id === EnableAction.ID) {
-					return (<EnableAction>action).createActionItem();
-				}
-				if (action.id === DisableAction.ID) {
-					return (<DisableAction>action).createActionItem();
+				if (action instanceof ExtensionEditorDropDownAction) {
+					return action.createActionItem();
 				}
 				return null;
 			}
@@ -270,171 +269,172 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	setInput(input: ExtensionsInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
-		this.activeElement = null;
-		this.editorLoadComplete = false;
-		const extension = input.extension;
+		return this.extensionService.getExtensions()
+			.then(runningExtensions => {
+				this.activeElement = null;
+				this.editorLoadComplete = false;
+				const extension = input.extension;
 
-		this.transientDisposables = dispose(this.transientDisposables);
+				this.transientDisposables = dispose(this.transientDisposables);
 
-		this.extensionReadme = new Cache(() => createCancelablePromise(token => extension.getReadme(token)));
-		this.extensionChangelog = new Cache(() => createCancelablePromise(token => extension.getChangelog(token)));
-		this.extensionManifest = new Cache(() => createCancelablePromise(token => extension.getManifest(token)));
-		this.extensionDependencies = new Cache(() => createCancelablePromise(token => this.extensionsWorkbenchService.loadDependencies(extension, token)));
+				this.extensionReadme = new Cache(() => createCancelablePromise(token => extension.getReadme(token)));
+				this.extensionChangelog = new Cache(() => createCancelablePromise(token => extension.getChangelog(token)));
+				this.extensionManifest = new Cache(() => createCancelablePromise(token => extension.getManifest(token)));
+				this.extensionDependencies = new Cache(() => createCancelablePromise(token => this.extensionsWorkbenchService.loadDependencies(extension, token)));
 
-		const onError = once(domEvent(this.icon, 'error'));
-		onError(() => this.icon.src = extension.iconUrlFallback, null, this.transientDisposables);
-		this.icon.src = extension.iconUrl;
+				const onError = once(domEvent(this.icon, 'error'));
+				onError(() => this.icon.src = extension.iconUrlFallback, null, this.transientDisposables);
+				this.icon.src = extension.iconUrl;
 
-		this.name.textContent = extension.displayName;
-		this.identifier.textContent = extension.id;
-		this.preview.style.display = extension.preview ? 'inherit' : 'none';
-		this.builtin.style.display = extension.type === LocalExtensionType.System ? 'inherit' : 'none';
+				this.name.textContent = extension.displayName;
+				this.identifier.textContent = extension.id;
+				this.preview.style.display = extension.preview ? 'inherit' : 'none';
+				this.builtin.style.display = extension.type === LocalExtensionType.System ? 'inherit' : 'none';
 
-		this.publisher.textContent = extension.publisherDisplayName;
-		this.description.textContent = extension.description;
+				this.publisher.textContent = extension.publisherDisplayName;
+				this.description.textContent = extension.description;
 
-		removeClass(this.header, 'recommendation-ignored');
-		removeClass(this.header, 'recommended');
+				removeClass(this.header, 'recommendation-ignored');
+				removeClass(this.header, 'recommended');
 
-		const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
-		let recommendationsData = {};
-		if (extRecommendations[extension.id.toLowerCase()]) {
-			addClass(this.header, 'recommended');
-			this.recommendationText.textContent = extRecommendations[extension.id.toLowerCase()].reasonText;
-			recommendationsData = { recommendationReason: extRecommendations[extension.id.toLowerCase()].reasonId };
-		} else if (this.extensionTipsService.getAllIgnoredRecommendations().global.indexOf(extension.id.toLowerCase()) !== -1) {
-			addClass(this.header, 'recommendation-ignored');
-			this.recommendationText.textContent = localize('recommendationHasBeenIgnored', "You have chosen not to receive recommendations for this extension.");
-		}
-		else {
-			this.recommendationText.textContent = '';
-		}
-
-		/* __GDPR__
-		"extensionGallery:openExtension" : {
-			"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"${include}": [
-				"${GalleryExtensionTelemetryData}"
-			]
-		}
-		*/
-		this.telemetryService.publicLog('extensionGallery:openExtension', assign(extension.telemetryData, recommendationsData));
-
-		toggleClass(this.name, 'clickable', !!extension.url);
-		toggleClass(this.publisher, 'clickable', !!extension.url);
-		toggleClass(this.rating, 'clickable', !!extension.url);
-		if (extension.url) {
-			this.name.onclick = finalHandler(() => window.open(extension.url));
-			this.rating.onclick = finalHandler(() => window.open(`${extension.url}#review-details`));
-			this.publisher.onclick = finalHandler(() => {
-				this.viewletService.openViewlet(VIEWLET_ID, true)
-					.then(viewlet => viewlet as IExtensionsViewlet)
-					.then(viewlet => viewlet.search(`publisher:"${extension.publisherDisplayName}"`));
-			});
-
-			if (extension.licenseUrl) {
-				this.license.onclick = finalHandler(() => window.open(extension.licenseUrl));
-				this.license.style.display = 'initial';
-			} else {
-				this.license.onclick = null;
-				this.license.style.display = 'none';
-			}
-		} else {
-			this.name.onclick = null;
-			this.rating.onclick = null;
-			this.publisher.onclick = null;
-			this.license.onclick = null;
-			this.license.style.display = 'none';
-		}
-
-		if (extension.repository) {
-			this.repository.onclick = finalHandler(() => window.open(extension.repository));
-			this.repository.style.display = 'initial';
-		}
-		else {
-			this.repository.onclick = null;
-			this.repository.style.display = 'none';
-		}
-
-		const install = this.instantiationService.createInstance(InstallCountWidget, this.installCount, { extension });
-		this.transientDisposables.push(install);
-
-		const ratings = this.instantiationService.createInstance(RatingsWidget, this.rating, { extension });
-		this.transientDisposables.push(ratings);
-
-		const maliciousStatusAction = this.instantiationService.createInstance(MaliciousStatusLabelAction, true);
-		const disabledStatusAction = this.instantiationService.createInstance(DisabledStatusLabelAction);
-		const installAction = this.instantiationService.createInstance(CombinedInstallAction);
-		const updateAction = this.instantiationService.createInstance(UpdateAction);
-		const enableAction = this.instantiationService.createInstance(EnableAction);
-		const disableAction = this.instantiationService.createInstance(DisableAction);
-		const reloadAction = this.instantiationService.createInstance(ReloadAction, true);
-
-		installAction.extension = extension;
-		maliciousStatusAction.extension = extension;
-		disabledStatusAction.extension = extension;
-		updateAction.extension = extension;
-		enableAction.extension = extension;
-		disableAction.extension = extension;
-		reloadAction.extension = extension;
-
-		this.extensionActionBar.clear();
-		this.extensionActionBar.push([reloadAction, updateAction, enableAction, disableAction, installAction, maliciousStatusAction, disabledStatusAction], { icon: true, label: true });
-		this.transientDisposables.push(enableAction, updateAction, reloadAction, disableAction, installAction, maliciousStatusAction, disabledStatusAction);
-
-		const ignoreAction = this.instantiationService.createInstance(IgnoreExtensionRecommendationAction);
-		const undoIgnoreAction = this.instantiationService.createInstance(UndoIgnoreExtensionRecommendationAction);
-		ignoreAction.extension = extension;
-		undoIgnoreAction.extension = extension;
-
-		this.extensionTipsService.onRecommendationChange(change => {
-			if (change.extensionId.toLowerCase() === extension.id.toLowerCase()) {
-				if (change.isRecommended) {
-					removeClass(this.header, 'recommendation-ignored');
-					const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
-					if (extRecommendations[extension.id.toLowerCase()]) {
-						addClass(this.header, 'recommended');
-						this.recommendationText.textContent = extRecommendations[extension.id.toLowerCase()].reasonText;
-					}
-				} else {
+				const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
+				let recommendationsData = {};
+				if (extRecommendations[extension.id.toLowerCase()]) {
+					addClass(this.header, 'recommended');
+					this.recommendationText.textContent = extRecommendations[extension.id.toLowerCase()].reasonText;
+					recommendationsData = { recommendationReason: extRecommendations[extension.id.toLowerCase()].reasonId };
+				} else if (this.extensionTipsService.getAllIgnoredRecommendations().global.indexOf(extension.id.toLowerCase()) !== -1) {
 					addClass(this.header, 'recommendation-ignored');
-					removeClass(this.header, 'recommended');
 					this.recommendationText.textContent = localize('recommendationHasBeenIgnored', "You have chosen not to receive recommendations for this extension.");
 				}
-			}
-		});
-
-		this.ignoreActionbar.clear();
-		this.ignoreActionbar.push([ignoreAction, undoIgnoreAction], { icon: true, label: true });
-		this.transientDisposables.push(ignoreAction, undoIgnoreAction);
-
-		this.content.innerHTML = ''; // Clear content before setting navbar actions.
-
-		this.navbar.clear();
-		this.navbar.onChange(this.onNavbarChange.bind(this, extension), this, this.transientDisposables);
-
-		if (extension.hasReadme()) {
-			this.navbar.push(NavbarSection.Readme, localize('details', "Details"), localize('detailstooltip', "Extension details, rendered from the extension's 'README.md' file"));
-		}
-		this.extensionManifest.get()
-			.promise
-			.then(manifest => {
-				if (extension.extensionPack.length) {
-					this.navbar.push(NavbarSection.ExtensionPack, localize('extensionPack', "Extension Pack"), localize('extensionsPack', "Set of extensions that can be installed together"));
+				else {
+					this.recommendationText.textContent = '';
 				}
-				if (manifest && manifest.contributes) {
-					this.navbar.push(NavbarSection.Contributions, localize('contributions', "Contributions"), localize('contributionstooltip', "Lists contributions to VS Code by this extension"));
+
+				/* __GDPR__
+				"extensionGallery:openExtension" : {
+					"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"${include}": [
+						"${GalleryExtensionTelemetryData}"
+					]
 				}
-				if (extension.hasChangelog()) {
-					this.navbar.push(NavbarSection.Changelog, localize('changelog', "Changelog"), localize('changelogtooltip', "Extension update history, rendered from the extension's 'CHANGELOG.md' file"));
+				*/
+				this.telemetryService.publicLog('extensionGallery:openExtension', assign(extension.telemetryData, recommendationsData));
+
+				toggleClass(this.name, 'clickable', !!extension.url);
+				toggleClass(this.publisher, 'clickable', !!extension.url);
+				toggleClass(this.rating, 'clickable', !!extension.url);
+				if (extension.url) {
+					this.name.onclick = finalHandler(() => window.open(extension.url));
+					this.rating.onclick = finalHandler(() => window.open(`${extension.url}#review-details`));
+					this.publisher.onclick = finalHandler(() => {
+						this.viewletService.openViewlet(VIEWLET_ID, true)
+							.then(viewlet => viewlet as IExtensionsViewlet)
+							.then(viewlet => viewlet.search(`publisher:"${extension.publisherDisplayName}"`));
+					});
+
+					if (extension.licenseUrl) {
+						this.license.onclick = finalHandler(() => window.open(extension.licenseUrl));
+						this.license.style.display = 'initial';
+					} else {
+						this.license.onclick = null;
+						this.license.style.display = 'none';
+					}
+				} else {
+					this.name.onclick = null;
+					this.rating.onclick = null;
+					this.publisher.onclick = null;
+					this.license.onclick = null;
+					this.license.style.display = 'none';
 				}
-				if (extension.dependencies.length) {
-					this.navbar.push(NavbarSection.Dependencies, localize('dependencies', "Dependencies"), localize('dependenciestooltip', "Lists extensions this extension depends on"));
+
+				if (extension.repository) {
+					this.repository.onclick = finalHandler(() => window.open(extension.repository));
+					this.repository.style.display = 'initial';
 				}
-				this.editorLoadComplete = true;
+				else {
+					this.repository.onclick = null;
+					this.repository.style.display = 'none';
+				}
+
+				const install = this.instantiationService.createInstance(InstallCountWidget, this.installCount, { extension });
+				this.transientDisposables.push(install);
+
+				const ratings = this.instantiationService.createInstance(RatingsWidget, this.rating, { extension });
+				this.transientDisposables.push(ratings);
+
+				const maliciousStatusAction = this.instantiationService.createInstance(MaliciousStatusLabelAction, true);
+				const disabledStatusAction = this.instantiationService.createInstance(DisabledStatusLabelAction);
+				const installAction = this.instantiationService.createInstance(CombinedInstallAction);
+				const updateAction = this.instantiationService.createInstance(UpdateAction);
+				const enableAction = this.instantiationService.createInstance(EnableDropDownAction, extension, runningExtensions);
+				const disableAction = this.instantiationService.createInstance(DisableDropDownAction, extension, runningExtensions);
+				const reloadAction = this.instantiationService.createInstance(ReloadAction, true);
+
+				installAction.extension = extension;
+				maliciousStatusAction.extension = extension;
+				disabledStatusAction.extension = extension;
+				updateAction.extension = extension;
+				reloadAction.extension = extension;
+
+				this.extensionActionBar.clear();
+				this.extensionActionBar.push([reloadAction, updateAction, enableAction, disableAction, installAction, maliciousStatusAction, disabledStatusAction], { icon: true, label: true });
+				this.transientDisposables.push(enableAction, updateAction, reloadAction, disableAction, installAction, maliciousStatusAction, disabledStatusAction);
+
+				const ignoreAction = this.instantiationService.createInstance(IgnoreExtensionRecommendationAction);
+				const undoIgnoreAction = this.instantiationService.createInstance(UndoIgnoreExtensionRecommendationAction);
+				ignoreAction.extension = extension;
+				undoIgnoreAction.extension = extension;
+
+				this.extensionTipsService.onRecommendationChange(change => {
+					if (change.extensionId.toLowerCase() === extension.id.toLowerCase()) {
+						if (change.isRecommended) {
+							removeClass(this.header, 'recommendation-ignored');
+							const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
+							if (extRecommendations[extension.id.toLowerCase()]) {
+								addClass(this.header, 'recommended');
+								this.recommendationText.textContent = extRecommendations[extension.id.toLowerCase()].reasonText;
+							}
+						} else {
+							addClass(this.header, 'recommendation-ignored');
+							removeClass(this.header, 'recommended');
+							this.recommendationText.textContent = localize('recommendationHasBeenIgnored', "You have chosen not to receive recommendations for this extension.");
+						}
+					}
+				});
+
+				this.ignoreActionbar.clear();
+				this.ignoreActionbar.push([ignoreAction, undoIgnoreAction], { icon: true, label: true });
+				this.transientDisposables.push(ignoreAction, undoIgnoreAction);
+
+				this.content.innerHTML = ''; // Clear content before setting navbar actions.
+
+				this.navbar.clear();
+				this.navbar.onChange(this.onNavbarChange.bind(this, extension), this, this.transientDisposables);
+
+				if (extension.hasReadme()) {
+					this.navbar.push(NavbarSection.Readme, localize('details', "Details"), localize('detailstooltip', "Extension details, rendered from the extension's 'README.md' file"));
+				}
+				this.extensionManifest.get()
+					.promise
+					.then(manifest => {
+						if (extension.extensionPack.length) {
+							this.navbar.push(NavbarSection.ExtensionPack, localize('extensionPack', "Extension Pack"), localize('extensionsPack', "Set of extensions that can be installed together"));
+						}
+						if (manifest && manifest.contributes) {
+							this.navbar.push(NavbarSection.Contributions, localize('contributions', "Contributions"), localize('contributionstooltip', "Lists contributions to VS Code by this extension"));
+						}
+						if (extension.hasChangelog()) {
+							this.navbar.push(NavbarSection.Changelog, localize('changelog', "Changelog"), localize('changelogtooltip', "Extension update history, rendered from the extension's 'CHANGELOG.md' file"));
+						}
+						if (extension.dependencies.length) {
+							this.navbar.push(NavbarSection.Dependencies, localize('dependencies', "Dependencies"), localize('dependenciestooltip', "Lists extensions this extension depends on"));
+						}
+						this.editorLoadComplete = true;
+					});
+
+				return super.setInput(input, options, token);
 			});
-
-		return super.setInput(input, options, token);
 	}
 
 	focus(): void {
