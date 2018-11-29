@@ -477,8 +477,8 @@ export class TypeOperations {
 
 	private static _isAutoClosingExitCharType(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string): boolean {
 
-		const exitChar = ';';
-		if (ch !== exitChar || !config.autoClosingExit) {
+		const exitChar = [';', ',', '.'];
+		if ((exitChar.indexOf(ch) === -1) || !config.autoClosingExit) {
 			return false;
 		}
 
