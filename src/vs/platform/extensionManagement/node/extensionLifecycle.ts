@@ -14,6 +14,7 @@ import { fromNodeEventEmitter, anyEvent, mapEvent, debounceEvent } from 'vs/base
 import * as objects from 'vs/base/common/objects';
 import { Schemas } from 'vs/base/common/network';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { rimraf } from 'vs/base/node/pfs';
 
 export class ExtensionsLifecycle extends Disposable {
 
@@ -26,15 +27,15 @@ export class ExtensionsLifecycle extends Disposable {
 		super();
 	}
 
-	postUninstall(extension: ILocalExtension): Thenable<void> {
+	async postUninstall(extension: ILocalExtension): Promise<void> {
 		const script = this.parseScript(extension, 'uninstall');
 		if (script) {
 			this.logService.info(extension.identifier.id, `Running post uninstall script`);
-			return this.processesLimiter.queue(() =>
+			await this.processesLimiter.queue(() =>
 				this.runLifecycleHook(script.script, 'uninstall', script.args, true, extension)
 					.then(() => this.logService.info(extension.identifier.id, `Finished running post uninstall script`), err => this.logService.error(extension.identifier.id, `Failed to run post uninstall script: ${err}`)));
 		}
-		return Promise.resolve();
+		return rimraf(this.getExtensionStoragePath(extension)).then(null, e => this.logService.error('Error while removing extension storage path', e));
 	}
 
 	postInstall(extension: ILocalExtension): Thenable<void> {
@@ -66,10 +67,9 @@ export class ExtensionsLifecycle extends Disposable {
 	}
 
 	private runLifecycleHook(lifecycleHook: string, lifecycleType: string, args: string[], timeout: boolean, extension: ILocalExtension): Thenable<void> {
-		const extensionStoragePath = posix.join(this.environmentService.globalStorageHome, extension.identifier.id.toLocaleLowerCase());
 		return new Promise<void>((c, e) => {
 
-			const extensionLifecycleProcess = this.start(lifecycleHook, lifecycleType, args, extension, extensionStoragePath);
+			const extensionLifecycleProcess = this.start(lifecycleHook, lifecycleType, args, extension);
 			let timeoutHandler;
 
 			const onexit = (error?: string) => {
@@ -105,12 +105,12 @@ export class ExtensionsLifecycle extends Disposable {
 		});
 	}
 
-	private start(uninstallHook: string, lifecycleType: string, args: string[], extension: ILocalExtension, extensionStoragePath: string): ChildProcess {
+	private start(uninstallHook: string, lifecycleType: string, args: string[], extension: ILocalExtension): ChildProcess {
 		const opts = {
 			silent: true,
 			execArgv: undefined,
 			env: objects.mixin(objects.deepClone(process.env), {
-				VSCODE_EXTENSION_STORAGE_LOCATION: extensionStoragePath
+				VSCODE_EXTENSION_STORAGE_LOCATION: this.getExtensionStoragePath(extension)
 			})
 		};
 		const extensionUninstallProcess = fork(uninstallHook, [`--type=extension-post-${lifecycleType}`, ...args], opts);
@@ -146,5 +146,9 @@ export class ExtensionsLifecycle extends Disposable {
 		});
 
 		return extensionUninstallProcess;
+	}
+
+	private getExtensionStoragePath(extension: ILocalExtension): string {
+		return posix.join(this.environmentService.globalStorageHome, extension.identifier.id.toLocaleLowerCase());
 	}
 }

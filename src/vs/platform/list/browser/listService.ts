@@ -987,11 +987,6 @@ export class WorkbenchAsyncDataTree<T extends NonNullable<any>, TFilterData = vo
 			})
 		);
 	}
-
-	dispose(): void {
-		super.dispose();
-		this.disposables = dispose(this.disposables);
-	}
 }
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);

@@ -32,11 +32,11 @@ export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends 
 		children?: ISequence<ITreeElement<T>>,
 		onDidCreateNode?: (node: ITreeNode<T, TFilterData>) => void,
 		onDidDeleteNode?: (node: ITreeNode<T, TFilterData>) => void
-	): Iterator<ITreeElement<T>> {
+	): Iterator<ITreeElement<T | null>> {
 		return this.model.setChildren(element, children, onDidCreateNode, onDidDeleteNode);
 	}
 
-	protected createModel(view: ISpliceable<ITreeNode<T, TFilterData>>, options: IObjectTreeOptions<T, TFilterData>): ITreeModel<T, TFilterData, T> {
+	protected createModel(view: ISpliceable<ITreeNode<T, TFilterData>>, options: IObjectTreeOptions<T, TFilterData>): ITreeModel<T | null, TFilterData, T | null> {
 		return new ObjectTreeModel(view, options);
 	}
 }

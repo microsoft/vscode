@@ -477,7 +477,7 @@ export class Workbench extends Disposable implements IPartService {
 	private registerListeners(): void {
 
 		// Lifecycle
-		this._register(this.lifecycleService.onWillShutdown(e => this.saveState(e.reason)));
+		this._register(this.lifecycleService.onBeforeShutdown(e => this.saveState(e.reason)));
 
 		// Listen to visible editor changes
 		this._register(this.editorService.onDidVisibleEditorsChange(() => this.onDidVisibleEditorsChange()));
@@ -1142,7 +1142,7 @@ export class Workbench extends Disposable implements IPartService {
 		}
 	}
 
-	dispose(reason = ShutdownReason.QUIT): void {
+	dispose(): void {
 		super.dispose();
 
 		this.workbenchShutdown = true;
