@@ -370,11 +370,16 @@ export class StorageService extends Disposable implements IStorageService {
 		// Signal as event so that clients can still store data
 		this._onWillSaveState.fire();
 
+
 		// Do it
+		mark('willCloseGlobalStorage');
+		mark('willCloseWorkspaceStorage');
 		return Promise.all([
-			this.globalStorage.close(),
-			this.workspaceStorage.close()
-		]).then(() => void 0);
+			this.globalStorage.close().then(() => mark('didCloseGlobalStorage')),
+			this.workspaceStorage.close().then(() => mark('didCloseWorkspaceStorage'))
+		]).then(() => {
+			this.logService.trace(`[storage] closing took ${getDuration('willCloseGlobalStorage', 'didCloseGlobalStorage')}ms global / ${getDuration('willCloseWorkspaceStorage', 'didCloseWorkspaceStorage')}ms workspace`);
+		});
 	}
 
 	private getStorage(scope: StorageScope): IStorage {
