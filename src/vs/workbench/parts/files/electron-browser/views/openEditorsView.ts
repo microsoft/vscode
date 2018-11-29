@@ -712,7 +712,7 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 		},
 			{
 				title: editor.editor.getTitle(),
-				italic: !this.editorGroupService.getGroup(index).isPinned
+				italic: !editor.group.isPinned(editor.editor)
 			});
 	}
 
