@@ -27,7 +27,7 @@ import { ResourceLabel, IResourceLabel, IResourceLabelOptions } from 'vs/workben
 import { FileKind } from 'vs/platform/files/common/files';
 import { IDataSource } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
+import { ITreeRenderer, ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult } from 'vs/base/browser/ui/tree/tree';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { WorkbenchAsyncDataTree, IListService, TreeResourceNavigator2 } from 'vs/platform/list/browser/listService';
@@ -47,6 +47,10 @@ class BaseTreeItem {
 	constructor(private _parent: BaseTreeItem, private _label: string) {
 		this._children = {};
 		this._showedMoreThanOne = false;
+	}
+
+	isLeaf(): boolean {
+		return Object.keys(this._children).length === 0;
 	}
 
 	getSession(): IDebugSession {
@@ -146,7 +150,7 @@ class BaseTreeItem {
 	}
 
 	// skips intermediate single-child nodes
-	getLabel(separateRootFolder = true) {
+	getLabel(separateRootFolder = true): string {
 		const child = this.oneChild();
 		if (child) {
 			const sep = (this instanceof RootFolderTreeItem && separateRootFolder) ? ' • ' : '/';
@@ -362,6 +366,7 @@ export class LoadedScriptsView extends ViewletPanel {
 	private tree: WorkbenchAsyncDataTree<any>;
 	private changeScheduler: RunOnceScheduler;
 	private treeNeedsRefreshOnVisible: boolean;
+	private filter: LoadedScriptsFilter;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -387,6 +392,8 @@ export class LoadedScriptsView extends ViewletPanel {
 
 		this.treeContainer = renderViewTree(container);
 
+		this.filter = new LoadedScriptsFilter();
+
 		const root = new RootTreeItem(this.debugService.getModel(), this.environmentService, this.contextService);
 
 		this.tree = new WorkbenchAsyncDataTree(this.treeContainer, new LoadedScriptsDelegate(),
@@ -395,9 +402,12 @@ export class LoadedScriptsView extends ViewletPanel {
 			],
 			new LoadedScriptsDataSource(root),
 			{
+				identityProvider: {
+					getId: element => element.getId()
+				},
+				filter: this.filter,
 				accessibilityProvider: new LoadedSciptsAccessibilityProvider(),
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'loadedScriptsAriaLabel' }, "Debug Loaded Scripts"),
-				// identityProvider: element => element.getId()
 			},
 			this.contextKeyService, this.listService, this.themeService, this.configurationService
 		);
@@ -457,6 +467,10 @@ export class LoadedScriptsView extends ViewletPanel {
 								this.treeNeedsRefreshOnVisible = true;
 							}
 						}
+						break;
+					default:
+						this.filter.setFilter(event.source.name);
+						this.tree.refilter();
 						break;
 				}
 			}));
@@ -623,5 +637,30 @@ class LoadedSciptsAccessibilityProvider implements IAccessibilityProvider<Loaded
 		}
 
 		return null;
+	}
+}
+
+class LoadedScriptsFilter implements ITreeFilter<BaseTreeItem> {
+
+	private filterText: string;
+
+	setFilter(filterText: string) {
+		this.filterText = filterText;
+	}
+
+	filter(element: BaseTreeItem, parentVisibility: TreeVisibility): TreeFilterResult<void> {
+
+		if (!this.filterText) {
+			return TreeVisibility.Visible;
+		}
+
+		if (element.isLeaf()) {
+			const name = element.getLabel();
+			if (name.indexOf(this.filterText) >= 0) {
+				return TreeVisibility.Visible;
+			}
+			return TreeVisibility.Hidden;
+		}
+		return TreeVisibility.Recurse;
 	}
 }
