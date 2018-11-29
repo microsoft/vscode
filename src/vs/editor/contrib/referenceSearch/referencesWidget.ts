@@ -521,13 +521,16 @@ export class ReferenceWidget extends PeekViewWidget {
 
 		const promise = this._textModelResolverService.createModelReference(reference.uri);
 
-		if (revealParent) {
-			this._tree.reveal(reference.parent);
+		if (this._treeDataSource.root === reference.parent) {
+			this._tree.reveal(reference);
+		} else {
+			if (revealParent) {
+				this._tree.reveal(reference.parent);
+			}
+			await this._tree.expand(reference.parent);
+			await timeout(75); //todo@joao expand resolves to soon
+			this._tree.reveal(reference);
 		}
-
-		await this._tree.expand(reference.parent);
-		await timeout(75); //todo@joao expand resolves to soon
-		this._tree.reveal(reference);
 
 		const ref = await promise;
 
