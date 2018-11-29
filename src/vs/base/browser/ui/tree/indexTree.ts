@@ -23,6 +23,7 @@ export class IndexTree<T, TFilterData = void> extends AbstractTree<T, TFilterDat
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
 		renderers: ITreeRenderer<any /* TODO@joao */, TFilterData, any>[],
+		private rootElement: T,
 		options: IIndexTreeOptions<T, TFilterData> = {}
 	) {
 		super(container, delegate, renderers, options);
@@ -33,6 +34,6 @@ export class IndexTree<T, TFilterData = void> extends AbstractTree<T, TFilterDat
 	}
 
 	protected createModel(view: ISpliceable<ITreeNode<T, TFilterData>>, options: IIndexTreeOptions<T, TFilterData>): ITreeModel<T, TFilterData, number[]> {
-		return new IndexTreeModel(view, options);
+		return new IndexTreeModel(view, this.rootElement, options);
 	}
 }

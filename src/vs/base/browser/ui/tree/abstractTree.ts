@@ -288,15 +288,15 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	// Tree navigation
 
-	getParentElement(location: TRef | null = null): T | null {
+	getParentElement(location: TRef): T {
 		return this.model.getParentElement(location);
 	}
 
-	getFirstElementChild(location: TRef | null = null): T | null {
+	getFirstElementChild(location: TRef): T | undefined {
 		return this.model.getFirstElementChild(location);
 	}
 
-	getLastElementAncestor(location: TRef | null = null): T | null {
+	getLastElementAncestor(location: TRef): T | undefined {
 		return this.model.getLastElementAncestor(location);
 	}
 
