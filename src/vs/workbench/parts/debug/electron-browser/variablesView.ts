@@ -28,6 +28,7 @@ import { Emitter } from 'vs/base/common/event';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { WorkbenchAsyncDataTree, IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 const $ = dom.$;
 
@@ -58,7 +59,17 @@ export class VariablesView extends ViewletPanel {
 		// Use scheduler to prevent unnecessary flashing
 		this.onFocusStackFrameScheduler = new RunOnceScheduler(() => {
 			this.needsRefresh = false;
-			this.tree.refresh(null);
+			this.tree.refresh(null).then(() => {
+				const stackFrame = this.debugService.getViewModel().focusedStackFrame;
+				if (stackFrame) {
+					stackFrame.getScopes().then(scopes => {
+						// Expand the first scope if it is not expensive and if there is no expansion state (all are collapsed)
+						if (scopes.every(s => this.tree.getNode(s).collapsed) && scopes.length > 0 && !scopes[0].expensive) {
+							this.tree.expand(scopes[0]).then(undefined, onUnexpectedError);
+						}
+					});
+				}
+			}, onUnexpectedError);
 		}, 400);
 	}
 
