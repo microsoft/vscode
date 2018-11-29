@@ -2360,11 +2360,10 @@ export class DisabledStatusLabelAction extends Action {
 	set extension(extension: IExtension) { this._extension = extension; this.update(); }
 
 	private disposables: IDisposable[] = [];
-	private throttler: Throttler = new Throttler();
 
 	constructor(
+		private runningExtensions: IExtensionDescription[],
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IExtensionService private extensionService: IExtensionService,
 		@IExtensionManagementServerService private extensionManagementServerService: IExtensionManagementServerService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ILabelService private labelService: ILabelService
@@ -2378,24 +2377,21 @@ export class DisabledStatusLabelAction extends Action {
 		if (extension && this.extension && !areSameExtensions(this.extension, extension)) {
 			return;
 		}
-		this.throttler.queue(() => this.extensionService.getExtensions()
-			.then(runningExtensions => {
-				this.class = `${DisabledStatusLabelAction.Class} hide`;
-				this.tooltip = '';
-				if (this.extension && this.extension.local && !this.extension.isMalicious && !runningExtensions.some(e => e.id === this.extension.id)) {
-					if (this.extensionManagementServerService.remoteExtensionManagementServer && !isUIExtension(this.extension.local.manifest, this.configurationService)) {
-						const installedInRemoteServer = this.extension.locals.some(local => {
-							const server = this.extensionManagementServerService.getExtensionManagementServer(local.location);
-							return server && server.authority === this.extensionManagementServerService.remoteExtensionManagementServer.authority;
-						});
-						if (!installedInRemoteServer) {
-							this.class = `${DisabledStatusLabelAction.Class}`;
-							this.label = localize('disabled NonUI Extension', "Disabled for this Workspace because it is not installed in {0}.", this.labelService.getHostLabel() || this.extensionManagementServerService.remoteExtensionManagementServer.authority);
-							return;
-						}
-					}
+		this.class = `${DisabledStatusLabelAction.Class} hide`;
+		this.tooltip = '';
+		if (this.extension && this.extension.local && !this.extension.isMalicious && !this.runningExtensions.some(e => e.id === this.extension.id)) {
+			if (this.extensionManagementServerService.remoteExtensionManagementServer && !isUIExtension(this.extension.local.manifest, this.configurationService)) {
+				const installedInRemoteServer = this.extension.locals.some(local => {
+					const server = this.extensionManagementServerService.getExtensionManagementServer(local.location);
+					return server && server.authority === this.extensionManagementServerService.remoteExtensionManagementServer.authority;
+				});
+				if (!installedInRemoteServer) {
+					this.class = `${DisabledStatusLabelAction.Class}`;
+					this.label = localize('disabled NonUI Extension', "Disabled for this Workspace because it is not installed in {0}.", this.labelService.getHostLabel() || this.extensionManagementServerService.remoteExtensionManagementServer.authority);
+					return;
 				}
-			}));
+			}
+		}
 	}
 
 	run(): Promise<any> {

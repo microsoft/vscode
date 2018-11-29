@@ -355,7 +355,7 @@ export class ExtensionEditor extends BaseEditor {
 				this.transientDisposables.push(ratings);
 
 				const maliciousStatusAction = this.instantiationService.createInstance(MaliciousStatusLabelAction, true);
-				const disabledStatusAction = this.instantiationService.createInstance(DisabledStatusLabelAction);
+				const disabledStatusAction = this.instantiationService.createInstance(DisabledStatusLabelAction, runningExtensions);
 				const installAction = this.instantiationService.createInstance(CombinedInstallAction);
 				const updateAction = this.instantiationService.createInstance(UpdateAction);
 				const enableAction = this.instantiationService.createInstance(EnableDropDownAction, extension, runningExtensions);
