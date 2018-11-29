@@ -2858,6 +2858,11 @@ declare namespace monaco.editor {
 		 */
 		autoClosingQuotes?: EditorAutoClosingStrategy;
 		/**
+		 * Options for auto closing brackets.
+		 * Defaults to language defined behavior.
+		 */
+		autoClosingExit?: boolean;
+		/**
 		 * Options for auto surrounding.
 		 * Defaults to always allowing auto surrounding.
 		 */
@@ -3308,6 +3313,7 @@ declare namespace monaco.editor {
 		readonly wordSeparators: string;
 		readonly autoClosingBrackets: EditorAutoClosingStrategy;
 		readonly autoClosingQuotes: EditorAutoClosingStrategy;
+		readonly autoClosingExit: boolean;
 		readonly autoSurround: EditorAutoSurroundStrategy;
 		readonly autoIndent: boolean;
 		readonly useTabStops: boolean;
@@ -3449,6 +3455,7 @@ declare namespace monaco.editor {
 		readonly wordSeparators: boolean;
 		readonly autoClosingBrackets: boolean;
 		readonly autoClosingQuotes: boolean;
+		readonly autoClosingExit: boolean;
 		readonly autoSurround: boolean;
 		readonly autoIndent: boolean;
 		readonly useTabStops: boolean;

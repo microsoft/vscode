@@ -520,6 +520,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.autoClosingQuotes,
 			'description': nls.localize('autoClosingQuotes', "Controls whether the editor should automatically close quotes after the user adds an opening quote.")
 		},
+		'editor.autoClosingExit': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.autoClosingExit,
+			'description': nls.localize('autoClosingExit', "Controls whether the editor should automatically exit [],{} or () when the user types ;")
+		},
 		'editor.autoSurround': {
 			type: 'string',
 			enum: ['languageDefined', 'brackets', 'quotes', 'never'],

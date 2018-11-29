@@ -502,6 +502,11 @@ export interface IEditorOptions {
 	 */
 	autoClosingQuotes?: EditorAutoClosingStrategy;
 	/**
+	 * Options for auto closing brackets.
+	 * Defaults to language defined behavior.
+	 */
+	autoClosingExit?: boolean;
+	/**
 	 * Options for auto surrounding.
 	 * Defaults to always allowing auto surrounding.
 	 */
@@ -1018,6 +1023,7 @@ export interface IValidatedEditorOptions {
 	readonly wordWrapBreakObtrusiveCharacters: string;
 	readonly autoClosingBrackets: EditorAutoClosingStrategy;
 	readonly autoClosingQuotes: EditorAutoClosingStrategy;
+	readonly autoClosingExit: boolean;
 	readonly autoSurround: EditorAutoSurroundStrategy;
 	readonly autoIndent: boolean;
 	readonly dragAndDrop: boolean;
@@ -1056,6 +1062,7 @@ export class InternalEditorOptions {
 	readonly wordSeparators: string;
 	readonly autoClosingBrackets: EditorAutoClosingStrategy;
 	readonly autoClosingQuotes: EditorAutoClosingStrategy;
+	readonly autoClosingExit: boolean;
 	readonly autoSurround: EditorAutoSurroundStrategy;
 	readonly autoIndent: boolean;
 	readonly useTabStops: boolean;
@@ -1086,6 +1093,7 @@ export class InternalEditorOptions {
 		wordSeparators: string;
 		autoClosingBrackets: EditorAutoClosingStrategy;
 		autoClosingQuotes: EditorAutoClosingStrategy;
+		autoClosingExit: boolean;
 		autoSurround: EditorAutoSurroundStrategy;
 		autoIndent: boolean;
 		useTabStops: boolean;
@@ -1111,6 +1119,7 @@ export class InternalEditorOptions {
 		this.wordSeparators = source.wordSeparators;
 		this.autoClosingBrackets = source.autoClosingBrackets;
 		this.autoClosingQuotes = source.autoClosingQuotes;
+		this.autoClosingExit = source.autoClosingExit;
 		this.autoSurround = source.autoSurround;
 		this.autoIndent = source.autoIndent;
 		this.useTabStops = source.useTabStops;
@@ -1142,6 +1151,7 @@ export class InternalEditorOptions {
 			&& this.wordSeparators === other.wordSeparators
 			&& this.autoClosingBrackets === other.autoClosingBrackets
 			&& this.autoClosingQuotes === other.autoClosingQuotes
+			&& this.autoClosingExit === other.autoClosingExit
 			&& this.autoSurround === other.autoSurround
 			&& this.autoIndent === other.autoIndent
 			&& this.useTabStops === other.useTabStops
@@ -1174,6 +1184,7 @@ export class InternalEditorOptions {
 			wordSeparators: (this.wordSeparators !== newOpts.wordSeparators),
 			autoClosingBrackets: (this.autoClosingBrackets !== newOpts.autoClosingBrackets),
 			autoClosingQuotes: (this.autoClosingQuotes !== newOpts.autoClosingQuotes),
+			autoClosingExit: (this.autoClosingExit !== newOpts.autoClosingExit),
 			autoSurround: (this.autoSurround !== newOpts.autoSurround),
 			autoIndent: (this.autoIndent !== newOpts.autoIndent),
 			useTabStops: (this.useTabStops !== newOpts.useTabStops),
@@ -1561,6 +1572,7 @@ export interface IConfigurationChangedEvent {
 	readonly wordSeparators: boolean;
 	readonly autoClosingBrackets: boolean;
 	readonly autoClosingQuotes: boolean;
+	readonly autoClosingExit: boolean;
 	readonly autoSurround: boolean;
 	readonly autoIndent: boolean;
 	readonly useTabStops: boolean;
@@ -1773,6 +1785,7 @@ export class EditorOptionsValidator {
 			wordWrapBreakObtrusiveCharacters: _string(opts.wordWrapBreakObtrusiveCharacters, defaults.wordWrapBreakObtrusiveCharacters),
 			autoClosingBrackets,
 			autoClosingQuotes,
+			autoClosingExit: _boolean(opts.autoClosingExit, defaults.autoClosingExit),
 			autoSurround,
 			autoIndent: _boolean(opts.autoIndent, defaults.autoIndent),
 			dragAndDrop: _boolean(opts.dragAndDrop, defaults.dragAndDrop),
@@ -2069,6 +2082,7 @@ export class InternalEditorOptionsFactory {
 			wordWrapBreakObtrusiveCharacters: opts.wordWrapBreakObtrusiveCharacters,
 			autoClosingBrackets: opts.autoClosingBrackets,
 			autoClosingQuotes: opts.autoClosingQuotes,
+			autoClosingExit: opts.autoClosingExit,
 			autoSurround: opts.autoSurround,
 			autoIndent: opts.autoIndent,
 			dragAndDrop: opts.dragAndDrop,
@@ -2295,6 +2309,7 @@ export class InternalEditorOptionsFactory {
 			wordSeparators: opts.wordSeparators,
 			autoClosingBrackets: opts.autoClosingBrackets,
 			autoClosingQuotes: opts.autoClosingQuotes,
+			autoClosingExit: opts.autoClosingExit,
 			autoSurround: opts.autoSurround,
 			autoIndent: opts.autoIndent,
 			useTabStops: opts.useTabStops,
@@ -2531,6 +2546,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 	wordWrapBreakObtrusiveCharacters: '.',
 	autoClosingBrackets: 'languageDefined',
 	autoClosingQuotes: 'languageDefined',
+	autoClosingExit: true,
 	autoSurround: 'languageDefined',
 	autoIndent: true,
 	dragAndDrop: true,
