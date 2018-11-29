@@ -466,16 +466,14 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		return pfs.rimraf(extensionPath)
 			.then(() => this.extractAndRename(id, zipPath, tempPath, extensionPath, token), e => Promise.reject(new ExtensionManagementError(nls.localize('errorDeleting', "Unable to delete the existing folder '{0}' while installing the extension '{1}'. Please delete the folder manually and try again", extensionPath, id), INSTALL_ERROR_DELETING)))
 			.then(() => this.scanExtension(id, location, type))
-			.then(local =>
-				this.extensionLifecycle.postInstall(local)
-					.then(() => {
-						this.logService.info('Installation completed.', id);
-						if (metadata) {
-							local.metadata = metadata;
-							return this.saveMetadataForLocalExtension(local);
-						}
-						return local;
-					}, error => pfs.rimraf(extensionPath).then(() => Promise.reject(error), () => Promise.reject(error))));
+			.then(local => {
+				this.logService.info('Installation completed.', id);
+				if (metadata) {
+					local.metadata = metadata;
+					return this.saveMetadataForLocalExtension(local);
+				}
+				return local;
+			}, error => pfs.rimraf(extensionPath).then(() => Promise.reject(error), () => Promise.reject(error)));
 	}
 
 	private extractAndRename(id: string, zipPath: string, extractPath: string, renamePath: string, token: CancellationToken): Promise<void> {
