@@ -180,6 +180,7 @@ export class MenubarControl extends Disposable {
 				DOM.removeClass(this.container, 'inactive');
 			} else {
 				DOM.addClass(this.container, 'inactive');
+				this.menubar.blur();
 			}
 		}
 	}

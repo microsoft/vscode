@@ -376,6 +376,10 @@ export class MenuBar extends Disposable {
 		DOM.removeNode(this.overflowMenu.buttonElement);
 	}
 
+	blur(): void {
+		this.setUnfocusedState();
+	}
+
 	getWidth(): number {
 		if (this.menuCache) {
 			const left = this.menuCache[0].buttonElement.getBoundingClientRect().left;
