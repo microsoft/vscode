@@ -523,7 +523,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.autoClosingExit': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.autoClosingExit,
-			'description': nls.localize('autoClosingExit', "Controls whether the editor should automatically exit [],{} or () when the user types ;")
+			'description': nls.localize('autoClosingExit', "Controls whether the editor should automatically close and exit an open bracket or quote when the user types semi-colon.")
 		},
 		'editor.autoSurround': {
 			type: 'string',
