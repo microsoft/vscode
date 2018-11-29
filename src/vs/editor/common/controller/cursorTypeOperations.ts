@@ -439,39 +439,9 @@ export class TypeOperations {
 		return null;
 	}
 
-	private static _isAutoClosingExitCharType(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string): boolean {
-
-		const exitChar = ';';
-		if (ch !== exitChar) {
-			return false;
-		}
-
-		for (let i = 0, len = selections.length; i < len; i++) {
-			const selection = selections[i];
-
-			if (!selection.isEmpty()) {
-				return false;
-			}
-
-			const position = selection.getPosition();
-			const lineText = model.getLineContent(position.lineNumber);
-			const prevCharacter = lineText.charAt(position.column - 2); //auto closing
-
-			//if previous char is not an opening pair
-			if (!config.autoClosingPairsOpen.hasOwnProperty(prevCharacter)) {
-				return false;
-			}
-
-
-
-		}
-		return true;
-	}
-
 	private static _isAutoClosingCloseCharType(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string): boolean {
 		const autoCloseConfig = isQuote(ch) ? config.autoClosingQuotes : config.autoClosingBrackets;
 
-		//importante para settings
 		if (autoCloseConfig === 'never' || !config.autoClosingPairsClose.hasOwnProperty(ch)) {
 			return false;
 		}
@@ -505,6 +475,35 @@ export class TypeOperations {
 		return true;
 	}
 
+	private static _isAutoClosingExitCharType(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string): boolean {
+
+		const exitChar = ';';
+		if (ch !== exitChar || !config.autoClosingExit) {
+			return false;
+		}
+
+		for (let i = 0, len = selections.length; i < len; i++) {
+			const selection = selections[i];
+
+			if (!selection.isEmpty()) {
+				return false;
+			}
+
+			const position = selection.getPosition();
+			const lineText = model.getLineContent(position.lineNumber);
+			const prevCharacter = lineText.charAt(position.column - 2); //auto closing
+
+			//if previous char is not an opening pair
+			if (!config.autoClosingPairsOpen.hasOwnProperty(prevCharacter)) {
+				return false;
+			}
+
+
+
+		}
+		return true;
+	}
+
 	private static _countNeedlesInHaystack(haystack: string, needle: string): number {
 		let cnt = 0;
 		let lastIndex = -1;
@@ -513,6 +512,21 @@ export class TypeOperations {
 		}
 		return cnt;
 	}
+
+	private static _runAutoClosingCloseCharType(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string): EditOperationResult {
+		let commands: ICommand[] = [];
+		for (let i = 0, len = selections.length; i < len; i++) {
+			const selection = selections[i];
+			const position = selection.getPosition();
+			const typeSelection = new Range(position.lineNumber, position.column, position.lineNumber, position.column + 1);
+			commands[i] = new ReplaceCommand(typeSelection, ch);
+		}
+		return new EditOperationResult(EditOperationType.Typing, commands, {
+			shouldPushStackElementBefore: (prevEditOperationType !== EditOperationType.Typing),
+			shouldPushStackElementAfter: false
+		});
+	}
+
 
 	private static _runAutoClosingExitCharType(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string): EditOperationResult {
 		let commands: ICommand[] = [];
@@ -525,20 +539,6 @@ export class TypeOperations {
 
 			const typeSelection = new Range(position.lineNumber, position.column, position.lineNumber, position.column + 2);
 			commands[i] = new ReplaceCommand(typeSelection, closingCharacter.concat(ch));
-		}
-		return new EditOperationResult(EditOperationType.Typing, commands, {
-			shouldPushStackElementBefore: (prevEditOperationType !== EditOperationType.Typing),
-			shouldPushStackElementAfter: false
-		});
-	}
-
-	private static _runAutoClosingCloseCharType(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string): EditOperationResult {
-		let commands: ICommand[] = [];
-		for (let i = 0, len = selections.length; i < len; i++) {
-			const selection = selections[i];
-			const position = selection.getPosition();
-			const typeSelection = new Range(position.lineNumber, position.column, position.lineNumber, position.column + 1);
-			commands[i] = new ReplaceCommand(typeSelection, ch);
 		}
 		return new EditOperationResult(EditOperationType.Typing, commands, {
 			shouldPushStackElementBefore: (prevEditOperationType !== EditOperationType.Typing),

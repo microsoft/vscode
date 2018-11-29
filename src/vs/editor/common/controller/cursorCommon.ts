@@ -85,6 +85,7 @@ export class CursorConfiguration {
 	public readonly multiCursorMergeOverlapping: boolean;
 	public readonly autoClosingBrackets: EditorAutoClosingStrategy;
 	public readonly autoClosingQuotes: EditorAutoClosingStrategy;
+	public readonly autoClosingExit: boolean;
 	public readonly autoSurround: EditorAutoSurroundStrategy;
 	public readonly autoIndent: boolean;
 	public readonly autoClosingPairsOpen: CharacterMap;
@@ -103,6 +104,7 @@ export class CursorConfiguration {
 			|| e.multiCursorMergeOverlapping
 			|| e.autoClosingBrackets
 			|| e.autoClosingQuotes
+			|| e.autoClosingExit
 			|| e.autoSurround
 			|| e.useTabStops
 			|| e.lineHeight
@@ -133,6 +135,7 @@ export class CursorConfiguration {
 		this.multiCursorMergeOverlapping = c.multiCursorMergeOverlapping;
 		this.autoClosingBrackets = c.autoClosingBrackets;
 		this.autoClosingQuotes = c.autoClosingQuotes;
+		this.autoClosingExit = c.autoClosingExit;
 		this.autoSurround = c.autoSurround;
 		this.autoIndent = c.autoIndent;
 
