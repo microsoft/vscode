@@ -24,7 +24,6 @@ export class DefaultSelectionRangeProvider implements SelectionRangeProvider {
 			lastRange = node.range;
 			node = node.parent;
 		}
-		ranges = ranges.reverse();
 		return ranges;
 	}
 }
