@@ -28,6 +28,7 @@
 	<input type="text" id="filter" />
 	<button id="collapseall">Collapse All</button>
 	<button id="renderwidth">Render Width</button>
+	<button id="refresh">Refresh</button>
 	<div id="container"></div>
 
 	<script src="/static/vs/loader.js"></script>
@@ -194,6 +195,7 @@
 
 					collapseall.onclick = () => perf('collapse all', () => tree.collapseAll());
 					renderwidth.onclick = () => perf('renderwidth', () => tree.layoutWidth(Math.random()));
+					refresh.onclick = () => perf('refresh', () => tree.refresh(null));
 
 					tree.refresh(null);
 
