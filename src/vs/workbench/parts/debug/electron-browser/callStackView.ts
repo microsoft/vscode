@@ -112,6 +112,18 @@ export class CallStackView extends ViewletPanel {
 		], this.dataSource, {
 				accessibilityProvider: new CallStackAccessibilityProvider(),
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'callStackAriaLabel' }, "Debug Call Stack"),
+				identityProvider: {
+					getId: element => {
+						if (typeof element === 'string') {
+							return element;
+						}
+						if (element instanceof Array) {
+							return `showMore ${element[0].getId()}`;
+						}
+
+						return element.getId();
+					}
+				}
 			}, this.contextKeyService, this.listService, this.themeService, this.configurationService);
 
 		const callstackNavigator = new TreeResourceNavigator2(this.tree);
