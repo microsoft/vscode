@@ -56,7 +56,8 @@ class VariableResolver {
 	}
 	resolve(value: string): string {
 		return value.replace(/\$\{(.*?)\}/g, (match: string, variable: string) => {
-			let result = this._values.get(match);
+			// Strip out the ${} because the map contains them variables without those characters.
+			let result = this._values.get(match.substring(2, match.length - 1));
 			if (result) {
 				return result;
 			}
@@ -67,7 +68,6 @@ class VariableResolver {
 		});
 	}
 }
-
 
 export class VerifiedTask {
 	readonly task: Task;
@@ -392,36 +392,28 @@ export class TerminalTaskSystem implements ITaskSystem {
 			variables.forEach(variable => variablesArray.push(variable));
 
 			return new Promise((resolve, reject) => {
-				this.configurationResolverService.resolveWithInteraction(workspaceFolder, variablesArray, 'tasks').then(resolvedVars => {
-					resolve(resolvedVars);
+				this.configurationResolverService.resolveWithInteraction(workspaceFolder, variablesArray, 'tasks').then(resolvedVariablesMap => {
+					if (isProcess) {
+						let processVarValue: string;
+						if (Platform.isWindows) {
+							processVarValue = win32.findExecutable(
+								this.configurationResolverService.resolve(workspaceFolder, CommandString.value(task.command.name)),
+								cwd ? this.configurationResolverService.resolve(workspaceFolder, cwd) : undefined,
+								envPath ? envPath.split(path.delimiter).map(p => this.configurationResolverService.resolve(workspaceFolder, p)) : undefined
+							);
+						} else {
+							processVarValue = this.configurationResolverService.resolve(workspaceFolder, CommandString.value(task.command.name));
+						}
+						resolvedVariablesMap.set(TerminalTaskSystem.ProcessVarName, processVarValue);
+					}
+					let resolvedVariablesResult: ResolvedVariables = {
+						variables: resolvedVariablesMap,
+					};
+					resolve(resolvedVariablesResult);
 				}, reason => {
 					reject(reason);
 				});
-			}).then(resolvedVars => {
-				const resolvedVariablesMap = new Map<string, string>();
-				for (let i = 0; i < variablesArray.length; i++) {
-					resolvedVariablesMap.set(variablesArray[i], resolvedVars[i]);
-				}
-				if (isProcess) {
-					let processVarValue: string;
-					if (Platform.isWindows) {
-						processVarValue = win32.findExecutable(
-							this.configurationResolverService.resolve(workspaceFolder, CommandString.value(task.command.name)),
-							cwd ? this.configurationResolverService.resolve(workspaceFolder, cwd) : undefined,
-							envPath ? envPath.split(path.delimiter).map(p => this.configurationResolverService.resolve(workspaceFolder, p)) : undefined
-						);
-					} else {
-						processVarValue = this.configurationResolverService.resolve(workspaceFolder, CommandString.value(task.command.name));
-					}
-					resolvedVariablesMap.set(TerminalTaskSystem.ProcessVarName, processVarValue);
-				}
-				let resolvedVariablesResult: ResolvedVariables = {
-					variables: resolvedVariablesMap,
-				};
-				resolvedVariables = Promise.resolve(resolvedVariablesResult);
-				return resolvedVariables;
 			});
-
 		}
 	}
 

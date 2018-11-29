@@ -73,6 +73,10 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 		return this.recursiveResolve(workspaceFolder ? workspaceFolder.uri : undefined, result, commandValueMapping);
 	}
 
+	public resolveWithInteractionReplace(folder: IWorkspaceFolder, config: any): TPromise<any> {
+		throw new Error('resolveWithInteractionReplace not implemented.');
+	}
+
 	public resolveWithInteraction(folder: IWorkspaceFolder, config: any): TPromise<any> {
 		throw new Error('resolveWithInteraction not implemented.');
 	}
@@ -136,15 +140,9 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 					throw new Error(localize('missingConfigName', "'{0}' can not be resolved because no settings name is given.", match));
 
 				case 'command':
+					return this.resolveFromMap(match, argument, commandValueMapping, 'command');
 				case 'input':
-					if (argument && commandValueMapping) {
-						const v = commandValueMapping[argument];
-						if (typeof v === 'string') {
-							return v;
-						}
-						throw new Error(localize('noValueForCommand', "'{0}' can not be resolved because the command has no value.", match));
-					}
-					return match;
+					return this.resolveFromMap(match, argument, commandValueMapping, 'input');
 
 				default: {
 
@@ -251,5 +249,16 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 				}
 			}
 		});
+	}
+
+	private resolveFromMap(match: string, argument: string, commandValueMapping: IStringDictionary<string>, prefix: string): string {
+		if (argument && commandValueMapping) {
+			const v = commandValueMapping[prefix + ':' + argument];
+			if (typeof v === 'string') {
+				return v;
+			}
+			throw new Error(localize('noValueForCommand', "'{0}' can not be resolved because the command has no value.", match));
+		}
+		return match;
 	}
 }

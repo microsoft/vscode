@@ -13,7 +13,7 @@ import { Schemas } from 'vs/base/common/network';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { sequence } from 'vs/base/common/async';
 import { toResource } from 'vs/workbench/common/editor';
-import { IStringDictionary, size, forEach } from 'vs/base/common/collections';
+import { IStringDictionary, forEach, fromMap } from 'vs/base/common/collections';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -83,37 +83,54 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 		}, envVariables);
 	}
 
-	public resolveWithInteraction(folder: IWorkspaceFolder, config: any, section?: string, variables?: IStringDictionary<string>): TPromise<any> {
-		// then substitute remaining variables in VS Code core
+	public resolveWithInteractionReplace(folder: IWorkspaceFolder, config: any, section?: string, variables?: IStringDictionary<string>): TPromise<any> {
+		// resolve any non-interactive variables
 		config = this.resolveAny(folder, config);
 
-		return this.resolveWithCommands(config, variables).then(commandMapping => {
-			if (!commandMapping) {
+		// resolve input variables in the order in which they are encountered
+		return this.resolveWithInteraction(folder, config, section, variables).then(mapping => {
+			// finally substitute evaluated command variables (if there are any)
+			if (mapping.size > 0) {
+				return this.resolveAny(folder, config, fromMap(mapping));
+			} else {
+				return config;
+			}
+		});
+	}
+
+	public resolveWithInteraction(folder: IWorkspaceFolder, config: any, section?: string, variables?: IStringDictionary<string>): TPromise<Map<string, string>> {
+		// resolve any non-interactive variables
+		config = this.resolveAny(folder, config);
+		const allVariableMapping: Map<string, string> = new Map<string, string>();
+
+		// resolve input variables in the order in which they are encountered
+		return this.resolveWithInputs(folder, config, section).then(inputMapping => {
+			if (!this.updateMapping(inputMapping, allVariableMapping)) {
 				return undefined;
 			}
 
-			return this.resolveWithInputs(folder, config, section).then(inputMapping => {
-				if (!inputMapping) {
+			// resolve commands in the order in which they are encountered
+			return this.resolveWithCommands(config, variables).then(commandMapping => {
+				if (!this.updateMapping(commandMapping, allVariableMapping)) {
 					return undefined;
 				}
 
-				forEach(commandMapping, (entry) => {
-					inputMapping[entry.key] = entry.value;
-				});
-
-				// finally substitute evaluated command variables (if there are any)
-				if (size<string>(inputMapping) > 0) {
-					return this.resolveAny(folder, config, inputMapping);
-				} else {
-					return config;
-				}
+				return allVariableMapping;
 			});
 		});
 	}
 
-	private resolveWithCommands(config: any, variables?: IStringDictionary<string>): TPromise<IStringDictionary<string>> {
-		// now evaluate command variables (which might have a UI)
-		return this.executeCommandVariables(config, variables);
+	/**
+	 * Add all items from newMapping to fullMapping. Returns false if newMapping is undefined.
+	 */
+	private updateMapping(newMapping: IStringDictionary<string>, fullMapping: Map<string, string>): boolean {
+		if (!newMapping) {
+			return false;
+		}
+		forEach(newMapping, (entry) => {
+			fullMapping.set(entry.key, entry.value);
+		});
+		return true;
 	}
 
 	/**
@@ -121,9 +138,10 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 	 * Please note: this method does not substitute the command variables (so the configuration is not modified).
 	 * The returned dictionary can be passed to "resolvePlatform" for the substitution.
 	 * See #6569.
+	 * @param configuration
+	 * @param variableToCommandMap Aliases for commands
 	 */
-	private executeCommandVariables(configuration: any, variableToCommandMap: IStringDictionary<string>): TPromise<IStringDictionary<string>> {
-
+	private resolveWithCommands(configuration: any, variableToCommandMap: IStringDictionary<string>): TPromise<IStringDictionary<string>> {
 		if (!configuration) {
 			return TPromise.as(undefined);
 		}
@@ -137,7 +155,6 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 
 		const factory: { (): TPromise<any> }[] = commands.map(commandVariable => {
 			return () => {
-
 				let commandId = variableToCommandMap ? variableToCommandMap[commandVariable] : undefined;
 				if (!commandId) {
 					// Just launch any command if the interactive variable is not contributed by the adapter #12735
@@ -146,7 +163,7 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 
 				return this.commandService.executeCommand<string>(commandId, configuration).then(result => {
 					if (typeof result === 'string') {
-						commandValueMapping[commandVariable] = result;
+						commandValueMapping['command:' + commandVariable] = result;
 					} else if (Types.isUndefinedOrNull(result)) {
 						cancelled = true;
 					} else {
@@ -159,8 +176,18 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 		return sequence(factory).then(() => cancelled ? undefined : commandValueMapping);
 	}
 
+	/**
+	 * Resolves all inputs in a configuration and returns a map that maps the unresolved input to the resolved input.
+	 * Does not do replacement of inputs.
+	 * @param folder
+	 * @param config
+	 * @param section
+	 */
 	public resolveWithInputs(folder: IWorkspaceFolder, config: any, section: string): Promise<IStringDictionary<string>> {
-		if (folder && section) {
+		if (!config) {
+			return Promise.resolve(undefined);
+		} else if (folder && section) {
+			// Get all the possible inputs
 			let result = this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY
 				? Objects.deepClone(this.configurationService.getValue<any>(section, { resource: folder.uri }))
 				: undefined;
@@ -170,75 +197,77 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 				inputs.set(input.label, input);
 			});
 
-			// now evaluate input variables (which have a UI)
-			return this.showUserInput(config, inputs);
+			// use an array to preserve order of first appearance
+			const input_var = /\${input:(.*?)}/g;
+			const commands: string[] = [];
+			this.findVariables(input_var, config, commands);
+			let cancelled = false;
+			const commandValueMapping: IStringDictionary<string> = Object.create(null);
+
+			const factory: { (): Promise<any> }[] = commands.map(commandVariable => {
+				return () => {
+					return this.showUserInput(commandVariable, inputs).then(resolvedValue => {
+						if (resolvedValue) {
+							commandValueMapping['input:' + commandVariable] = resolvedValue;
+						}
+					});
+				};
+			}, reason => {
+				return Promise.reject(reason);
+			});
+
+			return sequence(factory).then(() => cancelled ? undefined : commandValueMapping);
 		} else {
 			return Promise.resolve(Object.create(null));
 		}
 	}
 
-	private showUserInput(configuration: any, inputs: Map<string, ConfiguredInput> | undefined): Promise<IStringDictionary<string>> {
-
-		if (!configuration) {
-			return Promise.resolve(undefined);
-		}
-
-		// use an array to preserve order of first appearance
-		const input_var = /\${input:(.*?)}/g;
-		const commands: string[] = [];
-		this.findVariables(input_var, configuration, commands);
-		let cancelled = false;
-		const commandValueMapping: IStringDictionary<string> = Object.create(null);
-
-		const factory: { (): Promise<any> }[] = commands.map(commandVariable => {
-			return () => {
-				if (inputs && inputs.has(commandVariable)) {
-					const input = inputs.get(commandVariable);
-					if (input.type === ConfiguredInputType.Prompt) {
-						let inputOptions: IInputOptions = { prompt: input.description };
-						if (input.default) {
-							inputOptions.value = input.default;
-							commandValueMapping[commandVariable] = input.default;
-						}
-
-						return this.quickInputService.input(inputOptions).then(resolvedInput => {
-							if (resolvedInput) {
-								commandValueMapping[commandVariable] = resolvedInput;
-							}
-						});
-					} else { // input.type === ConfiguredInputType.pick
-						let picks = new Array<IQuickPickItem>();
-						if (input.options) {
-							input.options.forEach(pickOption => {
-								let item: IQuickPickItem = { label: pickOption };
-								if (input.default && (pickOption === input.default)) {
-									commandValueMapping[commandVariable] = input.default;
-									item.description = nls.localize('defaultInputValue', "Default");
-									picks.unshift(item);
-								} else {
-									picks.push(item);
-								}
-							});
-						}
-						let pickOptions: IPickOptions<IQuickPickItem> = { placeHolder: input.description };
-						return this.quickInputService.pick(picks, pickOptions, undefined).then(resolvedInput => {
-							if (resolvedInput) {
-								commandValueMapping[commandVariable] = resolvedInput.label;
-							}
-						});
-					}
-
+	/**
+	 * Takes the provided input info and shows the quick pick so the user can provide the value for the input
+	 * @param commandVariable Name of the input.
+	 * @param inputs Information about each possible input.
+	 * @param commandValueMapping
+	 */
+	private showUserInput(commandVariable: string, inputs: Map<string, ConfiguredInput>): Promise<string> {
+		if (inputs && inputs.has(commandVariable)) {
+			const input = inputs.get(commandVariable);
+			if (input.type === ConfiguredInputType.Prompt) {
+				let inputOptions: IInputOptions = { prompt: input.description };
+				if (input.default) {
+					inputOptions.value = input.default;
 				}
 
-				return Promise.resolve();
-			};
-		}, reason => {
-			return Promise.reject(reason);
-		});
-
-		return sequence(factory).then(() => cancelled ? undefined : commandValueMapping);
+				return this.quickInputService.input(inputOptions).then(resolvedInput => {
+					return resolvedInput ? resolvedInput : input.default;
+				});
+			} else { // input.type === ConfiguredInputType.pick
+				let picks = new Array<IQuickPickItem>();
+				if (input.options) {
+					input.options.forEach(pickOption => {
+						let item: IQuickPickItem = { label: pickOption };
+						if (input.default && (pickOption === input.default)) {
+							item.description = nls.localize('defaultInputValue', "Default");
+							picks.unshift(item);
+						} else {
+							picks.push(item);
+						}
+					});
+				}
+				let pickOptions: IPickOptions<IQuickPickItem> = { placeHolder: input.description };
+				return this.quickInputService.pick(picks, pickOptions, undefined).then(resolvedInput => {
+					return resolvedInput ? resolvedInput.label : input.default;
+				});
+			}
+		}
+		return Promise.resolve(undefined);
 	}
 
+	/**
+	 * Finds all variables in object using cmdVar and pushes them into commands.
+	 * @param cmdVar Regex to use for finding variables.
+	 * @param object object is searched for variables.
+	 * @param commands All found variables are returned in commands.
+	 */
 	private findVariables(cmdVar: RegExp, object: any, commands: string[]) {
 		if (!object) {
 			return;
@@ -264,6 +293,10 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 		}
 	}
 
+	/**
+	 * Converts an array of inputs into an actaul array of typed, ConfiguredInputs.
+	 * @param object Array of something that should look like inputs.
+	 */
 	private parseConfigurationInputs(object: any[]): ConfiguredInput[] | undefined {
 		let inputs = new Array<ConfiguredInput>();
 		if (object) {
