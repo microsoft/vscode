@@ -370,7 +370,6 @@ export class StorageService extends Disposable implements IStorageService {
 		// Signal as event so that clients can still store data
 		this._onWillSaveState.fire();
 
-
 		// Do it
 		mark('willCloseGlobalStorage');
 		mark('willCloseWorkspaceStorage');

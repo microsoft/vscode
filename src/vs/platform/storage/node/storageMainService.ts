@@ -11,7 +11,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IStorage, Storage, SQLiteStorageDatabase, ISQLiteStorageDatabaseLoggingOptions } from 'vs/base/node/storage';
 import { join } from 'path';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { mark } from 'vs/base/common/performance';
+import { mark, getDuration } from 'vs/base/common/performance';
 
 export const IStorageMainService = createDecorator<IStorageMainService>('storageMainService');
 
@@ -166,7 +166,12 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		this._onWillSaveState.fire();
 
 		// Do it
-		return this.storage.close().then(() => this.logService.trace('StorageMainService#close() - finished'));
+		mark('main:willCloseGlobalStorage');
+		return this.storage.close().then(() => {
+			mark('main:didCloseGlobalStorage');
+
+			this.logService.trace(`StorageMainService#close() - finished in ${getDuration('main:willCloseGlobalStorage', 'main:didCloseGlobalStorage')}ms`);
+		});
 	}
 
 	checkIntegrity(full: boolean): Thenable<string> {
