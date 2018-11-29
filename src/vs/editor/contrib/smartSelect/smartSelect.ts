@@ -15,11 +15,11 @@ import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITextModel } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
-import { DefaultSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/defaultProvider';
 import * as nls from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { TokenTreeSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/tokenTree';
 
 class SelectionRanges {
 
@@ -205,4 +205,4 @@ export function provideSelectionRanges(model: ITextModel, position: Position, to
 	return first(provider.map(pro => () => asThenable(() => pro.provideSelectionRanges(model, position, token))), arrays.isNonEmptyArray);
 }
 
-modes.SelectionRangeRegistry.register('*', new DefaultSelectionRangeProvider());
+modes.SelectionRangeRegistry.register('*', new TokenTreeSelectionRangeProvider());
