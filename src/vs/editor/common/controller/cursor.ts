@@ -109,6 +109,8 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 	private _columnSelectData: IColumnSelectData | null;
 	private _prevEditOperationType: EditOperationType;
 
+	public prevChar: string;
+
 	constructor(configuration: editorCommon.IConfiguration, model: ITextModel, viewModel: IViewModel) {
 		super();
 		this._configuration = configuration;
@@ -564,6 +566,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
 				// Here we must interpret each typed character individually, that's why we create a new context
 				this._executeEditOperation(TypeOperations.typeWithInterceptors(this._prevEditOperationType, this.context.config, this.context.model, this.getSelections(), chr));
+
 			}
 
 		} else {
