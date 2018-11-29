@@ -189,6 +189,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	private _hasIconForLeafNode = false;
 	private _showCollapseAllAction = false;
 
+	private focused: boolean = false;
 	private domNode: HTMLElement;
 	private treeContainer: HTMLElement;
 	private _messageValue: string | IMarkdownString | undefined;
@@ -353,7 +354,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	}
 
 	focus(): void {
-		if (this.tree) {
+		if (this.tree && this.root.children && this.root.children.length > 0) {
 			// Make sure the current selected element is revealed
 			const selectedElement = this.tree.getSelection()[0];
 			if (selectedElement) {
@@ -362,6 +363,8 @@ export class CustomTreeView extends Disposable implements ITreeView {
 
 			// Pass Focus to Viewer
 			this.tree.domFocus();
+		} else if (this._messageValue) {
+			this.messageElement.focus();
 		}
 	}
 
@@ -372,7 +375,11 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	private create() {
 		this.domNode = DOM.$('.tree-explorer-viewlet-tree-view');
 		this.messageElement = DOM.append(this.domNode, DOM.$('.message'));
+		this.messageElement.setAttribute('tabindex', '0');
 		this.treeContainer = DOM.append(this.domNode, DOM.$('.customview-tree'));
+		const focusTracker = this._register(DOM.trackFocus(this.domNode));
+		this._register(focusTracker.onDidFocus(() => this.focused = true));
+		this._register(focusTracker.onDidBlur(() => this.focused = false));
 	}
 
 	private createTree() {
@@ -508,7 +515,12 @@ export class CustomTreeView extends Disposable implements ITreeView {
 
 	private doRefresh(elements: ITreeItem[]): Promise<void> {
 		if (this.tree) {
-			return Promise.all(elements.map(e => this.tree.refresh(e))).then(() => null);
+			return Promise.all(elements.map(e => this.tree.refresh(e)))
+				.then(() => {
+					if (this.focused) {
+						this.focus();
+					}
+				});
 		}
 		return Promise.resolve(null);
 	}
