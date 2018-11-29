@@ -44,6 +44,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IMarkdownRenderResult } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { dirname } from 'vs/base/common/resources';
+import { escape } from 'vs/base/common/strings';
 
 export class CustomTreeViewPanel extends ViewletPanel {
 
@@ -406,7 +407,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 			this.resetMessageElement();
 			this._messageValue = message;
 			if (isString(this._messageValue)) {
-				this.messageElement.innerText = this._messageValue;
+				this.messageElement.innerText = escape(this._messageValue);
 			} else {
 				this.markdownResult = this.markdownRenderer.render(this._messageValue);
 				DOM.append(this.messageElement, this.markdownResult.element);
@@ -626,12 +627,12 @@ class TreeRenderer implements IRenderer {
 	renderElement(tree: ITree, node: ITreeItem, templateId: string, templateData: ITreeExplorerTemplateData): void {
 		const resource = node.resourceUri ? URI.revive(node.resourceUri) : null;
 		const treeItemLabel: ITreeItemLabel = node.label ? node.label : resource ? { label: basename(resource.path) } : void 0;
-		const description = isString(node.description) ? node.description : resource && node.description === true ? this.labelService.getUriLabel(dirname(resource), { relative: true }) : void 0;
-		const label = treeItemLabel ? treeItemLabel.label : void 0;
+		const description = isString(node.description) ? escape(node.description) : resource && node.description === true ? this.labelService.getUriLabel(dirname(resource), { relative: true }) : void 0;
+		const label = treeItemLabel ? escape(treeItemLabel.label) : void 0;
 		const matches = treeItemLabel && treeItemLabel.highlights ? treeItemLabel.highlights.map(([start, end]) => ({ start, end })) : void 0;
 		const icon = this.themeService.getTheme().type === LIGHT ? node.icon : node.iconDark;
 		const iconUrl = icon ? URI.revive(icon) : null;
-		const title = node.tooltip ? node.tooltip : resource ? void 0 : label;
+		const title = node.tooltip ? node.tooltip : resource ? void 0 : treeItemLabel ? treeItemLabel.label : void 0;
 
 		// reset
 		templateData.resourceLabel.clear();

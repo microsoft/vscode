@@ -49,12 +49,9 @@ function createProxyAgent(
 	let cacheRolls = 0;
 	let oldCache = new Map<string, string>();
 	let cache = new Map<string, string>();
-	function getCacheKey(url: string) {
+	function getCacheKey(url: nodeurl.UrlWithStringQuery) {
 		// Expecting proxies to usually be the same per scheme://host:port. Assuming that for performance.
-		const parsed = nodeurl.parse(url); // Coming from Node's URL, sticking with that.
-		delete parsed.pathname;
-		delete parsed.search;
-		return nodeurl.format(parsed);
+		return nodeurl.format({ ...url, ...{ pathname: undefined, search: undefined, hash: undefined } });
 	}
 	function getCachedProxy(key: string) {
 		let proxy = cache.get(key);
@@ -85,6 +82,7 @@ function createProxyAgent(
 	let cacheCount = 0;
 	let envCount = 0;
 	let settingsCount = 0;
+	let localhostCount = 0;
 	function logEvent() {
 		timeout = undefined;
 		/* __GDPR__
@@ -96,16 +94,27 @@ function createProxyAgent(
 				"cacheSize": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 				"cacheRolls": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 				"envCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-				"settingsCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+				"settingsCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+				"localhostCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
 			}
 		*/
-		mainThreadTelemetry.$publicLog('resolveProxy', { count, duration, errorCount, cacheCount, cacheSize: cache.size, cacheRolls, envCount, settingsCount });
-		count = duration = errorCount = cacheCount = envCount = settingsCount = 0;
+		mainThreadTelemetry.$publicLog('resolveProxy', { count, duration, errorCount, cacheCount, cacheSize: cache.size, cacheRolls, envCount, settingsCount, localhostCount });
+		count = duration = errorCount = cacheCount = envCount = settingsCount = localhostCount = 0;
 	}
 
 	function resolveProxy(url: string, callback: (proxy?: string) => void) {
 		if (!timeout) {
 			timeout = setTimeout(logEvent, 10 * 60 * 1000);
+		}
+
+		const parsedUrl = nodeurl.parse(url); // Coming from Node's URL, sticking with that.
+
+		const hostname = parsedUrl.hostname;
+		if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '::ffff:127.0.0.1') {
+			localhostCount++;
+			callback('DIRECT');
+			extHostLogService.trace('ProxyResolver#resolveProxy localhost', url, 'DIRECT');
+			return;
 		}
 
 		if (settingsProxy) {
@@ -122,7 +131,7 @@ function createProxyAgent(
 			return;
 		}
 
-		const key = getCacheKey(url);
+		const key = getCacheKey(parsedUrl);
 		const proxy = getCachedProxy(key);
 		if (proxy) {
 			cacheCount++;
