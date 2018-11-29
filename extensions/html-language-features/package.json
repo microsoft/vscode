@@ -31,6 +31,14 @@
       "type": "object",
       "title": "HTML",
       "properties": {
+        "html.experimental.custom.tags": {
+          "type": "array",
+          "description": "A list of JSON file paths that define custom tags"
+        },
+        "html.experimental.custom.attributes": {
+          "type": "array",
+          "description": "A list of JSON file paths that define custom attributes"
+        },
         "html.format.enable": {
           "type": "boolean",
           "scope": "window",
@@ -124,12 +132,14 @@
           "description": "%html.format.wrapAttributes.desc%"
         },
         "html.suggest.angular1": {
+          "deprecationMessage": "Angular 1 is obsolete and Angular completion will be removed.",
           "type": "boolean",
           "scope": "resource",
           "default": false,
           "description": "%html.suggest.angular1.desc%"
         },
         "html.suggest.ionic": {
+          "deprecationMessage": "Ionic 1 is obsolete and Ionic completion will be removed.",
           "type": "boolean",
           "scope": "resource",
           "default": false,
