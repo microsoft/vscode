@@ -326,14 +326,23 @@
 	transition: width 80ms linear, left 80ms linear;
 }
 
-.monaco-editor .margin-view-overlays>div:hover>.comment-range-glyph.comment-diff-added:before {
+.monaco-editor .margin-view-overlays>div:hover>.comment-range-glyph.comment-diff-added:before,
+.monaco-editor .comment-range-glyph.comment-thread:before {
 	position: absolute;
-	content: '+';
 	height: 100%;
 	width: 9px;
 	left: -6px;
 	z-index: 10;
 	color: black;
+	text-align: center;
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	justify-content: center;
+}
+
+.monaco-editor .margin-view-overlays>div:hover>.comment-range-glyph.comment-diff-added:before {
+	content: '+';
 }
 
 .monaco-editor .comment-range-glyph.comment-thread {
@@ -341,21 +350,10 @@
 }
 
 .monaco-editor .comment-range-glyph.comment-thread:before {
-	position: absolute;
 	content: '◆';
 	font-size: 10px;
-	height: 100%;
 	line-height: 100%;
-	width: 9px;
-	left: -6px;
 	z-index: 20;
-	color: black;
-	text-align: center;
-	display:flex;
-	flex-direction:row;
-	align-items: center;
-	justify-content: center;
-
 }
 
 .monaco-editor.inline-comment .margin-view-overlays .folding {
