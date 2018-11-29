@@ -49,6 +49,8 @@ import { ShowCurrentReleaseNotesAction } from 'vs/workbench/parts/update/electro
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { getDefaultValue } from 'vs/platform/configuration/common/configurationRegistry';
+import { isUndefined } from 'vs/base/common/types';
 
 function renderBody(body: string): string {
 	const styleSheetPath = require.toUrl('./media/markdown.css').replace('file://', 'vscode-core-resource://');
@@ -706,7 +708,7 @@ export class ExtensionEditor extends BaseEditor {
 				...contrib.map(key => $('tr', null,
 					$('td', null, $('code', null, key)),
 					$('td', null, properties[key].description),
-					$('td', null, $('code', null, properties[key].default))
+					$('td', null, $('code', null, `${isUndefined(properties[key].default) ? getDefaultValue(properties[key].type) : properties[key].default}`))
 				))
 			)
 		);
