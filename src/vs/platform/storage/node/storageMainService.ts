@@ -8,11 +8,10 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IStorage, Storage, IStorageLoggingOptions } from 'vs/base/node/storage';
+import { IStorage, Storage, SQLiteStorageDatabase, ISQLiteStorageDatabaseLoggingOptions } from 'vs/base/node/storage';
 import { join } from 'path';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { mark } from 'vs/base/common/performance';
-import { IStorageChangeEvent } from 'vs/platform/storage/common/storage';
 
 export const IStorageMainService = createDecorator<IStorageMainService>('storageMainService');
 
@@ -31,11 +30,6 @@ export interface IStorageMainService {
 	 * down.
 	 */
 	readonly onWillSaveState: Event<void>;
-
-	/**
-	 * Retrieve all elements stored in storage.
-	 */
-	readonly items: Map<string, string>;
 
 	/**
 	 * Retrieve an element stored with the given key from storage. Use
@@ -67,11 +61,10 @@ export interface IStorageMainService {
 	 * Delete an element stored under the provided key from storage.
 	 */
 	remove(key: string): void;
+}
 
-	/**
-	 * Check the integrity of the underlying database.
-	 */
-	checkIntegrity(full: boolean): Thenable<string>;
+export interface IStorageChangeEvent {
+	key: string;
 }
 
 export class StorageMainService extends Disposable implements IStorageMainService {
@@ -99,15 +92,14 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 		const useInMemoryStorage = !!environmentService.extensionTestsPath; // no storage during extension tests!
 
-		this.storage = new Storage({
-			path: useInMemoryStorage ? Storage.IN_MEMORY_PATH : join(environmentService.globalStorageHome, StorageMainService.STORAGE_NAME),
+		this.storage = new Storage(new SQLiteStorageDatabase(useInMemoryStorage ? SQLiteStorageDatabase.IN_MEMORY_PATH : join(environmentService.globalStorageHome, StorageMainService.STORAGE_NAME), {
 			logging: this.createLogginOptions()
-		});
+		}));
 
 		this.registerListeners();
 	}
 
-	private createLogginOptions(): IStorageLoggingOptions {
+	private createLogginOptions(): ISQLiteStorageDatabaseLoggingOptions {
 		const loggedStorageErrors = new Set<string>();
 
 		return {
@@ -129,7 +121,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 					});
 				}
 			}
-		} as IStorageLoggingOptions;
+		} as ISQLiteStorageDatabaseLoggingOptions;
 	}
 
 	private registerListeners(): void {

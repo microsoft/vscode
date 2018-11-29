@@ -70,15 +70,14 @@ import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import { EditorGroup } from 'vs/workbench/common/editor/editorGroup';
 import { Dimension } from 'vs/base/browser/dom';
-import { ILogService, LogLevel, NullLogService } from 'vs/platform/log/common/log';
+import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { ILabelService, LabelService } from 'vs/platform/label/common/label';
 import { timeout } from 'vs/base/common/async';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IProgressService } from 'vs/platform/progress/common/progress';
-import { StorageService } from 'vs/platform/storage/node/storageService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
@@ -530,12 +529,7 @@ export class TestPartService implements IPartService {
 	public resizePart(_part: Parts, _sizeChange: number): void { }
 }
 
-export class TestStorageService extends StorageService {
-
-	constructor() {
-		super({ storeInMemory: true }, new NullLogService(), TestEnvironmentService);
-	}
-}
+export class TestStorageService extends InMemoryStorageService { }
 
 export class TestEditorGroupsService implements EditorGroupsServiceImpl {
 	_serviceBrand: ServiceIdentifier<any>;

@@ -240,8 +240,8 @@ function createWorkspaceService(payload: IWorkspaceInitializationPayload, enviro
 }
 
 function createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService, logService: ILogService, mainProcessClient: ElectronIPCClient): Thenable<StorageService> {
-	const useInMemoryStorage = !!environmentService.extensionTestsPath; // no storage during extension tests!
-	const storageService = new StorageService({ storeInMemory: useInMemoryStorage, globalStorage: new GlobalStorageDatabaseChannelClient(mainProcessClient.getChannel('storage')) }, logService, environmentService);
+	const globalStorageDatabase = new GlobalStorageDatabaseChannelClient(mainProcessClient.getChannel('storage'));
+	const storageService = new StorageService(globalStorageDatabase, logService, environmentService);
 
 	return storageService.initialize(payload).then(() => storageService, error => {
 		onUnexpectedError(error);

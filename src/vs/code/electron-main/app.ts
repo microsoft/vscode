@@ -546,13 +546,13 @@ export class CodeApplication extends Disposable {
 	}
 
 	private initStorageService(accessor: ServicesAccessor): Thenable<void> {
-		const storageService = accessor.get(IStorageMainService) as StorageMainService;
+		const storageMainService = accessor.get(IStorageMainService) as StorageMainService;
 
 		// Ensure to close storage on shutdown
-		this.lifecycleService.onWillShutdown(e => e.join(storageService.close()));
+		this.lifecycleService.onWillShutdown(e => e.join(storageMainService.close()));
 
 		// Initialize storage service
-		return storageService.initialize().then(void 0, error => {
+		return storageMainService.initialize().then(void 0, error => {
 			errors.onUnexpectedError(error);
 			this.logService.error(error);
 		});
@@ -592,8 +592,8 @@ export class CodeApplication extends Disposable {
 		const urlChannel = new URLServiceChannel(urlService);
 		this.electronIpcServer.registerChannel('url', urlChannel);
 
-		const storageService = accessor.get(IStorageMainService);
-		const storageChannel = new GlobalStorageDatabaseChannel(storageService);
+		const storageMainService = accessor.get(IStorageMainService);
+		const storageChannel = new GlobalStorageDatabaseChannel(storageMainService as StorageMainService);
 		this.electronIpcServer.registerChannel('storage', storageChannel);
 
 		// Log level management

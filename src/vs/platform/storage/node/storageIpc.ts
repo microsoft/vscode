@@ -4,23 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
-import { Event, buffer } from 'vs/base/common/event';
-import { IStorageChangeEvent } from 'vs/platform/storage/common/storage';
-import { IStorageMainService } from 'vs/platform/storage/node/storageMainService';
+import { Event } from 'vs/base/common/event';
+import { StorageMainService } from 'vs/platform/storage/node/storageMainService';
 import { IUpdateRequest, IStorageDatabase } from 'vs/base/node/storage';
+import { mapToSerializable, serializableToMap, values } from 'vs/base/common/map';
+
+export interface ISerializableUpdateRequest {
+	insert?: [string, string][];
+	delete?: string[];
+}
 
 export class GlobalStorageDatabaseChannel implements IServerChannel {
 
-	onDidChangeStorage: Event<IStorageChangeEvent>;
+	// readonly onDidChangeStorage: Event<IStorageChangeEvent>;
 
-	constructor(private service: IStorageMainService) {
-		this.onDidChangeStorage = buffer(service.onDidChangeStorage, true);
+	constructor(private storageMainService: StorageMainService) {
+		// this.onDidChangeStorage = buffer(storageMainService.onDidChangeStorage, true);
 	}
 
 	listen(_, event: string): Event<any> {
-		switch (event) {
-			case 'onDidChangeStorage': return this.onDidChangeStorage;
-		}
+		// switch (event) {
+		// 	case 'onDidChangeStorage': return this.onDidChangeStorage;
+		// }
 
 		throw new Error(`Event not found: ${event}`);
 	}
@@ -28,24 +33,26 @@ export class GlobalStorageDatabaseChannel implements IServerChannel {
 	call(_, command: string, arg?: any): Thenable<any> {
 		switch (command) {
 			case 'getItems': {
-				return Promise.resolve(itemsToSerializable(this.service.items));
+				return Promise.resolve(mapToSerializable(this.storageMainService.items));
 			}
 
 			case 'updateItems': {
-				const items = arg as IUpdateRequest;
-				if (Array.isArray(items.insert)) {
-					items.insert.forEach((value, key) => this.service.store(key, value));
+				const items = arg as ISerializableUpdateRequest;
+				if (items.insert) {
+					for (const [key, value] of items.insert) {
+						this.storageMainService.store(key, value);
+					}
 				}
 
-				if (Array.isArray(items.delete)) {
-					items.delete.forEach(key => this.service.remove(key));
+				if (items.delete) {
+					items.delete.forEach(key => this.storageMainService.remove(key));
 				}
 
 				return Promise.resolve(); // do not wait for modifications to complete
 			}
 
 			case 'checkIntegrity': {
-				return this.service.checkIntegrity(arg);
+				return this.storageMainService.checkIntegrity(arg);
 			}
 		}
 
@@ -59,16 +66,33 @@ export class GlobalStorageDatabaseChannelClient implements IStorageDatabase {
 
 	constructor(private channel: IChannel) { }
 
-	get onDidChangeStorage(): Event<IStorageChangeEvent> {
-		return this.channel.listen('onDidChangeStorage');
-	}
+	// get onDidChangeStorage(): Event<IStorageChangeEvent> {
+	// 	return this.channel.listen('onDidChangeStorage');
+	// }
 
 	getItems(): Thenable<Map<string, string>> {
-		return this.channel.call('getItems').then((data: [string, string][]) => serializableToItems(data));
+		return this.channel.call('getItems').then((data: [string, string][]) => serializableToMap(data));
 	}
 
 	updateItems(request: IUpdateRequest): Thenable<void> {
-		return this.channel.call('updateItems', request);
+		let updateCount = 0;
+		const serializableRequest: ISerializableUpdateRequest = Object.create(null);
+
+		if (request.insert) {
+			serializableRequest.insert = mapToSerializable(request.insert);
+			updateCount += request.insert.size;
+		}
+
+		if (request.delete) {
+			serializableRequest.delete = values(request.delete);
+			updateCount += request.delete.size;
+		}
+
+		if (updateCount === 0) {
+			return Promise.resolve(); // prevent work if not needed
+		}
+
+		return this.channel.call('updateItems', serializableRequest);
 	}
 
 	checkIntegrity(full: boolean): Thenable<string> {
@@ -78,24 +102,4 @@ export class GlobalStorageDatabaseChannelClient implements IStorageDatabase {
 	close(): Thenable<void> {
 		return Promise.resolve(); // global storage is closed on the main side
 	}
-}
-
-function itemsToSerializable(items: Map<string, string>): [string, string][] {
-	const data: [string, string][] = [];
-
-	items.forEach((value, key) => {
-		data.push([key, value]);
-	});
-
-	return data;
-}
-
-function serializableToItems(data: [string, string][]): Map<string, string> {
-	const items = new Map<string, string>();
-
-	for (const [key, value] of data) {
-		items.set(key, value);
-	}
-
-	return items;
 }

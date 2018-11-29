@@ -44,7 +44,7 @@ suite('ParameterHintsModel', () => {
 			model: textModel,
 			serviceCollection: new ServiceCollection(
 				[ITelemetryService, NullTelemetryService],
-				[IStorageService, InMemoryStorageService]
+				[IStorageService, new InMemoryStorageService()]
 			)
 		});
 		disposables.push(textModel);

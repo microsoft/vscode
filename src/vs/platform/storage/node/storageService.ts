@@ -7,7 +7,7 @@ import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IWorkspaceStorageChangeEvent, IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { Storage, IStorageLoggingOptions, NullStorage, IStorage, StorageHint, IStorageDatabase } from 'vs/base/node/storage';
+import { Storage, ISQLiteStorageDatabaseLoggingOptions, IStorage, StorageHint, IStorageDatabase, SQLiteStorageDatabase } from 'vs/base/node/storage';
 import { IStorageLegacyService, StorageLegacyScope } from 'vs/platform/storage/common/storageLegacyService';
 import { startsWith, endsWith } from 'vs/base/common/strings';
 import { Action } from 'vs/base/common/actions';
@@ -21,12 +21,6 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IWorkspaceInitializationPayload, isWorkspaceIdentifier, isSingleFolderWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { StorageObject, parseMultiRootStorage, parseFolderStorage, parseNoWorkspaceStorage, parseEmptyStorage } from 'vs/platform/storage/common/storageLegacyMigration';
-
-export interface IStorageServiceOptions {
-	storeInMemory?: boolean;
-	disableGlobalStorage?: boolean;
-	globalStorage?: IStorageDatabase;
-}
 
 export class StorageService extends Disposable implements IStorageService {
 	_serviceBrand: any;
@@ -43,22 +37,22 @@ export class StorageService extends Disposable implements IStorageService {
 	private _hasErrors = false;
 	get hasErrors(): boolean { return this._hasErrors; }
 
-	private bufferedStorageErrors?: (string | Error)[] = [];
-	private _onStorageError: Emitter<string | Error> = this._register(new Emitter<string | Error>());
-	get onStorageError(): Event<string | Error> {
-		if (Array.isArray(this.bufferedStorageErrors)) {
+	private bufferedWorkspaceStorageErrors?: (string | Error)[] = [];
+	private _onWorkspaceStorageError: Emitter<string | Error> = this._register(new Emitter<string | Error>());
+	get onWorkspaceStorageError(): Event<string | Error> {
+		if (Array.isArray(this.bufferedWorkspaceStorageErrors)) {
 			// todo@ben cleanup after a while
-			if (this.bufferedStorageErrors.length > 0) {
-				const bufferedStorageErrors = this.bufferedStorageErrors;
+			if (this.bufferedWorkspaceStorageErrors.length > 0) {
+				const bufferedStorageErrors = this.bufferedWorkspaceStorageErrors;
 				setTimeout(() => {
-					this._onStorageError.fire(`[startup errors] ${bufferedStorageErrors.join('\n')}`);
+					this._onWorkspaceStorageError.fire(`[startup errors] ${bufferedStorageErrors.join('\n')}`);
 				}, 0);
 			}
 
-			this.bufferedStorageErrors = void 0;
+			this.bufferedWorkspaceStorageErrors = void 0;
 		}
 
-		return this._onStorageError.event;
+		return this._onWorkspaceStorageError.event;
 	}
 
 	private globalStorage: IStorage;
@@ -67,38 +61,16 @@ export class StorageService extends Disposable implements IStorageService {
 	private workspaceStorage: IStorage;
 	private workspaceStorageListener: IDisposable;
 
-	private loggingOptions: IStorageLoggingOptions;
-
 	constructor(
-		private options: IStorageServiceOptions,
+		globalStorageDatabase: IStorageDatabase,
 		@ILogService private logService: ILogService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super();
 
-		this.loggingOptions = {
-			logTrace: (logService.getLevel() === LogLevel.Trace) ? msg => logService.trace(msg) : void 0,
-			logError: error => {
-				logService.error(error);
-
-				this._hasErrors = true;
-
-				if (Array.isArray(this.bufferedStorageErrors)) {
-					this.bufferedStorageErrors.push(error);
-				} else {
-					this._onStorageError.fire(error);
-				}
-			}
-		};
-
 		// Global Storage
-		this.globalStorage = options.disableGlobalStorage ? new NullStorage() : new Storage(Object.create(null), options.globalStorage);
+		this.globalStorage = new Storage(globalStorageDatabase);
 		this._register(this.globalStorage.onDidChangeStorage(key => this.handleDidChangeStorage(key, StorageScope.GLOBAL)));
-
-		// Workspace Storage (in-memory only, other users require the initalize() call)
-		if (options.storeInMemory) {
-			this.createWorkspaceStorage(Storage.IN_MEMORY_PATH, StorageHint.STORAGE_DOES_NOT_EXIST);
-		}
 	}
 
 	private handleDidChangeStorage(key: string, scope: StorageScope): void {
@@ -107,51 +79,61 @@ export class StorageService extends Disposable implements IStorageService {
 
 	initialize(payload: IWorkspaceInitializationPayload): Thenable<void> {
 		return Promise.all([
-			this.globalStorage.init(),
-
-			// Prepare workspace storage folder for DB
-			this.prepareWorkspaceStorageFolder(payload).then(result => {
-				let workspaceStoragePath: string;
-				let workspaceStorageExists: Thenable<boolean>;
-				if (this.options.storeInMemory) {
-					workspaceStoragePath = Storage.IN_MEMORY_PATH;
-					workspaceStorageExists = Promise.resolve(true);
-				} else {
-					workspaceStoragePath = join(result.path, StorageService.WORKSPACE_STORAGE_NAME);
-
-					mark('willCheckWorkspaceStorageExists');
-					workspaceStorageExists = exists(workspaceStoragePath).then(exists => {
-						mark('didCheckWorkspaceStorageExists');
-
-						return exists;
-					});
-				}
-
-				return workspaceStorageExists.then(exists => {
-
-					// Create workspace storage and initalize
-					mark('willInitWorkspaceStorage');
-					return this.createWorkspaceStorage(workspaceStoragePath, result.wasCreated ? StorageHint.STORAGE_DOES_NOT_EXIST : void 0).init().then(() => {
-						mark('didInitWorkspaceStorage');
-					}, error => {
-						mark('didInitWorkspaceStorage');
-
-						return Promise.reject(error);
-					}).then(() => {
-
-						// Migrate storage if this is the first start and we are not using in-memory
-						let migrationPromise: Thenable<void>;
-						if (!this.options.storeInMemory && !exists) {
-							migrationPromise = this.migrateWorkspaceStorage(payload);
-						} else {
-							migrationPromise = Promise.resolve();
-						}
-
-						return migrationPromise;
-					});
-				});
-			})
+			this.initializeGlobalStorage(),
+			this.initializeWorkspaceStorage(payload)
 		]).then(() => void 0);
+	}
+
+	private initializeGlobalStorage(): Thenable<void> {
+		return this.globalStorage.init();
+	}
+
+	private initializeWorkspaceStorage(payload: IWorkspaceInitializationPayload): Thenable<void> {
+
+		// Prepare workspace storage folder for DB
+		return this.prepareWorkspaceStorageFolder(payload).then(result => {
+			const useInMemoryStorage = !!this.environmentService.extensionTestsPath; // no storage during extension tests!
+
+			let workspaceStoragePath: string;
+			let workspaceStorageExists: Thenable<boolean>;
+			if (useInMemoryStorage) {
+				workspaceStoragePath = SQLiteStorageDatabase.IN_MEMORY_PATH;
+				workspaceStorageExists = Promise.resolve(true);
+			} else {
+				workspaceStoragePath = join(result.path, StorageService.WORKSPACE_STORAGE_NAME);
+
+				mark('willCheckWorkspaceStorageExists');
+				workspaceStorageExists = exists(workspaceStoragePath).then(exists => {
+					mark('didCheckWorkspaceStorageExists');
+
+					return exists;
+				});
+			}
+
+			return workspaceStorageExists.then(exists => {
+
+				// Create workspace storage and initalize
+				mark('willInitWorkspaceStorage');
+				return this.createWorkspaceStorage(workspaceStoragePath, result.wasCreated ? StorageHint.STORAGE_DOES_NOT_EXIST : void 0).init().then(() => {
+					mark('didInitWorkspaceStorage');
+				}, error => {
+					mark('didInitWorkspaceStorage');
+
+					return Promise.reject(error);
+				}).then(() => {
+
+					// Migrate storage if this is the first start and we are not using in-memory
+					let migrationPromise: Thenable<void>;
+					if (!useInMemoryStorage && !exists) {
+						migrationPromise = this.migrateWorkspaceStorage(payload);
+					} else {
+						migrationPromise = Promise.resolve();
+					}
+
+					return migrationPromise;
+				});
+			});
+		});
 	}
 
 	// TODO@Ben remove migration after a while
@@ -279,13 +261,29 @@ export class StorageService extends Disposable implements IStorageService {
 
 	private createWorkspaceStorage(workspaceStoragePath: string, hint?: StorageHint): IStorage {
 
+		// Logger for workspace storage
+		const workspaceLoggingOptions: ISQLiteStorageDatabaseLoggingOptions = {
+			logTrace: (this.logService.getLevel() === LogLevel.Trace) ? msg => this.logService.trace(msg) : void 0,
+			logError: error => {
+				this.logService.error(error);
+
+				this._hasErrors = true;
+
+				if (Array.isArray(this.bufferedWorkspaceStorageErrors)) {
+					this.bufferedWorkspaceStorageErrors.push(error);
+				} else {
+					this._onWorkspaceStorageError.fire(error);
+				}
+			}
+		};
+
 		// Dispose old (if any)
 		this.workspaceStorage = dispose(this.workspaceStorage);
 		this.workspaceStorageListener = dispose(this.workspaceStorageListener);
 
 		// Create new
 		this.workspaceStoragePath = workspaceStoragePath;
-		this.workspaceStorage = new Storage({ path: workspaceStoragePath, logging: this.loggingOptions, hint });
+		this.workspaceStorage = new Storage(new SQLiteStorageDatabase(workspaceStoragePath, { logging: workspaceLoggingOptions }), { hint });
 		this.workspaceStorageListener = this.workspaceStorage.onDidChangeStorage(key => this.handleDidChangeStorage(key, StorageScope.WORKSPACE));
 
 		return this.workspaceStorage;
@@ -435,7 +433,7 @@ export class StorageService extends Disposable implements IStorageService {
 	}
 
 	migrate(toWorkspace: IWorkspaceInitializationPayload): Thenable<void> {
-		if (this.workspaceStoragePath === Storage.IN_MEMORY_PATH) {
+		if (this.workspaceStoragePath === SQLiteStorageDatabase.IN_MEMORY_PATH) {
 			return Promise.resolve(); // no migration needed if running in memory
 		}
 

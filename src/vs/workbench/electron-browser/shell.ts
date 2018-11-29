@@ -286,7 +286,7 @@ export class WorkbenchShell extends Disposable {
 
 		// Handle errors (avoid duplicates to reduce spam)
 		const loggedStorageErrors = new Set<string>();
-		this._register(this.storageService.storage.onStorageError(error => {
+		this._register(this.storageService.storage.onWorkspaceStorageError(error => {
 			const errorStr = `${error}`;
 
 			if (!loggedStorageErrors.has(errorStr)) {
