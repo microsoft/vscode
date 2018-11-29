@@ -180,7 +180,8 @@ export class ExtHostComments implements ExtHostCommentsShape {
 			this._proxy.$onDidCommentThreadsChange(handle, {
 				changed: event.changed.map(thread => convertToCommentThread(provider, thread, this._commandsConverter)),
 				added: event.added.map(thread => convertToCommentThread(provider, thread, this._commandsConverter)),
-				removed: event.removed.map(thread => convertToCommentThread(provider, thread, this._commandsConverter))
+				removed: event.removed.map(thread => convertToCommentThread(provider, thread, this._commandsConverter)),
+				draftMode: !!(provider as vscode.DocumentCommentProvider).startDraft && !!(provider as vscode.DocumentCommentProvider).finishDraft ? (event.inDraftMode ? modes.DraftMode.InDraft : modes.DraftMode.NotInDraft) : modes.DraftMode.NotSupported
 			});
 		});
 	}
@@ -190,7 +191,7 @@ function convertCommentInfo(owner: number, provider: vscode.DocumentCommentProvi
 	return {
 		threads: vscodeCommentInfo.threads.map(x => convertToCommentThread(provider, x, commandsConverter)),
 		commentingRanges: vscodeCommentInfo.commentingRanges ? vscodeCommentInfo.commentingRanges.map(range => extHostTypeConverter.Range.from(range)) : [],
-		draftMode: provider.startDraft ? (vscodeCommentInfo.inDraftMode ? modes.DraftMode.InDraft : modes.DraftMode.NotInDraft) : modes.DraftMode.NotSupported
+		draftMode: provider.startDraft && provider.finishDraft ? (vscodeCommentInfo.inDraftMode ? modes.DraftMode.InDraft : modes.DraftMode.NotInDraft) : modes.DraftMode.NotSupported
 	};
 }
 

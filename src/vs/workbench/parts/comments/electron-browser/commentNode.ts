@@ -46,6 +46,7 @@ export class CommentNode extends Disposable {
 	private _commentEditorModel: ITextModel;
 	private _updateCommentButton: Button;
 	private _errorEditingContainer: HTMLElement;
+	private _isPendingLabel: HTMLElement;
 
 	private _deleteAction: Action;
 	private _onDidDelete = new Emitter<CommentNode>();
@@ -99,9 +100,10 @@ export class CommentNode extends Disposable {
 		const author = dom.append(header, dom.$('strong.author'));
 		author.innerText = this.comment.userName;
 
+		this._isPendingLabel = dom.append(header, dom.$('span.isPending'));
+
 		if (this.comment.isDraft) {
-			const isPendingLabel = dom.append(header, dom.$('span.isPending'));
-			isPendingLabel.innerText = 'Pending';
+			this._isPendingLabel.innerText = 'Pending';
 		}
 
 		const actions: Action[] = [];
@@ -279,6 +281,12 @@ export class CommentNode extends Disposable {
 			this._body.removeChild(this._md);
 			this._md = this.markdownRenderer.render(newComment.body).element;
 			this._body.appendChild(this._md);
+		}
+
+		if (newComment.isDraft) {
+			this._isPendingLabel.innerText = 'Pending';
+		} else {
+			this._isPendingLabel.innerText = '';
 		}
 
 		this.comment = newComment;

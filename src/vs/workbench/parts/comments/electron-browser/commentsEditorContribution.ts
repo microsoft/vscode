@@ -380,11 +380,13 @@ export class ReviewController implements IEditorContribution {
 				return;
 			}
 
-			let draftMode = commentInfo[0].draftMode;
-
 			let added = e.added.filter(thread => thread.resource.toString() === editorURI.toString());
 			let removed = e.removed.filter(thread => thread.resource.toString() === editorURI.toString());
 			let changed = e.changed.filter(thread => thread.resource.toString() === editorURI.toString());
+			let draftMode = e.draftMode;
+
+			commentInfo.forEach(info => info.draftMode = draftMode);
+			this._commentWidgets.filter(ZoneWidget => ZoneWidget.owner === e.owner).forEach(widget => widget.updateDraftMode(draftMode));
 
 			removed.forEach(thread => {
 				let matchedZones = this._commentWidgets.filter(zoneWidget => zoneWidget.owner === e.owner && zoneWidget.commentThread.threadId === thread.threadId);
@@ -408,6 +410,7 @@ export class ReviewController implements IEditorContribution {
 				this._commentWidgets.push(zoneWidget);
 				this._commentInfos.filter(info => info.owner === e.owner)[0].threads.push(thread);
 			});
+
 		}));
 
 		this.beginCompute();

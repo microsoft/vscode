@@ -71,6 +71,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 	private _globalToDispose: IDisposable[];
 	private _markdownRenderer: MarkdownRenderer;
 	private _styleElement: HTMLStyleElement;
+	private _formActions: HTMLElement;
 	private _error: HTMLElement;
 
 	public get owner(): string {
@@ -105,6 +106,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._isCollapsed = commentThread.collapsibleState !== modes.CommentThreadCollapsibleState.Expanded;
 		this._globalToDispose = [];
 		this._localToDispose = [];
+		this._formActions = null;
 		this.create();
 
 		this._styleElement = dom.createStyleSheet(this.domNode);
@@ -262,6 +264,16 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this.createThreadLabel();
 	}
 
+	updateDraftMode(draftMode: modes.DraftMode) {
+		this._draftMode = draftMode;
+
+		if (this._formActions) {
+			let model = this._commentEditor.getModel();
+			dom.clearNode(this._formActions);
+			this.createCommentWidgetActions(this._formActions, model);
+		}
+	}
+
 	protected _doLayout(heightInPixel: number, widthInPixel: number): void {
 		this._commentEditor.layout({ height: (this._commentEditor.hasWidgetFocus() ? 5 : 1) * 18, width: widthInPixel - 54 /* margin 20px * 10 + scrollbar 14px*/ });
 	}
@@ -332,8 +344,8 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 		this._error = dom.append(this._commentForm, dom.$('.validation-error.hidden'));
 
-		const formActions = dom.append(this._commentForm, dom.$('.form-actions'));
-		this.createCommentWidgetActions(formActions, model);
+		this._formActions = dom.append(this._commentForm, dom.$('.form-actions'));
+		this.createCommentWidgetActions(this._formActions, model);
 
 		this._resizeObserver = new MutationObserver(this._refresh.bind(this));
 
@@ -401,6 +413,8 @@ export class ReviewZoneWidget extends ZoneWidget {
 				submitdraftButton.enabled = true;
 
 				submitdraftButton.onDidClick(async () => {
+					let lineNumber = this._commentGlyph.getPosition().position.lineNumber;
+					await this.createComment(lineNumber);
 					await this.commentService.finishDraft(this._owner);
 				});
 

@@ -1223,6 +1223,11 @@ export interface CommentThreadChangedEvent {
 	 * Changed comment threads.
 	 */
 	readonly changed: CommentThread[];
+
+	/**
+	 * changed draft mode.
+	 */
+	readonly draftMode: DraftMode;
 }
 
 /**
