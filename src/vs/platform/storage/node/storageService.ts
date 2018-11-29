@@ -85,7 +85,15 @@ export class StorageService extends Disposable implements IStorageService {
 	}
 
 	private initializeGlobalStorage(): Thenable<void> {
-		return this.globalStorage.init();
+		mark('willInitGlobalStorage');
+
+		return this.globalStorage.init().then(() => {
+			mark('didInitGlobalStorage');
+		}, error => {
+			mark('didInitGlobalStorage');
+
+			return Promise.reject(error);
+		});
 	}
 
 	private initializeWorkspaceStorage(payload: IWorkspaceInitializationPayload): Thenable<void> {
