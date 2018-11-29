@@ -27,6 +27,9 @@ import { getExactExpressionStartAndEnd } from 'vs/workbench/parts/debug/common/d
 import { AsyncDataTree, IDataSource } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { WorkbenchAsyncDataTree, IListService } from 'vs/platform/list/browser/listService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 const $ = dom.$;
 const MAX_TREE_HEIGHT = 324;
@@ -52,9 +55,12 @@ export class DebugHoverWidget implements IContentWidget {
 
 	constructor(
 		private editor: ICodeEditor,
-		private debugService: IDebugService,
-		private instantiationService: IInstantiationService,
-		private themeService: IThemeService
+		@IDebugService private debugService: IDebugService,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IThemeService private themeService: IThemeService,
+		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IListService private listService: IListService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		this.toDispose = [];
 
@@ -71,11 +77,11 @@ export class DebugHoverWidget implements IContentWidget {
 		treeContainer.setAttribute('role', 'tree');
 		this.dataSource = new DebugHoverDataSource();
 
-		this.tree = new AsyncDataTree(treeContainer, new DebugHoverDelegate(), [this.instantiationService.createInstance(VariablesRenderer)],
+		this.tree = new WorkbenchAsyncDataTree(treeContainer, new DebugHoverDelegate(), [this.instantiationService.createInstance(VariablesRenderer)],
 			this.dataSource, {
 				ariaLabel: nls.localize('treeAriaLabel', "Debug Hover"),
 				accessibilityProvider: new DebugHoverAccessibilityProvider(),
-			});
+			}, this.contextKeyService, this.listService, this.themeService, this.configurationService);
 
 		this.valueContainer = $('.value');
 		this.valueContainer.tabIndex = 0;
