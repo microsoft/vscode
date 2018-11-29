@@ -287,7 +287,7 @@ export class ElectronWindow extends Themable {
 		this.integrityService.isPure().then(res => this.titleService.updateProperties({ isPure: res.isPure }));
 
 		// Root warning
-		this.lifecycleService.when(LifecyclePhase.Ready).then(() => {
+		this.lifecycleService.when(LifecyclePhase.Restored).then(() => {
 			let isAdminPromise: Promise<boolean>;
 			if (isWindows) {
 				isAdminPromise = import('native-is-elevated').then(isElevated => isElevated());
@@ -374,7 +374,7 @@ export class ElectronWindow extends Themable {
 	}
 
 	private resolveKeybindings(actionIds: string[]): Promise<{ id: string; label: string, isNative: boolean; }[]> {
-		return Promise.all([this.lifecycleService.when(LifecyclePhase.Ready), this.extensionService.whenInstalledExtensionsRegistered()]).then(() => {
+		return Promise.all([this.lifecycleService.when(LifecyclePhase.Restored), this.extensionService.whenInstalledExtensionsRegistered()]).then(() => {
 			return arrays.coalesce(actionIds.map(id => {
 				const binding = this.keybindingService.lookupKeybinding(id);
 				if (!binding) {

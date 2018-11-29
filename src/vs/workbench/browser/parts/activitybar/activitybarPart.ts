@@ -188,7 +188,7 @@ export class ActivitybarPart extends Part {
 		// The workaround is to promote the element onto its own drawing layer. We do
 		// this only after the workbench has loaded because otherwise there is ugly flicker.
 		if (isMacintosh) {
-			this.lifecycleService.when(LifecyclePhase.Ready).then(() => {
+			this.lifecycleService.when(LifecyclePhase.Restored).then(() => {
 				scheduleAtNextAnimationFrame(() => { // another delay...
 					scheduleAtNextAnimationFrame(() => { // ...to prevent more flickering on startup
 						registerThemingParticipant((theme, collector) => {
