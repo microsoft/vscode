@@ -68,7 +68,8 @@ class MyCompletionItem extends vscode.CompletionItem {
 			if (tsEntry.replacementSpan) {
 				this.range = typeConverters.Range.fromTextSpan(tsEntry.replacementSpan);
 				if (this.insertText[0] === '[') { // o.x -> o['x']
-					this.filterText = '.' + this.label;
+					const textBeingReplaced = document.getText(this.range);
+					this.filterText = textBeingReplaced + this.label;
 				}
 
 				// Make sure we only replace a single line at most
