@@ -2394,13 +2394,6 @@ export class DisabledStatusLabelAction extends Action {
 							return;
 						}
 					}
-					if (this.extension.enablementState === EnablementState.Disabled) {
-						this.class = `${DisabledStatusLabelAction.Class}`;
-						this.label = localize('disabled globally', "Disabled for all Windows.");
-					} else if (this.extension.enablementState === EnablementState.WorkspaceDisabled) {
-						this.class = `${DisabledStatusLabelAction.Class}`;
-						this.label = localize('disabled workspace', "Disabled for this Workspace.");
-					}
 				}
 			}));
 	}

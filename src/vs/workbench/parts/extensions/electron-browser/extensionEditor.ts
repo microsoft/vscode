@@ -403,7 +403,7 @@ export class ExtensionEditor extends BaseEditor {
 			});
 	}
 
-	private setSubText(extension: IExtension, reloadAction: ReloadAction) {
+	private setSubText(extension: IExtension, reloadAction: ReloadAction): void {
 		hide(this.subtextContainer);
 
 		const ignoreAction = this.instantiationService.createInstance(IgnoreExtensionRecommendationAction);
@@ -448,14 +448,20 @@ export class ExtensionEditor extends BaseEditor {
 			}
 		});
 
-		reloadAction.onDidChange(e => {
+		this.transientDisposables.push(reloadAction.onDidChange(e => {
 			if (e.tooltip) {
 				this.subtext.textContent = reloadAction.tooltip;
 				show(this.subtextContainer);
 				ignoreAction.enabled = false;
 				undoIgnoreAction.enabled = false;
 			}
-		});
+			if (e.enabled === true) {
+				show(this.subtextContainer);
+			}
+			if (e.enabled === false) {
+				hide(this.subtextContainer);
+			}
+		}));
 	}
 
 	focus(): void {
