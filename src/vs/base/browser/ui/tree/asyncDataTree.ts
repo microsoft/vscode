@@ -296,7 +296,7 @@ export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> imple
 
 		this.tree.expand(node);
 
-		if (node.element!.state === AsyncDataTreeNodeState.Uninitialized) {
+		if (node.state !== AsyncDataTreeNodeState.Loaded) {
 			await this.refreshNode(node, false, ChildrenResolutionReason.Expand);
 		}
 

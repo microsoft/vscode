@@ -534,7 +534,6 @@ export class ReferenceWidget extends PeekViewWidget {
 				this._tree.reveal(reference.parent);
 			}
 			await this._tree.expand(reference.parent);
-			await timeout(75); //todo@joao expand resolves to soon
 			this._tree.reveal(reference);
 		}
 
