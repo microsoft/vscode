@@ -363,13 +363,18 @@ export class ReviewController implements IEditorContribution {
 				return;
 			}
 
-			if (!this._commentInfos.some(info => info.owner === e.owner)) {
+			let commentInfo = this._commentInfos.filter(info => info.owner === e.owner);
+			if (!commentInfo || !commentInfo.length) {
 				return;
 			}
 
 			let added = e.added.filter(thread => thread.resource.toString() === editorURI.toString());
 			let removed = e.removed.filter(thread => thread.resource.toString() === editorURI.toString());
 			let changed = e.changed.filter(thread => thread.resource.toString() === editorURI.toString());
+			let draftMode = e.draftMode;
+
+			commentInfo.forEach(info => info.draftMode = draftMode);
+			this._commentWidgets.filter(ZoneWidget => ZoneWidget.owner === e.owner).forEach(widget => widget.updateDraftMode(draftMode));
 
 			removed.forEach(thread => {
 				let matchedZones = this._commentWidgets.filter(zoneWidget => zoneWidget.owner === e.owner && zoneWidget.commentThread.threadId === thread.threadId);
@@ -388,11 +393,12 @@ export class ReviewController implements IEditorContribution {
 				}
 			});
 			added.forEach(thread => {
-				let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.openerService, this.dialogService, this.notificationService, this.editor, e.owner, thread, null, {});
+				let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.openerService, this.dialogService, this.notificationService, this.editor, e.owner, thread, null, draftMode, {});
 				zoneWidget.display(thread.range.startLineNumber);
 				this._commentWidgets.push(zoneWidget);
 				this._commentInfos.filter(info => info.owner === e.owner)[0].threads.push(thread);
 			});
+
 		}));
 
 		this.beginCompute();
@@ -403,6 +409,13 @@ export class ReviewController implements IEditorContribution {
 			this.notificationService.warn(`Please submit the comment at line ${this._newCommentWidget.position.lineNumber} before creating a new one.`);
 			return;
 		}
+
+		let commentInfo = this._commentInfos.filter(info => info.owner === ownerId);
+		if (!commentInfo || !commentInfo.length) {
+			return;
+		}
+
+		let draftMode = commentInfo[0].draftMode;
 
 		// add new comment
 		this._reviewPanelVisible.set(true);
@@ -418,7 +431,7 @@ export class ReviewController implements IEditorContribution {
 			},
 			reply: replyCommand,
 			collapsibleState: CommentThreadCollapsibleState.Expanded,
-		}, pendingComment, {});
+		}, pendingComment, draftMode, {});
 
 		this.localToDispose.push(this._newCommentWidget.onDidClose(e => {
 			this._newCommentWidget = null;
@@ -547,7 +560,7 @@ export class ReviewController implements IEditorContribution {
 					thread.collapsibleState = modes.CommentThreadCollapsibleState.Expanded;
 				}
 
-				let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.openerService, this.dialogService, this.notificationService, this.editor, info.owner, thread, pendingComment, {});
+				let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.openerService, this.dialogService, this.notificationService, this.editor, info.owner, thread, pendingComment, info.draftMode, {});
 				zoneWidget.display(thread.range.startLineNumber);
 				this._commentWidgets.push(zoneWidget);
 			});
