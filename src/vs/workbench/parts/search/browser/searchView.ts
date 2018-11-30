@@ -1037,8 +1037,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			pattern: contentPattern,
 			isRegExp: isRegex,
 			isCaseSensitive: isCaseSensitive,
-			isWordMatch: isWholeWords,
-			isSmartCase: this.configurationService.getValue<ISearchConfiguration>().search.smartCase
+			isWordMatch: isWholeWords
 		};
 
 		const excludePattern = this.inputPatternExcludes.getValue();
@@ -1061,7 +1060,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			previewOptions: {
 				matchLines: 1,
 				charsPerLine
-			}
+			},
+			isSmartCase: this.configurationService.getValue<ISearchConfiguration>().search.smartCase
 		};
 		const folderResources = this.contextService.getWorkspace().folders;
 

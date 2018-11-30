@@ -56,6 +56,7 @@ export interface ITextQueryBuilderOptions extends ICommonQueryBuilderOptions {
 	fileEncoding?: string;
 	beforeContext?: number;
 	afterContext?: number;
+	isSmartCase?: boolean;
 }
 
 export class QueryBuilder {
@@ -67,7 +68,7 @@ export class QueryBuilder {
 	) { }
 
 	text(contentPattern: IPatternInfo, folderResources?: uri[], options: ITextQueryBuilderOptions = {}): ITextQuery {
-		contentPattern = this.getContentPattern(contentPattern);
+		contentPattern = this.getContentPattern(contentPattern, options);
 		const searchConfig = this.configurationService.getValue<ISearchConfiguration>();
 
 		const fallbackToPCRE = folderResources && folderResources.some(folder => {
@@ -92,7 +93,7 @@ export class QueryBuilder {
 	/**
 	 * Adjusts input pattern for config
 	 */
-	private getContentPattern(inputPattern: IPatternInfo): IPatternInfo {
+	private getContentPattern(inputPattern: IPatternInfo, options: ITextQueryBuilderOptions): IPatternInfo {
 		const searchConfig = this.configurationService.getValue<ISearchConfiguration>();
 
 		const newPattern = {
@@ -100,7 +101,7 @@ export class QueryBuilder {
 			wordSeparators: searchConfig.editor.wordSeparators
 		};
 
-		if (this.isCaseSensitive(inputPattern)) {
+		if (this.isCaseSensitive(inputPattern, options)) {
 			newPattern.isCaseSensitive = true;
 		}
 
@@ -161,8 +162,8 @@ export class QueryBuilder {
 	/**
 	 * Resolve isCaseSensitive flag based on the query and the isSmartCase flag, for search providers that don't support smart case natively.
 	 */
-	private isCaseSensitive(contentPattern: IPatternInfo): boolean {
-		if (contentPattern.isSmartCase) {
+	private isCaseSensitive(contentPattern: IPatternInfo, options: ITextQueryBuilderOptions): boolean {
+		if (options.isSmartCase) {
 			if (contentPattern.isRegExp) {
 				// Consider it case sensitive if it contains an unescaped capital letter
 				if (strings.containsUppercaseCharacter(contentPattern.pattern, true)) {
