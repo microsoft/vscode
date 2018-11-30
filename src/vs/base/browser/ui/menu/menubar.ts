@@ -818,7 +818,8 @@ export class MenuBar extends Disposable {
 	}
 
 	private showCustomMenu(menuIndex: number, selectFirst = true): void {
-		const customMenu = menuIndex === MenuBar.OVERFLOW_INDEX ? this.overflowMenu : this.menuCache[menuIndex];
+		const actualMenuIndex = menuIndex >= this.numMenusShown ? MenuBar.OVERFLOW_INDEX : menuIndex;
+		const customMenu = actualMenuIndex === MenuBar.OVERFLOW_INDEX ? this.overflowMenu : this.menuCache[actualMenuIndex];
 		const menuHolder = $('div.menubar-menu-items-holder');
 
 		DOM.addClass(customMenu.buttonElement, 'open');
@@ -847,10 +848,14 @@ export class MenuBar extends Disposable {
 			}, 100);
 		}));
 
-		menuWidget.focus(selectFirst);
+		if (actualMenuIndex !== menuIndex) {
+			menuWidget.trigger(menuIndex - this.numMenusShown);
+		} else {
+			menuWidget.focus(selectFirst);
+		}
 
 		this.focusedMenu = {
-			index: menuIndex,
+			index: actualMenuIndex,
 			holder: menuHolder,
 			widget: menuWidget
 		};

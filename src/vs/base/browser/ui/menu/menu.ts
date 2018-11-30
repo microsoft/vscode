@@ -209,12 +209,26 @@ export class Menu extends ActionBar {
 		return this.scrollableElement.getDomNode();
 	}
 
-	public get onScroll(): Event<void> {
+	get onScroll(): Event<void> {
 		return this._onScroll.event;
 	}
 
 	get scrollOffset(): number {
 		return this.menuElement.scrollTop;
+	}
+
+	trigger(index: number): void {
+		if (index <= this.items.length && index >= 0) {
+			const item = this.items[index];
+			if (item instanceof SubmenuActionItem) {
+				super.focus(index);
+				item.open(true);
+			} else if (item instanceof MenuActionItem) {
+				super.run(item._action, item._context);
+			} else {
+				return;
+			}
+		}
 	}
 
 	private focusItemByElement(element: HTMLElement) {
@@ -284,10 +298,6 @@ export class Menu extends ActionBar {
 
 			return menuActionItem;
 		}
-	}
-
-	public focus(selectFirst = true) {
-		super.focus(selectFirst);
 	}
 }
 
@@ -569,6 +579,11 @@ class SubmenuActionItem extends MenuActionItem {
 			this.parentData.parent.focus(false);
 			this.cleanupExistingSubmenu(false);
 		}));
+	}
+
+	open(selectFirst?: boolean): void {
+		this.cleanupExistingSubmenu(false);
+		this.createSubmenu(selectFirst);
 	}
 
 	onClick(e: EventLike): void {
