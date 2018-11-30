@@ -118,6 +118,11 @@ export class WatchExpressionsView extends ViewletPanel {
 	}
 
 	private onMouseDblClick(e: ITreeMouseEvent<IExpression>): void {
+		if ((e.browserEvent.target as HTMLElement).className.indexOf('twistie') >= 0) {
+			// Ignore double click events on twistie
+			return;
+		}
+
 		const element = e.element;
 		// double click on primitive value: open input box to be able to select and copy value.
 		if (element instanceof Expression) {
