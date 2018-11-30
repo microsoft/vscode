@@ -114,7 +114,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 	private selectionDetailsPane: HTMLElement;
 	private _skipLayout: boolean = false;
 
-	private _sticky: boolean = false; // for dev purposes only
+	private _sticky: boolean = true; // for dev purposes only
 
 	constructor(options: string[], selected: number, contextViewProvider: IContextViewProvider, styles: ISelectBoxStyles, selectBoxOptions?: ISelectBoxOptions) {
 

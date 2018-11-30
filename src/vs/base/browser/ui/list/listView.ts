@@ -48,6 +48,7 @@ export interface IListViewOptions {
 	readonly verticalScrollMode?: ScrollbarVisibility;
 	readonly setRowLineHeight?: boolean;
 	readonly supportDynamicHeights?: boolean;
+	readonly mouseSupport?: boolean;
 }
 
 const DefaultOptions = {
@@ -103,6 +104,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		this.domNode = document.createElement('div');
 		this.domNode.className = 'monaco-list';
+		DOM.toggleClass(this.domNode, 'mouse-support', typeof options.mouseSupport === 'boolean' ? options.mouseSupport : true);
 
 		this.rowsContainer = document.createElement('div');
 		this.rowsContainer.className = 'monaco-list-rows';
