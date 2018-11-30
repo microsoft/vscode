@@ -22,7 +22,7 @@ export interface ISelectBoxDelegate {
 
 	// Public SelectBox Interface
 	readonly onDidSelect: Event<ISelectData>;
-	setOptions(options: ISelectOptionItem[], selected?: number, disabled?: number);
+	setOptions(options: ISelectOptionItem[], selected?: number);
 	select(index: number): void;
 	setAriaLabel(label: string);
 	focus(): void;
@@ -39,7 +39,6 @@ export interface ISelectBoxOptions {
 	useCustomSelectBox?: boolean;
 	ariaLabel?: string;
 	minBottomMargin?: number;
-	hasDetails?: boolean;
 }
 
 
@@ -97,8 +96,8 @@ export class SelectBox extends Widget implements ISelectBoxDelegate {
 		return this.selectBoxDelegate.onDidSelect;
 	}
 
-	public setOptions(options: ISelectOptionItem[], selected?: number, disabled?: number): void {
-		this.selectBoxDelegate.setOptions(options, selected, disabled);
+	public setOptions(options: ISelectOptionItem[], selected?: number): void {
+		this.selectBoxDelegate.setOptions(options, selected);
 	}
 
 	public select(index: number): void {

@@ -184,7 +184,7 @@ export class StartDebugActionItem implements IActionItem {
 			});
 		});
 
-		this.selectBox.setOptions(this.options.map(data => <ISelectOptionItem>{ optionText: data.label }), this.selected, disabledIdx);
+		this.selectBox.setOptions(this.options.map((data, index) => <ISelectOptionItem>{ optionText: data.label, isDisabled: (index === disabledIdx ? true : undefined) }), this.selected);
 	}
 }
 

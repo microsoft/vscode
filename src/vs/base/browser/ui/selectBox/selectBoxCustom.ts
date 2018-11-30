@@ -91,7 +91,6 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 	private selectElement: HTMLSelectElement;
 	private options: ISelectOptionItem[];
 	private selected: number;
-	private disabledOptionIndex: number;
 	private readonly _onDidSelect: Emitter<ISelectData>;
 	private toDispose: IDisposable[];
 	private styles: ISelectBoxStyles;
@@ -104,6 +103,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 	private widthControlElement: HTMLElement;
 	private _currentSelection: number;
 	private _dropDownPosition: AnchorPosition;
+	private _hasDetails: boolean = false;
 	private selectionDetailsPane: HTMLElement;
 	private _skipLayout: boolean = false;
 
@@ -244,19 +244,18 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 		return this._onDidSelect.event;
 	}
 
-	public setOptions(options: ISelectOptionItem[], selected?: number, disabled?: number): void {
+	public setOptions(options: ISelectOptionItem[], selected?: number): void {
 		if (!this.options || !arrays.equals(this.options, options)) {
 			this.options = options;
 			this.selectElement.options.length = 0;
+			this._hasDetails = false;
 
-			let i = 0;
-			this.options.forEach((option) => {
-				this.selectElement.add(this.createOption(option.optionText, i, disabled === i++));
+			this.options.map((option, index) => {
+				this.selectElement.add(this.createOption(option.optionText, index, option.isDisabled));
+				if (typeof option.optionItemDescription === 'string') {
+					this._hasDetails = true;
+				}
 			});
-
-			if (disabled !== undefined) {
-				this.disabledOptionIndex = disabled;
-			}
 		}
 
 		if (selected !== undefined) {
@@ -272,18 +271,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 		// Mirror options in drop-down
 		// Populate select list for non-native select mode
 		if (this.selectList && !!this.options) {
-			let listEntries: ISelectOptionItem[];
-			listEntries = [];
-
-			for (let index = 0; index < this.options.length; index++) {
-				const element = this.options[index];
-				let isDisabled: boolean;
-				index === this.disabledOptionIndex ? isDisabled = true : isDisabled = false;
-
-				// listEntries.push({ optionText: element.optionText, isDisabled: isDisabled, optionItemDescription: optionDescription.details });
-				listEntries.push({ optionText: element.optionText, isDisabled: isDisabled, optionItemDescription: element.optionItemDescription, optionItemDescriptionIsMarkdown: element.optionItemDescriptionIsMarkdown });
-			}
-			this.selectList.splice(0, this.selectList.length, listEntries);
+			this.selectList.splice(0, this.selectList.length, this.options);
 		}
 	}
 
@@ -580,7 +568,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 			this.selectList.layout();
 			let listHeight = this.selectList.contentHeight;
 
-			const maxDetailsPaneHeight = this.measureMaxDetailsHeight();
+			const maxDetailsPaneHeight = this._hasDetails ? this.measureMaxDetailsHeight() : 0;
 
 			const minRequiredDropDownHeight = listHeight + verticalPadding + maxDetailsPaneHeight;
 			const maxVisibleOptionsBelow = ((Math.floor((maxSelectDropDownHeightBelow - verticalPadding - maxDetailsPaneHeight) / this.getHeight())));
@@ -672,7 +660,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 				this.selectList.reveal(this.selectList.getFocus()[0] || 0);
 			}
 
-			if (this.selectBoxOptions.hasDetails) {
+			if (this._hasDetails) {
 				// Leave the selectDropDownContainer to size itself according to children (list + details) - #57447
 				this.selectList.getHTMLElement().style.height = (listHeight + verticalPadding) + 'px';
 			} else {
@@ -851,7 +839,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 	// List Focus Change - passive - update details pane with newly focused element's data
 	private onListFocus(e: IListEvent<ISelectOptionItem>) {
 		// Skip during initial layout
-		if (!this._isVisible) {
+		if (!this._isVisible || !this._hasDetails) {
 			return;
 		}
 
@@ -906,14 +894,18 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 	// List navigation - have to handle a disabled option (jump over)
 	private onDownArrow(): void {
 		if (this.selected < this.options.length - 1) {
+
 			// Skip disabled options
-			if ((this.selected + 1) === this.disabledOptionIndex && this.options.length > this.selected + 2) {
+			const nextOptionDisabled = this.options[this.selected + 1].isDisabled;
+
+			if (nextOptionDisabled && this.options.length > this.selected + 2) {
 				this.selected += 2;
-			} else if ((this.selected + 1) === this.disabledOptionIndex) {
+			} else if (nextOptionDisabled) {
 				return;
 			} else {
 				this.selected++;
 			}
+
 			// Set focus/selection - only fire event when closing drop-down or on blur
 			this.select(this.selected);
 			this.selectList.setFocus([this.selected]);
@@ -924,7 +916,8 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 	private onUpArrow(): void {
 		if (this.selected > 0) {
 			// Skip disabled options
-			if ((this.selected - 1) === this.disabledOptionIndex && this.selected > 1) {
+			const previousOptionDisabled = this.options[this.selected - 1].isDisabled;
+			if (previousOptionDisabled && this.selected > 1) {
 				this.selected -= 2;
 			} else {
 				this.selected--;
@@ -946,7 +939,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 			this.selected = this.selectList.getFocus()[0];
 
 			// Shift selection down if we land on a disabled option
-			if (this.selected === this.disabledOptionIndex && this.selected < this.options.length - 1) {
+			if (this.options[this.selected].isDisabled && this.selected < this.options.length - 1) {
 				this.selected++;
 				this.selectList.setFocus([this.selected]);
 			}
@@ -965,7 +958,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 			this.selected = this.selectList.getFocus()[0];
 
 			// Shift selection up if we land on a disabled option
-			if (this.selected === this.disabledOptionIndex && this.selected > 0) {
+			if (this.options[this.selected].isDisabled && this.selected > 0) {
 				this.selected--;
 				this.selectList.setFocus([this.selected]);
 			}
@@ -981,7 +974,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 			return;
 		}
 		this.selected = 0;
-		if (this.selected === this.disabledOptionIndex && this.selected > 1) {
+		if (this.options[this.selected].isDisabled && this.selected > 1) {
 			this.selected++;
 		}
 		this.selectList.setFocus([this.selected]);
@@ -996,7 +989,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 			return;
 		}
 		this.selected = this.options.length - 1;
-		if (this.selected === this.disabledOptionIndex && this.selected > 1) {
+		if (this.options[this.selected].isDisabled && this.selected > 1) {
 			this.selected--;
 		}
 		this.selectList.setFocus([this.selected]);
@@ -1011,7 +1004,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 
 		for (let i = 0; i < this.options.length - 1; i++) {
 			optionIndex = (i + this.selected + 1) % this.options.length;
-			if (this.options[optionIndex].optionText.charAt(0).toUpperCase() === ch) {
+			if (this.options[optionIndex].optionText.charAt(0).toUpperCase() === ch && !this.options[optionIndex].isDisabled) {
 				this.select(optionIndex);
 				this.selectList.setFocus([optionIndex]);
 				this.selectList.reveal(this.selectList.getFocus()[0]);

@@ -841,7 +841,7 @@ export class SettingsRenderer implements ITreeRenderer {
 	private renderSettingEnumTemplate(tree: ITree, container: HTMLElement): ISettingEnumItemTemplate {
 		const common = this.renderCommonTemplate(tree, container, 'enum');
 
-		const selectBox = new SelectBox([], undefined, this.contextViewService, undefined, { hasDetails: true, useCustomSelectBox: true });
+		const selectBox = new SelectBox([], undefined, this.contextViewService, undefined, { useCustomSelectBox: true });
 
 		common.toDispose.push(selectBox);
 		common.toDispose.push(attachSelectBoxStyler(selectBox, this.themeService, {
@@ -1164,18 +1164,17 @@ export class SettingsRenderer implements ITreeRenderer {
 
 	private renderEnum(dataElement: SettingsTreeSettingElement, template: ISettingEnumItemTemplate, onChange: (value: string) => void): void {
 
-		let displayOptions = dataElement.setting.enum
-			.map(String)
-			.map(escapeInvisibleChars)
-			.map(data => <ISelectOptionItem>{ optionText: data });
-
 		const enumDescriptions = dataElement.setting.enumDescriptions;
 		const enumDescriptionsAreMarkdown = dataElement.setting.enumDescriptionsAreMarkdown;
 
-		for (let index = 0; index < displayOptions.length; index++) {
-			displayOptions[index].optionItemDescription = enumDescriptions && enumDescriptions[index] && (enumDescriptionsAreMarkdown ? fixSettingLinks(enumDescriptions[index], false) : enumDescriptions[index]);
-			displayOptions[index].optionItemDescriptionIsMarkdown = enumDescriptionsAreMarkdown;
-		}
+		let displayOptions = dataElement.setting.enum
+			.map(String)
+			.map(escapeInvisibleChars)
+			.map((data, index) => <ISelectOptionItem>{
+				optionText: data,
+				optionItemDescription: (enumDescriptions && enumDescriptions[index] && (enumDescriptionsAreMarkdown ? fixSettingLinks(enumDescriptions[index], false) : enumDescriptions[index])),
+				optionItemDescriptionIsMarkdown: enumDescriptionsAreMarkdown
+			});
 
 		template.selectBox.setOptions(displayOptions);
 
