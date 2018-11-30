@@ -1404,9 +1404,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			}
 
 			dom.append(messageEl, $('p', undefined, resultMsg));
-			if (msgWasHidden) {
-				this.reLayout();
-			}
+			this.reLayout();
 		} else if (!msgWasHidden) {
 			dom.hide(this.messagesElement);
 		}
