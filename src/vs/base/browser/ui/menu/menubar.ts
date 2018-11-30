@@ -6,6 +6,7 @@
 import * as browser from 'vs/base/browser/browser';
 import * as DOM from 'vs/base/browser/dom';
 import * as strings from 'vs/base/common/strings';
+import * as nls from 'vs/nls';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
@@ -274,15 +275,13 @@ export class MenuBar extends Disposable {
 	}
 
 	createOverflowMenu(): void {
-		const buttonElement = $('div.menubar-menu-button', { 'role': 'menuitem', 'tabindex': -1, 'aria-label': 'More', 'aria-haspopup': true });
-		const titleElement = $('div.menubar-menu-title', { 'role': 'none', 'aria-hidden': true });
-		titleElement.innerText = 'More';
+		const label = nls.localize('mMore', "...");
+		const buttonElement = $('div.menubar-menu-button', { 'role': 'menuitem', 'tabindex': -1, 'aria-label': label, 'aria-haspopup': true });
+		const titleElement = $('div.menubar-menu-title.toolbar-toggle-more', { 'role': 'none', 'aria-hidden': true });
 
 		buttonElement.appendChild(titleElement);
 		this.container.appendChild(buttonElement);
 		buttonElement.style.visibility = 'hidden';
-
-		this.updateLabels(titleElement, buttonElement, 'More');
 
 		this._register(DOM.addDisposableListener(buttonElement, DOM.EventType.KEY_UP, (e) => {
 			let event = new StandardKeyboardEvent(e as KeyboardEvent);

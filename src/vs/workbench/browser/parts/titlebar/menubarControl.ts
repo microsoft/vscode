@@ -630,6 +630,10 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		.monaco-workbench .menubar > .menubar-menu-button {
 			color: ${menubarActiveWindowFgColor};
 		}
+
+		.monaco-workbench .menubar .toolbar-toggle-more {
+			background-color: ${menubarActiveWindowFgColor}
+		}
 		`);
 	}
 
@@ -638,6 +642,10 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		collector.addRule(`
 			.monaco-workbench .menubar.inactive > .menubar-menu-button {
 				color: ${menubarInactiveWindowFgColor};
+			}
+
+			.monaco-workbench .menubar.inactive > .menubar-menu-button .toolbar-toggle-more {
+				background-color: ${menubarInactiveWindowFgColor}
 			}
 		`);
 	}
@@ -650,6 +658,12 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			.monaco-workbench .menubar > .menubar-menu-button:focus,
 			.monaco-workbench .menubar:not(:focus-within) > .menubar-menu-button:hover {
 				color: ${menubarSelectedFgColor};
+			}
+
+			.monaco-workbench .menubar  > .menubar-menu-button.open .toolbar-toggle-more,
+			.monaco-workbench .menubar > .menubar-menu-button:focus .toolbar-toggle-more,
+			.monaco-workbench .menubar:not(:focus-within) > .menubar-menu-button:hover .toolbar-toggle-more {
+				background-color: ${menubarSelectedFgColor}
 			}
 		`);
 	}
