@@ -31,7 +31,6 @@ import { activeContrastBorder, contrastBorder, registerColor } from 'vs/platform
 import { ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { PeekViewWidget } from './peekViewWidget';
 import { FileReferences, OneReference, ReferencesModel } from './referencesModel';
-import { timeout } from 'vs/base/common/async';
 
 class DecorationsManager implements IDisposable {
 
