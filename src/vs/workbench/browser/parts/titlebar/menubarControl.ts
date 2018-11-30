@@ -254,6 +254,12 @@ export class MenubarControl extends Disposable {
 		if (!isMacintosh && this.currentTitlebarStyleSetting === 'custom') {
 			// Listen for window focus changes
 			this._register(this.windowService.onDidChangeFocus(e => this.onDidChangeWindowFocus(e)));
+
+			this._register(this.windowService.onDidChangeMaximize(e => this.updateMenubar()));
+
+			this._register(DOM.addDisposableListener(window, DOM.EventType.RESIZE, () => {
+				this.menubar.blur();
+			}));
 		}
 	}
 
