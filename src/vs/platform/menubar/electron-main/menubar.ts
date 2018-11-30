@@ -719,8 +719,11 @@ export class Menubar {
 		}
 
 		if (activeWindow) {
-			if (!activeWindow.isReady && isMacintosh && id === 'workbench.action.toggleDevTools') {
-				return; // prevent this action from running twice on macOS (https://github.com/Microsoft/vscode/issues/62719)
+			if (!activeWindow.isReady && isMacintosh && id === 'workbench.action.toggleDevTools' && !this.environmentService.isBuilt) {
+				// prevent this action from running twice on macOS (https://github.com/Microsoft/vscode/issues/62719)
+				// we already register a keybinding in bootstrap-window.js for opening developer tools in case something
+				// goes wrong and that keybinding is only removed when the application has loaded (= window ready).
+				return;
 			}
 
 			this.windowsMainService.sendToFocused('vscode:runAction', { id, from: 'menu' } as IRunActionInWindowRequest);
