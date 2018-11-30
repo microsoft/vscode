@@ -66,7 +66,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 			return part;
 		}
 		data = cloneAndChange(data, value => {
-			if (markdown.uris[value]) {
+			if (markdown.uris && markdown.uris[value]) {
 				return URI.revive(markdown.uris[value]);
 			} else {
 				return undefined;
