@@ -256,6 +256,14 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		return this.view.getHTMLElement();
 	}
 
+	get contentHeight(): number {
+		return this.view.contentHeight;
+	}
+
+	get onDidChangeContentHeight(): Event<number> {
+		return this.view.onDidChangeContentHeight;
+	}
+
 	get scrollTop(): number {
 		return this.view.scrollTop;
 	}

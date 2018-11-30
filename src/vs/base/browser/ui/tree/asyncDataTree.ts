@@ -233,6 +233,14 @@ export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> imple
 		return this.tree.getHTMLElement();
 	}
 
+	get contentHeight(): number {
+		return this.tree.contentHeight;
+	}
+
+	get onDidChangeContentHeight(): Event<number> {
+		return this.tree.onDidChangeContentHeight;
+	}
+
 	get scrollTop(): number {
 		return this.tree.scrollTop;
 	}

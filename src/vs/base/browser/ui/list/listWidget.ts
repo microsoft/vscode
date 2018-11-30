@@ -1037,7 +1037,11 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	get contentHeight(): number {
-		return this.view.getContentHeight();
+		return this.view.contentHeight;
+	}
+
+	get onDidChangeContentHeight(): Event<number> {
+		return this.view.onDidChangeContentHeight;
 	}
 
 	get scrollTop(): number {
