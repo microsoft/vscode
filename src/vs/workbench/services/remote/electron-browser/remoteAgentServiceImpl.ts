@@ -41,7 +41,7 @@ class RemoteAgentConnection extends Disposable implements IRemoteAgentConnection
 
 	readonly remoteAuthority: string;
 	private _connection: Thenable<Client<RemoteAgentConnectionContext>> | null;
-	private _environment: Thenable<IRemoteAgentEnvironment> | null;
+	private _environment: Thenable<IRemoteAgentEnvironment | null> | null;
 
 	constructor(
 		remoteAuthority: string,
@@ -55,7 +55,7 @@ class RemoteAgentConnection extends Disposable implements IRemoteAgentConnection
 		this._environment = null;
 	}
 
-	getEnvironment(): Thenable<IRemoteAgentEnvironment> {
+	getEnvironment(): Thenable<IRemoteAgentEnvironment | null> {
 		if (!this._environment) {
 			const client = new RemoteExtensionEnvironmentChannelClient(this.getChannel('remoteextensionsenvironment'));
 

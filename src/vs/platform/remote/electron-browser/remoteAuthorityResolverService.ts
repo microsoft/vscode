@@ -38,7 +38,7 @@ export class RemoteAuthorityResolverService implements IRemoteAuthorityResolverS
 				resolve = _resolve;
 				reject = _reject;
 			});
-			this._pendingResolveAuthorityRequests[authority] = new PendingResolveAuthorityRequest(resolve, reject, promise);
+			this._pendingResolveAuthorityRequests[authority] = new PendingResolveAuthorityRequest(resolve!, reject!, promise);
 		}
 		return this._pendingResolveAuthorityRequests[authority].promise;
 	}

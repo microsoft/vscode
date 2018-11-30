@@ -482,8 +482,6 @@
 		"./vs/platform/remote/electron-browser/remoteAuthorityResolverService.ts",
 		"./vs/platform/remote/node/remoteAgentConnection.ts",
 		"./vs/platform/remote/node/remoteAgentFileSystemChannel.ts",
-		"./vs/platform/remote/node/remoteAuthorityResolverChannel.ts",
-		"./vs/platform/remote/node/remoteAuthorityResolverService.ts",
 		"./vs/platform/request/electron-browser/requestService.ts",
 		"./vs/platform/request/electron-main/requestService.ts",
 		"./vs/platform/request/node/request.ts",
