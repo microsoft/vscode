@@ -174,7 +174,13 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 	private migrateGlobalStorage(): Thenable<void> {
 		this.logService.info('[storage] migrating global storage from localStorage into SQLite');
 
-		return new Promise((resolve, reject) => {
+		const localStorageDBBackup = join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage.vscmig');
+
+		return exists(localStorageDBBackup).then(exists => {
+			if (!exists) {
+				return Promise.resolve(); // return if there is no DB to migrate from
+			}
+
 			return readdir(this.environmentService.extensionsPath).then(extensions => {
 				const supportedKeys = new Map<string, string>();
 				[
@@ -246,79 +252,93 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 					}
 				});
 
-				const handleSuffixKey = (row, key: string, suffix: string) => {
-					if (endsWith(key, suffix.toLowerCase())) {
-						const value: string = row.value.toString('utf16le');
-						const normalizedKey = key.substring(0, key.length - suffix.length) + suffix;
-
-						this.store(normalizedKey, value);
-
-						return true;
-					}
-
-					return false;
-				};
-
 				return import('vscode-sqlite3').then(sqlite3 => {
-					const localStorageDBBackup = join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage.vscmig');
-					const db: Database = new (sqlite3.Database)(localStorageDBBackup, error => {
-						if (error) {
-							return db ? db.close(() => reject(error)) : reject(error);
-						}
 
-						db.all('SELECT key, value FROM ItemTable', (error, rows) => {
-							if (error) {
-								return db.close(() => reject(error));
+					return new Promise((resolve, reject) => {
+						const handleSuffixKey = (row, key: string, suffix: string) => {
+							if (endsWith(key, suffix.toLowerCase())) {
+								const value: string = row.value.toString('utf16le');
+								const normalizedKey = key.substring(0, key.length - suffix.length) + suffix;
+
+								this.store(normalizedKey, value);
+
+								return true;
 							}
 
-							rows.forEach(row => {
-								let key: string = row.key;
-								if (key.indexOf('storage://global/') !== 0) {
-									return; // not a global key
+							return false;
+						};
+
+						const db: Database = new (sqlite3.Database)(localStorageDBBackup, error => {
+							if (error) {
+								if (db) {
+									db.close();
 								}
 
-								// convert storage://global/colorthemedata => colorthemedata
-								key = key.substr('storage://global/'.length);
+								return reject(error);
+							}
 
-								const supportedKey = supportedKeys.get(key);
-								if (supportedKey) {
-									const value: string = row.value.toString('utf16le');
+							db.all('SELECT key, value FROM ItemTable', (error, rows) => {
+								if (error) {
+									db.close();
 
-									this.store(supportedKey, value);
+									return reject(error);
 								}
 
-								// dynamic values
-								else if (
-									endsWith(key, '.hidden') ||
-									startsWith(key, 'experiments.')
-								) {
-									const value: string = row.value.toString('utf16le');
+								try {
+									rows.forEach(row => {
+										let key: string = row.key;
+										if (key.indexOf('storage://global/') !== 0) {
+											return; // not a global key
+										}
 
-									this.store(key, value);
+										// convert storage://global/colorthemedata => colorthemedata
+										key = key.substr('storage://global/'.length);
+
+										const supportedKey = supportedKeys.get(key);
+										if (supportedKey) {
+											const value: string = row.value.toString('utf16le');
+
+											this.store(supportedKey, value);
+										}
+
+										// dynamic values
+										else if (
+											endsWith(key, '.hidden') ||
+											startsWith(key, 'experiments.')
+										) {
+											const value: string = row.value.toString('utf16le');
+
+											this.store(key, value);
+										}
+
+										// fix lowercased ".sessionCount"
+										else if (handleSuffixKey(row, key, '.sessionCount')) { }
+
+										// fix lowercased ".lastSessionDate"
+										else if (handleSuffixKey(row, key, '.lastSessionDate')) { }
+
+										// fix lowercased ".skipVersion"
+										else if (handleSuffixKey(row, key, '.skipVersion')) { }
+
+										// fix lowercased ".isCandidate"
+										else if (handleSuffixKey(row, key, '.isCandidate')) { }
+
+										// fix lowercased ".editedCount"
+										else if (handleSuffixKey(row, key, '.editedCount')) { }
+
+										// fix lowercased ".editedDate"
+										else if (handleSuffixKey(row, key, '.editedDate')) { }
+									});
+
+									db.close();
+								} catch (error) {
+									db.close();
+
+									return reject(error);
 								}
 
-								// fix lowercased ".sessionCount"
-								else if (handleSuffixKey(row, key, '.sessionCount')) { }
-
-								// fix lowercased ".lastSessionDate"
-								else if (handleSuffixKey(row, key, '.lastSessionDate')) { }
-
-								// fix lowercased ".skipVersion"
-								else if (handleSuffixKey(row, key, '.skipVersion')) { }
-
-								// fix lowercased ".isCandidate"
-								else if (handleSuffixKey(row, key, '.isCandidate')) { }
-
-								// fix lowercased ".editedCount"
-								else if (handleSuffixKey(row, key, '.editedCount')) { }
-
-								// fix lowercased ".editedDate"
-								else if (handleSuffixKey(row, key, '.editedDate')) { }
+								resolve();
 							});
-
-							db.close();
-
-							resolve();
 						});
 					});
 				});
