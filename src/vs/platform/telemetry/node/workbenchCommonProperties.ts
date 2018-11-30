@@ -17,7 +17,7 @@ export function resolveWorkbenchCommonProperties(storageService: IStorageService
 		result['common.version.renderer'] = process.versions && (<any>process).versions['chrome'];
 
 		const lastSessionDate = storageService.get(lastSessionDateStorageKey, StorageScope.GLOBAL);
-		storageService.store('telemetry.lastSessionDate', new Date().toUTCString(), StorageScope.GLOBAL);
+		storageService.store(lastSessionDateStorageKey, new Date().toUTCString(), StorageScope.GLOBAL);
 
 		// __GDPR__COMMON__ "common.firstSessionDate" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		result['common.firstSessionDate'] = getOrCreateFirstSessionDate(storageService);

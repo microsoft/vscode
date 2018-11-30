@@ -27,6 +27,20 @@ bootstrap.enableASARSupport();
 // Set userData path before app 'ready' event and call to process.chdir
 const args = parseCLIArgs();
 const userDataPath = getUserDataPath(args);
+
+// TODO@Ben global storage migration needs to happen very early before app.on("ready")
+// We copy the DB instead of moving it to ensure we are not running into locking issues
+try {
+	const localStorageHome = path.join(userDataPath, 'Local Storage');
+	const localStorageDB = path.join(localStorageHome, 'file__0.localstorage');
+	const localStorageDBBackup = path.join(localStorageHome, 'file__0.localstorage.vscmig');
+	if (!fs.existsSync(localStorageDBBackup) && fs.existsSync(localStorageDB)) {
+		fs.copyFileSync(localStorageDB, localStorageDBBackup);
+	}
+} catch (error) {
+	console.error(error);
+}
+
 app.setPath('userData', userDataPath);
 
 // Update cwd based on environment and platform

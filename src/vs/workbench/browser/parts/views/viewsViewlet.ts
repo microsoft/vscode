@@ -15,7 +15,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { PanelViewlet, ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
@@ -375,7 +375,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 
 	protected saveState(): void {
 		this.panels.forEach((view) => view.saveState());
-		this.storageService.store(this.visibleViewsStorageId, this.length, this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? StorageScope.WORKSPACE : StorageScope.GLOBAL);
+		this.storageService.store(this.visibleViewsStorageId, this.length, StorageScope.WORKSPACE);
 
 		super.saveState();
 	}
