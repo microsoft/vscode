@@ -15,7 +15,6 @@ import * as browser from 'vs/base/browser/browser';
 import * as platform from 'vs/base/common/platform';
 import { IContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
 import { popup } from 'vs/base/parts/contextmenu/electron-browser/contextmenu';
-import { DebugConfiguration } from 'vscode';
 
 let processList: any[];
 let mapPidToWindowTitle = new Map<number, string>();
@@ -72,7 +71,7 @@ function isDebuggable(cmd: string): boolean {
 }
 
 function attachTo(item: ProcessItem) {
-	const config: DebugConfiguration = {
+	const config: any = {
 		type: 'node',
 		request: 'attach',
 		name: `process ${item.pid}`

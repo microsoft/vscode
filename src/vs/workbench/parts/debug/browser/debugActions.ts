@@ -133,7 +133,9 @@ export class StartAction extends AbstractDebugAction {
 		this.toDispose.push(this.contextService.onDidChangeWorkbenchState(() => this.updateEnablement()));
 	}
 
-	public run(config?: string | IConfig): Thenable<any> {
+	// Note: When this action is executed from the process explorer, a config is passed. For all
+	// other cases it is run with no arguments.
+	public run(config?: IConfig): Thenable<any> {
 		if (config) {
 			return this.debugService.startDebugging(undefined, config, this.isNoDebug());
 		}
