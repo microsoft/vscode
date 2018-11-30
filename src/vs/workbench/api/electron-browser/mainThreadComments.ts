@@ -9,7 +9,7 @@ import * as modes from 'vs/editor/common/modes';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { keys } from 'vs/base/common/map';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ExtHostCommentsShape, ExtHostContext, IExtHostContext, MainContext, MainThreadCommentsShape } from '../node/extHost.protocol';
+import { ExtHostCommentsShape, ExtHostContext, IExtHostContext, MainContext, MainThreadCommentsShape, CommentProviderFeatures } from '../node/extHost.protocol';
 
 import { ICommentService } from 'vs/workbench/parts/comments/electron-browser/commentService';
 import { COMMENTS_PANEL_ID } from 'vs/workbench/parts/comments/electron-browser/commentsPanel';
@@ -18,13 +18,18 @@ import { URI } from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { generateUuid } from 'vs/base/common/uuid';
 
-export class ExtensionCommentProviderHandler implements modes.DocumentCommentProvider {
+export class MainThreadDocumentCommentProvider implements modes.DocumentCommentProvider {
 	private _proxy: ExtHostCommentsShape;
 	private _handle: number;
+	private _features: CommentProviderFeatures;
+	get startDraftLabel(): string { return this._features.startDraftLabel; }
+	get deleteDraftLabel(): string { return this._features.deleteDraftLabel; }
+	get finishDraftLabel(): string { return this._features.finishDraftLabel; }
 
-	constructor(proxy: ExtHostCommentsShape, handle: number) {
+	constructor(proxy: ExtHostCommentsShape, handle: number, features: CommentProviderFeatures) {
 		this._proxy = proxy;
 		this._handle = handle;
+		this._features = features;
 	}
 
 	async provideDocumentComments(uri, token) {
@@ -47,8 +52,19 @@ export class ExtensionCommentProviderHandler implements modes.DocumentCommentPro
 		return this._proxy.$deleteComment(this._handle, uri, comment);
 	}
 
+	async startDraft(token): Promise<void> {
+		return this._proxy.$startDraft(this._handle);
+	}
+	async deleteDraft(token): Promise<void> {
+		return this._proxy.$deleteDraft(this._handle);
+	}
+	async finishDraft(token): Promise<void> {
+		return this._proxy.$finishDraft(this._handle);
+	}
+
 	onDidChangeCommentThreads = null;
 }
+
 @extHostNamedCustomer(MainContext.MainThreadComments)
 export class MainThreadComments extends Disposable implements MainThreadCommentsShape {
 	private _disposables: IDisposable[];
@@ -71,9 +87,9 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostComments);
 	}
 
-	$registerDocumentCommentProvider(handle: number): void {
+	$registerDocumentCommentProvider(handle: number, features: CommentProviderFeatures): void {
 		this._documentProviders.set(handle, undefined);
-		const handler = new ExtensionCommentProviderHandler(this._proxy, handle);
+		const handler = new MainThreadDocumentCommentProvider(this._proxy, handle, features);
 
 		const providerId = generateUuid();
 		this._handlers.set(handle, providerId);

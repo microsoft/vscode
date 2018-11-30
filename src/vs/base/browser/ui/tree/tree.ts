@@ -92,11 +92,11 @@ export interface ITreeModel<T, TFilterData, TRef> {
 	getListIndex(location: TRef): number;
 	getNode(location?: TRef): ITreeNode<T, any>;
 	getNodeLocation(node: ITreeNode<T, any>): TRef;
-	getParentNodeLocation(location: TRef): TRef | null;
+	getParentNodeLocation(location: TRef): TRef;
 
-	getParentElement(location: TRef | null): T | null;
-	getFirstElementChild(location: TRef | null): T | null;
-	getLastElementAncestor(location: TRef | null): T | null;
+	getParentElement(location: TRef): T;
+	getFirstElementChild(location: TRef): T | undefined;
+	getLastElementAncestor(location?: TRef): T | undefined;
 
 	isCollapsed(location: TRef): boolean;
 	setCollapsed(location: TRef, collapsed: boolean): boolean;

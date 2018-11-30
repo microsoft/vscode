@@ -9,57 +9,63 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, IActionOptions, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITextModel } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
-import { DefaultSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/defaultProvider';
 import * as nls from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { TokenTreeSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/tokenTree';
 
-// --- selection state machine
+class SelectionRanges {
 
-class State {
+	constructor(
+		readonly index: number,
+		readonly ranges: Range[]
+	) { }
 
-	public editor: ICodeEditor;
-	public next?: State;
-	public previous?: State;
-	public selection: Range | null;
-
-	constructor(editor: ICodeEditor) {
-		this.editor = editor;
-		this.selection = editor.getSelection();
+	mov(fwd: boolean): SelectionRanges {
+		let index = this.index + (fwd ? 1 : -1);
+		if (index < 0 || index >= this.ranges.length) {
+			return this;
+		}
+		const res = new SelectionRanges(index, this.ranges);
+		if (res.ranges[index].equalsRange(this.ranges[this.index])) {
+			// next range equals this range, retry with next-next
+			return res.mov(fwd);
+		}
+		return res;
 	}
 }
 
-// -- action implementation
-
 class SmartSelectController implements IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.smartSelectController';
+	private static readonly _id = 'editor.contrib.smartSelectController';
 
-	public static get(editor: ICodeEditor): SmartSelectController {
-		return editor.getContribution<SmartSelectController>(SmartSelectController.ID);
+	static get(editor: ICodeEditor): SmartSelectController {
+		return editor.getContribution<SmartSelectController>(SmartSelectController._id);
 	}
 
-	private _editor: ICodeEditor;
-	private _state?: State;
-	private _ignoreSelection: boolean;
+	private readonly _editor: ICodeEditor;
+
+	private _state?: SelectionRanges;
+	private _selectionListener?: IDisposable;
+	private _ignoreSelection: boolean = false;
 
 	constructor(editor: ICodeEditor) {
 		this._editor = editor;
-		this._ignoreSelection = false;
 	}
 
 	dispose(): void {
+		dispose(this._selectionListener);
 	}
 
 	getId(): string {
-		return SmartSelectController.ID;
+		return SmartSelectController._id;
 	}
 
 	run(forward: boolean): Promise<void> | void {
@@ -74,12 +80,6 @@ class SmartSelectController implements IEditorContribution {
 			return;
 		}
 
-		// forget about current state
-		if (this._state) {
-			if (this._state.editor !== this._editor) {
-				this._state = undefined;
-			}
-		}
 
 		let promise: Promise<void> = Promise.resolve(void 0);
 
@@ -94,76 +94,55 @@ class SmartSelectController implements IEditorContribution {
 					return;
 				}
 
-				let lastState: State | undefined;
-				ranges.filter(range => {
+				ranges = ranges.filter(range => {
 					// filter ranges inside the selection
 					return range.containsPosition(selection.getStartPosition()) && range.containsPosition(selection.getEndPosition());
-
-				}).forEach(range => {
-					// create ranges
-					const state = new State(this._editor);
-					state.selection = new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
-					if (lastState) {
-						state.next = lastState;
-						lastState.previous = state;
-					}
-					lastState = state;
 				});
 
-				// insert current selection
-				const editorState = new State(this._editor);
-				editorState.next = lastState;
-				if (lastState) {
-					lastState.previous = editorState;
-				}
-				this._state = editorState;
+				// prepend current selection
+				ranges.unshift(selection);
+
+				this._state = new SelectionRanges(0, ranges);
 
 				// listen to caret move and forget about state
-				const unhook = this._editor.onDidChangeCursorPosition((e: ICursorPositionChangedEvent) => {
-					if (this._ignoreSelection) {
-						return;
+				dispose(this._selectionListener);
+				this._selectionListener = this._editor.onDidChangeCursorPosition(() => {
+					if (!this._ignoreSelection) {
+						dispose(this._selectionListener);
+						this._state = undefined;
 					}
-					this._state = undefined;
-					unhook.dispose();
 				});
 			});
 		}
 
 		return promise.then(() => {
-
 			if (!this._state) {
+				// no state
 				return;
 			}
-
-			this._state = forward ? this._state.next : this._state.previous;
-			if (!this._state) {
-				return;
-			}
-
+			this._state = this._state.mov(forward);
+			const selection = this._state.ranges[this._state.index];
 			this._ignoreSelection = true;
 			try {
-				if (this._state.selection) {
-					this._editor.setSelection(this._state.selection);
-				}
+				this._editor.setSelection(selection);
 			} finally {
 				this._ignoreSelection = false;
 			}
 
-			return;
 		});
 	}
 }
 
 abstract class AbstractSmartSelect extends EditorAction {
 
-	private _forward: boolean;
+	private readonly _forward: boolean;
 
 	constructor(forward: boolean, opts: IActionOptions) {
 		super(opts);
 		this._forward = forward;
 	}
 
-	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+	async run(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		let controller = SmartSelectController.get(editor);
 		if (controller) {
 			await controller.run(this._forward);
@@ -226,4 +205,4 @@ export function provideSelectionRanges(model: ITextModel, position: Position, to
 	return first(provider.map(pro => () => asThenable(() => pro.provideSelectionRanges(model, position, token))), arrays.isNonEmptyArray);
 }
 
-modes.SelectionRangeRegistry.register('*', new DefaultSelectionRangeProvider());
+modes.SelectionRangeRegistry.register('*', new TokenTreeSelectionRangeProvider());

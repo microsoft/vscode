@@ -17,11 +17,13 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		taskService.getWorkspaceTasks().then(workspaceTaskResult => {
 			if (workspaceTaskResult) {
 				workspaceTaskResult.forEach(resultElement => {
-					resultElement.set.tasks.forEach(task => {
-						if (task.runOptions.runOn === RunOnOptions.folderOpen) {
-							taskService.run(task);
-						}
-					});
+					if (resultElement.set) {
+						resultElement.set.tasks.forEach(task => {
+							if (task.runOptions.runOn === RunOnOptions.folderOpen) {
+								taskService.run(task);
+							}
+						});
+					}
 					if (resultElement.configurations) {
 						forEach(resultElement.configurations.byIdentifier, (configedTask) => {
 							if (configedTask.value.runOptions.runOn === RunOnOptions.folderOpen) {

@@ -35,10 +35,10 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { CommentNode } from 'vs/workbench/parts/comments/electron-browser/commentNode';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { ITextModel } from 'vs/editor/common/model';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 const COLLAPSE_ACTION_CLASS = 'expand-review-action octicon octicon-x';
@@ -65,10 +65,12 @@ export class ReviewZoneWidget extends ZoneWidget {
 	private _commentGlyph: CommentGlyphWidget;
 	private _owner: string;
 	private _pendingComment: string;
+	private _draftMode: modes.DraftMode;
 	private _localToDispose: IDisposable[];
 	private _globalToDispose: IDisposable[];
 	private _markdownRenderer: MarkdownRenderer;
 	private _styleElement: HTMLStyleElement;
+	private _formActions: HTMLElement;
 	private _error: HTMLElement;
 
 	public get owner(): string {
@@ -91,6 +93,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		owner: string,
 		commentThread: modes.CommentThread,
 		pendingComment: string,
+		draftMode: modes.DraftMode,
 		options: IOptions = {}
 	) {
 		super(editor, options);
@@ -98,9 +101,11 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._owner = owner;
 		this._commentThread = commentThread;
 		this._pendingComment = pendingComment;
+		this._draftMode = draftMode;
 		this._isCollapsed = commentThread.collapsibleState !== modes.CommentThreadCollapsibleState.Expanded;
 		this._globalToDispose = [];
 		this._localToDispose = [];
+		this._formActions = null;
 		this.create();
 
 		this._styleElement = dom.createStyleSheet(this.domNode);
@@ -258,14 +263,22 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this.createThreadLabel();
 	}
 
+	updateDraftMode(draftMode: modes.DraftMode) {
+		this._draftMode = draftMode;
+
+		if (this._formActions) {
+			let model = this._commentEditor.getModel();
+			dom.clearNode(this._formActions);
+			this.createCommentWidgetActions(this._formActions, model);
+		}
+	}
+
 	protected _doLayout(heightInPixel: number, widthInPixel: number): void {
 		this._commentEditor.layout({ height: (this._commentEditor.hasWidgetFocus() ? 5 : 1) * 18, width: widthInPixel - 54 /* margin 20px * 10 + scrollbar 14px*/ });
 	}
 
-	display(lineNumber: number, commentsOptions: ModelDecorationOptions) {
-		this._commentGlyph = new CommentGlyphWidget(this.editor, lineNumber, commentsOptions, () => {
-			this.toggleExpand();
-		});
+	display(lineNumber: number) {
+		this._commentGlyph = new CommentGlyphWidget(this.editor, lineNumber);
 
 		this._localToDispose.push(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
 		this._localToDispose.push(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
@@ -328,25 +341,8 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 		this._error = dom.append(this._commentForm, dom.$('.validation-error.hidden'));
 
-		const formActions = dom.append(this._commentForm, dom.$('.form-actions'));
-
-		const button = new Button(formActions);
-		attachButtonStyler(button, this.themeService);
-		button.label = 'Add comment';
-
-		button.enabled = model.getValueLength() > 0;
-		this._localToDispose.push(this._commentEditor.onDidChangeModelContent(_ => {
-			if (this._commentEditor.getValue()) {
-				button.enabled = true;
-			} else {
-				button.enabled = false;
-			}
-		}));
-
-		button.onDidClick(async () => {
-			let lineNumber = this._commentGlyph.getPosition().position.lineNumber;
-			this.createComment(lineNumber);
-		});
+		this._formActions = dom.append(this._commentForm, dom.$('.form-actions'));
+		this.createCommentWidgetActions(this._formActions, model);
 
 		this._resizeObserver = new MutationObserver(this._refresh.bind(this));
 
@@ -369,6 +365,85 @@ export class ReviewZoneWidget extends ZoneWidget {
 				dom.addClass(this._commentForm, 'expand');
 			}
 			this._commentEditor.focus();
+		}
+	}
+
+	private createCommentWidgetActions(container: HTMLElement, model: ITextModel) {
+		const button = new Button(container);
+		attachButtonStyler(button, this.themeService);
+		button.label = 'Add comment';
+
+		button.enabled = model.getValueLength() > 0;
+		this._localToDispose.push(this._commentEditor.onDidChangeModelContent(_ => {
+			if (this._commentEditor.getValue()) {
+				button.enabled = true;
+			} else {
+				button.enabled = false;
+			}
+		}));
+
+		button.onDidClick(async () => {
+			let lineNumber = this._commentGlyph.getPosition().position.lineNumber;
+			this.createComment(lineNumber);
+		});
+
+		if (this._draftMode === modes.DraftMode.NotSupported) {
+			return;
+		}
+
+		switch (this._draftMode) {
+			case modes.DraftMode.InDraft:
+				const deleteDraftLabel = this.commentService.getDeleteDraftLabel(this._owner);
+				if (deleteDraftLabel) {
+					const deletedraftButton = new Button(container);
+					attachButtonStyler(deletedraftButton, this.themeService);
+					deletedraftButton.label = deleteDraftLabel;
+					deletedraftButton.enabled = true;
+
+					deletedraftButton.onDidClick(async () => {
+						await this.commentService.deleteDraft(this._owner);
+					});
+				}
+
+				const submitDraftLabel = this.commentService.getFinishDraftLabel(this._owner);
+				if (submitDraftLabel) {
+					const submitdraftButton = new Button(container);
+					attachButtonStyler(submitdraftButton, this.themeService);
+					submitdraftButton.label = this.commentService.getFinishDraftLabel(this._owner);
+					submitdraftButton.enabled = true;
+
+					submitdraftButton.onDidClick(async () => {
+						let lineNumber = this._commentGlyph.getPosition().position.lineNumber;
+						await this.createComment(lineNumber);
+						await this.commentService.finishDraft(this._owner);
+					});
+				}
+
+				break;
+			case modes.DraftMode.NotInDraft:
+				const startDraftLabel = this.commentService.getStartDraftLabel(this._owner);
+				if (startDraftLabel) {
+					const draftButton = new Button(container);
+					attachButtonStyler(draftButton, this.themeService);
+					draftButton.label = this.commentService.getStartDraftLabel(this._owner);
+
+					draftButton.enabled = model.getValueLength() > 0;
+					this._localToDispose.push(this._commentEditor.onDidChangeModelContent(_ => {
+						if (this._commentEditor.getValue()) {
+							draftButton.enabled = true;
+						} else {
+							draftButton.enabled = false;
+						}
+					}));
+
+					draftButton.onDidClick(async () => {
+						await this.commentService.startDraft(this._owner);
+						let lineNumber = this._commentGlyph.getPosition().position.lineNumber;
+						await this.createComment(lineNumber);
+					});
+				}
+
+				break;
 		}
 	}
 

@@ -106,7 +106,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 	private registerListeners(): void {
 
 		// Lifecycle
-		this.lifecycleService.onWillShutdown(event => event.veto(this.beforeShutdown(event.reason)));
+		this.lifecycleService.onBeforeShutdown(event => event.veto(this.beforeShutdown(event.reason)));
 		this.lifecycleService.onShutdown(this.dispose, this);
 
 		// Files configuration changes

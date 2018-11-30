@@ -18,7 +18,7 @@ export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleSe
  * Note: It is absolutely important to avoid long running promises if possible. Please try hard
  * to return a boolean directly. Returning a promise has quite an impact on the shutdown sequence!
  */
-export interface WillShutdownEvent {
+export interface BeforeShutdownEvent {
 
 	/**
 	 * Allows to veto the shutdown. The veto can be a long running operation but it
@@ -27,7 +27,7 @@ export interface WillShutdownEvent {
 	veto(value: boolean | Thenable<boolean>): void;
 
 	/**
-	 * The reason why Code will be shutting down.
+	 * The reason why the application will be shutting down.
 	 */
 	reason: ShutdownReason;
 }
@@ -40,7 +40,7 @@ export interface WillShutdownEvent {
  * Note: It is absolutely important to avoid long running promises if possible. Please try hard
  * to return a boolean directly. Returning a promise has quite an impact on the shutdown sequence!
  */
-export interface ShutdownEvent {
+export interface WillShutdownEvent {
 
 	/**
 	 * Allows to join the shutdown. The promise can be a long running operation but it
@@ -49,7 +49,7 @@ export interface ShutdownEvent {
 	join(promise: Thenable<void>): void;
 
 	/**
-	 * The reason why Code is shutting down.
+	 * The reason why the application is shutting down.
 	 */
 	reason: ShutdownReason;
 }
@@ -137,17 +137,26 @@ export interface ILifecycleService {
 
 	/**
 	 * Fired before shutdown happens. Allows listeners to veto against the
-	 * shutdown.
+	 * shutdown to prevent it from happening.
+	 *
+	 * The event carries a shutdown reason that indicates how the shutdown was triggered.
+	 */
+	readonly onBeforeShutdown: Event<BeforeShutdownEvent>;
+
+	/**
+	 * Fired when no client is preventing the shutdown from happening (from onBeforeShutdown).
+	 * Can be used to save UI state even if that is long running through the WillShutdownEvent#join()
+	 * method.
+	 *
+	 * The event carries a shutdown reason that indicates how the shutdown was triggered.
 	 */
 	readonly onWillShutdown: Event<WillShutdownEvent>;
 
 	/**
-	 * Fired when no client is preventing the shutdown from happening. Can be used to dispose heavy resources
-	 * like running processes. Can also be used to save UI state to storage.
-	 *
-	 * The event carries a shutdown reason that indicates how the shutdown was triggered.
+	 * Fired when the shutdown is about to happen after long running shutdown operations
+	 * have finished (from onWillShutdown). This is the right place to dispose resources.
 	 */
-	readonly onShutdown: Event<ShutdownEvent>;
+	readonly onShutdown: Event<void>;
 
 	/**
 	 * Returns a promise that resolves when a certain lifecycle phase
@@ -158,6 +167,7 @@ export interface ILifecycleService {
 
 export const NullLifecycleService: ILifecycleService = {
 	_serviceBrand: null,
+	onBeforeShutdown: Event.None,
 	onWillShutdown: Event.None,
 	onShutdown: Event.None,
 	phase: LifecyclePhase.Restored,

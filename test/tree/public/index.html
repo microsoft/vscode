@@ -28,6 +28,7 @@
 	<input type="text" id="filter" />
 	<button id="collapseall">Collapse All</button>
 	<button id="renderwidth">Render Width</button>
+	<button id="refresh">Refresh</button>
 	<div id="container"></div>
 
 	<script src="/static/vs/loader.js"></script>
@@ -137,13 +138,13 @@
 				};
 
 				const dataSource = new class {
-					hasChildren(node) {
-						return node === null || node.element.type === 'dir';
+					hasChildren(element) {
+						return element === null || element.element.type === 'dir';
 					}
-					getChildren(node) {
+					getChildren(element) {
 						return new Promise((c, e) => {
 							const xhr = new XMLHttpRequest();
-							xhr.open('GET', node ? `/api/readdir?path=${node.element.path}` : '/api/readdir');
+							xhr.open('GET', element ? `/api/readdir?path=${element.element.path}` : '/api/readdir');
 							xhr.send();
 							xhr.onreadystatechange = function () {
 								if (this.readyState == 4 && this.status == 200) {
@@ -152,7 +153,7 @@
 										collapsible: element.type === 'dir'
 									}));
 
-									if (node && /\//.test(node.element.path)) {
+									if (element) {
 										setTimeout(() => c(els), 2500);
 									} else {
 										c(els);
@@ -163,7 +164,13 @@
 					}
 				}
 
-				const tree = new AsyncDataTree(container, delegate, [renderer], dataSource, { filter: treeFilter });
+				const identityProvider = {
+					getId(node) {
+						return node.element.path;
+					}
+				};
+
+				const tree = new AsyncDataTree(container, delegate, [renderer], dataSource, { filter: treeFilter, identityProvider });
 
 				return { tree, treeFilter };
 			}
@@ -194,6 +201,7 @@
 
 					collapseall.onclick = () => perf('collapse all', () => tree.collapseAll());
 					renderwidth.onclick = () => perf('renderwidth', () => tree.layoutWidth(Math.random()));
+					refresh.onclick = () => perf('refresh', () => tree.refresh(null, true));
 
 					tree.refresh(null);
 

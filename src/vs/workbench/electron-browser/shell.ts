@@ -42,7 +42,7 @@ import { ExtensionService } from 'vs/workbench/services/extensions/electron-brow
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/node/instantiationService';
-import { ILifecycleService, LifecyclePhase, ShutdownReason, ShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, LifecyclePhase, WillShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ISearchService, ISearchHistoryService } from 'vs/platform/search/common/search';
@@ -122,8 +122,8 @@ export interface ICoreServices {
  */
 export class WorkbenchShell extends Disposable {
 
-	private readonly _onShutdown = this._register(new Emitter<ShutdownEvent>());
-	get onShutdown(): Event<ShutdownEvent> { return this._onShutdown.event; }
+	private readonly _onWillShutdown = this._register(new Emitter<WillShutdownEvent>());
+	get onWillShutdown(): Event<WillShutdownEvent> { return this._onWillShutdown.event; }
 
 	private storageService: DelegatingStorageService;
 	private environmentService: IEnvironmentService;
@@ -428,11 +428,8 @@ export class WorkbenchShell extends Disposable {
 		serviceCollection.set(IDialogService, instantiationService.createInstance(DialogService));
 
 		const lifecycleService = instantiationService.createInstance(LifecycleService);
-		this._register(lifecycleService.onShutdown(event => {
-			this._onShutdown.fire(event);
-
-			this.dispose(event.reason);
-		}));
+		this._register(lifecycleService.onWillShutdown(event => this._onWillShutdown.fire(event)));
+		this._register(lifecycleService.onShutdown(() => this.dispose()));
 		serviceCollection.set(ILifecycleService, lifecycleService);
 		this.lifecycleService = lifecycleService;
 
@@ -585,12 +582,12 @@ export class WorkbenchShell extends Disposable {
 		this.workbench.layout();
 	}
 
-	dispose(reason = ShutdownReason.QUIT): void {
+	dispose(): void {
 		super.dispose();
 
 		// Dispose Workbench
 		if (this.workbench) {
-			this.workbench.dispose(reason);
+			this.workbench.dispose();
 		}
 
 		this.mainProcessClient.dispose();

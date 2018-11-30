@@ -10,9 +10,9 @@ import * as PConst from '../protocol.const';
 export function snippetForFunctionCall(
 	item: { insertText?: string | vscode.SnippetString; label: string; },
 	displayParts: ReadonlyArray<Proto.SymbolDisplayPart>
-): vscode.SnippetString {
+): { snippet: vscode.SnippetString, parameterCount: number } {
 	if (item.insertText && typeof item.insertText !== 'string') {
-		return item.insertText;
+		return { snippet: item.insertText, parameterCount: 0 };
 	}
 
 	const parameterListParts = getParameterListParts(displayParts, item.label);
@@ -23,7 +23,7 @@ export function snippetForFunctionCall(
 	}
 	snippet.appendText(')');
 	snippet.appendTabstop(0);
-	return snippet;
+	return { snippet, parameterCount: parameterListParts.parts.length + (parameterListParts.hasOptionalParameters ? 1 : 0) };
 }
 
 function appendJoinedPlaceholders(
@@ -59,6 +59,7 @@ function getParameterListParts(
 			case PConst.DisplayPartKind.methodName:
 			case PConst.DisplayPartKind.functionName:
 			case PConst.DisplayPartKind.text:
+			case PConst.DisplayPartKind.propertyName:
 				if (part.text === label && parenCount === 0) {
 					isInMethod = true;
 				}

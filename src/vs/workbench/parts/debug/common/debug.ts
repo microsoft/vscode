@@ -99,7 +99,7 @@ export interface IReplElementSource {
 
 export interface IExpressionContainer extends ITreeElement {
 	readonly hasChildren: boolean;
-	getChildren(): Promise<ReadonlyArray<IExpression>>;
+	getChildren(): Promise<IExpression[]>;
 }
 
 export interface IExpression extends IReplElement, IExpressionContainer {
@@ -158,10 +158,10 @@ export interface IDebugSession extends ITreeElement {
 	rawUpdate(data: IRawModelUpdate): void;
 
 	getThread(threadId: number): IThread;
-	getAllThreads(): ReadonlyArray<IThread>;
+	getAllThreads(): IThread[];
 	clearThreads(removeThreads: boolean, reference?: number): void;
 
-	getReplElements(): ReadonlyArray<IReplElement>;
+	getReplElements(): IReplElement[];
 
 	removeReplExpressions(): void;
 	addReplExpression(stackFrame: IStackFrame, name: string): Promise<void>;
@@ -286,7 +286,7 @@ export interface IStackFrame extends ITreeElement {
 	readonly frameId: number;
 	readonly range: IRange;
 	readonly source: Source;
-	getScopes(): Promise<ReadonlyArray<IScope>>;
+	getScopes(): Promise<IScope[]>;
 	getMostSpecificScopes(range: IRange): Promise<ReadonlyArray<IScope>>;
 	getSpecificSourceName(): string;
 	restart(): Promise<any>;
@@ -380,13 +380,17 @@ export interface IViewModel extends ITreeElement {
 	onDidSelectExpression: Event<IExpression>;
 }
 
+export interface IEvaluate {
+	evaluate(session: IDebugSession, stackFrame: IStackFrame, context: string): Promise<void>;
+}
+
 export interface IDebugModel extends ITreeElement {
-	getSessions(includeInactive?: boolean): ReadonlyArray<IDebugSession>;
+	getSessions(includeInactive?: boolean): IDebugSession[];
 	getBreakpoints(filter?: { uri?: uri, lineNumber?: number, column?: number, enabledOnly?: boolean }): ReadonlyArray<IBreakpoint>;
 	areBreakpointsActivated(): boolean;
 	getFunctionBreakpoints(): ReadonlyArray<IFunctionBreakpoint>;
 	getExceptionBreakpoints(): ReadonlyArray<IExceptionBreakpoint>;
-	getWatchExpressions(): ReadonlyArray<IExpression>;
+	getWatchExpressions(): ReadonlyArray<IExpression & IEvaluate>;
 
 	onDidChangeBreakpoints: Event<IBreakpointsChangeEvent>;
 	onDidChangeCallStack: Event<void>;

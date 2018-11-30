@@ -27,7 +27,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { InstallWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, ManageExtensionAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { WorkbenchPagedList } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -41,6 +41,7 @@ import { IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list'
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { getKeywordsForExtension } from 'vs/workbench/parts/extensions/electron-browser/extensionsUtils';
+import { IAction } from 'vs/base/common/actions';
 
 export class ExtensionsListView extends ViewletPanel {
 
@@ -162,14 +163,22 @@ export class ExtensionsListView extends ViewletPanel {
 
 	private onContextMenu(e: IListContextMenuEvent<IExtension>): void {
 		if (e.element) {
-			const manageExtensionAction = this.instantiationService.createInstance(ManageExtensionAction);
-			manageExtensionAction.extension = e.element;
-			if (manageExtensionAction.enabled) {
-				this.contextMenuService.showContextMenu({
-					getAnchor: () => e.anchor,
-					getActions: () => manageExtensionAction.createActionItem().getActions()
+			this.extensionService.getExtensions()
+				.then(runningExtensions => {
+					const manageExtensionAction = this.instantiationService.createInstance(ManageExtensionAction);
+					manageExtensionAction.extension = e.element;
+					const groups = manageExtensionAction.getActionGroups(runningExtensions);
+					let actions: IAction[] = [];
+					for (const menuActions of groups) {
+						actions = [...actions, ...menuActions, new Separator()];
+					}
+					if (manageExtensionAction.enabled) {
+						this.contextMenuService.showContextMenu({
+							getAnchor: () => e.anchor,
+							getActions: () => actions.slice(0, actions.length - 1)
+						});
+					}
 				});
-			}
 		}
 	}
 
