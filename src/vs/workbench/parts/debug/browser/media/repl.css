@@ -21,6 +21,11 @@
 	visibility: hidden;
 }
 
+/* Align twisite to last line - for input output pair expressions. */
+.monaco-workbench .repl .repl-tree .monaco-tl-twistie {
+	background-position-y: calc(100% - 2px);
+}
+
 .monaco-workbench .repl .repl-tree .monaco-list .monaco-list-row .monaco-tl-contents {
 	line-height: 18px;
 	user-select: text;
