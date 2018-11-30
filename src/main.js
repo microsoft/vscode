@@ -31,10 +31,11 @@ const userDataPath = getUserDataPath(args);
 // TODO@Ben global storage migration needs to happen very early before app.on("ready")
 // We copy the DB instead of moving it to ensure we are not running into locking issues
 try {
+	const globalStorageHome = path.join(userDataPath, 'User', 'globalStorage', 'temp.vscdb');
 	const localStorageHome = path.join(userDataPath, 'Local Storage');
 	const localStorageDB = path.join(localStorageHome, 'file__0.localstorage');
 	const localStorageDBBackup = path.join(localStorageHome, 'file__0.localstorage.vscmig');
-	if (!fs.existsSync(localStorageDBBackup) && fs.existsSync(localStorageDB)) {
+	if (!fs.existsSync(globalStorageHome) && fs.existsSync(localStorageDB)) {
 		fs.copyFileSync(localStorageDB, localStorageDBBackup);
 	}
 } catch (error) {
