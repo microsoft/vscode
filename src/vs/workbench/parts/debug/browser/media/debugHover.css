@@ -6,7 +6,6 @@
 .monaco-editor .debug-hover-widget {
 	position: absolute;
 	margin-top: -1px;
-	cursor: default;
 	z-index: 50;
 	animation-duration: 0.15s;
 	animation-name: fadeIn;
@@ -32,7 +31,6 @@
 
 .monaco-editor .debug-hover-widget .debug-hover-tree {
 	line-height: 18px;
-	max-height: 324px;
 }
 
 .monaco-editor .debug-hover-widget .debug-hover-tree .monaco-list-row .monaco-tl-contents {
