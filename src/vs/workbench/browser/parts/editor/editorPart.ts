@@ -812,9 +812,9 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	private doCreateGridControl(): void {
 
 		// Grid Widget (with previous UI state)
-		// if (this.restorePreviousState) {
-		// 	this.doCreateGridControlWithPreviousState();
-		// }
+		if (this.restorePreviousState) {
+			this.doCreateGridControlWithPreviousState();
+		}
 
 		// Grid Widget (no previous UI state or failed to restore)
 		if (!this.gridWidget) {

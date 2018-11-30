@@ -962,6 +962,37 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Layout
 		if (!skipLayout) {
+			if (this.statusBarHidden) {
+				this.workbenchGrid.removeView(this.statusbarPart);
+			} else {
+				if (!this.sideBarHidden) {
+					this.workbenchGrid.removeView(this.sidebarPart);
+				}
+
+				if (!this.activityBarHidden) {
+					this.workbenchGrid.removeView(this.activitybarPart);
+				}
+
+				if (!this.panelHidden) {
+					this.workbenchGrid.removeView(this.panelPart);
+				}
+
+				this.workbenchGrid.addView(this.statusbarPart, Sizing.Split, this.editorPart, Direction.Down);
+
+				const sidebarDirection = this.sideBarPosition === Position.LEFT ? Direction.Left : Direction.Right;
+				if (!this.activityBarHidden) {
+					this.workbenchGrid.addView(this.activitybarPart, Sizing.Split, this.editorPart, sidebarDirection);
+				}
+
+				if (!this.sideBarHidden) {
+					this.workbenchGrid.addView(this.sidebarPart, Sizing.Split, this.editorPart, sidebarDirection);
+				}
+
+				if (!this.panelHidden) {
+					this.workbenchGrid.addView(this.panelPart, Sizing.Split, this.editorPart, this.panelPosition === Position.BOTTOM ? Direction.Down : Direction.Right);
+				}
+			}
+
 			const size = DOM.getClientArea(this.container);
 			this.workbenchGrid.layout(size.width, size.height);
 		}
@@ -980,12 +1011,29 @@ export class Workbench extends Disposable implements IPartService {
 	}
 
 	private createWorkbenchLayout(): void {
-		this.workbenchGrid = new Grid(this.statusbarPart);
-		this.workbenchGrid.addView(this.sidebarPart, Sizing.Split, this.statusbarPart, Direction.Up);
-		this.workbenchGrid.addView(this.titlebarPart, Sizing.Split, this.sidebarPart, Direction.Up);
-		this.workbenchGrid.addView(this.activitybarPart, Sizing.Split, this.sidebarPart, Direction.Left);
-		this.workbenchGrid.addView(this.editorPart, Sizing.Split, this.sidebarPart, Direction.Right);
-		this.workbenchGrid.addView(this.panelPart, Sizing.Split, this.editorPart, Direction.Down);
+		this.workbenchGrid = new Grid(this.editorPart);
+
+		const sidebarDirection = this.sideBarPosition === Position.RIGHT ? Direction.Right : Direction.Left;
+
+		if (!this.statusBarHidden) {
+			this.workbenchGrid.addView(this.statusbarPart, Sizing.Split, this.editorPart, Direction.Down);
+		}
+
+		if (this.useCustomTitleBarStyle) {
+			this.workbenchGrid.addView(this.titlebarPart, Sizing.Split, this.editorPart, Direction.Up);
+		}
+
+		if (!this.activityBarHidden) {
+			this.workbenchGrid.addView(this.activitybarPart, Sizing.Split, this.editorPart, sidebarDirection);
+		}
+
+		if (!this.sideBarHidden) {
+			this.workbenchGrid.addView(this.sidebarPart, Sizing.Split, this.editorPart, sidebarDirection);
+		}
+
+		if (!this.panelHidden) {
+			this.workbenchGrid.addView(this.panelPart, Sizing.Split, this.editorPart, this.panelPosition === Position.BOTTOM ? Direction.Down : Direction.Right);
+		}
 
 		this.workbench.appendChild(this.workbenchGrid.element);
 
@@ -1377,6 +1425,14 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Layout
 		if (!skipLayout) {
+			if (hidden) {
+				this.workbenchGrid.removeView(this.activitybarPart);
+			} else {
+				const refView = this.sideBarHidden ? this.editorPart : this.sidebarPart;
+				const direction = this.sideBarPosition === Position.LEFT ? Direction.Left : Direction.Right;
+				this.workbenchGrid.addView(this.activitybarPart, Sizing.Split, refView, direction);
+			}
+
 			const dimensions = DOM.getClientArea(this.container);
 			this.workbenchGrid.layout(dimensions.width, dimensions.height);
 		}
@@ -1428,6 +1484,25 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Layout
 		if (!skipLayout) {
+			if (this.sideBarHidden) {
+				this.workbenchGrid.removeView(this.sidebarPart);
+			} else {
+
+				const removePanelFirst = !this.panelHidden && this.panelPosition === Position.BOTTOM;
+				const refView = !this.panelHidden && this.panelPosition === Position.RIGHT && this.sideBarPosition === Position.RIGHT ? this.panelPart : this.editorPart;
+				const direction = this.sideBarPosition === Position.RIGHT ? Direction.Right : Direction.Left;
+
+				if (removePanelFirst) {
+					this.workbenchGrid.removeView(this.panelPart);
+				}
+
+				this.workbenchGrid.addView(this.sidebarPart, Sizing.Split, refView, direction);
+
+				if (removePanelFirst) {
+					this.workbenchGrid.addView(this.panelPart, Sizing.Split, this.editorPart, this.panelPosition === Position.BOTTOM ? Direction.Down : Direction.Right);
+				}
+			}
+
 			const dimensions = DOM.getClientArea(this.container);
 			this.workbenchGrid.layout(dimensions.width, dimensions.height);
 		}
@@ -1467,6 +1542,12 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Layout
 		if (!skipLayout) {
+			if (this.panelHidden) {
+				this.workbenchGrid.removeView(this.panelPart);
+			} else {
+				this.workbenchGrid.addView(this.panelPart, Sizing.Split, this.editorPart, this.panelPosition === Position.BOTTOM ? Direction.Down : Direction.Right);
+			}
+
 			const dimensions = DOM.getClientArea(this.container);
 			this.workbenchGrid.layout(dimensions.width, dimensions.height);
 		}
@@ -1485,6 +1566,8 @@ export class Workbench extends Disposable implements IPartService {
 	}
 
 	setSideBarPosition(position: Position): void {
+		const wasHidden = this.sideBarHidden;
+
 		if (this.sideBarHidden) {
 			this.setSideBarHidden(false, true /* Skip Layout */);
 		}
@@ -1504,6 +1587,28 @@ export class Workbench extends Disposable implements IPartService {
 		this.sidebarPart.updateStyles();
 
 		// Layout
+		const refView = !this.panelHidden && this.panelPosition === position ? this.panelPart : this.editorPart;
+		const direction = position === Position.RIGHT ? Direction.Right : Direction.Left;
+		const removePanelFirst = !this.panelHidden && this.panelPosition === Position.BOTTOM;
+
+		if (removePanelFirst) {
+			this.workbenchGrid.removeView(this.panelPart);
+		}
+
+		if (!this.activityBarHidden) {
+			this.workbenchGrid.moveView(this.activitybarPart, Sizing.Split, refView, direction);
+		}
+
+		if (wasHidden) {
+			this.workbenchGrid.addView(this.sidebarPart, Sizing.Split, refView, direction);
+		} else {
+			this.workbenchGrid.moveView(this.sidebarPart, Sizing.Split, refView, direction);
+		}
+
+		if (removePanelFirst) {
+			this.workbenchGrid.addView(this.panelPart, Sizing.Split, this.editorPart, this.panelPosition === Position.BOTTOM ? Direction.Down : Direction.Right);
+		}
+
 		const dimensions = DOM.getClientArea(this.container);
 		this.workbenchGrid.layout(dimensions.width, dimensions.height);
 	}
@@ -1529,6 +1634,8 @@ export class Workbench extends Disposable implements IPartService {
 	}
 
 	setPanelPosition(position: Position): void {
+		const wasHidden = this.panelHidden;
+
 		if (this.panelHidden) {
 			this.setPanelHidden(false, true /* Skip Layout */);
 		}
@@ -1546,6 +1653,12 @@ export class Workbench extends Disposable implements IPartService {
 		this.panelPart.updateStyles();
 
 		// Layout
+		if (wasHidden) {
+			this.workbenchGrid.addView(this.panelPart, Sizing.Split, this.editorPart, position === Position.BOTTOM ? Direction.Down : Direction.Right);
+		} else {
+			this.workbenchGrid.moveView(this.panelPart, Sizing.Split, this.editorPart, position === Position.BOTTOM ? Direction.Down : Direction.Right);
+		}
+
 		const dimensions = DOM.getClientArea(this.container);
 		this.workbenchGrid.layout(dimensions.width, dimensions.height);
 	}
