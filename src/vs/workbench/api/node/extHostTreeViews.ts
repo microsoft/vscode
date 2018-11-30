@@ -71,9 +71,6 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		if (!options || !options.treeDataProvider) {
 			throw new Error('Options with treeDataProvider is mandatory');
 		}
-		if (options.showCollapseAll) {
-			checkProposedApiEnabled(extension);
-		}
 
 		const treeView = this.createExtHostTreeView(viewId, options, extension);
 		return {
@@ -84,7 +81,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 			get visible() { return treeView.visible; },
 			get onDidChangeVisibility() { return treeView.onDidChangeVisibility; },
 			get message() { return treeView.message; },
-			set message(message: string | MarkdownString) { treeView.message = message; },
+			set message(message: string | MarkdownString) { checkProposedApiEnabled(extension); treeView.message = message; },
 			reveal: (element: T, options?: IRevealOptions): Thenable<void> => {
 				return treeView.reveal(element, options);
 			},
