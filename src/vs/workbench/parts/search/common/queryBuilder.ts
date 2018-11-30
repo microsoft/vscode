@@ -431,6 +431,8 @@ function patternListToIExpression(patterns: string[]): glob.IExpression {
 function splitGlobPattern(pattern: string): string[] {
 	return glob.splitGlobAware(pattern, ',')
 		.map(s => s.trim())
+		.map(s => strings.rtrim(s, '/'))
+		.map(s => strings.rtrim(s, '\\'))
 		.filter(s => !!s.length);
 }
 
