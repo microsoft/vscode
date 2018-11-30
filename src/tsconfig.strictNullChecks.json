@@ -352,6 +352,7 @@
 		"./vs/editor/standalone/browser/colorizer.ts",
 		"./vs/editor/standalone/browser/iPadShowKeyboard/iPadShowKeyboard.ts",
 		"./vs/editor/standalone/browser/inspectTokens/inspectTokens.ts",
+		"./vs/editor/standalone/browser/simpleServices.ts",
 		"./vs/editor/standalone/browser/standaloneCodeServiceImpl.ts",
 		"./vs/editor/standalone/browser/standaloneThemeServiceImpl.ts",
 		"./vs/editor/standalone/browser/toggleHighContrast/toggleHighContrast.ts",

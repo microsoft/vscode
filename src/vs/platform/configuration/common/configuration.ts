@@ -63,7 +63,7 @@ export interface IConfigurationService {
 
 	onDidChangeConfiguration: Event<IConfigurationChangeEvent>;
 
-	getConfigurationData(): IConfigurationData;
+	getConfigurationData(): IConfigurationData | null;
 
 	/**
 	 * Fetches the value of the section for the given overrides.

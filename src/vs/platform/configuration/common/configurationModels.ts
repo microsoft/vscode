@@ -36,7 +36,7 @@ export class ConfigurationModel implements IConfigurationModel {
 		return this.checkAndFreeze(this._keys);
 	}
 
-	getValue<V>(section: string): V {
+	getValue<V>(section: string | undefined): V {
 		return section ? getConfigurationValue<any>(this.contents, section) : this.contents;
 	}
 
@@ -289,7 +289,7 @@ export class Configuration {
 		private _freeze: boolean = true) {
 	}
 
-	getValue(section: string, overrides: IConfigurationOverrides, workspace: Workspace): any {
+	getValue(section: string | undefined, overrides: IConfigurationOverrides, workspace: Workspace | null): any {
 		const consolidateConfigurationModel = this.getConsolidateConfigurationModel(overrides, workspace);
 		return consolidateConfigurationModel.getValue(section);
 	}
@@ -317,7 +317,7 @@ export class Configuration {
 		}
 	}
 
-	inspect<C>(key: string, overrides: IConfigurationOverrides, workspace: Workspace): {
+	inspect<C>(key: string, overrides: IConfigurationOverrides, workspace: Workspace | null): {
 		default: C,
 		user: C,
 		workspace?: C,
@@ -338,7 +338,7 @@ export class Configuration {
 		};
 	}
 
-	keys(workspace: Workspace): {
+	keys(workspace: Workspace | null): {
 		default: string[];
 		user: string[];
 		workspace: string[];
@@ -397,12 +397,12 @@ export class Configuration {
 		return this._folderConfigurations;
 	}
 
-	private getConsolidateConfigurationModel(overrides: IConfigurationOverrides, workspace: Workspace): ConfigurationModel {
+	private getConsolidateConfigurationModel(overrides: IConfigurationOverrides, workspace: Workspace | null): ConfigurationModel {
 		let configurationModel = this.getConsolidatedConfigurationModelForResource(overrides, workspace);
 		return overrides.overrideIdentifier ? configurationModel.override(overrides.overrideIdentifier) : configurationModel;
 	}
 
-	private getConsolidatedConfigurationModelForResource({ resource }: IConfigurationOverrides, workspace: Workspace): ConfigurationModel {
+	private getConsolidatedConfigurationModelForResource({ resource }: IConfigurationOverrides, workspace: Workspace | null): ConfigurationModel {
 		let consolidateConfiguration = this.getWorkspaceConsolidatedConfiguration();
 
 		if (workspace && resource) {
@@ -447,7 +447,7 @@ export class Configuration {
 		return folderConsolidatedConfiguration;
 	}
 
-	private getFolderConfigurationModelForResource(resource: URI | undefined, workspace: Workspace): ConfigurationModel | null {
+	private getFolderConfigurationModelForResource(resource: URI | undefined, workspace: Workspace | null): ConfigurationModel | null {
 		if (workspace && resource) {
 			const root = workspace.getFolder(resource);
 			if (root) {

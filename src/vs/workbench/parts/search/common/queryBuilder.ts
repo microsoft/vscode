@@ -334,11 +334,11 @@ export class QueryBuilder {
 
 	private getFolderQueryForSearchPath(searchPath: ISearchPathPattern, options: ICommonQueryBuilderOptions): IFolderQuery {
 		const searchPathWorkspaceFolder = this.workspaceContextService.getWorkspaceFolder(searchPath.searchPath);
-		const searchPathRelativePath = searchPathWorkspaceFolder && searchPath.searchPath.path.substr(searchPathWorkspaceFolder.uri.path.length + 1);
 
 		const rootConfig = this.getFolderQueryForRoot(searchPath.searchPath, options);
 		let resolvedExcludes: glob.IExpression = {};
 		if (searchPathWorkspaceFolder && rootConfig.excludePattern) {
+			const searchPathRelativePath = searchPath.searchPath.path.substr(searchPathWorkspaceFolder.uri.path.length + 1);
 			// Resolve excludes relative to the search path
 			for (let excludePattern in rootConfig.excludePattern) {
 				const { pathPortion, globPortion } = splitSimpleGlob(excludePattern);
