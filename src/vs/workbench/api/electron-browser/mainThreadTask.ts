@@ -253,7 +253,7 @@ namespace TaskSourceDTO {
 	export function to(value: TaskSourceDTO, workspace: IWorkspaceContextService): ExtensionTaskSource {
 		let scope: TaskScope;
 		let workspaceFolder: IWorkspaceFolder;
-		if (value.scope === void 0) {
+		if ((value.scope === void 0) || ((typeof value.scope === 'number') && (value.scope !== TaskScope.Global))) {
 			if (workspace.getWorkspace().folders.length === 0) {
 				scope = TaskScope.Global;
 				workspaceFolder = undefined;
