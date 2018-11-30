@@ -893,9 +893,25 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			}
 		}
 
-		if (!range.isEmpty() && range.startLineNumber === range.endLineNumber) {
-			let searchText = activeTextEditorWidget.getModel().getLineContent(range.startLineNumber);
-			searchText = searchText.substring(range.startColumn - 1, range.endColumn - 1);
+		if (!range.isEmpty()) {
+			let searchText = '';
+			for (let i = range.startLineNumber; i <= range.endLineNumber; i++) {
+				let lineText = activeTextEditorWidget.getModel().getLineContent(i);
+				if (i === range.endLineNumber) {
+					lineText = lineText.substring(0, range.endColumn - 1);
+				}
+
+				if (i === range.startLineNumber) {
+					lineText = lineText.substring(range.startColumn - 1);
+				}
+
+				if (i !== range.startLineNumber) {
+					lineText = '\n' + lineText;
+				}
+
+				searchText += lineText;
+			}
+
 			return searchText;
 		}
 
