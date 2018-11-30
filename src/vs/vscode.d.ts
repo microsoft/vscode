@@ -5013,7 +5013,7 @@ declare module 'vscode' {
 	 */
 	export interface RunOptions {
 		/**
-		 * Controls the behavior of a task when it is rerun.
+		 * Controls whether task variables are re-evaluated on rerun.
 		 */
 		reevaluateOnRerun?: boolean;
 	}
