@@ -101,7 +101,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 
 	public static TelemetryEventName: string = 'taskService';
 
-	private static ProcessVarName = '${__process__}';
+	private static ProcessVarName = '__process__';
 
 	private static shellQuotes: IStringDictionary<ShellQuotingOptions> = {
 		'cmd': {
@@ -750,7 +750,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		} else {
 			let commandExecutable = CommandString.value(command);
 			let executable = !isShellCommand
-				? this.resolveVariable(variableResolver, TerminalTaskSystem.ProcessVarName)
+				? this.resolveVariable(variableResolver, '${' + TerminalTaskSystem.ProcessVarName + '}')
 				: commandExecutable;
 
 			// When we have a process task there is no need to quote arguments. So we go ahead and take the string value.

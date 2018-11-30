@@ -100,8 +100,9 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 
 	public resolveWithInteraction(folder: IWorkspaceFolder, config: any, section?: string, variables?: IStringDictionary<string>): TPromise<Map<string, string>> {
 		// resolve any non-interactive variables
-		config = this.resolveAny(folder, config);
-		const allVariableMapping: Map<string, string> = new Map<string, string>();
+		const resolved = this.resolveAnyMap(folder, config);
+		config = resolved.newConfig;
+		const allVariableMapping: Map<string, string> = resolved.resolvedVariables;
 
 		// resolve input variables in the order in which they are encountered
 		return this.resolveWithInputs(folder, config, section).then(inputMapping => {

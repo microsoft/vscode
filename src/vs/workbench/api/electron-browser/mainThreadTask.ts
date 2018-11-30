@@ -541,10 +541,11 @@ export class MainThreadTask implements MainThreadTaskShape {
 								variables: new Map<string, string>()
 							};
 							for (let i = 0; i < partiallyResolvedVars.length; i++) {
+								const variableName = vars[i].substring(2, vars[i].length - 1);
 								if (values.variables[vars[i]] === vars[i]) {
-									result.variables.set(vars[i], resolvedVars.get(vars[i]));
+									result.variables.set(variableName, resolvedVars.get(variableName));
 								} else {
-									result.variables.set(vars[i], partiallyResolvedVars[i]);
+									result.variables.set(variableName, partiallyResolvedVars[i]);
 								}
 							}
 							if (Types.isString(values.process)) {
