@@ -103,7 +103,7 @@ import { DownloadServiceChannel } from 'vs/platform/download/node/downloadIpc';
 import { TextResourcePropertiesService } from 'vs/workbench/services/textfile/electron-browser/textResourcePropertiesService';
 import { MulitExtensionManagementService } from 'vs/platform/extensionManagement/node/multiExtensionManagement';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { RemoteAuthorityResolverChannelClient } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
+import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
 
 /**
  * Services that we require for the Shell
@@ -437,8 +437,7 @@ export class WorkbenchShell extends Disposable {
 		serviceCollection.set(IDownloadService, new SyncDescriptor(DownloadService));
 		serviceCollection.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
 
-		const remoteAuthorityResolverChannel = getDelayedChannel(sharedProcess.then(c => c.getChannel('remoteAuthorityResolver')));
-		const remoteAuthorityResolverService = new RemoteAuthorityResolverChannelClient(remoteAuthorityResolverChannel);
+		const remoteAuthorityResolverService = new RemoteAuthorityResolverService();
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
 
 		const remoteAgentService = new RemoteAgentService(this.configuration, this.notificationService, this.environmentService, remoteAuthorityResolverService);

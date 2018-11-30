@@ -42,9 +42,6 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { DownloadService } from 'vs/platform/download/node/downloadService';
 import { IDownloadService } from 'vs/platform/download/common/download';
-import { RemoteAuthorityResolverService } from 'vs/platform/remote/node/remoteAuthorityResolverService';
-import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { RemoteAuthorityResolverChannel } from 'vs/platform/remote/node/remoteAuthorityResolverChannel';
 import { StaticRouter } from 'vs/base/parts/ipc/node/ipc';
 import { DefaultURITransformer } from 'vs/base/common/uriIpc';
 
@@ -130,15 +127,10 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
 		services.set(ILocalizationsService, new SyncDescriptor(LocalizationsService));
-		services.set(IRemoteAuthorityResolverService, new SyncDescriptor(RemoteAuthorityResolverService));
 
 		const instantiationService2 = instantiationService.createChild(services);
 
 		instantiationService2.invokeFunction(accessor => {
-
-			const remoteAuthorityResolverService = accessor.get(IRemoteAuthorityResolverService);
-			const remoteAuthorityResolverChannel = new RemoteAuthorityResolverChannel(remoteAuthorityResolverService);
-			server.registerChannel('remoteAuthorityResolver', remoteAuthorityResolverChannel);
 
 			const extensionManagementService = accessor.get(IExtensionManagementService);
 			const channel = new ExtensionManagementChannel(extensionManagementService, () => DefaultURITransformer);
@@ -153,7 +145,6 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 
 			createSharedProcessContributions(instantiationService2);
 			disposables.push(extensionManagementService as ExtensionManagementService);
-			disposables.push(remoteAuthorityResolverService as RemoteAuthorityResolverService);
 		});
 	});
 }

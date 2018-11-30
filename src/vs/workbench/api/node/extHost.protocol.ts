@@ -43,6 +43,7 @@ import { IProgressOptions, IProgressStep } from 'vs/platform/progress/common/pro
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import * as vscode from 'vscode';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { ResolvedAuthority } from 'vs/platform/remote/common/remoteAuthorityResolver';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -50,7 +51,7 @@ export interface IEnvironment {
 	appSettingsHome: URI;
 	extensionDevelopmentLocationURI: URI;
 	extensionTestsPath: string;
-	globalStorageHome: string;
+	globalStorageHome: URI;
 }
 
 export interface IWorkspaceData {
@@ -70,6 +71,7 @@ export interface IInitData {
 	telemetryInfo: ITelemetryInfo;
 	logLevel: LogLevel;
 	logsLocation: URI;
+	autoStart: boolean;
 	remoteAuthority?: string | null;
 }
 
@@ -732,6 +734,8 @@ export interface ExtHostSearchShape {
 }
 
 export interface ExtHostExtensionServiceShape {
+	$resolveAuthority(remoteAuthority: string): Thenable<ResolvedAuthority>;
+	$startExtensionHost(enabledExtensionIds: string[]): Thenable<void>;
 	$activateByEvent(activationEvent: string): Thenable<void>;
 }
 

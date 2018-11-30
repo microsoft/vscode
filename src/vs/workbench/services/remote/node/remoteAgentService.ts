@@ -21,6 +21,7 @@ export interface IRemoteAgentEnvironment {
 	logsPath: URI;
 	extensionsPath: URI;
 	extensionHostLogsPath: URI;
+	globalStorageHome: URI;
 	extensions: IExtensionDescription[];
 	os: OperatingSystem;
 }
@@ -34,7 +35,7 @@ export interface IRemoteAgentService {
 export interface IRemoteAgentConnection {
 	readonly remoteAuthority: string;
 
-	getEnvironment(): Thenable<IRemoteAgentEnvironment | null>;
+	getEnvironment(): Thenable<IRemoteAgentEnvironment>;
 
 	getChannel<T extends IChannel>(channelName: string): T;
 	registerChannel<T extends IServerChannel<RemoteAgentConnectionContext>>(channelName: string, channel: T);

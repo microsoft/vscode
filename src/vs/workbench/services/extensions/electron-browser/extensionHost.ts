@@ -42,7 +42,7 @@ import { IExtensionDescription } from 'vs/workbench/services/extensions/common/e
 
 export interface IExtensionHostStarter {
 	readonly onCrashed: Event<[number, string]>;
-	start(): Promise<IMessagePassingProtocol>;
+	start(): Thenable<IMessagePassingProtocol>;
 	getInspectPort(): number;
 	dispose(): void;
 }
@@ -93,6 +93,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 	private _messageProtocol: Promise<IMessagePassingProtocol>;
 
 	constructor(
+		private readonly _autoStart: boolean,
 		private readonly _extensions: Promise<IExtensionDescription[]>,
 		private readonly _extensionHostLogsLocation: URI,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
@@ -425,7 +426,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 						appSettingsHome: this._environmentService.appSettingsHome ? URI.file(this._environmentService.appSettingsHome) : void 0,
 						extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 						extensionTestsPath: this._environmentService.extensionTestsPath,
-						globalStorageHome: this._environmentService.globalStorageHome
+						globalStorageHome: URI.file(this._environmentService.globalStorageHome)
 					},
 					workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : {
 						configuration: workspace.configuration,
@@ -438,7 +439,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 					configuration: !this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment ? { ...configurationData, configurationScopes: getScopes() } : configurationData,
 					telemetryInfo,
 					logLevel: this._logService.getLevel(),
-					logsLocation: this._extensionHostLogsLocation
+					logsLocation: this._extensionHostLogsLocation,
+					autoStart: this._autoStart
 				};
 				return r;
 			});

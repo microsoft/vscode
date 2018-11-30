@@ -14,7 +14,7 @@ import { URI } from 'vs/base/common/uri';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IRemoteAuthorityResolverService, IRemoteAuthorityResolver } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IRemoteAuthorityResolverService, ResolvedAuthority } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { getManifest } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 
 export class MulitExtensionManagementService extends Disposable implements IExtensionManagementService {
@@ -100,13 +100,13 @@ export class MulitExtensionManagementService extends Disposable implements IExte
 		return this.extensionManagementServerService.getExtensionManagementServer(extension.location);
 	}
 
-	private _remoteAuthorityResolverPromise: Thenable<IRemoteAuthorityResolver>;
+	private _remoteAuthorityResolverPromise: Thenable<ResolvedAuthority>;
 	private hasToSyncExtensions(): Thenable<boolean> {
 		if (!this.extensionManagementServerService.remoteExtensionManagementServer) {
 			return Promise.resolve(false);
 		}
 		if (!this._remoteAuthorityResolverPromise) {
-			this._remoteAuthorityResolverPromise = this.remoteAuthorityResolverService.getRemoteAuthorityResolver(this.extensionManagementServerService.remoteExtensionManagementServer.authority);
+			this._remoteAuthorityResolverPromise = this.remoteAuthorityResolverService.resolveAuthority(this.extensionManagementServerService.remoteExtensionManagementServer.authority);
 		}
 		return this._remoteAuthorityResolverPromise.then(({ syncExtensions }) => !!syncExtensions);
 	}

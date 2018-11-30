@@ -31,6 +31,7 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
 
 
 export class ExtHostDebugService implements ExtHostDebugServiceShape {
@@ -119,28 +120,29 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		this._breakpoints = new Map<string, vscode.Breakpoint>();
 		this._breakpointEventsActive = false;
 
-
-		// register all debug extensions
-		const debugTypes: string[] = [];
-		for (const ed of this._extensionService.getAllExtensionDescriptions()) {
-			if (ed.contributes) {
-				const debuggers = <IDebuggerContribution[]>ed.contributes['debuggers'];
-				if (debuggers && debuggers.length > 0) {
-					for (const dbg of debuggers) {
-						// only debugger contributions with a "label" are considered a "defining" debugger contribution
-						if (dbg.type && dbg.label) {
-							debugTypes.push(dbg.type);
-							if (dbg.adapterExecutableCommand) {
-								this._aexCommands.set(dbg.type, dbg.adapterExecutableCommand);
+		this._extensionService.getExtensionRegistry().then((extensionRegistry: ExtensionDescriptionRegistry) => {
+			// register all debug extensions
+			const debugTypes: string[] = [];
+			for (const ed of extensionRegistry.getAllExtensionDescriptions()) {
+				if (ed.contributes) {
+					const debuggers = <IDebuggerContribution[]>ed.contributes['debuggers'];
+					if (debuggers && debuggers.length > 0) {
+						for (const dbg of debuggers) {
+							// only debugger contributions with a "label" are considered a "defining" debugger contribution
+							if (dbg.type && dbg.label) {
+								debugTypes.push(dbg.type);
+								if (dbg.adapterExecutableCommand) {
+									this._aexCommands.set(dbg.type, dbg.adapterExecutableCommand);
+								}
 							}
 						}
 					}
 				}
 			}
-		}
-		if (debugTypes.length > 0) {
-			this._debugServiceProxy.$registerDebugTypes(debugTypes);
-		}
+			if (debugTypes.length > 0) {
+				this._debugServiceProxy.$registerDebugTypes(debugTypes);
+			}
+		});
 	}
 
 	// extension debug API
@@ -722,7 +724,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		});
 	}
 
-	private getAdapterDescriptor(adapterProvider: vscode.DebugAdapterDescriptorFactory, session: ExtHostDebugSession): Thenable<vscode.DebugAdapterDescriptor> {
+	private async getAdapterDescriptor(adapterProvider: vscode.DebugAdapterDescriptorFactory, session: ExtHostDebugSession): Promise<vscode.DebugAdapterDescriptor> {
 
 		// a "debugServer" attribute in the launch config takes precedence
 		const serverPort = session.configuration.debugServer;
@@ -739,7 +741,8 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		}
 
 		if (adapterProvider) {
-			return asThenable(() => adapterProvider.createDebugAdapterDescriptor(session, this.daExecutableFromPackage(session)));
+			const extensionRegistry = await this._extensionService.getExtensionRegistry();
+			return asThenable(() => adapterProvider.createDebugAdapterDescriptor(session, this.daExecutableFromPackage(session, extensionRegistry)));
 		}
 
 		// try deprecated command based extension API "adapterExecutableCommand" to determine the executable
@@ -754,11 +757,12 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		}
 
 		// fallback: use executable information from package.json
-		return Promise.resolve(this.daExecutableFromPackage(session));
+		const extensionRegistry = await this._extensionService.getExtensionRegistry();
+		return Promise.resolve(this.daExecutableFromPackage(session, extensionRegistry));
 	}
 
-	private daExecutableFromPackage(session: ExtHostDebugSession): DebugAdapterExecutable | undefined {
-		const dae = ExecutableDebugAdapter.platformAdapterExecutable(this._extensionService.getAllExtensionDescriptions(), session.type);
+	private daExecutableFromPackage(session: ExtHostDebugSession, extensionRegistry: ExtensionDescriptionRegistry): DebugAdapterExecutable | undefined {
+		const dae = ExecutableDebugAdapter.platformAdapterExecutable(extensionRegistry.getAllExtensionDescriptions(), session.type);
 		if (dae) {
 			return new DebugAdapterExecutable(dae.command, dae.args, dae.options);
 		}
