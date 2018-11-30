@@ -508,15 +508,30 @@ declare module 'vscode' {
 	 * A Debug Adapter Tracker is a means to track the communication between VS Code and a Debug Adapter.
 	 */
 	export interface DebugAdapterTracker {
-		// VS Code -> Debug Adapter
-		startDebugAdapter?(): void;
-		toDebugAdapter?(message: any): void;
-		stopDebugAdapter?(): void;
-
-		// Debug Adapter -> VS Code
-		fromDebugAdapter?(message: any): void;
-		debugAdapterError?(error: Error): void;
-		debugAdapterExit?(code?: number, signal?: string): void;
+		/**
+		 * A session with the debug adapter is about to be started.
+		 */
+		onWillStartSession?(): void;
+		/**
+		 * The debug adapter is about to receive a Debug Adapter Protocol message from VS Code.
+		 */
+		onWillReceiveMessage?(message: any): void;
+		/**
+		 * The debug adapter has sent a Debug Adapter Protocol message to VS Code.
+		 */
+		onDidSendMessage?(message: any): void;
+		/**
+		 * The debug adapter session is about to be stopped.
+		 */
+		onWillStopSession?(): void;
+		/**
+		 * An error with the debug adapter has occured.
+		 */
+		onError?(error: Error): void;
+		/**
+		 * The debug adapter has exited with the given exit code or signal.
+		 */
+		onExit?(code: number | undefined, signal: string | undefined): void;
 	}
 
 	export interface DebugAdapterTrackerFactory {
@@ -542,6 +557,18 @@ declare module 'vscode' {
 	}
 
 	// deprecated
+
+	export interface DebugAdapterTracker {
+		// VS Code -> Debug Adapter
+		startDebugAdapter?(): void;
+		toDebugAdapter?(message: any): void;
+		stopDebugAdapter?(): void;
+
+		// Debug Adapter -> VS Code
+		fromDebugAdapter?(message: any): void;
+		debugAdapterError?(error: Error): void;
+		debugAdapterExit?(code?: number, signal?: string): void;
+	}
 
 	export interface DebugConfigurationProvider {
 		/**
