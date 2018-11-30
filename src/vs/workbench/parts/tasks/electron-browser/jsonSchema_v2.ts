@@ -12,6 +12,7 @@ import commonSchema from './jsonSchemaCommon';
 import { ProblemMatcherRegistry } from 'vs/workbench/parts/tasks/common/problemMatcher';
 import { TaskDefinitionRegistry } from '../common/taskDefinitionRegistry';
 import * as ConfigurationResolverUtils from 'vs/workbench/services/configurationResolver/common/configurationResolverUtils';
+import { inputsSchema } from 'vs/workbench/services/configurationResolver/electron-browser/jsonSchemaCommon';
 
 function fixReferences(literal: any) {
 	if (Array.isArray(literal)) {
@@ -418,23 +419,8 @@ tasks.items = {
 	oneOf: taskDefinitions
 };
 
-let inputDescription: IJSONSchema = definitions.inputDescription;
-let inputDefinitions: IJSONSchema[] = [];
-let selectionInputConfiguration: IJSONSchema = Objects.deepClone(inputDescription);
-selectionInputConfiguration.properties.options = {
-	type: 'array',
-	description: nls.localize('JsonSchema.tasks.inputOptions', 'Options to select from.'),
-	items: {
-		type: 'string'
-	}
-};
-inputDefinitions.push(Objects.deepClone(inputDescription));
-inputDefinitions.push(selectionInputConfiguration);
 
-let inputs = definitions.taskRunnerConfiguration.properties.inputs;
-inputs.items = {
-	oneOf: inputDefinitions
-};
+definitions.taskRunnerConfiguration.properties.inputs = inputsSchema.definitions.inputs;
 
 definitions.commandConfiguration.properties.isShellCommand = Objects.deepClone(shellCommand);
 definitions.options.properties.shell = {
