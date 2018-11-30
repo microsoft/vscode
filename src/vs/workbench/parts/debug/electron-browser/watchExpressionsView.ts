@@ -195,7 +195,7 @@ class WatchExpressionsDataSource implements IDataSource<IExpression> {
 			return true;
 		}
 
-		return (<IExpression>element).hasChildren;
+		return element.hasChildren;
 	}
 
 	getChildren(element: IExpression | null): Thenable<(IExpression)[]> {

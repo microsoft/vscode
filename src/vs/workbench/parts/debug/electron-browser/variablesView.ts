@@ -32,9 +32,6 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 
 const $ = dom.$;
 
-// TODO@Isidor Remember expanded elements when there are some (otherwise don't override/erase the previous ones)
-// Just give the identity provider to the tree and that should solve it
-
 export const variableSetEmitter = new Emitter<void>();
 
 export class VariablesView extends ViewletPanel {
@@ -126,10 +123,9 @@ export class VariablesView extends ViewletPanel {
 	}
 
 	private onMouseDblClick(e: ITreeMouseEvent<IExpression | IScope>): void {
-		const element = e.element;
 		const session = this.debugService.getViewModel().focusedSession;
-		if (element instanceof Variable && session.capabilities.supportsSetVariable) {
-			this.debugService.getViewModel().setSelectedExpression(element);
+		if (e.element instanceof Variable && session.capabilities.supportsSetVariable) {
+			this.debugService.getViewModel().setSelectedExpression(e.element);
 		}
 	}
 
@@ -258,7 +254,6 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 }
 
 class VariablesAccessibilityProvider implements IAccessibilityProvider<IExpression | IScope> {
-
 	getAriaLabel(element: IExpression | IScope): string {
 		if (element instanceof Scope) {
 			return nls.localize('variableScopeAriaLabel', "Scope {0}, variables, debug", element.name);
