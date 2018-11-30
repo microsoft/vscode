@@ -349,7 +349,8 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		], this.dataSource, {
 				ariaLabel: nls.localize('replAriaLabel', "Read Eval Print Loop Panel"),
 				accessibilityProvider: new ReplAccessibilityProvider(),
-				identityProvider: { getId: element => element.getId() }
+				identityProvider: { getId: element => element.getId() },
+				mouseSupport: false
 			}, this.contextKeyService, this.listService, this.themeService, this.configurationService);
 
 		this.toDispose.push(this.tree.onContextMenu(e => this.onContextMenu(e)));

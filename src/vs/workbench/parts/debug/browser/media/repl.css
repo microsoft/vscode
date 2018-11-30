@@ -82,11 +82,6 @@
 	border-top: 1px solid rgba(128, 128, 128, 0.35);
 }
 
-/* Disable repl hover highlight in tree. */
-.monaco-workbench .repl .repl-tree .monaco-list .monaco-list-rows > .monaco-list-row:hover:not(.highlighted):not(.selected):not(.focused)  {
-	background-color: inherit;
-}
-
 /* Only show 'stale expansion' info when the element gets expanded. */
 .monaco-workbench .repl .repl-tree .monaco-list .monaco-list-rows > .monaco-list-row:not(.expanded) .input-output-pair > .output > .annotation::before  {
 	content: '';
