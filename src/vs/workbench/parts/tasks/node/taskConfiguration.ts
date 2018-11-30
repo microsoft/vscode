@@ -120,7 +120,7 @@ export interface PresentationOptionsConfig {
 }
 
 export interface RunOptionsConfig {
-	rerunBehavior?: string;
+	reevaluateOnRerun?: boolean;
 	runOn?: string;
 }
 
@@ -634,21 +634,6 @@ function _freeze<T>(this: void, target: T, properties: MetaData<T, any>[]): Read
 	return target;
 }
 
-export namespace RerunBehavior {
-	export function fromString(value: string | undefined): Tasks.RerunBehavior {
-		if (!value) {
-			return Tasks.RerunBehavior.reevaluate;
-		}
-		switch (value.toLowerCase()) {
-			case 'useevaluated':
-				return Tasks.RerunBehavior.useEvaluated;
-			case 'reevaulate':
-			default:
-				return Tasks.RerunBehavior.reevaluate;
-		}
-	}
-}
-
 export namespace RunOnOptions {
 	export function fromString(value: string | undefined): Tasks.RunOnOptions {
 		if (!value) {
@@ -667,7 +652,7 @@ export namespace RunOnOptions {
 export namespace RunOptions {
 	export function fromConfiguration(value: RunOptionsConfig | undefined): Tasks.RunOptions {
 		return {
-			rerunBehavior: value ? RerunBehavior.fromString(value.rerunBehavior) : Tasks.RerunBehavior.reevaluate,
+			reevaluateOnRerun: value ? value.reevaluateOnRerun : true,
 			runOn: value ? RunOnOptions.fromString(value.runOn) : Tasks.RunOnOptions.default
 		};
 	}
@@ -1904,7 +1889,7 @@ class ConfigurationParser {
 				isBackground: isBackground,
 				problemMatchers: matchers,
 				hasDefinedMatchers: false,
-				runOptions: { rerunBehavior: Tasks.RerunBehavior.reevaluate },
+				runOptions: { reevaluateOnRerun: true },
 			};
 			let value = GroupKind.from(fileConfig.group);
 			if (value) {

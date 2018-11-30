@@ -1178,31 +1178,6 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	//#region Task
-	export enum RerunBehavior {
-		reevaluate = 1,
-		useEvaluated = 2,
-	}
-
-
-	export interface RunOptions {
-		/**
-		 * Controls the behavior of a task when it is rerun.
-		 */
-		rerunBehavior?: RerunBehavior;
-	}
-
-	/**
-	 * A task to execute
-	 */
-	export class Task2 extends Task {
-		/**
-		 * Run options for the task.  Defaults to an empty literal.
-		 */
-		runOptions: RunOptions;
-	}
-	//#endregion
-
 	//#region Extension Context
 	export interface ExtensionContext {
 
