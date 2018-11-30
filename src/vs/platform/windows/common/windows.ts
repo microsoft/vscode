@@ -404,6 +404,7 @@ export interface IWindowConfiguration extends ParsedArgs {
 export interface IRunActionInWindowRequest {
 	id: string;
 	from: 'menu' | 'touchbar' | 'mouse';
+	args?: any[];
 }
 
 export class ActiveWindowManager implements IDisposable {
