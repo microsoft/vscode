@@ -237,9 +237,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.model = this.createModel(this.view, options);
 		onDidChangeCollapseStateRelay.input = this.model.onDidChangeCollapseState;
 
-		if (options.mouseSupport !== false) {
-			this.view.onMouseClick(this.reactOnMouseClick, this, this.disposables);
-		}
+		this.view.onMouseClick(this.reactOnMouseClick, this, this.disposables);
 
 		if (options.keyboardSupport !== false) {
 			const onKeyDown = chain(this.view.onKeyDown)
@@ -258,6 +256,14 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		return this.view.getHTMLElement();
 	}
 
+	get contentHeight(): number {
+		return this.view.contentHeight;
+	}
+
+	get onDidChangeContentHeight(): Event<number> {
+		return this.view.onDidChangeContentHeight;
+	}
+
 	get scrollTop(): number {
 		return this.view.scrollTop;
 	}
@@ -268,6 +274,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	get scrollHeight(): number {
 		return this.view.scrollHeight;
+	}
+
+	get renderHeight(): number {
+		return this.view.renderHeight;
 	}
 
 	domFocus(): void {
@@ -288,15 +298,15 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	// Tree navigation
 
-	getParentElement(location: TRef | null = null): T | null {
+	getParentElement(location: TRef): T {
 		return this.model.getParentElement(location);
 	}
 
-	getFirstElementChild(location: TRef | null = null): T | null {
+	getFirstElementChild(location: TRef): T | undefined {
 		return this.model.getFirstElementChild(location);
 	}
 
-	getLastElementAncestor(location: TRef | null = null): T | null {
+	getLastElementAncestor(location?: TRef): T | undefined {
 		return this.model.getLastElementAncestor(location);
 	}
 

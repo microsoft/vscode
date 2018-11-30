@@ -471,13 +471,18 @@ export class ReferenceWidget extends PeekViewWidget {
 		// listen on editor
 		this._disposeOnNewModel.push(this._preview.onMouseDown(e => {
 			const { event, target } = e;
-			if (event.detail === 2) {
-				this._onDidSelectReference.fire({
-					element: { uri: this._getFocusedReference().uri, range: target.range },
-					kind: (event.ctrlKey || event.metaKey || event.altKey) ? 'side' : 'open',
-					source: 'editor'
-				});
+			if (event.detail !== 2) {
+				return;
 			}
+			const element = this._getFocusedReference();
+			if (!element) {
+				return;
+			}
+			this._onDidSelectReference.fire({
+				element: { uri: element.uri, range: target.range },
+				kind: (event.ctrlKey || event.metaKey || event.altKey) ? 'side' : 'open',
+				source: 'editor'
+			});
 		}));
 
 		// make sure things are rendered
@@ -494,7 +499,7 @@ export class ReferenceWidget extends PeekViewWidget {
 	}
 
 	private _getFocusedReference(): OneReference {
-		const element = this._tree.getFocus();
+		const [element] = this._tree.getFocus();
 		if (element instanceof OneReference) {
 			return element;
 		} else if (element instanceof FileReferences) {
@@ -507,6 +512,12 @@ export class ReferenceWidget extends PeekViewWidget {
 
 	private async _revealReference(reference: OneReference, revealParent: boolean): Promise<void> {
 
+		// check if there is anything to do...
+		const currentSelection = this._tree.getSelection();
+		if (currentSelection.length === 1 && currentSelection[0] === reference) {
+			return;
+		}
+
 		// Update widget header
 		if (reference.uri.scheme !== Schemas.inMemory) {
 			this.setTitle(basenameOrAuthority(reference.uri), this._uriLabel.getUriLabel(dirname(reference.uri)));
@@ -516,13 +527,15 @@ export class ReferenceWidget extends PeekViewWidget {
 
 		const promise = this._textModelResolverService.createModelReference(reference.uri);
 
-		if (revealParent) {
-			this._tree.reveal(reference.parent);
+		if (this._treeDataSource.root === reference.parent) {
+			this._tree.reveal(reference);
+		} else {
+			if (revealParent) {
+				this._tree.reveal(reference.parent);
+			}
+			await this._tree.expand(reference.parent);
+			this._tree.reveal(reference);
 		}
-
-		await this._tree.expand(reference.parent);
-		await timeout(75); //todo@joao expand resolves to soon
-		this._tree.reveal(reference);
 
 		const ref = await promise;
 

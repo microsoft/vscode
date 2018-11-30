@@ -32,24 +32,24 @@
 	background-image: url("expanded.svg");
 }
 
-.monaco-tl-twistie.collapsible.collapsed {
+.monaco-tl-twistie.collapsible.collapsed:not(.loading) {
 	display: inline-block;
 	background-image: url("collapsed.svg");
 }
 
-.vs-dark .monaco-tl-twistie.collapsible {
+.vs-dark .monaco-tl-twistie.collapsible:not(.loading) {
 	background-image: url("expanded-dark.svg");
 }
 
-.vs-dark .monaco-tl-twistie.collapsible.collapsed {
+.vs-dark .monaco-tl-twistie.collapsible.collapsed:not(.loading) {
 	background-image: url("collapsed-dark.svg");
 }
 
-.hc-black .monaco-tl-twistie.collapsible {
+.hc-black .monaco-tl-twistie.collapsible:not(.loading) {
 	background-image: url("expanded-hc.svg");
 }
 
-.hc-black .monaco-tl-twistie.collapsible.collapsed {
+.hc-black .monaco-tl-twistie.collapsible.collapsed:not(.loading) {
 	background-image: url("collapsed-hc.svg");
 }
 

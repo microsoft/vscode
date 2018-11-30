@@ -793,7 +793,7 @@ export class DebugSession implements IDebugSession {
 
 	// REPL
 
-	getReplElements(): ReadonlyArray<IReplElement> {
+	getReplElements(): IReplElement[] {
 		return this.repl.getReplElements();
 	}
 

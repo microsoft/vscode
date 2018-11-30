@@ -43,20 +43,9 @@ export interface IIndexTreeModelOptions<T, TFilterData> {
 	filter?: ITreeFilter<T, TFilterData>;
 }
 
-export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFilterData, number[]> {
+export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = void> implements ITreeModel<T, TFilterData, number[]> {
 
-	private root: IMutableTreeNode<T, TFilterData> = {
-		parent: undefined,
-		element: undefined!,
-		children: [],
-		depth: 0,
-		collapsible: false,
-		collapsed: false,
-		renderNodeCount: 0,
-		visible: true,
-		filterData: undefined
-	};
-
+	private root: IMutableTreeNode<T, TFilterData>;
 	private eventBufferer = new EventBufferer();
 
 	private _onDidChangeCollapseState = new Emitter<ITreeNode<T, TFilterData>>();
@@ -68,9 +57,21 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 	private collapseByDefault: boolean;
 	private filter?: ITreeFilter<T, TFilterData>;
 
-	constructor(private list: ISpliceable<ITreeNode<T, TFilterData>>, options: IIndexTreeModelOptions<T, TFilterData> = {}) {
+	constructor(private list: ISpliceable<ITreeNode<T, TFilterData>>, rootElement: T, options: IIndexTreeModelOptions<T, TFilterData> = {}) {
 		this.collapseByDefault = typeof options.collapseByDefault === 'undefined' ? false : options.collapseByDefault;
 		this.filter = options.filter;
+
+		this.root = {
+			parent: undefined,
+			element: rootElement,
+			children: [],
+			depth: 0,
+			collapsible: false,
+			collapsed: false,
+			renderNodeCount: 0,
+			visible: true,
+			filterData: undefined
+		};
 	}
 
 	splice(
@@ -353,7 +354,7 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 	}
 
 	// cheap
-	private getTreeNode(location: number[] | null, node: IMutableTreeNode<T, TFilterData> = this.root): IMutableTreeNode<T, TFilterData> {
+	private getTreeNode(location: number[], node: IMutableTreeNode<T, TFilterData> = this.root): IMutableTreeNode<T, TFilterData> {
 		if (!location || location.length === 0) {
 			return node;
 		}
@@ -418,7 +419,7 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 		return location.reverse();
 	}
 
-	getParentNodeLocation(location: number[]): number[] | null {
+	getParentNodeLocation(location: number[]): number[] {
 		if (location.length <= 1) {
 			return [];
 		}
@@ -426,33 +427,33 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 		return tail2(location)[0];
 	}
 
-	getParentElement(location: number[]): T | null {
+	getParentElement(location: number[]): T {
 		const parentLocation = this.getParentNodeLocation(location);
 		const node = this.getTreeNode(parentLocation);
-		return node === this.root ? null : node.element;
+		return node.element;
 	}
 
-	getFirstElementChild(location: number[]): T | null {
+	getFirstElementChild(location: number[]): T | undefined {
 		const node = this.getTreeNode(location);
 
 		if (node.children.length === 0) {
-			return null;
+			return undefined;
 		}
 
 		return node.children[0].element;
 	}
 
-	getLastElementAncestor(location: number[]): T | null {
+	getLastElementAncestor(location: number[] = []): T | undefined {
 		const node = this.getTreeNode(location);
 
 		if (node.children.length === 0) {
-			return null;
+			return undefined;
 		}
 
 		return this._getLastElementAncestor(node);
 	}
 
-	private _getLastElementAncestor(node: ITreeNode<T, TFilterData>): T | null {
+	private _getLastElementAncestor(node: ITreeNode<T, TFilterData>): T {
 		if (node.children.length === 0) {
 			return node.element;
 		}

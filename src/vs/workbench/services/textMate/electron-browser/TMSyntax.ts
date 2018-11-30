@@ -57,7 +57,7 @@ export class TMScopeRegistry {
 		return this._scopeNameToLanguageRegistration[scopeName] || null;
 	}
 
-	public getGrammarLocation(scopeName: string): URI {
+	public getGrammarLocation(scopeName: string): URI | null {
 		let data = this.getLanguageRegistration(scopeName);
 		return data ? data.grammarLocation : null;
 	}
@@ -81,7 +81,7 @@ export class TMLanguageRegistration {
 	readonly embeddedLanguages: IEmbeddedLanguagesMap;
 	readonly tokenTypes: ITokenTypeMap;
 
-	constructor(scopeName: string, grammarLocation: URI, embeddedLanguages: IEmbeddedLanguagesMap, tokenTypes: TokenTypesContribution | undefined) {
+	constructor(scopeName: string, grammarLocation: URI, embeddedLanguages: IEmbeddedLanguagesMap | undefined, tokenTypes: TokenTypesContribution | undefined) {
 		this.scopeName = scopeName;
 		this.grammarLocation = grammarLocation;
 
@@ -135,7 +135,7 @@ interface ICreateGrammarResult {
 export class TextMateService implements ITextMateService {
 	public _serviceBrand: any;
 
-	private _grammarRegistry: Promise<[Registry, StackElement]>;
+	private _grammarRegistry: Promise<[Registry, StackElement]> | null;
 	private _modeService: IModeService;
 	private _themeService: IWorkbenchThemeService;
 	private _fileService: IFileService;
@@ -199,7 +199,7 @@ export class TextMateService implements ITextMateService {
 				}
 			}
 		}
-		TokenizationRegistry.setColorMap([null, defaultForeground, defaultBackground]);
+		TokenizationRegistry.setColorMap([null!, defaultForeground, defaultBackground]);
 
 		this._modeService.onDidCreateMode((mode) => {
 			let modeId = mode.getId();
@@ -249,7 +249,7 @@ export class TextMateService implements ITextMateService {
 	}
 
 	private static _toColorMap(colorMap: string[]): Color[] {
-		let result: Color[] = [null];
+		let result: Color[] = [null!];
 		for (let i = 1, len = colorMap.length; i < len; i++) {
 			result[i] = Color.fromHex(colorMap[i]);
 		}
@@ -390,7 +390,7 @@ export class TextMateService implements ITextMateService {
 			}
 		}
 
-		let languageId = this._modeService.getLanguageIdentifier(modeId).id;
+		let languageId = this._modeService.getLanguageIdentifier(modeId)!.id;
 		let containsEmbeddedLanguages = (Object.keys(embeddedLanguages).length > 0);
 		return this._getOrCreateGrammarRegistry().then((_res) => {
 			const [grammarRegistry, initialState] = _res;

@@ -19,11 +19,11 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { CollapseAction } from 'vs/workbench/browser/viewlet';
-import { ITree } from 'vs/base/parts/tree/browser/tree';
+import { CollapseAction2 } from 'vs/workbench/browser/viewlet';
 import { first } from 'vs/base/common/arrays';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { memoize } from 'vs/base/common/decorators';
+import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 
 export abstract class AbstractDebugAction extends Action {
 
@@ -797,9 +797,9 @@ export class ReverseContinueAction extends AbstractDebugAction {
 	}
 }
 
-export class ReplCollapseAllAction extends CollapseAction {
-	constructor(viewer: ITree, private toFocus: { focus(): void; }) {
-		super(viewer, true, undefined);
+export class ReplCollapseAllAction extends CollapseAction2 {
+	constructor(tree: AsyncDataTree<any>, private toFocus: { focus(): void; }) {
+		super(tree, true, undefined);
 	}
 
 	public run(event?: any): Thenable<any> {

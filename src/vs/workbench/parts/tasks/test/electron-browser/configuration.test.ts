@@ -193,7 +193,7 @@ class CustomTaskBuilder {
 			promptOnClose: true,
 			problemMatchers: [],
 			hasDefinedMatchers: false,
-			runOptions: { rerunBehavior: Tasks.RerunBehavior.reevaluate },
+			runOptions: { reevaluateOnRerun: true },
 		};
 	}
 

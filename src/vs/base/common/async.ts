@@ -346,6 +346,10 @@ export function always<T>(promise: Thenable<T>, callback: () => void): Promise<T
 	return Promise.resolve(promise);
 }
 
+export function ignoreErrors<T>(promise: Thenable<T>): Thenable<T | undefined> {
+	return promise.then(undefined, _ => undefined);
+}
+
 /**
  * Runs the provided list of promise factories in sequential order. The returned
  * promise will complete to an array of results from each promise.

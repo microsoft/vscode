@@ -24,6 +24,7 @@ import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/commo
 export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchContribution {
 
 	private readonly _session = new Map<ICpuProfilerTarget, CancellationTokenSource>();
+	private readonly _blame = new Set<string>();
 
 	constructor(
 		@IExtensionService private _extensionService: IExtensionService,
@@ -169,6 +170,12 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 		if (!reportAction.enabled) {
 			return;
 		}
+
+		// only blame once per extension, don't blame too often
+		if (this._blame.has(extension.id) || this._blame.size >= 3) {
+			return;
+		}
+		this._blame.add(extension.id);
 
 		// user-facing message when very bad...
 		this._notificationService.prompt(

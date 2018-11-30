@@ -141,7 +141,7 @@ suite('ObjectTreeModel', function () {
 		assert.deepEqual(toArray(list), [1, 11, 111, 112, 2]);
 	});
 
-	test('collapse state is lost without an identity provider', () => {
+	test('collapse state is preserved with strict identity', () => {
 		const list: ITreeNode<string>[] = [];
 		const model = new ObjectTreeModel<string>(toSpliceable(list), { collapseByDefault: true });
 		const data = [{ element: 'father', children: [{ element: 'child' }] }];
@@ -153,22 +153,19 @@ suite('ObjectTreeModel', function () {
 		assert.deepEqual(toArray(list), ['father', 'child']);
 
 		model.setChildren(null, data);
-		assert.deepEqual(toArray(list), ['father']);
-	});
+		assert.deepEqual(toArray(list), ['father', 'child']);
 
-	test('collapse state is preserved with an identity provider', () => {
-		const list: ITreeNode<string>[] = [];
-		const identityProvider = { getId: (name: string) => name };
-		const model = new ObjectTreeModel<string>(toSpliceable(list), { collapseByDefault: true, identityProvider });
-		const data = [{ element: 'father', children: [{ element: 'child' }] }];
+		const data2 = [{ element: 'father', children: [{ element: 'child' }] }, { element: 'uncle' }];
+		model.setChildren(null, data2);
+		assert.deepEqual(toArray(list), ['father', 'child', 'uncle']);
+
+		model.setChildren(null, [{ element: 'uncle' }]);
+		assert.deepEqual(toArray(list), ['uncle']);
+
+		model.setChildren(null, data2);
+		assert.deepEqual(toArray(list), ['father', 'uncle']);
 
 		model.setChildren(null, data);
 		assert.deepEqual(toArray(list), ['father']);
-
-		model.setCollapsed('father', false);
-		assert.deepEqual(toArray(list), ['father', 'child']);
-
-		model.setChildren(null, data);
-		assert.deepEqual(toArray(list), ['father', 'child']);
 	});
 });

@@ -59,8 +59,9 @@ suite('TokenSelectionSupport', () => {
 
 		let actual = await provideSelectionRanges(model, new Position(lineNumber, column), CancellationToken.None);
 
+
 		let actualStr = actual.map(r => new Range(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn).toString());
-		let desiredStr = ranges.map(r => String(r));
+		let desiredStr = ranges.reverse().map(r => String(r));
 
 		assert.deepEqual(actualStr, desiredStr);
 
