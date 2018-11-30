@@ -6,7 +6,6 @@
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import * as errors from 'vs/base/common/errors';
-import * as arrays from 'vs/base/common/arrays';
 import * as objects from 'vs/base/common/objects';
 import * as DOM from 'vs/base/browser/dom';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -39,8 +38,6 @@ import { AccessibilitySupport, isRootUser, isWindows, isMacintosh } from 'vs/bas
 import product from 'vs/platform/node/product';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 const TextInputActions: IAction[] = [
 	new Action('undo', nls.localize('undo', "Undo"), null, true, () => document.execCommand('undo') && Promise.resolve(true)),
@@ -74,9 +71,7 @@ export class ElectronWindow extends Themable {
 		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
 		@INotificationService private notificationService: INotificationService,
 		@ICommandService private commandService: ICommandService,
-		@IExtensionService private extensionService: IExtensionService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IKeybindingService private keybindingService: IKeybindingService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
 		@IFileService private fileService: IFileService,
@@ -138,23 +133,7 @@ export class ElectronWindow extends Themable {
 			});
 		});
 
-		// Support resolve keybindings event
-		ipc.on('vscode:resolveKeybindings', (event: any, rawActionIds: string) => {
-			let actionIds: string[] = [];
-			try {
-				actionIds = JSON.parse(rawActionIds);
-			} catch (error) {
-				// should not happen
-			}
-
-			// Resolve keys using the keybinding service and send back to browser process
-			this.resolveKeybindings(actionIds).then(keybindings => {
-				if (keybindings.length) {
-					ipc.send('vscode:keybindingsResolved', JSON.stringify(keybindings));
-				}
-			});
-		});
-
+		// Error reporting from main
 		ipc.on('vscode:reportError', (event: any, error: string) => {
 			if (error) {
 				const errorParsed = JSON.parse(error);
@@ -371,28 +350,6 @@ export class ElectronWindow extends Themable {
 			this.lastInstalledTouchedBar = items;
 			this.windowService.updateTouchBar(items);
 		}
-	}
-
-	private resolveKeybindings(actionIds: string[]): Promise<{ id: string; label: string, isNative: boolean; }[]> {
-		return Promise.all([this.lifecycleService.when(LifecyclePhase.Restored), this.extensionService.whenInstalledExtensionsRegistered()]).then(() => {
-			return arrays.coalesce(actionIds.map(id => {
-				const binding = this.keybindingService.lookupKeybinding(id);
-				if (!binding) {
-					return null;
-				}
-				// first try to resolve a native accelerator
-				const electronAccelerator = binding.getElectronAccelerator();
-				if (electronAccelerator) {
-					return { id, label: electronAccelerator, isNative: true };
-				}
-				// we need this fallback to support keybindings that cannot show in electron menus (e.g. chords)
-				const acceleratorLabel = binding.getLabel();
-				if (acceleratorLabel) {
-					return { id, label: acceleratorLabel, isNative: false };
-				}
-				return null;
-			}));
-		});
 	}
 
 	private onAddFoldersRequest(request: IAddFoldersRequest): void {
