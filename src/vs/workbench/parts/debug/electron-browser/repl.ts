@@ -78,7 +78,7 @@ interface IPrivateReplService {
 	_serviceBrand: any;
 	acceptReplInput(): void;
 	getVisibleContent(): string;
-	selectSession(session: IDebugSession): void;
+	selectSession(session?: IDebugSession): void;
 	clearRepl(): void;
 }
 
@@ -189,10 +189,16 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		}
 	}
 
-	selectSession(): void {
-		const focusedSession = this.debugService.getViewModel().focusedSession;
-		// If there is a focusedSession focus on that one, otherwise just show any other not ignored session
-		const session = focusedSession || first(this.debugService.getModel().getSessions(true), s => !sessionsToIgnore.has(s));
+	selectSession(session?: IDebugSession): void {
+		if (!session) {
+			const focusedSession = this.debugService.getViewModel().focusedSession;
+			// If there is a focusedSession focus on that one, otherwise just show any other not ignored session
+			if (focusedSession) {
+				session = focusedSession;
+			} else if (!this.dataSource.input || sessionsToIgnore.has(this.dataSource.input)) {
+				session = first(this.debugService.getModel().getSessions(true), s => !sessionsToIgnore.has(s));
+			}
+		}
 		if (session) {
 			if (this.replElementsChangeListener) {
 				this.replElementsChangeListener.dispose();
