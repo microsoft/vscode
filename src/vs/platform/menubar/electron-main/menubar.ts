@@ -719,6 +719,10 @@ export class Menubar {
 		}
 
 		if (activeWindow) {
+			if (!activeWindow.isReady && isMacintosh && id === 'workbench.action.toggleDevTools') {
+				return; // prevent this action from running twice on macOS (https://github.com/Microsoft/vscode/issues/62719)
+			}
+
 			this.windowsMainService.sendToFocused('vscode:runAction', { id, from: 'menu' } as IRunActionInWindowRequest);
 		}
 	}
