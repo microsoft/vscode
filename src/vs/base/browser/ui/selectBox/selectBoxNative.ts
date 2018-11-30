@@ -21,12 +21,11 @@ export class SelectBoxNative implements ISelectBoxDelegate {
 	private toDispose: IDisposable[];
 	private styles: ISelectBoxStyles;
 
-	// constructor(options: string[], selected: number, styles: ISelectBoxStyles, selectBoxOptions?: ISelectBoxOptions) {
 	constructor(options: ISelectOptionItem[], selected: number, styles: ISelectBoxStyles, selectBoxOptions?: ISelectBoxOptions) {
 		this.toDispose = [];
 		this.selectBoxOptions = selectBoxOptions || Object.create(null);
 
-		// this.options = <string[]>options.map((option) => option.optionText);
+		this.options = [];
 
 		this.selectElement = document.createElement('select');
 
@@ -103,7 +102,9 @@ export class SelectBoxNative implements ISelectBoxDelegate {
 	}
 
 	public select(index: number): void {
-		if (index >= 0 && index < this.options.length) {
+		if (this.options.length === 0) {
+			this.selected = 0;
+		} else if (index >= 0 && index < this.options.length) {
 			this.selected = index;
 		} else if (index > this.options.length - 1) {
 			// Adjust index to end of list
@@ -114,7 +115,11 @@ export class SelectBoxNative implements ISelectBoxDelegate {
 		}
 
 		this.selectElement.selectedIndex = this.selected;
-		this.selectElement.title = this.options[this.selected].optionText;
+		if (this.options.length && typeof this.options[this.selected].optionText === 'string') {
+			this.selectElement.title = this.options[this.selected].optionText;
+		} else {
+			this.selectElement.title = '';
+		}
 	}
 
 	public setAriaLabel(label: string): void {
