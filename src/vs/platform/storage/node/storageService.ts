@@ -535,7 +535,9 @@ export class DelegatingStorageService extends Disposable implements IStorageServ
 	get(key: string, scope: StorageScope, fallbackValue: string): string;
 	get(key: string, scope: StorageScope, fallbackValue?: string): string | undefined {
 		if (!this.useLegacyWorkspaceStorage) {
-			return this.storageService.get(key, scope, fallbackValue);
+			if (scope === StorageScope.WORKSPACE || process.env['VSCODE_TEST_STORAGE_MIGRATION']) {
+				return this.storageService.get(key, scope, fallbackValue);
+			}
 		}
 
 		return this.storageLegacyService.get(key, this.convertScope(scope), fallbackValue);
@@ -544,7 +546,9 @@ export class DelegatingStorageService extends Disposable implements IStorageServ
 	getBoolean(key: string, scope: StorageScope, fallbackValue: boolean): boolean;
 	getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): boolean | undefined {
 		if (!this.useLegacyWorkspaceStorage) {
-			return this.storageService.getBoolean(key, scope, fallbackValue);
+			if (scope === StorageScope.WORKSPACE || process.env['VSCODE_TEST_STORAGE_MIGRATION']) {
+				return this.storageService.getBoolean(key, scope, fallbackValue);
+			}
 		}
 
 		return this.storageLegacyService.getBoolean(key, this.convertScope(scope), fallbackValue);
@@ -553,7 +557,9 @@ export class DelegatingStorageService extends Disposable implements IStorageServ
 	getInteger(key: string, scope: StorageScope, fallbackValue: number): number;
 	getInteger(key: string, scope: StorageScope, fallbackValue?: number): number | undefined {
 		if (!this.useLegacyWorkspaceStorage) {
-			return this.storageService.getInteger(key, scope, fallbackValue);
+			if (scope === StorageScope.WORKSPACE || process.env['VSCODE_TEST_STORAGE_MIGRATION']) {
+				return this.storageService.getInteger(key, scope, fallbackValue);
+			}
 		}
 
 		return this.storageLegacyService.getInteger(key, this.convertScope(scope), fallbackValue);
