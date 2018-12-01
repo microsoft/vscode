@@ -399,6 +399,7 @@
 		"./vs/platform/configuration/common/configuration.ts",
 		"./vs/platform/configuration/common/configurationModels.ts",
 		"./vs/platform/configuration/common/configurationRegistry.ts",
+		"./vs/platform/configuration/test/common/testConfigurationService.ts",
 		"./vs/platform/contextkey/browser/contextKeyService.ts",
 		"./vs/platform/contextkey/common/contextkey.ts",
 		"./vs/platform/diagnostics/electron-main/diagnosticsService.ts",
