@@ -618,6 +618,7 @@
 		"./vs/workbench/parts/snippets/electron-browser/snippetCompletionProvider.ts",
 		"./vs/workbench/parts/snippets/electron-browser/snippets.contribution.ts",
 		"./vs/workbench/parts/snippets/electron-browser/snippetsFile.ts",
+		"./vs/workbench/parts/snippets/electron-browser/snippetsService.ts",
 		"./vs/workbench/parts/surveys/electron-browser/nps.contribution.ts",
 		"./vs/workbench/parts/tasks/common/problemCollectors.ts",
 		"./vs/workbench/parts/tasks/common/problemMatcher.ts",
