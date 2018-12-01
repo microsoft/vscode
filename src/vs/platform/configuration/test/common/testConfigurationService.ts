@@ -34,7 +34,7 @@ export class TestConfigurationService implements IConfigurationService {
 	}
 
 	public updateValue(key: string, overrides?: IConfigurationOverrides): Promise<void> {
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 
 	public setUserConfiguration(key: any, value: any, root?: URI): Thenable<void> {
@@ -46,7 +46,7 @@ export class TestConfigurationService implements IConfigurationService {
 			this.configuration[key] = value;
 		}
 
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 
 	public onDidChangeConfiguration() {
@@ -56,8 +56,8 @@ export class TestConfigurationService implements IConfigurationService {
 	public inspect<T>(key: string, overrides?: IConfigurationOverrides): {
 		default: T,
 		user: T,
-		workspace: T,
-		workspaceFolder: T
+		workspace?: T,
+		workspaceFolder?: T
 		value: T,
 	} {
 		const config = this.getValue(undefined, overrides);
@@ -66,8 +66,8 @@ export class TestConfigurationService implements IConfigurationService {
 			value: getConfigurationValue<T>(config, key),
 			default: getConfigurationValue<T>(config, key),
 			user: getConfigurationValue<T>(config, key),
-			workspace: null,
-			workspaceFolder: null
+			workspace: undefined,
+			workspaceFolder: undefined
 		};
 	}
 

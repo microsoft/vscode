@@ -1318,7 +1318,7 @@ namespace ConfiguringTask {
 			type: type,
 			configures: taskIdentifier,
 			_id: `${typeDeclaration.extensionId}.${taskIdentifier._key}`,
-			_source: Objects.assign({}, source, { config: configElement }),
+			_source: Objects.assign({} as Tasks.WorkspaceTaskSource, source, { config: configElement }),
 			_label: undefined,
 			runOptions: RunOptions.fromConfiguration(external.runOptions)
 		};
@@ -1374,7 +1374,7 @@ namespace CustomTask {
 		let result: Tasks.CustomTask = {
 			type: Tasks.CUSTOMIZED_TASK_TYPE,
 			_id: context.uuidMap.getUUID(taskName),
-			_source: Objects.assign({}, source, { config: { index, element: external, file: '.vscode\\tasks.json', workspaceFolder: context.workspaceFolder } }),
+			_source: Objects.assign({} as Tasks.WorkspaceTaskSource, source, { config: { index, element: external, file: '.vscode\\tasks.json', workspaceFolder: context.workspaceFolder } }),
 			_label: taskName,
 			name: taskName,
 			identifier: taskName,
@@ -1874,7 +1874,7 @@ class ConfigurationParser {
 			let name = Tasks.CommandString.value(globals.command.name);
 			let task: Tasks.CustomTask = {
 				_id: context.uuidMap.getUUID(name),
-				_source: Objects.assign({}, source, { config: { index: -1, element: fileConfig, workspaceFolder: context.workspaceFolder } }),
+				_source: Objects.assign({} as Tasks.WorkspaceTaskSource, source, { config: { index: -1, element: fileConfig, workspaceFolder: context.workspaceFolder } }),
 				_label: name,
 				type: Tasks.CUSTOMIZED_TASK_TYPE,
 				name: name,

@@ -3124,6 +3124,53 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * How a [`SignatureHelpProvider`](#SignatureHelpProvider) was triggered
+	 */
+	export enum SignatureHelpTriggerReason {
+		/**
+		 * Signature help was invoked manually by the user or by a command.
+		 */
+		Invoke = 1,
+
+		/**
+		 * Signature help was triggered by a trigger character.
+		 */
+		TriggerCharacter = 2,
+
+		/**
+		 * Signature help was triggered by the cursor moving or by the document content changing.
+		 */
+		ContentChange = 3,
+	}
+
+	/**
+	 * Additional information about the context in which a
+	 * [`SignatureHelpProvider`](#SignatureHelpProvider.provideSignatureHelp) was triggered.
+	 */
+	export interface SignatureHelpContext {
+		/**
+		 * Action that caused signature help to be triggered.
+		 */
+		readonly triggerReason: SignatureHelpTriggerReason;
+
+		/**
+		 * Character that caused signature help to be triggered.
+		 *
+		 * This is `undefined` when signature help is not triggered by typing, such as when manually invoking
+		 * signature help or when moving the cursor.
+		 */
+		readonly triggerCharacter?: string;
+
+		/**
+		 * Whether or not signature help was previously showing when triggered.
+		 *
+		 * Retriggers occur when the signature help is already active and can be caused by typing a trigger character
+		 * or by a cursor move.
+		 */
+		readonly isRetrigger: boolean;
+	}
+
+	/**
 	 * The signature help provider interface defines the contract between extensions and
 	 * the [parameter hints](https://code.visualstudio.com/docs/editor/intellisense)-feature.
 	 */
@@ -3135,10 +3182,30 @@ declare module 'vscode' {
 		 * @param document The document in which the command was invoked.
 		 * @param position The position at which the command was invoked.
 		 * @param token A cancellation token.
+		 * @param context Information about how signature help was triggered.
+		 *
 		 * @return Signature help or a thenable that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined` or `null`.
 		 */
-		provideSignatureHelp(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<SignatureHelp>;
+		provideSignatureHelp(document: TextDocument, position: Position, token: CancellationToken, context: SignatureHelpContext): ProviderResult<SignatureHelp>;
+	}
+
+	/**
+	* Metadata about a registered [`SignatureHelpProvider`](#SignatureHelpProvider).
+	*/
+	export interface SignatureHelpProviderMetadata {
+		/**
+		 * List of characters that trigger signature help.
+		 */
+		readonly triggerCharacters: ReadonlyArray<string>;
+
+		/**
+		 * List of characters that re-trigger signature help.
+		 *
+		 * These trigger characters are only active when signature help is alread showing. All trigger characters
+		 * are also counted as re-trigger characters.
+		 */
+		readonly retriggerCharacters: ReadonlyArray<string>;
 	}
 
 	/**
@@ -7925,9 +7992,11 @@ declare module 'vscode' {
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider A signature help provider.
 		 * @param triggerCharacters Trigger signature help when the user types one of the characters, like `,` or `(`.
+		 * @param metadata Information about the provider.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerSignatureHelpProvider(selector: DocumentSelector, provider: SignatureHelpProvider, ...triggerCharacters: string[]): Disposable;
+		export function registerSignatureHelpProvider(selector: DocumentSelector, provider: SignatureHelpProvider, metadata: SignatureHelpProviderMetadata): Disposable;
 
 		/**
 		 * Register a document link provider.

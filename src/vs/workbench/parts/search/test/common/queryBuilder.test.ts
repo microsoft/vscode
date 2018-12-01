@@ -659,6 +659,20 @@ suite('QueryBuilder', () => {
 								pattern: '**/*.txt'
 							}]
 					}
+				],
+				[
+					'./root1/**/foo/, bar/',
+					<ISearchPathsResult>{
+						pattern: {
+							'**/bar': true,
+							'**/bar/**': true
+						},
+						searchPaths: [
+							{
+								searchPath: ROOT_1_URI,
+								pattern: '**/foo'
+							}]
+					}
 				]
 			];
 			cases.forEach(testIncludesDataItem);
@@ -691,10 +705,12 @@ suite('QueryBuilder', () => {
 			const query = queryBuilder.text(
 				{
 					pattern: 'a',
-					isCaseSensitive: true,
-					isSmartCase: true
+					isCaseSensitive: true
 				},
-				[]);
+				[],
+				{
+					isSmartCase: true
+				});
 
 			assert(query.contentPattern.isCaseSensitive);
 		});
@@ -702,10 +718,12 @@ suite('QueryBuilder', () => {
 		test('smartCase determines not case sensitive', () => {
 			const query = queryBuilder.text(
 				{
-					pattern: 'abcd',
-					isSmartCase: true
+					pattern: 'abcd'
 				},
-				[]);
+				[],
+				{
+					isSmartCase: true
+				});
 
 			assert(!query.contentPattern.isCaseSensitive);
 		});
@@ -713,10 +731,12 @@ suite('QueryBuilder', () => {
 		test('smartCase determines case sensitive', () => {
 			const query = queryBuilder.text(
 				{
-					pattern: 'abCd',
-					isSmartCase: true
+					pattern: 'abCd'
 				},
-				[]);
+				[],
+				{
+					isSmartCase: true
+				});
 
 			assert(query.contentPattern.isCaseSensitive);
 		});
@@ -725,10 +745,12 @@ suite('QueryBuilder', () => {
 			const query = queryBuilder.text(
 				{
 					pattern: 'ab\\Sd',
-					isRegExp: true,
-					isSmartCase: true
+					isRegExp: true
 				},
-				[]);
+				[],
+				{
+					isSmartCase: true
+				});
 
 			assert(!query.contentPattern.isCaseSensitive);
 		});
@@ -737,10 +759,12 @@ suite('QueryBuilder', () => {
 			const query = queryBuilder.text(
 				{
 					pattern: 'ab[A-Z]d',
-					isRegExp: true,
-					isSmartCase: true
+					isRegExp: true
 				},
-				[]);
+				[],
+				{
+					isSmartCase: true
+				});
 
 			assert(query.contentPattern.isCaseSensitive);
 		});

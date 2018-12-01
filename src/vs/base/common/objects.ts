@@ -47,10 +47,10 @@ export function deepFreeze<T>(obj: T): T {
 const _hasOwnProperty = Object.prototype.hasOwnProperty;
 
 export function cloneAndChange(obj: any, changer: (orig: any) => any): any {
-	return _cloneAndChange(obj, changer, []);
+	return _cloneAndChange(obj, changer, new Set());
 }
 
-function _cloneAndChange(obj: any, changer: (orig: any) => any, encounteredObjects: any[]): any {
+function _cloneAndChange(obj: any, changer: (orig: any) => any, seen: Set<any>): any {
 	if (isUndefinedOrNull(obj)) {
 		return obj;
 	}
@@ -63,23 +63,23 @@ function _cloneAndChange(obj: any, changer: (orig: any) => any, encounteredObjec
 	if (isArray(obj)) {
 		const r1: any[] = [];
 		for (let i1 = 0; i1 < obj.length; i1++) {
-			r1.push(_cloneAndChange(obj[i1], changer, encounteredObjects));
+			r1.push(_cloneAndChange(obj[i1], changer, seen));
 		}
 		return r1;
 	}
 
 	if (isObject(obj)) {
-		if (encounteredObjects.indexOf(obj) >= 0) {
+		if (seen.has(obj)) {
 			throw new Error('Cannot clone recursive data-structure');
 		}
-		encounteredObjects.push(obj);
+		seen.add(obj);
 		const r2 = {};
 		for (let i2 in obj) {
 			if (_hasOwnProperty.call(obj, i2)) {
-				(r2 as any)[i2] = _cloneAndChange(obj[i2], changer, encounteredObjects);
+				(r2 as any)[i2] = _cloneAndChange(obj[i2], changer, seen);
 			}
 		}
-		encounteredObjects.pop();
+		seen.delete(obj);
 		return r2;
 	}
 
@@ -113,6 +113,10 @@ export function mixin(destination: any, source: any, overwrite: boolean = true):
 	return destination;
 }
 
+export function assign<T>(destination: T): T;
+export function assign<T, U>(destination: T, u: U): T & U;
+export function assign<T, U, V>(destination: T, u: U, v: V): T & U & V;
+export function assign<T, U, V, W>(destination: T, u: U, v: V, w: W): T & U & V & W;
 export function assign(destination: any, ...sources: any[]): any {
 	sources.forEach(source => Object.keys(source).forEach(key => destination[key] = source[key]));
 	return destination;

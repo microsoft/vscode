@@ -528,12 +528,12 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	}
 
 	private registerQuickNavigation() {
-		return dom.addDisposableListener(this.ui.container, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
+		return dom.addDisposableListener(this.ui.container, dom.EventType.KEY_UP, e => {
 			if (this.canSelectMany || !this.quickNavigate) {
 				return;
 			}
 
-			const keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e as KeyboardEvent);
+			const keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
 			const keyCode = keyboardEvent.keyCode;
 
 			// Select element when keys are pressed that signal it
