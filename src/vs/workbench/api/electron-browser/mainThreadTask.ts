@@ -336,7 +336,7 @@ namespace TaskDTO {
 			return undefined;
 		}
 		command.presentation = TaskPresentationOptionsDTO.to(task.presentationOptions);
-		command.presentation = Objects.assign(command.presentation || {}, { echo: true, reveal: RevealKind.Always, focus: false, panel: PanelKind.Shared });
+		command.presentation = Objects.assign(command.presentation || ({} as PresentationOptions), { echo: true, reveal: RevealKind.Always, focus: false, panel: PanelKind.Shared });
 
 		let source = TaskSourceDTO.to(task.source, workspace);
 

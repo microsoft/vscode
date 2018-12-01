@@ -869,9 +869,9 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		});
 	}
 
-	private setUninstalled(...extensions: ILocalExtension[]): Promise<void> {
+	private setUninstalled(...extensions: ILocalExtension[]): Promise<{ [id: string]: boolean }> {
 		const ids = extensions.map(e => e.identifier.id);
-		return this.withUninstalledExtensions(uninstalled => assign(uninstalled, ids.reduce((result, id) => { result[id] = true; return result; }, {})));
+		return this.withUninstalledExtensions(uninstalled => assign(uninstalled, ids.reduce((result, id) => { result[id] = true; return result; }, {} as { [id: string]: boolean })));
 	}
 
 	private unsetUninstalled(id: string): Promise<void> {
