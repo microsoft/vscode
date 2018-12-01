@@ -769,7 +769,7 @@ export class MenubarControl extends Disposable {
 
 			if (firstTimeSetup) {
 				this._register(DOM.addDisposableListener(this.customMenus[menuIndex].buttonElement, DOM.EventType.KEY_UP, (e) => {
-					let event = new StandardKeyboardEvent(e as KeyboardEvent);
+					let event = new StandardKeyboardEvent(e);
 					let eventHandled = true;
 
 					if ((event.equals(KeyCode.DownArrow) || event.equals(KeyCode.Enter)) && !this.isOpen) {
@@ -838,7 +838,7 @@ export class MenubarControl extends Disposable {
 
 		if (firstTimeSetup) {
 			this._register(DOM.addDisposableListener(this.container, DOM.EventType.KEY_DOWN, (e) => {
-				let event = new StandardKeyboardEvent(e as KeyboardEvent);
+				let event = new StandardKeyboardEvent(e);
 				let eventHandled = true;
 				const key = !!e.key ? KeyCodeUtils.fromString(e.key) : KeyCode.Unknown;
 

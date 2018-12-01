@@ -1355,8 +1355,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 	private addClickEvents = (element: HTMLElement, handler: (event: any) => void): void => {
 		this.messageDisposables.push(dom.addDisposableListener(element, dom.EventType.CLICK, handler));
-		this.messageDisposables.push(dom.addDisposableListener(element, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			let event = new StandardKeyboardEvent(e as KeyboardEvent);
+		this.messageDisposables.push(dom.addDisposableListener(element, dom.EventType.KEY_DOWN, e => {
+			let event = new StandardKeyboardEvent(e);
 			let eventHandled = true;
 
 			if (event.equals(KeyCode.Space) || event.equals(KeyCode.Enter)) {
