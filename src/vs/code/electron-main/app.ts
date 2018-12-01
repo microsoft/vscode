@@ -75,6 +75,7 @@ import { ResolvedAuthority } from 'vs/platform/remote/common/remoteAuthorityReso
 import { SnapUpdateService } from 'vs/platform/update/electron-main/updateService.snap';
 import { IStorageMainService, StorageMainService } from 'vs/platform/storage/node/storageMainService';
 import { GlobalStorageDatabaseChannel } from 'vs/platform/storage/node/storageIpc';
+import { generateUuid } from 'vs/base/common/uuid';
 
 export class CodeApplication extends Disposable {
 
@@ -555,6 +556,30 @@ export class CodeApplication extends Disposable {
 		return storageMainService.initialize().then(void 0, error => {
 			errors.onUnexpectedError(error);
 			this.logService.error(error);
+		}).then(() => {
+
+			// Apply global telemetry values as part of the initialization
+			// These are global across all windows and thereby should be
+			// written from the main process once.
+
+			const telemetryInstanceId = 'telemetry.instanceId';
+			const instanceId = storageMainService.get(telemetryInstanceId, null);
+			if (instanceId === null) {
+				storageMainService.store(telemetryInstanceId, generateUuid());
+			}
+
+			const telemetryFirstSessionDate = 'telemetry.firstSessionDate';
+			const firstSessionDate = storageMainService.get(telemetryFirstSessionDate, null);
+			if (firstSessionDate === null) {
+				storageMainService.store(telemetryFirstSessionDate, new Date().toUTCString());
+			}
+
+			const telemetryCurrentSessionDate = 'telemetry.currentSessionDate';
+			const telemetryLastSessionDate = 'telemetry.lastSessionDate';
+			const lastSessionDate = storageMainService.get(telemetryCurrentSessionDate, null); // previous session date was the "current" one at that time
+			const currentSessionDate = new Date().toUTCString(); // current session date is "now"
+			storageMainService.store(telemetryLastSessionDate, lastSessionDate);
+			storageMainService.store(telemetryCurrentSessionDate, currentSessionDate);
 		});
 	}
 
