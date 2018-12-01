@@ -31,7 +31,6 @@ import { activeContrastBorder, contrastBorder, registerColor } from 'vs/platform
 import { ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { PeekViewWidget } from './peekViewWidget';
 import { FileReferences, OneReference, ReferencesModel } from './referencesModel';
-import { timeout } from 'vs/base/common/async';
 
 class DecorationsManager implements IDisposable {
 
@@ -534,7 +533,6 @@ export class ReferenceWidget extends PeekViewWidget {
 				this._tree.reveal(reference.parent);
 			}
 			await this._tree.expand(reference.parent);
-			await timeout(75); //todo@joao expand resolves to soon
 			this._tree.reveal(reference);
 		}
 

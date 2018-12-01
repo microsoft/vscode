@@ -11,7 +11,7 @@ import { isLinux, isWindows, isMacintosh } from 'vs/base/common/platform';
 import { isEqual } from 'vs/base/common/resources';
 
 export interface IWorkspaceFolderProvider {
-	getWorkspaceFolder(resource: URI): { uri: URI, name?: string };
+	getWorkspaceFolder(resource: URI): { uri: URI, name?: string } | null;
 	getWorkspace(): {
 		folders: { uri: URI, name?: string }[];
 	};

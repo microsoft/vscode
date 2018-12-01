@@ -445,7 +445,7 @@ export function debounceEvent<I, O>(event: Event<I>, merger: (last: O | undefine
 }
 
 /**
- * The EventDelayer is useful in situations in which you want
+ * The EventBufferer is useful in situations in which you want
  * to delay firing your events during some code.
  * You can wrap that code and be sure that the event will not
  * be fired during that wrap.

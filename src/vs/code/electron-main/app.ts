@@ -73,7 +73,9 @@ import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/platform/remote/node/remoteAgentFileSystemChannel';
 import { ResolvedAuthority } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { SnapUpdateService } from 'vs/platform/update/electron-main/updateService.snap';
-import { IStorageMainService, StorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
+import { IStorageMainService, StorageMainService } from 'vs/platform/storage/node/storageMainService';
+import { GlobalStorageDatabaseChannel } from 'vs/platform/storage/node/storageIpc';
+import { generateUuid } from 'vs/base/common/uuid';
 
 export class CodeApplication extends Disposable {
 
@@ -209,7 +211,7 @@ export class CodeApplication extends Disposable {
 			} else {
 				const [host, strPort] = authority.split(':');
 				const port = parseInt(strPort, 10);
-				return { authority, host, port };
+				return { authority, host, port, syncExtensions: false };
 			}
 		};
 
@@ -545,15 +547,39 @@ export class CodeApplication extends Disposable {
 	}
 
 	private initStorageService(accessor: ServicesAccessor): Thenable<void> {
-		const storageService = accessor.get(IStorageMainService) as StorageMainService;
+		const storageMainService = accessor.get(IStorageMainService) as StorageMainService;
 
 		// Ensure to close storage on shutdown
-		this.lifecycleService.onWillShutdown(e => e.join(storageService.close()));
+		this.lifecycleService.onWillShutdown(e => e.join(storageMainService.close()));
 
 		// Initialize storage service
-		return storageService.initialize().then(void 0, error => {
+		return storageMainService.initialize().then(void 0, error => {
 			errors.onUnexpectedError(error);
 			this.logService.error(error);
+		}).then(() => {
+
+			// Apply global telemetry values as part of the initialization
+			// These are global across all windows and thereby should be
+			// written from the main process once.
+
+			const telemetryInstanceId = 'telemetry.instanceId';
+			const instanceId = storageMainService.get(telemetryInstanceId, null);
+			if (instanceId === null) {
+				storageMainService.store(telemetryInstanceId, generateUuid());
+			}
+
+			const telemetryFirstSessionDate = 'telemetry.firstSessionDate';
+			const firstSessionDate = storageMainService.get(telemetryFirstSessionDate, null);
+			if (firstSessionDate === null) {
+				storageMainService.store(telemetryFirstSessionDate, new Date().toUTCString());
+			}
+
+			const telemetryCurrentSessionDate = 'telemetry.currentSessionDate';
+			const telemetryLastSessionDate = 'telemetry.lastSessionDate';
+			const lastSessionDate = storageMainService.get(telemetryCurrentSessionDate, null); // previous session date was the "current" one at that time
+			const currentSessionDate = new Date().toUTCString(); // current session date is "now"
+			storageMainService.store(telemetryLastSessionDate, lastSessionDate);
+			storageMainService.store(telemetryCurrentSessionDate, currentSessionDate);
 		});
 	}
 
@@ -590,6 +616,10 @@ export class CodeApplication extends Disposable {
 		const urlService = accessor.get(IURLService);
 		const urlChannel = new URLServiceChannel(urlService);
 		this.electronIpcServer.registerChannel('url', urlChannel);
+
+		const storageMainService = accessor.get(IStorageMainService);
+		const storageChannel = this._register(new GlobalStorageDatabaseChannel(storageMainService as StorageMainService));
+		this.electronIpcServer.registerChannel('storage', storageChannel);
 
 		// Log level management
 		const logLevelChannel = new LogLevelSetterChannel(accessor.get(ILogService));

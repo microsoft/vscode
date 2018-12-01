@@ -146,7 +146,6 @@ export interface IPatternInfo {
 	wordSeparators?: string;
 	isMultiline?: boolean;
 	isCaseSensitive?: boolean;
-	isSmartCase?: boolean;
 }
 
 export interface IExtendedExtensionSearchOptions {

@@ -48,7 +48,7 @@ export class DebugHoverWidget implements IContentWidget {
 	private complexValueContainer: HTMLElement;
 	private complexValueTitle: HTMLElement;
 	private valueContainer: HTMLElement;
-	private stoleFocus: boolean;
+	private treeContainer: HTMLElement;
 	private toDispose: lifecycle.IDisposable[];
 	private scrollbar: DomScrollableElement;
 	private dataSource: DebugHoverDataSource;
@@ -73,14 +73,15 @@ export class DebugHoverWidget implements IContentWidget {
 		this.domNode = $('.debug-hover-widget');
 		this.complexValueContainer = dom.append(this.domNode, $('.complex-value'));
 		this.complexValueTitle = dom.append(this.complexValueContainer, $('.title'));
-		const treeContainer = dom.append(this.complexValueContainer, $('.debug-hover-tree'));
-		treeContainer.setAttribute('role', 'tree');
+		this.treeContainer = dom.append(this.complexValueContainer, $('.debug-hover-tree'));
+		this.treeContainer.setAttribute('role', 'tree');
 		this.dataSource = new DebugHoverDataSource();
 
-		this.tree = new WorkbenchAsyncDataTree(treeContainer, new DebugHoverDelegate(), [this.instantiationService.createInstance(VariablesRenderer)],
+		this.tree = new WorkbenchAsyncDataTree(this.treeContainer, new DebugHoverDelegate(), [this.instantiationService.createInstance(VariablesRenderer)],
 			this.dataSource, {
 				ariaLabel: nls.localize('treeAriaLabel', "Debug Hover"),
 				accessibilityProvider: new DebugHoverAccessibilityProvider(),
+				mouseSupport: false
 			}, this.contextKeyService, this.listService, this.themeService, this.configurationService);
 
 		this.valueContainer = $('.value');
@@ -104,14 +105,13 @@ export class DebugHoverWidget implements IContentWidget {
 				this.domNode.style.border = null;
 			}
 		}));
+		this.toDispose.push(this.tree.onDidChangeContentHeight(() => this.layoutTreeAndContainer()));
 
 		this.registerListeners();
 		this.editor.addContentWidget(this);
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.tree.onMouseClick(event => this.onMouseClick(event.element)));
-
 		this.toDispose.push(dom.addStandardDisposableListener(this.domNode, 'keydown', (e: IKeyboardEvent) => {
 			if (e.equals(KeyCode.Escape)) {
 				this.hide();
@@ -211,7 +211,6 @@ export class DebugHoverWidget implements IContentWidget {
 
 		this.showAtPosition = position;
 		this._isVisible = true;
-		this.stoleFocus = focus;
 
 		if (!expression.hasChildren || forceValueHover) {
 			this.complexValueContainer.hidden = true;
@@ -239,7 +238,7 @@ export class DebugHoverWidget implements IContentWidget {
 		return this.tree.refresh(null).then(() => {
 			this.complexValueTitle.textContent = expression.value;
 			this.complexValueTitle.title = expression.value;
-			this.tree.layout(MAX_TREE_HEIGHT);
+			this.layoutTreeAndContainer();
 			this.editor.layoutContentWidget(this);
 			this.scrollbar.scanDomNode();
 			if (focus) {
@@ -249,12 +248,10 @@ export class DebugHoverWidget implements IContentWidget {
 		});
 	}
 
-	private onMouseClick(element: IExpression): void {
-		if (element && element.hasChildren) {
-			this.tree.setFocus([]);
-			this.tree.setSelection([]);
-			this.editor.focus();
-		}
+	private layoutTreeAndContainer(): void {
+		const treeHeight = Math.min(MAX_TREE_HEIGHT, this.tree.visibleNodeCount * 18);
+		this.treeContainer.style.height = `${treeHeight}px`;
+		this.tree.layout(treeHeight);
 	}
 
 	hide(): void {
@@ -266,9 +263,7 @@ export class DebugHoverWidget implements IContentWidget {
 		this.editor.deltaDecorations(this.highlightDecorations, []);
 		this.highlightDecorations = [];
 		this.editor.layoutContentWidget(this);
-		if (this.stoleFocus) {
-			this.editor.focus();
-		}
+		this.editor.focus();
 	}
 
 	getPosition(): IContentWidgetPosition {

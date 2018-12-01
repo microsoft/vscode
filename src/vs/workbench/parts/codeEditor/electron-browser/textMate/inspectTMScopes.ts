@@ -116,7 +116,7 @@ class InspectTMScopes extends EditorAction {
 }
 
 interface ICompleteLineTokenization {
-	startState: StackElement;
+	startState: StackElement | null;
 	tokens1: IToken[];
 	tokens2: Uint32Array;
 	endState: StackElement;
@@ -347,7 +347,7 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 		};
 	}
 
-	private _getStateBeforeLine(grammar: IGrammar, lineNumber: number): StackElement {
+	private _getStateBeforeLine(grammar: IGrammar, lineNumber: number): StackElement | null {
 		let state: StackElement | null = null;
 
 		for (let i = 1; i < lineNumber; i++) {

@@ -123,7 +123,7 @@ export class CachedExtensionScanner {
 		);
 	}
 
-	private static async _readExtensionCache(environmentService: IEnvironmentService, cacheKey: string): Promise<IExtensionCacheData> {
+	private static async _readExtensionCache(environmentService: IEnvironmentService, cacheKey: string): Promise<IExtensionCacheData | null> {
 		const cacheFolder = path.join(environmentService.userDataPath, MANIFEST_CACHE_FOLDER);
 		const cacheFile = path.join(cacheFolder, cacheKey);
 
@@ -260,8 +260,8 @@ export class CachedExtensionScanner {
 			);
 
 			// Always load developed extensions while extensions development
-			let developedExtensions = Promise.resolve([]);
-			if (environmentService.isExtensionDevelopment && environmentService.extensionDevelopmentLocationURI.scheme === Schemas.file) {
+			let developedExtensions: Promise<IExtensionDescription[]> = Promise.resolve([]);
+			if (environmentService.isExtensionDevelopment && environmentService.extensionDevelopmentLocationURI && environmentService.extensionDevelopmentLocationURI.scheme === Schemas.file) {
 				developedExtensions = ExtensionScanner.scanOneOrMultipleExtensions(
 					new ExtensionScannerInput(version, commit, locale, devMode, fsPath(environmentService.extensionDevelopmentLocationURI), false, true, translations), log
 				);

@@ -32,7 +32,7 @@ import { IOutputService, IOutputChannel } from 'vs/workbench/parts/output/common
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEventKind } from 'vs/workbench/parts/tasks/common/problemCollectors';
 import {
 	Task, CustomTask, ContributedTask, RevealKind, CommandOptions, ShellConfiguration, RuntimeType, PanelKind,
-	TaskEvent, TaskEventKind, ShellQuotingOptions, ShellQuoting, CommandString, CommandConfiguration, RerunBehavior
+	TaskEvent, TaskEventKind, ShellQuotingOptions, ShellQuoting, CommandString, CommandConfiguration, ExtensionTaskSource, TaskScope
 } from 'vs/workbench/parts/tasks/common/tasks';
 import {
 	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, ITaskResolver,
@@ -201,7 +201,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 
 		try {
 			const executeResult = { kind: TaskExecuteKind.Started, task, started: {}, promise: this.executeTask(task, resolver, trigger) };
-			this.lastTask = this.currentTask;
+			executeResult.promise.then(summary => {
+				this.lastTask = this.currentTask;
+			});
 			return executeResult;
 		} catch (error) {
 			if (error instanceof TaskError) {
@@ -218,11 +220,13 @@ export class TerminalTaskSystem implements ITaskSystem {
 
 	public rerun(): ITaskExecuteResult | undefined {
 		if (this.lastTask && this.lastTask.verify()) {
-			if (this.lastTask.task.runOptions.rerunBehavior === RerunBehavior.useEvaluated) {
+			if ((this.lastTask.task.runOptions.reevaluateOnRerun !== void 0) && !this.lastTask.task.runOptions.reevaluateOnRerun) {
 				this.isRerun = true;
 			}
 			const result = this.run(this.lastTask.task, this.lastTask.resolver);
-			this.isRerun = false;
+			result.promise.then(summary => {
+				this.isRerun = false;
+			});
 			return result;
 		} else {
 			return undefined;
@@ -970,17 +974,21 @@ export class TerminalTaskSystem implements ITaskSystem {
 
 	private collectTaskVariables(variables: Set<string>, task: CustomTask | ContributedTask): void {
 		if (task.command) {
-			this.collectCommandVariables(variables, task.command);
+			this.collectCommandVariables(variables, task.command, task);
 		}
 		this.collectMatcherVariables(variables, task.problemMatchers);
 	}
 
-	private collectCommandVariables(variables: Set<string>, command: CommandConfiguration): void {
+	private collectCommandVariables(variables: Set<string>, command: CommandConfiguration, task: CustomTask | ContributedTask): void {
 		this.collectVariables(variables, command.name);
 		if (command.args) {
 			command.args.forEach(arg => this.collectVariables(variables, arg));
 		}
-		variables.add('${workspaceFolder}');
+		// Try to get a scope.
+		const scope = (<ExtensionTaskSource>task._source).scope;
+		if (scope !== TaskScope.Global) {
+			variables.add('${workspaceFolder}');
+		}
 		if (command.options) {
 			let options = command.options;
 			if (options.cwd) {

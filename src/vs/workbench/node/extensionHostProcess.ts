@@ -167,7 +167,6 @@ createExtHostProtocol().then(protocol => {
 	// setup things
 	const extensionHostMain = new ExtensionHostMain(renderer.protocol, renderer.initData);
 	onTerminate = () => extensionHostMain.terminate();
-	return extensionHostMain.start();
 }).catch(err => console.error(err));
 
 function patchExecArgv() {

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as arrays from 'vs/base/common/arrays';
-import { asThenable, first } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -20,6 +19,7 @@ import { MenuId } from 'vs/platform/actions/common/actions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TokenTreeSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/tokenTree';
+import { WordSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/wordSelections';
 
 class SelectionRanges {
 
@@ -200,9 +200,61 @@ registerEditorContribution(SmartSelectController);
 registerEditorAction(GrowSelectionAction);
 registerEditorAction(ShrinkSelectionAction);
 
-export function provideSelectionRanges(model: ITextModel, position: Position, token: CancellationToken): Promise<Range[] | undefined | null> {
-	const provider = modes.SelectionRangeRegistry.ordered(model);
-	return first(provider.map(pro => () => asThenable(() => pro.provideSelectionRanges(model, position, token))), arrays.isNonEmptyArray);
-}
-
+modes.SelectionRangeRegistry.register('*', new WordSelectionRangeProvider());
 modes.SelectionRangeRegistry.register('*', new TokenTreeSelectionRangeProvider());
+
+export function provideSelectionRanges(model: ITextModel, position: Position, token: CancellationToken): Promise<Range[] | undefined | null> {
+
+	const provider = modes.SelectionRangeRegistry.orderedGroups(model);
+
+	interface RankedRange {
+		rank: number;
+		range: Range;
+	}
+
+	let work: Promise<any>[] = [];
+	let ranges: RankedRange[] = [];
+	let rank = 0;
+
+	for (const group of provider) {
+		rank += 1;
+		for (const prov of group) {
+			work.push(Promise.resolve(prov.provideSelectionRanges(model, position, token)).then(res => {
+				if (arrays.isNonEmptyArray(res)) {
+					for (const range of res) {
+						if (Range.isIRange(range) && Range.containsPosition(range, position)) {
+							ranges.push({ range, rank });
+						}
+					}
+				}
+			}));
+		}
+	}
+
+	return Promise.all(work).then(() => {
+		ranges.sort((a, b) => {
+			if (Position.isBefore(a.range.getStartPosition(), b.range.getStartPosition())) {
+				return 1;
+			} else if (Position.isBefore(b.range.getStartPosition(), a.range.getStartPosition())) {
+				return -1;
+			} else if (Position.isBefore(a.range.getEndPosition(), b.range.getEndPosition())) {
+				return -1;
+			} else if (Position.isBefore(b.range.getEndPosition(), a.range.getEndPosition())) {
+				return 1;
+			} else {
+				return b.rank - a.rank;
+			}
+		});
+
+		// ranges.sort((a, b) => Range.compareRangesUsingStarts(b.range, a.range));
+		let result: Range[] = [];
+		let last: Range | undefined;
+		for (const { range } of ranges) {
+			if (!last || Range.containsRange(range, last)) {
+				result.push(range);
+				last = range;
+			}
+		}
+		return result;
+	});
+}

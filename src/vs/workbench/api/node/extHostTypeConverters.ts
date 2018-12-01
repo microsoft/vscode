@@ -11,7 +11,7 @@ import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
 import { IDecorationOptions, IThemeDecorationRenderOptions, IDecorationRenderOptions, IContentDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import { EndOfLineSequence, TrackedRangeStickiness } from 'vs/editor/common/model';
 import * as vscode from 'vscode';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { ProgressLocation as MainProgressLocation } from 'vs/platform/progress/common/progress';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { IPosition } from 'vs/editor/common/core/position';
@@ -25,6 +25,8 @@ import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/ed
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
 import { isString, isNumber } from 'vs/base/common/types';
 import * as marked from 'vs/base/common/marked/marked';
+import { parse } from 'vs/base/common/marshalling';
+import { cloneAndChange } from 'vs/base/common/objects';
 
 export interface PositionLike {
 	line: number;
@@ -227,7 +229,9 @@ export namespace MarkdownString {
 		let renderer = new marked.Renderer();
 		renderer.image = renderer.link = (href: string): string => {
 			try {
-				res.uris[href] = URI.parse(href, true);
+				let uri = URI.parse(href, true);
+				uri = uri.with({ query: _uriMassage(uri.query, res.uris) });
+				res.uris[href] = uri;
 			} catch (e) {
 				// ignore
 			}
@@ -236,6 +240,31 @@ export namespace MarkdownString {
 		marked(res.value, { renderer });
 
 		return res;
+	}
+
+	function _uriMassage(part: string, bucket: { [n: string]: UriComponents }): string {
+		if (!part) {
+			return part;
+		}
+		let data: any;
+		try {
+			data = parse(decodeURIComponent(part));
+		} catch (e) {
+			// ignore
+		}
+		if (!data) {
+			return part;
+		}
+		data = cloneAndChange(data, value => {
+			if (value instanceof URI) {
+				let key = `__uri_${Math.random().toString(16).slice(2, 8)}`;
+				bucket[key] = value;
+				return key;
+			} else {
+				return undefined;
+			}
+		});
+		return encodeURIComponent(JSON.stringify(data));
 	}
 
 	export function to(value: htmlContent.IMarkdownString): vscode.MarkdownString {

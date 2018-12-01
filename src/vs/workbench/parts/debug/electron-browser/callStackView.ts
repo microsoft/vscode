@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { RunOnceScheduler, ignoreErrors } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDebugService, State, IStackFrame, IDebugSession, IThread, CONTEXT_CALLSTACK_ITEM_TYPE } from 'vs/workbench/parts/debug/common/debug';
@@ -74,8 +74,8 @@ export class CallStackView extends ViewletPanel {
 			const sessions = this.debugService.getModel().getSessions();
 			const thread = sessions.length === 1 && sessions[0].getAllThreads().length === 1 ? sessions[0].getAllThreads()[0] : undefined;
 			if (thread && thread.stoppedDetails) {
-				this.pauseMessageLabel.textContent = thread.stoppedDetails.description || nls.localize('debugStopped', "Paused on {0}", thread.stoppedDetails.reason);
-				this.pauseMessageLabel.title = thread.stoppedDetails.text;
+				this.pauseMessageLabel.textContent = thread.stoppedDetails.description || nls.localize('debugStopped', "Paused on {0}", thread.stoppedDetails.reason || '');
+				this.pauseMessageLabel.title = thread.stoppedDetails.text || '';
 				dom.toggleClass(this.pauseMessageLabel, 'exception', thread.stoppedDetails.reason === 'exception');
 				this.pauseMessage.hidden = false;
 			} else {
@@ -227,9 +227,9 @@ export class CallStackView extends ViewletPanel {
 				updateSelectionAndReveal(session);
 			}
 		} else {
-			const expansionsPromise = this.tree.expand(thread.session).then(() => this.tree.expand(thread));
+			const expansionsPromise = ignoreErrors(this.tree.expand(thread.session))
+				.then(() => ignoreErrors(this.tree.expand(thread)));
 			if (stackFrame) {
-				// TODO@isidor need better error handling
 				expansionsPromise.then(() => updateSelectionAndReveal(stackFrame));
 			}
 		}

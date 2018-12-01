@@ -11,7 +11,6 @@ import { ILocalization } from 'vs/platform/localizations/common/localizations';
 import { URI } from 'vs/base/common/uri';
 import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IRemoteAuthorityResolver } from 'vs/platform/remote/common/remoteAuthorityResolver';
 
 export const EXTENSION_IDENTIFIER_PATTERN = '^([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*)$';
 export const EXTENSION_IDENTIFIER_REGEX = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
@@ -109,7 +108,6 @@ export interface IExtensionContributions {
 	views?: { [location: string]: IView[] };
 	colors?: IColor[];
 	localizations?: ILocalization[];
-	remoteAuthorityResolvers?: IRemoteAuthorityResolver[];
 }
 
 export type ExtensionKind = 'ui' | 'workspace';

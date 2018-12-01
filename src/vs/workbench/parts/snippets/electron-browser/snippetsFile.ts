@@ -148,8 +148,8 @@ export class SnippetFile {
 	constructor(
 		readonly source: SnippetSource,
 		readonly location: URI,
-		readonly defaultScopes: string[],
-		private readonly _extension: IExtensionDescription,
+		public defaultScopes: string[] | undefined,
+		private readonly _extension: IExtensionDescription | undefined,
 		private readonly _fileService: IFileService
 	) {
 		this.isGlobalSnippets = extname(location.path) === '.code-snippets';

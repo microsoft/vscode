@@ -98,15 +98,13 @@ export class SimpleEditorModelResolverService implements ITextModelService {
 	}
 
 	public createModelReference(resource: URI): Promise<IReference<ITextEditorModel>> {
-		let model: ITextModel;
-
-		model = withTypedEditor(this.editor,
+		let model: ITextModel | null = withTypedEditor(this.editor,
 			(editor) => this.findModel(editor, resource),
 			(diffEditor) => this.findModel(diffEditor.getOriginalEditor(), resource) || this.findModel(diffEditor.getModifiedEditor(), resource)
 		);
 
 		if (!model) {
-			return Promise.resolve(new ImmortalReference(null));
+			return Promise.reject(new Error(`Model not found`));
 		}
 
 		return Promise.resolve(new ImmortalReference(new SimpleModel(model)));
@@ -144,7 +142,7 @@ export class SimpleProgressService implements IProgressService {
 	}
 
 	showWhile(promise: Thenable<any>, delay?: number): Thenable<void> {
-		return null;
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -277,11 +275,16 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 		}));
 	}
 
-	public addDynamicKeybinding(commandId: string, keybinding: number, handler: ICommandHandler, when: ContextKeyExpr | null): IDisposable {
+	public addDynamicKeybinding(commandId: string, _keybinding: number, handler: ICommandHandler, when: ContextKeyExpr | null): IDisposable {
+		const keybinding = createKeybinding(_keybinding, OS);
+		if (!keybinding) {
+			throw new Error(`Invalid keybinding`);
+		}
+
 		let toDispose: IDisposable[] = [];
 
 		this._dynamicKeybindings.push({
-			keybinding: createKeybinding(keybinding, OS),
+			keybinding: keybinding,
 			command: commandId,
 			when: when,
 			weight1: 1000,
@@ -426,10 +429,10 @@ export class SimpleConfigurationService implements IConfigurationService {
 	}
 
 	public reloadConfiguration(): Promise<void> {
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 
-	public getConfigurationData(): IConfigurationData {
+	public getConfigurationData(): IConfigurationData | null {
 		return null;
 	}
 }
@@ -450,8 +453,11 @@ export class SimpleResourceConfigurationService implements ITextResourceConfigur
 	getValue<T>(resource: URI, section?: string): T;
 	getValue<T>(resource: URI, position?: IPosition, section?: string): T;
 	getValue<T>(resource: any, arg2?: any, arg3?: any) {
-		const position: IPosition = Pos.isIPosition(arg2) ? arg2 : null;
-		const section: string = position ? (typeof arg3 === 'string' ? arg3 : void 0) : (typeof arg2 === 'string' ? arg2 : void 0);
+		const position: IPosition | null = Pos.isIPosition(arg2) ? arg2 : null;
+		const section: string | undefined = position ? (typeof arg3 === 'string' ? arg3 : void 0) : (typeof arg2 === 'string' ? arg2 : void 0);
+		if (typeof section === 'undefined') {
+			return this.configurationService.getValue<T>();
+		}
 		return this.configurationService.getValue<T>(section);
 	}
 }
@@ -482,11 +488,11 @@ export class StandaloneTelemetryService implements ITelemetryService {
 	public isOptedIn = false;
 
 	public publicLog(eventName: string, data?: any): Promise<void> {
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 
 	public getTelemetryInfo(): Promise<ITelemetryInfo> {
-		return null;
+		throw new Error(`Not available`);
 	}
 }
 
@@ -526,8 +532,8 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 		return WorkbenchState.EMPTY;
 	}
 
-	public getWorkspaceFolder(resource: URI): IWorkspaceFolder {
-		return resource && resource.scheme === SimpleWorkspaceContextService.SCHEME ? this.workspace.folders[0] : void 0;
+	public getWorkspaceFolder(resource: URI): IWorkspaceFolder | null {
+		return resource && resource.scheme === SimpleWorkspaceContextService.SCHEME ? this.workspace.folders[0] : null;
 	}
 
 	public isInsideWorkspace(resource: URI): boolean {
@@ -567,19 +573,21 @@ export class SimpleBulkEditService implements IBulkEditService {
 
 		let edits = new Map<ITextModel, TextEdit[]>();
 
-		for (let edit of workspaceEdit.edits) {
-			if (!isResourceTextEdit(edit)) {
-				return Promise.reject(new Error('bad edit - only text edits are supported'));
+		if (workspaceEdit.edits) {
+			for (let edit of workspaceEdit.edits) {
+				if (!isResourceTextEdit(edit)) {
+					return Promise.reject(new Error('bad edit - only text edits are supported'));
+				}
+				let model = this._modelService.getModel(edit.resource);
+				if (!model) {
+					return Promise.reject(new Error('bad edit - model not found'));
+				}
+				let array = edits.get(model);
+				if (!array) {
+					array = [];
+				}
+				edits.set(model, array.concat(edit.edits));
 			}
-			let model = this._modelService.getModel(edit.resource);
-			if (!model) {
-				return Promise.reject(new Error('bad edit - model not found'));
-			}
-			let array = edits.get(model);
-			if (!array) {
-				array = [];
-			}
-			edits.set(model, array.concat(edit.edits));
 		}
 
 		let totalEdits = 0;

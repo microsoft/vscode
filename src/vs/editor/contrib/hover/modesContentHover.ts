@@ -40,7 +40,7 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 
 	private _editor: ICodeEditor;
 	private _result: HoverPart[];
-	private _range: Range;
+	private _range: Range | null;
 
 	constructor(editor: ICodeEditor) {
 		this._editor = editor;
@@ -57,10 +57,14 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 	}
 
 	computeAsync(token: CancellationToken): Promise<HoverPart[]> {
+		if (!this._editor.hasModel() || !this._range) {
+			return Promise.resolve([]);
+		}
+
 		const model = this._editor.getModel();
 
 		if (!HoverProviderRegistry.has(model)) {
-			return Promise.resolve(null);
+			return Promise.resolve([]);
 		}
 
 		return getHover(model, new Position(
@@ -70,6 +74,10 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 	}
 
 	computeSync(): HoverPart[] {
+		if (!this._editor.hasModel() || !this._range) {
+			return [];
+		}
+
 		const lineNumber = this._range.startLineNumber;
 
 		if (lineNumber > this._editor.getModel().getLineCount()) {
@@ -157,14 +165,14 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 	static readonly ID = 'editor.contrib.modesContentHoverWidget';
 
 	private _messages: HoverPart[];
-	private _lastRange: Range;
+	private _lastRange: Range | null;
 	private _computer: ModesContentComputer;
 	private _hoverOperation: HoverOperation<HoverPart[]>;
 	private _highlightDecorations: string[];
 	private _isChangingDecorations: boolean;
 	private _markdownRenderer: MarkdownRenderer;
 	private _shouldFocus: boolean;
-	private _colorPicker: ColorPickerWidget;
+	private _colorPicker: ColorPickerWidget | null;
 
 	private renderDisposable: IDisposable = Disposable.None;
 
@@ -175,6 +183,8 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 	) {
 		super(ModesContentHoverWidget.ID, editor);
 
+		this._messages = [];
+		this._lastRange = null;
 		this._computer = new ModesContentComputer(this._editor);
 		this._highlightDecorations = [];
 		this._isChangingDecorations = false;

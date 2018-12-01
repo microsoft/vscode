@@ -35,7 +35,7 @@ import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { localize } from 'vs/nls';
 import { timeout } from 'vs/base/common/async';
 import { CollapseAllAction } from 'vs/base/parts/tree/browser/treeDefaults';
-import { editorFindMatchHighlight, editorFindMatchHighlightBorder, textLinkForeground, textCodeBlockBackground } from 'vs/platform/theme/common/colorRegistry';
+import { editorFindMatchHighlight, editorFindMatchHighlightBorder, textLinkForeground, textCodeBlockBackground, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { isString } from 'vs/base/common/types';
 import { renderMarkdown, RenderOptions } from 'vs/base/browser/htmlContentRenderer';
@@ -598,6 +598,10 @@ registerThemingParticipant((theme, collector) => {
 	const link = theme.getColor(textLinkForeground);
 	if (link) {
 		collector.addRule(`.tree-explorer-viewlet-tree-view > .message a { color: ${link}; }`);
+	}
+	const focustBorderColor = theme.getColor(focusBorder);
+	if (focustBorderColor) {
+		collector.addRule(`.tree-explorer-viewlet-tree-view > .message a:focus { outline: 1px solid ${focustBorderColor}; outline-offset: -1px; }`);
 	}
 	const codeBackground = theme.getColor(textCodeBlockBackground);
 	if (codeBackground) {

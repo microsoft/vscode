@@ -38,7 +38,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { randomPort } from 'vs/base/node/ports';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { ILabelService } from 'vs/platform/label/common/label';
 import { renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { join } from 'path';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -117,7 +117,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IExtensionHostProfileService private readonly _extensionHostProfileService: IExtensionHostProfileService,
 		@IStorageService storageService: IStorageService,
-		@IRemoteAuthorityResolverService private remoteAuthorityResolverService: IRemoteAuthorityResolverService
+		@ILabelService private readonly _labelService: ILabelService
 	) {
 		super(RuntimeExtensionsEditor.ID, telemetryService, themeService, storageService);
 
@@ -375,11 +375,11 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 					const el = $('span');
 					el.innerHTML = renderOcticons(`$(rss) ${element.description.extensionLocation.authority}`);
 					data.msgContainer.appendChild(el);
-					this.remoteAuthorityResolverService.getRemoteAuthorityResolver(element.description.extensionLocation.authority).then(resolver => {
-						if (resolver && resolver.label.length) {
-							el.innerHTML = renderOcticons(`$(rss) ${resolver.label}`);
-						}
-					});
+
+					const hostLabel = this._labelService.getHostLabel();
+					if (hostLabel) {
+						el.innerHTML = renderOcticons(`$(rss) ${hostLabel}`);
+					}
 				}
 
 				if (this._profileInfo) {

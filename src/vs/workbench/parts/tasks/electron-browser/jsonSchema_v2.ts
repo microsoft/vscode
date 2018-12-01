@@ -284,10 +284,10 @@ const identifier: IJSONSchema = {
 const runOptions: IJSONSchema = {
 	type: 'object',
 	properties: {
-		rerunBehavior: {
-			type: 'string',
-			enum: ['reevauate', 'useEvaluated'],
-			description: nls.localize('JsonSchema.tasks.rerunBehavior', 'The task\'s behavior on rerun')
+		reevaluateOnRerun: {
+			type: 'boolean',
+			description: nls.localize('JsonSchema.tasks.reevaluateOnRerun', 'Whether to reevaluate task variables on rerun.'),
+			default: true
 		},
 		runOn: {
 			type: 'string',

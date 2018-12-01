@@ -21,6 +21,11 @@
 	visibility: hidden;
 }
 
+/* Align twisite to last line - for input output pair expressions. */
+.monaco-workbench .repl .repl-tree .monaco-tl-twistie {
+	background-position-y: calc(100% - 2px);
+}
+
 .monaco-workbench .repl .repl-tree .monaco-list .monaco-list-row .monaco-tl-contents {
 	line-height: 18px;
 	user-select: text;
@@ -75,11 +80,6 @@
 .monaco-workbench .repl .repl-input-wrapper {
 	padding-left: 20px;
 	border-top: 1px solid rgba(128, 128, 128, 0.35);
-}
-
-/* Disable repl hover highlight in tree. */
-.monaco-workbench .repl .repl-tree .monaco-list .monaco-list-rows > .monaco-list-row:hover:not(.highlighted):not(.selected):not(.focused)  {
-	background-color: inherit;
 }
 
 /* Only show 'stale expansion' info when the element gets expanded. */

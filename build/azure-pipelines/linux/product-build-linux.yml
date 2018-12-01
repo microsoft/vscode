@@ -103,6 +103,7 @@ steps:
 
 - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
   displayName: 'Component Detection'
+  continueOnError: true
 
 - task: PublishPipelineArtifact@0
   displayName: 'Publish Pipeline Artifact'

@@ -963,12 +963,6 @@ export class SettingsEditor2 extends BaseEditor {
 
 		return refreshP.then(() => {
 			this.tocTreeModel.update();
-			this.renderResultCountMessages();
-
-			// if (this.searchResultModel) {
-			// 	expandAll(this.tocTree);
-			// }
-
 			return this.tocTree.refresh();
 		}).then(() => { });
 	}

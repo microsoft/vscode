@@ -253,7 +253,7 @@ namespace TaskSourceDTO {
 	export function to(value: TaskSourceDTO, workspace: IWorkspaceContextService): ExtensionTaskSource {
 		let scope: TaskScope;
 		let workspaceFolder: IWorkspaceFolder;
-		if (value.scope === void 0) {
+		if ((value.scope === void 0) || ((typeof value.scope === 'number') && (value.scope !== TaskScope.Global))) {
 			if (workspace.getWorkspace().folders.length === 0) {
 				scope = TaskScope.Global;
 				workspaceFolder = undefined;
@@ -336,7 +336,7 @@ namespace TaskDTO {
 			return undefined;
 		}
 		command.presentation = TaskPresentationOptionsDTO.to(task.presentationOptions);
-		command.presentation = Objects.assign(command.presentation || {}, { echo: true, reveal: RevealKind.Always, focus: false, panel: PanelKind.Shared });
+		command.presentation = Objects.assign(command.presentation || ({} as PresentationOptions), { echo: true, reveal: RevealKind.Always, focus: false, panel: PanelKind.Shared });
 
 		let source = TaskSourceDTO.to(task.source, workspace);
 

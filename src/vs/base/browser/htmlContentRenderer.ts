@@ -12,6 +12,8 @@ import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
+import { parse } from 'vs/base/common/marshalling';
+import { cloneAndChange } from 'vs/base/common/objects';
 
 export interface IContentActionHandler {
 	callback: (content: string, event?: IMouseEvent) => void;
@@ -53,10 +55,37 @@ export function renderFormattedText(formattedText: string, options: RenderOption
 export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions = {}): HTMLElement {
 	const element = createElement(options);
 
+	const _uriMassage = function (part: string): string {
+		let data: any;
+		try {
+			data = parse(decodeURIComponent(part));
+		} catch (e) {
+			// ignore
+		}
+		if (!data) {
+			return part;
+		}
+		data = cloneAndChange(data, value => {
+			if (markdown.uris && markdown.uris[value]) {
+				return URI.revive(markdown.uris[value]);
+			} else {
+				return undefined;
+			}
+		});
+		return encodeURIComponent(JSON.stringify(data));
+	};
+
 	const _href = function (href: string): string {
 		const data = markdown.uris && markdown.uris[href];
+		if (!data) {
+			return href;
+		}
+		let uri = URI.revive(data);
+		if (uri.query) {
+			uri = uri.with({ query: _uriMassage(uri.query) });
+		}
 		if (data) {
-			href = URI.revive(data).toString(true);
+			href = uri.toString(true);
 		}
 		return href;
 	};

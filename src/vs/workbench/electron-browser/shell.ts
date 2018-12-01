@@ -103,7 +103,7 @@ import { DownloadServiceChannel } from 'vs/platform/download/node/downloadIpc';
 import { TextResourcePropertiesService } from 'vs/workbench/services/textfile/electron-browser/textResourcePropertiesService';
 import { MulitExtensionManagementService } from 'vs/platform/extensionManagement/node/multiExtensionManagement';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { RemoteAuthorityResolverChannelClient } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
+import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
 
 /**
  * Services that we require for the Shell
@@ -277,7 +277,8 @@ export class WorkbenchShell extends Disposable {
 		const workbenchReadyDuration = perf.getDuration(initialStartup ? 'main:started' : 'main:loadWindow', 'didStartWorkbench');
 		const workspaceStorageRequireDuration = perf.getDuration('willRequireSQLite', 'didRequireSQLite');
 		const workspaceStorageSchemaDuration = perf.getDuration('willSetupSQLiteSchema', 'didSetupSQLiteSchema');
-		const globalStorageInitDuration = perf.getDuration('main:willInitGlobalStorage', 'main:didInitGlobalStorage');
+		const globalStorageInitDurationMain = perf.getDuration('main:willInitGlobalStorage', 'main:didInitGlobalStorage');
+		const globalStorageInitDuratioRenderer = perf.getDuration('willInitGlobalStorage', 'didInitGlobalStorage');
 		const workspaceStorageInitDuration = perf.getDuration('willInitWorkspaceStorage', 'didInitWorkspaceStorage');
 		const workspaceStorageFileExistsDuration = perf.getDuration('willCheckWorkspaceStorageExists', 'didCheckWorkspaceStorageExists');
 		const workspaceStorageMigrationDuration = perf.getDuration('willMigrateWorkspaceStorageKeys', 'didMigrateWorkspaceStorageKeys');
@@ -286,7 +287,7 @@ export class WorkbenchShell extends Disposable {
 
 		// Handle errors (avoid duplicates to reduce spam)
 		const loggedStorageErrors = new Set<string>();
-		this._register(this.storageService.storage.onStorageError(error => {
+		this._register(this.storageService.storage.onWorkspaceStorageError(error => {
 			const errorStr = `${error}`;
 
 			if (!loggedStorageErrors.has(errorStr)) {
@@ -300,7 +301,8 @@ export class WorkbenchShell extends Disposable {
 						"workspaceMigrationTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"workspaceRequireTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"workspaceSchemaTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"globalReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"globalReadTimeMain" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"globalReadTimeRenderer" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"workspaceReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"localStorageTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"workbenchRequireTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -316,7 +318,8 @@ export class WorkbenchShell extends Disposable {
 					'workspaceMigrationTime': workspaceStorageMigrationDuration,
 					'workspaceRequireTime': workspaceStorageRequireDuration,
 					'workspaceSchemaTime': workspaceStorageSchemaDuration,
-					'globalReadTime': globalStorageInitDuration,
+					'globalReadTimeMain': globalStorageInitDurationMain,
+					'globalReadTimeRenderer': globalStorageInitDuratioRenderer,
 					'workspaceReadTime': workspaceStorageInitDuration,
 					'localStorageTime': localStorageDuration,
 					'workbenchRequireTime': workbenchLoadDuration,
@@ -344,7 +347,8 @@ export class WorkbenchShell extends Disposable {
 				"workspaceMigrationTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"workspaceRequireTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"workspaceSchemaTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"globalReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"globalReadTimeMain" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"globalReadTimeRenderer" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"workspaceReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"localStorageTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"workbenchRequireTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -359,7 +363,8 @@ export class WorkbenchShell extends Disposable {
 			'workspaceMigrationTime': workspaceStorageMigrationDuration,
 			'workspaceRequireTime': workspaceStorageRequireDuration,
 			'workspaceSchemaTime': workspaceStorageSchemaDuration,
-			'globalReadTime': globalStorageInitDuration,
+			'globalReadTimeMain': globalStorageInitDurationMain,
+			'globalReadTimeRenderer': globalStorageInitDuratioRenderer,
 			'workspaceReadTime': workspaceStorageInitDuration,
 			'localStorageTime': localStorageDuration,
 			'workbenchRequireTime': workbenchLoadDuration,
@@ -437,8 +442,7 @@ export class WorkbenchShell extends Disposable {
 		serviceCollection.set(IDownloadService, new SyncDescriptor(DownloadService));
 		serviceCollection.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
 
-		const remoteAuthorityResolverChannel = getDelayedChannel(sharedProcess.then(c => c.getChannel('remoteAuthorityResolver')));
-		const remoteAuthorityResolverService = new RemoteAuthorityResolverChannelClient(remoteAuthorityResolverChannel);
+		const remoteAuthorityResolverService = new RemoteAuthorityResolverService();
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
 
 		const remoteAgentService = new RemoteAgentService(this.configuration, this.notificationService, this.environmentService, remoteAuthorityResolverService);
