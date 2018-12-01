@@ -102,6 +102,12 @@ export class Match {
 		if (replaceString === null) {
 			const fullMatchTextWithTrailingContent = this.getFullMatchText(true);
 			replaceString = searchModel.replacePattern.getReplaceString(fullMatchTextWithTrailingContent);
+
+			// Search/find normalize line endings - check whether \r prevents regex from matching
+			if (replaceString === null) {
+				const fullMatchTextWithoutCR = fullMatchTextWithTrailingContent.replace(/\r\n/g, '\n');
+				replaceString = searchModel.replacePattern.getReplaceString(fullMatchTextWithoutCR);
+			}
 		}
 
 		// Match string is still not matching. Could be unsupported matches (multi-line).

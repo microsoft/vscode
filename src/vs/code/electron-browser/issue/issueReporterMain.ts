@@ -378,15 +378,19 @@ export class IssueReporter extends Disposable {
 
 		this.previewButton.onDidClick(() => this.createIssue());
 
+		function sendWorkbenchCommand(commandId: string) {
+			ipcRenderer.send('vscode:workbenchCommand', { id: commandId, from: 'issueReporter' });
+		}
+
 		this.addEventListener('disableExtensions', 'click', () => {
-			ipcRenderer.send('vscode:workbenchCommand', 'workbench.action.reloadWindowWithExtensionsDisabled');
+			sendWorkbenchCommand('workbench.action.reloadWindowWithExtensionsDisabled');
 		});
 
 		this.addEventListener('disableExtensions', 'keydown', (e: KeyboardEvent) => {
 			e.stopPropagation();
 			if (e.keyCode === 13 || e.keyCode === 32) {
-				ipcRenderer.send('vscode:workbenchCommand', 'workbench.extensions.action.disableAll');
-				ipcRenderer.send('vscode:workbenchCommand', 'workbench.action.reloadWindow');
+				sendWorkbenchCommand('workbench.extensions.action.disableAll');
+				sendWorkbenchCommand('workbench.action.reloadWindow');
 			}
 		});
 
@@ -397,6 +401,13 @@ export class IssueReporter extends Disposable {
 				if (this.createIssue()) {
 					ipcRenderer.send('vscode:closeIssueReporter');
 				}
+			}
+
+			// Cmd/Ctrl + w closes issue window
+			if (cmdOrCtrlKey && e.keyCode === 87) {
+				e.stopPropagation();
+				e.preventDefault();
+				ipcRenderer.send('vscode:closeIssueReporter');
 			}
 
 			// Cmd/Ctrl + zooms in

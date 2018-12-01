@@ -4,22 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { GestureEvent } from 'vs/base/browser/touch';
-import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { ISashEvent, IVerticalSashLayoutProvider, Sash } from 'vs/base/browser/ui/sash/sash';
 import { Color } from 'vs/base/common/color';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { getBaseLabel } from 'vs/base/common/labels';
 import { dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
-import * as strings from 'vs/base/common/strings';
-import * as tree from 'vs/base/parts/tree/browser/tree';
-import { ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
 import 'vs/css!./media/referencesWidget';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
@@ -30,17 +21,16 @@ import { IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/
 import { ModelDecorationOptions, TextModel } from 'vs/editor/common/model/textModel';
 import { Location } from 'vs/editor/common/modes';
 import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
+import { AriaProvider, DataSource, Delegate, FileReferencesRenderer, OneReferenceRenderer, TreeElement } from 'vs/editor/contrib/referenceSearch/referencesTree';
 import * as nls from 'vs/nls';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
+import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { activeContrastBorder, contrastBorder, registerColor } from 'vs/platform/theme/common/colorRegistry';
-import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { PeekViewWidget } from './peekViewWidget';
 import { FileReferences, OneReference, ReferencesModel } from './referencesModel';
-
 
 class DecorationsManager implements IDisposable {
 
@@ -153,275 +143,6 @@ class DecorationsManager implements IDisposable {
 	}
 }
 
-class DataSource implements tree.IDataSource {
-
-	constructor(
-		@ITextModelService private readonly _textModelResolverService: ITextModelService
-	) {
-		//
-	}
-
-	public getId(tree: tree.ITree, element: any): string {
-		if (element instanceof ReferencesModel) {
-			return 'root';
-		} else if (element instanceof FileReferences) {
-			return (<FileReferences>element).id;
-		} else if (element instanceof OneReference) {
-			return (<OneReference>element).id;
-		}
-		return undefined;
-	}
-
-	public hasChildren(tree: tree.ITree, element: any): boolean {
-		if (element instanceof ReferencesModel) {
-			return true;
-		}
-		if (element instanceof FileReferences && !(<FileReferences>element).failure) {
-			return true;
-		}
-		return false;
-	}
-
-	public getChildren(tree: tree.ITree, element: ReferencesModel | FileReferences): Promise<any[]> {
-		if (element instanceof ReferencesModel) {
-			return Promise.resolve(element.groups);
-		} else if (element instanceof FileReferences) {
-			return element.resolve(this._textModelResolverService).then(val => {
-				if (element.failure) {
-					// refresh the element on failure so that
-					// we can update its rendering
-					return tree.refresh(element).then(() => val.children);
-				}
-				return val.children;
-			});
-		} else {
-			return Promise.resolve([]);
-		}
-	}
-
-	public getParent(tree: tree.ITree, element: any): Promise<any> {
-		let result: any = null;
-		if (element instanceof FileReferences) {
-			result = (<FileReferences>element).parent;
-		} else if (element instanceof OneReference) {
-			result = (<OneReference>element).parent;
-		}
-		return Promise.resolve(result);
-	}
-}
-
-class Controller extends WorkbenchTreeController {
-
-	private _onDidFocus = new Emitter<any>();
-	readonly onDidFocus: Event<any> = this._onDidFocus.event;
-
-	private _onDidSelect = new Emitter<any>();
-	readonly onDidSelect: Event<any> = this._onDidSelect.event;
-
-	private _onDidOpenToSide = new Emitter<any>();
-	readonly onDidOpenToSide: Event<any> = this._onDidOpenToSide.event;
-
-	public onTap(tree: tree.ITree, element: any, event: GestureEvent): boolean {
-		if (element instanceof FileReferences) {
-			event.preventDefault();
-			event.stopPropagation();
-			return this._expandCollapse(tree, element);
-		}
-
-		let result = super.onTap(tree, element, event);
-
-		this._onDidFocus.fire(element);
-		return result;
-	}
-
-	public onMouseDown(tree: tree.ITree, element: any, event: IMouseEvent): boolean {
-		let isDoubleClick = event.detail === 2;
-		if (event.leftButton) {
-			if (element instanceof FileReferences) {
-				if (this.openOnSingleClick || isDoubleClick || this.isClickOnTwistie(event)) {
-					event.preventDefault();
-					event.stopPropagation();
-					return this._expandCollapse(tree, element);
-				}
-			}
-
-			let result = super.onClick(tree, element, event);
-			let openToSide = event.ctrlKey || event.metaKey || event.altKey;
-			if (openToSide && (isDoubleClick || this.openOnSingleClick)) {
-				this._onDidOpenToSide.fire(element);
-			} else if (isDoubleClick) {
-				this._onDidSelect.fire(element);
-			} else if (this.openOnSingleClick) {
-				this._onDidFocus.fire(element);
-			}
-			return result;
-		}
-
-		return false;
-	}
-
-	public onClick(tree: tree.ITree, element: any, event: IMouseEvent): boolean {
-		if (event.leftButton) {
-			return false; // Already handled by onMouseDown
-		}
-
-		return super.onClick(tree, element, event);
-	}
-
-	private _expandCollapse(tree: tree.ITree, element: any): boolean {
-
-		if (tree.isExpanded(element)) {
-			tree.collapse(element).then(null, onUnexpectedError);
-		} else {
-			tree.expand(element).then(null, onUnexpectedError);
-		}
-		return true;
-	}
-
-	public onEscape(tree: tree.ITree, event: IKeyboardEvent): boolean {
-		return false;
-	}
-
-	dispose(): void {
-		this._onDidFocus.dispose();
-		this._onDidSelect.dispose();
-		this._onDidOpenToSide.dispose();
-	}
-}
-
-class FileReferencesTemplate {
-
-	readonly file: IconLabel;
-	readonly badge: CountBadge;
-	readonly dispose: () => void;
-
-	constructor(
-		container: HTMLElement,
-		@ILabelService private readonly _uriLabel: ILabelService,
-		@IThemeService themeService: IThemeService,
-	) {
-		const parent = document.createElement('div');
-		dom.addClass(parent, 'reference-file');
-		container.appendChild(parent);
-		this.file = new IconLabel(parent);
-
-		this.badge = new CountBadge(dom.append(parent, dom.$('.count')));
-		const styler = attachBadgeStyler(this.badge, themeService);
-
-		this.dispose = () => {
-			this.file.dispose();
-			styler.dispose();
-		};
-	}
-
-	set(element: FileReferences) {
-		let parent = dirname(element.uri);
-		this.file.setValue(getBaseLabel(element.uri), parent ? this._uriLabel.getUriLabel(parent, { relative: true }) : undefined, { title: this._uriLabel.getUriLabel(element.uri) });
-		const len = element.children.length;
-		this.badge.setCount(len);
-		if (element.failure) {
-			this.badge.setTitleFormat(nls.localize('referencesFailre', "Failed to resolve file."));
-		} else if (len > 1) {
-			this.badge.setTitleFormat(nls.localize('referencesCount', "{0} references", len));
-		} else {
-			this.badge.setTitleFormat(nls.localize('referenceCount', "{0} reference", len));
-		}
-	}
-}
-
-class OneReferenceTemplate {
-
-	readonly before: HTMLSpanElement;
-	readonly inside: HTMLSpanElement;
-	readonly after: HTMLSpanElement;
-
-	constructor(container: HTMLElement) {
-		const parent = document.createElement('div');
-		this.before = document.createElement('span');
-		this.inside = document.createElement('span');
-		this.after = document.createElement('span');
-		dom.addClass(this.inside, 'referenceMatch');
-		dom.addClass(parent, 'reference');
-		parent.appendChild(this.before);
-		parent.appendChild(this.inside);
-		parent.appendChild(this.after);
-		container.appendChild(parent);
-	}
-
-	set(element: OneReference): void {
-		const { before, inside, after } = element.parent.preview.preview(element.range);
-		this.before.innerHTML = strings.escape(before);
-		this.inside.innerHTML = strings.escape(inside);
-		this.after.innerHTML = strings.escape(after);
-	}
-}
-
-class Renderer implements tree.IRenderer {
-
-	private static readonly _ids = {
-		FileReferences: 'FileReferences',
-		OneReference: 'OneReference'
-	};
-
-	constructor(
-		@IThemeService private readonly _themeService: IThemeService,
-		@ILabelService private readonly _uriLabel: ILabelService,
-	) {
-		//
-	}
-
-	getHeight(tree: tree.ITree, element: FileReferences | OneReference): number {
-		return 23;
-	}
-
-	getTemplateId(tree: tree.ITree, element: FileReferences | OneReference): string {
-		if (element instanceof FileReferences) {
-			return Renderer._ids.FileReferences;
-		} else if (element instanceof OneReference) {
-			return Renderer._ids.OneReference;
-		}
-		throw element;
-	}
-
-	renderTemplate(tree: tree.ITree, templateId: string, container: HTMLElement) {
-		if (templateId === Renderer._ids.FileReferences) {
-			return new FileReferencesTemplate(container, this._uriLabel, this._themeService);
-		} else if (templateId === Renderer._ids.OneReference) {
-			return new OneReferenceTemplate(container);
-		}
-		throw templateId;
-	}
-
-	renderElement(tree: tree.ITree, element: FileReferences | OneReference, templateId: string, templateData: any): void {
-		if (element instanceof FileReferences) {
-			(<FileReferencesTemplate>templateData).set(element);
-		} else if (element instanceof OneReference) {
-			(<OneReferenceTemplate>templateData).set(element);
-		} else {
-			throw templateId;
-		}
-	}
-
-	disposeTemplate(tree: tree.ITree, templateId: string, templateData: FileReferencesTemplate | OneReferenceTemplate): void {
-		if (templateData instanceof FileReferencesTemplate) {
-			templateData.dispose();
-		}
-	}
-}
-
-class AriaProvider implements tree.IAccessibilityProvider {
-
-	getAriaLabel(tree: tree.ITree, element: FileReferences | OneReference): string {
-		if (element instanceof FileReferences) {
-			return element.getAriaMessage();
-		} else if (element instanceof OneReference) {
-			return element.getAriaMessage();
-		} else {
-			return undefined;
-		}
-	}
-}
-
 class VSash {
 
 	private _disposables: IDisposable[] = [];
@@ -513,7 +234,8 @@ export class ReferenceWidget extends PeekViewWidget {
 	private _callOnDispose: IDisposable[] = [];
 	private _onDidSelectReference = new Emitter<SelectionEvent>();
 
-	private _tree: WorkbenchTree;
+	private _treeDataSource: DataSource;
+	private _tree: WorkbenchAsyncDataTree<TreeElement>;
 	private _treeContainer: HTMLElement;
 	private _sash: VSash;
 	private _preview: ICodeEditor;
@@ -527,9 +249,9 @@ export class ReferenceWidget extends PeekViewWidget {
 		private _defaultTreeKeyboardSupport: boolean,
 		public layoutData: LayoutData,
 		@IThemeService themeService: IThemeService,
-		@ITextModelService private _textModelResolverService: ITextModelService,
-		@IInstantiationService private _instantiationService: IInstantiationService,
-		@ILabelService private _uriLabel: ILabelService
+		@ITextModelService private readonly _textModelResolverService: ITextModelService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ILabelService private readonly _uriLabel: ILabelService
 	) {
 		super(editor, { showFrame: false, showArrow: true, isResizeable: true, isAccessible: true });
 
@@ -620,22 +342,26 @@ export class ReferenceWidget extends PeekViewWidget {
 
 		// tree
 		this._treeContainer = dom.append(containerElement, dom.$('div.ref-tree.inline'));
-		let controller = this._instantiationService.createInstance(Controller, { keyboardSupport: this._defaultTreeKeyboardSupport, clickBehavior: ClickBehavior.ON_MOUSE_UP /* our controller already deals with this */ });
-		this._callOnDispose.push(controller);
 
-		let config = <tree.ITreeConfiguration>{
-			dataSource: this._instantiationService.createInstance(DataSource),
-			renderer: this._instantiationService.createInstance(Renderer),
-			controller,
+		const renderer = [
+			this._instantiationService.createInstance(FileReferencesRenderer),
+			this._instantiationService.createInstance(OneReferenceRenderer),
+		];
+
+		const treeOptions = {
+			ariaLabel: nls.localize('treeAriaLabel', "References"),
+			keyboardSupport: this._defaultTreeKeyboardSupport,
 			accessibilityProvider: new AriaProvider()
 		};
 
-		let treeOptions: tree.ITreeOptions = {
-			twistiePixels: 20,
-			ariaLabel: nls.localize('treeAriaLabel', "References")
-		};
+		this._treeDataSource = this._instantiationService.createInstance(DataSource);
 
-		this._tree = this._instantiationService.createInstance(WorkbenchTree, this._treeContainer, config, treeOptions);
+		this._tree = this._instantiationService.createInstance(
+			WorkbenchAsyncDataTree, this._treeContainer, new Delegate(),
+			renderer as any,
+			this._treeDataSource,
+			treeOptions
+		) as any as WorkbenchAsyncDataTree<TreeElement>;
 
 		ctxReferenceWidgetSearchTreeFocused.bindTo(this._tree.contextKeyService);
 
@@ -648,19 +374,29 @@ export class ReferenceWidget extends PeekViewWidget {
 				this._onDidSelectReference.fire({ element, kind, source: 'tree' });
 			}
 		};
-		this._disposables.push(this._tree.onDidChangeFocus(event => {
-			if (event && event.payload && event.payload.origin === 'keyboard') {
-				onEvent(event.focus, 'show'); // only handle events from keyboard, mouse/touch is handled by other listeners below
+		this._tree.onDidChangeFocus(e => {
+			onEvent(e.elements[0], 'show');
+		});
+		this._tree.onDidChangeSelection(e => {
+			let aside = false;
+			let goto = false;
+			if (e.browserEvent instanceof KeyboardEvent) {
+				// todo@joh make this a command
+				goto = true;
+
+			} else if (e.browserEvent instanceof MouseEvent) {
+				aside = e.browserEvent.metaKey || e.browserEvent.metaKey || e.browserEvent.altKey;
+				goto = e.browserEvent.detail === 2;
 			}
-		}));
-		this._disposables.push(this._tree.onDidChangeSelection(event => {
-			if (event && event.payload && event.payload.origin === 'keyboard') {
-				onEvent(event.selection[0], 'goto'); // only handle events from keyboard, mouse/touch is handled by other listeners below
+			if (aside) {
+				onEvent(e.elements[0], 'side');
+			} else if (goto) {
+				onEvent(e.elements[0], 'goto');
+			} else {
+				onEvent(e.elements[0], 'show');
 			}
-		}));
-		this._disposables.push(controller.onDidFocus(element => onEvent(element, 'show')));
-		this._disposables.push(controller.onDidSelect(element => onEvent(element, 'goto')));
-		this._disposables.push(controller.onDidOpenToSide(element => onEvent(element, 'side')));
+		});
+
 		dom.hide(this._treeContainer);
 	}
 
@@ -701,7 +437,7 @@ export class ReferenceWidget extends PeekViewWidget {
 			}
 			// show in tree
 			this._tree.setSelection([selection]);
-			this._tree.setFocus(selection);
+			this._tree.setFocus([selection]);
 		});
 	}
 
@@ -734,13 +470,18 @@ export class ReferenceWidget extends PeekViewWidget {
 		// listen on editor
 		this._disposeOnNewModel.push(this._preview.onMouseDown(e => {
 			const { event, target } = e;
-			if (event.detail === 2) {
-				this._onDidSelectReference.fire({
-					element: { uri: this._getFocusedReference().uri, range: target.range },
-					kind: (event.ctrlKey || event.metaKey || event.altKey) ? 'side' : 'open',
-					source: 'editor'
-				});
+			if (event.detail !== 2) {
+				return;
 			}
+			const element = this._getFocusedReference();
+			if (!element) {
+				return;
+			}
+			this._onDidSelectReference.fire({
+				element: { uri: element.uri, range: target.range },
+				kind: (event.ctrlKey || event.metaKey || event.altKey) ? 'side' : 'open',
+				source: 'editor'
+			});
 		}));
 
 		// make sure things are rendered
@@ -752,12 +493,12 @@ export class ReferenceWidget extends PeekViewWidget {
 		this.focus();
 
 		// pick input and a reference to begin with
-		const input = this._model.groups.length === 1 ? this._model.groups[0] : this._model;
-		return this._tree.setInput(input);
+		this._treeDataSource.root = this._model.groups.length === 1 ? this._model.groups[0] : this._model;
+		return this._tree.refresh(null);
 	}
 
 	private _getFocusedReference(): OneReference {
-		const element = this._tree.getFocus();
+		const [element] = this._tree.getFocus();
 		if (element instanceof OneReference) {
 			return element;
 		} else if (element instanceof FileReferences) {
@@ -770,6 +511,12 @@ export class ReferenceWidget extends PeekViewWidget {
 
 	private async _revealReference(reference: OneReference, revealParent: boolean): Promise<void> {
 
+		// check if there is anything to do...
+		const currentSelection = this._tree.getSelection();
+		if (currentSelection.length === 1 && currentSelection[0] === reference) {
+			return;
+		}
+
 		// Update widget header
 		if (reference.uri.scheme !== Schemas.inMemory) {
 			this.setTitle(basenameOrAuthority(reference.uri), this._uriLabel.getUriLabel(dirname(reference.uri)));
@@ -779,35 +526,39 @@ export class ReferenceWidget extends PeekViewWidget {
 
 		const promise = this._textModelResolverService.createModelReference(reference.uri);
 
-		if (revealParent) {
-			await this._tree.reveal(reference.parent);
+		if (this._treeDataSource.root === reference.parent) {
+			this._tree.reveal(reference);
+		} else {
+			if (revealParent) {
+				this._tree.reveal(reference.parent);
+			}
+			await this._tree.expand(reference.parent);
+			this._tree.reveal(reference);
 		}
 
-		return Promise.all([promise, this._tree.reveal(reference)]).then(values => {
-			const ref = values[0];
+		const ref = await promise;
 
-			if (!this._model) {
-				ref.dispose();
-				// disposed
-				return;
-			}
+		if (!this._model) {
+			// disposed
+			ref.dispose();
+			return;
+		}
 
-			dispose(this._previewModelReference);
+		dispose(this._previewModelReference);
 
-			// show in editor
-			const model = ref.object;
-			if (model) {
-				this._previewModelReference = ref;
-				let isSameModel = (this._preview.getModel() === model.textEditorModel);
-				this._preview.setModel(model.textEditorModel);
-				let sel = Range.lift(reference.range).collapseToStart();
-				this._preview.setSelection(sel);
-				this._preview.revealRangeInCenter(sel, isSameModel ? editorCommon.ScrollType.Smooth : editorCommon.ScrollType.Immediate);
-			} else {
-				this._preview.setModel(this._previewNotAvailableMessage);
-				ref.dispose();
-			}
-		}, onUnexpectedError);
+		// show in editor
+		const model = ref.object;
+		if (model) {
+			const scrollType = this._preview.getModel() === model.textEditorModel ? editorCommon.ScrollType.Smooth : editorCommon.ScrollType.Immediate;
+			const sel = Range.lift(reference.range).collapseToStart();
+			this._previewModelReference = ref;
+			this._preview.setModel(model.textEditorModel);
+			this._preview.setSelection(sel);
+			this._preview.revealRangeInCenter(sel, scrollType);
+		} else {
+			this._preview.setModel(this._previewNotAvailableMessage);
+			ref.dispose();
+		}
 	}
 }
 

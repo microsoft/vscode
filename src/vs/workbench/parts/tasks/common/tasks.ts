@@ -176,21 +176,6 @@ export namespace PanelKind {
 	}
 }
 
-export namespace RerunBehavior {
-	export function fromString(value: string | undefined): RerunBehavior {
-		if (!value) {
-			return RerunBehavior.reevaluate;
-		}
-		switch (value.toLowerCase()) {
-			case 'useevaluated':
-				return RerunBehavior.useEvaluated;
-			case 'reevaulate':
-			default:
-				return RerunBehavior.reevaluate;
-		}
-	}
-}
-
 export interface PresentationOptions {
 	/**
 	 * Controls whether the task output is reveal in the user interface.
@@ -436,13 +421,14 @@ export interface ConfigurationProperties {
 	problemMatchers?: (string | ProblemMatcher)[];
 }
 
-export enum RerunBehavior {
-	reevaluate = 1,
-	useEvaluated = 2,
+export enum RunOnOptions {
+	default = 1,
+	folderOpen = 2
 }
 
 export interface RunOptions {
-	rerunBehavior?: RerunBehavior;
+	reevaluateOnRerun?: boolean;
+	runOn?: RunOnOptions;
 }
 export interface CommonTask {
 

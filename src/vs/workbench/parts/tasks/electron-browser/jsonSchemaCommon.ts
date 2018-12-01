@@ -54,6 +54,7 @@ const schema: IJSONSchema = {
 			]
 		},
 		shellConfiguration: {
+			$ref: '#definitions/shellConfiguration',
 			type: 'object',
 			additionalProperties: false,
 			description: nls.localize('JsonSchema.shellConfiguration', 'Configures the shell to be used.'),

@@ -19,6 +19,9 @@ import { popup } from 'vs/base/parts/contextmenu/electron-browser/contextmenu';
 let processList: any[];
 let mapPidToWindowTitle = new Map<number, string>();
 
+const DEBUG_FLAGS_PATTERN = /\s--(inspect|debug)(-brk|port)?=(\d+)?/;
+const DEBUG_PORT_PATTERN = /\s--(inspect|debug)-port=(\d+)/;
+
 function getProcessList(rootProcess: ProcessItem) {
 	const processes: any[] = [];
 
@@ -60,6 +63,40 @@ function getProcessItem(processes: any[], item: ProcessItem, indent: number): vo
 	if (Array.isArray(item.children)) {
 		item.children.forEach(child => getProcessItem(processes, child, indent + 1));
 	}
+}
+
+function isDebuggable(cmd: string): boolean {
+	const matches = DEBUG_FLAGS_PATTERN.exec(cmd);
+	return (matches && matches.length >= 2) || cmd.indexOf('node ') >= 0 || cmd.indexOf('node.exe') >= 0;
+}
+
+function attachTo(item: ProcessItem) {
+	const config: any = {
+		type: 'node',
+		request: 'attach',
+		name: `process ${item.pid}`
+	};
+
+	let matches = DEBUG_FLAGS_PATTERN.exec(item.cmd);
+	if (matches && matches.length >= 2) {
+		// attach via port
+		if (matches.length === 4 && matches[3]) {
+			config.port = parseInt(matches[3]);
+		}
+		config.protocol = matches[1] === 'debug' ? 'legacy' : 'inspector';
+	} else {
+		// no port -> try to attach via pid (send SIGUSR1)
+		config.processId = String(item.pid);
+	}
+
+	// a debug-port=n or inspect-port=n overrides the port
+	matches = DEBUG_PORT_PATTERN.exec(item.cmd);
+	if (matches && matches.length === 3) {
+		// override port
+		config.port = parseInt(matches[2]);
+	}
+
+	ipcRenderer.send('vscode:workbenchCommand', { id: 'workbench.action.debug.start', from: 'processExplorer', args: [config] });
 }
 
 function getProcessIdWithHighestProperty(processList, propertyName: string) {
@@ -190,6 +227,20 @@ function showContextMenu(e) {
 				}
 			}
 		});
+
+		const item = processList.filter(process => process.pid === pid)[0];
+		if (item && isDebuggable(item.cmd)) {
+			items.push({
+				type: 'separator'
+			});
+
+			items.push({
+				label: localize('debug', "Debug"),
+				click() {
+					attachTo(item);
+				}
+			});
+		}
 	} else {
 		items.push({
 			label: localize('copyAll', "Copy All"),

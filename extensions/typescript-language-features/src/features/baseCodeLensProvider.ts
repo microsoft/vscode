@@ -4,10 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import * as nls from 'vscode-nls';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
 import { escapeRegExp } from '../utils/regexp';
 import * as typeConverters from '../utils/typeConverters';
+
+const localize = nls.loadMessageBundle();
 
 export class ReferencesCodeLens extends vscode.CodeLens {
 	constructor(
@@ -51,6 +54,18 @@ export class CachedResponse<T extends Proto.Response> {
 }
 
 export abstract class TypeScriptBaseCodeLensProvider implements vscode.CodeLensProvider {
+
+	public static readonly cancelledCommand: vscode.Command = {
+		// Cancellation is not an error. Just show nothing until we can properly re-compute the code lens
+		title: '',
+		command: ''
+	};
+
+	public static readonly errorCommand: vscode.Command = {
+		title: localize('referenceErrorLabel', 'Could not determine references'),
+		command: ''
+	};
+
 	private onDidChangeCodeLensesEmitter = new vscode.EventEmitter<void>();
 
 	public constructor(

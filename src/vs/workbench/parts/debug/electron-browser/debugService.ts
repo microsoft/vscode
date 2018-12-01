@@ -718,16 +718,20 @@ export class DebugService implements IDebugService {
 					// task is already running - nothing to do.
 					return Promise.resolve(null);
 				}
-				once(TaskEventKind.Active, this.taskService.onDidStateChange)((taskEvent) => {
+				once(TaskEventKind.Active, this.taskService.onDidStateChange)(taskEvent => {
 					// Task is active, so everything seems to be fine, no need to prompt after 10 seconds
 					// Use case being a slow running task should not be prompted even though it takes more than 10 seconds
-					taskStarted = true;
+					if (taskEvent.taskId === task._id) {
+						taskStarted = true;
+					}
 				});
 				const taskPromise = this.taskService.run(task);
 				if (task.isBackground) {
-					return new Promise((c, e) => once(TaskEventKind.Inactive, this.taskService.onDidStateChange)(() => {
-						taskStarted = true;
-						c(null);
+					return new Promise((c, e) => once(TaskEventKind.Inactive, this.taskService.onDidStateChange)(taskEvent => {
+						if (taskEvent.taskId === task._id) {
+							taskStarted = true;
+							c(null);
+						}
 					}));
 				}
 

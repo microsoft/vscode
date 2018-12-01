@@ -320,7 +320,7 @@ export class Menubar {
 		menubar.append(terminalMenuItem);
 
 		// Mac: Window
-		let macWindowMenuItem: Electron.MenuItem;
+		let macWindowMenuItem: Electron.MenuItem | undefined;
 		if (this.shouldDrawMenu('Window')) {
 			const windowMenu = new Menu();
 			macWindowMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize('mWindow', "Window")), submenu: windowMenu, role: 'window' });
@@ -528,7 +528,7 @@ export class Menubar {
 	}
 
 	private isOptionClick(event: Electron.Event): boolean {
-		return event && ((!isMacintosh && (event.ctrlKey || event.shiftKey)) || (isMacintosh && (event.metaKey || event.altKey)));
+		return !!(event && ((!isMacintosh && (event.ctrlKey || event.shiftKey)) || (isMacintosh && (event.metaKey || event.altKey))));
 	}
 
 	private createRoleMenuItem(label: string, commandId: string, role: any): Electron.MenuItem {
@@ -647,7 +647,7 @@ export class Menubar {
 			options['checked'] = checked;
 		}
 
-		let commandId: string;
+		let commandId: string | undefined;
 		if (typeof arg2 === 'string') {
 			commandId = arg2;
 		} else if (Array.isArray(arg2)) {
@@ -719,12 +719,19 @@ export class Menubar {
 		}
 
 		if (activeWindow) {
+			if (!activeWindow.isReady && isMacintosh && id === 'workbench.action.toggleDevTools' && !this.environmentService.isBuilt) {
+				// prevent this action from running twice on macOS (https://github.com/Microsoft/vscode/issues/62719)
+				// we already register a keybinding in bootstrap-window.js for opening developer tools in case something
+				// goes wrong and that keybinding is only removed when the application has loaded (= window ready).
+				return;
+			}
+
 			this.windowsMainService.sendToFocused('vscode:runAction', { id, from: 'menu' } as IRunActionInWindowRequest);
 		}
 	}
 
-	private withKeybinding(commandId: string, options: Electron.MenuItemConstructorOptions): Electron.MenuItemConstructorOptions {
-		const binding = this.keybindings[commandId];
+	private withKeybinding(commandId: string | undefined, options: Electron.MenuItemConstructorOptions): Electron.MenuItemConstructorOptions {
+		const binding = typeof commandId === 'string' ? this.keybindings[commandId] : undefined;
 
 		// Apply binding if there is one
 		if (binding && binding.label) {
@@ -736,7 +743,7 @@ export class Menubar {
 
 			// the keybinding is not native so we cannot show it as part of the accelerator of
 			// the menu item. we fallback to a different strategy so that we always display it
-			else {
+			else if (typeof options.label === 'string') {
 				const bindingIndex = options.label.indexOf('[');
 				if (bindingIndex >= 0) {
 					options.label = `${options.label.substr(0, bindingIndex)} [${binding.label}]`;

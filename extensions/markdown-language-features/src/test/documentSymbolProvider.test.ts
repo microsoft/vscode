@@ -82,5 +82,16 @@ suite('markdown.DocumentSymbolProvider', () => {
 		assert.strictEqual(symbols[0].children[0].name, '### h2');
 		assert.strictEqual(symbols[0].children[1].name, '## h3');
 	});
+
+	test('Should handle line separator in file. Issue #63749', async () => {
+		const symbols = await getSymbolsForFile(`# A
+- foo 
+
+# B
+- bar`);
+		assert.strictEqual(symbols.length, 2);
+		assert.strictEqual(symbols[0].name, '# A');
+		assert.strictEqual(symbols[1].name, '# B');
+	});
 });
 

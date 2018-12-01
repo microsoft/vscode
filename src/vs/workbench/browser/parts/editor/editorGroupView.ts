@@ -415,11 +415,16 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		options.pinned = this._group.isPinned(activeEditor);	// preserve pinned state
 		options.preserveFocus = true;							// handle focus after editor is opened
 
+		const activeElement = document.activeElement;
+
 		// Show active editor
 		return this.doShowEditor(activeEditor, true, options).then(() => {
 
-			// Set focused now if this is the active group
-			if (this.accessor.activeGroup === this) {
+			// Set focused now if this is the active group and focus has
+			// not changed meanwhile. This prevents focus from being
+			// stolen accidentally on startup when the user already
+			// clicked somewhere.
+			if (this.accessor.activeGroup === this && activeElement === document.activeElement) {
 				this.focus();
 			}
 		});
@@ -764,7 +769,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		// Actually move the editor if a specific index is provided and we figure
-		// out that the the editor is already opened at a different index. This
+		// out that the editor is already opened at a different index. This
 		// ensures the right set of events are fired to the outside.
 		if (typeof openEditorOptions.index === 'number') {
 			const indexOfEditor = this._group.indexOf(editor);
