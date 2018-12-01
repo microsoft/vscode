@@ -8,7 +8,7 @@ import { Event, Emitter, debounceEvent } from 'vs/base/common/event';
 import { StorageMainService, IStorageChangeEvent } from 'vs/platform/storage/node/storageMainService';
 import { IUpdateRequest, IStorageDatabase, IStorageItemsChangeEvent } from 'vs/base/node/storage';
 import { mapToSerializable, serializableToMap, values } from 'vs/base/common/map';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 type Key = string;
 type Value = string;
@@ -107,6 +107,8 @@ export class GlobalStorageDatabaseChannelClient extends Disposable implements IS
 	private _onDidChangeItemsExternal: Emitter<IStorageItemsChangeEvent> = this._register(new Emitter<IStorageItemsChangeEvent>());
 	get onDidChangeItemsExternal(): Event<IStorageItemsChangeEvent> { return this._onDidChangeItemsExternal.event; }
 
+	private onDidChangeItemsOnMainListener: IDisposable;
+
 	constructor(private channel: IChannel) {
 		super();
 
@@ -114,7 +116,7 @@ export class GlobalStorageDatabaseChannelClient extends Disposable implements IS
 	}
 
 	private registerListeners(): void {
-		this._register(this.channel.listen('onDidChangeItems')((e: ISerializableItemsChangeEvent) => this.onDidChangeItemsOnMain(e)));
+		this.onDidChangeItemsOnMainListener = this.channel.listen('onDidChangeItems')((e: ISerializableItemsChangeEvent) => this.onDidChangeItemsOnMain(e));
 	}
 
 	private onDidChangeItemsOnMain(e: ISerializableItemsChangeEvent): void {
@@ -153,6 +155,16 @@ export class GlobalStorageDatabaseChannelClient extends Disposable implements IS
 	}
 
 	close(): Thenable<void> {
+
+		// when we are about to close, we start to ignore main-side changes since we close anyway
+		this.onDidChangeItemsOnMainListener = dispose(this.onDidChangeItemsOnMainListener);
+
 		return Promise.resolve(); // global storage is closed on the main side
+	}
+
+	dispose(): void {
+		super.dispose();
+
+		this.onDidChangeItemsOnMainListener = dispose(this.onDidChangeItemsOnMainListener);
 	}
 }
