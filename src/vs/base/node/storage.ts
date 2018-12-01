@@ -280,7 +280,7 @@ export class Storage extends Disposable implements IStorage {
 		// even if there is an error flushing. We must always ensure
 		// the DB is closed to avoid corruption.
 		const onDone = () => this.database.close();
-		return this.flushDelayer.trigger(() => this.flushPending(), this.flushDelay).then(onDone, onDone);
+		return this.flushDelayer.trigger(() => this.flushPending(), 0 /* as soon as possible */).then(onDone, onDone);
 	}
 
 	private flushPending(): Thenable<void> {

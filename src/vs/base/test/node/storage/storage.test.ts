@@ -90,6 +90,7 @@ suite('Storage Library', () => {
 		await Promise.all([delete1Promise, delete2Promise, delete3Promise]).then(() => deletePromiseResolved = true);
 		equal(deletePromiseResolved, true);
 
+		storage.beforeClose();
 		await storage.close();
 		await del(storageDir, tmpdir());
 	});
@@ -146,6 +147,7 @@ suite('Storage Library', () => {
 		database.fireDidChangeItemsExternal({ items: change });
 		equal(changes.size, 0);
 
+		storage.beforeClose();
 		await storage.close();
 		await del(storageDir, tmpdir());
 	});
@@ -166,6 +168,7 @@ suite('Storage Library', () => {
 		let setPromiseResolved = false;
 		Promise.all([set1Promise, set2Promise]).then(() => setPromiseResolved = true);
 
+		storage.beforeClose();
 		await storage.close();
 
 		equal(setPromiseResolved, true);
@@ -176,6 +179,7 @@ suite('Storage Library', () => {
 		equal(storage.get('foo'), 'bar');
 		equal(storage.get('bar'), 'foo');
 
+		storage.beforeClose();
 		await storage.close();
 
 		storage = new Storage(new SQLiteStorageDatabase(join(storageDir, 'storage.db')));
@@ -190,6 +194,7 @@ suite('Storage Library', () => {
 		let deletePromiseResolved = false;
 		Promise.all([delete1Promise, delete2Promise]).then(() => deletePromiseResolved = true);
 
+		storage.beforeClose();
 		await storage.close();
 
 		equal(deletePromiseResolved, true);
@@ -200,6 +205,7 @@ suite('Storage Library', () => {
 		ok(!storage.get('foo'));
 		ok(!storage.get('bar'));
 
+		storage.beforeClose();
 		await storage.close();
 		await del(storageDir, tmpdir());
 	});
@@ -242,6 +248,7 @@ suite('Storage Library', () => {
 		await Promise.all([set4Promise, delete1Promise]).then(() => setAndDeletePromiseResolved = true);
 		ok(setAndDeletePromiseResolved);
 
+		storage.beforeClose();
 		await storage.close();
 		await del(storageDir, tmpdir());
 	});
@@ -620,6 +627,7 @@ suite('SQLite Storage Library', () => {
 		equal(items.get('foo3'), 'bar');
 		equal(items.get('some/foo3/path'), 'some/bar/path');
 
+		storage.beforeClose();
 		await storage.close();
 
 		await del(storageDir, tmpdir());
