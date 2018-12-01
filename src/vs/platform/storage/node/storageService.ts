@@ -70,7 +70,9 @@ export class StorageService extends Disposable implements IStorageService {
 
 		// Global Storage
 		this.globalStorage = new Storage(globalStorageDatabase);
-		this._register(this.globalStorage.onDidChangeStorage(key => this.handleDidChangeStorage(key, StorageScope.GLOBAL)));
+		if (process.env['VSCODE_TEST_STORAGE_MIGRATION']) {
+			this._register(this.globalStorage.onDidChangeStorage(key => this.handleDidChangeStorage(key, StorageScope.GLOBAL)));
+		}
 	}
 
 	private handleDidChangeStorage(key: string, scope: StorageScope): void {
