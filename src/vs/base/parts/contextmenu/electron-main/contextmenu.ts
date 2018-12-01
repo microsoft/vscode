@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Menu, MenuItem, BrowserWindow, Event, ipcMain } from 'electron';
-import { ISerializableContextMenuItem, CONTEXT_MENU_CLOSE_CHANNEL, CONTEXT_MENU_CHANNEL, IPopupOptions } from 'vs/base/parts/contextmenu/common/contextmenu';
+import { ISerializableContextMenuItem, CONTEXT_MENU_CLOSE_CHANNEL, CONTEXT_MENU_CHANNEL, IPopupOptions, CONTEXT_MENU_HIDE_CHANNEL } from 'vs/base/parts/contextmenu/common/contextmenu';
 
 export function registerContextMenuListener(): void {
+	let menu: Menu;
 	ipcMain.on(CONTEXT_MENU_CHANNEL, (event: Event, contextMenuId: number, items: ISerializableContextMenuItem[], onClickChannel: string, options?: IPopupOptions) => {
-		const menu = createMenu(event, onClickChannel, items);
+		menu = createMenu(event, onClickChannel, items);
 
 		menu.popup({
 			window: BrowserWindow.fromWebContents(event.sender),
@@ -16,9 +17,16 @@ export function registerContextMenuListener(): void {
 			y: options ? options.y : void 0,
 			positioningItem: options ? options.positioningItem : void 0,
 			callback: () => {
+				menu = null;
 				event.sender.send(CONTEXT_MENU_CLOSE_CHANNEL, contextMenuId);
 			}
 		});
+	});
+
+	ipcMain.on(CONTEXT_MENU_HIDE_CHANNEL, (event: Event, contextMenuId: number) => {
+		if (menu) {
+			menu.closePopup(BrowserWindow.fromWebContents(event.sender));
+		}
 	});
 }
 

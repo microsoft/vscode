@@ -17,7 +17,7 @@ import { IContextMenuDelegate, ContextSubMenu, IContextMenuEvent } from 'vs/base
 import { once } from 'vs/base/common/functional';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
-import { popup } from 'vs/base/parts/contextmenu/electron-browser/contextmenu';
+import { popup, hidePopup } from 'vs/base/parts/contextmenu/electron-browser/contextmenu';
 
 export class ContextMenuService extends Disposable implements IContextMenuService {
 
@@ -32,6 +32,10 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 		@IKeybindingService private keybindingService: IKeybindingService
 	) {
 		super();
+	}
+
+	hideContextMenu(): void {
+		hidePopup();
 	}
 
 	showContextMenu(delegate: IContextMenuDelegate): void {

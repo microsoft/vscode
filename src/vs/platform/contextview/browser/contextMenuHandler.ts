@@ -49,7 +49,11 @@ export class ContextMenuHandler {
 		}
 	}
 
-	showContextMenu(delegate: IContextMenuDelegate): void {
+	hideContextMenu(): void {
+		this.contextViewService.hideContextView();
+	}
+
+	showContextMenu(delegate: IContextMenuDelegate) {
 		const actions = delegate.getActions();
 		if (!actions.length) {
 			return; // Don't render an empty context menu

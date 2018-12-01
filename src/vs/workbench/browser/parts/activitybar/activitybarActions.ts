@@ -7,7 +7,6 @@ import 'vs/css!./media/activityaction';
 import * as nls from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import { Action } from 'vs/base/common/actions';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -27,6 +26,7 @@ import { ACTIVITY_BAR_FOREGROUND } from 'vs/workbench/common/theme';
 import { IActivityService } from 'vs/workbench/services/activity/common/activity';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 export class ViewletActivityAction extends ActivityAction {
 
@@ -113,6 +113,9 @@ export class GlobalActivityAction extends ActivityAction {
 
 export class GlobalActivityActionItem extends ActivityActionItem {
 
+	private menuVisible: boolean;
+	private hideMenu: RunOnceScheduler;
+
 	constructor(
 		action: GlobalActivityAction,
 		colors: (theme: ITheme) => ICompositeBarColors,
@@ -120,6 +123,9 @@ export class GlobalActivityActionItem extends ActivityActionItem {
 		@IContextMenuService protected contextMenuService: IContextMenuService
 	) {
 		super(action, { draggable: false, colors, icon: true }, themeService);
+
+		this.menuVisible = false;
+		this.hideMenu = new RunOnceScheduler(() => this.hideContextMenu(), 0);
 	}
 
 	render(container: HTMLElement): void {
@@ -131,8 +137,11 @@ export class GlobalActivityActionItem extends ActivityActionItem {
 		this._register(DOM.addDisposableListener(this.container, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			DOM.EventHelper.stop(e, true);
 
-			const event = new StandardMouseEvent(e);
-			this.showContextMenu({ x: event.posx, y: event.posy });
+			if (this.menuVisible) {
+				this.hideContextMenu();
+			} else {
+				this.showContextMenu();
+			}
 		}));
 
 		this._register(DOM.addDisposableListener(this.container, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
@@ -140,27 +149,44 @@ export class GlobalActivityActionItem extends ActivityActionItem {
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 				DOM.EventHelper.stop(e, true);
 
-				this.showContextMenu(this.container);
+				if (this.menuVisible) {
+					this.hideContextMenu();
+				} else {
+					this.showContextMenu();
+				}
 			}
 		}));
 
 		this._register(DOM.addDisposableListener(this.container, TouchEventType.Tap, (e: GestureEvent) => {
 			DOM.EventHelper.stop(e, true);
 
-			const event = new StandardMouseEvent(e);
-			this.showContextMenu({ x: event.posx, y: event.posy });
+			if (this.menuVisible) {
+				this.hideContextMenu();
+			} else {
+				this.showContextMenu();
+			}
 		}));
 	}
 
-	private showContextMenu(location: HTMLElement | { x: number, y: number }): void {
+	private hideContextMenu(): void {
+		if (this.menuVisible) {
+			this.menuVisible = false;
+			this.contextMenuService.hideContextMenu();
+		}
+	}
+
+	private showContextMenu(): void {
 		const globalAction = this._action as GlobalActivityAction;
 		const activity = globalAction.activity as IGlobalActivity;
 		const actions = activity.getActions();
+		const containerPosition = DOM.getDomNodePagePosition(this.container);
+		const location = { x: containerPosition.left + containerPosition.width / 2, y: containerPosition.top };
 
+		this.menuVisible = true;
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => location,
 			getActions: () => actions,
-			onHide: () => dispose(actions)
+			onHide: () => { dispose(actions); this.hideMenu.schedule(); }
 		});
 	}
 }

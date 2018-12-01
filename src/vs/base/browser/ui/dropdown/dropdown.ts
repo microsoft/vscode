@@ -11,9 +11,10 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IContextViewProvider, IAnchor, AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IMenuOptions } from 'vs/base/browser/ui/menu/menu';
 import { ResolvedKeybinding, KeyCode } from 'vs/base/common/keyCodes';
-import { EventHelper, EventType, removeClass, addClass, append, $, addDisposableListener, addClasses } from 'vs/base/browser/dom';
+import { EventHelper, EventType, removeClass, addClass, append, $, addDisposableListener, addClasses, hasClass } from 'vs/base/browser/dom';
 import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 export interface ILabelRenderer {
 	(container: HTMLElement): IDisposable;
@@ -187,6 +188,7 @@ export class Dropdown extends BaseDropdown {
 
 export interface IContextMenuProvider {
 	showContextMenu(delegate: IContextMenuDelegate): void;
+	hideContextMenu(): void;
 }
 
 export interface IActionProvider {
@@ -206,6 +208,7 @@ export class DropdownMenu extends BaseDropdown {
 	private _actions: IAction[];
 	private actionProvider: IActionProvider;
 	private menuClassName: string;
+	private hideMenu: RunOnceScheduler;
 
 	constructor(container: HTMLElement, options: IDropdownMenuOptions) {
 		super(container, options);
@@ -214,6 +217,7 @@ export class DropdownMenu extends BaseDropdown {
 		this.actions = options.actions || [];
 		this.actionProvider = options.actionProvider;
 		this.menuClassName = options.menuClassName || '';
+		this.hideMenu = new RunOnceScheduler(() => this.onHide(), 0);
 	}
 
 	set menuOptions(options: IMenuOptions) {
@@ -248,19 +252,24 @@ export class DropdownMenu extends BaseDropdown {
 			getActionItem: action => this.menuOptions && this.menuOptions.actionItemProvider ? this.menuOptions.actionItemProvider(action) : null,
 			getKeyBinding: action => this.menuOptions && this.menuOptions.getKeyBinding ? this.menuOptions.getKeyBinding(action) : null,
 			getMenuClassName: () => this.menuClassName,
-			onHide: () => this.onHide(),
+			onHide: () => this.hideMenu.schedule(),
 			actionRunner: this.menuOptions ? this.menuOptions.actionRunner : null,
 			anchorAlignment: this.menuOptions.anchorAlignment
 		});
+
+		setTimeout(() => this._contextMenuProvider.hideContextMenu(), 5000);
 	}
 
 	hide(): void {
 		super.hide();
+		if (hasClass(this.element, 'active')) {
+			this._contextMenuProvider.hideContextMenu();
+		}
 	}
 
 	private onHide(): void {
-		this.hide();
 		removeClass(this.element, 'active');
+		this.hide();
 	}
 }
 
