@@ -37,22 +37,22 @@ export function resolveWorkbenchCommonProperties(storageService: IStorageService
 function getOrCreateInstanceId(storageService: IStorageService): string {
 	const key = 'telemetry.instanceId';
 
-	let result = storageService.get(key, StorageScope.GLOBAL, null);
-	if (result !== null) {
-		return result;
+	let instanceId = storageService.get(key, StorageScope.GLOBAL, void 0);
+	if (instanceId) {
+		return instanceId;
 	}
 
-	result = uuid.generateUuid();
-	storageService.store(key, result, StorageScope.GLOBAL);
+	instanceId = uuid.generateUuid();
+	storageService.store(key, instanceId, StorageScope.GLOBAL);
 
-	return result;
+	return instanceId;
 }
 
 function getOrCreateFirstSessionDate(storageService: IStorageService): string {
 	const key = 'telemetry.firstSessionDate';
 
-	let firstSessionDate = storageService.get(key, StorageScope.GLOBAL, null);
-	if (firstSessionDate !== null) {
+	let firstSessionDate = storageService.get(key, StorageScope.GLOBAL, void 0);
+	if (firstSessionDate) {
 		return firstSessionDate;
 	}
 
