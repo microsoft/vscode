@@ -67,6 +67,7 @@ export interface IStorage extends IDisposable {
 	set(key: string, value: any): Thenable<void>;
 	delete(key: string): Thenable<void>;
 
+	beforeClose(): void;
 	close(): Thenable<void>;
 
 	checkIntegrity(full: boolean): Thenable<string>;
@@ -81,7 +82,7 @@ enum StorageState {
 export class Storage extends Disposable implements IStorage {
 	_serviceBrand: any;
 
-	private static readonly FLUSH_DELAY = 100;
+	private static readonly DEFAULT_FLUSH_DELAY = 100;
 
 	private _onDidChangeStorage: Emitter<string> = this._register(new Emitter<string>());
 	get onDidChangeStorage(): Event<string> { return this._onDidChangeStorage.event; }
@@ -91,6 +92,7 @@ export class Storage extends Disposable implements IStorage {
 	private cache: Map<string, string> = new Map<string, string>();
 
 	private flushDelayer: ThrottledDelayer<void>;
+	private flushDelay = Storage.DEFAULT_FLUSH_DELAY;
 
 	private pendingDeletes: Set<string> = new Set<string>();
 	private pendingInserts: Map<string, string> = new Map();
@@ -101,7 +103,7 @@ export class Storage extends Disposable implements IStorage {
 	) {
 		super();
 
-		this.flushDelayer = this._register(new ThrottledDelayer(Storage.FLUSH_DELAY));
+		this.flushDelayer = this._register(new ThrottledDelayer(this.flushDelay));
 
 		this.registerListeners();
 	}
@@ -235,7 +237,7 @@ export class Storage extends Disposable implements IStorage {
 		this._onDidChangeStorage.fire(key);
 
 		// Accumulate work by scheduling after timeout
-		return this.flushDelayer.trigger(() => this.flushPending());
+		return this.flushDelayer.trigger(() => this.flushPending(), this.flushDelay);
 	}
 
 	delete(key: string): Thenable<void> {
@@ -259,7 +261,11 @@ export class Storage extends Disposable implements IStorage {
 		this._onDidChangeStorage.fire(key);
 
 		// Accumulate work by scheduling after timeout
-		return this.flushDelayer.trigger(() => this.flushPending());
+		return this.flushDelayer.trigger(() => this.flushPending(), this.flushDelay);
+	}
+
+	beforeClose(): void {
+		this.flushDelay = 0; // when we are about to close, reduce our flush delay to 0 to consume too much time
 	}
 
 	close(): Thenable<void> {
@@ -274,7 +280,7 @@ export class Storage extends Disposable implements IStorage {
 		// even if there is an error flushing. We must always ensure
 		// the DB is closed to avoid corruption.
 		const onDone = () => this.database.close();
-		return this.flushDelayer.trigger(() => this.flushPending(), 0 /* immediately */).then(onDone, onDone);
+		return this.flushDelayer.trigger(() => this.flushPending(), this.flushDelay).then(onDone, onDone);
 	}
 
 	private flushPending(): Thenable<void> {
