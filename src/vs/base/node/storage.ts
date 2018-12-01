@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Database, Statement } from 'vscode-sqlite3';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ThrottledDelayer, timeout } from 'vs/base/common/async';
 import { isUndefinedOrNull } from 'vs/base/common/types';
@@ -97,8 +97,6 @@ export class Storage extends Disposable implements IStorage {
 	private pendingDeletes: Set<string> = new Set<string>();
 	private pendingInserts: Map<string, string> = new Map();
 
-	private onDidChangeItemsExternalListener: IDisposable;
-
 	constructor(
 		protected database: IStorageDatabase,
 		private options: IStorageOptions = Object.create(null)
@@ -111,7 +109,7 @@ export class Storage extends Disposable implements IStorage {
 	}
 
 	private registerListeners(): void {
-		this.onDidChangeItemsExternalListener = this.database.onDidChangeItemsExternal(e => this.onDidChangeItemsExternal(e));
+		this._register(this.database.onDidChangeItemsExternal(e => this.onDidChangeItemsExternal(e)));
 	}
 
 	private onDidChangeItemsExternal(e: IStorageItemsChangeEvent): void {
@@ -267,12 +265,7 @@ export class Storage extends Disposable implements IStorage {
 	}
 
 	beforeClose(): void {
-
-		// when we are about to close, reduce our flush delay to 0 to consume too much time
-		this.flushDelay = 0;
-
-		// when we are about to close, we start to ignore external changes since we close anyway
-		this.onDidChangeItemsExternalListener = dispose(this.onDidChangeItemsExternalListener);
+		this.flushDelay = 0; // when we are about to close, reduce our flush delay to 0 to consume too much time
 	}
 
 	close(): Thenable<void> {
@@ -308,12 +301,6 @@ export class Storage extends Disposable implements IStorage {
 
 	checkIntegrity(full: boolean): Thenable<string> {
 		return this.database.checkIntegrity(full);
-	}
-
-	dispose(): void {
-		super.dispose();
-
-		this.onDidChangeItemsExternalListener = dispose(this.onDidChangeItemsExternalListener);
 	}
 }
 
