@@ -199,7 +199,6 @@ export class StorageService extends Disposable implements IStorageService {
 						'workbench.panelpart.activepanelid',
 						'workbench.zenmode.active',
 						'workbench.centerededitorlayout.active',
-						'workbench.sidebar.restore',
 						'workbench.sidebar.hidden',
 						'workbench.panel.hidden',
 						'workbench.panel.location',
