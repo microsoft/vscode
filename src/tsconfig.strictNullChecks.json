@@ -22,6 +22,7 @@
 		"./vs/base/browser/keyboardEvent.ts",
 		"./vs/base/browser/mouseEvent.ts",
 		"./vs/base/browser/touch.ts",
+		"./vs/base/browser/ui/actionbar/actionbar.ts",
 		"./vs/base/browser/ui/aria/aria.ts",
 		"./vs/base/browser/ui/breadcrumbs/breadcrumbsWidget.ts",
 		"./vs/base/browser/ui/button/button.ts",
