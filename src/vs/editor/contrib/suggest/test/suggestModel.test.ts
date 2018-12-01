@@ -42,7 +42,7 @@ function createMockEditor(model: TextModel): TestCodeEditor {
 		model: model,
 		serviceCollection: new ServiceCollection(
 			[ITelemetryService, NullTelemetryService],
-			[IStorageService, InMemoryStorageService]
+			[IStorageService, new InMemoryStorageService()]
 		),
 	});
 	editor.registerAndInstantiateContribution(SnippetController2);

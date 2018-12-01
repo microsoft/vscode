@@ -93,7 +93,7 @@ export interface IWorkspaceStorageChangeEvent {
 	scope: StorageScope;
 }
 
-export const InMemoryStorageService: IStorageService = new class extends Disposable implements IStorageService {
+export class InMemoryStorageService extends Disposable implements IStorageService {
 	_serviceBrand = undefined;
 
 	private _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
@@ -177,4 +177,4 @@ export const InMemoryStorageService: IStorageService = new class extends Disposa
 
 		return Promise.resolve();
 	}
-};
+}
