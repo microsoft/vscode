@@ -470,6 +470,7 @@
 		"./vs/platform/markers/common/markers.ts",
 		"./vs/platform/menubar/common/menubar.ts",
 		"./vs/platform/menubar/electron-main/menubar.ts",
+		"./vs/platform/menubar/electron-main/menubarService.ts",
 		"./vs/platform/menubar/node/menubarIpc.ts",
 		"./vs/platform/node/minimalTranslations.ts",
 		"./vs/platform/node/package.ts",
