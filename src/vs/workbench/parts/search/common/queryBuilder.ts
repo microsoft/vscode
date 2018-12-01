@@ -211,6 +211,8 @@ export class QueryBuilder {
 			segment => isSearchPath(segment) ? 'searchPaths' : 'exprSegments');
 
 		const expandedExprSegments = (groups.exprSegments || [])
+			.map(s => strings.rtrim(s, '/'))
+			.map(s => strings.rtrim(s, '\\'))
 			.map(p => {
 				if (p[0] === '.') {
 					p = '*' + p; // convert ".js" to "*.js"
@@ -282,8 +284,14 @@ export class QueryBuilder {
 
 		const searchPathPatterns = arrays.flatten(searchPaths.map(searchPath => {
 			// 1 open folder => just resolve the search paths to absolute paths
-			const { pathPortion, globPortion } = splitGlobFromPath(searchPath);
+			let { pathPortion, globPortion } = splitGlobFromPath(searchPath);
 			const pathPortions = this.expandAbsoluteSearchPaths(pathPortion);
+
+			if (globPortion) {
+				globPortion = strings.rtrim(globPortion, '\\');
+				globPortion = strings.rtrim(globPortion, '/');
+			}
+
 			return pathPortions.map(searchPath => {
 				return <ISearchPathPattern>{
 					searchPath,
@@ -431,8 +439,6 @@ function patternListToIExpression(patterns: string[]): glob.IExpression {
 function splitGlobPattern(pattern: string): string[] {
 	return glob.splitGlobAware(pattern, ',')
 		.map(s => s.trim())
-		.map(s => strings.rtrim(s, '/'))
-		.map(s => strings.rtrim(s, '\\'))
 		.filter(s => !!s.length);
 }
 
