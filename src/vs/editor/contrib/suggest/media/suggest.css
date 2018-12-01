@@ -123,6 +123,7 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	opacity: 0.7;
+	white-space: nowrap;
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .type-label > .monaco-tokenized-source {
@@ -172,6 +173,7 @@
 	background-image: url('Misc_16x.svg');
 	background-repeat: no-repeat;
 	background-position: center;
+	background-size: contain;
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.method::before,
@@ -221,7 +223,7 @@
 }
 
 .monaco-editor .suggest-widget.docs-below .details {
-	border-top-width: 0px;
+	border-top-width: 0;
 }
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element {

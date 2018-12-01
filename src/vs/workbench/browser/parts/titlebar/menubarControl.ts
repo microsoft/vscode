@@ -9,13 +9,13 @@ import * as strings from 'vs/base/common/strings';
 import { IMenubarMenu, IMenubarMenuItemAction, IMenubarMenuItemSubmenu, IMenubarKeybinding, IMenubarService, IMenubarData } from 'vs/platform/menubar/common/menubar';
 import { IMenuService, MenuId, IMenu, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { registerThemingParticipant, ITheme, ICssStyleCollector, IThemeService } from 'vs/platform/theme/common/themeService';
-import { IWindowService, MenuBarVisibility, IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowService, MenuBarVisibility, IWindowsService, getTitleBarStyle } from 'vs/platform/windows/common/windows';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ActionRunner, IActionRunner, IAction, Action } from 'vs/base/common/actions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import * as DOM from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import { Menu, IMenuOptions, SubmenuAction, MENU_MNEMONIC_REGEX, cleanMnemonic, MENU_ESCAPED_MNEMONIC_REGEX } from 'vs/base/browser/ui/menu/menu';
 import { KeyCode, KeyCodeUtils } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -32,6 +32,10 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IUpdateService, StateType } from 'vs/platform/update/common/update';
 import { Gesture, EventType, GestureEvent } from 'vs/base/browser/touch';
 import { attachMenuStyler } from 'vs/platform/theme/common/styler';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 const $ = DOM.$;
 
@@ -124,7 +128,11 @@ export class MenubarControl extends Disposable {
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ILabelService private labelService: ILabelService,
-		@IUpdateService private updateService: IUpdateService
+		@IUpdateService private updateService: IUpdateService,
+		@IStorageService private storageService: IStorageService,
+		@INotificationService private notificationService: INotificationService,
+		@IPreferencesService private preferencesService: IPreferencesService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 
 		super();
@@ -167,6 +175,8 @@ export class MenubarControl extends Disposable {
 			this.recentlyOpened = recentlyOpened;
 		});
 
+		this.detectAndRecommendCustomTitlebar();
+
 		this.registerListeners();
 	}
 
@@ -206,7 +216,7 @@ export class MenubarControl extends Disposable {
 	}
 
 	private get currentTitlebarStyleSetting(): string {
-		return this.configurationService.getValue<string>('window.titleBarStyle');
+		return getTitleBarStyle(this.configurationService, this.environmentService);
 	}
 
 	private get focusState(): MenubarState {
@@ -348,6 +358,7 @@ export class MenubarControl extends Disposable {
 
 		if (event.affectsConfiguration('window.menuBarVisibility')) {
 			this.setUnfocusedState();
+			this.detectAndRecommendCustomTitlebar();
 		}
 	}
 
@@ -366,13 +377,17 @@ export class MenubarControl extends Disposable {
 	}
 
 	private hideMenubar(): void {
-		this.container.style.display = 'none';
-		this._onVisibilityChange.fire(false);
+		if (this.container.style.display !== 'none') {
+			this.container.style.display = 'none';
+			this._onVisibilityChange.fire(false);
+		}
 	}
 
 	private showMenubar(): void {
-		this.container.style.display = 'flex';
-		this._onVisibilityChange.fire(true);
+		if (this.container.style.display !== 'flex') {
+			this.container.style.display = 'flex';
+			this._onVisibilityChange.fire(true);
+		}
 	}
 
 	private onModifierKeyToggled(modifierKeyStatus: IModifierKeyStatus): void {
@@ -430,6 +445,41 @@ export class MenubarControl extends Disposable {
 			this.recentlyOpened = recentlyOpened;
 			this.setupMenubar();
 		});
+	}
+
+	private detectAndRecommendCustomTitlebar(): void {
+		if (!isLinux) {
+			return;
+		}
+
+		if (!this.storageService.getBoolean('menubar/electronFixRecommended', StorageScope.GLOBAL, false)) {
+			if (this.currentMenubarVisibility === 'hidden' || this.currentTitlebarStyleSetting === 'custom') {
+				// Issue will not arise for user, abort notification
+				return;
+			}
+
+			const message = nls.localize('menubar.electronFixRecommendation', "If you experience hard to read text in the menu bar, we recommend trying out the custom title bar.");
+			this.notificationService.prompt(Severity.Info, message, [
+				{
+					label: nls.localize('goToSetting', "Open Settings"),
+					run: () => {
+						return this.preferencesService.openGlobalSettings(undefined, { query: 'window.titleBarStyle' });
+					}
+				},
+				{
+					label: nls.localize('moreInfo', "More Info"),
+					run: () => {
+						window.open('https://go.microsoft.com/fwlink/?linkid=2038566');
+					}
+				},
+				{
+					label: nls.localize('neverShowAgain', "Don't Show Again"),
+					run: () => {
+						this.storageService.store('menubar/electronFixRecommended', true, StorageScope.GLOBAL);
+					}
+				}
+			]);
+		}
 	}
 
 	private registerListeners(): void {
@@ -648,7 +698,7 @@ export class MenubarControl extends Disposable {
 			// Create the top level menu button element
 			if (firstTimeSetup) {
 
-				const buttonElement = $('div.menubar-menu-button', { 'role': 'menuitem', 'tabindex': 0, 'aria-label': cleanMenuLabel, 'aria-haspopup': true });
+				const buttonElement = $('div.menubar-menu-button', { 'role': 'menuitem', 'tabindex': -1, 'aria-label': cleanMenuLabel, 'aria-haspopup': true });
 				const titleElement = $('div.menubar-menu-title', { 'role': 'none', 'aria-hidden': true });
 
 				buttonElement.appendChild(titleElement);
@@ -697,6 +747,7 @@ export class MenubarControl extends Disposable {
 							const submenuActions: SubmenuAction[] = [];
 							updateActions(submenu, submenuActions);
 							target.push(new SubmenuAction(action.label, submenuActions));
+							submenu.dispose();
 						} else {
 							action.label = this.calculateActionLabel(action);
 							target.push(action);
@@ -718,7 +769,7 @@ export class MenubarControl extends Disposable {
 
 			if (firstTimeSetup) {
 				this._register(DOM.addDisposableListener(this.customMenus[menuIndex].buttonElement, DOM.EventType.KEY_UP, (e) => {
-					let event = new StandardKeyboardEvent(e as KeyboardEvent);
+					let event = new StandardKeyboardEvent(e);
 					let eventHandled = true;
 
 					if ((event.equals(KeyCode.DownArrow) || event.equals(KeyCode.Enter)) && !this.isOpen) {
@@ -787,13 +838,13 @@ export class MenubarControl extends Disposable {
 
 		if (firstTimeSetup) {
 			this._register(DOM.addDisposableListener(this.container, DOM.EventType.KEY_DOWN, (e) => {
-				let event = new StandardKeyboardEvent(e as KeyboardEvent);
+				let event = new StandardKeyboardEvent(e);
 				let eventHandled = true;
 				const key = !!e.key ? KeyCodeUtils.fromString(e.key) : KeyCode.Unknown;
 
-				if (event.equals(KeyCode.LeftArrow) || (event.shiftKey && event.keyCode === KeyCode.Tab)) {
+				if (event.equals(KeyCode.LeftArrow)) {
 					this.focusPrevious();
-				} else if (event.equals(KeyCode.RightArrow) || event.equals(KeyCode.Tab)) {
+				} else if (event.equals(KeyCode.RightArrow)) {
 					this.focusNext();
 				} else if (event.equals(KeyCode.Escape) && this.isFocused && !this.isOpen) {
 					this.setUnfocusedState();
@@ -838,8 +889,8 @@ export class MenubarControl extends Disposable {
 				}
 			}));
 
-			this._register(DOM.addDisposableListener(window, DOM.EventType.KEY_DOWN, (e) => {
-				if (!this.currentEnableMenuBarMnemonics || !e.altKey || e.ctrlKey) {
+			this._register(DOM.addDisposableListener(window, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+				if (!this.currentEnableMenuBarMnemonics || !e.altKey || e.ctrlKey || e.defaultPrevented) {
 					return;
 				}
 
@@ -950,7 +1001,8 @@ export class MenubarControl extends Disposable {
 
 				if (menuItem instanceof SubmenuItemAction) {
 					const submenu = { items: [] };
-					this.populateMenuItems(this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService), submenu, keybindings);
+					const menuToDispose = this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService);
+					this.populateMenuItems(menuToDispose, submenu, keybindings);
 
 					let menubarSubmenuItem: IMenubarMenuItemSubmenu = {
 						id: menuItem.id,
@@ -959,6 +1011,7 @@ export class MenubarControl extends Disposable {
 					};
 
 					menuToPopulate.items.push(menubarSubmenuItem);
+					menuToDispose.dispose();
 				} else {
 					let menubarMenuItem: IMenubarMenuItemAction = {
 						id: menuItem.id,

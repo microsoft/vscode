@@ -141,18 +141,18 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 		this.refCount = 0;
 		this._disposables = [];
 
-		let createCSSRules = (type: ModelDecorationCSSRuleType) => {
-			let rules = new DecorationCSSRules(type, providerArgs, themeService);
+		const createCSSRules = (type: ModelDecorationCSSRuleType) => {
+			const rules = new DecorationCSSRules(type, providerArgs, themeService);
+			this._disposables.push(rules);
 			if (rules.hasContent) {
-				this._disposables.push(rules);
 				return rules.className;
 			}
 			return void 0;
 		};
-		let createInlineCSSRules = (type: ModelDecorationCSSRuleType) => {
-			let rules = new DecorationCSSRules(type, providerArgs, themeService);
+		const createInlineCSSRules = (type: ModelDecorationCSSRuleType) => {
+			const rules = new DecorationCSSRules(type, providerArgs, themeService);
+			this._disposables.push(rules);
 			if (rules.hasContent) {
-				this._disposables.push(rules);
 				return { className: rules.className, hasLetterSpacing: rules.hasLetterSpacing };
 			}
 			return null;
@@ -401,11 +401,7 @@ class DecorationCSSRules {
 		if (typeof opts !== 'undefined') {
 			this.collectBorderSettingsCSSText(opts, cssTextArr);
 			if (typeof opts.contentIconPath !== 'undefined') {
-				if (typeof opts.contentIconPath === 'string') {
-					cssTextArr.push(strings.format(_CSS_MAP.contentIconPath, URI.file(opts.contentIconPath).toString().replace(/'/g, '%27')));
-				} else {
-					cssTextArr.push(strings.format(_CSS_MAP.contentIconPath, URI.revive(opts.contentIconPath).toString(true).replace(/'/g, '%27')));
-				}
+				cssTextArr.push(strings.format(_CSS_MAP.contentIconPath, URI.revive(opts.contentIconPath).toString(true).replace(/'/g, '%27')));
 			}
 			if (typeof opts.contentText === 'string') {
 				const truncated = opts.contentText.match(/^.*$/m)![0]; // only take first line
@@ -432,11 +428,7 @@ class DecorationCSSRules {
 		let cssTextArr: string[] = [];
 
 		if (typeof opts.gutterIconPath !== 'undefined') {
-			if (typeof opts.gutterIconPath === 'string') {
-				cssTextArr.push(strings.format(_CSS_MAP.gutterIconPath, URI.file(opts.gutterIconPath).toString()));
-			} else {
-				cssTextArr.push(strings.format(_CSS_MAP.gutterIconPath, URI.revive(opts.gutterIconPath).toString(true).replace(/'/g, '%27')));
-			}
+			cssTextArr.push(strings.format(_CSS_MAP.gutterIconPath, URI.revive(opts.gutterIconPath).toString(true).replace(/'/g, '%27')));
 			if (typeof opts.gutterIconSize !== 'undefined') {
 				cssTextArr.push(strings.format(_CSS_MAP.gutterIconSize, opts.gutterIconSize));
 			}

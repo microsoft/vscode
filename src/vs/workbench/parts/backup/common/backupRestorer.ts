@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -26,10 +25,10 @@ export class BackupRestorer implements IWorkbenchContribution {
 	}
 
 	private restoreBackups(): void {
-		this.lifecycleService.when(LifecyclePhase.Running).then(() => this.doRestoreBackups());
+		this.lifecycleService.when(LifecyclePhase.Restored).then(() => this.doRestoreBackups());
 	}
 
-	private doRestoreBackups(): TPromise<URI[]> {
+	private doRestoreBackups(): Thenable<URI[]> {
 
 		// Find all files and untitled with backups
 		return this.backupFileService.getWorkspaceFileBackups().then(backups => {
@@ -47,8 +46,8 @@ export class BackupRestorer implements IWorkbenchContribution {
 		});
 	}
 
-	private doResolveOpenedBackups(backups: URI[]): TPromise<URI[]> {
-		const restorePromises: TPromise<any>[] = [];
+	private doResolveOpenedBackups(backups: URI[]): Thenable<URI[]> {
+		const restorePromises: Thenable<any>[] = [];
 		const unresolved: URI[] = [];
 
 		backups.forEach(backup => {
@@ -60,10 +59,10 @@ export class BackupRestorer implements IWorkbenchContribution {
 			}
 		});
 
-		return TPromise.join(restorePromises).then(() => unresolved, () => unresolved);
+		return Promise.all(restorePromises).then(() => unresolved, () => unresolved);
 	}
 
-	private doOpenEditors(resources: URI[]): TPromise<void> {
+	private doOpenEditors(resources: URI[]): Thenable<void> {
 		const hasOpenedEditors = this.editorService.visibleEditors.length > 0;
 		const inputs = resources.map((resource, index) => this.resolveInput(resource, index, hasOpenedEditors));
 

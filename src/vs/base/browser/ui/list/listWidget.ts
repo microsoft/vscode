@@ -16,7 +16,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Event, Emitter, EventBufferer, chain, mapEvent, anyEvent } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
-import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent } from './list';
+import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent, IIdentityProvider } from './list';
 import { ListView, IListViewOptions } from './listView';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
@@ -24,10 +24,6 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { CombinedSpliceable } from 'vs/base/browser/ui/list/splice';
 import { clamp } from 'vs/base/common/numbers';
-
-export interface IIdentityProvider<T> {
-	(element: T): string;
-}
 
 interface ITraitChangeEvent {
 	indexes: number[];
@@ -180,7 +176,6 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 	}
 
 	dispose() {
-		this.indexes = null;
 		this._onChange = dispose(this._onChange);
 	}
 }
@@ -188,7 +183,7 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 class FocusTrait<T> extends Trait<T> {
 
 	constructor(
-		private getDomId: IIdentityProvider<number>
+		private getDomId: (index: number) => string
 	) {
 		super('focused');
 	}
@@ -216,16 +211,16 @@ class TraitSpliceable<T> implements ISpliceable<T> {
 	constructor(
 		private trait: Trait<T>,
 		private view: ListView<T>,
-		private getId?: IIdentityProvider<T>
+		private identityProvider?: IIdentityProvider<T>
 	) { }
 
 	splice(start: number, deleteCount: number, elements: T[]): void {
-		if (!this.getId) {
+		if (!this.identityProvider) {
 			return this.trait.splice(start, deleteCount, elements.map(e => false));
 		}
 
-		const pastElementsWithTrait = this.trait.get().map(i => this.getId(this.view.element(i)));
-		const elementsWithTrait = elements.map(e => pastElementsWithTrait.indexOf(this.getId(e)) > -1);
+		const pastElementsWithTrait = this.trait.get().map(i => this.identityProvider!.getId(this.view.element(i)).toString());
+		const elementsWithTrait = elements.map(e => pastElementsWithTrait.indexOf(this.identityProvider!.getId(e).toString()) > -1);
 
 		this.trait.splice(start, deleteCount, elementsWithTrait);
 	}
@@ -357,6 +352,11 @@ class DOMFocusController<T> implements IDisposable {
 		}
 
 		const focusedDomElement = this.view.domElement(focus[0]);
+
+		if (!focusedDomElement) {
+			return;
+		}
+
 		const tabIndexElement = focusedDomElement.querySelector('[tabIndex]');
 
 		if (!tabIndexElement || !(tabIndexElement instanceof HTMLElement) || tabIndexElement.tabIndex === -1) {
@@ -410,45 +410,7 @@ class MouseController<T> implements IDisposable {
 	private multipleSelectionSupport: boolean;
 	private multipleSelectionController: IMultipleSelectionController<T>;
 	private openController: IOpenController;
-	private didJustPressContextMenuKey: boolean = false;
 	private disposables: IDisposable[] = [];
-
-	@memoize get onContextMenu(): Event<IListContextMenuEvent<T>> {
-		const fromKeydown = chain(domEvent(this.view.domNode, 'keydown'))
-			.map(e => new StandardKeyboardEvent(e))
-			.filter(e => this.didJustPressContextMenuKey = e.keyCode === KeyCode.ContextMenu || (e.shiftKey && e.keyCode === KeyCode.F10))
-			.filter(e => { e.preventDefault(); e.stopPropagation(); return false; })
-			.map(event => {
-				const index = this.list.getFocus()[0];
-				const element = this.view.element(index);
-				const anchor = this.view.domElement(index);
-				return { index, element, anchor, browserEvent: event.browserEvent };
-			})
-			.event;
-
-		const fromKeyup = chain(domEvent(this.view.domNode, 'keyup'))
-			.filter(() => {
-				const didJustPressContextMenuKey = this.didJustPressContextMenuKey;
-				this.didJustPressContextMenuKey = false;
-				return didJustPressContextMenuKey;
-			})
-			.filter(() => this.list.getFocus().length > 0)
-			.map(browserEvent => {
-				const index = this.list.getFocus()[0];
-				const element = this.view.element(index);
-				const anchor = this.view.domElement(index);
-				return { index, element, anchor, browserEvent };
-			})
-			.filter(({ anchor }) => !!anchor)
-			.event;
-
-		const fromMouse = chain(this.view.onContextMenu)
-			.filter(() => !this.didJustPressContextMenuKey)
-			.map(({ element, index, browserEvent }) => ({ element, index, anchor: { x: browserEvent.clientX + 1, y: browserEvent.clientY }, browserEvent }))
-			.event;
-
-		return anyEvent<IListContextMenuEvent<T>>(fromKeydown, fromKeyup, fromMouse);
-	}
 
 	constructor(
 		private list: List<T>,
@@ -492,6 +454,10 @@ class MouseController<T> implements IDisposable {
 	}
 
 	private onMouseDown(e: IListMouseEvent<T> | IListTouchEvent<T>): void {
+		if (e.browserEvent instanceof MouseEvent && e.browserEvent.button === 2) {
+			return;
+		}
+
 		if (this.options.focusOnMouseDown === false) {
 			e.browserEvent.preventDefault();
 			e.browserEvent.stopPropagation();
@@ -503,11 +469,18 @@ class MouseController<T> implements IDisposable {
 		const selection = this.list.getSelection();
 		reference = reference === undefined ? selection[0] : reference;
 
+		const focus = e.index;
+
+		if (typeof focus === 'undefined') {
+			this.list.setFocus([], e.browserEvent);
+			this.list.setSelection([], e.browserEvent);
+			return;
+		}
+
 		if (this.multipleSelectionSupport && this.isSelectionRangeChangeEvent(e)) {
 			return this.changeSelection(e, reference);
 		}
 
-		const focus = e.index;
 		if (selection.every(s => s !== focus)) {
 			this.list.setFocus([focus], e.browserEvent);
 		}
@@ -551,7 +524,7 @@ class MouseController<T> implements IDisposable {
 	}
 
 	private changeSelection(e: IListMouseEvent<T> | IListTouchEvent<T>, reference: number | undefined): void {
-		const focus = e.index;
+		const focus = e.index!;
 
 		if (this.isSelectionRangeChangeEvent(e) && reference !== undefined) {
 			const min = Math.min(reference, focus);
@@ -827,7 +800,7 @@ class PipelineRenderer<T> implements IListRenderer<T, any> {
 
 	constructor(
 		private _templateId: string,
-		private renderers: IListRenderer<T, any>[]
+		private renderers: IListRenderer<any /* TODO@joao */, any>[]
 	) { }
 
 	get templateId(): string {
@@ -907,7 +880,6 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	protected disposables: IDisposable[];
 	private styleElement: HTMLStyleElement;
 	private styleController: IStyleController;
-	private mouseController: MouseController<T>;
 
 	@memoize get onFocusChange(): Event<IListEvent<T>> {
 		return mapEvent(this.eventBufferer.wrapEvent(this.focus.onChange), e => this.toListEvent(e));
@@ -916,8 +888,6 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	@memoize get onSelectionChange(): Event<IListEvent<T>> {
 		return mapEvent(this.eventBufferer.wrapEvent(this.selection.onChange), e => this.toListEvent(e));
 	}
-
-	readonly onContextMenu: Event<IListContextMenuEvent<T>> = Event.None;
 
 	private _onOpen = new Emitter<IListEvent<T>>();
 	readonly onOpen: Event<IListEvent<T>> = this._onOpen.event;
@@ -938,6 +908,44 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	get onTouchStart(): Event<IListTouchEvent<T>> { return this.view.onTouchStart; }
 	get onTap(): Event<IListGestureEvent<T>> { return this.view.onTap; }
 
+	private didJustPressContextMenuKey: boolean = false;
+	@memoize get onContextMenu(): Event<IListContextMenuEvent<T>> {
+		const fromKeydown = chain(domEvent(this.view.domNode, 'keydown'))
+			.map(e => new StandardKeyboardEvent(e))
+			.filter(e => this.didJustPressContextMenuKey = e.keyCode === KeyCode.ContextMenu || (e.shiftKey && e.keyCode === KeyCode.F10))
+			.filter(e => { e.preventDefault(); e.stopPropagation(); return false; })
+			.map(event => {
+				const index = this.getFocus()[0];
+				const element = this.view.element(index);
+				const anchor = this.view.domElement(index) || undefined;
+				return { index, element, anchor, browserEvent: event.browserEvent };
+			})
+			.event;
+
+		const fromKeyup = chain(domEvent(this.view.domNode, 'keyup'))
+			.filter(() => {
+				const didJustPressContextMenuKey = this.didJustPressContextMenuKey;
+				this.didJustPressContextMenuKey = false;
+				return didJustPressContextMenuKey;
+			})
+			.filter(() => this.getFocus().length > 0)
+			.map(browserEvent => {
+				const index = this.getFocus()[0];
+				const element = this.view.element(index);
+				const anchor = this.view.domElement(index) || undefined;
+				return { index, element, anchor, browserEvent };
+			})
+			.filter(({ anchor }) => !!anchor)
+			.event;
+
+		const fromMouse = chain(this.view.onContextMenu)
+			.filter(() => !this.didJustPressContextMenuKey)
+			.map(({ element, index, browserEvent }) => ({ element, index, anchor: { x: browserEvent.clientX + 1, y: browserEvent.clientY }, browserEvent }))
+			.event;
+
+		return anyEvent<IListContextMenuEvent<T>>(fromKeydown, fromKeyup, fromMouse);
+	}
+
 	get onKeyDown(): Event<KeyboardEvent> { return domEvent(this.view.domNode, 'keydown'); }
 	get onKeyUp(): Event<KeyboardEvent> { return domEvent(this.view.domNode, 'keyup'); }
 	get onKeyPress(): Event<KeyboardEvent> { return domEvent(this.view.domNode, 'keypress'); }
@@ -951,7 +959,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	constructor(
 		container: HTMLElement,
 		virtualDelegate: IListVirtualDelegate<T>,
-		renderers: IListRenderer<T, any>[],
+		renderers: IListRenderer<any /* TODO@joao */, any>[],
 		options: IListOptions<T> = DefaultOptions
 	) {
 		this.focus = new FocusTrait(i => this.getElementDomId(i));
@@ -974,10 +982,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		this.styleElement = DOM.createStyleSheet(this.view.domNode);
 
-		this.styleController = options.styleController;
-		if (!this.styleController) {
-			this.styleController = new DefaultStyleController(this.styleElement, this.idPrefix);
-		}
+		this.styleController = options.styleController || new DefaultStyleController(this.styleElement, this.idPrefix);
 
 		this.spliceable = new CombinedSpliceable([
 			new TraitSpliceable(this.focus, this.view, options.identityProvider),
@@ -987,8 +992,8 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		this.disposables = [this.focus, this.selection, this.view, this._onDidDispose];
 
-		this.onDidFocus = mapEvent(domEvent(this.view.domNode, 'focus', true), () => null);
-		this.onDidBlur = mapEvent(domEvent(this.view.domNode, 'blur', true), () => null);
+		this.onDidFocus = mapEvent(domEvent(this.view.domNode, 'focus', true), () => null!);
+		this.onDidBlur = mapEvent(domEvent(this.view.domNode, 'blur', true), () => null!);
 
 		this.disposables.push(new DOMFocusController(this, this.view));
 
@@ -997,10 +1002,8 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 			this.disposables.push(controller);
 		}
 
-		if (typeof options.mouseSupport !== 'boolean' || options.mouseSupport) {
-			this.mouseController = new MouseController(this, this.view, options);
-			this.disposables.push(this.mouseController);
-			this.onContextMenu = this.mouseController.onContextMenu;
+		if (typeof options.mouseSupport === 'boolean' ? options.mouseSupport : true) {
+			this.disposables.push(new MouseController(this, this.view, options));
 		}
 
 		this.onFocusChange(this._onFocusChange, this, this.disposables);
@@ -1034,7 +1037,11 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	get contentHeight(): number {
-		return this.view.getContentHeight();
+		return this.view.contentHeight;
+	}
+
+	get onDidChangeContentHeight(): Event<number> {
+		return this.view.onDidChangeContentHeight;
 	}
 
 	get scrollTop(): number {
@@ -1045,12 +1052,24 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this.view.setScrollTop(scrollTop);
 	}
 
+	get scrollHeight(): number {
+		return this.view.scrollHeight;
+	}
+
+	get renderHeight(): number {
+		return this.view.renderHeight;
+	}
+
 	domFocus(): void {
 		this.view.domNode.focus();
 	}
 
 	layout(height?: number): void {
 		this.view.layout(height);
+	}
+
+	layoutWidth(width: number): void {
+		this.view.layoutWidth(width);
 	}
 
 	setSelection(indexes: number[], browserEvent?: UIEvent): void {
@@ -1087,7 +1106,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		if (this.length === 0) { return; }
 		const focus = this.focus.get();
 		let index = focus.length > 0 ? focus[0] + n : 0;
-		this.setFocus(loop ? [index % this.length] : [Math.min(index, this.length - 1)]);
+		this.setFocus(loop ? [index % this.length] : [Math.min(index, this.length - 1)], browserEvent);
 	}
 
 	focusPrevious(n = 1, loop = false, browserEvent?: UIEvent): void {
@@ -1095,7 +1114,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		const focus = this.focus.get();
 		let index = focus.length > 0 ? focus[0] - n : 0;
 		if (loop && index < 0) { index = (this.length + (index % this.length)) % this.length; }
-		this.setFocus([Math.max(index, 0)]);
+		this.setFocus([Math.max(index, 0)], browserEvent);
 	}
 
 	focusNextPage(browserEvent?: UIEvent): void {
@@ -1105,14 +1124,14 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		const currentlyFocusedElement = this.getFocusedElements()[0];
 
 		if (currentlyFocusedElement !== lastPageElement) {
-			this.setFocus([lastPageIndex]);
+			this.setFocus([lastPageIndex], browserEvent);
 		} else {
 			const previousScrollTop = this.view.getScrollTop();
 			this.view.setScrollTop(previousScrollTop + this.view.renderHeight - this.view.elementHeight(lastPageIndex));
 
 			if (this.view.getScrollTop() !== previousScrollTop) {
 				// Let the scroll event listener run
-				setTimeout(() => this.focusNextPage(), 0);
+				setTimeout(() => this.focusNextPage(browserEvent), 0);
 			}
 		}
 	}
@@ -1131,26 +1150,26 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		const currentlyFocusedElement = this.getFocusedElements()[0];
 
 		if (currentlyFocusedElement !== firstPageElement) {
-			this.setFocus([firstPageIndex]);
+			this.setFocus([firstPageIndex], browserEvent);
 		} else {
 			const previousScrollTop = scrollTop;
 			this.view.setScrollTop(scrollTop - this.view.renderHeight);
 
 			if (this.view.getScrollTop() !== previousScrollTop) {
 				// Let the scroll event listener run
-				setTimeout(() => this.focusPreviousPage(), 0);
+				setTimeout(() => this.focusPreviousPage(browserEvent), 0);
 			}
 		}
 	}
 
 	focusLast(browserEvent?: UIEvent): void {
 		if (this.length === 0) { return; }
-		this.setFocus([this.length - 1]);
+		this.setFocus([this.length - 1], browserEvent);
 	}
 
 	focusFirst(browserEvent?: UIEvent): void {
 		if (this.length === 0) { return; }
-		this.setFocus([0]);
+		this.setFocus([0], browserEvent);
 	}
 
 	getFocus(): number[] {

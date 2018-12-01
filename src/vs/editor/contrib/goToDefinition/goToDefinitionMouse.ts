@@ -73,6 +73,12 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 	}
 
 	private startFindDefinition(mouseEvent: ClickLinkMouseEvent, withKey?: ClickLinkKeyboardEvent): void {
+
+		// check if we are active and on a content widget
+		if (mouseEvent.target.type === MouseTargetType.CONTENT_WIDGET && this.decorations.length > 0) {
+			return;
+		}
+
 		if (!this.isEnabled(mouseEvent, withKey)) {
 			this.currentWordUnderMouse = null;
 			this.removeDecorations();
@@ -270,7 +276,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 	private isEnabled(mouseEvent: ClickLinkMouseEvent, withKey?: ClickLinkKeyboardEvent): boolean {
 		return this.editor.getModel() &&
 			mouseEvent.isNoneOrSingleMouseDown &&
-			mouseEvent.target.type === MouseTargetType.CONTENT_TEXT &&
+			(mouseEvent.target.type === MouseTargetType.CONTENT_TEXT) &&
 			(mouseEvent.hasTriggerModifier || (withKey && withKey.keyCodeIsTriggerKey)) &&
 			DefinitionProviderRegistry.has(this.editor.getModel());
 	}

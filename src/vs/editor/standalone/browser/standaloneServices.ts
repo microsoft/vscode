@@ -13,7 +13,7 @@ import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { ITextResourceConfigurationService, ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
-import { SimpleBulkEditService, SimpleConfigurationService, SimpleDialogService, SimpleMenuService, SimpleNotificationService, SimpleProgressService, SimpleResourceConfigurationService, SimpleResourcePropertiesService, SimpleUriLabelService, SimpleWorkspaceContextService, StandaloneCommandService, StandaloneKeybindingService, StandaloneTelemetryService } from 'vs/editor/standalone/browser/simpleServices';
+import { SimpleBulkEditService, SimpleConfigurationService, SimpleDialogService, SimpleNotificationService, SimpleProgressService, SimpleResourceConfigurationService, SimpleResourcePropertiesService, SimpleUriLabelService, SimpleWorkspaceContextService, StandaloneCommandService, StandaloneKeybindingService, StandaloneTelemetryService } from 'vs/editor/standalone/browser/simpleServices';
 import { StandaloneCodeEditorServiceImpl } from 'vs/editor/standalone/browser/standaloneCodeServiceImpl';
 import { StandaloneThemeServiceImpl } from 'vs/editor/standalone/browser/standaloneThemeServiceImpl';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
@@ -37,10 +37,11 @@ import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IProgressService } from 'vs/platform/progress/common/progress';
-import { IStorageService, NullStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { MenuService } from 'vs/platform/actions/common/menuService';
 
 export interface IEditorOverrideServices {
 	[index: string]: any;
@@ -142,7 +143,7 @@ export module StaticServices {
 
 	export const progressService = define(IProgressService, () => new SimpleProgressService());
 
-	export const storageService = define(IStorageService, () => NullStorageService);
+	export const storageService = define(IStorageService, () => InMemoryStorageService);
 
 	export const logService = define(ILogService, () => new NullLogService());
 
@@ -189,7 +190,7 @@ export class DynamicStandaloneServices extends Disposable {
 
 		ensure(IContextMenuService, () => this._register(new ContextMenuService(domElement, telemetryService, notificationService, contextViewService, keybindingService, themeService)));
 
-		ensure(IMenuService, () => new SimpleMenuService(commandService));
+		ensure(IMenuService, () => new MenuService(commandService));
 
 		ensure(IBulkEditService, () => new SimpleBulkEditService(StaticServices.modelService.get(IModelService)));
 	}

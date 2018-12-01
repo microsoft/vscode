@@ -17,7 +17,7 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { Choice, Placeholder, SnippetParser, Text, TextmateSnippet } from './snippetParser';
-import { ClipboardBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, SelectionBasedVariableResolver, TimeBasedVariableResolver } from './snippetVariables';
+import { ClipboardBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, SelectionBasedVariableResolver, TimeBasedVariableResolver, CommentBasedVariableResolver } from './snippetVariables';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import * as colors from 'vs/platform/theme/common/colorRegistry';
 
@@ -402,6 +402,7 @@ export class SnippetSession {
 				modelBasedVariableResolver,
 				new ClipboardBasedVariableResolver(clipboardService, idx, indexedSelections.length),
 				new SelectionBasedVariableResolver(model, selection),
+				new CommentBasedVariableResolver(model),
 				new TimeBasedVariableResolver
 			]));
 

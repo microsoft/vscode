@@ -13,10 +13,10 @@ import * as comparer from 'vs/base/common/comparers';
 import * as platform from 'vs/base/common/platform';
 import { URI as uri } from 'vs/base/common/uri';
 import { IWorkspaceContextService, Workspace, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { WorkspaceService, ISingleFolderWorkspaceInitializationPayload, IMultiFolderWorkspaceInitializationPayload, IEmptyWorkspaceInitializationPayload, IWorkspaceInitializationPayload, isSingleFolderWorkspaceInitializationPayload } from 'vs/workbench/services/configuration/node/configurationService';
+import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { stat, exists, writeFile, readdir } from 'vs/base/node/pfs';
+import { stat } from 'vs/base/node/pfs';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import * as gracefulFs from 'graceful-fs';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
@@ -31,7 +31,7 @@ import { IUpdateService } from 'vs/platform/update/common/update';
 import { URLHandlerChannel, URLServiceChannelClient } from 'vs/platform/url/node/urlIpc';
 import { IURLService } from 'vs/platform/url/common/url';
 import { WorkspacesChannelClient } from 'vs/platform/workspaces/node/workspacesIpc';
-import { IWorkspacesService, ISingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesService, ISingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, IMultiFolderWorkspaceInitializationPayload, IEmptyWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import * as fs from 'fs';
 import { ConsoleLogService, MultiplexLogService, ILogService } from 'vs/platform/log/common/log';
@@ -43,13 +43,11 @@ import { RelayURLService } from 'vs/platform/url/common/urlService';
 import { MenubarChannelClient } from 'vs/platform/menubar/node/menubarIpc';
 import { IMenubarService } from 'vs/platform/menubar/common/menubar';
 import { Schemas } from 'vs/base/common/network';
-import { sanitizeFilePath, mkdirp } from 'vs/base/node/extfs';
-import { basename, join } from 'path';
+import { sanitizeFilePath } from 'vs/base/node/extfs';
+import { basename } from 'path';
 import { createHash } from 'crypto';
-import { parseStorage, StorageObject } from 'vs/platform/storage/common/storageLegacyMigration';
-import { StorageScope } from 'vs/platform/storage/common/storage';
-import { endsWith } from 'vs/base/common/strings';
 import { IdleValue } from 'vs/base/common/async';
+import { setGlobalLeakWarningThreshold } from 'vs/base/common/event';
 
 gracefulFs.gracefulify(fs); // enable gracefulFs
 
@@ -60,6 +58,9 @@ export function startup(configuration: IWindowConfiguration): Promise<void> {
 
 	// Setup perf
 	perf.importEntries(configuration.perfEntries);
+
+	// Configure emitter leak warning threshold
+	setGlobalLeakWarningThreshold(100);
 
 	// Browser config
 	browser.setZoomFactor(webFrame.getZoomFactor()); // Ensure others can listen to zoom level changes
@@ -102,7 +103,7 @@ function revive(workbench: IWindowConfiguration) {
 
 function openWorkbench(configuration: IWindowConfiguration): Promise<void> {
 	const mainProcessClient = new ElectronIPCClient(`window:${configuration.windowId}`);
-	const mainServices = createMainProcessServices(mainProcessClient, configuration);
+	const mainServices = createMainProcessServices(mainProcessClient);
 
 	const environmentService = new EnvironmentService(configuration, configuration.execPath);
 
@@ -112,52 +113,44 @@ function openWorkbench(configuration: IWindowConfiguration): Promise<void> {
 	// Resolve a workspace payload that we can get the workspace ID from
 	return createWorkspaceInitializationPayload(configuration, environmentService).then(payload => {
 
-		// Prepare the workspace storage folder
-		return prepareWorkspaceStorageFolder(payload, environmentService).then(workspaceStoragePath => {
-			return Promise.all([
+		return Promise.all([
 
-				// Create and initialize workspace/configuration service
-				createWorkspaceService(payload, environmentService, logService),
+			// Create and initialize workspace/configuration service
+			createWorkspaceService(payload, environmentService, logService),
 
-				// Create and initialize storage service
-				createStorageService(workspaceStoragePath, payload, environmentService, logService)
-			]).then(services => {
-				const workspaceService = services[0];
-				const storageService = new DelegatingStorageService(services[1], createStorageLegacyService(workspaceService, environmentService), logService);
+			// Create and initialize storage service
+			createStorageService(payload, environmentService, logService)
+		]).then(services => {
+			const workspaceService = services[0];
+			const storageService = new DelegatingStorageService(services[1], createStorageLegacyService(workspaceService, environmentService), logService, workspaceService);
 
-				return domContentLoaded().then(() => {
-					perf.mark('willStartWorkbench');
+			return domContentLoaded().then(() => {
+				perf.mark('willStartWorkbench');
 
-					// Create Shell
-					const shell = new WorkbenchShell(document.body, {
-						contextService: workspaceService,
-						configurationService: workspaceService,
-						environmentService,
-						logService,
-						storageService
-					}, mainServices, mainProcessClient, configuration);
+				// Create Shell
+				const shell = new WorkbenchShell(document.body, {
+					contextService: workspaceService,
+					configurationService: workspaceService,
+					environmentService,
+					logService,
+					storageService
+				}, mainServices, mainProcessClient, configuration);
 
-					// Store meta file in workspace storage after workbench is running
-					shell.onRunning(() => {
-						ensureWorkspaceStorageFolderMeta(workspaceStoragePath, workspaceService);
-					});
+				// Gracefully Shutdown Storage
+				shell.onWillShutdown(event => {
+					event.join(storageService.close());
+				});
 
-					// Gracefully Shutdown Storage
-					shell.onShutdown(event => {
-						event.join(storageService.close());
-					});
+				// Open Shell
+				shell.open();
 
-					// Open Shell
-					shell.open();
-
-					// Inform user about loading issues from the loader
-					(<any>self).require.config({
-						onError: err => {
-							if (err.errorCode === 'load') {
-								shell.onUnexpectedError(new Error(nls.localize('loaderErrorNative', "Failed to load a required file. Please restart the application to try again. Details: {0}", JSON.stringify(err))));
-							}
+				// Inform user about loading issues from the loader
+				(<any>self).require.config({
+					onError: err => {
+						if (err.errorCode === 'load') {
+							shell.onUnexpectedError(new Error(nls.localize('loaderErrorNative', "Failed to load a required file. Please restart the application to try again. Details: {0}", JSON.stringify(err))));
 						}
-					});
+					}
 				});
 			});
 		});
@@ -234,40 +227,6 @@ function resolveSingleFolderWorkspaceInitializationPayload(folderUri: ISingleFol
 	}, error => onUnexpectedError(error));
 }
 
-function prepareWorkspaceStorageFolder(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService): Thenable<string> {
-	const workspaceStoragePath = join(environmentService.workspaceStorageHome, payload.id); // workspace home + workspace id
-
-	return exists(workspaceStoragePath).then(exists => {
-		if (exists) {
-			return workspaceStoragePath;
-		}
-
-		return mkdirp(workspaceStoragePath).then(() => workspaceStoragePath);
-	});
-}
-
-function ensureWorkspaceStorageFolderMeta(workspaceStoragePath: string, workspaceService: IWorkspaceContextService): void {
-	const state = workspaceService.getWorkbenchState();
-	if (state === WorkbenchState.EMPTY) {
-		return; // no storage meta for empty workspaces
-	}
-
-	const workspaceStorageMetaPath = join(workspaceStoragePath, 'workspace.json');
-
-	exists(workspaceStorageMetaPath).then(exists => {
-		if (exists) {
-			return void 0; // already existing
-		}
-
-		const workspace = workspaceService.getWorkspace();
-
-		return writeFile(workspaceStorageMetaPath, JSON.stringify({
-			configuration: workspace.configuration ? uri.revive(workspace.configuration).toString() : void 0,
-			folder: state === WorkbenchState.FOLDER ? uri.revive(workspace.folders[0].uri).toString() : void 0
-		}, undefined, 2));
-	}).then(null, error => onUnexpectedError(error));
-}
-
 function createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService, logService: ILogService): Promise<WorkspaceService> {
 	const workspaceService = new WorkspaceService(environmentService);
 
@@ -279,147 +238,15 @@ function createWorkspaceService(payload: IWorkspaceInitializationPayload, enviro
 	});
 }
 
-function createStorageService(workspaceStorageFolder: string, payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService, logService: ILogService): Thenable<StorageService> {
+function createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService, logService: ILogService): Thenable<StorageService> {
+	const useInMemoryStorage = !!environmentService.extensionTestsPath; // no storage during extension tests!
+	const storageService = new StorageService({ disableGlobalStorage: true, storeInMemory: useInMemoryStorage }, logService, environmentService);
 
-	// Return early if we are using in-memory storage
-	const useInMemoryStorage = !!environmentService.extensionTestsPath; /* never keep any state when running extension tests */
-	if (useInMemoryStorage) {
-		const storageService = new StorageService(StorageService.IN_MEMORY_PATH, logService, environmentService);
+	return storageService.initialize(payload).then(() => storageService, error => {
+		onUnexpectedError(error);
+		logService.error(error);
 
-		return storageService.init().then(() => storageService);
-	}
-
-	// Otherwise do a migration of previous workspace data if the DB does not exist yet
-	// TODO@Ben remove me after one milestone
-	const workspaceStorageDBPath = join(workspaceStorageFolder, 'storage.db');
-	return exists(workspaceStorageDBPath).then(exists => {
-		const storageService = new StorageService(workspaceStorageDBPath, logService, environmentService);
-
-		return storageService.init().then(() => {
-			if (exists) {
-				return storageService; // return early if DB was already there
-			}
-
-			return readdir(environmentService.extensionsPath).then(extensions => {
-
-				// Otherwise, we migrate data from window.localStorage over
-				try {
-					const parsedStorage = parseStorage(window.localStorage);
-
-					let workspaceItems: StorageObject;
-					if (isWorkspaceIdentifier(payload)) {
-						workspaceItems = parsedStorage.multiRoot.get(`root:${payload.id}`);
-					} else if (isSingleFolderWorkspaceInitializationPayload(payload)) {
-						workspaceItems = parsedStorage.folder.get(payload.folder.toString());
-					} else {
-						if (payload.id === 'ext-dev') {
-							workspaceItems = parsedStorage.noWorkspace;
-						} else {
-							workspaceItems = parsedStorage.empty.get(`empty:${payload.id}`);
-						}
-					}
-
-					const supportedKeys = new Map<string, string>();
-					[
-						'workbench.search.history',
-						'history.entries',
-						'ignoreNetVersionError',
-						'ignoreEnospcError',
-						'extensionUrlHandler.urlToHandle',
-						'terminal.integrated.isWorkspaceShellAllowed',
-						'workbench.tasks.ignoreTask010Shown',
-						'workbench.tasks.recentlyUsedTasks',
-						'workspaces.dontPromptToOpen',
-						'output.activechannel',
-						'outline/state',
-						'extensionsAssistant/workspaceRecommendationsIgnore',
-						'extensionsAssistant/dynamicWorkspaceRecommendations',
-						'debug.repl.history',
-						'editor.matchCase',
-						'editor.wholeWord',
-						'editor.isRegex',
-						'lifecyle.lastShutdownReason',
-						'debug.selectedroot',
-						'debug.selectedconfigname',
-						'debug.breakpoint',
-						'debug.breakpointactivated',
-						'debug.functionbreakpoint',
-						'debug.exceptionbreakpoint',
-						'debug.watchexpressions',
-						'workbench.sidebar.activeviewletid',
-						'workbench.panelpart.activepanelid',
-						'workbench.zenmode.active',
-						'workbench.centerededitorlayout.active',
-						'workbench.sidebar.restore',
-						'workbench.sidebar.hidden',
-						'workbench.panel.hidden',
-						'workbench.panel.location',
-						'extensionsIdentifiers/disabled',
-						'extensionsIdentifiers/enabled',
-						'scm.views',
-						'suggest/memories/first',
-						'suggest/memories/recentlyUsed',
-						'suggest/memories/recentlyUsedByPrefix',
-						'workbench.view.explorer.numberOfVisibleViews',
-						'workbench.view.extensions.numberOfVisibleViews',
-						'workbench.view.debug.numberOfVisibleViews',
-						'workbench.explorer.views.state',
-						'workbench.view.extensions.state',
-						'workbench.view.debug.state',
-						'memento/workbench.editor.walkThroughPart',
-						'memento/workbench.editor.settings2',
-						'memento/workbench.editor.htmlPreviewPart',
-						'memento/workbench.editor.defaultPreferences',
-						'memento/workbench.editors.files.textFileEditor',
-						'memento/workbench.editors.logViewer',
-						'memento/workbench.editors.textResourceEditor',
-						'memento/workbench.panel.output'
-					].forEach(key => supportedKeys.set(key.toLowerCase(), key));
-
-					// Support extension storage as well (always the ID of the extension)
-					extensions.forEach(extension => {
-						let extensionId: string;
-						if (extension.indexOf('-') >= 0) {
-							extensionId = extension.substring(0, extension.lastIndexOf('-')); // convert "author.extension-0.2.5" => "author.extension"
-						} else {
-							extensionId = extension;
-						}
-
-						if (extensionId) {
-							supportedKeys.set(extensionId.toLowerCase(), extensionId);
-						}
-					});
-
-					if (workspaceItems) {
-						Object.keys(workspaceItems).forEach(key => {
-							const value = workspaceItems[key];
-
-							// first check for a well known supported key and store with realcase value
-							const supportedKey = supportedKeys.get(key);
-							if (supportedKey) {
-								storageService.store(supportedKey, value, StorageScope.WORKSPACE);
-							}
-
-							// fix lowercased ".numberOfVisibleViews"
-							else if (endsWith(key, '.numberOfVisibleViews'.toLowerCase())) {
-								const normalizedKey = key.substring(0, key.length - '.numberOfVisibleViews'.length) + '.numberOfVisibleViews';
-								storageService.store(normalizedKey, value, StorageScope.WORKSPACE);
-							}
-
-							// support dynamic keys
-							else if (key.indexOf('memento/') === 0 || key.indexOf('viewservice.') === 0 || endsWith(key, '.state')) {
-								storageService.store(key, value, StorageScope.WORKSPACE);
-							}
-						});
-					}
-				} catch (error) {
-					onUnexpectedError(error);
-					logService.error(error);
-				}
-
-				return storageService;
-			});
-		});
+		return storageService;
 	});
 }
 
@@ -472,14 +299,14 @@ function createLogService(mainProcessClient: ElectronIPCClient, configuration: I
 	return new FollowerLogService(logLevelClient, logService);
 }
 
-function createMainProcessServices(mainProcessClient: ElectronIPCClient, configuration: IWindowConfiguration): ServiceCollection {
+function createMainProcessServices(mainProcessClient: ElectronIPCClient): ServiceCollection {
 	const serviceCollection = new ServiceCollection();
 
 	const windowsChannel = mainProcessClient.getChannel('windows');
 	serviceCollection.set(IWindowsService, new WindowsChannelClient(windowsChannel));
 
 	const updateChannel = mainProcessClient.getChannel('update');
-	serviceCollection.set(IUpdateService, new SyncDescriptor(UpdateChannelClient, updateChannel));
+	serviceCollection.set(IUpdateService, new SyncDescriptor(UpdateChannelClient, [updateChannel]));
 
 	const urlChannel = mainProcessClient.getChannel('url');
 	const mainUrlService = new URLServiceChannelClient(urlChannel);
@@ -490,10 +317,10 @@ function createMainProcessServices(mainProcessClient: ElectronIPCClient, configu
 	mainProcessClient.registerChannel('urlHandler', urlHandlerChannel);
 
 	const issueChannel = mainProcessClient.getChannel('issue');
-	serviceCollection.set(IIssueService, new SyncDescriptor(IssueChannelClient, issueChannel));
+	serviceCollection.set(IIssueService, new SyncDescriptor(IssueChannelClient, [issueChannel]));
 
 	const menubarChannel = mainProcessClient.getChannel('menubar');
-	serviceCollection.set(IMenubarService, new SyncDescriptor(MenubarChannelClient, menubarChannel));
+	serviceCollection.set(IMenubarService, new SyncDescriptor(MenubarChannelClient, [menubarChannel]));
 
 	const workspacesChannel = mainProcessClient.getChannel('workspaces');
 	serviceCollection.set(IWorkspacesService, new WorkspacesChannelClient(workspacesChannel));

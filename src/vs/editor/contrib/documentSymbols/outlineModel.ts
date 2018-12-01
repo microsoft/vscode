@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { binarySearch, isFalsyOrEmpty, coalesceInPlace } from 'vs/base/common/arrays';
+import { binarySearch, coalesceInPlace } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { first, forEach, size } from 'vs/base/common/collections';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
@@ -301,10 +301,8 @@ export class OutlineModel extends TreeElement {
 			let group = new OutlineGroup(id, result, provider, index);
 
 			return Promise.resolve(provider.provideDocumentSymbols(result.textModel, token)).then(result => {
-				if (!isFalsyOrEmpty(result)) {
-					for (const info of result) {
-						OutlineModel._makeOutlineElement(info, group);
-					}
+				for (const info of result || []) {
+					OutlineModel._makeOutlineElement(info, group);
 				}
 				return group;
 			}, err => {

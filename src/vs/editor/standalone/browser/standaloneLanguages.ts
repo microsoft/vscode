@@ -334,7 +334,7 @@ export function registerRenameProvider(languageId: string, provider: modes.Renam
 }
 
 /**
- * Register a signature help provider (used by e.g. paremeter hints).
+ * Register a signature help provider (used by e.g. parameter hints).
  */
 export function registerSignatureHelpProvider(languageId: string, provider: modes.SignatureHelpProvider): IDisposable {
 	return modes.SignatureHelpProviderRegistry.register(languageId, provider);

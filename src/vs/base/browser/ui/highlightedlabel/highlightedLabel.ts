@@ -21,7 +21,7 @@ export class HighlightedLabel implements IDisposable {
 	private highlights: IHighlight[];
 	private didEverRender: boolean;
 
-	constructor(container: HTMLElement) {
+	constructor(container: HTMLElement, private supportOcticons: boolean) {
 		this.domNode = document.createElement('span');
 		this.domNode.className = 'monaco-highlighted-label';
 		this.didEverRender = false;
@@ -68,19 +68,22 @@ export class HighlightedLabel implements IDisposable {
 			}
 			if (pos < highlight.start) {
 				htmlContent.push('<span>');
-				htmlContent.push(renderOcticons(this.text.substring(pos, highlight.start)));
+				const substring = this.text.substring(pos, highlight.start);
+				htmlContent.push(this.supportOcticons ? renderOcticons(substring) : substring);
 				htmlContent.push('</span>');
 				pos = highlight.end;
 			}
 			htmlContent.push('<span class="highlight">');
-			htmlContent.push(renderOcticons(this.text.substring(highlight.start, highlight.end)));
+			const substring = this.text.substring(highlight.start, highlight.end);
+			htmlContent.push(this.supportOcticons ? renderOcticons(substring) : substring);
 			htmlContent.push('</span>');
 			pos = highlight.end;
 		}
 
 		if (pos < this.text.length) {
 			htmlContent.push('<span>');
-			htmlContent.push(renderOcticons(this.text.substring(pos)));
+			const substring = this.text.substring(pos);
+			htmlContent.push(this.supportOcticons ? renderOcticons(substring) : substring);
 			htmlContent.push('</span>');
 		}
 

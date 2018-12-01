@@ -11,7 +11,7 @@ import { isLinux, isWindows, isMacintosh } from 'vs/base/common/platform';
 import { isEqual } from 'vs/base/common/resources';
 
 export interface IWorkspaceFolderProvider {
-	getWorkspaceFolder(resource: URI): { uri: URI, name?: string };
+	getWorkspaceFolder(resource: URI): { uri: URI, name?: string } | null;
 	getWorkspace(): {
 		folders: { uri: URI, name?: string }[];
 	};
@@ -24,7 +24,7 @@ export interface IUserHomeProvider {
 /**
  * @deprecated use LabelService instead
  */
-export function getPathLabel(resource: URI | string, userHomeProvider: IUserHomeProvider, rootProvider?: IWorkspaceFolderProvider): string {
+export function getPathLabel(resource: URI | string, userHomeProvider?: IUserHomeProvider, rootProvider?: IWorkspaceFolderProvider): string {
 	if (typeof resource === 'string') {
 		resource = URI.file(resource);
 	}

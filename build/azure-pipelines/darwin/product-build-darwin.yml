@@ -1,0 +1,91 @@
+steps:
+- task: NodeTool@0
+  inputs:
+    versionSpec: "8.12.0"
+
+- task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+  inputs:
+    versionSpec: "1.10.1"
+
+- script: |
+    set -e
+    echo "machine monacotools.visualstudio.com password $(VSO_PAT)" > ~/.netrc
+    yarn
+    yarn gulp -- hygiene
+    yarn monaco-compile-check
+    yarn strict-null-check
+    VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" yarn gulp -- mixin
+    node build/azure-pipelines/common/installDistro.js
+    node build/lib/builtInExtensions.js
+  displayName: Prepare build
+
+- script: |
+    set -e
+    VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" \
+    AZURE_STORAGE_ACCESS_KEY="$(AZURE_STORAGE_ACCESS_KEY)" \
+    yarn gulp -- vscode-darwin-min upload-vscode-sourcemaps
+  displayName: Build
+
+- script: |
+    set -e
+    ./scripts/test.sh --build --tfs "Unit Tests"
+    # APP_NAME="`ls $(agent.builddirectory)/VSCode-darwin | head -n 1`"
+    # yarn smoketest -- --build "$(agent.builddirectory)/VSCode-darwin/$APP_NAME"
+  displayName: Run unit tests
+
+- script: |
+    set -e
+    pushd ../VSCode-darwin && zip -r -X -y ../VSCode-darwin.zip * && popd
+  displayName: Archive build
+
+- task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
+  inputs:
+    ConnectedServiceName: 'ESRP CodeSign'
+    FolderPath: '$(agent.builddirectory)'
+    Pattern: 'VSCode-darwin.zip'
+    signConfigType: inlineSignParams
+    inlineOperation: |
+      [
+        {
+          "keyCode": "CP-401337-Apple",
+          "operationSetCode": "MacAppDeveloperSign",
+          "parameters": [ ],
+          "toolName": "sign",
+          "toolVersion": "1.0"
+        }
+      ]
+    SessionTimeout: 120
+  displayName: Codesign
+
+- script: |
+    set -e
+
+    # remove pkg from archive
+    zip -d ../VSCode-darwin.zip "*.pkg"
+
+    # publish the build
+    PACKAGEJSON=`ls ../VSCode-darwin/*.app/Contents/Resources/app/package.json`
+    VERSION=`node -p "require(\"$PACKAGEJSON\").version"`
+    AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
+    AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
+    MOONCAKE_STORAGE_ACCESS_KEY="$(MOONCAKE_STORAGE_ACCESS_KEY)" \
+    node build/azure-pipelines/common/publish.js \
+      "$(VSCODE_QUALITY)" \
+      darwin \
+      archive \
+      "VSCode-darwin-$(VSCODE_QUALITY).zip" \
+      $VERSION \
+      true \
+      ../VSCode-darwin.zip
+
+    # publish hockeyapp symbols
+    node build/azure-pipelines/common/symbols.js "$(VSCODE_MIXIN_PASSWORD)" "$(VSCODE_HOCKEYAPP_TOKEN)" "$(VSCODE_ARCH)" "$(VSCODE_HOCKEYAPP_ID_MACOS)"
+
+    # upload configuration
+    AZURE_STORAGE_ACCESS_KEY="$(AZURE_STORAGE_ACCESS_KEY)" \
+    yarn gulp -- upload-vscode-configuration
+  displayName: Publish
+
+- task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
+  displayName: 'Component Detection'
+  continueOnError: true

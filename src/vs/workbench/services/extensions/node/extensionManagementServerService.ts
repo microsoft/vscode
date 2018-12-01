@@ -7,6 +7,10 @@ import { localize } from 'vs/nls';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IExtensionManagementServer, IExtensionManagementServerService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/node/extensionManagementIpc';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/node/remoteAgentService';
+import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
+import { IChannel } from 'vs/base/parts/ipc/node/ipc';
 
 const localExtensionManagementServerAuthority: string = 'vscode-local';
 
@@ -14,20 +18,29 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 
 	_serviceBrand: any;
 
-	readonly extensionManagementServers: IExtensionManagementServer[];
+	readonly localExtensionManagementServer: IExtensionManagementServer;
+	readonly remoteExtensionManagementServer: IExtensionManagementServer | null = null;
 
 	constructor(
-		localExtensionManagementService: IExtensionManagementService
+		localExtensionManagementService: IExtensionManagementService,
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService
 	) {
-		this.extensionManagementServers = [{ extensionManagementService: localExtensionManagementService, authority: localExtensionManagementServerAuthority, label: localize('local', "Local") }];
+		this.localExtensionManagementServer = { extensionManagementService: localExtensionManagementService, authority: localExtensionManagementServerAuthority, label: localize('local', "Local") };
+		const remoteAgentConnection = remoteAgentService.getConnection();
+		if (remoteAgentConnection) {
+			const extensionManagementService = new ExtensionManagementChannelClient(remoteAgentConnection.getChannel<IChannel>('extensions'));
+			this.remoteExtensionManagementServer = { authority: remoteAgentConnection.remoteAuthority, extensionManagementService, label: remoteAgentConnection.remoteAuthority };
+		}
 	}
 
-	getExtensionManagementServer(location: URI): IExtensionManagementServer {
-		return this.extensionManagementServers[0];
-	}
-
-	getLocalExtensionManagementServer(): IExtensionManagementServer {
-		return this.extensionManagementServers[0];
+	getExtensionManagementServer(location: URI): IExtensionManagementServer | null {
+		if (location.scheme === Schemas.file) {
+			return this.localExtensionManagementServer;
+		}
+		if (location.scheme === REMOTE_HOST_SCHEME) {
+			return this.remoteExtensionManagementServer;
+		}
+		return null;
 	}
 }
 
@@ -35,20 +48,22 @@ export class SingleServerExtensionManagementServerService implements IExtensionM
 
 	_serviceBrand: any;
 
-	readonly extensionManagementServers: IExtensionManagementServer[];
 
 	constructor(
-		extensionManagementServer: IExtensionManagementServer
+		private readonly extensionManagementServer: IExtensionManagementServer
 	) {
-		this.extensionManagementServers = [extensionManagementServer];
 	}
 
-	getExtensionManagementServer(location: URI): IExtensionManagementServer {
+	getExtensionManagementServer(location: URI): IExtensionManagementServer | null {
 		const authority = location.scheme === Schemas.file ? localExtensionManagementServerAuthority : location.authority;
-		return this.extensionManagementServers.filter(server => authority === server.authority)[0];
+		return this.extensionManagementServer.authority === authority ? this.extensionManagementServer : null;
 	}
 
-	getLocalExtensionManagementServer(): IExtensionManagementServer {
-		return this.extensionManagementServers[0];
+	get localExtensionManagementServer(): IExtensionManagementServer | null {
+		return this.extensionManagementServer.authority === localExtensionManagementServerAuthority ? this.extensionManagementServer : null;
+	}
+
+	get remoteExtensionManagementServer(): IExtensionManagementServer | null {
+		return this.extensionManagementServer.authority !== localExtensionManagementServerAuthority ? this.extensionManagementServer : null;
 	}
 }

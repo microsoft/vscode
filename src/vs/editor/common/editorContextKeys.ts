@@ -38,6 +38,7 @@ export namespace EditorContextKeys {
 	export const hasCodeActionsProvider = new RawContextKey<boolean>('editorHasCodeActionsProvider', false);
 	export const hasCodeLensProvider = new RawContextKey<boolean>('editorHasCodeLensProvider', false);
 	export const hasDefinitionProvider = new RawContextKey<boolean>('editorHasDefinitionProvider', false);
+	export const hasDeclarationProvider = new RawContextKey<boolean>('editorHasDeclarationProvider', false);
 	export const hasImplementationProvider = new RawContextKey<boolean>('editorHasImplementationProvider', false);
 	export const hasTypeDefinitionProvider = new RawContextKey<boolean>('editorHasTypeDefinitionProvider', false);
 	export const hasHoverProvider = new RawContextKey<boolean>('editorHasHoverProvider', false);

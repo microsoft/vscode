@@ -99,7 +99,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private static readonly STORAGE_KEY = 'history.entries';
 	private static readonly MAX_HISTORY_ITEMS = 200;
-	private static readonly MAX_STACK_ITEMS = 20;
+	private static readonly MAX_STACK_ITEMS = 50;
 	private static readonly MAX_RECENTLY_CLOSED_EDITORS = 20;
 
 	private activeEditorListeners: IDisposable[];
@@ -718,8 +718,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 				return false;
 			}
 
-			if (this.partService.isCreated() && !this.fileService.canHandleResource(inputResource)) {
-				return false; // make sure to only check this when workbench has started (for https://github.com/Microsoft/vscode/issues/48275)
+			if (this.partService.isRestored() && !this.fileService.canHandleResource(inputResource)) {
+				return false; // make sure to only check this when workbench has restored (for https://github.com/Microsoft/vscode/issues/48275)
 			}
 
 			return inputResource.toString() === resource.toString();

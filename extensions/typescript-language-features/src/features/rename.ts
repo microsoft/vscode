@@ -11,14 +11,6 @@ import { ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
 import API from '../utils/api';
 import * as typeConverters from '../utils/typeConverters';
 
-// TODO: Remove when we pick up TS 3.2
-declare module '../protocol' {
-	interface RenameTextSpan extends Proto.TextSpan {
-		readonly prefixText?: string;
-		readonly suffixText?: string;
-	}
-}
-
 const localize = nls.loadMessageBundle();
 
 class TypeScriptRenameProvider implements vscode.RenameProvider {
@@ -123,7 +115,7 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 		newName: string,
 		token: vscode.CancellationToken,
 	): Promise<vscode.WorkspaceEdit | undefined> {
-		// Make sure we preserve file exension if none provided
+		// Make sure we preserve file extension if none provided
 		if (!path.extname(newName)) {
 			newName += path.extname(fileToRename);
 		}

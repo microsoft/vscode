@@ -23,7 +23,6 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { escapeRegExpCharacters, startsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IAccessibilityProvider, IDataSource, IFilter, IRenderer as ITreeRenderer, ITree, ITreeConfiguration } from 'vs/base/parts/tree/browser/tree';
 import { DefaultTreestyler } from 'vs/base/parts/tree/browser/treeDefaults';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
@@ -186,8 +185,8 @@ export class SettingsDataSource implements IDataSource {
 		return false;
 	}
 
-	getChildren(tree: ITree, element: SettingsTreeElement): TPromise<any> {
-		return TPromise.as(this._getChildren(element));
+	getChildren(tree: ITree, element: SettingsTreeElement): Promise<any> {
+		return Promise.resolve(this._getChildren(element));
 	}
 
 	private _getChildren(element: SettingsTreeElement): SettingsTreeElement[] {
@@ -199,8 +198,8 @@ export class SettingsDataSource implements IDataSource {
 		}
 	}
 
-	getParent(tree: ITree, element: SettingsTreeElement): TPromise<any> {
-		return TPromise.wrap(element && element.parent);
+	getParent(tree: ITree, element: SettingsTreeElement): Promise<any> {
+		return Promise.resolve(element && element.parent);
 	}
 
 	shouldAutoexpand(): boolean {
@@ -241,7 +240,7 @@ export class SimplePagedDataSource implements IDataSource {
 		return this.realDataSource.hasChildren(tree, element);
 	}
 
-	getChildren(tree: ITree, element: SettingsTreeGroupElement): TPromise<any> {
+	getChildren(tree: ITree, element: SettingsTreeGroupElement): Thenable<any> {
 		return this.realDataSource.getChildren(tree, element).then(realChildren => {
 			return this._getChildren(realChildren);
 		});
@@ -258,7 +257,7 @@ export class SimplePagedDataSource implements IDataSource {
 		}
 	}
 
-	getParent(tree: ITree, element: any): TPromise<any> {
+	getParent(tree: ITree, element: any): Thenable<any> {
 		return this.realDataSource.getParent(tree, element);
 	}
 
@@ -400,7 +399,7 @@ export class SettingsRenderer implements ITreeRenderer {
 					this._onDidChangeSetting.fire({ key: context.setting.key, value: undefined, type: context.setting.type as SettingValueType });
 				}
 
-				return TPromise.wrap(null);
+				return Promise.resolve(null);
 			}),
 			new Separator(),
 			this.instantiationService.createInstance(CopySettingIdAction),
@@ -413,7 +412,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		const toolbarElement: HTMLElement = settingDOMElement.querySelector('.toolbar-toggle-more');
 		if (toolbarElement) {
 			this.contextMenuService.showContextMenu({
-				getActions: () => TPromise.wrap(this.settingActions),
+				getActions: () => this.settingActions,
 				getAnchor: () => toolbarElement,
 				getActionsContext: () => element
 			});
@@ -1436,12 +1435,12 @@ export class SettingsAccessibilityProvider implements IAccessibilityProvider {
 }
 
 class NonExpandableOrSelectableTree extends Tree {
-	expand(): TPromise<any> {
-		return TPromise.wrap(null);
+	expand(): Promise<any> {
+		return Promise.resolve(null);
 	}
 
-	collapse(): TPromise<any> {
-		return TPromise.wrap(null);
+	collapse(): Promise<any> {
+		return Promise.resolve(null);
 	}
 
 	public setFocus(element?: any, eventPayload?: any): void {
@@ -1624,12 +1623,12 @@ class CopySettingIdAction extends Action {
 		super(CopySettingIdAction.ID, CopySettingIdAction.LABEL);
 	}
 
-	run(context: SettingsTreeSettingElement): TPromise<void> {
+	run(context: SettingsTreeSettingElement): Promise<void> {
 		if (context) {
 			this.clipboardService.writeText(context.setting.key);
 		}
 
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }
 
@@ -1643,12 +1642,12 @@ class CopySettingAsJSONAction extends Action {
 		super(CopySettingAsJSONAction.ID, CopySettingAsJSONAction.LABEL);
 	}
 
-	run(context: SettingsTreeSettingElement): TPromise<void> {
+	run(context: SettingsTreeSettingElement): Promise<void> {
 		if (context) {
 			const jsonResult = `"${context.setting.key}": ${JSON.stringify(context.value, undefined, '  ')}`;
 			this.clipboardService.writeText(jsonResult);
 		}
 
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }

@@ -312,7 +312,7 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 		}
 
 		// At one point, due to how events are emitted and how each operation is handled,
-		// some operations can trigger a high ammount of temporary string allocations,
+		// some operations can trigger a high amount of temporary string allocations,
 		// that will immediately get edited again.
 		// e.g. a formatter inserting ridiculous ammounts of \n on a model with a single line
 		// Therefore, the strategy is to collapse all the operations into a huge single edit operation

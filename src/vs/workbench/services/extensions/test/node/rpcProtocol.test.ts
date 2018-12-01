@@ -6,7 +6,6 @@
 import * as assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/node/proxyIdentifier';
 import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
@@ -34,7 +33,7 @@ suite('RPCProtocol', () => {
 	let bProxy: BClass;
 	class BClass {
 		$m(a1: any, a2: any): Thenable<any> {
-			return TPromise.as(delegate.call(null, a1, a2));
+			return Promise.resolve(delegate.call(null, a1, a2));
 		}
 	}
 
@@ -131,7 +130,7 @@ suite('RPCProtocol', () => {
 	test('cancelling a call via CancellationToken quickly', function (done) {
 		// this is an implementation which, when cancellation is triggered, will return 7
 		delegate = (a1: number, token: CancellationToken) => {
-			return new TPromise((resolve, reject) => {
+			return new Promise((resolve, reject) => {
 				token.onCancellationRequested((e) => {
 					resolve(7);
 				});
@@ -164,7 +163,7 @@ suite('RPCProtocol', () => {
 
 	test('error promise', function (done) {
 		delegate = (a1: number, a2: number) => {
-			return TPromise.wrapError(undefined);
+			return Promise.reject(undefined);
 		};
 		bProxy.$m(4, 1).then((res) => {
 			assert.fail('unexpected');

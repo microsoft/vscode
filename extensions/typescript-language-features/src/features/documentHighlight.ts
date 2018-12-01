@@ -8,8 +8,6 @@ import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import * as typeConverters from '../utils/typeConverters';
 
-
-
 class TypeScriptDocumentHighlightProvider implements vscode.DocumentHighlightProvider {
 	public constructor(
 		private readonly client: ITypeScriptServiceClient
@@ -26,21 +24,21 @@ class TypeScriptDocumentHighlightProvider implements vscode.DocumentHighlightPro
 		}
 
 		const args = typeConverters.Position.toFileLocationRequestArgs(file, position);
-		const response = await this.client.execute('occurrences', args, token);
+		const response = await this.client.execute('references', args, token);
 		if (response.type !== 'response' || !response.body) {
 			return [];
 		}
 
-		return response.body
-			.filter(x => !x.isInString)
-			.map(documentHighlightFromOccurance);
+		return response.body.refs
+			.filter(ref => ref.file === file)
+			.map(documentHighlightFromReference);
 	}
 }
 
-function documentHighlightFromOccurance(occurrence: Proto.OccurrencesResponseItem): vscode.DocumentHighlight {
+function documentHighlightFromReference(reference: Proto.ReferencesResponseItem): vscode.DocumentHighlight {
 	return new vscode.DocumentHighlight(
-		typeConverters.Range.fromTextSpan(occurrence),
-		occurrence.isWriteAccess ? vscode.DocumentHighlightKind.Write : vscode.DocumentHighlightKind.Read);
+		typeConverters.Range.fromTextSpan(reference),
+		reference.isWriteAccess ? vscode.DocumentHighlightKind.Write : vscode.DocumentHighlightKind.Read);
 }
 
 export function register(

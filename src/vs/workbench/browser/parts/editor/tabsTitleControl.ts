@@ -39,6 +39,7 @@ import { IEditorGroupsAccessor, IEditorPartOptions, IEditorGroupView } from 'vs/
 import { CloseOneEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { BreadcrumbsControl } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
+import { IFileService } from 'vs/platform/files/common/files';
 
 interface IEditorInputLabel {
 	name: string;
@@ -79,9 +80,10 @@ export class TabsTitleControl extends TitleControl {
 		@IQuickOpenService quickOpenService: IQuickOpenService,
 		@IThemeService themeService: IThemeService,
 		@IExtensionService extensionService: IExtensionService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IFileService fileService: IFileService,
 	) {
-		super(parent, accessor, group, contextMenuService, instantiationService, contextKeyService, keybindingService, telemetryService, notificationService, menuService, quickOpenService, themeService, extensionService, configurationService);
+		super(parent, accessor, group, contextMenuService, instantiationService, contextKeyService, keybindingService, telemetryService, notificationService, menuService, quickOpenService, themeService, extensionService, configurationService, fileService);
 	}
 
 	protected create(parent: HTMLElement): void {

@@ -41,7 +41,7 @@ export namespace Position {
 	export const toFileLocationRequestArgs = (file: string, position: vscode.Position): Proto.FileLocationRequestArgs => ({
 		file,
 		line: position.line + 1,
-		offset: position.character + 1
+		offset: position.character + 1,
 	});
 }
 

@@ -217,7 +217,7 @@ export class ExplorerViewlet extends ViewContainerViewlet implements IExplorerVi
 			});
 
 			const explorerInstantiator = this.instantiationService.createChild(new ServiceCollection([IEditorService, delegatingEditorService]));
-			return explorerInstantiator.createInstance(ExplorerView, <IExplorerViewOptions>{ ...options, viewletState: this.fileViewletState });
+			return explorerInstantiator.createInstance(ExplorerView, <IExplorerViewOptions>{ ...options, fileViewletState: this.fileViewletState });
 		}
 		return super.createView(viewDescriptor, options);
 	}

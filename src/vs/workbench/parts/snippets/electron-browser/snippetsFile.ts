@@ -84,7 +84,7 @@ export class Snippet {
 		let stack = [...textmateSnippet.children];
 
 		while (stack.length > 0) {
-			let marker = stack.shift();
+			const marker = stack.shift()!;
 
 			if (
 				marker instanceof Variable
@@ -143,13 +143,13 @@ export class SnippetFile {
 	readonly isGlobalSnippets: boolean;
 	readonly isUserSnippets: boolean;
 
-	private _loadPromise: Promise<this>;
+	private _loadPromise?: Promise<this>;
 
 	constructor(
 		readonly source: SnippetSource,
 		readonly location: URI,
-		readonly defaultScopes: string[],
-		private readonly _extension: IExtensionDescription,
+		public defaultScopes: string[] | undefined,
+		private readonly _extension: IExtensionDescription | undefined,
 		private readonly _fileService: IFileService
 	) {
 		this.isGlobalSnippets = extname(location.path) === '.code-snippets';

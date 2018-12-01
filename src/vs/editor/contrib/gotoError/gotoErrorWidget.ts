@@ -21,7 +21,7 @@ import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElemen
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { getBaseLabel, getPathLabel } from 'vs/base/common/labels';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Event, Emitter } from 'vs/base/common/event';
 
 class MessageWidget {
@@ -45,6 +45,7 @@ class MessageWidget {
 		domNode.setAttribute('role', 'alert');
 
 		this._messageBlock = document.createElement('div');
+		dom.addClass(this._messageBlock, 'message');
 		domNode.appendChild(this._messageBlock);
 
 		this._relatedBlock = document.createElement('div');
@@ -80,34 +81,20 @@ class MessageWidget {
 	update({ source, message, relatedInformation, code }: IMarker): void {
 
 		if (source) {
-			this._lines = 0;
-			this._longestLineLength = 0;
-			const indent = new Array(source.length + 3 + 1).join(' ');
 			const lines = message.split(/\r\n|\r|\n/g);
-			for (let i = 0; i < lines.length; i++) {
-				let line = lines[i];
-				this._lines += 1;
-				if (code && i === lines.length - 1) {
-					line += ` [${code}]`;
-				}
+			this._lines = lines.length;
+			this._longestLineLength = 0;
+			for (const line of lines) {
 				this._longestLineLength = Math.max(line.length, this._longestLineLength);
-				if (i === 0) {
-					message = `[${source}] ${line}`;
-				} else {
-					message += `\n${indent}${line}`;
-				}
 			}
 		} else {
 			this._lines = 1;
-			if (code) {
-				message += ` [${code}]`;
-			}
 			this._longestLineLength = message.length;
 		}
 
 		dom.clearNode(this._relatedBlock);
 
-		if (!isFalsyOrEmpty(relatedInformation)) {
+		if (isNonEmptyArray(relatedInformation)) {
 			this._relatedBlock.style.paddingTop = `${Math.floor(this._editor.getConfiguration().lineHeight * .66)}px`;
 			this._lines += 1;
 
@@ -133,8 +120,26 @@ class MessageWidget {
 			}
 		}
 
-		this._messageBlock.innerText = message;
-		this._editor.applyFontInfo(this._messageBlock);
+		dom.clearNode(this._messageBlock);
+		if (source) {
+			const sourceElement = document.createElement('div');
+			sourceElement.innerText = `[${source}] `;
+			dom.addClass(sourceElement, 'source');
+			this._editor.applyFontInfo(sourceElement);
+			this._messageBlock.appendChild(sourceElement);
+		}
+		const messageElement = document.createElement('div');
+		messageElement.innerText = message;
+		this._editor.applyFontInfo(messageElement);
+		this._messageBlock.appendChild(messageElement);
+		if (code) {
+			const codeElement = document.createElement('div');
+			codeElement.innerText = ` [${code}]`;
+			dom.addClass(codeElement, 'code');
+			this._editor.applyFontInfo(codeElement);
+			this._messageBlock.appendChild(codeElement);
+		}
+
 		const fontInfo = this._editor.getConfiguration().fontInfo;
 		const scrollWidth = Math.ceil(fontInfo.typicalFullwidthCharacterWidth * this._longestLineLength * 0.75);
 		const scrollHeight = fontInfo.lineHeight * this._lines;
@@ -159,7 +164,7 @@ export class MarkerNavigationWidget extends ZoneWidget {
 	private _message: MessageWidget;
 	private _callOnDispose: IDisposable[] = [];
 	private _severity: MarkerSeverity;
-	private _backgroundColor: Color;
+	private _backgroundColor: Color | null;
 	private _onDidSelectRelatedInformation = new Emitter<IRelatedInformation>();
 
 	readonly onDidSelectRelatedInformation: Event<IRelatedInformation> = this._onDidSelectRelatedInformation.event;
@@ -195,7 +200,7 @@ export class MarkerNavigationWidget extends ZoneWidget {
 
 	protected _applyStyles(): void {
 		if (this._parentContainer) {
-			this._parentContainer.style.backgroundColor = this._backgroundColor.toString();
+			this._parentContainer.style.backgroundColor = this._backgroundColor ? this._backgroundColor.toString() : '';
 		}
 		super._applyStyles();
 	}
@@ -244,7 +249,8 @@ export class MarkerNavigationWidget extends ZoneWidget {
 
 		// show
 		let range = Range.lift(marker);
-		let position = range.containsPosition(this.editor.getPosition()) ? this.editor.getPosition() : range.getStartPosition();
+		const editorPosition = this.editor.getPosition();
+		let position = editorPosition && range.containsPosition(editorPosition) ? editorPosition : range.getStartPosition();
 		super.show(position, this.computeRequiredHeight());
 
 		this.editor.revealPositionInCenter(position, ScrollType.Smooth);

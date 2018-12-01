@@ -33,12 +33,11 @@ export class MainThreadLanguages implements MainThreadLanguagesShape {
 		if (!model) {
 			return Promise.reject(new Error('Invalid uri'));
 		}
-		return this._modeService.getOrCreateMode(languageId).then(mode => {
-			if (mode.getId() !== languageId) {
-				return Promise.reject(new Error(`Unknown language id: ${languageId}`));
-			}
-			this._modelService.setMode(model, mode);
-			return undefined;
-		});
+		const languageIdentifier = this._modeService.getLanguageIdentifier(languageId);
+		if (!languageIdentifier || languageIdentifier.language !== languageId) {
+			return Promise.reject(new Error(`Unknown language id: ${languageId}`));
+		}
+		this._modelService.setMode(model, this._modeService.create(languageId));
+		return Promise.resolve(undefined);
 	}
 }

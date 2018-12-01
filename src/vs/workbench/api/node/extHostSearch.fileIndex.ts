@@ -13,7 +13,6 @@ import * as resources from 'vs/base/common/resources';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { compareItemsByScore, IItemAccessor, prepareQuery, ScorerCache } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 import { ICachedSearchStats, IFileIndexProviderStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, ISearchCompleteStats } from 'vs/platform/search/common/search';
 import { IDirectoryEntry, IDirectoryTree, IInternalFileMatch } from 'vs/workbench/services/search/node/fileSearchManager';
@@ -65,11 +64,11 @@ export class FileIndexSearchEngine {
 		this.activeCancellationTokens = new Set();
 	}
 
-	public search(_onResult: (match: IInternalFileMatch) => void): TPromise<{ isLimitHit: boolean, stats: IFileIndexProviderStats }> {
+	public search(_onResult: (match: IInternalFileMatch) => void): Promise<{ isLimitHit: boolean, stats: IFileIndexProviderStats }> {
 		// Searches a single folder
 		const folderQuery = this.config.folderQueries[0];
 
-		return new TPromise<{ isLimitHit: boolean, stats: IFileIndexProviderStats }>((resolve, reject) => {
+		return new Promise<{ isLimitHit: boolean, stats: IFileIndexProviderStats }>((resolve, reject) => {
 			const onResult = (match: IInternalFileMatch) => {
 				this.resultCount++;
 				_onResult(match);
@@ -116,9 +115,9 @@ export class FileIndexSearchEngine {
 		});
 	}
 
-	private searchInFolder(fq: IFolderQuery<URI>, onResult: (match: IInternalFileMatch) => void): TPromise<IFileIndexProviderStats> {
+	private searchInFolder(fq: IFolderQuery<URI>, onResult: (match: IInternalFileMatch) => void): Promise<IFileIndexProviderStats> {
 		let cancellation = new CancellationTokenSource();
-		return new TPromise((resolve, reject) => {
+		return new Promise((resolve, reject) => {
 			const options = this.getSearchOptionsForFolder(fq);
 			const tree = this.initDirectoryTree();
 
@@ -146,7 +145,7 @@ export class FileIndexSearchEngine {
 			let providerSW: StopWatch;
 			let providerTime: number;
 			let fileWalkTime: number;
-			new TPromise(resolve => process.nextTick(resolve))
+			new Promise(resolve => process.nextTick(resolve))
 				.then(() => {
 					this.activeCancellationTokens.add(cancellation);
 					providerSW = StopWatch.create();
@@ -304,7 +303,7 @@ export class FileIndexSearchManager {
 
 	private readonly folderCacheKeys = new Map<string, Set<string>>();
 
-	public fileSearch(config: IFileQuery, provider: vscode.FileIndexProvider, onBatch: (matches: IFileMatch[]) => void, token: CancellationToken): TPromise<ISearchCompleteStats> {
+	public fileSearch(config: IFileQuery, provider: vscode.FileIndexProvider, onBatch: (matches: IFileMatch[]) => void, token: CancellationToken): Promise<ISearchCompleteStats> {
 		if (config.sortByScore) {
 			let sortedSearch = this.trySortedSearchFromCache(config, token);
 			if (!sortedSearch) {
@@ -359,7 +358,7 @@ export class FileIndexSearchManager {
 		};
 	}
 
-	private doSortedSearch(engine: FileIndexSearchEngine, config: IFileQuery, token: CancellationToken): TPromise<IInternalSearchComplete> {
+	private doSortedSearch(engine: FileIndexSearchEngine, config: IFileQuery, token: CancellationToken): Promise<IInternalSearchComplete> {
 		let allResultsPromise = createCancelablePromise<IInternalSearchComplete<IFileIndexProviderStats>>(token => {
 			return this.doSearch(engine, token);
 		});
@@ -413,7 +412,7 @@ export class FileIndexSearchManager {
 		return this.caches[cacheKey] = new Cache();
 	}
 
-	private trySortedSearchFromCache(config: IFileQuery, token: CancellationToken): TPromise<IInternalSearchComplete> {
+	private trySortedSearchFromCache(config: IFileQuery, token: CancellationToken): Promise<IInternalSearchComplete> {
 		const folderCacheKey = this.getFolderCacheKey(config);
 		const cache = folderCacheKey && this.caches[folderCacheKey];
 		if (!cache) {
@@ -447,7 +446,7 @@ export class FileIndexSearchManager {
 		return undefined;
 	}
 
-	private sortResults(config: IFileQuery, results: IInternalFileMatch[], scorerCache: ScorerCache, token: CancellationToken): TPromise<IInternalFileMatch[]> {
+	private sortResults(config: IFileQuery, results: IInternalFileMatch[], scorerCache: ScorerCache, token: CancellationToken): Promise<IInternalFileMatch[]> {
 		// we use the same compare function that is used later when showing the results using fuzzy scoring
 		// this is very important because we are also limiting the number of results by config.maxResults
 		// and as such we want the top items to be included in this result set if the number of items
@@ -469,7 +468,7 @@ export class FileIndexSearchManager {
 		}
 	}
 
-	private getResultsFromCache(cache: Cache, searchValue: string, token: CancellationToken): TPromise<IInternalSearchComplete<ICachedSearchStats>> {
+	private getResultsFromCache(cache: Cache, searchValue: string, token: CancellationToken): Promise<IInternalSearchComplete<ICachedSearchStats>> {
 		const cacheLookupSW = StopWatch.create();
 
 		if (path.isAbsolute(searchValue)) {
@@ -503,7 +502,7 @@ export class FileIndexSearchManager {
 		const cacheLookupTime = cacheLookupSW.elapsed();
 		const cacheFilterSW = StopWatch.create();
 
-		return new TPromise<IInternalSearchComplete<ICachedSearchStats>>((c, e) => {
+		return new Promise<IInternalSearchComplete<ICachedSearchStats>>((c, e) => {
 			token.onCancellationRequested(() => e(canceled()));
 
 			cacheRow.promise.then(complete => {
@@ -539,7 +538,7 @@ export class FileIndexSearchManager {
 		});
 	}
 
-	private doSearch(engine: FileIndexSearchEngine, token: CancellationToken): TPromise<IInternalSearchComplete<IFileIndexProviderStats>> {
+	private doSearch(engine: FileIndexSearchEngine, token: CancellationToken): Promise<IInternalSearchComplete<IFileIndexProviderStats>> {
 		token.onCancellationRequested(() => engine.cancel());
 		const results: IInternalFileMatch[] = [];
 		const onResult = match => results.push(match);
@@ -553,7 +552,7 @@ export class FileIndexSearchManager {
 		});
 	}
 
-	public clearCache(cacheKey: string): TPromise<void> {
+	public clearCache(cacheKey: string): Promise<void> {
 		if (!this.folderCacheKeys.has(cacheKey)) {
 			return Promise.resolve(undefined);
 		}

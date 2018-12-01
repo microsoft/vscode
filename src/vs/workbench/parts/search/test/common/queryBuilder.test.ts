@@ -153,14 +153,11 @@ suite('QueryBuilder', () => {
 			<ITextQuery>{
 				contentPattern: PATTERN_INFO,
 				folderQueries: [{
-					folder: getUri(paths.join(ROOT_1, 'foo'))
-				}],
-				excludePattern: {
-					[paths.join(ROOT_1, 'foo/**/*.js')]: true,
-					[paths.join(ROOT_1, 'bar/**')]: {
-						'when': '$(basename).ts'
+					folder: getUri(paths.join(ROOT_1, 'foo')),
+					excludePattern: {
+						['**/*.js']: true
 					}
-				},
+				}],
 				type: QueryType.Text
 			});
 	});
@@ -212,7 +209,6 @@ suite('QueryBuilder', () => {
 				folderQueries: [
 					{ folder: getUri(paths.join(ROOT_2, 'src')) }
 				],
-				excludePattern: patternsToIExpression(paths.join(ROOT_1, 'foo/**/*.js'), paths.join(ROOT_2, 'bar')),
 				type: QueryType.Text
 			}
 		);
@@ -261,7 +257,7 @@ suite('QueryBuilder', () => {
 				folderQueries: [{
 					folder: ROOT_1_URI
 				}],
-				excludePattern: patternsToIExpression(fixPath(paths.join(ROOT_1, 'bar'))),
+				excludePattern: patternsToIExpression('bar'),
 				type: QueryType.Text
 			});
 
@@ -276,7 +272,7 @@ suite('QueryBuilder', () => {
 				folderQueries: [{
 					folder: ROOT_1_URI
 				}],
-				excludePattern: patternsToIExpression(fixPath(paths.join(ROOT_1, 'bar/**/*.ts'))),
+				excludePattern: patternsToIExpression('bar/**/*.ts'),
 				type: QueryType.Text
 			});
 
@@ -291,7 +287,7 @@ suite('QueryBuilder', () => {
 				folderQueries: [{
 					folder: ROOT_1_URI
 				}],
-				excludePattern: patternsToIExpression(fixPath(paths.join(ROOT_1, 'bar/**/*.ts'))),
+				excludePattern: patternsToIExpression('bar/**/*.ts'),
 				type: QueryType.Text
 			});
 	});
@@ -663,6 +659,20 @@ suite('QueryBuilder', () => {
 								pattern: '**/*.txt'
 							}]
 					}
+				],
+				[
+					'./root1/**/foo/, bar/',
+					<ISearchPathsResult>{
+						pattern: {
+							'**/bar': true,
+							'**/bar/**': true
+						},
+						searchPaths: [
+							{
+								searchPath: ROOT_1_URI,
+								pattern: '**/foo'
+							}]
+					}
 				]
 			];
 			cases.forEach(testIncludesDataItem);
@@ -695,10 +705,12 @@ suite('QueryBuilder', () => {
 			const query = queryBuilder.text(
 				{
 					pattern: 'a',
-					isCaseSensitive: true,
-					isSmartCase: true
+					isCaseSensitive: true
 				},
-				[]);
+				[],
+				{
+					isSmartCase: true
+				});
 
 			assert(query.contentPattern.isCaseSensitive);
 		});
@@ -706,10 +718,12 @@ suite('QueryBuilder', () => {
 		test('smartCase determines not case sensitive', () => {
 			const query = queryBuilder.text(
 				{
-					pattern: 'abcd',
-					isSmartCase: true
+					pattern: 'abcd'
 				},
-				[]);
+				[],
+				{
+					isSmartCase: true
+				});
 
 			assert(!query.contentPattern.isCaseSensitive);
 		});
@@ -717,10 +731,12 @@ suite('QueryBuilder', () => {
 		test('smartCase determines case sensitive', () => {
 			const query = queryBuilder.text(
 				{
-					pattern: 'abCd',
-					isSmartCase: true
+					pattern: 'abCd'
 				},
-				[]);
+				[],
+				{
+					isSmartCase: true
+				});
 
 			assert(query.contentPattern.isCaseSensitive);
 		});
@@ -729,10 +745,12 @@ suite('QueryBuilder', () => {
 			const query = queryBuilder.text(
 				{
 					pattern: 'ab\\Sd',
-					isRegExp: true,
-					isSmartCase: true
+					isRegExp: true
 				},
-				[]);
+				[],
+				{
+					isSmartCase: true
+				});
 
 			assert(!query.contentPattern.isCaseSensitive);
 		});
@@ -741,10 +759,12 @@ suite('QueryBuilder', () => {
 			const query = queryBuilder.text(
 				{
 					pattern: 'ab[A-Z]d',
-					isRegExp: true,
-					isSmartCase: true
+					isRegExp: true
 				},
-				[]);
+				[],
+				{
+					isSmartCase: true
+				});
 
 			assert(query.contentPattern.isCaseSensitive);
 		});

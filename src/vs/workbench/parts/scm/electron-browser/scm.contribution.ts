@@ -20,7 +20,6 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'v
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { ContextKeyDefinedExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ISCMRepository } from 'vs/workbench/services/scm/common/scm';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -36,7 +35,7 @@ class OpenSCMViewletAction extends ShowViewletAction {
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(DirtyDiffWorkbenchController, LifecyclePhase.Running);
+	.registerWorkbenchContribution(DirtyDiffWorkbenchController, LifecyclePhase.Restored);
 
 const viewletDescriptor = new ViewletDescriptor(
 	SCMViewlet,
@@ -50,10 +49,10 @@ Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets)
 	.registerViewlet(viewletDescriptor);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(StatusUpdater, LifecyclePhase.Running);
+	.registerWorkbenchContribution(StatusUpdater, LifecyclePhase.Restored);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(StatusBarController, LifecyclePhase.Running);
+	.registerWorkbenchContribution(StatusBarController, LifecyclePhase.Restored);
 
 // Register Action to Open Viewlet
 Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions).registerWorkbenchAction(
@@ -121,7 +120,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const repository = context.getValue<ISCMRepository>('scmRepository');
 
 		if (!repository || !repository.provider.acceptInputCommand) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		const id = repository.provider.acceptInputCommand.id;

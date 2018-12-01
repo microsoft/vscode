@@ -5,7 +5,7 @@
 
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { ColorId, ITokenizationRegistry, ITokenizationSupport, ITokenizationSupportChangedEvent } from 'vs/editor/common/modes';
 
 export class TokenizationRegistryImpl implements ITokenizationRegistry {
@@ -43,10 +43,14 @@ export class TokenizationRegistryImpl implements ITokenizationRegistry {
 		});
 	}
 
-	public registerPromise(language: string, supportPromise: Thenable<ITokenizationSupport>): Thenable<IDisposable> {
+	public registerPromise(language: string, supportPromise: Thenable<ITokenizationSupport | null>): Thenable<IDisposable> {
 		const promise = this._promises[language] = supportPromise.then(support => {
 			delete this._promises[language];
-			return this.register(language, support);
+			if (support) {
+				return this.register(language, support);
+			} else {
+				return Disposable.None;
+			}
 		});
 		return promise;
 	}

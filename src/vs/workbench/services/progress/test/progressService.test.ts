@@ -5,7 +5,6 @@
 
 import * as assert from 'assert';
 import { IAction, IActionItem } from 'vs/base/common/actions';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IEditorControl } from 'vs/workbench/common/editor';
 import { Viewlet, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { IPanel } from 'vs/workbench/common/panel';
@@ -288,11 +287,11 @@ suite('Progress Service', () => {
 		assert.strictEqual(80, testProgressBar.fTotal);
 
 		// Acive: Show While
-		let p = TPromise.as(null);
+		let p = Promise.resolve(null);
 		await service.showWhile(p);
 		assert.strictEqual(true, testProgressBar.fDone);
 		viewletService.onDidViewletCloseEmitter.fire(testViewlet);
-		p = TPromise.as(null);
+		p = Promise.resolve(null);
 		await service.showWhile(p);
 		assert.strictEqual(true, testProgressBar.fDone);
 		viewletService.onDidViewletOpenEmitter.fire(testViewlet);

@@ -85,9 +85,9 @@ export interface IWorkspacesMainService extends IWorkspacesService {
 
 	createWorkspaceSync(folders?: IWorkspaceFolderCreationData[]): IWorkspaceIdentifier;
 
-	resolveWorkspace(path: string): TPromise<IResolvedWorkspace>;
+	resolveWorkspace(path: string): TPromise<IResolvedWorkspace | null>;
 
-	resolveWorkspaceSync(path: string): IResolvedWorkspace;
+	resolveWorkspaceSync(path: string): IResolvedWorkspace | null;
 
 	isUntitledWorkspace(workspace: IWorkspaceIdentifier): boolean;
 
@@ -127,4 +127,14 @@ export function toWorkspaceIdentifier(workspace: IWorkspace): IWorkspaceIdentifi
 
 	// Empty workspace
 	return undefined;
+}
+
+export type IMultiFolderWorkspaceInitializationPayload = IWorkspaceIdentifier;
+export interface ISingleFolderWorkspaceInitializationPayload { id: string; folder: ISingleFolderWorkspaceIdentifier; }
+export interface IEmptyWorkspaceInitializationPayload { id: string; }
+
+export type IWorkspaceInitializationPayload = IMultiFolderWorkspaceInitializationPayload | ISingleFolderWorkspaceInitializationPayload | IEmptyWorkspaceInitializationPayload;
+
+export function isSingleFolderWorkspaceInitializationPayload(obj: any): obj is ISingleFolderWorkspaceInitializationPayload {
+	return isSingleFolderWorkspaceIdentifier((obj.folder as ISingleFolderWorkspaceIdentifier));
 }

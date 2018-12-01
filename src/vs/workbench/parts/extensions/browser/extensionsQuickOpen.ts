@@ -46,7 +46,7 @@ export class ExtensionsHandler extends QuickOpenHandler {
 		super();
 	}
 
-	getResults(text: string, token: CancellationToken): Promise<IModel<any>> {
+	getResults(text: string, token: CancellationToken): Thenable<IModel<any>> {
 		const label = nls.localize('manage', "Press Enter to manage your extensions.");
 		const action = () => {
 			this.viewletService.openViewlet(VIEWLET_ID, true)
@@ -82,7 +82,7 @@ export class GalleryExtensionsHandler extends QuickOpenHandler {
 		super();
 	}
 
-	getResults(text: string, token: CancellationToken): Promise<IModel<any>> {
+	getResults(text: string, token: CancellationToken): Thenable<IModel<any>> {
 		if (/\./.test(text)) {
 			return this.galleryService.query({ names: [text], pageSize: 1 })
 				.then(galleryResult => {

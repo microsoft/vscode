@@ -118,8 +118,7 @@ export class BaseActionItem extends Disposable implements IActionItem {
 				DOM.EventHelper.stop(e, true); // do not run when dragging is on because that would disable it
 			}
 
-			const mouseEvent = e as MouseEvent;
-			if (this._action.enabled && mouseEvent.button === 0) {
+			if (this._action.enabled && e.button === 0) {
 				DOM.addClass(this.element, 'active');
 			}
 		}));
@@ -206,7 +205,7 @@ export class BaseActionItem extends Disposable implements IActionItem {
 
 	dispose(): void {
 		if (this.element) {
-			this.element.remove();
+			DOM.removeNode(this.element);
 			this.element = null;
 		}
 
@@ -467,7 +466,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		}
 
 		this._register(DOM.addDisposableListener(this.domNode, DOM.EventType.KEY_DOWN, e => {
-			let event = new StandardKeyboardEvent(e as KeyboardEvent);
+			let event = new StandardKeyboardEvent(e);
 			let eventHandled = true;
 
 			if (event.equals(previousKey)) {
@@ -492,7 +491,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		}));
 
 		this._register(DOM.addDisposableListener(this.domNode, DOM.EventType.KEY_UP, e => {
-			let event = new StandardKeyboardEvent(e as KeyboardEvent);
+			let event = new StandardKeyboardEvent(e);
 
 			// Run action on Enter/Space
 			if (this.isTriggerKeyEvent(event)) {
@@ -726,7 +725,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		for (let i = 0; i < this.items.length; i++) {
 			let item = this.items[i];
 
-			let actionItem = <any>item;
+			let actionItem = item;
 
 			if (i === this.focusedItem) {
 				if (types.isFunction(actionItem.isEnabled)) {
@@ -775,7 +774,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		}
 		this.items = null;
 
-		this.getContainer().remove();
+		DOM.removeNode(this.getContainer());
 
 		super.dispose();
 	}

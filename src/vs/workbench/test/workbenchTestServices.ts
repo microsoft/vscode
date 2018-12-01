@@ -24,7 +24,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IEditorOptions, IResourceInput } from 'vs/platform/editor/common/editor';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IWorkspaceContextService, IWorkspace as IWorkbenchWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, Workspace } from 'vs/platform/workspace/common/workspace';
-import { ILifecycleService, WillShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase, ShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, BeforeShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase, WillShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { TextFileService } from 'vs/workbench/services/textfile/common/textFileService';
 import { FileOperationEvent, IFileService, IResolveContentOptions, FileOperationError, IFileStat, IResolveFileResult, FileChangesEvent, IResolveFileOptions, IContent, IUpdateContentOptions, IStreamContent, ICreateFileOptions, ITextSnapshot, IResourceEncodings } from 'vs/platform/files/common/files';
@@ -58,7 +58,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IConfirmation, IConfirmationResult, IDialogService, IDialogOptions, IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { IExtensionService, ProfileSession, IExtensionsStatus, ExtensionPointContribution, IExtensionDescription, IWillActivateEvent } from '../services/extensions/common/extensions';
+import { IExtensionService, ProfileSession, IExtensionsStatus, ExtensionPointContribution, IExtensionDescription, IWillActivateEvent, IResponsiveStateChangeEvent } from '../services/extensions/common/extensions';
 import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IDecorationsService, IResourceDecorationChangeEvent, IDecoration, IDecorationData, IDecorationsProvider } from 'vs/workbench/services/decorations/browser/decorations';
@@ -311,14 +311,16 @@ export class TestExtensionService implements IExtensionService {
 	onDidRegisterExtensions: Event<void> = Event.None;
 	onDidChangeExtensionsStatus: Event<string[]> = Event.None;
 	onWillActivateByEvent: Event<IWillActivateEvent> = Event.None;
-	activateByEvent(_activationEvent: string): TPromise<void> { return TPromise.as(void 0); }
-	whenInstalledExtensionsRegistered(): TPromise<boolean> { return TPromise.as(true); }
-	getExtensions(): TPromise<IExtensionDescription[]> { return TPromise.as([]); }
-	readExtensionPointContributions<T>(_extPoint: IExtensionPoint<T>): TPromise<ExtensionPointContribution<T>[]> { return TPromise.as(Object.create(null)); }
+	onDidChangeResponsiveChange: Event<IResponsiveStateChangeEvent> = Event.None;
+	activateByEvent(_activationEvent: string): Thenable<void> { return Promise.resolve(void 0); }
+	whenInstalledExtensionsRegistered(): Promise<boolean> { return Promise.resolve(true); }
+	getExtensions(): Promise<IExtensionDescription[]> { return Promise.resolve([]); }
+	getExtension() { return Promise.resolve(undefined); }
+	readExtensionPointContributions<T>(_extPoint: IExtensionPoint<T>): Promise<ExtensionPointContribution<T>[]> { return Promise.resolve(Object.create(null)); }
 	getExtensionsStatus(): { [id: string]: IExtensionsStatus; } { return Object.create(null); }
 	canProfileExtensionHost(): boolean { return false; }
 	getInspectPort(): number { return 0; }
-	startExtensionHostProfile(): TPromise<ProfileSession> { return TPromise.as(Object.create(null)); }
+	startExtensionHostProfile(): Promise<ProfileSession> { return Promise.resolve(Object.create(null)); }
 	restartExtensionHost(): void { }
 	startExtensionHost(): void { }
 	stopExtensionHost(): void { }
@@ -447,7 +449,7 @@ export class TestPartService implements IPartService {
 		return this._onEditorLayout.event;
 	}
 
-	public isCreated(): boolean {
+	public isRestored(): boolean {
 		return true;
 	}
 
@@ -531,7 +533,7 @@ export class TestPartService implements IPartService {
 export class TestStorageService extends StorageService {
 
 	constructor() {
-		super(':memory:', new NullLogService(), TestEnvironmentService);
+		super({ storeInMemory: true }, new NullLogService(), TestEnvironmentService);
 	}
 }
 
@@ -546,7 +548,7 @@ export class TestEditorGroupsService implements EditorGroupsServiceImpl {
 	onDidMoveGroup: Event<IEditorGroup> = Event.None;
 
 	orientation: any;
-	whenRestored: TPromise<void> = TPromise.as(void 0);
+	whenRestored: Thenable<void> = Promise.resolve(void 0);
 
 	get activeGroup(): IEditorGroup {
 		return this.groups[0];
@@ -625,7 +627,7 @@ export class TestEditorGroup implements IEditorGroupView {
 	disposed: boolean;
 	editors: ReadonlyArray<IEditorInput> = [];
 	label: string;
-	whenRestored: TPromise<void> = TPromise.as(void 0);
+	whenRestored: Thenable<void> = Promise.resolve(void 0);
 	element: HTMLElement;
 	minimumWidth: number;
 	maximumWidth: number;
@@ -873,6 +875,10 @@ export class TestFileService implements IFileService {
 		return TPromise.as(null);
 	}
 
+	readFolder(_resource: URI) {
+		return TPromise.as([]);
+	}
+
 	createFolder(_resource: URI): TPromise<IFileStat> {
 		return TPromise.as(null);
 	}
@@ -992,7 +998,7 @@ export class TestCodeEditorService implements ICodeEditorService {
 	setTransientModelProperty(_model: ITextModel, _key: string, _value: any): void { }
 	getTransientModelProperty(_model: ITextModel, _key: string) { }
 	getActiveCodeEditor(): ICodeEditor { return null; }
-	openCodeEditor(_input: IResourceInput, _source: ICodeEditor, _sideBySide?: boolean): TPromise<ICodeEditor> { return TPromise.as(null); }
+	openCodeEditor(_input: IResourceInput, _source: ICodeEditor, _sideBySide?: boolean): Thenable<ICodeEditor> { return Promise.resolve(); }
 }
 
 export class TestWindowService implements IWindowService {
@@ -1138,29 +1144,34 @@ export class TestLifecycleService implements ILifecycleService {
 	public phase: LifecyclePhase;
 	public startupKind: StartupKind;
 
+	private _onBeforeShutdown = new Emitter<BeforeShutdownEvent>();
 	private _onWillShutdown = new Emitter<WillShutdownEvent>();
-	private _onShutdown = new Emitter<ShutdownEvent>();
+	private _onShutdown = new Emitter<void>();
 
 	when(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
 	public fireShutdown(reason = ShutdownReason.QUIT): void {
-		this._onShutdown.fire({
+		this._onWillShutdown.fire({
 			join: () => { },
 			reason
 		});
 	}
 
-	public fireWillShutdown(event: WillShutdownEvent): void {
-		this._onWillShutdown.fire(event);
+	public fireWillShutdown(event: BeforeShutdownEvent): void {
+		this._onBeforeShutdown.fire(event);
+	}
+
+	public get onBeforeShutdown(): Event<BeforeShutdownEvent> {
+		return this._onBeforeShutdown.event;
 	}
 
 	public get onWillShutdown(): Event<WillShutdownEvent> {
 		return this._onWillShutdown.event;
 	}
 
-	public get onShutdown(): Event<ShutdownEvent> {
+	public get onShutdown(): Event<void> {
 		return this._onShutdown.event;
 	}
 }

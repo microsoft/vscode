@@ -127,26 +127,29 @@ suite('Search Actions', () => {
 	function aFileMatch(): FileMatch {
 		let rawMatch: IFileMatch = {
 			resource: URI.file('somepath' + ++counter),
-			matches: []
+			results: []
 		};
 		return instantiationService.createInstance(FileMatch, null, null, null, null, rawMatch);
 	}
 
 	function aMatch(fileMatch: FileMatch): Match {
 		const line = ++counter;
-		const ranges = {
-			startLineNumber: line,
-			startColumn: 0,
-			endLineNumber: line,
-			endColumn: 2
-		};
-		let match = new Match(fileMatch, {
-			preview: {
-				text: 'some match',
-				matches: ranges
+		let match = new Match(
+			fileMatch,
+			['some match'],
+			{
+				startLineNumber: 0,
+				startColumn: 0,
+				endLineNumber: 0,
+				endColumn: 2
 			},
-			ranges
-		});
+			{
+				startLineNumber: line,
+				startColumn: 0,
+				endLineNumber: line,
+				endColumn: 2
+			}
+		);
 		fileMatch.add(match);
 		return match;
 	}
