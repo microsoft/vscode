@@ -178,8 +178,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				options.frame = false;
 			}
 		}
-    
-    if (isMacintosh && windowConfig && windowConfig.vibrancy && windowConfig.vibrancy !== 'none') {
+
+		if (isMacintosh && windowConfig && windowConfig.vibrancy && windowConfig.vibrancy !== 'none') {
 			this.setTransparentInfo(options);
 			options.vibrancy = windowConfig.vibrancy;
 		}
