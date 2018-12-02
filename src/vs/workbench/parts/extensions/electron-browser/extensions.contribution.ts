@@ -12,6 +12,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IExtensionTipsService, ExtensionsLabel, ExtensionsChannelId, PreferencesLabel } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actions';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ExtensionTipsService } from 'vs/workbench/parts/extensions/electron-browser/extensionTipsService';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IOutputChannelRegistry, Extensions as OutputExtensions } from 'vs/workbench/parts/output/common/output';
@@ -251,6 +252,12 @@ CommandsRegistry.registerCommand('_extensions.manage', (accessor: ServicesAccess
 	if (extension.length === 1) {
 		extensionService.open(extension[0]);
 	}
+});
+
+CommandsRegistry.registerCommand('_copy.branch', (accessor: ServicesAccessor, text: string) => {
+	const clipboardService = accessor.get(IClipboardService);
+	const branchName = text.split(' ')[1];
+	clipboardService.writeText(branchName);
 });
 
 CommandsRegistry.registerCommand('extension.open', (accessor: ServicesAccessor, extensionId: string) => {

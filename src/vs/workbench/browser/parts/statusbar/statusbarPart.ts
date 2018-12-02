@@ -224,6 +224,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 }
 
 let manageExtensionAction: ManageExtensionAction;
+let copyBranchNameAction: CopyBranchNameAction;
 class StatusBarEntryItem implements IStatusbarItem {
 
 	constructor(
@@ -240,6 +241,10 @@ class StatusBarEntryItem implements IStatusbarItem {
 
 		if (!manageExtensionAction) {
 			manageExtensionAction = this.instantiationService.createInstance(ManageExtensionAction);
+		}
+
+		if (!copyBranchNameAction) {
+			copyBranchNameAction = this.instantiationService.createInstance(CopyBranchNameAction);
 		}
 	}
 
@@ -277,6 +282,19 @@ class StatusBarEntryItem implements IStatusbarItem {
 				}));
 			}
 			textContainer.style.color = color;
+		}
+
+		// Add context menu with 'copy branch name' menu item to checkout status bar part
+		if (this.entry.text.indexOf('git-branch') !== -1) {
+			toDispose.push(addDisposableListener(textContainer, 'contextmenu', e => {
+				EventHelper.stop(e, true);
+
+				this.contextMenuService.showContextMenu({
+					getAnchor: () => el,
+					getActionsContext: () => this.entry.text,
+					getActions: () => [copyBranchNameAction]
+				});
+			}));
 		}
 
 		// Context Menu
@@ -331,6 +349,19 @@ class ManageExtensionAction extends Action {
 
 	run(extensionId: string): Thenable<any> {
 		return this.commandService.executeCommand('_extensions.manage', extensionId);
+	}
+}
+
+class CopyBranchNameAction extends Action {
+
+	constructor(
+		@ICommandService private commandService: ICommandService
+	) {
+		super('statusbar.copy.branch', nls.localize('copyBranch', "Copy Branch Name"));
+	}
+
+	run(branchName: string): Thenable<any> {
+		return this.commandService.executeCommand('_copy.branch', branchName);
 	}
 }
 
