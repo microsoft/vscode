@@ -572,13 +572,13 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this.tree.setSelection([focused], eventPayload);
 	}
 
-	public selectNextMatch(): void {
+	public async selectNextMatch(): Promise<void> {
 		const [selected]: FileMatchOrMatch[] = this.tree.getSelection();
 
 		// Expand the initial selected node, if needed
 		if (selected instanceof FileMatch) {
 			if (!this.tree.isExpanded(selected)) {
-				this.tree.expand(selected);
+				await this.tree.expand(selected);
 			}
 		}
 
@@ -595,7 +595,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		// Expand and go past FileMatch nodes
 		while (!(next instanceof Match)) {
 			if (!this.tree.isExpanded(next)) {
-				this.tree.expand(next);
+				await this.tree.expand(next);
 			}
 
 			// Select the FileMatch's first child
@@ -612,7 +612,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		}
 	}
 
-	public selectPreviousMatch(): void {
+	public async selectPreviousMatch(): Promise<void> {
 		const [selected]: FileMatchOrMatch[] = this.tree.getSelection();
 		let navigator = this.tree.getNavigator(selected, /*subTreeOnly=*/false);
 
@@ -628,7 +628,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 				// This is complicated because .last will set the navigator to the last FileMatch,
 				// so expand it and FF to its last child
-				this.tree.expand(prev);
+				await this.tree.expand(prev);
 				let tmp;
 				while (tmp = navigator.next()) {
 					prev = tmp;
@@ -639,7 +639,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 				// There is a second non-Match result, which must be a collapsed FileMatch.
 				// Expand it then select its last child.
 				navigator.next();
-				this.tree.expand(prev);
+				await this.tree.expand(prev);
 				prev = navigator.previous();
 			}
 		}
@@ -649,7 +649,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			const eventPayload = { preventEditorOpen: true };
 			this.tree.setFocus(prev, eventPayload);
 			this.tree.setSelection([prev], eventPayload);
-			this.tree.reveal(prev);
+			await this.tree.reveal(prev);
 			this.selectCurrentMatchEmitter.fire();
 		}
 	}
