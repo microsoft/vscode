@@ -399,11 +399,9 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 	 * Returns element to focus after removing the given element
 	 */
 	public getElementToFocusAfterRemoved(viewer: ITree, elementToBeRemoved: RenderableMatch): Promise<RenderableMatch> {
-		let elementToFocus = this.getNextElementAfterRemoved(viewer, elementToBeRemoved);
-		if (!elementToFocus) {
-			elementToFocus = this.getPreviousElementAfterRemoved(viewer, elementToBeRemoved);
-		}
-		return elementToFocus;
+		return this.getNextElementAfterRemoved(viewer, elementToBeRemoved).then(elementToFocus => {
+			return elementToFocus || this.getPreviousElementAfterRemoved(viewer, elementToBeRemoved);
+		});
 	}
 
 	public async getNextElementAfterRemoved(viewer: ITree, element: RenderableMatch): Promise<RenderableMatch> {
