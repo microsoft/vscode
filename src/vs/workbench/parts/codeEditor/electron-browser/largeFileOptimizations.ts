@@ -55,7 +55,7 @@ export class LargeFileOptimizationsWarner extends Disposable implements IEditorC
 
 				this._notificationService.prompt(Severity.Info, message, [
 					{
-						label: nls.localize('neverShowAgain', "OK. Never show again"),
+						label: nls.localize('dontShowAgain', "Don't Show Again"),
 						run: () => {
 							this._isDisabled = true;
 							this._storageService.store('editor.neverPromptForLargeFiles', true, StorageScope.GLOBAL);

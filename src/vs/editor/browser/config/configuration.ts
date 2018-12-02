@@ -76,7 +76,9 @@ export function restoreFontInfo(storageService: IStorageService): void {
 
 export function saveFontInfo(storageService: IStorageService): void {
 	let knownFontInfo = CSSBasedConfiguration.INSTANCE.saveFontInfo();
-	storageService.store('editorFontInfo', JSON.stringify(knownFontInfo), StorageScope.GLOBAL);
+	if (knownFontInfo.length > 0) {
+		storageService.store('editorFontInfo', JSON.stringify(knownFontInfo), StorageScope.GLOBAL);
+	}
 }
 
 export interface ISerializedFontInfo {
