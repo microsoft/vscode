@@ -18,7 +18,7 @@ import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview
 import { Event, Emitter } from 'vs/base/common/event';
 
 export interface IActionItem {
-	actionRunner?: IActionRunner;
+	actionRunner: IActionRunner;
 	setActionContext(context: any): void;
 	render(element: HTMLElement): void;
 	isEnabled(): boolean;
@@ -393,7 +393,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 	options: IActionBarOptions;
 
-	private _actionRunner?: IActionRunner;
+	private _actionRunner: IActionRunner;
 	private _context: any;
 
 	// Items
@@ -422,13 +422,14 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 		this.options = options;
 		this._context = options.context;
-		this._actionRunner = this.options.actionRunner;
 
 		if (!this.options.triggerKeys) {
 			this.options.triggerKeys = defaultOptions.triggerKeys;
 		}
 
-		if (!this._actionRunner) {
+		if (this.options.actionRunner) {
+			this._actionRunner = this.options.actionRunner;
+		} else {
 			this._actionRunner = new ActionRunner();
 			this._register(this._actionRunner);
 		}
@@ -777,10 +778,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 	}
 
 	run(action: IAction, context?: any): Thenable<void> {
-		if (this._actionRunner) {
-			return this._actionRunner.run(action, context);
-		}
-		return Promise.resolve(void 0);
+		return this._actionRunner.run(action, context);
 	}
 
 	dispose(): void {
