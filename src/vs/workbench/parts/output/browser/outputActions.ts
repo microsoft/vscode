@@ -161,7 +161,7 @@ export class SwitchOutputActionItem extends SelectActionItem {
 				selected = logChannelIndex !== -1 ? separatorIndex + 1 + logChannelIndex : 0;
 			}
 		}
-		this.setOptions(options.map((label, index) => <ISelectOptionItem>{ optionText: label, isDisabled: (index === separatorIndex ? true : undefined) }), Math.max(0, selected));
+		this.setOptions(options.map((label, index) => <ISelectOptionItem>{ text: label, isDisabled: (index === separatorIndex ? true : undefined) }), Math.max(0, selected));
 	}
 }
 

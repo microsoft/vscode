@@ -36,17 +36,17 @@ export interface ISelectBoxDelegate {
 }
 
 export interface ISelectBoxOptions {
-	useCustomSelectBox?: boolean;
+	useCustomDrawn?: boolean;
 	ariaLabel?: string;
 	minBottomMargin?: number;
 }
 
 // Utilize optionItem interface to capture all option parameters
 export interface ISelectOptionItem {
-	optionText: string;
-	optionDecorationRight?: string;
-	optionItemDescription?: string;
-	optionItemDescriptionIsMarkdown?: boolean;
+	text: string;
+	decorationRight?: string;
+	description?: string;
+	descriptionIsMarkdown?: boolean;
 	isDisabled?: boolean;
 }
 
@@ -80,7 +80,7 @@ export class SelectBox extends Widget implements ISelectBoxDelegate {
 		mixin(this.styles, defaultStyles, false);
 
 		// Default to native SelectBox for OSX unless overridden
-		if (isMacintosh && !(selectBoxOptions && selectBoxOptions.useCustomSelectBox)) {
+		if (isMacintosh && !(selectBoxOptions && selectBoxOptions.useCustomDrawn)) {
 			this.selectBoxDelegate = new SelectBoxNative(options, selected, styles, selectBoxOptions);
 		} else {
 			this.selectBoxDelegate = new SelectBoxList(options, selected, contextViewProvider, styles, selectBoxOptions);

@@ -139,7 +139,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 
 	protected _fillContainer(container: HTMLElement): void {
 		this.setCssClass('breakpoint-widget');
-		const selectBox = new SelectBox(<ISelectOptionItem[]>[{ optionText: nls.localize('expression', "Expression") }, { optionText: nls.localize('hitCount', "Hit Count") }, { optionText: nls.localize('logMessage', "Log Message") }], this.context, this.contextViewService, null, { ariaLabel: nls.localize('breakpointType', 'Breakpoint Type') });
+		const selectBox = new SelectBox(<ISelectOptionItem[]>[{ text: nls.localize('expression', "Expression") }, { text: nls.localize('hitCount', "Hit Count") }, { text: nls.localize('logMessage', "Log Message") }], this.context, this.contextViewService, null, { ariaLabel: nls.localize('breakpointType', 'Breakpoint Type') });
 		this.toDispose.push(attachSelectBoxStyler(selectBox, this.themeService));
 		this.selectContainer = $('.breakpoint-select-container');
 		selectBox.render(dom.append(container, this.selectContainer));

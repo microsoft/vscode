@@ -26,8 +26,8 @@ const SELECT_OPTION_ENTRY_TEMPLATE_ID = 'selectOption.entry.template';
 
 interface ISelectListTemplateData {
 	root: HTMLElement;
-	optionText: HTMLElement;
-	optionItemDescription: HTMLElement;
+	text: HTMLElement;
+	itemDescription: HTMLElement;
 	disposables: IDisposable[];
 }
 
@@ -41,25 +41,25 @@ class SelectListRenderer implements IListRenderer<ISelectOptionItem, ISelectList
 		const data = <ISelectListTemplateData>Object.create(null);
 		data.disposables = [];
 		data.root = container;
-		data.optionText = dom.append(container, $('.option-text'));
-		data.optionItemDescription = dom.append(container, $('.option-text-description'));
-		dom.addClass(data.optionItemDescription, 'visually-hidden');
+		data.text = dom.append(container, $('.option-text'));
+		data.itemDescription = dom.append(container, $('.option-text-description'));
+		dom.addClass(data.itemDescription, 'visually-hidden');
 
 		return data;
 	}
 
 	renderElement(element: ISelectOptionItem, index: number, templateData: ISelectListTemplateData): void {
 		const data = <ISelectListTemplateData>templateData;
-		const optionText = (<ISelectOptionItem>element).optionText;
+		const text = (<ISelectOptionItem>element).text;
 		const isDisabled = (<ISelectOptionItem>element).isDisabled;
 
-		data.optionText.textContent = optionText;
+		data.text.textContent = text;
 
-		if (typeof element.optionItemDescription === 'string') {
-			const optionItemDescriptionId = (optionText.replace(/ /g, '_').toLowerCase() + '_description_' + data.root.id);
-			data.optionText.setAttribute('aria-describedby', optionItemDescriptionId);
-			data.optionItemDescription.id = optionItemDescriptionId;
-			data.optionItemDescription.innerText = element.optionItemDescription;
+		if (typeof element.description === 'string') {
+			const itemDescriptionId = (text.replace(/ /g, '_').toLowerCase() + '_description_' + data.root.id);
+			data.text.setAttribute('aria-describedby', itemDescriptionId);
+			data.itemDescription.id = itemDescriptionId;
+			data.itemDescription.innerText = element.description;
 		}
 
 		// pseudo-select disabled option
@@ -251,8 +251,8 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 			this._hasDetails = false;
 
 			this.options.map((option, index) => {
-				this.selectElement.add(this.createOption(option.optionText, index, option.isDisabled));
-				if (typeof option.optionItemDescription === 'string') {
+				this.selectElement.add(this.createOption(option.text, index, option.isDisabled));
+				if (typeof option.description === 'string') {
 					this._hasDetails = true;
 				}
 			});
@@ -504,11 +504,11 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 
 			this.selectionDetailsPane.innerText = '';
 
-			if (option.optionItemDescription) {
-				if (option.optionItemDescriptionIsMarkdown) {
-					this.selectionDetailsPane.appendChild(this.renderDescriptionMarkdown(option.optionItemDescription));
+			if (option.description) {
+				if (option.descriptionIsMarkdown) {
+					this.selectionDetailsPane.appendChild(this.renderDescriptionMarkdown(option.description));
 				} else {
-					this.selectionDetailsPane.innerText = option.optionItemDescription;
+					this.selectionDetailsPane.innerText = option.description;
 				}
 				this.selectionDetailsPane.style.display = 'block';
 			} else {
@@ -523,14 +523,14 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 		// Reset description to selected
 
 		this.selectionDetailsPane.innerText = '';
-		const optionItemDescription = this.options[this.selected].optionItemDescription || null;
-		const optionItemDescriptionIsMarkdown = this.options[this.selected].optionItemDescriptionIsMarkdown || null;
+		const description = this.options[this.selected].description || null;
+		const descriptionIsMarkdown = this.options[this.selected].descriptionIsMarkdown || null;
 
-		if (optionItemDescription) {
-			if (optionItemDescriptionIsMarkdown) {
-				this.selectionDetailsPane.appendChild(this.renderDescriptionMarkdown(optionItemDescription));
+		if (description) {
+			if (descriptionIsMarkdown) {
+				this.selectionDetailsPane.appendChild(this.renderDescriptionMarkdown(description));
 			} else {
-				this.selectionDetailsPane.innerText = optionItemDescription;
+				this.selectionDetailsPane.innerText = description;
 			}
 			this.selectionDetailsPane.style.display = 'block';
 		}
@@ -689,12 +689,12 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 			let longest = 0;
 
 			for (let index = 0; index < this.options.length; index++) {
-				if (this.options[index].optionText.length > this.options[longest].optionText.length) {
+				if (this.options[index].text.length > this.options[longest].text.length) {
 					longest = index;
 				}
 			}
 
-			container.innerHTML = this.options[longest].optionText;
+			container.innerHTML = this.options[longest].text;
 			elementWidth = dom.getTotalWidth(container);
 		}
 
@@ -796,7 +796,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 
 				this._onDidSelect.fire({
 					index: this.selectElement.selectedIndex,
-					selected: this.options[this.selected].optionText
+					selected: this.options[this.selected].text
 				});
 			}
 
@@ -847,14 +847,14 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 
 		this.selectionDetailsPane.innerText = '';
 		const selectedIndex = e.indexes[0];
-		const optionItemDescription = this.options[selectedIndex].optionItemDescription || null;
-		const optionItemDescriptionIsMarkdown = this.options[selectedIndex].optionItemDescriptionIsMarkdown || null;
+		const description = this.options[selectedIndex].description || null;
+		const descriptionIsMarkdown = this.options[selectedIndex].descriptionIsMarkdown || null;
 
-		if (optionItemDescription) {
-			if (optionItemDescriptionIsMarkdown) {
-				this.selectionDetailsPane.appendChild(this.renderDescriptionMarkdown(optionItemDescription));
+		if (description) {
+			if (descriptionIsMarkdown) {
+				this.selectionDetailsPane.appendChild(this.renderDescriptionMarkdown(description));
 			} else {
-				this.selectionDetailsPane.innerText = optionItemDescription;
+				this.selectionDetailsPane.innerText = description;
 			}
 			this.selectionDetailsPane.style.display = 'block';
 		} else {
@@ -888,7 +888,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 			this._currentSelection = this.selected;
 			this._onDidSelect.fire({
 				index: this.selectElement.selectedIndex,
-				selected: this.options[this.selected].optionText
+				selected: this.options[this.selected].text
 			});
 		}
 
@@ -1008,7 +1008,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 
 		for (let i = 0; i < this.options.length - 1; i++) {
 			optionIndex = (i + this.selected + 1) % this.options.length;
-			if (this.options[optionIndex].optionText.charAt(0).toUpperCase() === ch && !this.options[optionIndex].isDisabled) {
+			if (this.options[optionIndex].text.charAt(0).toUpperCase() === ch && !this.options[optionIndex].isDisabled) {
 				this.select(optionIndex);
 				this.selectList.setFocus([optionIndex]);
 				this.selectList.reveal(this.selectList.getFocus()[0]);

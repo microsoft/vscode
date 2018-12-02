@@ -841,7 +841,7 @@ export class SettingsRenderer implements ITreeRenderer {
 	private renderSettingEnumTemplate(tree: ITree, container: HTMLElement): ISettingEnumItemTemplate {
 		const common = this.renderCommonTemplate(tree, container, 'enum');
 
-		const selectBox = new SelectBox([], undefined, this.contextViewService, undefined, { useCustomSelectBox: true });
+		const selectBox = new SelectBox([], undefined, this.contextViewService, undefined, { useCustomDrawn: true });
 
 		common.toDispose.push(selectBox);
 		common.toDispose.push(attachSelectBoxStyler(selectBox, this.themeService, {
@@ -1171,9 +1171,9 @@ export class SettingsRenderer implements ITreeRenderer {
 			.map(String)
 			.map(escapeInvisibleChars)
 			.map((data, index) => <ISelectOptionItem>{
-				optionText: data,
-				optionItemDescription: (enumDescriptions && enumDescriptions[index] && (enumDescriptionsAreMarkdown ? fixSettingLinks(enumDescriptions[index], false) : enumDescriptions[index])),
-				optionItemDescriptionIsMarkdown: enumDescriptionsAreMarkdown
+				text: data,
+				description: (enumDescriptions && enumDescriptions[index] && (enumDescriptionsAreMarkdown ? fixSettingLinks(enumDescriptions[index], false) : enumDescriptions[index])),
+				descriptionIsMarkdown: enumDescriptionsAreMarkdown
 			});
 
 		template.selectBox.setOptions(displayOptions);

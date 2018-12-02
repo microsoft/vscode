@@ -184,7 +184,7 @@ export class StartDebugActionItem implements IActionItem {
 			});
 		});
 
-		this.selectBox.setOptions(this.options.map((data, index) => <ISelectOptionItem>{ optionText: data.label, isDisabled: (index === disabledIdx ? true : undefined) }), this.selected);
+		this.selectBox.setOptions(this.options.map((data, index) => <ISelectOptionItem>{ text: data.label, isDisabled: (index === disabledIdx ? true : undefined) }), this.selected);
 	}
 }
 
@@ -217,7 +217,7 @@ export class FocusSessionActionItem extends SelectActionItem {
 		const session = this.debugService.getViewModel().focusedSession;
 		const sessions = this.getSessions();
 		const names = sessions.map(s => s.getLabel());
-		this.setOptions(names.map(data => <ISelectOptionItem>{ optionText: data }), session ? sessions.indexOf(session) : undefined);
+		this.setOptions(names.map(data => <ISelectOptionItem>{ text: data }), session ? sessions.indexOf(session) : undefined);
 	}
 
 	protected getSessions(): ReadonlyArray<IDebugSession> {

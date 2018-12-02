@@ -91,7 +91,7 @@ export class SelectBoxNative implements ISelectBoxDelegate {
 			this.selectElement.options.length = 0;
 
 			this.options.map((option, index) => {
-				this.selectElement.add(this.createOption(option.optionText, index, option.isDisabled));
+				this.selectElement.add(this.createOption(option.text, index, option.isDisabled));
 			});
 
 		}
@@ -115,8 +115,8 @@ export class SelectBoxNative implements ISelectBoxDelegate {
 		}
 
 		this.selectElement.selectedIndex = this.selected;
-		if (this.options.length && typeof this.options[this.selected].optionText === 'string') {
-			this.selectElement.title = this.options[this.selected].optionText;
+		if (this.options.length && typeof this.options[this.selected].text === 'string') {
+			this.selectElement.title = this.options[this.selected].text;
 		} else {
 			this.selectElement.title = '';
 		}
