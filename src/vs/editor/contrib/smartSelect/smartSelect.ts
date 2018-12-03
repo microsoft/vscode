@@ -20,6 +20,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TokenTreeSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/tokenTree';
 import { WordSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/wordSelections';
+import { BracketSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/bracketSelections';
 
 class SelectionRanges {
 
@@ -201,6 +202,7 @@ registerEditorAction(GrowSelectionAction);
 registerEditorAction(ShrinkSelectionAction);
 
 modes.SelectionRangeRegistry.register('*', new WordSelectionRangeProvider());
+modes.SelectionRangeRegistry.register('*', new BracketSelectionRangeProvider());
 modes.SelectionRangeRegistry.register('*', new TokenTreeSelectionRangeProvider());
 
 export function provideSelectionRanges(model: ITextModel, position: Position, token: CancellationToken): Promise<Range[] | undefined | null> {
