@@ -185,13 +185,13 @@ suite('Experimental Prompts', () => {
 			commands: []
 		};
 
-		assert.equal(ExperimentalPrompts.getPromptText(simpleTextCase, 'any-language'), simpleTextCase.promptText);
-		assert.equal(ExperimentalPrompts.getPromptText(multipleLocaleCase, 'en'), multipleLocaleCase.promptText['en']);
-		assert.equal(ExperimentalPrompts.getPromptText(multipleLocaleCase, 'de'), multipleLocaleCase.promptText['de']);
-		assert.equal(ExperimentalPrompts.getPromptText(multipleLocaleCase, 'en-au'), multipleLocaleCase.promptText['en-au']);
-		assert.equal(ExperimentalPrompts.getPromptText(multipleLocaleCase, 'en-gb'), multipleLocaleCase.promptText['en']);
-		assert.equal(ExperimentalPrompts.getPromptText(multipleLocaleCase, 'fr'), multipleLocaleCase.promptText['en']);
-		assert.equal(ExperimentalPrompts.getPromptText(englishUSTextCase, 'fr'), englishUSTextCase.promptText['en-us']);
-		assert.equal(!!ExperimentalPrompts.getPromptText(noEnglishTextCase, 'fr'), false);
+		assert.equal(ExperimentalPrompts.getLocalizedText(simpleTextCase.promptText, 'any-language'), simpleTextCase.promptText);
+		assert.equal(ExperimentalPrompts.getLocalizedText(multipleLocaleCase.promptText, 'en'), multipleLocaleCase.promptText['en']);
+		assert.equal(ExperimentalPrompts.getLocalizedText(multipleLocaleCase.promptText, 'de'), multipleLocaleCase.promptText['de']);
+		assert.equal(ExperimentalPrompts.getLocalizedText(multipleLocaleCase.promptText, 'en-au'), multipleLocaleCase.promptText['en-au']);
+		assert.equal(ExperimentalPrompts.getLocalizedText(multipleLocaleCase.promptText, 'en-gb'), multipleLocaleCase.promptText['en']);
+		assert.equal(ExperimentalPrompts.getLocalizedText(multipleLocaleCase.promptText, 'fr'), multipleLocaleCase.promptText['en']);
+		assert.equal(ExperimentalPrompts.getLocalizedText(englishUSTextCase.promptText, 'fr'), englishUSTextCase.promptText['en-us']);
+		assert.equal(!!ExperimentalPrompts.getLocalizedText(noEnglishTextCase.promptText, 'fr'), false);
 	});
 });
