@@ -32,6 +32,7 @@ import { WordContextKey } from 'vs/editor/contrib/suggest/wordContextKey';
 import { once, anyEvent } from 'vs/base/common/event';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { IdleValue } from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 class AcceptOnCharacterOracle {
 
@@ -153,7 +154,7 @@ export class SuggestController implements IEditorContribution {
 	private _createSuggestWidget(): void {
 
 		this._widget = this._instantiationService.createInstance(SuggestWidget, this._editor);
-		this._toDispose.push(this._widget.onDidSelect(item => this._onDidSelectItem(item, false, true), this));
+		this._toDispose.push(this._widget.onDidSelect(item => this._onDidSelectItem(item, false, true)));
 
 		// Wire up logic to accept a suggestion on certain characters
 		const autoAcceptOracle = new AcceptOnCharacterOracle(this._editor, this._widget, item => this._onDidSelectItem(item, false, true));
@@ -212,12 +213,14 @@ export class SuggestController implements IEditorContribution {
 		}
 	}
 
-	protected _onDidSelectItem(event: ISelectedSuggestion, keepAlternativeSuggestions: boolean, undoStops: boolean): void {
+	protected async _onDidSelectItem(event: ISelectedSuggestion, keepAlternativeSuggestions: boolean, undoStops: boolean): Promise<void> {
 		if (!event || !event.item) {
 			this._alternatives.getValue().reset();
 			this._model.cancel();
 			return;
 		}
+
+		await event.item.resolve(CancellationToken.None);
 
 		const model = this._editor.getModel();
 		const modelVersionNow = model.getAlternativeVersionId();
@@ -268,7 +271,7 @@ export class SuggestController implements IEditorContribution {
 
 		} else {
 			// exec command, done
-			this._commandService.executeCommand(suggestion.command.id, ...suggestion.command.arguments).then(undefined, onUnexpectedError);
+			this._commandService.executeCommand(suggestion.command.id, ...suggestion.command.arguments).catch(onUnexpectedError);
 			this._model.cancel();
 		}
 
