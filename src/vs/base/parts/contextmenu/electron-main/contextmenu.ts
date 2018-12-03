@@ -7,7 +7,7 @@ import { Menu, MenuItem, BrowserWindow, Event, ipcMain } from 'electron';
 import { ISerializableContextMenuItem, CONTEXT_MENU_CLOSE_CHANNEL, CONTEXT_MENU_CHANNEL, IPopupOptions, CONTEXT_MENU_HIDE_CHANNEL } from 'vs/base/parts/contextmenu/common/contextmenu';
 
 export function registerContextMenuListener(): void {
-	let menu: Menu;
+	let menu: Menu | null;
 	ipcMain.on(CONTEXT_MENU_CHANNEL, (event: Event, contextMenuId: number, items: ISerializableContextMenuItem[], onClickChannel: string, options?: IPopupOptions) => {
 		menu = createMenu(event, onClickChannel, items);
 
