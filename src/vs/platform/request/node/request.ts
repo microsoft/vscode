@@ -56,7 +56,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 					localize('systemProxyOn', "Use system proxy configuration if not specified in the request options."),
 					localize('systemProxyForce', "Always use system proxy configuration."),
 				],
-				default: 'force',
+				default: 'off',
 				description: localize('systemProxy', "Experimental setting: Use the system proxy configuration.")
 			}
 		}

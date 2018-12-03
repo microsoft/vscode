@@ -230,7 +230,7 @@ function patches(originals: typeof http | typeof https, agent: http.Agent, setti
 				return original.apply(null, arguments);
 			}
 
-			if (!options.socketPath && (config === 'force' || config === 'on' && !options.agent)) {
+			if (!options.socketPath && (config === 'force' || config === 'on' && !options.agent) && options.agent !== agent) {
 				if (url) {
 					const parsed = typeof url === 'string' ? nodeurl.parse(url) : url;
 					options = {
@@ -240,6 +240,8 @@ function patches(originals: typeof http | typeof https, agent: http.Agent, setti
 						path: parsed.pathname,
 						...options
 					};
+				} else {
+					options = { ...options };
 				}
 				options.agent = agent;
 				return original(options, callback);
