@@ -206,9 +206,9 @@ export class SuggestMemories extends Disposable {
 	) {
 		super();
 
-		this._setMode(editor.getConfiguration().contribInfo.suggestSelection, editor.getConfiguration().contribInfo.suggest.useGlobalStorageForSuggestions);
-		this._register(editor.onDidChangeConfiguration(e => e.contribInfo && this._setMode(editor.getConfiguration().contribInfo.suggestSelection, editor.getConfiguration().contribInfo.suggest.useGlobalStorageForSuggestions)));
-		this._register(_storageService.onWillSaveState(() => this._saveState(editor.getConfiguration().contribInfo.suggest.useGlobalStorageForSuggestions)));
+		this._setMode(editor.getConfiguration().contribInfo.suggestSelection, editor.getConfiguration().contribInfo.suggest.shareSuggestSelections);
+		this._register(editor.onDidChangeConfiguration(e => e.contribInfo && this._setMode(editor.getConfiguration().contribInfo.suggestSelection, editor.getConfiguration().contribInfo.suggest.shareSuggestSelections)));
+		this._register(_storageService.onWillSaveState(() => this._saveState(editor.getConfiguration().contribInfo.suggest.shareSuggestSelections)));
 	}
 
 	private _setMode(mode: MemMode, useGlobalStorageForSuggestions: boolean): void {

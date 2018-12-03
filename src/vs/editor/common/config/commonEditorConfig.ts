@@ -639,10 +639,10 @@ const editorConfiguration: IConfigurationNode = {
 			default: false,
 			description: nls.localize('suggest.localityBonus', "Controls whether sorting favours words that appear close to the cursor.")
 		},
-		'editor.suggest.useGlobalStorageForSuggestions': {
+		'editor.suggest.shareSuggestSelections': {
 			type: 'boolean',
 			default: false,
-			description: nls.localize('suggest.useGlobalStorageForSuggestions', "Controls whether global storage is used for remembering suggestions.")
+			description: nls.localize('suggest.shareSuggestSelections', "Controls whether remembered suggestion selections are shared between multiple workspaces and windows (needs `editor.suggestSelection`).")
 		},
 		'editor.suggest.snippetsPreventQuickSuggestions': {
 			type: 'boolean',

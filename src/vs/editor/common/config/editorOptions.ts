@@ -905,7 +905,7 @@ export interface InternalSuggestOptions {
 	readonly snippets: 'top' | 'bottom' | 'inline' | 'none';
 	readonly snippetsPreventQuickSuggestions: boolean;
 	readonly localityBonus: boolean;
-	readonly useGlobalStorageForSuggestions: boolean;
+	readonly shareSuggestSelections: boolean;
 }
 
 export interface InternalParameterHintOptions {
@@ -1353,7 +1353,7 @@ export class InternalEditorOptions {
 				&& a.snippets === b.snippets
 				&& a.snippetsPreventQuickSuggestions === b.snippetsPreventQuickSuggestions
 				&& a.localityBonus === b.localityBonus
-				&& a.useGlobalStorageForSuggestions === b.useGlobalStorageForSuggestions;
+				&& a.shareSuggestSelections === b.shareSuggestSelections;
 		}
 	}
 
@@ -1884,7 +1884,7 @@ export class EditorOptionsValidator {
 			snippets: _stringSet<'top' | 'bottom' | 'inline' | 'none'>(opts.snippetSuggestions, defaults.snippets, ['top', 'bottom', 'inline', 'none']),
 			snippetsPreventQuickSuggestions: _boolean(suggestOpts.snippetsPreventQuickSuggestions, defaults.filterGraceful),
 			localityBonus: _boolean(suggestOpts.localityBonus, defaults.localityBonus),
-			useGlobalStorageForSuggestions: _boolean(suggestOpts.useGlobalStorageForSuggestions, defaults.useGlobalStorageForSuggestions)
+			shareSuggestSelections: _boolean(suggestOpts.useGlobalStorageForSuggestions, defaults.shareSuggestSelections)
 		};
 	}
 
@@ -2634,7 +2634,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 			snippets: 'inline',
 			snippetsPreventQuickSuggestions: true,
 			localityBonus: false,
-			useGlobalStorageForSuggestions: false
+			shareSuggestSelections: false
 		},
 		selectionHighlight: true,
 		occurrencesHighlight: true,
