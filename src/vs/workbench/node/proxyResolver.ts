@@ -180,25 +180,25 @@ function proxyFromConfigURL(configURL: string) {
 function createPatchedModules(extHostConfiguration: ExtHostConfiguration, agent: http.Agent) {
 	const setting = {
 		config: extHostConfiguration.getConfiguration('http')
-			.get<string>('systemProxy') || 'off'
+			.get<string>('proxySupport') || 'off'
 	};
 	extHostConfiguration.onDidChangeConfiguration(e => {
 		setting.config = extHostConfiguration.getConfiguration('http')
-			.get<string>('systemProxy') || 'off';
+			.get<string>('proxySupport') || 'off';
 	});
 
 	return {
 		http: {
 			off: assign({}, http, patches(http, agent, { config: 'off' }, true)),
 			on: assign({}, http, patches(http, agent, { config: 'on' }, true)),
-			force: assign({}, http, patches(http, agent, { config: 'force' }, true)),
+			override: assign({}, http, patches(http, agent, { config: 'override' }, true)),
 			onRequest: assign({}, http, patches(http, agent, setting, true)),
 			default: assign(http, patches(http, agent, setting, false)) // run last
 		},
 		https: {
 			off: assign({}, https, patches(https, agent, { config: 'off' }, true)),
 			on: assign({}, https, patches(https, agent, { config: 'on' }, true)),
-			force: assign({}, https, patches(https, agent, { config: 'force' }, true)),
+			override: assign({}, https, patches(https, agent, { config: 'override' }, true)),
 			onRequest: assign({}, https, patches(https, agent, setting, true)),
 			default: assign(https, patches(https, agent, setting, false)) // run last
 		}
@@ -225,12 +225,12 @@ function patches(originals: typeof http | typeof https, agent: http.Agent, setti
 			}
 			options = options || {};
 
-			const config = onRequest && (<any>options)._vscodeSystemProxy || setting.config;
+			const config = onRequest && ((<any>options)._vscodeProxySupport || /* LS */ (<any>options)._vscodeSystemProxy) || setting.config;
 			if (config === 'off') {
 				return original.apply(null, arguments);
 			}
 
-			if (!options.socketPath && (config === 'force' || config === 'on' && !options.agent) && options.agent !== agent) {
+			if (!options.socketPath && (config === 'override' || config === 'on' && !options.agent) && options.agent !== agent) {
 				if (url) {
 					const parsed = typeof url === 'string' ? nodeurl.parse(url) : url;
 					options = {
@@ -266,7 +266,7 @@ function configureModuleLoading(extensionService: ExtHostExtensionService, looku
 				const modules = lookup[request];
 				const ext = extensionPaths.findSubstr(URI.file(parent.filename).fsPath);
 				if (ext && ext.enableProposedApi) {
-					return modules[(<any>ext).systemProxy] || modules.onRequest;
+					return modules[(<any>ext).proxySupport] || modules.onRequest;
 				}
 				return modules.default;
 			};
