@@ -15,7 +15,7 @@ import { toResource, IUntitledResourceInput } from 'vs/workbench/common/editor';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { IWindowsService, IWindowService, IWindowSettings, IOpenFileRequest, IWindowsConfiguration, IAddFoldersRequest, IRunActionInWindowRequest, IPathData } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService, IWindowSettings, IOpenFileRequest, IWindowsConfiguration, IAddFoldersRequest, IRunActionInWindowRequest, IPathData, IRunKeybindingInWindowRequest } from 'vs/platform/windows/common/windows';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { IWorkbenchThemeService, VS_HC_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
@@ -38,6 +38,7 @@ import { AccessibilitySupport, isRootUser, isWindows, isMacintosh } from 'vs/bas
 import product from 'vs/platform/node/product';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 const TextInputActions: IAction[] = [
 	new Action('undo', nls.localize('undo', "Undo"), null, true, () => document.execCommand('undo') && Promise.resolve(true)),
@@ -71,6 +72,7 @@ export class ElectronWindow extends Themable {
 		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
 		@INotificationService private notificationService: INotificationService,
 		@ICommandService private commandService: ICommandService,
+		@IKeybindingService private keybindingService: IKeybindingService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
@@ -131,6 +133,11 @@ export class ElectronWindow extends Themable {
 			}, err => {
 				this.notificationService.error(err);
 			});
+		});
+
+		// Support runKeybinding event
+		ipc.on('vscode:runKeybinding', (event: any, request: IRunKeybindingInWindowRequest) => {
+			this.keybindingService.dispatchByUserSettingsLabel(request.userSettingsLabel, document.activeElement);
 		});
 
 		// Error reporting from main
