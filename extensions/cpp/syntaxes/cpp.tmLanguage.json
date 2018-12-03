@@ -85,7 +85,7 @@
 			"name": "meta.function.destructor.cpp",
 			"patterns": [
 				{
-					"include": "$base"
+					"include": "source.cpp"
 				}
 			]
 		},
@@ -108,7 +108,7 @@
 			"name": "meta.function.destructor.prototype.cpp",
 			"patterns": [
 				{
-					"include": "$base"
+					"include": "source.cpp"
 				}
 			]
 		},
@@ -126,7 +126,7 @@
 					"include": "#angle_brackets"
 				},
 				{
-					"include": "$base"
+					"include": "source.cpp"
 				}
 			]
 		},
@@ -158,7 +158,7 @@
 					"name": "meta.function-call.c"
 				},
 				{
-					"include": "$base"
+					"include": "source.cpp"
 				}
 			]
 		},
@@ -183,7 +183,7 @@
 					"name": "meta.function.constructor.cpp",
 					"patterns": [
 						{
-							"include": "$base"
+							"include": "source.cpp"
 						}
 					]
 				},
@@ -198,7 +198,7 @@
 					"name": "meta.function.constructor.initializer-list.cpp",
 					"patterns": [
 						{
-							"include": "$base"
+							"include": "source.cpp"
 						}
 					]
 				}
@@ -261,12 +261,12 @@
 									"include": "#constructor"
 								},
 								{
-									"include": "$base"
+									"include": "source.cpp"
 								}
 							]
 						},
 						{
-							"include": "$base"
+							"include": "source.cpp"
 						}
 					]
 				},
@@ -328,12 +328,12 @@
 									"include": "#constructor"
 								},
 								{
-									"include": "$base"
+									"include": "source.cpp"
 								}
 							]
 						},
 						{
-							"include": "$base"
+							"include": "source.cpp"
 						}
 					]
 				},
@@ -365,12 +365,12 @@
 									"include": "#special_block"
 								},
 								{
-									"include": "$base"
+									"include": "source.cpp"
 								}
 							]
 						},
 						{
-							"include": "$base"
+							"include": "source.cpp"
 						}
 					]
 				}

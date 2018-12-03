@@ -395,7 +395,7 @@
 					"include": "#parens-block"
 				},
 				{
-					"include": "$base"
+					"include": "source.c"
 				}
 			]
 		},
@@ -534,7 +534,7 @@
 			},
 			"patterns": [
 				{
-					"include": "$base"
+					"include": "source.c"
 				}
 			]
 		},
@@ -646,7 +646,7 @@
 							"include": "#c_function_call"
 						},
 						{
-							"include": "$base"
+							"include": "source.c"
 						}
 					]
 				}
@@ -811,7 +811,7 @@
 							]
 						},
 						{
-							"include": "$base"
+							"include": "source.c"
 						}
 					]
 				},
@@ -1054,7 +1054,7 @@
 									]
 								},
 								{
-									"include": "$base"
+									"include": "source.c"
 								}
 							]
 						},
@@ -1312,7 +1312,7 @@
 							"end": "(?=^\\s*((#)\\s*(?:else|elif|endif)\\b))",
 							"patterns": [
 								{
-									"include": "$base"
+									"include": "source.c"
 								}
 							]
 						}
@@ -1503,7 +1503,7 @@
 							]
 						},
 						{
-							"include": "$base"
+							"include": "source.c"
 						}
 					]
 				}
@@ -1612,7 +1612,7 @@
 			"end": "(?=^\\s*((#)\\s*endif\\b))",
 			"patterns": [
 				{
-					"include": "$base"
+					"include": "source.c"
 				}
 			]
 		},
@@ -1735,7 +1735,7 @@
 					"include": "#libc"
 				},
 				{
-					"include": "$base"
+					"include": "source.c"
 				}
 			]
 		},
@@ -1887,7 +1887,7 @@
 					]
 				},
 				{
-					"include": "$base"
+					"include": "source.c"
 				}
 			]
 		},
