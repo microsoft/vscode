@@ -6,7 +6,7 @@
 import { first } from 'vs/base/common/async';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { assign } from 'vs/base/common/objects';
-import { onUnexpectedExternalError, canceled } from 'vs/base/common/errors';
+import { onUnexpectedExternalError, canceled, isPromiseCanceledError } from 'vs/base/common/errors';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
@@ -152,28 +152,34 @@ export function ensureLowerCaseVariants(suggestion: CompletionItem) {
 }
 
 function createSuggestionResolver(provider: CompletionItemProvider, suggestion: CompletionItem, model: ITextModel, position: Position): (token: CancellationToken) => Promise<void> {
+
+	const { resolveCompletionItem } = provider;
+
+	if (typeof resolveCompletionItem !== 'function') {
+		return () => Promise.resolve();
+	}
+
 	let cached: Promise<void> | undefined;
 	return (token) => {
 		if (!cached) {
-			if (typeof provider.resolveCompletionItem === 'function') {
-				let hasResolved = false;
-				cached = Promise.resolve(provider.resolveCompletionItem(model, position, suggestion, token))
-					.then(value => {
-						if (token.isCancellationRequested) {
-							throw canceled();
-						}
-						assign(suggestion, value);
-						hasResolved = true;
-					});
-				token.onCancellationRequested(() => {
-					// Do not cache cancelled results.
-					if (!hasResolved) {
-						cached = undefined;
-					}
-				});
-			} else {
-				cached = Promise.resolve(void 0);
-			}
+			let isDone = false;
+			cached = Promise.resolve(provider.resolveCompletionItem!(model, position, suggestion, token)).then(value => {
+				assign(suggestion, value);
+				isDone = true;
+			}, err => {
+				if (isPromiseCanceledError(err)) {
+					// the IPC queue will reject the request with the
+					// cancellation error -> reset cached
+					cached = undefined;
+				}
+			});
+			token.onCancellationRequested(() => {
+				if (!isDone) {
+					// cancellation after the request has been
+					// dispatched -> reset cache
+					cached = undefined;
+				}
+			});
 		}
 		return cached;
 	};
