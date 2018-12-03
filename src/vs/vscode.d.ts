@@ -3061,10 +3061,10 @@ declare module 'vscode' {
 		/**
 		 * Creates a new parameter information object.
 		 *
-		 * @param label A label string.
+		 * @param label A label string or inclusive start and exclusive end offsets within its containing.
 		 * @param documentation A doc string.
 		 */
-		constructor(label: string, documentation?: string | MarkdownString);
+		constructor(label: string | [number, number], documentation?: string | MarkdownString);
 	}
 
 	/**
