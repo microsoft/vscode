@@ -957,7 +957,10 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 			if (data.extension) {
 				Promise.resolve(p).then(
 					() => this._logService.trace(`[${data.extension.id}] provider DONE after ${Date.now() - t1}ms`),
-					err => this._logService.trace(`[${data.extension.id}] provider FAILED`, err)
+					err => {
+						this._logService.error(`[${data.extension.id}] provider FAILED`);
+						this._logService.error(err);
+					}
 				);
 			}
 			return p;
