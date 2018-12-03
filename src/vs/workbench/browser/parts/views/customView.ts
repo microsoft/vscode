@@ -363,8 +363,8 @@ export class CustomTreeView extends Disposable implements ITreeView {
 
 			// Pass Focus to Viewer
 			this.tree.domFocus();
-		} else if (this._messageValue) {
-			this.messageElement.focus();
+		} else {
+			this.domNode.focus();
 		}
 	}
 
@@ -375,7 +375,6 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	private create() {
 		this.domNode = DOM.$('.tree-explorer-viewlet-tree-view');
 		this.messageElement = DOM.append(this.domNode, DOM.$('.message'));
-		this.messageElement.setAttribute('tabindex', '0');
 		this.treeContainer = DOM.append(this.domNode, DOM.$('.customview-tree'));
 		const focusTracker = this._register(DOM.trackFocus(this.domNode));
 		this._register(focusTracker.onDidFocus(() => this.focused = true));
@@ -395,7 +394,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		this._register(this.tree.onDidExpandItem(e => this._onDidExpandItem.fire(e.item.getElement())));
 		this._register(this.tree.onDidCollapseItem(e => this._onDidCollapseItem.fire(e.item.getElement())));
 		this._register(this.tree.onDidChangeSelection(e => this._onDidChangeSelection.fire(e.selection)));
-		this.tree.setInput(this.root);
+		this.tree.setInput(this.root).then(() => this.updateContentAreas());
 	}
 
 	private updateMessage(): void {
@@ -515,14 +514,26 @@ export class CustomTreeView extends Disposable implements ITreeView {
 
 	private doRefresh(elements: ITreeItem[]): Promise<void> {
 		if (this.tree) {
+			DOM.removeClass(this.treeContainer, 'hasChildren');
 			return Promise.all(elements.map(e => this.tree.refresh(e)))
 				.then(() => {
+					this.updateContentAreas();
 					if (this.focused) {
 						this.focus();
 					}
 				});
 		}
 		return Promise.resolve(null);
+	}
+
+	private updateContentAreas(): void {
+		if (this.root.children && this.root.children.length) {
+			DOM.addClass(this.treeContainer, 'hasChildren');
+			this.domNode.removeAttribute('tabindex');
+		} else {
+			DOM.removeClass(this.treeContainer, 'hasChildren');
+			this.domNode.setAttribute('tabindex', '0');
+		}
 	}
 
 	private onSelection({ payload }: any): void {
