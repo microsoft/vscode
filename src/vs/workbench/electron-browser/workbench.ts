@@ -72,7 +72,7 @@ import { ProgressService2 } from 'vs/workbench/services/progress/browser/progres
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { LifecyclePhase, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase, StartupKind, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecycleService';
 import { IWindowService, IWindowConfiguration, IPath, MenuBarVisibility, getTitleBarStyle } from 'vs/platform/windows/common/windows';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
@@ -500,6 +500,15 @@ export class Workbench extends Disposable implements IPartService {
 		// Group changes
 		this._register(this.editorGroupService.onDidAddGroup(() => this.centerEditorLayout(this.shouldCenterLayout)));
 		this._register(this.editorGroupService.onDidRemoveGroup(() => this.centerEditorLayout(this.shouldCenterLayout)));
+
+		this._register(this.lifecycleService.onWillShutdown(e => {
+			const zenConfig = this.configurationService.getValue<IZenModeSettings>('zenMode');
+			const willRestoreZenMode = this.zenMode.active && (zenConfig.restore || e.reason === ShutdownReason.RELOAD);
+			if (!willRestoreZenMode) {
+				// We will not restore zen mode, need to clear all zen mode state changes
+				this.toggleZenMode(true);
+			}
+		}));
 	}
 
 	private onFullscreenChanged(): void {
