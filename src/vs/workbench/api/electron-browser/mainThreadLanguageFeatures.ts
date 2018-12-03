@@ -379,6 +379,16 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		});
 	}
 
+	// -- smart select
+
+	$registerSelectionRangeProvider(handle: number, selector: ISerializedDocumentFilter[]): void {
+		this._registrations[handle] = modes.SelectionRangeRegistry.register(typeConverters.LanguageSelector.from(selector), {
+			provideSelectionRanges: (model, position, token) => {
+				return this._proxy.$provideSelectionRanges(handle, model.uri, position, token);
+			}
+		});
+	}
+
 	// --- configuration
 
 	private static _reviveRegExp(regExp: ISerializedRegExp): RegExp {

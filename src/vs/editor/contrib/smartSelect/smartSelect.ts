@@ -223,7 +223,7 @@ export function provideSelectionRanges(model: ITextModel, position: Position, to
 				if (arrays.isNonEmptyArray(res)) {
 					for (const range of res) {
 						if (Range.isIRange(range) && Range.containsPosition(range, position)) {
-							ranges.push({ range, rank });
+							ranges.push({ range: Range.lift(range), rank });
 						}
 					}
 				}

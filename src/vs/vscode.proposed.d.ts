@@ -20,6 +20,18 @@ declare module 'vscode' {
 		export function sampleFunction(): Thenable<any>;
 	}
 
+	//#region Joh - selection range provider
+
+	export interface SelectionRangeProvider {
+		provideSelectionRanges(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Range[]>;
+	}
+
+	export namespace languages {
+		export function registerSelectionRangeProvider(selector: DocumentSelector, provider: SelectionRangeProvider): Disposable;
+	}
+
+	//#endregion
+
 	//#region Joh - read/write in chunks
 
 	export interface FileSystemProvider {

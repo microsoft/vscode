@@ -5303,7 +5303,7 @@ declare namespace monaco.languages {
 		/**
 		 * Provide ranges that should be selected from the given position.
 		 */
-		provideSelectionRanges(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<Range[]>;
+		provideSelectionRanges(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<IRange[]>;
 	}
 
 	export interface FoldingContext {
