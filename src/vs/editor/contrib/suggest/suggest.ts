@@ -152,11 +152,25 @@ export function ensureLowerCaseVariants(suggestion: CompletionItem) {
 }
 
 function createSuggestionResolver(provider: CompletionItemProvider, suggestion: CompletionItem, model: ITextModel, position: Position): (token: CancellationToken) => Promise<void> {
-	let cached: Promise<void>;
+	let cached: Promise<void> | undefined;
 	return (token) => {
 		if (!cached) {
 			if (typeof provider.resolveCompletionItem === 'function') {
-				cached = Promise.resolve(provider.resolveCompletionItem(model, position, suggestion, token)).then(value => { assign(suggestion, value); });
+				let hasResolved = false;
+				cached = Promise.resolve(provider.resolveCompletionItem(model, position, suggestion, token))
+					.then(value => {
+						if (token.isCancellationRequested) {
+							throw canceled();
+						}
+						assign(suggestion, value);
+						hasResolved = true;
+					});
+				token.onCancellationRequested(() => {
+					// Do not cache cancelled results.
+					if (!hasResolved) {
+						cached = undefined;
+					}
+				});
 			} else {
 				cached = Promise.resolve(void 0);
 			}
