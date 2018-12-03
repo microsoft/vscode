@@ -7,7 +7,8 @@
 	"include": [
 		"./typings",
 		"./vs/base/common/**/*.ts",
-		"./vs/base/node/**/*.ts"
+		"./vs/base/node/**/*.ts",
+		"./vs/editor/contrib/smartSelect/**/*.ts",
 	],
 	"files": [
 		"./vs/base/browser/browser.ts",
@@ -339,9 +340,6 @@
 		"./vs/editor/contrib/referenceSearch/referencesTree.ts",
 		"./vs/editor/contrib/rename/rename.ts",
 		"./vs/editor/contrib/rename/renameInputField.ts",
-		"./vs/editor/contrib/smartSelect/smartSelect.ts",
-		"./vs/editor/contrib/smartSelect/tokenTree.ts",
-		"./vs/editor/contrib/smartSelect/wordSelections.ts",
 		"./vs/editor/contrib/snippet/snippetParser.ts",
 		"./vs/editor/contrib/snippet/snippetVariables.ts",
 		"./vs/editor/contrib/suggest/suggest.ts",
