@@ -31,7 +31,7 @@ class CheckoutStatusBar {
 		}
 
 		if (rebasing) {
-			title += ` ${localize('rebasing', 'Rebasing')}`;
+			title += ` (${localize('rebasing', 'Rebasing')})`;
 		}
 
 		return {
