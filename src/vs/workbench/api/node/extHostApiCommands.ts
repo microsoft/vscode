@@ -17,7 +17,8 @@ import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { CustomCodeAction } from 'vs/workbench/api/node/extHostLanguageFeatures';
 import { ICommandsExecutor, PreviewHTMLAPICommand, OpenFolderAPICommand, DiffAPICommand, OpenAPICommand, RemoveFromRecentlyOpenedAPICommand, SetEditorLayoutAPICommand } from './apiCommands';
 import { EditorGroupLayout } from 'vs/workbench/services/group/common/editorGroupsService';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { isFalsyOrEmpty, isNonEmptyArray } from 'vs/base/common/arrays';
+import { IRange } from 'vs/editor/common/core/range';
 
 export class ExtHostApiCommands {
 
@@ -195,7 +196,14 @@ export class ExtHostApiCommands {
 			],
 			returns: 'A promise that resolves to an array of ColorPresentation objects.'
 		});
-
+		this._register('vscode.executeSelectionRangeProvider', this._executeSelectionRangeProvider, {
+			description: 'Execute selection range provider.',
+			args: [
+				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
+				{ name: 'position', description: 'Position in a text document', constraint: types.Position }
+			],
+			returns: 'A promise that resolves to an array of ranges.'
+		});
 
 		// -----------------------------------------------------------------
 		// The following commands are registered on both sides separately.
@@ -408,6 +416,19 @@ export class ExtHostApiCommands {
 		return this._commands.executeCommand<IRawColorInfo[]>('_executeDocumentColorProvider', args).then(result => {
 			if (result) {
 				return result.map(ci => ({ range: typeConverters.Range.to(ci.range), color: typeConverters.Color.to(ci.color) }));
+			}
+			return [];
+		});
+	}
+
+	private _executeSelectionRangeProvider(resource: URI, position: types.Position): Thenable<types.Range[]> {
+		const args = {
+			resource,
+			position: position && typeConverters.Position.from(position)
+		};
+		return this._commands.executeCommand<IRange[]>('_executeSelectionRangeProvider', args).then(result => {
+			if (isNonEmptyArray(result)) {
+				return result.map(typeConverters.Range.to);
 			}
 			return [];
 		});
