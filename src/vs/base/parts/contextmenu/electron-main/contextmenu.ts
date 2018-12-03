@@ -23,7 +23,7 @@ export function registerContextMenuListener(): void {
 		});
 	});
 
-	ipcMain.on(CONTEXT_MENU_HIDE_CHANNEL, (event: Event, contextMenuId: number) => {
+	ipcMain.on(CONTEXT_MENU_HIDE_CHANNEL, (event: Event) => {
 		if (menu) {
 			menu.closePopup(BrowserWindow.fromWebContents(event.sender));
 		}

@@ -137,11 +137,7 @@ export class GlobalActivityActionItem extends ActivityActionItem {
 		this._register(DOM.addDisposableListener(this.container, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			DOM.EventHelper.stop(e, true);
 
-			if (this.menuVisible) {
-				this.hideContextMenu();
-			} else {
-				this.showContextMenu();
-			}
+			this.toggleContextMenu();
 		}));
 
 		this._register(DOM.addDisposableListener(this.container, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
@@ -149,23 +145,24 @@ export class GlobalActivityActionItem extends ActivityActionItem {
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 				DOM.EventHelper.stop(e, true);
 
-				if (this.menuVisible) {
-					this.hideContextMenu();
-				} else {
-					this.showContextMenu();
-				}
+				this.toggleContextMenu();
 			}
 		}));
 
 		this._register(DOM.addDisposableListener(this.container, TouchEventType.Tap, (e: GestureEvent) => {
 			DOM.EventHelper.stop(e, true);
 
-			if (this.menuVisible) {
-				this.hideContextMenu();
-			} else {
-				this.showContextMenu();
-			}
+			this.toggleContextMenu();
 		}));
+	}
+
+	private toggleContextMenu() {
+		if (this.menuVisible) {
+			this.hideContextMenu();
+		}
+		else {
+			this.showContextMenu();
+		}
 	}
 
 	private hideContextMenu(): void {

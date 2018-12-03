@@ -256,8 +256,6 @@ export class DropdownMenu extends BaseDropdown {
 			actionRunner: this.menuOptions ? this.menuOptions.actionRunner : null,
 			anchorAlignment: this.menuOptions.anchorAlignment
 		});
-
-		setTimeout(() => this._contextMenuProvider.hideContextMenu(), 5000);
 	}
 
 	hide(): void {
