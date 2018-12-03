@@ -3126,7 +3126,7 @@ declare module 'vscode' {
 	/**
 	 * How a [`SignatureHelpProvider`](#SignatureHelpProvider) was triggered
 	 */
-	export enum SignatureHelpTriggerReason {
+	export enum SignatureHelpTriggerKind {
 		/**
 		 * Signature help was invoked manually by the user or by a command.
 		 */
@@ -3151,7 +3151,7 @@ declare module 'vscode' {
 		/**
 		 * Action that caused signature help to be triggered.
 		 */
-		readonly triggerReason: SignatureHelpTriggerReason;
+		readonly triggerReason: SignatureHelpTriggerKind;
 
 		/**
 		 * Character that caused signature help to be triggered.

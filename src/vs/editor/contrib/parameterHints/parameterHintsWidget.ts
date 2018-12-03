@@ -29,7 +29,7 @@ import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 const $ = dom.$;
 
 export interface TriggerContext {
-	readonly triggerReason: modes.SignatureHelpTriggerReason;
+	readonly triggerReason: modes.SignatureHelpTriggerKind;
 	readonly triggerCharacter?: string;
 }
 
@@ -193,7 +193,7 @@ export class ParameterHintsModel extends Disposable {
 
 		if (this.triggerChars.has(triggerCharCode) || this.isTriggered && this.retriggerChars.has(triggerCharCode)) {
 			this.trigger({
-				triggerReason: modes.SignatureHelpTriggerReason.TriggerCharacter,
+				triggerReason: modes.SignatureHelpTriggerKind.TriggerCharacter,
 				triggerCharacter: text.charAt(lastCharIndex),
 			});
 		}
@@ -203,13 +203,13 @@ export class ParameterHintsModel extends Disposable {
 		if (e.source === 'mouse') {
 			this.cancel();
 		} else if (this.isTriggered) {
-			this.trigger({ triggerReason: modes.SignatureHelpTriggerReason.ContentChange });
+			this.trigger({ triggerReason: modes.SignatureHelpTriggerKind.ContentChange });
 		}
 	}
 
 	private onModelContentChange(): void {
 		if (this.isTriggered) {
-			this.trigger({ triggerReason: modes.SignatureHelpTriggerReason.ContentChange });
+			this.trigger({ triggerReason: modes.SignatureHelpTriggerKind.ContentChange });
 		}
 	}
 
