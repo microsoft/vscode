@@ -16,10 +16,6 @@
 
 declare module 'vscode' {
 
-	export namespace window {
-		export function sampleFunction(): Thenable<any>;
-	}
-
 	//#region Joh - selection range provider
 
 	export interface SelectionRangeProvider {
