@@ -28,6 +28,7 @@ interface ISelectListTemplateData {
 	root: HTMLElement;
 	text: HTMLElement;
 	itemDescription: HTMLElement;
+	decorationRight: HTMLElement;
 	disposables: IDisposable[];
 }
 
@@ -42,6 +43,7 @@ class SelectListRenderer implements IListRenderer<ISelectOptionItem, ISelectList
 		data.disposables = [];
 		data.root = container;
 		data.text = dom.append(container, $('.option-text'));
+		data.decorationRight = dom.append(container, $('.option-decoration-right'));
 		data.itemDescription = dom.append(container, $('.option-text-description'));
 		dom.addClass(data.itemDescription, 'visually-hidden');
 
@@ -51,9 +53,11 @@ class SelectListRenderer implements IListRenderer<ISelectOptionItem, ISelectList
 	renderElement(element: ISelectOptionItem, index: number, templateData: ISelectListTemplateData): void {
 		const data = <ISelectListTemplateData>templateData;
 		const text = (<ISelectOptionItem>element).text;
+		const decorationRight = (<ISelectOptionItem>element).decorationRight;
 		const isDisabled = (<ISelectOptionItem>element).isDisabled;
 
 		data.text.textContent = text;
+		data.decorationRight.innerText = (!!decorationRight ? decorationRight : '');
 
 		if (typeof element.description === 'string') {
 			const itemDescriptionId = (text.replace(/ /g, '_').toLowerCase() + '_description_' + data.root.id);
@@ -687,14 +691,18 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 
 		if (container && !!this.options) {
 			let longest = 0;
+			let longestLength = 0;
 
-			for (let index = 0; index < this.options.length; index++) {
-				if (this.options[index].text.length > this.options[longest].text.length) {
+			this.options.forEach((option, index) => {
+				const len = option.text.length + (!!option.decorationRight ? option.decorationRight.length : 0);
+				if (len > longestLength) {
 					longest = index;
+					longestLength = len;
 				}
-			}
+			});
 
-			container.innerHTML = this.options[longest].text;
+
+			container.innerHTML = this.options[longest].text + (!!this.options[longest].decorationRight ? (this.options[longest].decorationRight + ' ') : '');
 			elementWidth = dom.getTotalWidth(container);
 		}
 
@@ -770,11 +778,12 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 		dom.EventHelper.stop(e);
 
 		// Check our mouse event is on an option (not scrollbar)
-		if (!e.toElement.classList.contains('option-text')) {
+		if (!!e.toElement.classList.contains('slider')) {
 			return;
 		}
 
-		const listRowElement = e.toElement.parentElement;
+		const listRowElement = e.toElement.closest('.monaco-list-row');
+
 		if (!listRowElement) {
 			return;
 		}
