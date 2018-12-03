@@ -39,6 +39,8 @@ class Info {
 		table['require workspace storage'] = new Info(metrics.timers.ellapsedWorkspaceStorageRequire, '[renderer]');
 		table['require & init workspace storage'] = new Info(metrics.timers.ellapsedWorkspaceStorageInit, '[renderer]');
 
+		table['init workspace service'] = new Info(metrics.timers.ellapsedWorkspaceServiceInit, '[renderer]');
+
 		table['register extensions & spawn extension host'] = new Info(metrics.timers.ellapsedExtensions, '[renderer]');
 		table['restore viewlet'] = new Info(metrics.timers.ellapsedViewletRestore, '[renderer]', metrics.viewletId);
 		table['restore panel'] = new Info(metrics.timers.ellapsedPanelRestore, '[renderer]', metrics.panelId);
