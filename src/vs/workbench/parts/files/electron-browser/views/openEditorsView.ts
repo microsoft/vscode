@@ -12,7 +12,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IEditorGroupsService, IEditorGroup, GroupChangeKind, GroupsOrder } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IEditorInput, Verbosity, IWorkbenchEditorConfiguration, toResource } from 'vs/workbench/common/editor';
+import { IEditorInput } from 'vs/workbench/common/editor';
 import { SaveAllAction, SaveAllInGroupAction, CloseGroupAction } from 'vs/workbench/parts/files/electron-browser/fileActions';
 import { OpenEditorsFocusedContext, ExplorerFocusedContext, IFilesConfiguration } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
@@ -39,7 +39,6 @@ import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { fillResourceDataTransfers, ResourcesDropHandler, LocalSelectionTransfer, CodeDataTransfers } from 'vs/workbench/browser/dnd';
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { getEditorPartOptions } from 'vs/workbench/browser/parts/editor/editor';
 
 const $ = dom.$;
 
@@ -704,24 +703,6 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 			extraClasses: ['open-editor'],
 			fileDecorations: this.configurationService.getValue<IFilesConfiguration>().explorer.decorations
 		});
-		const { labelFormat } = getEditorPartOptions(this.configurationService.getValue<IWorkbenchEditorConfiguration>());
-		templateData.root.setLabel({
-			resource: toResource(editor.editor, { supportSideBySide: true }),
-			name: editor.editor.getName(),
-			description: editor.editor.getDescription(this.getVerbosity(labelFormat))
-		},
-			{
-				title: editor.editor.getTitle(),
-				italic: !editor.group.isPinned(editor.editor)
-			});
-	}
-
-	private getVerbosity(style: string): Verbosity {
-		switch (style) {
-			case 'short': return Verbosity.SHORT;
-			case 'long': return Verbosity.LONG;
-			default: return Verbosity.MEDIUM;
-		}
 	}
 
 	disposeElement(): void {

@@ -8,7 +8,7 @@ import * as resources from 'vs/base/common/resources';
 import { IconLabel, IIconLabelValueOptions, IIconLabelCreationOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { toResource, IEditorInput } from 'vs/workbench/common/editor';
+import { toResource, IEditorInput, IWorkbenchEditorConfiguration, Verbosity } from 'vs/workbench/common/editor';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -22,6 +22,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { getIconClasses, getConfiguredLangId } from 'vs/editor/common/services/getIconClasses';
+import { getEditorPartOptions } from 'vs/workbench/browser/parts/editor/editor';
 
 export interface IResourceLabel {
 	name: string;
@@ -49,7 +50,7 @@ export class ResourceLabel extends IconLabel {
 		container: HTMLElement,
 		options: IIconLabelCreationOptions,
 		@IExtensionService private extensionService: IExtensionService,
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IConfigurationService protected configurationService: IConfigurationService,
 		@IModeService private modeService: IModeService,
 		@IModelService private modelService: IModelService,
 		@IDecorationsService protected decorationsService: IDecorationsService,
@@ -250,11 +251,20 @@ export class ResourceLabel extends IconLabel {
 export class EditorLabel extends ResourceLabel {
 
 	setEditor(editor: IEditorInput, options?: IResourceLabelOptions): void {
+		const { labelFormat } = getEditorPartOptions(this.configurationService.getValue<IWorkbenchEditorConfiguration>());
 		this.setLabel({
 			resource: toResource(editor, { supportSideBySide: true }),
 			name: editor.getName(),
-			description: editor.getDescription()
+			description: editor.getDescription(this.getVerbosity(labelFormat))
 		}, options);
+	}
+
+	private getVerbosity(style: string): Verbosity {
+		switch (style) {
+			case 'short': return Verbosity.SHORT;
+			case 'long': return Verbosity.LONG;
+			default: return Verbosity.MEDIUM;
+		}
 	}
 }
 
