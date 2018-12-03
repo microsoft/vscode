@@ -3197,7 +3197,7 @@ declare namespace monaco.editor {
 		readonly snippets: 'top' | 'bottom' | 'inline' | 'none';
 		readonly snippetsPreventQuickSuggestions: boolean;
 		readonly localityBonus: boolean;
-		readonly useGlobalStorageForSuggestions: boolean;
+		readonly shareSuggestSelections: boolean;
 	}
 
 	export interface InternalParameterHintOptions {
@@ -5303,7 +5303,7 @@ declare namespace monaco.languages {
 		/**
 		 * Provide ranges that should be selected from the given position.
 		 */
-		provideSelectionRanges(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<Range[]>;
+		provideSelectionRanges(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<IRange[]>;
 	}
 
 	export interface FoldingContext {

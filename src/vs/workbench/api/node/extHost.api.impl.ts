@@ -354,6 +354,9 @@ export function createApiFactory(
 			registerFoldingRangeProvider(selector: vscode.DocumentSelector, provider: vscode.FoldingRangeProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerFoldingRangeProvider(extension, checkSelector(selector), provider);
 			},
+			registerSelectionRangeProvider(selector: vscode.DocumentSelector, provider: vscode.SelectionRangeProvider): vscode.Disposable {
+				return extHostLanguageFeatures.registerSelectionRangeProvider(extension, selector, provider);
+			},
 			setLanguageConfiguration: (language: string, configuration: vscode.LanguageConfiguration): vscode.Disposable => {
 				return extHostLanguageFeatures.setLanguageConfiguration(language, configuration);
 			}

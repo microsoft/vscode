@@ -578,6 +578,7 @@ let schema: IJSONSchema = {
 				'description': nls.localize('keybindings.json.key', "Key or key sequence (separated by space)"),
 			},
 			'command': {
+				'type': 'string',
 				'description': nls.localize('keybindings.json.command', "Name of the command to execute"),
 			},
 			'when': {

@@ -7,7 +7,7 @@ import * as arrays from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, IActionOptions, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, IActionOptions, registerEditorAction, registerEditorContribution, ServicesAccessor, registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -20,6 +20,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TokenTreeSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/tokenTree';
 import { WordSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/wordSelections';
+import { BracketSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/bracketSelections';
 
 class SelectionRanges {
 
@@ -201,6 +202,7 @@ registerEditorAction(GrowSelectionAction);
 registerEditorAction(ShrinkSelectionAction);
 
 modes.SelectionRangeRegistry.register('*', new WordSelectionRangeProvider());
+modes.SelectionRangeRegistry.register('*', new BracketSelectionRangeProvider());
 modes.SelectionRangeRegistry.register('*', new TokenTreeSelectionRangeProvider());
 
 export function provideSelectionRanges(model: ITextModel, position: Position, token: CancellationToken): Promise<Range[] | undefined | null> {
@@ -223,7 +225,7 @@ export function provideSelectionRanges(model: ITextModel, position: Position, to
 				if (arrays.isNonEmptyArray(res)) {
 					for (const range of res) {
 						if (Range.isIRange(range) && Range.containsPosition(range, position)) {
-							ranges.push({ range, rank });
+							ranges.push({ range: Range.lift(range), rank });
 						}
 					}
 				}
@@ -258,3 +260,7 @@ export function provideSelectionRanges(model: ITextModel, position: Position, to
 		return result;
 	});
 }
+
+registerDefaultLanguageCommand('_executeSelectionRangeProvider', function (model, position) {
+	return provideSelectionRanges(model, position, CancellationToken.None);
+});

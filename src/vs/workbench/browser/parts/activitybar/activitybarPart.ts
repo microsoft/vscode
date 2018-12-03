@@ -140,8 +140,15 @@ export class ActivitybarPart extends Part {
 	}
 
 	private onDidViewletOpen(viewlet: IViewlet): void {
+		// Update the composite bar by adding
 		this.compositeBar.addComposite(this.viewletService.getViewlet(viewlet.getId()));
 		this.compositeBar.activateComposite(viewlet.getId());
+		const viewletDescriptor = this.viewletService.getViewlet(viewlet.getId());
+		const viewContainer = this.getViewContainer(viewletDescriptor.id);
+		if (viewContainer && this.viewsService.getViewDescriptors(viewContainer).activeViewDescriptors.length === 0) {
+			// Update the composite bar by hiding
+			this.removeComposite(viewletDescriptor.id, true);
+		}
 	}
 
 	showActivity(viewletOrActionId: string, badge: IBadge, clazz?: string, priority?: number): IDisposable {

@@ -365,9 +365,11 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			order: 1
 		});
 
+		const commandId = '_workbench.openUserSettingsEditor';
+		CommandsRegistry.registerCommand(commandId, () => this.preferencesService.openGlobalSettings(false));
 		MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 			command: {
-				id: OpenGlobalSettingsAction.ID,
+				id: commandId,
 				title: OpenSettings2Action.LABEL,
 				iconLocation: {
 					light: URI.parse(require.toUrl(`vs/workbench/parts/preferences/electron-browser/media/preferences-editor.svg`)),
@@ -388,10 +390,10 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 	private updatePreferencesEditorMenuItem() {
 		const commandId = '_workbench.openWorkspaceSettingsEditor';
 		if (this.workpsaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE && !CommandsRegistry.getCommand(commandId)) {
-			CommandsRegistry.registerCommand(commandId, () => this.preferencesService.openWorkspaceSettings());
+			CommandsRegistry.registerCommand(commandId, () => this.preferencesService.openWorkspaceSettings(false));
 			MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 				command: {
-					id: OpenWorkspaceSettingsAction.ID,
+					id: commandId,
 					title: OpenSettings2Action.LABEL,
 					iconLocation: {
 						light: URI.parse(require.toUrl(`vs/workbench/parts/preferences/electron-browser/media/preferences-editor.svg`)),
@@ -412,9 +414,9 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			if (!CommandsRegistry.getCommand(commandId)) {
 				CommandsRegistry.registerCommand(commandId, () => {
 					if (this.workpsaceContextService.getWorkbenchState() === WorkbenchState.FOLDER) {
-						return this.preferencesService.openWorkspaceSettings();
+						return this.preferencesService.openWorkspaceSettings(false);
 					} else {
-						return this.preferencesService.openFolderSettings(folder.uri);
+						return this.preferencesService.openFolderSettings(folder.uri, false);
 					}
 				});
 				MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
