@@ -777,7 +777,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = await commands.executeCommand<vscode.DocumentLink[]>('vscode.executeSelectionRangeProvider', model.uri, new types.Position(0, 0));
+		let value = await commands.executeCommand<vscode.DocumentLink[]>('vscode.executeSelectionRangeProvider', model.uri, new types.Position(0, 10));
 		assert.ok(value.length >= 2);
 	});
 

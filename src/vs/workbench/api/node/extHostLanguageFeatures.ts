@@ -861,11 +861,19 @@ class SelectionRangeAdapter {
 		const { document } = this._documents.getDocumentData(resource);
 		const pos = typeConvert.Position.to(position);
 		return asThenable(() => this._provider.provideSelectionRanges(document, pos, token)).then(ranges => {
-			if (isNonEmptyArray(ranges)) {
-				return ranges.map(typeConvert.Range.from);
-			} else {
+			if (isFalsyOrEmpty(ranges)) {
 				return undefined;
 			}
+			let result: IRange[] = [];
+			let last: vscode.Position | vscode.Range = pos;
+			for (const range of ranges) {
+				if (!range.contains(last)) {
+					throw new Error('INVALID selection range, must contain the previous range');
+				}
+				result.push(typeConvert.Range.from(range));
+				last = range;
+			}
+			return result;
 		});
 	}
 }

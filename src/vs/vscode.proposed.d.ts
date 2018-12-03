@@ -23,6 +23,13 @@ declare module 'vscode' {
 	//#region Joh - selection range provider
 
 	export interface SelectionRangeProvider {
+		/**
+		 * Provide selection ranges starting at a given position. The first range must [contain](#Range.contains)
+		 * position and subsequent ranges must contain the previous range.
+		 * @param document
+		 * @param position
+		 * @param token
+		 */
 		provideSelectionRanges(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Range[]>;
 	}
 
