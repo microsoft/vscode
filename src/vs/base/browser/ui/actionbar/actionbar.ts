@@ -678,8 +678,8 @@ export class ActionBar extends Disposable implements IActionRunner {
 	focus(index?: number): void;
 	focus(selectFirst?: boolean): void;
 	focus(arg?: any): void {
-		let selectFirst: boolean;
-		let index: number;
+		let selectFirst: boolean = false;
+		let index: number | undefined = void 0;
 		if (arg === undefined) {
 			selectFirst = true;
 		} else if (typeof arg === 'number') {
