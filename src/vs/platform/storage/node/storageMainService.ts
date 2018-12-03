@@ -199,7 +199,6 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 					'workbench.activity.placeholderViewlets',
 					'colorThemeData',
 					'iconThemeData',
-					'extensions/bettermergedisablednow',
 					'workbench.telemetryOptOutShown',
 					'workbench.hide.welcome',
 					'releaseNotes/lastVersion',

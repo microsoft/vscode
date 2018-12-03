@@ -103,7 +103,6 @@ export function getGalleryExtensionTelemetryData(extension: IGalleryExtension): 
 	};
 }
 
-export const BetterMergeDisabledNowKey = 'extensions/bettermergedisablednow';
 export const BetterMergeId = 'pprice.better-merge';
 
 export function getMaliciousExtensionsSet(report: IReportedExtension[]): Set<string> {
