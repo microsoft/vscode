@@ -3064,7 +3064,7 @@ declare module 'vscode' {
 		 * @param label A label string.
 		 * @param documentation A doc string.
 		 */
-		constructor(label: string, documentation?: string | MarkdownString);
+		constructor(label: string | [number, number], documentation?: string | MarkdownString);
 	}
 
 	/**
