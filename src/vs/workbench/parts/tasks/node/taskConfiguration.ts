@@ -23,6 +23,7 @@ import * as Tasks from '../common/tasks';
 import { TaskDefinitionRegistry } from '../common/taskDefinitionRegistry';
 
 import { TaskDefinition } from 'vs/workbench/parts/tasks/node/tasks';
+import { ConfiguredInput } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 
 export const enum ShellQuoting {
 	/**
@@ -451,6 +452,11 @@ export interface BaseTaskRunnerConfiguration {
 	 * Problem matcher declarations
 	 */
 	declares?: ProblemMatcherConfig.NamedProblemMatcher[];
+
+	/**
+	 * Optional user input varaibles.
+	 */
+	inputs?: ConfiguredInput[];
 }
 
 /**
