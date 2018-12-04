@@ -194,33 +194,35 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 				: undefined;
 			let inputsArray = result ? this.parseConfigurationInputs(result.inputs) : undefined;
 			const inputs = new Map<string, ConfiguredInput>();
-			inputsArray.forEach(input => {
-				inputs.set(input.label, input);
-			});
+			if (inputsArray) {
+				inputsArray.forEach(input => {
+					inputs.set(input.label, input);
+				});
 
-			// use an array to preserve order of first appearance
-			const input_var = /\${input:(.*?)}/g;
-			const commands: string[] = [];
-			this.findVariables(input_var, config, commands);
-			let cancelled = false;
-			const commandValueMapping: IStringDictionary<string> = Object.create(null);
+				// use an array to preserve order of first appearance
+				const input_var = /\${input:(.*?)}/g;
+				const commands: string[] = [];
+				this.findVariables(input_var, config, commands);
+				let cancelled = false;
+				const commandValueMapping: IStringDictionary<string> = Object.create(null);
 
-			const factory: { (): Promise<any> }[] = commands.map(commandVariable => {
-				return () => {
-					return this.showUserInput(commandVariable, inputs).then(resolvedValue => {
-						if (resolvedValue) {
-							commandValueMapping['input:' + commandVariable] = resolvedValue;
-						}
-					});
-				};
-			}, reason => {
-				return Promise.reject(reason);
-			});
+				const factory: { (): Promise<any> }[] = commands.map(commandVariable => {
+					return () => {
+						return this.showUserInput(commandVariable, inputs).then(resolvedValue => {
+							if (resolvedValue) {
+								commandValueMapping['input:' + commandVariable] = resolvedValue;
+							}
+						});
+					};
+				}, reason => {
+					return Promise.reject(reason);
+				});
 
-			return sequence(factory).then(() => cancelled ? undefined : commandValueMapping);
-		} else {
-			return Promise.resolve(Object.create(null));
+				return sequence(factory).then(() => cancelled ? undefined : commandValueMapping);
+			}
 		}
+
+		return Promise.resolve(Object.create(null));
 	}
 
 	/**
