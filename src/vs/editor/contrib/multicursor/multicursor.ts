@@ -216,6 +216,31 @@ class InsertCursorAtTopOfLineSelected extends EditorAction {
 	}
 }
 
+class ConvertSelectionToCursors extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.convertSelectionToCursors',
+			label: nls.localize('mutlicursor.convertSelectionToCursors', "Convert Selection To Cursors"),
+			alias: 'Convert Selection To Cursors',
+			precondition: null
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const selection = editor.getSelection();
+
+		let newSelections = [];
+		for (let i = selection.startLineNumber; i <= selection.endLineNumber; i++) {
+			newSelections.push(new Selection(i, selection.startColumn, i, selection.startColumn));
+		}
+
+		if (newSelections.length > 0) {
+			editor.setSelections(newSelections);
+		}
+	}
+}
+
 export class MultiCursorSessionResult {
 	constructor(
 		public readonly selections: Selection[],
@@ -996,3 +1021,4 @@ registerEditorAction(SelectHighlightsAction);
 registerEditorAction(CompatChangeAll);
 registerEditorAction(InsertCursorAtEndOfLineSelected);
 registerEditorAction(InsertCursorAtTopOfLineSelected);
+registerEditorAction(ConvertSelectionToCursors);
