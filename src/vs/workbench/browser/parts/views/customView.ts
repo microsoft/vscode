@@ -666,7 +666,7 @@ class TreeRenderer implements IRenderer {
 		const matches = treeItemLabel && treeItemLabel.highlights ? treeItemLabel.highlights.map(([start, end]) => ({ start, end })) : void 0;
 		const icon = this.themeService.getTheme().type === LIGHT ? node.icon : node.iconDark;
 		const iconUrl = icon ? URI.revive(icon) : null;
-		const title = node.tooltip ? node.tooltip : resource ? void 0 : treeItemLabel ? treeItemLabel.label : void 0;
+		const title = node.tooltip ? node.tooltip : resource ? void 0 : label;
 
 		// reset
 		templateData.resourceLabel.clear();
