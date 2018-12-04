@@ -12,7 +12,7 @@ import commonSchema from './jsonSchemaCommon';
 import { ProblemMatcherRegistry } from 'vs/workbench/parts/tasks/common/problemMatcher';
 import { TaskDefinitionRegistry } from '../common/taskDefinitionRegistry';
 import * as ConfigurationResolverUtils from 'vs/workbench/services/configurationResolver/common/configurationResolverUtils';
-import { inputsSchema } from 'vs/workbench/services/configurationResolver/electron-browser/jsonSchemaCommon';
+import { inputsSchema } from 'vs/workbench/services/configurationResolver/common/configurationResolverSchema';
 
 function fixReferences(literal: any) {
 	if (Array.isArray(literal)) {
