@@ -164,7 +164,7 @@ export class SnapUpdateService extends AbstractUpdateService2 {
 
 		this.isUpdateAvailable().then(result => {
 			if (result) {
-				this.setState(State.Ready({ version: 'something', productVersion: 'someting' }));
+				this.setState(State.Ready({ version: 'something', productVersion: 'something' }));
 			} else {
 				/* __GDPR__
 					"update:notAvailable" : {
@@ -191,12 +191,8 @@ export class SnapUpdateService extends AbstractUpdateService2 {
 	protected doQuitAndInstall(): void {
 		this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
 
-		if (typeof process.env.SNAP === 'undefined') {
-			return;
-		}
-
 		// Allow 3 seconds for VS Code to close
-		spawn('bash', ['-c', path.join(process.env.SNAP, `usr/share/${product.applicationName}/snapUpdate.sh`)], {
+		spawn('bash', ['-c', path.join(process.env.SNAP!, `usr/share/${product.applicationName}/snapUpdate.sh`)], {
 			detached: true,
 			stdio: ['ignore', 'ignore', 'ignore']
 		});
@@ -204,7 +200,7 @@ export class SnapUpdateService extends AbstractUpdateService2 {
 
 	private isUpdateAvailable(): Thenable<boolean> {
 		return new Promise((c, e) => {
-			realpath(`/snap/${product.applicationName}/current`, (err, resolvedCurrentSnapPath) => {
+			realpath(`${path.dirname(process.env.SNAP!)}/current`, (err, resolvedCurrentSnapPath) => {
 				if (err) { return e(err); }
 
 				const currentRevision = path.basename(resolvedCurrentSnapPath);
