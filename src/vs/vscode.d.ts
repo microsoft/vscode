@@ -3124,7 +3124,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * How a [`SignatureHelpProvider`](#SignatureHelpProvider) was triggered
+	 * How a [`SignatureHelpProvider`](#SignatureHelpProvider) was triggered.
 	 */
 	export enum SignatureHelpTriggerKind {
 		/**
@@ -3162,7 +3162,7 @@ declare module 'vscode' {
 		readonly triggerCharacter?: string;
 
 		/**
-		 * Whether or not signature help was previously showing when triggered.
+		 * `true` if signature help was already showing when it was triggered.
 		 *
 		 * Retriggers occur when the signature help is already active and can be caused by typing a trigger character
 		 * or by a cursor move.
@@ -3191,8 +3191,8 @@ declare module 'vscode' {
 	}
 
 	/**
-	* Metadata about a registered [`SignatureHelpProvider`](#SignatureHelpProvider).
-	*/
+	 * Metadata about a registered [`SignatureHelpProvider`](#SignatureHelpProvider).
+	 */
 	export interface SignatureHelpProviderMetadata {
 		/**
 		 * List of characters that trigger signature help.
