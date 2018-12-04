@@ -145,7 +145,7 @@ export class OpenGlobalKeybindingsFileAction extends Action {
 export class OpenDefaultKeybindingsFileAction extends Action {
 
 	public static readonly ID = 'workbench.action.openDefaultKeybindingsFile';
-	public static readonly LABEL = nls.localize('openDefaultKeybindingsFile', "Open Default Keyboard Shortcuts File");
+	public static readonly LABEL = nls.localize('openDefaultKeybindingsFile', "Open Default Keyboard Shortcuts (JSON)");
 
 	constructor(
 		id: string,
