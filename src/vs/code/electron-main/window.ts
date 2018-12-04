@@ -25,6 +25,7 @@ import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import * as perf from 'vs/base/common/performance';
 import { resolveMarketplaceHeaders } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 import { getBackgroundColor, THEME_BG_STORAGE_KEY } from 'vs/code/electron-main/theme';
+import { IStorageMainService } from 'vs/platform/storage/node/storageMainService';
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
@@ -85,7 +86,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IStateService private stateService: IStateService,
 		@IWorkspacesMainService private workspacesMainService: IWorkspacesMainService,
-		@IBackupMainService private backupMainService: IBackupMainService
+		@IBackupMainService private backupMainService: IBackupMainService,
+		@IStorageMainService private storageMainService: IStorageMainService
 	) {
 		super();
 
@@ -656,6 +658,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Dump Perf Counters
 		windowConfiguration.perfEntries = perf.exportEntries();
+
+		// Parts splash
+		windowConfiguration.partsSplashData = this.storageMainService.get('parts-splash-data', void 0);
 
 		// Config (combination of process.argv and window configuration)
 		const environment = parseArgs(process.argv);

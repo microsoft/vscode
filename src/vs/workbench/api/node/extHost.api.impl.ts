@@ -354,6 +354,9 @@ export function createApiFactory(
 			registerFoldingRangeProvider(selector: vscode.DocumentSelector, provider: vscode.FoldingRangeProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerFoldingRangeProvider(extension, checkSelector(selector), provider);
 			},
+			registerSelectionRangeProvider(selector: vscode.DocumentSelector, provider: vscode.SelectionRangeProvider): vscode.Disposable {
+				return extHostLanguageFeatures.registerSelectionRangeProvider(extension, selector, provider);
+			},
 			setLanguageConfiguration: (language: string, configuration: vscode.LanguageConfiguration): vscode.Disposable => {
 				return extHostLanguageFeatures.setLanguageConfiguration(language, configuration);
 			}
@@ -481,10 +484,6 @@ export function createApiFactory(
 			registerWebviewPanelSerializer: (viewType: string, serializer: vscode.WebviewPanelSerializer) => {
 				return extHostWebviews.registerWebviewPanelSerializer(viewType, serializer);
 			},
-			// proposed API
-			sampleFunction: proposedApiFunction(extension, () => {
-				return extHostMessageService.showMessage(extension, Severity.Info, 'Hello Proposed Api!', {}, []);
-			}),
 			registerDecorationProvider: proposedApiFunction(extension, (provider: vscode.DecorationProvider) => {
 				return extHostDecorations.registerDecorationProvider(provider, extension.id);
 			}),
@@ -787,7 +786,7 @@ export function createApiFactory(
 			Selection: extHostTypes.Selection,
 			ShellExecution: extHostTypes.ShellExecution,
 			ShellQuoting: extHostTypes.ShellQuoting,
-			SignatureHelpTriggerReason: extHostTypes.SignatureHelpTriggerReason,
+			SignatureHelpTriggerKind: extHostTypes.SignatureHelpTriggerKind,
 			SignatureHelp: extHostTypes.SignatureHelp,
 			SignatureInformation: extHostTypes.SignatureInformation,
 			SnippetString: extHostTypes.SnippetString,

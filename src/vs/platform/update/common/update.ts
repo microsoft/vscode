@@ -53,7 +53,7 @@ export const enum UpdateType {
 }
 
 export type Uninitialized = { type: StateType.Uninitialized };
-export type Idle = { type: StateType.Idle, updateType: UpdateType, error?: string; };
+export type Idle = { type: StateType.Idle, updateType: UpdateType, error?: string };
 export type CheckingForUpdates = { type: StateType.CheckingForUpdates, context: any };
 export type AvailableForDownload = { type: StateType.AvailableForDownload, update: IUpdate };
 export type Downloading = { type: StateType.Downloading, update: IUpdate };

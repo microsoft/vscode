@@ -12,6 +12,7 @@ import commonSchema from './jsonSchemaCommon';
 import { ProblemMatcherRegistry } from 'vs/workbench/parts/tasks/common/problemMatcher';
 import { TaskDefinitionRegistry } from '../common/taskDefinitionRegistry';
 import * as ConfigurationResolverUtils from 'vs/workbench/services/configurationResolver/common/configurationResolverUtils';
+import { inputsSchema } from 'vs/workbench/services/configurationResolver/electron-browser/jsonSchemaCommon';
 
 function fixReferences(literal: any) {
 	if (Array.isArray(literal)) {
@@ -423,6 +424,9 @@ let tasks = definitions.taskRunnerConfiguration.properties.tasks;
 tasks.items = {
 	oneOf: taskDefinitions
 };
+
+
+definitions.taskRunnerConfiguration.properties.inputs = inputsSchema.definitions.inputs;
 
 definitions.commandConfiguration.properties.isShellCommand = Objects.deepClone(shellCommand);
 definitions.options.properties.shell = {

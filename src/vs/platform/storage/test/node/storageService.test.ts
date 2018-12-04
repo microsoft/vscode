@@ -14,6 +14,7 @@ import { mkdirp, del } from 'vs/base/node/pfs';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { parseArgs } from 'vs/platform/environment/node/argv';
+import { InMemoryStorageDatabase } from 'vs/base/node/storage';
 
 suite('StorageService', () => {
 
@@ -29,10 +30,10 @@ suite('StorageService', () => {
 		const storage = new TestStorageService();
 
 		storage.store('Monaco.IDE.Core.Storage.Test.remove', 'foobar', scope);
-		strictEqual('foobar', storage.get('Monaco.IDE.Core.Storage.Test.remove', scope));
+		strictEqual('foobar', storage.get('Monaco.IDE.Core.Storage.Test.remove', scope, void 0));
 
 		storage.remove('Monaco.IDE.Core.Storage.Test.remove', scope);
-		ok(!storage.get('Monaco.IDE.Core.Storage.Test.remove', scope));
+		ok(!storage.get('Monaco.IDE.Core.Storage.Test.remove', scope, void 0));
 	}
 
 	test('Get Data, Integer, Boolean (global, in-memory)', () => {
@@ -54,22 +55,22 @@ suite('StorageService', () => {
 		strictEqual(storage.getBoolean('Monaco.IDE.Core.Storage.Test.getBoolean', scope, false), false);
 
 		storage.store('Monaco.IDE.Core.Storage.Test.get', 'foobar', scope);
-		strictEqual(storage.get('Monaco.IDE.Core.Storage.Test.get', scope), 'foobar');
+		strictEqual(storage.get('Monaco.IDE.Core.Storage.Test.get', scope, void 0), 'foobar');
 
 		storage.store('Monaco.IDE.Core.Storage.Test.get', '', scope);
-		strictEqual(storage.get('Monaco.IDE.Core.Storage.Test.get', scope), '');
+		strictEqual(storage.get('Monaco.IDE.Core.Storage.Test.get', scope, void 0), '');
 
 		storage.store('Monaco.IDE.Core.Storage.Test.getInteger', 5, scope);
-		strictEqual(storage.getInteger('Monaco.IDE.Core.Storage.Test.getInteger', scope), 5);
+		strictEqual(storage.getInteger('Monaco.IDE.Core.Storage.Test.getInteger', scope, void 0), 5);
 
 		storage.store('Monaco.IDE.Core.Storage.Test.getInteger', 0, scope);
-		strictEqual(storage.getInteger('Monaco.IDE.Core.Storage.Test.getInteger', scope), 0);
+		strictEqual(storage.getInteger('Monaco.IDE.Core.Storage.Test.getInteger', scope, void 0), 0);
 
 		storage.store('Monaco.IDE.Core.Storage.Test.getBoolean', true, scope);
-		strictEqual(storage.getBoolean('Monaco.IDE.Core.Storage.Test.getBoolean', scope), true);
+		strictEqual(storage.getBoolean('Monaco.IDE.Core.Storage.Test.getBoolean', scope, void 0), true);
 
 		storage.store('Monaco.IDE.Core.Storage.Test.getBoolean', false, scope);
-		strictEqual(storage.getBoolean('Monaco.IDE.Core.Storage.Test.getBoolean', scope), false);
+		strictEqual(storage.getBoolean('Monaco.IDE.Core.Storage.Test.getBoolean', scope, void 0), false);
 
 		strictEqual(storage.get('Monaco.IDE.Core.Storage.Test.getDefault', scope, 'getDefault'), 'getDefault');
 		strictEqual(storage.getInteger('Monaco.IDE.Core.Storage.Test.getIntegerDefault', scope, 5), 5);
@@ -101,7 +102,7 @@ suite('StorageService', () => {
 		const storageDir = uniqueStorageDir();
 		await mkdirp(storageDir);
 
-		const storage = new StorageService({}, new NullLogService(), new StorageTestEnvironmentService(storageDir, storageDir));
+		const storage = new StorageService(new InMemoryStorageDatabase(), new NullLogService(), new StorageTestEnvironmentService(storageDir, storageDir));
 		await storage.initialize({ id: String(Date.now()) });
 
 		storage.store('bar', 'foo', StorageScope.WORKSPACE);

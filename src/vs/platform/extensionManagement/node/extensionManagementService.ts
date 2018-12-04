@@ -6,7 +6,6 @@
 import * as nls from 'vs/nls';
 import * as path from 'path';
 import * as pfs from 'vs/base/node/pfs';
-import * as errors from 'vs/base/common/errors';
 import { assign } from 'vs/base/common/objects';
 import { toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { flatten } from 'vs/base/common/arrays';
@@ -34,8 +33,6 @@ import pkg from 'vs/platform/node/package';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtensionsManifestCache } from 'vs/platform/extensionManagement/node/extensionsManifestCache';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import Severity from 'vs/base/common/severity';
 import { ExtensionsLifecycle } from 'vs/platform/extensionManagement/node/extensionLifecycle';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -131,7 +128,6 @@ export class ExtensionManagementService extends Disposable implements IExtension
 
 	constructor(
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IDialogService private dialogService: IDialogService,
 		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
 		@ILogService private logService: ILogService,
 		@optional(IDownloadService) private downloadService: IDownloadService,
@@ -206,9 +202,14 @@ export class ExtensionManagementService extends Disposable implements IExtension
 							}
 							return this.removeIfExists(identifier.id)
 								.then(
-									() => this.checkOutdated(manifest)
-										.then(validated => {
-											if (validated) {
+									() => {
+										const extensionIdentifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name) };
+										return this.getInstalled(LocalExtensionType.User)
+											.then(installedExtensions => {
+												const newer = installedExtensions.filter(local => areSameExtensions(extensionIdentifier, { id: getGalleryExtensionIdFromLocal(local) }) && semver.gt(local.manifest.version, manifest.version))[0];
+												return newer ? this.uninstall(newer, true) : null;
+											})
+											.then(() => {
 												this.logService.info('Installing the extension:', identifier.id);
 												this._onInstallExtension.fire({ identifier, zipPath });
 												return this.getMetadata(getGalleryExtensionId(manifest.publisher, manifest.name))
@@ -221,9 +222,8 @@ export class ExtensionManagementService extends Disposable implements IExtension
 															this.logService.error('Failed to install the extension:', identifier.id, e.message);
 															return Promise.reject(e);
 														});
-											}
-											return null;
-										}),
+											});
+									},
 									e => Promise.reject(new Error(nls.localize('restartCode', "Please restart VS Code before reinstalling {0}.", manifest.displayName || manifest.name))));
 						});
 				});
@@ -245,29 +245,6 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		return this.getInstalled(LocalExtensionType.User)
 			.then(installed => installed.filter(i => i.identifier.id === id)[0])
 			.then(existing => existing ? this.removeExtension(existing, 'existing') : null);
-	}
-
-	private checkOutdated(manifest: IExtensionManifest): Promise<boolean> {
-		const extensionIdentifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name) };
-		return this.getInstalled(LocalExtensionType.User)
-			.then(installedExtensions => {
-				const newer = installedExtensions.filter(local => areSameExtensions(extensionIdentifier, { id: getGalleryExtensionIdFromLocal(local) }) && semver.gt(local.manifest.version, manifest.version))[0];
-				if (newer) {
-					const message = nls.localize('installingOutdatedExtension', "A newer version of this extension is already installed. Would you like to override this with the older version?");
-					const buttons = [
-						nls.localize('override', "Override"),
-						nls.localize('cancel', "Cancel")
-					];
-					return this.dialogService.show(Severity.Info, message, buttons, { cancelId: 1 })
-						.then<boolean>(value => {
-							if (value === 0) {
-								return this.uninstall(newer, true).then(() => true);
-							}
-							return Promise.reject(errors.canceled());
-						});
-				}
-				return true;
-			});
 	}
 
 	private installFromZipPath(identifier: IExtensionIdentifier, zipPath: string, metadata: IGalleryMetadata, type: LocalExtensionType, token: CancellationToken): Promise<ILocalExtension> {

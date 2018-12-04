@@ -441,7 +441,8 @@ export class SearchService extends Disposable implements ISearchService {
 	public clearCache(cacheKey: string): Promise<void> {
 		const clearPs = [
 			this.diskSearch,
-			...values(this.fileIndexProviders)
+			...values(this.fileIndexProviders),
+			...values(this.fileSearchProviders)
 		].map(provider => provider && provider.clearCache(cacheKey));
 
 		return Promise.all(clearPs)

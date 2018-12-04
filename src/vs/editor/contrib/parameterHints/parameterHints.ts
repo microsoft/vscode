@@ -78,7 +78,7 @@ export class TriggerParameterHintsAction extends EditorAction {
 		let controller = ParameterHintsController.get(editor);
 		if (controller) {
 			controller.trigger({
-				triggerReason: modes.SignatureHelpTriggerReason.Invoke
+				triggerReason: modes.SignatureHelpTriggerKind.Invoke
 			});
 		}
 	}

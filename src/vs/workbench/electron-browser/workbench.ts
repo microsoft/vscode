@@ -36,7 +36,7 @@ import { QuickInputService } from 'vs/workbench/browser/parts/quickinput/quickIn
 import { getServices } from 'vs/platform/instantiation/common/extensions';
 import { Position, Parts, IPartService, ILayoutOptions, IDimension, PositionToString } from 'vs/workbench/services/part/common/partService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, IWillSaveStateEvent, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { ContextMenuService as NativeContextMenuService } from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
 import { ContextMenuService as HTMLContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { WorkbenchKeybindingService } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
@@ -72,7 +72,7 @@ import { ProgressService2 } from 'vs/workbench/services/progress/browser/progres
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ShutdownReason, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
 import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecycleService';
 import { IWindowService, IWindowConfiguration, IPath, MenuBarVisibility, getTitleBarStyle } from 'vs/platform/windows/common/windows';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
@@ -171,7 +171,6 @@ export class Workbench extends Disposable implements IPartService {
 
 	private static readonly sidebarHiddenStorageKey = 'workbench.sidebar.hidden';
 	private static readonly menubarVisibilityConfigurationKey = 'window.menuBarVisibility';
-	private static readonly sidebarRestoreStorageKey = 'workbench.sidebar.restore';
 	private static readonly panelHiddenStorageKey = 'workbench.panel.hidden';
 	private static readonly zenModeActiveStorageKey = 'workbench.zenmode.active';
 	private static readonly centeredEditorLayoutActiveStorageKey = 'workbench.centerededitorlayout.active';
@@ -476,8 +475,8 @@ export class Workbench extends Disposable implements IPartService {
 
 	private registerListeners(): void {
 
-		// Lifecycle
-		this._register(this.lifecycleService.onBeforeShutdown(e => this.saveState(e.reason)));
+		// Storage
+		this._register(this.storageService.onWillSaveState(e => this.saveState(e)));
 
 		// Listen to visible editor changes
 		this._register(this.editorService.onDidVisibleEditorsChange(() => this.onDidVisibleEditorsChange()));
@@ -758,8 +757,10 @@ export class Workbench extends Disposable implements IPartService {
 			perf.mark('didRestorePanel');
 		}
 
-		// Restore Zen Mode if active
-		if (this.storageService.getBoolean(Workbench.zenModeActiveStorageKey, StorageScope.WORKSPACE, false)) {
+		// Restore Zen Mode if active and supported for restore on startup
+		const zenConfig = this.configurationService.getValue<IZenModeSettings>('zenMode');
+		const wasZenActive = this.storageService.getBoolean(Workbench.zenModeActiveStorageKey, StorageScope.WORKSPACE, false);
+		if (wasZenActive && zenConfig.restore) {
 			this.toggleZenMode(true, true);
 		}
 
@@ -802,12 +803,8 @@ export class Workbench extends Disposable implements IPartService {
 			return true; // always restore sidebar when we are in development mode
 		}
 
-		const restore = this.storageService.getBoolean(Workbench.sidebarRestoreStorageKey, StorageScope.WORKSPACE);
-		if (restore) {
-			this.storageService.remove(Workbench.sidebarRestoreStorageKey, StorageScope.WORKSPACE); // only support once
-		}
-
-		return restore;
+		// always restore sidebar when the window was reloaded
+		return this.lifecycleService.startupKind === StartupKind.ReloadedWindow;
 	}
 
 	private resolveEditorsToOpen(): Thenable<IResourceEditor[]> | IResourceEditor[] {
@@ -1121,24 +1118,19 @@ export class Workbench extends Disposable implements IPartService {
 		return this.instantiationService;
 	}
 
-	private saveState(reason: ShutdownReason): void {
-
-		// Restore sidebar if we are being shutdown as a matter of a reload
-		if (reason === ShutdownReason.RELOAD) {
-			this.storageService.store(Workbench.sidebarRestoreStorageKey, true, StorageScope.WORKSPACE);
-		}
-
-		// Preserve zen mode only on reload. Real quit gets out of zen mode so novice users do not get stuck in zen mode.
-		const zenConfig = this.configurationService.getValue<IZenModeSettings>('zenMode');
-		const restoreZenMode = this.zenMode.active && (zenConfig.restore || reason === ShutdownReason.RELOAD);
-		if (restoreZenMode) {
+	private saveState(e: IWillSaveStateEvent): void {
+		if (this.zenMode.active) {
 			this.storageService.store(Workbench.zenModeActiveStorageKey, true, StorageScope.WORKSPACE);
 		} else {
-			if (this.zenMode.active) {
+			this.storageService.remove(Workbench.zenModeActiveStorageKey, StorageScope.WORKSPACE);
+		}
+
+		if (e.reason === WillSaveStateReason.SHUTDOWN && this.zenMode.active) {
+			const zenConfig = this.configurationService.getValue<IZenModeSettings>('zenMode');
+			if (!zenConfig.restore) {
+				// We will not restore zen mode, need to clear all zen mode state changes
 				this.toggleZenMode(true);
 			}
-
-			this.storageService.remove(Workbench.zenModeActiveStorageKey, StorageScope.WORKSPACE);
 		}
 	}
 

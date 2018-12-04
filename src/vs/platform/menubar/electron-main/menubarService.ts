@@ -29,6 +29,6 @@ export class MenubarService implements IMenubarService {
 			this._menubar.updateMenu(menus, windowId);
 		}
 
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 }

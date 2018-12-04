@@ -765,4 +765,20 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			});
 		});
 	});
+
+	// --- selection ranges
+
+	test('Links, back and forth', async function () {
+
+		disposables.push(extHost.registerSelectionRangeProvider(nullExtensionDescription, defaultSelector, <vscode.SelectionRangeProvider>{
+			provideSelectionRanges() {
+				return [new types.Range(0, 10, 0, 18), new types.Range(0, 2, 0, 20)];
+			}
+		}));
+
+		await rpcProtocol.sync();
+		let value = await commands.executeCommand<vscode.DocumentLink[]>('vscode.executeSelectionRangeProvider', model.uri, new types.Position(0, 10));
+		assert.ok(value.length >= 2);
+	});
+
 });

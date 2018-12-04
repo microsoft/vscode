@@ -30,13 +30,16 @@ class Info {
 		table['nls:start => nls:end'] = new Info(metrics.timers.ellapsedNlsGeneration, '[main]', `initial startup: ${metrics.initialStartup}`);
 		table['app.isReady => window.loadUrl()'] = new Info(metrics.timers.ellapsedWindowLoad, '[main]', `initial startup: ${metrics.initialStartup}`);
 
-		table['init global storage'] = new Info(metrics.timers.ellapsedGlobalStorageInit, '[main]', `initial startup: ${metrics.initialStartup}`);
+		table['require & init global storage'] = new Info(metrics.timers.ellapsedGlobalStorageInitMain, '[main]', `initial startup: ${metrics.initialStartup}`);
 
 		table['window.loadUrl() => begin to require(workbench.main.js)'] = new Info(metrics.timers.ellapsedWindowLoadToRequire, '[main->renderer]', StartupKindToString(metrics.windowKind));
 		table['require(workbench.main.js)'] = new Info(metrics.timers.ellapsedRequire, '[renderer]', `cached data: ${(metrics.didUseCachedData ? 'YES' : 'NO')}${nodeModuleLoadTime ? `, node_modules took ${nodeModuleLoadTime}ms` : ''}`);
 
+		table['init global storage'] = new Info(metrics.timers.ellapsedGlobalStorageInitRenderer, '[renderer]');
 		table['require workspace storage'] = new Info(metrics.timers.ellapsedWorkspaceStorageRequire, '[renderer]');
 		table['require & init workspace storage'] = new Info(metrics.timers.ellapsedWorkspaceStorageInit, '[renderer]');
+
+		table['init workspace service'] = new Info(metrics.timers.ellapsedWorkspaceServiceInit, '[renderer]');
 
 		table['register extensions & spawn extension host'] = new Info(metrics.timers.ellapsedExtensions, '[renderer]');
 		table['restore viewlet'] = new Info(metrics.timers.ellapsedViewletRestore, '[renderer]', metrics.viewletId);
