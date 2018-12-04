@@ -274,8 +274,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 		this._register(this.searchWidget.searchInput.onInput(() => this.updateActions()));
 		this._register(this.searchWidget.replaceInput.onDidChange(() => this.updateActions()));
-		this._register(this.searchIncludePattern.onInput(() => this.updateActions()));
-		this._register(this.searchExcludePattern.onInput(() => this.updateActions()));
+		this._register(this.searchIncludePattern.inputBox.onDidChange(() => this.updateActions()));
+		this._register(this.searchExcludePattern.inputBox.onDidChange(() => this.updateActions()));
 
 		this._register(this.onDidFocus(() => this.viewletFocused.set(true)));
 		this._register(this.onDidBlur(() => this.viewletFocused.set(false)));
