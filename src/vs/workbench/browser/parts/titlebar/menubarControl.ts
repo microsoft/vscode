@@ -601,11 +601,17 @@ export class MenubarControl extends Disposable {
 			this.container.style.height = `${dimension.height}px`;
 		}
 
-		this.menubar.update({ enableMnemonics: this.currentEnableMenuBarMnemonics, visibility: this.currentMenubarVisibility, getKeybinding: (action) => this.keybindingService.lookupKeybinding(action.id) });
+		if (this.menubar) {
+			this.menubar.update({ enableMnemonics: this.currentEnableMenuBarMnemonics, visibility: this.currentMenubarVisibility, getKeybinding: (action) => this.keybindingService.lookupKeybinding(action.id) });
+		}
 	}
 
 	public getMenubarItemsDimensions(): DOM.Dimension {
-		return new DOM.Dimension(this.menubar.getWidth(), this.menubar.getHeight());
+		if (this.menubar) {
+			return new DOM.Dimension(this.menubar.getWidth(), this.menubar.getHeight());
+		}
+
+		return new DOM.Dimension(0, 0);
 	}
 
 	public create(parent: HTMLElement): HTMLElement {
