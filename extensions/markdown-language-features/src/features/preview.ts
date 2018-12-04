@@ -138,7 +138,7 @@ export class MarkdownPreview {
 					break;
 
 				case 'clickLink':
-					this.onDidClickPreviewLink(e.body.path, e.body.fragement);
+					this.onDidClickPreviewLink(e.body.path, e.body.fragment);
 					break;
 
 				case 'showPreviewSecuritySelector':
