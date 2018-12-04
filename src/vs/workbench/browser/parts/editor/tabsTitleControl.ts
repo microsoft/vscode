@@ -89,6 +89,11 @@ export class TabsTitleControl extends TitleControl {
 	protected create(parent: HTMLElement): void {
 		this.titleContainer = parent;
 
+		// Tabs and Actions Container (are on a single row with flex side-by-side)
+		const tabsAndActionsContainer = document.createElement('div');
+		addClass(tabsAndActionsContainer, 'tabs-and-actions-container');
+		this.titleContainer.appendChild(tabsAndActionsContainer);
+
 		// Tabs Container
 		this.tabsContainer = document.createElement('div');
 		this.tabsContainer.setAttribute('role', 'tablist');
@@ -100,12 +105,12 @@ export class TabsTitleControl extends TitleControl {
 
 		// Tabs Scrollbar
 		this.tabsScrollbar = this.createTabsScrollbar(this.tabsContainer);
-		this.titleContainer.appendChild(this.tabsScrollbar.getDomNode());
+		tabsAndActionsContainer.appendChild(this.tabsScrollbar.getDomNode());
 
 		// Editor Toolbar Container
 		this.editorToolbarContainer = document.createElement('div');
 		addClass(this.editorToolbarContainer, 'editor-actions');
-		this.titleContainer.appendChild(this.editorToolbarContainer);
+		tabsAndActionsContainer.appendChild(this.editorToolbarContainer);
 
 		// Editor Actions Toolbar
 		this.createEditorActionsToolBar(this.editorToolbarContainer);
@@ -113,7 +118,7 @@ export class TabsTitleControl extends TitleControl {
 		// Close Action
 		this.closeOneEditorAction = this._register(this.instantiationService.createInstance(CloseOneEditorAction, CloseOneEditorAction.ID, CloseOneEditorAction.LABEL));
 
-		// Breadcrumbs
+		// Breadcrumbs (are on a separate row below tabs and actions)
 		const breadcrumbsContainer = document.createElement('div');
 		addClass(breadcrumbsContainer, 'tabs-breadcrumbs');
 		this.titleContainer.appendChild(breadcrumbsContainer);
@@ -121,8 +126,6 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private createTabsScrollbar(scrollable: HTMLElement): ScrollableElement {
-
-		// Custom Scrollbar
 		const tabsScrollbar = new ScrollableElement(scrollable, {
 			horizontal: ScrollbarVisibility.Auto,
 			vertical: ScrollbarVisibility.Hidden,
