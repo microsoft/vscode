@@ -439,6 +439,9 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<IComp
 
 	private firstFocusInCurrentList: boolean = false;
 
+	private preferDocPositionTop: boolean = false;
+	private docsPositionPreviousWidgetY: number;
+
 	constructor(
 		private editor: ICodeEditor,
 		@ITelemetryService private telemetryService: ITelemetryService,
@@ -706,6 +709,9 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<IComp
 	}
 
 	showSuggestions(completionModel: CompletionModel, selectionIndex: number, isFrozen: boolean, isAuto: boolean): void {
+		this.preferDocPositionTop = false;
+		this.docsPositionPreviousWidgetY = null;
+
 		if (this.loadingTimeout) {
 			clearTimeout(this.loadingTimeout);
 			this.loadingTimeout = null;
@@ -984,9 +990,14 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<IComp
 			return null;
 		}
 
+		let preference = [ContentWidgetPositionPreference.BELOW, ContentWidgetPositionPreference.ABOVE];
+		if (this.preferDocPositionTop) {
+			preference = [ContentWidgetPositionPreference.ABOVE];
+		}
+
 		return {
 			position: this.editor.getPosition(),
-			preference: [ContentWidgetPositionPreference.BELOW, ContentWidgetPositionPreference.ABOVE]
+			preference: preference
 		};
 	}
 
@@ -1026,6 +1037,17 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<IComp
 		const widgetCoords = getDomNodePagePosition(this.element);
 		const widgetX = widgetCoords.left;
 		const widgetY = widgetCoords.top;
+
+		// Fixes #27649
+		// Check if the Y changed to the top of the cursor and keep the widget flagged to prefer top
+		if (this.docsPositionPreviousWidgetY &&
+			this.docsPositionPreviousWidgetY < widgetY &&
+			!this.preferDocPositionTop) {
+			this.preferDocPositionTop = true;
+			this.adjustDocsPosition();
+			return;
+		}
+		this.docsPositionPreviousWidgetY = widgetY;
 
 		if (widgetX < cursorX - this.listWidth) {
 			// Widget is too far to the left of cursor, swap list and docs

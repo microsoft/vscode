@@ -10,7 +10,6 @@ import { Action } from 'vs/base/common/actions';
 import { IWindowService, IWindowsService, MenuBarVisibility } from 'vs/platform/windows/common/windows';
 import * as nls from 'vs/nls';
 import product from 'vs/platform/node/product';
-import * as errors from 'vs/base/common/errors';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
@@ -482,9 +481,7 @@ export abstract class BaseOpenRecentAction extends Action {
 			onKeyMods: mods => keyMods = mods,
 			quickNavigate: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : void 0,
 			onDidTriggerItemButton: context => {
-				this.windowsService.removeFromRecentlyOpened([context.item.workspace]).then(() => {
-					context.removeItem();
-				}).then(null, errors.onUnexpectedError);
+				this.windowsService.removeFromRecentlyOpened([context.item.workspace]).then(() => context.removeItem());
 			}
 		})
 			.then(pick => {

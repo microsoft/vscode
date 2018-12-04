@@ -50,6 +50,10 @@
 	display: none;
 }
 
+.monaco-workbench .tree-explorer-viewlet-tree-view {
+	height: 100%;
+}
+
 .monaco-workbench .tree-explorer-viewlet-tree-view .message {
 	display: flex;
 	padding: 4px 12px 0px 18px;
@@ -72,6 +76,10 @@
 
 .monaco-workbench .tree-explorer-viewlet-tree-view .customview-tree {
 	height: 100%;
+}
+
+.monaco-workbench .tree-explorer-viewlet-tree-view .customview-tree:not(.hasChildren) {
+	display: none;
 }
 
 .customview-tree.file-icon-themable-tree .monaco-tree-row .content.align-icon-with-twisty::before {

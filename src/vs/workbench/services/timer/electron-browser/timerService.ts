@@ -53,9 +53,11 @@ export interface IMemoryInfo {
 		"timers.ellapsedExtensions" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedExtensionsReady" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedRequire" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedGlobalStorageInit" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.ellapsedGlobalStorageInitMain" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.ellapsedGlobalStorageInitRenderer" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedWorkspaceStorageRequire" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedWorkspaceStorageInit" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.ellapsedWorkspaceServiceInit" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedViewletRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedPanelRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedEditorRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
@@ -228,6 +230,14 @@ export interface IStartupMetrics {
 		 * * Measured with the `willInitWorkspaceStorage` and `didInitWorkspaceStorage` performance marks.
 		 */
 		ellapsedWorkspaceStorageInit: number;
+
+		/**
+		 * The time it took to initialize the workspace and configuration service.
+		 *
+		 * * Happens in the renderer-process
+		 * * Measured with the `willInitWorkspaceService` and `didInitWorkspaceService` performance marks.
+		 */
+		ellapsedWorkspaceServiceInit: number;
 
 		/**
 		 * The time it took to load the main-bundle of the workbench, e.g `workbench.main.js`.
@@ -410,6 +420,7 @@ class TimerService implements ITimerService {
 				ellapsedGlobalStorageInitRenderer: perf.getDuration('willInitGlobalStorage', 'didInitGlobalStorage'),
 				ellapsedWorkspaceStorageRequire: perf.getDuration('willRequireSQLite', 'didRequireSQLite'),
 				ellapsedWorkspaceStorageInit: perf.getDuration('willInitWorkspaceStorage', 'didInitWorkspaceStorage'),
+				ellapsedWorkspaceServiceInit: perf.getDuration('willInitWorkspaceService', 'didInitWorkspaceService'),
 				ellapsedExtensions: perf.getDuration('willLoadExtensions', 'didLoadExtensions'),
 				ellapsedEditorRestore: perf.getDuration('willRestoreEditors', 'didRestoreEditors'),
 				ellapsedViewletRestore: perf.getDuration('willRestoreViewlet', 'didRestoreViewlet'),

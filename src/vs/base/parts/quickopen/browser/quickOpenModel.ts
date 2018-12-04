@@ -11,7 +11,7 @@ import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/
 import { IQuickNavigateConfiguration, IModel, IDataSource, IFilter, IAccessiblityProvider, IRenderer, IRunner, Mode } from 'vs/base/parts/quickopen/common/quickOpen';
 import { Action, IAction, IActionRunner } from 'vs/base/common/actions';
 import { compareAnything } from 'vs/base/common/comparers';
-import { ActionBar, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import * as DOM from 'vs/base/browser/dom';
 import { IQuickOpenStyles } from 'vs/base/parts/quickopen/browser/quickOpenWidget';
@@ -300,7 +300,7 @@ class NoActionProvider implements IActionProvider {
 		return null;
 	}
 
-	getActionItem(tree: ITree, element: any, action: Action): IActionItem {
+	getActionItem(tree: ITree, element: any, action: Action) {
 		return null;
 	}
 }

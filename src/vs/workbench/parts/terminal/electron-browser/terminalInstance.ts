@@ -402,10 +402,10 @@ export class TerminalInstance implements ITerminalInstance {
 
 				return undefined;
 			});
-			this._disposables.push(dom.addDisposableListener(this._xterm.element, 'mousedown', (event: KeyboardEvent) => {
+			this._disposables.push(dom.addDisposableListener(this._xterm.element, 'mousedown', () => {
 				// We need to listen to the mouseup event on the document since the user may release
 				// the mouse button anywhere outside of _xterm.element.
-				const listener = dom.addDisposableListener(document, 'mouseup', (event: KeyboardEvent) => {
+				const listener = dom.addDisposableListener(document, 'mouseup', () => {
 					// Delay with a setTimeout to allow the mouseup to propagate through the DOM
 					// before evaluating the new selection state.
 					setTimeout(() => this._refreshSelectionContextKey(), 0);
@@ -414,7 +414,7 @@ export class TerminalInstance implements ITerminalInstance {
 			}));
 
 			// xterm.js currently drops selection on keyup as we need to handle this case.
-			this._disposables.push(dom.addDisposableListener(this._xterm.element, 'keyup', (event: KeyboardEvent) => {
+			this._disposables.push(dom.addDisposableListener(this._xterm.element, 'keyup', () => {
 				// Wait until keyup has propagated through the DOM before evaluating
 				// the new selection state.
 				setTimeout(() => this._refreshSelectionContextKey(), 0);
@@ -424,7 +424,7 @@ export class TerminalInstance implements ITerminalInstance {
 			const focusTrap: HTMLElement = document.createElement('div');
 			focusTrap.setAttribute('tabindex', '0');
 			dom.addClass(focusTrap, 'focus-trap');
-			this._disposables.push(dom.addDisposableListener(focusTrap, 'focus', (event: FocusEvent) => {
+			this._disposables.push(dom.addDisposableListener(focusTrap, 'focus', () => {
 				let currentElement = focusTrap;
 				while (!dom.hasClass(currentElement, 'part')) {
 					currentElement = currentElement.parentElement;
@@ -434,18 +434,18 @@ export class TerminalInstance implements ITerminalInstance {
 			}));
 			xtermHelper.insertBefore(focusTrap, this._xterm.textarea);
 
-			this._disposables.push(dom.addDisposableListener(this._xterm.textarea, 'focus', (event: KeyboardEvent) => {
+			this._disposables.push(dom.addDisposableListener(this._xterm.textarea, 'focus', () => {
 				this._terminalFocusContextKey.set(true);
 				this._onFocused.fire(this);
 			}));
-			this._disposables.push(dom.addDisposableListener(this._xterm.textarea, 'blur', (event: KeyboardEvent) => {
+			this._disposables.push(dom.addDisposableListener(this._xterm.textarea, 'blur', () => {
 				this._terminalFocusContextKey.reset();
 				this._refreshSelectionContextKey();
 			}));
-			this._disposables.push(dom.addDisposableListener(this._xterm.element, 'focus', (event: KeyboardEvent) => {
+			this._disposables.push(dom.addDisposableListener(this._xterm.element, 'focus', () => {
 				this._terminalFocusContextKey.set(true);
 			}));
-			this._disposables.push(dom.addDisposableListener(this._xterm.element, 'blur', (event: KeyboardEvent) => {
+			this._disposables.push(dom.addDisposableListener(this._xterm.element, 'blur', () => {
 				this._terminalFocusContextKey.reset();
 				this._refreshSelectionContextKey();
 			}));

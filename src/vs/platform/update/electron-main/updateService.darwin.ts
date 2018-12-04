@@ -44,7 +44,10 @@ export class DarwinUpdateService extends AbstractUpdateService {
 
 	private onError(err: string): void {
 		this.logService.error('UpdateService error:', err);
-		this.setState(State.Idle(UpdateType.Archive, err));
+
+		// only show message when explicitly checking for updates
+		const message: string | undefined = !!context ? err : undefined;
+		this.setState(State.Idle(UpdateType.Archive, message));
 	}
 
 	protected buildUpdateFeedUrl(quality: string): string | undefined {

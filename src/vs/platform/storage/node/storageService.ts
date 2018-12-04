@@ -6,7 +6,7 @@
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { IWorkspaceStorageChangeEvent, IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IWorkspaceStorageChangeEvent, IStorageService, StorageScope, IWillSaveStateEvent, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { Storage, ISQLiteStorageDatabaseLoggingOptions, IStorage, StorageHint, IStorageDatabase, SQLiteStorageDatabase } from 'vs/base/node/storage';
 import { IStorageLegacyService, StorageLegacyScope } from 'vs/platform/storage/common/storageLegacyService';
 import { startsWith, endsWith } from 'vs/base/common/strings';
@@ -31,8 +31,8 @@ export class StorageService extends Disposable implements IStorageService {
 	private _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
 	get onDidChangeStorage(): Event<IWorkspaceStorageChangeEvent> { return this._onDidChangeStorage.event; }
 
-	private _onWillSaveState: Emitter<void> = this._register(new Emitter<void>());
-	get onWillSaveState(): Event<void> { return this._onWillSaveState.event; }
+	private _onWillSaveState: Emitter<IWillSaveStateEvent> = this._register(new Emitter<IWillSaveStateEvent>());
+	get onWillSaveState(): Event<IWillSaveStateEvent> { return this._onWillSaveState.event; }
 
 	private _hasErrors = false;
 	get hasErrors(): boolean { return this._hasErrors; }
@@ -373,7 +373,7 @@ export class StorageService extends Disposable implements IStorageService {
 		this.workspaceStorage.beforeClose();
 
 		// Signal as event so that clients can still store data
-		this._onWillSaveState.fire();
+		this._onWillSaveState.fire({ reason: WillSaveStateReason.SHUTDOWN });
 
 		// Do it
 		mark('willCloseGlobalStorage');
@@ -499,8 +499,8 @@ export class DelegatingStorageService extends Disposable implements IStorageServ
 	private _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
 	get onDidChangeStorage(): Event<IWorkspaceStorageChangeEvent> { return this._onDidChangeStorage.event; }
 
-	private _onWillSaveState: Emitter<void> = this._register(new Emitter<void>());
-	get onWillSaveState(): Event<void> { return this._onWillSaveState.event; }
+	private _onWillSaveState: Emitter<IWillSaveStateEvent> = this._register(new Emitter<IWillSaveStateEvent>());
+	get onWillSaveState(): Event<IWillSaveStateEvent> { return this._onWillSaveState.event; }
 
 	private closed: boolean;
 	private useLegacyWorkspaceStorage: boolean;
@@ -520,7 +520,7 @@ export class DelegatingStorageService extends Disposable implements IStorageServ
 
 	private registerListeners(): void {
 		this._register(this.storageService.onDidChangeStorage(e => this._onDidChangeStorage.fire(e)));
-		this._register(this.storageService.onWillSaveState(() => this._onWillSaveState.fire()));
+		this._register(this.storageService.onWillSaveState(e => this._onWillSaveState.fire(e)));
 
 		const globalKeyMarker = 'storage://global/';
 

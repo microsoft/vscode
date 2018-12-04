@@ -16,6 +16,7 @@ import { ITextResourcePropertiesService } from 'vs/editor/common/services/resour
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { TokenTreeSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/tokenTree';
+import { MarkerService } from 'vs/platform/markers/common/markerService';
 
 class MockJSMode extends MockMode {
 
@@ -38,12 +39,12 @@ class MockJSMode extends MockMode {
 
 suite('TokenSelectionSupport', () => {
 
-	let modelService: ModelServiceImpl | null = null;
-	let mode: MockJSMode | null = null;
+	let modelService: ModelServiceImpl;
+	let mode: MockJSMode;
 
 	setup(() => {
 		const configurationService = new TestConfigurationService();
-		modelService = new ModelServiceImpl(null, configurationService, new TestTextResourcePropertiesService(configurationService));
+		modelService = new ModelServiceImpl(new MarkerService(), configurationService, new TestTextResourcePropertiesService(configurationService));
 		mode = new MockJSMode();
 	});
 

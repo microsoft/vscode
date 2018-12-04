@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/extensionsViewlet';
 import { localize } from 'vs/nls';
-import { ThrottledDelayer, always, timeout } from 'vs/base/common/async';
+import { ThrottledDelayer, timeout } from 'vs/base/common/async';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -28,7 +28,7 @@ import { LocalExtensionType, IExtensionManagementService, IExtensionManagementSe
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { ExtensionsListView, EnabledExtensionsView, DisabledExtensionsView, RecommendedExtensionsView, WorkspaceRecommendedExtensionsView, BuiltInExtensionsView, BuiltInThemesExtensionsView, BuiltInBasicsExtensionsView, GroupByServerExtensionsView, DefaultRecommendedExtensionsView } from './extensionsViews';
 import { OpenGlobalSettingsAction } from 'vs/workbench/parts/preferences/browser/preferencesActions';
-import { IProgressService } from 'vs/platform/progress/common/progress';
+import { IProgressService2, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import Severity from 'vs/base/common/severity';
 import { IActivityService, ProgressBadge, NumberBadge } from 'vs/workbench/services/activity/common/activity';
@@ -296,7 +296,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 	constructor(
 		@IPartService partService: IPartService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IProgressService private progressService: IProgressService,
+		@IProgressService2 private progressService: IProgressService2,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
 		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
@@ -466,22 +466,20 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		this.nonEmptyWorkspaceContextKey.set(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY);
 
 		if (value) {
-			return this.progress(Promise.all(this.panels.map(view => {
-				(<ExtensionsListView>view).show(this.normalizedQuery()).then(model => {
-					this.alertSearchResult(model.length, view.id);
-				});
-			})));
+			return this.progress(Promise.all(this.panels.map(view =>
+				(<ExtensionsListView>view).show(this.normalizedQuery())
+					.then(model => this.alertSearchResult(model.length, view.id))
+			)));
 		}
 		return Promise.resolve(null);
 	}
 
 	protected onDidAddViews(added: IAddedViewDescriptorRef[]): ViewletPanel[] {
 		const addedViews = super.onDidAddViews(added);
-		this.progress(Promise.all(addedViews.map(addedView => {
-			(<ExtensionsListView>addedView).show(this.normalizedQuery()).then(model => {
-				this.alertSearchResult(model.length, addedView.id);
-			});
-		})));
+		this.progress(Promise.all(addedViews.map(addedView =>
+			(<ExtensionsListView>addedView).show(this.normalizedQuery())
+				.then(model => this.alertSearchResult(model.length, addedView.id))
+		)));
 		return addedViews;
 	}
 
@@ -550,8 +548,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 	}
 
 	private progress<T>(promise: Promise<T>): Promise<T> {
-		const progressRunner = this.progressService.show(true);
-		return always(promise, () => progressRunner.done());
+		return this.progressService.withProgress({ location: ProgressLocation.Extensions }, () => promise);
 	}
 
 	private onError(err: any): void {

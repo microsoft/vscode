@@ -9,7 +9,7 @@ import { setUnexpectedErrorHandler, errorHandler } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import * as types from 'vs/workbench/api/node/extHostTypes';
 import { TextModel as EditorModel } from 'vs/editor/common/model/textModel';
-import { Position as EditorPosition } from 'vs/editor/common/core/position';
+import { Position as EditorPosition, Position } from 'vs/editor/common/core/position';
 import { Range as EditorRange } from 'vs/editor/common/core/range';
 import { TestRPCProtocol } from './testRPCProtocol';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
@@ -45,6 +45,7 @@ import { ITextModel, EndOfLineSequence } from 'vs/editor/common/model';
 import { getColors } from 'vs/editor/contrib/colorPicker/color';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { nullExtensionDescription as defaultExtension } from 'vs/workbench/services/extensions/common/extensions';
+import { provideSelectionRanges } from 'vs/editor/contrib/smartSelect/smartSelect';
 
 const defaultSelector = { scheme: 'far' };
 const model: ITextModel = EditorModel.createFromString(
@@ -886,7 +887,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		return rpcProtocol.sync().then(() => {
 
-			return provideSignatureHelp(model, new EditorPosition(1, 1), { triggerReason: modes.SignatureHelpTriggerReason.Invoke, isRetrigger: false }, CancellationToken.None).then(value => {
+			return provideSignatureHelp(model, new EditorPosition(1, 1), { triggerReason: modes.SignatureHelpTriggerKind.Invoke, isRetrigger: false }, CancellationToken.None).then(value => {
 				assert.ok(value);
 			});
 		});
@@ -901,7 +902,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		return rpcProtocol.sync().then(() => {
 
-			return provideSignatureHelp(model, new EditorPosition(1, 1), { triggerReason: modes.SignatureHelpTriggerReason.Invoke, isRetrigger: false }, CancellationToken.None).then(value => {
+			return provideSignatureHelp(model, new EditorPosition(1, 1), { triggerReason: modes.SignatureHelpTriggerKind.Invoke, isRetrigger: false }, CancellationToken.None).then(value => {
 				assert.equal(value, undefined);
 			});
 		});
@@ -1220,6 +1221,22 @@ suite('ExtHostLanguageFeatures', function () {
 				assert.deepEqual(first.colorInfo.color, { red: 0.1, green: 0.2, blue: 0.3, alpha: 0.4 });
 				assert.deepEqual(first.colorInfo.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 21 });
 			});
+		});
+	});
+
+	// -- selection ranges
+
+	test('Selection Ranges, data conversion', async function () {
+		disposables.push(extHost.registerSelectionRangeProvider(defaultExtension, defaultSelector, <vscode.SelectionRangeProvider>{
+			provideSelectionRanges() {
+				return [new types.Range(0, 10, 0, 18), new types.Range(0, 2, 0, 20)];
+			}
+		}));
+
+		await rpcProtocol.sync();
+
+		provideSelectionRanges(model, new Position(1, 17), CancellationToken.None).then(ranges => {
+			assert.ok(ranges.length >= 2);
 		});
 	});
 });
