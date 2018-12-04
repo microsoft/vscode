@@ -9,7 +9,7 @@ import * as strings from 'vs/base/common/strings';
 import { IActionRunner, IAction, Action } from 'vs/base/common/actions';
 import { ActionBar, IActionItemProvider, ActionsOrientation, Separator, ActionItem, IActionItemOptions, BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ResolvedKeybinding, KeyCode, KeyCodeUtils } from 'vs/base/common/keyCodes';
-import { addClass, EventType, EventHelper, EventLike, removeTabIndexAndUpdateFocus, isAncestor, hasClass, addDisposableListener, removeClass, append, $, addClasses, getClientArea, removeClasses } from 'vs/base/browser/dom';
+import { addClass, EventType, EventHelper, EventLike, removeTabIndexAndUpdateFocus, isAncestor, hasClass, addDisposableListener, removeClass, append, $, addClasses, removeClasses } from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -209,12 +209,26 @@ export class Menu extends ActionBar {
 		return this.scrollableElement.getDomNode();
 	}
 
-	public get onScroll(): Event<void> {
+	get onScroll(): Event<void> {
 		return this._onScroll.event;
 	}
 
 	get scrollOffset(): number {
 		return this.menuElement.scrollTop;
+	}
+
+	trigger(index: number): void {
+		if (index <= this.items.length && index >= 0) {
+			const item = this.items[index];
+			if (item instanceof SubmenuActionItem) {
+				super.focus(index);
+				item.open(true);
+			} else if (item instanceof MenuActionItem) {
+				super.run(item._action, item._context);
+			} else {
+				return;
+			}
+		}
 	}
 
 	private focusItemByElement(element: HTMLElement) {
@@ -284,10 +298,6 @@ export class Menu extends ActionBar {
 
 			return menuActionItem;
 		}
-	}
-
-	public focus(selectFirst = true) {
-		super.focus(selectFirst);
 	}
 }
 
@@ -571,6 +581,11 @@ class SubmenuActionItem extends MenuActionItem {
 		}));
 	}
 
+	open(selectFirst?: boolean): void {
+		this.cleanupExistingSubmenu(false);
+		this.createSubmenu(selectFirst);
+	}
+
 	onClick(e: EventLike): void {
 		// stop clicking from trying to run an action
 		EventHelper.stop(e, true);
@@ -595,8 +610,22 @@ class SubmenuActionItem extends MenuActionItem {
 		if (!this.parentData.submenu) {
 			this.submenuContainer = append(this.element, $('div.monaco-submenu'));
 			addClasses(this.submenuContainer, 'menubar-menu-items-holder', 'context-view');
-			this.submenuContainer.style.left = `${getClientArea(this.element).width}px`;
-			this.submenuContainer.style.top = `${this.element.offsetTop - this.parentData.parent.scrollOffset}px`;
+
+			this.parentData.submenu = new Menu(this.submenuContainer, this.submenuActions, this.submenuOptions);
+			if (this.menuStyle) {
+				this.parentData.submenu.style(this.menuStyle);
+			}
+
+			const boundingRect = this.element.getBoundingClientRect();
+			const childBoundingRect = this.submenuContainer.getBoundingClientRect();
+
+			if (window.innerWidth <= boundingRect.right + childBoundingRect.width) {
+				this.submenuContainer.style.left = '10px';
+				this.submenuContainer.style.top = `${this.element.offsetTop - this.parentData.parent.scrollOffset + boundingRect.height}px`;
+			} else {
+				this.submenuContainer.style.left = `${this.element.offsetWidth}px`;
+				this.submenuContainer.style.top = `${this.element.offsetTop - this.parentData.parent.scrollOffset}px`;
+			}
 
 			this.submenuDisposables.push(addDisposableListener(this.submenuContainer, EventType.KEY_UP, e => {
 				let event = new StandardKeyboardEvent(e);
@@ -619,10 +648,6 @@ class SubmenuActionItem extends MenuActionItem {
 				}
 			}));
 
-			this.parentData.submenu = new Menu(this.submenuContainer, this.submenuActions, this.submenuOptions);
-			if (this.menuStyle) {
-				this.parentData.submenu.style(this.menuStyle);
-			}
 
 			this.submenuDisposables.push(this.parentData.submenu.onDidCancel(() => {
 				this.parentData.parent.focus();
