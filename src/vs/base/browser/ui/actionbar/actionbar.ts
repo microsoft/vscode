@@ -675,28 +675,12 @@ export class ActionBar extends Disposable implements IActionRunner {
 		return this.items.length === 0;
 	}
 
-	focus(index?: number): void;
-	focus(selectFirst?: boolean): void;
-	focus(arg?: any): void {
-		let selectFirst: boolean = false;
-		let index: number | undefined = void 0;
-		if (arg === undefined) {
-			selectFirst = true;
-		} else if (typeof arg === 'number') {
-			index = arg;
-		} else if (typeof arg === 'boolean') {
-			selectFirst = arg;
-		}
-
+	focus(selectFirst?: boolean): void {
 		if (selectFirst && typeof this.focusedItem === 'undefined') {
 			// Focus the first enabled item
 			this.focusedItem = this.items.length - 1;
 			this.focusNext();
 		} else {
-			if (index !== undefined) {
-				this.focusedItem = index;
-			}
-
 			this.updateFocus();
 		}
 	}
