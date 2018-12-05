@@ -3151,7 +3151,7 @@ declare module 'vscode' {
 		/**
 		 * Action that caused signature help to be triggered.
 		 */
-		readonly triggerReason: SignatureHelpTriggerKind;
+		readonly triggerKind: SignatureHelpTriggerKind;
 
 		/**
 		 * Character that caused signature help to be triggered.
@@ -5993,7 +5993,6 @@ declare module 'vscode' {
 		 * the command handler function doesn't return anything.
 		 */
 		export function executeCommand<T>(command: string, ...rest: any[]): Thenable<T | undefined>;
-		export function executeCommand<T>(command: 'vscode.previewHtml', error: { '⚠️ The vscode.previewHtml command is deprecated and will be removed. Please switch to using the Webview Api': never }, ...rest: any[]): Thenable<T | undefined>;
 
 		/**
 		 * Retrieve the list of all available commands. Commands starting an underscore are

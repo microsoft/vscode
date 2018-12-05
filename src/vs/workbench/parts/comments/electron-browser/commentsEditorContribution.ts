@@ -163,7 +163,7 @@ export class ReviewController implements IEditorContribution {
 	private _computePromise: CancelablePromise<ICommentInfo[]> | null;
 
 	private _pendingCommentCache: { [key: number]: { [key: string]: string } };
-	private _pendingNewCommentCache: { [key: string]: { lineNumber: number, replyCommand: modes.Command, ownerId: string, pendingComment: string } };
+	private _pendingNewCommentCache: { [key: string]: { lineNumber: number, replyCommand: modes.Command, ownerId: string, pendingComment: string, draftMode: modes.DraftMode } };
 
 	constructor(
 		editor: ICodeEditor,
@@ -328,7 +328,8 @@ export class ReviewController implements IEditorContribution {
 							lineNumber: position.lineNumber,
 							ownerId: this._newCommentWidget.owner,
 							replyCommand: this._newCommentWidget.commentThread.reply,
-							pendingComment: pendingNewComment
+							pendingComment: pendingNewComment,
+							draftMode: this._newCommentWidget.draftMode
 						};
 					}
 				} else {
@@ -339,18 +340,13 @@ export class ReviewController implements IEditorContribution {
 
 			this._newCommentWidget.dispose();
 			this._newCommentWidget = null;
-		} else {
-			if (e.oldModelUrl) {
-				// remove pending new comment cache as there is no newCommentWidget anymore
-				delete this._pendingNewCommentCache[e.oldModelUrl.toString()];
-			}
 		}
 
 		this.removeCommentWidgetsAndStoreCache();
 
 		if (e.newModelUrl && this._pendingNewCommentCache[e.newModelUrl.toString()]) {
 			let newCommentCache = this._pendingNewCommentCache[e.newModelUrl.toString()];
-			this.addComment(newCommentCache.lineNumber, newCommentCache.replyCommand, newCommentCache.ownerId, newCommentCache.pendingComment);
+			this.addComment(newCommentCache.lineNumber, newCommentCache.replyCommand, newCommentCache.ownerId, newCommentCache.draftMode, newCommentCache.pendingComment);
 		}
 
 		this.localToDispose.push(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
@@ -404,18 +400,11 @@ export class ReviewController implements IEditorContribution {
 		this.beginCompute();
 	}
 
-	private addComment(lineNumber: number, replyCommand: modes.Command, ownerId: string, pendingComment: string) {
+	private addComment(lineNumber: number, replyCommand: modes.Command, ownerId: string, draftMode: modes.DraftMode, pendingComment: string) {
 		if (this._newCommentWidget !== null) {
 			this.notificationService.warn(`Please submit the comment at line ${this._newCommentWidget.position.lineNumber} before creating a new one.`);
 			return;
 		}
-
-		let commentInfo = this._commentInfos.filter(info => info.owner === ownerId);
-		if (!commentInfo || !commentInfo.length) {
-			return;
-		}
-
-		let draftMode = commentInfo[0].draftMode;
 
 		// add new comment
 		this._reviewPanelVisible.set(true);
@@ -434,17 +423,25 @@ export class ReviewController implements IEditorContribution {
 		}, pendingComment, draftMode, {});
 
 		this.localToDispose.push(this._newCommentWidget.onDidClose(e => {
-			this._newCommentWidget = null;
+			this.clearNewCommentWidget();
 		}));
 
 		this.localToDispose.push(this._newCommentWidget.onDidCreateThread(commentWidget => {
 			const thread = commentWidget.commentThread;
 			this._commentWidgets.push(commentWidget);
 			this._commentInfos.filter(info => info.owner === commentWidget.owner)[0].threads.push(thread);
-			this._newCommentWidget = null;
+			this.clearNewCommentWidget();
 		}));
 
 		this._newCommentWidget.display(lineNumber);
+	}
+
+	private clearNewCommentWidget() {
+		this._newCommentWidget = null;
+
+		if (this.editor && this.editor.getModel()) {
+			delete this._pendingNewCommentCache[this.editor.getModel().uri.toString()];
+		}
 	}
 
 	private onEditorMouseDown(e: IEditorMouseEvent): void {
@@ -504,7 +501,15 @@ export class ReviewController implements IEditorContribution {
 				return;
 			}
 			const { replyCommand, ownerId } = newCommentInfo;
-			this.addComment(lineNumber, replyCommand, ownerId, null);
+
+			let commentInfo = this._commentInfos.filter(info => info.owner === ownerId);
+			if (!commentInfo || !commentInfo.length) {
+				return;
+			}
+
+			let draftMode = commentInfo[0].draftMode;
+
+			this.addComment(lineNumber, replyCommand, ownerId, draftMode, null);
 		}
 	}
 

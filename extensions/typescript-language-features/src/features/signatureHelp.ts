@@ -22,7 +22,7 @@ class TypeScriptSignatureHelpProvider implements vscode.SignatureHelpProvider {
 		document: vscode.TextDocument,
 		position: vscode.Position,
 		token: vscode.CancellationToken,
-		context?: vscode.SignatureHelpContext,
+		context: vscode.SignatureHelpContext,
 	): Promise<vscode.SignatureHelp | undefined> {
 		const filepath = this.client.toPath(document.uri);
 		if (!filepath) {
@@ -31,7 +31,7 @@ class TypeScriptSignatureHelpProvider implements vscode.SignatureHelpProvider {
 
 		const args: Proto.SignatureHelpRequestArgs = {
 			...typeConverters.Position.toFileLocationRequestArgs(filepath, position),
-			triggerReason: toTsTriggerReason(context!)
+			triggerReason: toTsTriggerReason(context)
 		};
 		const response = await this.client.interuptGetErr(() => this.client.execute('signatureHelp', args, token));
 		if (response.type !== 'response' || !response.body) {
@@ -72,7 +72,7 @@ class TypeScriptSignatureHelpProvider implements vscode.SignatureHelpProvider {
 }
 
 function toTsTriggerReason(context: vscode.SignatureHelpContext): Proto.SignatureHelpTriggerReason {
-	switch (context.triggerReason) {
+	switch (context.triggerKind) {
 		case vscode.SignatureHelpTriggerKind.TriggerCharacter:
 			if (context.triggerCharacter) {
 				if (context.isRetrigger) {
