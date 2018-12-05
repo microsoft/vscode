@@ -344,7 +344,7 @@ export interface MainThreadProgressShape extends IDisposable {
 }
 
 export interface MainThreadTerminalServiceShape extends IDisposable {
-	$createTerminal(name?: string, shellPath?: string, shellArgs?: string[], cwd?: string, env?: { [key: string]: string }, waitOnExit?: boolean): Thenable<number>;
+	$createTerminal(name?: string, shellPath?: string, shellArgs?: string[], cwd?: string | URI, env?: { [key: string]: string }, waitOnExit?: boolean): Thenable<number>;
 	$createTerminalRenderer(name: string): Thenable<number>;
 	$dispose(terminalId: number): void;
 	$hide(terminalId: number): void;
@@ -904,7 +904,7 @@ export interface ShellLaunchConfigDto {
 	name?: string;
 	executable?: string;
 	args?: string[] | string;
-	cwd?: string;
+	cwd?: string | URI;
 	env?: { [key: string]: string };
 }
 

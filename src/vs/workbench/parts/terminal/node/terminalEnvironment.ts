@@ -126,7 +126,7 @@ function _getLangEnvVariable(locale?: string) {
 
 export function getCwd(shell: IShellLaunchConfig, root: Uri, customCwd: string): string {
 	if (shell.cwd) {
-		return shell.cwd;
+		return (typeof shell.cwd === 'object') ? shell.cwd.path : shell.cwd;
 	}
 
 	let cwd: string | undefined;
