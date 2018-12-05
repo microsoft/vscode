@@ -285,11 +285,6 @@ export class GoToDeclarationAction extends DeclarationAction {
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.hasDeclarationProvider,
 				EditorContextKeys.isInEmbeddedEditor.toNegated()),
-			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.F12,
-				weight: KeybindingWeight.EditorContrib
-			},
 			menuOpts: {
 				group: 'navigation',
 				order: 1.3
@@ -318,12 +313,6 @@ export class PeekDeclarationAction extends DeclarationAction {
 				EditorContextKeys.hasDeclarationProvider,
 				PeekContext.notInPeekEditor,
 				EditorContextKeys.isInEmbeddedEditor.toNegated()),
-			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F12,
-				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F10 },
-				weight: KeybindingWeight.EditorContrib
-			},
 			menuOpts: {
 				group: 'navigation',
 				order: 1.31

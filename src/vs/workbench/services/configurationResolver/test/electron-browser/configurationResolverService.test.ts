@@ -551,21 +551,21 @@ class MockInputsConfigurationService extends TestConfigurationService {
 			configuration = {
 				inputs: [
 					{
-						label: 'input1',
-						type: 'prompt',
+						id: 'input1',
+						type: 'promptString',
 						description: 'Enterinput1',
 						default: 'default input1'
 					},
 					{
-						label: 'input2',
-						type: 'pick',
+						id: 'input2',
+						type: 'pickString',
 						description: 'Enterinput1',
 						default: 'option2',
 						options: ['option1', 'option2', 'option3']
 					},
 					{
-						label: 'input3',
-						type: 'prompt',
+						id: 'input3',
+						type: 'promptString',
 						description: 'Enterinput3',
 						default: 'default input3'
 					}

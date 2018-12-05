@@ -20,7 +20,6 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		@IStorageService private readonly storageService: IStorageService,
 		@INotificationService private readonly notificationService: INotificationService) {
 		super();
-
 		const isFolderAutomaticAllowed = storageService.getBoolean(ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE, StorageScope.WORKSPACE, undefined);
 		this.tryRunTasks(isFolderAutomaticAllowed);
 	}
@@ -83,7 +82,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 
 	private showPrompt(): Promise<boolean> {
 		return new Promise<boolean>(resolve => {
-			this.notificationService.prompt(Severity.Info, nls.localize('tasks.run.allowAutomatic', "This folder has automatic tasks defined in tasks.json. Do you allow automatic tasks to run when you open this folder/workspace?"),
+			this.notificationService.prompt(Severity.Info, nls.localize('tasks.run.allowAutomatic', "This folder has tasks defined in \'tasks.json\' that run automatically when you open this folder. Do you allow automatic tasks to run when you open this folder?"),
 				[{
 					label: nls.localize('allow', "Allow"),
 					run: () => {
@@ -99,8 +98,9 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 					}
 				},
 				{
-					label: nls.localize('notThisTime', "Not this time"),
+					label: nls.localize('openTasks', "Open tasks.json"),
 					run: () => {
+						this.taskService.openConfig(undefined);
 						resolve(false);
 					}
 				}]

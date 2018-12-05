@@ -9,32 +9,32 @@ export const inputsSchema: IJSONSchema = {
 	definitions: {
 		inputs: {
 			type: 'array',
-			description: nls.localize('JsonSchema.inputs', 'User inputs. Used for prompting for user input.'),
+			description: nls.localize('JsonSchema.inputs', 'User inputs. Used for defining user input prompts, such as free string input or a choice from several options.'),
 			items: {
 				type: 'object',
-				required: ['label', 'type', 'description'],
+				required: ['id', 'type', 'description'],
 				additionalProperties: false,
 				properties: {
-					label: {
+					id: {
 						type: 'string',
-						description: nls.localize('JsonSchema.input.label', "The input\'s label")
+						description: nls.localize('JsonSchema.input.id', "The input\'s id is used to specify inputs as ${input:id}.")
 					},
 					type: {
 						type: 'string',
-						description: nls.localize('JsonSchema.input.type', 'The input\'s type. Use prompt for free string input and selection for choosing from values'),
-						enum: ['prompt', 'pick']
+						description: nls.localize('JsonSchema.input.type', 'The promptString type opens an input box to ask the user for input. The pickString type shows a selection list.'),
+						enum: ['promptString', 'pickString']
 					},
 					description: {
 						type: 'string',
-						description: nls.localize('JsonSchema.input.description', 'Description to show for for using input.'),
+						description: nls.localize('JsonSchema.input.description', 'The description is shown when the user is prompted for input.'),
 					},
 					default: {
 						type: 'string',
-						description: nls.localize('JsonSchema.input.default', 'Default value for the input.'),
+						description: nls.localize('JsonSchema.input.default', 'The default value for the input.'),
 					},
 					options: {
 						type: 'array',
-						description: nls.localize('JsonSchema.input.options', 'Options to select from.'),
+						description: nls.localize('JsonSchema.input.options', 'An array of strings that defines the options for a quick pick.'),
 						items: {
 							type: 'string'
 						}

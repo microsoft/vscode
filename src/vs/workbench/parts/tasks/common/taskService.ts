@@ -78,7 +78,7 @@ export interface ITaskService {
 	needsFolderQualification();
 	canCustomize(task: ContributedTask | CustomTask): boolean;
 	customize(task: ContributedTask | CustomTask, properties?: {}, openConfig?: boolean): TPromise<void>;
-	openConfig(task: CustomTask): TPromise<void>;
+	openConfig(task: CustomTask | undefined): TPromise<void>;
 
 	registerTaskProvider(taskProvider: ITaskProvider): IDisposable;
 
