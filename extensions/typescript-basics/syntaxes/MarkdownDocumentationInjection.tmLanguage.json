@@ -7,8 +7,8 @@
 	],
 	"repository": {
 		"markdown-comment": {
-			"begin": "^\\s*\\*(?!/)",
-			"while": "(^|\\G)\\s*\\*(?!/)",
+			"begin": "(?<=/\\*\\*)\\s*\n",
+			"while": "(^|\\G)\\s*\\*(?!/)(?=([^*]|[*](?!/))*$)",
 			"patterns": [
 				{
 					"include": "text.html.markdown#fenced_code_block"
