@@ -1587,6 +1587,12 @@ export class CommandCenter {
 		await repository.pullFrom(false, remotePick.label, branchPick.label.slice(remoteCharCnt + 1));
 	}
 
+	@command('git.pullForce', { repository: true })
+	async pullForce(repository: Repository): Promise<void> {
+		await this.cleanAll(repository);
+		await this.pull(repository);
+	}
+
 	@command('git.pull', { repository: true })
 	async pull(repository: Repository): Promise<void> {
 		const remotes = repository.remotes;
@@ -1988,6 +1994,11 @@ export class CommandCenter {
 					case GitErrorCodes.NoUserEmailConfigured:
 						message = localize('missing user info', "Make sure you configure your 'user.name' and 'user.email' in git.");
 						choices.set(localize('learn more', "Learn More"), () => commands.executeCommand('vscode.open', Uri.parse('https://git-scm.com/book/en/v2/Getting-Started-First-Time-Git-Setup')));
+						break;
+					case GitErrorCodes.LocalChangesExist:
+						message = localize('local changes exist', "Git: Your Local changes to the following files would be overwritten by checkout:");
+						type = 'warning';
+						choices.set(localize('pull anyway', 'Pull Anyway'), () => commands.executeCommand('git.pullForce', this.model.getRepository(args[0])));
 						break;
 					default:
 						const hint = (err.stderr || err.message || String(err))

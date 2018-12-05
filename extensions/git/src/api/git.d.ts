@@ -212,4 +212,5 @@ export const enum GitErrorCodes {
 	WrongCase = 'WrongCase',
 	CantLockRef = 'CantLockRef',
 	CantRebaseMultipleBranches = 'CantRebaseMultipleBranches',
+	LocalChangesExist = 'LocalChangesExist',
 }
