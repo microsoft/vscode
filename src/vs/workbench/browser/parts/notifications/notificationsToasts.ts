@@ -53,7 +53,6 @@ export class NotificationsToasts extends Themable {
 
 	private notificationsToastsContainer: HTMLElement;
 	private workbenchDimensions: Dimension;
-	private windowHasFocus: boolean;
 	private isNotificationsCenterVisible: boolean;
 	private mapNotificationToToast: Map<INotificationViewItem, INotificationToast>;
 	private notificationsToastsVisibleContextKey: IContextKey<boolean>;
@@ -74,8 +73,6 @@ export class NotificationsToasts extends Themable {
 		this.mapNotificationToToast = new Map<INotificationViewItem, INotificationToast>();
 		this.notificationsToastsVisibleContextKey = NotificationsToastsVisibleContext.bindTo(contextKeyService);
 
-		this.windowService.isFocused().then(isFocused => this.windowHasFocus = isFocused);
-
 		this.registerListeners();
 	}
 
@@ -90,9 +87,6 @@ export class NotificationsToasts extends Themable {
 			// Update toasts on notification changes
 			this._register(this.model.onDidNotificationChange(e => this.onDidNotificationChange(e)));
 		});
-
-		// Track window focus
-		this.windowService.onDidChangeFocus(hasFocus => this.windowHasFocus = hasFocus);
 	}
 
 	private onDidNotificationChange(e: INotificationChangeEvent): void {
@@ -226,7 +220,7 @@ export class NotificationsToasts extends Themable {
 				// the timeout again. This prevents an issue where focussing the window
 				// could immediately hide the notification because the timeout was triggered
 				// again.
-				if ((item.sticky || item.hasPrompt()) && !this.windowHasFocus) {
+				if ((item.sticky || item.hasPrompt()) && !this.windowService.hasFocus) {
 					if (!listener) {
 						listener = this.windowService.onDidChangeFocus(focus => {
 							if (focus) {
