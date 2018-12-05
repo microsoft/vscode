@@ -182,7 +182,7 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 			Severity.Info,
 			localize(
 				'unresponsive-exthost',
-				"The extension '{0}' took a very long time to complete its last task and it has prevented other extensions from running.",
+				"The extension '{0}' took a very long time to complete its last operation and it has prevented other extensions from running.",
 				extension.displayName || extension.name
 			),
 			[{
