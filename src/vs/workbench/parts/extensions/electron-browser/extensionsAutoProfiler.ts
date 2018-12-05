@@ -179,7 +179,7 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 
 		// user-facing message when very bad...
 		this._notificationService.prompt(
-			Severity.Info,
+			Severity.Warning,
 			localize(
 				'unresponsive-exthost',
 				"The extension '{0}' took a very long time to complete its last operation and it has prevented other extensions from running.",
