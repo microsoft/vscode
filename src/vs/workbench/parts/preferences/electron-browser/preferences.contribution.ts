@@ -370,7 +370,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 		MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 			command: {
 				id: commandId,
-				title: OpenSettingsAction.LABEL,
+				title: OpenSettings2Action.LABEL,
 				iconLocation: {
 					light: URI.parse(require.toUrl(`vs/workbench/parts/preferences/electron-browser/media/preferences-editor.svg`)),
 					dark: URI.parse(require.toUrl(`vs/workbench/parts/preferences/electron-browser/media/preferences-editor-inverse.svg`))
@@ -394,7 +394,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 				command: {
 					id: commandId,
-					title: OpenSettingsAction.LABEL,
+					title: OpenSettings2Action.LABEL,
 					iconLocation: {
 						light: URI.parse(require.toUrl(`vs/workbench/parts/preferences/electron-browser/media/preferences-editor.svg`)),
 						dark: URI.parse(require.toUrl(`vs/workbench/parts/preferences/electron-browser/media/preferences-editor-inverse.svg`))
@@ -422,7 +422,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 					command: {
 						id: commandId,
-						title: OpenSettingsAction.LABEL,
+						title: OpenSettings2Action.LABEL,
 						iconLocation: {
 							light: URI.parse(require.toUrl(`vs/workbench/parts/preferences/electron-browser/media/preferences-editor.svg`)),
 							dark: URI.parse(require.toUrl(`vs/workbench/parts/preferences/electron-browser/media/preferences-editor-inverse.svg`))
