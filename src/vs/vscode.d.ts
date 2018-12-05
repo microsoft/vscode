@@ -3164,8 +3164,8 @@ declare module 'vscode' {
 		/**
 		 * `true` if signature help was already showing when it was triggered.
 		 *
-		 * Retriggers occur when the signature help is already active and can be caused by typing a trigger character
-		 * or by a cursor move.
+		 * Retriggers occur when the signature help is already active and can be caused by actions such as
+		 * typing a trigger character, a cursor move, or document content changes.
 		 */
 		readonly isRetrigger: boolean;
 	}
