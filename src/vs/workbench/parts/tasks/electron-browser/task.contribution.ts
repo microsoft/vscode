@@ -1096,8 +1096,13 @@ class TaskService extends Disposable implements ITaskService {
 		}
 	}
 
-	public openConfig(task: CustomTask): TPromise<void> {
-		let resource = Task.getWorkspaceFolder(task).toResource(task._source.config.file);
+	public openConfig(task: CustomTask | undefined): TPromise<void> {
+		let resource: URI;
+		if (task) {
+			resource = Task.getWorkspaceFolder(task).toResource(task._source.config.file);
+		} else {
+			resource = (this._workspaceFolders && (this._workspaceFolders.length > 0)) ? this._workspaceFolders[0].toResource('.vscode/tasks.json') : undefined;
+		}
 		return this.editorService.openEditor({
 			resource,
 			options: {
