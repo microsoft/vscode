@@ -120,6 +120,11 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 		this.model.collapseAll();
 	}
 
+	isCollapsible(element: T): boolean {
+		const location = this.getElementLocation(element);
+		return this.model.isCollapsible(location);
+	}
+
 	isCollapsed(element: T): boolean {
 		const location = this.getElementLocation(element);
 		return this.model.isCollapsed(location);

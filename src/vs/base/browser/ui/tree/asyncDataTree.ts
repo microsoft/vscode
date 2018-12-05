@@ -311,6 +311,10 @@ export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> imple
 		this.tree.collapseAll();
 	}
 
+	isCollapsible(element: T): boolean {
+		return this.tree.isCollapsible(this.getDataNode(element));
+	}
+
 	isCollapsed(element: T): boolean {
 		return this.tree.isCollapsed(this.getDataNode(element));
 	}
@@ -438,12 +442,12 @@ export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> imple
 	}
 
 	private doRefresh(node: IAsyncDataTreeNode<T>, recursive: boolean, reason: ChildrenResolutionReason): Thenable<void> {
-		const hasChildren = this.dataSource.hasChildren(node.element);
+		const hasChildren = !!this.dataSource.hasChildren(node.element);
 
 		if (!hasChildren) {
 			this.setChildren(node, [], recursive);
 			return Promise.resolve();
-		} else if (node !== this.root && this.tree.isCollapsed(node)) {
+		} else if (node !== this.root && (!this.tree.isCollapsible(node) || this.tree.isCollapsed(node))) {
 			return Promise.resolve();
 		} else {
 			node.state = AsyncDataTreeNodeState.Loading;
@@ -493,7 +497,7 @@ export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> imple
 						parent: node,
 						state: AsyncDataTreeNodeState.Uninitialized
 					},
-					collapsible: this.dataSource.hasChildren(element),
+					collapsible: !!this.dataSource.hasChildren(element),
 					collapsed: true
 				};
 			}
@@ -516,12 +520,15 @@ export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> imple
 						children: [],
 						state: AsyncDataTreeNodeState.Uninitialized
 					},
-					collapsible: this.dataSource.hasChildren(element),
+					collapsible: !!this.dataSource.hasChildren(element),
 					collapsed: true
 				};
 			}
 
 			asyncDataTreeNode.element = element;
+
+			const collapsible = !!this.dataSource.hasChildren(element);
+			const collapsed = !collapsible || this.tree.isCollapsed(asyncDataTreeNode);
 
 			if (recursive) {
 				asyncDataTreeNode.state = AsyncDataTreeNodeState.Uninitialized;
@@ -531,14 +538,23 @@ export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> imple
 
 					return {
 						element: asyncDataTreeNode,
-						collapsible: this.dataSource.hasChildren(element),
+						collapsible,
+						collapsed
 					};
 				}
 			}
 
+			let children: Iterator<ITreeElement<IAsyncDataTreeNode<T>>> | undefined = undefined;
+
+			if (collapsible) {
+				children = Iterator.map(Iterator.fromArray(asyncDataTreeNode.children!), asTreeElement);
+			}
+
 			return {
 				element: asyncDataTreeNode,
-				children: Iterator.map(Iterator.fromArray(asyncDataTreeNode.children!), asTreeElement)
+				children,
+				collapsible,
+				collapsed
 			};
 		});
 
