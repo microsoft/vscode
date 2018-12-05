@@ -41,8 +41,8 @@ export interface IConfigurationResolverService {
 }
 
 export const enum ConfiguredInputType {
-	Prompt,
-	Pick
+	PromptString,
+	PickString
 }
 
 export interface ConfiguredInput {

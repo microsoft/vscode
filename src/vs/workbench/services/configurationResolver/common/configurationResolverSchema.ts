@@ -21,8 +21,8 @@ export const inputsSchema: IJSONSchema = {
 					},
 					type: {
 						type: 'string',
-						description: nls.localize('JsonSchema.input.type', 'The input\'s type. Use prompt for free string input and selection for choosing from values'),
-						enum: ['prompt', 'pick']
+						description: nls.localize('JsonSchema.input.type', 'The input\'s type. Use promptString for free string input and pickString for choosing from string values'),
+						enum: ['promptString', 'pickString']
 					},
 					description: {
 						type: 'string',

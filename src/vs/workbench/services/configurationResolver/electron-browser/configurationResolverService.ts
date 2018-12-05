@@ -234,7 +234,7 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 	private showUserInput(commandVariable: string, inputs: Map<string, ConfiguredInput>): Promise<string> {
 		if (inputs && inputs.has(commandVariable)) {
 			const input = inputs.get(commandVariable);
-			if (input.type === ConfiguredInputType.Prompt) {
+			if (input.type === ConfiguredInputType.PromptString) {
 				let inputOptions: IInputOptions = { prompt: input.description };
 				if (input.default) {
 					inputOptions.value = input.default;
@@ -307,18 +307,18 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 				if (Types.isString(item.id) && Types.isString(item.description) && Types.isString(item.type)) {
 					let type: ConfiguredInputType;
 					switch (item.type) {
-						case 'prompt': type = ConfiguredInputType.Prompt; break;
-						case 'pick': type = ConfiguredInputType.Pick; break;
+						case 'promptString': type = ConfiguredInputType.PromptString; break;
+						case 'pickString': type = ConfiguredInputType.PickString; break;
 						default: {
-							throw new Error(nls.localize('unknownInputTypeProvided', "Input '{0}' can only be of type 'prompt' or 'pick'.", item.id));
+							throw new Error(nls.localize('unknownInputTypeProvided', "Input '{0}' can only be of type 'promptString' or 'pickString'.", item.id));
 						}
 					}
 					let options: string[];
-					if (type === ConfiguredInputType.Pick) {
+					if (type === ConfiguredInputType.PickString) {
 						if (Types.isStringArray(item.options)) {
 							options = item.options;
 						} else {
-							throw new Error(nls.localize('pickRequiresOptions', "Input '{0}' is of type 'pick' and must include 'options'.", item.id));
+							throw new Error(nls.localize('pickStringRequiresOptions', "Input '{0}' is of type 'pickString' and must include 'options'.", item.id));
 						}
 					}
 					inputs.push({ id: item.id, description: item.description, type, default: item.default, options });
