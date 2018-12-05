@@ -211,6 +211,8 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 						return this.showUserInput(commandVariable, inputs).then(resolvedValue => {
 							if (resolvedValue) {
 								commandValueMapping['input:' + commandVariable] = resolvedValue;
+							} else {
+								cancelled = true;
 							}
 						});
 					};
@@ -241,7 +243,7 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 				}
 
 				return this.quickInputService.input(inputOptions).then(resolvedInput => {
-					return resolvedInput ? resolvedInput : input.default;
+					return resolvedInput ? resolvedInput : undefined;
 				});
 			} else { // input.type === ConfiguredInputType.pick
 				let picks = new Array<IQuickPickItem>();
@@ -258,7 +260,7 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 				}
 				let pickOptions: IPickOptions<IQuickPickItem> = { placeHolder: input.description };
 				return this.quickInputService.pick(picks, pickOptions, undefined).then(resolvedInput => {
-					return resolvedInput ? resolvedInput.label : input.default;
+					return resolvedInput ? resolvedInput.label : undefined;
 				});
 			}
 		}

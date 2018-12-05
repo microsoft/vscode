@@ -397,23 +397,27 @@ export class TerminalTaskSystem implements ITaskSystem {
 
 			return new Promise((resolve, reject) => {
 				this.configurationResolverService.resolveWithInteraction(workspaceFolder, variablesArray, 'tasks').then(resolvedVariablesMap => {
-					if (isProcess) {
-						let processVarValue: string;
-						if (Platform.isWindows) {
-							processVarValue = win32.findExecutable(
-								this.configurationResolverService.resolve(workspaceFolder, CommandString.value(task.command.name)),
-								cwd ? this.configurationResolverService.resolve(workspaceFolder, cwd) : undefined,
-								envPath ? envPath.split(path.delimiter).map(p => this.configurationResolverService.resolve(workspaceFolder, p)) : undefined
-							);
-						} else {
-							processVarValue = this.configurationResolverService.resolve(workspaceFolder, CommandString.value(task.command.name));
+					if (resolvedVariablesMap) {
+						if (isProcess) {
+							let processVarValue: string;
+							if (Platform.isWindows) {
+								processVarValue = win32.findExecutable(
+									this.configurationResolverService.resolve(workspaceFolder, CommandString.value(task.command.name)),
+									cwd ? this.configurationResolverService.resolve(workspaceFolder, cwd) : undefined,
+									envPath ? envPath.split(path.delimiter).map(p => this.configurationResolverService.resolve(workspaceFolder, p)) : undefined
+								);
+							} else {
+								processVarValue = this.configurationResolverService.resolve(workspaceFolder, CommandString.value(task.command.name));
+							}
+							resolvedVariablesMap.set(TerminalTaskSystem.ProcessVarName, processVarValue);
 						}
-						resolvedVariablesMap.set(TerminalTaskSystem.ProcessVarName, processVarValue);
+						let resolvedVariablesResult: ResolvedVariables = {
+							variables: resolvedVariablesMap,
+						};
+						resolve(resolvedVariablesResult);
+					} else {
+						resolve(undefined);
 					}
-					let resolvedVariablesResult: ResolvedVariables = {
-						variables: resolvedVariablesMap,
-					};
-					resolve(resolvedVariablesResult);
 				}, reason => {
 					reject(reason);
 				});
@@ -432,8 +436,12 @@ export class TerminalTaskSystem implements ITaskSystem {
 		const resolvedVariables = this.resolveVariablesFromSet(this.currentTask.systemInfo, this.currentTask.workspaceFolder, task, variables);
 
 		return resolvedVariables.then((resolvedVariables) => {
-			this.currentTask.resolvedVariables = resolvedVariables;
-			return this.executeInTerminal(task, trigger, new VariableResolver(this.currentTask.workspaceFolder, this.currentTask.systemInfo, resolvedVariables.variables, this.configurationResolverService));
+			if (resolvedVariables) {
+				this.currentTask.resolvedVariables = resolvedVariables;
+				return this.executeInTerminal(task, trigger, new VariableResolver(this.currentTask.workspaceFolder, this.currentTask.systemInfo, resolvedVariables.variables, this.configurationResolverService));
+			} else {
+				return Promise.resolve({ exitCode: 0 });
+			}
 		}, reason => {
 			return Promise.reject(reason);
 		});
