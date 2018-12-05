@@ -520,7 +520,7 @@ export class ReportExtensionIssueAction extends Action {
 				const data = profiler.rewriteAbsolutePaths({ profile: <any>extension.unresponsiveProfile.data }, 'pii_removed');
 				profiler.writeProfile(data, path).then(undefined, onUnexpectedError);
 			};
-			message = `:warning: Make sure to **attach** this file from your *home*-directory: \`${path}\` :warning:`;
+			message = `:warning: Make sure to **attach** this file from your *home*-directory: \`${path}\` :warning:\n\nFind more details here: https://github.com/Microsoft/vscode/wiki/Explain:-extension-causes-high-cpu-load`;
 
 		} else {
 			// generic
