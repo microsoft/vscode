@@ -262,7 +262,7 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 				});
 			}
 		}
-		return Promise.resolve(undefined);
+		return Promise.reject(nls.localize('undefinedInputVariable', "Undefined input variable {0} encountered. Remove or define {0} to continue.", commandVariable));
 	}
 
 	/**
