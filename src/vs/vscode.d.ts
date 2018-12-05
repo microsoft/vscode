@@ -3151,7 +3151,7 @@ declare module 'vscode' {
 		/**
 		 * Action that caused signature help to be triggered.
 		 */
-		readonly triggerReason: SignatureHelpTriggerKind;
+		readonly triggerKind: SignatureHelpTriggerKind;
 
 		/**
 		 * Character that caused signature help to be triggered.

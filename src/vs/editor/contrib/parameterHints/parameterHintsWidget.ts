@@ -29,7 +29,7 @@ import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 const $ = dom.$;
 
 export interface TriggerContext {
-	readonly triggerReason: modes.SignatureHelpTriggerKind;
+	readonly triggerKind: modes.SignatureHelpTriggerKind;
 	readonly triggerCharacter?: string;
 }
 
@@ -107,7 +107,7 @@ export class ParameterHintsModel extends Disposable {
 
 		this.throttledDelayer.trigger(
 			() => this.doTrigger({
-				triggerReason: context.triggerReason,
+				triggerKind: context.triggerKind,
 				triggerCharacter: context.triggerCharacter,
 				isRetrigger: this.isTriggered,
 			}), delay).then(undefined, onUnexpectedError);
@@ -193,7 +193,7 @@ export class ParameterHintsModel extends Disposable {
 
 		if (this.triggerChars.has(triggerCharCode) || this.isTriggered && this.retriggerChars.has(triggerCharCode)) {
 			this.trigger({
-				triggerReason: modes.SignatureHelpTriggerKind.TriggerCharacter,
+				triggerKind: modes.SignatureHelpTriggerKind.TriggerCharacter,
 				triggerCharacter: text.charAt(lastCharIndex),
 			});
 		}
@@ -203,13 +203,13 @@ export class ParameterHintsModel extends Disposable {
 		if (e.source === 'mouse') {
 			this.cancel();
 		} else if (this.isTriggered) {
-			this.trigger({ triggerReason: modes.SignatureHelpTriggerKind.ContentChange });
+			this.trigger({ triggerKind: modes.SignatureHelpTriggerKind.ContentChange });
 		}
 	}
 
 	private onModelContentChange(): void {
 		if (this.isTriggered) {
-			this.trigger({ triggerReason: modes.SignatureHelpTriggerKind.ContentChange });
+			this.trigger({ triggerKind: modes.SignatureHelpTriggerKind.ContentChange });
 		}
 	}
 
