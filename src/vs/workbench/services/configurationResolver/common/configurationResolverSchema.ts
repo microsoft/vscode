@@ -12,12 +12,12 @@ export const inputsSchema: IJSONSchema = {
 			description: nls.localize('JsonSchema.inputs', 'User inputs. Used for prompting for user input.'),
 			items: {
 				type: 'object',
-				required: ['label', 'type', 'description'],
+				required: ['id', 'type', 'description'],
 				additionalProperties: false,
 				properties: {
-					label: {
+					id: {
 						type: 'string',
-						description: nls.localize('JsonSchema.input.label', "The input\'s label")
+						description: nls.localize('JsonSchema.input.id', "The input\'s id")
 					},
 					type: {
 						type: 'string',

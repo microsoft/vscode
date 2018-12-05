@@ -46,7 +46,7 @@ export const enum ConfiguredInputType {
 }
 
 export interface ConfiguredInput {
-	label: string;
+	id: string;
 	description: string;
 	default?: string;
 	type: ConfiguredInputType;

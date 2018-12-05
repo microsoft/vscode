@@ -196,7 +196,7 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 			const inputs = new Map<string, ConfiguredInput>();
 			if (inputsArray) {
 				inputsArray.forEach(input => {
-					inputs.set(input.label, input);
+					inputs.set(input.id, input);
 				});
 
 				// use an array to preserve order of first appearance
@@ -304,13 +304,13 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 		let inputs = new Array<ConfiguredInput>();
 		if (object) {
 			object.forEach(item => {
-				if (Types.isString(item.label) && Types.isString(item.description) && Types.isString(item.type)) {
+				if (Types.isString(item.id) && Types.isString(item.description) && Types.isString(item.type)) {
 					let type: ConfiguredInputType;
 					switch (item.type) {
 						case 'prompt': type = ConfiguredInputType.Prompt; break;
 						case 'pick': type = ConfiguredInputType.Pick; break;
 						default: {
-							throw new Error(nls.localize('unknownInputTypeProvided', "Input '{0}' can only be of type 'prompt' or 'pick'.", item.label));
+							throw new Error(nls.localize('unknownInputTypeProvided', "Input '{0}' can only be of type 'prompt' or 'pick'.", item.id));
 						}
 					}
 					let options: string[];
@@ -318,10 +318,10 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 						if (Types.isStringArray(item.options)) {
 							options = item.options;
 						} else {
-							throw new Error(nls.localize('pickRequiresOptions', "Input '{0}' is of type 'pick' and must include 'options'.", item.label));
+							throw new Error(nls.localize('pickRequiresOptions', "Input '{0}' is of type 'pick' and must include 'options'.", item.id));
 						}
 					}
-					inputs.push({ label: item.label, description: item.description, type, default: item.default, options });
+					inputs.push({ id: item.id, description: item.description, type, default: item.default, options });
 				}
 			});
 		}
