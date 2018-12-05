@@ -642,7 +642,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.suggest.shareSuggestSelections': {
 			type: 'boolean',
 			default: false,
-			description: nls.localize('suggest.shareSuggestSelections', "Controls whether remembered suggestion selections are shared between multiple workspaces and windows (needs `editor.suggestSelection`).")
+			markdownDescription: nls.localize('suggest.shareSuggestSelections', "Controls whether remembered suggestion selections are shared between multiple workspaces and windows (needs `#editor.suggestSelection#`).")
 		},
 		'editor.suggest.snippetsPreventQuickSuggestions': {
 			type: 'boolean',
