@@ -7,7 +7,7 @@
 	],
 	"repository": {
 		"example": {
-			"begin": "((@)example)\\s+",
+			"begin": "((@)example)\\s+.*$",
 			"while": "(^|\\G)\\s(?!@)",
 			"beginCaptures": {
 				"1": {
