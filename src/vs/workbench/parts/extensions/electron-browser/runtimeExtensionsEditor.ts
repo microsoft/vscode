@@ -518,7 +518,7 @@ export class ReportExtensionIssueAction extends Action {
 			task = async () => {
 				const profiler = await import('v8-inspect-profiler');
 				const data = profiler.rewriteAbsolutePaths({ profile: <any>extension.unresponsiveProfile.data }, 'pii_removed');
-				writeFile(path, JSON.stringify(data)).catch(onUnexpectedError);
+				profiler.writeProfile(data, path).then(undefined, onUnexpectedError);
 			};
 			message = `:warning: Make sure to **attach** this file from your *home*-directory: \`${path}\` :warning:`;
 
