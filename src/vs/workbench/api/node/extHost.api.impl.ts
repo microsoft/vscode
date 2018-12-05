@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, mapEvent } from 'vs/base/common/event';
 import { TernarySearchTree } from 'vs/base/common/map';
 import * as paths from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
@@ -246,11 +246,11 @@ export function createApiFactory(
 			get appRoot() { return initData.environment.appRoot.fsPath; },
 			get logLevel() {
 				checkProposedApiEnabled(extension);
-				return extHostLogService.getLevel();
+				return typeConverters.LogLevel.fromMainLogLevel(extHostLogService.getLevel());
 			},
 			get onDidChangeLogLevel() {
 				checkProposedApiEnabled(extension);
-				return extHostLogService.onDidChangeLogLevel;
+				return mapEvent(extHostLogService.onDidChangeLogLevel, l => typeConverters.LogLevel.fromMainLogLevel(l));
 			},
 			get clipboard(): vscode.Clipboard {
 				return extHostClipboard;
