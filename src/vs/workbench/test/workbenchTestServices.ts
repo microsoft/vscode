@@ -1002,6 +1002,8 @@ export class TestWindowService implements IWindowService {
 	onDidChangeFocus: Event<boolean> = new Emitter<boolean>().event;
 	onDidChangeMaximize: Event<boolean>;
 
+	hasFocus = true;
+
 	isFocused(): TPromise<boolean> {
 		return TPromise.as(false);
 	}

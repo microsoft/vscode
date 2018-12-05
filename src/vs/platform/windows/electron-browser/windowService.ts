@@ -11,25 +11,35 @@ import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { URI } from 'vs/base/common/uri';
+import { Disposable } from 'vs/base/common/lifecycle';
 
-export class WindowService implements IWindowService {
+export class WindowService extends Disposable implements IWindowService {
 
 	readonly onDidChangeFocus: Event<boolean>;
 	readonly onDidChangeMaximize: Event<boolean>;
 
 	_serviceBrand: any;
 
+	private _hasFocus: boolean;
+	get hasFocus(): boolean { return this._hasFocus; }
+
 	constructor(
 		private windowId: number,
 		private configuration: IWindowConfiguration,
 		@IWindowsService private windowsService: IWindowsService
 	) {
+		super();
+
 		const onThisWindowFocus = mapEvent(filterEvent(windowsService.onWindowFocus, id => id === windowId), _ => true);
 		const onThisWindowBlur = mapEvent(filterEvent(windowsService.onWindowBlur, id => id === windowId), _ => false);
 		const onThisWindowMaximize = mapEvent(filterEvent(windowsService.onWindowMaximize, id => id === windowId), _ => true);
 		const onThisWindowUnmaximize = mapEvent(filterEvent(windowsService.onWindowUnmaximize, id => id === windowId), _ => false);
 		this.onDidChangeFocus = anyEvent(onThisWindowFocus, onThisWindowBlur);
 		this.onDidChangeMaximize = anyEvent(onThisWindowMaximize, onThisWindowUnmaximize);
+
+		this._hasFocus = document.hasFocus();
+		this.isFocused().then(focused => this._hasFocus = focused);
+		this._register(this.onDidChangeFocus(focus => this._hasFocus = focus));
 	}
 
 	getCurrentWindowId(): number {

@@ -37,6 +37,7 @@ import { CachedKeyboardMapper, IKeyboardMapper } from 'vs/workbench/services/key
 import { MacLinuxFallbackKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxFallbackKeyboardMapper';
 import { IMacLinuxKeyboardMapping, MacLinuxKeyboardMapper, macLinuxKeyboardMappingEquals } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
 import { IWindowsKeyboardMapping, WindowsKeyboardMapper, windowsKeyboardMappingEquals } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 
 export class KeyboardMapperFactory {
 	public static readonly INSTANCE = new KeyboardMapperFactory();
@@ -266,7 +267,8 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		@INotificationService notificationService: INotificationService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IStatusbarService statusBarService: IStatusbarService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IWindowService private windowService: IWindowService
 	) {
 		super(contextKeyService, commandService, telemetryService, notificationService, statusBarService);
 
@@ -367,7 +369,10 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	}
 
 	protected _documentHasFocus(): boolean {
-		return document.hasFocus();
+		// it is possible that the document has lost focus, but the
+		// window is still focused, e.g. when a <webview> element
+		// has focus
+		return this.windowService.hasFocus;
 	}
 
 	private _resolveKeybindingItems(items: IKeybindingItem[], isDefault: boolean): ResolvedKeybindingItem[] {

@@ -28,6 +28,17 @@ export interface WebviewOptions {
 	readonly extensionLocation?: URI;
 }
 
+interface IKeydownEvent {
+	key: string;
+	keyCode: number;
+	code: string;
+	shiftKey: boolean;
+	altKey: boolean;
+	ctrlKey: boolean;
+	metaKey: boolean;
+	repeat: boolean;
+}
+
 export class WebviewElement extends Disposable {
 	private _webview: Electron.WebviewTag;
 	private _ready: Promise<this>;
@@ -126,46 +137,6 @@ export class WebviewElement extends Disposable {
 			}));
 		}
 
-		// Electron: workaround for https://github.com/electron/electron/issues/14258
-		// We have to detect keyboard events in the <webview> and dispatch them to our
-		// keybinding service because these events do not bubble to the parent window anymore.
-		let loaded = false;
-		this._register(addDisposableListener(this._webview, 'did-start-loading', () => {
-			if (loaded) {
-				return;
-			}
-			loaded = true;
-
-			const contents = this._webview.getWebContents();
-			if (!contents) {
-				return;
-			}
-
-			contents.on('before-input-event', (event, input) => {
-				if (input.type !== 'keyDown') {
-					return;
-				}
-
-				// Create a fake KeyboardEvent from the data provided
-				const emulatedKeyboardEvent = new KeyboardEvent('keydown', {
-					code: input.code,
-					key: input.key,
-					shiftKey: input.shift,
-					altKey: input.alt,
-					ctrlKey: input.control,
-					metaKey: input.meta,
-					repeat: input.isAutoRepeat
-				});
-
-				// Dispatch through our keybinding service
-				// Note: we set the <webview> as target of the event so that scoped context key
-				// services function properly to enable commands like select all and find.
-				if (this._keybindingService.dispatchEvent(new StandardKeyboardEvent(emulatedKeyboardEvent), this._webview)) {
-					event.preventDefault();
-				}
-			});
-		}));
-
 		this._register(addDisposableListener(this._webview, 'console-message', function (e: { level: number; message: string; line: number; sourceId: string; }) {
 			console.log(`[Embedded Page] ${e.message}`);
 		}));
@@ -216,6 +187,13 @@ export class WebviewElement extends Disposable {
 
 				case 'did-blur':
 					this.handleFocusChange(false);
+					return;
+
+				case 'did-keydown':
+					// Electron: workaround for https://github.com/electron/electron/issues/14258
+					// We have to detect keyboard events in the <webview> and dispatch them to our
+					// keybinding service because these events do not bubble to the parent window anymore.
+					this.handleKeydown(event.args[0]);
 					return;
 			}
 		}));
@@ -323,6 +301,26 @@ export class WebviewElement extends Disposable {
 		if (isFocused) {
 			this._onDidFocus.fire();
 		}
+	}
+
+	private handleKeydown(event: IKeydownEvent): void {
+
+		// Create a fake KeyboardEvent from the data provided
+		const emulatedKeyboardEvent = new KeyboardEvent('keydown', {
+			code: event.code,
+			key: event.key,
+			keyCode: event.keyCode,
+			shiftKey: event.shiftKey,
+			altKey: event.altKey,
+			ctrlKey: event.ctrlKey,
+			metaKey: event.metaKey,
+			repeat: event.repeat
+		} as KeyboardEvent);
+
+		// Dispatch through our keybinding service
+		// Note: we set the <webview> as target of the event so that scoped context key
+		// services function properly to enable commands like select all and find.
+		this._keybindingService.dispatchEvent(new StandardKeyboardEvent(emulatedKeyboardEvent), this._webview);
 	}
 
 	public sendMessage(data: any): void {
