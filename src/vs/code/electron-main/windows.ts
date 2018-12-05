@@ -1651,7 +1651,7 @@ export class WindowsManager implements IWindowsMainService {
 
 		/* __GDPR__
 			"windowerror" : {
-				"type" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+				"type" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
 			}
 		*/
 		this.telemetryService.publicLog('windowerror', { type: error });
