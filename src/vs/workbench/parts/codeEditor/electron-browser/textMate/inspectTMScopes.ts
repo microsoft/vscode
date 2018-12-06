@@ -266,7 +266,11 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 		result += `<tr><td class="tm-metadata-key">font style</td><td class="tm-metadata-value">${this._fontStyleToString(metadata.fontStyle)}</td>`;
 		result += `<tr><td class="tm-metadata-key">foreground</td><td class="tm-metadata-value">${Color.Format.CSS.formatHexA(metadata.foreground)}</td>`;
 		result += `<tr><td class="tm-metadata-key">background</td><td class="tm-metadata-value">${Color.Format.CSS.formatHexA(metadata.background)}</td>`;
-		result += `<tr><td class="tm-metadata-key">contrast ratio</td><td class="tm-metadata-value">${metadata.background.getContrastRatio(metadata.foreground).toFixed(2)}</td></tr>`;
+		if (metadata.background.rgba.a === 1 && metadata.foreground.rgba.a === 1) {
+			result += `<tr><td class="tm-metadata-key">contrast ratio</td><td class="tm-metadata-value">${metadata.background.getContrastRatio(metadata.foreground).toFixed(2)}</td></tr>`;
+		} else {
+			result += '<tr><td class="tm-metadata-key">Contrast ratio cannot be precise for colors that use transparency</td><td class="tm-metadata-value"></td></tr>';
+		}
 		result += `</tbody></table>`;
 
 		let theme = this._themeService.getColorTheme();
