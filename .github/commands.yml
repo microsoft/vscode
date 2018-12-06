@@ -66,10 +66,10 @@
         },
         {
             type: 'comment',
-            name: 'needsConfirmation',
+            name: '/confirmationNeeded',
             allowUsers: ['cleidigh', 'usernamehw'],
             action: 'updateLabels',
-            addLabel: 'needs-confirmation'
+            addLabel: 'confirmation-needed'
         },
         {
             type: 'comment',
