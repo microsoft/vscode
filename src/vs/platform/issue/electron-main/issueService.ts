@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import * as objects from 'vs/base/common/objects';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { IIssueService, IssueReporterData, IssueReporterFeatures, ProcessExplorerData } from 'vs/platform/issue/common/issue';
-import { BrowserWindow, ipcMain, screen, Event } from 'electron';
+import { BrowserWindow, ipcMain, screen, Event, dialog } from 'electron';
 import { ILaunchService } from 'vs/platform/launch/electron-main/launchService';
 import { PerformanceInfo, SystemInfo, IDiagnosticsService } from 'vs/platform/diagnostics/electron-main/diagnosticsService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -47,6 +47,24 @@ export class IssueService implements IIssueService {
 		ipcMain.on('vscode:issuePerformanceInfoRequest', (event: Event) => {
 			this.getPerformanceInfo().then(msg => {
 				event.sender.send('vscode:issuePerformanceInfoResponse', msg);
+			});
+		});
+
+		ipcMain.on('vscode:issueReporterConfirmClose', (_) => {
+			const messageOptions = {
+				message: localize('confirmCloseIssueReporter', "Your input will not be saved. Are you sure you want to close this window?"),
+				type: 'warning',
+				buttons: [
+					localize('yes', "Yes"),
+					localize('cancel', "Cancel")
+				]
+			};
+
+			dialog.showMessageBox(this._issueWindow, messageOptions, (response) => {
+				if (response === 0) {
+					this._issueWindow.destroy();
+					this._issueWindow = null;
+				}
 			});
 		});
 
