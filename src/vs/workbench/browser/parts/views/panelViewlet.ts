@@ -55,7 +55,7 @@ export abstract class ViewletPanel extends Panel implements IView {
 	protected _onDidChangeTitleArea = new Emitter<void>();
 	readonly onDidChangeTitleArea: Event<void> = this._onDidChangeTitleArea.event;
 
-	private _isVisible: boolean;
+	private _isVisible: boolean = true;
 	readonly id: string;
 	readonly title: string;
 

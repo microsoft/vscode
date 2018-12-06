@@ -149,6 +149,10 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		});
 	}
 
+	isCollapsible(location: number[]): boolean {
+		return this.getTreeNode(location).collapsible;
+	}
+
 	isCollapsed(location: number[]): boolean {
 		return this.getTreeNode(location).collapsed;
 	}

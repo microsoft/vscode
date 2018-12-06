@@ -160,7 +160,7 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 		}
 
 		toggleClass(twistieElement, 'collapsible', node.collapsible);
-		toggleClass(twistieElement, 'collapsed', node.collapsed);
+		toggleClass(twistieElement, 'collapsed', node.collapsible && node.collapsed);
 	}
 
 	dispose(): void {
@@ -330,6 +330,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	collapseAll(): void {
 		this.model.collapseAll();
+	}
+
+	isCollapsible(location: TRef): boolean {
+		return this.model.isCollapsible(location);
 	}
 
 	isCollapsed(location: TRef): boolean {

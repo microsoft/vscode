@@ -609,7 +609,7 @@ export function registerCommands(): void {
 						return;
 					}
 
-					tree.toggleCollapsed(focus);
+					tree.toggleCollapsed(focus[0]);
 				} else {
 					const tree = focused;
 					const focus = tree.getFocus();

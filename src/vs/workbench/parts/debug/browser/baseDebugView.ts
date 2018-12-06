@@ -4,17 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { IExpression, IDebugService, IEnablement } from 'vs/workbench/parts/debug/common/debug';
+import { IExpression, IDebugService } from 'vs/workbench/parts/debug/common/debug';
 import { Expression, Variable } from 'vs/workbench/parts/debug/common/debugModel';
-import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { ITree, ContextMenuEvent, IActionProvider } from 'vs/base/parts/tree/browser/tree';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInputValidationOptions, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
-import { IControllerOptions } from 'vs/base/parts/tree/browser/treeDefaults';
-import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
-import { WorkbenchTreeController } from 'vs/platform/list/browser/listService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -120,66 +113,6 @@ export interface IInputBoxOptions {
 	placeholder?: string;
 	validationOptions?: IInputValidationOptions;
 	onFinish: (value: string, success: boolean) => void;
-}
-
-export class BaseDebugController extends WorkbenchTreeController {
-
-	private contributedContextMenu: IMenu;
-
-	constructor(
-		private actionProvider: IActionProvider,
-		menuId: MenuId,
-		options: IControllerOptions,
-		@IDebugService protected debugService: IDebugService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IMenuService menuService: IMenuService,
-		@IConfigurationService configurationService: IConfigurationService
-	) {
-		super(options, configurationService);
-
-		this.contributedContextMenu = menuService.createMenu(menuId, contextKeyService);
-		this.disposables.push(this.contributedContextMenu);
-	}
-
-	public onContextMenu(tree: ITree, element: IEnablement, event: ContextMenuEvent, focusElement = true): boolean {
-		if (event.target && event.target.tagName && event.target.tagName.toLowerCase() === 'input') {
-			return false;
-		}
-
-		event.preventDefault();
-		event.stopPropagation();
-
-		if (focusElement) {
-			tree.setFocus(element);
-		}
-
-		if (this.actionProvider.hasSecondaryActions(tree, element)) {
-			const anchor = { x: event.posx, y: event.posy };
-			this.contextMenuService.showContextMenu({
-				getAnchor: () => anchor,
-				getActions: () => {
-					const actions = this.actionProvider.getSecondaryActions(tree, element);
-					fillInContextMenuActions(this.contributedContextMenu, { arg: this.getContext(element) }, actions, this.contextMenuService);
-					return actions;
-				},
-				onHide: (wasCancelled?: boolean) => {
-					if (wasCancelled) {
-						tree.domFocus();
-					}
-				},
-				getActionsContext: () => element
-			});
-
-			return true;
-		}
-
-		return false;
-	}
-
-	protected getContext(element: any): any {
-		return undefined;
-	}
 }
 
 export interface IExpressionTemplateData {

@@ -9329,10 +9329,10 @@ vscode-chokidar@1.6.5:
   optionalDependencies:
     vscode-fsevents "0.3.10"
 
-vscode-debugprotocol@1.33.0-pre.0:
-  version "1.33.0-pre.0"
-  resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.33.0-pre.0.tgz#a6c8fd6655ade772f7cbae8994f068bac51a9381"
-  integrity sha512-LRTpPDLkq7fcjvRr8Ttzo+1tiFXuxOcYQ5xhN7i/dYN6ISwg9hcQv4W74n8JBxz1nXdVpbS52KLKQMiZhBwpgg==
+vscode-debugprotocol@1.33.0:
+  version "1.33.0"
+  resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.33.0.tgz#334d2e76ac965f33437a0298441facdcad377d99"
+  integrity sha512-d+l4lrEz6OP2kmGpweqe37x9H7icAMV8S4m8azTWGAIlNJxBP4rlSTnZa7NMLcbgqWkWG9lTGY7fJ+rSPaW7yg==
 
 vscode-fsevents@0.3.10:
   version "0.3.10"

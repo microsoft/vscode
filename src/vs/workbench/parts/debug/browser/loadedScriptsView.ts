@@ -612,7 +612,7 @@ class LoadedScriptsRenderer implements ITreeRenderer<BaseTreeItem, void, ILoaded
 	}
 
 	disposeTemplate(templateData: ILoadedScriptsItemTemplateData): void {
-		// noop
+		templateData.label.dispose();
 	}
 }
 

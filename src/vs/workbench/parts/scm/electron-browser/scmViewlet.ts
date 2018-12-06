@@ -844,6 +844,7 @@ export class RepositoryPanel extends ViewletPanel {
 		const triggerValidation = () => validationDelayer.trigger(validate);
 
 		this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, { flexibleHeight: true });
+		this.inputBox.setEnabled(this.isVisible() && this.isExpanded());
 		this.disposables.push(attachInputBoxStyler(this.inputBox, this.themeService));
 		this.disposables.push(this.inputBox);
 
@@ -874,7 +875,6 @@ export class RepositoryPanel extends ViewletPanel {
 		this.updateInputBoxVisibility();
 
 		// List
-
 		this.listContainer = append(container, $('.scm-status.show-file-icons'));
 
 		const updateActionsVisibility = () => toggleClass(this.listContainer, 'show-actions', this.configurationService.getValue<boolean>('scm.alwaysShowActions'));
@@ -918,6 +918,13 @@ export class RepositoryPanel extends ViewletPanel {
 		} else {
 			this.visibilityDisposables = dispose(this.visibilityDisposables);
 		}
+
+		this.inputBox.setEnabled(this.isVisible() && this.isExpanded());
+	}
+
+	setExpanded(expanded: boolean): void {
+		super.setExpanded(expanded);
+		this.inputBox.setEnabled(this.isVisible() && this.isExpanded());
 	}
 
 	layoutBody(height: number = this.cachedHeight): void {

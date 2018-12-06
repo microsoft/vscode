@@ -194,7 +194,7 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 				run: () => {
 					/* __GDPR__
 						"exthostunresponsive/report" : {
-							"id" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+							"id" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 						}
 					*/
 					this._telemetryService.publicLog('exthostunresponsive/report', { id });

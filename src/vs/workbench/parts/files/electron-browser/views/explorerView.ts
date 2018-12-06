@@ -106,6 +106,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		this.explorerRefreshDelayer = new ThrottledDelayer<void>(ExplorerView.EXPLORER_FILE_CHANGES_REFRESH_DELAY);
 
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
+		this.disposables.push(this.resourceContext);
 		this.folderContext = ExplorerFolderContext.bindTo(contextKeyService);
 		this.readonlyContext = ExplorerResourceReadonlyContext.bindTo(contextKeyService);
 		this.rootContext = ExplorerRootContext.bindTo(contextKeyService);

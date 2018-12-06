@@ -1020,7 +1020,7 @@ suite('ExtensionsActions Test', () => {
 
 		return new Promise(c => {
 			testObject.onDidChange(() => {
-				if (testObject.enabled && testObject.tooltip === 'Please reload Visual Studio Code to complete the installing of this extension.') {
+				if (testObject.enabled && testObject.tooltip === 'Please reload Visual Studio Code to complete the installation of this extension.') {
 					c();
 				}
 			});
@@ -1057,7 +1057,7 @@ suite('ExtensionsActions Test', () => {
 
 		return new Promise(c => {
 			testObject.onDidChange(() => {
-				if (testObject.enabled && testObject.tooltip === 'Please reload Visual Studio Code to complete the uninstalling of this extension.') {
+				if (testObject.enabled && testObject.tooltip === 'Please reload Visual Studio Code to complete the uninstallation of this extension.') {
 					c();
 				}
 			});

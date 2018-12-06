@@ -123,6 +123,9 @@ class MainThreadSCMProvider implements ISCMProvider {
 	private _onDidChangeCommitTemplate = new Emitter<string>();
 	get onDidChangeCommitTemplate(): Event<string> { return this._onDidChangeCommitTemplate.event; }
 
+	private _onDidChangeStatusBarCommands = new Emitter<Command[]>();
+	get onDidChangeStatusBarCommands(): Event<Command[]> { return this._onDidChangeStatusBarCommands.event; }
+
 	private _onDidChange = new Emitter<void>();
 	get onDidChange(): Event<void> { return this._onDidChange.event; }
 
@@ -141,6 +144,10 @@ class MainThreadSCMProvider implements ISCMProvider {
 
 		if (typeof features.commitTemplate !== 'undefined') {
 			this._onDidChangeCommitTemplate.fire(this.commitTemplate);
+		}
+
+		if (typeof features.statusBarCommands !== 'undefined') {
+			this._onDidChangeStatusBarCommands.fire(this.statusBarCommands);
 		}
 	}
 

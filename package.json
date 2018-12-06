@@ -47,7 +47,7 @@
     "sudo-prompt": "8.2.0",
     "v8-inspect-profiler": "^0.0.13",
     "vscode-chokidar": "1.6.5",
-    "vscode-debugprotocol": "1.33.0-pre.0",
+    "vscode-debugprotocol": "1.33.0",
     "vscode-nsfw": "1.1.1",
     "vscode-proxy-agent": "0.1.1",
     "vscode-ripgrep": "^1.2.5",

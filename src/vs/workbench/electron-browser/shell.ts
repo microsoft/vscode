@@ -294,7 +294,7 @@ export class WorkbenchShell extends Disposable {
 				loggedStorageErrors.add(errorStr);
 
 				/* __GDPR__
-					"sqliteStorageError5" : {
+					"sqliteStorageError<NUMBER>" : {
 						"appReadyTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"workbenchReadyTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"workspaceExistsTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -340,7 +340,7 @@ export class WorkbenchShell extends Disposable {
 		}
 
 		/* __GDPR__
-			"sqliteStorageTimers5" : {
+			"sqliteStorageTimers<NUMBER>" : {
 				"appReadyTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"workbenchReadyTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"workspaceExistsTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },

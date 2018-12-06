@@ -455,7 +455,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		// Check that the task hasn't changed to include new variables
 		let hasAllVariables = true;
 		variables.forEach(value => {
-			if (value in this.lastTask.getVerifiedTask().resolvedVariables) {
+			if (value.substring(2, value.length - 1) in this.lastTask.getVerifiedTask().resolvedVariables) {
 				hasAllVariables = false;
 			}
 		});

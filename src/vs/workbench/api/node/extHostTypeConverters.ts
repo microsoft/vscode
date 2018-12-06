@@ -27,6 +27,7 @@ import { isString, isNumber } from 'vs/base/common/types';
 import * as marked from 'vs/base/common/marked/marked';
 import { parse } from 'vs/base/common/marshalling';
 import { cloneAndChange } from 'vs/base/common/objects';
+import { LogLevel as _MainLogLevel } from 'vs/platform/log/common/log';
 
 export interface PositionLike {
 	line: number;
@@ -965,5 +966,15 @@ export namespace LanguageSelector {
 				exclusive: selector.exclusive
 			};
 		}
+	}
+}
+
+export namespace LogLevel {
+	export function fromMainLogLevel(mainLevel: _MainLogLevel): types.LogLevel {
+		return mainLevel + 1;
+	}
+
+	export function toMainLogLevel(extLevel: types.LogLevel): _MainLogLevel {
+		return extLevel - 1;
 	}
 }
