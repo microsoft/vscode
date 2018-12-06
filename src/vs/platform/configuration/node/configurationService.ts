@@ -10,7 +10,6 @@ import { IConfigurationService, IConfigurationChangeEvent, IConfigurationOverrid
 import { DefaultConfigurationModel, Configuration, ConfigurationChangeEvent, ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { equals } from 'vs/base/common/objects';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { UserConfiguration } from 'vs/platform/configuration/node/configuration';
 
@@ -92,16 +91,11 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 	}
 
 	private onDidChangeUserConfiguration(userConfigurationModel: ConfigurationModel): void {
-		let changedKeys: string[] = [];
 		const { added, updated, removed } = compare(this._configuration.user, userConfigurationModel);
-		changedKeys = [...added, ...updated, ...removed];
+		const changedKeys = [...added, ...updated, ...removed];
 		if (changedKeys.length) {
-			const oldConfiguartion = this._configuration;
 			this._configuration.updateUserConfiguration(userConfigurationModel);
-			changedKeys = changedKeys.filter(key => !equals(oldConfiguartion.getValue(key, {}, null), this._configuration.getValue(key, {}, null)));
-			if (changedKeys.length) {
-				this.trigger(changedKeys, ConfigurationTarget.USER);
-			}
+			this.trigger(changedKeys, ConfigurationTarget.USER);
 		}
 	}
 

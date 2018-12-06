@@ -524,7 +524,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	}
 
 	private onUserConfigurationChanged(userConfiguration: ConfigurationModel): void {
-		let keys = this._configuration.compareAndUpdateUserConfiguration(userConfiguration);
+		const keys = this._configuration.compareAndUpdateUserConfiguration(userConfiguration);
 		this.triggerConfigurationChange(keys, ConfigurationTarget.USER);
 	}
 
