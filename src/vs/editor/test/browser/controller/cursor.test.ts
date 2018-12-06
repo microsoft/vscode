@@ -4719,6 +4719,64 @@ suite('autoClosingPairs', () => {
 			assertCursor(cursor, new Selection(3, 7, 4, 7));
 		});
 	});
+
+	test('auto closing exit is working', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'(',
+				'[',
+				'{'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			editorOpts: {
+				autoClosingExit: true
+			}
+		}, (model, cursor) => {
+			assertType(model, cursor, 1, 2, ';', ');', `auto closes @ (${1}, ${1})`);
+			assertType(model, cursor, 2, 2, ';', '];', `auto closes @ (${2}, ${1})`);
+			assertType(model, cursor, 3, 2, ';', '};', `auto closes @ (${3}, ${1})`);
+
+			assertType(model, cursor, 1, 2, ',', '),', `auto closes @ (${1}, ${1})`);
+			assertType(model, cursor, 2, 2, ',', '],', `auto closes @ (${2}, ${1})`);
+			assertType(model, cursor, 3, 2, ',', '},', `auto closes @ (${3}, ${1})`);
+
+			assertType(model, cursor, 1, 2, '.', ').', `auto closes @ (${1}, ${1})`);
+			assertType(model, cursor, 2, 2, '.', '].', `auto closes @ (${2}, ${1})`);
+			assertType(model, cursor, 3, 2, '.', '}.', `auto closes @ (${3}, ${1})`);
+
+		});
+		mode.dispose();
+	});
+
+	test('auto closing  exit can be disabled', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'(',
+				'[',
+				'{'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			editorOpts: {
+				autoClosingExit: false
+			}
+		}, (model, cursor) => {
+			assertType(model, cursor, 1, 2, ';', ';', `auto closes @ (${1}, ${1})`);
+			assertType(model, cursor, 2, 2, ';', ';', `auto closes @ (${2}, ${1})`);
+			assertType(model, cursor, 3, 2, ';', ';', `auto closes @ (${3}, ${1})`);
+
+			assertType(model, cursor, 1, 2, ',', ',', `auto closes @ (${1}, ${1})`);
+			assertType(model, cursor, 2, 2, ',', ',', `auto closes @ (${2}, ${1})`);
+			assertType(model, cursor, 3, 2, ',', ',', `auto closes @ (${3}, ${1})`);
+
+			assertType(model, cursor, 1, 2, '.', '.', `auto closes @ (${1}, ${1})`);
+			assertType(model, cursor, 2, 2, '.', '.', `auto closes @ (${2}, ${1})`);
+			assertType(model, cursor, 3, 2, '.', '.', `auto closes @ (${3}, ${1})`);
+
+		});
+		mode.dispose();
+	});
 });
 
 suite('Undo stops', () => {
@@ -4947,5 +5005,7 @@ suite('Undo stops', () => {
 			assertCursor(cursor, new Selection(1, 3, 1, 3));
 		});
 	});
+
+
 
 });
