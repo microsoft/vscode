@@ -74,7 +74,7 @@ import { ITaskSystem, ITaskResolver, ITaskSummary, TaskExecuteKind, TaskError, T
 import {
 	Task, CustomTask, ConfiguringTask, ContributedTask, InMemoryTask, TaskEvent,
 	TaskEventKind, TaskSet, TaskGroup, GroupType, ExecutionEngine, JsonSchemaVersion, TaskSourceKind,
-	TaskSorter, TaskIdentifier, KeyedTaskIdentifier, TASK_RUNNING_STATE
+	TaskSorter, TaskIdentifier, KeyedTaskIdentifier, TASK_RUNNING_STATE, TaskRunSource
 } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService, ITaskProvider, ProblemMatcherRunOptions, CustomizationProperties, TaskFilter, WorkspaceFolderTaskResult } from 'vs/workbench/parts/tasks/common/taskService';
 import { getTemplates as getTaskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
@@ -526,7 +526,7 @@ class TaskService extends Disposable implements ITaskService {
 			if (!this._taskSystem || this._taskSystem instanceof TerminalTaskSystem) {
 				this._outputChannel.clear();
 			}
-			this.updateWorkspaceTasks();
+			this.updateWorkspaceTasks(TaskRunSource.ConfigurationChange);
 		}));
 		this._taskRunningState = TASK_RUNNING_STATE.bindTo(contextKeyService);
 		this._register(lifecycleService.onBeforeShutdown(event => event.veto(this.beforeShutdown())));
@@ -664,8 +664,10 @@ class TaskService extends Disposable implements ITaskService {
 		this._schemaVersion = setup[3];
 	}
 
-	private showOutput(): void {
-		this.outputService.showChannel(this._outputChannel.id, true);
+	private showOutput(runSource: TaskRunSource = TaskRunSource.User): void {
+		if (runSource === TaskRunSource.User) {
+			this.outputService.showChannel(this._outputChannel.id, true);
+		}
 	}
 
 	private disposeTaskSystemListeners(): void {
@@ -1493,16 +1495,16 @@ class TaskService extends Disposable implements ITaskService {
 		return result;
 	}
 
-	public getWorkspaceTasks(): TPromise<Map<string, WorkspaceFolderTaskResult>> {
+	public getWorkspaceTasks(runSource: TaskRunSource = TaskRunSource.User): TPromise<Map<string, WorkspaceFolderTaskResult>> {
 		if (this._workspaceTasksPromise) {
 			return this._workspaceTasksPromise;
 		}
-		this.updateWorkspaceTasks();
+		this.updateWorkspaceTasks(runSource);
 		return this._workspaceTasksPromise;
 	}
 
-	private updateWorkspaceTasks(): void {
-		this._workspaceTasksPromise = this.computeWorkspaceTasks().then(value => {
+	private updateWorkspaceTasks(runSource: TaskRunSource = TaskRunSource.User): void {
+		this._workspaceTasksPromise = this.computeWorkspaceTasks(runSource).then(value => {
 			if (this.executionEngine === ExecutionEngine.Process && this._taskSystem instanceof ProcessTaskSystem) {
 				// We can only have a process engine if we have one folder.
 				value.forEach((value) => {
@@ -1514,13 +1516,13 @@ class TaskService extends Disposable implements ITaskService {
 		});
 	}
 
-	private computeWorkspaceTasks(): TPromise<Map<string, WorkspaceFolderTaskResult>> {
+	private computeWorkspaceTasks(runSource: TaskRunSource = TaskRunSource.User): TPromise<Map<string, WorkspaceFolderTaskResult>> {
 		if (this.workspaceFolders.length === 0) {
 			return TPromise.as(new Map<string, WorkspaceFolderTaskResult>());
 		} else {
 			let promises: TPromise<WorkspaceFolderTaskResult>[] = [];
 			for (let folder of this.workspaceFolders) {
-				promises.push(this.computeWorkspaceFolderTasks(folder).then((value) => value, () => undefined));
+				promises.push(this.computeWorkspaceFolderTasks(folder, runSource).then((value) => value, () => undefined));
 			}
 			return TPromise.join(promises).then((values) => {
 				let result = new Map<string, WorkspaceFolderTaskResult>();
@@ -1534,7 +1536,7 @@ class TaskService extends Disposable implements ITaskService {
 		}
 	}
 
-	private computeWorkspaceFolderTasks(workspaceFolder: IWorkspaceFolder): TPromise<WorkspaceFolderTaskResult> {
+	private computeWorkspaceFolderTasks(workspaceFolder: IWorkspaceFolder, runSource: TaskRunSource = TaskRunSource.User): TPromise<WorkspaceFolderTaskResult> {
 		return (this.executionEngine === ExecutionEngine.Process
 			? this.computeLegacyConfiguration(workspaceFolder)
 			: this.computeConfiguration(workspaceFolder)).
@@ -1549,7 +1551,7 @@ class TaskService extends Disposable implements ITaskService {
 					let hasErrors = false;
 					if (!parseResult.validationStatus.isOK()) {
 						hasErrors = true;
-						this.showOutput();
+						this.showOutput(runSource);
 					}
 					if (problemReporter.status.isFatal()) {
 						problemReporter.fatal(nls.localize('TaskSystem.configurationErrors', 'Error: the provided task configuration has validation errors and can\'t not be used. Please correct the errors first.'));

@@ -8,7 +8,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ITaskService } from 'vs/workbench/parts/tasks/common/taskService';
 import { forEach } from 'vs/base/common/collections';
-import { RunOnOptions, Task } from 'vs/workbench/parts/tasks/common/tasks';
+import { RunOnOptions, Task, TaskRunSource } from 'vs/workbench/parts/tasks/common/tasks';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 
@@ -27,7 +27,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 	private tryRunTasks(isAllowed: boolean | undefined) {
 		// Not necessarily allowed to run the tasks, but we can see if there are any.
 		if (isAllowed !== false) {
-			this.taskService.getWorkspaceTasks().then(workspaceTaskResult => {
+			this.taskService.getWorkspaceTasks(TaskRunSource.FolderOpen).then(workspaceTaskResult => {
 				if (workspaceTaskResult) {
 					const tasks = new Array<Task | Promise<Task>>();
 					workspaceTaskResult.forEach(resultElement => {
