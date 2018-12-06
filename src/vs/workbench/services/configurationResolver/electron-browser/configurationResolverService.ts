@@ -266,7 +266,7 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 				});
 			}
 		}
-		return Promise.reject(nls.localize('undefinedInputVariable', "Undefined input variable {0} encountered. Remove or define {0} to continue.", commandVariable));
+		return Promise.reject(new Error(nls.localize('undefinedInputVariable', "Undefined input variable {0} encountered. Remove or define {0} to continue.", commandVariable)));
 	}
 
 	/**
