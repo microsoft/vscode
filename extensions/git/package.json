@@ -1233,6 +1233,15 @@
           "type": "boolean",
           "default": true,
           "description": "%config.openDiffOnClick%"
+        },
+        "git.sortOrderForBranchList": {
+          "type": "string",
+          "enum": [
+            "committerdate",
+            "alphabetically"
+          ],
+          "default": "committerdate",
+          "description": "%config.sortOrderForBranchList%"
         }
       }
     },

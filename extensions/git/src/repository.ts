@@ -1170,6 +1170,8 @@ export class Repository implements Disposable {
 			const result = await this.retryRun(operation, runOperation);
 
 			if (!isReadOnly(operation)) {
+				const onConfigListener = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.sortOrderForBranchList'));
+				onConfigListener(this.updateModelState, this, this.disposables);
 				await this.updateModelState();
 			}
 
@@ -1217,6 +1219,7 @@ export class Repository implements Disposable {
 		const config = workspace.getConfiguration('git');
 		const shouldIgnore = config.get<boolean>('ignoreLimitWarning') === true;
 		const useIcons = !config.get<boolean>('decorations.enabled', true);
+		const sortBranchListByCommitterDate = config.get<string>('sortOrderForBranchList') === 'committerdate';
 
 		this.isRepositoryHuge = didHitLimit;
 
@@ -1248,7 +1251,7 @@ export class Repository implements Disposable {
 			// noop
 		}
 
-		const [refs, remotes, submodules, rebaseCommit] = await Promise.all([this.repository.getRefs(), this.repository.getRemotes(), this.repository.getSubmodules(), this.getRebaseCommit()]);
+		const [refs, remotes, submodules, rebaseCommit] = await Promise.all([this.repository.getRefs(sortBranchListByCommitterDate), this.repository.getRemotes(), this.repository.getSubmodules(), this.getRebaseCommit()]);
 
 		this._HEAD = HEAD;
 		this._refs = refs;
