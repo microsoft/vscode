@@ -11,39 +11,79 @@ import { Range } from 'vs/editor/common/core/range';
 export class BracketSelectionRangeProvider implements SelectionRangeProvider {
 
 	provideSelectionRanges(model: ITextModel, position: Position): Range[] {
-
 		let result: Range[] = [];
-		let last: Range | undefined;
-		let pos = position;
-		let i = 0;
-		for (; i < 1750; i++) {
+		this._computeBracketRanges(model, position, result);
+		return result;
+	}
+
+	private _computeBracketRanges(model: ITextModel, position: Position, bucket: Range[]): void {
+
+		let ranges = new Map<string, Range[]>();
+
+		// right/down
+		let counts = new Map<string, number>();
+		let pos: Position | undefined = position;
+		while (true) {
+			if (!pos) {
+				break;
+			}
 			let bracket = model.findNextBracket(pos);
 			if (!bracket) {
-				// no more brackets
 				break;
-			} else if (bracket.isOpen) {
-				// skip past the closing bracket
-				let matching = model.matchBracket(bracket.range.getEndPosition());
-				if (!matching) {
-					break;
-				}
-				pos = model.getPositionAt(model.getOffsetAt(matching[1].getEndPosition()) + 1);
-
-			} else {
-				// find matching, opening bracket
-				let range = model.findMatchingBracketUp(bracket.close, bracket.range.getStartPosition());
-				if (!range) {
-					break;
-				}
-				if (!last || range.getStartPosition().isBefore(last.getStartPosition())) {
-					const inner = Range.fromPositions(range.getStartPosition(), bracket.range.getEndPosition());
-					const outer = Range.fromPositions(range.getEndPosition(), bracket.range.getStartPosition());
-					result.push(inner, outer);
-					last = outer;
-				}
-				pos = model.getPositionAt(model.getOffsetAt(bracket.range.getEndPosition()) + 1);
 			}
+			const key = bracket.close;
+			if (bracket.isOpen) {
+				// wait for closing
+				let val = counts.has(key) ? counts.get(key) : 0;
+				counts.set(key, val + 1);
+			} else {
+				// process closing
+				let val = counts.has(key) ? counts.get(key) : 0;
+				val -= 1;
+				counts.set(key, val);
+				if (val < 0) {
+					let arr = ranges.get(key);
+					if (!arr) {
+						arr = [];
+						ranges.set(key, arr);
+					}
+					arr.push(bracket.range);
+				}
+			}
+			pos = bracket.range.getEndPosition();
 		}
-		return result;
+
+		// left/up
+		counts.clear();
+		pos = position;
+		while (true) {
+			if (!pos) {
+				break;
+			}
+			let bracket = model.findPrevBracket(pos);
+			if (!bracket) {
+				break;
+			}
+			const key = bracket.close;
+			if (!bracket.isOpen) {
+				// wait for opening
+				let val = counts.has(key) ? counts.get(key) : 0;
+				counts.set(key, val + 1);
+			} else {
+				// opening
+				let val = counts.has(key) ? counts.get(key) : 0;
+				val -= 1;
+				counts.set(key, val);
+				if (val < 0) {
+					let arr = ranges.get(key);
+					if (arr && arr.length > 0) {
+						let closing = arr.shift();
+						bucket.push(Range.fromPositions(bracket.range.getEndPosition(), closing!.getStartPosition()));
+						bucket.push(Range.fromPositions(bracket.range.getStartPosition(), closing!.getEndPosition()));
+					}
+				}
+			}
+			pos = bracket.range.getStartPosition();
+		}
 	}
 }
