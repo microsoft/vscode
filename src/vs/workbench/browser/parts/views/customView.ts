@@ -512,10 +512,13 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		}
 	}
 
+	private refreshing: boolean = false;
 	private doRefresh(elements: ITreeItem[]): Promise<void> {
 		if (this.tree) {
+			this.refreshing = true;
 			return Promise.all(elements.map(e => this.tree.refresh(e)))
 				.then(() => {
+					this.refreshing = false;
 					this.updateContentAreas();
 					if (this.focused) {
 						this.focus();
@@ -527,8 +530,8 @@ export class CustomTreeView extends Disposable implements ITreeView {
 
 	private updateContentAreas(): void {
 		const isTreeEmpty = !this.root.children || this.root.children.length === 0;
-		// Hide tree container only when there is a message and tree is empty
-		if (this._messageValue && isTreeEmpty) {
+		// Hide tree container only when there is a message and tree is empty and not refreshing
+		if (this._messageValue && isTreeEmpty && !this.refreshing) {
 			DOM.addClass(this.treeContainer, 'hide');
 			this.domNode.setAttribute('tabindex', '0');
 		} else {
