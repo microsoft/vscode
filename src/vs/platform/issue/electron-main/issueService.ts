@@ -60,12 +60,16 @@ export class IssueService implements IIssueService {
 				]
 			};
 
-			dialog.showMessageBox(this._issueWindow, messageOptions, (response) => {
-				if (response === 0) {
-					this._issueWindow.destroy();
-					this._issueWindow = null;
-				}
-			});
+			if (this._issueWindow) {
+				dialog.showMessageBox(this._issueWindow, messageOptions, (response) => {
+					if (response === 0) {
+						if (this._issueWindow) {
+							this._issueWindow.destroy();
+							this._issueWindow = null;
+						}
+					}
+				});
+			}
 		});
 
 		ipcMain.on('vscode:workbenchCommand', (_, commandInfo) => {
