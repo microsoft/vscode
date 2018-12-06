@@ -80,7 +80,7 @@ export abstract class TitleControl extends Themable {
 	) {
 		super(themeService);
 
-		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
+		this.resourceContext = this._register(instantiationService.createInstance(ResourceContextKey));
 		this.contextMenu = this._register(this.menuService.createMenu(MenuId.EditorTitleContext, this.contextKeyService));
 
 		this.create(parent);
