@@ -1275,7 +1275,7 @@ export class ReloadAction extends Action {
 					if (enableReload === true) {
 						this.enabled = true;
 						if (!isEnabled) {
-							this.tooltip = localize('postInstallTooltip', "Please reload Visual Studio Code to complete the installing of this extension.");
+							this.tooltip = localize('postInstallTooltip', "Please reload Visual Studio Code to complete the installation of this extension.");
 						} else {
 							this.tooltip = localize('postEnableTooltip', "Please reload Visual Studio Code to complete the enabling of this extension.");
 						}
@@ -1289,7 +1289,7 @@ export class ReloadAction extends Action {
 		if (isUninstalled && runningExtension) {
 			// Requires reload to deactivate the extension
 			this.enabled = true;
-			this.tooltip = localize('postUninstallTooltip', "Please reload Visual Studio Code to complete the uninstalling of this extension.");
+			this.tooltip = localize('postUninstallTooltip', "Please reload Visual Studio Code to complete the uninstallation of this extension.");
 			return;
 		}
 	}
