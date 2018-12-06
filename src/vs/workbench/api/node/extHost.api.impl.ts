@@ -246,11 +246,11 @@ export function createApiFactory(
 			get appRoot() { return initData.environment.appRoot.fsPath; },
 			get logLevel() {
 				checkProposedApiEnabled(extension);
-				return typeConverters.LogLevel.fromMainLogLevel(extHostLogService.getLevel());
+				return typeConverters.LogLevel.to(extHostLogService.getLevel());
 			},
 			get onDidChangeLogLevel() {
 				checkProposedApiEnabled(extension);
-				return mapEvent(extHostLogService.onDidChangeLogLevel, l => typeConverters.LogLevel.fromMainLogLevel(l));
+				return mapEvent(extHostLogService.onDidChangeLogLevel, l => typeConverters.LogLevel.to(l));
 			},
 			get clipboard(): vscode.Clipboard {
 				return extHostClipboard;
