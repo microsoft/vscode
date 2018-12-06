@@ -404,6 +404,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		} else {
 			this.hideMessage();
 		}
+		this.updateContentAreas();
 	}
 
 	private showMessage(message: string | IMarkdownString): void {
@@ -513,7 +514,6 @@ export class CustomTreeView extends Disposable implements ITreeView {
 
 	private doRefresh(elements: ITreeItem[]): Promise<void> {
 		if (this.tree) {
-			DOM.removeClass(this.treeContainer, 'hasChildren');
 			return Promise.all(elements.map(e => this.tree.refresh(e)))
 				.then(() => {
 					this.updateContentAreas();
@@ -526,12 +526,14 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	}
 
 	private updateContentAreas(): void {
-		if (this.root.children && this.root.children.length) {
-			DOM.addClass(this.treeContainer, 'hasChildren');
-			this.domNode.removeAttribute('tabindex');
-		} else {
-			DOM.removeClass(this.treeContainer, 'hasChildren');
+		const isTreeEmpty = !this.root.children || this.root.children.length === 0;
+		// Hide tree container only when there is a message and tree is empty
+		if (this._messageValue && isTreeEmpty) {
+			DOM.addClass(this.treeContainer, 'hide');
 			this.domNode.setAttribute('tabindex', '0');
+		} else {
+			DOM.removeClass(this.treeContainer, 'hide');
+			this.domNode.removeAttribute('tabindex');
 		}
 	}
 
