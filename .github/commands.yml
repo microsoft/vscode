@@ -66,6 +66,13 @@
         },
         {
             type: 'comment',
+            name: 'needsConfirmation',
+            allowUsers: ['cleidigh', 'usernamehw'],
+            action: 'updateLabels',
+            addLabel: 'needs-confirmation'
+        },
+        {
+            type: 'comment',
             name: 'findDuplicates',
             allowUsers: ['cleidigh', 'usernamehw'],
             action: 'comment',
