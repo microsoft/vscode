@@ -82,6 +82,10 @@ interface IPrivateReplService {
 	clearRepl(): void;
 }
 
+function revealLastElement<T>(tree: WorkbenchAsyncDataTree<T>) {
+	tree.scrollTop = tree.scrollHeight - tree.renderHeight;
+}
+
 const sessionsToIgnore = new Set<IDebugSession>();
 export class Repl extends Panel implements IPrivateReplService, IHistoryNavigationWidget {
 	_serviceBrand: any;
@@ -209,7 +213,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 			if (this.tree && this.dataSource.input !== session) {
 				this.dataSource.input = session;
-				this.tree.refresh(null);
+				this.tree.refresh(null).then(() => revealLastElement(this.tree));
 			}
 		}
 
@@ -235,8 +239,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		const session: IDebugSession = this.dataSource.input;
 		if (session) {
 			session.addReplExpression(this.debugService.getViewModel().focusedStackFrame, this.replInput.getValue());
-			// Reveal last element when we add new expression
-			this.tree.scrollTop = this.tree.scrollHeight - this.tree.renderHeight;
+			revealLastElement(this.tree);
 			this.history.add(this.replInput.getValue());
 			this.replInput.setValue('');
 			const shouldRelayout = this.replInputHeight > Repl.REPL_INPUT_INITIAL_HEIGHT;
