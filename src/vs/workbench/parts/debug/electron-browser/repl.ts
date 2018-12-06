@@ -330,11 +330,11 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	@memoize
 	private get refreshScheduler(): RunOnceScheduler {
 		return new RunOnceScheduler(() => {
-			const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight === this.tree.scrollHeight;
+			const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight;
 			this.tree.refresh(null).then(() => {
 				if (lastElementVisible) {
 					// Only scroll if we were scrolled all the way down before tree refreshed #10486
-					this.tree.scrollTop = this.tree.scrollHeight - this.tree.renderHeight;
+					revealLastElement(this.tree);
 				}
 			}, errors.onUnexpectedError);
 		}, Repl.REFRESH_DELAY);
