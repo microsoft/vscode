@@ -700,7 +700,7 @@ class ReplDelegate implements IListVirtualDelegate<IReplElement> {
 
 		let availableWidth = this.width;
 		if (element instanceof SimpleReplElement && element.sourceData) {
-			availableWidth -= `${element.sourceData.source.name}:${element.sourceData.lineNumber}`.length * this.characterWidth;
+			availableWidth -= Math.ceil(`${element.sourceData.source.name}:${element.sourceData.lineNumber}`.length * this.characterWidth + 12);
 		}
 
 		return this.getHeightForString((<any>element).value, availableWidth) + (element instanceof Expression ? this.getHeightForString(element.name, availableWidth) : 0);
