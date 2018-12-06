@@ -89,6 +89,8 @@ export class MenuBar extends Disposable {
 		this.menuCache = [];
 		this.mnemonics = new Map<KeyCode, number>();
 
+		this._focusState = MenubarState.VISIBLE;
+
 		this._onVisibilityChange = this._register(new Emitter<boolean>());
 		this._onFocusStateChange = this._register(new Emitter<boolean>());
 
