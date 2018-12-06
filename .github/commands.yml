@@ -66,10 +66,10 @@
         },
         {
             type: 'comment',
-            name: 'confirmationNeeded',
+            name: 'unconfirm',
             allowUsers: ['cleidigh', 'usernamehw'],
             action: 'updateLabels',
-            addLabel: 'confirmation-needed'
+            addLabel: 'unconfirmed'
         },
         {
             type: 'comment',
