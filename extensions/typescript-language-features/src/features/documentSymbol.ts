@@ -8,7 +8,7 @@ import * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import * as typeConverters from '../utils/typeConverters';
-import { CachedResponse } from './baseCodeLensProvider';
+import { CachedResponse } from '../tsServer/cachedResponse';
 
 const getSymbolKind = (kind: string): vscode.SymbolKind => {
 	switch (kind) {
