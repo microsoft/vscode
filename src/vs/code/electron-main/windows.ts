@@ -1091,9 +1091,9 @@ export class WindowsManager implements IWindowsMainService {
 				}
 			}
 		} catch (error) {
-			const fileUri = URI.file(candidate);
-			this.historyMainService.removeFromRecentlyOpened([fileUri]); // since file does not seem to exist anymore, remove from recent
+			this.historyMainService.removeFromRecentlyOpened([candidate]); // since file does not seem to exist anymore, remove from recent
 
+			const fileUri = URI.file(candidate);
 			if (options && options.ignoreFileNotFound) {
 				return { fileUri, createFilePath: true, remoteAuthority }; // assume this is a file that does not yet exist
 			}
@@ -1651,7 +1651,7 @@ export class WindowsManager implements IWindowsMainService {
 
 		/* __GDPR__
 			"windowerror" : {
-				"type" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+				"type" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
 			}
 		*/
 		this.telemetryService.publicLog('windowerror', { type: error });

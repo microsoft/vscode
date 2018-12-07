@@ -44,7 +44,6 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IMarkdownRenderResult } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { dirname } from 'vs/base/common/resources';
-import { escape } from 'vs/base/common/strings';
 
 export class CustomTreeViewPanel extends ViewletPanel {
 
@@ -363,8 +362,8 @@ export class CustomTreeView extends Disposable implements ITreeView {
 
 			// Pass Focus to Viewer
 			this.tree.domFocus();
-		} else if (this._messageValue) {
-			this.messageElement.focus();
+		} else {
+			this.domNode.focus();
 		}
 	}
 
@@ -375,7 +374,6 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	private create() {
 		this.domNode = DOM.$('.tree-explorer-viewlet-tree-view');
 		this.messageElement = DOM.append(this.domNode, DOM.$('.message'));
-		this.messageElement.setAttribute('tabindex', '0');
 		this.treeContainer = DOM.append(this.domNode, DOM.$('.customview-tree'));
 		const focusTracker = this._register(DOM.trackFocus(this.domNode));
 		this._register(focusTracker.onDidFocus(() => this.focused = true));
@@ -395,7 +393,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		this._register(this.tree.onDidExpandItem(e => this._onDidExpandItem.fire(e.item.getElement())));
 		this._register(this.tree.onDidCollapseItem(e => this._onDidCollapseItem.fire(e.item.getElement())));
 		this._register(this.tree.onDidChangeSelection(e => this._onDidChangeSelection.fire(e.selection)));
-		this.tree.setInput(this.root);
+		this.tree.setInput(this.root).then(() => this.updateContentAreas());
 	}
 
 	private updateMessage(): void {
@@ -406,6 +404,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		} else {
 			this.hideMessage();
 		}
+		this.updateContentAreas();
 	}
 
 	private showMessage(message: string | IMarkdownString): void {
@@ -414,7 +413,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 			this.resetMessageElement();
 			this._messageValue = message;
 			if (isString(this._messageValue)) {
-				this.messageElement.innerText = escape(this._messageValue);
+				this.messageElement.textContent = this._messageValue;
 			} else {
 				this.markdownResult = this.markdownRenderer.render(this._messageValue);
 				DOM.append(this.messageElement, this.markdownResult.element);
@@ -513,16 +512,32 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		}
 	}
 
+	private refreshing: boolean = false;
 	private doRefresh(elements: ITreeItem[]): Promise<void> {
 		if (this.tree) {
+			this.refreshing = true;
 			return Promise.all(elements.map(e => this.tree.refresh(e)))
 				.then(() => {
+					this.refreshing = false;
+					this.updateContentAreas();
 					if (this.focused) {
 						this.focus();
 					}
 				});
 		}
 		return Promise.resolve(null);
+	}
+
+	private updateContentAreas(): void {
+		const isTreeEmpty = !this.root.children || this.root.children.length === 0;
+		// Hide tree container only when there is a message and tree is empty and not refreshing
+		if (this._messageValue && isTreeEmpty && !this.refreshing) {
+			DOM.addClass(this.treeContainer, 'hide');
+			this.domNode.setAttribute('tabindex', '0');
+		} else {
+			DOM.removeClass(this.treeContainer, 'hide');
+			this.domNode.removeAttribute('tabindex');
+		}
 	}
 
 	private onSelection({ payload }: any): void {
@@ -651,12 +666,12 @@ class TreeRenderer implements IRenderer {
 	renderElement(tree: ITree, node: ITreeItem, templateId: string, templateData: ITreeExplorerTemplateData): void {
 		const resource = node.resourceUri ? URI.revive(node.resourceUri) : null;
 		const treeItemLabel: ITreeItemLabel = node.label ? node.label : resource ? { label: basename(resource.path) } : void 0;
-		const description = isString(node.description) ? escape(node.description) : resource && node.description === true ? this.labelService.getUriLabel(dirname(resource), { relative: true }) : void 0;
-		const label = treeItemLabel ? escape(treeItemLabel.label) : void 0;
+		const description = isString(node.description) ? node.description : resource && node.description === true ? this.labelService.getUriLabel(dirname(resource), { relative: true }) : void 0;
+		const label = treeItemLabel ? treeItemLabel.label : void 0;
 		const matches = treeItemLabel && treeItemLabel.highlights ? treeItemLabel.highlights.map(([start, end]) => ({ start, end })) : void 0;
 		const icon = this.themeService.getTheme().type === LIGHT ? node.icon : node.iconDark;
 		const iconUrl = icon ? URI.revive(icon) : null;
-		const title = node.tooltip ? node.tooltip : resource ? void 0 : treeItemLabel ? treeItemLabel.label : void 0;
+		const title = node.tooltip ? node.tooltip : resource ? void 0 : label;
 
 		// reset
 		templateData.resourceLabel.clear();

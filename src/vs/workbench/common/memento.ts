@@ -16,7 +16,7 @@ export class Memento {
 	private id: string;
 
 	constructor(id: string, private storageService: IStorageService) {
-		this.id = Memento.COMMON_PREFIX + id.toLowerCase();
+		this.id = Memento.COMMON_PREFIX + id;
 	}
 
 	getMemento(scope: StorageScope): object {

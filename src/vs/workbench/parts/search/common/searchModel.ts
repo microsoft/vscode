@@ -187,7 +187,6 @@ export class FileMatch extends Disposable {
 		this._updateScheduler = new RunOnceScheduler(this.updateMatchesForModel.bind(this), 250);
 
 		this.createMatches();
-		this.registerListeners();
 	}
 
 	private createMatches(): void {
@@ -205,15 +204,7 @@ export class FileMatch extends Disposable {
 		}
 	}
 
-	private registerListeners(): void {
-		this._register(this.modelService.onModelAdded((model: ITextModel) => {
-			if (model.uri.toString() === this._resource.toString()) {
-				this.bindModel(model);
-			}
-		}));
-	}
-
-	private bindModel(model: ITextModel): void {
+	public bindModel(model: ITextModel): void {
 		this._model = model;
 		this._modelListener = this._model.onDidChangeContent(() => {
 			this._updateScheduler.schedule();
@@ -394,8 +385,10 @@ export class FolderMatch extends Disposable {
 	private _unDisposedFileMatches: ResourceMap<FileMatch>;
 	private _replacingAll: boolean = false;
 
-	constructor(private _resource: URI | null, private _id: string, private _index: number, private _query: ITextQuery, private _parent: SearchResult, private _searchModel: SearchModel, @IReplaceService private replaceService: IReplaceService,
-		@IInstantiationService private instantiationService: IInstantiationService) {
+	constructor(private _resource: URI | null, private _id: string, private _index: number, private _query: ITextQuery, private _parent: SearchResult, private _searchModel: SearchModel,
+		@IReplaceService private replaceService: IReplaceService,
+		@IInstantiationService private instantiationService: IInstantiationService
+	) {
 		super();
 		this._fileMatches = new ResourceMap<FileMatch>();
 		this._unDisposedFileMatches = new ResourceMap<FileMatch>();
@@ -435,6 +428,13 @@ export class FolderMatch extends Disposable {
 
 	public hasResource(): boolean {
 		return !!this._resource;
+	}
+
+	public bindModel(model: ITextModel): void {
+		const fileMatch = this._fileMatches.get(model.uri);
+		if (fileMatch) {
+			fileMatch.bindModel(model);
+		}
 	}
 
 	public add(raw: IFileMatch[], silent: boolean): void {
@@ -589,10 +589,17 @@ export class SearchResult extends Disposable {
 
 	private _rangeHighlightDecorations: RangeHighlightDecorations;
 
-	constructor(private _searchModel: SearchModel, @IReplaceService private replaceService: IReplaceService, @ITelemetryService private telemetryService: ITelemetryService,
-		@IInstantiationService private instantiationService: IInstantiationService) {
+	constructor(
+		private _searchModel: SearchModel,
+		@IReplaceService private replaceService: IReplaceService,
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IModelService private readonly modelService: IModelService,
+	) {
 		super();
 		this._rangeHighlightDecorations = this.instantiationService.createInstance(RangeHighlightDecorations);
+
+		this._register(this.modelService.onModelAdded(model => this.onModelAdded(model)));
 	}
 
 	public get query(): ITextQuery {
@@ -609,6 +616,13 @@ export class SearchResult extends Disposable {
 
 		this._otherFilesMatch = this.createFolderMatch(null, 'otherFiles', this._folderMatches.length + 1, query);
 		this._query = query;
+	}
+
+	private onModelAdded(model: ITextModel): void {
+		const folderMatch = this._folderMatchesMap.findSubstr(model.uri.toString());
+		if (folderMatch) {
+			folderMatch.bindModel(model);
+		}
 	}
 
 	private createFolderMatch(resource: URI | null, id: string, index: number, query: ITextQuery): FolderMatch {

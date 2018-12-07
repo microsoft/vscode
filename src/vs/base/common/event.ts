@@ -129,7 +129,7 @@ export class Emitter<T> {
 	private static readonly _noop = function () { };
 
 	private readonly _options: EmitterOptions | undefined;
-	private readonly _leakageMon: LeakageMonitor;
+	private readonly _leakageMon: LeakageMonitor | undefined;
 	private _disposed: boolean = false;
 	private _event: Event<T> | undefined;
 	private _deliveryQueue: [Listener, (T | undefined)][] | undefined;
@@ -137,7 +137,9 @@ export class Emitter<T> {
 
 	constructor(options?: EmitterOptions) {
 		this._options = options;
-		this._leakageMon = new LeakageMonitor(this._options && this._options.leakWarningThreshold);
+		this._leakageMon = _globalLeakWarningThreshold > 0
+			? new LeakageMonitor(this._options && this._options.leakWarningThreshold)
+			: undefined;
 	}
 
 	/**
@@ -168,13 +170,16 @@ export class Emitter<T> {
 				}
 
 				// check and record this emitter for potential leakage
-				const check = this._leakageMon.check(this._listeners.size);
+				let removeMonitor: (() => void) | undefined;
+				if (this._leakageMon) {
+					removeMonitor = this._leakageMon.check(this._listeners.size);
+				}
 
 				let result: IDisposable;
 				result = {
 					dispose: () => {
-						if (check) {
-							check();
+						if (removeMonitor) {
+							removeMonitor();
 						}
 						result.dispose = Emitter._noop;
 						if (!this._disposed) {
@@ -238,7 +243,9 @@ export class Emitter<T> {
 		if (this._deliveryQueue) {
 			this._deliveryQueue.length = 0;
 		}
-		this._leakageMon.dispose();
+		if (this._leakageMon) {
+			this._leakageMon.dispose();
+		}
 		this._disposed = true;
 	}
 }
@@ -445,7 +452,7 @@ export function debounceEvent<I, O>(event: Event<I>, merger: (last: O | undefine
 }
 
 /**
- * The EventDelayer is useful in situations in which you want
+ * The EventBufferer is useful in situations in which you want
  * to delay firing your events during some code.
  * You can wrap that code and be sure that the event will not
  * be fired during that wrap.

@@ -850,11 +850,39 @@ class FoldingProviderAdapter {
 	}
 }
 
+class SelectionRangeAdapter {
+
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _provider: vscode.SelectionRangeProvider
+	) { }
+
+	provideSelectionRanges(resource: URI, position: IPosition, token: CancellationToken): Promise<IRange[]> {
+		const { document } = this._documents.getDocumentData(resource);
+		const pos = typeConvert.Position.to(position);
+		return asThenable(() => this._provider.provideSelectionRanges(document, pos, token)).then(ranges => {
+			if (isFalsyOrEmpty(ranges)) {
+				return undefined;
+			}
+			let result: IRange[] = [];
+			let last: vscode.Position | vscode.Range = pos;
+			for (const range of ranges) {
+				if (!range.contains(last)) {
+					throw new Error('INVALID selection range, must contain the previous range');
+				}
+				result.push(typeConvert.Range.from(range));
+				last = range;
+			}
+			return result;
+		});
+	}
+}
+
 type Adapter = OutlineAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapter
 	| DocumentHighlightAdapter | ReferenceAdapter | CodeActionAdapter | DocumentFormattingAdapter
 	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
 	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter | TypeDefinitionAdapter
-	| ColorProviderAdapter | FoldingProviderAdapter | DeclarationAdapter;
+	| ColorProviderAdapter | FoldingProviderAdapter | DeclarationAdapter | SelectionRangeAdapter;
 
 class AdapterData {
 	constructor(
@@ -957,7 +985,10 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 			if (data.extension) {
 				Promise.resolve(p).then(
 					() => this._logService.trace(`[${data.extension.id}] provider DONE after ${Date.now() - t1}ms`),
-					err => this._logService.trace(`[${data.extension.id}] provider FAILED`, err)
+					err => {
+						this._logService.error(`[${data.extension.id}] provider FAILED`);
+						this._logService.error(err);
+					}
 				);
 			}
 			return p;
@@ -1243,6 +1274,18 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	$provideFoldingRanges(handle: number, resource: UriComponents, context: vscode.FoldingContext, token: CancellationToken): Thenable<modes.FoldingRange[]> {
 		return this._withAdapter(handle, FoldingProviderAdapter, adapter => adapter.provideFoldingRanges(URI.revive(resource), context, token));
+	}
+
+	// --- smart select
+
+	registerSelectionRangeProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.SelectionRangeProvider): vscode.Disposable {
+		const handle = this._addNewAdapter(new SelectionRangeAdapter(this._documents, provider), extension);
+		this._proxy.$registerSelectionRangeProvider(handle, this._transformDocumentSelector(selector));
+		return this._createDisposable(handle);
+	}
+
+	$provideSelectionRanges(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Thenable<IRange[]> {
+		return this._withAdapter(handle, SelectionRangeAdapter, adapter => adapter.provideSelectionRanges(URI.revive(resource), position, token));
 	}
 
 	// --- configuration

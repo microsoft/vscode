@@ -49,7 +49,7 @@ namespace Translations {
 
 export interface NlsConfiguration {
 	readonly devMode: boolean;
-	readonly locale: string;
+	readonly locale: string | undefined;
 	readonly pseudo: boolean;
 	readonly translations: Translations;
 }
@@ -444,8 +444,8 @@ export class ExtensionScannerInput {
 
 	constructor(
 		public readonly ourVersion: string,
-		public readonly commit: string,
-		public readonly locale: string,
+		public readonly commit: string | undefined,
+		public readonly locale: string | undefined,
 		public readonly devMode: boolean,
 		public readonly absoluteFolderPath: string,
 		public readonly isBuiltin: boolean,

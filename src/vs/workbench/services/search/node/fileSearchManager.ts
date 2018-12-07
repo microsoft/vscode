@@ -47,7 +47,7 @@ class FileSearchEngine {
 
 	private globalExcludePattern?: glob.ParsedExpression;
 
-	constructor(private config: IFileQuery, private provider: vscode.FileSearchProvider) {
+	constructor(private config: IFileQuery, private provider: vscode.FileSearchProvider, private sessionToken?: CancellationToken) {
 		this.filePattern = config.filePattern;
 		this.includePattern = config.includePattern && glob.parse(config.includePattern);
 		this.maxResults = config.maxResults || undefined;
@@ -107,7 +107,7 @@ class FileSearchEngine {
 	}
 
 	private searchInFolder(fq: IFolderQuery<URI>, onResult: (match: IInternalFileMatch) => void): Promise<IFileSearchProviderStats | null> {
-		let cancellation = new CancellationTokenSource();
+		const cancellation = new CancellationTokenSource();
 		return new Promise((resolve, reject) => {
 			const options = this.getSearchOptionsForFolder(fq);
 			const tree = this.initDirectoryTree();
@@ -185,7 +185,8 @@ class FileSearchEngine {
 			useIgnoreFiles: !fq.disregardIgnoreFiles,
 			useGlobalIgnoreFiles: !fq.disregardGlobalIgnoreFiles,
 			followSymlinks: !fq.ignoreSymlinks,
-			maxResults: this.config.maxResults
+			maxResults: this.config.maxResults,
+			session: this.sessionToken
 		};
 	}
 
@@ -282,8 +283,11 @@ export class FileSearchManager {
 
 	private static readonly BATCH_SIZE = 512;
 
+	private readonly sessions = new Map<string, CancellationTokenSource>();
+
 	fileSearch(config: IFileQuery, provider: vscode.FileSearchProvider, onBatch: (matches: IFileMatch[]) => void, token: CancellationToken): Promise<ISearchCompleteStats> {
-		const engine = new FileSearchEngine(config, provider);
+		const sessionTokenSource = this.getSessionTokenSource(config.cacheKey);
+		const engine = new FileSearchEngine(config, provider, sessionTokenSource && sessionTokenSource.token);
 
 		let resultCount = 0;
 		const onInternalResult = (batch: IInternalFileMatch[]) => {
@@ -303,6 +307,25 @@ export class FileSearchManager {
 					}
 				};
 			});
+	}
+
+	clearCache(cacheKey: string): void {
+		const sessionTokenSource = this.getSessionTokenSource(cacheKey);
+		if (sessionTokenSource) {
+			sessionTokenSource.cancel();
+		}
+	}
+
+	private getSessionTokenSource(cacheKey: string | undefined): CancellationTokenSource | undefined {
+		if (!cacheKey) {
+			return undefined;
+		}
+
+		if (!this.sessions.has(cacheKey)) {
+			this.sessions.set(cacheKey, new CancellationTokenSource());
+		}
+
+		return this.sessions.get(cacheKey);
 	}
 
 	private rawMatchToSearchItem(match: IInternalFileMatch): IFileMatch {

@@ -49,7 +49,9 @@ export class TaskEntry extends Model.QuickOpenEntry {
 	}
 
 	protected doRun(task: CustomTask | ContributedTask, options?: ProblemMatcherRunOptions): boolean {
-		this.taskService.run(task, options);
+		this.taskService.run(task, options).then(undefined, reason => {
+			// eat the error, it has already been surfaced to the user and we don't care about it here
+		});
 		if (!task.command || task.command.presentation.focus) {
 			this.quickOpenService.close();
 			return false;

@@ -388,6 +388,7 @@ export interface IWindowConfiguration extends ParsedArgs {
 	highContrast?: boolean;
 	frameless?: boolean;
 	accessibilitySupport?: boolean;
+	partsSplashData?: string;
 
 	perfStartTime?: number;
 	perfAppReady?: number;

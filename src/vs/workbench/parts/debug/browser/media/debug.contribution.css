@@ -129,6 +129,11 @@
 	width: 16px;
 }
 
+.monaco-workbench .debug-view-content .monaco-list-row .monaco-tl-contents {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
 /* Expressions */
 
 .monaco-workbench .monaco-list-row .expression {

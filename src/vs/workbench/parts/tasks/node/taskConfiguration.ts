@@ -23,6 +23,7 @@ import * as Tasks from '../common/tasks';
 import { TaskDefinitionRegistry } from '../common/taskDefinitionRegistry';
 
 import { TaskDefinition } from 'vs/workbench/parts/tasks/node/tasks';
+import { ConfiguredInput } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 
 export const enum ShellQuoting {
 	/**
@@ -451,6 +452,11 @@ export interface BaseTaskRunnerConfiguration {
 	 * Problem matcher declarations
 	 */
 	declares?: ProblemMatcherConfig.NamedProblemMatcher[];
+
+	/**
+	 * Optional user input varaibles.
+	 */
+	inputs?: ConfiguredInput[];
 }
 
 /**
@@ -821,7 +827,7 @@ namespace CommandConfiguration {
 					clear = presentation.clear;
 				}
 			}
-			if (echo === void 0 && reveal === void 0 && focus === void 0 && panel === void 0 && showReuseMessage === void 0) {
+			if (echo === void 0 && reveal === void 0 && focus === void 0 && panel === void 0 && showReuseMessage === void 0 && clear === void 0) {
 				return undefined;
 			}
 			return { echo, reveal, focus, panel, showReuseMessage, clear };
@@ -1318,7 +1324,7 @@ namespace ConfiguringTask {
 			type: type,
 			configures: taskIdentifier,
 			_id: `${typeDeclaration.extensionId}.${taskIdentifier._key}`,
-			_source: Objects.assign({}, source, { config: configElement }),
+			_source: Objects.assign({} as Tasks.WorkspaceTaskSource, source, { config: configElement }),
 			_label: undefined,
 			runOptions: RunOptions.fromConfiguration(external.runOptions)
 		};
@@ -1374,7 +1380,7 @@ namespace CustomTask {
 		let result: Tasks.CustomTask = {
 			type: Tasks.CUSTOMIZED_TASK_TYPE,
 			_id: context.uuidMap.getUUID(taskName),
-			_source: Objects.assign({}, source, { config: { index, element: external, file: '.vscode\\tasks.json', workspaceFolder: context.workspaceFolder } }),
+			_source: Objects.assign({} as Tasks.WorkspaceTaskSource, source, { config: { index, element: external, file: '.vscode\\tasks.json', workspaceFolder: context.workspaceFolder } }),
 			_label: taskName,
 			name: taskName,
 			identifier: taskName,
@@ -1874,7 +1880,7 @@ class ConfigurationParser {
 			let name = Tasks.CommandString.value(globals.command.name);
 			let task: Tasks.CustomTask = {
 				_id: context.uuidMap.getUUID(name),
-				_source: Objects.assign({}, source, { config: { index: -1, element: fileConfig, workspaceFolder: context.workspaceFolder } }),
+				_source: Objects.assign({} as Tasks.WorkspaceTaskSource, source, { config: { index: -1, element: fileConfig, workspaceFolder: context.workspaceFolder } }),
 				_label: name,
 				type: Tasks.CUSTOMIZED_TASK_TYPE,
 				name: name,

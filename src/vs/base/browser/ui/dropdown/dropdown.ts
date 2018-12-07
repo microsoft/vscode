@@ -66,7 +66,7 @@ export class BaseDropdown extends ActionRunner {
 		});
 
 		this._register(addDisposableListener(this._label, EventType.KEY_UP, e => {
-			const event = new StandardKeyboardEvent(e as KeyboardEvent);
+			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 				EventHelper.stop(e, true); // https://github.com/Microsoft/vscode/issues/57997
 

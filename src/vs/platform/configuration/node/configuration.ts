@@ -30,7 +30,7 @@ export class UserConfiguration extends Disposable {
 						userConfigModelParser.parse(content);
 						parseErrors = [...userConfigModelParser.errors];
 						return userConfigModelParser;
-					}, initCallback: () => c(null)
+					}, initCallback: () => c(void 0)
 				});
 				this._register(this.userConfigModelWatcher);
 

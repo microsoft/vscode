@@ -82,6 +82,10 @@ interface IPrivateReplService {
 	clearRepl(): void;
 }
 
+function revealLastElement<T>(tree: WorkbenchAsyncDataTree<T>) {
+	tree.scrollTop = tree.scrollHeight - tree.renderHeight;
+}
+
 const sessionsToIgnore = new Set<IDebugSession>();
 export class Repl extends Panel implements IPrivateReplService, IHistoryNavigationWidget {
 	_serviceBrand: any;
@@ -209,7 +213,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 			if (this.tree && this.dataSource.input !== session) {
 				this.dataSource.input = session;
-				this.tree.refresh(null);
+				this.tree.refresh(null).then(() => revealLastElement(this.tree));
 			}
 		}
 
@@ -235,8 +239,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		const session: IDebugSession = this.dataSource.input;
 		if (session) {
 			session.addReplExpression(this.debugService.getViewModel().focusedStackFrame, this.replInput.getValue());
-			// Reveal last element when we add new expression
-			this.tree.scrollTop = this.tree.scrollHeight - this.tree.renderHeight;
+			revealLastElement(this.tree);
 			this.history.add(this.replInput.getValue());
 			this.replInput.setValue('');
 			const shouldRelayout = this.replInputHeight > Repl.REPL_INPUT_INITIAL_HEIGHT;
@@ -327,11 +330,11 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	@memoize
 	private get refreshScheduler(): RunOnceScheduler {
 		return new RunOnceScheduler(() => {
-			const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight === this.tree.scrollHeight;
+			const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight;
 			this.tree.refresh(null).then(() => {
 				if (lastElementVisible) {
 					// Only scroll if we were scrolled all the way down before tree refreshed #10486
-					this.tree.scrollTop = this.tree.scrollHeight - this.tree.renderHeight;
+					revealLastElement(this.tree);
 				}
 			}, errors.onUnexpectedError);
 		}, Repl.REFRESH_DELAY);
@@ -700,7 +703,7 @@ class ReplDelegate implements IListVirtualDelegate<IReplElement> {
 
 		let availableWidth = this.width;
 		if (element instanceof SimpleReplElement && element.sourceData) {
-			availableWidth -= `${element.sourceData.source.name}:${element.sourceData.lineNumber}`.length * this.characterWidth;
+			availableWidth -= Math.ceil(`${element.sourceData.source.name}:${element.sourceData.lineNumber}`.length * this.characterWidth + 12);
 		}
 
 		return this.getHeightForString((<any>element).value, availableWidth) + (element instanceof Expression ? this.getHeightForString(element.name, availableWidth) : 0);

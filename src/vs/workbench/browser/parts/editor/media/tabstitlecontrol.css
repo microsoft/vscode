@@ -5,11 +5,15 @@
 
 /* Title Container */
 
-.monaco-workbench > .part.editor > .content .editor-group-container > .title.tabs > .monaco-scrollable-element {
+.monaco-workbench > .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container {
+	display: flex;
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container > .monaco-scrollable-element {
 	flex: 1;
 }
 
-.monaco-workbench > .part.editor > .content .editor-group-container > .title.tabs > .monaco-scrollable-element .scrollbar {
+.monaco-workbench > .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container > .monaco-scrollable-element .scrollbar {
 	z-index: 3; /* on top of tabs */
 	cursor: default;
 }

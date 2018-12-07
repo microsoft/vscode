@@ -39,6 +39,8 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 
 	private phaseWhen = new Map<LifecyclePhase, Barrier>();
 
+	private shutdownReason: ShutdownReason;
+
 	constructor(
 		@INotificationService private notificationService: INotificationService,
 		@IWindowService private windowService: IWindowService,
@@ -77,17 +79,16 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 		ipc.on('vscode:onBeforeUnload', (event, reply: { okChannel: string, cancelChannel: string, reason: ShutdownReason }) => {
 			this.logService.trace(`lifecycle: onBeforeUnload (reason: ${reply.reason})`);
 
-			// store shutdown reason to retrieve next startup
-			this.storageService.store(LifecycleService.LAST_SHUTDOWN_REASON_KEY, JSON.stringify(reply.reason), StorageScope.WORKSPACE);
-
 			// trigger onBeforeShutdown events and veto collecting
 			this.handleBeforeShutdown(reply.reason).then(veto => {
 				if (veto) {
 					this.logService.trace('lifecycle: onBeforeUnload prevented via veto');
-					this.storageService.remove(LifecycleService.LAST_SHUTDOWN_REASON_KEY, StorageScope.WORKSPACE);
+
 					ipc.send(reply.cancelChannel, windowId);
 				} else {
 					this.logService.trace('lifecycle: onBeforeUnload continues without veto');
+
+					this.shutdownReason = reply.reason;
 					ipc.send(reply.okChannel, windowId);
 				}
 			});
@@ -106,6 +107,11 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 				// acknowledge to main side
 				ipc.send(reply.replyChannel, windowId);
 			});
+		});
+
+		// Save shutdown reason to retrieve on next startup
+		this.storageService.onWillSaveState(() => {
+			this.storageService.store(LifecycleService.LAST_SHUTDOWN_REASON_KEY, this.shutdownReason, StorageScope.WORKSPACE);
 		});
 	}
 

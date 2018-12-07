@@ -34,7 +34,7 @@ export interface IBaseActionItemOptions {
 
 export class BaseActionItem extends Disposable implements IActionItem {
 
-	element: HTMLElement;
+	element?: HTMLElement;
 	_context: any;
 	_action: IAction;
 
@@ -118,8 +118,7 @@ export class BaseActionItem extends Disposable implements IActionItem {
 				DOM.EventHelper.stop(e, true); // do not run when dragging is on because that would disable it
 			}
 
-			const mouseEvent = e as MouseEvent;
-			if (this._action.enabled && mouseEvent.button === 0) {
+			if (this._action.enabled && e.button === 0 && this.element) {
 				DOM.addClass(this.element, 'active');
 			}
 		}));
@@ -146,9 +145,9 @@ export class BaseActionItem extends Disposable implements IActionItem {
 		}));
 
 		[DOM.EventType.MOUSE_UP, DOM.EventType.MOUSE_OUT].forEach(event => {
-			this._register(DOM.addDisposableListener(this.element, event, e => {
+			this._register(DOM.addDisposableListener(this.element!, event, e => {
 				DOM.EventHelper.stop(e);
-				DOM.removeClass(this.element, 'active');
+				DOM.removeClass(this.element!, 'active');
 			}));
 		});
 	}
@@ -207,7 +206,7 @@ export class BaseActionItem extends Disposable implements IActionItem {
 	dispose(): void {
 		if (this.element) {
 			DOM.removeNode(this.element);
-			this.element = null;
+			this.element = undefined;
 		}
 
 		super.dispose();
@@ -237,7 +236,7 @@ export class ActionItem extends BaseActionItem {
 	protected label: HTMLElement;
 	protected options: IActionItemOptions;
 
-	private cssClass: string;
+	private cssClass?: string;
 
 	constructor(context: any, action: IAction, options: IActionItemOptions = {}) {
 		super(context, action, options);
@@ -251,7 +250,9 @@ export class ActionItem extends BaseActionItem {
 	render(container: HTMLElement): void {
 		super.render(container);
 
-		this.label = DOM.append(this.element, DOM.$('a.action-label'));
+		if (this.element) {
+			this.label = DOM.append(this.element, DOM.$('a.action-label'));
+		}
 		if (this._action.id === Separator.ID) {
 			this.label.setAttribute('role', 'presentation'); // A separator is a presentation item
 		} else {
@@ -262,7 +263,7 @@ export class ActionItem extends BaseActionItem {
 			}
 		}
 
-		if (this.options.label && this.options.keybinding) {
+		if (this.options.label && this.options.keybinding && this.element) {
 			DOM.append(this.element, DOM.$('span.keybinding')).textContent = this.options.keybinding;
 		}
 
@@ -325,12 +326,16 @@ export class ActionItem extends BaseActionItem {
 	updateEnabled(): void {
 		if (this.getAction().enabled) {
 			this.label.removeAttribute('aria-disabled');
-			DOM.removeClass(this.element, 'disabled');
+			if (this.element) {
+				DOM.removeClass(this.element, 'disabled');
+			}
 			DOM.removeClass(this.label, 'disabled');
 			this.label.tabIndex = 0;
 		} else {
 			this.label.setAttribute('aria-disabled', 'true');
-			DOM.addClass(this.element, 'disabled');
+			if (this.element) {
+				DOM.addClass(this.element, 'disabled');
+			}
 			DOM.addClass(this.label, 'disabled');
 			DOM.removeTabIndexAndUpdateFocus(this.label);
 		}
@@ -393,7 +398,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 	// Items
 	items: IActionItem[];
-	protected focusedItem: number;
+	protected focusedItem?: number;
 	private focusTracker: DOM.IFocusTracker;
 
 	// Elements
@@ -417,13 +422,14 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 		this.options = options;
 		this._context = options.context;
-		this._actionRunner = this.options.actionRunner;
 
 		if (!this.options.triggerKeys) {
 			this.options.triggerKeys = defaultOptions.triggerKeys;
 		}
 
-		if (!this._actionRunner) {
+		if (this.options.actionRunner) {
+			this._actionRunner = this.options.actionRunner;
+		} else {
 			this._actionRunner = new ActionRunner();
 			this._register(this._actionRunner);
 		}
@@ -467,7 +473,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		}
 
 		this._register(DOM.addDisposableListener(this.domNode, DOM.EventType.KEY_DOWN, e => {
-			let event = new StandardKeyboardEvent(e as KeyboardEvent);
+			let event = new StandardKeyboardEvent(e);
 			let eventHandled = true;
 
 			if (event.equals(previousKey)) {
@@ -492,11 +498,11 @@ export class ActionBar extends Disposable implements IActionRunner {
 		}));
 
 		this._register(DOM.addDisposableListener(this.domNode, DOM.EventType.KEY_UP, e => {
-			let event = new StandardKeyboardEvent(e as KeyboardEvent);
+			let event = new StandardKeyboardEvent(e);
 
 			// Run action on Enter/Space
 			if (this.isTriggerKeyEvent(event)) {
-				if (!this.options.triggerKeys.keyDown) {
+				if (this.options.triggerKeys && !this.options.triggerKeys.keyDown) {
 					this.doTrigger(event);
 				}
 
@@ -571,11 +577,11 @@ export class ActionBar extends Disposable implements IActionRunner {
 		this.items.forEach(i => i.setActionContext(context));
 	}
 
-	get actionRunner(): IActionRunner {
+	get actionRunner(): IActionRunner | undefined {
 		return this._actionRunner;
 	}
 
-	set actionRunner(actionRunner: IActionRunner) {
+	set actionRunner(actionRunner: IActionRunner | undefined) {
 		if (actionRunner) {
 			this._actionRunner = actionRunner;
 			this.items.forEach(item => item.actionRunner = actionRunner);
@@ -629,7 +635,10 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 	getWidth(index: number): number {
 		if (index >= 0 && index < this.actionsList.children.length) {
-			return this.actionsList.children.item(index).clientWidth;
+			const item = this.actionsList.children.item(index);
+			if (item) {
+				return item.clientWidth;
+			}
 		}
 
 		return 0;
@@ -637,7 +646,10 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 	getHeight(index: number): number {
 		if (index >= 0 && index < this.actionsList.children.length) {
-			return this.actionsList.children.item(index).clientHeight;
+			const item = this.actionsList.children.item(index);
+			if (item) {
+				return item.clientHeight;
+			}
 		}
 
 		return 0;
@@ -663,12 +675,28 @@ export class ActionBar extends Disposable implements IActionRunner {
 		return this.items.length === 0;
 	}
 
-	focus(selectFirst?: boolean): void {
+	focus(index?: number): void;
+	focus(selectFirst?: boolean): void;
+	focus(arg?: any): void {
+		let selectFirst: boolean = false;
+		let index: number | undefined = void 0;
+		if (arg === undefined) {
+			selectFirst = true;
+		} else if (typeof arg === 'number') {
+			index = arg;
+		} else if (typeof arg === 'boolean') {
+			selectFirst = arg;
+		}
+
 		if (selectFirst && typeof this.focusedItem === 'undefined') {
 			// Focus the first enabled item
 			this.focusedItem = this.items.length - 1;
 			this.focusNext();
 		} else {
+			if (index !== undefined) {
+				this.focusedItem = index;
+			}
+
 			this.updateFocus();
 		}
 	}
@@ -770,10 +798,8 @@ export class ActionBar extends Disposable implements IActionRunner {
 	}
 
 	dispose(): void {
-		if (this.items !== null) {
-			dispose(this.items);
-		}
-		this.items = null;
+		dispose(this.items);
+		this.items = [];
 
 		DOM.removeNode(this.getContainer());
 
@@ -787,7 +813,7 @@ export class SelectActionItem extends BaseActionItem {
 	constructor(ctx: any, action: IAction, options: string[], selected: number, contextViewProvider: IContextViewProvider, selectBoxOptions?: ISelectBoxOptions) {
 		super(ctx, action);
 
-		this.selectBox = new SelectBox(options, selected, contextViewProvider, null, selectBoxOptions);
+		this.selectBox = new SelectBox(options, selected, contextViewProvider, undefined, selectBoxOptions);
 
 		this._register(this.selectBox);
 		this.registerListeners();

@@ -48,16 +48,16 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 				default: null,
 				description: localize('proxyAuthorization', "The value to send as the 'Proxy-Authorization' header for every network request.")
 			},
-			'http.systemProxy': {
+			'http.proxySupport': {
 				type: 'string',
-				enum: ['off', 'on', 'force'],
+				enum: ['off', 'on', 'override'],
 				enumDescriptions: [
-					localize('systemProxyOff', "Do not use system proxy configuration."),
-					localize('systemProxyOn', "Use system proxy configuration if not specified in the request options."),
-					localize('systemProxyForce', "Always use system proxy configuration."),
+					localize('proxySupportOff', "Disable proxy support for extensions."),
+					localize('proxySupportOn', "Enable proxy support for extensions."),
+					localize('proxySupportOverride', "Enable proxy support for extensions, override request options."),
 				],
-				default: 'force',
-				description: localize('systemProxy', "Experimental setting: Use the system proxy configuration.")
+				default: 'off',
+				description: localize('proxySupport', "Experimental setting: Use the proxy support for extensions.")
 			}
 		}
 	});

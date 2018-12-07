@@ -769,6 +769,12 @@ export interface TaskEvent {
 	__task?: Task;
 }
 
+export const enum TaskRunSource {
+	User, // Default
+	FolderOpen,
+	ConfigurationChange
+}
+
 export namespace TaskEvent {
 	export function create(kind: TaskEventKind.ProcessStarted, task: Task, processId: number): TaskEvent;
 	export function create(kind: TaskEventKind.ProcessEnded, task: Task, exitCode: number): TaskEvent;

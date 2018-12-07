@@ -226,6 +226,8 @@ class DomListener implements IDisposable {
 	}
 }
 
+export function addDisposableListener<K extends keyof GlobalEventHandlersEventMap>(node: Element | Window | Document, type: K, handler: (event: GlobalEventHandlersEventMap[K]) => void, useCapture?: boolean): IDisposable;
+export function addDisposableListener(node: Element | Window | Document, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
 export function addDisposableListener(node: Element | Window | Document, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable {
 	return new DomListener(node, type, handler, useCapture);
 }
@@ -833,48 +835,48 @@ export function isHTMLElement(o: any): o is HTMLElement {
 
 export const EventType = {
 	// Mouse
-	CLICK: 'click',
-	DBLCLICK: 'dblclick',
-	MOUSE_UP: 'mouseup',
-	MOUSE_DOWN: 'mousedown',
-	MOUSE_OVER: 'mouseover',
-	MOUSE_MOVE: 'mousemove',
-	MOUSE_OUT: 'mouseout',
-	MOUSE_ENTER: 'mouseenter',
-	MOUSE_LEAVE: 'mouseleave',
-	CONTEXT_MENU: 'contextmenu',
-	WHEEL: 'wheel',
+	CLICK: 'click' as 'click',
+	DBLCLICK: 'dblclick' as 'dblclick',
+	MOUSE_UP: 'mouseup' as 'mouseup',
+	MOUSE_DOWN: 'mousedown' as 'mousedown',
+	MOUSE_OVER: 'mouseover' as 'mouseover',
+	MOUSE_MOVE: 'mousemove' as 'mousemove',
+	MOUSE_OUT: 'mouseout' as 'mouseout',
+	MOUSE_ENTER: 'mouseenter' as 'mouseenter',
+	MOUSE_LEAVE: 'mouseleave' as 'mouseleave',
+	CONTEXT_MENU: 'contextmenu' as 'contextmenu',
+	WHEEL: 'wheel' as 'wheel',
 	// Keyboard
-	KEY_DOWN: 'keydown',
-	KEY_PRESS: 'keypress',
-	KEY_UP: 'keyup',
+	KEY_DOWN: 'keydown' as 'keydown',
+	KEY_PRESS: 'keypress' as 'keypress',
+	KEY_UP: 'keyup' as 'keyup',
 	// HTML Document
-	LOAD: 'load',
-	UNLOAD: 'unload',
-	ABORT: 'abort',
-	ERROR: 'error',
-	RESIZE: 'resize',
-	SCROLL: 'scroll',
+	LOAD: 'load' as 'load',
+	UNLOAD: 'unload' as 'unload',
+	ABORT: 'abort' as 'abort',
+	ERROR: 'error' as 'error',
+	RESIZE: 'resize' as 'resize',
+	SCROLL: 'scroll' as 'scroll',
 	// Form
-	SELECT: 'select',
-	CHANGE: 'change',
-	SUBMIT: 'submit',
-	RESET: 'reset',
-	FOCUS: 'focus',
-	FOCUS_IN: 'focusin',
-	FOCUS_OUT: 'focusout',
-	BLUR: 'blur',
-	INPUT: 'input',
+	SELECT: 'select' as 'select',
+	CHANGE: 'change' as 'change',
+	SUBMIT: 'submit' as 'submit',
+	RESET: 'reset' as 'reset',
+	FOCUS: 'focus' as 'focus',
+	FOCUS_IN: 'focusin' as 'focusin',
+	FOCUS_OUT: 'focusout' as 'focusout',
+	BLUR: 'blur' as 'blur',
+	INPUT: 'input' as 'input',
 	// Local Storage
-	STORAGE: 'storage',
+	STORAGE: 'storage' as 'storage',
 	// Drag
-	DRAG_START: 'dragstart',
-	DRAG: 'drag',
-	DRAG_ENTER: 'dragenter',
-	DRAG_LEAVE: 'dragleave',
-	DRAG_OVER: 'dragover',
-	DROP: 'drop',
-	DRAG_END: 'dragend',
+	DRAG_START: 'dragstart' as 'dragstart',
+	DRAG: 'drag' as 'drag',
+	DRAG_ENTER: 'dragenter' as 'dragenter',
+	DRAG_LEAVE: 'dragleave' as 'dragleave',
+	DRAG_OVER: 'dragover' as 'dragover',
+	DROP: 'drop' as 'drop',
+	DRAG_END: 'dragend' as 'dragend',
 	// Animation
 	ANIMATION_START: browser.isWebKit ? 'webkitAnimationStart' : 'animationstart',
 	ANIMATION_END: browser.isWebKit ? 'webkitAnimationEnd' : 'animationend',

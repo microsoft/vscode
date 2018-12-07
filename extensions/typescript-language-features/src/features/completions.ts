@@ -64,32 +64,25 @@ class MyCompletionItem extends vscode.CompletionItem {
 
 		this.position = position;
 		this.useCodeSnippet = useCodeSnippetsOnMethodSuggest && (this.kind === vscode.CompletionItemKind.Function || this.kind === vscode.CompletionItemKind.Method);
+
 		if (tsEntry.replacementSpan) {
 			this.range = typeConverters.Range.fromTextSpan(tsEntry.replacementSpan);
-		}
-
-		if (tsEntry.insertText) {
-			this.insertText = tsEntry.insertText;
-			this.filterText = tsEntry.insertText;
-
-			if (tsEntry.replacementSpan) {
-				this.range = typeConverters.Range.fromTextSpan(tsEntry.replacementSpan);
-				// Make sure we only replace a single line at most
-				if (!this.range.isSingleLine) {
-					this.range = new vscode.Range(this.range.start.line, this.range.start.character, this.range.start.line, line.length);
-				}
+			// Make sure we only replace a single line at most
+			if (!this.range.isSingleLine) {
+				this.range = new vscode.Range(this.range.start.line, this.range.start.character, this.range.start.line, line.length);
 			}
 		}
 
-		// For #63100, always add fake insert text for member completions
+		this.insertText = tsEntry.insertText;
+		this.filterText = tsEntry.insertText;
+
 		if (completionContext.isMemberCompletion && completionContext.dotAccessorContext) {
-			this.range = completionContext.dotAccessorContext.range;
-			this.filterText = completionContext.dotAccessorContext.text + this.label;
-			if (!this.insertText) {
-				this.insertText = completionContext.dotAccessorContext.text + this.label;
+			this.filterText = completionContext.dotAccessorContext.text + (this.insertText || this.label);
+			if (!this.range) {
+				this.range = completionContext.dotAccessorContext.range;
+				this.insertText = this.filterText;
 			}
 		}
-
 
 		if (tsEntry.kindModifiers) {
 			const kindModifiers = new Set(tsEntry.kindModifiers.split(/\s+/g));

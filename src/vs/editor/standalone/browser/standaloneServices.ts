@@ -143,7 +143,7 @@ export module StaticServices {
 
 	export const progressService = define(IProgressService, () => new SimpleProgressService());
 
-	export const storageService = define(IStorageService, () => InMemoryStorageService);
+	export const storageService = define(IStorageService, () => new InMemoryStorageService());
 
 	export const logService = define(ILogService, () => new NullLogService());
 

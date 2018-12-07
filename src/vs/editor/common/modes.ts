@@ -615,14 +615,14 @@ export interface SignatureHelp {
 	activeParameter: number;
 }
 
-export enum SignatureHelpTriggerReason {
+export enum SignatureHelpTriggerKind {
 	Invoke = 1,
 	TriggerCharacter = 2,
 	ContentChange = 3,
 }
 
 export interface SignatureHelpContext {
-	readonly triggerReason: SignatureHelpTriggerReason;
+	readonly triggerKind: SignatureHelpTriggerKind;
 	readonly triggerCharacter?: string;
 	readonly isRetrigger: boolean;
 }
@@ -1036,7 +1036,7 @@ export interface SelectionRangeProvider {
 	/**
 	 * Provide ranges that should be selected from the given position.
 	 */
-	provideSelectionRanges(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<Range[]>;
+	provideSelectionRanges(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<IRange[]>;
 }
 
 export interface FoldingContext {

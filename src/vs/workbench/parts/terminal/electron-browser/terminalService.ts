@@ -149,6 +149,11 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 			return;
 		}
 
+		if (this._windowService.getConfiguration().remoteAuthority) {
+			// Don't suggest if the opened workspace is remote
+			return;
+		}
+
 		// Only suggest when the terminal instance is being created by an explicit user action to
 		// launch a terminal, as opposed to something like tasks, debug, panel restore, etc.
 		if (!wasNewTerminalAction) {

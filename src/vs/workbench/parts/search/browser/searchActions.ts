@@ -398,15 +398,13 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 	/**
 	 * Returns element to focus after removing the given element
 	 */
-	public getElementToFocusAfterRemoved(viewer: ITree, elementToBeRemoved: RenderableMatch): RenderableMatch {
-		let elementToFocus = this.getNextElementAfterRemoved(viewer, elementToBeRemoved);
-		if (!elementToFocus) {
-			elementToFocus = this.getPreviousElementAfterRemoved(viewer, elementToBeRemoved);
-		}
-		return elementToFocus;
+	public getElementToFocusAfterRemoved(viewer: ITree, elementToBeRemoved: RenderableMatch): Promise<RenderableMatch> {
+		return this.getNextElementAfterRemoved(viewer, elementToBeRemoved).then(elementToFocus => {
+			return elementToFocus || this.getPreviousElementAfterRemoved(viewer, elementToBeRemoved);
+		});
 	}
 
-	public getNextElementAfterRemoved(viewer: ITree, element: RenderableMatch): RenderableMatch {
+	public async getNextElementAfterRemoved(viewer: ITree, element: RenderableMatch): Promise<RenderableMatch> {
 		let navigator: INavigator<any> = this.getNavigatorAt(element, viewer);
 		if (element instanceof FolderMatch) {
 			// If file match is removed then next element is the next file match
@@ -416,13 +414,13 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 			while (!!navigator.next() && !(navigator.current() instanceof FileMatch)) { }
 		} else {
 			while (navigator.next() && !(navigator.current() instanceof Match)) {
-				viewer.expand(navigator.current());
+				await viewer.expand(navigator.current());
 			}
 		}
 		return navigator.current();
 	}
 
-	public getPreviousElementAfterRemoved(viewer: ITree, element: RenderableMatch): RenderableMatch {
+	public async getPreviousElementAfterRemoved(viewer: ITree, element: RenderableMatch): Promise<RenderableMatch> {
 		let navigator: INavigator<any> = this.getNavigatorAt(element, viewer);
 		let previousElement = navigator.previous();
 
@@ -441,13 +439,13 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 		// Spell out the two cases, would be too easy to create an infinite loop, like by adding another level...
 		if (element instanceof Match && previousElement && previousElement instanceof FolderMatch) {
 			navigator.next();
-			viewer.expand(previousElement);
+			await viewer.expand(previousElement);
 			previousElement = navigator.previous();
 		}
 
 		if (element instanceof Match && previousElement && previousElement instanceof FileMatch) {
 			navigator.next();
-			viewer.expand(previousElement);
+			await viewer.expand(previousElement);
 			previousElement = navigator.previous();
 		}
 
@@ -471,33 +469,35 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 
 	public run(): Thenable<any> {
 		const currentFocusElement = this.viewer.getFocus();
-		const nextFocusElement = !currentFocusElement || currentFocusElement instanceof SearchResult || elementIsEqualOrParent(currentFocusElement, this.element) ?
+		const nextFocusElementP = !currentFocusElement || currentFocusElement instanceof SearchResult || elementIsEqualOrParent(currentFocusElement, this.element) ?
 			this.getElementToFocusAfterRemoved(this.viewer, this.element) :
-			null;
+			Promise.resolve(null);
 
-		if (nextFocusElement) {
-			this.viewer.reveal(nextFocusElement);
-			this.viewer.setFocus(nextFocusElement);
-		}
+		return nextFocusElementP.then(nextFocusElement => {
+			if (nextFocusElement) {
+				this.viewer.reveal(nextFocusElement);
+				this.viewer.setFocus(nextFocusElement);
+			}
 
-		let elementToRefresh: any;
-		const element = this.element;
-		if (element instanceof FolderMatch) {
-			let parent = element.parent();
-			parent.remove(element);
-			elementToRefresh = parent;
-		} else if (element instanceof FileMatch) {
-			let parent = element.parent();
-			parent.remove(element);
-			elementToRefresh = parent;
-		} else if (element instanceof Match) {
-			let parent = element.parent();
-			parent.remove(element);
-			elementToRefresh = parent.count() === 0 ? parent.parent() : parent;
-		}
+			let elementToRefresh: any;
+			const element = this.element;
+			if (element instanceof FolderMatch) {
+				let parent = element.parent();
+				parent.remove(element);
+				elementToRefresh = parent;
+			} else if (element instanceof FileMatch) {
+				let parent = element.parent();
+				parent.remove(element);
+				elementToRefresh = parent;
+			} else if (element instanceof Match) {
+				let parent = element.parent();
+				parent.remove(element);
+				elementToRefresh = parent.count() === 0 ? parent.parent() : parent;
+			}
 
-		this.viewer.domFocus();
-		return this.viewer.refresh(elementToRefresh);
+			this.viewer.domFocus();
+			return this.viewer.refresh(elementToRefresh);
+		});
 	}
 }
 
@@ -521,13 +521,14 @@ export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 	}
 
 	public run(): Thenable<any> {
-		let nextFocusElement = this.getElementToFocusAfterRemoved(this.viewer, this.fileMatch);
-		return this.fileMatch.parent().replace(this.fileMatch).then(() => {
-			if (nextFocusElement) {
-				this.viewer.setFocus(nextFocusElement);
-			}
-			this.viewer.domFocus();
-			this.viewlet.open(this.fileMatch, true);
+		return this.getElementToFocusAfterRemoved(this.viewer, this.fileMatch).then(nextFocusElement => {
+			return this.fileMatch.parent().replace(this.fileMatch).then(() => {
+				if (nextFocusElement) {
+					this.viewer.setFocus(nextFocusElement);
+				}
+				this.viewer.domFocus();
+				this.viewlet.open(this.fileMatch, true);
+			});
 		});
 	}
 }
@@ -543,14 +544,14 @@ export class ReplaceAllInFolderAction extends AbstractSearchAndReplaceAction {
 	}
 
 	public run(): Thenable<any> {
-		let nextFocusElement = this.getElementToFocusAfterRemoved(this.viewer, this.folderMatch);
-		return this.folderMatch.replaceAll()
-			.then(() => {
+		return this.getElementToFocusAfterRemoved(this.viewer, this.folderMatch).then(nextFocusElement => {
+			return this.folderMatch.replaceAll().then(() => {
 				if (nextFocusElement) {
 					this.viewer.setFocus(nextFocusElement);
 				}
 				this.viewer.domFocus();
 			});
+		});
 	}
 }
 
@@ -574,7 +575,8 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 			if (elementToFocus) {
 				this.viewer.setFocus(elementToFocus);
 			}
-			let elementToShowReplacePreview = this.getElementToShowReplacePreview(elementToFocus);
+			return this.getElementToShowReplacePreview(elementToFocus);
+		}).then(elementToShowReplacePreview => {
 			this.viewer.domFocus();
 
 			const useReplacePreview = this.configurationService.getValue<ISearchConfiguration>().search.useReplacePreview;
@@ -613,11 +615,11 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 		return elementToFocus;
 	}
 
-	private getElementToShowReplacePreview(elementToFocus: FileMatchOrMatch): Match {
+	private async getElementToShowReplacePreview(elementToFocus: FileMatchOrMatch): Promise<Match> {
 		if (this.hasSameParent(elementToFocus)) {
 			return <Match>elementToFocus;
 		}
-		let previousElement = this.getPreviousElementAfterRemoved(this.viewer, this.element);
+		let previousElement = await this.getPreviousElementAfterRemoved(this.viewer, this.element);
 		if (this.hasSameParent(previousElement)) {
 			return <Match>previousElement;
 		}
