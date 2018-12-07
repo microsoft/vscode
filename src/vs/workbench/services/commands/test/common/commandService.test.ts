@@ -20,6 +20,7 @@ class SimpleExtensionService implements IExtensionService {
 	}
 	onDidChangeExtensionsStatus = null;
 	onWillActivateByEvent = null;
+	onDidChangeResponsiveChange = null;
 	activateByEvent(activationEvent: string): Promise<void> {
 		return this.whenInstalledExtensionsRegistered().then(() => { });
 	}
@@ -34,6 +35,9 @@ class SimpleExtensionService implements IExtensionService {
 	}
 	getExtensions(): Promise<IExtensionDescription[]> {
 		return Promise.resolve([]);
+	}
+	getExtension() {
+		return Promise.resolve(undefined);
 	}
 	canProfileExtensionHost() {
 		return false;

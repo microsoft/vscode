@@ -16,7 +16,7 @@ export class TextSearchEngineAdapter {
 	}
 
 	search(token: CancellationToken, onResult: (matches: ISerializedFileMatch[]) => void, onMessage: (message: IProgress) => void): Promise<ISerializedSearchSuccess> {
-		if (!this.query.folderQueries.length && !this.query.extraFileResources.length) {
+		if ((!this.query.folderQueries || !this.query.folderQueries.length) && (!this.query.extraFileResources || !this.query.extraFileResources.length)) {
 			return Promise.resolve(<ISerializedSearchSuccess>{
 				type: 'success',
 				limitHit: false,
@@ -40,7 +40,7 @@ export class TextSearchEngineAdapter {
 					},
 					token)
 				.then(
-					c => resolve({ limitHit: c.limitHit, stats: null, type: 'success' }),
+					c => resolve({ limitHit: c.limitHit, stats: null, type: 'success' } as ISerializedSearchSuccess),
 					reject);
 		});
 	}
@@ -48,9 +48,9 @@ export class TextSearchEngineAdapter {
 
 function fileMatchToSerialized(match: IFileMatch): ISerializedFileMatch {
 	return {
-		path: match.resource.fsPath,
+		path: match.resource ? match.resource.fsPath : undefined,
 		results: match.results,
-		numMatches: match.results.reduce((sum, r) => {
+		numMatches: (match.results || []).reduce((sum, r) => {
 			if (!!(<ITextSearchMatch>r).ranges) {
 				const m = <ITextSearchMatch>r;
 				return sum + (Array.isArray(m.ranges) ? m.ranges.length : 1);

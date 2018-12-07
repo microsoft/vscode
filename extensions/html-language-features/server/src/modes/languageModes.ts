@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getLanguageService as getHTMLLanguageService, DocumentContext } from 'vscode-html-languageservice';
+import { getLanguageService as getHTMLLanguageService, DocumentContext, ITagSet, IAttributeSet } from 'vscode-html-languageservice';
 import {
 	CompletionItem, Location, SignatureHelp, Definition, TextEdit, TextDocument, Diagnostic, DocumentLink, Range,
 	Hover, DocumentHighlight, CompletionList, Position, FormattingOptions, SymbolInformation, FoldingRange
@@ -65,9 +65,13 @@ export interface LanguageModeRange extends Range {
 	attributeValue?: boolean;
 }
 
-export function getLanguageModes(supportedLanguages: { [languageId: string]: boolean; }, workspace: Workspace): LanguageModes {
+export function getLanguageModes(supportedLanguages: { [languageId: string]: boolean; }, workspace: Workspace, customTags?: ITagSet, customAttributes?: IAttributeSet): LanguageModes {
 
-	var htmlLanguageService = getHTMLLanguageService();
+	var htmlLanguageService = getHTMLLanguageService({
+		customTags,
+		customAttributes
+	});
+
 	let documentRegions = getLanguageModelCache<HTMLDocumentRegions>(10, 60, document => getDocumentRegions(htmlLanguageService, document));
 
 	let modelCaches: LanguageModelCache<any>[] = [];

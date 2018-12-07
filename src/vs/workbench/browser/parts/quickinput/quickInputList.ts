@@ -27,6 +27,7 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
 import { getIconClass } from 'vs/workbench/browser/parts/quickinput/quickInputUtils';
+import { IListOptions } from 'vs/base/browser/ui/list/listWidget';
 
 const $ = dom.$;
 
@@ -244,11 +245,11 @@ export class QuickInputList {
 		this.container = dom.append(this.parent, $('.quick-input-list'));
 		const delegate = new ListElementDelegate();
 		this.list = this.instantiationService.createInstance(WorkbenchList, this.container, delegate, [new ListElementRenderer()], {
-			identityProvider: element => element.label,
+			identityProvider: { getId: element => element.saneLabel },
 			openController: { shouldOpen: () => false }, // Workaround #58124
 			setRowLineHeight: false,
 			multipleSelectionSupport: false
-		}) as WorkbenchList<ListElement>;
+		} as IListOptions<ListElement>) as WorkbenchList<ListElement>;
 		this.list.getHTMLElement().id = id;
 		this.disposables.push(this.list);
 		this.disposables.push(this.list.onKeyDown(e => {
@@ -276,6 +277,12 @@ export class QuickInputList {
 						this._onLeave.fire();
 					}
 					break;
+			}
+		}));
+		this.disposables.push(this.list.onMouseDown(e => {
+			if (e.browserEvent.button !== 2) {
+				// Works around / fixes #64350.
+				e.browserEvent.preventDefault();
 			}
 		}));
 		this.disposables.push(dom.addDisposableListener(this.container, dom.EventType.CLICK, e => {

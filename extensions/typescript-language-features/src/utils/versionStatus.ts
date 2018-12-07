@@ -18,7 +18,7 @@ export default class VersionStatus {
 		this._onChangeEditorSub = vscode.window.onDidChangeActiveTextEditor(this.showHideStatus, this);
 	}
 
-	dispose() {
+	public dispose() {
 		this._versionBarEntry.dispose();
 		this._onChangeEditorSub.dispose();
 	}

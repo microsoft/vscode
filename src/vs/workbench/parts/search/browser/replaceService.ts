@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 import * as errors from 'vs/base/common/errors';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { URI } from 'vs/base/common/uri';
 import * as network from 'vs/base/common/network';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -47,7 +46,7 @@ export class ReplacePreviewContentProvider implements ITextModelContentProvider,
 		this.textModelResolverService.registerTextModelContentProvider(network.Schemas.internal, this);
 	}
 
-	public provideTextContent(uri: URI): TPromise<ITextModel> {
+	public provideTextContent(uri: URI): Thenable<ITextModel> {
 		if (uri.fragment === REPLACE_PREVIEW) {
 			return this.instantiationService.createInstance(ReplacePreviewModel).resolve(uri);
 		}
@@ -66,7 +65,7 @@ class ReplacePreviewModel extends Disposable {
 		super();
 	}
 
-	resolve(replacePreviewUri: URI): TPromise<ITextModel> {
+	resolve(replacePreviewUri: URI): Thenable<ITextModel> {
 		const fileResource = toFileResource(replacePreviewUri);
 		const fileMatch = <FileMatch>this.searchWorkbenchService.searchModel.searchResult.matches().filter(match => match.resource().toString() === fileResource.toString())[0];
 		return this.textModelResolverService.createModelReference(fileResource).then(ref => {
@@ -101,17 +100,17 @@ export class ReplaceService implements IReplaceService {
 		@IBulkEditService private bulkEditorService: IBulkEditService
 	) { }
 
-	public replace(match: Match): TPromise<any>;
-	public replace(files: FileMatch[], progress?: IProgressRunner): TPromise<any>;
-	public replace(match: FileMatchOrMatch, progress?: IProgressRunner, resource?: URI): TPromise<any>;
-	public replace(arg: any, progress: IProgressRunner | null = null, resource: URI | null = null): TPromise<any> {
+	public replace(match: Match): Promise<any>;
+	public replace(files: FileMatch[], progress?: IProgressRunner): Promise<any>;
+	public replace(match: FileMatchOrMatch, progress?: IProgressRunner, resource?: URI): Promise<any>;
+	public replace(arg: any, progress: IProgressRunner | null = null, resource: URI | null = null): Promise<any> {
 
 		const edits: ResourceTextEdit[] = this.createEdits(arg, resource);
 		return this.bulkEditorService.apply({ edits }, { progress }).then(() => this.textFileService.saveAll(edits.map(e => e.resource)));
 
 	}
 
-	public openReplacePreview(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
+	public openReplacePreview(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Thenable<any> {
 		const fileMatch = element instanceof Match ? element.parent() : element;
 
 		return this.editorService.openEditor({
@@ -139,13 +138,13 @@ export class ReplaceService implements IReplaceService {
 		}, errors.onUnexpectedError);
 	}
 
-	public updateReplacePreview(fileMatch: FileMatch, override: boolean = false): TPromise<void> {
+	public updateReplacePreview(fileMatch: FileMatch, override: boolean = false): Promise<void> {
 		const replacePreviewUri = toReplaceResource(fileMatch.resource());
-		return TPromise.join([this.textModelResolverService.createModelReference(fileMatch.resource()), this.textModelResolverService.createModelReference(replacePreviewUri)])
+		return Promise.all([this.textModelResolverService.createModelReference(fileMatch.resource()), this.textModelResolverService.createModelReference(replacePreviewUri)])
 			.then(([sourceModelRef, replaceModelRef]) => {
 				const sourceModel = sourceModelRef.object.textEditorModel;
 				const replaceModel = replaceModelRef.object.textEditorModel;
-				let returnValue = TPromise.wrap(null);
+				let returnValue = Promise.resolve(null);
 				// If model is disposed do not update
 				if (sourceModel && replaceModel) {
 					if (override) {

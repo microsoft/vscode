@@ -210,7 +210,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		}
 	}
 
-	resolve(): TPromise<UntitledEditorModel> {
+	resolve(): Thenable<UntitledEditorModel> {
 
 		// Join a model resolve if we have had one before
 		if (this.modelResolve) {

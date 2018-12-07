@@ -15,7 +15,7 @@ import { IWindowsService, IWindowService } from 'vs/platform/windows/common/wind
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ModelState, ISaveOptions, AutoSaveContext, IWillMoveEvent } from 'vs/workbench/services/textfile/common/textfiles';
 import { ConfirmResult, IRevertOptions } from 'vs/workbench/common/editor';
-import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, ShutdownReason, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IFileService, IResolveContentOptions, IFilesConfiguration, FileOperationError, FileOperationResult, AutoSaveConfiguration, HotExitConfiguration } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -106,7 +106,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 	private registerListeners(): void {
 
 		// Lifecycle
-		this.lifecycleService.onWillShutdown(event => event.veto(this.beforeShutdown(event.reason)));
+		this.lifecycleService.onBeforeShutdown(event => event.veto(this.beforeShutdown(event.reason)));
 		this.lifecycleService.onShutdown(this.dispose, this);
 
 		// Files configuration changes
@@ -285,6 +285,10 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 	private noVeto(options: { cleanUpBackups: boolean }): boolean | TPromise<boolean> {
 		if (!options.cleanUpBackups) {
 			return false;
+		}
+
+		if (this.lifecycleService.phase < LifecyclePhase.Restored) {
+			return false; // if editors have not restored, we are not up to speed with backups and thus should not clean them
 		}
 
 		return this.cleanupBackupsBeforeShutdown().then(() => false, () => false);

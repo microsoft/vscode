@@ -32,7 +32,7 @@ export class BackupSnapshot implements ITextSnapshot {
 
 	constructor(private snapshot: ITextSnapshot, private preamble: string) { }
 
-	read(): string {
+	read(): string | null {
 		let value = this.snapshot.read();
 		if (!this.preambleHandled) {
 			this.preambleHandled = true;
@@ -55,7 +55,7 @@ export class BackupFilesModel implements IBackupFilesModel {
 		return pfs.readDirsInDir(backupRoot).then(backupSchemas => {
 
 			// For all supported schemas
-			return TPromise.join(backupSchemas.map(backupSchema => {
+			return Promise.all(backupSchemas.map(backupSchema => {
 
 				// Read backup directory for backups
 				const backupSchemaPath = path.join(backupRoot, backupSchema);
@@ -145,7 +145,7 @@ export class BackupFileService implements IBackupFileService {
 		});
 	}
 
-	loadBackupResource(resource: Uri): TPromise<Uri> {
+	loadBackupResource(resource: Uri): TPromise<Uri | undefined> {
 		return this.ready.then(model => {
 
 			// Return directly if we have a known backup with that resource
@@ -206,7 +206,7 @@ export class BackupFileService implements IBackupFileService {
 				);
 			});
 
-			return TPromise.join(readPromises);
+			return Promise.all(readPromises);
 		});
 	}
 
@@ -252,7 +252,7 @@ export class InMemoryBackupFileService implements IBackupFileService {
 		return TPromise.as(this.backups.size > 0);
 	}
 
-	loadBackupResource(resource: Uri): TPromise<Uri> {
+	loadBackupResource(resource: Uri): TPromise<Uri | undefined> {
 		const backupResource = this.toBackupResource(resource);
 		if (this.backups.has(backupResource.toString())) {
 			return TPromise.as(backupResource);
@@ -268,7 +268,7 @@ export class InMemoryBackupFileService implements IBackupFileService {
 		return TPromise.as(void 0);
 	}
 
-	resolveBackupContent(backupResource: Uri): TPromise<ITextBufferFactory> {
+	resolveBackupContent(backupResource: Uri): TPromise<ITextBufferFactory | undefined> {
 		const snapshot = this.backups.get(backupResource.toString());
 		if (snapshot) {
 			return TPromise.as(createTextBufferFactoryFromSnapshot(snapshot));

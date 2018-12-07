@@ -1,0 +1,17 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "Microsoft/vscode-mssql",
+					"repositoryUrl": "https://github.com/Microsoft/vscode-mssql",
+					"commitHash": "68d4b740b6a9e12592a32f1c0c8a0dd987f19da8"
+				}
+			},
+			"license": "MIT",
+			"version": "0.0.0"
+		}
+	],
+	"version": 1
+}

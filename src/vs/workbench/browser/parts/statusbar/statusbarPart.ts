@@ -6,7 +6,6 @@
 import 'vs/css!./media/statusbarpart';
 import * as nls from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -288,7 +287,7 @@ class StatusBarEntryItem implements IStatusbarItem {
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => el,
 					getActionsContext: () => this.entry.extensionId,
-					getActions: () => Promise.resolve([manageExtensionAction])
+					getActions: () => [manageExtensionAction]
 				});
 			}));
 		}
@@ -330,7 +329,7 @@ class ManageExtensionAction extends Action {
 		super('statusbar.manage.extension', nls.localize('manageExtension', "Manage Extension"));
 	}
 
-	run(extensionId: string): TPromise<any> {
+	run(extensionId: string): Thenable<any> {
 		return this.commandService.executeCommand('_extensions.manage', extensionId);
 	}
 }

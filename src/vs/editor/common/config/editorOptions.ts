@@ -23,16 +23,14 @@ export interface IEditorScrollbarOptions {
 	arrowSize?: number;
 	/**
 	 * Render vertical scrollbar.
-	 * Accepted values: 'auto', 'visible', 'hidden'.
 	 * Defaults to 'auto'.
 	 */
-	vertical?: string;
+	vertical?: 'auto' | 'visible' | 'hidden';
 	/**
 	 * Render horizontal scrollbar.
-	 * Accepted values: 'auto', 'visible', 'hidden'.
 	 * Defaults to 'auto'.
 	 */
-	horizontal?: string;
+	horizontal?: 'auto' | 'visible' | 'hidden';
 	/**
 	 * Cast horizontal and vertical shadows when the content is scrolled.
 	 * Defaults to true.
@@ -196,6 +194,11 @@ export interface ISuggestOptions {
 	 * Favours words that appear close to the cursor.
 	 */
 	localityBonus?: boolean;
+
+	/**
+	 * Enable using global storage for remembering suggestions.
+	 */
+	useGlobalStorageForSuggestions?: boolean;
 }
 
 /**
@@ -902,6 +905,7 @@ export interface InternalSuggestOptions {
 	readonly snippets: 'top' | 'bottom' | 'inline' | 'none';
 	readonly snippetsPreventQuickSuggestions: boolean;
 	readonly localityBonus: boolean;
+	readonly shareSuggestSelections: boolean;
 }
 
 export interface InternalParameterHintOptions {
@@ -1348,7 +1352,8 @@ export class InternalEditorOptions {
 			return a.filterGraceful === b.filterGraceful
 				&& a.snippets === b.snippets
 				&& a.snippetsPreventQuickSuggestions === b.snippetsPreventQuickSuggestions
-				&& a.localityBonus === b.localityBonus;
+				&& a.localityBonus === b.localityBonus
+				&& a.shareSuggestSelections === b.shareSuggestSelections;
 		}
 	}
 
@@ -1879,6 +1884,7 @@ export class EditorOptionsValidator {
 			snippets: _stringSet<'top' | 'bottom' | 'inline' | 'none'>(opts.snippetSuggestions, defaults.snippets, ['top', 'bottom', 'inline', 'none']),
 			snippetsPreventQuickSuggestions: _boolean(suggestOpts.snippetsPreventQuickSuggestions, defaults.filterGraceful),
 			localityBonus: _boolean(suggestOpts.localityBonus, defaults.localityBonus),
+			shareSuggestSelections: _boolean(suggestOpts.useGlobalStorageForSuggestions, defaults.shareSuggestSelections)
 		};
 	}
 
@@ -2627,7 +2633,8 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 			filterGraceful: true,
 			snippets: 'inline',
 			snippetsPreventQuickSuggestions: true,
-			localityBonus: false
+			localityBonus: false,
+			shareSuggestSelections: false
 		},
 		selectionHighlight: true,
 		occurrencesHighlight: true,

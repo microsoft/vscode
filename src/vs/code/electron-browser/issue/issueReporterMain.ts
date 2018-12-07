@@ -24,7 +24,7 @@ import { IWindowConfiguration, IWindowsService } from 'vs/platform/windows/commo
 import { NullTelemetryService, combinedAppender, LogAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
+import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
@@ -69,6 +69,7 @@ export class IssueReporter extends Disposable {
 	private receivedSystemInfo = false;
 	private receivedPerformanceInfo = false;
 	private shouldQueueSearch = false;
+	private hasBeenSubmitted = false;
 
 	private previewButton: Button;
 
@@ -283,7 +284,7 @@ export class IssueReporter extends Disposable {
 
 		const instantiationService = new InstantiationService(serviceCollection, true);
 		if (!this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
-			const channel = getDelayedChannel<ITelemetryAppenderChannel>(sharedProcess.then(c => c.getChannel('telemetryAppender')));
+			const channel = getDelayedChannel(sharedProcess.then(c => c.getChannel('telemetryAppender')));
 			const appender = combinedAppender(new TelemetryAppenderClient(channel), new LogAppender(logService));
 			const commonProperties = resolveCommonProperties(product.commit, pkg.version, configuration.machineId, this.environmentService.installSourcePath);
 			const piiPaths = [this.environmentService.appRoot, this.environmentService.extensionsPath];
@@ -378,15 +379,19 @@ export class IssueReporter extends Disposable {
 
 		this.previewButton.onDidClick(() => this.createIssue());
 
+		function sendWorkbenchCommand(commandId: string) {
+			ipcRenderer.send('vscode:workbenchCommand', { id: commandId, from: 'issueReporter' });
+		}
+
 		this.addEventListener('disableExtensions', 'click', () => {
-			ipcRenderer.send('vscode:workbenchCommand', 'workbench.action.reloadWindowWithExtensionsDisabled');
+			sendWorkbenchCommand('workbench.action.reloadWindowWithExtensionsDisabled');
 		});
 
 		this.addEventListener('disableExtensions', 'keydown', (e: KeyboardEvent) => {
 			e.stopPropagation();
 			if (e.keyCode === 13 || e.keyCode === 32) {
-				ipcRenderer.send('vscode:workbenchCommand', 'workbench.extensions.action.disableAll');
-				ipcRenderer.send('vscode:workbenchCommand', 'workbench.action.reloadWindow');
+				sendWorkbenchCommand('workbench.extensions.action.disableAll');
+				sendWorkbenchCommand('workbench.action.reloadWindow');
 			}
 		});
 
@@ -395,6 +400,20 @@ export class IssueReporter extends Disposable {
 			// Cmd/Ctrl+Enter previews issue and closes window
 			if (cmdOrCtrlKey && e.keyCode === 13) {
 				if (this.createIssue()) {
+					ipcRenderer.send('vscode:closeIssueReporter');
+				}
+			}
+
+			// Cmd/Ctrl + w closes issue window
+			if (cmdOrCtrlKey && e.keyCode === 87) {
+				e.stopPropagation();
+				e.preventDefault();
+
+				const issueTitle = (<HTMLInputElement>document.getElementById('issue-title'))!.value;
+				const { issueDescription } = this.issueReporterModel.getData();
+				if (!this.hasBeenSubmitted && (issueTitle || issueDescription)) {
+					ipcRenderer.send('vscode:issueReporterConfirmClose');
+				} else {
 					ipcRenderer.send('vscode:closeIssueReporter');
 				}
 			}
@@ -769,6 +788,7 @@ export class IssueReporter extends Disposable {
 			}
 		*/
 		this.telemetryService.publicLog('issueReporterSubmit', { issueType: this.issueReporterModel.getData().issueType, numSimilarIssuesDisplayed: this.numberOfSearchResultsDisplayed });
+		this.hasBeenSubmitted = true;
 
 		const baseUrl = this.getIssueUrlWithTitle((<HTMLInputElement>document.getElementById('issue-title')).value);
 		const issueBody = this.issueReporterModel.serialize();

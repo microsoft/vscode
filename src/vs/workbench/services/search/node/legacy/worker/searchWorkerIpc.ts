@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
-import { IChannel } from 'vs/base/parts/ipc/node/ipc';
+import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
 import { IPatternInfo, ITextSearchPreviewOptions } from 'vs/platform/search/common/search';
 import { SearchWorker } from './searchWorker';
 import { Event } from 'vs/base/common/event';
@@ -25,27 +24,20 @@ export interface ISearchWorkerSearchResult {
 }
 
 export interface ISearchWorker {
-	initialize(): TPromise<void>;
-	search(args: ISearchWorkerSearchArgs): TPromise<ISearchWorkerSearchResult>;
-	cancel(): TPromise<void>;
+	initialize(): Thenable<void>;
+	search(args: ISearchWorkerSearchArgs): Thenable<ISearchWorkerSearchResult>;
+	cancel(): Thenable<void>;
 }
 
-export interface ISearchWorkerChannel extends IChannel {
-	call(command: 'initialize'): TPromise<void>;
-	call(command: 'search', args: ISearchWorkerSearchArgs): TPromise<ISearchWorkerSearchResult>;
-	call(command: 'cancel'): TPromise<void>;
-	call(command: string, arg?: any): TPromise<any>;
-}
-
-export class SearchWorkerChannel implements ISearchWorkerChannel {
+export class SearchWorkerChannel implements IServerChannel {
 	constructor(private worker: SearchWorker) {
 	}
 
-	listen<T>(event: string, arg?: any): Event<T> {
+	listen<T>(): Event<T> {
 		throw new Error('No events');
 	}
 
-	call(command: string, arg?: any): TPromise<any> {
+	call(_, command: string, arg?: any): Promise<any> {
 		switch (command) {
 			case 'initialize': return this.worker.initialize();
 			case 'search': return this.worker.search(arg);
@@ -56,17 +48,17 @@ export class SearchWorkerChannel implements ISearchWorkerChannel {
 }
 
 export class SearchWorkerChannelClient implements ISearchWorker {
-	constructor(private channel: ISearchWorkerChannel) { }
+	constructor(private channel: IChannel) { }
 
-	initialize(): TPromise<void> {
+	initialize(): Thenable<void> {
 		return this.channel.call('initialize');
 	}
 
-	search(args: ISearchWorkerSearchArgs): TPromise<ISearchWorkerSearchResult> {
+	search(args: ISearchWorkerSearchArgs): Thenable<ISearchWorkerSearchResult> {
 		return this.channel.call('search', args);
 	}
 
-	cancel(): TPromise<void> {
+	cancel(): Thenable<void> {
 		return this.channel.call('cancel');
 	}
 }

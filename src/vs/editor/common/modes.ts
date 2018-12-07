@@ -415,7 +415,7 @@ export interface CompletionItem {
 	preselect?: boolean;
 	/**
 	 * A string or snippet that should be inserted in a document when selecting
-	 * this completion. When `falsy` the [label](#CompletionItem.label)
+	 * this completion.
 	 * is used.
 	 */
 	insertText: string;
@@ -553,7 +553,7 @@ export interface CodeActionProvider {
 	provideCodeActions(model: model.ITextModel, range: Range | Selection, context: CodeActionContext, token: CancellationToken): ProviderResult<CodeAction[]>;
 
 	/**
-	 * Optional list of of CodeActionKinds that this provider returns.
+	 * Optional list of CodeActionKinds that this provider returns.
 	 */
 	providedCodeActionKinds?: ReadonlyArray<string>;
 }
@@ -615,14 +615,14 @@ export interface SignatureHelp {
 	activeParameter: number;
 }
 
-export enum SignatureHelpTriggerReason {
+export enum SignatureHelpTriggerKind {
 	Invoke = 1,
 	TriggerCharacter = 2,
 	ContentChange = 3,
 }
 
 export interface SignatureHelpContext {
-	readonly triggerReason: SignatureHelpTriggerReason;
+	readonly triggerKind: SignatureHelpTriggerKind;
 	readonly triggerCharacter?: string;
 	readonly isRetrigger: boolean;
 }
@@ -633,8 +633,8 @@ export interface SignatureHelpContext {
  */
 export interface SignatureHelpProvider {
 
-	readonly signatureHelpTriggerCharacters: ReadonlyArray<string>;
-	readonly signatureHelpRetriggerCharacters: ReadonlyArray<string>;
+	readonly signatureHelpTriggerCharacters?: ReadonlyArray<string>;
+	readonly signatureHelpRetriggerCharacters?: ReadonlyArray<string>;
 
 	/**
 	 * Provide help for the signature at the given position and document.
@@ -745,6 +745,18 @@ export interface DefinitionProvider {
 	 * Provide the definition of the symbol at the given position and document.
 	 */
 	provideDefinition(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | DefinitionLink[]>;
+}
+
+/**
+ * The definition provider interface defines the contract between extensions and
+ * the [go to definition](https://code.visualstudio.com/docs/editor/editingevolved#_go-to-definition)
+ * and peek definition features.
+ */
+export interface DeclarationProvider {
+	/**
+	 * Provide the declaration of the symbol at the given position and document.
+	 */
+	provideDeclaration(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | DefinitionLink[]>;
 }
 
 /**
@@ -864,7 +876,7 @@ export interface DocumentSymbolProvider {
 	provideDocumentSymbols(model: model.ITextModel, token: CancellationToken): ProviderResult<DocumentSymbol[]>;
 }
 
-export type TextEdit = { range: IRange; text: string; eol?: model.EndOfLineSequence; } | { range: undefined; text: undefined; eol: model.EndOfLineSequence; };
+export type TextEdit = { range: IRange; text: string; eol?: model.EndOfLineSequence; };
 
 /**
  * Interface used to format a model
@@ -1019,6 +1031,14 @@ export interface DocumentColorProvider {
 	 */
 	provideColorPresentations(model: model.ITextModel, colorInfo: IColorInformation, token: CancellationToken): ProviderResult<IColorPresentation[]>;
 }
+
+export interface SelectionRangeProvider {
+	/**
+	 * Provide ranges that should be selected from the given position.
+	 */
+	provideSelectionRanges(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<IRange[]>;
+}
+
 export interface FoldingContext {
 }
 /**
@@ -1130,10 +1150,19 @@ export interface Command {
  * @internal
  */
 export interface CommentInfo {
-	owner: number;
 	threads: CommentThread[];
 	commentingRanges?: IRange[];
 	reply?: Command;
+	draftMode: DraftMode;
+}
+
+/**
+ * @internal
+ */
+export enum DraftMode {
+	NotSupported,
+	InDraft,
+	NotInDraft
 }
 
 /**
@@ -1181,13 +1210,13 @@ export interface Comment {
 	readonly canEdit?: boolean;
 	readonly canDelete?: boolean;
 	readonly command?: Command;
+	readonly isDraft?: boolean;
 }
 
 /**
  * @internal
  */
 export interface CommentThreadChangedEvent {
-	readonly owner: number;
 	/**
 	 * Added comment threads.
 	 */
@@ -1202,6 +1231,11 @@ export interface CommentThreadChangedEvent {
 	 * Changed comment threads.
 	 */
 	readonly changed: CommentThread[];
+
+	/**
+	 * changed draft mode.
+	 */
+	readonly draftMode: DraftMode;
 }
 
 /**
@@ -1213,6 +1247,13 @@ export interface DocumentCommentProvider {
 	replyToCommentThread(resource: URI, range: Range, thread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
 	editComment(resource: URI, comment: Comment, text: string, token: CancellationToken): Promise<void>;
 	deleteComment(resource: URI, comment: Comment, token: CancellationToken): Promise<void>;
+	startDraft?(token: CancellationToken): Promise<void>;
+	deleteDraft?(token: CancellationToken): Promise<void>;
+	finishDraft?(token: CancellationToken): Promise<void>;
+
+	startDraftLabel?: string;
+	deleteDraftLabel?: string;
+	finishDraftLabel?: string;
 	onDidChangeCommentThreads(): Event<CommentThreadChangedEvent>;
 }
 
@@ -1280,6 +1321,11 @@ export const DefinitionProviderRegistry = new LanguageFeatureRegistry<Definition
 /**
  * @internal
  */
+export const DeclarationProviderRegistry = new LanguageFeatureRegistry<DeclarationProvider>();
+
+/**
+ * @internal
+ */
 export const ImplementationProviderRegistry = new LanguageFeatureRegistry<ImplementationProvider>();
 
 /**
@@ -1321,6 +1367,11 @@ export const LinkProviderRegistry = new LanguageFeatureRegistry<LinkProvider>();
  * @internal
  */
 export const ColorProviderRegistry = new LanguageFeatureRegistry<DocumentColorProvider>();
+
+/**
+ * @internal
+ */
+export const SelectionRangeRegistry = new LanguageFeatureRegistry<SelectionRangeProvider>();
 
 /**
  * @internal

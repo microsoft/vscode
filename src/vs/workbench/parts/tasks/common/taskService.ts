@@ -8,9 +8,10 @@ import { Action } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
 import { LinkedMap } from 'vs/base/common/map';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { Task, ContributedTask, CustomTask, TaskSet, TaskSorter, TaskEvent, TaskIdentifier } from 'vs/workbench/parts/tasks/common/tasks';
+import { Task, ContributedTask, CustomTask, TaskSet, TaskSorter, TaskEvent, TaskIdentifier, ConfiguringTask, TaskRunSource } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskSummary, TaskTerminateResponse, TaskSystemInfo } from 'vs/workbench/parts/tasks/common/taskSystem';
 import { IStringDictionary } from 'vs/base/common/collections';
 
@@ -22,7 +23,7 @@ export interface ITaskProvider {
 	provideTasks(validTypes: IStringDictionary<boolean>): TPromise<TaskSet>;
 }
 
-export interface RunOptions {
+export interface ProblemMatcherRunOptions {
 	attachProblemMatcher?: boolean;
 }
 
@@ -37,6 +38,18 @@ export interface TaskFilter {
 	type?: string;
 }
 
+interface WorkspaceTaskResult {
+	set: TaskSet;
+	configurations: {
+		byIdentifier: IStringDictionary<ConfiguringTask>;
+	};
+	hasErrors: boolean;
+}
+
+export interface WorkspaceFolderTaskResult extends WorkspaceTaskResult {
+	workspaceFolder: IWorkspaceFolder;
+}
+
 export interface ITaskService {
 	_serviceBrand: any;
 	onDidStateChange: Event<TaskEvent>;
@@ -45,7 +58,7 @@ export interface ITaskService {
 	configureAction(): Action;
 	build(): TPromise<ITaskSummary>;
 	runTest(): TPromise<ITaskSummary>;
-	run(task: Task, options?: RunOptions): TPromise<ITaskSummary>;
+	run(task: Task, options?: ProblemMatcherRunOptions): TPromise<ITaskSummary>;
 	inTerminal(): boolean;
 	isActive(): TPromise<boolean>;
 	getActiveTasks(): TPromise<Task[]>;
@@ -53,6 +66,7 @@ export interface ITaskService {
 	terminate(task: Task): TPromise<TaskTerminateResponse>;
 	terminateAll(): TPromise<TaskTerminateResponse[]>;
 	tasks(filter?: TaskFilter): TPromise<Task[]>;
+	getWorkspaceTasks(runSource?: TaskRunSource): TPromise<Map<string, WorkspaceFolderTaskResult>>;
 	/**
 	 * @param alias The task's name, label or defined identifier.
 	 */
@@ -64,10 +78,9 @@ export interface ITaskService {
 	needsFolderQualification();
 	canCustomize(task: ContributedTask | CustomTask): boolean;
 	customize(task: ContributedTask | CustomTask, properties?: {}, openConfig?: boolean): TPromise<void>;
-	openConfig(task: CustomTask): TPromise<void>;
+	openConfig(task: CustomTask | undefined): TPromise<void>;
 
-	registerTaskProvider(handle: number, taskProvider: ITaskProvider): void;
-	unregisterTaskProvider(handle: number): boolean;
+	registerTaskProvider(taskProvider: ITaskProvider): IDisposable;
 
 	registerTaskSystem(scheme: string, taskSystemInfo: TaskSystemInfo): void;
 }

@@ -10,7 +10,25 @@ import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
 import { BracketsUtils, RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { LanguageId, StandardTokenType } from 'vs/editor/common/modes';
+import { LanguageId, StandardTokenType, SelectionRangeProvider } from 'vs/editor/common/modes';
+
+export class TokenTreeSelectionRangeProvider implements SelectionRangeProvider {
+
+	provideSelectionRanges(model: ITextModel, position: Position): Range[] {
+		let tree = build(model);
+		let node = find(tree, position);
+		let ranges: Range[] = [];
+		let lastRange: Range | undefined;
+		while (node) {
+			if (!lastRange || !Range.equalsRange(lastRange, node.range)) {
+				ranges.push(node.range);
+			}
+			lastRange = node.range;
+			node = node.parent;
+		}
+		return ranges;
+	}
+}
 
 export const enum TokenTreeBracket {
 	None = 0,

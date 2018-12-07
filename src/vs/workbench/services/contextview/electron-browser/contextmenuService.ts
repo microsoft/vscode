@@ -35,43 +35,42 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 	}
 
 	showContextMenu(delegate: IContextMenuDelegate): void {
-		delegate.getActions().then(actions => {
-			if (actions.length) {
-				const onHide = once(() => {
-					if (delegate.onHide) {
-						delegate.onHide(undefined);
-					}
-
-					this._onDidContextMenu.fire();
-				});
-
-				const menu = this.createMenu(delegate, actions, onHide);
-				const anchor = delegate.getAnchor();
-				let x: number, y: number;
-
-				if (dom.isHTMLElement(anchor)) {
-					let elementPosition = dom.getDomNodePagePosition(anchor);
-
-					x = elementPosition.left;
-					y = elementPosition.top + elementPosition.height;
-				} else {
-					const pos = <{ x: number; y: number; }>anchor;
-					x = pos.x + 1; /* prevent first item from being selected automatically under mouse */
-					y = pos.y;
+		const actions = delegate.getActions();
+		if (actions.length) {
+			const onHide = once(() => {
+				if (delegate.onHide) {
+					delegate.onHide(undefined);
 				}
 
-				let zoom = webFrame.getZoomFactor();
-				x *= zoom;
-				y *= zoom;
+				this._onDidContextMenu.fire();
+			});
 
-				popup(menu, {
-					x: Math.floor(x),
-					y: Math.floor(y),
-					positioningItem: delegate.autoSelectFirstItem ? 0 : void 0,
-					onHide: () => onHide()
-				});
+			const menu = this.createMenu(delegate, actions, onHide);
+			const anchor = delegate.getAnchor();
+			let x: number, y: number;
+
+			if (dom.isHTMLElement(anchor)) {
+				let elementPosition = dom.getDomNodePagePosition(anchor);
+
+				x = elementPosition.left;
+				y = elementPosition.top + elementPosition.height;
+			} else {
+				const pos = <{ x: number; y: number; }>anchor;
+				x = pos.x + 1; /* prevent first item from being selected automatically under mouse */
+				y = pos.y;
 			}
-		});
+
+			let zoom = webFrame.getZoomFactor();
+			x *= zoom;
+			y *= zoom;
+
+			popup(menu, {
+				x: Math.floor(x),
+				y: Math.floor(y),
+				positioningItem: delegate.autoSelectFirstItem ? 0 : void 0,
+				onHide: () => onHide()
+			});
+		}
 	}
 
 	private createMenu(delegate: IContextMenuDelegate, entries: (IAction | ContextSubMenu)[], onHide: () => void): IContextMenuItem[] {

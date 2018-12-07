@@ -18,14 +18,21 @@ import * as Previewer from '../utils/previewer';
 import * as typeConverters from '../utils/typeConverters';
 import TypingsStatus from '../utils/typingsStatus';
 import FileConfigurationManager from './fileConfigurationManager';
+import { snippetForFunctionCall } from '../utils/snippetForFunctionCall';
 
 const localize = nls.loadMessageBundle();
 
+interface DotAccessorContext {
+	readonly range: vscode.Range;
+	readonly text: string;
+}
 
-interface CommitCharactersSettings {
+interface CompletionContext {
 	readonly isNewIdentifierLocation: boolean;
+	readonly isMemberCompletion: boolean;
 	readonly isInValidCommitCharacterContext: boolean;
 	readonly enableCallCompletions: boolean;
+	readonly dotAccessorContext?: DotAccessorContext;
 }
 
 class MyCompletionItem extends vscode.CompletionItem {
@@ -37,7 +44,8 @@ class MyCompletionItem extends vscode.CompletionItem {
 		line: string,
 		public readonly tsEntry: Proto.CompletionEntry,
 		useCodeSnippetsOnMethodSuggest: boolean,
-		public readonly commitCharactersSettings: CommitCharactersSettings
+		public readonly completionContext: CompletionContext,
+		public readonly metadata: any | undefined,
 	) {
 		super(tsEntry.name, MyCompletionItem.convertKind(tsEntry.kind));
 
@@ -56,23 +64,23 @@ class MyCompletionItem extends vscode.CompletionItem {
 
 		this.position = position;
 		this.useCodeSnippet = useCodeSnippetsOnMethodSuggest && (this.kind === vscode.CompletionItemKind.Function || this.kind === vscode.CompletionItemKind.Method);
+
 		if (tsEntry.replacementSpan) {
 			this.range = typeConverters.Range.fromTextSpan(tsEntry.replacementSpan);
+			// Make sure we only replace a single line at most
+			if (!this.range.isSingleLine) {
+				this.range = new vscode.Range(this.range.start.line, this.range.start.character, this.range.start.line, line.length);
+			}
 		}
 
-		if (tsEntry.insertText) {
-			this.insertText = tsEntry.insertText;
+		this.insertText = tsEntry.insertText;
+		this.filterText = tsEntry.insertText;
 
-			if (tsEntry.replacementSpan) {
-				this.range = typeConverters.Range.fromTextSpan(tsEntry.replacementSpan);
-				if (this.insertText[0] === '[') { // o.x -> o['x']
-					this.filterText = '.' + this.label;
-				}
-
-				// Make sure we only replace a single line at most
-				if (!this.range.isSingleLine) {
-					this.range = new vscode.Range(this.range.start.line, this.range.start.character, this.range.start.line, line.length);
-				}
+		if (completionContext.isMemberCompletion && completionContext.dotAccessorContext) {
+			this.filterText = completionContext.dotAccessorContext.text + (this.insertText || this.label);
+			if (!this.range) {
+				this.range = completionContext.dotAccessorContext.range;
+				this.insertText = this.filterText;
 			}
 		}
 
@@ -88,6 +96,10 @@ class MyCompletionItem extends vscode.CompletionItem {
 					this.filterText = this.label;
 				}
 				this.label += '?';
+			}
+
+			if (kindModifiers.has(PConst.KindModifiers.color)) {
+				this.kind = vscode.CompletionItemKind.Color;
 			}
 
 			if (tsEntry.kind === PConst.Kind.script) {
@@ -169,7 +181,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 
 	@memoize
 	public get commitCharacters(): string[] | undefined {
-		if (this.commitCharactersSettings.isNewIdentifierLocation || !this.commitCharactersSettings.isInValidCommitCharacterContext) {
+		if (this.completionContext.isNewIdentifierLocation || !this.completionContext.isInValidCommitCharacterContext) {
 			return undefined;
 		}
 
@@ -199,7 +211,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 			case PConst.Kind.keyword:
 			case PConst.Kind.parameter:
 				commitCharacters.push('.', ',', ';');
-				if (this.commitCharactersSettings.enableCallCompletions) {
+				if (this.completionContext.enableCallCompletions) {
 					commitCharacters.push('(');
 				}
 				break;
@@ -218,7 +230,6 @@ class CompositeCommand implements Command {
 		}
 	}
 }
-
 
 class CompletionAcceptedCommand implements Command {
 	public static readonly ID = '_typescript.onCompletionAccepted';
@@ -325,9 +336,9 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		position: vscode.Position,
 		token: vscode.CancellationToken,
 		context: vscode.CompletionContext
-	): Promise<vscode.CompletionItem[] | null> {
+	): Promise<vscode.CompletionList | null> {
 		if (this.typingsStatus.isAcquiringTypings) {
-			return Promise.reject<vscode.CompletionItem[]>({
+			return Promise.reject<vscode.CompletionList>({
 				label: localize(
 					{ key: 'acquiringTypingsLabel', comment: ['Typings refers to the *.d.ts typings files that power our IntelliSense. It should not be localized'] },
 					'Acquiring typings...'),
@@ -355,35 +366,54 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			...typeConverters.Position.toFileLocationRequestArgs(file, position),
 			includeExternalModuleExports: completionConfiguration.autoImportSuggestions,
 			includeInsertTextCompletions: true,
-			triggerCharacter: this.getTsTriggerCharacter(context)
+			triggerCharacter: this.getTsTriggerCharacter(context),
 		};
 
 		let isNewIdentifierLocation = true;
-		let msg: ReadonlyArray<Proto.CompletionEntry> | undefined = undefined;
+		let isIncomplete = false;
+		let isMemberCompletion = false;
+		let dotAccessorContext: DotAccessorContext | undefined;
+		let entries: ReadonlyArray<Proto.CompletionEntry>;
+		let metadata: any | undefined;
 		if (this.client.apiVersion.gte(API.v300)) {
 			const response = await this.client.interuptGetErr(() => this.client.execute('completionInfo', args, token));
 			if (response.type !== 'response' || !response.body) {
 				return null;
 			}
 			isNewIdentifierLocation = response.body.isNewIdentifierLocation;
-			msg = response.body.entries;
+			isMemberCompletion = response.body.isMemberCompletion;
+			if (isMemberCompletion) {
+				const dotMatch = line.text.slice(0, position.character).match(/\.\s*$/) || undefined;
+				if (dotMatch) {
+					const range = new vscode.Range(position.translate({ characterDelta: -dotMatch[0].length }), position);
+					const text = document.getText(range);
+					dotAccessorContext = { range, text };
+				}
+			}
+			isIncomplete = (response as any).metadata && (response as any).metadata.isIncomplete;
+			entries = response.body.entries;
+			metadata = response.metadata;
 		} else {
 			const response = await this.client.interuptGetErr(() => this.client.execute('completions', args, token));
 			if (response.type !== 'response' || !response.body) {
 				return null;
 			}
 
-			msg = response.body;
+			entries = response.body;
+			metadata = response.metadata;
 		}
 
 		const isInValidCommitCharacterContext = this.isInValidCommitCharacterContext(document, position);
-		return msg
+		const items = entries
 			.filter(entry => !shouldExcludeCompletionEntry(entry, completionConfiguration))
 			.map(entry => new MyCompletionItem(position, document, line.text, entry, completionConfiguration.useCodeSnippetsOnMethodSuggest, {
 				isNewIdentifierLocation,
+				isMemberCompletion,
+				dotAccessorContext,
 				isInValidCommitCharacterContext,
 				enableCallCompletions: !completionConfiguration.useCodeSnippetsOnMethodSuggest
-			}));
+			}, metadata));
+		return new vscode.CompletionList(items, isIncomplete);
 	}
 
 	private getTsTriggerCharacter(context: vscode.CompletionContext): Proto.CompletionsTriggerCharacter | undefined {
@@ -417,7 +447,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			]
 		};
 
-		const response = await this.client.execute('completionEntryDetails', args, token);
+		const response = await this.client.interuptGetErr(() => this.client.execute('completionEntryDetails', args, token));
 		if (response.type !== 'response' || !response.body) {
 			return item;
 		}
@@ -443,8 +473,11 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		if (detail && item.useCodeSnippet) {
 			const shouldCompleteFunction = await this.isValidFunctionCompletionContext(filepath, item.position, token);
 			if (shouldCompleteFunction) {
-				item.insertText = this.snippetForFunctionCall(item, detail);
-				commands.push({ title: 'triggerParameterHints', command: 'editor.action.triggerParameterHints' });
+				const { snippet, parameterCount } = snippetForFunctionCall(item, detail.displayParts);
+				item.insertText = snippet;
+				if (parameterCount > 0) {
+					commands.push({ title: 'triggerParameterHints', command: 'editor.action.triggerParameterHints' });
+				}
 			}
 		}
 
@@ -612,63 +645,6 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		} catch (e) {
 			return true;
 		}
-	}
-
-	private snippetForFunctionCall(
-		item: vscode.CompletionItem,
-		detail: Proto.CompletionEntryDetails
-	): vscode.SnippetString {
-		let hasOptionalParameters = false;
-		let hasAddedParameters = false;
-
-		const snippet = new vscode.SnippetString();
-		const methodName = detail.displayParts.find(part => part.kind === 'methodName');
-		if (item.insertText) {
-			if (typeof item.insertText === 'string') {
-				snippet.appendText(item.insertText);
-			} else {
-				return item.insertText;
-			}
-		} else {
-			snippet.appendText((methodName && methodName.text) || item.label);
-		}
-		snippet.appendText('(');
-
-		let parenCount = 0;
-		let i = 0;
-		for (; i < detail.displayParts.length; ++i) {
-			const part = detail.displayParts[i];
-			// Only take top level paren names
-			if (part.kind === 'parameterName' && parenCount === 1) {
-				const next = detail.displayParts[i + 1];
-				// Skip optional parameters
-				const nameIsFollowedByOptionalIndicator = next && next.text === '?';
-				if (!nameIsFollowedByOptionalIndicator) {
-					if (hasAddedParameters) {
-						snippet.appendText(', ');
-					}
-					hasAddedParameters = true;
-					snippet.appendPlaceholder(part.text);
-				}
-				hasOptionalParameters = hasOptionalParameters || nameIsFollowedByOptionalIndicator;
-			} else if (part.kind === 'punctuation') {
-				if (part.text === '(') {
-					++parenCount;
-				} else if (part.text === ')') {
-					--parenCount;
-				} else if (part.text === '...' && parenCount === 1) {
-					// Found rest parmeter. Do not fill in any further arguments
-					hasOptionalParameters = true;
-					break;
-				}
-			}
-		}
-		if (hasOptionalParameters) {
-			snippet.appendTabstop();
-		}
-		snippet.appendText(')');
-		snippet.appendTabstop(0);
-		return snippet;
 	}
 }
 

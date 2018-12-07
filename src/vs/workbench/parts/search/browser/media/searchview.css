@@ -29,9 +29,27 @@
 	margin-left: 17px;
 }
 
-.search-view .search-widget .input-box,
-.search-view .search-widget .input-box .monaco-inputbox {
-	height: 25px;
+.search-view .search-widget .monaco-inputbox > .wrapper {
+	height: 100%;
+}
+
+.search-view .search-widget .monaco-inputbox > .wrapper > .mirror,
+.search-view .search-widget .monaco-inputbox > .wrapper > textarea.input {
+	padding: 3px;
+	padding-left: 4px;
+}
+
+.search-view .search-widget .monaco-inputbox > .wrapper > .mirror {
+	max-height: 134px;
+}
+
+.search-view .search-widget .monaco-inputbox > .wrapper > textarea.input {
+	overflow: initial;
+	height: 24px; /* set initial height before measure */
+}
+
+.search-view .monaco-inputbox > .wrapper > textarea.input::-webkit-scrollbar {
+	display: none;
 }
 
 .search-view .search-widget .monaco-findInput {

@@ -40,6 +40,9 @@
 				"base": "$tsc-watch",
 				"owner": "typescript-strict-null",
 				"applyTo": "allDocuments"
+			},
+			"runOptions": {
+				"runOn": "folderOpen"
 			}
 		},
 		{

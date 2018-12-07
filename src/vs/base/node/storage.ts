@@ -11,34 +11,49 @@ import { isUndefinedOrNull } from 'vs/base/common/types';
 import { mapToString, setToString } from 'vs/base/common/map';
 import { basename } from 'path';
 import { mark } from 'vs/base/common/performance';
-import { rename } from 'vs/base/node/pfs';
+import { rename, unlinkIgnoreError, copy, renameIgnoreError } from 'vs/base/node/pfs';
+
+export enum StorageHint {
+
+	// A hint to the storage that the storage
+	// does not exist on disk yet. This allows
+	// the storage library to improve startup
+	// time by not checking the storage for data.
+	STORAGE_DOES_NOT_EXIST
+}
 
 export interface IStorageOptions {
-	path: string;
-
-	logging?: IStorageLoggingOptions;
+	hint?: StorageHint;
 }
 
-export interface IStorageLoggingOptions {
-	logError?: (error: string | Error) => void;
-
-	trace?: boolean;
-	logTrace?: (msg: string) => void;
-
+export interface IUpdateRequest {
+	insert?: Map<string, string>;
+	delete?: Set<string>;
 }
 
-enum StorageState {
-	None,
-	Initialized,
-	Closed
+export interface IStorageItemsChangeEvent {
+	items: Map<string, string>;
+}
+
+export interface IStorageDatabase {
+
+	readonly onDidChangeItemsExternal: Event<IStorageItemsChangeEvent>;
+
+	getItems(): Thenable<Map<string, string>>;
+	updateItems(request: IUpdateRequest): Thenable<void>;
+
+	close(): Thenable<void>;
+
+	checkIntegrity(full: boolean): Thenable<string>;
 }
 
 export interface IStorage extends IDisposable {
 
+	readonly items: Map<string, string>;
 	readonly size: number;
 	readonly onDidChangeStorage: Event<string>;
 
-	init(): Promise<void>;
+	init(): Thenable<void>;
 
 	get(key: string, fallbackValue: string): string;
 	get(key: string, fallbackValue?: string): string | undefined;
@@ -52,50 +67,108 @@ export interface IStorage extends IDisposable {
 	set(key: string, value: any): Thenable<void>;
 	delete(key: string): Thenable<void>;
 
+	beforeClose(): void;
 	close(): Thenable<void>;
 
-	getItems(): Promise<Map<string, string>>;
-	checkIntegrity(full: boolean): Promise<string>;
+	checkIntegrity(full: boolean): Thenable<string>;
+}
+
+enum StorageState {
+	None,
+	Initialized,
+	Closed
 }
 
 export class Storage extends Disposable implements IStorage {
 	_serviceBrand: any;
 
-	private static readonly FLUSH_DELAY = 100;
+	private static readonly DEFAULT_FLUSH_DELAY = 100;
 
 	private _onDidChangeStorage: Emitter<string> = this._register(new Emitter<string>());
 	get onDidChangeStorage(): Event<string> { return this._onDidChangeStorage.event; }
 
 	private state = StorageState.None;
 
-	private storage: SQLiteStorageImpl;
 	private cache: Map<string, string> = new Map<string, string>();
 
 	private flushDelayer: ThrottledDelayer<void>;
+	private flushDelay = Storage.DEFAULT_FLUSH_DELAY;
 
 	private pendingDeletes: Set<string> = new Set<string>();
 	private pendingInserts: Map<string, string> = new Map();
 
-	constructor(options: IStorageOptions) {
+	constructor(
+		protected database: IStorageDatabase,
+		private options: IStorageOptions = Object.create(null)
+	) {
 		super();
 
-		this.storage = new SQLiteStorageImpl(options);
+		this.flushDelayer = this._register(new ThrottledDelayer(this.flushDelay));
 
-		this.flushDelayer = this._register(new ThrottledDelayer(Storage.FLUSH_DELAY));
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this._register(this.database.onDidChangeItemsExternal(e => this.onDidChangeItemsExternal(e)));
+	}
+
+	private onDidChangeItemsExternal(e: IStorageItemsChangeEvent): void {
+		// items that change external require us to update our
+		// caches with the values. we just accept the value and
+		// emit an event if there is a change.
+		e.items.forEach((value, key) => this.accept(key, value));
+	}
+
+	private accept(key: string, value: string): void {
+		if (this.state === StorageState.Closed) {
+			return; // Return early if we are already closed
+		}
+
+		let changed = false;
+
+		// Item got removed, check for deletion
+		if (isUndefinedOrNull(value)) {
+			changed = this.cache.delete(key);
+		}
+
+		// Item got updated, check for change
+		else {
+			const currentValue = this.cache.get(key);
+			if (currentValue !== value) {
+				this.cache.set(key, value);
+				changed = true;
+			}
+		}
+
+		// Signal to outside listeners
+		if (changed) {
+			this._onDidChangeStorage.fire(key);
+		}
+	}
+
+	get items(): Map<string, string> {
+		return this.cache;
 	}
 
 	get size(): number {
 		return this.cache.size;
 	}
 
-	init(): Promise<void> {
+	init(): Thenable<void> {
 		if (this.state !== StorageState.None) {
 			return Promise.resolve(); // either closed or already initialized
 		}
 
 		this.state = StorageState.Initialized;
 
-		return this.storage.getItems().then(items => {
+		if (this.options.hint === StorageHint.STORAGE_DOES_NOT_EXIST) {
+			// return early if we know the storage file does not exist. this is a performance
+			// optimization to not load all items of the underlying storage if we know that
+			// there can be no items because the storage does not exist.
+			return Promise.resolve();
+		}
+
+		return this.database.getItems().then(items => {
 			this.cache = items;
 		});
 	}
@@ -164,7 +237,7 @@ export class Storage extends Disposable implements IStorage {
 		this._onDidChangeStorage.fire(key);
 
 		// Accumulate work by scheduling after timeout
-		return this.flushDelayer.trigger(() => this.flushPending());
+		return this.flushDelayer.trigger(() => this.flushPending(), this.flushDelay);
 	}
 
 	delete(key: string): Thenable<void> {
@@ -188,7 +261,11 @@ export class Storage extends Disposable implements IStorage {
 		this._onDidChangeStorage.fire(key);
 
 		// Accumulate work by scheduling after timeout
-		return this.flushDelayer.trigger(() => this.flushPending());
+		return this.flushDelayer.trigger(() => this.flushPending(), this.flushDelay);
+	}
+
+	beforeClose(): void {
+		this.flushDelay = 0; // when we are about to close, reduce our flush delay to 0 to consume too much time
 	}
 
 	close(): Thenable<void> {
@@ -202,11 +279,14 @@ export class Storage extends Disposable implements IStorage {
 		// Trigger new flush to ensure data is persisted and then close
 		// even if there is an error flushing. We must always ensure
 		// the DB is closed to avoid corruption.
-		const onDone = () => this.storage.close();
-		return this.flushDelayer.trigger(() => this.flushPending(), 0 /* immediately */).then(onDone, onDone);
+		const onDone = () => this.database.close();
+		return this.flushDelayer.trigger(() => this.flushPending(), 0 /* as soon as possible */).then(onDone, onDone);
 	}
 
 	private flushPending(): Thenable<void> {
+		if (this.pendingInserts.size === 0 && this.pendingDeletes.size === 0) {
+			return Promise.resolve(); // return early if nothing to do
+		}
 
 		// Get pending data
 		const updateRequest: IUpdateRequest = { insert: this.pendingInserts, delete: this.pendingDeletes };
@@ -216,41 +296,52 @@ export class Storage extends Disposable implements IStorage {
 		this.pendingInserts = new Map<string, string>();
 
 		// Update in storage
-		return this.storage.updateItems(updateRequest);
+		return this.database.updateItems(updateRequest);
 	}
 
-	getItems(): Promise<Map<string, string>> {
-		return this.storage.getItems();
-	}
-
-	checkIntegrity(full: boolean): Promise<string> {
-		return this.storage.checkIntegrity(full);
+	checkIntegrity(full: boolean): Thenable<string> {
+		return this.database.checkIntegrity(full);
 	}
 }
 
-export interface IUpdateRequest {
-	readonly insert?: Map<string, string>;
-	readonly delete?: Set<string>;
+interface IOpenDatabaseResult {
+	db: Database;
+	path: string;
 }
 
-export class SQLiteStorageImpl {
+export interface ISQLiteStorageDatabaseOptions {
+	logging?: ISQLiteStorageDatabaseLoggingOptions;
+}
+
+export interface ISQLiteStorageDatabaseLoggingOptions {
+	logError?: (error: string | Error) => void;
+	logTrace?: (msg: string) => void;
+}
+
+export class SQLiteStorageDatabase implements IStorageDatabase {
+
+	static IN_MEMORY_PATH = ':memory:';
+
+	get onDidChangeItemsExternal(): Event<IStorageItemsChangeEvent> { return Event.None; } // since we are the only client, there can be no external changes
 
 	private static measuredRequireDuration: boolean; // TODO@Ben remove me after a while
 
 	private static BUSY_OPEN_TIMEOUT = 2000; // timeout in ms to retry when opening DB fails with SQLITE_BUSY
 
-	private db: Promise<Database>;
 	private name: string;
-	private logger: SQLiteStorageLogger;
+	private logger: SQLiteStorageDatabaseLogger;
 
-	constructor(private options: IStorageOptions) {
-		this.name = basename(options.path);
-		this.logger = new SQLiteStorageLogger(options.logging);
-		this.db = this.open();
+	private whenOpened: Promise<IOpenDatabaseResult>;
+
+	constructor(path: string, options: ISQLiteStorageDatabaseOptions = Object.create(null)) {
+		this.name = basename(path);
+		this.logger = new SQLiteStorageDatabaseLogger(options.logging);
+
+		this.whenOpened = this.open(path);
 	}
 
 	getItems(): Promise<Map<string, string>> {
-		return this.db.then(db => {
+		return this.whenOpened.then(({ db }) => {
 			const items = new Map<string, string>();
 
 			return this.all(db, 'SELECT * FROM ItemTable').then(rows => {
@@ -282,7 +373,7 @@ export class SQLiteStorageImpl {
 			this.logger.trace(`[storage ${this.name}] updateItems(): insert(${request.insert ? mapToString(request.insert) : '0'}), delete(${request.delete ? setToString(request.delete) : '0'})`);
 		}
 
-		return this.db.then(db => {
+		return this.whenOpened.then(({ db }) => {
 			return this.transaction(db, () => {
 				if (request.insert && request.insert.size > 0) {
 					this.prepare(db, 'INSERT INTO ItemTable VALUES (?,?)', stmt => {
@@ -306,13 +397,24 @@ export class SQLiteStorageImpl {
 	close(): Promise<void> {
 		this.logger.trace(`[storage ${this.name}] close()`);
 
-		return this.db.then(db => {
+		return this.whenOpened.then(result => {
 			return new Promise((resolve, reject) => {
-				db.close(error => {
+				result.db.close(error => {
 					if (error) {
 						this.logger.error(`[storage ${this.name}] close(): ${error}`);
 
 						return reject(error);
+					}
+
+					// If the DB closed successfully and we are not running in-memory
+					// make a backup of the DB so that we can use it as fallback in
+					// case the actual DB becomes corrupt.
+					if (result.path !== SQLiteStorageDatabase.IN_MEMORY_PATH) {
+						return this.backup(result).then(resolve, error => {
+							this.logger.error(`[storage ${this.name}] backup(): ${error}`);
+
+							return resolve(); // ignore failing backup
+						});
 					}
 
 					return resolve();
@@ -321,17 +423,31 @@ export class SQLiteStorageImpl {
 		});
 	}
 
+	private backup(db: IOpenDatabaseResult): Promise<void> {
+		if (db.path === SQLiteStorageDatabase.IN_MEMORY_PATH) {
+			return Promise.resolve(); // no backups when running in-memory
+		}
+
+		const backupPath = this.toBackupPath(db.path);
+
+		return unlinkIgnoreError(backupPath).then(() => copy(db.path, backupPath));
+	}
+
+	private toBackupPath(path: string): string {
+		return `${path}.backup`;
+	}
+
 	checkIntegrity(full: boolean): Promise<string> {
 		this.logger.trace(`[storage ${this.name}] checkIntegrity(full: ${full})`);
 
-		return this.db.then(db => {
+		return this.whenOpened.then(({ db }) => {
 			return this.get(db, full ? 'PRAGMA integrity_check' : 'PRAGMA quick_check').then(row => {
 				return full ? row['integrity_check'] : row['quick_check'];
 			});
 		});
 	}
 
-	private open(): Promise<Database> {
+	private open(path: string): Promise<IOpenDatabaseResult> {
 		this.logger.trace(`[storage ${this.name}] open()`);
 
 		return new Promise((resolve, reject) => {
@@ -341,10 +457,10 @@ export class SQLiteStorageImpl {
 
 				// In case of any error to open the DB, use an in-memory
 				// DB so that we always have a valid DB to talk to.
-				this.doOpen(':memory:').then(resolve, reject);
+				this.doOpen(SQLiteStorageDatabase.IN_MEMORY_PATH).then(resolve, reject);
 			};
 
-			this.doOpen(this.options.path).then(resolve, error => {
+			this.doOpen(path).then(resolve, error => {
 
 				// TODO@Ben check if this is still happening. This error code should only arise if
 				// another process is locking the same DB we want to open at that time. This typically
@@ -352,37 +468,50 @@ export class SQLiteStorageImpl {
 				// of a window reload, it may be possible that the previous connection was not properly
 				// closed while the new connection is already established.
 				if (error.code === 'SQLITE_BUSY') {
-					this.logger.error(`[storage ${this.name}] open(): Retrying after ${SQLiteStorageImpl.BUSY_OPEN_TIMEOUT}ms due to SQLITE_BUSY`);
-
-					// Retry after 2s if the DB is busy
-					timeout(SQLiteStorageImpl.BUSY_OPEN_TIMEOUT).then(() => this.doOpen(this.options.path).then(resolve, fallbackToInMemoryDatabase));
+					return this.handleSQLiteBusy(path).then(resolve, fallbackToInMemoryDatabase);
 				}
 
 				// This error code indicates that even though the DB file exists,
 				// SQLite cannot open it and signals it is corrupt or not a DB.
-				else if (error.code === 'SQLITE_CORRUPT' || error.code === 'SQLITE_NOTADB') {
-					this.logger.error(`[storage ${this.name}] open(): Recreating DB due to ${error.code}`);
-
-					// Move corrupt DB to different filename and start fresh
-					const randomSuffix = Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 4);
-					rename(this.options.path, `${this.options.path}.${randomSuffix}.corrupt`)
-						.then(() => this.doOpen(this.options.path)).then(resolve, fallbackToInMemoryDatabase);
+				if (error.code === 'SQLITE_CORRUPT' || error.code === 'SQLITE_NOTADB') {
+					return this.handleSQLiteCorrupt(path, error).then(resolve, fallbackToInMemoryDatabase);
 				}
 
 				// Otherwise give up and fallback to in-memory DB
-				else {
-					fallbackToInMemoryDatabase(error);
-				}
+				return fallbackToInMemoryDatabase(error);
 			});
 		});
 	}
 
-	private doOpen(path: string): Promise<Database> {
+	private handleSQLiteBusy(path: string): Promise<IOpenDatabaseResult> {
+		this.logger.error(`[storage ${this.name}] open(): Retrying after ${SQLiteStorageDatabase.BUSY_OPEN_TIMEOUT}ms due to SQLITE_BUSY`);
+
+		// Retry after some time if the DB is busy
+		return timeout(SQLiteStorageDatabase.BUSY_OPEN_TIMEOUT).then(() => this.doOpen(path));
+	}
+
+	private handleSQLiteCorrupt(path: string, error: any): Promise<IOpenDatabaseResult> {
+		this.logger.error(`[storage ${this.name}] open(): Unable to open DB due to ${error.code}`);
+
+		// Move corrupt DB to a different filename and try to load from backup
+		// If that fails, a new empty DB is being created automatically
+		return rename(path, this.toCorruptPath(path))
+			.then(() => renameIgnoreError(this.toBackupPath(path), path))
+			.then(() => this.doOpen(path));
+	}
+
+	private toCorruptPath(path: string): string {
+		const randomSuffix = Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 4);
+
+		return `${path}.${randomSuffix}.corrupt`;
+	}
+
+	private doOpen(path: string): Promise<IOpenDatabaseResult> {
 		// TODO@Ben clean up performance markers
 		return new Promise((resolve, reject) => {
 			let measureRequireDuration = false;
-			if (!SQLiteStorageImpl.measuredRequireDuration) {
-				SQLiteStorageImpl.measuredRequireDuration = true;
+			if (!SQLiteStorageDatabase.measuredRequireDuration) {
+				SQLiteStorageDatabase.measuredRequireDuration = true;
 				measureRequireDuration = true;
 
 				mark('willRequireSQLite');
@@ -392,9 +521,9 @@ export class SQLiteStorageImpl {
 					mark('didRequireSQLite');
 				}
 
-				const db = new (this.logger.isTracing ? sqlite3.verbose().Database : sqlite3.Database)(path, error => {
+				const db: Database = new (this.logger.isTracing ? sqlite3.verbose().Database : sqlite3.Database)(path, error => {
 					if (error) {
-						return reject(error);
+						return db ? db.close(() => reject(error)) : reject(error);
 					}
 
 					// The following exec() statement serves two purposes:
@@ -407,11 +536,11 @@ export class SQLiteStorageImpl {
 					].join('')).then(() => {
 						mark('didSetupSQLiteSchema');
 
-						resolve(db);
+						return resolve({ path, db });
 					}, error => {
 						mark('didSetupSQLiteSchema');
 
-						reject(error);
+						return db.close(() => reject(error));
 					});
 				});
 
@@ -509,76 +638,64 @@ export class SQLiteStorageImpl {
 	}
 }
 
-class SQLiteStorageLogger {
-	private readonly logTrace: boolean;
-	private readonly logError: boolean;
+class SQLiteStorageDatabaseLogger {
+	private readonly logTrace: (msg: string) => void;
+	private readonly logError: (error: string | Error) => void;
 
-	constructor(private readonly options?: IStorageLoggingOptions) {
-		this.logTrace = !!(options && options.logTrace);
-		this.logError = !!(options && options.logError);
+	constructor(options?: ISQLiteStorageDatabaseLoggingOptions) {
+		if (options && typeof options.logTrace === 'function') {
+			this.logTrace = options.logTrace;
+		}
+
+		if (options && typeof options.logError === 'function') {
+			this.logError = options.logError;
+		}
 	}
 
 	get isTracing(): boolean {
-		return this.logTrace;
+		return !!this.logTrace;
 	}
 
 	trace(msg: string): void {
-		if (this.logTrace && this.options && this.options.logTrace) {
-			this.options.logTrace(msg);
+		if (this.logTrace) {
+			this.logTrace(msg);
 		}
 	}
 
 	error(error: string | Error): void {
-		if (this.logError && this.options && this.options.logError) {
-			this.options.logError(error);
+		if (this.logError) {
+			this.logError(error);
 		}
 	}
 }
 
-export class NullStorage extends Disposable implements IStorage {
+export class InMemoryStorageDatabase implements IStorageDatabase {
 
-	readonly size = 0;
-	readonly onDidChangeStorage = Event.None;
+	readonly onDidChangeItemsExternal = Event.None;
 
 	private items = new Map<string, string>();
 
-	init(): Promise<void> { return Promise.resolve(); }
-
-	get(key: string, fallbackValue: string): string;
-	get(key: string, fallbackValue?: string): string | undefined;
-	get(key: string, fallbackValue?: string): string | undefined {
-		return void 0;
-	}
-
-	getBoolean(key: string, fallbackValue: boolean): boolean;
-	getBoolean(key: string, fallbackValue?: boolean): boolean | undefined;
-	getBoolean(key: string, fallbackValue?: boolean): boolean | undefined {
-		return void 0;
-	}
-
-	getInteger(key: string, fallbackValue: number): number;
-	getInteger(key: string, fallbackValue?: number): number | undefined;
-	getInteger(key: string, fallbackValue?: number): number | undefined {
-		return void 0;
-	}
-
-	set(key: string, value: any): Promise<void> {
-		return Promise.resolve();
-	}
-
-	delete(key: string): Promise<void> {
-		return Promise.resolve();
-	}
-
-	close(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	getItems(): Promise<Map<string, string>> {
+	getItems(): Thenable<Map<string, string>> {
 		return Promise.resolve(this.items);
 	}
 
-	checkIntegrity(full: boolean): Promise<string> {
+	updateItems(request: IUpdateRequest): Thenable<void> {
+		if (request.insert) {
+			request.insert.forEach((value, key) => this.items.set(key, value));
+		}
+
+		if (request.delete) {
+			request.delete.forEach(key => this.items.delete(key));
+		}
+
+		return Promise.resolve();
+	}
+
+	close(): Thenable<void> {
+		return Promise.resolve();
+	}
+
+	checkIntegrity(full: boolean): Thenable<string> {
 		return Promise.resolve('ok');
 	}
 }

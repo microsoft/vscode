@@ -5,7 +5,6 @@
 
 import 'vs/css!./media/editorstatus';
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { $, append, runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import * as strings from 'vs/base/common/strings';
 import * as paths from 'vs/base/common/paths';
@@ -825,7 +824,7 @@ export class ShowLanguageExtensionsAction extends Action {
 		this.enabled = galleryService.isEnabled();
 	}
 
-	run(): TPromise<void> {
+	run(): Thenable<void> {
 		return this.commandService.executeCommand('workbench.extensions.action.showExtensionsForLanguage', this.fileExtension).then(() => void 0);
 	}
 }
@@ -850,7 +849,7 @@ export class ChangeModeAction extends Action {
 		super(actionId, actionLabel);
 	}
 
-	run(): TPromise<any> {
+	run(): Thenable<any> {
 		const activeTextEditorWidget = getCodeEditor(this.editorService.activeTextEditorWidget);
 		if (!activeTextEditorWidget) {
 			return this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
@@ -1057,7 +1056,7 @@ class ChangeIndentationAction extends Action {
 		super(actionId, actionLabel);
 	}
 
-	run(): TPromise<any> {
+	run(): Thenable<any> {
 		const activeTextEditorWidget = getCodeEditor(this.editorService.activeTextEditorWidget);
 		if (!activeTextEditorWidget) {
 			return this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
@@ -1107,7 +1106,7 @@ export class ChangeEOLAction extends Action {
 		super(actionId, actionLabel);
 	}
 
-	run(): TPromise<any> {
+	run(): Thenable<any> {
 		const activeTextEditorWidget = getCodeEditor(this.editorService.activeTextEditorWidget);
 		if (!activeTextEditorWidget) {
 			return this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
@@ -1154,7 +1153,7 @@ export class ChangeEncodingAction extends Action {
 		super(actionId, actionLabel);
 	}
 
-	run(): TPromise<any> {
+	run(): Thenable<any> {
 		if (!getCodeEditor(this.editorService.activeTextEditorWidget)) {
 			return this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
 		}
@@ -1164,8 +1163,6 @@ export class ChangeEncodingAction extends Action {
 		if (!encodingSupport) {
 			return this.quickInputService.pick([{ label: nls.localize('noFileEditor', "No file active at this time") }]);
 		}
-
-		let pickActionPromise: TPromise<IQuickPickItem>;
 
 		let saveWithEncodingPick: IQuickPickItem;
 		let reopenWithEncodingPick: IQuickPickItem;
@@ -1177,10 +1174,11 @@ export class ChangeEncodingAction extends Action {
 			reopenWithEncodingPick = { label: nls.localize('reopenWithEncoding', "Reopen with Encoding"), detail: 'Reopen with Encoding' };
 		}
 
+		let pickActionPromise: Promise<IQuickPickItem>;
 		if (encodingSupport instanceof UntitledEditorInput) {
-			pickActionPromise = TPromise.as(saveWithEncodingPick);
+			pickActionPromise = Promise.resolve(saveWithEncodingPick);
 		} else if (!isWritableBaseEditor(activeControl)) {
-			pickActionPromise = TPromise.as(reopenWithEncodingPick);
+			pickActionPromise = Promise.resolve(reopenWithEncodingPick);
 		} else {
 			pickActionPromise = this.quickInputService.pick([reopenWithEncodingPick, saveWithEncodingPick], { placeHolder: nls.localize('pickAction', "Select Action"), matchOnDetail: true });
 		}
@@ -1195,7 +1193,7 @@ export class ChangeEncodingAction extends Action {
 			return timeout(50 /* quick open is sensitive to being opened so soon after another */)
 				.then(() => {
 					if (!resource || !this.fileService.canHandleResource(resource)) {
-						return TPromise.as(null); // encoding detection only possible for resources the file service can handle
+						return Promise.resolve(null); // encoding detection only possible for resources the file service can handle
 					}
 
 					return this.fileService.resolveContent(resource, { autoGuessEncoding: true, acceptTextOnly: true }).then(content => content.encoding, err => null);

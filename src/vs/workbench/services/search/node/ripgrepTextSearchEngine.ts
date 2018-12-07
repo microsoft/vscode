@@ -7,7 +7,7 @@ import * as cp from 'child_process';
 import { EventEmitter } from 'events';
 import * as path from 'path';
 import { NodeStringDecoder, StringDecoder } from 'string_decoder';
-import { createRegExp, startsWith, startsWithUTF8BOM, stripUTF8BOM } from 'vs/base/common/strings';
+import { createRegExp, startsWith, startsWithUTF8BOM, stripUTF8BOM, escapeRegExpCharacters } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { IExtendedExtensionSearchOptions, SearchError, SearchErrorCode, serializeSearchError } from 'vs/platform/search/common/search';
 import * as vscode from 'vscode';
@@ -161,30 +161,49 @@ export class RipgrepParser extends EventEmitter {
 		this.handleDecodedData(this.stringDecoder.end());
 	}
 
+
+	on(event: 'result', listener: (result: vscode.TextSearchResult) => void);
+	on(event: 'hitLimit', listener: () => void);
+	on(event: string, listener: (...args: any[]) => void) {
+		super.on(event, listener);
+	}
+
 	public handleData(data: Buffer | string): void {
+		if (this.isDone) {
+			return;
+		}
+
 		const dataStr = typeof data === 'string' ? data : this.stringDecoder.write(data);
 		this.handleDecodedData(dataStr);
 	}
 
 	private handleDecodedData(decodedData: string): void {
+		// check for newline before appending to remainder
+		let newlineIdx = decodedData.indexOf('\n');
+
 		// If the previous data chunk didn't end in a newline, prepend it to this chunk
-		const dataStr = this.remainder ?
-			this.remainder + decodedData :
-			decodedData;
+		const dataStr = this.remainder + decodedData;
 
-		const dataLines: string[] = dataStr.split(/\r\n|\n/);
-		this.remainder = dataLines[dataLines.length - 1] ? <string>dataLines.pop() : '';
-
-		for (let l = 0; l < dataLines.length; l++) {
-			const line = dataLines[l];
-			if (line) { // Empty line at the end of each chunk
-				this.handleLine(line);
-			}
+		if (newlineIdx >= 0) {
+			newlineIdx += this.remainder.length;
+		} else {
+			// Shortcut
+			this.remainder = dataStr;
+			return;
 		}
+
+		let prevIdx = 0;
+		while (newlineIdx >= 0) {
+			this.handleLine(dataStr.substring(prevIdx, newlineIdx).trim());
+			prevIdx = newlineIdx + 1;
+			newlineIdx = dataStr.indexOf('\n', prevIdx);
+		}
+
+		this.remainder = dataStr.substring(prevIdx).trim();
 	}
 
 	private handleLine(outputLine: string): void {
-		if (this.isDone) {
+		if (this.isDone || !outputLine) {
 			return;
 		}
 
@@ -257,7 +276,7 @@ export class RipgrepParser extends EventEmitter {
 		})
 			.filter(r => !!r);
 
-		return createTextSearchResult(uri, fullText, ranges, this.previewOptions);
+		return createTextSearchResult(uri, fullText, <Range[]>ranges, this.previewOptions);
 	}
 
 	private createTextSearchContext(data: IRgMatch, uri: URI): vscode.TextSearchContext[] {
@@ -304,7 +323,7 @@ function getNumLinesAndLastNewlineLength(text: string): { numLines: number, last
 }
 
 function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions): string[] {
-	const args = ['--hidden', '--heading', '--line-number', '--color', 'ansi', '--colors', 'path:none', '--colors', 'line:none', '--colors', 'match:fg:red', '--colors', 'match:style:nobold'];
+	const args = ['--hidden'];
 	args.push(query.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
 
 	options.includes
@@ -330,7 +349,7 @@ function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOpti
 		args.push('--follow');
 	}
 
-	if (options.encoding) {
+	if (options.encoding && options.encoding !== 'utf8') {
 		args.push('--encoding', options.encoding);
 	}
 
@@ -341,6 +360,11 @@ function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOpti
 	if (pattern === '--') {
 		query.isRegExp = true;
 		pattern = '\\-\\-';
+	}
+
+	if (query.isMultiline && !query.isRegExp) {
+		query.pattern = escapeRegExpCharacters(query.pattern);
+		query.isRegExp = true;
 	}
 
 	if ((<IExtendedExtensionSearchOptions>options).usePCRE2) {
@@ -357,7 +381,11 @@ function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOpti
 		const regexpStr = regexp.source.replace(/\\\//g, '/'); // RegExp.source arbitrarily returns escaped slashes. Search and destroy.
 		args.push('--regexp', regexpStr);
 	} else if (query.isRegExp) {
-		args.push('--regexp', fixRegexEndingPattern(query.pattern));
+		let fixedRegexpQuery = fixRegexEndingPattern(query.pattern);
+		fixedRegexpQuery = fixRegexNewline(fixedRegexpQuery);
+		fixedRegexpQuery = fixRegexCRMatchingNonWordClass(fixedRegexpQuery, !!query.isMultiline);
+		fixedRegexpQuery = fixRegexCRMatchingWhitespaceClass(fixedRegexpQuery, !!query.isMultiline);
+		args.push('--regexp', fixedRegexpQuery);
 	} else {
 		searchPatternAfterDoubleDashes = pattern;
 		args.push('--fixed-strings');
@@ -406,12 +434,12 @@ export function unicodeEscapesToPCRE2(pattern: string): string {
 	return pattern;
 }
 
-interface IRgMessage {
+export interface IRgMessage {
 	type: 'match' | 'context' | string;
 	data: IRgMatch;
 }
 
-interface IRgMatch {
+export interface IRgMatch {
 	path: IRgBytesOrText;
 	lines: IRgBytesOrText;
 	line_number: number;
@@ -419,13 +447,13 @@ interface IRgMatch {
 	submatches: IRgSubmatch[];
 }
 
-interface IRgSubmatch {
+export interface IRgSubmatch {
 	match: IRgBytesOrText;
 	start: number;
 	end: number;
 }
 
-type IRgBytesOrText = { bytes: string } | { text: string };
+export type IRgBytesOrText = { bytes: string } | { text: string };
 
 export function fixRegexEndingPattern(pattern: string): string {
 	// Replace an unescaped $ at the end of the pattern with \r?$
@@ -433,4 +461,22 @@ export function fixRegexEndingPattern(pattern: string): string {
 	return pattern.match(/([^\\]|^)(\\\\)*\$$/) ?
 		pattern.replace(/\$$/, '\\r?$') :
 		pattern;
+}
+
+export function fixRegexNewline(pattern: string): string {
+	// Replace an unescaped $ at the end of the pattern with \r?$
+	// Match $ preceeded by none or even number of literal \
+	return pattern.replace(/([^\\]|^)(\\\\)*\\n/g, '$1$2\\r?\\n');
+}
+
+export function fixRegexCRMatchingWhitespaceClass(pattern: string, isMultiline: boolean): string {
+	return isMultiline ?
+		pattern.replace(/([^\\]|^)((?:\\\\)*)\\s/g, '$1$2(\\r?\\n|[^\\S\\r])') :
+		pattern.replace(/([^\\]|^)((?:\\\\)*)\\s/g, '$1$2[ \\t\\f]');
+}
+
+export function fixRegexCRMatchingNonWordClass(pattern: string, isMultiline: boolean): string {
+	return isMultiline ?
+		pattern.replace(/([^\\]|^)((?:\\\\)*)\\W/g, '$1$2(\\r?\\n|[^\\w\\r])') :
+		pattern.replace(/([^\\]|^)((?:\\\\)*)\\W/g, '$1$2[^\\w\\r]');
 }

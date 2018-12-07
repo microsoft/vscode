@@ -14,7 +14,6 @@ import * as UUID from 'vs/base/common/uuid';
 import * as Platform from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ValidationStatus, ValidationState, IProblemReporter, Parser } from 'vs/base/common/parsers';
 import { IStringDictionary } from 'vs/base/common/collections';
@@ -1099,7 +1098,7 @@ let problemPatternExtPoint = ExtensionsRegistry.registerExtensionPoint<Config.Na
 });
 
 export interface IProblemPatternRegistry {
-	onReady(): TPromise<void>;
+	onReady(): Promise<void>;
 
 	get(key: string): ProblemPattern | MultiLineProblemPattern;
 }
@@ -1107,12 +1106,12 @@ export interface IProblemPatternRegistry {
 class ProblemPatternRegistryImpl implements IProblemPatternRegistry {
 
 	private patterns: IStringDictionary<ProblemPattern | ProblemPattern[]>;
-	private readyPromise: TPromise<void>;
+	private readyPromise: Promise<void>;
 
 	constructor() {
 		this.patterns = Object.create(null);
 		this.fillDefaults();
-		this.readyPromise = new TPromise<void>((resolve, reject) => {
+		this.readyPromise = new Promise<void>((resolve, reject) => {
 			problemPatternExtPoint.setHandler((extensions) => {
 				// We get all statically know extension during startup in one batch
 				try {
@@ -1149,7 +1148,7 @@ class ProblemPatternRegistryImpl implements IProblemPatternRegistry {
 		});
 	}
 
-	public onReady(): TPromise<void> {
+	public onReady(): Promise<void> {
 		return this.readyPromise;
 	}
 
@@ -1667,7 +1666,7 @@ let problemMatchersExtPoint = ExtensionsRegistry.registerExtensionPoint<Config.N
 });
 
 export interface IProblemMatcherRegistry {
-	onReady(): TPromise<void>;
+	onReady(): Promise<void>;
 	get(name: string): NamedProblemMatcher;
 	keys(): string[];
 }
@@ -1675,12 +1674,12 @@ export interface IProblemMatcherRegistry {
 class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 
 	private matchers: IStringDictionary<NamedProblemMatcher>;
-	private readyPromise: TPromise<void>;
+	private readyPromise: Promise<void>;
 
 	constructor() {
 		this.matchers = Object.create(null);
 		this.fillDefaults();
-		this.readyPromise = new TPromise<void>((resolve, reject) => {
+		this.readyPromise = new Promise<void>((resolve, reject) => {
 			problemMatchersExtPoint.setHandler((extensions) => {
 				try {
 					extensions.forEach(extension => {
@@ -1704,7 +1703,7 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 		});
 	}
 
-	public onReady(): TPromise<void> {
+	public onReady(): Promise<void> {
 		ProblemPatternRegistry.onReady();
 		return this.readyPromise;
 	}

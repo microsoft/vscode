@@ -33,7 +33,7 @@ suite('SearchResult', () => {
 
 	test('Line Match', function () {
 		let fileMatch = aFileMatch('folder/file.txt', null);
-		let lineMatch = new Match(fileMatch, new TextSearchMatch('foo bar', new OneLineRange(1, 0, 3)));
+		let lineMatch = new Match(fileMatch, ['foo bar'], new OneLineRange(0, 0, 3), new OneLineRange(1, 0, 3));
 		assert.equal(lineMatch.text(), 'foo bar');
 		assert.equal(lineMatch.range().startLineNumber, 2);
 		assert.equal(lineMatch.range().endLineNumber, 2);
@@ -134,7 +134,7 @@ suite('SearchResult', () => {
 	test('Alle Drei Zusammen', function () {
 		let searchResult = instantiationService.createInstance(SearchResult, null);
 		let fileMatch = aFileMatch('far/boo', searchResult);
-		let lineMatch = new Match(fileMatch, new TextSearchMatch('foo bar', new OneLineRange(1, 0, 3)));
+		let lineMatch = new Match(fileMatch, ['foo bar'], new OneLineRange(0, 0, 3), new OneLineRange(1, 0, 3));
 
 		assert(lineMatch.parent() === fileMatch);
 		assert(fileMatch.parent() === searchResult);

@@ -7,7 +7,7 @@ import { Server } from 'vs/base/parts/ipc/node/ipc.cp';
 import { WatcherChannel } from 'vs/workbench/services/files/node/watcher/unix/watcherIpc';
 import { ChokidarWatcherService } from 'vs/workbench/services/files/node/watcher/unix/chokidarWatcherService';
 
-const server = new Server();
+const server = new Server('watcher');
 const service = new ChokidarWatcherService();
 const channel = new WatcherChannel(service);
 server.registerChannel('watcher', channel);

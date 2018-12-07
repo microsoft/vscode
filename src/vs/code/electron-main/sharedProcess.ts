@@ -6,8 +6,6 @@
 import { assign } from 'vs/base/common/objects';
 import { memoize } from 'vs/base/common/decorators';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { IProcessEnvironment } from 'vs/base/common/platform';
 import { BrowserWindow, ipcMain } from 'electron';
 import { ISharedProcess } from 'vs/platform/windows/electron-main/windows';
 import { Barrier } from 'vs/base/common/async';
@@ -25,16 +23,15 @@ export class SharedProcess implements ISharedProcess {
 
 	constructor(
 		private readonly machineId: string,
-		private readonly userEnv: IProcessEnvironment,
+		private userEnv: NodeJS.ProcessEnv,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IStateService private readonly stateService: IStateService,
 		@ILogService private readonly logService: ILogService
-	) {
-	}
+	) { }
 
 	@memoize
-	private get _whenReady(): TPromise<void> {
+	private get _whenReady(): Promise<void> {
 		this.window = new BrowserWindow({
 			show: false,
 			backgroundColor: getBackgroundColor(this.stateService),
@@ -72,7 +69,7 @@ export class SharedProcess implements ISharedProcess {
 
 		const disposables: IDisposable[] = [];
 
-		this.lifecycleService.onShutdown(() => {
+		this.lifecycleService.onWillShutdown(() => {
 			dispose(disposables);
 
 			// Shut the shared process down when we are quitting
@@ -99,7 +96,7 @@ export class SharedProcess implements ISharedProcess {
 			}, 0);
 		});
 
-		return new TPromise<void>((c, e) => {
+		return new Promise<void>(c => {
 			ipcMain.once('handshake:hello', ({ sender }: { sender: any }) => {
 				sender.send('handshake:hey there', {
 					sharedIPCHandle: this.environmentService.sharedIPCHandle,
@@ -113,12 +110,14 @@ export class SharedProcess implements ISharedProcess {
 		});
 	}
 
-	spawn(): void {
+	spawn(userEnv: NodeJS.ProcessEnv): void {
+		this.userEnv = { ...this.userEnv, ...userEnv };
 		this.barrier.open();
 	}
 
-	whenReady(): TPromise<void> {
-		return this.barrier.wait().then(() => this._whenReady);
+	async whenReady(): Promise<void> {
+		await this.barrier.wait();
+		await this._whenReady;
 	}
 
 	toggle(): void {

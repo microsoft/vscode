@@ -55,7 +55,7 @@ export abstract class ViewletPanel extends Panel implements IView {
 	protected _onDidChangeTitleArea = new Emitter<void>();
 	readonly onDidChangeTitleArea: Event<void> = this._onDidChangeTitleArea.event;
 
-	private _isVisible: boolean;
+	private _isVisible: boolean = true;
 	readonly id: string;
 	readonly title: string;
 
@@ -229,7 +229,7 @@ export class PanelViewlet extends Viewlet {
 		let anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => Promise.resolve(this.getContextMenuActions())
+			getActions: () => this.getContextMenuActions()
 		});
 	}
 
@@ -323,7 +323,7 @@ export class PanelViewlet extends Viewlet {
 		const panelStyler = attachStyler<IPanelColors>(this.themeService, {
 			headerForeground: SIDE_BAR_SECTION_HEADER_FOREGROUND,
 			headerBackground: SIDE_BAR_SECTION_HEADER_BACKGROUND,
-			headerBorder: index === 0 ? null : SIDE_BAR_SECTION_HEADER_BORDER,
+			headerBorder: SIDE_BAR_SECTION_HEADER_BORDER,
 			dropBackground: SIDE_BAR_DRAG_AND_DROP_BACKGROUND
 		}, panel);
 		const disposable = combinedDisposable([onDidFocus, onDidChangeTitleArea, panelStyler, onDidChange]);

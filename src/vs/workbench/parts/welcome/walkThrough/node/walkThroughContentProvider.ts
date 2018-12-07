@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { URI } from 'vs/base/common/uri';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -26,9 +25,9 @@ export class WalkThroughContentProvider implements ITextModelContentProvider, IW
 		this.textModelResolverService.registerTextModelContentProvider(Schemas.walkThrough, this);
 	}
 
-	public provideTextContent(resource: URI): TPromise<ITextModel> {
+	public provideTextContent(resource: URI): Thenable<ITextModel> {
 		const query = resource.query ? JSON.parse(resource.query) : {};
-		const content: TPromise<string | ITextBufferFactory> = (query.moduleId ? new TPromise<string>((resolve, reject) => {
+		const content: Thenable<string | ITextBufferFactory> = (query.moduleId ? new Promise<string>((resolve, reject) => {
 			require([query.moduleId], content => {
 				try {
 					resolve(content.default());
@@ -61,7 +60,7 @@ export class WalkThroughSnippetContentProvider implements ITextModelContentProvi
 		this.textModelResolverService.registerTextModelContentProvider(Schemas.walkThroughSnippet, this);
 	}
 
-	public provideTextContent(resource: URI): TPromise<ITextModel> {
+	public provideTextContent(resource: URI): Thenable<ITextModel> {
 		return this.textFileService.resolveTextContent(URI.file(resource.fsPath)).then(content => {
 			let codeEditorModel = this.modelService.getModel(resource);
 			if (!codeEditorModel) {

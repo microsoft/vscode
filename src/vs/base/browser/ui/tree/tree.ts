@@ -92,12 +92,13 @@ export interface ITreeModel<T, TFilterData, TRef> {
 	getListIndex(location: TRef): number;
 	getNode(location?: TRef): ITreeNode<T, any>;
 	getNodeLocation(node: ITreeNode<T, any>): TRef;
-	getParentNodeLocation(location: TRef): TRef | null;
+	getParentNodeLocation(location: TRef): TRef;
 
-	getParentElement(location: TRef | null): T | null;
-	getFirstChildElement(location: TRef | null): T | null;
-	getLastAncestorElement(location: TRef | null): T | null;
+	getParentElement(location: TRef): T;
+	getFirstElementChild(location: TRef): T | undefined;
+	getLastElementAncestor(location?: TRef): T | undefined;
 
+	isCollapsible(location: TRef): boolean;
 	isCollapsed(location: TRef): boolean;
 	setCollapsed(location: TRef, collapsed: boolean): boolean;
 	toggleCollapsed(location: TRef): void;
@@ -106,11 +107,23 @@ export interface ITreeModel<T, TFilterData, TRef> {
 	refilter(): void;
 }
 
-export interface ITreeRenderer<T, TFilterData, TTemplateData> extends IListRenderer<ITreeNode<T, TFilterData>, TTemplateData> {
-	renderTwistie?(element: T, twistieElement: HTMLElement): boolean;
+export interface ITreeRenderer<T, TFilterData = void, TTemplateData = void> extends IListRenderer<ITreeNode<T, TFilterData>, TTemplateData> {
+	renderTwistie?(element: T, twistieElement: HTMLElement): void;
 	onDidChangeTwistieState?: Event<T>;
 }
 
-export interface ITreeModelOptions<T, TFilterData> {
-	filter?: ITreeFilter<T, TFilterData>;
+export interface ITreeEvent<T> {
+	elements: T[];
+	browserEvent?: UIEvent;
+}
+
+export interface ITreeMouseEvent<T> {
+	browserEvent: MouseEvent;
+	element: T | null;
+}
+
+export interface ITreeContextMenuEvent<T> {
+	browserEvent: UIEvent;
+	element: T | null;
+	anchor: HTMLElement | { x: number; y: number; } | undefined;
 }

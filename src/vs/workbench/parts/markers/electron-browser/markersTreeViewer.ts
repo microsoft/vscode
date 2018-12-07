@@ -247,7 +247,7 @@ export class MarkerRenderer implements ITreeRenderer<Marker, MarkerFilterData, I
 		templateData.description.element.title = marker.message;
 
 		dom.toggleClass(templateData.code.element, 'marker-code', !!marker.code);
-		templateData.code.set(marker.code || '', codeMatches);
+		templateData.code.set(marker.code, codeMatches);
 
 		templateData.lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(marker.startLineNumber, marker.startColumn);
 	}

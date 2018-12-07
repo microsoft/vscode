@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as types from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { ITree, IActionProvider } from 'vs/base/parts/tree/browser/tree';
@@ -12,7 +11,7 @@ import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/
 import { IQuickNavigateConfiguration, IModel, IDataSource, IFilter, IAccessiblityProvider, IRenderer, IRunner, Mode } from 'vs/base/parts/quickopen/common/quickOpen';
 import { Action, IAction, IActionRunner } from 'vs/base/common/actions';
 import { compareAnything } from 'vs/base/common/comparers';
-import { ActionBar, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import * as DOM from 'vs/base/browser/dom';
 import { IQuickOpenStyles } from 'vs/base/parts/quickopen/browser/quickOpenWidget';
@@ -289,19 +288,19 @@ class NoActionProvider implements IActionProvider {
 		return false;
 	}
 
-	getActions(tree: ITree, element: any): TPromise<IAction[]> {
-		return TPromise.as(null);
+	getActions(tree: ITree, element: any): IAction[] {
+		return null;
 	}
 
 	hasSecondaryActions(tree: ITree, element: any): boolean {
 		return false;
 	}
 
-	getSecondaryActions(tree: ITree, element: any): TPromise<IAction[]> {
-		return TPromise.as(null);
+	getSecondaryActions(tree: ITree, element: any): IAction[] {
+		return null;
 	}
 
-	getActionItem(tree: ITree, element: any, action: Action): IActionItem {
+	getActionItem(tree: ITree, element: any, action: Action) {
 		return null;
 	}
 }
@@ -421,13 +420,12 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 
 		data.actionBar.context = entry; // make sure the context is the current element
 
-		this.actionProvider.getActions(null, entry).then((actions) => {
-			if (data.actionBar.isEmpty() && actions && actions.length > 0) {
-				data.actionBar.push(actions, { icon: true, label: false });
-			} else if (!data.actionBar.isEmpty() && (!actions || actions.length === 0)) {
-				data.actionBar.clear();
-			}
-		});
+		const actions = this.actionProvider.getActions(null, entry);
+		if (data.actionBar.isEmpty() && actions && actions.length > 0) {
+			data.actionBar.push(actions, { icon: true, label: false });
+		} else if (!data.actionBar.isEmpty() && (!actions || actions.length === 0)) {
+			data.actionBar.clear();
+		}
 
 		// Entry group class
 		if (entry instanceof QuickOpenEntryGroup && entry.getGroupLabel()) {

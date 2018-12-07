@@ -940,6 +940,7 @@ export class DirtyDiffModel {
 	private diffDelayer: ThrottledDelayer<IChange[]>;
 	private _originalURIPromise: TPromise<URI>;
 	private repositoryDisposables = new Set<IDisposable[]>();
+	private originalModelDisposables: IDisposable[] = [];
 	private disposables: IDisposable[] = [];
 
 	private _onDidChange = new Emitter<ISplice<IChange>[]>();
@@ -1024,31 +1025,37 @@ export class DirtyDiffModel {
 			return this._originalURIPromise;
 		}
 
-		this._originalURIPromise = this.getOriginalResource()
-			.then(originalUri => {
+		this._originalURIPromise = this.getOriginalResource().then(originalUri => {
+			if (!this._editorModel) { // disposed
+				return null;
+			}
+
+			if (!originalUri) {
+				this._originalModel = null;
+				return null;
+			}
+
+			if (this._originalModel && this._originalModel.uri.toString() === originalUri.toString()) {
+				return originalUri;
+			}
+
+			return this.textModelResolverService.createModelReference(originalUri).then(ref => {
 				if (!this._editorModel) { // disposed
 					return null;
 				}
 
-				if (!originalUri) {
-					this._originalModel = null;
-					return null;
-				}
+				this._originalModel = ref.object.textEditorModel;
 
-				return this.textModelResolverService.createModelReference(originalUri)
-					.then(ref => {
-						if (!this._editorModel) { // disposed
-							return null;
-						}
+				const originalModelDisposables: IDisposable[] = [];
+				originalModelDisposables.push(ref);
+				originalModelDisposables.push(ref.object.textEditorModel.onDidChangeContent(() => this.triggerDiff()));
 
-						this._originalModel = ref.object.textEditorModel;
+				dispose(this.originalModelDisposables);
+				this.originalModelDisposables = originalModelDisposables;
 
-						this.disposables.push(ref);
-						this.disposables.push(ref.object.textEditorModel.onDidChangeContent(() => this.triggerDiff()));
-
-						return originalUri;
-					});
+				return originalUri;
 			});
+		});
 
 		return always(this._originalURIPromise, () => {
 			this._originalURIPromise = null;
@@ -1101,6 +1108,7 @@ export class DirtyDiffModel {
 	}
 
 	dispose(): void {
+		this.originalModelDisposables = dispose(this.originalModelDisposables);
 		this.disposables = dispose(this.disposables);
 
 		this._editorModel = null;

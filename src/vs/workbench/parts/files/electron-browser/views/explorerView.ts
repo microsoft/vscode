@@ -45,7 +45,7 @@ import { IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelView
 import { ILabelService } from 'vs/platform/label/common/label';
 
 export interface IExplorerViewOptions extends IViewletViewOptions {
-	viewletState: FileViewletState;
+	fileViewletState: FileViewletState;
 }
 
 export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView {
@@ -61,7 +61,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 	private explorerViewer: WorkbenchTree;
 	private filter: FileFilter;
-	private viewletState: FileViewletState;
+	private fileViewletState: FileViewletState;
 
 	private explorerRefreshDelayer: ThrottledDelayer<void>;
 
@@ -100,12 +100,13 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService);
 
 		this.viewState = options.viewletState;
-		this.viewletState = options.viewletState;
+		this.fileViewletState = options.fileViewletState;
 		this.autoReveal = true;
 
 		this.explorerRefreshDelayer = new ThrottledDelayer<void>(ExplorerView.EXPLORER_FILE_CHANGES_REFRESH_DELAY);
 
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
+		this.disposables.push(this.resourceContext);
 		this.folderContext = ExplorerFolderContext.bindTo(contextKeyService);
 		this.readonlyContext = ExplorerResourceReadonlyContext.bindTo(contextKeyService);
 		this.rootContext = ExplorerRootContext.bindTo(contextKeyService);
@@ -350,8 +351,8 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 				return;
 			}
 
-			// Return now if the workbench has not yet been created - in this case the workbench takes care of restoring last used editors
-			if (!this.partService.isCreated()) {
+			// Return now if the workbench has not yet been restored - in this case the workbench takes care of restoring last used editors
+			if (!this.partService.isRestored()) {
 				return;
 			}
 
@@ -406,7 +407,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 	private createViewer(container: HTMLElement): WorkbenchTree {
 		const dataSource = this.instantiationService.createInstance(FileDataSource);
-		const renderer = this.instantiationService.createInstance(FileRenderer, this.viewletState);
+		const renderer = this.instantiationService.createInstance(FileRenderer, this.fileViewletState);
 		const controller = this.instantiationService.createInstance(FileController);
 		this.disposables.push(controller);
 		const sorter = this.instantiationService.createInstance(FileSorter);
@@ -795,7 +796,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			this.decorationProvider.changed(targetsToResolve.map(t => t.root.resource));
 			return result;
 		});
-		this.progressService.showWhile(promise, this.partService.isCreated() ? 800 : 1200 /* less ugly initial startup */);
+		this.progressService.showWhile(promise, this.partService.isRestored() ? 800 : 1200 /* less ugly initial startup */);
 
 		return promise;
 	}

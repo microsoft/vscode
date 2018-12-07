@@ -3,20 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChannel } from 'vs/base/parts/ipc/node/ipc';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
 import { LogLevel, ILogService, DelegatedLogService } from 'vs/platform/log/common/log';
 import { Event, buffer } from 'vs/base/common/event';
 
-export interface ILogLevelSetterChannel extends IChannel {
-	listen(event: 'onDidChangeLogLevel'): Event<LogLevel>;
-	listen<T>(event: string, arg?: any): Event<T>;
-
-	call(command: 'setLevel', logLevel: LogLevel): TPromise<void>;
-	call(command: string, arg?: any): TPromise<any>;
-}
-
-export class LogLevelSetterChannel implements ILogLevelSetterChannel {
+export class LogLevelSetterChannel implements IServerChannel {
 
 	onDidChangeLogLevel: Event<LogLevel>;
 
@@ -24,7 +15,7 @@ export class LogLevelSetterChannel implements ILogLevelSetterChannel {
 		this.onDidChangeLogLevel = buffer(service.onDidChangeLogLevel, true);
 	}
 
-	listen<T>(event: string): Event<any> {
+	listen(_, event: string): Event<any> {
 		switch (event) {
 			case 'onDidChangeLogLevel': return this.onDidChangeLogLevel;
 		}
@@ -32,9 +23,9 @@ export class LogLevelSetterChannel implements ILogLevelSetterChannel {
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(command: string, arg?: any): TPromise<any> {
+	call(_, command: string, arg?: any): Thenable<any> {
 		switch (command) {
-			case 'setLevel': this.service.setLevel(arg); return TPromise.as(null);
+			case 'setLevel': this.service.setLevel(arg);
 		}
 
 		throw new Error(`Call not found: ${command}`);
@@ -43,14 +34,14 @@ export class LogLevelSetterChannel implements ILogLevelSetterChannel {
 
 export class LogLevelSetterChannelClient {
 
-	constructor(private channel: ILogLevelSetterChannel) { }
+	constructor(private channel: IChannel) { }
 
 	get onDidChangeLogLevel(): Event<LogLevel> {
 		return this.channel.listen('onDidChangeLogLevel');
 	}
 
-	setLevel(level: LogLevel): TPromise<void> {
-		return this.channel.call('setLevel', level);
+	setLevel(level: LogLevel): void {
+		this.channel.call('setLevel', level);
 	}
 }
 

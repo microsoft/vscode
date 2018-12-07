@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* Title Label */
+
 .monaco-workbench > .part.editor > .content .editor-group-container > .title > .label-container {
 	display: flex;
 	justify-content: flex-start;
@@ -10,8 +12,6 @@
 	overflow: hidden;
 	flex: auto;
 }
-
-/* Title Label */
 
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .title-label {
 	line-height: 35px;

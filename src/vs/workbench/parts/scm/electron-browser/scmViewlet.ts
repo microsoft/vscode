@@ -5,7 +5,6 @@
 
 import 'vs/css!./media/scmViewlet';
 import { localize } from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter, chain, mapEvent, anyEvent, filterEvent, latch } from 'vs/base/common/event';
 import { domEvent, stop } from 'vs/base/browser/event';
 import { basename } from 'vs/base/common/paths';
@@ -25,7 +24,7 @@ import { IContextViewService, IContextMenuService } from 'vs/platform/contextvie
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { MenuItemAction, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { MenuItemAction, IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { IAction, Action, IActionItem, ActionRunner } from 'vs/base/common/actions';
 import { fillInContextMenuActions, ContextAwareMenuItemActionItem, fillInActionBarActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { SCMMenus } from './scmMenus';
@@ -40,7 +39,7 @@ import { renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { format } from 'vs/base/common/strings';
 import { ISpliceable, ISequence, ISplice } from 'vs/base/common/sequence';
-import { firstIndex } from 'vs/base/common/arrays';
+import { firstIndex, equals } from 'vs/base/common/arrays';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ThrottledDelayer } from 'vs/base/common/async';
@@ -89,7 +88,7 @@ class StatusBarAction extends Action {
 		this.tooltip = command.tooltip;
 	}
 
-	run(): TPromise<void> {
+	run(): Thenable<void> {
 		return this.commandService.executeCommand(this.command.id, ...this.command.arguments);
 	}
 }
@@ -105,6 +104,29 @@ class StatusBarActionItem extends ActionItem {
 			this.label.innerHTML = renderOcticons(this.getAction().label);
 		}
 	}
+}
+
+function connectPrimaryMenuToInlineActionBar(menu: IMenu, actionBar: ActionBar): IDisposable {
+	let cachedPrimary: IAction[] = [];
+
+	const updateActions = () => {
+		const primary: IAction[] = [];
+		const secondary: IAction[] = [];
+		const result = { primary, secondary };
+
+		fillInActionBarActions(menu, { shouldForwardArgs: true }, result, g => /^inline/.test(g));
+
+		if (equals(cachedPrimary, primary, (a, b) => a.id === b.id)) {
+			return;
+		}
+
+		cachedPrimary = primary;
+		actionBar.clear();
+		actionBar.push(primary, { icon: true, label: false });
+	};
+
+	updateActions();
+	return menu.onDidChange(updateActions);
 }
 
 interface RepositoryTemplateData {
@@ -240,10 +262,9 @@ class MainPanel extends ViewletPanel {
 	protected renderBody(container: HTMLElement): void {
 		const delegate = new ProvidersListDelegate();
 		const renderer = this.instantiationService.createInstance(ProviderRenderer);
+		const identityProvider = { getId: r => r.provider.id };
 
-		this.list = this.instantiationService.createInstance(WorkbenchList, container, delegate, [renderer], {
-			identityProvider: repository => repository.provider.id
-		}) as WorkbenchList<ISCMRepository>;
+		this.list = this.instantiationService.createInstance(WorkbenchList, container, delegate, [renderer], { identityProvider }) as WorkbenchList<ISCMRepository>;
 
 		this.list.onSelectionChange(this.onListSelectionChange, this, this.disposables);
 		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
@@ -294,8 +315,11 @@ class MainPanel extends ViewletPanel {
 	}
 
 	private onListContextMenu(e: IListContextMenuEvent<ISCMRepository>): void {
-		const repository = e.element;
+		if (!e.element) {
+			return;
+		}
 
+		const repository = e.element;
 		const contextKeyService = this.contextKeyService.createScoped();
 		const scmProviderKey = contextKeyService.createKey<string | undefined>('scmProvider', void 0);
 		scmProviderKey.set(repository.provider.contextValue);
@@ -316,7 +340,7 @@ class MainPanel extends ViewletPanel {
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
-			getActions: () => TPromise.as(secondary),
+			getActions: () => secondary,
 			getActionsContext: () => repository.provider
 		});
 	}
@@ -414,18 +438,7 @@ class ResourceGroupRenderer implements IListRenderer<ISCMResourceGroup, Resource
 		const menu = this.menuService.createMenu(MenuId.SCMResourceGroupContext, contextKeyService);
 		disposables.push(menu);
 
-		const updateActions = () => {
-			const primary: IAction[] = [];
-			const secondary: IAction[] = [];
-			const result = { primary, secondary };
-			fillInActionBarActions(menu, { shouldForwardArgs: true }, result, g => /^inline/.test(g));
-
-			template.actionBar.clear();
-			template.actionBar.push(primary, { icon: true, label: false });
-		};
-
-		menu.onDidChange(updateActions, null, disposables);
-		updateActions();
+		disposables.push(connectPrimaryMenuToInlineActionBar(menu, template.actionBar));
 
 		const updateCount = () => template.count.setCount(group.elements.length);
 		group.onDidSplice(updateCount, null, disposables);
@@ -434,8 +447,8 @@ class ResourceGroupRenderer implements IListRenderer<ISCMResourceGroup, Resource
 		template.elementDisposable = combinedDisposable(disposables);
 	}
 
-	disposeElement(): void {
-		// noop
+	disposeElement(group: ISCMResourceGroup, index: number, template: ResourceGroupTemplate): void {
+		template.elementDisposable.dispose();
 	}
 
 	disposeTemplate(template: ResourceGroupTemplate): void {
@@ -459,7 +472,7 @@ class MultipleSelectionActionRunner extends ActionRunner {
 		super();
 	}
 
-	runAction(action: IAction, context: ISCMResource): TPromise<any> {
+	runAction(action: IAction, context: ISCMResource): Thenable<any> {
 		if (action instanceof MenuItemAction) {
 			const selection = this.getSelectedResources();
 			const filteredSelection = selection.filter(s => s !== context);
@@ -529,18 +542,7 @@ class ResourceRenderer implements IListRenderer<ISCMResource, ResourceTemplate> 
 		const menu = this.menuService.createMenu(MenuId.SCMResourceContext, contextKeyService);
 		disposables.push(menu);
 
-		const updateActions = () => {
-			const primary: IAction[] = [];
-			const secondary: IAction[] = [];
-			const result = { primary, secondary };
-			fillInActionBarActions(menu, { shouldForwardArgs: true }, result, g => /^inline/.test(g));
-
-			template.actionBar.clear();
-			template.actionBar.push(primary, { icon: true, label: false });
-		};
-
-		menu.onDidChange(updateActions, null, disposables);
-		updateActions();
+		disposables.push(connectPrimaryMenuToInlineActionBar(menu, template.actionBar));
 
 		toggleClass(template.name, 'strike-through', resource.decorations.strikeThrough);
 		toggleClass(template.element, 'faded', resource.decorations.faded);
@@ -558,8 +560,8 @@ class ResourceRenderer implements IListRenderer<ISCMResource, ResourceTemplate> 
 		template.elementDisposable = combinedDisposable(disposables);
 	}
 
-	disposeElement(): void {
-		// noop
+	disposeElement(resource: ISCMResource, index: number, template: ResourceTemplate): void {
+		template.elementDisposable.dispose();
 	}
 
 	disposeTemplate(template: ResourceTemplate): void {
@@ -577,16 +579,18 @@ class ProviderListDelegate implements IListVirtualDelegate<ISCMResourceGroup | I
 	}
 }
 
-function scmResourceIdentityProvider(r: ISCMResourceGroup | ISCMResource): string {
-	if (isSCMResource(r)) {
-		const group = r.resourceGroup;
-		const provider = group.provider;
-		return `${provider.contextValue}/${group.id}/${r.sourceUri.toString()}`;
-	} else {
-		const provider = r.provider;
-		return `${provider.contextValue}/${r.id}`;
+const scmResourceIdentityProvider = {
+	getId(r: ISCMResourceGroup | ISCMResource): string {
+		if (isSCMResource(r)) {
+			const group = r.resourceGroup;
+			const provider = group.provider;
+			return `${provider.contextValue}/${group.id}/${r.sourceUri.toString()}`;
+		} else {
+			const provider = r.provider;
+			return `${provider.contextValue}/${r.id}`;
+		}
 	}
-}
+};
 
 function isGroupVisible(group: ISCMResourceGroup) {
 	return group.elements.length > 0 || !group.hideWhenEmpty;
@@ -799,12 +803,12 @@ export class RepositoryPanel extends ViewletPanel {
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => ({ x: event.posx, y: event.posy }),
-			getActions: () => TPromise.as([<IAction>{
+			getActions: () => [<IAction>{
 				id: `scm.hideRepository`,
 				label: localize('hideRepository', "Hide"),
 				enabled: true,
 				run: () => this.viewModel.hide(this.repository)
-			}]),
+			}],
 		});
 	}
 
@@ -840,6 +844,7 @@ export class RepositoryPanel extends ViewletPanel {
 		const triggerValidation = () => validationDelayer.trigger(validate);
 
 		this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, { flexibleHeight: true });
+		this.inputBox.setEnabled(this.isVisible() && this.isExpanded());
 		this.disposables.push(attachInputBoxStyler(this.inputBox, this.themeService));
 		this.disposables.push(this.inputBox);
 
@@ -870,7 +875,6 @@ export class RepositoryPanel extends ViewletPanel {
 		this.updateInputBoxVisibility();
 
 		// List
-
 		this.listContainer = append(container, $('.scm-status.show-file-icons'));
 
 		const updateActionsVisibility = () => toggleClass(this.listContainer, 'show-actions', this.configurationService.getValue<boolean>('scm.alwaysShowActions'));
@@ -914,6 +918,13 @@ export class RepositoryPanel extends ViewletPanel {
 		} else {
 			this.visibilityDisposables = dispose(this.visibilityDisposables);
 		}
+
+		this.inputBox.setEnabled(this.isVisible() && this.isExpanded());
+	}
+
+	setExpanded(expanded: boolean): void {
+		super.setExpanded(expanded);
+		this.inputBox.setEnabled(this.isVisible() && this.isExpanded());
 	}
 
 	layoutBody(height: number = this.cachedHeight): void {
@@ -986,6 +997,10 @@ export class RepositoryPanel extends ViewletPanel {
 	}
 
 	private onListContextMenu(e: IListContextMenuEvent<ISCMResourceGroup | ISCMResource>): void {
+		if (!e.element) {
+			return;
+		}
+
 		const element = e.element;
 		let actions: IAction[];
 
@@ -997,7 +1012,7 @@ export class RepositoryPanel extends ViewletPanel {
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
-			getActions: () => TPromise.as(actions),
+			getActions: () => actions,
 			getActionsContext: () => element,
 			actionRunner: new MultipleSelectionActionRunner(() => this.getSelectedResources())
 		});
@@ -1406,7 +1421,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 		let anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => TPromise.as(actions)
+			getActions: () => actions
 		});
 	}
 
@@ -1477,7 +1492,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 		return super.isSingleView() && this.repositoryPanels.length + this.contributedViews.visibleViewDescriptors.length === 1;
 	}
 
-	openView(id: string, focus?: boolean): TPromise<IView> {
+	openView(id: string, focus?: boolean): IView {
 		if (focus) {
 			this.focus();
 		}
@@ -1487,8 +1502,10 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 		}
 		panel = this.panels.filter(panel => panel instanceof ViewletPanel && panel.id === id)[0];
 		panel.setExpanded(true);
-		panel.focus();
-		return TPromise.as(panel);
+		if (focus) {
+			panel.focus();
+		}
+		return panel;
 	}
 
 	hide(repository: ISCMRepository): void {

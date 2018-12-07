@@ -51,12 +51,15 @@
 	opacity: 0.9;
 }
 
+.settings-editor .settings-tabs-widget > .monaco-action-bar .action-item .action-details {
+	opacity: 0.9;
+}
+
 .settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget .action-label:hover {
 	opacity: 1;
 }
 
 .settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget .action-label.checked {
-	font-weight: 500;
 	opacity: 1;
 }
 

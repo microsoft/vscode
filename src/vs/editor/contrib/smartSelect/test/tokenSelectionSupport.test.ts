@@ -7,7 +7,6 @@ import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
-import { TokenSelectionSupport } from 'vs/editor/contrib/smartSelect/tokenSelectionSupport';
 import { MockMode, StaticLanguageSelector } from 'vs/editor/test/common/mocks/mockMode';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
@@ -16,6 +15,8 @@ import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/jav
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
+import { TokenTreeSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/tokenTree';
+import { MarkerService } from 'vs/platform/markers/common/markerService';
 
 class MockJSMode extends MockMode {
 
@@ -38,14 +39,12 @@ class MockJSMode extends MockMode {
 
 suite('TokenSelectionSupport', () => {
 
-	let modelService: ModelServiceImpl | null = null;
-	let tokenSelectionSupport: TokenSelectionSupport;
-	let mode: MockJSMode | null = null;
+	let modelService: ModelServiceImpl;
+	let mode: MockJSMode;
 
 	setup(() => {
 		const configurationService = new TestConfigurationService();
-		modelService = new ModelServiceImpl(null, configurationService, new TestTextResourcePropertiesService(configurationService));
-		tokenSelectionSupport = new TokenSelectionSupport(modelService);
+		modelService = new ModelServiceImpl(new MarkerService(), configurationService, new TestTextResourcePropertiesService(configurationService));
 		mode = new MockJSMode();
 	});
 
@@ -56,12 +55,13 @@ suite('TokenSelectionSupport', () => {
 
 	function assertGetRangesToPosition(text: string[], lineNumber: number, column: number, ranges: Range[]): void {
 		let uri = URI.file('test.js');
-		modelService.createModel(text.join('\n'), new StaticLanguageSelector(mode.getLanguageIdentifier()), uri);
+		let model = modelService.createModel(text.join('\n'), new StaticLanguageSelector(mode.getLanguageIdentifier()), uri);
 
-		let actual = tokenSelectionSupport.getRangesToPositionSync(uri, new Position(lineNumber, column));
+		let actual = new TokenTreeSelectionRangeProvider().provideSelectionRanges(model, new Position(lineNumber, column));
 
-		let actualStr = actual.map(r => new Range(r.range.startLineNumber, r.range.startColumn, r.range.endLineNumber, r.range.endColumn).toString());
-		let desiredStr = ranges.map(r => String(r));
+
+		let actualStr = actual.map(r => new Range(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn).toString());
+		let desiredStr = ranges.reverse().map(r => String(r));
 
 		assert.deepEqual(actualStr, desiredStr);
 
@@ -70,7 +70,7 @@ suite('TokenSelectionSupport', () => {
 
 	test('getRangesToPosition #1', () => {
 
-		assertGetRangesToPosition([
+		return assertGetRangesToPosition([
 			'function a(bar, foo){',
 			'\tif (bar) {',
 			'\t\treturn (bar + (2 * foo))',
@@ -93,7 +93,7 @@ suite('TokenSelectionSupport', () => {
 
 	test('getRangesToPosition #56886. Skip empty lines correctly.', () => {
 
-		assertGetRangesToPosition([
+		return assertGetRangesToPosition([
 			'function a(bar, foo){',
 			'\tif (bar) {',
 			'',
@@ -109,7 +109,7 @@ suite('TokenSelectionSupport', () => {
 
 	test('getRangesToPosition #56886. Do not skip lines with only whitespaces.', () => {
 
-		assertGetRangesToPosition([
+		return assertGetRangesToPosition([
 			'function a(bar, foo){',
 			'\tif (bar) {',
 			' ',
@@ -127,7 +127,7 @@ suite('TokenSelectionSupport', () => {
 
 	test('getRangesToPosition #40658. Cursor at first position inside brackets should select line inside.', () => {
 
-		assertGetRangesToPosition([
+		return assertGetRangesToPosition([
 			' [ ]',
 			' { } ',
 			'( ) '
@@ -141,7 +141,7 @@ suite('TokenSelectionSupport', () => {
 
 	test('getRangesToPosition #40658. Cursor in empty brackets should reveal brackets first.', () => {
 
-		assertGetRangesToPosition([
+		return assertGetRangesToPosition([
 			' [] ',
 			' { } ',
 			'  ( ) '
@@ -154,7 +154,7 @@ suite('TokenSelectionSupport', () => {
 
 	test('getRangesToPosition #40658. Tokens before bracket will be revealed first.', () => {
 
-		assertGetRangesToPosition([
+		return assertGetRangesToPosition([
 			'  [] ',
 			' { } ',
 			'selectthis( ) '

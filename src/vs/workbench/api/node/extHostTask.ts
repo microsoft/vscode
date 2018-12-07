@@ -403,7 +403,8 @@ namespace Tasks {
 			command: command,
 			isBackground: !!task.isBackground,
 			problemMatchers: task.problemMatchers.slice(),
-			hasDefinedMatchers: (task as types.Task).hasDefinedMatchers
+			hasDefinedMatchers: (task as types.Task).hasDefinedMatchers,
+			runOptions: (<vscode.Task>task).runOptions ? (<vscode.Task>task).runOptions : { reevaluateOnRerun: true },
 		};
 		return result;
 	}
@@ -608,7 +609,7 @@ namespace TaskDTO {
 			if (typeof value.scope === 'number') {
 				scope = value.scope;
 			} else {
-				scope = value.scope.uri.toJSON();
+				scope = value.scope.uri;
 			}
 		}
 		if (!definition || !scope) {
@@ -629,7 +630,8 @@ namespace TaskDTO {
 			group: group,
 			presentationOptions: TaskPresentationOptionsDTO.from(value.presentationOptions),
 			problemMatchers: value.problemMatchers,
-			hasDefinedMatchers: (value as types.Task).hasDefinedMatchers
+			hasDefinedMatchers: (value as types.Task).hasDefinedMatchers,
+			runOptions: (<vscode.Task>value).runOptions ? (<vscode.Task>value).runOptions : { reevaluateOnRerun: true },
 		};
 		return result;
 	}

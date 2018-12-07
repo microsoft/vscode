@@ -44,15 +44,13 @@
 
 .monaco-workbench > .part.editor > .content .editor-group-container > .title {
 	position: relative;
-	display: flex;
-	flex-wrap: nowrap;
 	box-sizing:	border-box;
 	overflow: hidden;
-	justify-content: space-between;
 }
 
-.monaco-workbench > .part.editor > .content .editor-group-container > .title.tabs {
-	flex-wrap: wrap;
+.monaco-workbench > .part.editor > .content .editor-group-container > .title:not(.tabs) {
+	display: flex; /* when tabs are not shown, use flex layout */
+	flex-wrap: nowrap;
 }
 
 .monaco-workbench > .part.editor > .content .editor-group-container > .title.title-border-bottom::after {

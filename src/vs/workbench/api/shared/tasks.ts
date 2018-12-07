@@ -19,6 +19,10 @@ export interface TaskPresentationOptionsDTO {
 	clear?: boolean;
 }
 
+export interface RunOptionsDTO {
+	reevaluateOnRerun?: boolean;
+}
+
 export interface ExecutionOptionsDTO {
 	cwd?: string;
 	env?: { [key: string]: string };
@@ -82,6 +86,7 @@ export interface TaskDTO {
 	presentationOptions: TaskPresentationOptionsDTO;
 	problemMatchers: string[];
 	hasDefinedMatchers: boolean;
+	runOptions: RunOptionsDTO;
 }
 
 export interface TaskExecutionDTO {

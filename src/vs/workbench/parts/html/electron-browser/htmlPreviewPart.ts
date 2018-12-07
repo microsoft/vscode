@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ITextModel } from 'vs/editor/common/model';
 import { Disposable, IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import { EditorOptions, EditorInput, IEditorMemento } from 'vs/workbench/common/editor';
@@ -179,7 +178,7 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 	public setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
 
 		if (this.input && this.input.matches(input) && this._hasValidModel() && this.input instanceof HtmlInput && input instanceof HtmlInput && areHtmlInputOptionsEqual(this.input.options, input.options)) {
-			return TPromise.as(undefined);
+			return Promise.resolve(undefined);
 		}
 
 		let oldOptions: HtmlInputOptions | undefined = undefined;
@@ -197,7 +196,7 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 		this._modelChangeSubscription.dispose();
 
 		if (!(input instanceof HtmlInput)) {
-			return TPromise.wrapError<void>(new Error('Invalid input'));
+			return Promise.reject(new Error('Invalid input'));
 		}
 
 		return super.setInput(input, options, token).then(() => {
@@ -213,7 +212,7 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 				}
 
 				if (!this.model) {
-					return TPromise.wrapError<void>(new Error(localize('html.voidInput', "Invalid editor input.")));
+					return Promise.reject(new Error(localize('html.voidInput', "Invalid editor input.")));
 				}
 
 				if (oldOptions && !areHtmlInputOptionsEqual(oldOptions, input.options)) {

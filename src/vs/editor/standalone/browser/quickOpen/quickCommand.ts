@@ -22,11 +22,13 @@ export class EditorActionCommandEntry extends QuickOpenEntryGroup {
 	private key: string;
 	private action: IEditorAction;
 	private editor: IEditor;
+	private keyAriaLabel: string;
 
-	constructor(key: string, highlights: IHighlight[], action: IEditorAction, editor: IEditor) {
+	constructor(key: string, keyAriaLabel: string, highlights: IHighlight[], action: IEditorAction, editor: IEditor) {
 		super();
 
 		this.key = key;
+		this.keyAriaLabel = keyAriaLabel;
 		this.setHighlights(highlights);
 		this.action = action;
 		this.editor = editor;
@@ -37,6 +39,10 @@ export class EditorActionCommandEntry extends QuickOpenEntryGroup {
 	}
 
 	public getAriaLabel(): string {
+		if (this.keyAriaLabel) {
+			return nls.localize('ariaLabelEntryWithKey', "{0}, {1}, commands", this.getLabel(), this.keyAriaLabel);
+		}
+
 		return nls.localize('ariaLabelEntry', "{0}, commands", this.getLabel());
 	}
 
@@ -119,12 +125,12 @@ export class QuickCommandAction extends BaseEditorQuickOpenAction {
 		for (let i = 0; i < actions.length; i++) {
 			let action = actions[i];
 
-			let keybind = keybindingService.lookupKeybinding(action.id);
+			let keybinding = keybindingService.lookupKeybinding(action.id);
 
 			if (action.label) {
 				let highlights = matchesFuzzy(searchValue, action.label);
 				if (highlights) {
-					entries.push(new EditorActionCommandEntry(keybind ? keybind.getLabel() : '', highlights, action, editor));
+					entries.push(new EditorActionCommandEntry(keybinding ? keybinding.getLabel() : '', keybinding ? keybinding.getAriaLabel() : '', highlights, action, editor));
 				}
 			}
 		}

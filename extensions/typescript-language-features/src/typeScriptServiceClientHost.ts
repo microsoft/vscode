@@ -14,13 +14,13 @@ import FileConfigurationManager from './features/fileConfigurationManager';
 import LanguageProvider from './languageProvider';
 import * as Proto from './protocol';
 import * as PConst from './protocol.const';
-import TypeScriptServiceClient, { PluginConfigProvider } from './typescriptServiceClient';
+import TypeScriptServiceClient from './typescriptServiceClient';
 import API from './utils/api';
 import { CommandManager } from './utils/commandManager';
 import { Disposable } from './utils/dispose';
-import { LanguageDescription, DiagnosticLanguage } from './utils/languageDescription';
+import { DiagnosticLanguage, LanguageDescription } from './utils/languageDescription';
 import LogDirectoryProvider from './utils/logDirectoryProvider';
-import { TypeScriptServerPlugin } from './utils/plugins';
+import { PluginManager } from './utils/plugins';
 import * as typeConverters from './utils/typeConverters';
 import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
 import VersionStatus from './utils/versionStatus';
@@ -48,8 +48,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 	constructor(
 		descriptions: LanguageDescription[],
 		workspaceState: vscode.Memento,
-		plugins: TypeScriptServerPlugin[],
-		pluginConfigProvider: PluginConfigProvider,
+		pluginManager: PluginManager,
 		private readonly commandManager: CommandManager,
 		logDirectoryProvider: LogDirectoryProvider,
 		onCompletionAccepted: (item: vscode.CompletionItem) => void,
@@ -73,8 +72,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		this.client = this._register(new TypeScriptServiceClient(
 			workspaceState,
 			version => this.versionStatus.onDidChangeTypeScriptVersion(version),
-			plugins,
-			pluginConfigProvider,
+			pluginManager,
 			logDirectoryProvider,
 			allModeIds));
 
@@ -111,7 +109,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 			}
 
 			const languages = new Set<string>();
-			for (const plugin of plugins) {
+			for (const plugin of pluginManager.plugins) {
 				for (const language of plugin.languages) {
 					languages.add(language);
 				}

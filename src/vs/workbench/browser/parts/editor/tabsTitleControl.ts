@@ -39,6 +39,7 @@ import { IEditorGroupsAccessor, IEditorPartOptions, IEditorGroupView } from 'vs/
 import { CloseOneEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { BreadcrumbsControl } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
+import { IFileService } from 'vs/platform/files/common/files';
 
 interface IEditorInputLabel {
 	name: string;
@@ -53,7 +54,7 @@ export class TabsTitleControl extends TitleControl {
 	private titleContainer: HTMLElement;
 	private tabsContainer: HTMLElement;
 	private editorToolbarContainer: HTMLElement;
-	private scrollbar: ScrollableElement;
+	private tabsScrollbar: ScrollableElement;
 	private closeOneEditorAction: CloseOneEditorAction;
 
 	private tabLabelWidgets: ResourceLabel[] = [];
@@ -79,13 +80,19 @@ export class TabsTitleControl extends TitleControl {
 		@IQuickOpenService quickOpenService: IQuickOpenService,
 		@IThemeService themeService: IThemeService,
 		@IExtensionService extensionService: IExtensionService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IFileService fileService: IFileService,
 	) {
-		super(parent, accessor, group, contextMenuService, instantiationService, contextKeyService, keybindingService, telemetryService, notificationService, menuService, quickOpenService, themeService, extensionService, configurationService);
+		super(parent, accessor, group, contextMenuService, instantiationService, contextKeyService, keybindingService, telemetryService, notificationService, menuService, quickOpenService, themeService, extensionService, configurationService, fileService);
 	}
 
 	protected create(parent: HTMLElement): void {
 		this.titleContainer = parent;
+
+		// Tabs and Actions Container (are on a single row with flex side-by-side)
+		const tabsAndActionsContainer = document.createElement('div');
+		addClass(tabsAndActionsContainer, 'tabs-and-actions-container');
+		this.titleContainer.appendChild(tabsAndActionsContainer);
 
 		// Tabs Container
 		this.tabsContainer = document.createElement('div');
@@ -94,15 +101,16 @@ export class TabsTitleControl extends TitleControl {
 		addClass(this.tabsContainer, 'tabs-container');
 
 		// Tabs Container listeners
-		this.registerContainerListeners();
+		this.registerTabsContainerListeners();
 
-		// Scrollbar
-		this.createScrollbar();
+		// Tabs Scrollbar
+		this.tabsScrollbar = this.createTabsScrollbar(this.tabsContainer);
+		tabsAndActionsContainer.appendChild(this.tabsScrollbar.getDomNode());
 
 		// Editor Toolbar Container
 		this.editorToolbarContainer = document.createElement('div');
 		addClass(this.editorToolbarContainer, 'editor-actions');
-		this.titleContainer.appendChild(this.editorToolbarContainer);
+		tabsAndActionsContainer.appendChild(this.editorToolbarContainer);
 
 		// Editor Actions Toolbar
 		this.createEditorActionsToolBar(this.editorToolbarContainer);
@@ -110,17 +118,15 @@ export class TabsTitleControl extends TitleControl {
 		// Close Action
 		this.closeOneEditorAction = this._register(this.instantiationService.createInstance(CloseOneEditorAction, CloseOneEditorAction.ID, CloseOneEditorAction.LABEL));
 
-		// Breadcrumbs
+		// Breadcrumbs (are on a separate row below tabs and actions)
 		const breadcrumbsContainer = document.createElement('div');
 		addClass(breadcrumbsContainer, 'tabs-breadcrumbs');
 		this.titleContainer.appendChild(breadcrumbsContainer);
 		this.createBreadcrumbsControl(breadcrumbsContainer, { showFileIcons: true, showSymbolIcons: true, showDecorationColors: false, breadcrumbsBackground: breadcrumbsBackground });
 	}
 
-	private createScrollbar(): void {
-
-		// Custom Scrollbar
-		this.scrollbar = new ScrollableElement(this.tabsContainer, {
+	private createTabsScrollbar(scrollable: HTMLElement): ScrollableElement {
+		const tabsScrollbar = new ScrollableElement(scrollable, {
 			horizontal: ScrollbarVisibility.Auto,
 			vertical: ScrollbarVisibility.Hidden,
 			scrollYToX: true,
@@ -128,11 +134,11 @@ export class TabsTitleControl extends TitleControl {
 			horizontalScrollbarSize: 3
 		});
 
-		this.scrollbar.onScroll(e => {
-			this.tabsContainer.scrollLeft = e.scrollLeft;
+		tabsScrollbar.onScroll(e => {
+			scrollable.scrollLeft = e.scrollLeft;
 		});
 
-		this.titleContainer.appendChild(this.scrollbar.getDomNode());
+		return tabsScrollbar;
 	}
 
 	private updateBreadcrumbsControl(): void {
@@ -148,7 +154,7 @@ export class TabsTitleControl extends TitleControl {
 		this.group.relayout();
 	}
 
-	private registerContainerListeners(): void {
+	private registerTabsContainerListeners(): void {
 
 		// Group dragging
 		this.enableGroupDragging(this.tabsContainer);
@@ -156,7 +162,7 @@ export class TabsTitleControl extends TitleControl {
 		// Forward scrolling inside the container to our custom scrollbar
 		this._register(addDisposableListener(this.tabsContainer, EventType.SCROLL, () => {
 			if (hasClass(this.tabsContainer, 'scroll')) {
-				this.scrollbar.setScrollPosition({
+				this.tabsScrollbar.setScrollPosition({
 					scrollLeft: this.tabsContainer.scrollLeft // during DND the  container gets scrolled so we need to update the custom scrollbar
 				});
 			}
@@ -479,7 +485,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// Touch Scroll Support
 		disposables.push(addDisposableListener(tab, TouchEventType.Change, (e: GestureEvent) => {
-			this.scrollbar.setScrollPosition({ scrollLeft: this.scrollbar.getScrollPosition().scrollLeft - e.translationX });
+			this.tabsScrollbar.setScrollPosition({ scrollLeft: this.tabsScrollbar.getScrollPosition().scrollLeft - e.translationX });
 		}));
 
 		// Close on mouse middle click
@@ -488,7 +494,7 @@ export class TabsTitleControl extends TitleControl {
 
 			tab.blur();
 
-			if (e.button === 1 /* Middle Button*/ && !this.originatesFromTabActionBar(e)) {
+			if (e.button === 1 /* Middle Button*/) {
 				e.stopPropagation(); // for https://github.com/Microsoft/vscode/issues/56715
 
 				this.blockRevealActiveTabOnce();
@@ -546,7 +552,7 @@ export class TabsTitleControl extends TitleControl {
 			}
 
 			// moving in the tabs container can have an impact on scrolling position, so we need to update the custom scrollbar
-			this.scrollbar.setScrollPosition({
+			this.tabsScrollbar.setScrollPosition({
 				scrollLeft: this.tabsContainer.scrollLeft
 			});
 		}));
@@ -979,7 +985,7 @@ export class TabsTitleControl extends TitleControl {
 
 		if (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden()) {
 			this.breadcrumbsControl.layout({ width: dimension.width, height: BreadcrumbsControl.HEIGHT });
-			this.scrollbar.getDomNode().style.height = `${dimension.height - BreadcrumbsControl.HEIGHT}px`;
+			this.tabsScrollbar.getDomNode().style.height = `${dimension.height - BreadcrumbsControl.HEIGHT}px`;
 		}
 
 		const visibleContainerWidth = this.tabsContainer.offsetWidth;
@@ -994,7 +1000,7 @@ export class TabsTitleControl extends TitleControl {
 		}
 
 		// Update scrollbar
-		this.scrollbar.setScrollDimensions({
+		this.tabsScrollbar.setScrollDimensions({
 			width: visibleContainerWidth,
 			scrollWidth: totalContainerWidth
 		});
@@ -1006,20 +1012,20 @@ export class TabsTitleControl extends TitleControl {
 		}
 
 		// Reveal the active one
-		const containerScrollPosX = this.scrollbar.getScrollPosition().scrollLeft;
+		const containerScrollPosX = this.tabsScrollbar.getScrollPosition().scrollLeft;
 		const activeTabFits = activeTabWidth <= visibleContainerWidth;
 
 		// Tab is overflowing to the right: Scroll minimally until the element is fully visible to the right
 		// Note: only try to do this if we actually have enough width to give to show the tab fully!
 		if (activeTabFits && containerScrollPosX + visibleContainerWidth < activeTabPosX + activeTabWidth) {
-			this.scrollbar.setScrollPosition({
+			this.tabsScrollbar.setScrollPosition({
 				scrollLeft: containerScrollPosX + ((activeTabPosX + activeTabWidth) /* right corner of tab */ - (containerScrollPosX + visibleContainerWidth) /* right corner of view port */)
 			});
 		}
 
 		// Tab is overlflowng to the left or does not fit: Scroll it into view to the left
 		else if (containerScrollPosX > activeTabPosX || !activeTabFits) {
-			this.scrollbar.setScrollPosition({
+			this.tabsScrollbar.setScrollPosition({
 				scrollLeft: activeTabPosX
 			});
 		}

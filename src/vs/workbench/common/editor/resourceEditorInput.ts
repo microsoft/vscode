@@ -81,7 +81,7 @@ export class ResourceEditorInput extends EditorInput {
 		return descriptor;
 	}
 
-	resolve(): TPromise<ITextEditorModel> {
+	resolve(): Thenable<ITextEditorModel> {
 		if (!this.modelReference) {
 			this.modelReference = this.textModelResolverService.createModelReference(this.resource);
 		}
@@ -93,7 +93,7 @@ export class ResourceEditorInput extends EditorInput {
 				ref.dispose();
 				this.modelReference = null;
 
-				return TPromise.wrapError<ITextEditorModel>(new Error(`Unexpected model for ResourceInput: ${this.resource}`));
+				return Promise.reject(new Error(`Unexpected model for ResourceInput: ${this.resource}`));
 			}
 
 			return model;

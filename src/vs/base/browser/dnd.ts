@@ -27,7 +27,7 @@ export class DelayedDragHandler extends Disposable {
 		}));
 
 		['dragleave', 'drop', 'dragend'].forEach(type => {
-			this._register(addDisposableListener(container, type, () => {
+			this._register(addDisposableListener(container, type as 'dragleave' | 'drop' | 'dragend', () => {
 				this.clearDragTimeout();
 			}));
 		});

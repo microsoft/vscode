@@ -83,7 +83,7 @@ export class TerminalPickerHandler extends QuickOpenHandler {
 		super();
 	}
 
-	public getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel> {
+	public getResults(searchValue: string, token: CancellationToken): Thenable<QuickOpenModel> {
 		searchValue = searchValue.trim();
 		const normalizedSearchValueLowercase = stripWildcards(searchValue).toLowerCase();
 

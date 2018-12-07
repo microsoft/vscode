@@ -29,7 +29,7 @@ export class CodeActionContextMenu {
 
 	show(fixes: Thenable<CodeAction[]>, at: { x: number; y: number } | Position) {
 
-		const actions = fixes ? fixes.then(value => {
+		const actionsPromise = fixes ? fixes.then(value => {
 			return value.map(action => {
 				return new Action(action.command ? action.command.id : action.title, action.title, undefined, true, () => {
 					return always(
@@ -45,19 +45,21 @@ export class CodeActionContextMenu {
 			return actions;
 		}) : Promise.resolve([] as Action[]);
 
-		this._contextMenuService.showContextMenu({
-			getAnchor: () => {
-				if (Position.isIPosition(at)) {
-					at = this._toCoords(at);
-				}
-				return at;
-			},
-			getActions: () => actions,
-			onHide: () => {
-				this._visible = false;
-				this._editor.focus();
-			},
-			autoSelectFirstItem: true
+		actionsPromise.then(actions => {
+			this._contextMenuService.showContextMenu({
+				getAnchor: () => {
+					if (Position.isIPosition(at)) {
+						at = this._toCoords(at);
+					}
+					return at;
+				},
+				getActions: () => actions,
+				onHide: () => {
+					this._visible = false;
+					this._editor.focus();
+				},
+				autoSelectFirstItem: true
+			});
 		});
 	}
 

@@ -24,7 +24,7 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerServ
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IProgressService2, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { localize } from 'vs/nls';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
 import { shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
@@ -251,7 +251,7 @@ class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 			});
 
 		}).then(edits => {
-			if (!isFalsyOrEmpty(edits) && versionNow === model.getVersionId()) {
+			if (isNonEmptyArray(edits) && versionNow === model.getVersionId()) {
 				const editor = findEditor(model, this._editorService);
 				if (editor) {
 					this._editsWithEditor(editor, edits);
