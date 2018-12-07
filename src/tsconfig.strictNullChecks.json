@@ -8,7 +8,7 @@
 		"./typings",
 		"./vs/base/common/**/*.ts",
 		"./vs/base/node/**/*.ts",
-		"./vs/editor/contrib/smartSelect/**/*.ts",
+		"./vs/editor/contrib/smartSelect/**/*.ts"
 	],
 	"files": [
 		"./vs/base/browser/browser.ts",
@@ -500,7 +500,7 @@
 		"./vs/platform/statusbar/common/statusbar.ts",
 		"./vs/platform/storage/common/storage.ts",
 		"./vs/platform/storage/common/storageLegacyService.ts",
-		//"./vs/platform/storage/node/storageService.ts", TODO@Ben bring back when storageMigration is removed
+		"./vs/platform/storage/node/storageMainService.ts",
 		"./vs/platform/telemetry/browser/errorTelemetry.ts",
 		"./vs/platform/telemetry/common/telemetry.ts",
 		"./vs/platform/telemetry/common/telemetryService.ts",
@@ -595,7 +595,6 @@
 		"./vs/workbench/parts/extensions/common/extensions.ts",
 		"./vs/workbench/parts/extensions/common/extensionsFileTemplate.ts",
 		"./vs/workbench/parts/extensions/electron-browser/extensionsActivationProgress.ts",
-		// "./vs/workbench/parts/extensions/electron-browser/extensionsAutoProfiler.ts",
 		"./vs/workbench/parts/extensions/electron-browser/extensionsUtils.ts",
 		"./vs/workbench/parts/logs/common/logConstants.ts",
 		"./vs/workbench/parts/logs/electron-browser/logs.contribution.ts",
@@ -661,6 +660,7 @@
 		"./vs/workbench/services/configuration/common/configurationModels.ts",
 		"./vs/workbench/services/configuration/common/jsonEditing.ts",
 		"./vs/workbench/services/configurationResolver/common/configurationResolver.ts",
+		"./vs/workbench/services/configurationResolver/common/configurationResolverSchema.ts",
 		"./vs/workbench/services/configurationResolver/common/configurationResolverUtils.ts",
 		"./vs/workbench/services/crashReporter/electron-browser/crashReporterService.ts",
 		"./vs/workbench/services/decorations/browser/decorations.ts",
