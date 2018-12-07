@@ -188,12 +188,12 @@ suite('SmartSelect', () => {
 
 	// -- bracket selections
 
-	function assertRanges(value: string, ...expected: IRange[]): void {
+	async function assertRanges(value: string, ...expected: IRange[]): Promise<void> {
 
 		let model = modelService.createModel(value, new StaticLanguageSelector(mode.getLanguageIdentifier()), URI.parse('fake:lang'));
 		let pos = model.getPositionAt(value.indexOf('I'));
 		let provider = new BracketSelectionRangeProvider();
-		let ranges = provider.provideSelectionRanges(model, pos);
+		let ranges = await provider.provideSelectionRanges(model, pos);
 		modelService.destroyModel(model.uri);
 
 		assert.equal(expected.length, ranges.length);
@@ -203,35 +203,35 @@ suite('SmartSelect', () => {
 		}
 	}
 
-	test('bracket selection', () => {
-		assertRanges('(I)',
+	test('bracket selection', async () => {
+		await assertRanges('(I)',
 			new Range(1, 2, 1, 3), new Range(1, 1, 1, 4)
 		);
 
-		assertRanges('[[[](I)]]',
+		await assertRanges('[[[](I)]]',
 			new Range(1, 6, 1, 7), new Range(1, 5, 1, 8), // ()
 			new Range(1, 3, 1, 8), new Range(1, 2, 1, 9), // [[]()]
 			new Range(1, 2, 1, 9), new Range(1, 1, 1, 10), // [[[]()]]
 		);
 
-		assertRanges('[a[](I)a]',
+		await assertRanges('[a[](I)a]',
 			new Range(1, 6, 1, 7), new Range(1, 5, 1, 8),
 			new Range(1, 2, 1, 9), new Range(1, 1, 1, 10),
 		);
 
 		// no bracket
-		assertRanges('fofofIfofo');
+		await assertRanges('fofofIfofo');
 
 		// empty
-		assertRanges('[[[]()]]I');
-		assertRanges('I[[[]()]]');
+		await assertRanges('[[[]()]]I');
+		await assertRanges('I[[[]()]]');
 
 		// edge
-		assertRanges('[I[[]()]]', new Range(1, 2, 1, 9), new Range(1, 1, 1, 10));
-		assertRanges('[[[]()]I]', new Range(1, 2, 1, 9), new Range(1, 1, 1, 10));
+		await assertRanges('[I[[]()]]', new Range(1, 2, 1, 9), new Range(1, 1, 1, 10));
+		await assertRanges('[[[]()]I]', new Range(1, 2, 1, 9), new Range(1, 1, 1, 10));
 
-		assertRanges('aaa(aaa)bbb(bIb)ccc(ccc)', new Range(1, 13, 1, 16), new Range(1, 12, 1, 17));
-		assertRanges('(aaa(aaa)bbb(bIb)ccc(ccc))', new Range(1, 14, 1, 17), new Range(1, 13, 1, 18), new Range(1, 2, 1, 26), new Range(1, 1, 1, 27));
+		await assertRanges('aaa(aaa)bbb(bIb)ccc(ccc)', new Range(1, 13, 1, 16), new Range(1, 12, 1, 17));
+		await assertRanges('(aaa(aaa)bbb(bIb)ccc(ccc))', new Range(1, 14, 1, 17), new Range(1, 13, 1, 18), new Range(1, 2, 1, 26), new Range(1, 1, 1, 27));
 	});
 
 });

@@ -10,25 +10,32 @@ import { Range } from 'vs/editor/common/core/range';
 
 export class BracketSelectionRangeProvider implements SelectionRangeProvider {
 
-	provideSelectionRanges(model: ITextModel, position: Position): Range[] {
-		let result: Range[] = [];
-		this._computeBracketRanges(model, position, result);
-		return result;
+	provideSelectionRanges(model: ITextModel, position: Position): Promise<Range[]> {
+		const bucket: Range[] = [];
+		const ranges = new Map<string, Range[]>();
+		return new Promise(resolve => BracketSelectionRangeProvider._bracketsRightYield(resolve, model, position, ranges))
+			.then(() => new Promise(resolve => BracketSelectionRangeProvider._bracketsLeftYield(resolve, model, position, ranges, bucket)))
+			.then(() => bucket);
 	}
 
-	private _computeBracketRanges(model: ITextModel, position: Position, bucket: Range[]): void {
+	private static readonly _maxDuration = 90;
 
-		let ranges = new Map<string, Range[]>();
-
-		// right/down
-		let counts = new Map<string, number>();
-		let pos: Position | undefined = position;
+	private static _bracketsRightYield(resolve: () => void, model: ITextModel, pos: Position, ranges: Map<string, Range[]>): void {
+		const counts = new Map<string, number>();
+		const t1 = Date.now();
 		while (true) {
 			if (!pos) {
+				resolve();
 				break;
 			}
 			let bracket = model.findNextBracket(pos);
 			if (!bracket) {
+				resolve();
+				break;
+			}
+			let d = Date.now() - t1;
+			if (d > BracketSelectionRangeProvider._maxDuration) {
+				setTimeout(() => BracketSelectionRangeProvider._bracketsRightYield(resolve, model, pos, ranges));
 				break;
 			}
 			const key = bracket.close;
@@ -52,16 +59,24 @@ export class BracketSelectionRangeProvider implements SelectionRangeProvider {
 			}
 			pos = bracket.range.getEndPosition();
 		}
+	}
 
-		// left/up
-		counts.clear();
-		pos = position;
+	private static _bracketsLeftYield(resolve: () => void, model: ITextModel, pos: Position, ranges: Map<string, Range[]>, bucket: Range[]): void {
+		const counts = new Map<string, number>();
+		const t1 = Date.now();
 		while (true) {
 			if (!pos) {
+				resolve();
 				break;
 			}
 			let bracket = model.findPrevBracket(pos);
 			if (!bracket) {
+				resolve();
+				break;
+			}
+			let d = Date.now() - t1;
+			if (d > BracketSelectionRangeProvider._maxDuration) {
+				setTimeout(() => BracketSelectionRangeProvider._bracketsLeftYield(resolve, model, pos, ranges, bucket));
 				break;
 			}
 			const key = bracket.close;
