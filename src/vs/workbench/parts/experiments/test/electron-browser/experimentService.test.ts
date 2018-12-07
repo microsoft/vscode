@@ -130,7 +130,7 @@ suite('Experiment Service', () => {
 		tests.push(testObject.getExperimentById('experiment4'));
 		tests.push(testObject.getExperimentById('experiment5'));
 
-		return TPromise.join(tests).then(results => {
+		return Promise.all(tests).then(results => {
 			assert.equal(results[0].id, 'experiment1');
 			assert.equal(results[0].enabled, false);
 			assert.equal(results[0].state, ExperimentState.NoRun);
@@ -554,7 +554,7 @@ suite('Experiment Service', () => {
 			assert.equal(!!result, false);
 			assert.equal(!!storageDataExperiment2, false);
 		});
-		return TPromise.join([disabledExperiment, deletedExperiment]).then(() => {
+		return Promise.all([disabledExperiment, deletedExperiment]).then(() => {
 			assert.equal(storageDataAllExperiments.length, 1);
 			assert.equal(storageDataAllExperiments[0], 'experiment3');
 		});
@@ -641,7 +641,7 @@ suite('Experiment Service', () => {
 		tests.push(testObject.getExperimentById('experiment3'));
 		tests.push(testObject.getExperimentById('experiment4'));
 
-		return TPromise.join(tests).then(results => {
+		return Promise.all(tests).then(results => {
 			assert.equal(results[0].id, 'experiment1');
 			assert.equal(results[0].enabled, true);
 			assert.equal(results[0].state, ExperimentState.Run);
@@ -728,7 +728,7 @@ suite('Experiment Service', () => {
 			assert.equal(result[0].id, 'prompt-with-no-commands');
 			assert.equal(result[1].id, 'prompt-with-commands');
 		});
-		return TPromise.join([custom, prompt]);
+		return Promise.all([custom, prompt]);
 	});
 
 	test('experimentsPreviouslyRun includes, excludes check', () => {

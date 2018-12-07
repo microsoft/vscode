@@ -271,7 +271,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 				});
 
 			});
-			return TPromise.join(promises).then(() => {
+			return Promise.all(promises).then(() => {
 				/* __GDPR__
 					"experiments" : {
 						"experiments" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
