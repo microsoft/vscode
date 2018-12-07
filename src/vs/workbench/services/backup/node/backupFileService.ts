@@ -55,7 +55,7 @@ export class BackupFilesModel implements IBackupFilesModel {
 		return pfs.readDirsInDir(backupRoot).then(backupSchemas => {
 
 			// For all supported schemas
-			return TPromise.join(backupSchemas.map(backupSchema => {
+			return Promise.all(backupSchemas.map(backupSchema => {
 
 				// Read backup directory for backups
 				const backupSchemaPath = path.join(backupRoot, backupSchema);
@@ -206,7 +206,7 @@ export class BackupFileService implements IBackupFileService {
 				);
 			});
 
-			return TPromise.join(readPromises);
+			return Promise.all(readPromises);
 		});
 	}
 
