@@ -36,6 +36,7 @@
 		"./vs/base/browser/ui/grid/gridview.ts",
 		"./vs/base/browser/ui/highlightedlabel/highlightedLabel.ts",
 		"./vs/base/browser/ui/iconLabel/iconLabel.ts",
+		"./vs/base/browser/ui/inputbox/inputBox.ts",
 		"./vs/base/browser/ui/keybindingLabel/keybindingLabel.ts",
 		"./vs/base/browser/ui/list/list.ts",
 		"./vs/base/browser/ui/list/listPaging.ts",
