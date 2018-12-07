@@ -19,10 +19,6 @@
 	padding-right: 3px;
 }
 
-/* .monaco-tree.no-icons .outline-element .outline-element-icon {
-	display: none;
-} */
-
 .monaco-tree .outline-element .outline-element-label {
 	text-overflow: ellipsis;
 	overflow: hidden;
