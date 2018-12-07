@@ -44,7 +44,7 @@ export class TestCommandService implements ICommandService {
 
 		try {
 			this._onWillExecuteCommand.fire({ commandId: id });
-			const result = this._instantiationService.invokeFunction.apply(this._instantiationService, [command.handler].concat(args));
+			const result = this._instantiationService.invokeFunction.apply(this._instantiationService, [command.handler, ...args]) as T;
 			return Promise.resolve(result);
 		} catch (err) {
 			return Promise.reject(err);

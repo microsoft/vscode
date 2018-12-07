@@ -37,7 +37,7 @@ export class InstantiationService implements IInstantiationService {
 		let _trace = Trace.traceInvocation(fn);
 		let _done = false;
 		try {
-			let accessor = {
+			const accessor: ServicesAccessor = {
 				get: <T>(id: ServiceIdentifier<T>, isOptional?: typeof optional) => {
 
 					if (_done) {
@@ -51,7 +51,7 @@ export class InstantiationService implements IInstantiationService {
 					return result;
 				}
 			};
-			return fn.apply(undefined, [accessor].concat(args));
+			return fn.apply(undefined, [accessor, ...args]);
 		} finally {
 			_done = true;
 			_trace.stop();
