@@ -78,7 +78,7 @@ export abstract class Composite extends Component implements IComposite {
 		this.visible = false;
 	}
 
-	getTitle(): string {
+	getTitle(): string | null {
 		return null;
 	}
 
@@ -165,7 +165,7 @@ export abstract class Composite extends Component implements IComposite {
 	 * of an action. Returns null to indicate that the action is not rendered through
 	 * an action item.
 	 */
-	getActionItem(action: IAction): IActionItem {
+	getActionItem(action: IAction): IActionItem | null {
 		return null;
 	}
 
@@ -201,7 +201,7 @@ export abstract class Composite extends Component implements IComposite {
 	/**
 	 * Returns the underlying composite control or null if it is not accessible.
 	 */
-	getControl(): ICompositeControl {
+	getControl(): ICompositeControl | null {
 		return null;
 	}
 }
@@ -212,9 +212,9 @@ export abstract class Composite extends Component implements IComposite {
 export abstract class CompositeDescriptor<T extends Composite> {
 	id: string;
 	name: string;
-	cssClass: string;
-	order: number;
-	keybindingId: string;
+	cssClass?: string;
+	order?: number;
+	keybindingId?: string;
 	enabled: boolean;
 
 	private ctor: IConstructorSignature0<T>;
@@ -250,7 +250,7 @@ export abstract class CompositeRegistry<T extends Composite> extends Disposable 
 		this._onDidRegister.fire(descriptor);
 	}
 
-	getComposite(id: string): CompositeDescriptor<T> {
+	getComposite(id: string): CompositeDescriptor<T> | null {
 		return this.compositeById(id);
 	}
 
@@ -258,7 +258,7 @@ export abstract class CompositeRegistry<T extends Composite> extends Disposable 
 		return this.composites.slice(0);
 	}
 
-	private compositeById(id: string): CompositeDescriptor<T> {
+	private compositeById(id: string): CompositeDescriptor<T> | null {
 		for (let i = 0; i < this.composites.length; i++) {
 			if (this.composites[i].id === id) {
 				return this.composites[i];
