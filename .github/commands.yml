@@ -62,14 +62,16 @@
             name: 'confirm',
             allowUsers: ['cleidigh', 'usernamehw'],
             action: 'updateLabels',
-            addLabel: 'confirmed'
+            addLabel: 'confirmed',
+            removeLabel: 'unconfirmed'
         },
         {
             type: 'comment',
             name: 'unconfirm',
             allowUsers: ['cleidigh', 'usernamehw'],
             action: 'updateLabels',
-            addLabel: 'unconfirmed'
+            addLabel: 'unconfirmed',
+            removeLabel: 'confirmed'
         },
         {
             type: 'comment',
