@@ -497,7 +497,6 @@ export class MenuBar extends Disposable {
 			this.overflowLayoutScheduled = DOM.scheduleAtNextAnimationFrame(() => {
 				this.updateOverflowAction();
 				this.overflowLayoutScheduled = void 0;
-				dispose(this.overflowLayoutScheduled);
 			});
 		}
 
