@@ -12,8 +12,11 @@ export class CachedResponse<T extends Proto.Response> {
 	private version: number = -1;
 	private document: string = '';
 
-	public execute(document: vscode.TextDocument, f: () => Promise<ServerResponse<T>>) {
-		if (this.matches(document)) {
+	public execute(
+		document: vscode.TextDocument,
+		f: () => Promise<ServerResponse<T>>
+	): Promise<ServerResponse<T>> {
+		if (this.response && this.matches(document)) {
 			return this.response;
 		}
 		return this.update(document, f());

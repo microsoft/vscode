@@ -54,7 +54,7 @@ export abstract class TypeScriptBaseCodeLensProvider implements vscode.CodeLensP
 		}
 
 		const response = await this.cachedResponse.execute(document, () => this.client.execute('navtree', { file: filepath }, token));
-		if (!response || response.type !== 'response') {
+		if (response.type !== 'response') {
 			return [];
 		}
 
