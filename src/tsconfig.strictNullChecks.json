@@ -549,6 +549,8 @@
 		"./vs/workbench/browser/actions/toggleStatusbarVisibility.ts",
 		"./vs/workbench/browser/actions/toggleTabsVisibility.ts",
 		"./vs/workbench/browser/actions/toggleZenMode.ts",
+		"./vs/workbench/browser/composite.ts",
+		"./vs/workbench/browser/panel.ts",
 		"./vs/workbench/browser/part.ts",
 		"./vs/workbench/browser/parts/editor/editorWidgets.ts",
 		"./vs/workbench/browser/parts/notifications/notificationsAlerts.ts",
@@ -734,8 +736,7 @@
 		"./vs/workbench/services/themes/common/workbenchThemeService.ts",
 		"./vs/workbench/services/title/common/titleService.ts",
 		"./vs/workbench/services/workspace/common/workspaceEditing.ts",
-		"./vs/workbench/test/electron-browser/api/mock.ts",
-		"./vs/workbench/browser/composite.ts"
+		"./vs/workbench/test/electron-browser/api/mock.ts"
 	],
 	"exclude": [
 		"./typings/require-monaco.d.ts"
