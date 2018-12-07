@@ -77,6 +77,13 @@ export interface ITypeScriptServiceClient {
 	 */
 	toResource(filepath: string): vscode.Uri;
 
+	/**
+	 * Tries to ensure that a vscode document is open on the TS server.
+	 *
+	 * Returns the normalized path.
+	 */
+	toOpenedFilePath(document: vscode.TextDocument): string | undefined;
+
 	getWorkspaceRootForResource(resource: vscode.Uri): string | undefined;
 
 	readonly onTsServerStarted: vscode.Event<API>;

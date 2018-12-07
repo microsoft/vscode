@@ -35,14 +35,14 @@ class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider 
 		private cachedResponse: CachedResponse<Proto.NavTreeResponse>,
 	) { }
 
-	public async provideDocumentSymbols(resource: vscode.TextDocument, token: vscode.CancellationToken): Promise<vscode.DocumentSymbol[] | undefined> {
-		const file = this.client.toPath(resource.uri);
+	public async provideDocumentSymbols(document: vscode.TextDocument, token: vscode.CancellationToken): Promise<vscode.DocumentSymbol[] | undefined> {
+		const file = this.client.toOpenedFilePath(document);
 		if (!file) {
 			return undefined;
 		}
 
 		const args: Proto.FileRequestArgs = { file };
-		const response = await this.cachedResponse.execute(resource, () => this.client.execute('navtree', args, token));
+		const response = await this.cachedResponse.execute(document, () => this.client.execute('navtree', args, token));
 		if (response.type !== 'response' || !response.body) {
 			return undefined;
 		}
@@ -51,7 +51,7 @@ class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider 
 		if (tree && tree.childItems) {
 			// The root represents the file. Ignore this when showing in the UI
 			const result: vscode.DocumentSymbol[] = [];
-			tree.childItems.forEach(item => TypeScriptDocumentSymbolProvider.convertNavTree(resource.uri, result, item));
+			tree.childItems.forEach(item => TypeScriptDocumentSymbolProvider.convertNavTree(document.uri, result, item));
 			return result;
 		}
 

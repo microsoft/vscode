@@ -514,6 +514,14 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		return this.normalizedPath(resource);
 	}
 
+	public toOpenedFilePath(document: vscode.TextDocument): string | undefined {
+		if (!this.bufferSyncSupport.handles(document.uri)) {
+			console.error(`Unexpected resource ${document.uri}`);
+			return undefined;
+		}
+		return this.toPath(document.uri) || undefined;
+	}
+
 	private get inMemoryResourcePrefix(): string {
 		return this._apiVersion.gte(API.v270) ? '^' : '';
 	}

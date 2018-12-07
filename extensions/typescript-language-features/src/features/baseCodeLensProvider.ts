@@ -48,7 +48,7 @@ export abstract class TypeScriptBaseCodeLensProvider implements vscode.CodeLensP
 	}
 
 	async provideCodeLenses(document: vscode.TextDocument, token: vscode.CancellationToken): Promise<vscode.CodeLens[]> {
-		const filepath = this.client.toPath(document.uri);
+		const filepath = this.client.toOpenedFilePath(document);
 		if (!filepath) {
 			return [];
 		}
