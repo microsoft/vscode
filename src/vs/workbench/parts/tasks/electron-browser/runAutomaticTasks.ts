@@ -11,6 +11,7 @@ import { forEach } from 'vs/base/common/collections';
 import { RunOnOptions, Task, TaskRunSource } from 'vs/workbench/parts/tasks/common/tasks';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { Action } from 'vs/base/common/actions';
 
 const ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE = 'tasks.run.allowAutomatic';
 
@@ -121,4 +122,40 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		});
 	}
 
+}
+
+export class AllowAutomaticTaskRunning extends Action {
+
+	public static readonly ID = 'workbench.action.tasks.allowAutomaticRunning';
+	public static readonly LABEL = nls.localize('workbench.action.tasks.allowAutomaticRunning', "Allow Automatic Tasks in Folder");
+
+	constructor(
+		id: string, label: string,
+		@IStorageService private storageService: IStorageService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): Promise<any> {
+		this.storageService.store(ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE, true, StorageScope.WORKSPACE);
+		return Promise.resolve(void 0);
+	}
+}
+
+export class DisallowAutomaticTaskRunning extends Action {
+
+	public static readonly ID = 'workbench.action.tasks.disallowAutomaticRunning';
+	public static readonly LABEL = nls.localize('workbench.action.tasks.disallowAutomaticRunning', "Disallow Automatic Tasks in Folder");
+
+	constructor(
+		id: string, label: string,
+		@IStorageService private storageService: IStorageService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): Promise<any> {
+		this.storageService.store(ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE, false, StorageScope.WORKSPACE);
+		return Promise.resolve(void 0);
+	}
 }
