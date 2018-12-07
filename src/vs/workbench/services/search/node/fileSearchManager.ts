@@ -33,7 +33,6 @@ export interface IDirectoryTree {
 	pathToEntries: { [relativePath: string]: IDirectoryEntry[] };
 }
 
-
 class FileSearchEngine {
 	private filePattern?: string;
 	private includePattern?: glob.ParsedExpression;
@@ -132,7 +131,7 @@ class FileSearchEngine {
 					const providerTime = providerSW.elapsed();
 					const postProcessSW = StopWatch.create();
 
-					if (this.isCanceled) {
+					if (this.isCanceled && !this.isLimitHit) {
 						return null;
 					}
 
@@ -153,7 +152,7 @@ class FileSearchEngine {
 					}
 
 					this.activeCancellationTokens.delete(cancellation);
-					if (this.isCanceled) {
+					if (this.isCanceled && !this.isLimitHit) {
 						return null;
 					}
 
