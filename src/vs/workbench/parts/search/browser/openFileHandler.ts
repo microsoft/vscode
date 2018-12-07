@@ -160,7 +160,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 			iconClass = 'file'; // only use a generic file icon if we are forced to use an icon and have no icon theme set otherwise
 		}
 
-		return this.getAbsolutePathResult(query).then(result => {
+		return this.getPathResult(query).then(result => {
 			if (token.isCancellationRequested) {
 				return Promise.resolve(<ISearchComplete>{ results: [] });
 			}
@@ -189,14 +189,18 @@ export class OpenFileHandler extends QuickOpenHandler {
 		});
 	}
 
-	private getAbsolutePathResult(query: IPreparedQuery): Thenable<URI> {
+	private getPathResult(query: IPreparedQuery): Thenable<URI> {
 		if (paths.isAbsolute(query.original)) {
 			const resource = URI.file(query.original);
 
 			return this.fileService.resolveFile(resource).then(stat => stat.isDirectory ? void 0 : resource, error => void 0);
-		}
+		} else {
+			// Attempt to solve the query as a relative path instead
+			const current = this.editorService.activeEditor.getResource();
+			const resource = URI.file(paths.join(paths.dirname(current.fsPath), query.original));
 
-		return Promise.resolve(null);
+			return this.fileService.resolveFile(resource).then(stat => stat.isDirectory ? void 0 : resource, error => void 0);
+		}
 	}
 
 	private doResolveQueryOptions(query: IPreparedQuery, cacheKey?: string, maxSortedResults?: number): IFileQueryBuilderOptions {
