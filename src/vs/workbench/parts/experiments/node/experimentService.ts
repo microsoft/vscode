@@ -130,7 +130,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 	) {
 		super();
 
-		this._loadExperimentsPromise = TPromise.wrap(this.lifecycleService.when(LifecyclePhase.Eventually)).then(() => this.loadExperiments());
+		this._loadExperimentsPromise = Promise.resolve(this.lifecycleService.when(LifecyclePhase.Eventually)).then(() => this.loadExperiments());
 	}
 
 	public getExperimentById(id: string): TPromise<IExperiment> {
@@ -316,29 +316,29 @@ export class ExperimentService extends Disposable implements IExperimentService 
 
 	private shouldRunExperiment(experiment: IRawExperiment, processedExperiment: IExperiment): TPromise<ExperimentState> {
 		if (processedExperiment.state !== ExperimentState.Evaluating) {
-			return TPromise.wrap(processedExperiment.state);
+			return Promise.resolve(processedExperiment.state);
 		}
 
 		if (!experiment.enabled) {
-			return TPromise.wrap(ExperimentState.NoRun);
+			return Promise.resolve(ExperimentState.NoRun);
 		}
 
 		if (!experiment.condition) {
-			return TPromise.wrap(ExperimentState.Run);
+			return Promise.resolve(ExperimentState.Run);
 		}
 
 		if (!this.checkExperimentDependencies(experiment)) {
-			return TPromise.wrap(ExperimentState.NoRun);
+			return Promise.resolve(ExperimentState.NoRun);
 		}
 
 		if (this.environmentService.appQuality === 'stable' && experiment.condition.insidersOnly === true) {
-			return TPromise.wrap(ExperimentState.NoRun);
+			return Promise.resolve(ExperimentState.NoRun);
 		}
 
 		const isNewUser = !this.storageService.get(lastSessionDateStorageKey, StorageScope.GLOBAL);
 		if ((experiment.condition.newUser === true && !isNewUser)
 			|| (experiment.condition.newUser === false && isNewUser)) {
-			return TPromise.wrap(ExperimentState.NoRun);
+			return Promise.resolve(ExperimentState.NoRun);
 		}
 
 		if (typeof experiment.condition.displayLanguage === 'string') {
@@ -355,7 +355,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 					localeToCheck = localeToCheck.substr(0, b);
 				}
 				if (displayLanguage !== localeToCheck) {
-					return TPromise.wrap(ExperimentState.NoRun);
+					return Promise.resolve(ExperimentState.NoRun);
 				}
 			}
 		}

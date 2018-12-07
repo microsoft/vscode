@@ -45,7 +45,7 @@ function aLocalExtension(name: string = 'someext', manifest: any = {}, propertie
 
 export class TestExperimentService extends ExperimentService {
 	public getExperiments(): TPromise<any[]> {
-		return TPromise.wrap(experimentData.experiments);
+		return Promise.resolve(experimentData.experiments);
 	}
 }
 
