@@ -264,6 +264,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': 'on',
 			'description': nls.localize('lineNumbers', "Controls the display of line numbers.")
 		},
+		'editor.displayBlankLastLineNumber': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('displayBlankLastLineNumber', "Controls whether last file line number is displayed when that line is blank.")
+		},
 		'editor.rulers': {
 			'type': 'array',
 			'items': {
