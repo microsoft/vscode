@@ -5,9 +5,11 @@
 
 
 import * as assert from 'assert';
-import { MarkdownString } from 'vs/workbench/api/node/extHostTypeConverters';
+import { MarkdownString, LogLevel } from 'vs/workbench/api/node/extHostTypeConverters';
 import { isEmptyObject } from 'vs/base/common/types';
 import { size } from 'vs/base/common/collections';
+import * as types from 'vs/workbench/api/node/extHostTypes';
+import { LogLevel as _MainLogLevel } from 'vs/platform/log/common/log';
 
 suite('ExtHostTypeConverter', function () {
 
@@ -55,5 +57,15 @@ suite('ExtHostTypeConverter', function () {
 		assert.equal(size(data.uris), 2);
 		assert.ok(!!data.uris['file:///somepath/here']);
 		assert.ok(!!data.uris['file:///somepath/here2']);
+	});
+
+	test('LogLevel', () => {
+		assert.equal(LogLevel.from(types.LogLevel.Error), _MainLogLevel.Error);
+		assert.equal(LogLevel.from(types.LogLevel.Info), _MainLogLevel.Info);
+		assert.equal(LogLevel.from(types.LogLevel.Off), _MainLogLevel.Off);
+
+		assert.equal(LogLevel.to(_MainLogLevel.Error), types.LogLevel.Error);
+		assert.equal(LogLevel.to(_MainLogLevel.Info), types.LogLevel.Info);
+		assert.equal(LogLevel.to(_MainLogLevel.Off), types.LogLevel.Off);
 	});
 });

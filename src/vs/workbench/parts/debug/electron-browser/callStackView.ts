@@ -43,6 +43,7 @@ export class CallStackView extends ViewletPanel {
 	private onCallStackChangeScheduler: RunOnceScheduler;
 	private needsRefresh: boolean;
 	private ignoreSelectionChangedEvent: boolean;
+	private ignoreFocusStackFrameEvent: boolean;
 	private callStackItemType: IContextKey<string>;
 	private dataSource: CallStackDataSource;
 	private tree: WorkbenchAsyncDataTree<CallStackItem>;
@@ -133,16 +134,25 @@ export class CallStackView extends ViewletPanel {
 				return;
 			}
 
+			const focusStackFrame = (stackFrame: IStackFrame, thread: IThread, session: IDebugSession) => {
+				this.ignoreFocusStackFrameEvent = true;
+				try {
+					this.debugService.focusStackFrame(stackFrame, thread, session, true);
+				} finally {
+					this.ignoreFocusStackFrameEvent = false;
+				}
+			};
+
 			const element = e.element;
 			if (element instanceof StackFrame) {
-				this.debugService.focusStackFrame(element, element.thread, element.thread.session, true);
+				focusStackFrame(element, element.thread, element.thread.session);
 				element.openInEditor(this.editorService, e.editorOptions.preserveFocus, e.sideBySide, e.editorOptions.pinned);
 			}
 			if (element instanceof Thread) {
-				this.debugService.focusStackFrame(undefined, element, element.session, true);
+				focusStackFrame(undefined, element, element.session);
 			}
 			if (element instanceof DebugSession) {
-				this.debugService.focusStackFrame(undefined, undefined, element, true);
+				focusStackFrame(undefined, undefined, element);
 			}
 			if (element instanceof ThreadAndSessionIds) {
 				const session = this.debugService.getModel().getSessions().filter(p => p.getId() === element.sessionId).pop();
@@ -169,6 +179,9 @@ export class CallStackView extends ViewletPanel {
 			}
 		}));
 		this.disposables.push(this.debugService.getViewModel().onDidFocusStackFrame(() => {
+			if (this.ignoreFocusStackFrameEvent) {
+				return;
+			}
 			if (!this.isVisible) {
 				this.needsRefresh = true;
 				return;

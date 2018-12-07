@@ -11,6 +11,7 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { CompletionItemKind, completionKindFromLegacyString } from 'vs/editor/common/modes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 export abstract class Memory {
 
@@ -199,6 +200,7 @@ export class SuggestMemories extends Disposable {
 
 	private _mode: MemMode;
 	private _strategy: Memory;
+	private readonly _persistSoon: RunOnceScheduler;
 
 	constructor(
 		editor: ICodeEditor,
@@ -206,6 +208,7 @@ export class SuggestMemories extends Disposable {
 	) {
 		super();
 
+		this._persistSoon = this._register(new RunOnceScheduler(() => this._saveState(editor.getConfiguration().contribInfo.suggest.shareSuggestSelections), 3000));
 		this._setMode(editor.getConfiguration().contribInfo.suggestSelection, editor.getConfiguration().contribInfo.suggest.shareSuggestSelections);
 		this._register(editor.onDidChangeConfiguration(e => e.contribInfo && this._setMode(editor.getConfiguration().contribInfo.suggestSelection, editor.getConfiguration().contribInfo.suggest.shareSuggestSelections)));
 		this._register(_storageService.onWillSaveState(() => this._saveState(editor.getConfiguration().contribInfo.suggest.shareSuggestSelections)));
@@ -230,6 +233,7 @@ export class SuggestMemories extends Disposable {
 
 	memorize(model: ITextModel, pos: IPosition, item: ICompletionItem): void {
 		this._strategy.memorize(model, pos, item);
+		this._persistSoon.schedule();
 	}
 
 	select(model: ITextModel, pos: IPosition, items: ICompletionItem[]): number {
@@ -238,6 +242,6 @@ export class SuggestMemories extends Disposable {
 
 	private _saveState(useGlobalStorageForSuggestions: boolean) {
 		const raw = JSON.stringify(this._strategy);
-		useGlobalStorageForSuggestions ? this._storageService.store(`${this._storagePrefix}/${this._mode}`, raw, StorageScope.GLOBAL) : this._storageService.store(`${this._storagePrefix}/${this._mode}`, raw, StorageScope.WORKSPACE);
+		this._storageService.store(`${this._storagePrefix}/${this._mode}`, raw, useGlobalStorageForSuggestions ? StorageScope.GLOBAL : StorageScope.WORKSPACE);
 	}
 }

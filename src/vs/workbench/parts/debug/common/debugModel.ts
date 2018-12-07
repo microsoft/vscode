@@ -24,42 +24,31 @@ import { sep } from 'vs/base/common/paths';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
-export abstract class AbstractReplElement implements IReplElement {
-	private static ID_COUNTER = 0;
-
-	constructor(public sourceData: IReplElementSource, private id = AbstractReplElement.ID_COUNTER++) {
-		// noop
-	}
-
-	public getId(): string {
-		return `replelement:${this.id}`;
-	}
-
-	// Used by the copy all action in repl
-	abstract toString(): string;
-}
-
-export class SimpleReplElement extends AbstractReplElement {
-
+export class SimpleReplElement implements IReplElement {
 	constructor(
+		private id: string,
 		public value: string,
 		public severity: severity,
-		source: IReplElementSource,
-	) {
-		super(source);
-	}
+		public sourceData: IReplElementSource,
+	) { }
 
 	public toString(): string {
 		return this.value;
 	}
+
+	getId(): string {
+		return this.id;
+	}
 }
 
-export class RawObjectReplElement extends AbstractReplElement implements IExpression {
+export class RawObjectReplElement implements IExpression {
 
 	private static readonly MAX_CHILDREN = 1000; // upper bound of children per value
 
-	constructor(public name: string, public valueObj: any, source?: IReplElementSource, public annotation?: string) {
-		super(source);
+	constructor(private id: string, public name: string, public valueObj: any, public sourceData?: IReplElementSource, public annotation?: string) { }
+
+	getId(): string {
+		return this.id;
 	}
 
 	public get value(): string {
@@ -84,10 +73,10 @@ export class RawObjectReplElement extends AbstractReplElement implements IExpres
 		let result: IExpression[] = [];
 		if (Array.isArray(this.valueObj)) {
 			result = (<any[]>this.valueObj).slice(0, RawObjectReplElement.MAX_CHILDREN)
-				.map((v, index) => new RawObjectReplElement(String(index), v));
+				.map((v, index) => new RawObjectReplElement(`${this.id}:${index}`, String(index), v));
 		} else if (isObject(this.valueObj)) {
 			result = Object.getOwnPropertyNames(this.valueObj).slice(0, RawObjectReplElement.MAX_CHILDREN)
-				.map(key => new RawObjectReplElement(key, this.valueObj[key]));
+				.map((key, index) => new RawObjectReplElement(`${this.id}:${index}`, key, this.valueObj[key]));
 		}
 
 		return Promise.resolve(result);

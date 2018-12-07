@@ -8,6 +8,7 @@ import * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import * as typeConverters from '../utils/typeConverters';
+import { CachedResponse } from './baseCodeLensProvider';
 
 const getSymbolKind = (kind: string): vscode.SymbolKind => {
 	switch (kind) {
@@ -30,7 +31,8 @@ const getSymbolKind = (kind: string): vscode.SymbolKind => {
 
 class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
 	public constructor(
-		private readonly client: ITypeScriptServiceClient
+		private readonly client: ITypeScriptServiceClient,
+		private cachedResponse: CachedResponse<Proto.NavTreeResponse>,
 	) { }
 
 	public async provideDocumentSymbols(resource: vscode.TextDocument, token: vscode.CancellationToken): Promise<vscode.DocumentSymbol[] | undefined> {
@@ -40,8 +42,8 @@ class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider 
 		}
 
 		const args: Proto.FileRequestArgs = { file };
-		const response = await this.client.execute('navtree', args, token);
-		if (response.type !== 'response' || !response.body) {
+		const response = await this.cachedResponse.execute(resource, () => this.client.execute('navtree', args, token));
+		if (!response || response.type !== 'response' || !response.body) {
 			return undefined;
 		}
 
@@ -97,7 +99,8 @@ class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider 
 export function register(
 	selector: vscode.DocumentSelector,
 	client: ITypeScriptServiceClient,
+	cachedResponse: CachedResponse<Proto.NavTreeResponse>,
 ) {
 	return vscode.languages.registerDocumentSymbolProvider(selector,
-		new TypeScriptDocumentSymbolProvider(client), { label: 'TypeScript' });
+		new TypeScriptDocumentSymbolProvider(client, cachedResponse), { label: 'TypeScript' });
 }
