@@ -12,9 +12,6 @@ import { RunOnOptions, Task, TaskRunSource } from 'vs/workbench/parts/tasks/comm
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { Action } from 'vs/base/common/actions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 
 const ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE = 'tasks.run.allowAutomatic';
 
@@ -130,7 +127,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 export class AllowAutomaticTaskRunning extends Action {
 
 	public static readonly ID = 'workbench.action.tasks.allowAutomaticRunning';
-	public static readonly LABEL = nls.localize('workbench.action.tasks.allowAutomaticRunning', "Allow Automatic Tasks in this Folder");
+	public static readonly LABEL = nls.localize('workbench.action.tasks.allowAutomaticRunning', "Allow Automatic Tasks in Folder");
 
 	constructor(
 		id: string, label: string,
@@ -148,7 +145,7 @@ export class AllowAutomaticTaskRunning extends Action {
 export class DisallowAutomaticTaskRunning extends Action {
 
 	public static readonly ID = 'workbench.action.tasks.disallowAutomaticRunning';
-	public static readonly LABEL = nls.localize('workbench.action.tasks.disallowAutomaticRunning', "Disallow Automatic Tasks in this Folder");
+	public static readonly LABEL = nls.localize('workbench.action.tasks.disallowAutomaticRunning', "Disallow Automatic Tasks in Folder");
 
 	constructor(
 		id: string, label: string,
@@ -162,9 +159,3 @@ export class DisallowAutomaticTaskRunning extends Action {
 		return Promise.resolve(void 0);
 	}
 }
-
-const category = nls.localize('tasksCategory', "Tasks");
-const actionRegistry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
-
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(AllowAutomaticTaskRunning, AllowAutomaticTaskRunning.ID, AllowAutomaticTaskRunning.LABEL), 'Tasks: Allow Automatic Tasks in Folder', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(DisallowAutomaticTaskRunning, DisallowAutomaticTaskRunning.ID, DisallowAutomaticTaskRunning.LABEL), 'Tasks: Disallow Automatic Tasks in Folder', category);
