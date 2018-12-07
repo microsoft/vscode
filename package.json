@@ -125,7 +125,7 @@
     "source-map": "^0.4.4",
     "ts-loader": "^4.4.2",
     "tslint": "^5.11.0",
-    "typescript": "3.1.4",
+    "typescript": "3.2.2",
     "typescript-formatter": "7.1.0",
     "typescript-tslint-plugin": "^0.0.7",
     "uglify-es": "^3.0.18",
