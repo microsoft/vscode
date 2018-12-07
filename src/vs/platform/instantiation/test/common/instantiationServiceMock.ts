@@ -8,7 +8,6 @@ import * as types from 'vs/base/common/types';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { TPromise } from 'vs/base/common/winjs.base';
 
 interface IServiceMock<T> {
 	id: ServiceIdentifier<T>;
@@ -72,8 +71,8 @@ export class TestInstantiationService extends InstantiationService {
 	public stubPromise<T>(service?: ServiceIdentifier<T>, ctor?: any, fnProperty?: string, value?: any): sinon.SinonStub;
 	public stubPromise<T>(service?: ServiceIdentifier<T>, obj?: any, fnProperty?: string, value?: any): sinon.SinonStub;
 	public stubPromise(arg1?: any, arg2?: any, arg3?: any, arg4?: any): sinon.SinonStub {
-		arg3 = typeof arg2 === 'string' ? TPromise.as(arg3) : arg3;
-		arg4 = typeof arg2 !== 'string' && typeof arg3 === 'string' ? TPromise.as(arg4) : arg4;
+		arg3 = typeof arg2 === 'string' ? Promise.resolve(arg3) : arg3;
+		arg4 = typeof arg2 !== 'string' && typeof arg3 === 'string' ? Promise.resolve(arg4) : arg4;
 		return this.stub(arg1, arg2, arg3, arg4);
 	}
 
