@@ -792,7 +792,7 @@ suite('Experiment Service', () => {
 			assert.equal(result[1].state, ExperimentState.Run);
 			assert.equal(storageDataExperiment3.state, ExperimentState.NoRun);
 			assert.equal(storageDataExperiment4.state, ExperimentState.Run);
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		});
 	});
 	// test('Experiment with condition type FileEdit should increment editcount as appropriate', () => {

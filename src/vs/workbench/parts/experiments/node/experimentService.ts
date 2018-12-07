@@ -171,16 +171,16 @@ export class ExperimentService extends Disposable implements IExperimentService 
 
 	protected getExperiments(): TPromise<IRawExperiment[]> {
 		if (!product.experimentsUrl || this.configurationService.getValue('workbench.enableExperiments') === false) {
-			return TPromise.as([]);
+			return Promise.resolve([]);
 		}
 		return this.requestService.request({ type: 'GET', url: product.experimentsUrl }, CancellationToken.None).then(context => {
 			if (context.res.statusCode !== 200) {
-				return TPromise.as(null);
+				return Promise.resolve(null);
 			}
 			return asJson(context).then(result => {
 				return Array.isArray<IRawExperiment>(result['experiments']) ? result['experiments'] : [];
 			});
-		}, () => TPromise.as(null));
+		}, () => Promise.resolve(null));
 	}
 
 	private loadExperiments(): TPromise<any> {
@@ -201,7 +201,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 						}
 					});
 				}
-				return TPromise.as(null);
+				return Promise.resolve(null);
 			}
 
 			// Clear disbaled/deleted experiments from storage
@@ -246,7 +246,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 				this._experiments.push(processedExperiment);
 
 				if (!processedExperiment.enabled) {
-					return TPromise.as(null);
+					return Promise.resolve(null);
 				}
 
 				const storageKey = 'experiments.' + experiment.id;
@@ -267,7 +267,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 					if (state === ExperimentState.Run) {
 						this.fireRunExperiment(processedExperiment);
 					}
-					return TPromise.as(null);
+					return Promise.resolve(null);
 				});
 
 			});
@@ -364,7 +364,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 			experiment.condition.userProbability = 1;
 		}
 
-		let extensionsCheckPromise = TPromise.as(true);
+		let extensionsCheckPromise = Promise.resolve(true);
 		if (experiment.condition.installedExtensions) {
 			extensionsCheckPromise = this.extensionManagementService.getInstalled(LocalExtensionType.User).then(locals => {
 				let includesCheck = true;
