@@ -293,6 +293,7 @@
 		"./vs/editor/contrib/dnd/dragAndDropCommand.ts",
 		"./vs/editor/contrib/find/findDecorations.ts",
 		"./vs/editor/contrib/find/findModel.ts",
+		"./vs/editor/contrib/find/findOptionsWidget.ts",
 		"./vs/editor/contrib/find/findState.ts",
 		"./vs/editor/contrib/find/replaceAllCommand.ts",
 		"./vs/editor/contrib/find/replacePattern.ts",
