@@ -23,27 +23,27 @@ import { IHistoryNavigationWidget } from 'vs/base/browser/history';
 const $ = dom.$;
 
 export interface IInputOptions extends IInputBoxStyles {
-	placeholder?: string;
-	ariaLabel?: string;
-	type?: string;
-	validationOptions?: IInputValidationOptions;
-	flexibleHeight?: boolean;
-	actions?: IAction[];
+	readonly placeholder?: string;
+	readonly ariaLabel?: string;
+	readonly type?: string;
+	readonly validationOptions?: IInputValidationOptions;
+	readonly flexibleHeight?: boolean;
+	readonly actions?: IAction[];
 }
 
 export interface IInputBoxStyles {
-	inputBackground?: Color;
-	inputForeground?: Color;
-	inputBorder?: Color;
-	inputValidationInfoBorder?: Color;
-	inputValidationInfoBackground?: Color;
-	inputValidationInfoForeground?: Color;
-	inputValidationWarningBorder?: Color;
-	inputValidationWarningBackground?: Color;
-	inputValidationWarningForeground?: Color;
-	inputValidationErrorBorder?: Color;
-	inputValidationErrorBackground?: Color;
-	inputValidationErrorForeground?: Color;
+	readonly inputBackground?: Color;
+	readonly inputForeground?: Color;
+	readonly inputBorder?: Color;
+	readonly inputValidationInfoBorder?: Color;
+	readonly inputValidationInfoBackground?: Color;
+	readonly inputValidationInfoForeground?: Color;
+	readonly inputValidationWarningBorder?: Color;
+	readonly inputValidationWarningBackground?: Color;
+	readonly inputValidationWarningForeground?: Color;
+	readonly inputValidationErrorBorder?: Color;
+	readonly inputValidationErrorBackground?: Color;
+	readonly inputValidationErrorForeground?: Color;
 }
 
 export interface IInputValidator {
@@ -51,9 +51,9 @@ export interface IInputValidator {
 }
 
 export interface IMessage {
-	content: string;
-	formatContent?: boolean; // defaults to false
-	type?: MessageType;
+	readonly content: string;
+	readonly formatContent?: boolean; // defaults to false
+	readonly type?: MessageType;
 }
 
 export interface IInputValidationOptions {
