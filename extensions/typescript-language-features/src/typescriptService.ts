@@ -63,14 +63,14 @@ export interface ITypeScriptServiceClient {
 	 *
 	 * Does not try handling case insensitivity.
 	 */
-	normalizedPath(resource: vscode.Uri): string | null;
+	normalizedPath(resource: vscode.Uri): string | undefined;
 
 	/**
 	 * Map a resource to a normalized path
 	 *
 	 * This will attempt to handle case insensitivity.
 	 */
-	toPath(resource: vscode.Uri): string | null;
+	toPath(resource: vscode.Uri): string | undefined;
 
 	/**
 	 * Convert a path to a resource.
