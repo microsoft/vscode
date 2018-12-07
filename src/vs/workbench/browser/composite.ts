@@ -210,24 +210,17 @@ export abstract class Composite extends Component implements IComposite {
  * A composite descriptor is a leightweight descriptor of a composite in the workbench.
  */
 export abstract class CompositeDescriptor<T extends Composite> {
-	id: string;
-	name: string;
-	cssClass?: string;
-	order?: number;
-	keybindingId?: string;
-	enabled: boolean;
 
-	private ctor: IConstructorSignature0<T>;
+	public enabled: boolean = true;
 
-	constructor(ctor: IConstructorSignature0<T>, id: string, name: string, cssClass?: string, order?: number, keybindingId?: string, ) {
-		this.ctor = ctor;
-		this.id = id;
-		this.name = name;
-		this.cssClass = cssClass;
-		this.order = order;
-		this.enabled = true;
-		this.keybindingId = keybindingId;
-	}
+	constructor(
+		private readonly ctor: IConstructorSignature0<T>,
+		public readonly id: string,
+		public readonly name: string,
+		public readonly cssClass?: string,
+		public readonly order?: number,
+		public readonly keybindingId?: string,
+	) { }
 
 	instantiate(instantiationService: IInstantiationService): T {
 		return instantiationService.createInstance(this.ctor);
