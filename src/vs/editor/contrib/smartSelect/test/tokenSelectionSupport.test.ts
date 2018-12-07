@@ -229,6 +229,9 @@ suite('SmartSelect', () => {
 		// edge
 		assertRanges('[I[[]()]]', new Range(1, 2, 1, 9), new Range(1, 1, 1, 10));
 		assertRanges('[[[]()]I]', new Range(1, 2, 1, 9), new Range(1, 1, 1, 10));
+
+		assertRanges('aaa(aaa)bbb(bIb)ccc(ccc)', new Range(1, 13, 1, 16), new Range(1, 12, 1, 17));
+		assertRanges('(aaa(aaa)bbb(bIb)ccc(ccc))', new Range(1, 14, 1, 17), new Range(1, 13, 1, 18), new Range(1, 2, 1, 26), new Range(1, 1, 1, 27));
 	});
 
 });

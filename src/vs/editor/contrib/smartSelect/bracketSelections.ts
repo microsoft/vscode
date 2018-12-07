@@ -40,7 +40,7 @@ export class BracketSelectionRangeProvider implements SelectionRangeProvider {
 				// process closing
 				let val = counts.has(key) ? counts.get(key) : 0;
 				val -= 1;
-				counts.set(key, val);
+				counts.set(key, Math.max(0, val));
 				if (val < 0) {
 					let arr = ranges.get(key);
 					if (!arr) {
@@ -73,7 +73,7 @@ export class BracketSelectionRangeProvider implements SelectionRangeProvider {
 				// opening
 				let val = counts.has(key) ? counts.get(key) : 0;
 				val -= 1;
-				counts.set(key, val);
+				counts.set(key, Math.max(0, val));
 				if (val < 0) {
 					let arr = ranges.get(key);
 					if (arr && arr.length > 0) {
