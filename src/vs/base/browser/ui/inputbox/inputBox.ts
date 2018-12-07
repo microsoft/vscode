@@ -57,7 +57,7 @@ export interface IMessage {
 }
 
 export interface IInputValidationOptions {
-	validation: IInputValidator;
+	validation?: IInputValidator;
 }
 
 export const enum MessageType {

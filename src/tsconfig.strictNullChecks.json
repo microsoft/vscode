@@ -31,6 +31,7 @@
 		"./vs/base/browser/ui/checkbox/checkbox.ts",
 		"./vs/base/browser/ui/contextview/contextview.ts",
 		"./vs/base/browser/ui/countBadge/countBadge.ts",
+		"./vs/base/browser/ui/findinput/findInput.ts",
 		"./vs/base/browser/ui/findinput/findInputCheckboxes.ts",
 		"./vs/base/browser/ui/grid/grid.ts",
 		"./vs/base/browser/ui/grid/gridview.ts",
