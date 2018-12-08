@@ -622,6 +622,7 @@
 		"./vs/workbench/parts/relauncher/electron-browser/relauncher.contribution.ts",
 		"./vs/workbench/parts/scm/common/scm.ts",
 		"./vs/workbench/parts/scm/electron-browser/scmUtil.ts",
+		"./vs/workbench/parts/search/browser/patternInputWidget.ts",
 		"./vs/workbench/parts/search/common/constants.ts",
 		"./vs/workbench/parts/search/common/queryBuilder.ts",
 		"./vs/workbench/parts/snippets/electron-browser/configureSnippets.ts",
