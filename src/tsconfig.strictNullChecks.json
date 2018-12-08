@@ -529,6 +529,7 @@
 		"./vs/platform/url/common/urlService.ts",
 		"./vs/platform/url/electron-main/electronUrlListener.ts",
 		"./vs/platform/url/node/urlIpc.ts",
+		"./vs/platform/widget/browser/contextScopedHistoryWidget.ts",
 		"./vs/platform/widget/common/contextScopedWidget.ts",
 		"./vs/platform/windows/common/windows.ts",
 		"./vs/platform/windows/electron-browser/windowService.ts",
