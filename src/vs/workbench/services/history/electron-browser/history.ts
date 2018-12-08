@@ -29,6 +29,7 @@ import { ResourceGlobMatcher } from 'vs/workbench/electron-browser/resources';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { coalesce } from 'vs/base/common/arrays';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -818,7 +819,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		const registry = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories);
 
-		const entries: ISerializedEditorHistoryEntry[] = this.history.map(input => {
+		const entries: ISerializedEditorHistoryEntry[] = coalesce(this.history.map(input => {
 
 			// Editor input: try via factory
 			if (input instanceof EditorInput) {
@@ -837,7 +838,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 			}
 
 			return void 0;
-		}).filter(serialized => !!serialized);
+		}));
 
 		this.storageService.store(HistoryService.STORAGE_KEY, JSON.stringify(entries), StorageScope.WORKSPACE);
 	}
@@ -847,12 +848,12 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		const entriesRaw = this.storageService.get(HistoryService.STORAGE_KEY, StorageScope.WORKSPACE);
 		if (entriesRaw) {
-			entries = JSON.parse(entriesRaw).filter((entry: object) => !!entry);
+			entries = coalesce(JSON.parse(entriesRaw));
 		}
 
 		const registry = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories);
 
-		this.history = entries.map(entry => {
+		this.history = coalesce(entries.map(entry => {
 			try {
 				return this.safeLoadHistoryEntry(registry, entry);
 			} catch (error) {
@@ -860,7 +861,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 				return void 0; // https://github.com/Microsoft/vscode/issues/60960
 			}
-		}).filter(input => !!input);
+		}));
 	}
 
 	private safeLoadHistoryEntry(registry: IEditorInputFactoryRegistry, entry: ISerializedEditorHistoryEntry): IEditorInput | IResourceInput {

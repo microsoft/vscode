@@ -80,7 +80,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 									}
 									return undefined;
 								}, onUnexpectedError);
-						})).then(results => results.filter(result => !!result))
+						})).then(arrays.coalesce)
 							.then<any>(readmes => {
 								if (!editorService.activeEditor) {
 									if (readmes.length) {

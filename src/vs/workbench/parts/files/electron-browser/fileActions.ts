@@ -48,6 +48,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { Constants } from 'vs/editor/common/core/uint';
 import { CLOSE_EDITORS_AND_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { IViewlet } from 'vs/workbench/common/viewlet';
+import { coalesce } from 'vs/base/common/arrays';
 
 export interface IEditableData {
 	action: IAction;
@@ -156,7 +157,7 @@ class TriggerRenameFileAction extends BaseFileAction {
 	}
 
 	public validateFileName(name: string): string {
-		const names: string[] = name.split(/[\\/]/).filter(part => !!part);
+		const names: string[] = coalesce(name.split(/[\\/]/));
 		if (names.length > 1) {	// error only occurs on multi-path
 			const comparer = isLinux ? strings.compare : strings.compareIgnoreCase;
 			if (comparer(names[0], this.element.name) === 0) {
@@ -1440,7 +1441,7 @@ export function validateFileName(parent: ExplorerItem, name: string): string {
 		return nls.localize('fileNameStartsWithSlashError', "A file or folder name cannot start with a slash.");
 	}
 
-	const names: string[] = name.split(/[\\/]/).filter(part => !!part);
+	const names = coalesce(name.split(/[\\/]/));
 
 	// Do not allow to overwrite existing file
 	const childExists = !!parent.getChild(name);

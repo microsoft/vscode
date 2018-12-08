@@ -29,6 +29,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { getConfirmMessage, IDialogService, ISaveDialogOptions, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { coalesce } from 'vs/base/common/arrays';
 
 export class TextFileService extends AbstractTextFileService {
 
@@ -127,7 +128,7 @@ export class TextFileService extends AbstractTextFileService {
 		// Build the file filter by using our known languages
 		const ext: string = defaultUri ? paths.extname(defaultUri.path) : void 0;
 		let matchingFilter: IFilter;
-		const filters: IFilter[] = this.modeService.getRegisteredLanguageNames().map(languageName => {
+		const filters: IFilter[] = coalesce(this.modeService.getRegisteredLanguageNames().map(languageName => {
 			const extensions = this.modeService.getExtensions(languageName);
 			if (!extensions || !extensions.length) {
 				return null;
@@ -142,7 +143,7 @@ export class TextFileService extends AbstractTextFileService {
 			}
 
 			return filter;
-		}).filter(f => !!f);
+		}));
 
 		// Filters are a bit weird on Windows, based on having a match or not:
 		// Match: we put the matching filter first so that it shows up selected and the all files last
