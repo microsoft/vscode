@@ -445,6 +445,7 @@
 		"./vs/platform/instantiation/common/instantiationService.ts",
 		"./vs/platform/instantiation/common/serviceCollection.ts",
 		"./vs/platform/instantiation/node/instantiationService.ts",
+		"./vs/platform/instantiation/test/common/instantiationServiceMock.ts",
 		"./vs/platform/integrity/common/integrity.ts",
 		"./vs/platform/integrity/node/integrityServiceImpl.ts",
 		"./vs/platform/issue/common/issue.ts",
