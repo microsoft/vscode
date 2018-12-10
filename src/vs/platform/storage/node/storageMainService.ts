@@ -368,9 +368,6 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 	close(): Thenable<void> {
 		this.logService.trace('StorageMainService#close() - begin');
 
-		// Signal to storage that we are about to close
-		this.storage.beforeClose();
-
 		// Signal as event so that clients can still store data
 		this._onWillSaveState.fire();
 
