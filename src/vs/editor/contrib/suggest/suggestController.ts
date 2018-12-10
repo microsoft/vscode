@@ -17,7 +17,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CompletionItemProvider, CompletionItemInsertTextRule } from 'vs/editor/common/modes';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
-import { ISuggestMemories } from 'vs/editor/contrib/suggest/suggestMemory';
+import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/suggestMemory';
 import * as nls from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -97,7 +97,7 @@ export class SuggestController implements IEditorContribution {
 	constructor(
 		private _editor: ICodeEditor,
 		@IEditorWorkerService editorWorker: IEditorWorkerService,
-		@ISuggestMemories private readonly _memory: ISuggestMemories,
+		@ISuggestMemoryService private readonly _memoryService: ISuggestMemoryService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -120,7 +120,7 @@ export class SuggestController implements IEditorContribution {
 		}));
 		this._toDispose.push(this._model.onDidSuggest(e => {
 			if (!e.shy) {
-				let index = this._memory.select(this._editor.getModel(), this._editor.getPosition(), e.completionModel.items);
+				let index = this._memoryService.select(this._editor.getModel(), this._editor.getPosition(), e.completionModel.items);
 				this._widget.showSuggestions(e.completionModel, index, e.isFrozen, e.auto);
 			}
 		}));
@@ -231,7 +231,7 @@ export class SuggestController implements IEditorContribution {
 		}
 
 		// keep item in memory
-		this._memory.memorize(model, this._editor.getPosition(), event.item);
+		this._memoryService.memorize(model, this._editor.getPosition(), event.item);
 
 		let { insertText } = suggestion;
 		if (!(suggestion.insertTextRules & CompletionItemInsertTextRule.InsertAsSnippet)) {
@@ -344,7 +344,7 @@ export class SuggestController implements IEditorContribution {
 					fallback();
 					return;
 				}
-				const index = this._memory.select(this._editor.getModel(), this._editor.getPosition(), completionModel.items);
+				const index = this._memoryService.select(this._editor.getModel(), this._editor.getPosition(), completionModel.items);
 				const item = completionModel.items[index];
 				if (!makesTextEdit(item)) {
 					fallback();
