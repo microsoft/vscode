@@ -260,6 +260,15 @@
 	background-image: url('close-dirty-inverse.svg');
 }
 
+/* No Tab Close Button and "highlightModifiedTabs": true (should never show the dirty icon and never change tab width) */
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-off.dirty.dirty-border-top {
+	background-image: none;
+	padding-right: 10px;
+}
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-off.dirty.dirty-border-top.sizing-shrink {
+	padding-right: 5px;
+}
+
 /* Editor Actions */
 
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .editor-actions {
