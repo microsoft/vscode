@@ -9,9 +9,11 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { ITextModel } from 'vs/editor/common/model';
 import { IPosition } from 'vs/editor/common/core/position';
 import { CompletionItemKind, completionKindFromLegacyString } from 'vs/editor/common/modes';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export abstract class Memory {
 
@@ -194,35 +196,56 @@ export class PrefixMemory extends Memory {
 
 export type MemMode = 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
 
-export class SuggestMemories extends Disposable {
+class SuggestMemoryService extends Disposable implements ISuggestMemoryService {
+
+	readonly _serviceBrand: any;
 
 	private readonly _storagePrefix = 'suggest/memories';
 
-	private _mode: MemMode;
-	private _strategy: Memory;
 	private readonly _persistSoon: RunOnceScheduler;
+	private _mode: MemMode;
+	private _shareMem: boolean;
+	private _strategy: Memory;
 
 	constructor(
-		editor: ICodeEditor,
 		@IStorageService private readonly _storageService: IStorageService,
+		@IConfigurationService private readonly _configService: IConfigurationService,
 	) {
 		super();
 
-		this._persistSoon = this._register(new RunOnceScheduler(() => this._saveState(editor.getConfiguration().contribInfo.suggest.shareSuggestSelections), 3000));
-		this._setMode(editor.getConfiguration().contribInfo.suggestSelection, editor.getConfiguration().contribInfo.suggest.shareSuggestSelections);
-		this._register(editor.onDidChangeConfiguration(e => e.contribInfo && this._setMode(editor.getConfiguration().contribInfo.suggestSelection, editor.getConfiguration().contribInfo.suggest.shareSuggestSelections)));
-		this._register(_storageService.onWillSaveState(() => this._saveState(editor.getConfiguration().contribInfo.suggest.shareSuggestSelections)));
+		const update = () => {
+			const mode = this._configService.getValue<MemMode>('editor.suggestSelection');
+			const share = this._configService.getValue<boolean>('editor.suggest.shareSuggestSelections');
+			this._update(mode, share);
+		};
+
+		this._persistSoon = this._register(new RunOnceScheduler(() => this._saveState(), 3000));
+		this._register(_storageService.onWillSaveState(() => this._saveState()));
+
+		this._register(this._configService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('editor.suggestSelection') || e.affectsConfiguration('editor.suggest.shareSuggestSelections')) {
+				update();
+			}
+		}));
+		// this._register(this._storageService.onDidChangeStorage(e => {
+		// 	if (e.scope === StorageScope.GLOBAL && e.key.indexOf(this._storagePrefix) === 0) {
+		// 		update();
+		// 	}
+		// }));
+		update();
 	}
 
-	private _setMode(mode: MemMode, useGlobalStorageForSuggestions: boolean): void {
-		if (this._mode === mode) {
+	private _update(mode: MemMode, shareMem: boolean): void {
+		if (this._mode === mode && this._shareMem === shareMem) {
 			return;
 		}
+		this._shareMem = shareMem;
 		this._mode = mode;
 		this._strategy = mode === 'recentlyUsedByPrefix' ? new PrefixMemory() : mode === 'recentlyUsed' ? new LRUMemory() : new NoMemory();
 
 		try {
-			const raw = useGlobalStorageForSuggestions ? this._storageService.get(`${this._storagePrefix}/${this._mode}`, StorageScope.GLOBAL) : this._storageService.get(`${this._storagePrefix}/${this._mode}`, StorageScope.WORKSPACE);
+			const scope = shareMem ? StorageScope.GLOBAL : StorageScope.WORKSPACE;
+			const raw = this._storageService.get(`${this._storagePrefix}/${this._mode}`, scope);
 			if (raw) {
 				this._strategy.fromJSON(JSON.parse(raw));
 			}
@@ -240,8 +263,20 @@ export class SuggestMemories extends Disposable {
 		return this._strategy.select(model, pos, items);
 	}
 
-	private _saveState(useGlobalStorageForSuggestions: boolean) {
+	private _saveState() {
 		const raw = JSON.stringify(this._strategy);
-		this._storageService.store(`${this._storagePrefix}/${this._mode}`, raw, useGlobalStorageForSuggestions ? StorageScope.GLOBAL : StorageScope.WORKSPACE);
+		const scope = this._shareMem ? StorageScope.GLOBAL : StorageScope.WORKSPACE;
+		this._storageService.store(`${this._storagePrefix}/${this._mode}`, raw, scope);
 	}
 }
+
+
+export const ISuggestMemoryService = createDecorator<ISuggestMemoryService>('ISuggestMemories');
+
+export interface ISuggestMemoryService {
+	_serviceBrand: any;
+	memorize(model: ITextModel, pos: IPosition, item: ICompletionItem): void;
+	select(model: ITextModel, pos: IPosition, items: ICompletionItem[]): number;
+}
+
+registerSingleton(ISuggestMemoryService, SuggestMemoryService, true);

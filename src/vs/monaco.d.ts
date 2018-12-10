@@ -2561,7 +2561,7 @@ declare namespace monaco.editor {
 		/**
 		 * Enable using global storage for remembering suggestions.
 		 */
-		useGlobalStorageForSuggestions?: boolean;
+		shareSuggestSelections?: boolean;
 	}
 
 	/**
