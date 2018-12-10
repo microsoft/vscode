@@ -154,7 +154,6 @@
 	flex-shrink: 1;
 	box-sizing: border-box;
 	height: 30px;
-	-webkit-app-region: no-drag;
 	overflow: hidden;
 	flex-wrap: wrap;
 }
