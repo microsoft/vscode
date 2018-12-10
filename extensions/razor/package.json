@@ -12,7 +12,7 @@
   },
 	"contributes": {
 		"languages": [{
-			"id": "razor", "aspnetcorerazor",
+			"id": "razor",
 			"extensions": [ ".cshtml"],
 			"aliases": [ "Razor", "razor", "aspnetcorerazor" ],
 			"mimetypes": ["text/x-cshtml"],
