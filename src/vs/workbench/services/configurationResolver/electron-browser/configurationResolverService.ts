@@ -146,7 +146,7 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 	 */
 	private resolveWithCommands(configuration: any, variableToCommandMap: IStringDictionary<string>): TPromise<IStringDictionary<string>> {
 		if (!configuration) {
-			return TPromise.as(undefined);
+			return Promise.resolve(undefined);
 		}
 
 		// use an array to preserve order of first appearance
