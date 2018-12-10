@@ -5,6 +5,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { URI } from 'vs/base/common/uri';
 
 export const IMenubarService = createDecorator<IMenubarService>('menubarService');
 
@@ -35,6 +36,13 @@ export interface IMenubarMenuItemAction {
 	enabled?: boolean; // Assumed true if missing
 }
 
+export interface IMenubarMenuUriItemAction {
+	id: string;
+	label: string;
+	uri: URI;
+	enabled?: boolean;
+}
+
 export interface IMenubarMenuItemSubmenu {
 	id: string;
 	label: string;
@@ -45,7 +53,7 @@ export interface IMenubarMenuItemSeparator {
 	id: 'vscode.menubar.separator';
 }
 
-export type MenubarMenuItem = IMenubarMenuItemAction | IMenubarMenuItemSubmenu | IMenubarMenuItemSeparator;
+export type MenubarMenuItem = IMenubarMenuItemAction | IMenubarMenuItemSubmenu | IMenubarMenuItemSeparator | IMenubarMenuUriItemAction;
 
 export function isMenubarMenuItemSubmenu(menuItem: MenubarMenuItem): menuItem is IMenubarMenuItemSubmenu {
 	return (<IMenubarMenuItemSubmenu>menuItem).submenu !== undefined;
@@ -55,6 +63,10 @@ export function isMenubarMenuItemSeparator(menuItem: MenubarMenuItem): menuItem 
 	return (<IMenubarMenuItemSeparator>menuItem).id === 'vscode.menubar.separator';
 }
 
+export function isMenubarMenuItemUriAction(menuItem: MenubarMenuItem): menuItem is IMenubarMenuUriItemAction {
+	return (<IMenubarMenuUriItemAction>menuItem).uri !== undefined;
+}
+
 export function isMenubarMenuItemAction(menuItem: MenubarMenuItem): menuItem is IMenubarMenuItemAction {
-	return !isMenubarMenuItemSubmenu(menuItem) && !isMenubarMenuItemSeparator(menuItem);
+	return !isMenubarMenuItemSubmenu(menuItem) && !isMenubarMenuItemSeparator(menuItem) && !isMenubarMenuItemUriAction(menuItem);
 }
