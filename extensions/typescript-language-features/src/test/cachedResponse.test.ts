@@ -8,7 +8,7 @@ import 'mocha';
 import * as vscode from 'vscode';
 import * as Proto from '../protocol';
 import { CachedResponse } from '../tsServer/cachedResponse';
-import { ServerResponse } from '../typescriptService';
+import { ServerResponse, CancelledResponse } from '../typescriptService';
 
 suite('CachedResponse', () => {
 	test('should cache simple response for same document', async () => {
@@ -16,7 +16,7 @@ suite('CachedResponse', () => {
 		const response = new CachedResponse();
 
 		let seq = 0;
-		const makeRequest = async () => createSuccessResponse(`test-${seq++}`);
+		const makeRequest = async () => createResponse(`test-${seq++}`);
 
 		assertResult(await response.execute(doc, makeRequest), 'test-0');
 		assertResult(await response.execute(doc, makeRequest), 'test-0');
@@ -28,7 +28,7 @@ suite('CachedResponse', () => {
 		const response = new CachedResponse();
 
 		let seq = 0;
-		const makeRequest = async () => createSuccessResponse(`test-${seq++}`);
+		const makeRequest = async () => createResponse(`test-${seq++}`);
 
 		assertResult(await response.execute(doc1, makeRequest), 'test-0');
 		assertResult(await response.execute(doc1, makeRequest), 'test-0');
@@ -36,6 +36,20 @@ suite('CachedResponse', () => {
 		assertResult(await response.execute(doc2, makeRequest), 'test-1');
 		assertResult(await response.execute(doc1, makeRequest), 'test-2');
 		assertResult(await response.execute(doc1, makeRequest), 'test-2');
+	});
+
+	test('should not cache canceled response', async () => {
+		const doc = await vscode.workspace.openTextDocument({ language: 'javascript', content: '' });
+		const response = new CachedResponse();
+
+		let seq = 0;
+		const makeRequest = async () => createResponse(`test-${seq++}`);
+
+		const result1 = await response.execute(doc, async () => new CancelledResponse('cancleed'));
+		assert.strictEqual(result1.type, 'cancelled');
+
+		assertResult(await response.execute(doc, makeRequest), 'test-0');
+		assertResult(await response.execute(doc, makeRequest), 'test-0');
 	});
 });
 
@@ -47,7 +61,7 @@ function assertResult(result: ServerResponse<Proto.Response>, command: string) {
 	}
 }
 
-function createSuccessResponse(command: string): Proto.Response {
+function createResponse(command: string): Proto.Response {
 	return {
 		type: 'response',
 		body: {},
@@ -57,3 +71,4 @@ function createSuccessResponse(command: string): Proto.Response {
 		seq: 1
 	};
 }
+
