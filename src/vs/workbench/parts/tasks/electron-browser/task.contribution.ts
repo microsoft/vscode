@@ -704,7 +704,7 @@ class TaskService extends Disposable implements ITaskService {
 	public getTask(folder: IWorkspaceFolder | string, identifier: string | TaskIdentifier, compareId: boolean = false): TPromise<Task> {
 		let name = Types.isString(folder) ? folder : folder.name;
 		if (this.ignoredWorkspaceFolders.some(ignored => ignored.name === name)) {
-			return TPromise.wrapError(new Error(nls.localize('TaskServer.folderIgnored', 'The folder {0} is ignored since it uses task version 0.1.0', name)));
+			return Promise.reject(new Error(nls.localize('TaskServer.folderIgnored', 'The folder {0} is ignored since it uses task version 0.1.0', name)));
 		}
 		let key: string | KeyedTaskIdentifier;
 		if (!Types.isString(identifier)) {
@@ -828,7 +828,7 @@ class TaskService extends Disposable implements ITaskService {
 			return this.executeTask(runnable.task, runnable.resolver);
 		}).then(value => value, (error) => {
 			this.handleError(error);
-			return TPromise.wrapError(error);
+			return Promise.reject(error);
 		});
 	}
 
@@ -845,7 +845,7 @@ class TaskService extends Disposable implements ITaskService {
 			return this.executeTask(runnable.task, runnable.resolver);
 		}).then(value => value, (error) => {
 			this.handleError(error);
-			return TPromise.wrapError(error);
+			return Promise.reject(error);
 		});
 	}
 
@@ -868,7 +868,7 @@ class TaskService extends Disposable implements ITaskService {
 			}
 		}).then(value => value, (error) => {
 			this.handleError(error);
-			return TPromise.wrapError(error);
+			return Promise.reject(error);
 		});
 	}
 
@@ -989,12 +989,12 @@ class TaskService extends Disposable implements ITaskService {
 	public customize(task: ContributedTask | CustomTask, properties?: CustomizationProperties, openConfig?: boolean): TPromise<void> {
 		let workspaceFolder = Task.getWorkspaceFolder(task);
 		if (!workspaceFolder) {
-			return TPromise.wrap<void>(undefined);
+			return Promise.resolve(undefined);
 		}
 		let configuration = this.getConfiguration(workspaceFolder);
 		if (configuration.hasParseErrors) {
 			this.notificationService.warn(nls.localize('customizeParseErrors', 'The current task configuration has errors. Please fix the errors first before customizing a task.'));
-			return TPromise.wrap<void>(undefined);
+			return Promise.resolve<void>(undefined);
 		}
 
 		let fileConfig = configuration.config;
@@ -1530,7 +1530,7 @@ class TaskService extends Disposable implements ITaskService {
 			for (let folder of this.workspaceFolders) {
 				promises.push(this.computeWorkspaceFolderTasks(folder, runSource).then((value) => value, () => undefined));
 			}
-			return TPromise.join(promises).then((values) => {
+			return Promise.all(promises).then((values) => {
 				let result = new Map<string, WorkspaceFolderTaskResult>();
 				for (let value of values) {
 					if (value) {
@@ -1740,7 +1740,7 @@ class TaskService extends Disposable implements ITaskService {
 
 		let terminatePromise: TPromise<IConfirmationResult>;
 		if (this._taskSystem.canAutoTerminate()) {
-			terminatePromise = TPromise.wrap({ confirmed: true });
+			terminatePromise = Promise.resolve({ confirmed: true });
 		} else {
 			terminatePromise = this.dialogService.confirm({
 				message: nls.localize('TaskSystem.runningTask', 'There is a task running. Do you want to terminate it?'),
@@ -2321,7 +2321,7 @@ class TaskService extends Disposable implements ITaskService {
 
 		let createLabel = nls.localize('TaskService.createJsonFile', 'Create tasks.json file from template');
 		let openLabel = nls.localize('TaskService.openJsonFile', 'Open tasks.json file');
-		let entries = TPromise.join(stats).then((stats) => {
+		let entries = Promise.all(stats).then((stats) => {
 			return taskPromise.then((taskMap) => {
 				type EntryType = (IQuickPickItem & { task: Task; }) | (IQuickPickItem & { folder: IWorkspaceFolder; });
 				let entries: QuickPickInput<EntryType>[] = [];
