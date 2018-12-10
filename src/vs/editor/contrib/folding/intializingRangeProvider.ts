@@ -6,7 +6,6 @@
 import { ITextModel, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { FoldingRegions, ILineRange } from 'vs/editor/contrib/folding/foldingRanges';
 import { RangeProvider } from './folding';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IFoldingRangeData, sanitizeRanges } from 'vs/editor/contrib/folding/syntaxRangeProvider';
 
@@ -59,7 +58,7 @@ export class InitializingRangeProvider implements RangeProvider {
 				}
 			}
 		}
-		return TPromise.as(sanitizeRanges(foldingRangeData, Number.MAX_VALUE));
+		return Promise.resolve(sanitizeRanges(foldingRangeData, Number.MAX_VALUE));
 	}
 }
 

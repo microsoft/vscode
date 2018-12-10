@@ -16,7 +16,6 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Constants } from 'vs/editor/common/core/uint';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IListVirtualDelegate, IListContextMenuEvent, IListRenderer } from 'vs/base/browser/ui/list/list';
 import { IEditor } from 'vs/workbench/common/editor';
@@ -45,8 +44,6 @@ function createCheckbox(): HTMLInputElement {
 export class BreakpointsView extends ViewletPanel {
 
 	private static readonly MAX_VISIBLE_FILES = 9;
-	private static readonly MEMENTO = 'breakopintsview.memento';
-	private settings: any;
 	private list: WorkbenchList<IEnablement>;
 	private needsRefresh: boolean;
 
@@ -64,7 +61,6 @@ export class BreakpointsView extends ViewletPanel {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('breakpointsSection', "Breakpoints Section") }, keybindingService, contextMenuService, configurationService);
 
 		this.minimumBodySize = this.maximumBodySize = this.getExpandedBodySize();
-		this.settings = options.viewletSettings;
 		this.disposables.push(this.debugService.getModel().onDidChangeBreakpoints(() => this.onBreakpointsChange()));
 	}
 
@@ -78,7 +74,7 @@ export class BreakpointsView extends ViewletPanel {
 			this.instantiationService.createInstance(FunctionBreakpointsRenderer),
 			new FunctionBreakpointInputRenderer(this.debugService, this.contextViewService, this.themeService)
 		], {
-				identityProvider: element => element.getId(),
+				identityProvider: { getId: element => element.getId() },
 				multipleSelectionSupport: false
 			}) as WorkbenchList<IEnablement>;
 
@@ -138,6 +134,10 @@ export class BreakpointsView extends ViewletPanel {
 	}
 
 	private onListContextMenu(e: IListContextMenuEvent<IEnablement>): void {
+		if (!e.element) {
+			return;
+		}
+
 		const actions: IAction[] = [];
 		const element = e.element;
 
@@ -175,7 +175,7 @@ export class BreakpointsView extends ViewletPanel {
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
-			getActions: () => Promise.resolve(actions),
+			getActions: () => actions,
 			getActionsContext: () => element
 		});
 	}
@@ -195,12 +195,11 @@ export class BreakpointsView extends ViewletPanel {
 		}
 	}
 
-	public setVisible(visible: boolean): TPromise<void> {
-		return super.setVisible(visible).then(() => {
-			if (visible && this.needsRefresh) {
-				this.onBreakpointsChange();
-			}
-		});
+	public setVisible(visible: boolean): void {
+		super.setVisible(visible);
+		if (visible && this.needsRefresh) {
+			this.onBreakpointsChange();
+		}
 	}
 
 	private onBreakpointsChange(): void {
@@ -229,10 +228,6 @@ export class BreakpointsView extends ViewletPanel {
 		const model = this.debugService.getModel();
 		const length = model.getBreakpoints().length + model.getExceptionBreakpoints().length + model.getFunctionBreakpoints().length;
 		return Math.min(BreakpointsView.MAX_VISIBLE_FILES, length) * 22;
-	}
-
-	public shutdown(): void {
-		this.settings[BreakpointsView.MEMENTO] = !this.isExpanded();
 	}
 }
 
@@ -561,7 +556,7 @@ class FunctionBreakpointInputRenderer implements IListRenderer<IFunctionBreakpoi
 	}
 }
 
-export function openBreakpointSource(breakpoint: IBreakpoint, sideBySide: boolean, preserveFocus: boolean, debugService: IDebugService, editorService: IEditorService): TPromise<IEditor> {
+export function openBreakpointSource(breakpoint: IBreakpoint, sideBySide: boolean, preserveFocus: boolean, debugService: IDebugService, editorService: IEditorService): Thenable<IEditor> {
 	if (breakpoint.uri.scheme === DEBUG_SCHEME && debugService.state === State.Inactive) {
 		return Promise.resolve(null);
 	}
@@ -626,7 +621,7 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, br
 	}
 
 	if (breakpoint.logMessage || breakpoint.condition || breakpoint.hitCondition) {
-		const messages = [];
+		const messages: string[] = [];
 		if (breakpoint.logMessage) {
 			if (session && !session.capabilities.supportsLogPoints) {
 				return {

@@ -6,7 +6,6 @@
 import * as dom from 'vs/base/browser/dom';
 import * as network from 'vs/base/common/network';
 import * as paths from 'vs/base/common/paths';
-import { ITree, IAccessibilityProvider } from 'vs/base/parts/tree/browser/tree';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { FileLabel, ResourceLabel } from 'vs/workbench/browser/labels';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
@@ -26,6 +25,7 @@ import { ITreeFilter, TreeVisibility, TreeFilterResult, ITreeRenderer, ITreeNode
 import { FilterOptions } from 'vs/workbench/parts/markers/electron-browser/markersFilterOptions';
 import { IMatch } from 'vs/base/common/filters';
 import { Event } from 'vs/base/common/event';
+import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 
 export type TreeElement = ResourceMarkers | Marker | RelatedInformation;
 
@@ -50,18 +50,14 @@ interface IRelatedInformationTemplateData {
 	description: HighlightedLabel;
 }
 
-export class MarkersTreeAccessibilityProvider implements IAccessibilityProvider {
+export class MarkersTreeAccessibilityProvider implements IAccessibilityProvider<TreeElement> {
 
-	constructor(
-		@ILabelService private labelServie: ILabelService
-	) {
-	}
+	constructor(@ILabelService private labelService: ILabelService) { }
 
-	// TODO@joao
-	public getAriaLabel(tree: ITree, element: any): string {
+	public getAriaLabel(element: TreeElement): string {
 		if (element instanceof ResourceMarkers) {
-			const path = this.labelServie.getUriLabel(element.resource, { relative: true }) || element.resource.fsPath;
-			return Messages.MARKERS_TREE_ARIA_LABEL_RESOURCE(element.markers.length/* element.filteredCount */, element.name, paths.dirname(path));
+			const path = this.labelService.getUriLabel(element.resource, { relative: true }) || element.resource.fsPath;
+			return Messages.MARKERS_TREE_ARIA_LABEL_RESOURCE(element.markers.length, element.name, paths.dirname(path));
 		}
 		if (element instanceof Marker) {
 			return Messages.MARKERS_TREE_ARIA_LABEL_MARKER(element);
@@ -225,9 +221,9 @@ export class MarkerRenderer implements ITreeRenderer<Marker, MarkerFilterData, I
 		const actionsContainer = dom.append(container, dom.$('.actions'));
 		data.actionBar = new ActionBar(actionsContainer, { actionItemProvider: this.actionItemProvider });
 		data.icon = dom.append(container, dom.$('.icon'));
-		data.source = new HighlightedLabel(dom.append(container, dom.$('')));
-		data.description = new HighlightedLabel(dom.append(container, dom.$('.marker-description')));
-		data.code = new HighlightedLabel(dom.append(container, dom.$('')));
+		data.source = new HighlightedLabel(dom.append(container, dom.$('')), false);
+		data.description = new HighlightedLabel(dom.append(container, dom.$('.marker-description')), false);
+		data.code = new HighlightedLabel(dom.append(container, dom.$('')), false);
 		data.lnCol = dom.append(container, dom.$('span.marker-line'));
 		return data;
 	}
@@ -251,7 +247,7 @@ export class MarkerRenderer implements ITreeRenderer<Marker, MarkerFilterData, I
 		templateData.description.element.title = marker.message;
 
 		dom.toggleClass(templateData.code.element, 'marker-code', !!marker.code);
-		templateData.code.set(marker.code || '', codeMatches);
+		templateData.code.set(marker.code, codeMatches);
 
 		templateData.lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(marker.startLineNumber, marker.startColumn);
 	}
@@ -295,14 +291,14 @@ export class RelatedInformationRenderer implements ITreeRenderer<RelatedInformat
 		dom.append(container, dom.$('.actions'));
 		dom.append(container, dom.$('.icon'));
 
-		data.resourceLabel = new HighlightedLabel(dom.append(container, dom.$('.related-info-resource')));
+		data.resourceLabel = new HighlightedLabel(dom.append(container, dom.$('.related-info-resource')), false);
 		data.lnCol = dom.append(container, dom.$('span.marker-line'));
 
 		const separator = dom.append(container, dom.$('span.related-info-resource-separator'));
 		separator.textContent = ':';
 		separator.style.paddingRight = '4px';
 
-		data.description = new HighlightedLabel(dom.append(container, dom.$('.marker-description')));
+		data.description = new HighlightedLabel(dom.append(container, dom.$('.marker-description')), false);
 		return data;
 	}
 
@@ -332,13 +328,13 @@ export class Filter implements ITreeFilter<TreeElement, FilterData> {
 
 	options = new FilterOptions();
 
-	filter(element: TreeElement): TreeFilterResult<FilterData> {
+	filter(element: TreeElement, parentVisibility: TreeVisibility): TreeFilterResult<FilterData> {
 		if (element instanceof ResourceMarkers) {
 			return this.filterResourceMarkers(element);
 		} else if (element instanceof Marker) {
-			return this.filterMarker(element);
+			return this.filterMarker(element, parentVisibility);
 		} else {
-			return this.filterRelatedInformation(element);
+			return this.filterRelatedInformation(element, parentVisibility);
 		}
 	}
 
@@ -351,20 +347,20 @@ export class Filter implements ITreeFilter<TreeElement, FilterData> {
 			return false;
 		}
 
-		if (this.options.includePattern && this.options.includePattern(resourceMarkers.resource.fsPath)) {
-			return true;
-		}
-
 		const uriMatches = FilterOptions._filter(this.options.textFilter, paths.basename(resourceMarkers.resource.fsPath));
 
 		if (this.options.textFilter && uriMatches) {
 			return { visibility: true, data: { type: FilterDataType.ResourceMarkers, uriMatches } };
 		}
 
+		if (this.options.includePattern && this.options.includePattern(resourceMarkers.resource.fsPath)) {
+			return true;
+		}
+
 		return TreeVisibility.Recurse;
 	}
 
-	private filterMarker(marker: Marker): TreeFilterResult<FilterData> {
+	private filterMarker(marker: Marker, parentVisibility: TreeVisibility): TreeFilterResult<FilterData> {
 		if (this.options.filterErrors && MarkerSeverity.Error === marker.marker.severity) {
 			return true;
 		}
@@ -389,10 +385,10 @@ export class Filter implements ITreeFilter<TreeElement, FilterData> {
 			return { visibility: true, data: { type: FilterDataType.Marker, messageMatches: messageMatches || [], sourceMatches: sourceMatches || [], codeMatches: codeMatches || [] } };
 		}
 
-		return TreeVisibility.Recurse;
+		return parentVisibility;
 	}
 
-	private filterRelatedInformation(relatedInformation: RelatedInformation): TreeFilterResult<FilterData> {
+	private filterRelatedInformation(relatedInformation: RelatedInformation, parentVisibility: TreeVisibility): TreeFilterResult<FilterData> {
 		if (!this.options.textFilter) {
 			return true;
 		}
@@ -404,6 +400,6 @@ export class Filter implements ITreeFilter<TreeElement, FilterData> {
 			return { visibility: true, data: { type: FilterDataType.RelatedInformation, uriMatches: uriMatches || [], messageMatches: messageMatches || [] } };
 		}
 
-		return false;
+		return parentVisibility;
 	}
 }

@@ -7,7 +7,7 @@ import 'vs/css!./contextMenuHandler';
 
 import { combinedDisposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { ActionRunner, IAction, IRunEvent } from 'vs/base/common/actions';
+import { ActionRunner, IRunEvent } from 'vs/base/common/actions';
 import { Menu } from 'vs/base/browser/ui/menu/menu';
 
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -50,58 +50,62 @@ export class ContextMenuHandler {
 	}
 
 	showContextMenu(delegate: IContextMenuDelegate): void {
-		delegate.getActions().then((actions: IAction[]) => {
-			if (!actions.length) {
-				return; // Don't render an empty context menu
-			}
+		const actions = delegate.getActions();
+		if (!actions.length) {
+			return; // Don't render an empty context menu
+		}
 
-			this.focusToReturn = document.activeElement as HTMLElement;
+		this.focusToReturn = document.activeElement as HTMLElement;
 
-			this.contextViewService.showContextView({
-				getAnchor: () => delegate.getAnchor(),
-				canRelayout: false,
+		let menu: Menu | undefined;
 
-				render: (container) => {
-					this.menuContainerElement = container;
+		this.contextViewService.showContextView({
+			getAnchor: () => delegate.getAnchor(),
+			canRelayout: false,
+			anchorAlignment: delegate.anchorAlignment,
 
-					let className = delegate.getMenuClassName ? delegate.getMenuClassName() : '';
+			render: (container) => {
+				this.menuContainerElement = container;
 
-					if (className) {
-						container.className += ' ' + className;
-					}
+				let className = delegate.getMenuClassName ? delegate.getMenuClassName() : '';
 
-					const menuDisposables: IDisposable[] = [];
-
-					const actionRunner = delegate.actionRunner || new ActionRunner();
-					actionRunner.onDidBeforeRun(this.onActionRun, this, menuDisposables);
-					actionRunner.onDidRun(this.onDidActionRun, this, menuDisposables);
-
-					const menu = new Menu(container, actions, {
-						actionItemProvider: delegate.getActionItem,
-						context: delegate.getActionsContext ? delegate.getActionsContext() : null,
-						actionRunner,
-						getKeyBinding: delegate.getKeyBinding ? delegate.getKeyBinding : action => this.keybindingService.lookupKeybinding(action.id)
-					});
-
-					menuDisposables.push(attachMenuStyler(menu, this.themeService));
-
-					menu.onDidCancel(() => this.contextViewService.hideContextView(true), null, menuDisposables);
-					menu.onDidBlur(() => this.contextViewService.hideContextView(true), null, menuDisposables);
-					domEvent(window, EventType.BLUR)(() => { this.contextViewService.hideContextView(true); }, null, menuDisposables);
-
-					menu.focus(!!delegate.autoSelectFirstItem);
-
-					return combinedDisposable([...menuDisposables, menu]);
-				},
-
-				onHide: (didCancel?: boolean) => {
-					if (delegate.onHide) {
-						delegate.onHide(didCancel);
-					}
-
-					this.menuContainerElement = null;
+				if (className) {
+					container.className += ' ' + className;
 				}
-			});
+
+				const menuDisposables: IDisposable[] = [];
+
+				const actionRunner = delegate.actionRunner || new ActionRunner();
+				actionRunner.onDidBeforeRun(this.onActionRun, this, menuDisposables);
+				actionRunner.onDidRun(this.onDidActionRun, this, menuDisposables);
+
+				menu = new Menu(container, actions, {
+					actionItemProvider: delegate.getActionItem,
+					context: delegate.getActionsContext ? delegate.getActionsContext() : null,
+					actionRunner,
+					getKeyBinding: delegate.getKeyBinding ? delegate.getKeyBinding : action => this.keybindingService.lookupKeybinding(action.id)
+				});
+
+				menuDisposables.push(attachMenuStyler(menu, this.themeService));
+
+				menu.onDidCancel(() => this.contextViewService.hideContextView(true), null, menuDisposables);
+				menu.onDidBlur(() => this.contextViewService.hideContextView(true), null, menuDisposables);
+				domEvent(window, EventType.BLUR)(() => { this.contextViewService.hideContextView(true); }, null, menuDisposables);
+
+				return combinedDisposable([...menuDisposables, menu]);
+			},
+
+			focus: () => {
+				menu.focus(!!delegate.autoSelectFirstItem);
+			},
+
+			onHide: (didCancel?: boolean) => {
+				if (delegate.onHide) {
+					delegate.onHide(didCancel);
+				}
+
+				this.menuContainerElement = null;
+			}
 		});
 	}
 

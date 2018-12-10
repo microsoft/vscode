@@ -12,12 +12,16 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConstructorSignature0, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { trackFocus, Dimension } from 'vs/base/browser/dom';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 /**
  * Composites are layed out in the sidebar and panel part of the workbench. At a time only one composite
  * can be open in the sidebar, and only one composite can be open in the panel.
+ *
  * Each composite has a minimized representation that is good enough to provide some
  * information about the state of the composite data.
+ *
  * The workbench will keep a composite alive after it has been created and show/hide it based on
  * user interaction. The lifecycle of a composite goes in the order create(), setVisible(true|false),
  * layout(), focus(), dispose(). During use of the workbench, a composite will often receive a setVisible,
@@ -33,6 +37,7 @@ export abstract class Composite extends Component implements IComposite {
 		if (!this._onDidFocus) {
 			this._registerFocusTrackEvents();
 		}
+
 		return this._onDidFocus.event;
 	}
 
@@ -41,6 +46,7 @@ export abstract class Composite extends Component implements IComposite {
 		if (!this._onDidBlur) {
 			this._registerFocusTrackEvents();
 		}
+
 		return this._onDidBlur.event;
 	}
 
@@ -64,14 +70,15 @@ export abstract class Composite extends Component implements IComposite {
 	constructor(
 		id: string,
 		private _telemetryService: ITelemetryService,
-		themeService: IThemeService
+		themeService: IThemeService,
+		storageService: IStorageService
 	) {
-		super(id, themeService);
+		super(id, themeService, storageService);
 
 		this.visible = false;
 	}
 
-	getTitle(): string {
+	getTitle(): string | null {
 		return null;
 	}
 
@@ -88,10 +95,8 @@ export abstract class Composite extends Component implements IComposite {
 	 * Note that DOM-dependent calculations should be performed from the setVisible()
 	 * call. Only then the composite will be part of the DOM.
 	 */
-	create(parent: HTMLElement): Promise<void> {
+	create(parent: HTMLElement): void {
 		this.parent = parent;
-
-		return Promise.resolve(null);
 	}
 
 	updateStyles(): void {
@@ -113,14 +118,11 @@ export abstract class Composite extends Component implements IComposite {
 	 * is called more than once during workbench lifecycle depending on the user interaction.
 	 * The composite will be on-DOM if visible is set to true and off-DOM otherwise.
 	 *
-	 * The returned promise is complete when the composite is visible. As such it is valid
-	 * to do a long running operation from this call. Typically this operation should be
-	 * fast though because setVisible might be called many times during a session.
+	 * Typically this operation should be fast though because setVisible might be called many times during a session.
+	 * If there is a long running opertaion it is fine to have it running in the background asyncly and return before.
 	 */
-	setVisible(visible: boolean): Promise<void> {
+	setVisible(visible: boolean): void {
 		this.visible = visible;
-
-		return Promise.resolve(null);
 	}
 
 	/**
@@ -163,7 +165,7 @@ export abstract class Composite extends Component implements IComposite {
 	 * of an action. Returns null to indicate that the action is not rendered through
 	 * an action item.
 	 */
-	getActionItem(action: IAction): IActionItem {
+	getActionItem(action: IAction): IActionItem | null {
 		return null;
 	}
 
@@ -199,7 +201,7 @@ export abstract class Composite extends Component implements IComposite {
 	/**
 	 * Returns the underlying composite control or null if it is not accessible.
 	 */
-	getControl(): ICompositeControl {
+	getControl(): ICompositeControl | null {
 		return null;
 	}
 }
@@ -208,33 +210,26 @@ export abstract class Composite extends Component implements IComposite {
  * A composite descriptor is a leightweight descriptor of a composite in the workbench.
  */
 export abstract class CompositeDescriptor<T extends Composite> {
-	id: string;
-	name: string;
-	cssClass: string;
-	order: number;
-	keybindingId: string;
-	enabled: boolean;
 
-	private ctor: IConstructorSignature0<T>;
+	public enabled: boolean = true;
 
-	constructor(ctor: IConstructorSignature0<T>, id: string, name: string, cssClass?: string, order?: number, keybindingId?: string, ) {
-		this.ctor = ctor;
-		this.id = id;
-		this.name = name;
-		this.cssClass = cssClass;
-		this.order = order;
-		this.enabled = true;
-		this.keybindingId = keybindingId;
-	}
+	constructor(
+		private readonly ctor: IConstructorSignature0<T>,
+		public readonly id: string,
+		public readonly name: string,
+		public readonly cssClass?: string,
+		public readonly order?: number,
+		public readonly keybindingId?: string,
+	) { }
 
 	instantiate(instantiationService: IInstantiationService): T {
 		return instantiationService.createInstance(this.ctor);
 	}
 }
 
-export abstract class CompositeRegistry<T extends Composite> {
+export abstract class CompositeRegistry<T extends Composite> extends Disposable {
 
-	private readonly _onDidRegister: Emitter<CompositeDescriptor<T>> = new Emitter<CompositeDescriptor<T>>();
+	private readonly _onDidRegister: Emitter<CompositeDescriptor<T>> = this._register(new Emitter<CompositeDescriptor<T>>());
 	get onDidRegister(): Event<CompositeDescriptor<T>> { return this._onDidRegister.event; }
 
 	private composites: CompositeDescriptor<T>[] = [];
@@ -248,7 +243,7 @@ export abstract class CompositeRegistry<T extends Composite> {
 		this._onDidRegister.fire(descriptor);
 	}
 
-	getComposite(id: string): CompositeDescriptor<T> {
+	getComposite(id: string): CompositeDescriptor<T> | null {
 		return this.compositeById(id);
 	}
 
@@ -256,7 +251,7 @@ export abstract class CompositeRegistry<T extends Composite> {
 		return this.composites.slice(0);
 	}
 
-	private compositeById(id: string): CompositeDescriptor<T> {
+	private compositeById(id: string): CompositeDescriptor<T> | null {
 		for (let i = 0; i < this.composites.length; i++) {
 			if (this.composites[i].id === id) {
 				return this.composites[i];

@@ -2,7 +2,7 @@
 
 Welcome, and thank you for your interest in contributing to VS Code!
 
-There are many ways that you can contribute, beyond writing code. The goal of this document is to provide a high-level overview of how you can get involved.
+There are many ways in which you can contribute, beyond writing code. The goal of this document is to provide a high-level overview of how you can get involved.
 
 ## Asking Questions
 
@@ -14,7 +14,7 @@ The active community will be eager to assist you. Your well-worded question will
 
 Your comments and feedback are welcome, and the development team is available via a handful of different channels.
 
-See the [Feedback Channels](https://github.com/Microsoft/vscode/wiki/Feedback-Channels) wiki page for details about how to share your thoughts.
+See the [Feedback Channels](https://github.com/Microsoft/vscode/wiki/Feedback-Channels) wiki page for details on how to share your thoughts.
 
 ## Reporting Issues
 
@@ -54,7 +54,7 @@ Please include the following with each issue:
 
 * Version of VS Code
 
-* List of extensions that you have installed.
+* List of extensions that you have installed
 
 * Reproducible steps (1... 2... 3...) that cause the issue
 
@@ -101,4 +101,3 @@ please see [How to Contribute](https://github.com/Microsoft/vscode/wiki/How-to-C
 # Thank You!
 
 Your contributions to open source, large or small, make great projects like this possible. Thank you for taking the time to contribute.
-

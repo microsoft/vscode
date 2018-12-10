@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
 
@@ -110,7 +110,7 @@ export class FindReplaceState implements IDisposable {
 	public dispose(): void {
 	}
 
-	public changeMatchInfo(matchesPosition: number, matchesCount: number, currentMatch: Range): void {
+	public changeMatchInfo(matchesPosition: number, matchesCount: number, currentMatch: Range | undefined): void {
 		let changeEvent: FindReplaceStateChangedEvent = {
 			moveCursor: false,
 			updateHistory: false,

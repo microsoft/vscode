@@ -11,5 +11,5 @@ export const ITerminalService = createDecorator<ITerminalService>('nativeTermina
 export interface ITerminalService {
 	_serviceBrand: any;
 	openTerminal(path: string): void;
-	runInTerminal(title: string, cwd: string, args: string[], env: IProcessEnvironment): Promise<void>;
+	runInTerminal(title: string, cwd: string, args: string[], env: IProcessEnvironment): Promise<number | undefined>;
 }

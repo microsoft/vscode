@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten, isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { flatten, isNonEmptyArray } from 'vs/base/common/arrays';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IDecodeStreamOptions, toDecodeStream, encodeStream } from 'vs/base/node/encoding';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { localize } from 'vs/nls';
@@ -76,7 +75,7 @@ export function toDeepIFileStat(provider: IFileSystemProvider, tuple: [URI, ISta
 	const trie = TernarySearchTree.forPaths<true>();
 	trie.set(tuple[0].toString(), true);
 
-	if (!isFalsyOrEmpty(to)) {
+	if (isNonEmptyArray(to)) {
 		to.forEach(uri => trie.set(uri.toString(), true));
 	}
 
@@ -206,6 +205,10 @@ export class RemoteFileService extends FileService {
 		};
 	}
 
+	activateProvider(scheme: string): Thenable<void> {
+		return this._extensionService.activateByEvent('onFileSystem:' + scheme);
+	}
+
 	canHandleResource(resource: URI): boolean {
 		return resource.scheme === Schemas.file || this._provider.has(resource.scheme);
 	}
@@ -253,7 +256,7 @@ export class RemoteFileService extends FileService {
 		}
 
 		return Promise.all([
-			this._extensionService.activateByEvent('onFileSystem:' + resource.scheme)
+			this.activateProvider(resource.scheme)
 		]).then(() => {
 			const provider = this._provider.get(resource.scheme);
 			if (!provider) {
@@ -266,7 +269,7 @@ export class RemoteFileService extends FileService {
 		});
 	}
 
-	existsFile(resource: URI): TPromise<boolean> {
+	existsFile(resource: URI): Thenable<boolean> {
 		if (resource.scheme === Schemas.file) {
 			return super.existsFile(resource);
 		} else {
@@ -274,7 +277,7 @@ export class RemoteFileService extends FileService {
 		}
 	}
 
-	resolveFile(resource: URI, options?: IResolveFileOptions): TPromise<IFileStat> {
+	resolveFile(resource: URI, options?: IResolveFileOptions): Thenable<IFileStat> {
 		if (resource.scheme === Schemas.file) {
 			return super.resolveFile(resource, options);
 		} else {
@@ -291,7 +294,7 @@ export class RemoteFileService extends FileService {
 		}
 	}
 
-	resolveFiles(toResolve: { resource: URI; options?: IResolveFileOptions; }[]): TPromise<IResolveFileResult[]> {
+	resolveFiles(toResolve: { resource: URI; options?: IResolveFileOptions; }[]): Thenable<IResolveFileResult[]> {
 
 		// soft-groupBy, keep order, don't rearrange/merge groups
 		let groups: (typeof toResolve)[] = [];
@@ -304,7 +307,7 @@ export class RemoteFileService extends FileService {
 			group.push(request);
 		}
 
-		const promises: TPromise<IResolveFileResult[]>[] = [];
+		const promises: Thenable<IResolveFileResult[]>[] = [];
 		for (const group of groups) {
 			if (group[0].resource.scheme === Schemas.file) {
 				promises.push(super.resolveFiles(group));
@@ -312,7 +315,7 @@ export class RemoteFileService extends FileService {
 				promises.push(this._doResolveFiles(group));
 			}
 		}
-		return TPromise.join(promises).then(data => flatten(data));
+		return Promise.all(promises).then(data => flatten(data));
 	}
 
 	private _doResolveFiles(toResolve: { resource: URI; options?: IResolveFileOptions; }[]): Promise<IResolveFileResult[]> {
@@ -333,7 +336,7 @@ export class RemoteFileService extends FileService {
 
 	// --- resolve
 
-	resolveContent(resource: URI, options?: IResolveContentOptions): TPromise<IContent> {
+	resolveContent(resource: URI, options?: IResolveContentOptions): Thenable<IContent> {
 		if (resource.scheme === Schemas.file) {
 			return super.resolveContent(resource, options);
 		} else {
@@ -341,7 +344,7 @@ export class RemoteFileService extends FileService {
 		}
 	}
 
-	resolveStreamContent(resource: URI, options?: IResolveContentOptions): TPromise<IStreamContent> {
+	resolveStreamContent(resource: URI, options?: IResolveContentOptions): Thenable<IStreamContent> {
 		if (resource.scheme === Schemas.file) {
 			return super.resolveStreamContent(resource, options);
 		} else {
@@ -435,7 +438,7 @@ export class RemoteFileService extends FileService {
 		return provider;
 	}
 
-	createFile(resource: URI, content?: string, options?: ICreateFileOptions): TPromise<IFileStat> {
+	createFile(resource: URI, content?: string, options?: ICreateFileOptions): Thenable<IFileStat> {
 		if (resource.scheme === Schemas.file) {
 			return super.createFile(resource, content, options);
 		} else {
@@ -458,7 +461,7 @@ export class RemoteFileService extends FileService {
 		}
 	}
 
-	updateContent(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): TPromise<IFileStat> {
+	updateContent(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): Thenable<IFileStat> {
 		if (resource.scheme === Schemas.file) {
 			return super.updateContent(resource, value, options);
 		} else {
@@ -504,7 +507,7 @@ export class RemoteFileService extends FileService {
 
 	// --- delete
 
-	del(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): TPromise<void> {
+	del(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): Thenable<void> {
 		if (resource.scheme === Schemas.file) {
 			return super.del(resource, options);
 		} else {
@@ -516,7 +519,17 @@ export class RemoteFileService extends FileService {
 		}
 	}
 
-	createFolder(resource: URI): TPromise<IFileStat> {
+	readFolder(resource: URI): Thenable<string[]> {
+		if (resource.scheme === Schemas.file) {
+			return super.readFolder(resource);
+		} else {
+			return this._withProvider(resource).then(provider => {
+				return provider.readdir(resource);
+			}).then(list => list.map(l => l[0]));
+		}
+	}
+
+	createFolder(resource: URI): Thenable<IFileStat> {
 		if (resource.scheme === Schemas.file) {
 			return super.createFolder(resource);
 		} else {
@@ -533,7 +546,7 @@ export class RemoteFileService extends FileService {
 		}
 	}
 
-	moveFile(source: URI, target: URI, overwrite?: boolean): TPromise<IFileStat> {
+	moveFile(source: URI, target: URI, overwrite?: boolean): Thenable<IFileStat> {
 		if (source.scheme !== target.scheme) {
 			return this._doMoveAcrossScheme(source, target);
 		} else if (source.scheme === Schemas.file) {
@@ -565,7 +578,7 @@ export class RemoteFileService extends FileService {
 		});
 	}
 
-	private _doMoveAcrossScheme(source: URI, target: URI, overwrite?: boolean): TPromise<IFileStat> {
+	private _doMoveAcrossScheme(source: URI, target: URI, overwrite?: boolean): Thenable<IFileStat> {
 		return this.copyFile(source, target, overwrite).then(() => {
 			return this.del(source, { recursive: true });
 		}).then(() => {
@@ -576,7 +589,7 @@ export class RemoteFileService extends FileService {
 		});
 	}
 
-	copyFile(source: URI, target: URI, overwrite?: boolean): TPromise<IFileStat> {
+	copyFile(source: URI, target: URI, overwrite?: boolean): Thenable<IFileStat> {
 		if (source.scheme === target.scheme && source.scheme === Schemas.file) {
 			return super.copyFile(source, target, overwrite);
 		}

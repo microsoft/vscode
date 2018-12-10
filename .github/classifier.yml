@@ -78,7 +78,7 @@
         formatting: [],
         git: [ joaomoreno ],
         grammar: [],
-        hot-exit: [ Tyriar ],
+        hot-exit: [],
         html: [ aeschli ],
         install-update: [],
         integrated-terminal: [ Tyriar ],
@@ -131,7 +131,7 @@
             assignLabel: false
         },
         suggest: [],
-        tasks: [ dbaeumer ],
+        tasks: [ alexr00 ],
         telemetry: [],
         themes: [],
         tokenization: [],

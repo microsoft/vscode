@@ -14,9 +14,9 @@ const getRootTempDir = (() => {
 	return () => {
 		if (!dir) {
 			dir = temp.getTempFile(`vscode-typescript`);
-			if (!fs.existsSync(dir)) {
-				fs.mkdirSync(dir);
-			}
+		}
+		if (!fs.existsSync(dir)) {
+			fs.mkdirSync(dir);
 		}
 		return dir;
 	};
@@ -38,7 +38,7 @@ function generatePatchedEnv(env: any, modulePath: string): any {
 	return newEnv;
 }
 
-export interface IForkOptions {
+export interface ForkOptions {
 	readonly cwd?: string;
 	readonly execArgv?: string[];
 }
@@ -46,7 +46,7 @@ export interface IForkOptions {
 export function fork(
 	modulePath: string,
 	args: string[],
-	options: IForkOptions,
+	options: ForkOptions,
 ): cp.ChildProcess {
 	const newEnv = generatePatchedEnv(process.env, modulePath);
 	return cp.fork(modulePath, args, {

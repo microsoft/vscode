@@ -52,7 +52,7 @@ suite('WinJS and ES6 Promises', function () {
 		let p1 = winjs.Promise.wrap<number>(new Promise<number>(function (c, e) { c(1); }));
 		let thenFunc = p1.then.bind(p1);
 		setTimeout(() => {
-			thenFunc(() => { });
+			thenFunc(() => 0);
 		}, 0);
 	});
 
@@ -62,7 +62,7 @@ suite('WinJS and ES6 Promises', function () {
 		let thenFunc = p1.then.bind(p1);
 		setTimeout(() => {
 			c(1);
-			thenFunc(() => { });
+			thenFunc(() => 0);
 		}, 0);
 	});
 });

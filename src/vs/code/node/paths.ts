@@ -35,7 +35,7 @@ function doValidatePaths(args: string[], gotoLineMode?: boolean): string[] {
 	const result = args.map(arg => {
 		let pathCandidate = String(arg);
 
-		let parsedPath: IPathWithLineAndColumn;
+		let parsedPath: IPathWithLineAndColumn | undefined = undefined;
 		if (gotoLineMode) {
 			parsedPath = parseLineAndColumnAware(pathCandidate);
 			pathCandidate = parsedPath.path;
@@ -52,7 +52,7 @@ function doValidatePaths(args: string[], gotoLineMode?: boolean): string[] {
 			return null; // do not allow invalid file names
 		}
 
-		if (gotoLineMode) {
+		if (gotoLineMode && parsedPath) {
 			parsedPath.path = sanitizedFilePath;
 
 			return toPath(parsedPath);
@@ -62,7 +62,7 @@ function doValidatePaths(args: string[], gotoLineMode?: boolean): string[] {
 	});
 
 	const caseInsensitive = platform.isWindows || platform.isMacintosh;
-	const distinct = arrays.distinct(result, e => e && caseInsensitive ? e.toLowerCase() : e);
+	const distinct = arrays.distinct(result, e => e && caseInsensitive ? e.toLowerCase() : (e || ''));
 
 	return arrays.coalesce(distinct);
 }
@@ -98,7 +98,7 @@ export interface IPathWithLineAndColumn {
 export function parseLineAndColumnAware(rawPath: string): IPathWithLineAndColumn {
 	const segments = rawPath.split(':'); // C:\file.txt:<line>:<column>
 
-	let path: string;
+	let path: string | null = null;
 	let line: number | null = null;
 	let column: number | null = null;
 

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import * as platform from 'vs/base/common/platform';
 import * as touch from 'vs/base/browser/touch';
@@ -556,9 +555,9 @@ export class CollapseAllAction extends Action {
 		super('vs.tree.collapse', nls.localize('collapse', "Collapse"), 'monaco-tree-action collapse-all', enabled);
 	}
 
-	public run(context?: any): TPromise<any> {
+	public run(context?: any): Thenable<any> {
 		if (this.viewer.getHighlight()) {
-			return TPromise.as(null); // Global action disabled if user is in edit mode from another action
+			return Promise.resolve(); // Global action disabled if user is in edit mode from another action
 		}
 
 		this.viewer.collapseAll();
@@ -567,6 +566,6 @@ export class CollapseAllAction extends Action {
 		this.viewer.domFocus();
 		this.viewer.focusFirst();
 
-		return TPromise.as(null);
+		return Promise.resolve();
 	}
 }

@@ -22,6 +22,7 @@ import { Severity } from 'vs/platform/notification/common/notification';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWindowService } from 'vs/platform/windows/common/windows';
+import { timeout } from 'vs/base/common/async';
 
 interface INotificationToast {
 	item: INotificationViewItem;
@@ -44,16 +45,15 @@ export class NotificationsToasts extends Themable {
 
 	private static PURGE_TIMEOUT: { [severity: number]: number } = (() => {
 		const intervals = Object.create(null);
-		intervals[Severity.Info] = 10000;
-		intervals[Severity.Warning] = 12000;
-		intervals[Severity.Error] = 15000;
+		intervals[Severity.Info] = 15000;
+		intervals[Severity.Warning] = 18000;
+		intervals[Severity.Error] = 20000;
 
 		return intervals;
 	})();
 
 	private notificationsToastsContainer: HTMLElement;
 	private workbenchDimensions: Dimension;
-	private windowHasFocus: boolean;
 	private isNotificationsCenterVisible: boolean;
 	private mapNotificationToToast: Map<INotificationViewItem, INotificationToast>;
 	private notificationsToastsVisibleContextKey: IContextKey<boolean>;
@@ -74,15 +74,13 @@ export class NotificationsToasts extends Themable {
 		this.mapNotificationToToast = new Map<INotificationViewItem, INotificationToast>();
 		this.notificationsToastsVisibleContextKey = NotificationsToastsVisibleContext.bindTo(contextKeyService);
 
-		this.windowService.isFocused().then(isFocused => this.windowHasFocus = isFocused);
-
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
 
-		// Wait for the running phase to ensure we can draw notifications properly
-		this.lifecycleService.when(LifecyclePhase.Running).then(() => {
+		// Delay some tasks until after we can show notifications
+		this.onCanShowNotifications().then(() => {
 
 			// Show toast for initial notifications if any
 			this.model.notifications.forEach(notification => this.addToast(notification));
@@ -90,9 +88,20 @@ export class NotificationsToasts extends Themable {
 			// Update toasts on notification changes
 			this._register(this.model.onDidNotificationChange(e => this.onDidNotificationChange(e)));
 		});
+	}
 
-		// Track window focus
-		this.windowService.onDidChangeFocus(hasFocus => this.windowHasFocus = hasFocus);
+	private onCanShowNotifications(): Thenable<void> {
+
+		// Wait for the running phase to ensure we can draw notifications properly
+		return this.lifecycleService.when(LifecyclePhase.Ready).then(() => {
+
+			// Push notificiations out until either workbench is restored
+			// or some time has ellapsed to reduce pressure on the startup
+			return Promise.race([
+				this.lifecycleService.when(LifecyclePhase.Restored),
+				timeout(2000)
+			]);
+		});
 	}
 
 	private onDidNotificationChange(e: INotificationChangeEvent): void {
@@ -107,6 +116,10 @@ export class NotificationsToasts extends Themable {
 	private addToast(item: INotificationViewItem): void {
 		if (this.isNotificationsCenterVisible) {
 			return; // do not show toasts while notification center is visibles
+		}
+
+		if (item.silent) {
+			return; // do not show toats for silenced notifications
 		}
 
 		// Lazily create toasts containers
@@ -209,15 +222,35 @@ export class NotificationsToasts extends Themable {
 		disposables.push(addDisposableListener(notificationToastContainer, EventType.MOUSE_OVER, () => isMouseOverToast = true));
 		disposables.push(addDisposableListener(notificationToastContainer, EventType.MOUSE_OUT, () => isMouseOverToast = false));
 
-		// Install Timers
-		let timeoutHandle: any;
+		// Install Timers to Purge Notification
+		let purgeTimeoutHandle: any;
+		let listener: IDisposable;
+
 		const hideAfterTimeout = () => {
-			timeoutHandle = setTimeout(() => {
-				if (
-					item.sticky ||					// never hide sticky notifications
-					notificationList.hasFocus() ||	// never hide notifications with focus
-					isMouseOverToast ||				// never hide notifications under mouse
-					!this.windowHasFocus			// never hide when window has no focus
+
+			purgeTimeoutHandle = setTimeout(() => {
+
+				// If the notification is sticky or prompting and the window does not have
+				// focus, we wait for the window to gain focus again before triggering
+				// the timeout again. This prevents an issue where focussing the window
+				// could immediately hide the notification because the timeout was triggered
+				// again.
+				if ((item.sticky || item.hasPrompt()) && !this.windowService.hasFocus) {
+					if (!listener) {
+						listener = this.windowService.onDidChangeFocus(focus => {
+							if (focus) {
+								hideAfterTimeout();
+							}
+						});
+						disposables.push(listener);
+					}
+				}
+
+				// Otherwise...
+				else if (
+					item.sticky ||								// never hide sticky notifications
+					notificationList.hasFocus() ||				// never hide notifications with focus
+					isMouseOverToast							// never hide notifications under mouse
 				) {
 					hideAfterTimeout();
 				} else {
@@ -228,7 +261,7 @@ export class NotificationsToasts extends Themable {
 
 		hideAfterTimeout();
 
-		disposables.push(toDisposable(() => clearTimeout(timeoutHandle)));
+		disposables.push(toDisposable(() => clearTimeout(purgeTimeoutHandle)));
 	}
 
 	private removeToast(item: INotificationViewItem): void {

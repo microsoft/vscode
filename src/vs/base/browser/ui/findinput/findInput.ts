@@ -23,6 +23,7 @@ export interface IFindInputOptions extends IFindInputStyles {
 	readonly width?: number;
 	readonly validation?: IInputValidator;
 	readonly label: string;
+	readonly flexibleHeight?: boolean;
 
 	readonly appendCaseSensitiveLabel?: string;
 	readonly appendWholeWordsLabel?: string;
@@ -43,24 +44,24 @@ export class FindInput extends Widget {
 	private contextViewProvider: IContextViewProvider;
 	private width: number;
 	private placeholder: string;
-	private validation: IInputValidator;
+	private validation?: IInputValidator;
 	private label: string;
 	private fixFocusOnOptionClickEnabled = true;
 
-	private inputActiveOptionBorder: Color;
-	private inputBackground: Color;
-	private inputForeground: Color;
-	private inputBorder: Color;
+	private inputActiveOptionBorder?: Color;
+	private inputBackground?: Color;
+	private inputForeground?: Color;
+	private inputBorder?: Color;
 
-	private inputValidationInfoBorder: Color;
-	private inputValidationInfoBackground: Color;
-	private inputValidationInfoForeground: Color;
-	private inputValidationWarningBorder: Color;
-	private inputValidationWarningBackground: Color;
-	private inputValidationWarningForeground: Color;
-	private inputValidationErrorBorder: Color;
-	private inputValidationErrorBackground: Color;
-	private inputValidationErrorForeground: Color;
+	private inputValidationInfoBorder?: Color;
+	private inputValidationInfoBackground?: Color;
+	private inputValidationInfoForeground?: Color;
+	private inputValidationWarningBorder?: Color;
+	private inputValidationWarningBackground?: Color;
+	private inputValidationWarningForeground?: Color;
+	private inputValidationErrorBorder?: Color;
+	private inputValidationErrorBackground?: Color;
+	private inputValidationErrorForeground?: Color;
 
 	private regex: RegexCheckbox;
 	private wholeWords: WholeWordsCheckbox;
@@ -89,7 +90,7 @@ export class FindInput extends Widget {
 	private _onRegexKeyDown = this._register(new Emitter<IKeyboardEvent>());
 	public readonly onRegexKeyDown: Event<IKeyboardEvent> = this._onRegexKeyDown.event;
 
-	constructor(parent: HTMLElement, contextViewProvider: IContextViewProvider, private readonly _showOptionButtons: boolean, options?: IFindInputOptions) {
+	constructor(parent: HTMLElement, contextViewProvider: IContextViewProvider, private readonly _showOptionButtons: boolean, options: IFindInputOptions) {
 		super();
 		this.contextViewProvider = contextViewProvider;
 		this.width = options.width || 100;
@@ -112,13 +113,7 @@ export class FindInput extends Widget {
 		this.inputValidationErrorBackground = options.inputValidationErrorBackground;
 		this.inputValidationErrorForeground = options.inputValidationErrorForeground;
 
-		this.regex = null;
-		this.wholeWords = null;
-		this.caseSensitive = null;
-		this.domNode = null;
-		this.inputBox = null;
-
-		this.buildDomNode(options.appendCaseSensitiveLabel || '', options.appendWholeWordsLabel || '', options.appendRegexLabel || '', options.history);
+		this.buildDomNode(options.appendCaseSensitiveLabel || '', options.appendWholeWordsLabel || '', options.appendRegexLabel || '', options.history || [], !!options.flexibleHeight);
 
 		if (Boolean(parent)) {
 			parent.appendChild(this.domNode);
@@ -179,6 +174,10 @@ export class FindInput extends Widget {
 		if (this.inputBox.value !== value) {
 			this.inputBox.value = value;
 		}
+	}
+
+	public onSearchSubmit(): void {
+		this.inputBox.addToHistory();
 	}
 
 	public style(styles: IFindInputStyles): void {
@@ -281,9 +280,10 @@ export class FindInput extends Widget {
 	private setInputWidth(): void {
 		let w = this.width - this.caseSensitive.width() - this.wholeWords.width() - this.regex.width();
 		this.inputBox.width = w;
+		this.inputBox.layout();
 	}
 
-	private buildDomNode(appendCaseSensitiveLabel: string, appendWholeWordsLabel: string, appendRegexLabel: string, history: string[]): void {
+	private buildDomNode(appendCaseSensitiveLabel: string, appendWholeWordsLabel: string, appendRegexLabel: string, history: string[], flexibleHeight: boolean): void {
 		this.domNode = document.createElement('div');
 		this.domNode.style.width = this.width + 'px';
 		dom.addClass(this.domNode, 'monaco-findInput');
@@ -292,7 +292,7 @@ export class FindInput extends Widget {
 			placeholder: this.placeholder || '',
 			ariaLabel: this.label || '',
 			validationOptions: {
-				validation: this.validation || null
+				validation: this.validation
 			},
 			inputBackground: this.inputBackground,
 			inputForeground: this.inputForeground,
@@ -306,7 +306,8 @@ export class FindInput extends Widget {
 			inputValidationErrorBackground: this.inputValidationErrorBackground,
 			inputValidationErrorForeground: this.inputValidationErrorForeground,
 			inputValidationErrorBorder: this.inputValidationErrorBorder,
-			history
+			history,
+			flexibleHeight
 		}));
 
 		this.regex = this._register(new RegexCheckbox({
@@ -363,7 +364,7 @@ export class FindInput extends Widget {
 			if (event.equals(KeyCode.LeftArrow) || event.equals(KeyCode.RightArrow) || event.equals(KeyCode.Escape)) {
 				let index = indexes.indexOf(<HTMLElement>document.activeElement);
 				if (index >= 0) {
-					let newIndex: number;
+					let newIndex: number = -1;
 					if (event.equals(KeyCode.RightArrow)) {
 						newIndex = (index + 1) % indexes.length;
 					} else if (event.equals(KeyCode.LeftArrow)) {
@@ -398,19 +399,27 @@ export class FindInput extends Widget {
 	}
 
 	public validate(): void {
-		this.inputBox.validate();
+		if (this.inputBox) {
+			this.inputBox.validate();
+		}
 	}
 
 	public showMessage(message: InputBoxMessage): void {
-		this.inputBox.showMessage(message);
+		if (this.inputBox) {
+			this.inputBox.showMessage(message);
+		}
 	}
 
 	public clearMessage(): void {
-		this.inputBox.hideMessage();
+		if (this.inputBox) {
+			this.inputBox.hideMessage();
+		}
 	}
 
 	private clearValidation(): void {
-		this.inputBox.hideMessage();
+		if (this.inputBox) {
+			this.inputBox.hideMessage();
+		}
 	}
 
 	public dispose(): void {

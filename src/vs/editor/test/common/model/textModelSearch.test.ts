@@ -2,13 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import * as assert from 'assert';
-import { Position } from 'vs/editor/common/core/position';
-import { FindMatch, EndOfLineSequence } from 'vs/editor/common/model';
-import { Range } from 'vs/editor/common/core/range';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { TextModelSearch, SearchParams, SearchData, isMultilineRegexSource } from 'vs/editor/common/model/textModelSearch';
 import { getMapForWordSeparators } from 'vs/editor/common/controller/wordCharacterClassifier';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { EndOfLineSequence, FindMatch } from 'vs/editor/common/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { SearchData, SearchParams, TextModelSearch, isMultilineRegexSource } from 'vs/editor/common/model/textModelSearch';
 import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
 
 // --------- Find

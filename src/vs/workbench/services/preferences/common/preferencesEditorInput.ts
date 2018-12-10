@@ -5,7 +5,6 @@
 
 import { OS } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import * as nls from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -70,8 +69,8 @@ export class KeybindingsEditorInput extends EditorInput {
 		return nls.localize('keybindingsInputName', "Keyboard Shortcuts");
 	}
 
-	resolve(): TPromise<KeybindingsEditorModel> {
-		return TPromise.as(this.keybindingsModel);
+	resolve(): Thenable<KeybindingsEditorModel> {
+		return Promise.resolve(this.keybindingsModel);
 	}
 
 	matches(otherInput: any): boolean {
@@ -83,6 +82,10 @@ export class SettingsEditor2Input extends EditorInput {
 
 	public static readonly ID: string = 'workbench.input.settings2';
 	private readonly _settingsModel: Settings2EditorModel;
+	private resource: URI = URI.from({
+		scheme: 'vscode-settings',
+		path: `settingseditor`
+	});
 
 	constructor(
 		@IPreferencesService _preferencesService: IPreferencesService,
@@ -104,14 +107,11 @@ export class SettingsEditor2Input extends EditorInput {
 		return nls.localize('settingsEditor2InputName', "Settings");
 	}
 
-	resolve(): TPromise<Settings2EditorModel> {
-		return TPromise.as(this._settingsModel);
+	resolve(): Thenable<Settings2EditorModel> {
+		return Promise.resolve(this._settingsModel);
 	}
 
 	public getResource(): URI {
-		return URI.from({
-			scheme: 'vscode-settings',
-			path: `settingseditor`
-		});
+		return this.resource;
 	}
 }

@@ -4,28 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import * as types from 'vs/base/common/types';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { Command, EditorCommand, ICommandOptions, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { ColumnSelection, IColumnSelectResult } from 'vs/editor/common/controller/cursorColumnSelection';
+import { CursorContext, CursorState, EditOperationType, IColumnSelectData, ICursors, PartialCursorState, RevealTarget } from 'vs/editor/common/controller/cursorCommon';
+import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperations';
+import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
+import { CursorMove as CursorMove_, CursorMoveCommands } from 'vs/editor/common/controller/cursorMoveCommands';
+import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { CursorState, ICursors, RevealTarget, IColumnSelectData, CursorContext, EditOperationType, PartialCursorState } from 'vs/editor/common/controller/cursorCommon';
-import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
-import { CursorMoveCommands, CursorMove as CursorMove_ } from 'vs/editor/common/controller/cursorMoveCommands';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { registerEditorCommand, ICommandOptions, EditorCommand, Command } from 'vs/editor/browser/editorExtensions';
-import { IColumnSelectResult, ColumnSelection } from 'vs/editor/common/controller/cursorColumnSelection';
+import { Handler, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import H = editorCommon.Handler;
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import * as types from 'vs/base/common/types';
-import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
-import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperations';
 import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { MenuId } from 'vs/platform/actions/common/actions';
+import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 const CORE_WEIGHT = KeybindingWeight.EditorCore;
 
@@ -261,7 +260,7 @@ export namespace CoreNavigationCommands {
 					CursorMoveCommands.moveTo(cursors.context, cursors.getPrimaryCursor(), this._inSelectionMode, args.position, args.viewPosition)
 				]
 			);
-			cursors.reveal(true, RevealTarget.Primary, editorCommon.ScrollType.Smooth);
+			cursors.reveal(true, RevealTarget.Primary, ScrollType.Smooth);
 		}
 	}
 
@@ -286,7 +285,7 @@ export namespace CoreNavigationCommands {
 				toViewLineNumber: result.toLineNumber,
 				toViewVisualColumn: result.toVisualColumn
 			});
-			cursors.reveal(true, (result.reversed ? RevealTarget.TopMost : RevealTarget.BottomMost), editorCommon.ScrollType.Smooth);
+			cursors.reveal(true, (result.reversed ? RevealTarget.TopMost : RevealTarget.BottomMost), ScrollType.Smooth);
 		}
 
 		protected abstract _getColumnSelectResult(context: CursorContext, primary: CursorState, prevColumnSelectData: IColumnSelectData, args: any): IColumnSelectResult;
@@ -456,7 +455,7 @@ export namespace CoreNavigationCommands {
 				CursorChangeReason.Explicit,
 				CursorMoveCommands.move(cursors.context, cursors.getAll(), args)
 			);
-			cursors.reveal(true, RevealTarget.Primary, editorCommon.ScrollType.Smooth);
+			cursors.reveal(true, RevealTarget.Primary, ScrollType.Smooth);
 		}
 	}
 
@@ -795,7 +794,7 @@ export namespace CoreNavigationCommands {
 				CursorChangeReason.Explicit,
 				CursorMoveCommands.moveToBeginningOfLine(cursors.context, cursors.getAll(), this._inSelectionMode)
 			);
-			cursors.reveal(true, RevealTarget.Primary, editorCommon.ScrollType.Smooth);
+			cursors.reveal(true, RevealTarget.Primary, ScrollType.Smooth);
 		}
 	}
 
@@ -844,7 +843,7 @@ export namespace CoreNavigationCommands {
 				CursorChangeReason.Explicit,
 				this._exec(cursors.context, cursors.getAll())
 			);
-			cursors.reveal(true, RevealTarget.Primary, editorCommon.ScrollType.Smooth);
+			cursors.reveal(true, RevealTarget.Primary, ScrollType.Smooth);
 		}
 
 		private _exec(context: CursorContext, cursors: CursorState[]): PartialCursorState[] {
@@ -874,7 +873,7 @@ export namespace CoreNavigationCommands {
 				CursorChangeReason.Explicit,
 				CursorMoveCommands.moveToEndOfLine(cursors.context, cursors.getAll(), this._inSelectionMode)
 			);
-			cursors.reveal(true, RevealTarget.Primary, editorCommon.ScrollType.Smooth);
+			cursors.reveal(true, RevealTarget.Primary, ScrollType.Smooth);
 		}
 	}
 
@@ -923,7 +922,7 @@ export namespace CoreNavigationCommands {
 				CursorChangeReason.Explicit,
 				this._exec(cursors.context, cursors.getAll())
 			);
-			cursors.reveal(true, RevealTarget.Primary, editorCommon.ScrollType.Smooth);
+			cursors.reveal(true, RevealTarget.Primary, ScrollType.Smooth);
 		}
 
 		private _exec(context: CursorContext, cursors: CursorState[]): PartialCursorState[] {
@@ -954,7 +953,7 @@ export namespace CoreNavigationCommands {
 				CursorChangeReason.Explicit,
 				CursorMoveCommands.moveToBeginningOfBuffer(cursors.context, cursors.getAll(), this._inSelectionMode)
 			);
-			cursors.reveal(true, RevealTarget.Primary, editorCommon.ScrollType.Smooth);
+			cursors.reveal(true, RevealTarget.Primary, ScrollType.Smooth);
 		}
 	}
 
@@ -998,7 +997,7 @@ export namespace CoreNavigationCommands {
 				CursorChangeReason.Explicit,
 				CursorMoveCommands.moveToEndOfBuffer(cursors.context, cursors.getAll(), this._inSelectionMode)
 			);
-			cursors.reveal(true, RevealTarget.Primary, editorCommon.ScrollType.Smooth);
+			cursors.reveal(true, RevealTarget.Primary, ScrollType.Smooth);
 		}
 	}
 
@@ -1217,7 +1216,7 @@ export namespace CoreNavigationCommands {
 					CursorMoveCommands.word(cursors.context, cursors.getPrimaryCursor(), this._inSelectionMode, args.position)
 				]
 			);
-			cursors.reveal(true, RevealTarget.Primary, editorCommon.ScrollType.Smooth);
+			cursors.reveal(true, RevealTarget.Primary, ScrollType.Smooth);
 		}
 	}
 
@@ -1277,7 +1276,7 @@ export namespace CoreNavigationCommands {
 					CursorMoveCommands.line(cursors.context, cursors.getPrimaryCursor(), this._inSelectionMode, args.position, args.viewPosition)
 				]
 			);
-			cursors.reveal(false, RevealTarget.Primary, editorCommon.ScrollType.Smooth);
+			cursors.reveal(false, RevealTarget.Primary, ScrollType.Smooth);
 		}
 	}
 
@@ -1349,7 +1348,7 @@ export namespace CoreNavigationCommands {
 				CursorChangeReason.Explicit,
 				CursorMoveCommands.expandLineSelection(cursors.context, cursors.getAll())
 			);
-			cursors.reveal(true, RevealTarget.Primary, editorCommon.ScrollType.Smooth);
+			cursors.reveal(true, RevealTarget.Primary, ScrollType.Smooth);
 		}
 
 	});
@@ -1377,7 +1376,7 @@ export namespace CoreNavigationCommands {
 					CursorMoveCommands.cancelSelection(cursors.context, cursors.getPrimaryCursor())
 				]
 			);
-			cursors.reveal(true, RevealTarget.Primary, editorCommon.ScrollType.Smooth);
+			cursors.reveal(true, RevealTarget.Primary, ScrollType.Smooth);
 		}
 	});
 
@@ -1404,7 +1403,7 @@ export namespace CoreNavigationCommands {
 					cursors.getPrimaryCursor()
 				]
 			);
-			cursors.reveal(true, RevealTarget.Primary, editorCommon.ScrollType.Smooth);
+			cursors.reveal(true, RevealTarget.Primary, ScrollType.Smooth);
 		}
 	});
 
@@ -1452,7 +1451,7 @@ export namespace CoreNavigationCommands {
 
 			const viewRange = cursors.context.convertModelRangeToViewRange(range);
 
-			cursors.revealRange(false, viewRange, revealAt, editorCommon.ScrollType.Smooth);
+			cursors.revealRange(false, viewRange, revealAt, ScrollType.Smooth);
 		}
 	});
 
@@ -1499,7 +1498,20 @@ export namespace CoreNavigationCommands {
 
 export namespace CoreEditingCommands {
 
-	export const LineBreakInsert: EditorCommand = registerEditorCommand(new class extends EditorCommand {
+	export abstract class CoreEditingCommand extends EditorCommand {
+		public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+			const cursors = editor._getCursors();
+			if (!cursors) {
+				// the editor has no view => has no cursors
+				return;
+			}
+			this.runCoreEditingCommand(editor, cursors, args || {});
+		}
+
+		public abstract runCoreEditingCommand(editor: ICodeEditor, cursors: ICursors, args: any): void;
+	}
+
+	export const LineBreakInsert: EditorCommand = registerEditorCommand(new class extends CoreEditingCommand {
 		constructor() {
 			super({
 				id: 'lineBreakInsert',
@@ -1513,13 +1525,13 @@ export namespace CoreEditingCommands {
 			});
 		}
 
-		public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+		public runCoreEditingCommand(editor: ICodeEditor, cursors: ICursors, args: any): void {
 			editor.pushUndoStop();
-			editor.executeCommands(this.id, TypeOperations.lineBreakInsert(editor._getCursorConfiguration(), editor.getModel(), editor.getSelections()));
+			editor.executeCommands(this.id, TypeOperations.lineBreakInsert(cursors.context.config, cursors.context.model, cursors.getAll().map(s => s.modelState.selection)));
 		}
 	});
 
-	export const Outdent: EditorCommand = registerEditorCommand(new class extends EditorCommand {
+	export const Outdent: EditorCommand = registerEditorCommand(new class extends CoreEditingCommand {
 		constructor() {
 			super({
 				id: 'outdent',
@@ -1535,14 +1547,14 @@ export namespace CoreEditingCommands {
 			});
 		}
 
-		public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+		public runCoreEditingCommand(editor: ICodeEditor, cursors: ICursors, args: any): void {
 			editor.pushUndoStop();
-			editor.executeCommands(this.id, TypeOperations.outdent(editor._getCursorConfiguration(), editor.getModel(), editor.getSelections()));
+			editor.executeCommands(this.id, TypeOperations.outdent(cursors.context.config, cursors.context.model, cursors.getAll().map(s => s.modelState.selection)));
 			editor.pushUndoStop();
 		}
 	});
 
-	export const Tab: EditorCommand = registerEditorCommand(new class extends EditorCommand {
+	export const Tab: EditorCommand = registerEditorCommand(new class extends CoreEditingCommand {
 		constructor() {
 			super({
 				id: 'tab',
@@ -1558,14 +1570,14 @@ export namespace CoreEditingCommands {
 			});
 		}
 
-		public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+		public runCoreEditingCommand(editor: ICodeEditor, cursors: ICursors, args: any): void {
 			editor.pushUndoStop();
-			editor.executeCommands(this.id, TypeOperations.tab(editor._getCursorConfiguration(), editor.getModel(), editor.getSelections()));
+			editor.executeCommands(this.id, TypeOperations.tab(cursors.context.config, cursors.context.model, cursors.getAll().map(s => s.modelState.selection)));
 			editor.pushUndoStop();
 		}
 	});
 
-	export const DeleteLeft: EditorCommand = registerEditorCommand(new class extends EditorCommand {
+	export const DeleteLeft: EditorCommand = registerEditorCommand(new class extends CoreEditingCommand {
 		constructor() {
 			super({
 				id: 'deleteLeft',
@@ -1580,9 +1592,8 @@ export namespace CoreEditingCommands {
 			});
 		}
 
-		public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-			const cursors = editor._getCursors();
-			const [shouldPushStackElementBefore, commands] = DeleteOperations.deleteLeft(cursors.getPrevEditOperationType(), editor._getCursorConfiguration(), editor.getModel(), editor.getSelections());
+		public runCoreEditingCommand(editor: ICodeEditor, cursors: ICursors, args: any): void {
+			const [shouldPushStackElementBefore, commands] = DeleteOperations.deleteLeft(cursors.getPrevEditOperationType(), cursors.context.config, cursors.context.model, cursors.getAll().map(s => s.modelState.selection));
 			if (shouldPushStackElementBefore) {
 				editor.pushUndoStop();
 			}
@@ -1591,7 +1602,7 @@ export namespace CoreEditingCommands {
 		}
 	});
 
-	export const DeleteRight: EditorCommand = registerEditorCommand(new class extends EditorCommand {
+	export const DeleteRight: EditorCommand = registerEditorCommand(new class extends CoreEditingCommand {
 		constructor() {
 			super({
 				id: 'deleteRight',
@@ -1605,9 +1616,8 @@ export namespace CoreEditingCommands {
 			});
 		}
 
-		public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-			const cursors = editor._getCursors();
-			const [shouldPushStackElementBefore, commands] = DeleteOperations.deleteRight(cursors.getPrevEditOperationType(), editor._getCursorConfiguration(), editor.getModel(), editor.getSelections());
+		public runCoreEditingCommand(editor: ICodeEditor, cursors: ICursors, args: any): void {
+			const [shouldPushStackElementBefore, commands] = DeleteOperations.deleteRight(cursors.getPrevEditOperationType(), cursors.context.config, cursors.context.model, cursors.getAll().map(s => s.modelState.selection));
 			if (shouldPushStackElementBefore) {
 				editor.pushUndoStop();
 			}
@@ -1718,9 +1728,9 @@ registerCommand(new EditorOrNativeTextInputCommand({
 }));
 
 registerCommand(new EditorOrNativeTextInputCommand({
-	editorHandler: H.Undo,
+	editorHandler: Handler.Undo,
 	inputHandler: 'undo',
-	id: H.Undo,
+	id: Handler.Undo,
 	precondition: EditorContextKeys.writable,
 	kbOpts: {
 		weight: CORE_WEIGHT,
@@ -1734,12 +1744,12 @@ registerCommand(new EditorOrNativeTextInputCommand({
 		order: 1
 	}
 }));
-registerCommand(new EditorHandlerCommand('default:' + H.Undo, H.Undo));
+registerCommand(new EditorHandlerCommand('default:' + Handler.Undo, Handler.Undo));
 
 registerCommand(new EditorOrNativeTextInputCommand({
-	editorHandler: H.Redo,
+	editorHandler: Handler.Redo,
 	inputHandler: 'redo',
-	id: H.Redo,
+	id: Handler.Redo,
 	precondition: EditorContextKeys.writable,
 	kbOpts: {
 		weight: CORE_WEIGHT,
@@ -1755,16 +1765,16 @@ registerCommand(new EditorOrNativeTextInputCommand({
 		order: 2
 	}
 }));
-registerCommand(new EditorHandlerCommand('default:' + H.Redo, H.Redo));
+registerCommand(new EditorHandlerCommand('default:' + Handler.Redo, Handler.Redo));
 
 function registerOverwritableCommand(handlerId: string): void {
 	registerCommand(new EditorHandlerCommand('default:' + handlerId, handlerId));
 	registerCommand(new EditorHandlerCommand(handlerId, handlerId));
 }
 
-registerOverwritableCommand(H.Type);
-registerOverwritableCommand(H.ReplacePreviousChar);
-registerOverwritableCommand(H.CompositionStart);
-registerOverwritableCommand(H.CompositionEnd);
-registerOverwritableCommand(H.Paste);
-registerOverwritableCommand(H.Cut);
+registerOverwritableCommand(Handler.Type);
+registerOverwritableCommand(Handler.ReplacePreviousChar);
+registerOverwritableCommand(Handler.CompositionStart);
+registerOverwritableCommand(Handler.CompositionEnd);
+registerOverwritableCommand(Handler.Paste);
+registerOverwritableCommand(Handler.Cut);

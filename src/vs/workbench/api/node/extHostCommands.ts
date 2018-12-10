@@ -10,7 +10,7 @@ import * as extHostTypeConverter from 'vs/workbench/api/node/extHostTypeConverte
 import { cloneAndChange } from 'vs/base/common/objects';
 import { MainContext, MainThreadCommandsShape, ExtHostCommandsShape, ObjectIdentifier, IMainContext } from './extHost.protocol';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 import * as modes from 'vs/editor/common/modes';
 import * as vscode from 'vscode';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -189,7 +189,7 @@ export class CommandsConverter {
 			title: command.title
 		};
 
-		if (command.command && !isFalsyOrEmpty(command.arguments)) {
+		if (command.command && isNonEmptyArray(command.arguments)) {
 			// we have a contributed command with arguments. that
 			// means we don't want to send the arguments around
 

@@ -37,11 +37,11 @@ class PartsSplash {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IBroadcastService private broadcastService: IBroadcastService
 	) {
-		lifecycleService.when(LifecyclePhase.Running).then(_ => this._removePartsSplash());
+		lifecycleService.when(LifecyclePhase.Restored).then(_ => this._removePartsSplash());
 		debounceEvent(anyEvent<any>(
 			onDidChangeFullscreen,
 			_partService.onEditorLayout
-		), () => { }, 150)(this._savePartsSplash, this, this._disposables);
+		), () => { }, 800)(this._savePartsSplash, this, this._disposables);
 	}
 
 	dispose(): void {

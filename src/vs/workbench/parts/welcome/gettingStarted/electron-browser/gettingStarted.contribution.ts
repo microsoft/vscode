@@ -11,7 +11,7 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 Registry
 	.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(GettingStarted, LifecyclePhase.Running);
+	.registerWorkbenchContribution(GettingStarted, LifecyclePhase.Restored);
 
 Registry
 	.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)

@@ -21,6 +21,7 @@ export const IBackupMainService = createDecorator<IBackupMainService>('backupMai
 
 export interface IEmptyWindowBackupInfo {
 	backupFolder: string;
+	remoteAuthority?: string;
 }
 
 export interface IBackupMainService {

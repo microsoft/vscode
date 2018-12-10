@@ -6,7 +6,6 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
 import { ISplice } from 'vs/base/common/sequence';
-import { TPromise } from 'vs/base/common/winjs.base';
 
 /**
  * Returns the last element of an array.
@@ -25,7 +24,7 @@ export function tail2<T>(arr: T[]): [T[], T] {
 	return [arr.slice(0, arr.length - 1), arr[arr.length - 1]];
 }
 
-export function equals<T>(one: ReadonlyArray<T>, other: ReadonlyArray<T>, itemEquals: (a: T, b: T) => boolean = (a, b) => a === b): boolean {
+export function equals<T>(one: ReadonlyArray<T> | undefined, other: ReadonlyArray<T> | undefined, itemEquals: (a: T, b: T) => boolean = (a, b) => a === b): boolean {
 	if (one === other) {
 		return true;
 	}
@@ -261,12 +260,12 @@ export function top<T>(array: T[], compare: (a: T, b: T) => number, n: number): 
  * @param batch The number of elements to examine before yielding to the event loop.
  * @return The first n elemnts from array when sorted with compare.
  */
-export function topAsync<T>(array: T[], compare: (a: T, b: T) => number, n: number, batch: number, token?: CancellationToken): TPromise<T[]> {
+export function topAsync<T>(array: T[], compare: (a: T, b: T) => number, n: number, batch: number, token?: CancellationToken): Promise<T[]> {
 	if (n === 0) {
-		return TPromise.as([]);
+		return Promise.resolve([]);
 	}
 
-	return new TPromise((resolve, reject) => {
+	return new Promise((resolve, reject) => {
 		(async () => {
 			const o = array.length;
 			const result = array.slice(0, n).sort(compare);
@@ -297,29 +296,30 @@ function topStep<T>(array: T[], compare: (a: T, b: T) => number, result: T[], i:
 }
 
 /**
- * @returns a new array with all undefined or null values removed. The original array is not modified at all.
+ * @returns a new array with all falsy values removed. The original array IS NOT modified.
  */
-export function coalesce<T>(array: (T | undefined | null)[]): T[];
-export function coalesce<T>(array: (T | undefined | null)[], inplace: true): void;
-export function coalesce<T>(array: (T | undefined | null)[], inplace?: true): void | T[] {
+export function coalesce<T>(array: (T | undefined | null)[]): T[] {
 	if (!array) {
-		if (!inplace) {
-			return array;
-		}
+		return array;
 	}
-	if (!inplace) {
-		return <T[]>array.filter(e => !!e);
+	return <T[]>array.filter(e => !!e);
+}
 
-	} else {
-		let to = 0;
-		for (let i = 0; i < array.length; i++) {
-			if (!!array[i]) {
-				array[to] = array[i];
-				to += 1;
-			}
-		}
-		array.length = to;
+/**
+ * Remove all falsey values from `array`. The original array IS modified.
+ */
+export function coalesceInPlace<T>(array: (T | undefined | null)[]): void {
+	if (!array) {
+		return;
 	}
+	let to = 0;
+	for (let i = 0; i < array.length; i++) {
+		if (!!array[i]) {
+			array[to] = array[i];
+			to += 1;
+		}
+	}
+	array.length = to;
 }
 
 /**
@@ -334,7 +334,14 @@ export function move(array: any[], from: number, to: number): void {
  * 	and not empty.
  */
 export function isFalsyOrEmpty(obj: any): boolean {
-	return !Array.isArray(obj) || (<Array<any>>obj).length === 0;
+	return !Array.isArray(obj) || obj.length === 0;
+}
+
+/**
+ * @returns {{true}} if the provided object is an array and has at least one element.
+ */
+export function isNonEmptyArray<T>(obj: ReadonlyArray<T> | undefined | null): obj is Array<T> {
+	return Array.isArray(obj) && obj.length > 0;
 }
 
 /**
@@ -539,4 +546,10 @@ export function find<T>(arr: ArrayLike<T>, predicate: (value: T, index: number, 
 	}
 
 	return undefined;
+}
+
+export function mapArrayOrNot<T, U>(items: T | T[], fn: (_: T) => U): U | U[] {
+	return Array.isArray(items) ?
+		items.map(fn) :
+		fn(items);
 }

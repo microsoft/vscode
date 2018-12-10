@@ -8,11 +8,11 @@ import * as types from './extHostTypes';
 import * as search from 'vs/workbench/parts/search/common/search';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
-import { IDecorationOptions } from 'vs/editor/common/editorCommon';
-import { EndOfLineSequence } from 'vs/editor/common/model';
+import { IDecorationOptions, IThemeDecorationRenderOptions, IDecorationRenderOptions, IContentDecorationRenderOptions } from 'vs/editor/common/editorCommon';
+import { EndOfLineSequence, TrackedRangeStickiness } from 'vs/editor/common/model';
 import * as vscode from 'vscode';
-import { URI } from 'vs/base/common/uri';
-import { ProgressLocation as MainProgressLocation } from 'vs/workbench/services/progress/common/progress';
+import { URI, UriComponents } from 'vs/base/common/uri';
+import { ProgressLocation as MainProgressLocation } from 'vs/platform/progress/common/progress';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
@@ -24,6 +24,10 @@ import { MarkerSeverity, IRelatedInformation, IMarkerData, MarkerTag } from 'vs/
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
 import { isString, isNumber } from 'vs/base/common/types';
+import * as marked from 'vs/base/common/marked/marked';
+import { parse } from 'vs/base/common/marshalling';
+import { cloneAndChange } from 'vs/base/common/objects';
+import { LogLevel as _MainLogLevel } from 'vs/platform/log/common/log';
 
 export interface PositionLike {
 	line: number;
@@ -42,14 +46,14 @@ export interface SelectionLike extends RangeLike {
 export namespace Selection {
 
 	export function to(selection: ISelection): types.Selection {
-		let { selectionStartLineNumber, selectionStartColumn, positionLineNumber, positionColumn } = selection;
-		let start = new types.Position(selectionStartLineNumber - 1, selectionStartColumn - 1);
-		let end = new types.Position(positionLineNumber - 1, positionColumn - 1);
+		const { selectionStartLineNumber, selectionStartColumn, positionLineNumber, positionColumn } = selection;
+		const start = new types.Position(selectionStartLineNumber - 1, selectionStartColumn - 1);
+		const end = new types.Position(positionLineNumber - 1, positionColumn - 1);
 		return new types.Selection(start, end);
 	}
 
 	export function from(selection: SelectionLike): ISelection {
-		let { anchor, active } = selection;
+		const { anchor, active } = selection;
 		return {
 			selectionStartLineNumber: anchor.line + 1,
 			selectionStartColumn: anchor.character + 1,
@@ -64,7 +68,7 @@ export namespace Range {
 		if (!range) {
 			return undefined;
 		}
-		let { start, end } = range;
+		const { start, end } = range;
 		return {
 			startLineNumber: start.line + 1,
 			startColumn: start.character + 1,
@@ -77,7 +81,7 @@ export namespace Range {
 		if (!range) {
 			return undefined;
 		}
-		let { startLineNumber, startColumn, endLineNumber, endColumn } = range;
+		const { startLineNumber, startColumn, endLineNumber, endColumn } = range;
 		return new types.Range(startLineNumber - 1, startColumn - 1, endLineNumber - 1, endColumn - 1);
 	}
 }
@@ -209,17 +213,61 @@ export namespace MarkdownString {
 	}
 
 	export function from(markup: vscode.MarkdownString | vscode.MarkedString): htmlContent.IMarkdownString {
+		let res: htmlContent.IMarkdownString;
 		if (isCodeblock(markup)) {
 			const { language, value } = markup;
-			return { value: '```' + language + '\n' + value + '\n```\n' };
+			res = { value: '```' + language + '\n' + value + '\n```\n' };
 		} else if (htmlContent.isMarkdownString(markup)) {
-			return markup;
+			res = markup;
 		} else if (typeof markup === 'string') {
-			return { value: <string>markup };
+			res = { value: <string>markup };
 		} else {
-			return { value: '' };
+			res = { value: '' };
 		}
+
+		// extract uris into a separate object
+		res.uris = Object.create(null);
+		let renderer = new marked.Renderer();
+		renderer.image = renderer.link = (href: string): string => {
+			try {
+				let uri = URI.parse(href, true);
+				uri = uri.with({ query: _uriMassage(uri.query, res.uris) });
+				res.uris[href] = uri;
+			} catch (e) {
+				// ignore
+			}
+			return '';
+		};
+		marked(res.value, { renderer });
+
+		return res;
 	}
+
+	function _uriMassage(part: string, bucket: { [n: string]: UriComponents }): string {
+		if (!part) {
+			return part;
+		}
+		let data: any;
+		try {
+			data = parse(decodeURIComponent(part));
+		} catch (e) {
+			// ignore
+		}
+		if (!data) {
+			return part;
+		}
+		data = cloneAndChange(data, value => {
+			if (value instanceof URI) {
+				let key = `__uri_${Math.random().toString(16).slice(2, 8)}`;
+				bucket[key] = value;
+				return key;
+			} else {
+				return undefined;
+			}
+		});
+		return encodeURIComponent(JSON.stringify(data));
+	}
+
 	export function to(value: htmlContent.IMarkdownString): vscode.MarkdownString {
 		const ret = new htmlContent.MarkdownString(value.value);
 		ret.isTrusted = value.isTrusted;
@@ -252,21 +300,142 @@ export function fromRangeOrRangeWithMessage(ranges: vscode.Range[] | vscode.Deco
 	}
 }
 
-export const TextEdit = {
+function pathOrURIToURI(value: string | URI): URI {
+	if (typeof value === 'undefined') {
+		return value;
+	}
+	if (typeof value === 'string') {
+		return URI.file(value);
+	} else {
+		return value;
+	}
+}
 
-	from(edit: vscode.TextEdit): modes.TextEdit {
+export namespace ThemableDecorationAttachmentRenderOptions {
+	export function from(options: vscode.ThemableDecorationAttachmentRenderOptions): IContentDecorationRenderOptions {
+		if (typeof options === 'undefined') {
+			return options;
+		}
+		return {
+			contentText: options.contentText,
+			contentIconPath: pathOrURIToURI(options.contentIconPath),
+			border: options.border,
+			borderColor: <string | types.ThemeColor>options.borderColor,
+			fontStyle: options.fontStyle,
+			fontWeight: options.fontWeight,
+			textDecoration: options.textDecoration,
+			color: <string | types.ThemeColor>options.color,
+			backgroundColor: <string | types.ThemeColor>options.backgroundColor,
+			margin: options.margin,
+			width: options.width,
+			height: options.height,
+		};
+	}
+}
+
+export namespace ThemableDecorationRenderOptions {
+	export function from(options: vscode.ThemableDecorationRenderOptions): IThemeDecorationRenderOptions {
+		if (typeof options === 'undefined') {
+			return options;
+		}
+		return {
+			backgroundColor: <string | types.ThemeColor>options.backgroundColor,
+			outline: options.outline,
+			outlineColor: <string | types.ThemeColor>options.outlineColor,
+			outlineStyle: options.outlineStyle,
+			outlineWidth: options.outlineWidth,
+			border: options.border,
+			borderColor: <string | types.ThemeColor>options.borderColor,
+			borderRadius: options.borderRadius,
+			borderSpacing: options.borderSpacing,
+			borderStyle: options.borderStyle,
+			borderWidth: options.borderWidth,
+			fontStyle: options.fontStyle,
+			fontWeight: options.fontWeight,
+			textDecoration: options.textDecoration,
+			cursor: options.cursor,
+			color: <string | types.ThemeColor>options.color,
+			opacity: options.opacity,
+			letterSpacing: options.letterSpacing,
+			gutterIconPath: pathOrURIToURI(options.gutterIconPath),
+			gutterIconSize: options.gutterIconSize,
+			overviewRulerColor: <string | types.ThemeColor>options.overviewRulerColor,
+			before: ThemableDecorationAttachmentRenderOptions.from(options.before),
+			after: ThemableDecorationAttachmentRenderOptions.from(options.after),
+		};
+	}
+}
+
+export namespace DecorationRangeBehavior {
+	export function from(value: types.DecorationRangeBehavior): TrackedRangeStickiness {
+		if (typeof value === 'undefined') {
+			return value;
+		}
+		switch (value) {
+			case types.DecorationRangeBehavior.OpenOpen:
+				return TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
+			case types.DecorationRangeBehavior.ClosedClosed:
+				return TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
+			case types.DecorationRangeBehavior.OpenClosed:
+				return TrackedRangeStickiness.GrowsOnlyWhenTypingBefore;
+			case types.DecorationRangeBehavior.ClosedOpen:
+				return TrackedRangeStickiness.GrowsOnlyWhenTypingAfter;
+		}
+	}
+}
+
+export namespace DecorationRenderOptions {
+	export function from(options: vscode.DecorationRenderOptions): IDecorationRenderOptions {
+		return {
+			isWholeLine: options.isWholeLine,
+			rangeBehavior: DecorationRangeBehavior.from(options.rangeBehavior),
+			overviewRulerLane: options.overviewRulerLane,
+			light: ThemableDecorationRenderOptions.from(options.light),
+			dark: ThemableDecorationRenderOptions.from(options.dark),
+
+			backgroundColor: <string | types.ThemeColor>options.backgroundColor,
+			outline: options.outline,
+			outlineColor: <string | types.ThemeColor>options.outlineColor,
+			outlineStyle: options.outlineStyle,
+			outlineWidth: options.outlineWidth,
+			border: options.border,
+			borderColor: <string | types.ThemeColor>options.borderColor,
+			borderRadius: options.borderRadius,
+			borderSpacing: options.borderSpacing,
+			borderStyle: options.borderStyle,
+			borderWidth: options.borderWidth,
+			fontStyle: options.fontStyle,
+			fontWeight: options.fontWeight,
+			textDecoration: options.textDecoration,
+			cursor: options.cursor,
+			color: <string | types.ThemeColor>options.color,
+			opacity: options.opacity,
+			letterSpacing: options.letterSpacing,
+			gutterIconPath: pathOrURIToURI(options.gutterIconPath),
+			gutterIconSize: options.gutterIconSize,
+			overviewRulerColor: <string | types.ThemeColor>options.overviewRulerColor,
+			before: ThemableDecorationAttachmentRenderOptions.from(options.before),
+			after: ThemableDecorationAttachmentRenderOptions.from(options.after),
+		};
+	}
+}
+
+export namespace TextEdit {
+
+	export function from(edit: vscode.TextEdit): modes.TextEdit {
 		return <modes.TextEdit>{
 			text: edit.newText,
 			eol: EndOfLine.from(edit.newEol),
 			range: Range.from(edit.range)
 		};
-	},
-	to(edit: modes.TextEdit): types.TextEdit {
-		let result = new types.TextEdit(Range.to(edit.range), edit.text);
+	}
+
+	export function to(edit: modes.TextEdit): types.TextEdit {
+		const result = new types.TextEdit(Range.to(edit.range), edit.text);
 		result.newEol = EndOfLine.to(edit.eol);
 		return result;
 	}
-};
+}
 
 export namespace WorkspaceEdit {
 	export function from(value: vscode.WorkspaceEdit, documents?: ExtHostDocumentsAndEditors): WorkspaceEditDto {
@@ -277,7 +446,7 @@ export namespace WorkspaceEdit {
 			const [uri, uriOrEdits] = entry;
 			if (Array.isArray(uriOrEdits)) {
 				// text edits
-				let doc = documents ? documents.getDocument(uri.toString()) : undefined;
+				const doc = documents ? documents.getDocument(uri.toString()) : undefined;
 				result.edits.push(<ResourceTextEditDto>{ resource: uri, modelVersionId: doc && doc.version, edits: uriOrEdits.map(TextEdit.from) });
 			} else {
 				// resource edits
@@ -339,11 +508,11 @@ export namespace SymbolKind {
 	_fromMapping[types.SymbolKind.TypeParameter] = modes.SymbolKind.TypeParameter;
 
 	export function from(kind: vscode.SymbolKind): modes.SymbolKind {
-		return _fromMapping[kind] || modes.SymbolKind.Property;
+		return typeof _fromMapping[kind] === 'number' ? _fromMapping[kind] : modes.SymbolKind.Property;
 	}
 
 	export function to(kind: modes.SymbolKind): vscode.SymbolKind {
-		for (let k in _fromMapping) {
+		for (const k in _fromMapping) {
 			if (_fromMapping[k] === kind) {
 				return Number(k);
 			}
@@ -373,7 +542,7 @@ export namespace WorkspaceSymbol {
 
 export namespace DocumentSymbol {
 	export function from(info: vscode.DocumentSymbol): modes.DocumentSymbol {
-		let result: modes.DocumentSymbol = {
+		const result: modes.DocumentSymbol = {
 			name: info.name,
 			detail: info.detail,
 			range: Range.from(info.range),
@@ -386,7 +555,7 @@ export namespace DocumentSymbol {
 		return result;
 	}
 	export function to(info: modes.DocumentSymbol): vscode.DocumentSymbol {
-		let result = new types.DocumentSymbol(
+		const result = new types.DocumentSymbol(
 			info.name,
 			info.detail,
 			SymbolKind.to(info.kind),
@@ -400,17 +569,18 @@ export namespace DocumentSymbol {
 	}
 }
 
-export const location = {
-	from(value: vscode.Location): modes.Location {
+export namespace location {
+	export function from(value: vscode.Location): modes.Location {
 		return {
 			range: value.range && Range.from(value.range),
 			uri: value.uri
 		};
-	},
-	to(value: modes.Location): types.Location {
+	}
+
+	export function to(value: modes.Location): types.Location {
 		return new types.Location(value.uri, Range.to(value.range));
 	}
-};
+}
 
 export namespace DefinitionLink {
 	export function from(value: vscode.Location | vscode.DefinitionLink): modes.DefinitionLink {
@@ -454,7 +624,7 @@ export namespace DocumentHighlight {
 }
 
 export namespace CompletionTriggerKind {
-	export function from(kind: modes.CompletionTriggerKind) {
+	export function to(kind: modes.CompletionTriggerKind) {
 		switch (kind) {
 			case modes.CompletionTriggerKind.TriggerCharacter:
 				return types.CompletionTriggerKind.TriggerCharacter;
@@ -468,17 +638,17 @@ export namespace CompletionTriggerKind {
 }
 
 export namespace CompletionContext {
-	export function from(context: modes.CompletionContext): types.CompletionContext {
+	export function to(context: modes.CompletionContext): types.CompletionContext {
 		return {
-			triggerKind: CompletionTriggerKind.from(context.triggerKind),
+			triggerKind: CompletionTriggerKind.to(context.triggerKind),
 			triggerCharacter: context.triggerCharacter
 		};
 	}
 }
 
-export const CompletionItemKind = {
+export namespace CompletionItemKind {
 
-	from(kind: types.CompletionItemKind): modes.CompletionItemKind {
+	export function from(kind: types.CompletionItemKind): modes.CompletionItemKind {
 		switch (kind) {
 			case types.CompletionItemKind.Method: return modes.CompletionItemKind.Method;
 			case types.CompletionItemKind.Function: return modes.CompletionItemKind.Function;
@@ -507,9 +677,9 @@ export const CompletionItemKind = {
 			case types.CompletionItemKind.TypeParameter: return modes.CompletionItemKind.TypeParameter;
 		}
 		return modes.CompletionItemKind.Property;
-	},
+	}
 
-	to(kind: modes.CompletionItemKind): types.CompletionItemKind {
+	export function to(kind: modes.CompletionItemKind): types.CompletionItemKind {
 		switch (kind) {
 			case modes.CompletionItemKind.Method: return types.CompletionItemKind.Method;
 			case modes.CompletionItemKind.Function: return types.CompletionItemKind.Function;
@@ -539,9 +709,9 @@ export const CompletionItemKind = {
 		}
 		return types.CompletionItemKind.Property;
 	}
-};
+}
 
-export namespace Suggest {
+export namespace CompletionItem {
 
 	export function to(suggestion: modes.CompletionItem): types.CompletionItem {
 		const result = new types.CompletionItem(suggestion.label);
@@ -554,15 +724,14 @@ export namespace Suggest {
 		result.preselect = suggestion.preselect;
 		result.commitCharacters = suggestion.commitCharacters;
 		result.range = Range.to(suggestion.range);
-
+		result.keepWhitespace = Boolean(suggestion.insertTextRules & modes.CompletionItemInsertTextRule.KeepWhitespace);
 		// 'inserText'-logic
-		if (suggestion.insertTextIsSnippet) {
+		if (suggestion.insertTextRules & modes.CompletionItemInsertTextRule.InsertAsSnippet) {
 			result.insertText = new types.SnippetString(suggestion.insertText);
 		} else {
 			result.insertText = suggestion.insertText;
 			result.textEdit = new types.TextEdit(result.range, result.insertText);
 		}
-
 		// TODO additionalEdits, command
 
 		return result;
@@ -638,7 +807,7 @@ export namespace DocumentLink {
 
 export namespace ColorPresentation {
 	export function to(colorPresentation: modes.IColorPresentation): types.ColorPresentation {
-		let cp = new types.ColorPresentation(colorPresentation.label);
+		const cp = new types.ColorPresentation(colorPresentation.label);
 		if (colorPresentation.textEdit) {
 			cp.textEdit = TextEdit.to(colorPresentation.textEdit);
 		}
@@ -716,7 +885,7 @@ export namespace ProgressLocation {
 
 export namespace FoldingRange {
 	export function from(r: vscode.FoldingRange): modes.FoldingRange {
-		let range: modes.FoldingRange = { start: r.start + 1, end: r.end + 1 };
+		const range: modes.FoldingRange = { start: r.start + 1, end: r.end + 1 };
 		if (r.kind) {
 			range.kind = FoldingRangeKind.from(r.kind);
 		}
@@ -797,5 +966,53 @@ export namespace LanguageSelector {
 				exclusive: selector.exclusive
 			};
 		}
+	}
+}
+
+export namespace LogLevel {
+	export function from(extLevel: types.LogLevel): _MainLogLevel {
+		switch (extLevel) {
+			case types.LogLevel.Trace:
+				return _MainLogLevel.Trace;
+			case types.LogLevel.Debug:
+				return _MainLogLevel.Debug;
+			case types.LogLevel.Info:
+				return _MainLogLevel.Info;
+			case types.LogLevel.Warning:
+				return _MainLogLevel.Warning;
+			case types.LogLevel.Error:
+				return _MainLogLevel.Error;
+			case types.LogLevel.Critical:
+				return _MainLogLevel.Critical;
+			case types.LogLevel.Critical:
+				return _MainLogLevel.Critical;
+			case types.LogLevel.Off:
+				return _MainLogLevel.Off;
+		}
+
+		return _MainLogLevel.Info;
+	}
+
+	export function to(mainLevel: _MainLogLevel): types.LogLevel {
+		switch (mainLevel) {
+			case _MainLogLevel.Trace:
+				return types.LogLevel.Trace;
+			case _MainLogLevel.Debug:
+				return types.LogLevel.Debug;
+			case _MainLogLevel.Info:
+				return types.LogLevel.Info;
+			case _MainLogLevel.Warning:
+				return types.LogLevel.Warning;
+			case _MainLogLevel.Error:
+				return types.LogLevel.Error;
+			case _MainLogLevel.Critical:
+				return types.LogLevel.Critical;
+			case _MainLogLevel.Critical:
+				return types.LogLevel.Critical;
+			case _MainLogLevel.Off:
+				return types.LogLevel.Off;
+		}
+
+		return types.LogLevel.Info;
 	}
 }

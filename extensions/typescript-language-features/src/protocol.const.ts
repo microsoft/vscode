@@ -31,6 +31,7 @@ export class Kind {
 	public static readonly variable = 'var';
 	public static readonly warning = 'warning';
 	public static readonly string = 'string';
+	public static readonly parameter = 'parameter';
 }
 
 
@@ -38,4 +39,34 @@ export class DiagnosticCategory {
 	public static readonly error = 'error';
 	public static readonly warning = 'warning';
 	public static readonly suggestion = 'suggestion';
+}
+
+export class KindModifiers {
+	public static readonly optional = 'optional';
+	public static readonly color = 'color';
+
+	public static readonly dtsFile = '.d.ts';
+	public static readonly tsFile = '.ts';
+	public static readonly tsxFile = '.tsx';
+	public static readonly jsFile = '.js';
+	public static readonly jsxFile = '.jsx';
+	public static readonly jsonFile = '.json';
+
+	public static readonly fileExtensionKindModifiers = [
+		KindModifiers.dtsFile,
+		KindModifiers.tsFile,
+		KindModifiers.tsxFile,
+		KindModifiers.jsFile,
+		KindModifiers.jsxFile,
+		KindModifiers.jsonFile,
+	];
+}
+
+export class DisplayPartKind {
+	public static readonly functionName = 'functionName';
+	public static readonly methodName = 'methodName';
+	public static readonly parameterName = 'parameterName';
+	public static readonly propertyName = 'propertyName';
+	public static readonly punctuation = 'punctuation';
+	public static readonly text = 'text';
 }

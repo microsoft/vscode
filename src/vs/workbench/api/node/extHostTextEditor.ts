@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ok } from 'vs/base/common/assert';
-import { readonly, illegalArgument } from 'vs/base/common/errors';
+import { illegalArgument, readonly } from 'vs/base/common/errors';
 import { IdGenerator } from 'vs/base/common/idGenerator';
-import { ExtHostDocumentData } from 'vs/workbench/api/node/extHostDocumentData';
-import { Selection, Range, Position, EndOfLine, TextEditorRevealType, TextEditorLineNumbersStyle, SnippetString } from './extHostTypes';
-import { ISingleEditOperation } from 'vs/editor/common/model';
-import * as TypeConverters from './extHostTypeConverters';
-import { MainThreadTextEditorsShape, IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate } from './extHost.protocol';
-import * as vscode from 'vscode';
 import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
 import { IRange } from 'vs/editor/common/core/range';
+import { ISingleEditOperation } from 'vs/editor/common/model';
+import { IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate, MainThreadTextEditorsShape } from 'vs/workbench/api/node/extHost.protocol';
+import { ExtHostDocumentData } from 'vs/workbench/api/node/extHostDocumentData';
+import * as TypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
+import { EndOfLine, Position, Range, Selection, SnippetString, TextEditorLineNumbersStyle, TextEditorRevealType } from 'vs/workbench/api/node/extHostTypes';
+import * as vscode from 'vscode';
 
 export class TextEditorDecorationType implements vscode.TextEditorDecorationType {
 
@@ -25,7 +25,7 @@ export class TextEditorDecorationType implements vscode.TextEditorDecorationType
 	constructor(proxy: MainThreadTextEditorsShape, options: vscode.DecorationRenderOptions) {
 		this.key = TextEditorDecorationType._Keys.nextId();
 		this._proxy = proxy;
-		this._proxy.$registerTextEditorDecorationType(this.key, <any>/* URI vs Uri */ options);
+		this._proxy.$registerTextEditorDecorationType(this.key, TypeConverters.DecorationRenderOptions.from(options));
 	}
 
 	public dispose(): void {

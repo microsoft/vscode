@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { WhitespaceComputer, IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import { IEditorWhitespace, WhitespaceComputer } from 'vs/editor/common/viewLayout/whitespaceComputer';
 import { IViewWhitespaceViewportData } from 'vs/editor/common/viewModel/viewModel';
 
 /**

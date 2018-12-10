@@ -302,7 +302,7 @@ export interface IEditorInput extends IDisposable {
 	/**
 	 * Resolves the input.
 	 */
-	resolve(): TPromise<IEditorModel>;
+	resolve(): Thenable<IEditorModel>;
 
 	/**
 	 * Returns if this input is dirty or not.
@@ -403,7 +403,7 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	 * Returns a type of EditorModel that represents the resolved input. Subclasses should
 	 * override to provide a meaningful model.
 	 */
-	abstract resolve(): TPromise<IEditorModel>;
+	abstract resolve(): Thenable<IEditorModel>;
 
 	/**
 	 * An editor that is dirty will be asked to be saved once it closes.
@@ -586,8 +586,8 @@ export class SideBySideEditorInput extends EditorInput {
 		this._register(this.master.onDidChangeLabel(() => this._onDidChangeLabel.fire()));
 	}
 
-	resolve(): TPromise<EditorModel> {
-		return TPromise.as(null);
+	resolve(): Thenable<EditorModel> {
+		return Promise.resolve(null);
 	}
 
 	getTypeId(): string {
@@ -637,8 +637,8 @@ export class EditorModel extends Disposable implements IEditorModel {
 	/**
 	 * Causes this model to load returning a promise when loading is completed.
 	 */
-	load(): TPromise<EditorModel> {
-		return TPromise.as(this);
+	load(): Thenable<EditorModel> {
+		return Promise.resolve(this);
 	}
 
 	/**
@@ -916,7 +916,7 @@ export class EditorCommandsContextActionRunner extends ActionRunner {
 		super();
 	}
 
-	run(action: IAction, context?: any): TPromise<void> {
+	run(action: IAction, context?: any): Thenable<void> {
 		return super.run(action, this.context);
 	}
 }
@@ -1005,14 +1005,14 @@ export const enum CloseDirection {
 
 export interface IEditorMemento<T> {
 
-	saveState(group: IEditorGroup, resource: URI, state: T): void;
-	saveState(group: IEditorGroup, editor: EditorInput, state: T): void;
+	saveEditorState(group: IEditorGroup, resource: URI, state: T): void;
+	saveEditorState(group: IEditorGroup, editor: EditorInput, state: T): void;
 
-	loadState(group: IEditorGroup, resource: URI): T;
-	loadState(group: IEditorGroup, editor: EditorInput): T;
+	loadEditorState(group: IEditorGroup, resource: URI): T;
+	loadEditorState(group: IEditorGroup, editor: EditorInput): T;
 
-	clearState(resource: URI, group?: IEditorGroup): void;
-	clearState(editor: EditorInput, group?: IEditorGroup): void;
+	clearEditorState(resource: URI, group?: IEditorGroup): void;
+	clearEditorState(editor: EditorInput, group?: IEditorGroup): void;
 }
 
 class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {

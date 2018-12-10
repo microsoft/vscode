@@ -5,7 +5,6 @@
 
 import { localize } from 'vs/nls';
 import * as crypto from 'crypto';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import { IFileService, IFileStat, IResolveFileResult } from 'vs/platform/files/common/files';
@@ -54,11 +53,15 @@ const ModulesToLookFor = [
 	'react',
 	'react-native',
 	'@angular/core',
+	'@ionic',
 	'vue',
+	'tns-core-modules',
 	// Other interesting packages
 	'aws-sdk',
+	'aws-amplify',
 	'azure',
 	'azure-storage',
+	'firebase',
 	'@google-cloud/common',
 	'heroku-cli'
 ];
@@ -186,7 +189,7 @@ export function getHashedRemotesFromConfig(text: string, stripEndingDotGit: bool
 	});
 }
 
-export function getHashedRemotesFromUri(workspaceUri: URI, fileService: IFileService, stripEndingDotGit: boolean = false): TPromise<string[]> {
+export function getHashedRemotesFromUri(workspaceUri: URI, fileService: IFileService, stripEndingDotGit: boolean = false): Thenable<string[]> {
 	const path = workspaceUri.path;
 	const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
 	return fileService.resolveFile(uri).then(() => {
@@ -224,6 +227,8 @@ export class WorkspaceStats implements IWorkbenchContribution {
 
 		// Cloud Stats
 		this.reportCloudStats();
+
+		this.reportProxyStats();
 	}
 
 	private static searchArray(arr: string[], regEx: RegExp): boolean {
@@ -259,9 +264,11 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			"workspace.npm.@angular/core" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.vue" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.aws-sdk" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.aws-amplify-sdk" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.azure" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.azure-storage" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@google-cloud/common" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.firebase" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.heroku-cli" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.bower" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.yeoman.code.ext" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -271,6 +278,8 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			"workspace.xamarin.ios" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.android.cpp" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.reactNative" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.ionic" : { "classification" : "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": "true" },
+			"workspace.nativeScript" : { "classification" : "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": "true" },
 			"workspace.py.requirements" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.requirements.star" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.Pipfile" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -301,7 +310,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			"workspace.py.azure-cognitiveservices" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 		}
 	*/
-	private resolveWorkspaceTags(configuration: IWindowConfiguration, participant?: (rootFiles: string[]) => void): TPromise<Tags> {
+	private resolveWorkspaceTags(configuration: IWindowConfiguration, participant?: (rootFiles: string[]) => void): Thenable<Tags> {
 		const tags: Tags = Object.create(null);
 
 		const state = this.contextService.getWorkbenchState();
@@ -332,7 +341,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 
 		const folders = !isEmpty ? workspace.folders.map(folder => folder.uri) : this.environmentService.appQuality !== 'stable' && this.findFolders(configuration);
 		if (!folders || !folders.length || !this.fileService) {
-			return TPromise.as(tags);
+			return Promise.resolve(tags);
 		}
 
 		return this.fileService.resolveFiles(folders.map(resource => ({ resource }))).then((files: IResolveFileResult[]) => {
@@ -385,6 +394,14 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				}
 			}
 
+			if (tags['workspace.config.xml'] &&
+				!tags['workspace.language.cs'] && !tags['workspace.language.vb'] && !tags['workspace.language.aspx']) {
+
+				if (nameSet.has('ionic.config.json')) {
+					tags['workspace.ionic'] = true;
+				}
+			}
+
 			if (mainActivity && properties && resources) {
 				tags['workspace.xamarin.android'] = true;
 			}
@@ -397,7 +414,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				tags['workspace.android.cpp'] = true;
 			}
 
-			function getFilePromises(filename, fileService, contentHandler): TPromise<void>[] {
+			function getFilePromises(filename, fileService, contentHandler): Thenable<void>[] {
 				return !nameSet.has(filename) ? [] : folders.map(workspaceUri => {
 					const uri = workspaceUri.with({ path: `${workspaceUri.path !== '/' ? workspaceUri.path : ''}/${filename}` });
 					return fileService.resolveFile(uri).then(() => {
@@ -461,6 +478,10 @@ export class WorkspaceStats implements IWorkbenchContribution {
 								if (packageJsonContents['dependencies'][module]) {
 									tags['workspace.reactNative'] = true;
 								}
+							} else if ('tns-core-modules' === module) {
+								if (packageJsonContents['dependencies'][module]) {
+									tags['workspace.nativescript'] = true;
+								}
 							} else {
 								if (packageJsonContents['dependencies'][module]) {
 									tags['workspace.npm.' + module] = true;
@@ -473,10 +494,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 					// Ignore errors when resolving file or parsing file contents
 				}
 			});
-			return TPromise.join([...packageJsonPromises, ...requirementsTxtPromises, ...pipfilePromises]).then(function () {
-				return tags;
-			}
-			);
+			return Promise.all([...packageJsonPromises, ...requirementsTxtPromises, ...pipfilePromises]).then(() => tags);
 		});
 	}
 
@@ -566,7 +584,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 	}
 
 	private reportRemoteDomains(workspaceUris: URI[]): void {
-		TPromise.join<string[]>(workspaceUris.map(workspaceUri => {
+		Promise.all<string[]>(workspaceUris.map(workspaceUri => {
 			const path = workspaceUri.path;
 			const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
 			return this.fileService.resolveFile(uri).then(() => {
@@ -589,7 +607,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 	}
 
 	private reportRemotes(workspaceUris: URI[]): void {
-		TPromise.join<string[]>(workspaceUris.map(workspaceUri => {
+		Promise.all<string[]>(workspaceUris.map(workspaceUri => {
 			return getHashedRemotesFromUri(workspaceUri, this.fileService, true);
 		})).then(hashedRemotes => {
 			/* __GDPR__
@@ -606,7 +624,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			"node" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 		}
 	*/
-	private reportAzureNode(workspaceUris: URI[], tags: Tags): TPromise<Tags> {
+	private reportAzureNode(workspaceUris: URI[], tags: Tags): Thenable<Tags> {
 		// TODO: should also work for `node_modules` folders several levels down
 		const uris = workspaceUris.map(workspaceUri => {
 			const path = workspaceUri.path;
@@ -631,8 +649,8 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			"java" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 		}
 	*/
-	private reportAzureJava(workspaceUris: URI[], tags: Tags): TPromise<Tags> {
-		return TPromise.join(workspaceUris.map(workspaceUri => {
+	private reportAzureJava(workspaceUris: URI[], tags: Tags): Thenable<Tags> {
+		return Promise.all(workspaceUris.map(workspaceUri => {
 			const path = workspaceUri.path;
 			const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/pom.xml` });
 			return this.fileService.resolveFile(uri).then(stats => {
@@ -674,5 +692,21 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			this.reportRemotes(uris);
 			this.reportAzure(uris);
 		}
+	}
+
+	private reportProxyStats() {
+		this.windowService.resolveProxy('https://www.example.com/')
+			.then(proxy => {
+				let type = proxy ? String(proxy).trim().split(/\s+/, 1)[0] : 'EMPTY';
+				if (['DIRECT', 'PROXY', 'HTTPS', 'SOCKS', 'EMPTY'].indexOf(type) === -1) {
+					type = 'UNKNOWN';
+				}
+				/* __GDPR__
+					"resolveProxy.stats" : {
+						"type": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+					}
+				*/
+				this.telemetryService.publicLog('resolveProxy.stats', { type });
+			}).then(null, onUnexpectedError);
 	}
 }

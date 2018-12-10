@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 (function () {
-	'use strict';
 
 	let MonacoEnvironment = (<any>self).MonacoEnvironment;
 	let monacoBaseUrl = MonacoEnvironment && MonacoEnvironment.baseUrl ? MonacoEnvironment.baseUrl : '../../../';

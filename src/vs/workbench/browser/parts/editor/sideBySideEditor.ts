@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as DOM from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorInput, EditorOptions, SideBySideEditorInput, IEditorControl, IEditor } from 'vs/workbench/common/editor';
@@ -17,6 +16,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 import { SplitView, Sizing, Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { Event, Relay, anyEvent, mapEvent, Emitter } from 'vs/base/common/event';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export class SideBySideEditor extends BaseEditor {
 
@@ -59,9 +59,10 @@ export class SideBySideEditor extends BaseEditor {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IStorageService storageService: IStorageService
 	) {
-		super(SideBySideEditor.ID, telemetryService, themeService);
+		super(SideBySideEditor.ID, telemetryService, themeService, storageService);
 	}
 
 	protected createEditor(parent: HTMLElement): void {
@@ -107,9 +108,11 @@ export class SideBySideEditor extends BaseEditor {
 		if (this.masterEditor) {
 			this.masterEditor.setVisible(visible, group);
 		}
+
 		if (this.detailsEditor) {
 			this.detailsEditor.setVisible(visible, group);
 		}
+
 		super.setEditorVisible(visible, group);
 	}
 
@@ -117,10 +120,13 @@ export class SideBySideEditor extends BaseEditor {
 		if (this.masterEditor) {
 			this.masterEditor.clearInput();
 		}
+
 		if (this.detailsEditor) {
 			this.detailsEditor.clearInput();
 		}
+
 		this.disposeEditors();
+
 		super.clearInput();
 	}
 
@@ -139,6 +145,7 @@ export class SideBySideEditor extends BaseEditor {
 		if (this.masterEditor) {
 			return this.masterEditor.getControl();
 		}
+
 		return null;
 	}
 
@@ -159,7 +166,10 @@ export class SideBySideEditor extends BaseEditor {
 			return this.setNewInput(newInput, options, token);
 		}
 
-		return Promise.all([this.detailsEditor.setInput(newInput.details, null, token), this.masterEditor.setInput(newInput.master, options, token)]).then(() => void 0);
+		return Promise.all([
+			this.detailsEditor.setInput(newInput.details, null, token),
+			this.masterEditor.setInput(newInput.master, options, token)]
+		).then(() => void 0);
 	}
 
 	private setNewInput(newInput: SideBySideEditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
@@ -179,7 +189,7 @@ export class SideBySideEditor extends BaseEditor {
 		return editor;
 	}
 
-	private onEditorsCreated(details: BaseEditor, master: BaseEditor, detailsInput: EditorInput, masterInput: EditorInput, options: EditorOptions, token: CancellationToken): TPromise<void> {
+	private onEditorsCreated(details: BaseEditor, master: BaseEditor, detailsInput: EditorInput, masterInput: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 		this.detailsEditor = details;
 		this.masterEditor = master;
 

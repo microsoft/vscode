@@ -72,7 +72,10 @@ function _isNormal(path: string, win: boolean): boolean {
 		: !_posixBadPath.test(path);
 }
 
-export function normalize(path: string, toOSPath?: boolean): string {
+export function normalize(path: undefined, toOSPath?: boolean): undefined;
+export function normalize(path: null, toOSPath?: boolean): null;
+export function normalize(path: string, toOSPath?: boolean): string;
+export function normalize(path: string | null | undefined, toOSPath?: boolean): string | null | undefined {
 
 	if (path === null || path === void 0) {
 		return path;
@@ -288,7 +291,7 @@ export function isUNC(path: string): boolean {
 // Reference: https://en.wikipedia.org/wiki/Filename
 const INVALID_FILE_CHARS = isWindows ? /[\\/:\*\?"<>\|]/g : /[\\/]/g;
 const WINDOWS_FORBIDDEN_NAMES = /^(con|prn|aux|clock\$|nul|lpt[0-9]|com[0-9])$/i;
-export function isValidBasename(name: string): boolean {
+export function isValidBasename(name: string | null | undefined): boolean {
 	if (!name || name.length === 0 || /^\s+$/.test(name)) {
 		return false; // require a name that is not just whitespace
 	}

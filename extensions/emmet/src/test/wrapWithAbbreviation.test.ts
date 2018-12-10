@@ -5,7 +5,7 @@
 
 import 'mocha';
 import * as assert from 'assert';
-import { Selection } from 'vscode';
+import { Selection, workspace, ConfigurationTarget } from 'vscode';
 import { withRandomFileEditor, closeAllEditors } from './testUtils';
 import { wrapWithAbbreviation, wrapIndividualLinesWithAbbreviation } from '../abbreviationActions';
 
@@ -56,6 +56,13 @@ const wrapMultiLineAbbrExpected = `
 	</ul>
 `;
 
+const wrapInlineElementExpectedFormatFalse = `
+	<ul class="nav main">
+		<h1><li class="item1">img</li></h1>
+		<h1><li class="item2">$hithere</li></h1>
+	</ul>
+`;
+
 suite('Tests for Wrap with Abbreviations', () => {
 	teardown(closeAllEditors);
 
@@ -63,6 +70,7 @@ suite('Tests for Wrap with Abbreviations', () => {
 	const multiCursorsWithSelection = [new Selection(2, 2, 2, 28), new Selection(3, 2, 3, 33)];
 	const multiCursorsWithFullLineSelection = [new Selection(2, 0, 2, 28), new Selection(3, 0, 4, 0)];
 
+	const oldValueForSyntaxProfiles = workspace.getConfiguration('emmet').inspect('syntaxProfile');
 
 	test('Wrap with block element using multi cursor', () => {
 		return testWrapWithAbbreviation(multiCursors, 'div', wrapBlockElementExpected);
@@ -340,11 +348,47 @@ suite('Tests for Wrap with Abbreviations', () => {
 			});
 		});
 	});
+
+	test('Wrap with abbreviation and format set to false', () => {
+		return workspace.getConfiguration('emmet').update('syntaxProfiles',{ 'html' : { 'format': false } } , ConfigurationTarget.Global).then(() => {
+			return testWrapWithAbbreviation(multiCursors,'h1',wrapInlineElementExpectedFormatFalse).then(() => {
+				return workspace.getConfiguration('emmet').update('syntaxProfiles',oldValueForSyntaxProfiles ? oldValueForSyntaxProfiles.globalValue : undefined, ConfigurationTarget.Global);
+			});
+		});
+	});
+
+	test('Wrap multi line selections with abbreviation', () => {
+		const htmlContentsForWrapMultiLineTests = `
+			<ul class="nav main">
+				line1
+				line2
+
+				line3
+				line4
+			</ul>
+		`;
+
+		const wrapMultiLineExpected = `
+			<ul class="nav main">
+				<div>
+					line1
+					line2
+				</div>
+
+				<div>
+					line3
+					line4
+				</div>
+			</ul>
+		`;
+
+		return testWrapWithAbbreviation([new Selection(2, 4, 3, 9), new Selection(5, 4, 6, 9)], 'div', wrapMultiLineExpected, htmlContentsForWrapMultiLineTests);
+	});
 });
 
 
-function testWrapWithAbbreviation(selections: Selection[], abbreviation: string, expectedContents: string): Thenable<any> {
-	return withRandomFileEditor(htmlContentsForWrapTests, 'html', (editor, _) => {
+function testWrapWithAbbreviation(selections: Selection[], abbreviation: string, expectedContents: string, input: string = htmlContentsForWrapTests): Thenable<any> {
+	return withRandomFileEditor(input, 'html', (editor, _) => {
 		editor.selections = selections;
 		const promise = wrapWithAbbreviation({ abbreviation });
 		if (!promise) {

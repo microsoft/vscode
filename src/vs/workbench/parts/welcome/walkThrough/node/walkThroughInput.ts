@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as strings from 'vs/base/common/strings';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorInput, EditorModel, ITextEditorModel } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { IReference, IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -51,7 +50,7 @@ export class WalkThroughInput extends EditorInput {
 
 	private disposables: IDisposable[] = [];
 
-	private promise: TPromise<WalkThroughModel>;
+	private promise: Thenable<WalkThroughModel>;
 
 	private maxTopScroll = 0;
 	private maxBottomScroll = 0;
@@ -101,7 +100,7 @@ export class WalkThroughInput extends EditorInput {
 		return this.options.onReady;
 	}
 
-	resolve(): TPromise<WalkThroughModel> {
+	resolve(): Thenable<WalkThroughModel> {
 		if (!this.promise) {
 			this.promise = this.textModelResolverService.createModelReference(this.options.resource)
 				.then(ref => {
@@ -109,7 +108,7 @@ export class WalkThroughInput extends EditorInput {
 						return new WalkThroughModel(ref, []);
 					}
 
-					const snippets: TPromise<IReference<ITextEditorModel>>[] = [];
+					const snippets: Thenable<IReference<ITextEditorModel>>[] = [];
 					let i = 0;
 					const renderer = new marked.Renderer();
 					renderer.code = (code, lang) => {
@@ -121,7 +120,7 @@ export class WalkThroughInput extends EditorInput {
 					const markdown = ref.object.textEditorModel.getLinesContent().join('\n');
 					marked(markdown, { renderer });
 
-					return TPromise.join(snippets)
+					return Promise.all(snippets)
 						.then(refs => new WalkThroughModel(ref, refs));
 				});
 		}

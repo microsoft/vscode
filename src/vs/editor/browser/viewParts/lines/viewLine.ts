@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as browser from 'vs/base/browser/browser';
-import * as platform from 'vs/base/common/platform';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { IConfiguration } from 'vs/editor/common/editorCommon';
-import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
-import { renderViewLine, RenderLineInput, CharacterMapping, ForeignElementType } from 'vs/editor/common/viewLayout/viewLineRenderer';
+import * as platform from 'vs/base/common/platform';
 import { IVisibleLine } from 'vs/editor/browser/view/viewLayer';
 import { RangeUtil } from 'vs/editor/browser/viewParts/lines/rangeUtil';
-import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
-import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { ThemeType, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
 import { IStringBuilder } from 'vs/editor/common/core/stringBuilder';
+import { IConfiguration } from 'vs/editor/common/editorCommon';
+import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
+import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
+import { CharacterMapping, ForeignElementType, RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
+import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
+import { HIGH_CONTRAST, ThemeType } from 'vs/platform/theme/common/themeService';
 
 const canUseFastRenderedViewLine = (function () {
 	if (platform.isNative) {

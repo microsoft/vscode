@@ -239,7 +239,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		return this.forceOpenAsBinary ? BINARY_FILE_EDITOR_ID : TEXT_FILE_EDITOR_ID;
 	}
 
-	resolve(): TPromise<TextFileEditorModel | BinaryEditorModel> {
+	resolve(): Thenable<TextFileEditorModel | BinaryEditorModel> {
 
 		// Resolve as binary
 		if (this.forceOpenAsBinary) {
@@ -250,7 +250,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		return this.doResolveAsText();
 	}
 
-	private doResolveAsText(): TPromise<TextFileEditorModel | BinaryEditorModel> {
+	private doResolveAsText(): Thenable<TextFileEditorModel | BinaryEditorModel> {
 
 		// Resolve as text
 		return this.textFileService.models.loadOrCreate(this.resource, {
@@ -281,7 +281,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		});
 	}
 
-	private doResolveAsBinary(): TPromise<BinaryEditorModel> {
+	private doResolveAsBinary(): Thenable<BinaryEditorModel> {
 		return this.instantiationService.createInstance(BinaryEditorModel, this.resource, this.getName()).load().then(m => m as BinaryEditorModel);
 	}
 

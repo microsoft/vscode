@@ -34,7 +34,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { TerminalCommandTracker } from 'vs/workbench/parts/terminal/node/terminalCommandTracker';
 import { TerminalProcessManager } from './terminalProcessManager';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { execFile } from 'child_process';
+import { execFile, exec } from 'child_process';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -402,10 +402,10 @@ export class TerminalInstance implements ITerminalInstance {
 
 				return undefined;
 			});
-			this._disposables.push(dom.addDisposableListener(this._xterm.element, 'mousedown', (event: KeyboardEvent) => {
+			this._disposables.push(dom.addDisposableListener(this._xterm.element, 'mousedown', () => {
 				// We need to listen to the mouseup event on the document since the user may release
 				// the mouse button anywhere outside of _xterm.element.
-				const listener = dom.addDisposableListener(document, 'mouseup', (event: KeyboardEvent) => {
+				const listener = dom.addDisposableListener(document, 'mouseup', () => {
 					// Delay with a setTimeout to allow the mouseup to propagate through the DOM
 					// before evaluating the new selection state.
 					setTimeout(() => this._refreshSelectionContextKey(), 0);
@@ -414,7 +414,7 @@ export class TerminalInstance implements ITerminalInstance {
 			}));
 
 			// xterm.js currently drops selection on keyup as we need to handle this case.
-			this._disposables.push(dom.addDisposableListener(this._xterm.element, 'keyup', (event: KeyboardEvent) => {
+			this._disposables.push(dom.addDisposableListener(this._xterm.element, 'keyup', () => {
 				// Wait until keyup has propagated through the DOM before evaluating
 				// the new selection state.
 				setTimeout(() => this._refreshSelectionContextKey(), 0);
@@ -424,7 +424,7 @@ export class TerminalInstance implements ITerminalInstance {
 			const focusTrap: HTMLElement = document.createElement('div');
 			focusTrap.setAttribute('tabindex', '0');
 			dom.addClass(focusTrap, 'focus-trap');
-			this._disposables.push(dom.addDisposableListener(focusTrap, 'focus', (event: FocusEvent) => {
+			this._disposables.push(dom.addDisposableListener(focusTrap, 'focus', () => {
 				let currentElement = focusTrap;
 				while (!dom.hasClass(currentElement, 'part')) {
 					currentElement = currentElement.parentElement;
@@ -434,18 +434,18 @@ export class TerminalInstance implements ITerminalInstance {
 			}));
 			xtermHelper.insertBefore(focusTrap, this._xterm.textarea);
 
-			this._disposables.push(dom.addDisposableListener(this._xterm.textarea, 'focus', (event: KeyboardEvent) => {
+			this._disposables.push(dom.addDisposableListener(this._xterm.textarea, 'focus', () => {
 				this._terminalFocusContextKey.set(true);
 				this._onFocused.fire(this);
 			}));
-			this._disposables.push(dom.addDisposableListener(this._xterm.textarea, 'blur', (event: KeyboardEvent) => {
+			this._disposables.push(dom.addDisposableListener(this._xterm.textarea, 'blur', () => {
 				this._terminalFocusContextKey.reset();
 				this._refreshSelectionContextKey();
 			}));
-			this._disposables.push(dom.addDisposableListener(this._xterm.element, 'focus', (event: KeyboardEvent) => {
+			this._disposables.push(dom.addDisposableListener(this._xterm.element, 'focus', () => {
 				this._terminalFocusContextKey.set(true);
 			}));
-			this._disposables.push(dom.addDisposableListener(this._xterm.element, 'blur', (event: KeyboardEvent) => {
+			this._disposables.push(dom.addDisposableListener(this._xterm.element, 'blur', () => {
 				this._terminalFocusContextKey.reset();
 				this._refreshSelectionContextKey();
 			}));
@@ -487,8 +487,8 @@ export class TerminalInstance implements ITerminalInstance {
 			// Discard first frame time as it's normal to take longer
 			frameTimes.shift();
 
-			const averageTime = frameTimes.reduce((p, c) => p + c) / frameTimes.length;
-			if (averageTime > SLOW_CANVAS_RENDER_THRESHOLD) {
+			const medianTime = frameTimes.sort()[Math.floor(frameTimes.length / 2)];
+			if (medianTime > SLOW_CANVAS_RENDER_THRESHOLD) {
 				const promptChoices: IPromptChoice[] = [
 					{
 						label: nls.localize('yes', "Yes"),
@@ -505,7 +505,7 @@ export class TerminalInstance implements ITerminalInstance {
 					{
 						label: nls.localize('dontShowAgain', "Don't Show Again"),
 						isSecondary: true,
-						run: () => this._storageService.store(NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, true)
+						run: () => this._storageService.store(NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, true, StorageScope.GLOBAL)
 					} as IPromptChoice
 				];
 				this._notificationService.prompt(
@@ -575,7 +575,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._terminalFocusContextKey.set(terminalFocused);
 	}
 
-	public dispose(isShuttingDown?: boolean): void {
+	public dispose(immediate?: boolean): void {
 		this._logService.trace(`terminalInstance#dispose (id: ${this.id})`);
 
 		this._windowsShellHelper = lifecycle.dispose(this._windowsShellHelper);
@@ -601,7 +601,7 @@ export class TerminalInstance implements ITerminalInstance {
 			this._xterm = null;
 		}
 		if (this._processManager) {
-			this._processManager.dispose(isShuttingDown);
+			this._processManager.dispose(immediate);
 		}
 		if (!this._isDisposed) {
 			this._isDisposed = true;
@@ -673,12 +673,15 @@ export class TerminalInstance implements ITerminalInstance {
 					execFile('bash.exe', ['-c', 'echo $(wslpath ' + this._escapeNonWindowsPath(path) + ')'], {}, (error, stdout, stderr) => {
 						c(this._escapeNonWindowsPath(stdout.trim()));
 					});
+					return;
 				} else if (hasSpace) {
 					c('"' + path + '"');
+				} else {
+					c(path);
 				}
-			} else if (!platform.isWindows) {
-				c(this._escapeNonWindowsPath(path));
+				return;
 			}
+			c(this._escapeNonWindowsPath(path));
 		});
 	}
 
@@ -830,12 +833,12 @@ export class TerminalInstance implements ITerminalInstance {
 			if (exitCode) {
 				this._xterm.writeln(exitCodeMessage);
 			}
-			let message = typeof this._shellLaunchConfig.waitOnExit === 'string'
-				? this._shellLaunchConfig.waitOnExit
-				: nls.localize('terminal.integrated.waitOnExit', 'Press any key to close the terminal');
-			// Bold the message and add an extra new line to make it stand out from the rest of the output
-			message = `\n\x1b[1m${message}\x1b[0m`;
-			this._xterm.writeln(message);
+			if (typeof this._shellLaunchConfig.waitOnExit === 'string') {
+				let message = this._shellLaunchConfig.waitOnExit;
+				// Bold the message and add an extra new line to make it stand out from the rest of the output
+				message = `\n\x1b[1m${message}\x1b[0m`;
+				this._xterm.writeln(message);
+			}
 			// Disable all input if the terminal is exiting and listen for next keypress
 			this._xterm.setOption('disableStdin', true);
 			if (this._xterm.textarea) {
@@ -1144,6 +1147,30 @@ export class TerminalInstance implements ITerminalInstance {
 	public toggleEscapeSequenceLogging(): void {
 		this._xterm._core.debug = !this._xterm._core.debug;
 		this._xterm.setOption('debug', this._xterm._core.debug);
+	}
+
+	public get initialCwd(): string {
+		if (this._processManager) {
+			return this._processManager.initialCwd;
+		}
+		return '';
+	}
+
+	public getCwd(): Promise<string> {
+		if (!platform.isWindows) {
+			let pid = this.processId;
+			return new Promise<string>(resolve => {
+				exec('lsof -p ' + pid + ' | grep cwd', (error, stdout, stderr) => {
+					if (stdout !== '') {
+						resolve(stdout.substring(stdout.indexOf('/'), stdout.length - 1));
+					}
+				});
+			});
+		} else {
+			return new Promise<string>(resolve => {
+				resolve(this.initialCwd);
+			});
+		}
 	}
 }
 

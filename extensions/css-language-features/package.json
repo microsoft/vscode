@@ -14,7 +14,6 @@
     "onLanguage:scss",
     "onCommand:_css.applyCodeAction"
   ],
-  "enableProposedApi": true,
   "main": "./client/out/cssMain",
   "scripts": {
     "compile": "gulp compile-extension:css-language-features-client compile-extension:css-language-features-server",
@@ -143,7 +142,7 @@
               "error"
             ],
             "default": "warning",
-            "description": "%css.lint.fontFaceProperties.desc%"
+            "markdownDescription": "%css.lint.fontFaceProperties.desc%"
           },
           "css.lint.hexColorLength": {
             "type": "string",
@@ -177,6 +176,16 @@
             ],
             "default": "warning",
             "description": "%css.lint.unknownProperties.desc%"
+          },
+          "css.lint.validProperties": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string"
+            },
+            "scope": "resource",
+            "default": [],
+            "description": "%css.lint.validProperties.desc%"
           },
           "css.lint.ieHack": {
             "type": "string",
@@ -220,7 +229,7 @@
               "error"
             ],
             "default": "ignore",
-            "description": "%css.lint.important.desc%"
+            "markdownDescription": "%css.lint.important.desc%"
           },
           "css.lint.float": {
             "type": "string",
@@ -417,6 +426,16 @@
             ],
             "default": "warning",
             "description": "%scss.lint.unknownProperties.desc%"
+          },
+          "scss.lint.validProperties": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string"
+            },
+            "scope": "resource",
+            "default": [],
+            "description": "%scss.lint.validProperties.desc%"
           },
           "scss.lint.ieHack": {
             "type": "string",
@@ -637,6 +656,16 @@
             "default": "warning",
             "description": "%less.lint.unknownProperties.desc%"
           },
+          "less.lint.validProperties": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string"
+            },
+            "scope": "resource",
+            "default": [],
+            "description": "%less.lint.validProperties.desc%"
+          },
           "less.lint.ieHack": {
             "type": "string",
             "scope": "resource",
@@ -679,7 +708,7 @@
               "error"
             ],
             "default": "ignore",
-            "description": "%less.lint.important.desc%"
+            "markdownDescription": "%less.lint.important.desc%"
           },
           "less.lint.float": {
             "type": "string",

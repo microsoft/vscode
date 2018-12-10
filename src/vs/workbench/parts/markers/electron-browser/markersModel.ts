@@ -7,10 +7,11 @@ import * as paths from 'vs/base/common/paths';
 import { URI } from 'vs/base/common/uri';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { IMarker, MarkerSeverity, IRelatedInformation } from 'vs/platform/markers/common/markers';
-import { groupBy, flatten, isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { values } from 'vs/base/common/map';
 import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
+import { Hasher } from 'vs/base/common/hash';
 
 function compareUris(a: URI, b: URI) {
 	const astr = a.toString();
@@ -48,6 +49,13 @@ export class ResourceMarkers {
 	@memoize
 	get name(): string { return paths.basename(this.resource.fsPath); }
 
+	@memoize
+	get hash(): string {
+		const hasher = new Hasher();
+		hasher.hash(this.resource.toString());
+		return `${hasher.value}`;
+	}
+
 	constructor(readonly resource: URI, readonly markers: Marker[]) { }
 }
 
@@ -55,6 +63,17 @@ export class Marker {
 
 	get resource(): URI { return this.marker.resource; }
 	get range(): IRange { return this.marker; }
+
+	@memoize
+	get hash(): string {
+		const hasher = new Hasher();
+		hasher.hash(this.resource.toString());
+		hasher.hash(this.marker.startLineNumber);
+		hasher.hash(this.marker.startColumn);
+		hasher.hash(this.marker.endLineNumber);
+		hasher.hash(this.marker.endColumn);
+		return `${hasher.value}`;
+	}
 
 	constructor(
 		readonly marker: IMarker,
@@ -72,7 +91,27 @@ export class Marker {
 
 export class RelatedInformation {
 
-	constructor(readonly raw: IRelatedInformation) { }
+	@memoize
+	get hash(): string {
+		const hasher = new Hasher();
+		hasher.hash(this.resource.toString());
+		hasher.hash(this.marker.startLineNumber);
+		hasher.hash(this.marker.startColumn);
+		hasher.hash(this.marker.endLineNumber);
+		hasher.hash(this.marker.endColumn);
+		hasher.hash(this.raw.resource.toString());
+		hasher.hash(this.raw.startLineNumber);
+		hasher.hash(this.raw.startColumn);
+		hasher.hash(this.raw.endLineNumber);
+		hasher.hash(this.raw.endColumn);
+		return `${hasher.value}`;
+	}
+
+	constructor(
+		private resource: URI,
+		private marker: IMarker,
+		readonly raw: IRelatedInformation
+	) { }
 }
 
 export class MarkersModel {
@@ -108,9 +147,7 @@ export class MarkersModel {
 				let relatedInformation: RelatedInformation[] | undefined = undefined;
 
 				if (rawMarker.relatedInformation) {
-					const groupedByResource = groupBy(rawMarker.relatedInformation, compareMarkersByUri);
-					groupedByResource.sort((a, b) => compareUris(a[0].resource, b[0].resource));
-					relatedInformation = flatten(groupedByResource).map(r => new RelatedInformation(r));
+					relatedInformation = rawMarker.relatedInformation.map(r => new RelatedInformation(resource, rawMarker, r));
 				}
 
 				return new Marker(rawMarker, relatedInformation);

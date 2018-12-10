@@ -4,15 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
 import * as mime from 'vs/base/common/mime';
 import * as strings from 'vs/base/common/strings';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
-import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
-import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
-import { NULL_MODE_ID, NULL_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/nullMode';
-import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { URI } from 'vs/base/common/uri';
+import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
+import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
+import { NULL_LANGUAGE_IDENTIFIER, NULL_MODE_ID } from 'vs/editor/common/modes/nullMode';
+import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
+import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 const hasOwnProperty = Object.prototype.hasOwnProperty;
 
@@ -26,7 +28,10 @@ export interface IResolvedLanguage {
 	configurationFiles: URI[];
 }
 
-export class LanguagesRegistry {
+export class LanguagesRegistry extends Disposable {
+
+	private readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	private _nextLanguageId: number;
 	private _languages: { [id: string]: IResolvedLanguage; };
@@ -39,6 +44,7 @@ export class LanguagesRegistry {
 	private _warnOnOverwrite: boolean;
 
 	constructor(useModesRegistry = true, warnOnOverwrite = false) {
+		super();
 		this._nextLanguageId = 1;
 		this._languages = {};
 		this._mimeTypesMap = {};
@@ -49,7 +55,7 @@ export class LanguagesRegistry {
 
 		if (useModesRegistry) {
 			this._registerLanguages(ModesRegistry.getLanguages());
-			ModesRegistry.onDidAddLanguages((m) => this._registerLanguages(m));
+			this._register(ModesRegistry.onDidAddLanguages((m) => this._registerLanguages(m)));
 		}
 	}
 
@@ -80,6 +86,8 @@ export class LanguagesRegistry {
 		});
 
 		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerOverrideIdentifiers(ModesRegistry.getLanguages().map(language => language.id));
+
+		this._onDidChange.fire();
 	}
 
 	private _registerLanguage(lang: ILanguageExtensionPoint): void {

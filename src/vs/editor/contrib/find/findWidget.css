@@ -258,10 +258,6 @@
 	display:none;
 }
 
-.monaco-editor .find-widget.collapsed-find-widget > .find-part .monaco-inputbox > .wrapper > .input {
-	padding-right: 0px;
-}
-
 .monaco-editor .findMatch {
 	-webkit-animation-duration: 0;
 	-webkit-animation-name: inherit !important;

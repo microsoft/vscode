@@ -35,10 +35,10 @@ export class Button extends Disposable {
 	private _element: HTMLElement;
 	private options: IButtonOptions;
 
-	private buttonBackground: Color;
-	private buttonHoverBackground: Color;
-	private buttonForeground: Color;
-	private buttonBorder: Color;
+	private buttonBackground: Color | undefined;
+	private buttonHoverBackground: Color | undefined;
+	private buttonForeground: Color | undefined;
+	private buttonBorder: Color | undefined;
 
 	private _onDidClick = this._register(new Emitter<any>());
 	get onDidClick(): BaseEvent<Event> { return this._onDidClick.event; }
@@ -75,7 +75,7 @@ export class Button extends Disposable {
 		}));
 
 		this._register(DOM.addDisposableListener(this._element, DOM.EventType.KEY_DOWN, e => {
-			const event = new StandardKeyboardEvent(e as KeyboardEvent);
+			const event = new StandardKeyboardEvent(e);
 			let eventHandled = false;
 			if (this.enabled && event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 				this._onDidClick.fire(e);
@@ -199,11 +199,11 @@ export class ButtonGroup extends Disposable {
 			// Implement keyboard access in buttons if there are multiple
 			if (count > 1) {
 				this._register(DOM.addDisposableListener(button.element, DOM.EventType.KEY_DOWN, e => {
-					const event = new StandardKeyboardEvent(e as KeyboardEvent);
+					const event = new StandardKeyboardEvent(e);
 					let eventHandled = true;
 
 					// Next / Previous Button
-					let buttonIndexToFocus: number;
+					let buttonIndexToFocus: number | undefined;
 					if (event.equals(KeyCode.LeftArrow)) {
 						buttonIndexToFocus = index > 0 ? index - 1 : this._buttons.length - 1;
 					} else if (event.equals(KeyCode.RightArrow)) {
@@ -212,7 +212,7 @@ export class ButtonGroup extends Disposable {
 						eventHandled = false;
 					}
 
-					if (eventHandled) {
+					if (eventHandled && typeof buttonIndexToFocus === 'number') {
 						this._buttons[buttonIndexToFocus].focus();
 						DOM.EventHelper.stop(e, true);
 					}

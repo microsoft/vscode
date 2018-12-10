@@ -4,34 +4,34 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as fs from 'fs';
 import * as crypto from 'crypto';
-import { IIntegrityService, IntegrityTestResult, ChecksumPair } from 'vs/platform/integrity/common/integrity';
-import product from 'vs/platform/node/product';
-import { URI } from 'vs/base/common/uri';
+import * as fs from 'fs';
 import Severity from 'vs/base/common/severity';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { URI } from 'vs/base/common/uri';
+import { ChecksumPair, IIntegrityService, IntegrityTestResult } from 'vs/platform/integrity/common/integrity';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import product from 'vs/platform/node/product';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 interface IStorageData {
 	dontShowPrompt: boolean;
-	commit: string;
+	commit: string | undefined;
 }
 
 class IntegrityStorage {
 	private static readonly KEY = 'integrityService';
 
-	private _storageService: IStorageService;
-	private _value: IStorageData;
+	private storageService: IStorageService;
+	private value: IStorageData | null;
 
 	constructor(storageService: IStorageService) {
-		this._storageService = storageService;
-		this._value = this._read();
+		this.storageService = storageService;
+		this.value = this._read();
 	}
 
-	private _read(): IStorageData {
-		let jsonValue = this._storageService.get(IntegrityStorage.KEY, StorageScope.GLOBAL);
+	private _read(): IStorageData | null {
+		let jsonValue = this.storageService.get(IntegrityStorage.KEY, StorageScope.GLOBAL);
 		if (!jsonValue) {
 			return null;
 		}
@@ -42,19 +42,19 @@ class IntegrityStorage {
 		}
 	}
 
-	public get(): IStorageData {
-		return this._value;
+	get(): IStorageData | null {
+		return this.value;
 	}
 
-	public set(data: IStorageData): void {
-		this._value = data;
-		this._storageService.store(IntegrityStorage.KEY, JSON.stringify(this._value), StorageScope.GLOBAL);
+	set(data: IStorageData | null): void {
+		this.value = data;
+		this.storageService.store(IntegrityStorage.KEY, JSON.stringify(this.value), StorageScope.GLOBAL);
 	}
 }
 
 export class IntegrityServiceImpl implements IIntegrityService {
 
-	public _serviceBrand: any;
+	_serviceBrand: any;
 
 	private _storage: IntegrityStorage;
 	private _isPurePromise: Thenable<IntegrityTestResult>;
@@ -101,7 +101,7 @@ export class IntegrityServiceImpl implements IIntegrityService {
 		);
 	}
 
-	public isPure(): Thenable<IntegrityTestResult> {
+	isPure(): Thenable<IntegrityTestResult> {
 		return this._isPurePromise;
 	}
 

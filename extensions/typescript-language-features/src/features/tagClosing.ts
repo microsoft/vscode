@@ -52,7 +52,7 @@ class TagClosing extends Disposable {
 			return;
 		}
 
-		const filepath = this.client.toPath(document.uri);
+		const filepath = this.client.toOpenedFilePath(document);
 		if (!filepath) {
 			return;
 		}
@@ -80,7 +80,6 @@ class TagClosing extends Disposable {
 			return;
 		}
 
-		const rangeStart = lastChange.range.start;
 		const version = document.version;
 		this._timeout = setTimeout(async () => {
 			this._timeout = undefined;
@@ -89,9 +88,12 @@ class TagClosing extends Disposable {
 				return;
 			}
 
-			let position = new vscode.Position(rangeStart.line, rangeStart.character + lastChange.text.length);
-			const args: Proto.JsxClosingTagRequestArgs = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
+			const addedLines = lastChange.text.split(/\r\n|\n/g);
+			const position = addedLines.length <= 1
+				? lastChange.range.start.translate({ characterDelta: lastChange.text.length })
+				: new vscode.Position(lastChange.range.start.line + addedLines.length - 1, addedLines[addedLines.length - 1].length);
 
+			const args: Proto.JsxClosingTagRequestArgs = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
 			this._cancel = new vscode.CancellationTokenSource();
 			const response = await this.client.execute('jsxClosingTag', args, this._cancel.token);
 			if (response.type !== 'response' || !response.body) {

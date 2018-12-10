@@ -2,11 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { URI } from 'vs/base/common/uri';
 import * as assert from 'assert';
-import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
-import { ICommandService, NullCommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { URI } from 'vs/base/common/uri';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
+import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
+import { CommandsRegistry, ICommandService, NullCommandService } from 'vs/platform/commands/common/commands';
 
 suite('OpenerService', function () {
 

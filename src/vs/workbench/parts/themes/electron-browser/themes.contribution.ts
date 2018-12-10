@@ -198,7 +198,7 @@ class GenerateColorThemeAction extends Action {
 		let colors = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution).getColors();
 		let colorIds = colors.map(c => c.id).sort();
 		let resultingColors = {};
-		let inherited = [];
+		let inherited: string[] = [];
 		for (let colorId of colorIds) {
 			const color = theme.getColor(colorId, false);
 			if (color) {

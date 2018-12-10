@@ -92,7 +92,7 @@ export class RangeMap {
 	private groups: IRangedGroup[] = [];
 	private _size = 0;
 
-	splice(index: number, deleteCount: number, ...items: IItem[]): void {
+	splice(index: number, deleteCount: number, items: IItem[] = []): void {
 		const diff = items.length - deleteCount;
 		const before = groupIntersect({ start: 0, end: index }, this.groups);
 		const after = groupIntersect({ start: index + deleteCount, end: Number.POSITIVE_INFINITY }, this.groups)
@@ -188,6 +188,6 @@ export class RangeMap {
 	}
 
 	dispose() {
-		this.groups = null;
+		this.groups = null!; // StrictNullOverride: nulling out ok in dispose
 	}
 }

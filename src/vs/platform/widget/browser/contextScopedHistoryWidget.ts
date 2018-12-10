@@ -57,8 +57,11 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyCode.UpArrow,
 	secondary: [KeyMod.Alt | KeyCode.UpArrow],
 	handler: (accessor, arg2) => {
-		const historyInputBox: IHistoryNavigationWidget = getContextScopedWidget<IContextScopedHistoryNavigationWidget>(accessor.get(IContextKeyService), HistoryNavigationWidgetContext).historyNavigator;
-		historyInputBox.showPreviousValue();
+		const widget = getContextScopedWidget<IContextScopedHistoryNavigationWidget>(accessor.get(IContextKeyService), HistoryNavigationWidgetContext);
+		if (widget) {
+			const historyInputBox: IHistoryNavigationWidget = widget.historyNavigator;
+			historyInputBox.showPreviousValue();
+		}
 	}
 });
 
@@ -69,7 +72,10 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyCode.DownArrow,
 	secondary: [KeyMod.Alt | KeyCode.DownArrow],
 	handler: (accessor, arg2) => {
-		const historyInputBox: IHistoryNavigationWidget = getContextScopedWidget<IContextScopedHistoryNavigationWidget>(accessor.get(IContextKeyService), HistoryNavigationWidgetContext).historyNavigator;
-		historyInputBox.showNextValue();
+		const widget = getContextScopedWidget<IContextScopedHistoryNavigationWidget>(accessor.get(IContextKeyService), HistoryNavigationWidgetContext);
+		if (widget) {
+			const historyInputBox: IHistoryNavigationWidget = widget.historyNavigator;
+			historyInputBox.showNextValue();
+		}
 	}
 });
