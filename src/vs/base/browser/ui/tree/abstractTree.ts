@@ -5,8 +5,8 @@
 
 import 'vs/css!./media/tree';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IListOptions, List, IMultipleSelectionController, IListStyles, IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListEvent, IListContextMenuEvent, IIdentityProvider } from 'vs/base/browser/ui/list/list';
+import { IListOptions, List, IListStyles } from 'vs/base/browser/ui/list/listWidget';
+import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListEvent, IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
 import { append, $, toggleClass } from 'vs/base/browser/dom';
 import { Event, Relay, chain, mapEvent } from 'vs/base/common/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -15,51 +15,26 @@ import { ITreeModel, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITre
 import { ISpliceable } from 'vs/base/common/sequence';
 
 function asListOptions<T, TFilterData>(options?: IAbstractTreeOptions<T, TFilterData>): IListOptions<ITreeNode<T, TFilterData>> | undefined {
-	if (!options) {
-		return undefined;
-	}
-
-	let identityProvider: IIdentityProvider<ITreeNode<T, TFilterData>> | undefined = undefined;
-
-	if (options.identityProvider) {
-		const ip = options.identityProvider;
-		identityProvider = {
+	return options && {
+		...options,
+		identityProvider: options.identityProvider && {
 			getId(el) {
-				return ip.getId(el.element);
+				return options.identityProvider!.getId(el.element);
 			}
-		};
-	}
-
-	let multipleSelectionController: IMultipleSelectionController<ITreeNode<T, TFilterData>> | undefined = undefined;
-
-	if (options.multipleSelectionController) {
-		const msc = options.multipleSelectionController;
-		multipleSelectionController = {
+		},
+		multipleSelectionController: options.multipleSelectionController && {
 			isSelectionSingleChangeEvent(e) {
-				return msc.isSelectionSingleChangeEvent({ ...e, element: e.element } as any);
+				return options.multipleSelectionController!.isSelectionSingleChangeEvent({ ...e, element: e.element } as any);
 			},
 			isSelectionRangeChangeEvent(e) {
-				return msc.isSelectionRangeChangeEvent({ ...e, element: e.element } as any);
+				return options.multipleSelectionController!.isSelectionRangeChangeEvent({ ...e, element: e.element } as any);
 			}
-		};
-	}
-
-	let accessibilityProvider: IAccessibilityProvider<ITreeNode<T, TFilterData>> | undefined = undefined;
-
-	if (options.accessibilityProvider) {
-		const ap = options.accessibilityProvider;
-		accessibilityProvider = {
+		},
+		accessibilityProvider: options.accessibilityProvider && {
 			getAriaLabel(e) {
-				return ap.getAriaLabel(e.element);
+				return options.accessibilityProvider!.getAriaLabel(e.element);
 			}
-		};
-	}
-
-	return {
-		...options,
-		identityProvider,
-		multipleSelectionController,
-		accessibilityProvider
+		}
 	};
 }
 
