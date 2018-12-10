@@ -8,7 +8,6 @@ import * as nls from 'vs/nls';
 import 'vs/css!./media/dirtydiffDecorator';
 import { ThrottledDelayer, always, first } from 'vs/base/common/async';
 import { IDisposable, dispose, toDisposable, Disposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter, anyEvent as anyEvent, filterEvent, once } from 'vs/base/common/event';
 import * as ext from 'vs/workbench/common/contributions';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -68,7 +67,7 @@ class DiffMenuItemActionItem extends MenuItemActionItem {
 
 class DiffActionRunner extends ActionRunner {
 
-	runAction(action: IAction, context: any): TPromise<any> {
+	runAction(action: IAction, context: any): Thenable<any> {
 		if (action instanceof MenuItemAction) {
 			return action.run(...context);
 		}
@@ -136,8 +135,8 @@ class UIEditorAction extends Action {
 		this.editor = editor;
 	}
 
-	run(): TPromise<any> {
-		return TPromise.wrap(this.instantiationService.invokeFunction(accessor => this.action.run(accessor, this.editor, null)));
+	run(): Thenable<any> {
+		return Promise.resolve(this.instantiationService.invokeFunction(accessor => this.action.run(accessor, this.editor, null)));
 	}
 }
 
@@ -938,7 +937,7 @@ export class DirtyDiffModel {
 	get modified(): ITextModel { return this._editorModel; }
 
 	private diffDelayer: ThrottledDelayer<IChange[]>;
-	private _originalURIPromise: TPromise<URI>;
+	private _originalURIPromise: Thenable<URI>;
 	private repositoryDisposables = new Set<IDisposable[]>();
 	private originalModelDisposables: IDisposable[] = [];
 	private disposables: IDisposable[] = [];
@@ -981,9 +980,9 @@ export class DirtyDiffModel {
 		this.triggerDiff();
 	}
 
-	private triggerDiff(): TPromise<any> {
+	private triggerDiff(): Thenable<any> {
 		if (!this.diffDelayer) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		return this.diffDelayer
@@ -1006,21 +1005,21 @@ export class DirtyDiffModel {
 			});
 	}
 
-	private diff(): TPromise<IChange[]> {
+	private diff(): Thenable<IChange[]> {
 		return this.getOriginalURIPromise().then(originalURI => {
 			if (!this._editorModel || this._editorModel.isDisposed() || !originalURI) {
-				return TPromise.as([]); // disposed
+				return Promise.resolve([]); // disposed
 			}
 
 			if (!this.editorWorkerService.canComputeDirtyDiff(originalURI, this._editorModel.uri)) {
-				return TPromise.as([]); // Files too large
+				return Promise.resolve([]); // Files too large
 			}
 
 			return this.editorWorkerService.computeDirtyDiff(originalURI, this._editorModel.uri, false);
 		});
 	}
 
-	private getOriginalURIPromise(): TPromise<URI> {
+	private getOriginalURIPromise(): Thenable<URI> {
 		if (this._originalURIPromise) {
 			return this._originalURIPromise;
 		}
@@ -1062,9 +1061,9 @@ export class DirtyDiffModel {
 		});
 	}
 
-	private getOriginalResource(): TPromise<URI> {
+	private getOriginalResource(): Thenable<URI> {
 		if (!this._editorModel) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		const uri = this._editorModel.uri;
