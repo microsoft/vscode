@@ -460,7 +460,6 @@
 		"./vs/platform/keybinding/common/usLayoutResolvedKeybinding.ts",
 		"./vs/platform/keybinding/test/common/mockKeybindingService.ts",
 		"./vs/platform/label/common/label.ts",
-		"./vs/platform/label/electron-browser/label.contribution.ts",
 		"./vs/platform/launch/electron-main/launchService.ts",
 		"./vs/platform/lifecycle/common/lifecycle.ts",
 		"./vs/platform/lifecycle/electron-browser/lifecycleService.ts",

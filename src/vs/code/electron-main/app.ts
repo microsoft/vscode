@@ -61,7 +61,6 @@ import { connectRemoteAgentManagement, RemoteAgentConnectionContext } from 'vs/p
 import { IMenubarService } from 'vs/platform/menubar/common/menubar';
 import { MenubarService } from 'vs/platform/menubar/electron-main/menubarService';
 import { MenubarChannel } from 'vs/platform/menubar/node/menubarIpc';
-import { ILabelService, RegisterFormatterEvent } from 'vs/platform/label/common/label';
 import { hasArgs } from 'vs/platform/environment/node/argv';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
@@ -98,7 +97,6 @@ export class CodeApplication extends Disposable {
 		@IConfigurationService private configurationService: ConfigurationService,
 		@IStateService private stateService: IStateService,
 		@IHistoryMainService private historyMainService: IHistoryMainService,
-		@ILabelService private labelService: ILabelService
 	) {
 		super();
 
@@ -316,10 +314,6 @@ export class CodeApplication extends Disposable {
 				// Send to all windows (except sender window)
 				this.windowsMainService.sendToAll('vscode:broadcast', broadcast, [windowId]);
 			}
-		});
-
-		ipc.on('vscode:labelRegisterFormatter', (event: any, data: RegisterFormatterEvent) => {
-			this.labelService.registerFormatter(data.selector, data.formatter);
 		});
 
 		ipc.on('vscode:toggleDevTools', (event: Event) => {
