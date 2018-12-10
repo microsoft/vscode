@@ -147,10 +147,8 @@ function onReady() {
  */
 function configureCommandlineSwitches(cliArgs, nodeCachedDataDir) {
 
-	// TODO@Ben Electron 2.0.x: prevent localStorage migration from SQLite to LevelDB due to issues
-	app.commandLine.appendSwitch('disable-mojo-local-storage');
-
 	// Force pre-Chrome-60 color profile handling (for https://github.com/Microsoft/vscode/issues/51791)
+	// TODO@Ben check if future versions of Electron still support this flag
 	app.commandLine.appendSwitch('disable-features', 'ColorCorrectRendering');
 
 	// Support JS Flags

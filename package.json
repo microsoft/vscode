@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.31.0",
-  "distro": "573bd4fedabe1c0bcebeb1e683109079ae560312",
+  "distro": "2fc810c2f29040b34dbeab2be175a22cca2624db",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -63,7 +63,7 @@
     "@types/keytar": "^4.0.1",
     "@types/minimist": "^1.2.0",
     "@types/mocha": "2.2.39",
-    "@types/node": "^8.9.1",
+    "@types/node": "^10.12.12",
     "@types/semver": "^5.5.0",
     "@types/sinon": "^1.16.36",
     "@types/webpack": "^4.4.10",

@@ -83,7 +83,7 @@ function extractEntry(stream: Readable, fileName: string, mode: number, targetPa
 
 	once(token.onCancellationRequested)(() => {
 		if (istream) {
-			istream.close();
+			istream.destroy();
 		}
 	});
 
