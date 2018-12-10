@@ -30,7 +30,7 @@ import { fillInContextMenuActions, ContextAwareMenuItemActionItem, fillInActionB
 import { SCMMenus } from './scmMenus';
 import { ActionBar, IActionItemProvider, Separator, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
-import { isSCMResource, getSCMResourceContextKey } from './scmUtil';
+import { isSCMResource } from './scmUtil';
 import { attachBadgeStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
@@ -398,8 +398,7 @@ class ResourceGroupRenderer implements IListRenderer<ISCMResourceGroup, Resource
 	constructor(
 		private actionItemProvider: IActionItemProvider,
 		private themeService: IThemeService,
-		private contextKeyService: IContextKeyService,
-		private menuService: IMenuService
+		private menus: SCMMenus
 	) { }
 
 	renderTemplate(container: HTMLElement): ResourceGroupTemplate {
@@ -428,17 +427,7 @@ class ResourceGroupRenderer implements IListRenderer<ISCMResourceGroup, Resource
 		template.actionBar.context = group;
 
 		const disposables: IDisposable[] = [];
-
-		const contextKeyService = this.contextKeyService.createScoped();
-		disposables.push(contextKeyService);
-
-		contextKeyService.createKey('scmProvider', group.provider.contextValue);
-		contextKeyService.createKey('scmResourceGroup', getSCMResourceContextKey(group));
-
-		const menu = this.menuService.createMenu(MenuId.SCMResourceGroupContext, contextKeyService);
-		disposables.push(menu);
-
-		disposables.push(connectPrimaryMenuToInlineActionBar(menu, template.actionBar));
+		disposables.push(connectPrimaryMenuToInlineActionBar(this.menus.getMenu(group), template.actionBar));
 
 		const updateCount = () => template.count.setCount(group.elements.length);
 		group.onDidSplice(updateCount, null, disposables);
@@ -498,8 +487,7 @@ class ResourceRenderer implements IListRenderer<ISCMResource, ResourceTemplate> 
 		private getSelectedResources: () => ISCMResource[],
 		private themeService: IThemeService,
 		private instantiationService: IInstantiationService,
-		private contextKeyService: IContextKeyService,
-		private menuService: IMenuService
+		private menus: SCMMenus
 	) { }
 
 	renderTemplate(container: HTMLElement): ResourceTemplate {
@@ -532,17 +520,7 @@ class ResourceRenderer implements IListRenderer<ISCMResource, ResourceTemplate> 
 		template.actionBar.context = resource;
 
 		const disposables: IDisposable[] = [];
-
-		const contextKeyService = this.contextKeyService.createScoped();
-		disposables.push(contextKeyService);
-
-		contextKeyService.createKey('scmProvider', resource.resourceGroup.provider.contextValue);
-		contextKeyService.createKey('scmResourceGroup', getSCMResourceContextKey(resource.resourceGroup));
-
-		const menu = this.menuService.createMenu(MenuId.SCMResourceContext, contextKeyService);
-		disposables.push(menu);
-
-		disposables.push(connectPrimaryMenuToInlineActionBar(menu, template.actionBar));
+		disposables.push(connectPrimaryMenuToInlineActionBar(this.menus.getMenu(resource.resourceGroup), template.actionBar));
 
 		toggleClass(template.name, 'strike-through', resource.decorations.strikeThrough);
 		toggleClass(template.element, 'faded', resource.decorations.faded);
@@ -886,8 +864,8 @@ export class RepositoryPanel extends ViewletPanel {
 		const actionItemProvider = (action: IAction) => this.getActionItem(action);
 
 		const renderers = [
-			new ResourceGroupRenderer(actionItemProvider, this.themeService, this.contextKeyService, this.menuService),
-			new ResourceRenderer(actionItemProvider, () => this.getSelectedResources(), this.themeService, this.instantiationService, this.contextKeyService, this.menuService)
+			new ResourceGroupRenderer(actionItemProvider, this.themeService, this.menus),
+			new ResourceRenderer(actionItemProvider, () => this.getSelectedResources(), this.themeService, this.instantiationService, this.menus)
 		];
 
 		this.list = this.instantiationService.createInstance(WorkbenchList, this.listContainer, delegate, renderers, {
