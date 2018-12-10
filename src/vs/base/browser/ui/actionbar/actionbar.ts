@@ -376,7 +376,7 @@ export interface IActionBarOptions {
 	triggerKeys?: ActionTrigger;
 }
 
-let defaultOptions: IActionBarOptions = {
+const defaultOptions: IActionBarOptions = {
 	orientation: ActionsOrientation.HORIZONTAL,
 	context: null,
 	triggerKeys: {
@@ -473,7 +473,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		}
 
 		this._register(DOM.addDisposableListener(this.domNode, DOM.EventType.KEY_DOWN, e => {
-			let event = new StandardKeyboardEvent(e);
+			const event = new StandardKeyboardEvent(e);
 			let eventHandled = true;
 
 			if (event.equals(previousKey)) {
@@ -498,7 +498,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		}));
 
 		this._register(DOM.addDisposableListener(this.domNode, DOM.EventType.KEY_UP, e => {
-			let event = new StandardKeyboardEvent(e);
+			const event = new StandardKeyboardEvent(e);
 
 			// Run action on Enter/Space
 			if (this.isTriggerKeyEvent(event)) {
@@ -560,7 +560,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 	private updateFocusedItem(): void {
 		for (let i = 0; i < this.actionsList.children.length; i++) {
-			let elem = this.actionsList.children[i];
+			const elem = this.actionsList.children[i];
 			if (DOM.isAncestor(document.activeElement, elem)) {
 				this.focusedItem = i;
 				break;
@@ -657,8 +657,8 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 	pull(index: number): void {
 		if (index >= 0 && index < this.items.length) {
-			this.items.splice(index, 1);
 			this.actionsList.removeChild(this.actionsList.childNodes[index]);
+			dispose(this.items.splice(index, 1));
 		}
 	}
 
@@ -706,7 +706,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 			this.focusedItem = this.items.length - 1;
 		}
 
-		let startIndex = this.focusedItem;
+		const startIndex = this.focusedItem;
 		let item: IActionItem;
 
 		do {
@@ -726,7 +726,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 			this.focusedItem = 0;
 		}
 
-		let startIndex = this.focusedItem;
+		const startIndex = this.focusedItem;
 		let item: IActionItem;
 
 		do {
@@ -752,9 +752,8 @@ export class ActionBar extends Disposable implements IActionRunner {
 		}
 
 		for (let i = 0; i < this.items.length; i++) {
-			let item = this.items[i];
-
-			let actionItem = item;
+			const item = this.items[i];
+			const actionItem = item;
 
 			if (i === this.focusedItem) {
 				if (types.isFunction(actionItem.isEnabled)) {
@@ -778,7 +777,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		}
 
 		// trigger action
-		let actionItem = this.items[this.focusedItem];
+		const actionItem = this.items[this.focusedItem];
 		if (actionItem instanceof BaseActionItem) {
 			const context = (actionItem._context === null || actionItem._context === undefined) ? event : actionItem._context;
 			this.run(actionItem._action, context);
