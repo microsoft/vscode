@@ -227,11 +227,11 @@ class SuggestMemoryService extends Disposable implements ISuggestMemoryService {
 				update();
 			}
 		}));
-		this._register(this._storageService.onDidChangeStorage(e => {
-			if (e.scope === StorageScope.GLOBAL && e.key.indexOf(this._storagePrefix) === 0) {
-				update();
-			}
-		}));
+		// this._register(this._storageService.onDidChangeStorage(e => {
+		// 	if (e.scope === StorageScope.GLOBAL && e.key.indexOf(this._storagePrefix) === 0) {
+		// 		update();
+		// 	}
+		// }));
 		update();
 	}
 
