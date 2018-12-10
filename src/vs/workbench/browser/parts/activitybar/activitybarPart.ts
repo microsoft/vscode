@@ -20,22 +20,26 @@ import { ToggleActivityBarVisibilityAction } from 'vs/workbench/browser/actions/
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { CompositeBar } from 'vs/workbench/browser/parts/compositeBar';
+import { CompositeBar, ICompositeBarItem } from 'vs/workbench/browser/parts/compositeBar';
 import { Dimension, addClass } from 'vs/base/browser/dom';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { ToggleCompositePinnedAction, ICompositeBarColors } from 'vs/workbench/browser/parts/compositeBarActions';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { IViewsService, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainer, TEST_VIEW_CONTAINER_ID, IViewDescriptorCollection } from 'vs/workbench/common/views';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IViewlet } from 'vs/workbench/common/viewlet';
+import { isUndefinedOrNull } from 'vs/base/common/types';
 
 const SCM_VIEWLET_ID = 'workbench.view.scm';
 
 interface ICachedViewlet {
 	id: string;
-	iconUrl: URI;
+	iconUrl: UriComponents;
+	pinned: boolean;
+	order: number;
+	visible: boolean;
 	views?: { when: string }[];
 }
 
@@ -43,7 +47,6 @@ export class ActivitybarPart extends Part {
 
 	private static readonly ACTION_HEIGHT = 50;
 	private static readonly PINNED_VIEWLETS = 'workbench.activity.pinnedViewlets';
-	private static readonly CACHED_VIEWLETS = 'workbench.activity.placeholderViewlets';
 
 	private dimension: Dimension;
 
@@ -67,9 +70,15 @@ export class ActivitybarPart extends Part {
 	) {
 		super(id, { hasTitle: false }, themeService, storageService);
 
-		this.compositeBar = this._register(this.instantiationService.createInstance(CompositeBar, {
+		this.cachedViewlets = this.loadCachedViewlets();
+		for (const cachedViewlet of this.cachedViewlets) {
+			if (this.shouldBeHidden(cachedViewlet.id, cachedViewlet)) {
+				cachedViewlet.visible = false;
+			}
+		}
+
+		this.compositeBar = this._register(this.instantiationService.createInstance(CompositeBar, this.cachedViewlets.map(v => (<ICompositeBarItem>{ id: v.id, name: void 0, visible: v.visible, order: v.order, pinned: v.pinned })), {
 			icon: true,
-			storageId: ActivitybarPart.PINNED_VIEWLETS,
 			orientation: ActionsOrientation.VERTICAL,
 			openComposite: (compositeId: string) => this.viewletService.openViewlet(compositeId, true),
 			getActivityAction: (compositeId: string) => this.getCompositeActions(compositeId).activityAction,
@@ -83,19 +92,12 @@ export class ActivitybarPart extends Part {
 			overflowActionSize: ActivitybarPart.ACTION_HEIGHT
 		}));
 
-		const previousState = this.storageService.get(ActivitybarPart.CACHED_VIEWLETS, StorageScope.GLOBAL, '[]');
-		this.cachedViewlets = (<ICachedViewlet[]>JSON.parse(previousState)).map(({ id, iconUrl, views }) => ({ id, views, iconUrl: typeof iconUrl === 'object' ? URI.revive(iconUrl) : void 0 }));
-		for (const cachedViewlet of this.cachedViewlets) {
-			if (this.shouldBeHidden(cachedViewlet.id, cachedViewlet)) {
-				this.compositeBar.hideComposite(cachedViewlet.id);
-			}
-		}
-
 		this.registerListeners();
 		this.onDidRegisterViewlets(viewletService.getAllViewlets());
 	}
 
 	private registerListeners(): void {
+		this._register(this.compositeBar.onDidChange(() => this.saveCachedViewlets()));
 		this._register(this.viewletService.onDidViewletRegister(viewlet => this.onDidRegisterViewlets([viewlet])));
 
 		// Activate viewlet action on opening of a viewlet
@@ -250,7 +252,7 @@ export class ActivitybarPart extends Part {
 			} else {
 				const cachedComposite = this.cachedViewlets.filter(c => c.id === compositeId)[0];
 				compositeActions = {
-					activityAction: this.instantiationService.createInstance(PlaceHolderViewletActivityAction, compositeId, cachedComposite && cachedComposite.iconUrl),
+					activityAction: this.instantiationService.createInstance(PlaceHolderViewletActivityAction, compositeId, cachedComposite ? URI.revive(cachedComposite.iconUrl) : void 0),
 					pinnedAction: new PlaceHolderToggleCompositePinnedAction(compositeId, this.compositeBar)
 				};
 			}
@@ -290,7 +292,7 @@ export class ActivitybarPart extends Part {
 
 	private removeNotExistingComposites(): void {
 		const viewlets = this.viewletService.getAllViewlets();
-		for (const { id } of this.compositeBar.getComposites()) {
+		for (const { id } of this.cachedViewlets) {
 			if (viewlets.every(viewlet => viewlet.id !== id)) {
 				this.removeComposite(id, false);
 			}
@@ -350,20 +352,52 @@ export class ActivitybarPart extends Part {
 	}
 
 	protected saveState(): void {
-		const state: ICachedViewlet[] = [];
-		for (const { id, iconUrl } of this.viewletService.getAllViewlets()) {
-			const viewContainer = this.getViewContainer(id);
-			const views: { when: string }[] = [];
-			if (viewContainer) {
-				for (const { when } of this.viewsService.getViewDescriptors(viewContainer).allViewDescriptors) {
-					views.push({ when: when ? when.serialize() : void 0 });
-				}
-			}
-			state.push({ id, iconUrl, views });
-		}
-		this.storageService.store(ActivitybarPart.CACHED_VIEWLETS, JSON.stringify(state), StorageScope.GLOBAL);
-
+		this.saveCachedViewlets();
 		super.saveState();
+	}
+
+	private saveCachedViewlets(): void {
+		const state: ICachedViewlet[] = [];
+		const compositeItems = this.compositeBar.getComposites();
+		const allViewlets = this.viewletService.getAllViewlets();
+		for (const compositeItem of compositeItems) {
+			const viewContainer = this.getViewContainer(compositeItem.id);
+			const viewlet = allViewlets.filter(({ id }) => id === compositeItem.id)[0];
+			if (viewlet) {
+				const views: { when: string }[] = [];
+				if (viewContainer) {
+					for (const { when } of this.viewsService.getViewDescriptors(viewContainer).allViewDescriptors) {
+						views.push({ when: when ? when.serialize() : void 0 });
+					}
+				}
+				state.push({ id: compositeItem.id, iconUrl: viewlet.iconUrl, views, pinned: compositeItem && compositeItem.pinned, order: compositeItem ? compositeItem.order : void 0, visible: compositeItem && compositeItem.visible });
+			}
+		}
+		this.storageService.store(ActivitybarPart.PINNED_VIEWLETS, JSON.stringify(state), StorageScope.GLOBAL);
+	}
+
+	private loadCachedViewlets(): ICachedViewlet[] {
+		const storedStates = <Array<string | ICachedViewlet>>JSON.parse(this.storageService.get(ActivitybarPart.PINNED_VIEWLETS, StorageScope.GLOBAL, '[]'));
+		const cachedViewlets = <ICachedViewlet[]>storedStates.map(c => {
+			const serialized: ICachedViewlet = typeof c === 'string' /* migration from pinned states to composites states */ ? <ICachedViewlet>{ id: c, pinned: true, order: void 0, visible: true, iconUrl: void 0, views: void 0 } : c;
+			serialized.visible = isUndefinedOrNull(serialized.visible) ? true : serialized.visible;
+			return serialized;
+		});
+		for (const old of this.loadOldCachedViewlets()) {
+			const cachedViewlet = cachedViewlets.filter(cached => cached.id === old.id)[0];
+			if (cachedViewlet) {
+				cachedViewlet.iconUrl = old.iconUrl;
+				cachedViewlet.views = old.views;
+			}
+		}
+		return cachedViewlets;
+	}
+
+	private loadOldCachedViewlets(): ICachedViewlet[] {
+		const previousState = this.storageService.get('workbench.activity.placeholderViewlets', StorageScope.GLOBAL, '[]');
+		const result = (<ICachedViewlet[]>JSON.parse(previousState));
+		this.storageService.remove('workbench.activity.placeholderViewlets', StorageScope.GLOBAL);
+		return result;
 	}
 
 	private getViewContainer(viewletId: string): ViewContainer | undefined {

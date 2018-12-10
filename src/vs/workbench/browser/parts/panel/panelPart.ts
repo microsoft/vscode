@@ -13,7 +13,7 @@ import { CompositePart, ICompositeTitleLabel } from 'vs/workbench/browser/parts/
 import { Panel, PanelRegistry, Extensions as PanelExtensions, PanelDescriptor } from 'vs/workbench/browser/panel';
 import { IPanelService, IPanelIdentifier } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService, Parts, Position } from 'vs/workbench/services/part/common/partService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -30,9 +30,17 @@ import { Dimension, trackFocus } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { isUndefinedOrNull } from 'vs/base/common/types';
 
 export const ActivePanelContext = new RawContextKey<string>('activePanel', '');
 export const PanelFocusContext = new RawContextKey<boolean>('panelFocus', false);
+
+interface ICachedPanel {
+	id: string;
+	pinned: boolean;
+	order: number;
+	visible: boolean;
+}
 
 export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
@@ -81,9 +89,8 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			{ hasTitle: true }
 		);
 
-		this.compositeBar = this._register(this.instantiationService.createInstance(CompositeBar, {
+		this.compositeBar = this._register(this.instantiationService.createInstance(CompositeBar, this.loadCachedPanels(), {
 			icon: false,
-			storageId: PanelPart.PINNED_PANELS,
 			orientation: ActionsOrientation.HORIZONTAL,
 			openComposite: (compositeId: string) => Promise.resolve(this.openPanel(compositeId, true)),
 			getActivityAction: (compositeId: string) => this.getCompositeActions(compositeId).activityAction,
@@ -108,6 +115,8 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 				dragAndDropBackground: theme.getColor(PANEL_DRAG_AND_DROP_BACKGROUND)
 			})
 		}));
+
+		this._register(this.compositeBar.onDidChange(() => this.saveCachedPanels()));
 
 		for (const panel of this.getPanels()) {
 			this.compositeBar.addComposite(panel);
@@ -206,9 +215,13 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	getPanels(): PanelDescriptor[] {
-		return Registry.as<PanelRegistry>(PanelExtensions.Panels).getPanels()
+		return this.getAllPanels()
 			.filter(p => p.enabled)
 			.sort((v1, v2) => v1.order - v2.order);
+	}
+
+	private getAllPanels() {
+		return Registry.as<PanelRegistry>(PanelExtensions.Panels).getPanels();
 	}
 
 	getPinnedPanels(): PanelDescriptor[] {
@@ -322,6 +335,29 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			return 0;
 		}
 		return this.toolBar.getItemsWidth();
+	}
+
+	private saveCachedPanels(): void {
+		const state: ICachedPanel[] = [];
+		const compositeItems = this.compositeBar.getComposites();
+		const allPanels = this.getAllPanels();
+		for (const compositeItem of compositeItems) {
+			const panel = allPanels.filter(({ id }) => id === compositeItem.id)[0];
+			if (panel) {
+				state.push({ id: panel.id, pinned: compositeItem && compositeItem.pinned, order: compositeItem ? compositeItem.order : void 0, visible: compositeItem && compositeItem.visible });
+			}
+		}
+		this.storageService.store(PanelPart.PINNED_PANELS, JSON.stringify(state), StorageScope.GLOBAL);
+	}
+
+	private loadCachedPanels(): ICachedPanel[] {
+		const storedStates = <Array<string | ICachedPanel>>JSON.parse(this.storageService.get(PanelPart.PINNED_PANELS, StorageScope.GLOBAL, '[]'));
+		const cachedPanels = <ICachedPanel[]>storedStates.map(c => {
+			const serialized: ICachedPanel = typeof c === 'string' /* migration from pinned states to composites states */ ? <ICachedPanel>{ id: c, pinned: true, order: void 0, visible: true } : c;
+			serialized.visible = isUndefinedOrNull(serialized.visible) ? true : serialized.visible;
+			return serialized;
+		});
+		return cachedPanels;
 	}
 }
 

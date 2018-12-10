@@ -9,7 +9,6 @@ import { illegalArgument } from 'vs/base/common/errors';
 import * as arrays from 'vs/base/common/arrays';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ActionBar, ActionsOrientation, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CompositeActionItem, CompositeOverflowActivityAction, ICompositeActivity, CompositeOverflowActivityActionItem, ActivityAction, ICompositeBar, ICompositeBarColors, DraggedCompositeIdentifier } from 'vs/workbench/browser/parts/compositeBarActions';
@@ -20,10 +19,18 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
 import { ITheme } from 'vs/platform/theme/common/themeService';
+import { Emitter, Event } from 'vs/base/common/event';
+
+export interface ICompositeBarItem {
+	id: string;
+	name: string;
+	pinned: boolean;
+	order: number;
+	visible: boolean;
+}
 
 export interface ICompositeBarOptions {
 	icon: boolean;
-	storageId: string;
 	orientation: ActionsOrientation;
 	colors: (theme: ITheme) => ICompositeBarColors;
 	compositeSize: number;
@@ -51,25 +58,28 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 	private compositeTransfer: LocalSelectionTransfer<DraggedCompositeIdentifier>;
 
+	private readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
+	readonly onDidChange: Event<void> = this._onDidChange.event;
+
 	constructor(
+		items: ICompositeBarModelItem[],
 		private options: ICompositeBarOptions,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IStorageService storageService: IStorageService,
 		@IContextMenuService private contextMenuService: IContextMenuService
 	) {
 		super();
 
-		this.model = new CompositeBarModel(options, storageService);
+		this.model = new CompositeBarModel(items, options);
 		this.visibleComposites = [];
 		this.compositeSizeInBar = new Map<string, number>();
 		this.compositeTransfer = LocalSelectionTransfer.getInstance<DraggedCompositeIdentifier>();
 	}
 
-	getComposites(): ICompositeBarItem[] {
+	getComposites(): ICompositeBarModelItem[] {
 		return [...this.model.items];
 	}
 
-	getPinnedComposites(): ICompositeBarItem[] {
+	getPinnedComposites(): ICompositeBarModelItem[] {
 		return this.model.pinnedItems;
 	}
 
@@ -254,7 +264,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		return item && item.activityAction;
 	}
 
-	private computeSizes(items: ICompositeBarItem[]): void {
+	private computeSizes(items: ICompositeBarModelItem[]): void {
 		const size = this.options.compositeSize;
 		if (size) {
 			items.forEach(composite => this.compositeSizeInBar.set(composite.id, size));
@@ -379,8 +389,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			this.compositeSwitcherBar.push(this.compositeOverflowAction, { label: false, icon: true });
 		}
 
-		// Persist
-		this.model.saveState();
+		this._onDidChange.fire();
 	}
 
 	private getOverflowingComposites(): { id: string, name: string }[] {
@@ -428,15 +437,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 	}
 }
 
-interface ISerializedCompositeBarItem {
-	id: string;
-	pinned: boolean;
-	order: number;
-	visible: boolean;
-}
-
-interface ICompositeBarItem extends ISerializedCompositeBarItem {
-	name: string;
+interface ICompositeBarModelItem extends ICompositeBarItem {
 	activityAction: ActivityAction;
 	pinnedAction: Action;
 	activity: ICompositeActivity[];
@@ -444,28 +445,27 @@ interface ICompositeBarItem extends ISerializedCompositeBarItem {
 
 class CompositeBarModel {
 
+	items: ICompositeBarModelItem[];
 	private readonly options: ICompositeBarOptions;
-	readonly items: ICompositeBarItem[];
-
-	activeItem: ICompositeBarItem;
+	activeItem: ICompositeBarModelItem;
 
 	constructor(
-		options: ICompositeBarOptions,
-		private storageService: IStorageService,
+		items: ICompositeBarItem[],
+		options: ICompositeBarOptions
 	) {
 		this.options = options;
-		this.items = this.loadItemStates();
+		this.items = items.map(i => this.createCompositeBarItem(i.id, i.name, i.order, i.pinned, i.visible));
 	}
 
-	get visibleItems(): ICompositeBarItem[] {
+	get visibleItems(): ICompositeBarModelItem[] {
 		return this.items.filter(item => item.visible);
 	}
 
-	get pinnedItems(): ICompositeBarItem[] {
+	get pinnedItems(): ICompositeBarModelItem[] {
 		return this.items.filter(item => item.visible && item.pinned);
 	}
 
-	private createCompositeBarItem(id: string, name: string, order: number, pinned: boolean, visible: boolean): ICompositeBarItem {
+	private createCompositeBarItem(id: string, name: string, order: number, pinned: boolean, visible: boolean): ICompositeBarModelItem {
 		const options = this.options;
 		return {
 			id, name, pinned, order, visible,
@@ -635,7 +635,7 @@ class CompositeBarModel {
 		return false;
 	}
 
-	findItem(id: string): ICompositeBarItem {
+	findItem(id: string): ICompositeBarModelItem {
 		return this.items.filter(item => item.id === id)[0];
 	}
 
@@ -646,18 +646,5 @@ class CompositeBarModel {
 			}
 		}
 		return -1;
-	}
-
-	private loadItemStates(): ICompositeBarItem[] {
-		const storedStates = <Array<string | ISerializedCompositeBarItem>>JSON.parse(this.storageService.get(this.options.storageId, StorageScope.GLOBAL, '[]'));
-		return <ICompositeBarItem[]>storedStates.map(c => {
-			const serialized: ISerializedCompositeBarItem = typeof c === 'string' /* migration from pinned states to composites states */ ? { id: c, pinned: true, order: void 0, visible: true } : c;
-			return this.createCompositeBarItem(serialized.id, void 0, serialized.order, serialized.pinned, isUndefinedOrNull(serialized.visible) ? true : serialized.visible);
-		});
-	}
-
-	saveState(): void {
-		const serialized = this.items.map(({ id, pinned, order, visible }) => ({ id, pinned, order, visible }));
-		this.storageService.store(this.options.storageId, JSON.stringify(serialized), StorageScope.GLOBAL);
 	}
 }

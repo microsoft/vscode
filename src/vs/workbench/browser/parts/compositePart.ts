@@ -68,7 +68,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 	constructor(
 		private notificationService: INotificationService,
-		private storageService: IStorageService,
+		protected storageService: IStorageService,
 		private telemetryService: ITelemetryService,
 		protected contextMenuService: IContextMenuService,
 		protected partService: IPartService,
