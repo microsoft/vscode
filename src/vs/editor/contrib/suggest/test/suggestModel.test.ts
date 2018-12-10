@@ -27,6 +27,7 @@ import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/com
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/suggestMemory';
 
 export interface Ctor<T> {
 	new(): T;
@@ -42,7 +43,15 @@ function createMockEditor(model: TextModel): TestCodeEditor {
 		model: model,
 		serviceCollection: new ServiceCollection(
 			[ITelemetryService, NullTelemetryService],
-			[IStorageService, new InMemoryStorageService()]
+			[IStorageService, new InMemoryStorageService()],
+			[ISuggestMemoryService, new class implements ISuggestMemoryService {
+				_serviceBrand: any;
+				memorize(): void {
+				}
+				select(): number {
+					return -1;
+				}
+			}],
 		),
 	});
 	editor.registerAndInstantiateContribution(SnippetController2);
