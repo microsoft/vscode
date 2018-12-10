@@ -15,6 +15,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { rtrim, startsWithIgnoreCase, startsWith, equalsIgnoreCase } from 'vs/base/common/strings';
 import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
+import { coalesce } from 'vs/base/common/arrays';
 
 export class Model {
 
@@ -38,7 +39,7 @@ export class Model {
 	 * Will return empty array in case the FileStat does not exist.
 	 */
 	public findAll(resource: URI): ExplorerItem[] {
-		return this.roots.map(root => root.find(resource)).filter(stat => !!stat);
+		return coalesce(this.roots.map(root => root.find(resource)));
 	}
 
 	/**

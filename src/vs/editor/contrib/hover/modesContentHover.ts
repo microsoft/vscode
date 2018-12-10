@@ -23,6 +23,8 @@ import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contri
 import { ContentHoverWidget } from 'vs/editor/contrib/hover/hoverWidgets';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { coalesce } from 'vs/base/common/arrays';
+
 const $ = dom.$;
 
 class ColorHover {
@@ -90,15 +92,16 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 		const lineDecorations = this._editor.getLineDecorations(lineNumber);
 		let didFindColor = false;
 
-		const result = lineDecorations.map(d => {
+		const hoverRange = this._range;
+		const result = lineDecorations.map((d): HoverPart | null => {
 			const startColumn = (d.range.startLineNumber === lineNumber) ? d.range.startColumn : 1;
 			const endColumn = (d.range.endLineNumber === lineNumber) ? d.range.endColumn : maxColumn;
 
-			if (startColumn > this._range.startColumn || this._range.endColumn > endColumn) {
+			if (startColumn > hoverRange.startColumn || hoverRange.endColumn > endColumn) {
 				return null;
 			}
 
-			const range = new Range(this._range.startLineNumber, startColumn, this._range.startLineNumber, endColumn);
+			const range = new Range(hoverRange.startLineNumber, startColumn, hoverRange.startLineNumber, endColumn);
 			const colorData = colorDetector.getColorData(d.range.getStartPosition());
 
 			if (!didFindColor && colorData) {
@@ -111,7 +114,7 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 					return null;
 				}
 
-				let contents: IMarkdownString[];
+				let contents: IMarkdownString[] = [];
 
 				if (d.options.hoverMessage) {
 					if (Array.isArray(d.options.hoverMessage)) {
@@ -125,7 +128,7 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 			}
 		});
 
-		return result.filter(d => !!d);
+		return coalesce(result);
 	}
 
 	onResult(result: HoverPart[], isFromSynchronousComputation: boolean): void {
@@ -154,7 +157,7 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 
 	private _getLoadingMessage(): HoverPart {
 		return {
-			range: this._range,
+			range: this._range || undefined,
 			contents: [new MarkdownString().appendText(nls.localize('modesContentHover.loading', "Loading..."))]
 		};
 	}
@@ -248,14 +251,14 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			// The range might have changed, but the hover is visible
 			// Instead of hiding it completely, filter out messages that are still in the new range and
 			// kick off a new computation
-			if (this._showAtPosition.lineNumber !== range.startLineNumber) {
+			if (!this._showAtPosition || this._showAtPosition.lineNumber !== range.startLineNumber) {
 				this.hide();
 			} else {
 				let filteredMessages: HoverPart[] = [];
 				for (let i = 0, len = this._messages.length; i < len; i++) {
 					const msg = this._messages[i];
 					const rng = msg.range;
-					if (rng.startColumn <= range.startColumn && rng.endColumn >= range.endColumn) {
+					if (rng && rng.startColumn <= range.startColumn && rng.endColumn >= range.endColumn) {
 						filteredMessages.push(msg);
 					}
 				}
@@ -331,7 +334,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 					.forEach(contents => {
 						const renderedContents = this._markdownRenderer.render(contents);
 						markdownDisposeable = renderedContents;
-						fragment.appendChild($('div.hover-row', null, renderedContents.element));
+						fragment.appendChild($('div.hover-row', undefined, renderedContents.element));
 						isEmptyHoverContent = false;
 					});
 			} else {
@@ -340,6 +343,10 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				const { red, green, blue, alpha } = msg.color;
 				const rgba = new RGBA(red * 255, green * 255, blue * 255, alpha);
 				const color = new Color(rgba);
+
+				if (!this._editor.hasModel()) {
+					return;
+				}
 
 				const editorModel = this._editor.getModel();
 				let range = new Range(msg.range.startLineNumber, msg.range.startColumn, msg.range.endLineNumber, msg.range.endColumn);

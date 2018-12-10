@@ -25,7 +25,7 @@ export const enum AnchorPosition {
 
 export interface IDelegate {
 	getAnchor(): HTMLElement | IAnchor;
-	render(container: HTMLElement): IDisposable;
+	render(container: HTMLElement): IDisposable | null;
 	focus?(): void;
 	layout?(): void;
 	anchorAlignment?: AnchorAlignment; // default: left

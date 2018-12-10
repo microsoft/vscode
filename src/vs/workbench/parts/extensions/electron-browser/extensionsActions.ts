@@ -58,6 +58,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { isUndefinedOrNull } from 'vs/base/common/types';
+import { coalesce } from 'vs/base/common/arrays';
 
 const promptDownloadManually = (extension: IGalleryExtension, message: string, error: Error, instantiationService: IInstantiationService, notificationService: INotificationService, openerService: IOpenerService) => {
 	if (error.name === INSTALL_ERROR_INCOMPATIBLE || error.name === INSTALL_ERROR_MALICIOUS) {
@@ -2708,8 +2709,7 @@ export class InstallSpecificVersionOfExtensionAction extends Action {
 		}
 
 		const extensions = await Promise.all(versionsPromises);
-		return extensions
-			.filter(e => !!e)
+		return coalesce(extensions)
 			.sort((e1, e2) => e1.extension.displayName.localeCompare(e2.extension.displayName))
 			.map(({ extension, versions }) => {
 				return {

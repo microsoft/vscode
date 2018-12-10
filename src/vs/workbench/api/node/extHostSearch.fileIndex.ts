@@ -109,7 +109,7 @@ export class FileIndexSearchEngine {
 					errs = [errs];
 				}
 
-				errs = errs.filter(e => !!e);
+				errs = arrays.coalesce(errs);
 				return Promise.reject(errs[0]);
 			});
 		});

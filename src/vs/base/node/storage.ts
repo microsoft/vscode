@@ -67,7 +67,6 @@ export interface IStorage extends IDisposable {
 	set(key: string, value: any): Thenable<void>;
 	delete(key: string): Thenable<void>;
 
-	beforeClose(): void;
 	close(): Thenable<void>;
 
 	checkIntegrity(full: boolean): Thenable<string>;
@@ -92,7 +91,6 @@ export class Storage extends Disposable implements IStorage {
 	private cache: Map<string, string> = new Map<string, string>();
 
 	private flushDelayer: ThrottledDelayer<void>;
-	private flushDelay = Storage.DEFAULT_FLUSH_DELAY;
 
 	private pendingDeletes: Set<string> = new Set<string>();
 	private pendingInserts: Map<string, string> = new Map();
@@ -103,7 +101,7 @@ export class Storage extends Disposable implements IStorage {
 	) {
 		super();
 
-		this.flushDelayer = this._register(new ThrottledDelayer(this.flushDelay));
+		this.flushDelayer = this._register(new ThrottledDelayer(Storage.DEFAULT_FLUSH_DELAY));
 
 		this.registerListeners();
 	}
@@ -237,7 +235,7 @@ export class Storage extends Disposable implements IStorage {
 		this._onDidChangeStorage.fire(key);
 
 		// Accumulate work by scheduling after timeout
-		return this.flushDelayer.trigger(() => this.flushPending(), this.flushDelay);
+		return this.flushDelayer.trigger(() => this.flushPending());
 	}
 
 	delete(key: string): Thenable<void> {
@@ -261,11 +259,7 @@ export class Storage extends Disposable implements IStorage {
 		this._onDidChangeStorage.fire(key);
 
 		// Accumulate work by scheduling after timeout
-		return this.flushDelayer.trigger(() => this.flushPending(), this.flushDelay);
-	}
-
-	beforeClose(): void {
-		this.flushDelay = 0; // when we are about to close, reduce our flush delay to 0 to consume too much time
+		return this.flushDelayer.trigger(() => this.flushPending());
 	}
 
 	close(): Thenable<void> {

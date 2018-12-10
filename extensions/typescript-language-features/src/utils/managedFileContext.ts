@@ -17,7 +17,7 @@ export default class ManagedFileContextManager {
 	private readonly onDidChangeActiveTextEditorSub: vscode.Disposable;
 
 	public constructor(
-		private readonly normalizePath: (resource: vscode.Uri) => string | null
+		private readonly normalizePath: (resource: vscode.Uri) => string | undefined
 	) {
 		this.onDidChangeActiveTextEditorSub = vscode.window.onDidChangeActiveTextEditor(this.onDidChangeActiveTextEditor, this);
 

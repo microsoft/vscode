@@ -1150,7 +1150,10 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public get initialCwd(): string {
-		return this._processManager.initialCwd;
+		if (this._processManager) {
+			return this._processManager.initialCwd;
+		}
+		return '';
 	}
 
 	public getCwd(): Promise<string> {

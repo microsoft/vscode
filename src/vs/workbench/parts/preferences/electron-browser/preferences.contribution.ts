@@ -37,7 +37,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 
-registerSingleton(IPreferencesSearchService, PreferencesSearchService);
+registerSingleton(IPreferencesSearchService, PreferencesSearchService, true);
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	new EditorDescriptor(

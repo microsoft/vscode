@@ -5,7 +5,7 @@
 
 import { basename } from 'path';
 import * as vscode from 'vscode';
-import { CachedResponse } from './features/baseCodeLensProvider';
+import { CachedResponse } from './tsServer/cachedResponse';
 import { DiagnosticKind } from './features/diagnostics';
 import FileConfigurationManager from './features/fileConfigurationManager';
 import TypeScriptServiceClient from './typescriptServiceClient';

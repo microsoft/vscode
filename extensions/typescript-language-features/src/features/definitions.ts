@@ -22,7 +22,7 @@ export default class TypeScriptDefinitionProvider extends DefinitionProviderBase
 		token: vscode.CancellationToken
 	): Promise<vscode.DefinitionLink[] | vscode.Definition | undefined> {
 		if (this.client.apiVersion.gte(API.v270)) {
-			const filepath = this.client.toPath(document.uri);
+			const filepath = this.client.toOpenedFilePath(document);
 			if (!filepath) {
 				return undefined;
 			}

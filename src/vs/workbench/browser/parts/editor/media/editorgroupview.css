@@ -100,10 +100,6 @@
 
 /* Editor */
 
-.monaco-workbench > .part.editor > .content .editor-group-container > .editor-container {
-	height: calc(100% - 35px); /* below title control */
-}
-
 .monaco-workbench > .part.editor > .content .editor-group-container.empty > .editor-container  {
 	display: none;
 }

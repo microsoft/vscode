@@ -125,7 +125,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		this.updateCompositeSwitcher();
 	}
 
-	addComposite({ id, name, order }: { id: string; name: string, order: number }): void {
+	addComposite({ id, name, order }: { id: string; name: string, order?: number }): void {
 		// Add to the model
 		if (this.model.add(id, name, order)) {
 			this.computeSizes([this.model.findItem(id)]);

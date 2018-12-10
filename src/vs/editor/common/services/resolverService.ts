@@ -5,7 +5,6 @@
 
 import { IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ITextModel } from 'vs/editor/common/model';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -19,7 +18,7 @@ export interface ITextModelService {
 	 * Provided a resource URI, it will return a model reference
 	 * which should be disposed once not needed anymore.
 	 */
-	createModelReference(resource: URI): TPromise<IReference<ITextEditorModel>>;
+	createModelReference(resource: URI): Thenable<IReference<ITextEditorModel>>;
 
 	/**
 	 * Registers a specific `scheme` content provider.

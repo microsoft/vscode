@@ -86,7 +86,7 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 	}
 
 	reloadConfiguration(folder?: IWorkspaceFolder): Promise<void> {
-		return folder ? Promise.resolve(null) :
+		return folder ? Promise.resolve(void 0) :
 			this.userConfiguration.reload().then(userConfigurationModel => this.onDidChangeUserConfiguration(userConfigurationModel));
 	}
 

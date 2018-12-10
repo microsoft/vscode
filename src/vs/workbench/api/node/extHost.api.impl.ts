@@ -72,7 +72,7 @@ function proposedApiFunction<T>(extension: IExtensionDescription, fn: T): T {
 	if (extension.enableProposedApi) {
 		return fn;
 	} else {
-		return throwProposedApiError.bind(null, extension);
+		return throwProposedApiError.bind(null, extension) as any as T;
 	}
 }
 

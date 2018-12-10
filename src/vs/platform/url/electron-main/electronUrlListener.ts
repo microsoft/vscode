@@ -11,6 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { isWindows } from 'vs/base/common/platform';
+import { coalesce } from 'vs/base/common/arrays';
 
 function uriFromRawUrl(url: string): URI | null {
 	try {
@@ -35,7 +36,7 @@ export class ElectronURLListener {
 			...globalBuffer
 		];
 
-		const buffer = rawBuffer.map(uriFromRawUrl).filter(uri => !!uri);
+		const buffer = coalesce(rawBuffer.map(uriFromRawUrl));
 		const flush = () => buffer.forEach(uri => {
 			if (uri) {
 				urlService.open(uri);

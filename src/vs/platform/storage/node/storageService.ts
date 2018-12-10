@@ -368,10 +368,6 @@ export class StorageService extends Disposable implements IStorageService {
 
 	close(): Promise<void> {
 
-		// Signal to storage that we are about to close
-		this.globalStorage.beforeClose();
-		this.workspaceStorage.beforeClose();
-
 		// Signal as event so that clients can still store data
 		this._onWillSaveState.fire({ reason: WillSaveStateReason.SHUTDOWN });
 

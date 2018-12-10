@@ -488,7 +488,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		}
 	}
 
-	public normalizedPath(resource: vscode.Uri): string | null {
+	public normalizedPath(resource: vscode.Uri): string | undefined {
 		if (this._apiVersion.gte(API.v213)) {
 			if (resource.scheme === fileSchemes.walkThroughSnippet || resource.scheme === fileSchemes.untitled) {
 				const dirName = path.dirname(resource.path);
@@ -498,20 +498,28 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		}
 
 		if (resource.scheme !== fileSchemes.file) {
-			return null;
+			return undefined;
 		}
 
 		const result = resource.fsPath;
 		if (!result) {
-			return null;
+			return undefined;
 		}
 
 		// Both \ and / must be escaped in regular expressions
 		return result.replace(new RegExp('\\' + this.pathSeparator, 'g'), '/');
 	}
 
-	public toPath(resource: vscode.Uri): string | null {
+	public toPath(resource: vscode.Uri): string | undefined {
 		return this.normalizedPath(resource);
+	}
+
+	public toOpenedFilePath(document: vscode.TextDocument): string | undefined {
+		if (!this.bufferSyncSupport.handles(document.uri)) {
+			console.error(`Unexpected resource ${document.uri}`);
+			return undefined;
+		}
+		return this.toPath(document.uri) || undefined;
 	}
 
 	private get inMemoryResourcePrefix(): string {

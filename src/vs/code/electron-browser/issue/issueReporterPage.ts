@@ -63,9 +63,9 @@ export default (): string => `
 		<div class="block block-system">
 			<input class="sendData" type="checkbox" id="includeSystemInfo" checked/>
 			<label class="caption" for="includeSystemInfo">${escape(localize({
-		key: 'sendSystemInfo',
-		comment: ['{0} is either "show" or "hide" and is a button to toggle the visibililty of the system information']
-	}, "Include my system information ({0})")).replace('{0}', `<a href="#" class="showInfo">${escape(localize('show', "show"))}</a>`)}</label>
+			key: 'sendSystemInfo',
+			comment: ['{0} is either "show" or "hide" and is a button to toggle the visibililty of the system information']
+		}, "Include my system information ({0})")).replace('{0}', `<a href="#" class="showInfo">${escape(localize('show', "show"))}</a>`)}</label>
 			<div class="block-info hidden">
 				<!-- To be dynamically filled -->
 			</div>
@@ -73,9 +73,9 @@ export default (): string => `
 		<div class="block block-process">
 			<input class="sendData" type="checkbox" id="includeProcessInfo" checked/>
 			<label class="caption" for="includeProcessInfo">${escape(localize({
-		key: 'sendProcessInfo',
-		comment: ['{0} is either "show" or "hide" and is a button to toggle the visibililty of the process info']
-	}, "Include my currently running processes ({0})")).replace('{0}', `<a href="#" class="showInfo">${escape(localize('show', "show"))}</a>`)}</label>
+			key: 'sendProcessInfo',
+			comment: ['{0} is either "show" or "hide" and is a button to toggle the visibililty of the process info']
+		}, "Include my currently running processes ({0})")).replace('{0}', `<a href="#" class="showInfo">${escape(localize('show', "show"))}</a>`)}</label>
 			<pre class="block-info hidden">
 				<code>
 				<!-- To be dynamically filled -->
@@ -85,9 +85,9 @@ export default (): string => `
 		<div class="block block-workspace">
 			<input class="sendData" type="checkbox" id="includeWorkspaceInfo" checked/>
 			<label class="caption" for="includeWorkspaceInfo">${escape(localize({
-		key: 'sendWorkspaceInfo',
-		comment: ['{0} is either "show" or "hide" and is a button to toggle the visibililty of the workspace information']
-	}, "Include my workspace metadata ({0})")).replace('{0}', `<a href="#" class="showInfo">${escape(localize('show', "show"))}</a>`)}</label>
+			key: 'sendWorkspaceInfo',
+			comment: ['{0} is either "show" or "hide" and is a button to toggle the visibililty of the workspace information']
+		}, "Include my workspace metadata ({0})")).replace('{0}', `<a href="#" class="showInfo">${escape(localize('show', "show"))}</a>`)}</label>
 			<pre id="systemInfo" class="block-info hidden">
 				<code>
 				<!-- To be dynamically filled -->
@@ -97,9 +97,9 @@ export default (): string => `
 		<div class="block block-extensions">
 			<input class="sendData" type="checkbox" id="includeExtensions" checked/>
 			<label class="caption" for="includeExtensions">${escape(localize({
-		key: 'sendExtensions',
-		comment: ['{0} is either "show" or "hide" and is a button to toggle the visibililty of the enabled extensions list']
-	}, "Include my enabled extensions ({0})")).replace('{0}', `<a href="#" class="showInfo">${escape(localize('show', "show"))}</a>`)}</label>
+			key: 'sendExtensions',
+			comment: ['{0} is either "show" or "hide" and is a button to toggle the visibililty of the enabled extensions list']
+		}, "Include my enabled extensions ({0})")).replace('{0}', `<a href="#" class="showInfo">${escape(localize('show', "show"))}</a>`)}</label>
 			<div id="systemInfo" class="block-info hidden">
 				<!-- To be dynamically filled -->
 			</div>
@@ -107,9 +107,9 @@ export default (): string => `
 		<div class="block block-searchedExtensions">
 			<input class="sendData" type="checkbox" id="includeSearchedExtensions" checked/>
 			<label class="caption" for="includeSearchedExtensions">${escape(localize({
-		key: 'sendSearchedExtensions',
-		comment: ['{0} is either "show" or "hide" and is a button to toggle the visibililty of the searched extensions']
-	}, "Send searched extensions ({0})")).replace('{0}', `<a href="#" class="showInfo">${escape(localize('show', "show"))}</a>`)}</label>
+			key: 'sendSearchedExtensions',
+			comment: ['{0} is either "show" or "hide" and is a button to toggle the visibililty of the searched extensions']
+		}, "Send searched extensions ({0})")).replace('{0}', `<a href="#" class="showInfo">${escape(localize('show', "show"))}</a>`)}</label>
 			<div class="block-info hidden">
 				<!-- To be dynamically filled -->
 			</div>
@@ -117,9 +117,9 @@ export default (): string => `
 		<div class="block block-settingsSearchResults">
 			<input class="sendData" type="checkbox" id="includeSettingsSearchDetails" checked/>
 			<label class="caption" for="includeSettingsSearchDetails">${escape(localize({
-		key: 'sendSettingsSearchDetails',
-		comment: ['{0} is either "show" or "hide" and is a button to toggle the visibililty of the search details']
-	}, "Send settings search details ({0})")).replace('{0}', `<a href="#" class="showInfo">${escape(localize('show', "show"))}</a>`)}</label>
+			key: 'sendSettingsSearchDetails',
+			comment: ['{0} is either "show" or "hide" and is a button to toggle the visibililty of the search details']
+		}, "Send settings search details ({0})")).replace('{0}', `<a href="#" class="showInfo">${escape(localize('show', "show"))}</a>`)}</label>
 			<div class="block-info hidden">
 				<!-- To be dynamically filled -->
 			</div>

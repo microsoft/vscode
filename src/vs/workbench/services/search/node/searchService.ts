@@ -92,7 +92,7 @@ export class SearchService extends Disposable implements ISearchService {
 		const localResults = this.getLocalResults(query);
 
 		if (onProgress) {
-			localResults.values().filter((res) => !!res).forEach(onProgress);
+			arrays.coalesce(localResults.values()).forEach(onProgress);
 		}
 
 		this.logService.trace('SearchService#search', JSON.stringify(query));
@@ -148,7 +148,7 @@ export class SearchService extends Disposable implements ISearchService {
 				return this.searchWithProviders(query, progressCallback, token);
 			})
 			.then(completes => {
-				completes = completes.filter(c => !!c);
+				completes = arrays.coalesce(completes);
 				if (!completes.length) {
 					return {
 						limitHit: false,

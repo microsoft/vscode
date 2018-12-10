@@ -22,6 +22,7 @@ import { Severity } from 'vs/platform/notification/common/notification';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWindowService } from 'vs/platform/windows/common/windows';
+import { timeout } from 'vs/base/common/async';
 
 interface INotificationToast {
 	item: INotificationViewItem;
@@ -78,14 +79,28 @@ export class NotificationsToasts extends Themable {
 
 	private registerListeners(): void {
 
-		// Wait for the running phase to ensure we can draw notifications properly
-		this.lifecycleService.when(LifecyclePhase.Ready).then(() => {
+		// Delay some tasks until after we can show notifications
+		this.onCanShowNotifications().then(() => {
 
 			// Show toast for initial notifications if any
 			this.model.notifications.forEach(notification => this.addToast(notification));
 
 			// Update toasts on notification changes
 			this._register(this.model.onDidNotificationChange(e => this.onDidNotificationChange(e)));
+		});
+	}
+
+	private onCanShowNotifications(): Thenable<void> {
+
+		// Wait for the running phase to ensure we can draw notifications properly
+		return this.lifecycleService.when(LifecyclePhase.Ready).then(() => {
+
+			// Push notificiations out until either workbench is restored
+			// or some time has ellapsed to reduce pressure on the startup
+			return Promise.race([
+				this.lifecycleService.when(LifecyclePhase.Restored),
+				timeout(2000)
+			]);
 		});
 	}
 

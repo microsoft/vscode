@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { URI } from 'vs/base/common/uri';
 import { first } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -18,7 +17,7 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { IFileService } from 'vs/platform/files/common/files';
 
-class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorModel>> {
+class ResourceModelCollection extends ReferenceCollection<Thenable<ITextEditorModel>> {
 
 	private providers: { [scheme: string]: ITextModelContentProvider[] } = Object.create(null);
 	private modelsToDispose = new Set<string>();
@@ -31,7 +30,7 @@ class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorMo
 		super();
 	}
 
-	createReferencedObject(key: string, skipActivateProvider?: boolean): TPromise<ITextEditorModel> {
+	createReferencedObject(key: string, skipActivateProvider?: boolean): Thenable<ITextEditorModel> {
 		this.modelsToDispose.delete(key);
 
 		const resource = URI.parse(key);
@@ -51,10 +50,10 @@ class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorMo
 			return this.fileService.activateProvider(resource.scheme).then(() => this.createReferencedObject(key, true));
 		}
 
-		return TPromise.wrapError<ITextEditorModel>(new Error('resource is not available'));
+		return Promise.reject(new Error('resource is not available'));
 	}
 
-	destroyReferencedObject(key: string, modelPromise: TPromise<ITextEditorModel>): void {
+	destroyReferencedObject(key: string, modelPromise: Thenable<ITextEditorModel>): void {
 		this.modelsToDispose.add(key);
 
 		modelPromise.then(model => {
@@ -97,14 +96,14 @@ class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorMo
 		});
 	}
 
-	private resolveTextModelContent(key: string): TPromise<ITextModel> {
+	private resolveTextModelContent(key: string): Thenable<ITextModel> {
 		const resource = URI.parse(key);
 		const providers = this.providers[resource.scheme] || [];
-		const factories = providers.map(p => () => TPromise.wrap(p.provideTextContent(resource)));
+		const factories = providers.map(p => () => Promise.resolve(p.provideTextContent(resource)));
 
 		return first(factories).then(model => {
 			if (!model) {
-				return TPromise.wrapError<ITextModel>(new Error('resource is not available'));
+				return Promise.reject(new Error('resource is not available'));
 			}
 
 			return model;
@@ -126,11 +125,11 @@ export class TextModelResolverService implements ITextModelService {
 		this.resourceModelCollection = instantiationService.createInstance(ResourceModelCollection);
 	}
 
-	createModelReference(resource: URI): TPromise<IReference<ITextEditorModel>> {
+	createModelReference(resource: URI): Thenable<IReference<ITextEditorModel>> {
 		return this._createModelReference(resource);
 	}
 
-	private _createModelReference(resource: URI): TPromise<IReference<ITextEditorModel>> {
+	private _createModelReference(resource: URI): Thenable<IReference<ITextEditorModel>> {
 
 		// Untitled Schema: go through cached input
 		if (resource.scheme === network.Schemas.untitled) {
@@ -142,10 +141,10 @@ export class TextModelResolverService implements ITextModelService {
 			const cachedModel = this.modelService.getModel(resource);
 
 			if (!cachedModel) {
-				return TPromise.wrapError<IReference<ITextEditorModel>>(new Error('Cant resolve inmemory resource'));
+				return Promise.reject(new Error('Cant resolve inmemory resource'));
 			}
 
-			return TPromise.as(new ImmortalReference(this.instantiationService.createInstance(ResourceEditorModel, resource)));
+			return Promise.resolve(new ImmortalReference(this.instantiationService.createInstance(ResourceEditorModel, resource)));
 		}
 
 		const ref = this.resourceModelCollection.acquire(resource.toString());
@@ -155,7 +154,7 @@ export class TextModelResolverService implements ITextModelService {
 			err => {
 				ref.dispose();
 
-				return TPromise.wrapError<IReference<ITextEditorModel>>(err);
+				return Promise.reject(err);
 			}
 		);
 	}
