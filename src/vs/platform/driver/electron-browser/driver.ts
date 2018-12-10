@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { IWindowDriver, IElement, WindowDriverChannel, WindowDriverRegistryChannelClient } from 'vs/platform/driver/node/driver';
 import { IPCClient } from 'vs/base/parts/ipc/node/ipc';
@@ -50,19 +49,19 @@ class WindowDriver implements IWindowDriver {
 		@IWindowService private windowService: IWindowService
 	) { }
 
-	click(selector: string, xoffset?: number, yoffset?: number): TPromise<void> {
+	click(selector: string, xoffset?: number, yoffset?: number): Promise<void> {
 		return this._click(selector, 1, xoffset, yoffset);
 	}
 
-	doubleClick(selector: string): TPromise<void> {
+	doubleClick(selector: string): Promise<void> {
 		return this._click(selector, 2);
 	}
 
-	private _getElementXY(selector: string, xoffset?: number, yoffset?: number): TPromise<{ x: number; y: number; }> {
+	private async _getElementXY(selector: string, xoffset?: number, yoffset?: number): Promise<{ x: number; y: number; }> {
 		const element = document.querySelector(selector);
 
 		if (!element) {
-			return TPromise.wrapError(new Error(`Element not found: ${selector}`));
+			return Promise.reject(new Error(`Element not found: ${selector}`));
 		}
 
 		const { left, top } = getTopLeftOffset(element as HTMLElement);
@@ -80,27 +79,25 @@ class WindowDriver implements IWindowDriver {
 		x = Math.round(x);
 		y = Math.round(y);
 
-		return TPromise.as({ x, y });
+		return { x, y };
 	}
 
-	private _click(selector: string, clickCount: number, xoffset?: number, yoffset?: number): TPromise<void> {
-		return this._getElementXY(selector, xoffset, yoffset).then(({ x, y }) => {
+	private async _click(selector: string, clickCount: number, xoffset?: number, yoffset?: number): Promise<void> {
+		const { x, y } = await this._getElementXY(selector, xoffset, yoffset);
 
-			const webContents: electron.WebContents = (electron as any).remote.getCurrentWebContents();
-			webContents.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount } as any);
+		const webContents: electron.WebContents = (electron as any).remote.getCurrentWebContents();
+		webContents.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount } as any);
+		await timeout(10);
 
-			return TPromise.wrap(timeout(10)).then(() => {
-				webContents.sendInputEvent({ type: 'mouseUp', x, y, button: 'left', clickCount } as any);
-				return TPromise.wrap(timeout(100));
-			});
-		});
+		webContents.sendInputEvent({ type: 'mouseUp', x, y, button: 'left', clickCount } as any);
+		await timeout(100);
 	}
 
-	setValue(selector: string, text: string): TPromise<void> {
+	async setValue(selector: string, text: string): Promise<void> {
 		const element = document.querySelector(selector);
 
 		if (!element) {
-			return TPromise.wrapError(new Error(`Element not found: ${selector}`));
+			return Promise.reject(new Error(`Element not found: ${selector}`));
 		}
 
 		const inputElement = element as HTMLInputElement;
@@ -108,15 +105,13 @@ class WindowDriver implements IWindowDriver {
 
 		const event = new Event('input', { bubbles: true, cancelable: true });
 		inputElement.dispatchEvent(event);
-
-		return TPromise.as(null);
 	}
 
-	getTitle(): TPromise<string> {
-		return TPromise.as(document.title);
+	async getTitle(): Promise<string> {
+		return document.title;
 	}
 
-	isActiveElement(selector: string): TPromise<boolean> {
+	async isActiveElement(selector: string): Promise<boolean> {
 		const element = document.querySelector(selector);
 
 		if (element !== document.activeElement) {
@@ -132,13 +127,13 @@ class WindowDriver implements IWindowDriver {
 				el = el.parentElement;
 			}
 
-			return TPromise.wrapError(new Error(`Active element not found. Current active element is '${chain.join(' > ')}'. Looking for ${selector}`));
+			throw new Error(`Active element not found. Current active element is '${chain.join(' > ')}'. Looking for ${selector}`);
 		}
 
-		return TPromise.as(true);
+		return true;
 	}
 
-	getElements(selector: string, recursive: boolean): TPromise<IElement[]> {
+	async getElements(selector: string, recursive: boolean): Promise<IElement[]> {
 		const query = document.querySelectorAll(selector);
 		const result: IElement[] = [];
 
@@ -147,14 +142,14 @@ class WindowDriver implements IWindowDriver {
 			result.push(serializeElement(element, recursive));
 		}
 
-		return TPromise.as(result);
+		return result;
 	}
 
-	typeInEditor(selector: string, text: string): TPromise<void> {
+	async typeInEditor(selector: string, text: string): Promise<void> {
 		const element = document.querySelector(selector);
 
 		if (!element) {
-			return TPromise.wrapError(new Error(`Editor not found: ${selector}`));
+			throw new Error(`Editor not found: ${selector}`);
 		}
 
 		const textarea = element as HTMLTextAreaElement;
@@ -168,21 +163,19 @@ class WindowDriver implements IWindowDriver {
 
 		const event = new Event('input', { 'bubbles': true, 'cancelable': true });
 		textarea.dispatchEvent(event);
-
-		return TPromise.as(null);
 	}
 
-	getTerminalBuffer(selector: string): TPromise<string[]> {
+	async getTerminalBuffer(selector: string): Promise<string[]> {
 		const element = document.querySelector(selector);
 
 		if (!element) {
-			return TPromise.wrapError(new Error(`Terminal not found: ${selector}`));
+			throw new Error(`Terminal not found: ${selector}`);
 		}
 
 		const xterm: Terminal = (element as any).xterm;
 
 		if (!xterm) {
-			return TPromise.wrapError(new Error(`Xterm not found: ${selector}`));
+			throw new Error(`Xterm not found: ${selector}`);
 		}
 
 		const lines: string[] = [];
@@ -191,29 +184,27 @@ class WindowDriver implements IWindowDriver {
 			lines.push(xterm._core.buffer.translateBufferLineToString(i, true));
 		}
 
-		return TPromise.as(lines);
+		return lines;
 	}
 
-	writeInTerminal(selector: string, text: string): TPromise<void> {
+	async writeInTerminal(selector: string, text: string): Promise<void> {
 		const element = document.querySelector(selector);
 
 		if (!element) {
-			return TPromise.wrapError(new Error(`Element not found: ${selector}`));
+			throw new Error(`Element not found: ${selector}`);
 		}
 
 		const xterm: Terminal = (element as any).xterm;
 
 		if (!xterm) {
-			return TPromise.wrapError(new Error(`Xterm not found: ${selector}`));
+			throw new Error(`Xterm not found: ${selector}`);
 		}
 
 		xterm._core.handler(text);
-
-		return TPromise.as(null);
 	}
 
-	openDevTools(): TPromise<void> {
-		return this.windowService.openDevTools({ mode: 'detach' });
+	async openDevTools(): Promise<void> {
+		await this.windowService.openDevTools({ mode: 'detach' });
 	}
 }
 
