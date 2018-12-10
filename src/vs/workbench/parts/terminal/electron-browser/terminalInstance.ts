@@ -944,7 +944,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._onLineData.fire(lineData);
 	}
 
-	private _onKey(key: string, ev: KeyboardEvent) {
+	private _onKey(key: string, ev: KeyboardEvent): void {
 		const event = new StandardKeyboardEvent(ev);
 
 		if (event.equals(KeyCode.Enter)) {
