@@ -13,17 +13,22 @@ export class BracketSelectionRangeProvider implements SelectionRangeProvider {
 	provideSelectionRanges(model: ITextModel, position: Position): Promise<Range[]> {
 		const bucket: Range[] = [];
 		const ranges = new Map<string, Range[]>();
-		return new Promise(resolve => BracketSelectionRangeProvider._bracketsRightYield(resolve, model, position, ranges))
-			.then(() => new Promise(resolve => BracketSelectionRangeProvider._bracketsLeftYield(resolve, model, position, ranges, bucket)))
+		return new Promise(resolve => BracketSelectionRangeProvider._bracketsRightYield(resolve, 0, model, position, ranges))
+			.then(() => new Promise(resolve => BracketSelectionRangeProvider._bracketsLeftYield(resolve, 0, model, position, ranges, bucket)))
 			.then(() => bucket);
 	}
 
-	private static readonly _maxDuration = 90;
+	private static readonly _maxDuration = 30;
+	private static readonly _maxRounds = 2;
 
-	private static _bracketsRightYield(resolve: () => void, model: ITextModel, pos: Position, ranges: Map<string, Range[]>): void {
+	private static _bracketsRightYield(resolve: () => void, round: number, model: ITextModel, pos: Position, ranges: Map<string, Range[]>): void {
 		const counts = new Map<string, number>();
 		const t1 = Date.now();
 		while (true) {
+			if (round >= BracketSelectionRangeProvider._maxRounds) {
+				resolve();
+				break;
+			}
 			if (!pos) {
 				resolve();
 				break;
@@ -35,7 +40,7 @@ export class BracketSelectionRangeProvider implements SelectionRangeProvider {
 			}
 			let d = Date.now() - t1;
 			if (d > BracketSelectionRangeProvider._maxDuration) {
-				setTimeout(() => BracketSelectionRangeProvider._bracketsRightYield(resolve, model, pos, ranges));
+				setTimeout(() => BracketSelectionRangeProvider._bracketsRightYield(resolve, round + 1, model, pos, ranges));
 				break;
 			}
 			const key = bracket.close;
@@ -61,10 +66,14 @@ export class BracketSelectionRangeProvider implements SelectionRangeProvider {
 		}
 	}
 
-	private static _bracketsLeftYield(resolve: () => void, model: ITextModel, pos: Position, ranges: Map<string, Range[]>, bucket: Range[]): void {
+	private static _bracketsLeftYield(resolve: () => void, round: number, model: ITextModel, pos: Position, ranges: Map<string, Range[]>, bucket: Range[]): void {
 		const counts = new Map<string, number>();
 		const t1 = Date.now();
 		while (true) {
+			if (round >= BracketSelectionRangeProvider._maxRounds && ranges.size === 0) {
+				resolve();
+				break;
+			}
 			if (!pos) {
 				resolve();
 				break;
@@ -76,7 +85,7 @@ export class BracketSelectionRangeProvider implements SelectionRangeProvider {
 			}
 			let d = Date.now() - t1;
 			if (d > BracketSelectionRangeProvider._maxDuration) {
-				setTimeout(() => BracketSelectionRangeProvider._bracketsLeftYield(resolve, model, pos, ranges, bucket));
+				setTimeout(() => BracketSelectionRangeProvider._bracketsLeftYield(resolve, round + 1, model, pos, ranges, bucket));
 				break;
 			}
 			const key = bracket.close;
@@ -91,8 +100,11 @@ export class BracketSelectionRangeProvider implements SelectionRangeProvider {
 				counts.set(key, Math.max(0, val));
 				if (val < 0) {
 					let arr = ranges.get(key);
-					if (arr && arr.length > 0) {
+					if (arr) {
 						let closing = arr.shift();
+						if (arr.length === 0) {
+							ranges.delete(key);
+						}
 						bucket.push(Range.fromPositions(bracket.range.getEndPosition(), closing!.getStartPosition()));
 						bucket.push(Range.fromPositions(bracket.range.getStartPosition(), closing!.getEndPosition()));
 					}
