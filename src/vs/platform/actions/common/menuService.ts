@@ -19,6 +19,7 @@ export class MenuService implements IMenuService {
 	}
 
 	createMenu(id: MenuId, contextKeyService: IContextKeyService): IMenu {
+		console.log('CREATE MENU');
 		return new Menu(id, this._commandService, contextKeyService);
 	}
 }

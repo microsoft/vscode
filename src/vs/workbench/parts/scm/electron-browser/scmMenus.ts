@@ -11,12 +11,21 @@ import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions'
 import { IAction } from 'vs/base/common/actions';
 import { fillInContextMenuActions, fillInActionBarActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { ISCMProvider, ISCMResource, ISCMResourceGroup } from 'vs/workbench/services/scm/common/scm';
-import { getSCMResourceContextKey } from './scmUtil';
+import { isSCMResource } from './scmUtil';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { equals } from 'vs/base/common/arrays';
+import { ISplice } from 'vs/base/common/sequence';
 
 function actionEquals(a: IAction, b: IAction): boolean {
 	return a.id === b.id;
+}
+
+interface ISCMResourceGroupMenuEntry extends IDisposable {
+	readonly group: ISCMResourceGroup;
+}
+
+export function getSCMResourceContextKey(resource: ISCMResourceGroup | ISCMResource): string {
+	return isSCMResource(resource) ? resource.resourceGroup.id : resource.id;
 }
 
 export class SCMMenus implements IDisposable {
@@ -26,10 +35,13 @@ export class SCMMenus implements IDisposable {
 	private titleActions: IAction[] = [];
 	private titleSecondaryActions: IAction[] = [];
 
-	private _onDidChangeTitle = new Emitter<void>();
-	get onDidChangeTitle(): Event<void> { return this._onDidChangeTitle.event; }
+	private readonly _onDidChangeTitle = new Emitter<void>();
+	readonly onDidChangeTitle: Event<void> = this._onDidChangeTitle.event;
 
-	private disposables: IDisposable[] = [];
+	private readonly resourceGroupMenuEntries: ISCMResourceGroupMenuEntry[] = [];
+	private readonly resourceGroupMenus = new Map<ISCMResourceGroup, IMenu>();
+
+	private readonly disposables: IDisposable[] = [];
 
 	constructor(
 		provider: ISCMProvider | undefined,
@@ -42,6 +54,8 @@ export class SCMMenus implements IDisposable {
 
 		if (provider) {
 			scmProviderKey.set(provider.contextValue);
+			this.onDidSpliceGroups({ start: 0, deleteCount: 0, toInsert: provider.groups.elements });
+			provider.groups.onDidSplice(this.onDidSpliceGroups, this, this.disposables);
 		} else {
 			scmProviderKey.set('');
 		}
@@ -77,16 +91,8 @@ export class SCMMenus implements IDisposable {
 		return this.titleSecondaryActions;
 	}
 
-	getResourceGroupActions(group: ISCMResourceGroup): IAction[] {
-		return this.getActions(MenuId.SCMResourceGroupContext, group).primary;
-	}
-
 	getResourceGroupContextActions(group: ISCMResourceGroup): IAction[] {
 		return this.getActions(MenuId.SCMResourceGroupContext, group).secondary;
-	}
-
-	getResourceActions(resource: ISCMResource): IAction[] {
-		return this.getActions(MenuId.SCMResourceContext, resource).primary;
 	}
 
 	getResourceContextActions(resource: ISCMResource): IAction[] {
@@ -109,7 +115,44 @@ export class SCMMenus implements IDisposable {
 		return result;
 	}
 
+	getMenu(group: ISCMResourceGroup): IMenu {
+		if (!this.resourceGroupMenus.has(group)) {
+			throw new Error('SCM Resource Group menu not found');
+		}
+
+		return this.resourceGroupMenus.get(group)!;
+	}
+
+	private onDidSpliceGroups({ start, deleteCount, toInsert }: ISplice<ISCMResourceGroup>): void {
+		const menuEntriesToInsert = toInsert.map<ISCMResourceGroupMenuEntry>(group => {
+			const contextKeyService = this.contextKeyService.createScoped();
+			contextKeyService.createKey('scmProvider', group.provider.contextValue);
+			contextKeyService.createKey('scmResourceGroup', getSCMResourceContextKey(group));
+
+			const menu = this.menuService.createMenu(MenuId.SCMResourceGroupContext, contextKeyService);
+
+			this.resourceGroupMenus.set(group, menu);
+
+			return {
+				group,
+				dispose() {
+					contextKeyService.dispose();
+					menu.dispose();
+				}
+			};
+		});
+
+		const deleted = this.resourceGroupMenuEntries.splice(start, deleteCount, ...menuEntriesToInsert);
+
+		for (const entry of deleted) {
+			this.resourceGroupMenus.delete(entry.group);
+			entry.dispose();
+		}
+	}
+
 	dispose(): void {
-		this.disposables = dispose(this.disposables);
+		dispose(this.disposables);
+		dispose(this.resourceGroupMenuEntries);
+		this.resourceGroupMenus.clear();
 	}
 }
