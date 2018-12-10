@@ -105,12 +105,43 @@ export class BracketSelectionRangeProvider implements SelectionRangeProvider {
 						if (arr.length === 0) {
 							ranges.delete(key);
 						}
-						bucket.push(Range.fromPositions(bracket.range.getEndPosition(), closing!.getStartPosition()));
-						bucket.push(Range.fromPositions(bracket.range.getStartPosition(), closing!.getEndPosition()));
+						const innerBracket = Range.fromPositions(bracket.range.getEndPosition(), closing!.getStartPosition());
+						const outerBracket = Range.fromPositions(bracket.range.getStartPosition(), closing!.getEndPosition());
+						bucket.push(innerBracket);
+						bucket.push(outerBracket);
+						BracketSelectionRangeProvider._addBracketLeading(model, outerBracket, bucket);
 					}
 				}
 			}
 			pos = bracket.range.getStartPosition();
+		}
+	}
+
+	private static _addBracketLeading(model: ITextModel, bracket: Range, bucket: Range[]): void {
+		if (bracket.startLineNumber === bracket.endLineNumber) {
+			return;
+		}
+		// xxxxxxxx {
+		//
+		// }
+		const startLine = bracket.startLineNumber;
+		const column = model.getLineFirstNonWhitespaceColumn(startLine);
+		if (column !== 0 && column !== bracket.startColumn) {
+			bucket.push(Range.fromPositions(new Position(startLine, column), bracket.getEndPosition()));
+			bucket.push(Range.fromPositions(new Position(startLine, 1), bracket.getEndPosition()));
+		}
+
+		// xxxxxxxx
+		// {
+		//
+		// }
+		const aboveLine = startLine - 1;
+		if (aboveLine > 0) {
+			const column = model.getLineFirstNonWhitespaceColumn(aboveLine);
+			if (column === bracket.startColumn && column !== model.getLineLastNonWhitespaceColumn(aboveLine)) {
+				bucket.push(Range.fromPositions(new Position(aboveLine, column), bracket.getEndPosition()));
+				bucket.push(Range.fromPositions(new Position(aboveLine, 1), bracket.getEndPosition()));
+			}
 		}
 	}
 }

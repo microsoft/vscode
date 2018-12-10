@@ -234,4 +234,18 @@ suite('SmartSelect', () => {
 		await assertRanges('(aaa(aaa)bbb(bIb)ccc(ccc))', new Range(1, 14, 1, 17), new Range(1, 13, 1, 18), new Range(1, 2, 1, 26), new Range(1, 1, 1, 27));
 	});
 
+	test('bracket with leading/trailing', async () => {
+
+		await assertRanges('for(a of b){\n  foo(I);\n}',
+			new Range(2, 7, 2, 8), new Range(2, 6, 2, 9),
+			new Range(1, 13, 3, 1), new Range(1, 12, 3, 2),
+			new Range(1, 1, 3, 2), new Range(1, 1, 3, 2),
+		);
+
+		await assertRanges('for(a of b)\n{\n  foo(I);\n}',
+			new Range(3, 7, 3, 8), new Range(3, 6, 3, 9),
+			new Range(2, 2, 4, 1), new Range(2, 1, 4, 2),
+			new Range(1, 1, 4, 2), new Range(1, 1, 4, 2),
+		);
+	});
 });
