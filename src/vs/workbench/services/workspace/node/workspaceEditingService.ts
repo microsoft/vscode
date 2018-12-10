@@ -13,7 +13,7 @@ import { IWorkspaceIdentifier, IWorkspaceFolderCreationData } from 'vs/platform/
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { DelegatingStorageService } from 'vs/platform/storage/node/storageService';
+import { StorageService } from 'vs/platform/storage/node/storageService';
 import { ConfigurationScope, IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -238,9 +238,9 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	}
 
 	private migrateStorage(toWorkspace: IWorkspaceIdentifier): Thenable<void> {
-		const storageImpl = this.storageService as DelegatingStorageService;
+		const storageImpl = this.storageService as StorageService;
 
-		return storageImpl.storage.migrate(toWorkspace);
+		return storageImpl.migrate(toWorkspace);
 	}
 
 	private migrateWorkspaceSettings(toWorkspace: IWorkspaceIdentifier): Thenable<void> {
