@@ -67,6 +67,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 	private static readonly WIDE_CLASS_NAME = 'wide';
 	private static readonly WIDE_VIEW_SIZE = 1000;
+	private static readonly ACTIONS_RIGHT_CLASS_NAME = 'actions-right';
 
 	private isDisposed: boolean;
 
@@ -794,8 +795,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		}
 
 		const actionsPosition = this.configurationService.getValue<ISearchConfigurationProperties>('search').actionsPosition;
-		const useWideLayout = this.size.width >= SearchView.WIDE_VIEW_SIZE && actionsPosition === 'auto';
-		dom.toggleClass(this.getContainer(), SearchView.WIDE_CLASS_NAME, useWideLayout);
+		dom.toggleClass(this.getContainer(), SearchView.ACTIONS_RIGHT_CLASS_NAME, actionsPosition === 'right');
+		dom.toggleClass(this.getContainer(), SearchView.WIDE_CLASS_NAME, this.size.width >= SearchView.WIDE_VIEW_SIZE);
 
 		this.searchWidget.setWidth(this.size.width - 28 /* container margin */);
 
