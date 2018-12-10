@@ -7,12 +7,13 @@ import { SelectionRangeProvider } from 'vs/editor/common/modes';
 import { ITextModel } from 'vs/editor/common/model';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { LinkedList } from 'vs/base/common/linkedList';
 
 export class BracketSelectionRangeProvider implements SelectionRangeProvider {
 
 	provideSelectionRanges(model: ITextModel, position: Position): Promise<Range[]> {
 		const bucket: Range[] = [];
-		const ranges = new Map<string, Range[]>();
+		const ranges = new Map<string, LinkedList<Range>>();
 		return new Promise(resolve => BracketSelectionRangeProvider._bracketsRightYield(resolve, 0, model, position, ranges))
 			.then(() => new Promise(resolve => BracketSelectionRangeProvider._bracketsLeftYield(resolve, 0, model, position, ranges, bucket)))
 			.then(() => bucket);
@@ -21,7 +22,7 @@ export class BracketSelectionRangeProvider implements SelectionRangeProvider {
 	private static readonly _maxDuration = 30;
 	private static readonly _maxRounds = 2;
 
-	private static _bracketsRightYield(resolve: () => void, round: number, model: ITextModel, pos: Position, ranges: Map<string, Range[]>): void {
+	private static _bracketsRightYield(resolve: () => void, round: number, model: ITextModel, pos: Position, ranges: Map<string, LinkedList<Range>>): void {
 		const counts = new Map<string, number>();
 		const t1 = Date.now();
 		while (true) {
@@ -54,19 +55,19 @@ export class BracketSelectionRangeProvider implements SelectionRangeProvider {
 				val -= 1;
 				counts.set(key, Math.max(0, val));
 				if (val < 0) {
-					let arr = ranges.get(key);
-					if (!arr) {
-						arr = [];
-						ranges.set(key, arr);
+					let list = ranges.get(key);
+					if (!list) {
+						list = new LinkedList();
+						ranges.set(key, list);
 					}
-					arr.push(bracket.range);
+					list.push(bracket.range);
 				}
 			}
 			pos = bracket.range.getEndPosition();
 		}
 	}
 
-	private static _bracketsLeftYield(resolve: () => void, round: number, model: ITextModel, pos: Position, ranges: Map<string, Range[]>, bucket: Range[]): void {
+	private static _bracketsLeftYield(resolve: () => void, round: number, model: ITextModel, pos: Position, ranges: Map<string, LinkedList<Range>>, bucket: Range[]): void {
 		const counts = new Map<string, number>();
 		const t1 = Date.now();
 		while (true) {
@@ -99,10 +100,10 @@ export class BracketSelectionRangeProvider implements SelectionRangeProvider {
 				val -= 1;
 				counts.set(key, Math.max(0, val));
 				if (val < 0) {
-					let arr = ranges.get(key);
-					if (arr) {
-						let closing = arr.shift();
-						if (arr.length === 0) {
+					let list = ranges.get(key);
+					if (list) {
+						let closing = list.shift();
+						if (list.size === 0) {
 							ranges.delete(key);
 						}
 						const innerBracket = Range.fromPositions(bracket.range.getEndPosition(), closing!.getStartPosition());
