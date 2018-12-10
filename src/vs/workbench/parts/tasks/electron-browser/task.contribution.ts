@@ -1335,7 +1335,7 @@ class TaskService extends Disposable implements ITaskService {
 	}
 
 	private getGroupedTasks(): TPromise<TaskMap> {
-		return TPromise.join([this.extensionService.activateByEvent('onCommand:workbench.action.tasks.runTask'), TaskDefinitionRegistry.onReady()]).then(() => {
+		return Promise.all([this.extensionService.activateByEvent('onCommand:workbench.action.tasks.runTask'), TaskDefinitionRegistry.onReady()]).then(() => {
 			let validTypes: IStringDictionary<boolean> = Object.create(null);
 			TaskDefinitionRegistry.all().forEach(definition => validTypes[definition.taskType] = true);
 			return new Promise<TaskSet[]>(resolve => {
