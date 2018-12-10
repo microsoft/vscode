@@ -17,7 +17,7 @@ export class CachedResponse<T extends Proto.Response> {
 		f: () => Promise<ServerResponse<T>>
 	): Promise<ServerResponse<T>> {
 		if (this.response && this.matches(document)) {
-			return this.response;
+			return this.response.then(result => result.type === 'cancelled' ? f() : result);
 		}
 		return this.update(document, f());
 	}
@@ -26,10 +26,22 @@ export class CachedResponse<T extends Proto.Response> {
 		return this.version === document.version && this.document === document.uri.toString();
 	}
 
-	private update(document: vscode.TextDocument, response: Promise<ServerResponse<T>>): Promise<ServerResponse<T>> {
+	private async update(
+		document: vscode.TextDocument,
+		response: Promise<ServerResponse<T>>
+	): Promise<ServerResponse<T>> {
 		this.response = response;
 		this.version = document.version;
 		this.document = document.uri.toString();
-		return response;
+
+		const result = await response;
+		if (this.matches(document)) {
+			if (result.type === 'cancelled') {
+				// invalidate
+				this.version = -1;
+				this.document = '';
+			}
+		}
+		return result;
 	}
 }
