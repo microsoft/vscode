@@ -8,19 +8,15 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IWorkspaceStorageChangeEvent, IStorageService, StorageScope, IWillSaveStateEvent, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { Storage, ISQLiteStorageDatabaseLoggingOptions, IStorage, StorageHint, IStorageDatabase, SQLiteStorageDatabase } from 'vs/base/node/storage';
-import { IStorageLegacyService, StorageLegacyScope } from 'vs/platform/storage/common/storageLegacyService';
-import { startsWith, endsWith } from 'vs/base/common/strings';
 import { Action } from 'vs/base/common/actions';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { localize } from 'vs/nls';
 import { mark, getDuration } from 'vs/base/common/performance';
 import { join } from 'path';
-import { copy, exists, mkdirp, readdir, writeFile } from 'vs/base/node/pfs';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { copy, exists, mkdirp, writeFile } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceInitializationPayload, isWorkspaceIdentifier, isSingleFolderWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { StorageObject, parseMultiRootStorage, parseFolderStorage, parseNoWorkspaceStorage, parseEmptyStorage } from 'vs/platform/storage/common/storageLegacyMigration';
 
 export class StorageService extends Disposable implements IStorageService {
 	_serviceBrand: any;
@@ -70,9 +66,7 @@ export class StorageService extends Disposable implements IStorageService {
 
 		// Global Storage
 		this.globalStorage = new Storage(globalStorageDatabase);
-		if (process.env['VSCODE_TEST_STORAGE_MIGRATION']) {
-			this._register(this.globalStorage.onDidChangeStorage(key => this.handleDidChangeStorage(key, StorageScope.GLOBAL)));
-		}
+		this._register(this.globalStorage.onDidChangeStorage(key => this.handleDidChangeStorage(key, StorageScope.GLOBAL)));
 	}
 
 	private handleDidChangeStorage(key: string, scope: StorageScope): void {
@@ -104,167 +98,15 @@ export class StorageService extends Disposable implements IStorageService {
 		return this.prepareWorkspaceStorageFolder(payload).then(result => {
 			const useInMemoryStorage = !!this.environmentService.extensionTestsPath; // no storage during extension tests!
 
-			let workspaceStoragePath: string;
-			let workspaceStorageExists: Thenable<boolean>;
-			if (useInMemoryStorage) {
-				workspaceStoragePath = SQLiteStorageDatabase.IN_MEMORY_PATH;
-				workspaceStorageExists = Promise.resolve(true);
-			} else {
-				workspaceStoragePath = join(result.path, StorageService.WORKSPACE_STORAGE_NAME);
+			// Create workspace storage and initalize
+			mark('willInitWorkspaceStorage');
+			return this.createWorkspaceStorage(useInMemoryStorage ? SQLiteStorageDatabase.IN_MEMORY_PATH : join(result.path, StorageService.WORKSPACE_STORAGE_NAME), result.wasCreated ? StorageHint.STORAGE_DOES_NOT_EXIST : void 0).init().then(() => {
+				mark('didInitWorkspaceStorage');
+			}, error => {
+				mark('didInitWorkspaceStorage');
 
-				mark('willCheckWorkspaceStorageExists');
-				workspaceStorageExists = exists(workspaceStoragePath).then(exists => {
-					mark('didCheckWorkspaceStorageExists');
-
-					return exists;
-				});
-			}
-
-			return workspaceStorageExists.then(exists => {
-
-				// Create workspace storage and initalize
-				mark('willInitWorkspaceStorage');
-				return this.createWorkspaceStorage(workspaceStoragePath, result.wasCreated ? StorageHint.STORAGE_DOES_NOT_EXIST : void 0).init().then(() => {
-					mark('didInitWorkspaceStorage');
-				}, error => {
-					mark('didInitWorkspaceStorage');
-
-					return Promise.reject(error);
-				}).then(() => {
-
-					// Migrate storage if this is the first start and we are not using in-memory
-					let migrationPromise: Thenable<void>;
-					if (!useInMemoryStorage && !exists) {
-						migrationPromise = this.migrateWorkspaceStorage(payload);
-					} else {
-						migrationPromise = Promise.resolve();
-					}
-
-					return migrationPromise;
-				});
+				return Promise.reject(error);
 			});
-		});
-	}
-
-	// TODO@Ben remove migration after a while
-	private migrateWorkspaceStorage(payload: IWorkspaceInitializationPayload): Thenable<void> {
-		mark('willMigrateWorkspaceStorageKeys');
-		return readdir(this.environmentService.extensionsPath).then(extensions => {
-
-			// Otherwise, we migrate data from window.localStorage over
-			try {
-				let workspaceItems: StorageObject;
-				if (isWorkspaceIdentifier(payload)) {
-					workspaceItems = parseMultiRootStorage(window.localStorage, `root:${payload.id}`);
-				} else if (isSingleFolderWorkspaceInitializationPayload(payload)) {
-					workspaceItems = parseFolderStorage(window.localStorage, payload.folder.toString());
-				} else {
-					if (payload.id === 'ext-dev') {
-						workspaceItems = parseNoWorkspaceStorage(window.localStorage);
-					} else {
-						workspaceItems = parseEmptyStorage(window.localStorage, `${payload.id}`);
-					}
-				}
-
-				const workspaceItemsKeys = workspaceItems ? Object.keys(workspaceItems) : [];
-				if (workspaceItemsKeys.length > 0) {
-					const supportedKeys = new Map<string, string>();
-					[
-						'workbench.search.history',
-						'history.entries',
-						'ignoreNetVersionError',
-						'ignoreEnospcError',
-						'extensionUrlHandler.urlToHandle',
-						'terminal.integrated.isWorkspaceShellAllowed',
-						'workbench.tasks.ignoreTask010Shown',
-						'workbench.tasks.recentlyUsedTasks',
-						'workspaces.dontPromptToOpen',
-						'output.activechannel',
-						'outline/state',
-						'extensionsAssistant/workspaceRecommendationsIgnore',
-						'extensionsAssistant/dynamicWorkspaceRecommendations',
-						'debug.repl.history',
-						'editor.matchCase',
-						'editor.wholeWord',
-						'editor.isRegex',
-						'lifecyle.lastShutdownReason',
-						'debug.selectedroot',
-						'debug.selectedconfigname',
-						'debug.breakpoint',
-						'debug.breakpointactivated',
-						'debug.functionbreakpoint',
-						'debug.exceptionbreakpoint',
-						'debug.watchexpressions',
-						'workbench.sidebar.activeviewletid',
-						'workbench.panelpart.activepanelid',
-						'workbench.zenmode.active',
-						'workbench.centerededitorlayout.active',
-						'workbench.sidebar.hidden',
-						'workbench.panel.hidden',
-						'workbench.panel.location',
-						'extensionsIdentifiers/disabled',
-						'extensionsIdentifiers/enabled',
-						'scm.views',
-						'suggest/memories/first',
-						'suggest/memories/recentlyUsed',
-						'suggest/memories/recentlyUsedByPrefix',
-						'workbench.view.explorer.numberOfVisibleViews',
-						'workbench.view.extensions.numberOfVisibleViews',
-						'workbench.view.debug.numberOfVisibleViews',
-						'workbench.explorer.views.state',
-						'workbench.view.extensions.state',
-						'workbench.view.debug.state',
-						'memento/workbench.editor.walkThroughPart',
-						'memento/workbench.editor.settings2',
-						'memento/workbench.editor.htmlPreviewPart',
-						'memento/workbench.editor.defaultPreferences',
-						'memento/workbench.editors.files.textFileEditor',
-						'memento/workbench.editors.logViewer',
-						'memento/workbench.editors.textResourceEditor',
-						'memento/workbench.panel.output'
-					].forEach(key => supportedKeys.set(key.toLowerCase(), key));
-
-					// Support extension storage as well (always the ID of the extension)
-					extensions.forEach(extension => {
-						let extensionId: string;
-						if (extension.indexOf('-') >= 0) {
-							extensionId = extension.substring(0, extension.lastIndexOf('-')); // convert "author.extension-0.2.5" => "author.extension"
-						} else {
-							extensionId = extension;
-						}
-
-						if (extensionId) {
-							supportedKeys.set(extensionId.toLowerCase(), extensionId);
-						}
-					});
-
-					workspaceItemsKeys.forEach(key => {
-						const value = workspaceItems[key];
-
-						// first check for a well known supported key and store with realcase value
-						const supportedKey = supportedKeys.get(key);
-						if (supportedKey) {
-							this.store(supportedKey, value, StorageScope.WORKSPACE);
-						}
-
-						// fix lowercased ".numberOfVisibleViews"
-						else if (endsWith(key, '.numberOfVisibleViews'.toLowerCase())) {
-							const normalizedKey = key.substring(0, key.length - '.numberOfVisibleViews'.length) + '.numberOfVisibleViews';
-							this.store(normalizedKey, value, StorageScope.WORKSPACE);
-						}
-
-						// support dynamic keys
-						else if (key.indexOf('memento/') === 0 || endsWith(key, '.state')) {
-							this.store(key, value, StorageScope.WORKSPACE);
-						}
-					});
-				}
-			} catch (error) {
-				onUnexpectedError(error);
-				this.logService.error(error);
-			}
-
-			mark('didMigrateWorkspaceStorageKeys');
 		});
 	}
 
@@ -476,129 +318,15 @@ export class LogStorageAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IStorageService private storageService: DelegatingStorageService,
+		@IStorageService private storageService: StorageService,
 		@IWindowService private windowService: IWindowService
 	) {
 		super(id, label);
 	}
 
 	run(): Thenable<void> {
-		this.storageService.storage.logStorage();
+		this.storageService.logStorage();
 
 		return this.windowService.openDevTools();
-	}
-}
-
-export class DelegatingStorageService extends Disposable implements IStorageService {
-	_serviceBrand: any;
-
-	private _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
-	get onDidChangeStorage(): Event<IWorkspaceStorageChangeEvent> { return this._onDidChangeStorage.event; }
-
-	private _onWillSaveState: Emitter<IWillSaveStateEvent> = this._register(new Emitter<IWillSaveStateEvent>());
-	get onWillSaveState(): Event<IWillSaveStateEvent> { return this._onWillSaveState.event; }
-
-	private closed: boolean;
-	private useLegacyWorkspaceStorage: boolean;
-
-	constructor(
-		private storageService: IStorageService,
-		private storageLegacyService: IStorageLegacyService,
-		private logService: ILogService,
-		configurationService: IConfigurationService
-	) {
-		super();
-
-		this.useLegacyWorkspaceStorage = configurationService.inspect<boolean>('workbench.enableLegacyStorage').value === true;
-
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-		this._register(this.storageService.onDidChangeStorage(e => this._onDidChangeStorage.fire(e)));
-		this._register(this.storageService.onWillSaveState(e => this._onWillSaveState.fire(e)));
-
-		const globalKeyMarker = 'storage://global/';
-
-		window.addEventListener('storage', e => {
-			if (e.key && startsWith(e.key, globalKeyMarker)) {
-				const key = e.key.substr(globalKeyMarker.length);
-
-				this._onDidChangeStorage.fire({ key, scope: StorageScope.GLOBAL });
-			}
-		});
-	}
-
-	get storage(): StorageService {
-		return this.storageService as StorageService;
-	}
-
-	get(key: string, scope: StorageScope, fallbackValue: string): string;
-	get(key: string, scope: StorageScope, fallbackValue?: string): string | undefined {
-		if (!this.useLegacyWorkspaceStorage) {
-			if (scope === StorageScope.WORKSPACE || process.env['VSCODE_TEST_STORAGE_MIGRATION']) {
-				return this.storageService.get(key, scope, fallbackValue);
-			}
-		}
-
-		return this.storageLegacyService.get(key, this.convertScope(scope), fallbackValue);
-	}
-
-	getBoolean(key: string, scope: StorageScope, fallbackValue: boolean): boolean;
-	getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): boolean | undefined {
-		if (!this.useLegacyWorkspaceStorage) {
-			if (scope === StorageScope.WORKSPACE || process.env['VSCODE_TEST_STORAGE_MIGRATION']) {
-				return this.storageService.getBoolean(key, scope, fallbackValue);
-			}
-		}
-
-		return this.storageLegacyService.getBoolean(key, this.convertScope(scope), fallbackValue);
-	}
-
-	getInteger(key: string, scope: StorageScope, fallbackValue: number): number;
-	getInteger(key: string, scope: StorageScope, fallbackValue?: number): number | undefined {
-		if (!this.useLegacyWorkspaceStorage) {
-			if (scope === StorageScope.WORKSPACE || process.env['VSCODE_TEST_STORAGE_MIGRATION']) {
-				return this.storageService.getInteger(key, scope, fallbackValue);
-			}
-		}
-
-		return this.storageLegacyService.getInteger(key, this.convertScope(scope), fallbackValue);
-	}
-
-	store(key: string, value: any, scope: StorageScope): void {
-		if (this.closed) {
-			this.logService.warn(`Unsupported write (store) access after close (key: ${key})`);
-
-			return; // prevent writing after close to detect late write access
-		}
-
-		this.storageLegacyService.store(key, value, this.convertScope(scope));
-
-		this.storageService.store(key, value, scope);
-	}
-
-	remove(key: string, scope: StorageScope): void {
-		if (this.closed) {
-			this.logService.warn(`Unsupported write (remove) access after close (key: ${key})`);
-
-			return; // prevent writing after close to detect late write access
-		}
-
-		this.storageLegacyService.remove(key, this.convertScope(scope));
-
-		this.storageService.remove(key, scope);
-	}
-
-	close(): Promise<void> {
-		const promise = this.storage.close();
-
-		this.closed = true;
-
-		return promise;
-	}
-
-	private convertScope(scope: StorageScope): StorageLegacyScope {
-		return scope === StorageScope.GLOBAL ? StorageLegacyScope.GLOBAL : StorageLegacyScope.WORKSPACE;
 	}
 }

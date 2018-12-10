@@ -505,7 +505,6 @@
 		"./vs/platform/state/node/stateService.ts",
 		"./vs/platform/statusbar/common/statusbar.ts",
 		"./vs/platform/storage/common/storage.ts",
-		"./vs/platform/storage/common/storageLegacyService.ts",
 		"./vs/platform/storage/node/storageMainService.ts",
 		"./vs/platform/telemetry/browser/errorTelemetry.ts",
 		"./vs/platform/telemetry/common/telemetry.ts",
