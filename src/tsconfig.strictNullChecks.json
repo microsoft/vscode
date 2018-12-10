@@ -741,6 +741,7 @@
 		"./vs/workbench/services/themes/common/colorThemeSchema.ts",
 		"./vs/workbench/services/themes/common/fileIconThemeSchema.ts",
 		"./vs/workbench/services/themes/common/workbenchThemeService.ts",
+		"./vs/workbench/services/themes/electron-browser/fileIconThemeData.ts",
 		"./vs/workbench/services/title/common/titleService.ts",
 		"./vs/workbench/services/workspace/common/workspaceEditing.ts",
 		"./vs/workbench/test/electron-browser/api/mock.ts"

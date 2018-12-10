@@ -41,9 +41,9 @@ export interface IColorMap {
 export interface IFileIconTheme extends IIconTheme {
 	readonly id: string;
 	readonly label: string;
-	readonly settingsId: string;
+	readonly settingsId?: string;
 	readonly description?: string;
-	readonly extensionData: ExtensionData;
+	readonly extensionData?: ExtensionData;
 
 	readonly isLoaded: boolean;
 	readonly hasFileIcons: boolean;
