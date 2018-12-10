@@ -78,7 +78,7 @@
 	height: 100%;
 }
 
-.monaco-workbench .tree-explorer-viewlet-tree-view .customview-tree:not(.hasChildren) {
+.monaco-workbench .tree-explorer-viewlet-tree-view .customview-tree.hide {
 	display: none;
 }
 

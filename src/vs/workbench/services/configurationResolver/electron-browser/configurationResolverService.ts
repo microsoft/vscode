@@ -90,7 +90,9 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 		// resolve input variables in the order in which they are encountered
 		return this.resolveWithInteraction(folder, config, section, variables).then(mapping => {
 			// finally substitute evaluated command variables (if there are any)
-			if (mapping.size > 0) {
+			if (!mapping) {
+				return null;
+			} else if (mapping.size > 0) {
 				return this.resolveAny(folder, config, fromMap(mapping));
 			} else {
 				return config;
@@ -264,7 +266,7 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 				});
 			}
 		}
-		return Promise.reject(nls.localize('undefinedInputVariable', "Undefined input variable {0} encountered. Remove or define {0} to continue.", commandVariable));
+		return Promise.reject(new Error(nls.localize('undefinedInputVariable', "Undefined input variable {0} encountered. Remove or define {0} to continue.", commandVariable)));
 	}
 
 	/**

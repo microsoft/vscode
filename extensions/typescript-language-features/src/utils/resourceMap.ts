@@ -18,7 +18,7 @@ export class ResourceMap<T> {
 	private readonly _map = new Map<string, { resource: vscode.Uri, value: T }>();
 
 	constructor(
-		private readonly _normalizePath: (resource: vscode.Uri) => string | null = (resource) => resource.fsPath
+		private readonly _normalizePath: (resource: vscode.Uri) => string | undefined = (resource) => resource.fsPath
 	) { }
 
 	public get size() {
@@ -71,7 +71,7 @@ export class ResourceMap<T> {
 		return this._map.values();
 	}
 
-	private toKey(resource: vscode.Uri): string | null {
+	private toKey(resource: vscode.Uri): string | undefined {
 		const key = this._normalizePath(resource);
 		if (!key) {
 			return key;

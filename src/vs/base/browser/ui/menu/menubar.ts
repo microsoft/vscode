@@ -80,6 +80,7 @@ export class MenuBar extends Disposable {
 
 	private numMenusShown: number;
 	private menuStyle: IMenuStyles;
+	private overflowLayoutScheduled: IDisposable;
 
 	constructor(private container: HTMLElement, private options: IMenuBarOptions = {}) {
 		super();
@@ -88,6 +89,8 @@ export class MenuBar extends Disposable {
 
 		this.menuCache = [];
 		this.mnemonics = new Map<KeyCode, number>();
+
+		this._focusState = MenubarState.VISIBLE;
 
 		this._onVisibilityChange = this._register(new Emitter<boolean>());
 		this._onFocusStateChange = this._register(new Emitter<boolean>());
@@ -373,6 +376,8 @@ export class MenuBar extends Disposable {
 
 		DOM.removeNode(this.overflowMenu.titleElement);
 		DOM.removeNode(this.overflowMenu.buttonElement);
+
+		this.overflowLayoutScheduled = dispose(this.overflowLayoutScheduled);
 	}
 
 	blur(): void {
@@ -488,7 +493,12 @@ export class MenuBar extends Disposable {
 			this.updateLabels(menuBarMenu.titleElement, menuBarMenu.buttonElement, menuBarMenu.label);
 		});
 
-		this.updateOverflowAction();
+		if (!this.overflowLayoutScheduled) {
+			this.overflowLayoutScheduled = DOM.scheduleAtNextAnimationFrame(() => {
+				this.updateOverflowAction();
+				this.overflowLayoutScheduled = void 0;
+			});
+		}
 
 		this.setUnfocusedState();
 	}

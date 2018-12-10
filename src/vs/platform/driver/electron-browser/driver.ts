@@ -13,6 +13,7 @@ import * as electron from 'electron';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { Terminal } from 'vscode-xterm';
 import { timeout } from 'vs/base/common/async';
+import { coalesce } from 'vs/base/common/arrays';
 
 function serializeElement(element: Element, recursive: boolean): IElement {
 	const attributes = Object.create(null);
@@ -125,7 +126,7 @@ class WindowDriver implements IWindowDriver {
 			while (el) {
 				const tagName = el.tagName;
 				const id = el.id ? `#${el.id}` : '';
-				const classes = el.className.split(/\s+/g).map(c => c.trim()).filter(c => !!c).map(c => `.${c}`).join('');
+				const classes = coalesce(el.className.split(/\s+/g).map(c => c.trim())).map(c => `.${c}`).join('');
 				chain.unshift(`${tagName}${id}${classes}`);
 
 				el = el.parentElement;

@@ -11,7 +11,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { Task, ContributedTask, CustomTask, TaskSet, TaskSorter, TaskEvent, TaskIdentifier, ConfiguringTask } from 'vs/workbench/parts/tasks/common/tasks';
+import { Task, ContributedTask, CustomTask, TaskSet, TaskSorter, TaskEvent, TaskIdentifier, ConfiguringTask, TaskRunSource } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskSummary, TaskTerminateResponse, TaskSystemInfo } from 'vs/workbench/parts/tasks/common/taskSystem';
 import { IStringDictionary } from 'vs/base/common/collections';
 
@@ -66,7 +66,7 @@ export interface ITaskService {
 	terminate(task: Task): TPromise<TaskTerminateResponse>;
 	terminateAll(): TPromise<TaskTerminateResponse[]>;
 	tasks(filter?: TaskFilter): TPromise<Task[]>;
-	getWorkspaceTasks(): TPromise<Map<string, WorkspaceFolderTaskResult>>;
+	getWorkspaceTasks(runSource?: TaskRunSource): TPromise<Map<string, WorkspaceFolderTaskResult>>;
 	/**
 	 * @param alias The task's name, label or defined identifier.
 	 */

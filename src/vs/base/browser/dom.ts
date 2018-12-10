@@ -13,6 +13,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
+import { coalesce } from 'vs/base/common/arrays';
 
 export function clearNode(node: HTMLElement): void {
 	while (node.firstChild) {
@@ -1025,8 +1026,7 @@ export function $<T extends HTMLElement>(description: string, attrs?: { [key: st
 		}
 	});
 
-	children
-		.filter(child => !!child)
+	coalesce(children)
 		.forEach(child => {
 			if (child instanceof Node) {
 				result.appendChild(child);

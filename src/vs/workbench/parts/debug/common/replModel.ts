@@ -12,6 +12,7 @@ import { basenameOrAuthority } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 
 const MAX_REPL_LENGTH = 10000;
+let topReplElementCounter = 0;
 
 export class ReplModel {
 	private replElements: IReplElement[] = [];
@@ -40,7 +41,7 @@ export class ReplModel {
 		if (typeof data === 'string') {
 			const previousElement = this.replElements.length && (this.replElements[this.replElements.length - 1] as SimpleReplElement);
 
-			const toAdd = data.split('\n').map((line, index) => new SimpleReplElement(line, sev, index === 0 ? source : undefined));
+			const toAdd = data.split('\n').map((line, index) => new SimpleReplElement(`topReplElement:${topReplElementCounter++}`, line, sev, index === 0 ? source : undefined));
 			if (previousElement && previousElement.value === '') {
 				// remove potential empty lines between different repl types
 				this.replElements.pop();
@@ -102,7 +103,7 @@ export class ReplModel {
 				}
 
 				// show object
-				this.appendToRepl(new RawObjectReplElement((<any>a).prototype, a, undefined, nls.localize('snapshotObj', "Only primitive values are shown for this object.")), sev, source);
+				this.appendToRepl(new RawObjectReplElement(`topReplElement:${topReplElementCounter++}`, (<any>a).prototype, a, undefined, nls.localize('snapshotObj', "Only primitive values are shown for this object.")), sev, source);
 			}
 
 			// string: watch out for % replacement directive

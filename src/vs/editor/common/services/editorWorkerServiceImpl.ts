@@ -87,7 +87,7 @@ export class EditorWorkerServiceImpl extends Disposable implements IEditorWorker
 		return this._workerManager.withWorker().then(client => client.computeDirtyDiff(original, modified, ignoreTrimWhitespace));
 	}
 
-	public computeMoreMinimalEdits(resource: URI, edits: modes.TextEdit[]): Promise<modes.TextEdit[]> {
+	public computeMoreMinimalEdits(resource: URI, edits: modes.TextEdit[] | null | undefined): Promise<modes.TextEdit[] | null | undefined> {
 		if (!Array.isArray(edits) || edits.length === 0) {
 			return Promise.resolve(edits);
 		} else {

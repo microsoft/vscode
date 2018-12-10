@@ -61,7 +61,8 @@ export function startup(configuration: IWindowConfiguration): Promise<void> {
 	perf.importEntries(configuration.perfEntries);
 
 	// Configure emitter leak warning threshold
-	setGlobalLeakWarningThreshold(100);
+	setGlobalLeakWarningThreshold(-1);
+
 
 	// Browser config
 	browser.setZoomFactor(webFrame.getZoomFactor()); // Ensure others can listen to zoom level changes

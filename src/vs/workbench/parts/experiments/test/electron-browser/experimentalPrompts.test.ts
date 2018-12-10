@@ -4,21 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-
-import { IExperiment, ExperimentActionType, IExperimentService, ExperimentState, IExperimentActionPromptProperties } from 'vs/workbench/parts/experiments/node/experimentService';
-
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { Emitter } from 'vs/base/common/event';
-import { TestExperimentService } from 'vs/workbench/parts/experiments/test/electron-browser/experimentService.test';
-import { ExperimentalPrompts } from 'vs/workbench/parts/experiments/electron-browser/experimentalPrompt';
-import { INotificationService, Severity, IPromptChoice } from 'vs/platform/notification/common/notification';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { TestLifecycleService } from 'vs/workbench/test/workbenchTestServices';
+import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
+import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { ExperimentalPrompts } from 'vs/workbench/parts/experiments/electron-browser/experimentalPrompt';
+import { ExperimentActionType, ExperimentState, IExperiment, IExperimentActionPromptProperties, IExperimentService } from 'vs/workbench/parts/experiments/node/experimentService';
+import { TestExperimentService } from 'vs/workbench/parts/experiments/test/electron-browser/experimentService.test';
+import { TestLifecycleService } from 'vs/workbench/test/workbenchTestServices';
 
 suite('Experimental Prompts', () => {
 	let instantiationService: TestInstantiationService;
@@ -104,7 +101,7 @@ suite('Experimental Prompts', () => {
 		experimentalPrompt = instantiationService.createInstance(ExperimentalPrompts);
 		onExperimentEnabledEvent.fire(experiment);
 
-		return TPromise.as(null).then(result => {
+		return Promise.resolve(null).then(result => {
 			assert.equal(storageData['state'], ExperimentState.Complete);
 		});
 
@@ -128,7 +125,7 @@ suite('Experimental Prompts', () => {
 		experimentalPrompt = instantiationService.createInstance(ExperimentalPrompts);
 		onExperimentEnabledEvent.fire(experiment);
 
-		return TPromise.as(null).then(result => {
+		return Promise.resolve(null).then(result => {
 			assert.equal(storageData['state'], ExperimentState.Complete);
 		});
 
@@ -152,7 +149,7 @@ suite('Experimental Prompts', () => {
 		experimentalPrompt = instantiationService.createInstance(ExperimentalPrompts);
 		onExperimentEnabledEvent.fire(experiment);
 
-		return TPromise.as(null).then(result => {
+		return Promise.resolve(null).then(result => {
 			assert.equal(storageData['state'], ExperimentState.Complete);
 		});
 

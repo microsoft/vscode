@@ -15,7 +15,7 @@ import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHos
 import { asThenable } from 'vs/base/common/async';
 import { TreeItemCollapsibleState, ThemeIcon, MarkdownString } from 'vs/workbench/api/node/extHostTypes';
 import { isUndefinedOrNull, isString } from 'vs/base/common/types';
-import { equals } from 'vs/base/common/arrays';
+import { equals, coalesce } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtensionDescription, checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import * as typeConvert from 'vs/workbench/api/node/extHostTypeConverters';
@@ -324,11 +324,10 @@ class ExtHostTreeView<T> extends Disposable {
 		const parentNode = parentElement ? this.nodes.get(parentElement) : void 0;
 		return asThenable(() => this.dataProvider.getChildren(parentElement))
 			.then(elements => Promise.all(
-				(elements || [])
-					.filter(element => !!element)
+				coalesce(elements || [])
 					.map(element => asThenable(() => this.dataProvider.getTreeItem(element))
 						.then(extTreeItem => extTreeItem ? this.createAndRegisterTreeNode(element, extTreeItem, parentNode) : null))))
-			.then(nodes => nodes.filter(n => !!n));
+			.then(coalesce);
 	}
 
 	private refresh(elements: T[]): Thenable<void> {
