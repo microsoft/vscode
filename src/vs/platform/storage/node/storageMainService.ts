@@ -74,7 +74,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 	_serviceBrand: any;
 
-	private static STORAGE_NAME = 'temp.vscdb';
+	private static STORAGE_NAME = 'state.vscdb';
 
 	private _onDidChangeStorage: Emitter<IStorageChangeEvent> = this._register(new Emitter<IStorageChangeEvent>());
 	get onDidChangeStorage(): Event<IStorageChangeEvent> { return this._onDidChangeStorage.event; }
@@ -98,7 +98,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 	}
 
 	private get storagePath(): string {
-		if (!!this.environmentService.extensionTestsPath || !process.env['VSCODE_TEST_STORAGE_MIGRATION']) {
+		if (!!this.environmentService.extensionTestsPath) {
 			return SQLiteStorageDatabase.IN_MEMORY_PATH; // no storage during extension tests!
 		}
 
@@ -174,7 +174,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 	private migrateGlobalStorage(): Thenable<void> {
 		this.logService.info('[storage] migrating global storage from localStorage into SQLite');
 
-		const localStorageDBBackup = join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage.vscmig');
+		const localStorageDBBackup = join(this.environmentService.userDataPath, 'Local Storage', 'file__0.vscmig');
 
 		return exists(localStorageDBBackup).then(exists => {
 			if (!exists) {
