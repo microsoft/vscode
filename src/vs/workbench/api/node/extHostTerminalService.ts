@@ -103,10 +103,11 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 		shellPath?: string,
 		shellArgs?: string[],
 		cwd?: string,
+		noInheritEnv?: boolean,
 		env?: { [key: string]: string },
 		waitOnExit?: boolean
 	): void {
-		this._proxy.$createTerminal(this._name, shellPath, shellArgs, cwd, env, waitOnExit).then((id) => {
+		this._proxy.$createTerminal(this._name, shellPath, shellArgs, cwd, noInheritEnv, env, waitOnExit).then((id) => {
 			this._runQueuedRequests(id);
 		});
 	}
@@ -261,7 +262,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
 	public createTerminalFromOptions(options: vscode.TerminalOptions): vscode.Terminal {
 		const terminal = new ExtHostTerminal(this._proxy, options.name);
-		terminal.create(options.shellPath, options.shellArgs, options.cwd, options.env /*, options.waitOnExit*/);
+		terminal.create(options.shellPath, options.shellArgs, options.cwd, options.noInheritEnv, options.env /*, options.waitOnExit*/);
 		this._terminals.push(terminal);
 		return terminal;
 	}

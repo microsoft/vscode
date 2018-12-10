@@ -148,6 +148,12 @@ export interface IShellLaunchConfig {
 	cwd?: string;
 
 	/**
+	 * When set to true, the process environment from VSCode is ignored and the
+	 * terminal process only contains what is in the "env" member.
+	 */
+	noInheritEnv?: boolean;
+
+	/**
 	 * A custom environment for the terminal, if this is not set the environment will be inherited
 	 * from the VS Code process.
 	 */

@@ -6702,6 +6702,12 @@ declare module 'vscode' {
 		cwd?: string;
 
 		/**
+		 * When set to true, the process environment from VSCode is ignored and the
+		 * terminal process only contains what is in the "env" member.
+		 */
+		noInheritEnv?: boolean;
+
+		/**
 		 * Object with environment variables that will be added to the VS Code process.
 		 */
 		env?: { [key: string]: string | null };

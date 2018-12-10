@@ -98,25 +98,29 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 			const lastActiveWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
 			this.initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, lastActiveWorkspaceRootUri, this._configHelper);
 
-			// Resolve env vars from config and shell
-			const lastActiveWorkspaceRoot = this._workspaceContextService.getWorkspaceFolder(lastActiveWorkspaceRootUri);
-			const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
-			const envFromConfig = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...this._configHelper.config.env[platformKey] }, lastActiveWorkspaceRoot);
-			const envFromShell = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...shellLaunchConfig.env }, lastActiveWorkspaceRoot);
-			shellLaunchConfig.env = envFromShell;
-
 			// Merge process env with the env from config and from shellLaunchConfig
-			const env = { ...process.env };
-			terminalEnvironment.mergeEnvironments(env, envFromConfig);
-			terminalEnvironment.mergeEnvironments(env, shellLaunchConfig.env);
+			const env = {};
+			if (shellLaunchConfig.noInheritEnv) {
+				terminalEnvironment.mergeEnvironments(env, shellLaunchConfig.env);
+			} else {
+				// Resolve env vars from config and shell
+				const lastActiveWorkspaceRoot = this._workspaceContextService.getWorkspaceFolder(lastActiveWorkspaceRootUri);
+				const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
+				const envFromConfig = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...this._configHelper.config.env[platformKey] }, lastActiveWorkspaceRoot);
+				const envFromShell = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...shellLaunchConfig.env }, lastActiveWorkspaceRoot);
+				shellLaunchConfig.env = envFromShell;
 
-			// Sanitize the environment, removing any undesirable VS Code and Electron environment
-			// variables
-			terminalEnvironment.sanitizeEnvironment(env);
+				terminalEnvironment.mergeEnvironments(env, envFromConfig);
+				terminalEnvironment.mergeEnvironments(env, shellLaunchConfig.env);
 
-			// Adding other env keys necessary to create the process
-			const locale = this._configHelper.config.setLocaleVariables ? platform.locale : undefined;
-			terminalEnvironment.addTerminalEnvironmentKeys(env, locale);
+				// Sanitize the environment, removing any undesirable VS Code and Electron environment
+				// variables
+				terminalEnvironment.sanitizeEnvironment(env);
+
+				// Adding other env keys necessary to create the process
+				const locale = this._configHelper.config.setLocaleVariables ? platform.locale : undefined;
+				terminalEnvironment.addTerminalEnvironmentKeys(env, locale);
+			}
 
 			this._logService.debug(`Terminal process launching`, shellLaunchConfig, this.initialCwd, cols, rows, env);
 			this._process = new TerminalProcess(shellLaunchConfig, this.initialCwd, cols, rows, env);
