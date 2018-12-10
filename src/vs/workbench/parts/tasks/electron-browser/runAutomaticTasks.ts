@@ -89,14 +89,8 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 	}
 
 	private showPrompt(taskNames: Array<string>): Promise<boolean> {
-		// We will only show the prompt if their are automatic tasks, so taskNames is at least of length 1.
-		let taskNamesPrint: string = '(' + taskNames[0];
-		for (let i = 1; i < taskNames.length; i++) {
-			taskNamesPrint += ', ' + taskNames[i];
-		}
-		taskNamesPrint += ')';
 		return new Promise<boolean>(resolve => {
-			this.notificationService.prompt(Severity.Info, nls.localize('tasks.run.allowAutomatic', "This folder has tasks {0} defined in \'tasks.json\' that run automatically when you open this folder. Do you allow automatic tasks to run when you open this folder?", taskNamesPrint),
+			this.notificationService.prompt(Severity.Info, nls.localize('tasks.run.allowAutomatic', "This folder has tasks ({0}) defined in \'tasks.json\' that run automatically when you open this folder. Do you allow automatic tasks to run when you open this folder?", taskNames.join(', ')),
 				[{
 					label: nls.localize('allow', "Allow"),
 					run: () => {
