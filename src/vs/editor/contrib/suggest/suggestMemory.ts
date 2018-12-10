@@ -196,7 +196,7 @@ export class PrefixMemory extends Memory {
 
 export type MemMode = 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
 
-class SuggestMemories extends Disposable implements ISuggestMemories {
+class SuggestMemoryService extends Disposable implements ISuggestMemoryService {
 
 	readonly _serviceBrand: any;
 
@@ -271,12 +271,12 @@ class SuggestMemories extends Disposable implements ISuggestMemories {
 }
 
 
-export const ISuggestMemories = createDecorator<ISuggestMemories>('ISuggestMemories');
+export const ISuggestMemoryService = createDecorator<ISuggestMemoryService>('ISuggestMemories');
 
-export interface ISuggestMemories {
+export interface ISuggestMemoryService {
 	_serviceBrand: any;
 	memorize(model: ITextModel, pos: IPosition, item: ICompletionItem): void;
 	select(model: ITextModel, pos: IPosition, items: ICompletionItem[]): number;
 }
 
-registerSingleton(ISuggestMemories, SuggestMemories, true);
+registerSingleton(ISuggestMemoryService, SuggestMemoryService, true);
