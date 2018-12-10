@@ -3061,10 +3061,10 @@ declare module 'vscode' {
 		/**
 		 * Creates a new parameter information object.
 		 *
-		 * @param label A label string.
+		 * @param label A label string or inclusive start and exclusive end offsets within its containing signature label.
 		 * @param documentation A doc string.
 		 */
-		constructor(label: string, documentation?: string | MarkdownString);
+		constructor(label: string | [number, number], documentation?: string | MarkdownString);
 	}
 
 	/**
@@ -3124,9 +3124,9 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * How a [`SignatureHelpProvider`](#SignatureHelpProvider) was triggered
+	 * How a [`SignatureHelpProvider`](#SignatureHelpProvider) was triggered.
 	 */
-	export enum SignatureHelpTriggerReason {
+	export enum SignatureHelpTriggerKind {
 		/**
 		 * Signature help was invoked manually by the user or by a command.
 		 */
@@ -3151,7 +3151,7 @@ declare module 'vscode' {
 		/**
 		 * Action that caused signature help to be triggered.
 		 */
-		readonly triggerReason: SignatureHelpTriggerReason;
+		readonly triggerKind: SignatureHelpTriggerKind;
 
 		/**
 		 * Character that caused signature help to be triggered.
@@ -3162,10 +3162,10 @@ declare module 'vscode' {
 		readonly triggerCharacter?: string;
 
 		/**
-		 * Whether or not signature help was previously showing when triggered.
+		 * `true` if signature help was already showing when it was triggered.
 		 *
-		 * Retriggers occur when the signature help is already active and can be caused by typing a trigger character
-		 * or by a cursor move.
+		 * Retriggers occur when the signature help is already active and can be caused by actions such as
+		 * typing a trigger character, a cursor move, or document content changes.
 		 */
 		readonly isRetrigger: boolean;
 	}
@@ -3191,8 +3191,8 @@ declare module 'vscode' {
 	}
 
 	/**
-	* Metadata about a registered [`SignatureHelpProvider`](#SignatureHelpProvider).
-	*/
+	 * Metadata about a registered [`SignatureHelpProvider`](#SignatureHelpProvider).
+	 */
 	export interface SignatureHelpProviderMetadata {
 		/**
 		 * List of characters that trigger signature help.
@@ -5993,7 +5993,6 @@ declare module 'vscode' {
 		 * the command handler function doesn't return anything.
 		 */
 		export function executeCommand<T>(command: string, ...rest: any[]): Thenable<T | undefined>;
-		export function executeCommand<T>(command: 'vscode.previewHtml', error: { '⚠️ The vscode.previewHtml command is deprecated and will be removed. Please switch to using the Webview Api': never }, ...rest: any[]): Thenable<T | undefined>;
 
 		/**
 		 * Retrieve the list of all available commands. Commands starting an underscore are
@@ -8491,6 +8490,47 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * A Debug Adapter Tracker is a means to track the communication between VS Code and a Debug Adapter.
+	 */
+	export interface DebugAdapterTracker {
+		/**
+		 * A session with the debug adapter is about to be started.
+		 */
+		onWillStartSession?(): void;
+		/**
+		 * The debug adapter is about to receive a Debug Adapter Protocol message from VS Code.
+		 */
+		onWillReceiveMessage?(message: any): void;
+		/**
+		 * The debug adapter has sent a Debug Adapter Protocol message to VS Code.
+		 */
+		onDidSendMessage?(message: any): void;
+		/**
+		 * The debug adapter session is about to be stopped.
+		 */
+		onWillStopSession?(): void;
+		/**
+		 * An error with the debug adapter has occured.
+		 */
+		onError?(error: Error): void;
+		/**
+		 * The debug adapter has exited with the given exit code or signal.
+		 */
+		onExit?(code: number | undefined, signal: string | undefined): void;
+	}
+
+	export interface DebugAdapterTrackerFactory {
+		/**
+		 * The method 'createDebugAdapterTracker' is called at the start of a debug session in order
+		 * to return a "tracker" object that provides read-access to the communication between VS Code and a debug adapter.
+		 *
+		 * @param session The [debug session](#DebugSession) for which the debug adapter tracker will be used.
+		 * @return A [debug adapter tracker](#DebugAdapterTracker) or undefined.
+		 */
+		createDebugAdapterTracker(session: DebugSession): ProviderResult<DebugAdapterTracker>;
+	}
+
+	/**
 	 * Represents the debug console.
 	 */
 	export interface DebugConsole {
@@ -8660,6 +8700,15 @@ declare module 'vscode' {
 		 * @return A [disposable](#Disposable) that unregisters this factory when being disposed.
 		 */
 		export function registerDebugAdapterDescriptorFactory(debugType: string, factory: DebugAdapterDescriptorFactory): Disposable;
+
+		/**
+		 * Register a debug adapter tracker factory for the given debug type.
+		 *
+		 * @param debugType The debug type for which the factory is registered or '*' for matching all debug types.
+		 * @param factory The [debug adapter tracker factory](#DebugAdapterTrackerFactory) to register.
+		 * @return A [disposable](#Disposable) that unregisters this factory when being disposed.
+		 */
+		export function registerDebugAdapterTrackerFactory(debugType: string, factory: DebugAdapterTrackerFactory): Disposable;
 
 		/**
 		 * Start debugging by using either a named launch or named compound configuration,

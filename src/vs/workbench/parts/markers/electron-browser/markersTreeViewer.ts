@@ -6,7 +6,6 @@
 import * as dom from 'vs/base/browser/dom';
 import * as network from 'vs/base/common/network';
 import * as paths from 'vs/base/common/paths';
-import { escape } from 'vs/base/common/strings';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { FileLabel, ResourceLabel } from 'vs/workbench/browser/labels';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
@@ -237,18 +236,18 @@ export class MarkerRenderer implements ITreeRenderer<Marker, MarkerFilterData, I
 
 		templateData.icon.className = 'icon ' + MarkerRenderer.iconClassNameFor(marker);
 
-		templateData.source.set(marker.source ? escape(marker.source) : marker.source, sourceMatches);
+		templateData.source.set(marker.source, sourceMatches);
 		dom.toggleClass(templateData.source.element, 'marker-source', !!marker.source);
 
 		templateData.actionBar.clear();
 		const quickFixAction = this.instantiationService.createInstance(QuickFixAction, node.element);
 		templateData.actionBar.push([quickFixAction], { icon: true, label: false });
 
-		templateData.description.set(marker.message ? escape(marker.message) : marker.message, messageMatches);
+		templateData.description.set(marker.message, messageMatches);
 		templateData.description.element.title = marker.message;
 
 		dom.toggleClass(templateData.code.element, 'marker-code', !!marker.code);
-		templateData.code.set(marker.code ? escape(marker.code) : '', codeMatches);
+		templateData.code.set(marker.code, codeMatches);
 
 		templateData.lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(marker.startLineNumber, marker.startColumn);
 	}
@@ -311,7 +310,7 @@ export class RelatedInformationRenderer implements ITreeRenderer<RelatedInformat
 		templateData.resourceLabel.set(paths.basename(relatedInformation.resource.fsPath), uriMatches);
 		templateData.resourceLabel.element.title = this.labelService.getUriLabel(relatedInformation.resource, { relative: true });
 		templateData.lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(relatedInformation.startLineNumber, relatedInformation.startColumn);
-		templateData.description.set(relatedInformation.message ? escape(relatedInformation.message) : relatedInformation.message, messageMatches);
+		templateData.description.set(relatedInformation.message, messageMatches);
 		templateData.description.element.title = relatedInformation.message;
 	}
 

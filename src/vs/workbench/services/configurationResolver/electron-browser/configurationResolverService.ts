@@ -90,7 +90,9 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 		// resolve input variables in the order in which they are encountered
 		return this.resolveWithInteraction(folder, config, section, variables).then(mapping => {
 			// finally substitute evaluated command variables (if there are any)
-			if (mapping.size > 0) {
+			if (!mapping) {
+				return null;
+			} else if (mapping.size > 0) {
 				return this.resolveAny(folder, config, fromMap(mapping));
 			} else {
 				return config;
@@ -144,7 +146,7 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 	 */
 	private resolveWithCommands(configuration: any, variableToCommandMap: IStringDictionary<string>): TPromise<IStringDictionary<string>> {
 		if (!configuration) {
-			return TPromise.as(undefined);
+			return Promise.resolve(undefined);
 		}
 
 		// use an array to preserve order of first appearance
@@ -194,33 +196,37 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 				: undefined;
 			let inputsArray = result ? this.parseConfigurationInputs(result.inputs) : undefined;
 			const inputs = new Map<string, ConfiguredInput>();
-			inputsArray.forEach(input => {
-				inputs.set(input.label, input);
-			});
+			if (inputsArray) {
+				inputsArray.forEach(input => {
+					inputs.set(input.id, input);
+				});
 
-			// use an array to preserve order of first appearance
-			const input_var = /\${input:(.*?)}/g;
-			const commands: string[] = [];
-			this.findVariables(input_var, config, commands);
-			let cancelled = false;
-			const commandValueMapping: IStringDictionary<string> = Object.create(null);
+				// use an array to preserve order of first appearance
+				const input_var = /\${input:(.*?)}/g;
+				const commands: string[] = [];
+				this.findVariables(input_var, config, commands);
+				let cancelled = false;
+				const commandValueMapping: IStringDictionary<string> = Object.create(null);
 
-			const factory: { (): Promise<any> }[] = commands.map(commandVariable => {
-				return () => {
-					return this.showUserInput(commandVariable, inputs).then(resolvedValue => {
-						if (resolvedValue) {
-							commandValueMapping['input:' + commandVariable] = resolvedValue;
-						}
-					});
-				};
-			}, reason => {
-				return Promise.reject(reason);
-			});
+				const factory: { (): Promise<any> }[] = commands.map(commandVariable => {
+					return () => {
+						return this.showUserInput(commandVariable, inputs).then(resolvedValue => {
+							if (resolvedValue) {
+								commandValueMapping['input:' + commandVariable] = resolvedValue;
+							} else {
+								cancelled = true;
+							}
+						});
+					};
+				}, reason => {
+					return Promise.reject(reason);
+				});
 
-			return sequence(factory).then(() => cancelled ? undefined : commandValueMapping);
-		} else {
-			return Promise.resolve(Object.create(null));
+				return sequence(factory).then(() => cancelled ? undefined : commandValueMapping);
+			}
 		}
+
+		return Promise.resolve(Object.create(null));
 	}
 
 	/**
@@ -232,14 +238,14 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 	private showUserInput(commandVariable: string, inputs: Map<string, ConfiguredInput>): Promise<string> {
 		if (inputs && inputs.has(commandVariable)) {
 			const input = inputs.get(commandVariable);
-			if (input.type === ConfiguredInputType.Prompt) {
+			if (input.type === ConfiguredInputType.PromptString) {
 				let inputOptions: IInputOptions = { prompt: input.description };
 				if (input.default) {
 					inputOptions.value = input.default;
 				}
 
 				return this.quickInputService.input(inputOptions).then(resolvedInput => {
-					return resolvedInput ? resolvedInput : input.default;
+					return resolvedInput ? resolvedInput : undefined;
 				});
 			} else { // input.type === ConfiguredInputType.pick
 				let picks = new Array<IQuickPickItem>();
@@ -256,11 +262,11 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 				}
 				let pickOptions: IPickOptions<IQuickPickItem> = { placeHolder: input.description };
 				return this.quickInputService.pick(picks, pickOptions, undefined).then(resolvedInput => {
-					return resolvedInput ? resolvedInput.label : input.default;
+					return resolvedInput ? resolvedInput.label : undefined;
 				});
 			}
 		}
-		return Promise.resolve(undefined);
+		return Promise.reject(new Error(nls.localize('undefinedInputVariable', "Undefined input variable {0} encountered. Remove or define {0} to continue.", commandVariable)));
 	}
 
 	/**
@@ -302,24 +308,24 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 		let inputs = new Array<ConfiguredInput>();
 		if (object) {
 			object.forEach(item => {
-				if (Types.isString(item.label) && Types.isString(item.description) && Types.isString(item.type)) {
+				if (Types.isString(item.id) && Types.isString(item.description) && Types.isString(item.type)) {
 					let type: ConfiguredInputType;
 					switch (item.type) {
-						case 'prompt': type = ConfiguredInputType.Prompt; break;
-						case 'pick': type = ConfiguredInputType.Pick; break;
+						case 'promptString': type = ConfiguredInputType.PromptString; break;
+						case 'pickString': type = ConfiguredInputType.PickString; break;
 						default: {
-							throw new Error(nls.localize('unknownInputTypeProvided', "Input '{0}' can only be of type 'prompt' or 'pick'.", item.label));
+							throw new Error(nls.localize('unknownInputTypeProvided', "Input '{0}' can only be of type 'promptString' or 'pickString'.", item.id));
 						}
 					}
 					let options: string[];
-					if (type === ConfiguredInputType.Pick) {
+					if (type === ConfiguredInputType.PickString) {
 						if (Types.isStringArray(item.options)) {
 							options = item.options;
 						} else {
-							throw new Error(nls.localize('pickRequiresOptions', "Input '{0}' is of type 'pick' and must include 'options'.", item.label));
+							throw new Error(nls.localize('pickStringRequiresOptions', "Input '{0}' is of type 'pickString' and must include 'options'.", item.id));
 						}
 					}
-					inputs.push({ label: item.label, description: item.description, type, default: item.default, options });
+					inputs.push({ id: item.id, description: item.description, type, default: item.default, options });
 				}
 			});
 		}

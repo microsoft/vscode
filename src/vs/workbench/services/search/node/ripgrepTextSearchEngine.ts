@@ -13,6 +13,7 @@ import { IExtendedExtensionSearchOptions, SearchError, SearchErrorCode, serializ
 import * as vscode from 'vscode';
 import { rgPath } from 'vscode-ripgrep';
 import { anchorGlob, createTextSearchResult, IOutputChannel, Maybe, Range } from './ripgrepSearchUtils';
+import { coalesce } from 'vs/base/common/arrays';
 
 // If vscode-ripgrep is in an .asar file, then the binary is unpacked.
 const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
@@ -240,7 +241,7 @@ export class RipgrepParser extends EventEmitter {
 		let prevMatchEnd = 0;
 		let prevMatchEndCol = 0;
 		let prevMatchEndLine = lineNumber;
-		const ranges = data.submatches.map((match, i) => {
+		const ranges = coalesce(data.submatches.map((match, i) => {
 			if (this.hitLimit) {
 				return null;
 			}
@@ -273,8 +274,7 @@ export class RipgrepParser extends EventEmitter {
 			prevMatchEndLine = endLineNumber;
 
 			return new Range(startLineNumber, startCol, endLineNumber, endCol);
-		})
-			.filter(r => !!r);
+		}));
 
 		return createTextSearchResult(uri, fullText, <Range[]>ranges, this.previewOptions);
 	}

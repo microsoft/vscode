@@ -41,12 +41,12 @@ export interface IConfigurationResolverService {
 }
 
 export const enum ConfiguredInputType {
-	Prompt,
-	Pick
+	PromptString,
+	PickString
 }
 
 export interface ConfiguredInput {
-	label: string;
+	id: string;
 	description: string;
 	default?: string;
 	type: ConfiguredInputType;

@@ -98,6 +98,7 @@ export interface ITreeModel<T, TFilterData, TRef> {
 	getFirstElementChild(location: TRef): T | undefined;
 	getLastElementAncestor(location?: TRef): T | undefined;
 
+	isCollapsible(location: TRef): boolean;
 	isCollapsed(location: TRef): boolean;
 	setCollapsed(location: TRef, collapsed: boolean): boolean;
 	toggleCollapsed(location: TRef): void;
@@ -106,7 +107,7 @@ export interface ITreeModel<T, TFilterData, TRef> {
 	refilter(): void;
 }
 
-export interface ITreeRenderer<T, TFilterData, TTemplateData> extends IListRenderer<ITreeNode<T, TFilterData>, TTemplateData> {
+export interface ITreeRenderer<T, TFilterData = void, TTemplateData = void> extends IListRenderer<ITreeNode<T, TFilterData>, TTemplateData> {
 	renderTwistie?(element: T, twistieElement: HTMLElement): void;
 	onDidChangeTwistieState?: Event<T>;
 }

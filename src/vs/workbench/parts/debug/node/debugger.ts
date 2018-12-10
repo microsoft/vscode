@@ -118,10 +118,10 @@ export class Debugger implements IDebugger {
 	substituteVariables(folder: IWorkspaceFolder, config: IConfig): Thenable<IConfig> {
 		if (this.inExtHost()) {
 			return this.configurationManager.substituteVariables(this.type, folder, config).then(config => {
-				return this.configurationResolverService.resolveWithInteractionReplace(folder, config, undefined, this.variables);
+				return this.configurationResolverService.resolveWithInteractionReplace(folder, config, 'launch', this.variables);
 			});
 		} else {
-			return this.configurationResolverService.resolveWithInteractionReplace(folder, config, undefined, this.variables);
+			return this.configurationResolverService.resolveWithInteractionReplace(folder, config, 'launch', this.variables);
 		}
 	}
 

@@ -36,7 +36,7 @@ import { QuickInputService } from 'vs/workbench/browser/parts/quickinput/quickIn
 import { getServices } from 'vs/platform/instantiation/common/extensions';
 import { Position, Parts, IPartService, ILayoutOptions, IDimension, PositionToString } from 'vs/workbench/services/part/common/partService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, IWillSaveStateEvent, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { ContextMenuService as NativeContextMenuService } from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
 import { ContextMenuService as HTMLContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { WorkbenchKeybindingService } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
@@ -476,7 +476,7 @@ export class Workbench extends Disposable implements IPartService {
 	private registerListeners(): void {
 
 		// Storage
-		this._register(this.storageService.onWillSaveState(() => this.saveState()));
+		this._register(this.storageService.onWillSaveState(e => this.saveState(e)));
 
 		// Listen to visible editor changes
 		this._register(this.editorService.onDidVisibleEditorsChange(() => this.onDidVisibleEditorsChange()));
@@ -760,7 +760,7 @@ export class Workbench extends Disposable implements IPartService {
 		// Restore Zen Mode if active and supported for restore on startup
 		const zenConfig = this.configurationService.getValue<IZenModeSettings>('zenMode');
 		const wasZenActive = this.storageService.getBoolean(Workbench.zenModeActiveStorageKey, StorageScope.WORKSPACE, false);
-		if (wasZenActive && (zenConfig.restore || this.lifecycleService.startupKind === StartupKind.ReloadedWindow)) {
+		if (wasZenActive && zenConfig.restore) {
 			this.toggleZenMode(true, true);
 		}
 
@@ -1118,11 +1118,19 @@ export class Workbench extends Disposable implements IPartService {
 		return this.instantiationService;
 	}
 
-	private saveState(): void {
+	private saveState(e: IWillSaveStateEvent): void {
 		if (this.zenMode.active) {
 			this.storageService.store(Workbench.zenModeActiveStorageKey, true, StorageScope.WORKSPACE);
 		} else {
 			this.storageService.remove(Workbench.zenModeActiveStorageKey, StorageScope.WORKSPACE);
+		}
+
+		if (e.reason === WillSaveStateReason.SHUTDOWN && this.zenMode.active) {
+			const zenConfig = this.configurationService.getValue<IZenModeSettings>('zenMode');
+			if (!zenConfig.restore) {
+				// We will not restore zen mode, need to clear all zen mode state changes
+				this.toggleZenMode(true);
+			}
 		}
 	}
 

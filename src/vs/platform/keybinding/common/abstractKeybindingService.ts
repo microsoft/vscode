@@ -101,6 +101,10 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		return result.resolvedKeybinding;
 	}
 
+	public dispatchEvent(e: IKeyboardEvent, target: IContextKeyServiceTarget): boolean {
+		return this._dispatch(e, target);
+	}
+
 	public softDispatch(e: IKeyboardEvent, target: IContextKeyServiceTarget): IResolveResult | null {
 		const keybinding = this.resolveKeyboardEvent(e);
 		if (keybinding.isChord()) {

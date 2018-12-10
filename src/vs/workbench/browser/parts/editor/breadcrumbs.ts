@@ -48,7 +48,7 @@ export class BreadcrumbsService implements IBreadcrumbsService {
 	}
 }
 
-registerSingleton(IBreadcrumbsService, BreadcrumbsService);
+registerSingleton(IBreadcrumbsService, BreadcrumbsService, true);
 
 
 //#region config

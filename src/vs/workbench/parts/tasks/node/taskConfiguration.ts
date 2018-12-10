@@ -827,7 +827,7 @@ namespace CommandConfiguration {
 					clear = presentation.clear;
 				}
 			}
-			if (echo === void 0 && reveal === void 0 && focus === void 0 && panel === void 0 && showReuseMessage === void 0) {
+			if (echo === void 0 && reveal === void 0 && focus === void 0 && panel === void 0 && showReuseMessage === void 0 && clear === void 0) {
 				return undefined;
 			}
 			return { echo, reveal, focus, panel, showReuseMessage, clear };

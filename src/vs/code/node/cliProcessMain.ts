@@ -7,8 +7,8 @@ import { localize } from 'vs/nls';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
 import * as path from 'path';
+import * as semver from 'semver';
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { sequence } from 'vs/base/common/async';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -35,10 +35,7 @@ import { StateService } from 'vs/platform/state/node/stateService';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { ILogService, getLogLevel } from 'vs/platform/log/common/log';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { CommandLineDialogService } from 'vs/platform/dialogs/node/dialogService';
-import { areSameExtensions, getGalleryExtensionIdFromLocal, adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import Severity from 'vs/base/common/severity';
+import { areSameExtensions, getGalleryExtensionIdFromLocal, adoptToGalleryExtensionId, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { URI } from 'vs/base/common/uri';
 import { getManifest } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 
@@ -65,63 +62,66 @@ export function getIdAndVersion(id: string): [string, string] {
 }
 
 
-type Task = { (): TPromise<void> };
+type Task = { (): Thenable<void> };
 
 class Main {
 
 	constructor(
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
-		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
-		@IDialogService private dialogService: IDialogService
+		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService
 	) { }
 
-	run(argv: ParsedArgs): TPromise<any> {
-		// TODO@joao - make this contributable
-
-		let returnPromise: TPromise<any>;
+	async run(argv: ParsedArgs): Promise<any> {
 		if (argv['install-source']) {
-			returnPromise = this.setInstallSource(argv['install-source']);
+			await this.setInstallSource(argv['install-source']);
+
 		} else if (argv['list-extensions']) {
-			returnPromise = this.listExtensions(argv['show-versions']);
+			await this.listExtensions(argv['show-versions']);
+
 		} else if (argv['install-extension']) {
 			const arg = argv['install-extension'];
 			const args: string[] = typeof arg === 'string' ? [arg] : arg;
-			returnPromise = this.installExtension(args, argv['force']);
+			await this.installExtension(args, argv['force']);
+
 		} else if (argv['uninstall-extension']) {
 			const arg = argv['uninstall-extension'];
 			const ids: string[] = typeof arg === 'string' ? [arg] : arg;
-			returnPromise = this.uninstallExtension(ids);
+			await this.uninstallExtension(ids);
 		}
-		return returnPromise || TPromise.as(null);
 	}
 
-	private setInstallSource(installSource: string): TPromise<any> {
+	private setInstallSource(installSource: string): Promise<any> {
 		return writeFile(this.environmentService.installSourcePath, installSource.slice(0, 30));
 	}
 
-	private listExtensions(showVersions: boolean): TPromise<any> {
-		return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(extensions => {
-			extensions.forEach(e => console.log(getId(e.manifest, showVersions)));
-		});
+	private async listExtensions(showVersions: boolean): Promise<any> {
+		const extensions = await this.extensionManagementService.getInstalled(LocalExtensionType.User);
+		extensions.forEach(e => console.log(getId(e.manifest, showVersions)));
 	}
 
-	private installExtension(extensions: string[], force: boolean): TPromise<any> {
+	private installExtension(extensions: string[], force: boolean): Promise<any> {
 		const vsixTasks: Task[] = extensions
 			.filter(e => /\.vsix$/i.test(e))
 			.map(id => () => {
 				const extension = path.isAbsolute(id) ? id : path.join(process.cwd(), id);
 
-				return this.extensionManagementService.install(URI.file(extension)).then(() => {
-					console.log(localize('successVsixInstall', "Extension '{0}' was successfully installed!", getBaseLabel(extension)));
-				}, error => {
-					if (isPromiseCanceledError(error)) {
-						console.log(localize('cancelVsixInstall', "Cancelled installing Extension '{0}'.", getBaseLabel(extension)));
+				return this.validate(extension, force)
+					.then(valid => {
+						if (valid) {
+							return this.extensionManagementService.install(URI.file(extension)).then(() => {
+								console.log(localize('successVsixInstall', "Extension '{0}' was successfully installed!", getBaseLabel(extension)));
+							}, error => {
+								if (isPromiseCanceledError(error)) {
+									console.log(localize('cancelVsixInstall', "Cancelled installing Extension '{0}'.", getBaseLabel(extension)));
+									return null;
+								} else {
+									return Promise.reject(error);
+								}
+							});
+						}
 						return null;
-					} else {
-						return TPromise.wrapError(error);
-					}
-				});
+					});
 			});
 
 		const galleryTasks: Task[] = extensions
@@ -134,16 +134,16 @@ class Main {
 							if (err.responseText) {
 								try {
 									const response = JSON.parse(err.responseText);
-									return TPromise.wrapError(response.message);
+									return Promise.reject(response.message);
 								} catch (e) {
 									// noop
 								}
 							}
-							return TPromise.wrapError(err);
+							return Promise.reject(err);
 						})
 						.then(extension => {
 							if (!extension) {
-								return TPromise.wrapError(new Error(`${notFound(version ? `${id}@${version}` : id)}\n${useId}`));
+								return Promise.reject(new Error(`${notFound(version ? `${id}@${version}` : id)}\n${useId}`));
 							}
 
 							const [installedExtension] = installed.filter(e => areSameExtensions({ id: getGalleryExtensionIdFromLocal(e) }, { id }));
@@ -153,19 +153,12 @@ class Main {
 										console.log(localize('updateMessage', "Updating the Extension '{0}' to the version {1}", id, extension.version));
 										return this.installFromGallery(id, extension);
 									} else {
-										const updateMessage = localize('updateConfirmationMessage', "Extension '{0}' v{1} is already installed, but a newer version {2} is available in the marketplace. Would you like to update?", id, installedExtension.manifest.version, extension.version);
-										return this.dialogService.show(Severity.Info, updateMessage, [localize('yes', "Yes"), localize('no', "No")])
-											.then(option => {
-												if (option === 0) {
-													return this.installFromGallery(id, extension);
-												}
-												console.log(localize('cancelInstall', "Cancelled installing Extension '{0}'.", id));
-												return TPromise.as(null);
-											});
+										console.log(localize('forceUpdate', "Extension '{0}' v{1} is already installed, but a newer version {2} is available in the marketplace. Use '--force' option to update to newer version.", id, installedExtension.manifest.version, extension.version));
+										return Promise.resolve(null);
 									}
 								} else {
 									console.log(localize('alreadyInstalled', "Extension '{0}' is already installed.", version ? `${id}@${version}` : id));
-									return TPromise.as(null);
+									return Promise.resolve(null);
 								}
 							} else {
 								console.log(localize('foundExtension', "Found '{0}' in the marketplace.", id));
@@ -178,22 +171,41 @@ class Main {
 		return sequence([...vsixTasks, ...galleryTasks]);
 	}
 
-	private installFromGallery(id: string, extension: IGalleryExtension): TPromise<void> {
-		console.log(localize('installing', "Installing..."));
-		return this.extensionManagementService.installFromGallery(extension)
-			.then(
-				() => console.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed!", id, extension.version)),
-				error => {
-					if (isPromiseCanceledError(error)) {
-						console.log(localize('cancelVsixInstall', "Cancelled installing Extension '{0}'.", id));
-						return null;
-					} else {
-						return TPromise.wrapError(error);
-					}
-				});
+	private async validate(vsix: string, force: boolean): Promise<boolean> {
+		const manifest = await getManifest(vsix);
+
+		if (!manifest) {
+			throw new Error('Invalid vsix');
+		}
+
+		const extensionIdentifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name) };
+		const installedExtensions = await this.extensionManagementService.getInstalled(LocalExtensionType.User);
+		const newer = installedExtensions.filter(local => areSameExtensions(extensionIdentifier, { id: getGalleryExtensionIdFromLocal(local) }) && semver.gt(local.manifest.version, manifest.version))[0];
+
+		if (newer && !force) {
+			console.log(localize('forceDowngrade', "A newer version of this extension '{0}' v{1} is already installed. Use '--force' option to downgrade to older version.", newer.galleryIdentifier.id, newer.manifest.version, manifest.version));
+			return false;
+		}
+
+		return true;
 	}
 
-	private uninstallExtension(extensions: string[]): TPromise<any> {
+	private async installFromGallery(id: string, extension: IGalleryExtension): Promise<void> {
+		console.log(localize('installing', "Installing..."));
+
+		try {
+			await this.extensionManagementService.installFromGallery(extension);
+			console.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed!", id, extension.version));
+		} catch (error) {
+			if (isPromiseCanceledError(error)) {
+				console.log(localize('cancelVsixInstall', "Cancelled installing Extension '{0}'.", id));
+			} else {
+				throw error;
+			}
+		}
+	}
+
+	private uninstallExtension(extensions: string[]): Thenable<any> {
 		async function getExtensionId(extensionDescription: string): Promise<string> {
 			if (!/\.vsix$/i.test(extensionDescription)) {
 				return extensionDescription;
@@ -210,7 +222,7 @@ class Main {
 					const [extension] = installed.filter(e => areSameExtensions({ id: getGalleryExtensionIdFromLocal(e) }, { id }));
 
 					if (!extension) {
-						return TPromise.wrapError(new Error(`${notInstalled(id)}\n${useId}`));
+						return Promise.reject(new Error(`${notInstalled(id)}\n${useId}`));
 					}
 
 					console.log(localize('uninstalling', "Uninstalling {0}...", id));
@@ -225,7 +237,7 @@ class Main {
 
 const eventPrefix = 'monacoworkbench';
 
-export function main(argv: ParsedArgs): TPromise<void> {
+export function main(argv: ParsedArgs): Promise<void> {
 	const services = new ServiceCollection();
 
 	const environmentService = new EnvironmentService(argv, process.execPath);
@@ -244,7 +256,7 @@ export function main(argv: ParsedArgs): TPromise<void> {
 		const envService = accessor.get(IEnvironmentService);
 		const stateService = accessor.get(IStateService);
 
-		return TPromise.join([envService.appSettingsHome, envService.extensionsPath].map(p => mkdirp(p))).then(() => {
+		return Promise.all([envService.appSettingsHome, envService.extensionsPath].map(p => mkdirp(p))).then(() => {
 			const { appRoot, extensionsPath, extensionDevelopmentLocationURI, isBuilt, installSourcePath } = envService;
 
 			const services = new ServiceCollection();
@@ -252,7 +264,6 @@ export function main(argv: ParsedArgs): TPromise<void> {
 			services.set(IRequestService, new SyncDescriptor(RequestService));
 			services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 			services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
-			services.set(IDialogService, new SyncDescriptor(CommandLineDialogService));
 
 			const appenders: AppInsightsAppender[] = [];
 			if (isBuilt && !extensionDevelopmentLocationURI && !envService.args['disable-telemetry'] && product.enableTelemetry) {

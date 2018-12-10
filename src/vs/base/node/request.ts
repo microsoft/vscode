@@ -81,7 +81,7 @@ export function request(options: IRequestOptions, token: CancellationToken): Pro
 				opts.auth = options.user + ':' + options.password;
 			}
 
-			req = rawRequest(opts, (res: http.ClientResponse) => {
+			req = rawRequest(opts, (res: http.IncomingMessage) => {
 				const followRedirects: number = isNumber(options.followRedirects) ? options.followRedirects : 3;
 				if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && followRedirects > 0 && res.headers['location']) {
 					request(assign({}, options, {

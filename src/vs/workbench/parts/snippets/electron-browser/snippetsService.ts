@@ -320,7 +320,7 @@ class SnippetsService implements ISnippetsService {
 	}
 }
 
-registerSingleton(ISnippetsService, SnippetsService);
+registerSingleton(ISnippetsService, SnippetsService, true);
 
 export interface ISimpleModel {
 	getLineContent(lineNumber: number): string;

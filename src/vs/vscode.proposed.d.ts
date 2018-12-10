@@ -16,10 +16,6 @@
 
 declare module 'vscode' {
 
-	export namespace window {
-		export function sampleFunction(): Thenable<any>;
-	}
-
 	//#region Joh - selection range provider
 
 	export interface SelectionRangeProvider {
@@ -213,6 +209,12 @@ declare module 'vscode' {
 		 * The maximum number of results to be returned.
 		 */
 		maxResults?: number;
+
+		/**
+		 * A CancellationToken that represents the session for this search query. If the provider chooses to, this object can be used as the key for a cache,
+		 * and searches with the same session object can search the same cache. When the token is cancelled, the session is complete and the cache can be cleared.
+		 */
+		session?: CancellationToken;
 	}
 
 	/**
@@ -522,58 +524,6 @@ declare module 'vscode' {
 	//#endregion
 
 	//#region André: debug
-
-	/**
-	 * A Debug Adapter Tracker is a means to track the communication between VS Code and a Debug Adapter.
-	 */
-	export interface DebugAdapterTracker {
-		/**
-		 * A session with the debug adapter is about to be started.
-		 */
-		onWillStartSession?(): void;
-		/**
-		 * The debug adapter is about to receive a Debug Adapter Protocol message from VS Code.
-		 */
-		onWillReceiveMessage?(message: any): void;
-		/**
-		 * The debug adapter has sent a Debug Adapter Protocol message to VS Code.
-		 */
-		onDidSendMessage?(message: any): void;
-		/**
-		 * The debug adapter session is about to be stopped.
-		 */
-		onWillStopSession?(): void;
-		/**
-		 * An error with the debug adapter has occured.
-		 */
-		onError?(error: Error): void;
-		/**
-		 * The debug adapter has exited with the given exit code or signal.
-		 */
-		onExit?(code: number | undefined, signal: string | undefined): void;
-	}
-
-	export interface DebugAdapterTrackerFactory {
-		/**
-		 * The method 'createDebugAdapterTracker' is called at the start of a debug session in order
-		 * to return a "tracker" object that provides read-access to the communication between VS Code and a debug adapter.
-		 *
-		 * @param session The [debug session](#DebugSession) for which the debug adapter tracker will be used.
-		 * @return A [debug adapter tracker](#DebugAdapterTracker) or undefined.
-		 */
-		createDebugAdapterTracker(session: DebugSession): ProviderResult<DebugAdapterTracker>;
-	}
-
-	export namespace debug {
-		/**
-		 * Register a debug adapter tracker factory for the given debug type.
-		 *
-		 * @param debugType The debug type for which the factory is registered or '*' for matching all debug types.
-		 * @param factory The [debug adapter tracker factory](#DebugAdapterTrackerFactory) to register.
-		 * @return A [disposable](#Disposable) that unregisters this factory when being disposed.
-		 */
-		export function registerDebugAdapterTrackerFactory(debugType: string, factory: DebugAdapterTrackerFactory): Disposable;
-	}
 
 	// deprecated
 

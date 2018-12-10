@@ -106,14 +106,6 @@ export class DarwinUpdateService extends AbstractUpdateService {
 	}
 
 	protected doQuitAndInstall(): void {
-		// for some reason updating on Mac causes the local storage not to be flushed.
-		// we workaround this issue by forcing an explicit flush of the storage data.
-		// see also https://github.com/Microsoft/vscode/issues/172
-		this.logService.trace('update#quitAndInstall(): calling flushStorageData()');
-		if (electron.session.defaultSession) {
-			electron.session.defaultSession.flushStorageData();
-		}
-
 		this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
 		electron.autoUpdater.quitAndInstall();
 	}

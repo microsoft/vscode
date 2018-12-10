@@ -53,9 +53,6 @@ export class PatternInputWidget extends Widget {
 		this.placeholder = options.placeholder || '';
 		this.ariaLabel = options.ariaLabel || nls.localize('defaultLabel', "input");
 
-		this.domNode = null;
-		this.inputBox = null;
-
 		this.render(options);
 
 		parent.appendChild(this.domNode);
@@ -135,7 +132,7 @@ export class PatternInputWidget extends Widget {
 			placeholder: this.placeholder || '',
 			ariaLabel: this.ariaLabel || '',
 			validationOptions: {
-				validation: null
+				validation: undefined
 			},
 			history: options.history || []
 		}, this.contextKeyService);

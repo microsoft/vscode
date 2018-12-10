@@ -83,7 +83,7 @@ export interface IExperimentActionPromptProperties {
 }
 
 export interface IExperimentActionPromptCommand {
-	text: string;
+	text: string | { [key: string]: string };
 	externalLink?: string;
 	curatedExtensionsKey?: string;
 	curatedExtensionsList?: string[];
@@ -130,7 +130,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 	) {
 		super();
 
-		this._loadExperimentsPromise = TPromise.wrap(this.lifecycleService.when(LifecyclePhase.Eventually)).then(() => this.loadExperiments());
+		this._loadExperimentsPromise = Promise.resolve(this.lifecycleService.when(LifecyclePhase.Eventually)).then(() => this.loadExperiments());
 	}
 
 	public getExperimentById(id: string): TPromise<IExperiment> {
@@ -171,16 +171,16 @@ export class ExperimentService extends Disposable implements IExperimentService 
 
 	protected getExperiments(): TPromise<IRawExperiment[]> {
 		if (!product.experimentsUrl || this.configurationService.getValue('workbench.enableExperiments') === false) {
-			return TPromise.as([]);
+			return Promise.resolve([]);
 		}
 		return this.requestService.request({ type: 'GET', url: product.experimentsUrl }, CancellationToken.None).then(context => {
 			if (context.res.statusCode !== 200) {
-				return TPromise.as(null);
+				return Promise.resolve(null);
 			}
 			return asJson(context).then(result => {
 				return Array.isArray<IRawExperiment>(result['experiments']) ? result['experiments'] : [];
 			});
-		}, () => TPromise.as(null));
+		}, () => Promise.resolve(null));
 	}
 
 	private loadExperiments(): TPromise<any> {
@@ -201,7 +201,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 						}
 					});
 				}
-				return TPromise.as(null);
+				return Promise.resolve(null);
 			}
 
 			// Clear disbaled/deleted experiments from storage
@@ -246,7 +246,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 				this._experiments.push(processedExperiment);
 
 				if (!processedExperiment.enabled) {
-					return TPromise.as(null);
+					return Promise.resolve(null);
 				}
 
 				const storageKey = 'experiments.' + experiment.id;
@@ -267,11 +267,11 @@ export class ExperimentService extends Disposable implements IExperimentService 
 					if (state === ExperimentState.Run) {
 						this.fireRunExperiment(processedExperiment);
 					}
-					return TPromise.as(null);
+					return Promise.resolve(null);
 				});
 
 			});
-			return TPromise.join(promises).then(() => {
+			return Promise.all(promises).then(() => {
 				/* __GDPR__
 					"experiments" : {
 						"experiments" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
@@ -316,29 +316,29 @@ export class ExperimentService extends Disposable implements IExperimentService 
 
 	private shouldRunExperiment(experiment: IRawExperiment, processedExperiment: IExperiment): TPromise<ExperimentState> {
 		if (processedExperiment.state !== ExperimentState.Evaluating) {
-			return TPromise.wrap(processedExperiment.state);
+			return Promise.resolve(processedExperiment.state);
 		}
 
 		if (!experiment.enabled) {
-			return TPromise.wrap(ExperimentState.NoRun);
+			return Promise.resolve(ExperimentState.NoRun);
 		}
 
 		if (!experiment.condition) {
-			return TPromise.wrap(ExperimentState.Run);
+			return Promise.resolve(ExperimentState.Run);
 		}
 
 		if (!this.checkExperimentDependencies(experiment)) {
-			return TPromise.wrap(ExperimentState.NoRun);
+			return Promise.resolve(ExperimentState.NoRun);
 		}
 
 		if (this.environmentService.appQuality === 'stable' && experiment.condition.insidersOnly === true) {
-			return TPromise.wrap(ExperimentState.NoRun);
+			return Promise.resolve(ExperimentState.NoRun);
 		}
 
 		const isNewUser = !this.storageService.get(lastSessionDateStorageKey, StorageScope.GLOBAL);
 		if ((experiment.condition.newUser === true && !isNewUser)
 			|| (experiment.condition.newUser === false && isNewUser)) {
-			return TPromise.wrap(ExperimentState.NoRun);
+			return Promise.resolve(ExperimentState.NoRun);
 		}
 
 		if (typeof experiment.condition.displayLanguage === 'string') {
@@ -355,7 +355,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 					localeToCheck = localeToCheck.substr(0, b);
 				}
 				if (displayLanguage !== localeToCheck) {
-					return TPromise.wrap(ExperimentState.NoRun);
+					return Promise.resolve(ExperimentState.NoRun);
 				}
 			}
 		}
@@ -364,7 +364,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 			experiment.condition.userProbability = 1;
 		}
 
-		let extensionsCheckPromise = TPromise.as(true);
+		let extensionsCheckPromise = Promise.resolve(true);
 		if (experiment.condition.installedExtensions) {
 			extensionsCheckPromise = this.extensionManagementService.getInstalled(LocalExtensionType.User).then(locals => {
 				let includesCheck = true;

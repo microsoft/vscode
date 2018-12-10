@@ -171,7 +171,7 @@ export class UntitledEditorService extends Disposable implements IUntitledEditor
 	getDirty(resources?: URI[]): URI[] {
 		let inputs: UntitledEditorInput[];
 		if (resources) {
-			inputs = resources.map(r => this.get(r)).filter(i => !!i);
+			inputs = arrays.coalesce(resources.map(r => this.get(r)));
 		} else {
 			inputs = this.mapResourceToInput.values();
 		}

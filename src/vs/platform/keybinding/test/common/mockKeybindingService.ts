@@ -120,10 +120,15 @@ export class MockKeybindingService implements IKeybindingService {
 		return null;
 	}
 
-	dispatchByUserSettingsLabel(userSettingsLabel: string, target: IContextKeyServiceTarget): void {
+	public dispatchByUserSettingsLabel(userSettingsLabel: string, target: IContextKeyServiceTarget): void {
+
 	}
 
-	mightProducePrintableCharacter(e: IKeyboardEvent): boolean {
+	public dispatchEvent(e: IKeyboardEvent, target: IContextKeyServiceTarget): boolean {
+		return false;
+	}
+
+	public mightProducePrintableCharacter(e: IKeyboardEvent): boolean {
 		return false;
 	}
 }

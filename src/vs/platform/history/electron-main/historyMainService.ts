@@ -369,7 +369,7 @@ export class HistoryMainService implements IHistoryMainService {
 			jumpList.push({
 				type: 'custom',
 				name: nls.localize('recentFolders', "Recent Workspaces"),
-				items: this.getRecentlyOpened().workspaces.slice(0, 7 /* limit number of entries here */).map(workspace => {
+				items: arrays.coalesce(this.getRecentlyOpened().workspaces.slice(0, 7 /* limit number of entries here */).map(workspace => {
 					const title = this.labelService.getWorkspaceLabel(workspace);
 					let description;
 					let args;
@@ -390,7 +390,7 @@ export class HistoryMainService implements IHistoryMainService {
 						iconPath: 'explorer.exe', // simulate folder icon
 						iconIndex: 0
 					};
-				}).filter(i => !!i)
+				}))
 			});
 		}
 

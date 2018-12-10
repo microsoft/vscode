@@ -539,7 +539,7 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		SymbolKind: standaloneEnums.SymbolKind,
 		IndentAction: standaloneEnums.IndentAction,
 		CompletionTriggerKind: standaloneEnums.CompletionTriggerKind,
-		SignatureHelpTriggerReason: standaloneEnums.SignatureHelpTriggerReason,
+		SignatureHelpTriggerKind: standaloneEnums.SignatureHelpTriggerKind,
 
 		// classes
 		FoldingRangeKind: modes.FoldingRangeKind,

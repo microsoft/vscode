@@ -2561,7 +2561,7 @@ declare namespace monaco.editor {
 		/**
 		 * Enable using global storage for remembering suggestions.
 		 */
-		useGlobalStorageForSuggestions?: boolean;
+		shareSuggestSelections?: boolean;
 	}
 
 	/**
@@ -4927,14 +4927,14 @@ declare namespace monaco.languages {
 		activeParameter: number;
 	}
 
-	export enum SignatureHelpTriggerReason {
+	export enum SignatureHelpTriggerKind {
 		Invoke = 1,
 		TriggerCharacter = 2,
 		ContentChange = 3
 	}
 
 	export interface SignatureHelpContext {
-		readonly triggerReason: SignatureHelpTriggerReason;
+		readonly triggerKind: SignatureHelpTriggerKind;
 		readonly triggerCharacter?: string;
 		readonly isRetrigger: boolean;
 	}

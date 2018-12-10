@@ -59,6 +59,7 @@ export interface ISCMProvider extends IDisposable {
 	readonly count?: number;
 	readonly commitTemplate?: string;
 	readonly onDidChangeCommitTemplate?: Event<string>;
+	readonly onDidChangeStatusBarCommands?: Event<Command[]>;
 	readonly acceptInputCommand?: Command;
 	readonly statusBarCommands?: Command[];
 	readonly onDidChange: Event<void>;

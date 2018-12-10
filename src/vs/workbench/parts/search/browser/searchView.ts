@@ -330,7 +330,9 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this._register(this.searchWidget.onSearchCancel(() => this.cancelSearch()));
 		this._register(this.searchWidget.searchInput.onDidOptionChange(() => this.onQueryChanged(true)));
 
-		this._register(this.searchWidget.onReplaceToggled(() => this.onReplaceToggled()));
+		this._register(this.searchWidget.onDidHeightChange(() => this.reLayout()));
+
+		this._register(this.searchWidget.onReplaceToggled(() => this.reLayout()));
 		this._register(this.searchWidget.onReplaceStateChange((state) => {
 			this.viewModel.replaceActive = state;
 			this.tree.refresh();
@@ -365,10 +367,6 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 				contextKey.set(false);
 			}
 		}));
-	}
-
-	private onReplaceToggled(): void {
-		this.layout(this.size);
 	}
 
 	private onSearchResultsChanged(event?: IChangeEvent): Thenable<any> {
