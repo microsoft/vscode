@@ -15,11 +15,10 @@ suite('CachedResponse', () => {
 		const doc = await vscode.workspace.openTextDocument({ language: 'javascript', content: '' });
 		const response = new CachedResponse();
 
-		let seq = 0;
-		const makeRequest = async () => createResponse(`test-${seq++}`);
+		const responder = createSequentialResponder('test');
 
-		assertResult(await response.execute(doc, makeRequest), 'test-0');
-		assertResult(await response.execute(doc, makeRequest), 'test-0');
+		assertResult(await response.execute(doc, responder), 'test-0');
+		assertResult(await response.execute(doc, responder), 'test-0');
 	});
 
 	test('should invalidate cache for new document', async () => {
@@ -27,29 +26,32 @@ suite('CachedResponse', () => {
 		const doc2 = await vscode.workspace.openTextDocument({ language: 'javascript', content: '' });
 		const response = new CachedResponse();
 
-		let seq = 0;
-		const makeRequest = async () => createResponse(`test-${seq++}`);
+		const responder = createSequentialResponder('test');
 
-		assertResult(await response.execute(doc1, makeRequest), 'test-0');
-		assertResult(await response.execute(doc1, makeRequest), 'test-0');
-		assertResult(await response.execute(doc2, makeRequest), 'test-1');
-		assertResult(await response.execute(doc2, makeRequest), 'test-1');
-		assertResult(await response.execute(doc1, makeRequest), 'test-2');
-		assertResult(await response.execute(doc1, makeRequest), 'test-2');
+		assertResult(await response.execute(doc1, responder), 'test-0');
+		assertResult(await response.execute(doc1, responder), 'test-0');
+		assertResult(await response.execute(doc2, responder), 'test-1');
+		assertResult(await response.execute(doc2, responder), 'test-1');
+		assertResult(await response.execute(doc1, responder), 'test-2');
+		assertResult(await response.execute(doc1, responder), 'test-2');
 	});
 
-	test('should not cache canceled response', async () => {
+	test('should not cache cancelled responses', async () => {
 		const doc = await vscode.workspace.openTextDocument({ language: 'javascript', content: '' });
 		const response = new CachedResponse();
 
-		let seq = 0;
-		const makeRequest = async () => createResponse(`test-${seq++}`);
+		const responder = createSequentialResponder('test');
 
-		const result1 = await response.execute(doc, async () => new CancelledResponse('cancleed'));
-		assert.strictEqual(result1.type, 'cancelled');
+		const cancelledResponder = createEventualResponder<CancelledResponse>();
+		const result1 = response.execute(doc, () => cancelledResponder.promise);
+		const result2 = response.execute(doc, responder);
+		const result3 = response.execute(doc, responder);
 
-		assertResult(await response.execute(doc, makeRequest), 'test-0');
-		assertResult(await response.execute(doc, makeRequest), 'test-0');
+		cancelledResponder.resolve(new CancelledResponse('cancelled'));
+
+		assert.strictEqual((await result1).type, 'cancelled');
+		assertResult(await result2, 'test-0');
+		assertResult(await result3, 'test-0');
 	});
 });
 
@@ -72,3 +74,13 @@ function createResponse(command: string): Proto.Response {
 	};
 }
 
+function createSequentialResponder(prefix: string) {
+	let count = 0;
+	return async () => createResponse(`${prefix}-${count++}`);
+}
+
+function createEventualResponder<T>(): {promise: Promise<T>, resolve: (x: T) => void } {
+	let resolve: (value: T) => void;
+	const promise = new Promise<T>(r => { resolve = r; });
+	return { promise, resolve: resolve! };
+}
