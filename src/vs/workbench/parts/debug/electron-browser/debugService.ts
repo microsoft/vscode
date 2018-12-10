@@ -54,10 +54,10 @@ const DEBUG_FUNCTION_BREAKPOINTS_KEY = 'debug.functionbreakpoint';
 const DEBUG_EXCEPTION_BREAKPOINTS_KEY = 'debug.exceptionbreakpoint';
 const DEBUG_WATCH_EXPRESSIONS_KEY = 'debug.watchexpressions';
 
-function once(kind: TaskEventKind, event: Event<TaskEvent>): Event<TaskEvent> {
+function once(match: (e: TaskEvent) => boolean, event: Event<TaskEvent>): Event<TaskEvent> {
 	return (listener, thisArgs = null, disposables?) => {
 		const result = event(e => {
-			if (e.kind === kind) {
+			if (match(e)) {
 				result.dispose();
 				return listener.call(thisArgs, e);
 			}
@@ -718,14 +718,14 @@ export class DebugService implements IDebugService {
 					// task is already running - nothing to do.
 					return Promise.resolve(null);
 				}
-				once(TaskEventKind.Active, this.taskService.onDidStateChange)((taskEvent) => {
+				once(e => e.kind === TaskEventKind.Active && e.taskId === task._id, this.taskService.onDidStateChange)(() => {
 					// Task is active, so everything seems to be fine, no need to prompt after 10 seconds
 					// Use case being a slow running task should not be prompted even though it takes more than 10 seconds
 					taskStarted = true;
 				});
 				const taskPromise = this.taskService.run(task);
 				if (task.isBackground) {
-					return new Promise((c, e) => once(TaskEventKind.Inactive, this.taskService.onDidStateChange)(() => {
+					return new Promise((c, e) => once(e => e.kind === TaskEventKind.Inactive && e.taskId === task._id, this.taskService.onDidStateChange)(() => {
 						taskStarted = true;
 						c(null);
 					}));
