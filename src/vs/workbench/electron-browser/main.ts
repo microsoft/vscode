@@ -59,7 +59,7 @@ export function startup(configuration: IWindowConfiguration): Promise<void> {
 	perf.importEntries(configuration.perfEntries);
 
 	// Configure emitter leak warning threshold
-	setGlobalLeakWarningThreshold(-1);
+	setGlobalLeakWarningThreshold(175);
 
 
 	// Browser config
