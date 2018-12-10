@@ -163,6 +163,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			(() => this.selectCurrentMatch()));
 
 		this.delayedRefresh = this._register(new Delayer<void>(250));
+
 	}
 
 	private onDidChangeWorkbenchState(): void {
@@ -273,6 +274,11 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 		this._register(this.viewModel.searchResult.onChange((event) => this.onSearchResultsChanged(event)));
 
+		this._register(this.searchWidget.searchInput.onInput(() => this.updateActions()));
+		this._register(this.searchWidget.replaceInput.onDidChange(() => this.updateActions()));
+		this._register(this.searchIncludePattern.inputBox.onDidChange(() => this.updateActions()));
+		this._register(this.searchExcludePattern.inputBox.onDidChange(() => this.updateActions()));
+
 		this._register(this.onDidFocus(() => this.viewletFocused.set(true)));
 		this._register(this.onDidBlur(() => this.viewletFocused.set(false)));
 	}
@@ -347,6 +353,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		}));
 
 		this._register(this.searchWidget.onReplaceAll(() => this.replaceAll()));
+
 		this.trackInputBox(this.searchWidget.searchInputFocusTracker);
 		this.trackInputBox(this.searchWidget.replaceInputFocusTracker);
 	}
@@ -825,6 +832,13 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		return this.searching;
 	}
 
+	public allSearchFieldsClear(): boolean {
+		return this.searchWidget.getReplaceValue() === '' &&
+			this.searchWidget.searchInput.getValue() === '' &&
+			this.searchIncludePattern.getValue() === '' &&
+			this.searchExcludePattern.getValue() === '';
+	}
+
 	public hasSearchResults(): boolean {
 		return !this.viewModel.searchResult.isEmpty();
 	}
@@ -836,7 +850,10 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			this.showSearchWithoutFolderMessage();
 		}
 		this.searchWidget.clear();
+		this.searchIncludePattern.setValue('');
+		this.searchExcludePattern.setValue('');
 		this.viewModel.cancelSearch();
+		this.updateActions();
 	}
 
 	public cancelSearch(): boolean {
