@@ -53,3 +53,7 @@ export interface IListContextMenuEvent<T> {
 export interface IIdentityProvider<T> {
 	getId(element: T): { toString(): string; };
 }
+
+export interface ITypeLabelProvider<T> {
+	getTypeLabel(element: T): { toString(): string; };
+}

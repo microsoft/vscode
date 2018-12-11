@@ -34,6 +34,11 @@ function asListOptions<T, TFilterData>(options?: IAbstractTreeOptions<T, TFilter
 			getAriaLabel(e) {
 				return options.accessibilityProvider!.getAriaLabel(e.element);
 			}
+		},
+		typeLabelProvider: options.typeLabelProvider && {
+			getTypeLabel(e) {
+				return options.typeLabelProvider!.getTypeLabel(e.element);
+			}
 		}
 	};
 }

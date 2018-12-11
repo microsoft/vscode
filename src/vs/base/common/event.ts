@@ -410,6 +410,15 @@ export function anyEvent<T>(...events: Event<T>[]): Event<T> {
 	return (listener, thisArgs = null, disposables?) => combinedDisposable(events.map(event => event(e => listener.call(thisArgs, e), null, disposables)));
 }
 
+export function reduceEvent<I, O>(event: Event<I>, merger: (last: O | undefined, event: I) => O): Event<O> {
+	let output: O | undefined = undefined;
+
+	return mapEvent<I, O>(event, e => {
+		output = merger(output, e);
+		return output;
+	});
+}
+
 export function debounceEvent<T>(event: Event<T>, merger: (last: T, event: T) => T, delay?: number, leading?: boolean, leakWarningThreshold?: number): Event<T>;
 export function debounceEvent<I, O>(event: Event<I>, merger: (last: O | undefined, event: I) => O, delay?: number, leading?: boolean, leakWarningThreshold?: number): Event<O>;
 export function debounceEvent<I, O>(event: Event<I>, merger: (last: O | undefined, event: I) => O, delay: number = 100, leading = false, leakWarningThreshold?: number): Event<O> {

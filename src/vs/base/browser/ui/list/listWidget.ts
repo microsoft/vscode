@@ -14,9 +14,9 @@ import * as platform from 'vs/base/common/platform';
 import { Gesture } from 'vs/base/browser/touch';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { Event, Emitter, EventBufferer, chain, mapEvent, anyEvent } from 'vs/base/common/event';
+import { Event, Emitter, EventBufferer, chain, mapEvent, anyEvent, debounceEvent, reduceEvent } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
-import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent, IIdentityProvider } from './list';
+import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent, IIdentityProvider, ITypeLabelProvider } from './list';
 import { ListView, IListViewOptions } from './listView';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
@@ -24,6 +24,7 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { CombinedSpliceable } from 'vs/base/browser/ui/list/splice';
 import { clamp } from 'vs/base/common/numbers';
+import { matchesPrefix } from 'vs/base/common/filters';
 
 interface ITraitChangeEvent {
 	indexes: number[];
@@ -315,6 +316,69 @@ class KeyboardController<T> implements IDisposable {
 		e.stopPropagation();
 		this.list.setSelection([], e.browserEvent);
 		this.view.domNode.focus();
+	}
+
+	dispose() {
+		this.disposables = dispose(this.disposables);
+	}
+}
+
+enum TypeLabelControllerState {
+	Idle,
+	Typing
+}
+
+class TypeLabelController<T> implements IDisposable {
+
+	private state: TypeLabelControllerState = TypeLabelControllerState.Idle;
+	private disposables: IDisposable[] = [];
+
+	constructor(
+		private list: List<T>,
+		private view: ListView<T>,
+		private typeLabelProvider: ITypeLabelProvider<T>
+	) {
+		const onChar = chain(domEvent(view.domNode, 'keydown'))
+			.map(event => new StandardKeyboardEvent(event))
+			.filter(event => {
+				if (event.ctrlKey || event.metaKey || event.altKey) {
+					return false;
+				}
+
+				return (event.keyCode >= KeyCode.KEY_A && event.keyCode <= KeyCode.KEY_Z)
+					|| (event.keyCode >= KeyCode.KEY_0 && event.keyCode <= KeyCode.KEY_9)
+					|| (event.keyCode >= KeyCode.US_SEMICOLON && event.keyCode <= KeyCode.US_QUOTE);
+			})
+			.map(event => event.browserEvent.key)
+			.event;
+
+		const onClear = debounceEvent<string, null>(onChar, () => null, 800);
+		const onInput = reduceEvent<string | null, string | null>(anyEvent(onChar, onClear), (r, i) => i === null ? null : ((r || '') + i));
+
+		onInput(this.onInput, this, this.disposables);
+	}
+
+	private onInput(word: string | null): void {
+		if (!word) {
+			this.state = TypeLabelControllerState.Idle;
+			return;
+		}
+
+		const focus = this.list.getFocus();
+		const start = focus.length > 0 ? focus[0] : 0;
+		const delta = this.state === TypeLabelControllerState.Idle ? 1 : 0;
+		this.state = TypeLabelControllerState.Typing;
+
+		for (let i = 0; i < this.list.length; i++) {
+			const index = (start + i + delta) % this.list.length;
+			const label = this.typeLabelProvider.getTypeLabel(this.view.element(index));
+
+			if (matchesPrefix(word, label.toString())) {
+				this.list.setFocus([index]);
+				this.list.reveal(index);
+				return;
+			}
+		}
 	}
 
 	dispose() {
@@ -666,6 +730,7 @@ export class DefaultStyleController implements IStyleController {
 
 export interface IListOptions<T> extends IListViewOptions, IListStyles {
 	identityProvider?: IIdentityProvider<T>;
+	typeLabelProvider?: ITypeLabelProvider<T>;
 	ariaLabel?: string;
 	mouseSupport?: boolean;
 	selectOnMouseDown?: boolean;
@@ -999,6 +1064,11 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		if (typeof options.keyboardSupport !== 'boolean' || options.keyboardSupport) {
 			const controller = new KeyboardController(this, this.view, options);
+			this.disposables.push(controller);
+		}
+
+		if (options.typeLabelProvider) {
+			const controller = new TypeLabelController(this, this.view, options.typeLabelProvider);
 			this.disposables.push(controller);
 		}
 

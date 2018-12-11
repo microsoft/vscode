@@ -13,7 +13,7 @@ import { PanelViewlet, ViewletPanel, IViewletPanelOptions } from 'vs/workbench/b
 import { append, $, addClass, toggleClass, trackFocus, Dimension, addDisposableListener, removeClass } from 'vs/base/browser/dom';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
-import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListEvent, ITypeLabelProvider, IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { VIEWLET_ID, VIEW_CONTAINER } from 'vs/workbench/parts/scm/common/scm';
 import { FileLabel } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
@@ -557,7 +557,7 @@ class ProviderListDelegate implements IListVirtualDelegate<ISCMResourceGroup | I
 	}
 }
 
-const scmResourceIdentityProvider = {
+const scmResourceIdentityProvider = new class implements IIdentityProvider<ISCMResourceGroup | ISCMResource> {
 	getId(r: ISCMResourceGroup | ISCMResource): string {
 		if (isSCMResource(r)) {
 			const group = r.resourceGroup;
@@ -566,6 +566,16 @@ const scmResourceIdentityProvider = {
 		} else {
 			const provider = r.provider;
 			return `${provider.contextValue}/${r.id}`;
+		}
+	}
+};
+
+const scmTypeLabelProvider = new class implements ITypeLabelProvider<ISCMResourceGroup | ISCMResource> {
+	getTypeLabel(e: ISCMResourceGroup | ISCMResource) {
+		if (isSCMResource(e)) {
+			return basename(e.sourceUri.fsPath);
+		} else {
+			return e.label;
 		}
 	}
 };
@@ -869,7 +879,8 @@ export class RepositoryPanel extends ViewletPanel {
 		];
 
 		this.list = this.instantiationService.createInstance(WorkbenchList, this.listContainer, delegate, renderers, {
-			identityProvider: scmResourceIdentityProvider
+			identityProvider: scmResourceIdentityProvider,
+			typeLabelProvider: scmTypeLabelProvider
 		}) as WorkbenchList<ISCMResourceGroup | ISCMResource>;
 
 		chain(this.list.onOpen)

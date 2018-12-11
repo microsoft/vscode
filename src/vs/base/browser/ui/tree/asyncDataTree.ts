@@ -147,8 +147,13 @@ function asObjectTreeOptions<T, TFilterData>(options?: IAsyncDataTreeOptions<T, 
 			}
 		},
 		filter: options.filter && {
-			filter(element, parentVisibility) {
-				return options.filter!.filter(element.element!, parentVisibility);
+			filter(e, parentVisibility) {
+				return options.filter!.filter(e.element!, parentVisibility);
+			}
+		},
+		typeLabelProvider: options.typeLabelProvider && {
+			getTypeLabel(e) {
+				return options.typeLabelProvider!.getTypeLabel(e.element!);
 			}
 		}
 	};
