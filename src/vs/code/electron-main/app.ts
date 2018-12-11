@@ -499,7 +499,7 @@ export class CodeApplication extends Disposable {
 		const timeoutHandle = setTimeout(() => stopRecording(true), 30000);
 
 		// Wait for all windows to get ready and stop tracing then
-		TPromise.join(windows.map(window => window.ready())).then(() => {
+		Promise.all(windows.map(window => window.ready())).then(() => {
 			clearTimeout(timeoutHandle);
 			stopRecording(false);
 		});

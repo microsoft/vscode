@@ -403,7 +403,7 @@ suite('Files - TextFileEditorModel', () => {
 		let thirdDone = false;
 		let thirdRes = sequentializer.setNext(() => timeout(4).then(() => { thirdDone = true; return null; }));
 
-		return TPromise.join([firstRes, secondRes, thirdRes]).then(() => {
+		return Promise.all([firstRes, secondRes, thirdRes]).then(() => {
 			assert.ok(pendingDone);
 			assert.ok(!firstDone);
 			assert.ok(!secondDone);

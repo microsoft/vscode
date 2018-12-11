@@ -366,7 +366,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			result.push(group.openEditors(editorsWithOptions));
 		});
 
-		return TPromise.join(result);
+		return Promise.all(result);
 	}
 
 	//#endregion

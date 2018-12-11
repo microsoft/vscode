@@ -205,7 +205,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 			}
 
 			if (!doBackup) {
-				return TPromise.as({ didBackup: false });
+				return { didBackup: false };
 			}
 
 			// Backup
@@ -232,19 +232,19 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 	private doBackupAll(dirtyFileModels: ITextFileEditorModel[], untitledResources: URI[]): TPromise<void> {
 
 		// Handle file resources first
-		return TPromise.join(dirtyFileModels.map(model => this.backupFileService.backupResource(model.getResource(), model.createSnapshot(), model.getVersionId()))).then(results => {
+		return Promise.all(dirtyFileModels.map(model => this.backupFileService.backupResource(model.getResource(), model.createSnapshot(), model.getVersionId()))).then(results => {
 
 			// Handle untitled resources
 			const untitledModelPromises = untitledResources
 				.filter(untitled => this.untitledEditorService.exists(untitled))
 				.map(untitled => this.untitledEditorService.loadOrCreate({ resource: untitled }));
 
-			return TPromise.join(untitledModelPromises).then(untitledModels => {
+			return Promise.all(untitledModelPromises).then(untitledModels => {
 				const untitledBackupPromises = untitledModels.map(model => {
 					return this.backupFileService.backupResource(model.getResource(), model.createSnapshot(), model.getVersionId());
 				});
 
-				return TPromise.join(untitledBackupPromises).then(() => void 0);
+				return Promise.all(untitledBackupPromises).then(() => void 0);
 			});
 		});
 	}
@@ -475,9 +475,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 				untitledSaveAsPromises.push(untitledSaveAsPromise);
 			});
 
-			return TPromise.join(untitledSaveAsPromises).then(() => {
-				return result;
-			});
+			return Promise.all(untitledSaveAsPromises).then(() => result);
 		});
 	}
 
@@ -498,17 +496,13 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 			});
 		});
 
-		return TPromise.join(dirtyFileModels.map(model => {
+		return Promise.all(dirtyFileModels.map(model => {
 			return model.save(options).then(() => {
 				if (!model.isDirty()) {
 					mapResourceToResult.get(model.getResource()).success = true;
 				}
 			});
-		})).then(r => {
-			return {
-				results: mapResourceToResult.values()
-			};
-		});
+		})).then(r => ({ results: mapResourceToResult.values() }));
 	}
 
 	private getFileModels(resources?: URI[]): ITextFileEditorModel[];
@@ -673,7 +667,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 			});
 		});
 
-		return TPromise.join(fileModels.map(model => {
+		return Promise.all(fileModels.map(model => {
 			return model.revert(options && options.soft).then(() => {
 				if (!model.isDirty()) {
 					mapResourceToResult.get(model.getResource()).success = true;
@@ -692,11 +686,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 
 				return void 0;
 			});
-		})).then(r => {
-			return {
-				results: mapResourceToResult.values()
-			};
-		});
+		})).then(r => ({ results: mapResourceToResult.values() }));
 	}
 
 	create(resource: URI, contents?: string, options?: { overwrite?: boolean }): TPromise<void> {
@@ -723,8 +713,9 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 	}
 
 	move(source: URI, target: URI, overwrite?: boolean): TPromise<void> {
-
 		const waitForPromises: TPromise[] = [];
+
+		// Event
 		this._onWillMove.fire({
 			oldResource: source,
 			newResource: target,
@@ -736,7 +727,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		// prevent async waitUntil-calls
 		Object.freeze(waitForPromises);
 
-		return TPromise.join(waitForPromises).then(() => {
+		return Promise.all(waitForPromises).then(() => {
 
 			// Handle target models if existing (if target URI is a folder, this can be multiple)
 			let handleTargetModelPromise: TPromise<any> = TPromise.as(void 0);
@@ -752,7 +743,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 				const dirtySourceModels = this.getDirtyFileModels().filter(model => isEqualOrParent(model.getResource(), source, !platform.isLinux /* ignorecase */));
 				const dirtyTargetModels: URI[] = [];
 				if (dirtySourceModels.length) {
-					handleDirtySourceModels = TPromise.join(dirtySourceModels.map(sourceModel => {
+					handleDirtySourceModels = Promise.all(dirtySourceModels.map(sourceModel => {
 						const sourceModelResource = sourceModel.getResource();
 						let targetModelResource: URI;
 
@@ -786,11 +777,11 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 						return this.fileService.moveFile(source, target, overwrite).then(() => {
 
 							// Load models that were dirty before
-							return TPromise.join(dirtyTargetModels.map(dirtyTargetModel => this.models.loadOrCreate(dirtyTargetModel))).then(() => void 0);
+							return Promise.all(dirtyTargetModels.map(dirtyTargetModel => this.models.loadOrCreate(dirtyTargetModel))).then(() => void 0);
 						}, error => {
 
 							// In case of an error, discard any dirty target backups that were made
-							return TPromise.join(dirtyTargetModels.map(dirtyTargetModel => this.backupFileService.discardResourceBackup(dirtyTargetModel)))
+							return Promise.all(dirtyTargetModels.map(dirtyTargetModel => this.backupFileService.discardResourceBackup(dirtyTargetModel)))
 								.then(() => Promise.reject(error));
 						});
 					});
