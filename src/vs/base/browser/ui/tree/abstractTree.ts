@@ -269,6 +269,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.view.domFocus();
 	}
 
+	isDOMFocused(): boolean {
+		return this.getHTMLElement() === document.activeElement;
+	}
+
 	layout(height?: number): void {
 		this.view.layout(height);
 	}
