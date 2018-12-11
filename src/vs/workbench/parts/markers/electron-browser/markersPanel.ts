@@ -26,7 +26,7 @@ import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Iterator } from 'vs/base/common/iterator';
 import { ITreeElement, ITreeNode, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
-import { debounceEvent, Relay, Event, Emitter } from 'vs/base/common/event';
+import { Relay, Event, Emitter } from 'vs/base/common/event';
 import { WorkbenchObjectTree, TreeResourceNavigator2 } from 'vs/platform/list/browser/listService';
 import { FilterOptions } from 'vs/workbench/parts/markers/electron-browser/markersFilterOptions';
 import { IExpression, getEmptyExpression } from 'vs/base/common/glob';
@@ -320,7 +320,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		}));
 
 		const markersNavigator = this._register(new TreeResourceNavigator2(this.tree, { openOnFocus: true }));
-		this._register(debounceEvent(markersNavigator.openResource, (last, event) => event, 75, true)(options => {
+		this._register(Event.debounce(markersNavigator.openResource, (last, event) => event, 75, true)(options => {
 			this.openFileAtElement(options.element, options.editorOptions.preserveFocus, options.sideBySide, options.editorOptions.pinned);
 		}));
 
@@ -354,7 +354,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	}
 
 	private createListeners(): void {
-		const onModelChange = debounceEvent<URI, URI[]>(this.markersWorkbenchService.markersModel.onDidChange, (uris, uri) => { if (!uris) { uris = []; } uris.push(uri); return uris; }, 0);
+		const onModelChange = Event.debounce<URI, URI[]>(this.markersWorkbenchService.markersModel.onDidChange, (uris, uri) => { if (!uris) { uris = []; } uris.push(uri); return uris; }, 0);
 
 		this._register(onModelChange(this.onDidChangeModel, this));
 		this._register(this.editorService.onDidActiveEditorChange(this.onActiveEditorChanged, this));

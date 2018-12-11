@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/scmViewlet';
 import { localize } from 'vs/nls';
-import { Event, Emitter, chain, mapEvent, anyEvent, filterEvent, latch } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { domEvent, stop } from 'vs/base/browser/event';
 import { basename } from 'vs/base/common/paths';
 import { IDisposable, dispose, combinedDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -780,7 +780,7 @@ export class RepositoryPanel extends ViewletPanel {
 		super.renderHeaderTitle(container, title);
 		addClass(container, 'scm-provider');
 		append(container, $('span.type', null, type));
-		const onContextMenu = mapEvent(stop(domEvent(container, 'contextmenu')), e => new StandardMouseEvent(e));
+		const onContextMenu = Event.map(stop(domEvent(container, 'contextmenu')), e => new StandardMouseEvent(e));
 		onContextMenu(this.onContextMenu, this, this.disposables);
 	}
 
@@ -840,7 +840,7 @@ export class RepositoryPanel extends ViewletPanel {
 
 		const onKeyUp = domEvent(this.inputBox.inputElement, 'keyup');
 		const onMouseUp = domEvent(this.inputBox.inputElement, 'mouseup');
-		anyEvent<any>(onKeyUp, onMouseUp)(triggerValidation, null, this.disposables);
+		Event.any<any>(onKeyUp, onMouseUp)(triggerValidation, null, this.disposables);
 
 		this.inputBox.value = this.repository.input.value;
 		this.inputBox.onDidChange(value => this.repository.input.value = value, null, this.disposables);
@@ -866,7 +866,7 @@ export class RepositoryPanel extends ViewletPanel {
 		this.listContainer = append(container, $('.scm-status.show-file-icons'));
 
 		const updateActionsVisibility = () => toggleClass(this.listContainer, 'show-actions', this.configurationService.getValue<boolean>('scm.alwaysShowActions'));
-		filterEvent(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.alwaysShowActions'))(updateActionsVisibility);
+		Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.alwaysShowActions'))(updateActionsVisibility);
 		updateActionsVisibility();
 
 		const delegate = new ProviderListDelegate();
@@ -883,12 +883,12 @@ export class RepositoryPanel extends ViewletPanel {
 			typeLabelProvider: scmTypeLabelProvider
 		}) as WorkbenchList<ISCMResourceGroup | ISCMResource>;
 
-		chain(this.list.onOpen)
+		Event.chain(this.list.onOpen)
 			.map(e => e.elements[0])
 			.filter(e => !!e && isSCMResource(e))
 			.on(this.open, this, this.disposables);
 
-		chain(this.list.onPin)
+		Event.chain(this.list.onPin)
 			.map(e => e.elements[0])
 			.filter(e => !!e && isSCMResource(e))
 			.on(this.pin, this, this.disposables);
@@ -1106,7 +1106,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 		this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
 		this.scmService.repositories.forEach(r => this.onDidAddRepository(r));
 
-		const onDidUpdateConfiguration = filterEvent(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.alwaysShowProviders'));
+		const onDidUpdateConfiguration = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.alwaysShowProviders'));
 		onDidUpdateConfiguration(this.onDidChangeRepositories, this, this.disposables);
 
 		this.onDidChangeRepositories();
@@ -1382,7 +1382,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 				this.onViewHeaderContextMenu(new StandardMouseEvent(e), viewDescriptor);
 			});
 
-			const collapseDisposable = latch(mapEvent(panel.onDidChange, () => !panel.isExpanded()))(collapsed => {
+			const collapseDisposable = Event.latch(Event.map(panel.onDidChange, () => !panel.isExpanded()))(collapsed => {
 				this.contributedViews.setCollapsed(viewDescriptor.id, collapsed);
 			});
 

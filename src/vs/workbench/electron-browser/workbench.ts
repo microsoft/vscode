@@ -7,7 +7,7 @@ import 'vs/css!./media/workbench';
 
 import { localize } from 'vs/nls';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
-import { Event, Emitter, once } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import * as DOM from 'vs/base/browser/dom';
 import { RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
 import * as browser from 'vs/base/browser/browser';
@@ -665,7 +665,7 @@ export class Workbench extends Disposable implements IPartService {
 
 			if (isInputFocused) {
 				const tracker = DOM.trackFocus(document.activeElement as HTMLElement);
-				once(tracker.onDidBlur)(() => {
+				Event.once(tracker.onDidBlur)(() => {
 					inputFocused.set(activeElementIsInput());
 
 					tracker.dispose();

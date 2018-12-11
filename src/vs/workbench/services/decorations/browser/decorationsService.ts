@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { Event, Emitter, debounceEvent, anyEvent } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IDecorationsService, IDecoration, IResourceDecorationChangeEvent, IDecorationsProvider, IDecorationData } from './decorations';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
@@ -343,9 +343,9 @@ export class FileDecorationsService implements IDecorationsService {
 	private readonly _decorationStyles: DecorationStyles;
 	private readonly _disposables: IDisposable[];
 
-	readonly onDidChangeDecorations: Event<IResourceDecorationChangeEvent> = anyEvent(
+	readonly onDidChangeDecorations: Event<IResourceDecorationChangeEvent> = Event.any(
 		this._onDidChangeDecorations.event,
-		debounceEvent<URI | URI[], FileDecorationChangeEvent>(
+		Event.debounce<URI | URI[], FileDecorationChangeEvent>(
 			this._onDidChangeDecorationsDelayed.event,
 			FileDecorationChangeEvent.debouncer,
 			undefined, undefined, 500

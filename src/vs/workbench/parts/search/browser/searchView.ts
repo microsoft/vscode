@@ -11,7 +11,7 @@ import { MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IAction } from 'vs/base/common/actions';
 import { Delayer } from 'vs/base/common/async';
 import * as errors from 'vs/base/common/errors';
-import { anyEvent, debounceEvent, Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import * as paths from 'vs/base/common/paths';
@@ -160,7 +160,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this._register(this.searchHistoryService.onDidClearHistory(() => this.clearHistory()));
 
 		this.selectCurrentMatchEmitter = this._register(new Emitter<string>());
-		this._register(debounceEvent(this.selectCurrentMatchEmitter.event, (l, e) => e, 100, /*leading=*/true)
+		this._register(Event.debounce(this.selectCurrentMatchEmitter.event, (l, e) => e, 100, /*leading=*/true)
 			(() => this.selectCurrentMatch()));
 
 		this.delayedRefresh = this._register(new Delayer<void>(250));
@@ -536,7 +536,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this.tree.setInput(this.viewModel.searchResult);
 
 		const searchResultsNavigator = this._register(new TreeResourceNavigator(this.tree, { openOnFocus: true }));
-		this._register(debounceEvent(searchResultsNavigator.openResource, (last, event) => event, 75, true)(options => {
+		this._register(Event.debounce(searchResultsNavigator.openResource, (last, event) => event, 75, true)(options => {
 			if (options.element instanceof Match) {
 				let selectedMatch: Match = options.element;
 				if (this.currentSelectedFileMatch) {
@@ -550,7 +550,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			}
 		}));
 
-		this._register(anyEvent<any>(this.tree.onDidFocus, this.tree.onDidChangeFocus)(() => {
+		this._register(Event.any<any>(this.tree.onDidFocus, this.tree.onDidChangeFocus)(() => {
 			if (this.tree.isDOMFocused()) {
 				const focus = this.tree.getFocus();
 				this.firstMatchFocused.set(this.tree.getNavigator().first() === focus);

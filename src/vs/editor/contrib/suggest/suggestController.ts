@@ -29,7 +29,7 @@ import { SuggestAlternatives } from './suggestAlternatives';
 import { State, SuggestModel } from './suggestModel';
 import { ISelectedSuggestion, SuggestWidget } from './suggestWidget';
 import { WordContextKey } from 'vs/editor/contrib/suggest/wordContextKey';
-import { once, anyEvent } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { IdleValue } from 'vs/base/common/async';
 
@@ -328,11 +328,11 @@ export class SuggestController implements IEditorContribution {
 			return textNow !== item.suggestion.insertText;
 		};
 
-		once(this._model.onDidTrigger)(_ => {
+		Event.once(this._model.onDidTrigger)(_ => {
 			// wait for trigger because only then the cancel-event is trustworthy
 			let listener: IDisposable[] = [];
 
-			anyEvent<any>(this._model.onDidTrigger, this._model.onDidCancel)(() => {
+			Event.any<any>(this._model.onDidTrigger, this._model.onDidCancel)(() => {
 				// retrigger or cancel -> try to type default text
 				dispose(listener);
 				fallback();

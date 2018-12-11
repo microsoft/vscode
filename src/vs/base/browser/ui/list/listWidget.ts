@@ -14,7 +14,7 @@ import * as platform from 'vs/base/common/platform';
 import { Gesture } from 'vs/base/browser/touch';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { Event, Emitter, EventBufferer, chain, mapEvent, anyEvent, debounceEvent, reduceEvent } from 'vs/base/common/event';
+import { Event, Emitter, EventBufferer } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent, IIdentityProvider, ITypeLabelProvider } from './list';
 import { ListView, IListViewOptions } from './listView';
@@ -246,7 +246,7 @@ class KeyboardController<T> implements IDisposable {
 
 		this.openController = options.openController || DefaultOpenController;
 
-		const onKeyDown = chain(domEvent(view.domNode, 'keydown'))
+		const onKeyDown = Event.chain(domEvent(view.domNode, 'keydown'))
 			.filter(e => !isInputElement(e.target as HTMLElement))
 			.map(e => new StandardKeyboardEvent(e));
 
@@ -338,7 +338,7 @@ class TypeLabelController<T> implements IDisposable {
 		private view: ListView<T>,
 		private typeLabelProvider: ITypeLabelProvider<T>
 	) {
-		const onChar = chain(domEvent(view.domNode, 'keydown'))
+		const onChar = Event.chain(domEvent(view.domNode, 'keydown'))
 			.map(event => new StandardKeyboardEvent(event))
 			.filter(event => {
 				if (event.ctrlKey || event.metaKey || event.altKey) {
@@ -352,8 +352,8 @@ class TypeLabelController<T> implements IDisposable {
 			.map(event => event.browserEvent.key)
 			.event;
 
-		const onClear = debounceEvent<string, null>(onChar, () => null, 800);
-		const onInput = reduceEvent<string | null, string | null>(anyEvent(onChar, onClear), (r, i) => i === null ? null : ((r || '') + i));
+		const onClear = Event.debounce<string, null>(onChar, () => null, 800);
+		const onInput = Event.reduce<string | null, string | null>(Event.any(onChar, onClear), (r, i) => i === null ? null : ((r || '') + i));
 
 		onInput(this.onInput, this, this.disposables);
 	}
@@ -396,7 +396,7 @@ class DOMFocusController<T> implements IDisposable {
 	) {
 		this.disposables = [];
 
-		const onKeyDown = chain(domEvent(view.domNode, 'keydown'))
+		const onKeyDown = Event.chain(domEvent(view.domNode, 'keydown'))
 			.filter(e => !isInputElement(e.target as HTMLElement))
 			.map(e => new StandardKeyboardEvent(e));
 
@@ -947,11 +947,11 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	private styleController: IStyleController;
 
 	@memoize get onFocusChange(): Event<IListEvent<T>> {
-		return mapEvent(this.eventBufferer.wrapEvent(this.focus.onChange), e => this.toListEvent(e));
+		return Event.map(this.eventBufferer.wrapEvent(this.focus.onChange), e => this.toListEvent(e));
 	}
 
 	@memoize get onSelectionChange(): Event<IListEvent<T>> {
-		return mapEvent(this.eventBufferer.wrapEvent(this.selection.onChange), e => this.toListEvent(e));
+		return Event.map(this.eventBufferer.wrapEvent(this.selection.onChange), e => this.toListEvent(e));
 	}
 
 	private _onOpen = new Emitter<IListEvent<T>>();
@@ -959,7 +959,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	private _onPin = new Emitter<number[]>();
 	@memoize get onPin(): Event<IListEvent<T>> {
-		return mapEvent(this._onPin.event, indexes => this.toListEvent({ indexes }));
+		return Event.map(this._onPin.event, indexes => this.toListEvent({ indexes }));
 	}
 
 	get onMouseClick(): Event<IListMouseEvent<T>> { return this.view.onMouseClick; }
@@ -975,7 +975,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	private didJustPressContextMenuKey: boolean = false;
 	@memoize get onContextMenu(): Event<IListContextMenuEvent<T>> {
-		const fromKeydown = chain(domEvent(this.view.domNode, 'keydown'))
+		const fromKeydown = Event.chain(domEvent(this.view.domNode, 'keydown'))
 			.map(e => new StandardKeyboardEvent(e))
 			.filter(e => this.didJustPressContextMenuKey = e.keyCode === KeyCode.ContextMenu || (e.shiftKey && e.keyCode === KeyCode.F10))
 			.filter(e => { e.preventDefault(); e.stopPropagation(); return false; })
@@ -987,7 +987,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 			})
 			.event;
 
-		const fromKeyup = chain(domEvent(this.view.domNode, 'keyup'))
+		const fromKeyup = Event.chain(domEvent(this.view.domNode, 'keyup'))
 			.filter(() => {
 				const didJustPressContextMenuKey = this.didJustPressContextMenuKey;
 				this.didJustPressContextMenuKey = false;
@@ -1003,12 +1003,12 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 			.filter(({ anchor }) => !!anchor)
 			.event;
 
-		const fromMouse = chain(this.view.onContextMenu)
+		const fromMouse = Event.chain(this.view.onContextMenu)
 			.filter(() => !this.didJustPressContextMenuKey)
 			.map(({ element, index, browserEvent }) => ({ element, index, anchor: { x: browserEvent.clientX + 1, y: browserEvent.clientY }, browserEvent }))
 			.event;
 
-		return anyEvent<IListContextMenuEvent<T>>(fromKeydown, fromKeyup, fromMouse);
+		return Event.any<IListContextMenuEvent<T>>(fromKeydown, fromKeyup, fromMouse);
 	}
 
 	get onKeyDown(): Event<KeyboardEvent> { return domEvent(this.view.domNode, 'keydown'); }
@@ -1057,8 +1057,8 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		this.disposables = [this.focus, this.selection, this.view, this._onDidDispose];
 
-		this.onDidFocus = mapEvent(domEvent(this.view.domNode, 'focus', true), () => null!);
-		this.onDidBlur = mapEvent(domEvent(this.view.domNode, 'blur', true), () => null!);
+		this.onDidFocus = Event.map(domEvent(this.view.domNode, 'focus', true), () => null!);
+		this.onDidBlur = Event.map(domEvent(this.view.domNode, 'blur', true), () => null!);
 
 		this.disposables.push(new DOMFocusController(this, this.view));
 

@@ -16,7 +16,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { once, debounceEvent } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
@@ -208,14 +208,14 @@ export class HistoryService extends Disposable implements IHistoryService {
 			// Debounce the event with a timeout of 0ms so that multiple calls to
 			// editor.setSelection() are folded into one. We do not want to record
 			// subsequent history navigations for such API calls.
-			this.activeEditorListeners.push(debounceEvent(activeTextEditorWidget.onDidChangeCursorPosition, (last, event) => event, 0)((event => {
+			this.activeEditorListeners.push(Event.debounce(activeTextEditorWidget.onDidChangeCursorPosition, (last, event) => event, 0)((event => {
 				this.handleEditorSelectionChangeEvent(activeControl, event);
 			})));
 
 			// Track the last edit location by tracking model content change events
 			// Use a debouncer to make sure to capture the correct cursor position
 			// after the model content has changed.
-			this.activeEditorListeners.push(debounceEvent(activeTextEditorWidget.onDidChangeModelContent, (last, event) => event, 0)((event => {
+			this.activeEditorListeners.push(Event.debounce(activeTextEditorWidget.onDidChangeModelContent, (last, event) => event, 0)((event => {
 				this.lastEditLocation = { input: activeEditor };
 
 				const position = activeTextEditorWidget.getPosition();
@@ -468,7 +468,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private onEditorDispose(editor: EditorInput, listener: Function, mapEditorToDispose: Map<EditorInput, IDisposable[]>): void {
-		const toDispose = once(editor.onDispose)(() => listener());
+		const toDispose = Event.once(editor.onDispose)(() => listener());
 
 		let disposables = mapEditorToDispose.get(editor);
 		if (!disposables) {

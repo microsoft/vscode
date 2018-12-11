@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
-import { Event, Emitter, debounceEvent } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { StorageMainService, IStorageChangeEvent } from 'vs/platform/storage/node/storageMainService';
 import { IUpdateRequest, IStorageDatabase, IStorageItemsChangeEvent } from 'vs/base/node/storage';
 import { mapToSerializable, serializableToMap, values } from 'vs/base/common/map';
@@ -40,7 +40,7 @@ export class GlobalStorageDatabaseChannel extends Disposable implements IServerC
 
 		// Listen for changes in global storage to send to listeners
 		// that are listening. Use a debouncer to reduce IPC traffic.
-		this._register(debounceEvent(this.storageMainService.onDidChangeStorage, (prev: IStorageChangeEvent[], cur: IStorageChangeEvent) => {
+		this._register(Event.debounce(this.storageMainService.onDidChangeStorage, (prev: IStorageChangeEvent[], cur: IStorageChangeEvent) => {
 			if (!prev) {
 				prev = [cur];
 			} else {

@@ -8,7 +8,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IListOptions, List, IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListEvent, IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
 import { append, $, toggleClass } from 'vs/base/browser/dom';
-import { Event, Relay, chain, mapEvent } from 'vs/base/common/event';
+import { Event, Relay } from 'vs/base/common/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ITreeModel, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeFilter } from 'vs/base/browser/ui/tree/tree';
@@ -186,12 +186,12 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	protected model: ITreeModel<T, TFilterData, TRef>;
 	protected disposables: IDisposable[] = [];
 
-	get onDidChangeFocus(): Event<ITreeEvent<T>> { return mapEvent(this.view.onFocusChange, asTreeEvent); }
-	get onDidChangeSelection(): Event<ITreeEvent<T>> { return mapEvent(this.view.onSelectionChange, asTreeEvent); }
+	get onDidChangeFocus(): Event<ITreeEvent<T>> { return Event.map(this.view.onFocusChange, asTreeEvent); }
+	get onDidChangeSelection(): Event<ITreeEvent<T>> { return Event.map(this.view.onSelectionChange, asTreeEvent); }
 
-	get onMouseClick(): Event<ITreeMouseEvent<T>> { return mapEvent(this.view.onMouseClick, asTreeMouseEvent); }
-	get onMouseDblClick(): Event<ITreeMouseEvent<T>> { return mapEvent(this.view.onMouseDblClick, asTreeMouseEvent); }
-	get onContextMenu(): Event<ITreeContextMenuEvent<T>> { return mapEvent(this.view.onContextMenu, asTreeContextMenuEvent); }
+	get onMouseClick(): Event<ITreeMouseEvent<T>> { return Event.map(this.view.onMouseClick, asTreeMouseEvent); }
+	get onMouseDblClick(): Event<ITreeMouseEvent<T>> { return Event.map(this.view.onMouseDblClick, asTreeMouseEvent); }
+	get onContextMenu(): Event<ITreeContextMenuEvent<T>> { return Event.map(this.view.onContextMenu, asTreeContextMenuEvent); }
 	get onDidFocus(): Event<void> { return this.view.onDidFocus; }
 	get onDidBlur(): Event<void> { return this.view.onDidBlur; }
 
@@ -220,7 +220,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.view.onMouseClick(this.reactOnMouseClick, this, this.disposables);
 
 		if (options.keyboardSupport !== false) {
-			const onKeyDown = chain(this.view.onKeyDown)
+			const onKeyDown = Event.chain(this.view.onKeyDown)
 				.filter(e => !isInputElement(e.target as HTMLElement))
 				.map(e => new StandardKeyboardEvent(e));
 

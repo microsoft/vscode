@@ -6,7 +6,7 @@
 import 'vs/css!./media/panel';
 import * as dom from 'vs/base/browser/dom';
 import { IAction } from 'vs/base/common/actions';
-import { debounceEvent } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { CollapseAllAction, DefaultAccessibilityProvider, DefaultController, DefaultDragAndDrop } from 'vs/base/parts/tree/browser/treeDefaults';
 import { isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -142,7 +142,7 @@ export class CommentsPanel extends Panel {
 			});
 
 		const commentsNavigator = this._register(new TreeResourceNavigator(this.tree, { openOnFocus: true }));
-		this._register(debounceEvent(commentsNavigator.openResource, (last, event) => event, 100, true)(options => {
+		this._register(Event.debounce(commentsNavigator.openResource, (last, event) => event, 100, true)(options => {
 			this.openFile(options.element, options.editorOptions.pinned, options.editorOptions.preserveFocus, options.sideBySide);
 		}));
 	}

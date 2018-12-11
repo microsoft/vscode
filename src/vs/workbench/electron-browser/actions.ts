@@ -28,7 +28,7 @@ import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderW
 import { FileKind } from 'vs/platform/files/common/files';
 import { IssueType } from 'vs/platform/issue/common/issue';
 import { domEvent } from 'vs/base/browser/event';
-import { once } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
 import { getDomNodePagePosition, createStyleSheet, createCSSRule } from 'vs/base/browser/dom';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -1285,10 +1285,10 @@ export class InspectContextKeysAction extends Action {
 			hoverFeedback.style.height = `${position.height}px`;
 		}));
 
-		const onMouseDown = once(domEvent(document.body, 'mousedown', true));
+		const onMouseDown = Event.once(domEvent(document.body, 'mousedown', true));
 		onMouseDown(e => { e.preventDefault(); e.stopPropagation(); }, null, disposables);
 
-		const onMouseUp = once(domEvent(document.body, 'mouseup', true));
+		const onMouseUp = Event.once(domEvent(document.body, 'mouseup', true));
 		onMouseUp(e => {
 			e.preventDefault();
 			e.stopPropagation();

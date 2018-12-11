@@ -23,7 +23,7 @@ import { localize } from 'vs/nls';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { once } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { isObject } from 'vs/base/common/types';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -356,7 +356,7 @@ export class WalkThroughPart extends BaseEditor {
 						}
 					}));
 
-					this.contentDisposables.push(once(editor.onMouseDown)(() => {
+					this.contentDisposables.push(Event.once(editor.onMouseDown)(() => {
 						/* __GDPR__
 							"walkThroughSnippetInteraction" : {
 								"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -370,7 +370,7 @@ export class WalkThroughPart extends BaseEditor {
 							snippet: i
 						});
 					}));
-					this.contentDisposables.push(once(editor.onKeyDown)(() => {
+					this.contentDisposables.push(Event.once(editor.onKeyDown)(() => {
 						/* __GDPR__
 							"walkThroughSnippetInteraction" : {
 								"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -384,7 +384,7 @@ export class WalkThroughPart extends BaseEditor {
 							snippet: i
 						});
 					}));
-					this.contentDisposables.push(once(editor.onDidChangeModelContent)(() => {
+					this.contentDisposables.push(Event.once(editor.onDidChangeModelContent)(() => {
 						/* __GDPR__
 							"walkThroughSnippetInteraction" : {
 								"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },

@@ -8,7 +8,7 @@ import { TimeoutTimer } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { size } from 'vs/base/common/collections';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { debounceEvent, Emitter, Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { isEqual, dirname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
@@ -131,7 +131,7 @@ export class EditorBreadcrumbsModel {
 		this._disposables.push(DocumentSymbolProviderRegistry.onDidChange(_ => this._updateOutline()));
 		this._disposables.push(this._editor.onDidChangeModel(_ => this._updateOutline()));
 		this._disposables.push(this._editor.onDidChangeModelLanguage(_ => this._updateOutline()));
-		this._disposables.push(debounceEvent(this._editor.onDidChangeModelContent, _ => _, 350)(_ => this._updateOutline(true)));
+		this._disposables.push(Event.debounce(this._editor.onDidChangeModelContent, _ => _, 350)(_ => this._updateOutline(true)));
 		this._updateOutline();
 
 		// stop when editor dies

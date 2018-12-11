@@ -12,7 +12,7 @@ import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/group/
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { LRUCache } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
-import { once, Event } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { isEmptyObject } from 'vs/base/common/types';
 import { DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 
@@ -205,7 +205,7 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 
 		// Automatically clear when editor input gets disposed if any
 		if (resourceOrEditor instanceof EditorInput) {
-			once(resourceOrEditor.onDispose)(() => {
+			Event.once(resourceOrEditor.onDispose)(() => {
 				this.clearEditorState(resource);
 			});
 		}

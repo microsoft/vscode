@@ -9,7 +9,7 @@ import * as marked from 'vs/base/common/marked/marked';
 import { createCancelablePromise } from 'vs/base/common/async';
 import * as arrays from 'vs/base/common/arrays';
 import { OS } from 'vs/base/common/platform';
-import { Event, Emitter, once, chain } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { Cache, CacheResult } from 'vs/base/common/cache';
 import { Action } from 'vs/base/common/actions';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
@@ -254,12 +254,12 @@ export class ExtensionEditor extends BaseEditor {
 		this.disposables.push(this.extensionActionBar);
 		this.disposables.push(this.ignoreActionbar);
 
-		chain(this.extensionActionBar.onDidRun)
+		Event.chain(this.extensionActionBar.onDidRun)
 			.map(({ error }) => error)
 			.filter(error => !!error)
 			.on(this.onError, this, this.disposables);
 
-		chain(this.ignoreActionbar.onDidRun)
+		Event.chain(this.ignoreActionbar.onDidRun)
 			.map(({ error }) => error)
 			.filter(error => !!error)
 			.on(this.onError, this, this.disposables);
@@ -284,7 +284,7 @@ export class ExtensionEditor extends BaseEditor {
 				this.extensionManifest = new Cache(() => createCancelablePromise(token => extension.getManifest(token)));
 				this.extensionDependencies = new Cache(() => createCancelablePromise(token => this.extensionsWorkbenchService.loadDependencies(extension, token)));
 
-				const onError = once(domEvent(this.icon, 'error'));
+				const onError = Event.once(domEvent(this.icon, 'error'));
 				onError(() => this.icon.src = extension.iconUrlFallback, null, this.transientDisposables);
 				this.icon.src = extension.iconUrl;
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Event, Emitter, once } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import * as objects from 'vs/base/common/objects';
 import * as types from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -567,14 +567,14 @@ export class SideBySideEditorInput extends EditorInput {
 	private registerListeners(): void {
 
 		// When the details or master input gets disposed, dispose this diff editor input
-		const onceDetailsDisposed = once(this.details.onDispose);
+		const onceDetailsDisposed = Event.once(this.details.onDispose);
 		this._register(onceDetailsDisposed(() => {
 			if (!this.isDisposed()) {
 				this.dispose();
 			}
 		}));
 
-		const onceMasterDisposed = once(this.master.onDispose);
+		const onceMasterDisposed = Event.once(this.master.onDispose);
 		this._register(onceMasterDisposed(() => {
 			if (!this.isDisposed()) {
 				this.dispose();

@@ -11,7 +11,7 @@ import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { timeout } from 'vs/base/common/async';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event, anyEvent, debounceEvent, fromNodeEventEmitter, mapEvent } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import * as objects from 'vs/base/common/objects';
@@ -212,15 +212,15 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 				type Output = { data: string, format: string[] };
 				this._extensionHostProcess.stdout.setEncoding('utf8');
 				this._extensionHostProcess.stderr.setEncoding('utf8');
-				const onStdout = fromNodeEventEmitter<string>(this._extensionHostProcess.stdout, 'data');
-				const onStderr = fromNodeEventEmitter<string>(this._extensionHostProcess.stderr, 'data');
-				const onOutput = anyEvent(
-					mapEvent(onStdout, o => ({ data: `%c${o}`, format: [''] })),
-					mapEvent(onStderr, o => ({ data: `%c${o}`, format: ['color: red'] }))
+				const onStdout = Event.fromNodeEventEmitter<string>(this._extensionHostProcess.stdout, 'data');
+				const onStderr = Event.fromNodeEventEmitter<string>(this._extensionHostProcess.stderr, 'data');
+				const onOutput = Event.any(
+					Event.map(onStdout, o => ({ data: `%c${o}`, format: [''] })),
+					Event.map(onStderr, o => ({ data: `%c${o}`, format: ['color: red'] }))
 				);
 
 				// Debounce all output, so we can render it in the Chrome console as a group
-				const onDebouncedOutput = debounceEvent<Output>(onOutput, (r, o) => {
+				const onDebouncedOutput = Event.debounce<Output>(onOutput, (r, o) => {
 					return r
 						? { data: r.data + o.data, format: [...r.format, ...o.format] }
 						: { data: o.data, format: o.format };

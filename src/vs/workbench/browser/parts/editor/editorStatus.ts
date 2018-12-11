@@ -50,7 +50,7 @@ import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { timeout } from 'vs/base/common/async';
 import { INotificationHandle, INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { once } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private master: IEncodingSupport, private details: IEncodingSupport) { }
@@ -514,7 +514,7 @@ export class EditorStatus implements IStatusbarItem {
 				{ sticky: true }
 			);
 
-			once(this.screenReaderNotification.onDidClose)(() => {
+			Event.once(this.screenReaderNotification.onDidClose)(() => {
 				this.screenReaderNotification = null;
 			});
 		}

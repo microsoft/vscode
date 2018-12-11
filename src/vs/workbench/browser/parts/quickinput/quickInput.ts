@@ -25,7 +25,7 @@ import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { attachBadgeStyler, attachProgressBarStyler, attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { debounceEvent, Emitter, Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
@@ -1144,7 +1144,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			}
 			const input = this.createInputBox();
 			const validateInput = options.validateInput || (() => <Thenable<undefined>>Promise.resolve(undefined));
-			const onDidValueChange = debounceEvent(input.onDidChangeValue, (last, cur) => cur, 100);
+			const onDidValueChange = Event.debounce(input.onDidChangeValue, (last, cur) => cur, 100);
 			let validationValue = options.value || '';
 			let validation = Promise.resolve(validateInput(validationValue));
 			const disposables = [

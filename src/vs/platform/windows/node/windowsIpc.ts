@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Event, buffer } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
 import { IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, CrashReporterStartOptions, IMessageBoxResult, MessageBoxOptions, SaveDialogOptions, OpenDialogOptions, IDevToolsOptions, INewWindowOptions } from 'vs/platform/windows/common/windows';
 import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, ISingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
@@ -23,12 +23,12 @@ export class WindowsChannel implements IServerChannel {
 	private onRecentlyOpenedChange: Event<void>;
 
 	constructor(private service: IWindowsService) {
-		this.onWindowOpen = buffer(service.onWindowOpen, true);
-		this.onWindowFocus = buffer(service.onWindowFocus, true);
-		this.onWindowBlur = buffer(service.onWindowBlur, true);
-		this.onWindowMaximize = buffer(service.onWindowMaximize, true);
-		this.onWindowUnmaximize = buffer(service.onWindowUnmaximize, true);
-		this.onRecentlyOpenedChange = buffer(service.onRecentlyOpenedChange, true);
+		this.onWindowOpen = Event.buffer(service.onWindowOpen, true);
+		this.onWindowFocus = Event.buffer(service.onWindowFocus, true);
+		this.onWindowBlur = Event.buffer(service.onWindowBlur, true);
+		this.onWindowMaximize = Event.buffer(service.onWindowMaximize, true);
+		this.onWindowUnmaximize = Event.buffer(service.onWindowUnmaximize, true);
+		this.onRecentlyOpenedChange = Event.buffer(service.onRecentlyOpenedChange, true);
 	}
 
 	listen(_, event: string): Event<any> {

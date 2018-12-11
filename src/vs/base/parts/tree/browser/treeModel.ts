@@ -9,7 +9,7 @@ import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import * as arrays from 'vs/base/common/arrays';
 import { INavigator } from 'vs/base/common/iterator';
 import * as _ from './tree';
-import { Event, Emitter, once, EventMultiplexer, Relay } from 'vs/base/common/event';
+import { Event, Emitter, EventMultiplexer, Relay } from 'vs/base/common/event';
 
 interface IMap<T> { [id: string]: T; }
 interface IItemMap extends IMap<Item> { }
@@ -83,7 +83,7 @@ export class Lock {
 
 		if (lock) {
 			return new Promise((c, e) => {
-				once(lock.onDispose)(() => {
+				Event.once(lock.onDispose)(() => {
 					return this.run(item, fn).then(c, e);
 				});
 			});

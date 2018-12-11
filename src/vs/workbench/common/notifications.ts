@@ -5,7 +5,7 @@
 
 import { INotification, INotificationHandle, INotificationActions, INotificationProgress, NoOpNotification, Severity, NotificationMessage, IPromptChoice } from 'vs/platform/notification/common/notification';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { Event, Emitter, once } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { Action } from 'vs/base/common/actions';
@@ -53,7 +53,7 @@ export class NotificationHandle implements INotificationHandle {
 	}
 
 	private registerListeners(): void {
-		once(this.item.onDidClose)(() => {
+		Event.once(this.item.onDidClose)(() => {
 			this._onDidClose.fire();
 			this._onDidClose.dispose();
 		});
@@ -160,7 +160,7 @@ export class NotificationsModel extends Disposable implements INotificationsMode
 			}
 		});
 
-		once(item.onDidClose)(() => {
+		Event.once(item.onDidClose)(() => {
 			itemExpansionChangeListener.dispose();
 			itemLabelChangeListener.dispose();
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { Event, Emitter, debounceEvent } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { assign } from 'vs/base/common/objects';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, IInputValidation } from 'vs/workbench/services/scm/common/scm';
@@ -276,7 +276,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostSCM);
 
-		debounceEvent(scmService.onDidChangeSelectedRepositories, (_, e) => e, 100)
+		Event.debounce(scmService.onDidChangeSelectedRepositories, (_, e) => e, 100)
 			(this.onDidChangeSelectedRepositories, this, this._disposables);
 	}
 

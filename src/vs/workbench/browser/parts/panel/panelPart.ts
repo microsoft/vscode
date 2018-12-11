@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/panelpart';
 import { IAction } from 'vs/base/common/actions';
-import { Event, mapEvent } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IPanel } from 'vs/workbench/common/panel';
@@ -170,7 +170,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	get onDidPanelOpen(): Event<{ panel: IPanel, focus: boolean }> {
-		return mapEvent(this._onDidCompositeOpen.event, compositeOpen => ({ panel: compositeOpen.composite, focus: compositeOpen.focus }));
+		return Event.map(this._onDidCompositeOpen.event, compositeOpen => ({ panel: compositeOpen.composite, focus: compositeOpen.focus }));
 	}
 
 	get onDidPanelClose(): Event<IPanel> {

@@ -13,7 +13,7 @@ import { ResourceMap } from 'vs/base/common/map';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
-import { Event, once, Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { basename } from 'vs/base/common/paths';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -138,7 +138,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			this._onDidOpenEditorFail.fire({ editor, groupId: group.id });
 		}));
 
-		once(group.onWillDispose)(() => {
+		Event.once(group.onWillDispose)(() => {
 			dispose(groupDisposeables);
 		});
 	}
@@ -577,7 +577,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		EditorService.CACHE.set(resource, input);
-		once(input.onDispose)(() => {
+		Event.once(input.onDispose)(() => {
 			EditorService.CACHE.delete(resource);
 		});
 

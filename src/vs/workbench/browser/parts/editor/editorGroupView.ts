@@ -7,7 +7,7 @@ import 'vs/css!./media/editorgroupview';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorGroup, IEditorOpenOptions, EditorCloseEvent, ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorGroup';
 import { EditorInput, EditorOptions, GroupIdentifier, ConfirmResult, SideBySideEditorInput, CloseDirection, IEditorCloseEvent, EditorGroupActiveEditorDirtyContext } from 'vs/workbench/common/editor';
-import { Event, Emitter, once, Relay } from 'vs/base/common/event';
+import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { addClass, addClasses, Dimension, trackFocus, toggleClass, removeClass, addDisposableListener, EventType, EventHelper, findParentWithClass, clearNode, isAncestor } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -827,7 +827,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				actions
 			});
 
-			once(handle.onDidClose)(() => dispose(actions.primary));
+			Event.once(handle.onDidClose)(() => dispose(actions.primary));
 		}
 
 		// Event

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter, once } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { Extensions, IEditorInputFactoryRegistry, EditorInput, toResource, IEditorIdentifier, IEditorCloseEvent, GroupIdentifier, SideBySideEditorInput, CloseDirection } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -272,7 +272,7 @@ export class EditorGroup extends Disposable {
 		const unbind: IDisposable[] = [];
 
 		// Re-emit disposal of editor input as our own event
-		const onceDispose = once(editor.onDispose);
+		const onceDispose = Event.once(editor.onDispose);
 		unbind.push(onceDispose(() => {
 			if (this.indexOf(editor) >= 0) {
 				this._onDidEditorDispose.fire(editor);

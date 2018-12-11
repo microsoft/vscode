@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, filterEvent, mapEvent, anyEvent } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWindowService, IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IWindowConfiguration, IDevToolsOptions } from 'vs/platform/windows/common/windows';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
@@ -30,12 +30,12 @@ export class WindowService extends Disposable implements IWindowService {
 	) {
 		super();
 
-		const onThisWindowFocus = mapEvent(filterEvent(windowsService.onWindowFocus, id => id === windowId), _ => true);
-		const onThisWindowBlur = mapEvent(filterEvent(windowsService.onWindowBlur, id => id === windowId), _ => false);
-		const onThisWindowMaximize = mapEvent(filterEvent(windowsService.onWindowMaximize, id => id === windowId), _ => true);
-		const onThisWindowUnmaximize = mapEvent(filterEvent(windowsService.onWindowUnmaximize, id => id === windowId), _ => false);
-		this.onDidChangeFocus = anyEvent(onThisWindowFocus, onThisWindowBlur);
-		this.onDidChangeMaximize = anyEvent(onThisWindowMaximize, onThisWindowUnmaximize);
+		const onThisWindowFocus = Event.map(Event.filter(windowsService.onWindowFocus, id => id === windowId), _ => true);
+		const onThisWindowBlur = Event.map(Event.filter(windowsService.onWindowBlur, id => id === windowId), _ => false);
+		const onThisWindowMaximize = Event.map(Event.filter(windowsService.onWindowMaximize, id => id === windowId), _ => true);
+		const onThisWindowUnmaximize = Event.map(Event.filter(windowsService.onWindowUnmaximize, id => id === windowId), _ => false);
+		this.onDidChangeFocus = Event.any(onThisWindowFocus, onThisWindowBlur);
+		this.onDidChangeMaximize = Event.any(onThisWindowMaximize, onThisWindowUnmaximize);
 
 		this._hasFocus = document.hasFocus();
 		this.isFocused().then(focused => this._hasFocus = focused);
