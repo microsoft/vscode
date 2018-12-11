@@ -634,6 +634,15 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public sendText(text: string, addNewLine: boolean): void {
+		if(platform.isWindows){
+			if(text.indexOf(' ') >= 0){
+				var first = "& '";
+				var last = "'";
+				var path1 = first.concat(text);
+				text = path1.concat(last);
+			}
+		}
+
 		// Normalize line endings to 'enter' press.
 		text = text.replace(TerminalInstance.EOL_REGEX, '\r');
 		if (addNewLine && text.substr(text.length - 1) !== '\r') {
