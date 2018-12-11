@@ -190,43 +190,41 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	install(vsix: URI, type: LocalExtensionType = LocalExtensionType.User): Promise<IExtensionIdentifier> {
 		this.logService.trace('ExtensionManagementService#install', vsix.toString());
 		return createCancelablePromise(token => {
-			return this.downloadVsix(vsix)
-				.then(downloadLocation => {
-					const zipPath = path.resolve(downloadLocation.fsPath);
+			return this.downloadVsix(vsix).then(downloadLocation => {
+				const zipPath = path.resolve(downloadLocation.fsPath);
 
-					return getManifest(zipPath)
-						.then(manifest => {
-							const identifier = { id: getLocalExtensionIdFromManifest(manifest) };
-							if (manifest.engines && manifest.engines.vscode && !isEngineValid(manifest.engines.vscode)) {
-								return Promise.reject(new Error(nls.localize('incompatible', "Unable to install extension '{0}' as it is not compatible with VS Code '{1}'.", identifier.id, pkg.version)));
-							}
-							return this.removeIfExists(identifier.id)
-								.then(
-									() => {
-										const extensionIdentifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name) };
-										return this.getInstalled(LocalExtensionType.User)
-											.then(installedExtensions => {
-												const newer = installedExtensions.filter(local => areSameExtensions(extensionIdentifier, { id: getGalleryExtensionIdFromLocal(local) }) && semver.gt(local.manifest.version, manifest.version))[0];
-												return newer ? this.uninstall(newer, true) : null;
-											})
-											.then(() => {
-												this.logService.info('Installing the extension:', identifier.id);
-												this._onInstallExtension.fire({ identifier, zipPath });
-												return this.getMetadata(getGalleryExtensionId(manifest.publisher, manifest.name))
-													.then(
-														metadata => this.installFromZipPath(identifier, zipPath, metadata, type, token),
-														error => this.installFromZipPath(identifier, zipPath, null, type, token))
-													.then(
-														() => { this.logService.info('Successfully installed the extension:', identifier.id); return identifier; },
-														e => {
-															this.logService.error('Failed to install the extension:', identifier.id, e.message);
-															return Promise.reject(e);
-														});
-											});
-									},
-									e => Promise.reject(new Error(nls.localize('restartCode', "Please restart VS Code before reinstalling {0}.", manifest.displayName || manifest.name))));
-						});
-				});
+				return getManifest(zipPath)
+					.then(manifest => {
+						const identifier = { id: getLocalExtensionIdFromManifest(manifest) };
+						if (manifest.engines && manifest.engines.vscode && !isEngineValid(manifest.engines.vscode)) {
+							return Promise.reject(new Error(nls.localize('incompatible', "Unable to install extension '{0}' as it is not compatible with VS Code '{1}'.", identifier.id, pkg.version)));
+						}
+						return this.removeIfExists(identifier.id).then(
+							() => {
+								const extensionIdentifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name) };
+								return this.getInstalled(LocalExtensionType.User)
+									.then(installedExtensions => {
+										const newer = installedExtensions.filter(local => areSameExtensions(extensionIdentifier, { id: getGalleryExtensionIdFromLocal(local) }) && semver.gt(local.manifest.version, manifest.version))[0];
+										return newer ? this.uninstall(newer, true) : null;
+									})
+									.then(() => {
+										this.logService.info('Installing the extension:', identifier.id);
+										this._onInstallExtension.fire({ identifier, zipPath });
+										return this.getMetadata(getGalleryExtensionId(manifest.publisher, manifest.name))
+											.then(
+												metadata => this.installFromZipPath(identifier, zipPath, metadata, type, token),
+												error => this.installFromZipPath(identifier, zipPath, null, type, token))
+											.then(
+												() => { this.logService.info('Successfully installed the extension:', identifier.id); return identifier; },
+												e => {
+													this.logService.error('Failed to install the extension:', identifier.id, e.message);
+													return Promise.reject(e);
+												});
+									});
+							},
+							e => Promise.reject(new Error(nls.localize('restartCode', "Please restart VS Code before reinstalling {0}.", manifest.displayName || manifest.name))));
+					});
+			});
 		});
 	}
 
