@@ -192,6 +192,11 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	get onMouseClick(): Event<ITreeMouseEvent<T>> { return Event.map(this.view.onMouseClick, asTreeMouseEvent); }
 	get onMouseDblClick(): Event<ITreeMouseEvent<T>> { return Event.map(this.view.onMouseDblClick, asTreeMouseEvent); }
 	get onContextMenu(): Event<ITreeContextMenuEvent<T>> { return Event.map(this.view.onContextMenu, asTreeContextMenuEvent); }
+
+	get onKeyDown(): Event<KeyboardEvent> { return this.view.onKeyDown; }
+	get onKeyUp(): Event<KeyboardEvent> { return this.view.onKeyUp; }
+	get onKeyPress(): Event<KeyboardEvent> { return this.view.onKeyPress; }
+
 	get onDidFocus(): Event<void> { return this.view.onDidFocus; }
 	get onDidBlur(): Event<void> { return this.view.onDidBlur; }
 
