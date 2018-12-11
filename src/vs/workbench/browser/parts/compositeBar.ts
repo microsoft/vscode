@@ -62,7 +62,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	constructor(
-		items: ICompositeBarModelItem[],
+		items: ICompositeBarItem[],
 		private options: ICompositeBarOptions,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextMenuService private contextMenuService: IContextMenuService
@@ -75,11 +75,17 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		this.compositeTransfer = LocalSelectionTransfer.getInstance<DraggedCompositeIdentifier>();
 	}
 
-	getComposites(): ICompositeBarModelItem[] {
+	getCompositeBarItems(): ICompositeBarItem[] {
 		return [...this.model.items];
 	}
 
-	getPinnedComposites(): ICompositeBarModelItem[] {
+	setCompositeBarItems(items: ICompositeBarItem[]): void {
+		if (this.model.setItems(items)) {
+			this.updateCompositeSwitcher();
+		}
+	}
+
+	getPinnedComposites(): ICompositeBarItem[] {
 		return this.model.pinnedItems;
 	}
 
@@ -445,7 +451,7 @@ interface ICompositeBarModelItem extends ICompositeBarItem {
 
 class CompositeBarModel {
 
-	items: ICompositeBarModelItem[];
+	private _items: ICompositeBarModelItem[];
 	private readonly options: ICompositeBarOptions;
 	activeItem: ICompositeBarModelItem;
 
@@ -454,7 +460,43 @@ class CompositeBarModel {
 		options: ICompositeBarOptions
 	) {
 		this.options = options;
-		this.items = items.map(i => this.createCompositeBarItem(i.id, i.name, i.order, i.pinned, i.visible));
+		this.setItems(items);
+	}
+
+	get items(): ICompositeBarModelItem[] {
+		return this._items;
+	}
+
+	setItems(items: ICompositeBarItem[]): boolean {
+		const result: ICompositeBarModelItem[] = [];
+		let hasChanges: boolean = false;
+		if (!this.items || this.items.length === 0) {
+			this._items = items.map(i => this.createCompositeBarItem(i.id, i.name, i.order, i.pinned, i.visible));
+			hasChanges = true;
+		} else {
+			const existingItems = this.items;
+			for (let index = 0; index < items.length; index++) {
+				const newItem = items[index];
+				const existingItem = existingItems.filter(({ id }) => id === newItem.id)[0];
+				if (existingItem) {
+					if (
+						existingItem.pinned !== newItem.pinned ||
+						index !== existingItems.indexOf(existingItem)
+					) {
+						existingItem.pinned = newItem.pinned;
+						result.push(existingItem);
+						hasChanges = true;
+					} else {
+						result.push(existingItem);
+					}
+				} else {
+					result.push(this.createCompositeBarItem(newItem.id, newItem.name, newItem.order, newItem.pinned, newItem.visible));
+					hasChanges = true;
+				}
+			}
+			this._items = result;
+		}
+		return hasChanges;
 	}
 
 	get visibleItems(): ICompositeBarModelItem[] {
