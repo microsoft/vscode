@@ -333,7 +333,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 					assert.equal(event.auto, true);
 					assert.equal(event.completionModel.items.length, 1);
 					const [first] = event.completionModel.items;
-					assert.equal(first.suggestion.label, 'My Table');
+					assert.equal(first.completion.label, 'My Table');
 
 					return assertEvent(model.onDidSuggest, () => {
 						editor.setPosition({ lineNumber: 1, column: 3 });
@@ -343,7 +343,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 						assert.equal(event.auto, true);
 						assert.equal(event.completionModel.items.length, 1);
 						const [first] = event.completionModel.items;
-						assert.equal(first.suggestion.label, 'My Table');
+						assert.equal(first.completion.label, 'My Table');
 					});
 				});
 			});
@@ -396,7 +396,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				assert.equal(event.auto, true);
 				assert.equal(event.completionModel.items.length, 1);
 				const [first] = event.completionModel.items;
-				assert.equal(first.suggestion.label, 'foo.bar');
+				assert.equal(first.completion.label, 'foo.bar');
 
 				return assertEvent(model.onDidSuggest, () => {
 					editor.trigger('keyboard', Handler.Type, { text: '.' });
@@ -405,8 +405,8 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 					assert.equal(event.auto, true);
 					assert.equal(event.completionModel.items.length, 2);
 					const [first, second] = event.completionModel.items;
-					assert.equal(first.suggestion.label, 'foo.bar');
-					assert.equal(second.suggestion.label, 'boom');
+					assert.equal(first.completion.label, 'foo.bar');
+					assert.equal(second.completion.label, 'boom');
 				});
 			});
 		});
@@ -604,7 +604,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				editor.trigger('keyboard', Handler.Type, { text: 'a' });
 			}, event => {
 				assert.equal(event.completionModel.items.length, 1);
-				assert.equal(event.completionModel.items[0].suggestion.label, 'abc');
+				assert.equal(event.completionModel.items[0].completion.label, 'abc');
 
 				return assertEvent(model.onDidSuggest, () => {
 					editor.executeEdits('test', [EditOperation.replace(new Range(1, 1, 1, 2), 'ä')]);
@@ -612,7 +612,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				}, event => {
 					// suggest model changed to äbc
 					assert.equal(event.completionModel.items.length, 1);
-					assert.equal(event.completionModel.items[0].suggestion.label, 'äbc');
+					assert.equal(event.completionModel.items[0].completion.label, 'äbc');
 
 				});
 			});
@@ -685,7 +685,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 				assert.equal(event.completionModel.items.length, 1);
 				const [first] = event.completionModel.items;
-				assert.equal(first.suggestion.label, 'bar');
+				assert.equal(first.completion.label, 'bar');
 
 				ctrl._onDidSelectItem({ item: first, index: 0, model: event.completionModel });
 			});

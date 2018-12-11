@@ -53,31 +53,31 @@ suite('Suggest', function () {
 	test('sort - snippet inline', async function () {
 		const items = await provideSuggestionItems(model, new Position(1, 1), 'inline');
 		assert.equal(items.length, 3);
-		assert.equal(items[0].suggestion.label, 'aaa');
-		assert.equal(items[1].suggestion.label, 'fff');
-		assert.equal(items[2].suggestion.label, 'zzz');
+		assert.equal(items[0].completion.label, 'aaa');
+		assert.equal(items[1].completion.label, 'fff');
+		assert.equal(items[2].completion.label, 'zzz');
 	});
 
 	test('sort - snippet top', async function () {
 		const items = await provideSuggestionItems(model, new Position(1, 1), 'top');
 		assert.equal(items.length, 3);
-		assert.equal(items[0].suggestion.label, 'aaa');
-		assert.equal(items[1].suggestion.label, 'zzz');
-		assert.equal(items[2].suggestion.label, 'fff');
+		assert.equal(items[0].completion.label, 'aaa');
+		assert.equal(items[1].completion.label, 'zzz');
+		assert.equal(items[2].completion.label, 'fff');
 	});
 
 	test('sort - snippet bottom', async function () {
 		const items = await provideSuggestionItems(model, new Position(1, 1), 'bottom');
 		assert.equal(items.length, 3);
-		assert.equal(items[0].suggestion.label, 'fff');
-		assert.equal(items[1].suggestion.label, 'aaa');
-		assert.equal(items[2].suggestion.label, 'zzz');
+		assert.equal(items[0].completion.label, 'fff');
+		assert.equal(items[1].completion.label, 'aaa');
+		assert.equal(items[2].completion.label, 'zzz');
 	});
 
 	test('sort - snippet none', async function () {
 		const items = await provideSuggestionItems(model, new Position(1, 1), 'none');
 		assert.equal(items.length, 1);
-		assert.equal(items[0].suggestion.label, 'fff');
+		assert.equal(items[0].completion.label, 'fff');
 	});
 
 	test('only from', function () {

@@ -23,8 +23,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ICompletionItem } from './completionModel';
-import { Context as SuggestContext, SuggestionItem } from './suggest';
+import { Context as SuggestContext, CompletionItem } from './suggest';
 import { SuggestAlternatives } from './suggestAlternatives';
 import { State, SuggestModel } from './suggestModel';
 import { ISelectedSuggestion, SuggestWidget } from './suggestWidget';
@@ -57,13 +56,13 @@ class AcceptOnCharacterOracle {
 	}
 
 	private _onItem(selected: ISelectedSuggestion): void {
-		if (!selected || isFalsyOrEmpty(selected.item.suggestion.commitCharacters)) {
+		if (!selected || isFalsyOrEmpty(selected.item.completion.commitCharacters)) {
 			this.reset();
 			return;
 		}
 		this._activeItem = selected;
 		this._activeAcceptCharacters.clear();
-		for (const ch of selected.item.suggestion.commitCharacters) {
+		for (const ch of selected.item.completion.commitCharacters) {
 			if (ch.length > 0) {
 				this._activeAcceptCharacters.add(ch[0]);
 			}
@@ -127,16 +126,16 @@ export class SuggestController implements IEditorContribution {
 			this._toDispose.push(widget.onDidFocus(({ item }) => {
 
 				const position = this._editor.getPosition();
-				const startColumn = item.suggestion.range.startColumn;
+				const startColumn = item.completion.range.startColumn;
 				const endColumn = position.column;
 				let value = true;
 				if (
 					this._editor.getConfiguration().contribInfo.acceptSuggestionOnEnter === 'smart'
 					&& this._model.state === State.Auto
-					&& !item.suggestion.command
-					&& !item.suggestion.additionalTextEdits
-					&& !(item.suggestion.insertTextRules & CompletionItemInsertTextRule.InsertAsSnippet)
-					&& endColumn - startColumn === item.suggestion.insertText.length
+					&& !item.completion.command
+					&& !item.completion.additionalTextEdits
+					&& !(item.completion.insertTextRules & CompletionItemInsertTextRule.InsertAsSnippet)
+					&& endColumn - startColumn === item.completion.insertText.length
 				) {
 					const oldText = this._editor.getModel().getValueInRange({
 						startLineNumber: position.lineNumber,
@@ -144,7 +143,7 @@ export class SuggestController implements IEditorContribution {
 						endLineNumber: position.lineNumber,
 						endColumn
 					});
-					value = oldText !== item.suggestion.insertText;
+					value = oldText !== item.completion.insertText;
 				}
 				makesTextEdit.set(value);
 			}));
@@ -215,7 +214,7 @@ export class SuggestController implements IEditorContribution {
 
 		const model = this._editor.getModel();
 		const modelVersionNow = model.getAlternativeVersionId();
-		const { suggestion, position } = event.item;
+		const { completion: suggestion, position } = event.item;
 		const editorColumn = this._editor.getPosition().column;
 		const columnDelta = editorColumn - position.column;
 
@@ -284,7 +283,7 @@ export class SuggestController implements IEditorContribution {
 		this._alertCompletionItem(event.item);
 	}
 
-	private _alertCompletionItem({ suggestion }: ICompletionItem): void {
+	private _alertCompletionItem({ completion: suggestion }: CompletionItem): void {
 		let msg = nls.localize('arai.alert.snippet', "Accepting '{0}' did insert the following text: {1}", suggestion.label, suggestion.insertText);
 		alert(msg);
 	}
@@ -305,15 +304,15 @@ export class SuggestController implements IEditorContribution {
 			}
 		};
 
-		const makesTextEdit = (item: SuggestionItem): boolean => {
-			if (item.suggestion.insertTextRules & CompletionItemInsertTextRule.InsertAsSnippet || item.suggestion.additionalTextEdits) {
+		const makesTextEdit = (item: CompletionItem): boolean => {
+			if (item.completion.insertTextRules & CompletionItemInsertTextRule.InsertAsSnippet || item.completion.additionalTextEdits) {
 				// snippet, other editor -> makes edit
 				return true;
 			}
 			const position = this._editor.getPosition();
-			const startColumn = item.suggestion.range.startColumn;
+			const startColumn = item.completion.range.startColumn;
 			const endColumn = position.column;
-			if (endColumn - startColumn !== item.suggestion.insertText.length) {
+			if (endColumn - startColumn !== item.completion.insertText.length) {
 				// unequal lengths -> makes edit
 				return true;
 			}
@@ -324,7 +323,7 @@ export class SuggestController implements IEditorContribution {
 				endColumn
 			});
 			// unequal text -> makes edit
-			return textNow !== item.suggestion.insertText;
+			return textNow !== item.completion.insertText;
 		};
 
 		Event.once(this._model.onDidTrigger)(_ => {
