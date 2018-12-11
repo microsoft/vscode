@@ -223,23 +223,19 @@ export class SuggestModel implements IDisposable {
 	}
 
 	cancel(retrigger: boolean = false): void {
-
-		this._triggerRefilter.cancel();
-
-		if (this._triggerQuickSuggest) {
+		if (this._state !== State.Idle) {
+			this._triggerRefilter.cancel();
 			this._triggerQuickSuggest.cancel();
+			if (this._requestToken) {
+				this._requestToken.cancel();
+				this._requestToken = undefined;
+			}
+			this._state = State.Idle;
+			dispose(this._completionModel);
+			this._completionModel = null;
+			this._context = null;
+			this._onDidCancel.fire({ retrigger });
 		}
-
-		if (this._requestToken) {
-			this._requestToken.cancel();
-		}
-
-		this._state = State.Idle;
-		dispose(this._completionModel);
-		this._completionModel = null;
-		this._context = null;
-
-		this._onDidCancel.fire({ retrigger });
 	}
 
 	private _updateActiveSuggestSession(): void {
