@@ -19,6 +19,8 @@ export interface ICompletionItem extends SuggestionItem {
 	word?: string;
 }
 
+type StrictCompletionItem = Required<ICompletionItem>;
+
 /* __GDPR__FRAGMENT__
 	"ICompletionStats" : {
 		"suggestionCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -155,7 +157,7 @@ export class CompletionModel {
 
 		// incrementally filter less
 		const source = this._refilterKind === Refilter.All ? this._items : this._filteredItems;
-		const target: typeof source = [];
+		const target: StrictCompletionItem[] = [];
 
 		// picks a score function based on the number of
 		// items that we have to score/filter and based on the
@@ -193,7 +195,7 @@ export class CompletionModel {
 				// use a score of `-100` because that is out of the
 				// bound of values `fuzzyScore` will return
 				item.score = -100;
-				item.matches = undefined;
+				item.matches = [];
 
 			} else {
 				// skip word characters that are whitespace until
@@ -221,7 +223,7 @@ export class CompletionModel {
 					// despite having the match
 					let match = scoreFn(word, wordLow, wordPos, item.suggestion.filterText, item.filterTextLow!, 0, false);
 					if (!match) {
-						continue;
+						continue; // NO match
 					}
 					item.score = match[0];
 					item.matches = (fuzzyScore(word, wordLow, 0, item.suggestion.label, item.labelLow, 0, true) || anyScore(word, item.suggestion.label))[1];
@@ -229,18 +231,17 @@ export class CompletionModel {
 				} else {
 					// by default match `word` against the `label`
 					let match = scoreFn(word, wordLow, wordPos, item.suggestion.label, item.labelLow, 0, false);
-					if (match) {
-						item.score = match[0];
-						item.matches = match[1];
-					} else {
-						continue;
+					if (!match) {
+						continue; // NO match
 					}
+					item.score = match[0];
+					item.matches = match[1];
 				}
 			}
 
 			item.idx = i;
 			item.distance = this._wordDistance.distance(item.position, item.suggestion);
-			target.push(item);
+			target.push(item as StrictCompletionItem);
 
 			// update stats
 			this._stats.suggestionCount++;
@@ -254,7 +255,7 @@ export class CompletionModel {
 		this._refilterKind = Refilter.Nothing;
 	}
 
-	private static _compareCompletionItems(a: ICompletionItem, b: ICompletionItem): number {
+	private static _compareCompletionItems(a: StrictCompletionItem, b: StrictCompletionItem): number {
 		if (a.score > b.score) {
 			return -1;
 		} else if (a.score < b.score) {
@@ -272,7 +273,7 @@ export class CompletionModel {
 		}
 	}
 
-	private static _compareCompletionItemsSnippetsDown(a: ICompletionItem, b: ICompletionItem): number {
+	private static _compareCompletionItemsSnippetsDown(a: StrictCompletionItem, b: StrictCompletionItem): number {
 		if (a.suggestion.kind !== b.suggestion.kind) {
 			if (a.suggestion.kind === CompletionItemKind.Snippet) {
 				return 1;
@@ -283,7 +284,7 @@ export class CompletionModel {
 		return CompletionModel._compareCompletionItems(a, b);
 	}
 
-	private static _compareCompletionItemsSnippetsUp(a: ICompletionItem, b: ICompletionItem): number {
+	private static _compareCompletionItemsSnippetsUp(a: StrictCompletionItem, b: StrictCompletionItem): number {
 		if (a.suggestion.kind !== b.suggestion.kind) {
 			if (a.suggestion.kind === CompletionItemKind.Snippet) {
 				return -1;
