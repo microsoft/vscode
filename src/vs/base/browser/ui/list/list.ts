@@ -5,6 +5,8 @@
 
 import { GestureEvent } from 'vs/base/browser/touch';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { Event } from 'vs/base/common/event';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export interface IListVirtualDelegate<T> {
 	getHeight(element: T): number;
@@ -58,4 +60,54 @@ export interface IIdentityProvider<T> {
 export interface ITypeLabelProvider<T> {
 	getTypeLabel(element: T): { toString(): string; };
 	mightProducePrintableCharacter?(event: IKeyboardEvent): boolean;
+}
+
+/**
+ * Use this renderer when you want to re-render elements on account of
+ * an event firing.
+ */
+export abstract class AbstractListRenderer<T, TTemplateData> implements IListRenderer<T, TTemplateData> {
+
+	private renderedElements = new Map<T, TTemplateData>();
+	private listener: IDisposable;
+
+	constructor(onDidChange: Event<T | T[] | undefined>) {
+		this.listener = onDidChange(this.onDidChange, this);
+	}
+
+	renderElement(element: T, index: number, templateData: TTemplateData): void {
+		this.renderedElements.set(element, templateData);
+	}
+
+	disposeElement(element: T, index: number, templateData: TTemplateData): void {
+		this.renderedElements.delete(element);
+	}
+
+	private onDidChange(e: T | T[] | undefined) {
+		if (typeof e === 'undefined') {
+			this.renderedElements.forEach((templateData, element) => this.renderElement(element, -1 /* TODO@joao */, templateData));
+		} else if (Array.isArray(e)) {
+			for (const element of e) {
+				this.rerender(element);
+			}
+		} else {
+			this.rerender(e);
+		}
+	}
+
+	private rerender(element: T): void {
+		const templateData = this.renderedElements.get(element);
+
+		if (templateData) {
+			this.renderElement(element, -1 /* TODO@Joao */, templateData);
+		}
+	}
+
+	dispose(): void {
+		this.listener.dispose();
+	}
+
+	abstract readonly templateId: string;
+	abstract renderTemplate(container: HTMLElement): TTemplateData;
+	abstract disposeTemplate(templateData: TTemplateData): void;
 }

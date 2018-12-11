@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { Iterator } from 'vs/base/common/iterator';
-import { IListRenderer } from 'vs/base/browser/ui/list/list';
+import { IListRenderer, AbstractListRenderer } from 'vs/base/browser/ui/list/list';
 
 export const enum TreeVisibility {
 
@@ -126,4 +126,37 @@ export interface ITreeContextMenuEvent<T> {
 	browserEvent: UIEvent;
 	element: T | null;
 	anchor: HTMLElement | { x: number; y: number; } | undefined;
+}
+
+/**
+ * Use this renderer when you want to re-render elements on account of
+ * an event firing.
+ */
+export abstract class AbstractTreeRenderer<T, TFilterData = void, TTemplateData = void>
+	extends AbstractListRenderer<ITreeNode<T, TFilterData>, TTemplateData>
+	implements ITreeRenderer<T, TFilterData, TTemplateData> {
+
+	private elementsToNodes = new Map<T, ITreeNode<T, TFilterData>>();
+
+	constructor(onDidChange: Event<T | T[] | undefined>) {
+		super(Event.map(onDidChange, e => {
+			if (typeof e === 'undefined') {
+				return undefined;
+			} else if (Array.isArray(e)) {
+				return e.map(e => this.elementsToNodes.get(e) || null).filter(e => e !== null);
+			} else {
+				return this.elementsToNodes.get(e) || null;
+			}
+		}));
+	}
+
+	renderElement(node: ITreeNode<T, TFilterData>, index: number, templateData: TTemplateData): void {
+		super.renderElement(node, index, templateData);
+		this.elementsToNodes.set(node.element, node);
+	}
+
+	disposeElement(node: ITreeNode<T, TFilterData>, index: number, templateData: TTemplateData): void {
+		this.elementsToNodes.set(node.element, node);
+		super.disposeElement(node, index, templateData);
+	}
 }
