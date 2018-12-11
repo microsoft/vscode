@@ -20,7 +20,7 @@ import { OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { CloseAllEditorsAction, CloseEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { ToggleEditorLayoutAction } from 'vs/workbench/browser/actions/toggleEditorLayout';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -53,9 +53,6 @@ export class OpenEditorsView extends ViewletPanel {
 	private list: WorkbenchList<OpenEditor | IEditorGroup>;
 	private contributedContextMenu: IMenu;
 	private needsRefresh: boolean;
-	private resourceContext: ResourceContextKey;
-	private groupFocusedContext: IContextKey<boolean>;
-	private dirtyEditorFocusedContext: IContextKey<boolean>;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -231,24 +228,7 @@ export class OpenEditorsView extends ViewletPanel {
 		OpenEditorsFocusedContext.bindTo(this.list.contextKeyService);
 		ExplorerFocusedContext.bindTo(this.list.contextKeyService);
 
-		this.resourceContext = this.instantiationService.createInstance(ResourceContextKey);
-		this.disposables.push(this.resourceContext);
-		this.groupFocusedContext = OpenEditorsGroupContext.bindTo(this.contextKeyService);
-		this.dirtyEditorFocusedContext = DirtyEditorContext.bindTo(this.contextKeyService);
-
 		this.disposables.push(this.list.onContextMenu(e => this.onListContextMenu(e)));
-		this.list.onFocusChange(e => {
-			this.resourceContext.reset();
-			this.groupFocusedContext.reset();
-			this.dirtyEditorFocusedContext.reset();
-			const element = e.elements.length ? e.elements[0] : undefined;
-			if (element instanceof OpenEditor) {
-				this.dirtyEditorFocusedContext.set(this.textFileService.isDirty(element.getResource()));
-				this.resourceContext.set(element.getResource());
-			} else if (!!element) {
-				this.groupFocusedContext.set(true);
-			}
-		});
 
 		// Open when selecting via keyboard
 		this.disposables.push(this.list.onMouseMiddleClick(e => {
@@ -390,13 +370,27 @@ export class OpenEditorsView extends ViewletPanel {
 		}
 
 		const element = e.element;
+		const scopedContextKeyService = this.contextKeyService.createScoped();
+		const groupFocusedContext = OpenEditorsGroupContext.bindTo(scopedContextKeyService);
+		const dirtyEditorFocused = DirtyEditorContext.bindTo(scopedContextKeyService);
+		const resourceContext = this.instantiationService.createInstance(ResourceContextKey, scopedContextKeyService);
+
+		if (element instanceof OpenEditor) {
+			dirtyEditorFocused.set(this.textFileService.isDirty(element.getResource()));
+			resourceContext.set(element.getResource());
+		} else if (!!element) {
+			groupFocusedContext.set(true);
+		}
+
+		const actions: IAction[] = [];
+		fillInContextMenuActions(this.contributedContextMenu, { shouldForwardArgs: true, arg: element instanceof OpenEditor ? element.editor.getResource() : {} }, actions, this.contextMenuService);
+
+		scopedContextKeyService.dispose();
+		resourceContext.dispose();
+
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
-			getActions: () => {
-				const actions: IAction[] = [];
-				fillInContextMenuActions(this.contributedContextMenu, { shouldForwardArgs: true, arg: element instanceof OpenEditor ? element.editor.getResource() : {} }, actions, this.contextMenuService);
-				return actions;
-			},
+			getActions: () => actions,
 			getActionsContext: () => element instanceof OpenEditor ? { groupId: element.groupId, editorIndex: element.editorIndex } : { groupId: element.id }
 		});
 	}
