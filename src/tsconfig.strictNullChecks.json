@@ -302,6 +302,7 @@
 		"./vs/editor/contrib/find/findWidget.ts",
 		"./vs/editor/contrib/find/replaceAllCommand.ts",
 		"./vs/editor/contrib/find/replacePattern.ts",
+		"./vs/editor/contrib/find/simpleFindWidget.ts",
 		"./vs/editor/contrib/folding/folding.ts",
 		"./vs/editor/contrib/folding/foldingDecorations.ts",
 		"./vs/editor/contrib/folding/foldingModel.ts",
