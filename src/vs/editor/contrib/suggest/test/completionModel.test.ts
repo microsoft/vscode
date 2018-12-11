@@ -6,12 +6,14 @@ import * as assert from 'assert';
 import { IPosition } from 'vs/editor/common/core/position';
 import { CompletionList, CompletionItemProvider, CompletionItem, CompletionItemKind } from 'vs/editor/common/modes';
 import { CompletionModel } from 'vs/editor/contrib/suggest/completionModel';
-import { ISuggestionItem, getSuggestionComparator, ensureLowerCaseVariants } from 'vs/editor/contrib/suggest/suggest';
+import { SuggestionItem, getSuggestionComparator, ensureLowerCaseVariants } from 'vs/editor/contrib/suggest/suggest';
 import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
 
-export function createSuggestItem(label: string, overwriteBefore: number, kind = CompletionItemKind.Property, incomplete: boolean = false, position: IPosition = { lineNumber: 1, column: 1 }): ISuggestionItem {
+export function createSuggestItem(label: string, overwriteBefore: number, kind = CompletionItemKind.Property, incomplete: boolean = false, position: IPosition = { lineNumber: 1, column: 1 }): SuggestionItem {
 
-	return new class implements ISuggestionItem {
+	return new class implements SuggestionItem {
+
+		_brand: 'ISuggestionItem';
 
 		position = position;
 

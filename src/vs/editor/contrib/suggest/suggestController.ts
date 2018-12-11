@@ -24,7 +24,7 @@ import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/commo
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ICompletionItem } from './completionModel';
-import { Context as SuggestContext, ISuggestionItem } from './suggest';
+import { Context as SuggestContext, SuggestionItem } from './suggest';
 import { SuggestAlternatives } from './suggestAlternatives';
 import { State, SuggestModel } from './suggestModel';
 import { ISelectedSuggestion, SuggestWidget } from './suggestWidget';
@@ -305,7 +305,7 @@ export class SuggestController implements IEditorContribution {
 			}
 		};
 
-		const makesTextEdit = (item: ISuggestionItem): boolean => {
+		const makesTextEdit = (item: SuggestionItem): boolean => {
 			if (item.suggestion.insertTextRules & CompletionItemInsertTextRule.InsertAsSnippet || item.suggestion.additionalTextEdits) {
 				// snippet, other editor -> makes edit
 				return true;

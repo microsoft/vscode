@@ -24,12 +24,50 @@ export const Context = {
 	AcceptSuggestionsOnEnter: new RawContextKey<boolean>('acceptSuggestionOnEnter', true)
 };
 
-export interface ISuggestionItem {
-	readonly position: IPosition;
-	readonly suggestion: CompletionItem;
-	readonly container: CompletionList;
-	readonly provider: CompletionItemProvider;
-	resolve(token: CancellationToken): Thenable<void>;
+export class SuggestionItem {
+
+	_brand: 'ISuggestionItem';
+
+	readonly resolve: (token: CancellationToken) => Thenable<void>;
+
+	constructor(
+		readonly position: IPosition,
+		readonly suggestion: CompletionItem,
+		readonly container: CompletionList,
+		readonly provider: CompletionItemProvider,
+		model: ITextModel
+	) {
+		// create the suggestion resolver
+		const { resolveCompletionItem } = provider;
+		if (typeof resolveCompletionItem !== 'function') {
+			this.resolve = () => Promise.resolve();
+		} else {
+			let cached: Promise<void> | undefined;
+			this.resolve = (token) => {
+				if (!cached) {
+					let isDone = false;
+					cached = Promise.resolve(resolveCompletionItem.call(provider, model, position, suggestion, token)).then(value => {
+						assign(suggestion, value);
+						isDone = true;
+					}, err => {
+						if (isPromiseCanceledError(err)) {
+							// the IPC queue will reject the request with the
+							// cancellation error -> reset cached
+							cached = undefined;
+						}
+					});
+					token.onCancellationRequested(() => {
+						if (!isDone) {
+							// cancellation after the request has been
+							// dispatched -> reset cache
+							cached = undefined;
+						}
+					});
+				}
+				return cached;
+			};
+		}
+	}
 }
 
 export type SnippetConfig = 'top' | 'bottom' | 'inline' | 'none';
@@ -53,9 +91,9 @@ export function provideSuggestionItems(
 	onlyFrom?: CompletionItemProvider[],
 	context?: CompletionContext,
 	token: CancellationToken = CancellationToken.None
-): Promise<ISuggestionItem[]> {
+): Promise<SuggestionItem[]> {
 
-	const allSuggestions: ISuggestionItem[] = [];
+	const allSuggestions: SuggestionItem[] = [];
 	const acceptSuggestion = createSuggesionFilter(snippetConfig);
 
 	const wordUntil = model.getWordUntilPosition(position);
@@ -78,13 +116,13 @@ export function provideSuggestionItems(
 	let hasResult = false;
 	const factory = supports.map(supports => () => {
 		// for each support in the group ask for suggestions
-		return Promise.all(supports.map(support => {
+		return Promise.all(supports.map(provider => {
 
-			if (isNonEmptyArray(onlyFrom) && onlyFrom.indexOf(support) < 0) {
+			if (isNonEmptyArray(onlyFrom) && onlyFrom.indexOf(provider) < 0) {
 				return undefined;
 			}
 
-			return Promise.resolve(support.provideCompletionItems(model, position, suggestConext, token)).then(container => {
+			return Promise.resolve(provider.provideCompletionItems(model, position, suggestConext, token)).then(container => {
 
 				const len = allSuggestions.length;
 
@@ -100,18 +138,12 @@ export function provideSuggestionItems(
 							// fill in lower-case text
 							ensureLowerCaseVariants(suggestion);
 
-							allSuggestions.push({
-								position,
-								container,
-								suggestion,
-								provider: support,
-								resolve: createSuggestionResolver(support, suggestion, model, position)
-							});
+							allSuggestions.push(new SuggestionItem(position, suggestion, container, provider, model));
 						}
 					}
 				}
 
-				if (len !== allSuggestions.length && support !== _snippetSuggestSupport) {
+				if (len !== allSuggestions.length && provider !== _snippetSuggestSupport) {
 					hasResult = true;
 				}
 
@@ -151,40 +183,6 @@ export function ensureLowerCaseVariants(suggestion: CompletionItem) {
 	}
 }
 
-function createSuggestionResolver(provider: CompletionItemProvider, suggestion: CompletionItem, model: ITextModel, position: Position): (token: CancellationToken) => Promise<void> {
-
-	const { resolveCompletionItem } = provider;
-
-	if (typeof resolveCompletionItem !== 'function') {
-		return () => Promise.resolve();
-	}
-
-	let cached: Promise<void> | undefined;
-	return (token) => {
-		if (!cached) {
-			let isDone = false;
-			cached = Promise.resolve(resolveCompletionItem.call(provider, model, position, suggestion, token)).then(value => {
-				assign(suggestion, value);
-				isDone = true;
-			}, err => {
-				if (isPromiseCanceledError(err)) {
-					// the IPC queue will reject the request with the
-					// cancellation error -> reset cached
-					cached = undefined;
-				}
-			});
-			token.onCancellationRequested(() => {
-				if (!isDone) {
-					// cancellation after the request has been
-					// dispatched -> reset cache
-					cached = undefined;
-				}
-			});
-		}
-		return cached;
-	};
-}
-
 function createSuggesionFilter(snippetConfig: SnippetConfig): (candidate: CompletionItem) => boolean {
 	if (snippetConfig === 'none') {
 		return suggestion => suggestion.kind !== CompletionItemKind.Snippet;
@@ -192,7 +190,7 @@ function createSuggesionFilter(snippetConfig: SnippetConfig): (candidate: Comple
 		return () => true;
 	}
 }
-function defaultComparator(a: ISuggestionItem, b: ISuggestionItem): number {
+function defaultComparator(a: SuggestionItem, b: SuggestionItem): number {
 	// check with 'sortText'
 	if (a.suggestion._sortTextLow && b.suggestion._sortTextLow) {
 		if (a.suggestion._sortTextLow < b.suggestion._sortTextLow) {
@@ -211,7 +209,7 @@ function defaultComparator(a: ISuggestionItem, b: ISuggestionItem): number {
 	return a.suggestion.kind - b.suggestion.kind;
 }
 
-function snippetUpComparator(a: ISuggestionItem, b: ISuggestionItem): number {
+function snippetUpComparator(a: SuggestionItem, b: SuggestionItem): number {
 	if (a.suggestion.kind !== b.suggestion.kind) {
 		if (a.suggestion.kind === CompletionItemKind.Snippet) {
 			return -1;
@@ -222,7 +220,7 @@ function snippetUpComparator(a: ISuggestionItem, b: ISuggestionItem): number {
 	return defaultComparator(a, b);
 }
 
-function snippetDownComparator(a: ISuggestionItem, b: ISuggestionItem): number {
+function snippetDownComparator(a: SuggestionItem, b: SuggestionItem): number {
 	if (a.suggestion.kind !== b.suggestion.kind) {
 		if (a.suggestion.kind === CompletionItemKind.Snippet) {
 			return 1;
@@ -233,7 +231,7 @@ function snippetDownComparator(a: ISuggestionItem, b: ISuggestionItem): number {
 	return defaultComparator(a, b);
 }
 
-export function getSuggestionComparator(snippetConfig: SnippetConfig): (a: ISuggestionItem, b: ISuggestionItem) => number {
+export function getSuggestionComparator(snippetConfig: SnippetConfig): (a: SuggestionItem, b: SuggestionItem) => number {
 	if (snippetConfig === 'top') {
 		return snippetUpComparator;
 	} else if (snippetConfig === 'bottom') {

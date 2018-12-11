@@ -16,7 +16,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
 import { CompletionItemProvider, StandardTokenType, CompletionContext, CompletionProviderRegistry, CompletionTriggerKind } from 'vs/editor/common/modes';
 import { CompletionModel } from './completionModel';
-import { ISuggestionItem, getSuggestionComparator, provideSuggestionItems, getSnippetSuggestSupport } from './suggest';
+import { SuggestionItem, getSuggestionComparator, provideSuggestionItems, getSnippetSuggestSupport } from './suggest';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
@@ -210,7 +210,7 @@ export class SuggestModel implements IDisposable {
 			if (supports) {
 				// keep existing items that where not computed by the
 				// supports/providers that want to trigger now
-				const items: ISuggestionItem[] = this._completionModel ? this._completionModel.adopt(supports) : undefined;
+				const items: SuggestionItem[] = this._completionModel ? this._completionModel.adopt(supports) : undefined;
 				this.trigger({ auto: true, triggerCharacter: lastChar }, Boolean(this._completionModel), values(supports), items);
 			}
 		});
@@ -346,7 +346,7 @@ export class SuggestModel implements IDisposable {
 		}
 	}
 
-	trigger(context: SuggestTriggerContext, retrigger: boolean = false, onlyFrom?: CompletionItemProvider[], existingItems?: ISuggestionItem[]): void {
+	trigger(context: SuggestTriggerContext, retrigger: boolean = false, onlyFrom?: CompletionItemProvider[], existingItems?: SuggestionItem[]): void {
 
 		const model = this._editor.getModel();
 

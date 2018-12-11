@@ -6,12 +6,12 @@
 import { fuzzyScore, fuzzyScoreGracefulAggressive, anyScore, FuzzyScorer } from 'vs/base/common/filters';
 import { isDisposable } from 'vs/base/common/lifecycle';
 import { CompletionList, CompletionItemProvider, CompletionItemKind } from 'vs/editor/common/modes';
-import { ISuggestionItem, ensureLowerCaseVariants } from './suggest';
+import { SuggestionItem, ensureLowerCaseVariants } from './suggest';
 import { InternalSuggestOptions, EDITOR_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
 import { CharCode } from 'vs/base/common/charCode';
 
-export interface ICompletionItem extends ISuggestionItem {
+export interface ICompletionItem extends SuggestionItem {
 	matches?: number[];
 	score?: number;
 	idx?: number;
@@ -60,7 +60,7 @@ export class CompletionModel {
 	private _stats: ICompletionStats;
 
 	constructor(
-		items: ISuggestionItem[],
+		items: SuggestionItem[],
 		column: number,
 		lineContext: LineContext,
 		wordDistance: WordDistance,
@@ -115,8 +115,8 @@ export class CompletionModel {
 		return this._isIncomplete;
 	}
 
-	adopt(except: Set<CompletionItemProvider>): ISuggestionItem[] {
-		let res = new Array<ISuggestionItem>();
+	adopt(except: Set<CompletionItemProvider>): SuggestionItem[] {
+		let res = new Array<SuggestionItem>();
 		for (let i = 0; i < this._items.length;) {
 			if (!except.has(this._items[i].provider)) {
 				res.push(this._items[i]);
