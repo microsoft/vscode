@@ -382,7 +382,7 @@ class StorageManager extends Disposable {
 		return this.storageService.get(key, scope, '[]');
 	}
 
-	private _set(key: string, value: string, scope: StorageScope): void {
+	private _set(key: string, value: string | undefined, scope: StorageScope): void {
 		if (value) {
 			this.storageService.store(key, value, scope);
 		} else {
