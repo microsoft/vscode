@@ -62,7 +62,7 @@ suite('ParameterHintsModel', () => {
 			signatureHelpTriggerCharacters = [triggerChar];
 			signatureHelpRetriggerCharacters = [];
 
-			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelp | Thenable<modes.SignatureHelp> {
+			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext) {
 				assert.strictEqual(context.triggerKind, modes.SignatureHelpTriggerKind.TriggerCharacter);
 				assert.strictEqual(context.triggerCharacter, triggerChar);
 				done();
@@ -148,7 +148,7 @@ suite('ParameterHintsModel', () => {
 			signatureHelpTriggerCharacters = ['a', 'b', 'c'];
 			signatureHelpRetriggerCharacters = [];
 
-			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelp | Thenable<modes.SignatureHelp> {
+			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext) {
 				++invokeCount;
 
 				assert.strictEqual(context.triggerKind, modes.SignatureHelpTriggerKind.TriggerCharacter);

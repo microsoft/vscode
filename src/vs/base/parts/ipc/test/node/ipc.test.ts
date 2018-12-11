@@ -142,7 +142,7 @@ class TestChannel implements IServerChannel {
 
 	constructor(private service: ITestService) { }
 
-	call(_, command: string, arg?: any, cancellationToken?: CancellationToken): Thenable<any> {
+	call(_, command: string, arg: any, cancellationToken: CancellationToken): Thenable<any> {
 		switch (command) {
 			case 'marco': return this.service.marco();
 			case 'error': return this.service.error(arg);
