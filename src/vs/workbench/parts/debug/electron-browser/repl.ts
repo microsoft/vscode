@@ -10,7 +10,6 @@ import * as errors from 'vs/base/common/errors';
 import { IAction, IActionItem, Action } from 'vs/base/common/actions';
 import * as dom from 'vs/base/browser/dom';
 import * as aria from 'vs/base/browser/ui/aria/aria';
-import { isMacintosh } from 'vs/base/common/platform';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import severity from 'vs/base/common/severity';
@@ -62,7 +61,7 @@ import { CopyAction } from 'vs/workbench/parts/debug/electron-browser/electronDe
 import { ReplCollapseAllAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { removeAnsiEscapeCodes, isFullWidthCharacter, endsWith } from 'vs/base/common/strings';
+import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
 import { WorkbenchAsyncDataTree, IListService } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
@@ -91,7 +90,6 @@ const sessionsToIgnore = new Set<IDebugSession>();
 export class Repl extends Panel implements IPrivateReplService, IHistoryNavigationWidget {
 	_serviceBrand: any;
 
-	private static readonly HALF_WIDTH_TYPICAL = 'n';
 	private static readonly REFRESH_DELAY = 100; // delay in ms to refresh the repl for new elements to show
 	private static readonly REPL_INPUT_INITIAL_HEIGHT = 19;
 	private static readonly REPL_INPUT_MAX_HEIGHT = 170;
@@ -99,8 +97,6 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	private history: HistoryNavigator<string>;
 	private tree: WorkbenchAsyncDataTree<IReplElement>;
 	private dataSource: ReplDataSource;
-	private replDelegate: ReplDelegate;
-	private container: HTMLElement;
 	private treeContainer: HTMLElement;
 	private replInput: CodeEditorWidget;
 	private replInputContainer: HTMLElement;
@@ -272,7 +268,6 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	layout(dimension: dom.Dimension): void {
 		this.dimension = dimension;
 		if (this.tree) {
-			this.replDelegate.setWidth(dimension.width - 25, this.characterWidth);
 			const treeHeight = dimension.height - this.replInputHeight;
 			this.treeContainer.style.height = `${treeHeight}px`;
 			this.tree.layout(treeHeight);
@@ -308,18 +303,6 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 	// --- Cached locals
 	@memoize
-	private get characterWidth(): number {
-		const characterWidthSurveyor = dom.append(this.container, $('.surveyor'));
-		characterWidthSurveyor.textContent = Repl.HALF_WIDTH_TYPICAL;
-		for (let i = 0; i < 10; i++) {
-			characterWidthSurveyor.textContent += characterWidthSurveyor.textContent;
-		}
-		characterWidthSurveyor.style.fontSize = isMacintosh ? '12px' : '14px';
-
-		return characterWidthSurveyor.clientWidth / characterWidthSurveyor.textContent.length;
-	}
-
-	@memoize
 	private get selectReplAction(): SelectReplAction {
 		return this.scopedInstantiationService.createInstance(SelectReplAction, SelectReplAction.ID, SelectReplAction.LABEL);
 	}
@@ -346,13 +329,12 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 	create(parent: HTMLElement): void {
 		super.create(parent);
-		this.container = dom.append(parent, $('.repl'));
-		this.treeContainer = dom.append(this.container, $('.repl-tree'));
-		this.createReplInput(this.container);
+		const container = dom.append(parent, $('.repl'));
+		this.treeContainer = dom.append(container, $('.repl-tree'));
+		this.createReplInput(container);
 
 		this.dataSource = new ReplDataSource();
-		this.replDelegate = new ReplDelegate();
-		this.tree = new WorkbenchAsyncDataTree(this.treeContainer, this.replDelegate, [
+		this.tree = new WorkbenchAsyncDataTree(this.treeContainer, new ReplDelegate(), [
 			this.instantiationService.createInstance(VariablesRenderer),
 			this.instantiationService.createInstance(ReplSimpleElementsRenderer),
 			new ReplExpressionsRenderer(),
@@ -692,23 +674,12 @@ class ReplDelegate implements IListVirtualDelegate<IReplElement> {
 
 	private static readonly LINE_HEIGHT_PX = 18;
 
-	private width: number;
-	private characterWidth: number;
-
 	getHeight(element: IReplElement): number {
-		if (element instanceof Variable && (element.hasChildren || (element.name !== null))) {
-			return ReplDelegate.LINE_HEIGHT_PX;
-		}
 		if (element instanceof Expression && element.hasChildren) {
 			return 2 * ReplDelegate.LINE_HEIGHT_PX;
 		}
 
-		let availableWidth = this.width;
-		if (element instanceof SimpleReplElement && element.sourceData) {
-			availableWidth -= Math.ceil(`${element.sourceData.source.name}:${element.sourceData.lineNumber}`.length * this.characterWidth + 12);
-		}
-
-		return this.getHeightForString((<any>element).value, availableWidth) + (element instanceof Expression ? this.getHeightForString(element.name, availableWidth) : 0);
+		return ReplDelegate.LINE_HEIGHT_PX;
 	}
 
 	getTemplateId(element: IReplElement): string {
@@ -730,35 +701,7 @@ class ReplDelegate implements IListVirtualDelegate<IReplElement> {
 	}
 
 	hasDynamicHeight?(element: IReplElement): boolean {
-		// todo@isidor
-		return false;
-	}
-
-	private getHeightForString(s: string, availableWidth: number): number {
-		if (!s || !s.length || !availableWidth || availableWidth <= 0 || !this.characterWidth || this.characterWidth <= 0) {
-			return ReplDelegate.LINE_HEIGHT_PX;
-		}
-
-		// Last new line should be ignored since the repl elements are by design split by rows
-		if (endsWith(s, '\n')) {
-			s = s.substr(0, s.length - 1);
-		}
-		const lines = removeAnsiEscapeCodes(s).split('\n');
-		const numLines = lines.reduce((lineCount: number, line: string) => {
-			let lineLength = 0;
-			for (let i = 0; i < line.length; i++) {
-				lineLength += isFullWidthCharacter(line.charCodeAt(i)) ? 2 : 1;
-			}
-
-			return lineCount + Math.floor(lineLength * this.characterWidth / availableWidth);
-		}, lines.length);
-
-		return ReplDelegate.LINE_HEIGHT_PX * numLines;
-	}
-
-	setWidth(fullWidth: number, characterWidth: number): void {
-		this.width = fullWidth;
-		this.characterWidth = characterWidth;
+		return true;
 	}
 }
 
