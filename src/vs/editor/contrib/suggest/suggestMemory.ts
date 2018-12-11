@@ -39,7 +39,7 @@ export abstract class Memory {
 
 	abstract memorize(model: ITextModel, pos: IPosition, item: CompletionItem): void;
 
-	abstract toJSON(): object;
+	abstract toJSON(): object | undefined;
 
 	abstract fromJSON(data: object): void;
 }
