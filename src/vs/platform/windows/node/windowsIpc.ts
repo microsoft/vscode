@@ -213,8 +213,8 @@ export class WindowsChannelClient implements IWindowsService {
 	}
 
 	getRecentlyOpened(windowId: number): TPromise<IRecentlyOpened> {
-		return TPromise.wrap<IRecentlyOpened>(this.channel.call('getRecentlyOpened', windowId))
-			.then(recentlyOpened => {
+		return this.channel.call('getRecentlyOpened', windowId)
+			.then((recentlyOpened: IRecentlyOpened) => {
 				recentlyOpened.workspaces = recentlyOpened.workspaces.map(workspace => isWorkspaceIdentifier(workspace) ? workspace : URI.revive(workspace));
 				recentlyOpened.files = recentlyOpened.files.map(URI.revive);
 				return recentlyOpened;
