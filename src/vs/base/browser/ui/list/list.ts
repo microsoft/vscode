@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { GestureEvent } from 'vs/base/browser/touch';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 export interface IListVirtualDelegate<T> {
 	getHeight(element: T): number;
@@ -56,4 +57,5 @@ export interface IIdentityProvider<T> {
 
 export interface ITypeLabelProvider<T> {
 	getTypeLabel(element: T): { toString(): string; };
+	mightProducePrintableCharacter?(event: IKeyboardEvent): boolean;
 }

@@ -80,7 +80,7 @@ export class VariablesView extends ViewletPanel {
 				ariaLabel: nls.localize('variablesAriaTreeLabel', "Debug Variables"),
 				accessibilityProvider: new VariablesAccessibilityProvider(),
 				identityProvider: { getId: element => element.getId() }
-			}, this.contextKeyService, this.listService, this.themeService, this.configurationService);
+			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
 
 		CONTEXT_VARIABLES_FOCUSED.bindTo(this.contextKeyService.createScoped(treeContainer));
 

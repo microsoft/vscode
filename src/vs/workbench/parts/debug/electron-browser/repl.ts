@@ -67,6 +67,7 @@ import { WorkbenchAsyncDataTree, IListService } from 'vs/platform/list/browser/l
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 const $ = dom.$;
 
@@ -122,7 +123,8 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IListService private listService: IListService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@ITextResourcePropertiesService private textResourcePropertiesService: ITextResourcePropertiesService
+		@ITextResourcePropertiesService private textResourcePropertiesService: ITextResourcePropertiesService,
+		@IKeybindingService private keybindingService: IKeybindingService
 	) {
 		super(REPL_ID, telemetryService, themeService, storageService);
 
@@ -360,7 +362,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 				accessibilityProvider: new ReplAccessibilityProvider(),
 				identityProvider: { getId: element => element.getId() },
 				mouseSupport: false
-			}, this.contextKeyService, this.listService, this.themeService, this.configurationService);
+			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
 
 		this.toDispose.push(this.tree.onContextMenu(e => this.onContextMenu(e)));
 		// Make sure to select the session if debugging is already active

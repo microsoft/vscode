@@ -13,7 +13,7 @@ import * as DOM from 'vs/base/browser/dom';
 import * as platform from 'vs/base/common/platform';
 import { Gesture } from 'vs/base/browser/touch';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Event, Emitter, EventBufferer } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent, IIdentityProvider, ITypeLabelProvider } from './list';
@@ -330,6 +330,16 @@ enum TypeLabelControllerState {
 
 class TypeLabelController<T> implements IDisposable {
 
+	private static mightProducePrintableCharacter(event: IKeyboardEvent): boolean {
+		if (event.ctrlKey || event.metaKey || event.altKey) {
+			return false;
+		}
+
+		return (event.keyCode >= KeyCode.KEY_A && event.keyCode <= KeyCode.KEY_Z)
+			|| (event.keyCode >= KeyCode.KEY_0 && event.keyCode <= KeyCode.KEY_9)
+			|| (event.keyCode >= KeyCode.US_SEMICOLON && event.keyCode <= KeyCode.US_QUOTE);
+	}
+
 	private state: TypeLabelControllerState = TypeLabelControllerState.Idle;
 	private disposables: IDisposable[] = [];
 
@@ -340,15 +350,7 @@ class TypeLabelController<T> implements IDisposable {
 	) {
 		const onChar = Event.chain(domEvent(view.domNode, 'keydown'))
 			.map(event => new StandardKeyboardEvent(event))
-			.filter(event => {
-				if (event.ctrlKey || event.metaKey || event.altKey) {
-					return false;
-				}
-
-				return (event.keyCode >= KeyCode.KEY_A && event.keyCode <= KeyCode.KEY_Z)
-					|| (event.keyCode >= KeyCode.KEY_0 && event.keyCode <= KeyCode.KEY_9)
-					|| (event.keyCode >= KeyCode.US_SEMICOLON && event.keyCode <= KeyCode.US_QUOTE);
-			})
+			.filter(typeLabelProvider.mightProducePrintableCharacter ? e => typeLabelProvider.mightProducePrintableCharacter!(e) : e => TypeLabelController.mightProducePrintableCharacter(e))
 			.map(event => event.browserEvent.key)
 			.event;
 

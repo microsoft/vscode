@@ -409,7 +409,7 @@ export class LoadedScriptsView extends ViewletPanel {
 				accessibilityProvider: new LoadedSciptsAccessibilityProvider(),
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'loadedScriptsAriaLabel' }, "Debug Loaded Scripts"),
 			},
-			this.contextKeyService, this.listService, this.themeService, this.configurationService
+			this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService
 		);
 
 		this.changeScheduler = new RunOnceScheduler(() => {

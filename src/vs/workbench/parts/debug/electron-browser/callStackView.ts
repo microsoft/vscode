@@ -125,7 +125,7 @@ export class CallStackView extends ViewletPanel {
 						return element.getId();
 					}
 				}
-			}, this.contextKeyService, this.listService, this.themeService, this.configurationService);
+			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
 
 		const callstackNavigator = new TreeResourceNavigator2(this.tree);
 		this.disposables.push(callstackNavigator);
