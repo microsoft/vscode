@@ -183,7 +183,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			return composite;
 		}
 
-		throw new Error(strings.format('Unable to find composite with id {0}', id));
+		throw new Error(`Unable to find composite with id ${id}`);
 	}
 
 	protected showComposite(composite: Composite): void {
