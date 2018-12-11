@@ -270,14 +270,14 @@ export class DropdownMenuActionItem extends BaseActionItem {
 	private menuActionsOrProvider: any;
 	private dropdownMenu: DropdownMenu;
 	private contextMenuProvider: IContextMenuProvider;
-	private actionItemProvider: IActionItemProvider;
-	private keybindings: (action: IAction) => ResolvedKeybinding;
+	private actionItemProvider?: IActionItemProvider;
+	private keybindings?: (action: IAction) => ResolvedKeybinding;
 	private clazz: string;
 	private anchorAlignmentProvider: (() => AnchorAlignment) | undefined;
 
-	constructor(action: IAction, menuActions: IAction[], contextMenuProvider: IContextMenuProvider, actionItemProvider: IActionItemProvider, actionRunner: IActionRunner, keybindings: (action: IAction) => ResolvedKeybinding, clazz: string, anchorAlignmentProvider?: () => AnchorAlignment);
-	constructor(action: IAction, actionProvider: IActionProvider, contextMenuProvider: IContextMenuProvider, actionItemProvider: IActionItemProvider, actionRunner: IActionRunner, keybindings: (action: IAction) => ResolvedKeybinding, clazz: string, anchorAlignmentProvider?: () => AnchorAlignment);
-	constructor(action: IAction, menuActionsOrProvider: any, contextMenuProvider: IContextMenuProvider, actionItemProvider: IActionItemProvider, actionRunner: IActionRunner, keybindings: (action: IAction) => ResolvedKeybinding, clazz: string, anchorAlignmentProvider?: () => AnchorAlignment) {
+	constructor(action: IAction, menuActions: IAction[], contextMenuProvider: IContextMenuProvider, actionItemProvider: IActionItemProvider | undefined, actionRunner: IActionRunner, keybindings: ((action: IAction) => ResolvedKeybinding) | undefined, clazz: string, anchorAlignmentProvider?: () => AnchorAlignment);
+	constructor(action: IAction, actionProvider: IActionProvider, contextMenuProvider: IContextMenuProvider, actionItemProvider: IActionItemProvider | undefined, actionRunner: IActionRunner, keybindings: (action: IAction) => ResolvedKeybinding, clazz: string, anchorAlignmentProvider?: () => AnchorAlignment);
+	constructor(action: IAction, menuActionsOrProvider: any, contextMenuProvider: IContextMenuProvider, actionItemProvider: IActionItemProvider | undefined, actionRunner: IActionRunner, keybindings: (action: IAction) => ResolvedKeybinding, clazz: string, anchorAlignmentProvider?: () => AnchorAlignment) {
 		super(null, action);
 
 		this.menuActionsOrProvider = menuActionsOrProvider;

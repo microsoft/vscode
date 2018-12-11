@@ -363,7 +363,7 @@ export interface ActionTrigger {
 }
 
 export interface IActionItemProvider {
-	(action: IAction): IActionItem;
+	(action: IAction): IActionItem | null;
 }
 
 export interface IActionBarOptions {
@@ -577,11 +577,11 @@ export class ActionBar extends Disposable implements IActionRunner {
 		this.items.forEach(i => i.setActionContext(context));
 	}
 
-	get actionRunner(): IActionRunner | undefined {
+	get actionRunner(): IActionRunner {
 		return this._actionRunner;
 	}
 
-	set actionRunner(actionRunner: IActionRunner | undefined) {
+	set actionRunner(actionRunner: IActionRunner) {
 		if (actionRunner) {
 			this._actionRunner = actionRunner;
 			this.items.forEach(item => item.actionRunner = actionRunner);
