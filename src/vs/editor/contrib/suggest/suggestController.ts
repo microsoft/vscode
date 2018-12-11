@@ -87,8 +87,8 @@ export class SuggestController implements IEditorContribution {
 		return editor.getContribution<SuggestController>(SuggestController.ID);
 	}
 
-	private _model: SuggestModel;
-	private _widget: SuggestWidget;
+	private readonly _model: SuggestModel;
+	private readonly _widget: IdleValue<SuggestWidget>;
 	private readonly _alternatives: IdleValue<SuggestAlternatives>;
 	private _toDispose: IDisposable[] = [];
 
@@ -104,6 +104,57 @@ export class SuggestController implements IEditorContribution {
 	) {
 		this._model = new SuggestModel(this._editor, editorWorker);
 
+		this._widget = new IdleValue(() => {
+
+			const widget = this._instantiationService.createInstance(SuggestWidget, this._editor);
+
+			this._toDispose.push(widget);
+			this._toDispose.push(widget.onDidSelect(item => this._onDidSelectItem(item, false, true), this));
+
+			// Wire up logic to accept a suggestion on certain characters
+			const autoAcceptOracle = new AcceptOnCharacterOracle(this._editor, widget, item => this._onDidSelectItem(item, false, true));
+			this._toDispose.push(
+				autoAcceptOracle,
+				this._model.onDidSuggest(e => {
+					if (e.completionModel.items.length === 0) {
+						autoAcceptOracle.reset();
+					}
+				})
+			);
+
+			// Wire up makes text edit context key
+			let makesTextEdit = SuggestContext.MakesTextEdit.bindTo(this._contextKeyService);
+			this._toDispose.push(widget.onDidFocus(({ item }) => {
+
+				const position = this._editor.getPosition();
+				const startColumn = item.suggestion.range.startColumn;
+				const endColumn = position.column;
+				let value = true;
+				if (
+					this._editor.getConfiguration().contribInfo.acceptSuggestionOnEnter === 'smart'
+					&& this._model.state === State.Auto
+					&& !item.suggestion.command
+					&& !item.suggestion.additionalTextEdits
+					&& !(item.suggestion.insertTextRules & CompletionItemInsertTextRule.InsertAsSnippet)
+					&& endColumn - startColumn === item.suggestion.insertText.length
+				) {
+					const oldText = this._editor.getModel().getValueInRange({
+						startLineNumber: position.lineNumber,
+						startColumn,
+						endLineNumber: position.lineNumber,
+						endColumn
+					});
+					value = oldText !== item.suggestion.insertText;
+				}
+				makesTextEdit.set(value);
+			}));
+			this._toDispose.push({
+				dispose() { makesTextEdit.reset(); }
+			});
+
+			return widget;
+		});
+
 		this._alternatives = new IdleValue(() => {
 			let res = new SuggestAlternatives(this._editor, this._contextKeyService);
 			this._toDispose.push(res);
@@ -113,20 +164,17 @@ export class SuggestController implements IEditorContribution {
 		this._toDispose.push(_instantiationService.createInstance(WordContextKey, _editor));
 
 		this._toDispose.push(this._model.onDidTrigger(e => {
-			if (!this._widget) {
-				this._createSuggestWidget();
-			}
-			this._widget.showTriggered(e.auto, e.shy ? 250 : 50);
+			this._widget.getValue().showTriggered(e.auto, e.shy ? 250 : 50);
 		}));
 		this._toDispose.push(this._model.onDidSuggest(e => {
 			if (!e.shy) {
 				let index = this._memoryService.select(this._editor.getModel(), this._editor.getPosition(), e.completionModel.items);
-				this._widget.showSuggestions(e.completionModel, index, e.isFrozen, e.auto);
+				this._widget.getValue().showSuggestions(e.completionModel, index, e.isFrozen, e.auto);
 			}
 		}));
 		this._toDispose.push(this._model.onDidCancel(e => {
 			if (this._widget && !e.retrigger) {
-				this._widget.hideWidget();
+				this._widget.getValue().hideWidget();
 			}
 		}));
 		this._toDispose.push(this._editor.onDidBlurEditorText(() => {
@@ -145,51 +193,6 @@ export class SuggestController implements IEditorContribution {
 		updateFromConfig();
 	}
 
-	private _createSuggestWidget(): void {
-
-		this._widget = this._instantiationService.createInstance(SuggestWidget, this._editor);
-		this._toDispose.push(this._widget.onDidSelect(item => this._onDidSelectItem(item, false, true), this));
-
-		// Wire up logic to accept a suggestion on certain characters
-		const autoAcceptOracle = new AcceptOnCharacterOracle(this._editor, this._widget, item => this._onDidSelectItem(item, false, true));
-		this._toDispose.push(
-			autoAcceptOracle,
-			this._model.onDidSuggest(e => {
-				if (e.completionModel.items.length === 0) {
-					autoAcceptOracle.reset();
-				}
-			})
-		);
-
-		let makesTextEdit = SuggestContext.MakesTextEdit.bindTo(this._contextKeyService);
-		this._toDispose.push(this._widget.onDidFocus(({ item }) => {
-
-			const position = this._editor.getPosition();
-			const startColumn = item.suggestion.range.startColumn;
-			const endColumn = position.column;
-			let value = true;
-			if (
-				this._editor.getConfiguration().contribInfo.acceptSuggestionOnEnter === 'smart'
-				&& this._model.state === State.Auto
-				&& !item.suggestion.command
-				&& !item.suggestion.additionalTextEdits
-				&& !(item.suggestion.insertTextRules & CompletionItemInsertTextRule.InsertAsSnippet)
-				&& endColumn - startColumn === item.suggestion.insertText.length
-			) {
-				const oldText = this._editor.getModel().getValueInRange({
-					startLineNumber: position.lineNumber,
-					startColumn,
-					endLineNumber: position.lineNumber,
-					endColumn
-				});
-				value = oldText !== item.suggestion.insertText;
-			}
-			makesTextEdit.set(value);
-		}));
-		this._toDispose.push({
-			dispose() { makesTextEdit.reset(); }
-		});
-	}
 
 	getId(): string {
 		return SuggestController.ID;
@@ -197,13 +200,9 @@ export class SuggestController implements IEditorContribution {
 
 	dispose(): void {
 		this._toDispose = dispose(this._toDispose);
-		if (this._widget) {
-			this._widget.dispose();
-			this._widget = null;
-		}
+		this._widget.dispose();
 		if (this._model) {
 			this._model.dispose();
-			this._model = null;
 		}
 	}
 
@@ -363,7 +362,7 @@ export class SuggestController implements IEditorContribution {
 
 	acceptSelectedSuggestion(keepAlternativeSuggestions?: boolean): void {
 		if (this._widget) {
-			const item = this._widget.getFocusedItem();
+			const item = this._widget.getValue().getFocusedItem();
 			this._onDidSelectItem(item, keepAlternativeSuggestions, true);
 		}
 	}
@@ -379,55 +378,55 @@ export class SuggestController implements IEditorContribution {
 	cancelSuggestWidget(): void {
 		if (this._widget) {
 			this._model.cancel();
-			this._widget.hideWidget();
+			this._widget.getValue().hideWidget();
 		}
 	}
 
 	selectNextSuggestion(): void {
 		if (this._widget) {
-			this._widget.selectNext();
+			this._widget.getValue().selectNext();
 		}
 	}
 
 	selectNextPageSuggestion(): void {
 		if (this._widget) {
-			this._widget.selectNextPage();
+			this._widget.getValue().selectNextPage();
 		}
 	}
 
 	selectLastSuggestion(): void {
 		if (this._widget) {
-			this._widget.selectLast();
+			this._widget.getValue().selectLast();
 		}
 	}
 
 	selectPrevSuggestion(): void {
 		if (this._widget) {
-			this._widget.selectPrevious();
+			this._widget.getValue().selectPrevious();
 		}
 	}
 
 	selectPrevPageSuggestion(): void {
 		if (this._widget) {
-			this._widget.selectPreviousPage();
+			this._widget.getValue().selectPreviousPage();
 		}
 	}
 
 	selectFirstSuggestion(): void {
 		if (this._widget) {
-			this._widget.selectFirst();
+			this._widget.getValue().selectFirst();
 		}
 	}
 
 	toggleSuggestionDetails(): void {
 		if (this._widget) {
-			this._widget.toggleDetails();
+			this._widget.getValue().toggleDetails();
 		}
 	}
 
 	toggleSuggestionFocus(): void {
 		if (this._widget) {
-			this._widget.toggleDetailsFocus();
+			this._widget.getValue().toggleDetailsFocus();
 		}
 	}
 }
