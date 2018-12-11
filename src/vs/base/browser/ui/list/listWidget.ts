@@ -67,10 +67,6 @@ class TraitRenderer<T> implements IListRenderer<T, ITraitTemplateData>
 		this.trait.renderIndex(index, templateData);
 	}
 
-	disposeElement(): void {
-		// noop
-	}
-
 	splice(start: number, deleteCount: number, insertCount: number): void {
 		const rendered: IRenderedContainer[] = [];
 
@@ -886,7 +882,9 @@ class PipelineRenderer<T> implements IListRenderer<T, any> {
 		let i = 0;
 
 		for (const renderer of this.renderers) {
-			renderer.disposeElement(element, index, templateData[i++]);
+			if (renderer.disposeElement) {
+				renderer.disposeElement(element, index, templateData[i++]);
+			}
 		}
 	}
 
@@ -919,10 +917,6 @@ class AccessibiltyRenderer<T> implements IListRenderer<T, HTMLElement> {
 		} else {
 			container.removeAttribute('aria-label');
 		}
-	}
-
-	disposeElement(element: T, index: number, container: HTMLElement): void {
-		// noop
 	}
 
 	disposeTemplate(templateData: any): void {

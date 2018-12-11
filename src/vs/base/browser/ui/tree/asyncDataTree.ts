@@ -80,7 +80,9 @@ class DataTreeRenderer<T, TFilterData, TTemplateData> implements ITreeRenderer<I
 	}
 
 	disposeElement(node: ITreeNode<IAsyncDataTreeNode<T>, TFilterData>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>): void {
-		this.renderer.disposeElement(new AsyncDataTreeNodeWrapper(node), index, templateData.templateData);
+		if (this.renderer.disposeElement) {
+			this.renderer.disposeElement(new AsyncDataTreeNodeWrapper(node), index, templateData.templateData);
+		}
 	}
 
 	disposeTemplate(templateData: IDataTreeListTemplateData<TTemplateData>): void {

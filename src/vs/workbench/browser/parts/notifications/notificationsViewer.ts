@@ -275,10 +275,6 @@ export class NotificationRenderer implements IListRenderer<INotificationViewItem
 		data.renderer.setInput(notification);
 	}
 
-	disposeElement(): void {
-		// noop
-	}
-
 	disposeTemplate(templateData: INotificationTemplateData): void {
 		templateData.toDispose = dispose(templateData.toDispose);
 	}

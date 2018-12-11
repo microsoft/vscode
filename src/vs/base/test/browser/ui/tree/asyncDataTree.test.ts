@@ -46,9 +46,6 @@ suite('AsyncDataTree', function () {
 			renderElement(element: ITreeNode<Element, void>, index: number, templateData: HTMLElement): void {
 				templateData.textContent = element.element.id;
 			}
-			disposeElement(element: ITreeNode<Element, void>, index: number, templateData: HTMLElement): void {
-				// noop
-			}
 			disposeTemplate(templateData: HTMLElement): void {
 				// noop
 			}

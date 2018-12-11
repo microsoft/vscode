@@ -204,10 +204,6 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		}
 	}
 
-	disposeElement(): void {
-		// noop
-	}
-
 	private updateRecommendationStatus(extension: IExtension, data: ITemplateData) {
 		const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
 		let ariaLabel = extension.displayName + '. ';

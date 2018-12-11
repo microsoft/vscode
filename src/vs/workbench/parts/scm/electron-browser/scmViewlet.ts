@@ -205,10 +205,6 @@ class ProviderRenderer implements IListRenderer<ISCMRepository, RepositoryTempla
 		templateData.disposable = combinedDisposable(disposables);
 	}
 
-	disposeElement(): void {
-		// noop
-	}
-
 	disposeTemplate(templateData: RepositoryTemplateData): void {
 		templateData.disposable.dispose();
 		templateData.templateDisposable.dispose();

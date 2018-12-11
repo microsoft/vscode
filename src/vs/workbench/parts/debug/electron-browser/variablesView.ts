@@ -213,10 +213,6 @@ class ScopesRenderer implements ITreeRenderer<IScope, void, IScopeTemplateData> 
 		templateData.name.textContent = element.element.name;
 	}
 
-	disposeElement(element: ITreeNode<IScope, void>, index: number, templateData: IScopeTemplateData): void {
-		// noop
-	}
-
 	disposeTemplate(templateData: IScopeTemplateData): void {
 		// noop
 	}

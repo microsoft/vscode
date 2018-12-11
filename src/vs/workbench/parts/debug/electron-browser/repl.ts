@@ -560,10 +560,6 @@ class ReplExpressionsRenderer implements ITreeRenderer<Expression, void, IExpres
 		}
 	}
 
-	disposeElement(element: ITreeNode<Expression, void>, index: number, templateData: IExpressionTemplateData): void {
-		// noop
-	}
-
 	disposeTemplate(templateData: IExpressionTemplateData): void {
 		// noop
 	}
@@ -627,10 +623,6 @@ class ReplSimpleElementsRenderer implements ITreeRenderer<SimpleReplElement, voi
 		templateData.getReplElementSource = () => element.sourceData;
 	}
 
-	disposeElement(element: ITreeNode<SimpleReplElement, void>, index: number, templateData: ISimpleReplElementTemplateData): void {
-		// noop
-	}
-
 	disposeTemplate(templateData: ISimpleReplElementTemplateData): void {
 		dispose(templateData.toDispose);
 	}
@@ -678,10 +670,6 @@ class ReplRawObjectsRenderer implements ITreeRenderer<RawObjectReplElement, void
 			templateData.annotation.className = '';
 			templateData.annotation.title = '';
 		}
-	}
-
-	disposeElement(element: ITreeNode<RawObjectReplElement, void>, index: number, templateData: IRawObjectReplTemplateData): void {
-		// noop
 	}
 
 	disposeTemplate(templateData: IRawObjectReplTemplateData): void {

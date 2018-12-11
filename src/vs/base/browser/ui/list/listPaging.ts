@@ -58,10 +58,6 @@ class PagedRenderer<TElement, TTemplateData> implements IListRenderer<number, IT
 		promise.then(entry => this.renderer.renderElement(entry, index, data.data!));
 	}
 
-	disposeElement(): void {
-		// noop
-	}
-
 	disposeTemplate(data: ITemplateData<TTemplateData>): void {
 		if (data.disposable) {
 			data.disposable.dispose();

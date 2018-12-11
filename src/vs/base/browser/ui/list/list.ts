@@ -16,7 +16,7 @@ export interface IListRenderer<T, TTemplateData> {
 	templateId: string;
 	renderTemplate(container: HTMLElement): TTemplateData;
 	renderElement(element: T, index: number, templateData: TTemplateData): void;
-	disposeElement(element: T, index: number, templateData: TTemplateData): void;
+	disposeElement?(element: T, index: number, templateData: TTemplateData): void;
 	disposeTemplate(templateData: TTemplateData): void;
 }
 

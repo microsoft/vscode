@@ -375,10 +375,6 @@ class SessionsRenderer implements ITreeRenderer<IDebugSession, void, ISessionTem
 			: nls.localize({ key: 'running', comment: ['indicates state'] }, "Running");
 	}
 
-	disposeElement(element: ITreeNode<IDebugSession, void>, index: number, templateData: ISessionTemplateData): void {
-		// noop
-	}
-
 	disposeTemplate(templateData: ISessionTemplateData): void {
 		// noop
 	}
@@ -412,10 +408,6 @@ class ThreadsRenderer implements ITreeRenderer<IThread, void, IThreadTemplateDat
 		} else {
 			data.stateLabel.textContent = nls.localize({ key: 'running', comment: ['indicates state'] }, "Running");
 		}
-	}
-
-	disposeElement(element: ITreeNode<IThread, void>, index: number, templateData: IThreadTemplateData): void {
-		// noop
 	}
 
 	disposeTemplate(templateData: IThreadTemplateData): void {
@@ -468,10 +460,6 @@ class StackFramesRenderer implements ITreeRenderer<IStackFrame, void, IStackFram
 		}
 	}
 
-	disposeElement(element: ITreeNode<IStackFrame, void>, index: number, templateData: IStackFrameTemplateData): void {
-		// noop
-	}
-
 	disposeTemplate(templateData: IStackFrameTemplateData): void {
 		// noop
 	}
@@ -497,10 +485,6 @@ class ErrorsRenderer implements ITreeRenderer<string, void, IErrorTemplateData> 
 		data.label.title = error;
 	}
 
-	disposeElement(element: ITreeNode<string, void>, index: number, templateData: IErrorTemplateData): void {
-		// noop
-	}
-
 	disposeTemplate(templateData: IErrorTemplateData): void {
 		// noop
 	}
@@ -523,10 +507,6 @@ class LoadMoreRenderer implements ITreeRenderer<ThreadAndSessionIds, void, ILabe
 
 	renderElement(element: ITreeNode<ThreadAndSessionIds, void>, index: number, data: ILabelTemplateData): void {
 		data.label.textContent = LoadMoreRenderer.LABEL;
-	}
-
-	disposeElement(element: ITreeNode<ThreadAndSessionIds, void>, index: number, templateData: ILabelTemplateData): void {
-		// noop
 	}
 
 	disposeTemplate(templateData: ILabelTemplateData): void {
@@ -555,10 +535,6 @@ class ShowMoreRenderer implements ITreeRenderer<IStackFrame[], void, ILabelTempl
 		} else {
 			data.label.textContent = nls.localize('showMoreStackFrames', "Show {0} More Stack Frames", stackFrames.length);
 		}
-	}
-
-	disposeElement(element: ITreeNode<IStackFrame[], void>, index: number, templateData: ILabelTemplateData): void {
-		// noop
 	}
 
 	disposeTemplate(templateData: ILabelTemplateData): void {

@@ -252,10 +252,6 @@ export class MarkerRenderer implements ITreeRenderer<Marker, MarkerFilterData, I
 		templateData.lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(marker.startLineNumber, marker.startColumn);
 	}
 
-	disposeElement(): void {
-		// noop
-	}
-
 	disposeTemplate(templateData: IMarkerTemplateData): void {
 		templateData.description.dispose();
 		templateData.source.dispose();
@@ -312,10 +308,6 @@ export class RelatedInformationRenderer implements ITreeRenderer<RelatedInformat
 		templateData.lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(relatedInformation.startLineNumber, relatedInformation.startColumn);
 		templateData.description.set(relatedInformation.message, messageMatches);
 		templateData.description.element.title = relatedInformation.message;
-	}
-
-	disposeElement(): void {
-		// noop
 	}
 
 	disposeTemplate(templateData: IRelatedInformationTemplateData): void {

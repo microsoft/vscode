@@ -206,10 +206,6 @@ class Renderer implements IListRenderer<ICompletionItem, ISuggestionTemplateData
 		}
 	}
 
-	disposeElement(): void {
-		// noop
-	}
-
 	disposeTemplate(templateData: ISuggestionTemplateData): void {
 		templateData.disposables = dispose(templateData.disposables);
 	}

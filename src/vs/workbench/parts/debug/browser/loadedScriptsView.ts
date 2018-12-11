@@ -607,10 +607,6 @@ class LoadedScriptsRenderer implements ITreeRenderer<BaseTreeItem, void, ILoaded
 		data.label.setLabel(label, options);
 	}
 
-	disposeElement(element: ITreeNode<BaseTreeItem, void>, index: number, templateData: ILoadedScriptsItemTemplateData): void {
-		// noop
-	}
-
 	disposeTemplate(templateData: ILoadedScriptsItemTemplateData): void {
 		templateData.label.dispose();
 	}

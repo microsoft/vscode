@@ -607,10 +607,6 @@ class EditorGroupRenderer implements IListRenderer<IEditorGroup, IEditorGroupTem
 		templateData.actionBar.context = { groupId: editorGroup.id };
 	}
 
-	disposeElement(): void {
-		// noop
-	}
-
 	disposeTemplate(templateData: IEditorGroupTemplateData): void {
 		templateData.actionBar.dispose();
 		dispose(templateData.toDispose);
@@ -705,10 +701,6 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 			extraClasses: ['open-editor'],
 			fileDecorations: this.configurationService.getValue<IFilesConfiguration>().explorer.decorations
 		});
-	}
-
-	disposeElement(): void {
-		// noop
 	}
 
 	disposeTemplate(templateData: IOpenEditorTemplateData): void {
