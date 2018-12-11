@@ -124,6 +124,24 @@ export class CallStackView extends ViewletPanel {
 
 						return element.getId();
 					}
+				},
+				typeLabelProvider: {
+					getTypeLabel: e => {
+						if (e instanceof DebugSession) {
+							return e.getLabel();
+						}
+						if (e instanceof Thread) {
+							return e.name;
+						}
+						if (e instanceof StackFrame || typeof e === 'string') {
+							return e;
+						}
+						if (e instanceof ThreadAndSessionIds) {
+							return LoadMoreRenderer.LABEL;
+						}
+
+						return nls.localize('showMoreStackFrames2', "Show More Stack Frames");
+					}
 				}
 			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
 
@@ -490,6 +508,7 @@ class ErrorsRenderer implements ITreeRenderer<string, void, IErrorTemplateData> 
 
 class LoadMoreRenderer implements ITreeRenderer<ThreadAndSessionIds, void, ILabelTemplateData> {
 	static readonly ID = 'loadMore';
+	static readonly LABEL = nls.localize('loadMoreStackFrames', "Load More Stack Frames");
 
 	get templateId(): string {
 		return LoadMoreRenderer.ID;
@@ -503,7 +522,7 @@ class LoadMoreRenderer implements ITreeRenderer<ThreadAndSessionIds, void, ILabe
 	}
 
 	renderElement(element: ITreeNode<ThreadAndSessionIds, void>, index: number, data: ILabelTemplateData): void {
-		data.label.textContent = nls.localize('loadMoreStackFrames', "Load More Stack Frames");
+		data.label.textContent = LoadMoreRenderer.LABEL;
 	}
 
 	disposeElement(element: ITreeNode<ThreadAndSessionIds, void>, index: number, templateData: ILabelTemplateData): void {

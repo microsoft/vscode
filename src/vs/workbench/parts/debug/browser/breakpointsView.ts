@@ -75,7 +75,8 @@ export class BreakpointsView extends ViewletPanel {
 			new FunctionBreakpointInputRenderer(this.debugService, this.contextViewService, this.themeService)
 		], {
 				identityProvider: { getId: element => element.getId() },
-				multipleSelectionSupport: false
+				multipleSelectionSupport: false,
+				typeLabelProvider: { getTypeLabel: e => e }
 			}) as WorkbenchList<IEnablement>;
 
 		CONTEXT_BREAKPOINTS_FOCUSED.bindTo(this.list.contextKeyService);

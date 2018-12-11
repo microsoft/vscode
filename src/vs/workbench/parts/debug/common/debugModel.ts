@@ -300,6 +300,10 @@ export class Scope extends ExpressionContainer implements IScope {
 	) {
 		super(stackFrame.thread.session, reference, `scope:${stackFrame.getId()}:${name}:${index}`, namedVariables, indexedVariables);
 	}
+
+	toString(): string {
+		return this.name;
+	}
 }
 
 export class StackFrame implements IStackFrame {
@@ -650,6 +654,10 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 		return result;
 	}
 
+	toString(): string {
+		return resources.basenameOrAuthority(this.uri);
+	}
+
 	update(data: IBreakpointUpdateData): void {
 		if (!isUndefinedOrNull(data.lineNumber)) {
 			this._lineNumber = data.lineNumber;
@@ -688,6 +696,10 @@ export class FunctionBreakpoint extends BaseBreakpoint implements IFunctionBreak
 
 		return result;
 	}
+
+	toString(): string {
+		return this.name;
+	}
 }
 
 export class ExceptionBreakpoint extends Enablement implements IExceptionBreakpoint {
@@ -703,6 +715,10 @@ export class ExceptionBreakpoint extends Enablement implements IExceptionBreakpo
 		result.enabled = this.enabled;
 
 		return result;
+	}
+
+	toString(): string {
+		return this.label;
 	}
 }
 
