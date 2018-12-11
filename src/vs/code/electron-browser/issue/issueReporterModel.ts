@@ -104,7 +104,7 @@ ${this.getInfos()}
 		let info = '';
 
 		if (this._data.issueType === IssueType.Bug || this._data.issueType === IssueType.PerformanceIssue) {
-			if (this._data.includeSystemInfo) {
+			if (this._data.includeSystemInfo && this._data.systemInfo) {
 				info += this.generateSystemInfoMd();
 			}
 		}
