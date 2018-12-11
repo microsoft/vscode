@@ -416,21 +416,21 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	 * Subclasses should bring up a proper dialog for the user if the editor is dirty and return the result.
 	 */
 	confirmSave(): TPromise<ConfirmResult> {
-		return TPromise.wrap(ConfirmResult.DONT_SAVE);
+		return Promise.resolve(ConfirmResult.DONT_SAVE);
 	}
 
 	/**
 	 * Saves the editor if it is dirty. Subclasses return a promise with a boolean indicating the success of the operation.
 	 */
 	save(): TPromise<boolean> {
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 
 	/**
 	 * Reverts the editor if it is dirty. Subclasses return a promise with a boolean indicating the success of the operation.
 	 */
 	revert(options?: IRevertOptions): TPromise<boolean> {
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 
 	/**

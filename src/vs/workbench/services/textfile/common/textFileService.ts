@@ -537,7 +537,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		// Get to target resource
 		let targetPromise: TPromise<URI>;
 		if (target) {
-			targetPromise = TPromise.wrap(target);
+			targetPromise = Promise.resolve(target);
 		} else {
 			let dialogPath = resource;
 			if (resource.scheme === Schemas.untitled) {
@@ -728,8 +728,8 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		this._onWillMove.fire({
 			oldResource: source,
 			newResource: target,
-			waitUntil(p: Thenable<any>) {
-				waitForPromises.push(TPromise.wrap(p).then(undefined, errors.onUnexpectedError));
+			waitUntil(promise: Thenable<any>) {
+				waitForPromises.push(promise.then(void 0, errors.onUnexpectedError));
 			}
 		});
 

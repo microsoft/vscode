@@ -27,6 +27,7 @@ import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEdi
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { timeout } from 'vs/base/common/async';
 
 export class TestEditorControl extends BaseEditor {
 
@@ -393,6 +394,11 @@ suite('Editor service', () => {
 			visibleEditorChangeEventFired = false;
 		}
 
+		async function closeEditorAndWaitForNextToOpen(group: IEditorGroup, input: EditorInput): Promise<void> {
+			await group.closeEditor(input);
+			await timeout(0); // closing an editor will not immediately open the next one, so we need to wait
+		}
+
 		await part.whenRestored;
 
 		// 1.) open, open same, open other, close
@@ -409,11 +415,11 @@ suite('Editor service', () => {
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
 
-		await group.closeEditor(otherInput);
+		await closeEditorAndWaitForNextToOpen(group, otherInput);
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
 
-		await group.closeEditor(input);
+		await closeEditorAndWaitForNextToOpen(group, input);
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
 
@@ -426,7 +432,7 @@ suite('Editor service', () => {
 		assertActiveEditorChangedEvent(false);
 		assertVisibleEditorsChangedEvent(false);
 
-		await group.closeEditor(input);
+		await closeEditorAndWaitForNextToOpen(group, input);
 
 		// 3.) open, open inactive, close
 		editor = await service.openEditor(input, { pinned: true });
@@ -450,7 +456,7 @@ suite('Editor service', () => {
 		assertActiveEditorChangedEvent(false);
 		assertVisibleEditorsChangedEvent(false);
 
-		await group.closeEditor(otherInput);
+		await closeEditorAndWaitForNextToOpen(group, otherInput);
 		assertActiveEditorChangedEvent(false);
 		assertVisibleEditorsChangedEvent(false);
 
@@ -492,7 +498,7 @@ suite('Editor service', () => {
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
 
-		await rightGroup.closeEditor(otherInput);
+		await closeEditorAndWaitForNextToOpen(rightGroup, otherInput);
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
 
@@ -517,7 +523,7 @@ suite('Editor service', () => {
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(false);
 
-		await rightGroup.closeEditor(otherInput);
+		await closeEditorAndWaitForNextToOpen(rightGroup, otherInput);
 		assertActiveEditorChangedEvent(false);
 		assertVisibleEditorsChangedEvent(true);
 
@@ -555,7 +561,7 @@ suite('Editor service', () => {
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
 
-		await group.closeEditor(input);
+		await closeEditorAndWaitForNextToOpen(group, input);
 		assertActiveEditorChangedEvent(false);
 		assertVisibleEditorsChangedEvent(true);
 

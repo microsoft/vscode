@@ -412,9 +412,7 @@ export class CodeApplication extends Disposable {
 		// Create Electron IPC Server
 		this.electronIpcServer = new ElectronIPCServer();
 
-		// Resolve unique machine ID
-		this.logService.trace('Resolving machine identifier...');
-		return this.resolveMachineId().then(machineId => {
+		const startupWithMachineId = (machineId: string) => {
 			this.logService.trace(`Resolved machine identifier: ${machineId}`);
 
 			// Spawn shared process
@@ -447,6 +445,28 @@ export class CodeApplication extends Disposable {
 					this.stopTracingEventually(windows);
 				}
 			});
+		};
+
+		// Resolve unique machine ID
+		this.logService.trace('Resolving machine identifier...');
+		const resolvedMachineId = this.resolveMachineId();
+		if (typeof resolvedMachineId === 'string') {
+			return startupWithMachineId(resolvedMachineId);
+		} else {
+			return resolvedMachineId.then(machineId => startupWithMachineId(machineId));
+		}
+	}
+
+	private resolveMachineId(): string | TPromise<string> {
+		const machineId = this.stateService.getItem<string>(CodeApplication.MACHINE_ID_KEY);
+		if (machineId) {
+			return machineId;
+		}
+
+		return getMachineId().then(machineId => {
+			this.stateService.setItem(CodeApplication.MACHINE_ID_KEY, machineId);
+
+			return machineId;
 		});
 	}
 
@@ -482,21 +502,6 @@ export class CodeApplication extends Disposable {
 		TPromise.join(windows.map(window => window.ready())).then(() => {
 			clearTimeout(timeoutHandle);
 			stopRecording(false);
-		});
-	}
-
-	private resolveMachineId(): TPromise<string> {
-		const machineId = this.stateService.getItem<string>(CodeApplication.MACHINE_ID_KEY);
-		if (machineId) {
-			return TPromise.wrap(machineId);
-		}
-
-		return getMachineId().then(machineId => {
-
-			// Remember in global storage
-			this.stateService.setItem(CodeApplication.MACHINE_ID_KEY, machineId);
-
-			return machineId;
 		});
 	}
 

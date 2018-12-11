@@ -226,11 +226,11 @@ export class TestTextFileService extends TextFileService {
 	}
 
 	public promptForPath(_resource: URI, _defaultPath: URI): TPromise<URI> {
-		return TPromise.wrap(this.promptPath);
+		return Promise.resolve(this.promptPath);
 	}
 
 	public confirmSave(_resources?: URI[]): TPromise<ConfirmResult> {
-		return TPromise.wrap(this.confirmResult);
+		return Promise.resolve(this.confirmResult);
 	}
 
 	public onFilesConfigurationChange(configuration: any): void {
@@ -847,14 +847,14 @@ export class TestFileService implements IFileService {
 	}
 
 	updateContent(resource: URI, _value: string | ITextSnapshot, _options?: IUpdateContentOptions): TPromise<IFileStat> {
-		return TPromise.wrap(timeout(0).then(() => ({
+		return timeout(0).then(() => ({
 			resource,
 			etag: 'index.txt',
 			encoding: 'utf8',
 			mtime: Date.now(),
 			isDirectory: false,
 			name: paths.basename(resource.fsPath)
-		})));
+		}));
 	}
 
 	moveFile(_source: URI, _target: URI, _overwrite?: boolean): TPromise<IFileStat> {
@@ -1113,15 +1113,15 @@ export class TestWindowService implements IWindowService {
 	}
 
 	showMessageBox(_options: Electron.MessageBoxOptions): TPromise<IMessageBoxResult> {
-		return TPromise.wrap({ button: 0 });
+		return Promise.resolve({ button: 0 });
 	}
 
 	showSaveDialog(_options: Electron.SaveDialogOptions): TPromise<string> {
-		return TPromise.wrap(void 0);
+		return Promise.resolve(void 0);
 	}
 
 	showOpenDialog(_options: Electron.OpenDialogOptions): TPromise<string[]> {
-		return TPromise.wrap(void 0);
+		return Promise.resolve(void 0);
 	}
 
 	updateTouchBar(_items: ISerializableCommandAction[][]): TPromise<void> {

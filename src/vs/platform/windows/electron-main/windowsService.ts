@@ -551,18 +551,17 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		// Catch file URLs
 		if (uri.authority === Schemas.file && !!uri.path) {
 			this.openFileForURI(URI.file(uri.fsPath));
-			return TPromise.as(true);
+			return Promise.resolve(true);
 		}
 
-		return TPromise.wrap(false);
+		return Promise.resolve(false);
 	}
 
-	private openFileForURI(uri: URI): TPromise<boolean> {
+	private openFileForURI(uri: URI): void {
 		const cli = assign(Object.create(null), this.environmentService.args, { goto: true });
 		const urisToOpen = [uri];
 
 		this.windowsMainService.open({ context: OpenContext.API, cli, urisToOpen });
-		return TPromise.wrap(true);
 	}
 
 	resolveProxy(windowId: number, url: string): Promise<string | undefined> {

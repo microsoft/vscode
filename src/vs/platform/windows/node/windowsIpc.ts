@@ -137,79 +137,79 @@ export class WindowsChannelClient implements IWindowsService {
 	get onRecentlyOpenedChange(): Event<void> { return this.channel.listen('onRecentlyOpenedChange'); }
 
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
-		return TPromise.wrap(this.channel.call('pickFileFolderAndOpen', options));
+		return this.channel.call('pickFileFolderAndOpen', options);
 	}
 
 	pickFileAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
-		return TPromise.wrap(this.channel.call('pickFileAndOpen', options));
+		return this.channel.call('pickFileAndOpen', options);
 	}
 
 	pickFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
-		return TPromise.wrap(this.channel.call('pickFolderAndOpen', options));
+		return this.channel.call('pickFolderAndOpen', options);
 	}
 
 	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
-		return TPromise.wrap(this.channel.call('pickWorkspaceAndOpen', options));
+		return this.channel.call('pickWorkspaceAndOpen', options);
 	}
 
 	showMessageBox(windowId: number, options: MessageBoxOptions): TPromise<IMessageBoxResult> {
-		return TPromise.wrap(this.channel.call('showMessageBox', [windowId, options]));
+		return this.channel.call('showMessageBox', [windowId, options]);
 	}
 
 	showSaveDialog(windowId: number, options: SaveDialogOptions): TPromise<string> {
-		return TPromise.wrap(this.channel.call('showSaveDialog', [windowId, options]));
+		return this.channel.call('showSaveDialog', [windowId, options]);
 	}
 
 	showOpenDialog(windowId: number, options: OpenDialogOptions): TPromise<string[]> {
-		return TPromise.wrap(this.channel.call('showOpenDialog', [windowId, options]));
+		return this.channel.call('showOpenDialog', [windowId, options]);
 	}
 
 	reloadWindow(windowId: number, args?: ParsedArgs): TPromise<void> {
-		return TPromise.wrap(this.channel.call('reloadWindow', [windowId, args]));
+		return this.channel.call('reloadWindow', [windowId, args]);
 	}
 
 	openDevTools(windowId: number, options?: IDevToolsOptions): TPromise<void> {
-		return TPromise.wrap(this.channel.call('openDevTools', [windowId, options]));
+		return this.channel.call('openDevTools', [windowId, options]);
 	}
 
 	toggleDevTools(windowId: number): TPromise<void> {
-		return TPromise.wrap(this.channel.call('toggleDevTools', windowId));
+		return this.channel.call('toggleDevTools', windowId);
 	}
 
 	closeWorkspace(windowId: number): TPromise<void> {
-		return TPromise.wrap(this.channel.call('closeWorkspace', windowId));
+		return this.channel.call('closeWorkspace', windowId);
 	}
 
 	enterWorkspace(windowId: number, path: string): TPromise<IEnterWorkspaceResult> {
-		return TPromise.wrap(this.channel.call('enterWorkspace', [windowId, path]));
+		return this.channel.call('enterWorkspace', [windowId, path]);
 	}
 
 	createAndEnterWorkspace(windowId: number, folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult> {
-		return TPromise.wrap(this.channel.call('createAndEnterWorkspace', [windowId, folders, path]));
+		return this.channel.call('createAndEnterWorkspace', [windowId, folders, path]);
 	}
 
 	saveAndEnterWorkspace(windowId: number, path: string): TPromise<IEnterWorkspaceResult> {
-		return TPromise.wrap(this.channel.call('saveAndEnterWorkspace', [windowId, path]));
+		return this.channel.call('saveAndEnterWorkspace', [windowId, path]);
 	}
 
 	toggleFullScreen(windowId: number): TPromise<void> {
-		return TPromise.wrap(this.channel.call('toggleFullScreen', windowId));
+		return this.channel.call('toggleFullScreen', windowId);
 	}
 
 	setRepresentedFilename(windowId: number, fileName: string): TPromise<void> {
-		return TPromise.wrap(this.channel.call('setRepresentedFilename', [windowId, fileName]));
+		return this.channel.call('setRepresentedFilename', [windowId, fileName]);
 	}
 
 	addRecentlyOpened(files: URI[]): TPromise<void> {
-		return TPromise.wrap(this.channel.call('addRecentlyOpened', files));
+		return this.channel.call('addRecentlyOpened', files);
 	}
 
 	removeFromRecentlyOpened(paths: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI)[]): TPromise<void> {
-		return TPromise.wrap(this.channel.call('removeFromRecentlyOpened', paths));
+		return this.channel.call('removeFromRecentlyOpened', paths);
 	}
 
 	clearRecentlyOpened(): TPromise<void> {
-		return TPromise.wrap(this.channel.call('clearRecentlyOpened'));
+		return this.channel.call('clearRecentlyOpened');
 	}
 
 	getRecentlyOpened(windowId: number): TPromise<IRecentlyOpened> {
@@ -222,83 +222,83 @@ export class WindowsChannelClient implements IWindowsService {
 	}
 
 	newWindowTab(): TPromise<void> {
-		return TPromise.wrap(this.channel.call('newWindowTab'));
+		return this.channel.call('newWindowTab');
 	}
 
 	showPreviousWindowTab(): TPromise<void> {
-		return TPromise.wrap(this.channel.call('showPreviousWindowTab'));
+		return this.channel.call('showPreviousWindowTab');
 	}
 
 	showNextWindowTab(): TPromise<void> {
-		return TPromise.wrap(this.channel.call('showNextWindowTab'));
+		return this.channel.call('showNextWindowTab');
 	}
 
 	moveWindowTabToNewWindow(): TPromise<void> {
-		return TPromise.wrap(this.channel.call('moveWindowTabToNewWindow'));
+		return this.channel.call('moveWindowTabToNewWindow');
 	}
 
 	mergeAllWindowTabs(): TPromise<void> {
-		return TPromise.wrap(this.channel.call('mergeAllWindowTabs'));
+		return this.channel.call('mergeAllWindowTabs');
 	}
 
 	toggleWindowTabsBar(): TPromise<void> {
-		return TPromise.wrap(this.channel.call('toggleWindowTabsBar'));
+		return this.channel.call('toggleWindowTabsBar');
 	}
 
 	focusWindow(windowId: number): TPromise<void> {
-		return TPromise.wrap(this.channel.call('focusWindow', windowId));
+		return this.channel.call('focusWindow', windowId);
 	}
 
 	closeWindow(windowId: number): TPromise<void> {
-		return TPromise.wrap(this.channel.call('closeWindow', windowId));
+		return this.channel.call('closeWindow', windowId);
 	}
 
 	isFocused(windowId: number): TPromise<boolean> {
-		return TPromise.wrap(this.channel.call('isFocused', windowId));
+		return this.channel.call('isFocused', windowId);
 	}
 
 	isMaximized(windowId: number): TPromise<boolean> {
-		return TPromise.wrap(this.channel.call('isMaximized', windowId));
+		return this.channel.call('isMaximized', windowId);
 	}
 
 	maximizeWindow(windowId: number): TPromise<void> {
-		return TPromise.wrap(this.channel.call('maximizeWindow', windowId));
+		return this.channel.call('maximizeWindow', windowId);
 	}
 
 	unmaximizeWindow(windowId: number): TPromise<void> {
-		return TPromise.wrap(this.channel.call('unmaximizeWindow', windowId));
+		return this.channel.call('unmaximizeWindow', windowId);
 	}
 
 	minimizeWindow(windowId: number): TPromise<void> {
-		return TPromise.wrap(this.channel.call('minimizeWindow', windowId));
+		return this.channel.call('minimizeWindow', windowId);
 	}
 
 	onWindowTitleDoubleClick(windowId: number): TPromise<void> {
-		return TPromise.wrap(this.channel.call('onWindowTitleDoubleClick', windowId));
+		return this.channel.call('onWindowTitleDoubleClick', windowId);
 	}
 
 	setDocumentEdited(windowId: number, flag: boolean): TPromise<void> {
-		return TPromise.wrap(this.channel.call('setDocumentEdited', [windowId, flag]));
+		return this.channel.call('setDocumentEdited', [windowId, flag]);
 	}
 
 	quit(): TPromise<void> {
-		return TPromise.wrap(this.channel.call('quit'));
+		return this.channel.call('quit');
 	}
 
 	relaunch(options: { addArgs?: string[], removeArgs?: string[] }): TPromise<void> {
-		return TPromise.wrap(this.channel.call('relaunch', [options]));
+		return this.channel.call('relaunch', [options]);
 	}
 
 	whenSharedProcessReady(): TPromise<void> {
-		return TPromise.wrap(this.channel.call('whenSharedProcessReady'));
+		return this.channel.call('whenSharedProcessReady');
 	}
 
 	toggleSharedProcess(): TPromise<void> {
-		return TPromise.wrap(this.channel.call('toggleSharedProcess'));
+		return this.channel.call('toggleSharedProcess');
 	}
 
 	openWindow(windowId: number, paths: URI[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean, args?: ParsedArgs }): TPromise<void> {
-		return TPromise.wrap(this.channel.call('openWindow', [windowId, paths, options]));
+		return this.channel.call('openWindow', [windowId, paths, options]);
 	}
 
 	openNewWindow(options?: INewWindowOptions): TPromise<void> {
@@ -306,43 +306,43 @@ export class WindowsChannelClient implements IWindowsService {
 	}
 
 	showWindow(windowId: number): TPromise<void> {
-		return TPromise.wrap(this.channel.call('showWindow', windowId));
+		return this.channel.call('showWindow', windowId);
 	}
 
 	getWindows(): TPromise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]> {
-		return TPromise.wrap(this.channel.call<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]>('getWindows').then(result => { result.forEach(win => win.folderUri = win.folderUri ? URI.revive(win.folderUri) : win.folderUri); return result; }));
+		return this.channel.call<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]>('getWindows').then(result => { result.forEach(win => win.folderUri = win.folderUri ? URI.revive(win.folderUri) : win.folderUri); return result; });
 	}
 
 	getWindowCount(): TPromise<number> {
-		return TPromise.wrap(this.channel.call('getWindowCount'));
+		return this.channel.call('getWindowCount');
 	}
 
 	log(severity: string, ...messages: string[]): TPromise<void> {
-		return TPromise.wrap(this.channel.call('log', [severity, messages]));
+		return this.channel.call('log', [severity, messages]);
 	}
 
 	showItemInFolder(path: string): TPromise<void> {
-		return TPromise.wrap(this.channel.call('showItemInFolder', path));
+		return this.channel.call('showItemInFolder', path);
 	}
 
 	getActiveWindowId(): TPromise<number | undefined> {
-		return TPromise.wrap(this.channel.call('getActiveWindowId'));
+		return this.channel.call('getActiveWindowId');
 	}
 
 	openExternal(url: string): TPromise<boolean> {
-		return TPromise.wrap(this.channel.call('openExternal', url));
+		return this.channel.call('openExternal', url);
 	}
 
 	startCrashReporter(config: CrashReporterStartOptions): TPromise<void> {
-		return TPromise.wrap(this.channel.call('startCrashReporter', config));
+		return this.channel.call('startCrashReporter', config);
 	}
 
 	updateTouchBar(windowId: number, items: ISerializableCommandAction[][]): TPromise<void> {
-		return TPromise.wrap(this.channel.call('updateTouchBar', [windowId, items]));
+		return this.channel.call('updateTouchBar', [windowId, items]);
 	}
 
 	openAboutDialog(): TPromise<void> {
-		return TPromise.wrap(this.channel.call('openAboutDialog'));
+		return this.channel.call('openAboutDialog');
 	}
 
 	resolveProxy(windowId: number, url: string): Promise<string | undefined> {

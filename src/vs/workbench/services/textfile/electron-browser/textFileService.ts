@@ -75,12 +75,12 @@ export class TextFileService extends AbstractTextFileService {
 
 	confirmSave(resources?: URI[]): TPromise<ConfirmResult> {
 		if (this.environmentService.isExtensionDevelopment) {
-			return TPromise.wrap(ConfirmResult.DONT_SAVE); // no veto when we are in extension dev mode because we cannot assum we run interactive (e.g. tests)
+			return Promise.resolve(ConfirmResult.DONT_SAVE); // no veto when we are in extension dev mode because we cannot assum we run interactive (e.g. tests)
 		}
 
 		const resourcesToConfirm = this.getDirty(resources);
 		if (resourcesToConfirm.length === 0) {
-			return TPromise.wrap(ConfirmResult.DONT_SAVE);
+			return Promise.resolve(ConfirmResult.DONT_SAVE);
 		}
 
 		const message = resourcesToConfirm.length === 1 ? nls.localize('saveChangesMessage', "Do you want to save the changes you made to {0}?", paths.basename(resourcesToConfirm[0].fsPath))

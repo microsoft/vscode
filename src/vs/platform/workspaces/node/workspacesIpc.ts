@@ -46,6 +46,6 @@ export class WorkspacesChannelClient implements IWorkspacesService {
 	constructor(private channel: IChannel) { }
 
 	createWorkspace(folders?: IWorkspaceFolderCreationData[]): TPromise<IWorkspaceIdentifier> {
-		return TPromise.wrap(this.channel.call('createWorkspace', folders));
+		return this.channel.call('createWorkspace', folders);
 	}
 }
