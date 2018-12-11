@@ -99,6 +99,7 @@
 		"./vs/base/worker/defaultWorkerFactory.ts",
 		"./vs/base/worker/workerMain.ts",
 		"./vs/code/code.main.ts",
+		"./vs/code/electron-browser/issue/issueReporterMain.ts",
 		"./vs/code/electron-browser/issue/issueReporterModel.ts",
 		"./vs/code/electron-browser/issue/issueReporterPage.ts",
 		"./vs/code/electron-browser/issue/issueReporterUtil.ts",

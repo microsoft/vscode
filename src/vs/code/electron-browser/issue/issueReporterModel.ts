@@ -7,7 +7,7 @@ import { assign } from 'vs/base/common/objects';
 import { IssueType, ISettingSearchResult, IssueReporterExtensionData } from 'vs/platform/issue/common/issue';
 
 export interface IssueReporterData {
-	issueType?: IssueType;
+	issueType: IssueType;
 	issueDescription?: string;
 
 	versionInfo?: any;
@@ -15,15 +15,15 @@ export interface IssueReporterData {
 	processInfo?: any;
 	workspaceInfo?: any;
 
-	includeSystemInfo?: boolean;
-	includeWorkspaceInfo?: boolean;
-	includeProcessInfo?: boolean;
-	includeExtensions?: boolean;
-	includeSearchedExtensions?: boolean;
-	includeSettingsSearchDetails?: boolean;
+	includeSystemInfo: boolean;
+	includeWorkspaceInfo: boolean;
+	includeProcessInfo: boolean;
+	includeExtensions: boolean;
+	includeSearchedExtensions: boolean;
+	includeSettingsSearchDetails: boolean;
 
 	numberOfThemeExtesions?: number;
-	allExtensions?: IssueReporterExtensionData[];
+	allExtensions: IssueReporterExtensionData[];
 	enabledNonThemeExtesions?: IssueReporterExtensionData[];
 	extensionsDisabled?: boolean;
 	fileOnExtension?: boolean;
@@ -36,14 +36,16 @@ export interface IssueReporterData {
 export class IssueReporterModel {
 	private _data: IssueReporterData;
 
-	constructor(initialData?: IssueReporterData) {
+	constructor(initialData?: Partial<IssueReporterData>) {
 		const defaultData = {
+			issueType: IssueType.Bug,
 			includeSystemInfo: true,
 			includeWorkspaceInfo: true,
 			includeProcessInfo: true,
 			includeExtensions: true,
 			includeSearchedExtensions: true,
-			includeSettingsSearchDetails: true
+			includeSettingsSearchDetails: true,
+			allExtensions: []
 		};
 
 		this._data = initialData ? assign(defaultData, initialData) : defaultData;
@@ -53,7 +55,7 @@ export class IssueReporterModel {
 		return this._data;
 	}
 
-	update(newData: IssueReporterData): void {
+	update(newData: Partial<IssueReporterData>): void {
 		assign(this._data, newData);
 	}
 
