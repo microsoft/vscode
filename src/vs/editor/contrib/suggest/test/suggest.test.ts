@@ -98,7 +98,7 @@ suite('Suggest', function () {
 			registration.dispose();
 
 			assert.equal(items.length, 1);
-			assert.ok(items[0].support === foo);
+			assert.ok(items[0].provider === foo);
 		});
 	});
 });

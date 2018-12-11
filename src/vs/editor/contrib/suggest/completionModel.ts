@@ -118,7 +118,7 @@ export class CompletionModel {
 	adopt(except: Set<CompletionItemProvider>): ISuggestionItem[] {
 		let res = new Array<ISuggestionItem>();
 		for (let i = 0; i < this._items.length;) {
-			if (!except.has(this._items[i].support)) {
+			if (!except.has(this._items[i].provider)) {
 				res.push(this._items[i]);
 
 				// unordered removed
@@ -173,7 +173,7 @@ export class CompletionModel {
 			// collect those supports that signaled having
 			// an incomplete result
 			if (container.incomplete) {
-				this._isIncomplete.add(item.support);
+				this._isIncomplete.add(item.provider);
 			}
 
 			// 'word' is that remainder of the current line that we

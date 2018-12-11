@@ -287,7 +287,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				assert.equal(event.completionModel.items.length, 1);
 				const [first] = event.completionModel.items;
 
-				assert.equal(first.support, alwaysSomethingSupport);
+				assert.equal(first.provider, alwaysSomethingSupport);
 			});
 		});
 	});
@@ -623,7 +623,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				assert.equal(event.completionModel.items.length, 1);
 				const [first] = event.completionModel.items;
 
-				assert.equal(first.support, alwaysSomethingSupport);
+				assert.equal(first.provider, alwaysSomethingSupport);
 			});
 
 			await assertEvent(model.onDidSuggest, () => {
@@ -634,7 +634,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				assert.equal(event.completionModel.items.length, 1);
 				const [first] = event.completionModel.items;
 
-				assert.equal(first.support, alwaysSomethingSupport);
+				assert.equal(first.provider, alwaysSomethingSupport);
 			});
 		});
 	});
@@ -703,7 +703,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				assert.equal(event.completionModel.items.length, 1);
 				const [first] = event.completionModel.items;
 
-				assert.equal(first.support, alwaysSomethingSupport);
+				assert.equal(first.provider, alwaysSomethingSupport);
 			});
 		});
 	});

@@ -25,10 +25,10 @@ export const Context = {
 };
 
 export interface ISuggestionItem {
-	position: IPosition;
-	suggestion: CompletionItem;
-	container: CompletionList;
-	support: CompletionItemProvider;
+	readonly position: IPosition;
+	readonly suggestion: CompletionItem;
+	readonly container: CompletionList;
+	readonly provider: CompletionItemProvider;
 	resolve(token: CancellationToken): Thenable<void>;
 }
 
@@ -104,7 +104,7 @@ export function provideSuggestionItems(
 								position,
 								container,
 								suggestion,
-								support,
+								provider: support,
 								resolve: createSuggestionResolver(support, suggestion, model, position)
 							});
 						}
@@ -163,7 +163,7 @@ function createSuggestionResolver(provider: CompletionItemProvider, suggestion: 
 	return (token) => {
 		if (!cached) {
 			let isDone = false;
-			cached = Promise.resolve(provider.resolveCompletionItem!(model, position, suggestion, token)).then(value => {
+			cached = Promise.resolve(resolveCompletionItem.call(provider, model, position, suggestion, token)).then(value => {
 				assign(suggestion, value);
 				isDone = true;
 			}, err => {
