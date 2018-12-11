@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import { Event, Emitter, once, toPromise, Relay } from 'vs/base/common/event';
+import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { always, CancelablePromise, createCancelablePromise, timeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
@@ -543,7 +543,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		if (this.state === State.Idle) {
 			return Promise.resolve();
 		} else {
-			return toPromise(this.onDidInitialize);
+			return Event.toPromise(this.onDidInitialize);
 		}
 	}
 
@@ -590,7 +590,7 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 
 	constructor(onDidClientConnect: Event<ClientConnectionEvent>) {
 		onDidClientConnect(({ protocol, onDidClientDisconnect }) => {
-			const onFirstMessage = once(protocol.onMessage);
+			const onFirstMessage = Event.once(protocol.onMessage);
 
 			onFirstMessage(msg => {
 				const reader = new BufferReader(msg);
@@ -743,7 +743,7 @@ export class StaticRouter<TContext = string> implements IClientRouter<TContext> 
 			}
 		}
 
-		await toPromise(hub.onDidChangeConnections);
+		await Event.toPromise(hub.onDidChangeConnections);
 		return await this.route(hub);
 	}
 }

@@ -161,12 +161,21 @@ class WorkbenchOpenController implements IOpenController {
 	}
 }
 
-function handleListControllers<T>(options: IListOptions<T>, configurationService: IConfigurationService): IListOptions<T> {
+function toWorkbenchListOptions<T>(options: IListOptions<T>, configurationService: IConfigurationService, keybindingService: IKeybindingService): IListOptions<T> {
 	if (options.multipleSelectionSupport !== false && !options.multipleSelectionController) {
 		options.multipleSelectionController = new MultipleSelectionController(configurationService);
 	}
 
 	options.openController = new WorkbenchOpenController(configurationService, options.openController);
+
+	if (options.typeLabelProvider) {
+		const tlp = options.typeLabelProvider;
+
+		options.typeLabelProvider = {
+			getTypeLabel(e) { return tlp.getTypeLabel(e); },
+			mightProducePrintableCharacter(e) { return keybindingService.mightProducePrintableCharacter(e); }
+		};
+	}
 
 	return options;
 }
@@ -219,7 +228,8 @@ export class WorkbenchList<T> extends List<T> {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		super(container, delegate, renderers,
 			{
@@ -227,7 +237,7 @@ export class WorkbenchList<T> extends List<T> {
 				selectOnMouseDown: true,
 				styleController: new DefaultStyleController(getSharedListStyleSheet()),
 				...computeStyles(themeService.getTheme(), defaultListStyles),
-				...handleListControllers(options, configurationService)
+				...toWorkbenchListOptions(options, configurationService, keybindingService)
 			} as IListOptions<T>
 		);
 
@@ -294,7 +304,8 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		super(container, delegate, renderers,
 			{
@@ -302,7 +313,7 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 				selectOnMouseDown: true,
 				styleController: new DefaultStyleController(getSharedListStyleSheet()),
 				...computeStyles(themeService.getTheme(), defaultListStyles),
-				...handleListControllers(options, configurationService)
+				...toWorkbenchListOptions(options, configurationService, keybindingService)
 			} as IListOptions<T>
 		);
 
@@ -885,14 +896,15 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		super(container, delegate, renderers, {
 			keyboardSupport: false,
 			selectOnMouseDown: true,
 			styleController: new DefaultStyleController(getSharedListStyleSheet()),
 			...computeStyles(themeService.getTheme(), defaultListStyles),
-			...handleListControllers(options, configurationService)
+			...toWorkbenchListOptions(options, configurationService, keybindingService)
 		});
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
@@ -948,14 +960,15 @@ export class WorkbenchAsyncDataTree<T extends NonNullable<any>, TFilterData = vo
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		super(container, delegate, renderers, dataSource, {
 			keyboardSupport: false,
 			selectOnMouseDown: true,
 			styleController: new DefaultStyleController(getSharedListStyleSheet()),
 			...computeStyles(themeService.getTheme(), defaultListStyles),
-			...handleListControllers(options, configurationService)
+			...toWorkbenchListOptions(options, configurationService, keybindingService)
 		});
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);

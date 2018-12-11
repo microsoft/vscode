@@ -31,6 +31,7 @@ import { WorkbenchAsyncDataTree, IListService } from 'vs/platform/list/browser/l
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { coalesce } from 'vs/base/common/arrays';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 const $ = dom.$;
 const MAX_TREE_HEIGHT = 324;
@@ -61,7 +62,8 @@ export class DebugHoverWidget implements IContentWidget {
 		@IThemeService private themeService: IThemeService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IListService private listService: IListService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IKeybindingService private keybindingService: IKeybindingService
 	) {
 		this.toDispose = [];
 
@@ -83,7 +85,7 @@ export class DebugHoverWidget implements IContentWidget {
 				ariaLabel: nls.localize('treeAriaLabel', "Debug Hover"),
 				accessibilityProvider: new DebugHoverAccessibilityProvider(),
 				mouseSupport: false
-			}, this.contextKeyService, this.listService, this.themeService, this.configurationService);
+			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
 
 		this.valueContainer = $('.value');
 		this.valueContainer.tabIndex = 0;

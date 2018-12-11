@@ -13,7 +13,7 @@ import { ResourceMap } from 'vs/base/common/map';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
-import { Event, once, Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { basename } from 'vs/base/common/paths';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -138,7 +138,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			this._onDidOpenEditorFail.fire({ editor, groupId: group.id });
 		}));
 
-		once(group.onWillDispose)(() => {
+		Event.once(group.onWillDispose)(() => {
 			dispose(groupDisposeables);
 		});
 	}
@@ -240,11 +240,11 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			return this.doOpenEditor(targetGroup, typedInput, editorOptions);
 		}
 
-		return TPromise.wrap<IEditor>(null);
+		return Promise.resolve(null);
 	}
 
 	protected doOpenEditor(group: IEditorGroup, editor: IEditorInput, options?: IEditorOptions): TPromise<IEditor> {
-		return group.openEditor(editor, options).then(() => group.activeControl);
+		return group.openEditor(editor, options);
 	}
 
 	private findTargetGroup(input: IEditorInput, options?: IEditorOptions, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): IEditorGroup {
@@ -363,10 +363,10 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		// Open in targets
 		const result: TPromise<IEditor>[] = [];
 		mapGroupToEditors.forEach((editorsWithOptions, group) => {
-			result.push((group.openEditors(editorsWithOptions)).then(() => group.activeControl));
+			result.push(group.openEditors(editorsWithOptions));
 		});
 
-		return TPromise.join(result);
+		return Promise.all(result);
 	}
 
 	//#endregion
@@ -577,7 +577,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		EditorService.CACHE.set(resource, input);
-		once(input.onDispose)(() => {
+		Event.once(input.onDispose)(() => {
 			EditorService.CACHE.delete(resource);
 		});
 

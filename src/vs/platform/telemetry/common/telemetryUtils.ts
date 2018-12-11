@@ -29,7 +29,7 @@ export const NullTelemetryService = new class implements ITelemetryService {
 
 export interface ITelemetryAppender {
 	log(eventName: string, data: any): void;
-	dispose(): Thenable<any>;
+	dispose(): Thenable<any> | undefined;
 }
 
 export function combinedAppender(...appenders: ITelemetryAppender[]): ITelemetryAppender {

@@ -10,6 +10,7 @@ import * as dom from 'vs/base/browser/dom';
 import * as paths from 'vs/base/common/paths';
 import * as os from 'os';
 import { Event, Emitter } from 'vs/base/common/event';
+import { debounce } from 'vs/base/common/decorators';
 import { WindowsShellHelper } from 'vs/workbench/parts/terminal/node/windowsShellHelper';
 import { Terminal as XTermTerminal, ISearchOptions } from 'vscode-xterm';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -17,6 +18,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, IShellLaunchConfig, ITerminalProcessManager, ProcessState, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ITerminalDimensions } from 'vs/workbench/parts/terminal/common/terminal';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
@@ -310,13 +312,15 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 		this._xterm.winptyCompatInit();
 		this._xterm.on('linefeed', () => this._onLineFeed());
+		this._xterm.on('key', (key, ev) => this._onKey(key, ev));
+
 		if (this._processManager) {
 			this._processManager.onProcessData(data => this._onProcessData(data));
 			this._xterm.on('data', data => this._processManager.write(data));
 			// TODO: How does the cwd work on detached processes?
 			this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, platform.platform);
 			this.processReady.then(() => {
-				this._linkHandler.initialCwd = this._processManager.initialCwd;
+				this._linkHandler.processCwd = this._processManager.initialCwd;
 			});
 		}
 		this._xterm.on('focus', () => this._onFocus.fire(this));
@@ -938,6 +942,24 @@ export class TerminalInstance implements ITerminalInstance {
 			lineData = buffer.translateBufferLineToString(lineIndex, false) + lineData;
 		}
 		this._onLineData.fire(lineData);
+	}
+
+	private _onKey(key: string, ev: KeyboardEvent): void {
+		const event = new StandardKeyboardEvent(ev);
+
+		if (event.equals(KeyCode.Enter)) {
+			this._updateProcessCwd();
+		}
+	}
+
+	@debounce(2000)
+	private async _updateProcessCwd(): Promise<string> {
+		// reset cwd if it has changed, so file based url paths can be resolved
+		const cwd = await this.getCwd();
+		if (cwd) {
+			this._linkHandler.processCwd = cwd;
+		}
+		return cwd;
 	}
 
 	public updateConfig(): void {

@@ -9,7 +9,7 @@ import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { addClass, removeClass, isAncestor, addDisposableListener, EventType, Dimension } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NotificationsList } from 'vs/workbench/browser/parts/notifications/notificationsList';
-import { once } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { Themable, NOTIFICATIONS_TOAST_BORDER } from 'vs/workbench/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -194,7 +194,7 @@ export class NotificationsToasts extends Themable {
 		}));
 
 		// Remove when item gets closed
-		once(item.onDidClose)(() => {
+		Event.once(item.onDidClose)(() => {
 			this.removeToast(item);
 		});
 

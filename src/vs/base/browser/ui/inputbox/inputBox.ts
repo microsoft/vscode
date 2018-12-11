@@ -32,22 +32,22 @@ export interface IInputOptions extends IInputBoxStyles {
 }
 
 export interface IInputBoxStyles {
-	readonly inputBackground?: Color;
-	readonly inputForeground?: Color;
-	readonly inputBorder?: Color;
-	readonly inputValidationInfoBorder?: Color;
-	readonly inputValidationInfoBackground?: Color;
-	readonly inputValidationInfoForeground?: Color;
-	readonly inputValidationWarningBorder?: Color;
-	readonly inputValidationWarningBackground?: Color;
-	readonly inputValidationWarningForeground?: Color;
-	readonly inputValidationErrorBorder?: Color;
-	readonly inputValidationErrorBackground?: Color;
-	readonly inputValidationErrorForeground?: Color;
+	readonly inputBackground?: Color | null;
+	readonly inputForeground?: Color | null;
+	readonly inputBorder?: Color | null;
+	readonly inputValidationInfoBorder?: Color | null;
+	readonly inputValidationInfoBackground?: Color | null;
+	readonly inputValidationInfoForeground?: Color | null;
+	readonly inputValidationWarningBorder?: Color | null;
+	readonly inputValidationWarningBackground?: Color | null;
+	readonly inputValidationWarningForeground?: Color | null;
+	readonly inputValidationErrorBorder?: Color | null;
+	readonly inputValidationErrorBackground?: Color | null;
+	readonly inputValidationErrorForeground?: Color | null;
 }
 
 export interface IInputValidator {
-	(value: string): IMessage;
+	(value: string): IMessage | null;
 }
 
 export interface IMessage {
@@ -96,19 +96,19 @@ export class InputBox extends Widget {
 	private state: string | null = 'idle';
 	private cachedHeight: number | null;
 
-	private inputBackground?: Color;
-	private inputForeground?: Color;
-	private inputBorder?: Color;
+	private inputBackground?: Color | null;
+	private inputForeground?: Color | null;
+	private inputBorder?: Color | null;
 
-	private inputValidationInfoBorder?: Color;
-	private inputValidationInfoBackground?: Color;
-	private inputValidationInfoForeground?: Color;
-	private inputValidationWarningBorder?: Color;
-	private inputValidationWarningBackground?: Color;
-	private inputValidationWarningForeground?: Color;
-	private inputValidationErrorBorder?: Color;
-	private inputValidationErrorBackground?: Color;
-	private inputValidationErrorForeground?: Color;
+	private inputValidationInfoBorder?: Color | null;
+	private inputValidationInfoBackground?: Color | null;
+	private inputValidationInfoForeground?: Color | null;
+	private inputValidationWarningBorder?: Color | null;
+	private inputValidationWarningBackground?: Color | null;
+	private inputValidationWarningForeground?: Color | null;
+	private inputValidationErrorBorder?: Color | null;
+	private inputValidationErrorBackground?: Color | null;
+	private inputValidationErrorForeground?: Color | null;
 
 	private _onDidChange = this._register(new Emitter<string>());
 	public readonly onDidChange: Event<string> = this._onDidChange.event;
@@ -116,7 +116,7 @@ export class InputBox extends Widget {
 	private _onDidHeightChange = this._register(new Emitter<number>());
 	public readonly onDidHeightChange: Event<number> = this._onDidHeightChange.event;
 
-	constructor(container: HTMLElement, contextViewProvider: IContextViewProvider, options?: IInputOptions) {
+	constructor(container: HTMLElement, contextViewProvider: IContextViewProvider | undefined, options?: IInputOptions) {
 		super();
 
 		this.contextViewProvider = contextViewProvider;
@@ -361,7 +361,7 @@ export class InputBox extends Widget {
 		return !errorMsg;
 	}
 
-	private stylesForType(type: MessageType | undefined): { border: Color | undefined; background: Color | undefined; foreground: Color | undefined } {
+	private stylesForType(type: MessageType | undefined): { border: Color | undefined | null; background: Color | undefined | null; foreground: Color | undefined | null } {
 		switch (type) {
 			case MessageType.INFO: return { border: this.inputValidationInfoBorder, background: this.inputValidationInfoBackground, foreground: this.inputValidationInfoForeground };
 			case MessageType.WARNING: return { border: this.inputValidationWarningBorder, background: this.inputValidationWarningBackground, foreground: this.inputValidationWarningForeground };
@@ -533,7 +533,7 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 
 	private readonly history: HistoryNavigator<string>;
 
-	constructor(container: HTMLElement, contextViewProvider: IContextViewProvider, options: IHistoryInputOptions) {
+	constructor(container: HTMLElement, contextViewProvider: IContextViewProvider | undefined, options: IHistoryInputOptions) {
 		super(container, contextViewProvider, options);
 		this.history = new HistoryNavigator<string>(options.history, 100);
 	}

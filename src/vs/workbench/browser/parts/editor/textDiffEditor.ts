@@ -26,7 +26,7 @@ import { ScrollType, IDiffEditorViewState, IDiffEditorModel } from 'vs/editor/co
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { once } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -282,7 +282,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 			super.saveTextEditorViewState(resource);
 
 			// Make sure to clean up when the input gets disposed
-			once(input.onDispose)(() => {
+			Event.once(input.onDispose)(() => {
 				super.clearTextEditorViewState([resource]);
 			});
 		}

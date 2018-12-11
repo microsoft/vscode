@@ -222,29 +222,17 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 		return withOracle(model => {
 
 			return Promise.all([
-				assertEvent(model.onDidCancel, function () {
-					model.cancel();
-				}, function (event) {
-					assert.equal(event.retrigger, false);
-				}),
 
-				assertEvent(model.onDidCancel, function () {
-					model.cancel(true);
+				assertEvent(model.onDidTrigger, function () {
+					model.trigger({ auto: true });
 				}, function (event) {
-					assert.equal(event.retrigger, true);
-				}),
+					assert.equal(event.auto, true);
 
-				// cancel on trigger
-				assertEvent(model.onDidCancel, function () {
-					model.trigger({ auto: false });
-				}, function (event) {
-					assert.equal(event.retrigger, false);
-				}),
-
-				assertEvent(model.onDidCancel, function () {
-					model.trigger({ auto: false }, true);
-				}, function (event) {
-					assert.equal(event.retrigger, true);
+					return assertEvent(model.onDidCancel, function () {
+						model.cancel();
+					}, function (event) {
+						assert.equal(event.retrigger, false);
+					});
 				}),
 
 				assertEvent(model.onDidTrigger, function () {
@@ -299,7 +287,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				assert.equal(event.completionModel.items.length, 1);
 				const [first] = event.completionModel.items;
 
-				assert.equal(first.support, alwaysSomethingSupport);
+				assert.equal(first.provider, alwaysSomethingSupport);
 			});
 		});
 	});
@@ -635,7 +623,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				assert.equal(event.completionModel.items.length, 1);
 				const [first] = event.completionModel.items;
 
-				assert.equal(first.support, alwaysSomethingSupport);
+				assert.equal(first.provider, alwaysSomethingSupport);
 			});
 
 			await assertEvent(model.onDidSuggest, () => {
@@ -646,7 +634,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				assert.equal(event.completionModel.items.length, 1);
 				const [first] = event.completionModel.items;
 
-				assert.equal(first.support, alwaysSomethingSupport);
+				assert.equal(first.provider, alwaysSomethingSupport);
 			});
 		});
 	});
@@ -715,7 +703,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				assert.equal(event.completionModel.items.length, 1);
 				const [first] = event.completionModel.items;
 
-				assert.equal(first.support, alwaysSomethingSupport);
+				assert.equal(first.provider, alwaysSomethingSupport);
 			});
 		});
 	});

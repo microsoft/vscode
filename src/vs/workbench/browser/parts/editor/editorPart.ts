@@ -7,7 +7,7 @@ import 'vs/workbench/browser/parts/editor/editor.contribution';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Part } from 'vs/workbench/browser/part';
 import { Dimension, isAncestor, toggleClass, addClass, $ } from 'vs/base/browser/dom';
-import { Event, Emitter, once, Relay, anyEvent } from 'vs/base/common/event';
+import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, ICopyEditorOptions, GroupsOrder, GroupChangeKind, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -105,7 +105,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 
 	private onDidSetGridWidget = this._register(new Emitter<{ width: number; height: number; }>());
 	private _onDidSizeConstraintsChange = this._register(new Relay<{ width: number; height: number; }>());
-	get onDidSizeConstraintsChange(): Event<{ width: number; height: number; }> { return anyEvent(this.onDidSetGridWidget.event, this._onDidSizeConstraintsChange.event); }
+	get onDidSizeConstraintsChange(): Event<{ width: number; height: number; }> { return Event.any(this.onDidSetGridWidget.event, this._onDidSizeConstraintsChange.event); }
 
 	private _onDidPreferredSizeChange: Emitter<void> = this._register(new Emitter<void>());
 	get onDidPreferredSizeChange(): Event<void> { return this._onDidPreferredSizeChange.event; }
@@ -523,7 +523,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		}));
 
 		// Track dispose
-		once(groupView.onWillDispose)(() => {
+		Event.once(groupView.onWillDispose)(() => {
 			groupDisposables = dispose(groupDisposables);
 			this.groupViews.delete(groupView.id);
 			this.doUpdateMostRecentActive(groupView);

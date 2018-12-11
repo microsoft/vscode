@@ -6,7 +6,7 @@
 import 'vs/css!./selectBoxCustom';
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { Event, Emitter, chain } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { KeyCode, KeyCodeUtils } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import * as dom from 'vs/base/browser/dom';
@@ -75,10 +75,6 @@ class SelectListRenderer implements IListRenderer<ISelectOptionItem, ISelectList
 			// Make sure we do class removal from prior template rendering
 			dom.removeClass((<HTMLElement>data.root), 'option-disabled');
 		}
-	}
-
-	disposeElement(): void {
-		// noop
 	}
 
 	disposeTemplate(templateData: ISelectListTemplateData): void {
@@ -759,7 +755,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 		});
 
 		// SetUp list keyboard controller - control navigation, disabled items, focus
-		const onSelectDropDownKeyDown = chain(domEvent(this.selectDropDownListContainer, 'keydown'))
+		const onSelectDropDownKeyDown = Event.chain(domEvent(this.selectDropDownListContainer, 'keydown'))
 			.filter(() => this.selectList.length > 0)
 			.map(e => new StandardKeyboardEvent(e));
 
@@ -775,7 +771,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 
 		// SetUp list mouse controller - control navigation, disabled items, focus
 
-		chain(domEvent(this.selectList.getHTMLElement(), 'mouseup'))
+		Event.chain(domEvent(this.selectList.getHTMLElement(), 'mouseup'))
 			.filter(() => this.selectList.length > 0)
 			.on(e => this.onMouseUp(e), this, this.toDispose);
 

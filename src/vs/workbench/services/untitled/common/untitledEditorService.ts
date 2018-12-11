@@ -9,7 +9,7 @@ import * as arrays from 'vs/base/common/arrays';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Event, Emitter, once } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { ResourceMap } from 'vs/base/common/map';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
@@ -246,7 +246,7 @@ export class UntitledEditorService extends Disposable implements IUntitledEditor
 		});
 
 		// Remove from cache on dispose
-		const onceDispose = once(input.onDispose);
+		const onceDispose = Event.once(input.onDispose);
 		onceDispose(() => {
 			this.mapResourceToInput.delete(input.getResource());
 			this.mapResourceToAssociatedFilePath.delete(input.getResource());

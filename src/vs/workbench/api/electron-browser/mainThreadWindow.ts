@@ -7,7 +7,7 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { MainThreadWindowShape, ExtHostWindowShape, ExtHostContext, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
-import { latch } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 
 @extHostNamedCustomer(MainContext.MainThreadWindow)
 export class MainThreadWindow implements MainThreadWindowShape {
@@ -21,7 +21,7 @@ export class MainThreadWindow implements MainThreadWindowShape {
 	) {
 		this.proxy = extHostContext.getProxy(ExtHostContext.ExtHostWindow);
 
-		latch(windowService.onDidChangeFocus)
+		Event.latch(windowService.onDidChangeFocus)
 			(this.proxy.$onDidChangeWindowFocus, this.proxy, this.disposables);
 	}
 

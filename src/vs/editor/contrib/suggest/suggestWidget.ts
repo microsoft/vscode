@@ -7,7 +7,7 @@ import 'vs/css!./media/suggest';
 import * as nls from 'vs/nls';
 import { createMatches } from 'vs/base/common/filters';
 import * as strings from 'vs/base/common/strings';
-import { Event, Emitter, chain } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { addClass, append, $, hide, removeClass, show, toggleClass, getDomNodePagePosition, hasClass } from 'vs/base/browser/dom';
@@ -136,7 +136,7 @@ class Renderer implements IListRenderer<ICompletionItem, ISuggestionTemplateData
 
 		configureFont();
 
-		chain<IConfigurationChangedEvent>(this.editor.onDidChangeConfiguration.bind(this.editor))
+		Event.chain<IConfigurationChangedEvent>(this.editor.onDidChangeConfiguration.bind(this.editor))
 			.filter(e => e.fontInfo || e.contribInfo)
 			.on(configureFont, null, data.disposables);
 
@@ -206,10 +206,6 @@ class Renderer implements IListRenderer<ICompletionItem, ISuggestionTemplateData
 		}
 	}
 
-	disposeElement(): void {
-		// noop
-	}
-
 	disposeTemplate(templateData: ISuggestionTemplateData): void {
 		templateData.disposables = dispose(templateData.disposables);
 	}
@@ -266,7 +262,7 @@ class SuggestionDetails {
 
 		this.configureFont();
 
-		chain<IConfigurationChangedEvent>(this.editor.onDidChangeConfiguration.bind(this.editor))
+		Event.chain<IConfigurationChangedEvent>(this.editor.onDidChangeConfiguration.bind(this.editor))
 			.filter(e => e.fontInfo)
 			.on(this.configureFont, this, this.disposables);
 

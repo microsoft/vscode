@@ -8,7 +8,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isEmptyObject } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { Event, Emitter, debounceEvent } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IMarkerService, IMarkerData, IResourceMarker, IMarker, MarkerStatistics, MarkerSeverity } from './markers';
 
 interface MapMap<V> {
@@ -124,7 +124,7 @@ export class MarkerService implements IMarkerService {
 	_serviceBrand: any;
 
 	private _onMarkerChanged = new Emitter<URI[]>();
-	private _onMarkerChangedEvent: Event<URI[]> = debounceEvent(this._onMarkerChanged.event, MarkerService._debouncer, 0);
+	private _onMarkerChangedEvent: Event<URI[]> = Event.debounce(this._onMarkerChanged.event, MarkerService._debouncer, 0);
 	private _byResource: MapMap<IMarker[]> = Object.create(null);
 	private _byOwner: MapMap<IMarker[]> = Object.create(null);
 	private _stats: MarkerStats;

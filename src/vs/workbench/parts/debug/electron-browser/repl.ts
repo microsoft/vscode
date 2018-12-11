@@ -67,6 +67,7 @@ import { WorkbenchAsyncDataTree, IListService } from 'vs/platform/list/browser/l
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 const $ = dom.$;
 
@@ -122,7 +123,8 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IListService private listService: IListService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@ITextResourcePropertiesService private textResourcePropertiesService: ITextResourcePropertiesService
+		@ITextResourcePropertiesService private textResourcePropertiesService: ITextResourcePropertiesService,
+		@IKeybindingService private keybindingService: IKeybindingService
 	) {
 		super(REPL_ID, telemetryService, themeService, storageService);
 
@@ -359,8 +361,9 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 				ariaLabel: nls.localize('replAriaLabel', "Read Eval Print Loop Panel"),
 				accessibilityProvider: new ReplAccessibilityProvider(),
 				identityProvider: { getId: element => element.getId() },
-				mouseSupport: false
-			}, this.contextKeyService, this.listService, this.themeService, this.configurationService);
+				mouseSupport: false,
+				typeLabelProvider: { getTypeLabel: e => e }
+			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
 
 		this.toDispose.push(this.tree.onContextMenu(e => this.onContextMenu(e)));
 		// Make sure to select the session if debugging is already active
@@ -557,10 +560,6 @@ class ReplExpressionsRenderer implements ITreeRenderer<Expression, void, IExpres
 		}
 	}
 
-	disposeElement(element: ITreeNode<Expression, void>, index: number, templateData: IExpressionTemplateData): void {
-		// noop
-	}
-
 	disposeTemplate(templateData: IExpressionTemplateData): void {
 		// noop
 	}
@@ -624,10 +623,6 @@ class ReplSimpleElementsRenderer implements ITreeRenderer<SimpleReplElement, voi
 		templateData.getReplElementSource = () => element.sourceData;
 	}
 
-	disposeElement(element: ITreeNode<SimpleReplElement, void>, index: number, templateData: ISimpleReplElementTemplateData): void {
-		// noop
-	}
-
 	disposeTemplate(templateData: ISimpleReplElementTemplateData): void {
 		dispose(templateData.toDispose);
 	}
@@ -675,10 +670,6 @@ class ReplRawObjectsRenderer implements ITreeRenderer<RawObjectReplElement, void
 			templateData.annotation.className = '';
 			templateData.annotation.title = '';
 		}
-	}
-
-	disposeElement(element: ITreeNode<RawObjectReplElement, void>, index: number, templateData: IRawObjectReplTemplateData): void {
-		// noop
 	}
 
 	disposeTemplate(templateData: IRawObjectReplTemplateData): void {

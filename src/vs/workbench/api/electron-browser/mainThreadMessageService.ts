@@ -11,7 +11,7 @@ import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostC
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { once } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { dispose } from 'vs/base/common/lifecycle';
 
@@ -89,7 +89,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 
 			// if promise has not been resolved yet, now is the time to ensure a return value
 			// otherwise if already resolved it means the user clicked one of the buttons
-			once(messageHandle.onDidClose)(() => {
+			Event.once(messageHandle.onDidClose)(() => {
 				dispose(...primaryActions, ...secondaryActions);
 				resolve(undefined);
 			});

@@ -172,7 +172,7 @@ export class EditorControl extends Disposable {
 
 		// Call into editor control
 		const editorWillChange = !inputMatches;
-		return TPromise.wrap(control.setInput(editor, options, operation.token)).then(() => {
+		return control.setInput(editor, options, operation.token).then(() => {
 
 			// Focus (unless prevented or another operation is running)
 			if (operation.isCurrent()) {
@@ -191,7 +191,7 @@ export class EditorControl extends Disposable {
 			// Operation done
 			operation.stop();
 
-			return TPromise.wrapError(e);
+			return Promise.reject(e);
 		});
 	}
 

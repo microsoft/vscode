@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { Event, Emitter, once } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { debounce } from 'vs/base/common/decorators';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { asThenable } from 'vs/base/common/async';
@@ -478,7 +478,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 			this.eventuallyUpdateResourceStates();
 		});
 
-		once(group.onDidDispose)(() => {
+		Event.once(group.onDidDispose)(() => {
 			this.updatedResourceGroups.delete(group);
 			updateListener.dispose();
 			this._groups.delete(group.handle);

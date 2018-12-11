@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import * as vscode from 'vscode';
 import { basename } from 'vs/base/common/paths';
 import { URI } from 'vs/base/common/uri';
-import { debounceEvent, Emitter, Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ExtHostTreeViewsShape, MainThreadTreeViewsShape } from './extHost.protocol';
 import { ITreeItem, TreeViewItemHandleArg, ITreeItemLabel, IRevealOptions } from 'vs/workbench/common/views';
@@ -179,7 +179,7 @@ class ExtHostTreeView<T> extends Disposable {
 		this.proxy.$registerTreeViewDataProvider(viewId, { showCollapseAll: !!options.showCollapseAll });
 		if (this.dataProvider.onDidChangeTreeData) {
 			let refreshingPromise, promiseCallback;
-			this._register(debounceEvent<T, T[]>(this.dataProvider.onDidChangeTreeData, (last, current) => {
+			this._register(Event.debounce<T, T[]>(this.dataProvider.onDidChangeTreeData, (last, current) => {
 				if (!refreshingPromise) {
 					// New refresh has started
 					refreshingPromise = new Promise(c => promiseCallback = c);

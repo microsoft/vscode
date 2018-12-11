@@ -27,7 +27,7 @@ export function createSuggestItem(label: string, overwriteBefore: number, kind =
 			suggestions: [this.suggestion]
 		};
 
-		support: CompletionItemProvider = {
+		provider: CompletionItemProvider = {
 			provideCompletionItems(): any {
 				return;
 			}
@@ -100,7 +100,7 @@ suite('CompletionModel', function () {
 		const complete = model.adopt(incomplete);
 
 		assert.equal(incomplete.size, 1);
-		assert.ok(incomplete.has(incompleteItem.support));
+		assert.ok(incomplete.has(incompleteItem.provider));
 		assert.equal(complete.length, 1);
 		assert.ok(complete[0] === completeItem);
 	});
@@ -130,7 +130,7 @@ suite('CompletionModel', function () {
 		const complete = model.adopt(incomplete);
 
 		assert.equal(incomplete.size, 1);
-		assert.ok(incomplete.has(incompleteItem1.support));
+		assert.ok(incomplete.has(incompleteItem1.provider));
 		assert.equal(complete.length, 5);
 	});
 

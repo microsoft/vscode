@@ -6,7 +6,7 @@
 import * as nativeWatchdog from 'native-watchdog';
 import { createConnection } from 'net';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Event, filterEvent } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
 import { Protocol } from 'vs/base/parts/ipc/node/ipc.net';
 import product from 'vs/platform/node/product';
@@ -61,7 +61,7 @@ function createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 
 			private _terminating = false;
 
-			readonly onMessage: Event<any> = filterEvent(protocol.onMessage, msg => {
+			readonly onMessage: Event<any> = Event.filter(protocol.onMessage, msg => {
 				if (!isMessageOfType(msg, MessageType.Terminate)) {
 					return true;
 				}

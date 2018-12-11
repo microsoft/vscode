@@ -19,6 +19,7 @@ import { EditorSimpleWorkerImpl } from 'vs/editor/common/services/editorSimpleWo
 import { IDiffComputationResult, IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { regExpFlags } from 'vs/base/common/strings';
 
 /**
  * Stop syncing a model to the worker if it was not needed for 1 min.
@@ -413,7 +414,7 @@ export class EditorWorkerClient extends Disposable {
 			}
 			let wordDefRegExp = LanguageConfigurationRegistry.getWordDefinition(model.getLanguageIdentifier().id);
 			let wordDef = wordDefRegExp.source;
-			let wordDefFlags = (wordDefRegExp.global ? 'g' : '') + (wordDefRegExp.ignoreCase ? 'i' : '') + (wordDefRegExp.multiline ? 'm' : '');
+			let wordDefFlags = regExpFlags(wordDefRegExp);
 			return proxy.textualSuggest(resource.toString(), position, wordDef, wordDefFlags);
 		});
 	}
@@ -426,7 +427,7 @@ export class EditorWorkerClient extends Disposable {
 			}
 			let wordDefRegExp = LanguageConfigurationRegistry.getWordDefinition(model.getLanguageIdentifier().id);
 			let wordDef = wordDefRegExp.source;
-			let wordDefFlags = (wordDefRegExp.global ? 'g' : '') + (wordDefRegExp.ignoreCase ? 'i' : '') + (wordDefRegExp.multiline ? 'm' : '');
+			let wordDefFlags = regExpFlags(wordDefRegExp);
 			return proxy.computeWordRanges(resource.toString(), range, wordDef, wordDefFlags);
 		});
 	}
@@ -439,7 +440,7 @@ export class EditorWorkerClient extends Disposable {
 			}
 			let wordDefRegExp = LanguageConfigurationRegistry.getWordDefinition(model.getLanguageIdentifier().id);
 			let wordDef = wordDefRegExp.source;
-			let wordDefFlags = (wordDefRegExp.global ? 'g' : '') + (wordDefRegExp.ignoreCase ? 'i' : '') + (wordDefRegExp.multiline ? 'm' : '');
+			let wordDefFlags = regExpFlags(wordDefRegExp);
 			return proxy.navigateValueSet(resource.toString(), range, up, wordDef, wordDefFlags);
 		});
 	}

@@ -130,9 +130,11 @@ export class ReplaceService implements IReplaceService {
 				disposable.dispose();
 			});
 			this.updateReplacePreview(fileMatch).then(() => {
-				let editorControl = editor.getControl();
-				if (element instanceof Match) {
-					editorControl.revealLineInCenter(element.range().startLineNumber, ScrollType.Immediate);
+				if (editor) {
+					let editorControl = editor.getControl();
+					if (element instanceof Match) {
+						editorControl.revealLineInCenter(element.range().startLineNumber, ScrollType.Immediate);
+					}
 				}
 			});
 		}, errors.onUnexpectedError);

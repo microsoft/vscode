@@ -69,13 +69,13 @@ export class ExtensionHostProfiler {
 		}
 		visit(nodes[0], null);
 
-		let samples = profile.samples;
-		let timeDeltas = profile.timeDeltas;
+		const samples = profile.samples || [];
+		let timeDeltas = profile.timeDeltas || [];
 		let distilledDeltas: number[] = [];
 		let distilledIds: ProfileSegmentId[] = [];
 
 		let currSegmentTime = 0;
-		let currSegmentId: string = void 0;
+		let currSegmentId: string | undefined;
 		for (let i = 0; i < samples.length; i++) {
 			let id = samples[i];
 			let segmentId = idsToSegmentId.get(id);
@@ -84,7 +84,7 @@ export class ExtensionHostProfiler {
 					distilledIds.push(currSegmentId);
 					distilledDeltas.push(currSegmentTime);
 				}
-				currSegmentId = segmentId;
+				currSegmentId = segmentId || undefined;
 				currSegmentTime = 0;
 			}
 			currSegmentTime += timeDeltas[i];
@@ -93,9 +93,6 @@ export class ExtensionHostProfiler {
 			distilledIds.push(currSegmentId);
 			distilledDeltas.push(currSegmentTime);
 		}
-		idsToNodes = null;
-		idsToSegmentId = null;
-		searchTree = null;
 
 		return {
 			startTime: profile.startTime,

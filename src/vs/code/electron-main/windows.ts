@@ -2029,11 +2029,11 @@ class WorkspacesManager {
 
 	private isValidTargetWorkspacePath(window: ICodeWindow, path?: string): TPromise<boolean> {
 		if (!path) {
-			return TPromise.wrap(true);
+			return Promise.resolve(true);
 		}
 
 		if (window.openedWorkspace && window.openedWorkspace.configPath === path) {
-			return TPromise.wrap(false); // window is already opened on a workspace with that path
+			return Promise.resolve(false); // window is already opened on a workspace with that path
 		}
 
 		// Prevent overwriting a workspace that is currently opened in another window
@@ -2050,7 +2050,7 @@ class WorkspacesManager {
 			return this.windowsMainService.showMessageBox(options, this.windowsMainService.getFocusedWindow()).then(() => false);
 		}
 
-		return TPromise.wrap(true); // OK
+		return Promise.resolve(true); // OK
 	}
 
 	private doSaveAndOpenWorkspace(window: ICodeWindow, workspace: IWorkspaceIdentifier, path?: string): TPromise<IEnterWorkspaceResult> {

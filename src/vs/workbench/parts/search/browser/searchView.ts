@@ -11,7 +11,7 @@ import { MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IAction } from 'vs/base/common/actions';
 import { Delayer } from 'vs/base/common/async';
 import * as errors from 'vs/base/common/errors';
-import { anyEvent, debounceEvent, Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import * as paths from 'vs/base/common/paths';
@@ -67,6 +67,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 	private static readonly WIDE_CLASS_NAME = 'wide';
 	private static readonly WIDE_VIEW_SIZE = 1000;
+	private static readonly ACTIONS_RIGHT_CLASS_NAME = 'actions-right';
 
 	private isDisposed: boolean;
 
@@ -159,10 +160,11 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this._register(this.searchHistoryService.onDidClearHistory(() => this.clearHistory()));
 
 		this.selectCurrentMatchEmitter = this._register(new Emitter<string>());
-		this._register(debounceEvent(this.selectCurrentMatchEmitter.event, (l, e) => e, 100, /*leading=*/true)
+		this._register(Event.debounce(this.selectCurrentMatchEmitter.event, (l, e) => e, 100, /*leading=*/true)
 			(() => this.selectCurrentMatch()));
 
 		this.delayedRefresh = this._register(new Delayer<void>(250));
+
 	}
 
 	private onDidChangeWorkbenchState(): void {
@@ -273,6 +275,11 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 		this._register(this.viewModel.searchResult.onChange((event) => this.onSearchResultsChanged(event)));
 
+		this._register(this.searchWidget.searchInput.onInput(() => this.updateActions()));
+		this._register(this.searchWidget.replaceInput.onDidChange(() => this.updateActions()));
+		this._register(this.searchIncludePattern.inputBox.onDidChange(() => this.updateActions()));
+		this._register(this.searchExcludePattern.inputBox.onDidChange(() => this.updateActions()));
+
 		this._register(this.onDidFocus(() => this.viewletFocused.set(true)));
 		this._register(this.onDidBlur(() => this.viewletFocused.set(false)));
 	}
@@ -347,6 +354,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		}));
 
 		this._register(this.searchWidget.onReplaceAll(() => this.replaceAll()));
+
 		this.trackInputBox(this.searchWidget.searchInputFocusTracker);
 		this.trackInputBox(this.searchWidget.replaceInputFocusTracker);
 	}
@@ -528,7 +536,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this.tree.setInput(this.viewModel.searchResult);
 
 		const searchResultsNavigator = this._register(new TreeResourceNavigator(this.tree, { openOnFocus: true }));
-		this._register(debounceEvent(searchResultsNavigator.openResource, (last, event) => event, 75, true)(options => {
+		this._register(Event.debounce(searchResultsNavigator.openResource, (last, event) => event, 75, true)(options => {
 			if (options.element instanceof Match) {
 				let selectedMatch: Match = options.element;
 				if (this.currentSelectedFileMatch) {
@@ -542,7 +550,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			}
 		}));
 
-		this._register(anyEvent<any>(this.tree.onDidFocus, this.tree.onDidChangeFocus)(() => {
+		this._register(Event.any<any>(this.tree.onDidFocus, this.tree.onDidChangeFocus)(() => {
 			if (this.tree.isDOMFocused()) {
 				const focus = this.tree.getFocus();
 				this.firstMatchFocused.set(this.tree.getNavigator().first() === focus);
@@ -787,8 +795,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		}
 
 		const actionsPosition = this.configurationService.getValue<ISearchConfigurationProperties>('search').actionsPosition;
-		const useWideLayout = this.size.width >= SearchView.WIDE_VIEW_SIZE && actionsPosition === 'auto';
-		dom.toggleClass(this.getContainer(), SearchView.WIDE_CLASS_NAME, useWideLayout);
+		dom.toggleClass(this.getContainer(), SearchView.ACTIONS_RIGHT_CLASS_NAME, actionsPosition === 'right');
+		dom.toggleClass(this.getContainer(), SearchView.WIDE_CLASS_NAME, this.size.width >= SearchView.WIDE_VIEW_SIZE);
 
 		this.searchWidget.setWidth(this.size.width - 28 /* container margin */);
 
@@ -825,6 +833,13 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		return this.searching;
 	}
 
+	public allSearchFieldsClear(): boolean {
+		return this.searchWidget.getReplaceValue() === '' &&
+			this.searchWidget.searchInput.getValue() === '' &&
+			this.searchIncludePattern.getValue() === '' &&
+			this.searchExcludePattern.getValue() === '';
+	}
+
 	public hasSearchResults(): boolean {
 		return !this.viewModel.searchResult.isEmpty();
 	}
@@ -836,7 +851,10 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			this.showSearchWithoutFolderMessage();
 		}
 		this.searchWidget.clear();
+		this.searchIncludePattern.setValue('');
+		this.searchExcludePattern.setValue('');
 		this.viewModel.cancelSearch();
+		this.updateActions();
 	}
 
 	public cancelSearch(): boolean {

@@ -14,11 +14,7 @@ import { toResource } from 'vs/base/test/common/utils';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { FileOperationResult, FileOperationError, IFileService, snapshotToString } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { timeout as thenableTimeout } from 'vs/base/common/async';
-
-function timeout(n: number) {
-	return TPromise.wrap(thenableTimeout(n));
-}
+import { timeout } from 'vs/base/common/async';
 
 class ServiceAccessor {
 	constructor(@ITextFileService public textFileService: TestTextFileService, @IModelService public modelService: IModelService, @IFileService public fileService: TestFileService) {
@@ -320,7 +316,7 @@ suite('Files - TextFileEditorModel', () => {
 
 		TextFileEditorModel.setSaveParticipant({
 			participate: (model) => {
-				return TPromise.wrapError(new Error('boom'));
+				return Promise.reject(new Error('boom'));
 			}
 		});
 
@@ -407,7 +403,7 @@ suite('Files - TextFileEditorModel', () => {
 		let thirdDone = false;
 		let thirdRes = sequentializer.setNext(() => timeout(4).then(() => { thirdDone = true; return null; }));
 
-		return TPromise.join([firstRes, secondRes, thirdRes]).then(() => {
+		return Promise.all([firstRes, secondRes, thirdRes]).then(() => {
 			assert.ok(pendingDone);
 			assert.ok(!firstDone);
 			assert.ok(!secondDone);

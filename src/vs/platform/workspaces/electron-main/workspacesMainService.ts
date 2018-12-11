@@ -201,7 +201,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 			try {
 				storedWorkspace = this.doParseStoredWorkspace(workspace.configPath, rawWorkspaceContents);
 			} catch (error) {
-				return TPromise.wrapError(error);
+				return Promise.reject(error);
 			}
 
 			const sourceConfigFolder = dirname(workspace.configPath);

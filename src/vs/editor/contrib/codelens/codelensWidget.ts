@@ -6,7 +6,7 @@
 import 'vs/css!./codelensWidget';
 import * as dom from 'vs/base/browser/dom';
 import { coalesce, isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { escape, format } from 'vs/base/common/strings';
+import { escape } from 'vs/base/common/strings';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
@@ -109,10 +109,10 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 			let title = escape(command.title);
 			let part: string;
 			if (command.id) {
-				part = format('<a id={0}>{1}</a>', i, title);
+				part = `<a id=${i}>${title}</a>`;
 				this._commands[i] = command;
 			} else {
-				part = format('<span>{0}</span>', title);
+				part = `<span>${title}</span>`;
 			}
 			html.push(part);
 		}

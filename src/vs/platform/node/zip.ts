@@ -13,7 +13,7 @@ import { open as _openZip, Entry, ZipFile } from 'yauzl';
 import * as yazl from 'yazl';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { once } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 
 export interface IExtractOptions {
 	overwrite?: boolean;
@@ -81,7 +81,7 @@ function extractEntry(stream: Readable, fileName: string, mode: number, targetPa
 
 	let istream: WriteStream;
 
-	once(token.onCancellationRequested)(() => {
+	Event.once(token.onCancellationRequested)(() => {
 		if (istream) {
 			istream.destroy();
 		}
@@ -108,7 +108,7 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, log
 	let last = createCancelablePromise<void>(() => Promise.resolve());
 	let extractedEntriesCount = 0;
 
-	once(token.onCancellationRequested)(() => {
+	Event.once(token.onCancellationRequested)(() => {
 		logService.debug(targetPath, 'Cancelled.');
 		last.cancel();
 		zipfile.close();

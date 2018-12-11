@@ -783,7 +783,7 @@ export class DebugService implements IDebugService {
 		}
 
 		if (stackFrame) {
-			stackFrame.openInEditor(this.editorService, true).then(undefined, errors.onUnexpectedError);
+			stackFrame.openInEditor(this.editorService, true);
 			aria.alert(nls.localize('debuggingPaused', "Debugging paused {0}, {1} {2}", thread.stoppedDetails ? `, reason ${thread.stoppedDetails.reason}` : '', stackFrame.source ? stackFrame.source.name : '', stackFrame.range.startLineNumber));
 		}
 

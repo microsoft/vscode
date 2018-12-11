@@ -9,7 +9,6 @@ import { renderMarkdown } from 'vs/base/browser/htmlContentRenderer';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import { IDataSource, IFilter, IRenderer as ITreeRenderer, ITree } from 'vs/base/parts/tree/browser/tree';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -34,21 +33,21 @@ export class CommentsDataSource implements IDataSource {
 		return element instanceof CommentsModel || element instanceof ResourceWithCommentThreads || (element instanceof CommentNode && !!element.replies.length);
 	}
 
-	public getChildren(tree: ITree, element: any): Promise {
+	public getChildren(tree: ITree, element: any): Promise<ResourceWithCommentThreads[] | CommentNode[]> {
 		if (element instanceof CommentsModel) {
-			return Promise.as(element.resourceCommentThreads);
+			return Promise.resolve(element.resourceCommentThreads);
 		}
 		if (element instanceof ResourceWithCommentThreads) {
-			return Promise.as(element.commentThreads);
+			return Promise.resolve(element.commentThreads);
 		}
 		if (element instanceof CommentNode) {
-			return Promise.as(element.replies);
+			return Promise.resolve(element.replies);
 		}
 		return null;
 	}
 
-	public getParent(tree: ITree, element: any): Promise {
-		return TPromise.as(null);
+	public getParent(tree: ITree, element: any): Promise<void> {
+		return Promise.resolve(null);
 	}
 
 	public shouldAutoexpand(tree: ITree, element: any): boolean {

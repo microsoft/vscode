@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, NodeEventEmitter } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { TPromise } from 'vs/base/common/winjs.base';
 
@@ -74,7 +74,7 @@ export const State = {
 	Ready: (update: IUpdate) => ({ type: StateType.Ready, update } as Ready),
 };
 
-export interface IAutoUpdater extends NodeEventEmitter {
+export interface IAutoUpdater extends Event.NodeEventEmitter {
 	setFeedURL(url: string): void;
 	checkForUpdates(): void;
 	applyUpdate?(): TPromise<void>;
