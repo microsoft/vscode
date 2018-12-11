@@ -113,7 +113,7 @@ export class FileIconThemeData implements IFileIconTheme {
 			return Promise.resolve(this.styleSheetContent);
 		}
 		return _loadIconThemeDocument(fileService, this.location).then(iconThemeDocument => {
-			const result = _processIconThemeDocument(this.id, this.location, iconThemeDocument);
+			const result = _processIconThemeDocument(this.id, this.location!, iconThemeDocument);
 			this.styleSheetContent = result.content;
 			this.hasFileIcons = result.hasFileIcons;
 			this.hasFolderIcons = result.hasFolderIcons;
