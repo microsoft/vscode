@@ -40,18 +40,18 @@ import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { WorkbenchTree } from 'vs/platform/list/browser/listService';
+import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { attachInputBoxStyler, attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { IViewsService } from 'vs/workbench/common/views';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { OutlineController, OutlineDataSource, OutlineItemComparator, OutlineItemCompareType, OutlineItemFilter, OutlineRenderer, OutlineTreeState } from '../../../../editor/contrib/documentSymbols/outlineTree';
+import { OutlineController, OutlineItemComparator, OutlineItemCompareType, OutlineTreeState } from '../../../../editor/contrib/documentSymbols/outlineTree';
 import { OutlineConfigKeys, OutlineViewFiltered, OutlineViewFocused, OutlineViewId } from './outline';
+import { NOutlineItem, NOutlineVirtualDelegate, NOutlineGroupRenderer, NOutlineElementRenderer, NOutlineFilter, NOutlineIdentityProvider, createModelIterator as createOutlineModelIterator } from 'vs/editor/contrib/documentSymbols/outlineTree2';
 
 class RequestState {
 
@@ -235,10 +235,12 @@ export class OutlinePanel extends ViewletPanel {
 	private _inputContainer: HTMLDivElement;
 	private _input: InputBox;
 	private _progressBar: ProgressBar;
-	private _tree: WorkbenchTree;
-	private _treeDataSource: OutlineDataSource;
-	private _treeRenderer: OutlineRenderer;
-	private _treeFilter: OutlineItemFilter;
+	// private _tree: WorkbenchTree;
+	private _tree: WorkbenchObjectTree<NOutlineItem>;
+	// private _treeDataSource: OutlineDataSource;
+	private _treeGroupRenderer: NOutlineGroupRenderer;
+	private _treeElementRenderer: NOutlineElementRenderer;
+	private _treeFilter: NOutlineFilter;
 	private _treeComparator: OutlineItemComparator;
 	private _treeStates = new LRUCache<string, OutlineTreeState>(10);
 
@@ -279,9 +281,10 @@ export class OutlinePanel extends ViewletPanel {
 			// dom node when the tree cannot take focus,
 			// e.g. when hidden
 			this._tree.domFocus();
-			if (!this._tree.isDOMFocused()) {
-				this._domNode.focus();
-			}
+			// todo@joh,joao no isDOMFocused?
+			// if (!this._tree.isDOMFocused()) {
+			// 	this._domNode.focus();
+			// }
 		}
 	}
 
@@ -353,14 +356,22 @@ export class OutlinePanel extends ViewletPanel {
 			}
 		};
 
-		this._treeRenderer = this._instantiationService.createInstance(OutlineRenderer);
-		this._treeDataSource = new OutlineDataSource();
-		this._treeComparator = new OutlineItemComparator(this._outlineViewState.sortBy);
-		this._treeFilter = new OutlineItemFilter();
-		this._tree = this._instantiationService.createInstance(WorkbenchTree, treeContainer, { controller, renderer: this._treeRenderer, dataSource: this._treeDataSource, sorter: this._treeComparator, filter: this._treeFilter }, {});
+		this._treeGroupRenderer = this._instantiationService.createInstance(NOutlineGroupRenderer);
+		this._treeElementRenderer = this._instantiationService.createInstance(NOutlineElementRenderer);
+		this._treeFilter = this._instantiationService.createInstance(NOutlineFilter);
 
-		this._treeRenderer.renderProblemColors = this._configurationService.getValue(OutlineConfigKeys.problemsColors);
-		this._treeRenderer.renderProblemBadges = this._configurationService.getValue(OutlineConfigKeys.problemsBadges);
+		this._tree = <any>this._instantiationService.createInstance(WorkbenchObjectTree,
+			treeContainer,
+			new NOutlineVirtualDelegate(),
+			<any>[this._treeGroupRenderer, this._treeElementRenderer],
+			{
+				filter: <any>this._treeFilter,
+				identityProvider: new NOutlineIdentityProvider()
+			}
+		);
+
+		this._treeElementRenderer.renderProblemColors = this._configurationService.getValue(OutlineConfigKeys.problemsColors);
+		this._treeElementRenderer.renderProblemBadges = this._configurationService.getValue(OutlineConfigKeys.problemsBadges);
 
 		this._disposables.push(this._tree, this._input);
 		this._disposables.push(this._outlineViewState.onDidChange(this._onDidChangeUserState, this));
@@ -404,7 +415,12 @@ export class OutlinePanel extends ViewletPanel {
 	getActions(): IAction[] {
 		return [
 			new Action('collapse', localize('collapse', "Collapse All"), 'explorer-action collapse-explorer', true, () => {
-				return new CollapseAction(this._tree, true, undefined).run();
+				this._tree.collapseAll();
+				this._tree.setSelection([]);
+				this._tree.setFocus([]);
+				this._tree.domFocus();
+				this._tree.focusFirst();
+				return undefined;
 			})
 		];
 	}
@@ -444,6 +460,7 @@ export class OutlinePanel extends ViewletPanel {
 	private _showMessage(message: string) {
 		dom.addClass(this._domNode, 'message');
 		this._tree.setInput(undefined);
+		this._tree.setChildren(null);
 		this._progressBar.stop().hide();
 		this._message.innerText = escape(message);
 	}
@@ -533,8 +550,9 @@ export class OutlinePanel extends ViewletPanel {
 		this._progressBar.stop().hide();
 
 		if (oldModel && oldModel.merge(model)) {
-			this._tree.refresh(undefined, true);
+			// this._tree.refresh(undefined, true);
 			model = oldModel;
+			this._tree.setChildren(null, createOutlineModelIterator(model));
 
 		} else {
 			// persist state
@@ -542,7 +560,8 @@ export class OutlinePanel extends ViewletPanel {
 				let state = OutlineTreeState.capture(this._tree);
 				this._treeStates.set(oldModel.textModel.uri.toString(), state);
 			}
-			await this._tree.setInput(model);
+			this._tree.setChildren(null, createOutlineModelIterator(model));
+			// await this._tree.setInput(model);
 			let state = this._treeStates.get(model.textModel.uri.toString());
 			await OutlineTreeState.restore(this._tree, state, this);
 		}
@@ -571,8 +590,8 @@ export class OutlinePanel extends ViewletPanel {
 			await this._tree.refresh(undefined, true);
 			if (item) {
 				await this._tree.expandAll(undefined /*all*/);
-				await this._tree.reveal(item);
-				this._tree.setFocus(item, this);
+				this._tree.reveal(item);
+				this._tree.setFocus([item], this);
 				this._tree.setSelection([item], this);
 			}
 
@@ -645,8 +664,8 @@ export class OutlinePanel extends ViewletPanel {
 
 		this._editorDisposables.push(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(OutlineConfigKeys.problemsBadges) || e.affectsConfiguration(OutlineConfigKeys.problemsColors)) {
-				this._treeRenderer.renderProblemColors = this._configurationService.getValue(OutlineConfigKeys.problemsColors);
-				this._treeRenderer.renderProblemBadges = this._configurationService.getValue(OutlineConfigKeys.problemsBadges);
+				this._treeElementRenderer.renderProblemColors = this._configurationService.getValue(OutlineConfigKeys.problemsColors);
+				this._treeElementRenderer.renderProblemBadges = this._configurationService.getValue(OutlineConfigKeys.problemsBadges);
 				this._tree.refresh(undefined, true);
 				return;
 			}
@@ -673,9 +692,10 @@ export class OutlinePanel extends ViewletPanel {
 			this._treeDataSource.filterOnScore = false;
 			this._input.setPlaceHolder(localize('find', "Find"));
 		}
-		if (this._tree.getInput()) {
-			this._tree.refresh(undefined, true);
-		}
+		this._tree.refilter();
+		// if (this._tree.getInput()) {
+		// 	this._tree.refresh(undefined, true);
+		// }
 	}
 
 	private async _revealTreeSelection(model: OutlineModel, element: OutlineElement, focus: boolean, aside: boolean): Promise<void> {
@@ -729,6 +749,12 @@ export class OutlinePanel extends ViewletPanel {
 				break;
 			}
 		}
+		let focused = this._tree.getFocus()[0];
+		if (!focused) {
+			return;
+		}
+		let root = this._tree.getNode(focused);
+
 	}
 }
 
