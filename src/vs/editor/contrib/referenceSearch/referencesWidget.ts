@@ -509,13 +509,15 @@ export class ReferenceWidget extends PeekViewWidget {
 		return undefined;
 	}
 
+	private _revealedReference?: OneReference;
+
 	private async _revealReference(reference: OneReference, revealParent: boolean): Promise<void> {
 
 		// check if there is anything to do...
-		const currentSelection = this._tree.getSelection();
-		if (currentSelection.length === 1 && currentSelection[0] === reference) {
+		if (this._revealedReference === reference) {
 			return;
 		}
+		this._revealedReference = reference;
 
 		// Update widget header
 		if (reference.uri.scheme !== Schemas.inMemory) {
