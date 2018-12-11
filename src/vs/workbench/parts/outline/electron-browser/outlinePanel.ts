@@ -14,7 +14,7 @@ import { Action, IAction, RadioGroup } from 'vs/base/common/actions';
 import { firstIndex } from 'vs/base/common/arrays';
 import { createCancelablePromise, TimeoutTimer } from 'vs/base/common/async';
 import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -356,8 +356,9 @@ export class OutlinePanel extends ViewletPanel {
 			}
 		};
 
-		this._treeGroupRenderer = this._instantiationService.createInstance(NOutlineGroupRenderer);
-		this._treeElementRenderer = this._instantiationService.createInstance(NOutlineElementRenderer);
+		// TODO@joh: pass along to the renderers an event which should trigger a re-render of elements
+		this._treeGroupRenderer = this._instantiationService.createInstance(NOutlineGroupRenderer, Event.None);
+		this._treeElementRenderer = this._instantiationService.createInstance(NOutlineElementRenderer, Event.None);
 		this._treeFilter = this._instantiationService.createInstance(NOutlineFilter);
 
 		this._tree = <any>this._instantiationService.createInstance(WorkbenchObjectTree,
@@ -373,7 +374,7 @@ export class OutlinePanel extends ViewletPanel {
 		this._treeElementRenderer.renderProblemColors = this._configurationService.getValue(OutlineConfigKeys.problemsColors);
 		this._treeElementRenderer.renderProblemBadges = this._configurationService.getValue(OutlineConfigKeys.problemsBadges);
 
-		this._disposables.push(this._tree, this._input);
+		this._disposables.push(this._tree, this._input, this._treeGroupRenderer, this._treeElementRenderer);
 		this._disposables.push(this._outlineViewState.onDidChange(this._onDidChangeUserState, this));
 
 		// feature: toggle icons
