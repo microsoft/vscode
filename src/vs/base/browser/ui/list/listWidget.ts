@@ -883,8 +883,10 @@ class PipelineRenderer<T> implements IListRenderer<T, any> {
 
 		for (const renderer of this.renderers) {
 			if (renderer.disposeElement) {
-				renderer.disposeElement(element, index, templateData[i++]);
+				renderer.disposeElement(element, index, templateData[i]);
 			}
+
+			i += 1;
 		}
 	}
 
