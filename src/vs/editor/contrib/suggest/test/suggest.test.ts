@@ -9,6 +9,7 @@ import { CompletionProviderRegistry, CompletionItemKind } from 'vs/editor/common
 import { provideSuggestionItems } from 'vs/editor/contrib/suggest/suggest';
 import { Position } from 'vs/editor/common/core/position';
 import { TextModel } from 'vs/editor/common/model/textModel';
+import { Range } from 'vs/editor/common/core/range';
 
 
 suite('Suggest', function () {
@@ -20,21 +21,24 @@ suite('Suggest', function () {
 
 		model = TextModel.createFromString('FOO\nbar\BAR\nfoo', undefined, undefined, URI.parse('foo:bar/path'));
 		registration = CompletionProviderRegistry.register({ pattern: 'bar/path', scheme: 'foo' }, {
-			provideCompletionItems() {
+			provideCompletionItems(_doc, pos) {
 				return {
 					incomplete: false,
 					suggestions: [{
 						label: 'aaa',
 						kind: CompletionItemKind.Snippet,
-						insertText: 'aaa'
+						insertText: 'aaa',
+						range: Range.fromPositions(pos)
 					}, {
 						label: 'zzz',
 						kind: CompletionItemKind.Snippet,
-						insertText: 'zzz'
+						insertText: 'zzz',
+						range: Range.fromPositions(pos)
 					}, {
 						label: 'fff',
 						kind: CompletionItemKind.Property,
-						insertText: 'fff'
+						insertText: 'fff',
+						range: Range.fromPositions(pos)
 					}]
 				};
 			}

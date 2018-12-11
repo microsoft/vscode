@@ -9,6 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
+import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { Handler } from 'vs/editor/common/editorCommon';
@@ -28,6 +29,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/suggestMemory';
+import { ITextModel } from 'vs/editor/common/model';
 
 export interface Ctor<T> {
 	new(): T;
@@ -149,6 +151,11 @@ suite('SuggestModel - Context', function () {
 suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 
+	function getDefaultSuggestRange(model: ITextModel, position: Position) {
+		const wordUntil = model.getWordUntilPosition(position);
+		return new Range(position.lineNumber, wordUntil.startColumn, position.lineNumber, wordUntil.endColumn);
+	}
+
 	const alwaysEmptySupport: CompletionItemProvider = {
 		provideCompletionItems(doc, pos): CompletionList {
 			return {
@@ -165,7 +172,8 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				suggestions: [{
 					label: doc.getWordUntilPosition(pos).word,
 					kind: CompletionItemKind.Property,
-					insertText: 'foofoo'
+					insertText: 'foofoo',
+					range: getDefaultSuggestRange(doc, pos)
 				}]
 			};
 		}
@@ -301,7 +309,8 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 					suggestions: [{
 						label: 'My Table',
 						kind: CompletionItemKind.Property,
-						insertText: 'My Table'
+						insertText: 'My Table',
+						range: getDefaultSuggestRange(doc, pos)
 					}]
 				};
 			}
@@ -718,7 +727,13 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			provideCompletionItems(doc, pos) {
 				return {
 					incomplete: true,
-					suggestions: [{ kind: CompletionItemKind.Folder, label: 'CompleteNot', insertText: 'Incomplete', sortText: 'a', overwriteBefore: pos.column - 1 }],
+					suggestions: [{
+						kind: CompletionItemKind.Folder,
+						label: 'CompleteNot',
+						insertText: 'Incomplete',
+						sortText: 'a',
+						range: getDefaultSuggestRange(doc, pos)
+					}],
 					dispose() { disposeA += 1; }
 				};
 			}
@@ -727,7 +742,13 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			provideCompletionItems(doc, pos) {
 				return {
 					incomplete: false,
-					suggestions: [{ kind: CompletionItemKind.Folder, label: 'Complete', insertText: 'Complete', sortText: 'z', overwriteBefore: pos.column - 1 }],
+					suggestions: [{
+						kind: CompletionItemKind.Folder,
+						label: 'Complete',
+						insertText: 'Complete',
+						sortText: 'z',
+						range: getDefaultSuggestRange(doc, pos)
+					}],
 					dispose() { disposeB += 1; }
 				};
 			},
