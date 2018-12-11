@@ -7,7 +7,7 @@ import 'vs/css!./actionbar';
 import * as platform from 'vs/base/common/platform';
 import * as nls from 'vs/nls';
 import { Disposable, dispose } from 'vs/base/common/lifecycle';
-import { SelectBox, ISelectBoxOptions } from 'vs/base/browser/ui/selectBox/selectBox';
+import { SelectBox, ISelectOptionItem, ISelectBoxOptions } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IAction, IActionRunner, Action, IActionChangeEvent, ActionRunner, IRunEvent } from 'vs/base/common/actions';
 import * as DOM from 'vs/base/browser/dom';
 import * as types from 'vs/base/common/types';
@@ -809,7 +809,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 export class SelectActionItem extends BaseActionItem {
 	protected selectBox: SelectBox;
 
-	constructor(ctx: any, action: IAction, options: string[], selected: number, contextViewProvider: IContextViewProvider, selectBoxOptions?: ISelectBoxOptions) {
+	constructor(ctx: any, action: IAction, options: ISelectOptionItem[], selected: number, contextViewProvider: IContextViewProvider, selectBoxOptions?: ISelectBoxOptions) {
 		super(ctx, action);
 
 		this.selectBox = new SelectBox(options, selected, contextViewProvider, undefined, selectBoxOptions);
@@ -818,8 +818,8 @@ export class SelectActionItem extends BaseActionItem {
 		this.registerListeners();
 	}
 
-	setOptions(options: string[], selected?: number, disabled?: number): void {
-		this.selectBox.setOptions(options, selected, disabled);
+	setOptions(options: ISelectOptionItem[], selected?: number): void {
+		this.selectBox.setOptions(options, selected);
 	}
 
 	select(index: number): void {
