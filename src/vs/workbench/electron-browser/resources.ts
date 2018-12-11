@@ -20,8 +20,8 @@ export class ResourceGlobMatcher extends Disposable {
 	private readonly _onExpressionChange: Emitter<void> = this._register(new Emitter<void>());
 	get onExpressionChange(): Event<void> { return this._onExpressionChange.event; }
 
-	private mapRootToParsedExpression: Map<string, ParsedExpression>;
-	private mapRootToExpressionConfig: Map<string, IExpression>;
+	private mapRootToParsedExpression: Map<string | null, ParsedExpression>;
+	private mapRootToExpressionConfig: Map<string | null, IExpression>;
 
 	constructor(
 		private globFn: (root?: URI) => IExpression,
@@ -69,7 +69,7 @@ export class ResourceGlobMatcher extends Disposable {
 				return; // always keep this one
 			}
 
-			if (!this.contextService.getWorkspaceFolder(URI.parse(root))) {
+			if (root && !this.contextService.getWorkspaceFolder(URI.parse(root))) {
 				this.mapRootToParsedExpression.delete(root);
 				this.mapRootToExpressionConfig.delete(root);
 
