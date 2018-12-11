@@ -244,7 +244,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	}
 
 	protected doOpenEditor(group: IEditorGroup, editor: IEditorInput, options?: IEditorOptions): TPromise<IEditor> {
-		return group.openEditor(editor, options).then(() => group.activeControl);
+		return group.openEditor(editor, options);
 	}
 
 	private findTargetGroup(input: IEditorInput, options?: IEditorOptions, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): IEditorGroup {
@@ -363,7 +363,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		// Open in targets
 		const result: TPromise<IEditor>[] = [];
 		mapGroupToEditors.forEach((editorsWithOptions, group) => {
-			result.push((group.openEditors(editorsWithOptions)).then(() => group.activeControl));
+			result.push(group.openEditors(editorsWithOptions));
 		});
 
 		return TPromise.join(result);

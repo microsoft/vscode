@@ -649,12 +649,12 @@ export class TestEditorGroup implements IEditorGroupView {
 		return -1;
 	}
 
-	openEditor(_editor: IEditorInput, _options?: IEditorOptions): TPromise<void> {
-		return TPromise.as(void 0);
+	openEditor(_editor: IEditorInput, _options?: IEditorOptions): TPromise<IEditor> {
+		return TPromise.as(null);
 	}
 
-	openEditors(_editors: IEditorInputWithOptions[]): TPromise<void> {
-		return TPromise.as(void 0);
+	openEditors(_editors: IEditorInputWithOptions[]): TPromise<IEditor> {
+		return TPromise.as(null);
 	}
 
 	isOpened(_editor: IEditorInput): boolean {

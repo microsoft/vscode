@@ -30,6 +30,7 @@ import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { coalesce } from 'vs/base/common/arrays';
+import { always } from 'vs/base/common/async';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -402,13 +403,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private navigate(acrossEditors?: boolean): void {
 		this.navigatingInStack = true;
 
-		this.doNavigate(this.stack[this.index], !acrossEditors).then(() => {
-			this.navigatingInStack = false;
-		}, error => {
-			this.navigatingInStack = false;
-
-			onUnexpectedError(error);
-		});
+		always(this.doNavigate(this.stack[this.index], !acrossEditors), () => this.navigatingInStack = false);
 	}
 
 	private doNavigate(location: IStackEntry, withSelection: boolean): Thenable<IBaseEditor> {

@@ -146,9 +146,11 @@ export class BreakpointsView extends ViewletPanel {
 			actions.push(new Action('workbench.action.debug.openEditorAndEditBreakpoint', nls.localize('editBreakpoint', "Edit {0}...", breakpointType), undefined, true, () => {
 				if (element instanceof Breakpoint) {
 					return openBreakpointSource(element, false, false, this.debugService, this.editorService).then(editor => {
-						const codeEditor = editor.getControl();
-						if (isCodeEditor(codeEditor)) {
-							codeEditor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showBreakpointWidget(element.lineNumber, element.column);
+						if (editor) {
+							const codeEditor = editor.getControl();
+							if (isCodeEditor(codeEditor)) {
+								codeEditor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showBreakpointWidget(element.lineNumber, element.column);
+							}
 						}
 					});
 				}

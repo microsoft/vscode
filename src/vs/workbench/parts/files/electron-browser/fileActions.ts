@@ -1120,7 +1120,7 @@ export class GlobalCompareResourcesAction extends Action {
 		if (activeResource) {
 
 			// Compare with next editor that opens
-			const toDispose = this.editorService.overrideOpenEditor((editor, options, group) => {
+			const toDispose = this.editorService.overrideOpenEditor(editor => {
 
 				// Only once!
 				toDispose.dispose();

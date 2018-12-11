@@ -377,18 +377,20 @@ export interface IEditorGroup {
 	/**
 	 * Open an editor in this group.
 	 *
-	 * @returns a promise that is resolved when the active editor (if any)
-	 * has finished loading
+	 * @returns a promise that resolves around an IEditor instance unless
+	 * the call failed, or the editor was not opened as active editor.
 	 */
-	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions): TPromise<void>;
+	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions): TPromise<IEditor>;
 
 	/**
 	 * Opens editors in this group.
 	 *
-	 * @returns a promise that is resolved when the active editor (if any)
-	 * has finished loading
+	 * @returns a promise that resolves around an IEditor instance unless
+	 * the call failed, or the editor was not opened as active editor. Since
+	 * a group can only ever have one active editor, even if many editors are
+	 * opened, the result will only be one editor.
 	 */
-	openEditors(editors: IEditorInputWithOptions[]): TPromise<void>;
+	openEditors(editors: IEditorInputWithOptions[]): TPromise<IEditor>;
 
 	/**
 	 * Find out if the provided editor is opened in the group.

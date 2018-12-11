@@ -216,10 +216,12 @@ export class CommentsPanel extends Panel {
 					selection: range
 				}
 			}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(editor => {
-				const control = editor.getControl();
-				if (threadToReveal && isCodeEditor(control)) {
-					const controller = ReviewController.get(control);
-					controller.revealCommentThread(threadToReveal, commentToReveal.commentId, true);
+				if (editor) {
+					const control = editor.getControl();
+					if (threadToReveal && isCodeEditor(control)) {
+						const controller = ReviewController.get(control);
+						controller.revealCommentThread(threadToReveal, commentToReveal.commentId, true);
+					}
 				}
 			});
 		}

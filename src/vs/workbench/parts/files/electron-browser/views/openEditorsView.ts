@@ -377,7 +377,7 @@ export class OpenEditorsView extends ViewletPanel {
 				this.editorGroupService.activateGroup(element.groupId); // needed for https://github.com/Microsoft/vscode/issues/6672
 			}
 			this.editorService.openEditor(element.editor, options, options.sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(editor => {
-				if (!preserveActivateGroup) {
+				if (editor && !preserveActivateGroup) {
 					this.editorGroupService.activateGroup(editor.group);
 				}
 			});
