@@ -64,28 +64,28 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		this.logService.trace('windowsService#pickFileFolderAndOpen');
 		this.windowsMainService.pickFileFolderAndOpen(options);
 
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 
 	pickFileAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
 		this.logService.trace('windowsService#pickFileAndOpen');
 		this.windowsMainService.pickFileAndOpen(options);
 
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 
 	pickFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
 		this.logService.trace('windowsService#pickFolderAndOpen');
 		this.windowsMainService.pickFolderAndOpen(options);
 
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 
 	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
 		this.logService.trace('windowsService#pickWorkspaceAndOpen');
 		this.windowsMainService.pickWorkspaceAndOpen(options);
 
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 
 	showMessageBox(windowId: number, options: Electron.MessageBoxOptions): Thenable<IMessageBoxResult> {
@@ -117,7 +117,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 			this.windowsMainService.reload(codeWindow, args);
 		}
 
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 
 	openDevTools(windowId: number, options?: IDevToolsOptions): TPromise<void> {
@@ -128,7 +128,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 			codeWindow.win.webContents.openDevTools(options);
 		}
 
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 
 	toggleDevTools(windowId: number): TPromise<void> {
@@ -144,7 +144,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 			}
 		}
 
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 
 	updateTouchBar(windowId: number, items: ISerializableCommandAction[][]): TPromise<void> {
@@ -155,7 +155,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 			codeWindow.updateTouchBar(items);
 		}
 
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 
 	closeWorkspace(windowId: number): TPromise<void> {
@@ -166,10 +166,10 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 			this.windowsMainService.closeWorkspace(codeWindow);
 		}
 
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 
-	enterWorkspace(windowId: number, path: string): TPromise<IEnterWorkspaceResult> {
+	enterWorkspace(windowId: number, path: string): TPromise<IEnterWorkspaceResult | undefined> {
 		this.logService.trace('windowsService#enterWorkspace', windowId);
 		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
@@ -177,10 +177,10 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 			return this.windowsMainService.enterWorkspace(codeWindow, path);
 		}
 
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 
-	createAndEnterWorkspace(windowId: number, folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult> {
+	createAndEnterWorkspace(windowId: number, folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult | undefined> {
 		this.logService.trace('windowsService#createAndEnterWorkspace', windowId);
 		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
@@ -188,10 +188,10 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 			return this.windowsMainService.createAndEnterWorkspace(codeWindow, folders, path);
 		}
 
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 
-	saveAndEnterWorkspace(windowId: number, path: string): TPromise<IEnterWorkspaceResult> {
+	saveAndEnterWorkspace(windowId: number, path: string): TPromise<IEnterWorkspaceResult | undefined> {
 		this.logService.trace('windowsService#saveAndEnterWorkspace', windowId);
 		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
@@ -199,7 +199,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 			return this.windowsMainService.saveAndEnterWorkspace(codeWindow, path);
 		}
 
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 
 	toggleFullScreen(windowId: number): TPromise<void> {
@@ -210,7 +210,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 			codeWindow.toggleFullScreen();
 		}
 
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 
 	setRepresentedFilename(windowId: number, fileName: string): TPromise<void> {
@@ -221,28 +221,28 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 			codeWindow.setRepresentedFilename(fileName);
 		}
 
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 
 	addRecentlyOpened(files: URI[]): TPromise<void> {
 		this.logService.trace('windowsService#addRecentlyOpened');
 		this.historyService.addRecentlyOpened(void 0, files);
 
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 
 	removeFromRecentlyOpened(paths: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | string)[]): TPromise<void> {
 		this.logService.trace('windowsService#removeFromRecentlyOpened');
 		this.historyService.removeFromRecentlyOpened(paths);
 
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 
 	clearRecentlyOpened(): TPromise<void> {
 		this.logService.trace('windowsService#clearRecentlyOpened');
 		this.historyService.clearRecentlyOpened();
 
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 
 	getRecentlyOpened(windowId: number): TPromise<IRecentlyOpened> {
@@ -307,7 +307,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 			codeWindow.win.focus();
 		}
 
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 
 	closeWindow(windowId: number): TPromise<void> {
@@ -318,7 +318,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 			codeWindow.win.close();
 		}
 
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 
 	isFocused(windowId: number): TPromise<boolean> {
@@ -329,7 +329,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 			return TPromise.as(codeWindow.win.isFocused());
 		}
 
-		return TPromise.as(null);
+		return TPromise.as(false);
 	}
 
 	isMaximized(windowId: number): TPromise<boolean> {
@@ -340,7 +340,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 			return TPromise.as(codeWindow.win.isMaximized());
 		}
 
-		return TPromise.as(null);
+		return TPromise.as(false);
 	}
 
 	maximizeWindow(windowId: number): TPromise<void> {
@@ -351,7 +351,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 			codeWindow.win.maximize();
 		}
 
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 
 	unmaximizeWindow(windowId: number): TPromise<void> {
@@ -362,7 +362,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 			codeWindow.win.unmaximize();
 		}
 
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 
 	minimizeWindow(windowId: number): TPromise<void> {
@@ -373,7 +373,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 			codeWindow.win.minimize();
 		}
 
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 
 	onWindowTitleDoubleClick(windowId: number): TPromise<void> {
@@ -384,7 +384,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 			codeWindow.onWindowTitleDoubleClick();
 		}
 
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 
 	setDocumentEdited(windowId: number, flag: boolean): TPromise<void> {
@@ -395,13 +395,13 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 			codeWindow.win.setDocumentEdited(flag);
 		}
 
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 
 	openWindow(windowId: number, paths: URI[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean, args?: ParsedArgs }): TPromise<void> {
 		this.logService.trace('windowsService#openWindow');
 		if (!paths || !paths.length) {
-			return TPromise.as(null);
+			return TPromise.as(void 0);
 		}
 
 		this.windowsMainService.open({
@@ -414,7 +414,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 			forceOpenWorkspaceAsFile: options && options.forceOpenWorkspaceAsFile
 		});
 
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 
 	openNewWindow(options?: INewWindowOptions): TPromise<void> {
@@ -422,7 +422,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 
 		this.windowsMainService.openNewWindow(OpenContext.API, options);
 
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 
 	showWindow(windowId: number): TPromise<void> {
@@ -433,7 +433,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 			codeWindow.win.show();
 		}
 
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 
 	getWindows(): TPromise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]> {
@@ -451,13 +451,13 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 
 	log(severity: string, ...messages: string[]): TPromise<void> {
 		console[severity].apply(console, ...messages);
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 
 	showItemInFolder(path: string): TPromise<void> {
 		this.logService.trace('windowsService#showItemInFolder');
 		shell.showItemInFolder(path);
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 
 	getActiveWindowId(): TPromise<number | undefined> {
@@ -472,20 +472,20 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 	startCrashReporter(config: Electron.CrashReporterStartOptions): TPromise<void> {
 		this.logService.trace('windowsService#startCrashReporter');
 		crashReporter.start(config);
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 
 	quit(): TPromise<void> {
 		this.logService.trace('windowsService#quit');
 		this.windowsMainService.quit();
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 
 	relaunch(options: { addArgs?: string[], removeArgs?: string[] }): TPromise<void> {
 		this.logService.trace('windowsService#relaunch');
 		this.lifecycleService.relaunch(options);
 
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 
 	whenSharedProcessReady(): TPromise<void> {
@@ -496,7 +496,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 	toggleSharedProcess(): TPromise<void> {
 		this.logService.trace('windowsService#toggleSharedProcess');
 		this.sharedProcess.toggle();
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 
 	openAboutDialog(): TPromise<void> {
@@ -544,7 +544,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 			}
 		});
 
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 
 	handleURL(uri: URI): TPromise<boolean> {

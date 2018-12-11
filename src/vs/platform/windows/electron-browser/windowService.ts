@@ -90,15 +90,15 @@ export class WindowService extends Disposable implements IWindowService {
 		return this.windowsService.closeWorkspace(this.windowId);
 	}
 
-	enterWorkspace(path: string): TPromise<IEnterWorkspaceResult> {
+	enterWorkspace(path: string): TPromise<IEnterWorkspaceResult | undefined> {
 		return this.windowsService.enterWorkspace(this.windowId, path);
 	}
 
-	createAndEnterWorkspace(folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult> {
+	createAndEnterWorkspace(folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult | undefined> {
 		return this.windowsService.createAndEnterWorkspace(this.windowId, folders, path);
 	}
 
-	saveAndEnterWorkspace(path: string): TPromise<IEnterWorkspaceResult> {
+	saveAndEnterWorkspace(path: string): TPromise<IEnterWorkspaceResult | undefined> {
 		return this.windowsService.saveAndEnterWorkspace(this.windowId, path);
 	}
 
