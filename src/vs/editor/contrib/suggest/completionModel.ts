@@ -6,7 +6,7 @@
 import { fuzzyScore, fuzzyScoreGracefulAggressive, anyScore, FuzzyScorer } from 'vs/base/common/filters';
 import { isDisposable } from 'vs/base/common/lifecycle';
 import { CompletionList, CompletionItemProvider, CompletionItemKind } from 'vs/editor/common/modes';
-import { SuggestionItem, ensureLowerCaseVariants } from './suggest';
+import { SuggestionItem } from './suggest';
 import { InternalSuggestOptions, EDITOR_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
 import { CharCode } from 'vs/base/common/charCode';
@@ -165,21 +165,17 @@ export class CompletionModel {
 		for (let i = 0; i < source.length; i++) {
 
 			const item = source[i];
-			const { suggestion, container } = item;
-
-			// make sure _labelLow, _filterTextLow, _sortTextLow exist
-			ensureLowerCaseVariants(suggestion);
 
 			// collect those supports that signaled having
 			// an incomplete result
-			if (container.incomplete) {
+			if (item.container.incomplete) {
 				this._isIncomplete.add(item.provider);
 			}
 
 			// 'word' is that remainder of the current line that we
 			// filter and score against. In theory each suggestion uses a
 			// different word, but in practice not - that's why we cache
-			const overwriteBefore = item.position.column - suggestion.range.startColumn;
+			const overwriteBefore = item.position.column - item.suggestion.range.startColumn;
 			const wordLen = overwriteBefore + characterCountDelta - (item.position.column - this._column);
 			if (word.length !== wordLen) {
 				word = wordLen === 0 ? '' : leadingLineContent.slice(-wordLen);
@@ -218,21 +214,21 @@ export class CompletionModel {
 					item.score = -100;
 					item.matches = [];
 
-				} else if (typeof suggestion.filterText === 'string') {
+				} else if (typeof item.suggestion.filterText === 'string') {
 					// when there is a `filterText` it must match the `word`.
 					// if it matches we check with the label to compute highlights
 					// and if that doesn't yield a result we have no highlights,
 					// despite having the match
-					let match = scoreFn(word, wordLow, wordPos, suggestion.filterText, suggestion._filterTextLow, 0, false);
+					let match = scoreFn(word, wordLow, wordPos, item.suggestion.filterText, item.filterTextLow, 0, false);
 					if (!match) {
 						continue;
 					}
 					item.score = match[0];
-					item.matches = (fuzzyScore(word, wordLow, 0, suggestion.label, suggestion._labelLow, 0, true) || anyScore(word, suggestion.label))[1];
+					item.matches = (fuzzyScore(word, wordLow, 0, item.suggestion.label, item.labelLow, 0, true) || anyScore(word, item.suggestion.label))[1];
 
 				} else {
 					// by default match `word` against the `label`
-					let match = scoreFn(word, wordLow, wordPos, suggestion.label, suggestion._labelLow, 0, false);
+					let match = scoreFn(word, wordLow, wordPos, item.suggestion.label, item.labelLow, 0, false);
 					if (match) {
 						item.score = match[0];
 						item.matches = match[1];
@@ -243,12 +239,12 @@ export class CompletionModel {
 			}
 
 			item.idx = i;
-			item.distance = this._wordDistance.distance(item.position, suggestion);
+			item.distance = this._wordDistance.distance(item.position, item.suggestion);
 			target.push(item);
 
 			// update stats
 			this._stats.suggestionCount++;
-			switch (suggestion.kind) {
+			switch (item.suggestion.kind) {
 				case CompletionItemKind.Snippet: this._stats.snippetCount++; break;
 				case CompletionItemKind.Text: this._stats.textCount++; break;
 			}

@@ -6,39 +6,29 @@ import * as assert from 'assert';
 import { IPosition } from 'vs/editor/common/core/position';
 import { CompletionList, CompletionItemProvider, CompletionItem, CompletionItemKind } from 'vs/editor/common/modes';
 import { CompletionModel } from 'vs/editor/contrib/suggest/completionModel';
-import { SuggestionItem, getSuggestionComparator, ensureLowerCaseVariants } from 'vs/editor/contrib/suggest/suggest';
+import { SuggestionItem, getSuggestionComparator } from 'vs/editor/contrib/suggest/suggest';
 import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
 
-export function createSuggestItem(label: string, overwriteBefore: number, kind = CompletionItemKind.Property, incomplete: boolean = false, position: IPosition = { lineNumber: 1, column: 1 }): SuggestionItem {
-
-	return new class implements SuggestionItem {
-
-		_brand: 'ISuggestionItem';
-
-		position = position;
-
-		suggestion: CompletionItem = {
-			label,
-			range: { startLineNumber: position.lineNumber, startColumn: position.column - overwriteBefore, endLineNumber: position.lineNumber, endColumn: position.column },
-			insertText: label,
-			kind
-		};
-
-		container: CompletionList = {
-			incomplete,
-			suggestions: [this.suggestion]
-		};
-
-		provider: CompletionItemProvider = {
-			provideCompletionItems(): any {
-				return;
-			}
-		};
-
-		resolve(): Promise<void> {
-			return null;
+export function createSuggestItem(label: string, overwriteBefore: number, kind = CompletionItemKind.Property, incomplete: boolean = false, position: IPosition = { lineNumber: 1, column: 1 }, sortText?: string, filterText?: string): SuggestionItem {
+	const suggestion: CompletionItem = {
+		label,
+		sortText,
+		filterText,
+		range: { startLineNumber: position.lineNumber, startColumn: position.column - overwriteBefore, endLineNumber: position.lineNumber, endColumn: position.column },
+		insertText: label,
+		kind
+	};
+	const container: CompletionList = {
+		incomplete,
+		suggestions: [suggestion]
+	};
+	const provider: CompletionItemProvider = {
+		provideCompletionItems(): any {
+			return;
 		}
 	};
+
+	return new SuggestionItem(position, suggestion, container, provider, undefined);
 }
 suite('CompletionModel', function () {
 
@@ -215,8 +205,7 @@ suite('CompletionModel', function () {
 
 	test('filterText seems ignored in autocompletion, #26874', function () {
 
-		const item1 = createSuggestItem('Map - java.util', 1);
-		item1.suggestion.filterText = 'Map';
+		const item1 = createSuggestItem('Map - java.util', 1, undefined, undefined, undefined, undefined, 'Map');
 		const item2 = createSuggestItem('Map - java.util', 1);
 
 		model = new CompletionModel([item1, item2], 1, {
@@ -235,17 +224,8 @@ suite('CompletionModel', function () {
 
 	test('Vscode 1.12 no longer obeys \'sortText\' in completion items (from language server), #26096', function () {
 
-		const item1 = createSuggestItem('<- groups', 2, CompletionItemKind.Property, false, { lineNumber: 1, column: 3 });
-		item1.suggestion.filterText = '  groups';
-		item1.suggestion.sortText = '00002';
-
-		const item2 = createSuggestItem('source', 0, CompletionItemKind.Property, false, { lineNumber: 1, column: 3 });
-		item2.suggestion.filterText = 'source';
-		item2.suggestion.sortText = '00001';
-
-		ensureLowerCaseVariants(item1.suggestion);
-		ensureLowerCaseVariants(item2.suggestion);
-
+		const item1 = createSuggestItem('<- groups', 2, CompletionItemKind.Property, false, { lineNumber: 1, column: 3 }, '00002', '  groups');
+		const item2 = createSuggestItem('source', 0, CompletionItemKind.Property, false, { lineNumber: 1, column: 3 }, '00001', 'source');
 		const items = [item1, item2].sort(getSuggestionComparator('inline'));
 
 		model = new CompletionModel(items, 3, {

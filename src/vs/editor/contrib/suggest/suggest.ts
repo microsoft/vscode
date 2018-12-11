@@ -30,6 +30,11 @@ export class SuggestionItem {
 
 	readonly resolve: (token: CancellationToken) => Thenable<void>;
 
+	// perf
+	readonly labelLow: string;
+	readonly sortTextLow?: string;
+	readonly filterTextLow?: string;
+
 	constructor(
 		readonly position: IPosition,
 		readonly suggestion: CompletionItem,
@@ -37,6 +42,11 @@ export class SuggestionItem {
 		readonly provider: CompletionItemProvider,
 		model: ITextModel
 	) {
+		// ensure lower-variants (perf)
+		this.labelLow = suggestion.label.toLowerCase();
+		this.sortTextLow = suggestion.sortText && suggestion.sortText.toLowerCase();
+		this.filterTextLow = suggestion.filterText && suggestion.filterText.toLowerCase();
+
 		// create the suggestion resolver
 		const { resolveCompletionItem } = provider;
 		if (typeof resolveCompletionItem !== 'function') {
@@ -135,9 +145,6 @@ export function provideSuggestionItems(
 								suggestion.range = defaultRange;
 							}
 
-							// fill in lower-case text
-							ensureLowerCaseVariants(suggestion);
-
 							allSuggestions.push(new SuggestionItem(position, suggestion, container, provider, model));
 						}
 					}
@@ -171,18 +178,6 @@ export function provideSuggestionItems(
 	return result;
 }
 
-export function ensureLowerCaseVariants(suggestion: CompletionItem) {
-	if (!suggestion._labelLow) {
-		suggestion._labelLow = suggestion.label.toLowerCase();
-	}
-	if (suggestion.sortText && !suggestion._sortTextLow) {
-		suggestion._sortTextLow = suggestion.sortText.toLowerCase();
-	}
-	if (suggestion.filterText && !suggestion._filterTextLow) {
-		suggestion._filterTextLow = suggestion.filterText.toLowerCase();
-	}
-}
-
 function createSuggesionFilter(snippetConfig: SnippetConfig): (candidate: CompletionItem) => boolean {
 	if (snippetConfig === 'none') {
 		return suggestion => suggestion.kind !== CompletionItemKind.Snippet;
@@ -192,10 +187,10 @@ function createSuggesionFilter(snippetConfig: SnippetConfig): (candidate: Comple
 }
 function defaultComparator(a: SuggestionItem, b: SuggestionItem): number {
 	// check with 'sortText'
-	if (a.suggestion._sortTextLow && b.suggestion._sortTextLow) {
-		if (a.suggestion._sortTextLow < b.suggestion._sortTextLow) {
+	if (a.sortTextLow && b.sortTextLow) {
+		if (a.sortTextLow < b.sortTextLow) {
 			return -1;
-		} else if (a.suggestion._sortTextLow > b.suggestion._sortTextLow) {
+		} else if (a.sortTextLow > b.sortTextLow) {
 			return 1;
 		}
 	}
