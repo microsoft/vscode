@@ -623,7 +623,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 				return this.fileService.del(target).then(() => this.doSaveTextFileAs(sourceModel, resource, target, options));
 			}
 
-			return TPromise.wrapError(error);
+			return Promise.reject(error);
 		});
 	}
 
@@ -687,7 +687,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 
 				// Otherwise bubble up the error
 				else {
-					return TPromise.wrapError(error);
+					return Promise.reject(error);
 				}
 
 				return void 0;
@@ -791,7 +791,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 
 							// In case of an error, discard any dirty target backups that were made
 							return TPromise.join(dirtyTargetModels.map(dirtyTargetModel => this.backupFileService.discardResourceBackup(dirtyTargetModel)))
-								.then(() => TPromise.wrapError(error));
+								.then(() => Promise.reject(error));
 						});
 					});
 				});

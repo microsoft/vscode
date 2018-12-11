@@ -210,7 +210,7 @@ export class TestTextFileService extends TextFileService {
 			const error = this.resolveTextContentError;
 			this.resolveTextContentError = null;
 
-			return TPromise.wrapError<IRawTextContent>(error);
+			return Promise.reject(error);
 		}
 
 		return this.fileService.resolveContent(resource, options).then((content): IRawTextContent => {

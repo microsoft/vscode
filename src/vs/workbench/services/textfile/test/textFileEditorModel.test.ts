@@ -320,7 +320,7 @@ suite('Files - TextFileEditorModel', () => {
 
 		TextFileEditorModel.setSaveParticipant({
 			participate: (model) => {
-				return TPromise.wrapError(new Error('boom'));
+				return Promise.reject(new Error('boom'));
 			}
 		});
 

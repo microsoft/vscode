@@ -214,7 +214,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 			// Remove from pending loads
 			this.mapResourceToPendingModelLoaders.delete(resource);
 
-			return TPromise.wrapError<ITextFileEditorModel>(error);
+			return Promise.reject<ITextFileEditorModel>(error);
 		});
 	}
 

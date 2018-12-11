@@ -191,7 +191,7 @@ export class EditorControl extends Disposable {
 			// Operation done
 			operation.stop();
 
-			return TPromise.wrapError(e);
+			return Promise.reject(e);
 		});
 	}
 

@@ -232,7 +232,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// Set flags back to previous values, we are still dirty if revert failed
 			undo();
 
-			return TPromise.wrapError(error);
+			return Promise.reject(error);
 		});
 	}
 
@@ -344,7 +344,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				}
 
 				// Otherwise bubble up the error
-				return TPromise.wrapError<TextFileEditorModel>(error);
+				return Promise.reject<TextFileEditorModel>(error);
 			});
 	}
 
@@ -467,7 +467,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			}, error => {
 				this.createTextEditorModelPromise = null;
 
-				return TPromise.wrapError<TextFileEditorModel>(error);
+				return Promise.reject<TextFileEditorModel>(error);
 			});
 		});
 
