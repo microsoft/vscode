@@ -90,7 +90,7 @@ export class SelectBoxNative implements ISelectBoxDelegate {
 			this.options = options;
 			this.selectElement.options.length = 0;
 
-			this.options.map((option, index) => {
+			this.options.forEach((option, index) => {
 				this.selectElement.add(this.createOption(option.text, index, option.isDisabled));
 			});
 

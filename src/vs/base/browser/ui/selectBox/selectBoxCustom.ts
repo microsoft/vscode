@@ -250,7 +250,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 			this.selectElement.options.length = 0;
 			this._hasDetails = false;
 
-			this.options.map((option, index) => {
+			this.options.forEach((option, index) => {
 				this.selectElement.add(this.createOption(option.text, index, option.isDisabled));
 				if (typeof option.description === 'string') {
 					this._hasDetails = true;
