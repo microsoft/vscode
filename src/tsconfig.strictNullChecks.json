@@ -46,6 +46,8 @@
 		"./vs/base/browser/ui/list/rangeMap.ts",
 		"./vs/base/browser/ui/list/rowCache.ts",
 		"./vs/base/browser/ui/list/splice.ts",
+		"./vs/base/browser/ui/menu/menu.ts",
+		"./vs/base/browser/ui/menu/menubar.ts",
 		"./vs/base/browser/ui/octiconLabel/octiconLabel.mock.ts",
 		"./vs/base/browser/ui/octiconLabel/octiconLabel.ts",
 		"./vs/base/browser/ui/progressbar/progressbar.ts",
