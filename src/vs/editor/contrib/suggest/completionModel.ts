@@ -219,7 +219,7 @@ export class CompletionModel {
 					// if it matches we check with the label to compute highlights
 					// and if that doesn't yield a result we have no highlights,
 					// despite having the match
-					let match = scoreFn(word, wordLow, wordPos, item.suggestion.filterText, item.filterTextLow, 0, false);
+					let match = scoreFn(word, wordLow, wordPos, item.suggestion.filterText, item.filterTextLow!, 0, false);
 					if (!match) {
 						continue;
 					}
