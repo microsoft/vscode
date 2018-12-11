@@ -59,6 +59,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private hoverWidget: DebugHoverWidget;
 	private nonDebugHoverPosition: Position;
 	private hoverRange: Range;
+	private mouseDown = false;
 
 	private breakpointHintDecoration: string[];
 	private breakpointWidget: BreakpointWidget;
@@ -250,6 +251,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 		// hover listeners & hover widget
 		this.toDispose.push(this.editor.onMouseDown((e: IEditorMouseEvent) => this.onEditorMouseDown(e)));
+		this.toDispose.push(this.editor.onMouseUp(() => this.mouseDown = false));
 		this.toDispose.push(this.editor.onMouseMove((e: IEditorMouseEvent) => this.onEditorMouseMove(e)));
 		this.toDispose.push(this.editor.onMouseLeave((e: IEditorMouseEvent) => {
 			this.provideNonDebugHoverScheduler.cancel();
@@ -379,7 +381,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	@memoize
 	private get hideHoverScheduler(): RunOnceScheduler {
-		const scheduler = new RunOnceScheduler(() => this.hoverWidget.hide(), HOVER_DELAY);
+		const scheduler = new RunOnceScheduler(() => this.hoverWidget.hide(), 2 * HOVER_DELAY);
 		this.toDispose.push(scheduler);
 
 		return scheduler;
@@ -406,6 +408,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	// hover business
 
 	private onEditorMouseDown(mouseEvent: IEditorMouseEvent): void {
+		this.mouseDown = true;
 		if (mouseEvent.target.type === MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail === DebugHoverWidget.ID) {
 			return;
 		}
@@ -434,7 +437,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				this.hoverRange = mouseEvent.target.range;
 				this.showHoverScheduler.schedule();
 			}
-		} else {
+		} else if (!this.mouseDown) {
+			// Do not hide debug hover when the mouse is pressed because it usually leads to accidental closing #64620
 			this.hideHoverWidget();
 		}
 	}

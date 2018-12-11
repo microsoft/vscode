@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter, mapEvent } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 
 export type EventHandler = HTMLElement | HTMLDocument | Window;
 
@@ -32,7 +32,7 @@ export interface CancellableEvent {
 }
 
 export function stop<T extends CancellableEvent>(event: Event<T>): Event<T> {
-	return mapEvent(event, e => {
+	return Event.map(event, e => {
 		e.preventDefault();
 		e.stopPropagation();
 		return e;

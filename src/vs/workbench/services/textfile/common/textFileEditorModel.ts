@@ -207,7 +207,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	revert(soft?: boolean): TPromise<void> {
 		if (!this.isResolved()) {
-			return TPromise.wrap<void>(null);
+			return Promise.resolve(null);
 		}
 
 		// Cancel any running auto-save
@@ -232,7 +232,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// Set flags back to previous values, we are still dirty if revert failed
 			undo();
 
-			return TPromise.wrapError(error);
+			return Promise.reject(error);
 		});
 	}
 
@@ -344,7 +344,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				}
 
 				// Otherwise bubble up the error
-				return TPromise.wrapError<TextFileEditorModel>(error);
+				return Promise.reject<TextFileEditorModel>(error);
 			});
 	}
 
@@ -467,7 +467,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			}, error => {
 				this.createTextEditorModelPromise = null;
 
-				return TPromise.wrapError<TextFileEditorModel>(error);
+				return Promise.reject<TextFileEditorModel>(error);
 			});
 		});
 
@@ -584,7 +584,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	save(options: ISaveOptions = Object.create(null)): TPromise<void> {
 		if (!this.isResolved()) {
-			return TPromise.wrap<void>(null);
+			return Promise.resolve(null);
 		}
 
 		this.logService.trace('save() - enter', this.resource);
@@ -623,7 +623,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		if ((!options.force && !this.dirty) || versionId !== this.versionId) {
 			this.logService.trace(`doSave(${versionId}) - exit - because not dirty and/or versionId is different (this.isDirty: ${this.dirty}, this.versionId: ${this.versionId})`, this.resource);
 
-			return TPromise.wrap<void>(null);
+			return Promise.resolve(null);
 		}
 
 		// Return if currently saving by storing this save request as the next save that should happen.

@@ -409,7 +409,7 @@ export class LoadedScriptsView extends ViewletPanel {
 				accessibilityProvider: new LoadedSciptsAccessibilityProvider(),
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'loadedScriptsAriaLabel' }, "Debug Loaded Scripts"),
 			},
-			this.contextKeyService, this.listService, this.themeService, this.configurationService
+			this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService
 		);
 
 		this.changeScheduler = new RunOnceScheduler(() => {
@@ -607,12 +607,8 @@ class LoadedScriptsRenderer implements ITreeRenderer<BaseTreeItem, void, ILoaded
 		data.label.setLabel(label, options);
 	}
 
-	disposeElement(element: ITreeNode<BaseTreeItem, void>, index: number, templateData: ILoadedScriptsItemTemplateData): void {
-		// noop
-	}
-
 	disposeTemplate(templateData: ILoadedScriptsItemTemplateData): void {
-		// noop
+		templateData.label.dispose();
 	}
 }
 

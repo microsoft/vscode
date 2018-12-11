@@ -45,7 +45,6 @@
 	display: flex;
 }
 
-
 .monaco-workbench .repl .repl-tree .monaco-list-row .output.expression.value-and-source .value {
 	flex: 1;
 }
@@ -94,9 +93,6 @@
 .monaco-workbench .repl .repl-input-wrapper:before {
 	left: 8px;
 	position: absolute;
-}
-
-.monaco-workbench .repl .repl-input-wrapper:before {
 	content: '\276f';
 	line-height: 18px;
 }

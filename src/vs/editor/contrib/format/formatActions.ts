@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -87,7 +87,7 @@ class FormatOnType implements editorCommon.IEditorContribution {
 		}
 
 		// no model
-		if (!this.editor.getModel()) {
+		if (!this.editor.hasModel()) {
 			return;
 		}
 
@@ -113,6 +113,9 @@ class FormatOnType implements editorCommon.IEditorContribution {
 	}
 
 	private trigger(ch: string): void {
+		if (!this.editor.hasModel()) {
+			return;
+		}
 
 		if (this.editor.getSelections().length > 1) {
 			return;
@@ -157,12 +160,14 @@ class FormatOnType implements editorCommon.IEditorContribution {
 
 			unbind.dispose();
 
-			if (canceled || isFalsyOrEmpty(edits)) {
+			if (canceled) {
 				return;
 			}
 
-			FormattingEdit.execute(this.editor, edits);
-			alertFormattingEdits(edits);
+			if (isNonEmptyArray(edits)) {
+				FormattingEdit.execute(this.editor, edits);
+				alertFormattingEdits(edits);
+			}
 
 		}, (err) => {
 			unbind.dispose();
@@ -212,7 +217,7 @@ class FormatOnPaste implements editorCommon.IEditorContribution {
 		}
 
 		// no model
-		if (!this.editor.getModel()) {
+		if (!this.editor.hasModel()) {
 			return;
 		}
 
@@ -230,6 +235,10 @@ class FormatOnPaste implements editorCommon.IEditorContribution {
 	}
 
 	private trigger(range: Range): void {
+		if (!this.editor.hasModel()) {
+			return;
+		}
+
 		if (this.editor.getSelections().length > 1) {
 			return;
 		}
@@ -241,11 +250,13 @@ class FormatOnPaste implements editorCommon.IEditorContribution {
 		getDocumentRangeFormattingEdits(model, range, { tabSize, insertSpaces }, CancellationToken.None).then(edits => {
 			return this.workerService.computeMoreMinimalEdits(model.uri, edits);
 		}).then(edits => {
-			if (!state.validate(this.editor) || isFalsyOrEmpty(edits)) {
+			if (!state.validate(this.editor)) {
 				return;
 			}
-			FormattingEdit.execute(this.editor, edits);
-			alertFormattingEdits(edits);
+			if (isNonEmptyArray(edits)) {
+				FormattingEdit.execute(this.editor, edits);
+				alertFormattingEdits(edits);
+			}
 		});
 	}
 
@@ -262,6 +273,9 @@ class FormatOnPaste implements editorCommon.IEditorContribution {
 export abstract class AbstractFormatAction extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+		if (!editor.hasModel()) {
+			return Promise.resolve(void 0);
+		}
 
 		const workerService = accessor.get(IEditorWorkerService);
 		const notificationService = accessor.get(INotificationService);
@@ -276,14 +290,16 @@ export abstract class AbstractFormatAction extends EditorAction {
 
 		// Receive formatted value from worker
 		return formattingPromise.then(edits => workerService.computeMoreMinimalEdits(editor.getModel().uri, edits)).then(edits => {
-			if (!state.validate(editor) || isFalsyOrEmpty(edits)) {
+			if (!state.validate(editor)) {
 				return;
 			}
 
-			FormattingEdit.execute(editor, edits);
-			alertFormattingEdits(edits);
-			editor.focus();
-			editor.revealPositionInCenterIfOutsideViewport(editor.getPosition(), editorCommon.ScrollType.Immediate);
+			if (isNonEmptyArray(edits)) {
+				FormattingEdit.execute(editor, edits);
+				alertFormattingEdits(edits);
+				editor.focus();
+				editor.revealPositionInCenterIfOutsideViewport(editor.getPosition(), editorCommon.ScrollType.Immediate);
+			}
 		}, err => {
 			if (err instanceof Error && err.name === NoProviderError.Name) {
 				this._notifyNoProviderError(notificationService, editor.getModel().getLanguageIdentifier().language);
@@ -293,7 +309,7 @@ export abstract class AbstractFormatAction extends EditorAction {
 		});
 	}
 
-	protected abstract _getFormattingEdits(editor: ICodeEditor, token: CancellationToken): Promise<ISingleEditOperation[]>;
+	protected abstract _getFormattingEdits(editor: ICodeEditor, token: CancellationToken): Promise<ISingleEditOperation[] | null | undefined> | undefined;
 
 	protected _notifyNoProviderError(notificationService: INotificationService, language: string): void {
 		notificationService.info(nls.localize('no.provider', "There is no formatter for '{0}'-files installed.", language));
@@ -323,7 +339,10 @@ export class FormatDocumentAction extends AbstractFormatAction {
 		});
 	}
 
-	protected _getFormattingEdits(editor: ICodeEditor, token: CancellationToken): Promise<ISingleEditOperation[]> {
+	protected _getFormattingEdits(editor: ICodeEditor, token: CancellationToken): Promise<ISingleEditOperation[] | null | undefined> | undefined {
+		if (!editor.hasModel()) {
+			return undefined;
+		}
 		const model = editor.getModel();
 		const { tabSize, insertSpaces } = model.getOptions();
 		return getDocumentFormattingEdits(model, { tabSize, insertSpaces }, token);
@@ -355,7 +374,11 @@ export class FormatSelectionAction extends AbstractFormatAction {
 		});
 	}
 
-	protected _getFormattingEdits(editor: ICodeEditor, token: CancellationToken): Promise<ISingleEditOperation[]> {
+	protected _getFormattingEdits(editor: ICodeEditor, token: CancellationToken): Promise<ISingleEditOperation[] | null | undefined> | undefined {
+		if (!editor.hasModel()) {
+			return undefined;
+		}
+
 		const model = editor.getModel();
 		let selection = editor.getSelection();
 		if (selection.isEmpty()) {
@@ -386,7 +409,11 @@ CommandsRegistry.registerCommand('editor.action.format', accessor => {
 			constructor() {
 				super({} as IActionOptions);
 			}
-			_getFormattingEdits(editor: ICodeEditor, token: CancellationToken): Promise<ISingleEditOperation[]> {
+			_getFormattingEdits(editor: ICodeEditor, token: CancellationToken): Promise<ISingleEditOperation[] | null | undefined> | undefined {
+				if (!editor.hasModel()) {
+					return undefined;
+				}
+
 				const model = editor.getModel();
 				const editorSelection = editor.getSelection();
 				const { tabSize, insertSpaces } = model.getOptions();

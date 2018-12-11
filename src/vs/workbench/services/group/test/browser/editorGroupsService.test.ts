@@ -20,10 +20,17 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class TestEditorControl extends BaseEditor {
 
 	constructor(@ITelemetryService telemetryService: ITelemetryService) { super('MyFileEditorForEditorGroupService', NullTelemetryService, new TestThemeService(), new TestStorageService()); }
+
+	setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+		super.setInput(input, options, token);
+
+		return input.resolve().then(() => void 0);
+	}
 
 	getId(): string { return 'MyFileEditorForEditorGroupService'; }
 	layout(): void { }
@@ -445,6 +452,7 @@ suite('Editor groups service', () => {
 		assert.equal(activeEditorChangeCounter, 2);
 		assert.equal(group.activeEditor, inputInactive);
 
+		await group.openEditor(input);
 		await group.closeEditor(inputInactive);
 
 		assert.equal(activeEditorChangeCounter, 3);

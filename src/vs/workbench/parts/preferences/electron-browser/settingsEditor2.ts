@@ -640,15 +640,15 @@ export class SettingsEditor2 extends BaseEditor {
 		}));
 	}
 
-	public notifyNoSaveNeeded(force: boolean = true) {
-		if (force || !this.storageService.getBoolean('hasNotifiedOfSettingsAutosave', StorageScope.GLOBAL, false)) {
+	private notifyNoSaveNeeded() {
+		if (!this.storageService.getBoolean('hasNotifiedOfSettingsAutosave', StorageScope.GLOBAL, false)) {
 			this.storageService.store('hasNotifiedOfSettingsAutosave', true, StorageScope.GLOBAL);
 			this.notificationService.info(localize('settingsNoSaveNeeded', "Your changes are automatically saved as you edit."));
 		}
 	}
 
 	private onDidChangeSetting(key: string, value: any, type: SettingValueType | SettingValueType[]): void {
-		this.notifyNoSaveNeeded(false);
+		this.notifyNoSaveNeeded();
 
 		if (this.pendingSettingUpdate && this.pendingSettingUpdate.key !== key) {
 			this.updateChangedSetting(key, value);
@@ -951,7 +951,7 @@ export class SettingsEditor2 extends BaseEditor {
 			const elements = this.currentSettingsModel.getElementsByName(key);
 			if (elements && elements.length) {
 				// TODO https://github.com/Microsoft/vscode/issues/57360
-				// refreshP = Promise.join(elements.map(e => this.settingsTree.refresh(e)));
+				// refreshP = Promise.all(elements.map(e => this.settingsTree.refresh(e)));
 				refreshP = this.settingsTree.refresh();
 			} else {
 				// Refresh requested for a key that we don't know about
@@ -963,12 +963,6 @@ export class SettingsEditor2 extends BaseEditor {
 
 		return refreshP.then(() => {
 			this.tocTreeModel.update();
-			this.renderResultCountMessages();
-
-			// if (this.searchResultModel) {
-			// 	expandAll(this.tocTree);
-			// }
-
 			return this.tocTree.refresh();
 		}).then(() => { });
 	}

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
-import { Event, buffer } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { ILocalizationsService, LanguageType } from 'vs/platform/localizations/common/localizations';
 
 export class LocalizationsChannel implements IServerChannel {
@@ -12,7 +12,7 @@ export class LocalizationsChannel implements IServerChannel {
 	onDidLanguagesChange: Event<void>;
 
 	constructor(private service: ILocalizationsService) {
-		this.onDidLanguagesChange = buffer(service.onDidLanguagesChange, true);
+		this.onDidLanguagesChange = Event.buffer(service.onDidLanguagesChange, true);
 	}
 
 	listen(_, event: string): Event<any> {

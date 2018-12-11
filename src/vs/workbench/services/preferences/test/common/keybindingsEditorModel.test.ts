@@ -5,7 +5,6 @@
 
 import * as assert from 'assert';
 import * as uuid from 'vs/base/common/uuid';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
@@ -44,7 +43,7 @@ suite('KeybindingsEditorModel test', () => {
 		instantiationService = new TestInstantiationService();
 
 		instantiationService.stub(IKeybindingService, {});
-		instantiationService.stub(IExtensionService, {}, 'whenInstalledExtensionsRegistered', () => TPromise.as(null));
+		instantiationService.stub(IExtensionService, {}, 'whenInstalledExtensionsRegistered', () => Promise.resolve(null));
 
 		testObject = instantiationService.createInstance(KeybindingsEditorModel, OS);
 

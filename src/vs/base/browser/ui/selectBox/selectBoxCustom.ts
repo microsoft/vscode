@@ -6,7 +6,7 @@
 import 'vs/css!./selectBoxCustom';
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { Event, Emitter, chain } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { KeyCode, KeyCodeUtils } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import * as dom from 'vs/base/browser/dom';
@@ -75,10 +75,6 @@ class SelectListRenderer implements IListRenderer<ISelectOptionItem, ISelectList
 		}
 	}
 
-	disposeElement(): void {
-		// noop
-	}
-
 	disposeTemplate(templateData: ISelectListTemplateData): void {
 		templateData.disposables = dispose(templateData.disposables);
 	}
@@ -111,7 +107,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 	private selectionDetailsPane: HTMLElement;
 	private _skipLayout: boolean = false;
 
-	private _sticky: boolean = true; // for dev purposes only
+	private _sticky: boolean = false; // for dev purposes only
 
 	constructor(options: ISelectOptionItem[], selected: number, contextViewProvider: IContextViewProvider, styles: ISelectBoxStyles, selectBoxOptions?: ISelectBoxOptions) {
 
@@ -254,7 +250,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 			this.selectElement.options.length = 0;
 			this._hasDetails = false;
 
-			this.options.map((option, index) => {
+			this.options.forEach((option, index) => {
 				this.selectElement.add(this.createOption(option.text, index, option.isDisabled));
 				if (typeof option.description === 'string') {
 					this._hasDetails = true;
@@ -738,7 +734,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 		});
 
 		// SetUp list keyboard controller - control navigation, disabled items, focus
-		const onSelectDropDownKeyDown = chain(domEvent(this.selectDropDownListContainer, 'keydown'))
+		const onSelectDropDownKeyDown = Event.chain(domEvent(this.selectDropDownListContainer, 'keydown'))
 			.filter(() => this.selectList.length > 0)
 			.map(e => new StandardKeyboardEvent(e));
 
@@ -754,7 +750,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 
 		// SetUp list mouse controller - control navigation, disabled items, focus
 
-		chain(domEvent(this.selectList.getHTMLElement(), 'mouseup'))
+		Event.chain(domEvent(this.selectList.getHTMLElement(), 'mouseup'))
 			.filter(() => this.selectList.length > 0)
 			.on(e => this.onMouseUp(e), this, this.toDispose);
 

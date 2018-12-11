@@ -30,6 +30,8 @@ import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { WorkbenchAsyncDataTree, IListService } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { coalesce } from 'vs/base/common/arrays';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 const $ = dom.$;
 const MAX_TREE_HEIGHT = 324;
@@ -60,7 +62,8 @@ export class DebugHoverWidget implements IContentWidget {
 		@IThemeService private themeService: IThemeService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IListService private listService: IListService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IKeybindingService private keybindingService: IKeybindingService
 	) {
 		this.toDispose = [];
 
@@ -82,7 +85,7 @@ export class DebugHoverWidget implements IContentWidget {
 				ariaLabel: nls.localize('treeAriaLabel', "Debug Hover"),
 				accessibilityProvider: new DebugHoverAccessibilityProvider(),
 				mouseSupport: false
-			}, this.contextKeyService, this.listService, this.themeService, this.configurationService);
+			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
 
 		this.valueContainer = $('.value');
 		this.valueContainer.tabIndex = 0;
@@ -153,7 +156,7 @@ export class DebugHoverWidget implements IContentWidget {
 			const result = new Expression(matchingExpression);
 			promise = result.evaluate(session, this.debugService.getViewModel().focusedStackFrame, 'hover').then(() => result);
 		} else {
-			promise = this.findExpressionInStackFrame(matchingExpression.split('.').map(word => word.trim()).filter(word => !!word));
+			promise = this.findExpressionInStackFrame(coalesce(matchingExpression.split('.').map(word => word.trim())));
 		}
 
 		return promise.then(expression => {
@@ -199,7 +202,7 @@ export class DebugHoverWidget implements IContentWidget {
 		return this.debugService.getViewModel().focusedStackFrame.getScopes()
 			.then(scopes => scopes.filter(s => !s.expensive))
 			.then(scopes => Promise.all(scopes.map(scope => this.doFindExpression(scope, namesToFind))))
-			.then(expressions => expressions.filter(exp => !!exp))
+			.then(coalesce)
 			// only show if all expressions found have the same value
 			.then(expressions => (expressions.length > 0 && expressions.every(e => e.value === expressions[0].value)) ? expressions[0] : null);
 	}

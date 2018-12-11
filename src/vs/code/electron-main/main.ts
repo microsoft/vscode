@@ -47,7 +47,6 @@ import { uploadLogs } from 'vs/code/electron-main/logUploader';
 import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { CommandLineDialogService } from 'vs/platform/dialogs/node/dialogService';
-import { ILabelService, LabelService } from 'vs/platform/label/common/label';
 import { createWaitMarkerFile } from 'vs/code/node/wait';
 
 function createServices(args: ParsedArgs, bufferLogService: BufferLogService): IInstantiationService {
@@ -60,7 +59,6 @@ function createServices(args: ParsedArgs, bufferLogService: BufferLogService): I
 	setTimeout(() => cleanupOlderLogs(environmentService).then(null, err => console.error(err)), 10000);
 
 	services.set(IEnvironmentService, environmentService);
-	services.set(ILabelService, new LabelService(environmentService, void 0, void 0));
 	services.set(ILogService, logService);
 	services.set(IWorkspacesMainService, new SyncDescriptor(WorkspacesMainService));
 	services.set(IHistoryMainService, new SyncDescriptor(HistoryMainService));

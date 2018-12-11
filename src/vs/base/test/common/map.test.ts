@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ResourceMap, TernarySearchTree, PathIterator, StringIterator, LinkedMap, Touch, LRUCache } from 'vs/base/common/map';
+import { ResourceMap, TernarySearchTree, PathIterator, StringIterator, LinkedMap, Touch, LRUCache, mapToSerializable, serializableToMap } from 'vs/base/common/map';
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { IteratorResult } from 'vs/base/common/iterator';
@@ -584,4 +584,17 @@ suite('Map', () => {
 	// 	assert.equal(map.get(windowsFile), 'true');
 	// 	assert.equal(map.get(uncFile), 'true');
 	// });
+
+	test('mapToSerializable / serializableToMap', function () {
+		const map = new Map<string, string>();
+		map.set('1', 'foo');
+		map.set('2', null);
+		map.set('3', 'bar');
+
+		const map2 = serializableToMap(mapToSerializable(map));
+		assert.equal(map2.size, map.size);
+		assert.equal(map2.get('1'), map.get('1'));
+		assert.equal(map2.get('2'), map.get('2'));
+		assert.equal(map2.get('3'), map.get('3'));
+	});
 });

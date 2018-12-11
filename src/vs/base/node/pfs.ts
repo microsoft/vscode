@@ -9,7 +9,7 @@ import { nfcall, Queue } from 'vs/base/common/async';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as platform from 'vs/base/common/platform';
-import { once } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 
 export function readdir(path: string): Promise<string[]> {
 	return nfcall(extfs.readdir, path);
@@ -132,7 +132,7 @@ function ensureWriteFileQueue(queueKey: string): Queue<void> {
 		writeFileQueue = new Queue<void>();
 		writeFilePathQueue[queueKey] = writeFileQueue;
 
-		const onFinish = once(writeFileQueue.onFinished);
+		const onFinish = Event.once(writeFileQueue.onFinished);
 		onFinish(() => {
 			delete writeFilePathQueue[queueKey];
 			writeFileQueue.dispose();

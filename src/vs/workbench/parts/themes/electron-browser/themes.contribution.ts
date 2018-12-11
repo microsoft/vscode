@@ -56,7 +56,7 @@ export class SelectColorThemeAction extends Action {
 			const selectTheme = (theme, applyTheme: boolean) => {
 				if (typeof theme.id === 'undefined') { // 'pick in marketplace' entry
 					if (applyTheme) {
-						openExtensionViewlet(this.viewletService, 'category:themes');
+						openExtensionViewlet(this.viewletService, 'category:themes ');
 					}
 					theme = currentTheme;
 				}
@@ -117,7 +117,7 @@ class SelectIconThemeAction extends Action {
 			const selectTheme = (theme, applyTheme: boolean) => {
 				if (typeof theme.id === 'undefined') { // 'pick in marketplace' entry
 					if (applyTheme) {
-						openExtensionViewlet(this.viewletService, 'tag:icon-theme');
+						openExtensionViewlet(this.viewletService, 'tag:icon-theme ');
 					}
 					theme = currentTheme;
 				}

@@ -61,6 +61,20 @@ function hasDriveLetter(path: string): boolean {
 	return !!(isWindows && path && path[2] === ':');
 }
 
+export function getSimpleWorkspaceLabel(workspace: IWorkspaceIdentifier | URI, workspaceHome: string): string {
+	if (isSingleFolderWorkspaceIdentifier(workspace)) {
+		return basenameOrAuthority(workspace);
+	}
+	// Workspace: Untitled
+	if (isParent(workspace.configPath, workspaceHome, !isLinux /* ignore case */)) {
+		return localize('untitledWorkspace', "Untitled (Workspace)");
+	}
+
+	const filename = basename(workspace.configPath);
+	const workspaceName = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
+	return localize('workspaceName', "{0} (Workspace)", workspaceName);
+}
+
 export class LabelService implements ILabelService {
 	_serviceBrand: any;
 

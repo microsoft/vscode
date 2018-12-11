@@ -2558,6 +2558,10 @@ declare namespace monaco.editor {
 		 * Favours words that appear close to the cursor.
 		 */
 		localityBonus?: boolean;
+		/**
+		 * Enable using global storage for remembering suggestions.
+		 */
+		shareSuggestSelections?: boolean;
 	}
 
 	/**
@@ -3193,6 +3197,7 @@ declare namespace monaco.editor {
 		readonly snippets: 'top' | 'bottom' | 'inline' | 'none';
 		readonly snippetsPreventQuickSuggestions: boolean;
 		readonly localityBonus: boolean;
+		readonly shareSuggestSelections: boolean;
 	}
 
 	export interface InternalParameterHintOptions {
@@ -4778,7 +4783,7 @@ declare namespace monaco.languages {
 		 * *Note:* The range must be a [single line](#Range.isSingleLine) and it must
 		 * [contain](#Range.contains) the position at which completion has been [requested](#CompletionItemProvider.provideCompletionItems).
 		 */
-		range?: IRange;
+		range: IRange;
 		/**
 		 * An optional set of characters that when pressed while this completion is active will accept it first and
 		 * then type that character. *Note* that all commit characters should have `length=1` and that superfluous
@@ -4922,14 +4927,14 @@ declare namespace monaco.languages {
 		activeParameter: number;
 	}
 
-	export enum SignatureHelpTriggerReason {
+	export enum SignatureHelpTriggerKind {
 		Invoke = 1,
 		TriggerCharacter = 2,
 		ContentChange = 3
 	}
 
 	export interface SignatureHelpContext {
-		readonly triggerReason: SignatureHelpTriggerReason;
+		readonly triggerKind: SignatureHelpTriggerKind;
 		readonly triggerCharacter?: string;
 		readonly isRetrigger: boolean;
 	}
@@ -5298,7 +5303,7 @@ declare namespace monaco.languages {
 		/**
 		 * Provide ranges that should be selected from the given position.
 		 */
-		provideSelectionRanges(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<Range[]>;
+		provideSelectionRanges(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<IRange[]>;
 	}
 
 	export interface FoldingContext {

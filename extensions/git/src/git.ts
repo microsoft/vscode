@@ -829,7 +829,15 @@ export class Repository {
 			args.push('-R');
 		}
 
-		await this.run(args);
+		try {
+			await this.run(args);
+		} catch (err) {
+			if (/patch does not apply/.test(err.stderr)) {
+				err.gitErrorCode = GitErrorCodes.PatchDoesNotApply;
+			}
+
+			throw err;
+		}
 	}
 
 	async diff(cached = false): Promise<string> {

@@ -179,10 +179,10 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 
 		// user-facing message when very bad...
 		this._notificationService.prompt(
-			Severity.Info,
+			Severity.Warning,
 			localize(
 				'unresponsive-exthost',
-				"The extension '{0}' took a very long time to complete its last task and it has prevented other extensions from running.",
+				"The extension '{0}' took a very long time to complete its last operation and it has prevented other extensions from running.",
 				extension.displayName || extension.name
 			),
 			[{
@@ -194,7 +194,7 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 				run: () => {
 					/* __GDPR__
 						"exthostunresponsive/report" : {
-							"id" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+							"id" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 						}
 					*/
 					this._telemetryService.publicLog('exthostunresponsive/report', { id });

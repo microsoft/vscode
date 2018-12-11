@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { dispose } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
-import { chain, Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { PagedModel, IPagedModel, IPager, DelayedPagedModel } from 'vs/base/common/paging';
 import { SortBy, SortOrder, IQueryOptions, LocalExtensionType, IExtensionTipsService, IExtensionRecommendation } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -97,12 +97,12 @@ export class ExtensionsListView extends ViewletPanel {
 		this.list.onFocusChange(e => this.onFocusChange(e), this, this.disposables);
 		this.disposables.push(this.list);
 
-		chain(this.list.onOpen)
+		Event.chain(this.list.onOpen)
 			.map(e => e.elements[0])
 			.filter(e => !!e)
 			.on(this.openExtension, this, this.disposables);
 
-		chain(this.list.onPin)
+		Event.chain(this.list.onPin)
 			.map(e => e.elements[0])
 			.filter(e => !!e)
 			.on(this.pin, this, this.disposables);

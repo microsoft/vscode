@@ -70,15 +70,14 @@ import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import { EditorGroup } from 'vs/workbench/common/editor/editorGroup';
 import { Dimension } from 'vs/base/browser/dom';
-import { ILogService, LogLevel, NullLogService } from 'vs/platform/log/common/log';
+import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { ILabelService, LabelService } from 'vs/platform/label/common/label';
 import { timeout } from 'vs/base/common/async';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IProgressService } from 'vs/platform/progress/common/progress';
-import { StorageService } from 'vs/platform/storage/node/storageService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
@@ -211,7 +210,7 @@ export class TestTextFileService extends TextFileService {
 			const error = this.resolveTextContentError;
 			this.resolveTextContentError = null;
 
-			return TPromise.wrapError<IRawTextContent>(error);
+			return Promise.reject(error);
 		}
 
 		return this.fileService.resolveContent(resource, options).then((content): IRawTextContent => {
@@ -227,11 +226,11 @@ export class TestTextFileService extends TextFileService {
 	}
 
 	public promptForPath(_resource: URI, _defaultPath: URI): TPromise<URI> {
-		return TPromise.wrap(this.promptPath);
+		return Promise.resolve(this.promptPath);
 	}
 
 	public confirmSave(_resources?: URI[]): TPromise<ConfirmResult> {
-		return TPromise.wrap(this.confirmResult);
+		return Promise.resolve(this.confirmResult);
 	}
 
 	public onFilesConfigurationChange(configuration: any): void {
@@ -530,12 +529,7 @@ export class TestPartService implements IPartService {
 	public resizePart(_part: Parts, _sizeChange: number): void { }
 }
 
-export class TestStorageService extends StorageService {
-
-	constructor() {
-		super({ storeInMemory: true }, new NullLogService(), TestEnvironmentService);
-	}
-}
+export class TestStorageService extends InMemoryStorageService { }
 
 export class TestEditorGroupsService implements EditorGroupsServiceImpl {
 	_serviceBrand: ServiceIdentifier<any>;
@@ -655,12 +649,12 @@ export class TestEditorGroup implements IEditorGroupView {
 		return -1;
 	}
 
-	openEditor(_editor: IEditorInput, _options?: IEditorOptions): TPromise<void> {
-		return TPromise.as(void 0);
+	openEditor(_editor: IEditorInput, _options?: IEditorOptions): TPromise<IEditor> {
+		return TPromise.as(null);
 	}
 
-	openEditors(_editors: IEditorInputWithOptions[]): TPromise<void> {
-		return TPromise.as(void 0);
+	openEditors(_editors: IEditorInputWithOptions[]): TPromise<IEditor> {
+		return TPromise.as(null);
 	}
 
 	isOpened(_editor: IEditorInput): boolean {
@@ -814,7 +808,7 @@ export class TestFileService implements IFileService {
 	}
 
 	resolveFiles(toResolve: { resource: URI, options?: IResolveFileOptions }[]): TPromise<IResolveFileResult[]> {
-		return TPromise.join(toResolve.map(resourceAndOption => this.resolveFile(resourceAndOption.resource, resourceAndOption.options))).then(stats => stats.map(stat => ({ stat, success: true })));
+		return Promise.all(toResolve.map(resourceAndOption => this.resolveFile(resourceAndOption.resource, resourceAndOption.options))).then(stats => stats.map(stat => ({ stat, success: true })));
 	}
 
 	existsFile(_resource: URI): TPromise<boolean> {
@@ -853,14 +847,14 @@ export class TestFileService implements IFileService {
 	}
 
 	updateContent(resource: URI, _value: string | ITextSnapshot, _options?: IUpdateContentOptions): TPromise<IFileStat> {
-		return TPromise.wrap(timeout(0).then(() => ({
+		return timeout(0).then(() => ({
 			resource,
 			etag: 'index.txt',
 			encoding: 'utf8',
 			mtime: Date.now(),
 			isDirectory: false,
 			name: paths.basename(resource.fsPath)
-		})));
+		}));
 	}
 
 	moveFile(_source: URI, _target: URI, _overwrite?: boolean): TPromise<IFileStat> {
@@ -1008,6 +1002,8 @@ export class TestWindowService implements IWindowService {
 	onDidChangeFocus: Event<boolean> = new Emitter<boolean>().event;
 	onDidChangeMaximize: Event<boolean>;
 
+	hasFocus = true;
+
 	isFocused(): TPromise<boolean> {
 		return TPromise.as(false);
 	}
@@ -1117,15 +1113,15 @@ export class TestWindowService implements IWindowService {
 	}
 
 	showMessageBox(_options: Electron.MessageBoxOptions): TPromise<IMessageBoxResult> {
-		return TPromise.wrap({ button: 0 });
+		return Promise.resolve({ button: 0 });
 	}
 
 	showSaveDialog(_options: Electron.SaveDialogOptions): TPromise<string> {
-		return TPromise.wrap(void 0);
+		return Promise.resolve(void 0);
 	}
 
 	showOpenDialog(_options: Electron.OpenDialogOptions): TPromise<string[]> {
-		return TPromise.wrap(void 0);
+		return Promise.resolve(void 0);
 	}
 
 	updateTouchBar(_items: ISerializableCommandAction[][]): TPromise<void> {

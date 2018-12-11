@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { addClass, addDisposableListener } from 'vs/base/browser/dom';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -15,6 +15,8 @@ import { DARK, ITheme, IThemeService, LIGHT } from 'vs/platform/theme/common/the
 import { registerFileProtocol, WebviewProtocol } from 'vs/workbench/parts/webview/electron-browser/webviewProtocols';
 import { areWebviewInputOptionsEqual } from './webviewEditorService';
 import { WebviewFindWidget } from './webviewFindWidget';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 export interface WebviewOptions {
 	readonly allowScripts?: boolean;
@@ -26,6 +28,17 @@ export interface WebviewOptions {
 	readonly extensionLocation?: URI;
 }
 
+interface IKeydownEvent {
+	key: string;
+	keyCode: number;
+	code: string;
+	shiftKey: boolean;
+	altKey: boolean;
+	ctrlKey: boolean;
+	metaKey: boolean;
+	repeat: boolean;
+}
+
 export class WebviewElement extends Disposable {
 	private _webview: Electron.WebviewTag;
 	private _ready: Promise<this>;
@@ -35,6 +48,9 @@ export class WebviewElement extends Disposable {
 	private _contents: string = '';
 	private _state: string | undefined = undefined;
 
+	private readonly _onDidFocus = this._register(new Emitter<void>());
+	public get onDidFocus(): Event<void> { return this._onDidFocus.event; }
+
 	constructor(
 		private readonly _styleElement: Element,
 		private _options: WebviewOptions,
@@ -42,12 +58,12 @@ export class WebviewElement extends Disposable {
 		@IThemeService private readonly _themeService: IThemeService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IFileService private readonly _fileService: IFileService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
 		super();
 		this._webview = document.createElement('webview');
 		this._webview.setAttribute('partition', this._options.allowSvgs ? 'webview' : `webview${Date.now()}`);
 
-		this._webview.setAttribute('disableguestresize', '');
 		this._webview.setAttribute('webpreferences', 'contextIsolation=yes');
 
 		this._webview.style.flex = '0 1';
@@ -164,6 +180,21 @@ export class WebviewElement extends Disposable {
 					this._state = event.args[0];
 					this._onDidUpdateState.fire(this._state);
 					return;
+
+				case 'did-focus':
+					this.handleFocusChange(true);
+					return;
+
+				case 'did-blur':
+					this.handleFocusChange(false);
+					return;
+
+				case 'did-keydown':
+					// Electron: workaround for https://github.com/electron/electron/issues/14258
+					// We have to detect keyboard events in the <webview> and dispatch them to our
+					// keybinding service because these events do not bubble to the parent window anymore.
+					this.handleKeydown(event.args[0]);
+					return;
 			}
 		}));
 		this._register(addDisposableListener(this._webview, 'devtools-opened', () => {
@@ -183,8 +214,6 @@ export class WebviewElement extends Disposable {
 
 	dispose(): void {
 		if (this._webview) {
-			this._webview.guestinstance = 'none';
-
 			if (this._webview.parentElement) {
 				this._webview.parentElement.removeChild(this._webview);
 			}
@@ -263,6 +292,35 @@ export class WebviewElement extends Disposable {
 	public focus(): void {
 		this._webview.focus();
 		this._send('focus');
+
+		// Handle focus change programmatically (do not rely on event from <webview>)
+		this.handleFocusChange(true);
+	}
+
+	private handleFocusChange(isFocused: boolean): void {
+		if (isFocused) {
+			this._onDidFocus.fire();
+		}
+	}
+
+	private handleKeydown(event: IKeydownEvent): void {
+
+		// Create a fake KeyboardEvent from the data provided
+		const emulatedKeyboardEvent = new KeyboardEvent('keydown', {
+			code: event.code,
+			key: event.key,
+			keyCode: event.keyCode,
+			shiftKey: event.shiftKey,
+			altKey: event.altKey,
+			ctrlKey: event.ctrlKey,
+			metaKey: event.metaKey,
+			repeat: event.repeat
+		} as KeyboardEvent);
+
+		// Dispatch through our keybinding service
+		// Note: we set the <webview> as target of the event so that scoped context key
+		// services function properly to enable commands like select all and find.
+		this._keybindingService.dispatchEvent(new StandardKeyboardEvent(emulatedKeyboardEvent), this._webview);
 	}
 
 	public sendMessage(data: any): void {
@@ -325,18 +383,6 @@ export class WebviewElement extends Disposable {
 			}
 
 			contents.setZoomFactor(factor);
-			if (!this._webview || !this._webview.parentElement) {
-				return;
-			}
-
-			const width = this._webview.parentElement.clientWidth;
-			const height = this._webview.parentElement.clientHeight;
-			contents.setSize({
-				normal: {
-					width: Math.floor(width * factor),
-					height: Math.floor(height * factor)
-				}
-			});
 		});
 	}
 

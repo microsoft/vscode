@@ -206,7 +206,7 @@ suite('Files - TextFileService', () => {
 
 		const mockedFileUri = untitledUncUri.with({ scheme: Schemas.file });
 		const mockedEditorInput = instantiationService.createInstance(TextFileEditorModel, mockedFileUri, 'utf8');
-		const loadOrCreateStub = sinon.stub(accessor.textFileService.models, 'loadOrCreate', () => TPromise.wrap(mockedEditorInput));
+		const loadOrCreateStub = sinon.stub(accessor.textFileService.models, 'loadOrCreate', () => Promise.resolve(mockedEditorInput));
 
 		sinon.stub(accessor.untitledEditorService, 'exists', () => true);
 		sinon.stub(accessor.untitledEditorService, 'hasAssociatedFilePath', () => true);

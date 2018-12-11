@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter, fromNodeEventEmitter, filterEvent, debounceEvent } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { timeout } from 'vs/base/common/async';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import product from 'vs/platform/node/product';
@@ -148,9 +148,9 @@ export class SnapUpdateService extends AbstractUpdateService2 {
 			throw new Error(`'SNAP' environment variable not set`);
 		}
 		const watcher = watch(path.dirname(process.env.SNAP));
-		const onChange = fromNodeEventEmitter(watcher, 'change', (_, fileName: string) => fileName);
-		const onCurrentChange = filterEvent(onChange, n => n === 'current');
-		const onDebouncedCurrentChange = debounceEvent(onCurrentChange, (_, e) => e, 2000);
+		const onChange = Event.fromNodeEventEmitter(watcher, 'change', (_, fileName: string) => fileName);
+		const onCurrentChange = Event.filter(onChange, n => n === 'current');
+		const onDebouncedCurrentChange = Event.debounce(onCurrentChange, (_, e) => e, 2000);
 		const listener = onDebouncedCurrentChange(this.checkForUpdates, this);
 
 		lifecycleService.onWillShutdown(() => {

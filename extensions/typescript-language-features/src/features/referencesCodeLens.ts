@@ -11,7 +11,8 @@ import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
 import { ConfigurationDependentRegistration, VersionDependentRegistration } from '../utils/dependentRegistration';
 import * as typeConverters from '../utils/typeConverters';
-import { ReferencesCodeLens, TypeScriptBaseCodeLensProvider, getSymbolRange, CachedResponse } from './baseCodeLensProvider';
+import { ReferencesCodeLens, TypeScriptBaseCodeLensProvider, getSymbolRange } from './baseCodeLensProvider';
+import { CachedResponse } from '../tsServer/cachedResponse';
 
 const localize = nls.loadMessageBundle();
 

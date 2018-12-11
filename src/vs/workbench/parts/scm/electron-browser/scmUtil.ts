@@ -8,7 +8,3 @@ import { ISCMResourceGroup, ISCMResource } from 'vs/workbench/services/scm/commo
 export function isSCMResource(element: ISCMResourceGroup | ISCMResource): element is ISCMResource {
 	return !!(element as ISCMResource).sourceUri;
 }
-
-export function getSCMResourceContextKey(resource: ISCMResourceGroup | ISCMResource): string {
-	return isSCMResource(resource) ? resource.resourceGroup.id : resource.id;
-}

@@ -69,6 +69,7 @@ export class IssueReporter extends Disposable {
 	private receivedSystemInfo = false;
 	private receivedPerformanceInfo = false;
 	private shouldQueueSearch = false;
+	private hasBeenSubmitted = false;
 
 	private previewButton: Button;
 
@@ -378,15 +379,19 @@ export class IssueReporter extends Disposable {
 
 		this.previewButton.onDidClick(() => this.createIssue());
 
+		function sendWorkbenchCommand(commandId: string) {
+			ipcRenderer.send('vscode:workbenchCommand', { id: commandId, from: 'issueReporter' });
+		}
+
 		this.addEventListener('disableExtensions', 'click', () => {
-			ipcRenderer.send('vscode:workbenchCommand', 'workbench.action.reloadWindowWithExtensionsDisabled');
+			sendWorkbenchCommand('workbench.action.reloadWindowWithExtensionsDisabled');
 		});
 
 		this.addEventListener('disableExtensions', 'keydown', (e: KeyboardEvent) => {
 			e.stopPropagation();
 			if (e.keyCode === 13 || e.keyCode === 32) {
-				ipcRenderer.send('vscode:workbenchCommand', 'workbench.extensions.action.disableAll');
-				ipcRenderer.send('vscode:workbenchCommand', 'workbench.action.reloadWindow');
+				sendWorkbenchCommand('workbench.extensions.action.disableAll');
+				sendWorkbenchCommand('workbench.action.reloadWindow');
 			}
 		});
 
@@ -403,7 +408,14 @@ export class IssueReporter extends Disposable {
 			if (cmdOrCtrlKey && e.keyCode === 87) {
 				e.stopPropagation();
 				e.preventDefault();
-				ipcRenderer.send('vscode:closeIssueReporter');
+
+				const issueTitle = (<HTMLInputElement>document.getElementById('issue-title'))!.value;
+				const { issueDescription } = this.issueReporterModel.getData();
+				if (!this.hasBeenSubmitted && (issueTitle || issueDescription)) {
+					ipcRenderer.send('vscode:issueReporterConfirmClose');
+				} else {
+					ipcRenderer.send('vscode:closeIssueReporter');
+				}
 			}
 
 			// Cmd/Ctrl + zooms in
@@ -776,6 +788,7 @@ export class IssueReporter extends Disposable {
 			}
 		*/
 		this.telemetryService.publicLog('issueReporterSubmit', { issueType: this.issueReporterModel.getData().issueType, numSimilarIssuesDisplayed: this.numberOfSearchResultsDisplayed });
+		this.hasBeenSubmitted = true;
 
 		const baseUrl = this.getIssueUrlWithTitle((<HTMLInputElement>document.getElementById('issue-title')).value);
 		const issueBody = this.issueReporterModel.serialize();

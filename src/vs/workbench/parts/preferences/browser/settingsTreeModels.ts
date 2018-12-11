@@ -506,8 +506,7 @@ export class SearchResultModel extends SettingsTreeModel {
 
 	private getFlatSettings(): ISetting[] {
 		const flatSettings: ISetting[] = [];
-		this.getUniqueResults()
-			.filter(r => !!r)
+		arrays.coalesce(this.getUniqueResults())
 			.forEach(r => {
 				flatSettings.push(
 					...r.filterMatches.map(m => m.setting));

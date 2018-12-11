@@ -224,7 +224,7 @@ class RPCLogger implements IRPCProtocolLogger {
 		} else {
 			args.push(data);
 		}
-		console.log.apply(console, args);
+		console.log.apply(console, args as [string, ...string[]]);
 	}
 
 	logIncoming(msgLength: number, req: number, initiator: RequestInitiator, str: string, data?: any): void {

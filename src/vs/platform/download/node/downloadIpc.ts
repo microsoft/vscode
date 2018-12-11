@@ -7,7 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import * as path from 'path';
 import * as fs from 'fs';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
-import { Event, Emitter, buffer } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { mkdirp } from 'vs/base/node/pfs';
 import { IURITransformer } from 'vs/base/common/uriIpc';
@@ -29,7 +29,7 @@ export class DownloadServiceChannel implements IServerChannel {
 
 	listen(_, event: string, arg?: any): Event<any> {
 		switch (event) {
-			case 'upload': return buffer(upload(URI.revive(arg)));
+			case 'upload': return Event.buffer(upload(URI.revive(arg)));
 		}
 
 		throw new Error(`Event not found: ${event}`);

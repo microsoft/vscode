@@ -43,6 +43,7 @@ export class CallStackView extends ViewletPanel {
 	private onCallStackChangeScheduler: RunOnceScheduler;
 	private needsRefresh: boolean;
 	private ignoreSelectionChangedEvent: boolean;
+	private ignoreFocusStackFrameEvent: boolean;
 	private callStackItemType: IContextKey<string>;
 	private dataSource: CallStackDataSource;
 	private tree: WorkbenchAsyncDataTree<CallStackItem>;
@@ -123,8 +124,26 @@ export class CallStackView extends ViewletPanel {
 
 						return element.getId();
 					}
+				},
+				typeLabelProvider: {
+					getTypeLabel: e => {
+						if (e instanceof DebugSession) {
+							return e.getLabel();
+						}
+						if (e instanceof Thread) {
+							return e.name;
+						}
+						if (e instanceof StackFrame || typeof e === 'string') {
+							return e;
+						}
+						if (e instanceof ThreadAndSessionIds) {
+							return LoadMoreRenderer.LABEL;
+						}
+
+						return nls.localize('showMoreStackFrames2', "Show More Stack Frames");
+					}
 				}
-			}, this.contextKeyService, this.listService, this.themeService, this.configurationService);
+			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
 
 		const callstackNavigator = new TreeResourceNavigator2(this.tree);
 		this.disposables.push(callstackNavigator);
@@ -133,16 +152,25 @@ export class CallStackView extends ViewletPanel {
 				return;
 			}
 
+			const focusStackFrame = (stackFrame: IStackFrame, thread: IThread, session: IDebugSession) => {
+				this.ignoreFocusStackFrameEvent = true;
+				try {
+					this.debugService.focusStackFrame(stackFrame, thread, session, true);
+				} finally {
+					this.ignoreFocusStackFrameEvent = false;
+				}
+			};
+
 			const element = e.element;
 			if (element instanceof StackFrame) {
-				this.debugService.focusStackFrame(element, element.thread, element.thread.session, true);
+				focusStackFrame(element, element.thread, element.thread.session);
 				element.openInEditor(this.editorService, e.editorOptions.preserveFocus, e.sideBySide, e.editorOptions.pinned);
 			}
 			if (element instanceof Thread) {
-				this.debugService.focusStackFrame(undefined, element, element.session, true);
+				focusStackFrame(undefined, element, element.session);
 			}
 			if (element instanceof DebugSession) {
-				this.debugService.focusStackFrame(undefined, undefined, element, true);
+				focusStackFrame(undefined, undefined, element);
 			}
 			if (element instanceof ThreadAndSessionIds) {
 				const session = this.debugService.getModel().getSessions().filter(p => p.getId() === element.sessionId).pop();
@@ -157,18 +185,6 @@ export class CallStackView extends ViewletPanel {
 				this.tree.refresh(null);
 			}
 		}));
-		this.disposables.push(this.tree.onDidChangeFocus(() => {
-			const focus = this.tree.getFocus();
-			if (focus instanceof StackFrame) {
-				this.callStackItemType.set('stackFrame');
-			} else if (focus instanceof Thread) {
-				this.callStackItemType.set('thread');
-			} else if (focus instanceof DebugSession) {
-				this.callStackItemType.set('session');
-			} else {
-				this.callStackItemType.reset();
-			}
-		}));
 
 		this.disposables.push(this.debugService.getModel().onDidChangeCallStack(() => {
 			if (!this.isVisible()) {
@@ -181,6 +197,9 @@ export class CallStackView extends ViewletPanel {
 			}
 		}));
 		this.disposables.push(this.debugService.getViewModel().onDidFocusStackFrame(() => {
+			if (this.ignoreFocusStackFrameEvent) {
+				return;
+			}
 			if (!this.isVisible) {
 				this.needsRefresh = true;
 				return;
@@ -246,9 +265,11 @@ export class CallStackView extends ViewletPanel {
 		const actions: IAction[] = [];
 		const element = e.element;
 		if (element instanceof DebugSession) {
+			this.callStackItemType.set('session');
 			actions.push(this.instantiationService.createInstance(RestartAction, RestartAction.ID, RestartAction.LABEL));
 			actions.push(new StopAction(StopAction.ID, StopAction.LABEL, this.debugService, this.keybindingService));
 		} else if (element instanceof Thread) {
+			this.callStackItemType.set('thread');
 			const thread = <Thread>element;
 			if (thread.stopped) {
 				actions.push(new ContinueAction(ContinueAction.ID, ContinueAction.LABEL, this.debugService, this.keybindingService));
@@ -262,10 +283,13 @@ export class CallStackView extends ViewletPanel {
 			actions.push(new Separator());
 			actions.push(new TerminateThreadAction(TerminateThreadAction.ID, TerminateThreadAction.LABEL, this.debugService, this.keybindingService));
 		} else if (element instanceof StackFrame) {
+			this.callStackItemType.set('stackFrame');
 			if (element.thread.session.capabilities.supportsRestartFrame) {
 				actions.push(new RestartFrameAction(RestartFrameAction.ID, RestartFrameAction.LABEL, this.debugService, this.keybindingService));
 			}
 			actions.push(new CopyStackTraceAction(CopyStackTraceAction.ID, CopyStackTraceAction.LABEL));
+		} else {
+			this.callStackItemType.reset();
 		}
 
 		this.contextMenuService.showContextMenu({
@@ -351,10 +375,6 @@ class SessionsRenderer implements ITreeRenderer<IDebugSession, void, ISessionTem
 			: nls.localize({ key: 'running', comment: ['indicates state'] }, "Running");
 	}
 
-	disposeElement(element: ITreeNode<IDebugSession, void>, index: number, templateData: ISessionTemplateData): void {
-		// noop
-	}
-
 	disposeTemplate(templateData: ISessionTemplateData): void {
 		// noop
 	}
@@ -388,10 +408,6 @@ class ThreadsRenderer implements ITreeRenderer<IThread, void, IThreadTemplateDat
 		} else {
 			data.stateLabel.textContent = nls.localize({ key: 'running', comment: ['indicates state'] }, "Running");
 		}
-	}
-
-	disposeElement(element: ITreeNode<IThread, void>, index: number, templateData: IThreadTemplateData): void {
-		// noop
 	}
 
 	disposeTemplate(templateData: IThreadTemplateData): void {
@@ -444,10 +460,6 @@ class StackFramesRenderer implements ITreeRenderer<IStackFrame, void, IStackFram
 		}
 	}
 
-	disposeElement(element: ITreeNode<IStackFrame, void>, index: number, templateData: IStackFrameTemplateData): void {
-		// noop
-	}
-
 	disposeTemplate(templateData: IStackFrameTemplateData): void {
 		// noop
 	}
@@ -473,10 +485,6 @@ class ErrorsRenderer implements ITreeRenderer<string, void, IErrorTemplateData> 
 		data.label.title = error;
 	}
 
-	disposeElement(element: ITreeNode<string, void>, index: number, templateData: IErrorTemplateData): void {
-		// noop
-	}
-
 	disposeTemplate(templateData: IErrorTemplateData): void {
 		// noop
 	}
@@ -484,6 +492,7 @@ class ErrorsRenderer implements ITreeRenderer<string, void, IErrorTemplateData> 
 
 class LoadMoreRenderer implements ITreeRenderer<ThreadAndSessionIds, void, ILabelTemplateData> {
 	static readonly ID = 'loadMore';
+	static readonly LABEL = nls.localize('loadMoreStackFrames', "Load More Stack Frames");
 
 	get templateId(): string {
 		return LoadMoreRenderer.ID;
@@ -497,11 +506,7 @@ class LoadMoreRenderer implements ITreeRenderer<ThreadAndSessionIds, void, ILabe
 	}
 
 	renderElement(element: ITreeNode<ThreadAndSessionIds, void>, index: number, data: ILabelTemplateData): void {
-		data.label.textContent = nls.localize('loadMoreStackFrames', "Load More Stack Frames");
-	}
-
-	disposeElement(element: ITreeNode<ThreadAndSessionIds, void>, index: number, templateData: ILabelTemplateData): void {
-		// noop
+		data.label.textContent = LoadMoreRenderer.LABEL;
 	}
 
 	disposeTemplate(templateData: ILabelTemplateData): void {
@@ -530,10 +535,6 @@ class ShowMoreRenderer implements ITreeRenderer<IStackFrame[], void, ILabelTempl
 		} else {
 			data.label.textContent = nls.localize('showMoreStackFrames', "Show {0} More Stack Frames", stackFrames.length);
 		}
-	}
-
-	disposeElement(element: ITreeNode<IStackFrame[], void>, index: number, templateData: ILabelTemplateData): void {
-		// noop
 	}
 
 	disposeTemplate(templateData: ILabelTemplateData): void {

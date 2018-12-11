@@ -56,7 +56,8 @@ class VariableResolver {
 	}
 	resolve(value: string): string {
 		return value.replace(/\$\{(.*?)\}/g, (match: string, variable: string) => {
-			let result = this._values.get(match);
+			// Strip out the ${} because the map contains them variables without those characters.
+			let result = this._values.get(match.substring(2, match.length - 1));
 			if (result) {
 				return result;
 			}
@@ -67,7 +68,6 @@ class VariableResolver {
 		});
 	}
 }
-
 
 export class VerifiedTask {
 	readonly task: Task;
@@ -101,7 +101,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 
 	public static TelemetryEventName: string = 'taskService';
 
-	private static ProcessVarName = '${__process__}';
+	private static ProcessVarName = '__process__';
 
 	private static shellQuotes: IStringDictionary<ShellQuotingOptions> = {
 		'cmd': {
@@ -390,30 +390,39 @@ export class TerminalTaskSystem implements ITaskSystem {
 				}
 				return Promise.resolve(resolved);
 			});
+			return resolvedVariables;
 		} else {
-			let result = new Map<string, string>();
-			variables.forEach(variable => {
-				result.set(variable, this.configurationResolverService.resolve(workspaceFolder, variable));
+			let variablesArray = new Array<string>();
+			variables.forEach(variable => variablesArray.push(variable));
+
+			return new Promise((resolve, reject) => {
+				this.configurationResolverService.resolveWithInteraction(workspaceFolder, variablesArray, 'tasks').then(resolvedVariablesMap => {
+					if (resolvedVariablesMap) {
+						if (isProcess) {
+							let processVarValue: string;
+							if (Platform.isWindows) {
+								processVarValue = win32.findExecutable(
+									this.configurationResolverService.resolve(workspaceFolder, CommandString.value(task.command.name)),
+									cwd ? this.configurationResolverService.resolve(workspaceFolder, cwd) : undefined,
+									envPath ? envPath.split(path.delimiter).map(p => this.configurationResolverService.resolve(workspaceFolder, p)) : undefined
+								);
+							} else {
+								processVarValue = this.configurationResolverService.resolve(workspaceFolder, CommandString.value(task.command.name));
+							}
+							resolvedVariablesMap.set(TerminalTaskSystem.ProcessVarName, processVarValue);
+						}
+						let resolvedVariablesResult: ResolvedVariables = {
+							variables: resolvedVariablesMap,
+						};
+						resolve(resolvedVariablesResult);
+					} else {
+						resolve(undefined);
+					}
+				}, reason => {
+					reject(reason);
+				});
 			});
-			if (isProcess) {
-				let processVarValue: string;
-				if (Platform.isWindows) {
-					processVarValue = win32.findExecutable(
-						this.configurationResolverService.resolve(workspaceFolder, CommandString.value(task.command.name)),
-						cwd ? this.configurationResolverService.resolve(workspaceFolder, cwd) : undefined,
-						envPath ? envPath.split(path.delimiter).map(p => this.configurationResolverService.resolve(workspaceFolder, p)) : undefined
-					);
-				} else {
-					processVarValue = this.configurationResolverService.resolve(workspaceFolder, CommandString.value(task.command.name));
-				}
-				result.set(TerminalTaskSystem.ProcessVarName, processVarValue);
-			}
-			let resolvedVariablesResult: ResolvedVariables = {
-				variables: result,
-			};
-			resolvedVariables = Promise.resolve(resolvedVariablesResult);
 		}
-		return resolvedVariables;
 	}
 
 	private executeCommand(task: CustomTask | ContributedTask, trigger: string): Promise<ITaskSummary> {
@@ -427,8 +436,14 @@ export class TerminalTaskSystem implements ITaskSystem {
 		const resolvedVariables = this.resolveVariablesFromSet(this.currentTask.systemInfo, this.currentTask.workspaceFolder, task, variables);
 
 		return resolvedVariables.then((resolvedVariables) => {
-			this.currentTask.resolvedVariables = resolvedVariables;
-			return this.executeInTerminal(task, trigger, new VariableResolver(this.currentTask.workspaceFolder, this.currentTask.systemInfo, resolvedVariables.variables, this.configurationResolverService));
+			if (resolvedVariables) {
+				this.currentTask.resolvedVariables = resolvedVariables;
+				return this.executeInTerminal(task, trigger, new VariableResolver(this.currentTask.workspaceFolder, this.currentTask.systemInfo, resolvedVariables.variables, this.configurationResolverService));
+			} else {
+				return Promise.resolve({ exitCode: 0 });
+			}
+		}, reason => {
+			return Promise.reject(reason);
 		});
 	}
 
@@ -440,7 +455,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		// Check that the task hasn't changed to include new variables
 		let hasAllVariables = true;
 		variables.forEach(value => {
-			if (value in this.lastTask.getVerifiedTask().resolvedVariables) {
+			if (value.substring(2, value.length - 1) in this.lastTask.getVerifiedTask().resolvedVariables) {
 				hasAllVariables = false;
 			}
 		});
@@ -449,6 +464,8 @@ export class TerminalTaskSystem implements ITaskSystem {
 			return this.resolveVariablesFromSet(this.lastTask.getVerifiedTask().systemInfo, this.lastTask.getVerifiedTask().workspaceFolder, task, variables).then((resolvedVariables) => {
 				this.currentTask.resolvedVariables = resolvedVariables;
 				return this.executeInTerminal(task, trigger, new VariableResolver(this.lastTask.getVerifiedTask().workspaceFolder, this.lastTask.getVerifiedTask().systemInfo, resolvedVariables.variables, this.configurationResolverService));
+			}, reason => {
+				return Promise.reject(reason);
 			});
 		} else {
 			this.currentTask.resolvedVariables = this.lastTask.getVerifiedTask().resolvedVariables;
@@ -745,7 +762,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		} else {
 			let commandExecutable = CommandString.value(command);
 			let executable = !isShellCommand
-				? this.resolveVariable(variableResolver, TerminalTaskSystem.ProcessVarName)
+				? this.resolveVariable(variableResolver, '${' + TerminalTaskSystem.ProcessVarName + '}')
 				: commandExecutable;
 
 			// When we have a process task there is no need to quote arguments. So we go ahead and take the string value.

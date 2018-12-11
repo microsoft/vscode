@@ -659,6 +659,20 @@ suite('QueryBuilder', () => {
 								pattern: '**/*.txt'
 							}]
 					}
+				],
+				[
+					'./root1/**/foo/, bar/',
+					<ISearchPathsResult>{
+						pattern: {
+							'**/bar': true,
+							'**/bar/**': true
+						},
+						searchPaths: [
+							{
+								searchPath: ROOT_1_URI,
+								pattern: '**/foo'
+							}]
+					}
 				]
 			];
 			cases.forEach(testIncludesDataItem);

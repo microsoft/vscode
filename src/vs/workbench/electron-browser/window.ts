@@ -104,7 +104,7 @@ export class ElectronWindow extends Themable {
 
 		// Support runAction event
 		ipc.on('vscode:runAction', (event: any, request: IRunActionInWindowRequest) => {
-			const args: any[] = [];
+			const args: any[] = request.args || [];
 
 			// If we run an action from the touchbar, we fill in the currently active resource
 			// as payload because the touch bar items are context aware depending on the editor
@@ -392,7 +392,7 @@ export class ElectronWindow extends Themable {
 		}
 
 		if (inputs.length) {
-			this.openResources(inputs, diffMode).then(null, errors.onUnexpectedError);
+			this.openResources(inputs, diffMode);
 		}
 
 		if (request.filesToWait && inputs.length) {
@@ -410,8 +410,8 @@ export class ElectronWindow extends Themable {
 		}
 	}
 
-	private openResources(resources: (IResourceInput | IUntitledResourceInput)[], diffMode: boolean): Thenable<any> {
-		return this.lifecycleService.when(LifecyclePhase.Restored).then(() => {
+	private openResources(resources: (IResourceInput | IUntitledResourceInput)[], diffMode: boolean): void {
+		this.lifecycleService.when(LifecyclePhase.Ready).then(() => {
 
 			// In diffMode we open 2 resources as diff
 			if (diffMode && resources.length === 2) {

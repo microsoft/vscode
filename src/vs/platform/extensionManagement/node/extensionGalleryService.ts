@@ -473,6 +473,9 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	}
 
 	private queryGallery(query: Query, token: CancellationToken): Promise<{ galleryExtensions: IRawGalleryExtension[], total: number; }> {
+		if (!this.isEnabled()) {
+			return Promise.reject(new Error('No extension gallery service configured.'));
+		}
 		return this.commonHeadersPromise.then(commonHeaders => {
 			const data = JSON.stringify(query.raw);
 			const headers = assign({}, commonHeaders, {

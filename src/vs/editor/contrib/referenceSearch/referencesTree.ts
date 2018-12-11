@@ -135,9 +135,6 @@ export class FileReferencesRenderer implements ITreeRenderer<FileReferences, voi
 	renderElement(node: ITreeNode<FileReferences, void>, index: number, template: FileReferencesTemplate): void {
 		template.set(node.element);
 	}
-	disposeElement(element: ITreeNode<FileReferences, void>, index: number, templateData: FileReferencesTemplate): void {
-		//
-	}
 	disposeTemplate(templateData: FileReferencesTemplate): void {
 		templateData.dispose();
 	}
@@ -166,10 +163,14 @@ class OneReferenceTemplate {
 	}
 
 	set(element: OneReference): void {
-		const { before, inside, after } = element.parent.preview.preview(element.range);
-		this.before.innerHTML = escape(before);
-		this.inside.innerHTML = escape(inside);
-		this.after.innerHTML = escape(after);
+		const filePreview = element.parent.preview;
+		const preview = filePreview && filePreview.preview(element.range);
+		if (preview) {
+			const { before, inside, after } = preview;
+			this.before.innerHTML = escape(before);
+			this.inside.innerHTML = escape(inside);
+			this.after.innerHTML = escape(after);
+		}
 	}
 }
 
@@ -184,9 +185,6 @@ export class OneReferenceRenderer implements ITreeRenderer<OneReference, void, O
 	}
 	renderElement(element: ITreeNode<OneReference, void>, index: number, templateData: OneReferenceTemplate): void {
 		templateData.set(element.element);
-	}
-	disposeElement(): void {
-		//
 	}
 	disposeTemplate(): void {
 		//

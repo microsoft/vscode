@@ -1091,9 +1091,9 @@ export class WindowsManager implements IWindowsMainService {
 				}
 			}
 		} catch (error) {
-			const fileUri = URI.file(candidate);
-			this.historyMainService.removeFromRecentlyOpened([fileUri]); // since file does not seem to exist anymore, remove from recent
+			this.historyMainService.removeFromRecentlyOpened([candidate]); // since file does not seem to exist anymore, remove from recent
 
+			const fileUri = URI.file(candidate);
 			if (options && options.ignoreFileNotFound) {
 				return { fileUri, createFilePath: true, remoteAuthority }; // assume this is a file that does not yet exist
 			}
@@ -1651,13 +1651,24 @@ export class WindowsManager implements IWindowsMainService {
 
 		/* __GDPR__
 			"windowerror" : {
-				"type" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+				"type" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
 			}
 		*/
 		this.telemetryService.publicLog('windowerror', { type: error });
 
 		// Unresponsive
 		if (error === WindowError.UNRESPONSIVE) {
+			if (window.isExtensionDevelopmentHost || window.isExtensionTestHost || (window.win && window.win.webContents && window.win.webContents.isDevToolsOpened())) {
+				// TODO@Ben Workaround for https://github.com/Microsoft/vscode/issues/56994
+				// In certain cases the window can report unresponsiveness because a breakpoint was hit
+				// and the process is stopped executing. The most typical cases are:
+				// - devtools are opened and debugging happens
+				// - window is an extensions development host that is being debugged
+				// - window is an extension test development host that is being debugged
+				return;
+			}
+
+			// Show Dialog
 			this.dialogs.showMessageBox({
 				title: product.nameLong,
 				type: 'warning',
@@ -2018,11 +2029,11 @@ class WorkspacesManager {
 
 	private isValidTargetWorkspacePath(window: ICodeWindow, path?: string): TPromise<boolean> {
 		if (!path) {
-			return TPromise.wrap(true);
+			return Promise.resolve(true);
 		}
 
 		if (window.openedWorkspace && window.openedWorkspace.configPath === path) {
-			return TPromise.wrap(false); // window is already opened on a workspace with that path
+			return Promise.resolve(false); // window is already opened on a workspace with that path
 		}
 
 		// Prevent overwriting a workspace that is currently opened in another window
@@ -2039,7 +2050,7 @@ class WorkspacesManager {
 			return this.windowsMainService.showMessageBox(options, this.windowsMainService.getFocusedWindow()).then(() => false);
 		}
 
-		return TPromise.wrap(true); // OK
+		return Promise.resolve(true); // OK
 	}
 
 	private doSaveAndOpenWorkspace(window: ICodeWindow, workspace: IWorkspaceIdentifier, path?: string): TPromise<IEnterWorkspaceResult> {

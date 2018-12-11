@@ -5,7 +5,7 @@
 
 import * as arrays from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
-import { Event, chain, anyEvent, debounceEvent } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -100,11 +100,11 @@ export class KeymapExtensions implements IWorkbenchContribution {
 export function onExtensionChanged(accessor: ServicesAccessor): Event<IExtensionIdentifier[]> {
 	const extensionService = accessor.get(IExtensionManagementService);
 	const extensionEnablementService = accessor.get(IExtensionEnablementService);
-	const onDidInstallExtension = chain(extensionService.onDidInstallExtension)
+	const onDidInstallExtension = Event.chain(extensionService.onDidInstallExtension)
 		.filter(e => e.operation === InstallOperation.Install)
 		.event;
-	return debounceEvent<IExtensionIdentifier, IExtensionIdentifier[]>(anyEvent(
-		chain(anyEvent(onDidInstallExtension, extensionService.onDidUninstallExtension))
+	return Event.debounce<IExtensionIdentifier, IExtensionIdentifier[]>(Event.any(
+		Event.chain(Event.any(onDidInstallExtension, extensionService.onDidUninstallExtension))
 			.map(e => ({ id: stripVersion(e.identifier.id), uuid: e.identifier.uuid }))
 			.event,
 		extensionEnablementService.onEnablementChanged

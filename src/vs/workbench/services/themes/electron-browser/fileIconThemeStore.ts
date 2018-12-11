@@ -105,7 +105,7 @@ export class FileIconThemeStore {
 
 	}
 
-	public findThemeData(iconTheme: string): Thenable<FileIconThemeData> {
+	public findThemeData(iconTheme: string): Thenable<FileIconThemeData | null> {
 		return this.getFileIconThemes().then(allIconSets => {
 			for (let iconSet of allIconSets) {
 				if (iconSet.id === iconTheme) {
@@ -116,7 +116,7 @@ export class FileIconThemeStore {
 		});
 	}
 
-	public findThemeBySettingsId(settingsId: string): Thenable<FileIconThemeData> {
+	public findThemeBySettingsId(settingsId: string): Thenable<FileIconThemeData | null> {
 		return this.getFileIconThemes().then(allIconSets => {
 			for (let iconSet of allIconSets) {
 				if (iconSet.settingsId === settingsId) {

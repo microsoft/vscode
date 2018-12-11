@@ -390,7 +390,7 @@ function doWriteFileStreamAndFlush(path: string, reader: NodeJS.ReadableStream, 
 			if (error) {
 				if (isOpen) {
 					writer.once('close', () => callback(error));
-					writer.close();
+					writer.destroy();
 				} else {
 					callback(error);
 				}
@@ -450,10 +450,10 @@ function doWriteFileStreamAndFlush(path: string, reader: NodeJS.ReadableStream, 
 					canFlush = false;
 				}
 
-				writer.close();
+				writer.destroy();
 			});
 		} else {
-			writer.close();
+			writer.destroy();
 		}
 	});
 

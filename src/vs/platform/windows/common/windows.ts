@@ -5,7 +5,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event, latch, anyEvent } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { IProcessEnvironment, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -115,9 +115,9 @@ export interface IWindowsService {
 	openDevTools(windowId: number, options?: IDevToolsOptions): TPromise<void>;
 	toggleDevTools(windowId: number): TPromise<void>;
 	closeWorkspace(windowId: number): TPromise<void>;
-	enterWorkspace(windowId: number, path: string): TPromise<IEnterWorkspaceResult>;
-	createAndEnterWorkspace(windowId: number, folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult>;
-	saveAndEnterWorkspace(windowId: number, path: string): TPromise<IEnterWorkspaceResult>;
+	enterWorkspace(windowId: number, path: string): TPromise<IEnterWorkspaceResult | undefined>;
+	createAndEnterWorkspace(windowId: number, folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult | undefined>;
+	saveAndEnterWorkspace(windowId: number, path: string): TPromise<IEnterWorkspaceResult | undefined>;
 	toggleFullScreen(windowId: number): TPromise<void>;
 	setRepresentedFilename(windowId: number, fileName: string): TPromise<void>;
 	addRecentlyOpened(files: URI[]): TPromise<void>;
@@ -183,8 +183,10 @@ export interface IWindowService {
 
 	_serviceBrand: any;
 
-	onDidChangeFocus: Event<boolean>;
-	onDidChangeMaximize: Event<boolean>;
+	readonly onDidChangeFocus: Event<boolean>;
+	readonly onDidChangeMaximize: Event<boolean>;
+
+	readonly hasFocus: boolean;
 
 	getConfiguration(): IWindowConfiguration;
 	getCurrentWindowId(): number;
@@ -197,9 +199,9 @@ export interface IWindowService {
 	toggleDevTools(): TPromise<void>;
 	closeWorkspace(): TPromise<void>;
 	updateTouchBar(items: ISerializableCommandAction[][]): TPromise<void>;
-	enterWorkspace(path: string): TPromise<IEnterWorkspaceResult>;
-	createAndEnterWorkspace(folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult>;
-	saveAndEnterWorkspace(path: string): TPromise<IEnterWorkspaceResult>;
+	enterWorkspace(path: string): TPromise<IEnterWorkspaceResult | undefined>;
+	createAndEnterWorkspace(folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult | undefined>;
+	saveAndEnterWorkspace(path: string): TPromise<IEnterWorkspaceResult | undefined>;
 	toggleFullScreen(): TPromise<void>;
 	setRepresentedFilename(fileName: string): TPromise<void>;
 	getRecentlyOpened(): TPromise<IRecentlyOpened>;
@@ -388,6 +390,7 @@ export interface IWindowConfiguration extends ParsedArgs {
 	highContrast?: boolean;
 	frameless?: boolean;
 	accessibilitySupport?: boolean;
+	partsSplashData?: string;
 
 	perfStartTime?: number;
 	perfAppReady?: number;
@@ -404,6 +407,7 @@ export interface IWindowConfiguration extends ParsedArgs {
 export interface IRunActionInWindowRequest {
 	id: string;
 	from: 'menu' | 'touchbar' | 'mouse';
+	args?: any[];
 }
 
 export class ActiveWindowManager implements IDisposable {
@@ -413,7 +417,7 @@ export class ActiveWindowManager implements IDisposable {
 	private _activeWindowId: number | undefined;
 
 	constructor(@IWindowsService windowsService: IWindowsService) {
-		const onActiveWindowChange = latch(anyEvent(windowsService.onWindowOpen, windowsService.onWindowFocus));
+		const onActiveWindowChange = Event.latch(Event.any(windowsService.onWindowOpen, windowsService.onWindowFocus));
 		onActiveWindowChange(this.setActiveWindow, this, this.disposables);
 
 		this.firstActiveWindowIdPromise = windowsService.getActiveWindowId()

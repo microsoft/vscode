@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { distinct } from 'vs/base/common/arrays';
+import { distinct, coalesce } from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
 import { OperatingSystem, language, LANGUAGE_DEFAULT } from 'vs/base/common/platform';
 import { IMatch, IFilter, or, matchesContiguousSubString, matchesPrefix, matchesCamelCase, matchesWords } from 'vs/base/common/filters';
@@ -156,7 +156,7 @@ export class KeybindingsEditorModel extends EditorModel {
 	private splitKeybindingWords(wordsSeparatedBySpaces: string[]): string[] {
 		const result: string[] = [];
 		for (const word of wordsSeparatedBySpaces) {
-			result.push(...word.split('+').filter(w => !!w));
+			result.push(...coalesce(word.split('+')));
 		}
 		return result;
 	}

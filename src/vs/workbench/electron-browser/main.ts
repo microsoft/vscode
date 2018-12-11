@@ -12,7 +12,6 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import * as comparer from 'vs/base/common/comparers';
 import * as platform from 'vs/base/common/platform';
 import { URI as uri } from 'vs/base/common/uri';
-import { IWorkspaceContextService, Workspace, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -22,7 +21,6 @@ import * as gracefulFs from 'graceful-fs';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { IWindowConfiguration, IWindowsService } from 'vs/platform/windows/common/windows';
 import { WindowsChannelClient } from 'vs/platform/windows/node/windowsIpc';
-import { IStorageLegacyService, StorageLegacyService, inMemoryLocalStorageInstance, IStorageLegacy } from 'vs/platform/storage/common/storageLegacyService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Client as ElectronIPCClient } from 'vs/base/parts/ipc/electron-browser/ipc.electron-browser';
 import { webFrame } from 'electron';
@@ -35,7 +33,7 @@ import { IWorkspacesService, ISingleFolderWorkspaceIdentifier, IWorkspaceInitial
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import * as fs from 'fs';
 import { ConsoleLogService, MultiplexLogService, ILogService } from 'vs/platform/log/common/log';
-import { StorageService, DelegatingStorageService } from 'vs/platform/storage/node/storageService';
+import { StorageService } from 'vs/platform/storage/node/storageService';
 import { IssueChannelClient } from 'vs/platform/issue/node/issueIpc';
 import { IIssueService } from 'vs/platform/issue/common/issue';
 import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/node/logIpc';
@@ -48,6 +46,7 @@ import { basename } from 'path';
 import { createHash } from 'crypto';
 import { IdleValue } from 'vs/base/common/async';
 import { setGlobalLeakWarningThreshold } from 'vs/base/common/event';
+import { GlobalStorageDatabaseChannelClient } from 'vs/platform/storage/node/storageIpc';
 
 gracefulFs.gracefulify(fs); // enable gracefulFs
 
@@ -60,7 +59,8 @@ export function startup(configuration: IWindowConfiguration): Promise<void> {
 	perf.importEntries(configuration.perfEntries);
 
 	// Configure emitter leak warning threshold
-	setGlobalLeakWarningThreshold(100);
+	setGlobalLeakWarningThreshold(175);
+
 
 	// Browser config
 	browser.setZoomFactor(webFrame.getZoomFactor()); // Ensure others can listen to zoom level changes
@@ -119,10 +119,10 @@ function openWorkbench(configuration: IWindowConfiguration): Promise<void> {
 			createWorkspaceService(payload, environmentService, logService),
 
 			// Create and initialize storage service
-			createStorageService(payload, environmentService, logService)
+			createStorageService(payload, environmentService, logService, mainProcessClient)
 		]).then(services => {
 			const workspaceService = services[0];
-			const storageService = new DelegatingStorageService(services[1], createStorageLegacyService(workspaceService, environmentService), logService, workspaceService);
+			const storageService = services[1];
 
 			return domContentLoaded().then(() => {
 				perf.mark('willStartWorkbench');
@@ -238,9 +238,9 @@ function createWorkspaceService(payload: IWorkspaceInitializationPayload, enviro
 	});
 }
 
-function createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService, logService: ILogService): Thenable<StorageService> {
-	const useInMemoryStorage = !!environmentService.extensionTestsPath; // no storage during extension tests!
-	const storageService = new StorageService({ disableGlobalStorage: true, storeInMemory: useInMemoryStorage }, logService, environmentService);
+function createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService, logService: ILogService, mainProcessClient: ElectronIPCClient): Thenable<StorageService> {
+	const globalStorageDatabase = new GlobalStorageDatabaseChannelClient(mainProcessClient.getChannel('storage'));
+	const storageService = new StorageService(globalStorageDatabase, logService, environmentService);
 
 	return storageService.initialize(payload).then(() => storageService, error => {
 		onUnexpectedError(error);
@@ -248,46 +248,6 @@ function createStorageService(payload: IWorkspaceInitializationPayload, environm
 
 		return storageService;
 	});
-}
-
-function createStorageLegacyService(workspaceService: IWorkspaceContextService, environmentService: IEnvironmentService): IStorageLegacyService {
-	let workspaceId: string;
-
-	switch (workspaceService.getWorkbenchState()) {
-
-		// in multi root workspace mode we use the provided ID as key for workspace storage
-		case WorkbenchState.WORKSPACE:
-			workspaceId = uri.from({ path: workspaceService.getWorkspace().id, scheme: 'root' }).toString();
-			break;
-
-		// in single folder mode we use the path of the opened folder as key for workspace storage
-		// the ctime is used as secondary workspace id to clean up stale UI state if necessary
-		case WorkbenchState.FOLDER:
-			const workspace: Workspace = <Workspace>workspaceService.getWorkspace();
-			workspaceId = workspace.folders[0].uri.toString();
-			break;
-
-		// finally, if we do not have a workspace open, we need to find another identifier for the window to store
-		// workspace UI state. if we have a backup path in the configuration we can use that because this
-		// will be a unique identifier per window that is stable between restarts as long as there are
-		// dirty files in the workspace.
-		// We use basename() to produce a short identifier, we do not need the full path. We use a custom
-		// scheme so that we can later distinguish these identifiers from the workspace one.
-		case WorkbenchState.EMPTY:
-			workspaceId = workspaceService.getWorkspace().id;
-			break;
-	}
-
-	const disableStorage = !!environmentService.extensionTestsPath; // never keep any state when running extension tests!
-
-	let storage: IStorageLegacy;
-	if (disableStorage) {
-		storage = inMemoryLocalStorageInstance;
-	} else {
-		storage = window.localStorage;
-	}
-
-	return new StorageLegacyService(storage, storage, workspaceId);
 }
 
 function createLogService(mainProcessClient: ElectronIPCClient, configuration: IWindowConfiguration, environmentService: IEnvironmentService): ILogService {

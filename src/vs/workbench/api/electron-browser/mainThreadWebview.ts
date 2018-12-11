@@ -19,6 +19,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorG
 import * as vscode from 'vscode';
 import { extHostNamedCustomer } from './extHostCustomers';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 @extHostNamedCustomer(MainContext.MainThreadWebviews)
 export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviver {
@@ -169,7 +170,9 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 			}
 
 			return this._proxy.$deserializeWebviewPanel(handle, webview.state.viewType, webview.getTitle(), state, editorGroupToViewColumn(this._editorGroupService, webview.group), webview.options)
-				.then(undefined, () => {
+				.then(undefined, error => {
+					onUnexpectedError(error);
+
 					webview.html = MainThreadWebviews.getDeserializationFailedContents(viewType);
 				});
 		}));

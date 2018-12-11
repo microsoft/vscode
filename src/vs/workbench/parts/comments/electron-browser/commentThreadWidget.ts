@@ -80,6 +80,10 @@ export class ReviewZoneWidget extends ZoneWidget {
 		return this._commentThread;
 	}
 
+	public get draftMode(): modes.DraftMode {
+		return this._draftMode;
+	}
+
 	constructor(
 		private instantiationService: IInstantiationService,
 		private modeService: IModeService,

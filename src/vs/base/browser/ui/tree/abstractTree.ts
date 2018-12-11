@@ -5,61 +5,41 @@
 
 import 'vs/css!./media/tree';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IListOptions, List, IMultipleSelectionController, IListStyles, IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListEvent, IListContextMenuEvent, IIdentityProvider } from 'vs/base/browser/ui/list/list';
+import { IListOptions, List, IListStyles } from 'vs/base/browser/ui/list/listWidget';
+import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListEvent, IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
 import { append, $, toggleClass } from 'vs/base/browser/dom';
-import { Event, Relay, chain, mapEvent } from 'vs/base/common/event';
+import { Event, Relay } from 'vs/base/common/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ITreeModel, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeFilter } from 'vs/base/browser/ui/tree/tree';
 import { ISpliceable } from 'vs/base/common/sequence';
 
 function asListOptions<T, TFilterData>(options?: IAbstractTreeOptions<T, TFilterData>): IListOptions<ITreeNode<T, TFilterData>> | undefined {
-	if (!options) {
-		return undefined;
-	}
-
-	let identityProvider: IIdentityProvider<ITreeNode<T, TFilterData>> | undefined = undefined;
-
-	if (options.identityProvider) {
-		const ip = options.identityProvider;
-		identityProvider = {
+	return options && {
+		...options,
+		identityProvider: options.identityProvider && {
 			getId(el) {
-				return ip.getId(el.element);
+				return options.identityProvider!.getId(el.element);
 			}
-		};
-	}
-
-	let multipleSelectionController: IMultipleSelectionController<ITreeNode<T, TFilterData>> | undefined = undefined;
-
-	if (options.multipleSelectionController) {
-		const msc = options.multipleSelectionController;
-		multipleSelectionController = {
+		},
+		multipleSelectionController: options.multipleSelectionController && {
 			isSelectionSingleChangeEvent(e) {
-				return msc.isSelectionSingleChangeEvent({ ...e, element: e.element } as any);
+				return options.multipleSelectionController!.isSelectionSingleChangeEvent({ ...e, element: e.element } as any);
 			},
 			isSelectionRangeChangeEvent(e) {
-				return msc.isSelectionRangeChangeEvent({ ...e, element: e.element } as any);
+				return options.multipleSelectionController!.isSelectionRangeChangeEvent({ ...e, element: e.element } as any);
 			}
-		};
-	}
-
-	let accessibilityProvider: IAccessibilityProvider<ITreeNode<T, TFilterData>> | undefined = undefined;
-
-	if (options.accessibilityProvider) {
-		const ap = options.accessibilityProvider;
-		accessibilityProvider = {
+		},
+		accessibilityProvider: options.accessibilityProvider && {
 			getAriaLabel(e) {
-				return ap.getAriaLabel(e.element);
+				return options.accessibilityProvider!.getAriaLabel(e.element);
 			}
-		};
-	}
-
-	return {
-		...options,
-		identityProvider,
-		multipleSelectionController,
-		accessibilityProvider
+		},
+		typeLabelProvider: options.typeLabelProvider && {
+			getTypeLabel(e) {
+				return options.typeLabelProvider!.getTypeLabel(e.element);
+			}
+		}
 	};
 }
 
@@ -125,7 +105,9 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 	}
 
 	disposeElement(node: ITreeNode<T, TFilterData>, index: number, templateData: ITreeListTemplateData<TTemplateData>): void {
-		this.renderer.disposeElement(node, index, templateData.templateData);
+		if (this.renderer.disposeElement) {
+			this.renderer.disposeElement(node, index, templateData.templateData);
+		}
 		this.renderedNodes.delete(node);
 		this.renderedElements.set(node.element);
 	}
@@ -160,7 +142,7 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 		}
 
 		toggleClass(twistieElement, 'collapsible', node.collapsible);
-		toggleClass(twistieElement, 'collapsed', node.collapsed);
+		toggleClass(twistieElement, 'collapsed', node.collapsible && node.collapsed);
 	}
 
 	dispose(): void {
@@ -206,12 +188,17 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	protected model: ITreeModel<T, TFilterData, TRef>;
 	protected disposables: IDisposable[] = [];
 
-	get onDidChangeFocus(): Event<ITreeEvent<T>> { return mapEvent(this.view.onFocusChange, asTreeEvent); }
-	get onDidChangeSelection(): Event<ITreeEvent<T>> { return mapEvent(this.view.onSelectionChange, asTreeEvent); }
+	get onDidChangeFocus(): Event<ITreeEvent<T>> { return Event.map(this.view.onFocusChange, asTreeEvent); }
+	get onDidChangeSelection(): Event<ITreeEvent<T>> { return Event.map(this.view.onSelectionChange, asTreeEvent); }
 
-	get onMouseClick(): Event<ITreeMouseEvent<T>> { return mapEvent(this.view.onMouseClick, asTreeMouseEvent); }
-	get onMouseDblClick(): Event<ITreeMouseEvent<T>> { return mapEvent(this.view.onMouseDblClick, asTreeMouseEvent); }
-	get onContextMenu(): Event<ITreeContextMenuEvent<T>> { return mapEvent(this.view.onContextMenu, asTreeContextMenuEvent); }
+	get onMouseClick(): Event<ITreeMouseEvent<T>> { return Event.map(this.view.onMouseClick, asTreeMouseEvent); }
+	get onMouseDblClick(): Event<ITreeMouseEvent<T>> { return Event.map(this.view.onMouseDblClick, asTreeMouseEvent); }
+	get onContextMenu(): Event<ITreeContextMenuEvent<T>> { return Event.map(this.view.onContextMenu, asTreeContextMenuEvent); }
+
+	get onKeyDown(): Event<KeyboardEvent> { return this.view.onKeyDown; }
+	get onKeyUp(): Event<KeyboardEvent> { return this.view.onKeyUp; }
+	get onKeyPress(): Event<KeyboardEvent> { return this.view.onKeyPress; }
+
 	get onDidFocus(): Event<void> { return this.view.onDidFocus; }
 	get onDidBlur(): Event<void> { return this.view.onDidBlur; }
 
@@ -240,7 +227,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.view.onMouseClick(this.reactOnMouseClick, this, this.disposables);
 
 		if (options.keyboardSupport !== false) {
-			const onKeyDown = chain(this.view.onKeyDown)
+			const onKeyDown = Event.chain(this.view.onKeyDown)
 				.filter(e => !isInputElement(e.target as HTMLElement))
 				.map(e => new StandardKeyboardEvent(e));
 
@@ -282,6 +269,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	domFocus(): void {
 		this.view.domFocus();
+	}
+
+	isDOMFocused(): boolean {
+		return this.getHTMLElement() === document.activeElement;
 	}
 
 	layout(height?: number): void {
@@ -330,6 +321,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	collapseAll(): void {
 		this.model.collapseAll();
+	}
+
+	isCollapsible(location: TRef): boolean {
+		return this.model.isCollapsible(location);
 	}
 
 	isCollapsed(location: TRef): boolean {

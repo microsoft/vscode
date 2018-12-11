@@ -61,7 +61,6 @@ import { connectRemoteAgentManagement, RemoteAgentConnectionContext } from 'vs/p
 import { IMenubarService } from 'vs/platform/menubar/common/menubar';
 import { MenubarService } from 'vs/platform/menubar/electron-main/menubarService';
 import { MenubarChannel } from 'vs/platform/menubar/node/menubarIpc';
-import { ILabelService, RegisterFormatterEvent } from 'vs/platform/label/common/label';
 import { hasArgs } from 'vs/platform/environment/node/argv';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
@@ -73,7 +72,9 @@ import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/platform/remote/node/remoteAgentFileSystemChannel';
 import { ResolvedAuthority } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { SnapUpdateService } from 'vs/platform/update/electron-main/updateService.snap';
-import { IStorageMainService, StorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
+import { IStorageMainService, StorageMainService } from 'vs/platform/storage/node/storageMainService';
+import { GlobalStorageDatabaseChannel } from 'vs/platform/storage/node/storageIpc';
+import { generateUuid } from 'vs/base/common/uuid';
 
 export class CodeApplication extends Disposable {
 
@@ -96,7 +97,6 @@ export class CodeApplication extends Disposable {
 		@IConfigurationService private configurationService: ConfigurationService,
 		@IStateService private stateService: IStateService,
 		@IHistoryMainService private historyMainService: IHistoryMainService,
-		@ILabelService private labelService: ILabelService
 	) {
 		super();
 
@@ -316,10 +316,6 @@ export class CodeApplication extends Disposable {
 			}
 		});
 
-		ipc.on('vscode:labelRegisterFormatter', (event: any, data: RegisterFormatterEvent) => {
-			this.labelService.registerFormatter(data.selector, data.formatter);
-		});
-
 		ipc.on('vscode:toggleDevTools', (event: Event) => {
 			event.sender.toggleDevTools();
 		});
@@ -416,9 +412,7 @@ export class CodeApplication extends Disposable {
 		// Create Electron IPC Server
 		this.electronIpcServer = new ElectronIPCServer();
 
-		// Resolve unique machine ID
-		this.logService.trace('Resolving machine identifier...');
-		return this.resolveMachineId().then(machineId => {
+		const startupWithMachineId = (machineId: string) => {
 			this.logService.trace(`Resolved machine identifier: ${machineId}`);
 
 			// Spawn shared process
@@ -451,6 +445,28 @@ export class CodeApplication extends Disposable {
 					this.stopTracingEventually(windows);
 				}
 			});
+		};
+
+		// Resolve unique machine ID
+		this.logService.trace('Resolving machine identifier...');
+		const resolvedMachineId = this.resolveMachineId();
+		if (typeof resolvedMachineId === 'string') {
+			return startupWithMachineId(resolvedMachineId);
+		} else {
+			return resolvedMachineId.then(machineId => startupWithMachineId(machineId));
+		}
+	}
+
+	private resolveMachineId(): string | TPromise<string> {
+		const machineId = this.stateService.getItem<string>(CodeApplication.MACHINE_ID_KEY);
+		if (machineId) {
+			return machineId;
+		}
+
+		return getMachineId().then(machineId => {
+			this.stateService.setItem(CodeApplication.MACHINE_ID_KEY, machineId);
+
+			return machineId;
 		});
 	}
 
@@ -483,24 +499,9 @@ export class CodeApplication extends Disposable {
 		const timeoutHandle = setTimeout(() => stopRecording(true), 30000);
 
 		// Wait for all windows to get ready and stop tracing then
-		TPromise.join(windows.map(window => window.ready())).then(() => {
+		Promise.all(windows.map(window => window.ready())).then(() => {
 			clearTimeout(timeoutHandle);
 			stopRecording(false);
-		});
-	}
-
-	private resolveMachineId(): TPromise<string> {
-		const machineId = this.stateService.getItem<string>(CodeApplication.MACHINE_ID_KEY);
-		if (machineId) {
-			return TPromise.wrap(machineId);
-		}
-
-		return getMachineId().then(machineId => {
-
-			// Remember in global storage
-			this.stateService.setItem(CodeApplication.MACHINE_ID_KEY, machineId);
-
-			return machineId;
 		});
 	}
 
@@ -545,15 +546,39 @@ export class CodeApplication extends Disposable {
 	}
 
 	private initStorageService(accessor: ServicesAccessor): Thenable<void> {
-		const storageService = accessor.get(IStorageMainService) as StorageMainService;
+		const storageMainService = accessor.get(IStorageMainService) as StorageMainService;
 
 		// Ensure to close storage on shutdown
-		this.lifecycleService.onWillShutdown(e => e.join(storageService.close()));
+		this.lifecycleService.onWillShutdown(e => e.join(storageMainService.close()));
 
 		// Initialize storage service
-		return storageService.initialize().then(void 0, error => {
+		return storageMainService.initialize().then(void 0, error => {
 			errors.onUnexpectedError(error);
 			this.logService.error(error);
+		}).then(() => {
+
+			// Apply global telemetry values as part of the initialization
+			// These are global across all windows and thereby should be
+			// written from the main process once.
+
+			const telemetryInstanceId = 'telemetry.instanceId';
+			const instanceId = storageMainService.get(telemetryInstanceId, null);
+			if (instanceId === null) {
+				storageMainService.store(telemetryInstanceId, generateUuid());
+			}
+
+			const telemetryFirstSessionDate = 'telemetry.firstSessionDate';
+			const firstSessionDate = storageMainService.get(telemetryFirstSessionDate, null);
+			if (firstSessionDate === null) {
+				storageMainService.store(telemetryFirstSessionDate, new Date().toUTCString());
+			}
+
+			const telemetryCurrentSessionDate = 'telemetry.currentSessionDate';
+			const telemetryLastSessionDate = 'telemetry.lastSessionDate';
+			const lastSessionDate = storageMainService.get(telemetryCurrentSessionDate, null); // previous session date was the "current" one at that time
+			const currentSessionDate = new Date().toUTCString(); // current session date is "now"
+			storageMainService.store(telemetryLastSessionDate, lastSessionDate);
+			storageMainService.store(telemetryCurrentSessionDate, currentSessionDate);
 		});
 	}
 
@@ -590,6 +615,10 @@ export class CodeApplication extends Disposable {
 		const urlService = accessor.get(IURLService);
 		const urlChannel = new URLServiceChannel(urlService);
 		this.electronIpcServer.registerChannel('url', urlChannel);
+
+		const storageMainService = accessor.get(IStorageMainService);
+		const storageChannel = this._register(new GlobalStorageDatabaseChannel(storageMainService as StorageMainService));
+		this.electronIpcServer.registerChannel('storage', storageChannel);
 
 		// Log level management
 		const logLevelChannel = new LogLevelSetterChannel(accessor.get(ILogService));

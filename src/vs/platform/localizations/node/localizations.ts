@@ -66,7 +66,7 @@ export class LocalizationsService extends Disposable implements ILocalizationsSe
 			});
 	}
 
-	private onDidInstallExtension(extension: ILocalExtension): void {
+	private onDidInstallExtension(extension: ILocalExtension | undefined): void {
 		if (extension && extension.manifest && extension.manifest.contributes && extension.manifest.contributes.localizations && extension.manifest.contributes.localizations.length) {
 			this.logService.debug('Adding language packs from the extension', extension.identifier.id);
 			this.update();
@@ -121,7 +121,7 @@ class LanguagePacksCache extends Disposable {
 
 	update(extensions: ILocalExtension[]): Thenable<{ [language: string]: ILanguagePack }> {
 		return this.withLanguagePacks(languagePacks => {
-			Object.keys(languagePacks).forEach(language => languagePacks[language] = undefined);
+			Object.keys(languagePacks).forEach(language => delete languagePacks[language]);
 			this.createLanguagePacksFromExtensions(languagePacks, ...extensions);
 		}).then(() => this.languagePacks);
 	}
@@ -137,7 +137,8 @@ class LanguagePacksCache extends Disposable {
 
 	private createLanguagePacksFromExtension(languagePacks: { [language: string]: ILanguagePack }, extension: ILocalExtension): void {
 		const extensionIdentifier = { id: getGalleryExtensionIdFromLocal(extension), uuid: extension.identifier.uuid };
-		for (const localizationContribution of extension.manifest.contributes.localizations) {
+		const localizations = extension.manifest.contributes && extension.manifest.contributes.localizations ? extension.manifest.contributes.localizations : [];
+		for (const localizationContribution of localizations) {
 			if (extension.location.scheme === Schemas.file && isValidLocalization(localizationContribution)) {
 				let languagePack = languagePacks[localizationContribution.languageId];
 				if (!languagePack) {
@@ -167,7 +168,7 @@ class LanguagePacksCache extends Disposable {
 		}
 	}
 
-	private withLanguagePacks<T>(fn: (languagePacks: { [language: string]: ILanguagePack }) => T = () => null): Thenable<T> {
+	private withLanguagePacks<T>(fn: (languagePacks: { [language: string]: ILanguagePack }) => T | null = () => null): Thenable<T> {
 		return this.languagePacksFileLimiter.queue(() => {
 			let result: T | null = null;
 			return pfs.readFile(this.languagePacksFilePath, 'utf8')
