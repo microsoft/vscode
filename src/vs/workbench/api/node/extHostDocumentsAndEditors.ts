@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
-import { dispose } from 'vs/base/common/lifecycle';
-import { MainContext, ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta, IMainContext } from './extHost.protocol';
-import { ExtHostDocumentData } from './extHostDocumentData';
-import { ExtHostTextEditor } from './extHostTextEditor';
 import * as assert from 'assert';
-import * as typeConverters from './extHostTypeConverters';
+import { Emitter, Event } from 'vs/base/common/event';
+import { dispose } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { Disposable } from './extHostTypes';
+import { ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta, IMainContext, MainContext } from 'vs/workbench/api/node/extHost.protocol';
+import { ExtHostDocumentData } from 'vs/workbench/api/node/extHostDocumentData';
+import { ExtHostTextEditor } from 'vs/workbench/api/node/extHostTextEditor';
+import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
+import { Disposable } from 'vs/workbench/api/node/extHostTypes';
 
 export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsShape {
 

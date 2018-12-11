@@ -897,8 +897,7 @@ export class MaximizeGroupAction extends Action {
 	run(): Thenable<any> {
 		if (this.editorService.activeEditor) {
 			this.editorGroupService.arrangeGroups(GroupsArrangement.MINIMIZE_OTHERS);
-
-			return this.partService.setSideBarHidden(true);
+			this.partService.setSideBarHidden(true);
 		}
 
 		return Promise.resolve(false);

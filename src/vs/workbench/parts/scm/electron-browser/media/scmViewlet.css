@@ -5,7 +5,6 @@
 
 .monaco-workbench > .activitybar > .content .monaco-action-bar .action-label.scm {
 	-webkit-mask: url('icon-dark.svg') no-repeat 50% 50%;
-	-webkit-mask-size: 19px;
 }
 
 .monaco-workbench .viewlet.scm-viewlet .collapsible.header .actions {
@@ -138,12 +137,12 @@
 }
 
 .scm-viewlet .scm-editor {
+	box-sizing: border-box;
 	padding: 5px 9px 5px 16px;
 }
 
-.scm-viewlet .scm-editor {
-	box-sizing: border-box;
-	padding: 5px 9px 5px 16px;
+.scm-viewlet .scm-editor.hidden {
+	display: none;
 }
 
 .scm-viewlet .scm-editor > .monaco-inputbox {

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as platform from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
 import { IframeUtils } from 'vs/base/browser/iframe';
+import * as platform from 'vs/base/common/platform';
 
 export interface IMouseEvent {
 	readonly browserEvent: MouseEvent;
@@ -66,8 +66,8 @@ export class StandardMouseEvent implements IMouseEvent {
 			this.posy = e.pageY;
 		} else {
 			// Probably hit by MSGestureEvent
-			this.posx = e.clientX + document.body.scrollLeft + document.documentElement.scrollLeft;
-			this.posy = e.clientY + document.body.scrollTop + document.documentElement.scrollTop;
+			this.posx = e.clientX + document.body.scrollLeft + document.documentElement!.scrollLeft;
+			this.posy = e.clientY + document.body.scrollTop + document.documentElement!.scrollTop;
 		}
 
 		// Find the position of the iframe this code is executing in relative to the iframe where the event was captured.
@@ -113,6 +113,10 @@ export class DragMouseEvent extends StandardMouseEvent {
 
 }
 
+export interface IMouseWheelEvent extends MouseEvent {
+	readonly wheelDelta: number;
+}
+
 interface IWebKitMouseWheelEvent {
 	wheelDeltaY: number;
 	wheelDeltaX: number;
@@ -125,14 +129,14 @@ interface IGeckoMouseWheelEvent {
 	detail: number;
 }
 
-export class StandardMouseWheelEvent {
+export class StandardWheelEvent {
 
-	public readonly browserEvent: MouseWheelEvent;
+	public readonly browserEvent: IMouseWheelEvent | null;
 	public readonly deltaY: number;
 	public readonly deltaX: number;
 	public readonly target: Node;
 
-	constructor(e: MouseWheelEvent, deltaX: number = 0, deltaY: number = 0) {
+	constructor(e: IMouseWheelEvent | null, deltaX: number = 0, deltaY: number = 0) {
 
 		this.browserEvent = e || null;
 		this.target = e ? (e.target || (<any>e).targetNode || e.srcElement) : null;

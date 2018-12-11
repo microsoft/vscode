@@ -43,7 +43,7 @@ export class WebviewEditorInput extends EditorInput {
 			if (URI.isUri(value)) {
 				cssRules.push(`${webviewSelector} { content: ""; background-image: url(${value.toString()}); }`);
 			} else {
-				cssRules.push(`${webviewSelector} { content: ""; background-image: url(${value.light.toString()}); }`);
+				cssRules.push(`.vs ${webviewSelector} { content: ""; background-image: url(${value.light.toString()}); }`);
 				cssRules.push(`.vs-dark ${webviewSelector} { content: ""; background-image: url(${value.dark.toString()}); }`);
 			}
 		});
@@ -217,7 +217,7 @@ export class WebviewEditorInput extends EditorInput {
 		}
 	}
 
-	public resolve(): TPromise<IEditorModel> {
+	public resolve(): Thenable<IEditorModel> {
 		if (this.reviver && !this._revived) {
 			this._revived = true;
 			return this.reviver.reviveWebview(this).then(() => new EditorModel());

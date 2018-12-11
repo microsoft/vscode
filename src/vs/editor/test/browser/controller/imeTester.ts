@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TextAreaInput, ITextAreaInputHost } from 'vs/editor/browser/controller/textAreaInput';
-import { ISimpleModel, TextAreaState, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/textAreaState';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import { Position } from 'vs/editor/common/core/position';
-import { createFastDomNode } from 'vs/base/browser/fastDomNode';
 import * as browser from 'vs/base/browser/browser';
+import { createFastDomNode } from 'vs/base/browser/fastDomNode';
+import { ITextAreaInputHost, TextAreaInput } from 'vs/editor/browser/controller/textAreaInput';
+import { ISimpleModel, PagedScreenReaderStrategy, TextAreaState } from 'vs/editor/browser/controller/textAreaState';
+import { Position } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 
 // To run this test, open imeTester.html
@@ -100,7 +100,7 @@ function doCreateTest(description: string, inputStr: string, expectedStr: string
 			return PagedScreenReaderStrategy.fromEditorSelection(currentState, model, selection, true);
 		},
 		deduceModelPosition: (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position => {
-			return null;
+			return null!;
 		}
 	};
 

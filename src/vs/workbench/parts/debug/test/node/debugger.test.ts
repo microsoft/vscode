@@ -10,8 +10,8 @@ import { IDebugAdapterExecutable, IConfigurationManager, IConfig, IDebugSession 
 import { Debugger } from 'vs/workbench/parts/debug/node/debugger';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ExecutableDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
+import { TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
 
 
 suite('Debug - Debugger', () => {
@@ -117,13 +117,16 @@ suite('Debug - Debugger', () => {
 
 
 	const configurationManager = <IConfigurationManager>{
-		provideDebugAdapter(session: IDebugSession, folderUri: URI | undefined, config: IConfig): TPromise<IDebugAdapterExecutable | undefined> {
+		provideDebugAdapter(session: IDebugSession, config: IConfig): Promise<IDebugAdapterExecutable | undefined> {
 			return Promise.resolve(undefined);
 		}
 	};
 
+	const configurationService = new TestConfigurationService();
+	const testResourcePropertiesService = new TestTextResourcePropertiesService(configurationService);
+
 	setup(() => {
-		_debugger = new Debugger(configurationManager, debuggerContribution, extensionDescriptor0, new TestConfigurationService(), undefined, undefined, undefined);
+		_debugger = new Debugger(configurationManager, debuggerContribution, extensionDescriptor0, configurationService, testResourcePropertiesService, undefined, undefined, undefined);
 	});
 
 	teardown(() => {
@@ -176,7 +179,7 @@ suite('Debug - Debugger', () => {
 			'			"program": "readme.md"',
 			'		}',
 			'	]',
-			'}'].join('\n');
+			'}'].join(testResourcePropertiesService.getEOL(URI.file('somefile')));
 
 		return _debugger.getInitialConfigurationContent().then(content => {
 			assert.equal(content, expected);

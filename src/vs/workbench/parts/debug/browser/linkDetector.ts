@@ -34,7 +34,7 @@ export class LinkDetector {
 	 * 'onclick' event is attached to all anchored links that opens them in the editor.
 	 * If no links were detected, returns the original string.
 	 */
-	public handleLinks(text: string): HTMLElement | string {
+	handleLinks(text: string): HTMLElement | string {
 		if (text.length > LinkDetector.MAX_LENGTH) {
 			return text;
 		}
@@ -46,7 +46,7 @@ export class LinkDetector {
 
 			let match = pattern.exec(text);
 			while (match !== null) {
-				let resource: uri = null;
+				let resource: uri | null = null;
 				if (!resource) {
 					match = pattern.exec(text);
 					continue;

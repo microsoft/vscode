@@ -7,7 +7,7 @@ import { Url, parse as parseUrl } from 'url';
 import { isBoolean } from 'vs/base/common/types';
 import { Agent } from './request';
 
-function getSystemProxyURI(requestURL: Url): string {
+function getSystemProxyURI(requestURL: Url): string | null {
 	if (requestURL.protocol === 'http:') {
 		return process.env.HTTP_PROXY || process.env.http_proxy || null;
 	} else if (requestURL.protocol === 'https:') {
@@ -32,12 +32,12 @@ export async function getProxyAgent(rawRequestURL: string, options: IOptions = {
 
 	const proxyEndpoint = parseUrl(proxyURL);
 
-	if (!/^https?:$/.test(proxyEndpoint.protocol)) {
+	if (!/^https?:$/.test(proxyEndpoint.protocol || '')) {
 		return null;
 	}
 
 	const opts = {
-		host: proxyEndpoint.hostname,
+		host: proxyEndpoint.hostname || '',
 		port: Number(proxyEndpoint.port),
 		auth: proxyEndpoint.auth,
 		rejectUnauthorized: isBoolean(options.strictSSL) ? options.strictSSL : true

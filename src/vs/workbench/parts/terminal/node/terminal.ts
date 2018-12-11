@@ -45,7 +45,7 @@ export function getDefaultShell(p: platform.Platform): string {
 	return getTerminalDefaultShellUnixLike();
 }
 
-let _TERMINAL_DEFAULT_SHELL_UNIX_LIKE: string = null;
+let _TERMINAL_DEFAULT_SHELL_UNIX_LIKE: string | null = null;
 function getTerminalDefaultShellUnixLike(): string {
 	if (!_TERMINAL_DEFAULT_SHELL_UNIX_LIKE) {
 		let unixLikeTerminal = 'sh';
@@ -56,12 +56,15 @@ function getTerminalDefaultShellUnixLike(): string {
 				unixLikeTerminal = '/bin/bash';
 			}
 		}
+		if (platform.isWindows) {
+			unixLikeTerminal = '/bin/bash'; // for WSL
+		}
 		_TERMINAL_DEFAULT_SHELL_UNIX_LIKE = unixLikeTerminal;
 	}
 	return _TERMINAL_DEFAULT_SHELL_UNIX_LIKE;
 }
 
-let _TERMINAL_DEFAULT_SHELL_WINDOWS: string = null;
+let _TERMINAL_DEFAULT_SHELL_WINDOWS: string | null = null;
 function getTerminalDefaultShellWindows(): string {
 	if (!_TERMINAL_DEFAULT_SHELL_WINDOWS) {
 		const isAtLeastWindows10 = platform.isWindows && parseFloat(os.release()) >= 10;

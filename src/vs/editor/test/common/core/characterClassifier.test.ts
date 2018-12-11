@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
 import { CharCode } from 'vs/base/common/charCode';
+import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
 
 suite('CharacterClassifier', () => {
 

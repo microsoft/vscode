@@ -5,51 +5,55 @@
 
 import { GestureEvent } from 'vs/base/browser/touch';
 
-export interface IVirtualDelegate<T> {
+export interface IListVirtualDelegate<T> {
 	getHeight(element: T): number;
 	getTemplateId(element: T): string;
+	hasDynamicHeight?(element: T): boolean;
 }
 
-// TODO@joao rename to IListRenderer
-export interface IRenderer<TElement, TTemplateData> {
+export interface IListRenderer<T, TTemplateData> {
 	templateId: string;
 	renderTemplate(container: HTMLElement): TTemplateData;
-	renderElement(element: TElement, index: number, templateData: TTemplateData): void;
-	disposeElement(element: TElement, index: number, templateData: TTemplateData): void;
+	renderElement(element: T, index: number, templateData: TTemplateData): void;
+	disposeElement(element: T, index: number, templateData: TTemplateData): void;
 	disposeTemplate(templateData: TTemplateData): void;
-}
-
-export interface IListOpenEvent<T> {
-	elements: T[];
-	indexes: number[];
-	browserEvent?: UIEvent;
 }
 
 export interface IListEvent<T> {
 	elements: T[];
 	indexes: number[];
+	browserEvent?: UIEvent;
 }
 
 export interface IListMouseEvent<T> {
 	browserEvent: MouseEvent;
 	element: T | undefined;
-	index: number;
+	index: number | undefined;
 }
 
 export interface IListTouchEvent<T> {
 	browserEvent: TouchEvent;
 	element: T | undefined;
-	index: number;
+	index: number | undefined;
 }
 
 export interface IListGestureEvent<T> {
 	browserEvent: GestureEvent;
 	element: T | undefined;
-	index: number;
+	index: number | undefined;
 }
 
 export interface IListContextMenuEvent<T> {
-	element: T;
-	index: number;
-	anchor: HTMLElement | { x: number; y: number; };
+	browserEvent: UIEvent;
+	element: T | undefined;
+	index: number | undefined;
+	anchor: HTMLElement | { x: number; y: number; } | undefined;
+}
+
+export interface IIdentityProvider<T> {
+	getId(element: T): { toString(): string; };
+}
+
+export interface ITypeLabelProvider<T> {
+	getTypeLabel(element: T): { toString(): string; };
 }

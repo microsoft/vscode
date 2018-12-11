@@ -1,5 +1,4 @@
 {
-	"$schema": "https://schemastore.azurewebsites.net/schemas/json/tsconfig.json",
 	"compilerOptions": {
 		"noEmit": true,
 		"module": "amd",

@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Range } from 'vs/editor/common/core/range';
-import { Position } from 'vs/editor/common/core/position';
-import { EndOfLinePreference } from 'vs/editor/common/model';
 import * as strings from 'vs/base/common/strings';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { EndOfLinePreference } from 'vs/editor/common/model';
 
 export interface ITextAreaWrapper {
 	getValue(): string;
@@ -35,10 +35,10 @@ export class TextAreaState {
 	public readonly value: string;
 	public readonly selectionStart: number;
 	public readonly selectionEnd: number;
-	public readonly selectionStartPosition: Position;
-	public readonly selectionEndPosition: Position;
+	public readonly selectionStartPosition: Position | null;
+	public readonly selectionEndPosition: Position | null;
 
-	constructor(value: string, selectionStart: number, selectionEnd: number, selectionStartPosition: Position, selectionEndPosition: Position) {
+	constructor(value: string, selectionStart: number, selectionEnd: number, selectionStartPosition: Position | null, selectionEndPosition: Position | null) {
 		this.value = value;
 		this.selectionStart = selectionStart;
 		this.selectionEnd = selectionEnd;
@@ -66,7 +66,7 @@ export class TextAreaState {
 		}
 	}
 
-	public deduceEditorPosition(offset: number): [Position, number, number] {
+	public deduceEditorPosition(offset: number): [Position | null, number, number] {
 		if (offset <= this.selectionStart) {
 			const str = this.value.substring(offset, this.selectionStart);
 			return this._finishDeduceEditorPosition(this.selectionStartPosition, str, -1);
@@ -83,7 +83,7 @@ export class TextAreaState {
 		return this._finishDeduceEditorPosition(this.selectionEndPosition, str2, -1);
 	}
 
-	private _finishDeduceEditorPosition(anchor: Position, deltaText: string, signum: number): [Position, number, number] {
+	private _finishDeduceEditorPosition(anchor: Position | null, deltaText: string, signum: number): [Position | null, number, number] {
 		let lineFeedCnt = 0;
 		let lastLineFeedIndex = -1;
 		while ((lastLineFeedIndex = deltaText.indexOf('\n', lastLineFeedIndex + 1)) !== -1) {
@@ -153,7 +153,7 @@ export class TextAreaState {
 			// the only hints we can use is that the selection is immediately after the inserted emoji
 			// and that none of the old text has been deleted
 
-			let potentialEmojiInput: string = null;
+			let potentialEmojiInput: string | null = null;
 
 			if (currentSelectionStart === currentValue.length) {
 				// emoji potentially inserted "somewhere" after the previous selection => it should appear at the end of `currentValue`
@@ -247,21 +247,22 @@ export class PagedScreenReaderStrategy {
 		let selectionEndPage = PagedScreenReaderStrategy._getPageOfLine(selection.endLineNumber);
 		let selectionEndPageRange = PagedScreenReaderStrategy._getRangeForPage(selectionEndPage);
 
-		let pretextRange = selectionStartPageRange.intersectRanges(new Range(1, 1, selection.startLineNumber, selection.startColumn));
+		let pretextRange = selectionStartPageRange.intersectRanges(new Range(1, 1, selection.startLineNumber, selection.startColumn))!;
 		let pretext = model.getValueInRange(pretextRange, EndOfLinePreference.LF);
 
 		let lastLine = model.getLineCount();
 		let lastLineMaxColumn = model.getLineMaxColumn(lastLine);
-		let posttextRange = selectionEndPageRange.intersectRanges(new Range(selection.endLineNumber, selection.endColumn, lastLine, lastLineMaxColumn));
+		let posttextRange = selectionEndPageRange.intersectRanges(new Range(selection.endLineNumber, selection.endColumn, lastLine, lastLineMaxColumn))!;
 		let posttext = model.getValueInRange(posttextRange, EndOfLinePreference.LF);
 
-		let text: string = null;
+
+		let text: string;
 		if (selectionStartPage === selectionEndPage || selectionStartPage + 1 === selectionEndPage) {
 			// take full selection
 			text = model.getValueInRange(selection, EndOfLinePreference.LF);
 		} else {
-			let selectionRange1 = selectionStartPageRange.intersectRanges(selection);
-			let selectionRange2 = selectionEndPageRange.intersectRanges(selection);
+			let selectionRange1 = selectionStartPageRange.intersectRanges(selection)!;
+			let selectionRange2 = selectionEndPageRange.intersectRanges(selection)!;
 			text = (
 				model.getValueInRange(selectionRange1, EndOfLinePreference.LF)
 				+ String.fromCharCode(8230)

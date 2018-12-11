@@ -32,6 +32,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 	private titleBarStyle: 'native' | 'custom';
 	private nativeTabs: boolean;
+	private nativeFullScreen: boolean;
 	private clickThroughInactive: boolean;
 	private updateChannel: string;
 	private enableCrashReporter: boolean;
@@ -41,7 +42,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private experimentalFileWatcher: boolean;
 	private fileWatcherExclude: object;
 
-	private firstFolderResource: URI;
+	private firstFolderResource?: URI;
 	private extensionHostRestarter: RunOnceScheduler;
 
 	private onDidChangeWorkspaceFoldersUnbind: IDisposable;
@@ -84,6 +85,12 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		// macOS: Native tabs
 		if (isMacintosh && config.window && typeof config.window.nativeTabs === 'boolean' && config.window.nativeTabs !== this.nativeTabs) {
 			this.nativeTabs = config.window.nativeTabs;
+			changed = true;
+		}
+
+		// macOS: Native fullscreen
+		if (isMacintosh && config.window && typeof config.window.nativeFullScreen === 'boolean' && config.window.nativeFullScreen !== this.nativeFullScreen) {
+			this.nativeFullScreen = config.window.nativeFullScreen;
 			changed = true;
 		}
 
@@ -202,4 +209,4 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 }
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(SettingsChangeRelauncher, LifecyclePhase.Running);
+workbenchRegistry.registerWorkbenchContribution(SettingsChangeRelauncher, LifecyclePhase.Restored);

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Action } from 'vs/base/common/actions';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Command } from 'vs/editor/browser/editorExtensions';
 import * as nls from 'vs/nls';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -55,7 +54,7 @@ export class OpenWebviewDeveloperToolsAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	public run(): Thenable<any> {
 		const elements = document.querySelectorAll('webview.ready');
 		for (let i = 0; i < elements.length; i++) {
 			try {
@@ -64,7 +63,7 @@ export class OpenWebviewDeveloperToolsAction extends Action {
 				console.error(e);
 			}
 		}
-		return null;
+		return Promise.resolve(true);
 	}
 }
 
@@ -80,11 +79,11 @@ export class ReloadWebviewAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	public run(): Thenable<any> {
 		for (const webview of this.getVisibleWebviews()) {
 			webview.reload();
 		}
-		return null;
+		return Promise.resolve(true);
 	}
 
 	private getVisibleWebviews() {

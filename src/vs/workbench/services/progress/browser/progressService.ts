@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as types from 'vs/base/common/types';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -16,7 +15,7 @@ interface ProgressState {
 	total?: number;
 	worked?: number;
 	done?: boolean;
-	whilePromise?: TPromise<any>;
+	whilePromise?: Thenable<any>;
 	whileStart?: number;
 	whileDelay?: number;
 }
@@ -31,7 +30,7 @@ export abstract class ScopedService extends Disposable {
 
 	registerListeners(): void {
 		this._register(this.viewletService.onDidViewletOpen(viewlet => this.onScopeOpened(viewlet.getId())));
-		this._register(this.panelService.onDidPanelOpen(panel => this.onScopeOpened(panel.getId())));
+		this._register(this.panelService.onDidPanelOpen(({ panel }) => this.onScopeOpened(panel.getId())));
 
 		this._register(this.viewletService.onDidViewletClose(viewlet => this.onScopeClosed(viewlet.getId())));
 		this._register(this.panelService.onDidPanelClose(panel => this.onScopeClosed(panel.getId())));
@@ -206,7 +205,7 @@ export class ScopedProgressService extends ScopedService implements IProgressSer
 		};
 	}
 
-	showWhile(promise: TPromise<any>, delay?: number): TPromise<void> {
+	showWhile(promise: Thenable<any>, delay?: number): Thenable<void> {
 		let stack: boolean = !!this.progressState.whilePromise;
 
 		// Reset State
@@ -216,7 +215,7 @@ export class ScopedProgressService extends ScopedService implements IProgressSer
 
 		// Otherwise join with existing running promise to ensure progress is accurate
 		else {
-			promise = TPromise.join([promise, this.progressState.whilePromise]);
+			promise = Promise.all([promise, this.progressState.whilePromise]);
 		}
 
 		// Keep Promise in State
@@ -287,7 +286,7 @@ export class ProgressService implements IProgressService {
 		};
 	}
 
-	showWhile(promise: TPromise<any>, delay?: number): TPromise<void> {
+	showWhile(promise: Thenable<any>, delay?: number): Thenable<void> {
 		const stop = () => {
 			this.progressbar.stop().hide();
 		};

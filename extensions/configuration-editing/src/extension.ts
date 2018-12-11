@@ -283,4 +283,4 @@ vscode.languages.registerDocumentSymbolProvider({ pattern: '**/launch.json', lan
 
 		return result;
 	}
-});
+}, { label: 'Launch Targets' });

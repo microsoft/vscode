@@ -11,10 +11,10 @@
 	"contributes": {
 		"languages": [{
 			"id": "shellscript",
-			"aliases": ["Shell Script", "shellscript", "bash", "sh", "zsh"],
-			"extensions": [".sh", ".bash", ".bashrc", ".bash_aliases", ".bash_profile", ".bash_login", ".ebuild", ".install", ".profile", ".bash_logout", ".zsh", ".zshrc", ".zprofile", ".zlogin", ".zlogout", ".zshenv", ".zsh-theme"],
+			"aliases": ["Shell Script", "shellscript", "bash", "sh", "zsh", "ksh"],
+			"extensions": [".sh", ".bash", ".bashrc", ".bash_aliases", ".bash_profile", ".bash_login", ".ebuild", ".install", ".profile", ".bash_logout", ".zsh", ".zshrc", ".zprofile", ".zlogin", ".zlogout", ".zshenv", ".zsh-theme", ".ksh"],
 			"filenames": ["PKGBUILD"],
-			"firstLine": "^#!.*\\b(bash|zsh|sh|tcsh).*|^#\\s*-\\*-[^*]*mode:\\s*shell-script[^*]*-\\*-",
+			"firstLine": "^#!.*\\b(bash|zsh|sh|tcsh|ksh).*|^#\\s*-\\*-[^*]*mode:\\s*shell-script[^*]*-\\*-",
 			"configuration": "./language-configuration.json",
 			"mimetypes": ["text/x-shellscript"]
 		}],

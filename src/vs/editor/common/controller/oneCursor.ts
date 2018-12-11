@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SingleCursorState, CursorContext, CursorState } from 'vs/editor/common/controller/cursorCommon';
+import { CursorContext, CursorState, SingleCursorState } from 'vs/editor/common/controller/cursorCommon';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
@@ -14,13 +14,10 @@ export class OneCursor {
 	public modelState: SingleCursorState;
 	public viewState: SingleCursorState;
 
-	private _selTrackedRange: string;
+	private _selTrackedRange: string | null;
 	private _trackSelection: boolean;
 
 	constructor(context: CursorContext) {
-		this.modelState = null;
-		this.viewState = null;
-
 		this._selTrackedRange = null;
 		this._trackSelection = true;
 
@@ -62,7 +59,7 @@ export class OneCursor {
 	}
 
 	public readSelectionFromMarkers(context: CursorContext): Selection {
-		const range = context.model._getTrackedRange(this._selTrackedRange);
+		const range = context.model._getTrackedRange(this._selTrackedRange!)!;
 		if (this.modelState.selection.getDirection() === SelectionDirection.LTR) {
 			return new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
 		}
@@ -73,12 +70,15 @@ export class OneCursor {
 		this._setState(context, this.modelState, this.viewState);
 	}
 
-	public setState(context: CursorContext, modelState: SingleCursorState, viewState: SingleCursorState): void {
+	public setState(context: CursorContext, modelState: SingleCursorState | null, viewState: SingleCursorState | null): void {
 		this._setState(context, modelState, viewState);
 	}
 
-	private _setState(context: CursorContext, modelState: SingleCursorState, viewState: SingleCursorState): void {
+	private _setState(context: CursorContext, modelState: SingleCursorState | null, viewState: SingleCursorState | null): void {
 		if (!modelState) {
+			if (!viewState) {
+				return;
+			}
 			// We only have the view state => compute the model state
 			const selectionStart = context.model.validateRange(
 				context.convertViewRangeToModelRange(viewState.selectionStart)

@@ -1,6 +1,6 @@
 {
 	"compilerOptions": {
-		"target": "es5",
+		"target": "es2017",
 		"module": "commonjs",
 		"removeComments": false,
 		"preserveConstEnums": true,
@@ -16,6 +16,9 @@
 		"noUnusedLocals": true,
 		"noUnusedParameters": true
 	},
+	"include": [
+		"**/*.ts"
+	],
 	"exclude": [
 		"node_modules/**"
 	]

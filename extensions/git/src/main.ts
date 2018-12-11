@@ -17,7 +17,7 @@ import { toDisposable, filterEvent, eventToPromise } from './util';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import { GitExtension } from './api/git';
 import { GitProtocolHandler } from './protocolHandler';
-import { createGitExtension } from './api/extension';
+import { GitExtensionImpl } from './api/extension';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -137,12 +137,15 @@ export async function activate(context: ExtensionContext): Promise<GitExtension>
 	if (!enabled) {
 		const onConfigChange = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git'));
 		const onEnabled = filterEvent(onConfigChange, () => workspace.getConfiguration('git', null).get<boolean>('enabled') === true);
-		await eventToPromise(onEnabled);
+		const result = new GitExtensionImpl();
+
+		eventToPromise(onEnabled).then(async () => result.model = await createModel(context, outputChannel, telemetryReporter, disposables));
+		return result;
 	}
 
 	try {
 		const model = await createModel(context, outputChannel, telemetryReporter, disposables);
-		return createGitExtension(model);
+		return new GitExtensionImpl(model);
 	} catch (err) {
 		if (!/Git installation not found/.test(err.message || '')) {
 			throw err;
@@ -151,9 +154,9 @@ export async function activate(context: ExtensionContext): Promise<GitExtension>
 		console.warn(err.message);
 		outputChannel.appendLine(err.message);
 
-		await warnAboutMissingGit();
+		warnAboutMissingGit();
 
-		return createGitExtension();
+		return new GitExtensionImpl();
 	}
 }
 

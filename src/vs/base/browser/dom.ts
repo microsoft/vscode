@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as platform from 'vs/base/common/platform';
-import { TimeoutTimer } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as browser from 'vs/base/browser/browser';
+import { domEvent } from 'vs/base/browser/event';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { TimeoutTimer } from 'vs/base/common/async';
 import { CharCode } from 'vs/base/common/charCode';
-import { Event, Emitter } from 'vs/base/common/event';
-import { domEvent } from 'vs/base/browser/event';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import * as platform from 'vs/base/common/platform';
+import { coalesce } from 'vs/base/common/arrays';
 
 export function clearNode(node: HTMLElement): void {
 	while (node.firstChild) {
@@ -20,7 +21,13 @@ export function clearNode(node: HTMLElement): void {
 	}
 }
 
-export function isInDOM(node: Node): boolean {
+export function removeNode(node: HTMLElement): void {
+	if (node.parentNode) {
+		node.parentNode.removeChild(node);
+	}
+}
+
+export function isInDOM(node: Node | null): boolean {
 	while (node) {
 		if (node === document.body) {
 			return true;
@@ -151,7 +158,7 @@ const _manualClassList = new class implements IDomClassList {
 
 const _nativeClassList = new class implements IDomClassList {
 	hasClass(node: HTMLElement, className: string): boolean {
-		return className && node.classList && node.classList.contains(className);
+		return Boolean(className) && node.classList && node.classList.contains(className);
 	}
 
 	addClasses(node: HTMLElement, ...classNames: string[]): void {
@@ -198,7 +205,7 @@ class DomListener implements IDisposable {
 	private readonly _type: string;
 	private readonly _useCapture: boolean;
 
-	constructor(node: Element | Window | Document, type: string, handler: (e: any) => void, useCapture: boolean) {
+	constructor(node: Element | Window | Document, type: string, handler: (e: any) => void, useCapture?: boolean) {
 		this._node = node;
 		this._type = type;
 		this._handler = handler;
@@ -215,11 +222,13 @@ class DomListener implements IDisposable {
 		this._node.removeEventListener(this._type, this._handler, this._useCapture);
 
 		// Prevent leakers from holding on to the dom or handler func
-		this._node = null;
-		this._handler = null;
+		this._node = null!;
+		this._handler = null!;
 	}
 }
 
+export function addDisposableListener<K extends keyof GlobalEventHandlersEventMap>(node: Element | Window | Document, type: K, handler: (event: GlobalEventHandlersEventMap[K]) => void, useCapture?: boolean): IDisposable;
+export function addDisposableListener(node: Element | Window | Document, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
 export function addDisposableListener(node: Element | Window | Document, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable {
 	return new DomListener(node, type, handler, useCapture);
 }
@@ -257,7 +266,7 @@ export let addStandardDisposableListener: IAddStandardDisposableListenerSignatur
 export function addDisposableNonBubblingMouseOutListener(node: Element, handler: (event: MouseEvent) => void): IDisposable {
 	return addDisposableListener(node, 'mouseout', (e: MouseEvent) => {
 		// Mouse out bubbles, so this is an attempt to ignore faux mouse outs coming from children elements
-		let toElement = <Node>(e.relatedTarget || e.toElement);
+		let toElement: Node | null = <Node>(e.relatedTarget || e.toElement);
 		while (toElement && toElement !== node) {
 			toElement = toElement.parentNode;
 		}
@@ -272,7 +281,7 @@ export function addDisposableNonBubblingMouseOutListener(node: Element, handler:
 interface IRequestAnimationFrame {
 	(callback: (time: number) => void): number;
 }
-let _animationFrame: IRequestAnimationFrame = null;
+let _animationFrame: IRequestAnimationFrame | null = null;
 function doRequestAnimationFrame(callback: (time: number) => void): number {
 	if (!_animationFrame) {
 		const emulatedRequestAnimationFrame = (callback: (time: number) => void): any => {
@@ -311,7 +320,7 @@ class AnimationFrameQueueItem implements IDisposable {
 	public priority: number;
 	private _canceled: boolean;
 
-	constructor(runner: () => void, priority: number) {
+	constructor(runner: () => void, priority: number = 0) {
 		this._runner = runner;
 		this.priority = priority;
 		this._canceled = false;
@@ -347,7 +356,7 @@ class AnimationFrameQueueItem implements IDisposable {
 	/**
 	 * The runners scheduled at the current animation frame
 	 */
-	let CURRENT_QUEUE: AnimationFrameQueueItem[] = null;
+	let CURRENT_QUEUE: AnimationFrameQueueItem[] | null = null;
 	/**
 	 * A flag to keep track if the native requestAnimationFrame was already called
 	 */
@@ -366,7 +375,7 @@ class AnimationFrameQueueItem implements IDisposable {
 		inAnimationFrameRunner = true;
 		while (CURRENT_QUEUE.length > 0) {
 			CURRENT_QUEUE.sort(AnimationFrameQueueItem.sort);
-			let top = CURRENT_QUEUE.shift();
+			let top = CURRENT_QUEUE.shift()!;
 			top.execute();
 		}
 		inAnimationFrameRunner = false;
@@ -387,7 +396,7 @@ class AnimationFrameQueueItem implements IDisposable {
 	runAtThisOrScheduleAtNextAnimationFrame = (runner: () => void, priority?: number) => {
 		if (inAnimationFrameRunner) {
 			let item = new AnimationFrameQueueItem(runner, priority);
-			CURRENT_QUEUE.push(item);
+			CURRENT_QUEUE!.push(item);
 			return item;
 		} else {
 			return scheduleAtNextAnimationFrame(runner, priority);
@@ -407,7 +416,7 @@ export function modify(callback: () => void): IDisposable {
  * Add a throttled listener. `handler` is fired at most every 16ms or with the next animation frame (if browser supports it).
  */
 export interface IEventMerger<R, E> {
-	(lastEvent: R, currentEvent: E): R;
+	(lastEvent: R | null, currentEvent: E): R;
 }
 
 export interface DOMEvent {
@@ -425,13 +434,13 @@ class TimeoutThrottledDomListener<R, E extends DOMEvent> extends Disposable {
 	constructor(node: any, type: string, handler: (event: R) => void, eventMerger: IEventMerger<R, E> = <any>DEFAULT_EVENT_MERGER, minimumTimeMs: number = MINIMUM_TIME_MS) {
 		super();
 
-		let lastEvent: R = null;
+		let lastEvent: R | null = null;
 		let lastHandlerTime = 0;
 		let timeout = this._register(new TimeoutTimer());
 
 		let invokeHandler = () => {
 			lastHandlerTime = (new Date()).getTime();
-			handler(lastEvent);
+			handler(<R>lastEvent);
 			lastEvent = null;
 		};
 
@@ -455,7 +464,7 @@ export function addDisposableThrottledListener<R, E extends DOMEvent = DOMEvent>
 }
 
 export function getComputedStyle(el: HTMLElement): CSSStyleDeclaration {
-	return document.defaultView.getComputedStyle(el, null);
+	return document.defaultView!.getComputedStyle(el, null);
 }
 
 // Adapted from WinJS
@@ -560,7 +569,7 @@ export class Dimension {
 		this.height = height;
 	}
 
-	static equals(a: Dimension, b: Dimension): boolean {
+	static equals(a: Dimension | undefined, b: Dimension | undefined): boolean {
 		if (a === b) {
 			return true;
 		}
@@ -660,7 +669,7 @@ export const StandardWindow: IStandardWindow = new class implements IStandardWin
 			// modern browsers
 			return window.scrollX;
 		} else {
-			return document.body.scrollLeft + document.documentElement.scrollLeft;
+			return document.body.scrollLeft + document.documentElement!.scrollLeft;
 		}
 	}
 
@@ -669,7 +678,7 @@ export const StandardWindow: IStandardWindow = new class implements IStandardWin
 			// modern browsers
 			return window.scrollY;
 		} else {
-			return document.body.scrollTop + document.documentElement.scrollTop;
+			return document.body.scrollTop + document.documentElement!.scrollTop;
 		}
 	}
 };
@@ -728,7 +737,7 @@ export function getLargestChildWidth(parent: HTMLElement, children: HTMLElement[
 
 // ----------------------------------------------------------------------------------------
 
-export function isAncestor(testChild: Node, testAncestor: Node): boolean {
+export function isAncestor(testChild: Node | null, testAncestor: Node | null): boolean {
 	while (testChild) {
 		if (testChild === testAncestor) {
 			return true;
@@ -739,7 +748,7 @@ export function isAncestor(testChild: Node, testAncestor: Node): boolean {
 	return false;
 }
 
-export function findParentWithClass(node: HTMLElement, clazz: string, stopAtClazzOrNode?: string | HTMLElement): HTMLElement {
+export function findParentWithClass(node: HTMLElement, clazz: string, stopAtClazzOrNode?: string | HTMLElement): HTMLElement | null {
 	while (node) {
 		if (hasClass(node, clazz)) {
 			return node;
@@ -771,7 +780,7 @@ export function createStyleSheet(container: HTMLElement = document.getElementsBy
 	return style;
 }
 
-let _sharedStyleSheet: HTMLStyleElement = null;
+let _sharedStyleSheet: HTMLStyleElement | null = null;
 function getSharedStyleSheet(): HTMLStyleElement {
 	if (!_sharedStyleSheet) {
 		_sharedStyleSheet = createStyleSheet();
@@ -827,48 +836,48 @@ export function isHTMLElement(o: any): o is HTMLElement {
 
 export const EventType = {
 	// Mouse
-	CLICK: 'click',
-	DBLCLICK: 'dblclick',
-	MOUSE_UP: 'mouseup',
-	MOUSE_DOWN: 'mousedown',
-	MOUSE_OVER: 'mouseover',
-	MOUSE_MOVE: 'mousemove',
-	MOUSE_OUT: 'mouseout',
-	MOUSE_ENTER: 'mouseenter',
-	MOUSE_LEAVE: 'mouseleave',
-	CONTEXT_MENU: 'contextmenu',
-	WHEEL: 'wheel',
+	CLICK: 'click' as 'click',
+	DBLCLICK: 'dblclick' as 'dblclick',
+	MOUSE_UP: 'mouseup' as 'mouseup',
+	MOUSE_DOWN: 'mousedown' as 'mousedown',
+	MOUSE_OVER: 'mouseover' as 'mouseover',
+	MOUSE_MOVE: 'mousemove' as 'mousemove',
+	MOUSE_OUT: 'mouseout' as 'mouseout',
+	MOUSE_ENTER: 'mouseenter' as 'mouseenter',
+	MOUSE_LEAVE: 'mouseleave' as 'mouseleave',
+	CONTEXT_MENU: 'contextmenu' as 'contextmenu',
+	WHEEL: 'wheel' as 'wheel',
 	// Keyboard
-	KEY_DOWN: 'keydown',
-	KEY_PRESS: 'keypress',
-	KEY_UP: 'keyup',
+	KEY_DOWN: 'keydown' as 'keydown',
+	KEY_PRESS: 'keypress' as 'keypress',
+	KEY_UP: 'keyup' as 'keyup',
 	// HTML Document
-	LOAD: 'load',
-	UNLOAD: 'unload',
-	ABORT: 'abort',
-	ERROR: 'error',
-	RESIZE: 'resize',
-	SCROLL: 'scroll',
+	LOAD: 'load' as 'load',
+	UNLOAD: 'unload' as 'unload',
+	ABORT: 'abort' as 'abort',
+	ERROR: 'error' as 'error',
+	RESIZE: 'resize' as 'resize',
+	SCROLL: 'scroll' as 'scroll',
 	// Form
-	SELECT: 'select',
-	CHANGE: 'change',
-	SUBMIT: 'submit',
-	RESET: 'reset',
-	FOCUS: 'focus',
-	FOCUS_IN: 'focusin',
-	FOCUS_OUT: 'focusout',
-	BLUR: 'blur',
-	INPUT: 'input',
+	SELECT: 'select' as 'select',
+	CHANGE: 'change' as 'change',
+	SUBMIT: 'submit' as 'submit',
+	RESET: 'reset' as 'reset',
+	FOCUS: 'focus' as 'focus',
+	FOCUS_IN: 'focusin' as 'focusin',
+	FOCUS_OUT: 'focusout' as 'focusout',
+	BLUR: 'blur' as 'blur',
+	INPUT: 'input' as 'input',
 	// Local Storage
-	STORAGE: 'storage',
+	STORAGE: 'storage' as 'storage',
 	// Drag
-	DRAG_START: 'dragstart',
-	DRAG: 'drag',
-	DRAG_ENTER: 'dragenter',
-	DRAG_LEAVE: 'dragleave',
-	DRAG_OVER: 'dragover',
-	DROP: 'drop',
-	DRAG_END: 'dragend',
+	DRAG_START: 'dragstart' as 'dragstart',
+	DRAG: 'drag' as 'drag',
+	DRAG_ENTER: 'dragenter' as 'dragenter',
+	DRAG_LEAVE: 'dragleave' as 'dragleave',
+	DRAG_OVER: 'dragover' as 'dragover',
+	DROP: 'drop' as 'drop',
+	DRAG_END: 'dragend' as 'dragend',
 	// Animation
 	ANIMATION_START: browser.isWebKit ? 'webkitAnimationStart' : 'animationstart',
 	ANIMATION_END: browser.isWebKit ? 'webkitAnimationEnd' : 'animationend',
@@ -1002,22 +1011,22 @@ export function $<T extends HTMLElement>(description: string, attrs?: { [key: st
 		result.className = match[4].replace(/\./g, ' ').trim();
 	}
 
-	Object.keys(attrs || {}).forEach(name => {
+	attrs = attrs || {};
+	Object.keys(attrs).forEach(name => {
+		const value = attrs![name];
 		if (/^on\w+$/.test(name)) {
-			(<any>result)[name] = attrs[name];
+			(<any>result)[name] = value;
 		} else if (name === 'selected') {
-			const value = attrs[name];
 			if (value) {
 				result.setAttribute(name, 'true');
 			}
 
 		} else {
-			result.setAttribute(name, attrs[name]);
+			result.setAttribute(name, value);
 		}
 	});
 
-	children
-		.filter(child => !!child)
+	coalesce(children)
 		.forEach(child => {
 			if (child instanceof Node) {
 				result.appendChild(child);
@@ -1061,7 +1070,7 @@ export function hide(...elements: HTMLElement[]): void {
 	}
 }
 
-function findParentWithAttribute(node: Node, attribute: string): HTMLElement {
+function findParentWithAttribute(node: Node | null, attribute: string): HTMLElement | null {
 	while (node) {
 		if (node instanceof HTMLElement && node.hasAttribute(attribute)) {
 			return node;

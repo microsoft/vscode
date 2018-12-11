@@ -11,7 +11,6 @@ import { ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
 import API from '../utils/api';
 import * as typeConverters from '../utils/typeConverters';
 
-
 const localize = nls.loadMessageBundle();
 
 class TypeScriptRenameProvider implements vscode.RenameProvider {
@@ -80,7 +79,7 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 		position: vscode.Position,
 		token: vscode.CancellationToken
 	): Promise<ServerResponse<Proto.RenameResponse> | undefined> {
-		const file = this.client.toPath(document.uri);
+		const file = this.client.toOpenedFilePath(document);
 		if (!file) {
 			return undefined;
 		}
@@ -102,8 +101,9 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 		for (const spanGroup of locations) {
 			const resource = this.client.toResource(spanGroup.file);
 			if (resource) {
-				for (const textSpan of spanGroup.locs) {
-					edit.replace(resource, typeConverters.Range.fromTextSpan(textSpan), newName);
+				for (const textSpan of spanGroup.locs as Proto.RenameTextSpan[]) {
+					edit.replace(resource, typeConverters.Range.fromTextSpan(textSpan),
+						(textSpan.prefixText || '') + newName + (textSpan.suffixText || ''));
 				}
 			}
 		}
@@ -115,7 +115,7 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 		newName: string,
 		token: vscode.CancellationToken,
 	): Promise<vscode.WorkspaceEdit | undefined> {
-		// Make sure we preserve file exension if none provided
+		// Make sure we preserve file extension if none provided
 		if (!path.extname(newName)) {
 			newName += path.extname(fileToRename);
 		}

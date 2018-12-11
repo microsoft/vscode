@@ -23,10 +23,11 @@ import { ISelectedSuggestion } from 'vs/editor/contrib/suggest/suggestWidget';
 import { TestCodeEditor, createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IStorageService, NullStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/suggestMemory';
 
 export interface Ctor<T> {
 	new(): T;
@@ -42,7 +43,15 @@ function createMockEditor(model: TextModel): TestCodeEditor {
 		model: model,
 		serviceCollection: new ServiceCollection(
 			[ITelemetryService, NullTelemetryService],
-			[IStorageService, NullStorageService]
+			[IStorageService, new InMemoryStorageService()],
+			[ISuggestMemoryService, new class implements ISuggestMemoryService {
+				_serviceBrand: any;
+				memorize(): void {
+				}
+				select(): number {
+					return -1;
+				}
+			}],
 		),
 	});
 	editor.registerAndInstantiateContribution(SnippetController2);
@@ -63,7 +72,7 @@ suite('SuggestModel - Context', function () {
 				tokenize: undefined,
 				tokenize2: (line: string, state: IState): TokenizationResult2 => {
 					const tokensArr: number[] = [];
-					let prevLanguageId: LanguageIdentifier = undefined;
+					let prevLanguageId: LanguageIdentifier | undefined = undefined;
 					for (let i = 0; i < line.length; i++) {
 						const languageId = (line.charAt(i) === 'x' ? INNER_LANGUAGE_ID : OUTER_LANGUAGE_ID);
 						if (prevLanguageId !== languageId) {

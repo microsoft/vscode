@@ -60,7 +60,7 @@ export class FilePreview implements IDisposable {
 		dispose(this._modelReference);
 	}
 
-	preview(range: IRange, n: number = 8): { before: string; inside: string; after: string } {
+	preview(range: IRange, n: number = 8): { before: string; inside: string; after: string } | undefined {
 		const model = this._modelReference.object.textEditorModel;
 
 		if (!model) {
@@ -85,7 +85,7 @@ export class FilePreview implements IDisposable {
 export class FileReferences implements IDisposable {
 
 	private _children: OneReference[];
-	private _preview: FilePreview;
+	private _preview?: FilePreview;
 	private _resolved: boolean;
 	private _loadFailure: any;
 
@@ -109,7 +109,7 @@ export class FileReferences implements IDisposable {
 		return this._uri;
 	}
 
-	get preview(): FilePreview {
+	get preview(): FilePreview | undefined {
 		return this._preview;
 	}
 
@@ -156,7 +156,7 @@ export class FileReferences implements IDisposable {
 	dispose(): void {
 		if (this._preview) {
 			this._preview.dispose();
-			this._preview = null;
+			this._preview = undefined;
 		}
 	}
 }
@@ -175,7 +175,7 @@ export class ReferencesModel implements IDisposable {
 		// grouping and sorting
 		references.sort(ReferencesModel._compareReferences);
 
-		let current: FileReferences;
+		let current: FileReferences | undefined;
 		for (let ref of references) {
 			if (!current || current.uri.toString() !== ref.uri.toString()) {
 				// new group
@@ -239,7 +239,7 @@ export class ReferencesModel implements IDisposable {
 		}
 	}
 
-	nearestReference(resource: URI, position: Position): OneReference {
+	nearestReference(resource: URI, position: Position): OneReference | undefined {
 
 		const nearest = this.references.map((ref, idx) => {
 			return {

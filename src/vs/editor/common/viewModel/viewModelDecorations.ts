@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { InlineDecoration, ViewModelDecoration, ICoordinatesConverter, InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
+import { IModelDecoration, ITextModel } from 'vs/editor/common/model';
 import { IViewModelLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
-import { ITextModel, IModelDecoration } from 'vs/editor/common/model';
+import { ICoordinatesConverter, InlineDecoration, InlineDecorationType, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
 
 export interface IDecorationsViewportData {
 	/**
@@ -32,8 +32,8 @@ export class ViewModelDecorations implements IDisposable {
 
 	private _decorationsCache: { [decorationId: string]: ViewModelDecoration; };
 
-	private _cachedModelDecorationsResolver: IDecorationsViewportData;
-	private _cachedModelDecorationsResolverViewRange: Range;
+	private _cachedModelDecorationsResolver: IDecorationsViewportData | null;
+	private _cachedModelDecorationsResolverViewRange: Range | null;
 
 	constructor(editorId: number, model: ITextModel, configuration: editorCommon.IConfiguration, linesCollection: IViewModelLinesCollection, coordinatesConverter: ICoordinatesConverter) {
 		this.editorId = editorId;
@@ -51,7 +51,7 @@ export class ViewModelDecorations implements IDisposable {
 	}
 
 	public dispose(): void {
-		this._decorationsCache = null;
+		this._decorationsCache = Object.create(null);
 		this._clearCachedModelDecorationsResolver();
 	}
 
@@ -99,7 +99,7 @@ export class ViewModelDecorations implements IDisposable {
 			this._cachedModelDecorationsResolver = this._getDecorationsViewportData(viewRange);
 			this._cachedModelDecorationsResolverViewRange = viewRange;
 		}
-		return this._cachedModelDecorationsResolver;
+		return this._cachedModelDecorationsResolver!;
 	}
 
 	private _getDecorationsViewportData(viewportRange: Range): IDecorationsViewportData {

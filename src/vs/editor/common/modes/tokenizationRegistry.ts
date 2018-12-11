@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
-import { ColorId, ITokenizationRegistry, ITokenizationSupport, ITokenizationSupportChangedEvent } from 'vs/editor/common/modes';
 import { Color } from 'vs/base/common/color';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { Emitter, Event } from 'vs/base/common/event';
+import { IDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { ColorId, ITokenizationRegistry, ITokenizationSupport, ITokenizationSupportChangedEvent } from 'vs/editor/common/modes';
 
 export class TokenizationRegistryImpl implements ITokenizationRegistry {
 
@@ -17,7 +16,7 @@ export class TokenizationRegistryImpl implements ITokenizationRegistry {
 	private readonly _onDidChange: Emitter<ITokenizationSupportChangedEvent> = new Emitter<ITokenizationSupportChangedEvent>();
 	public readonly onDidChange: Event<ITokenizationSupportChangedEvent> = this._onDidChange.event;
 
-	private _colorMap: Color[];
+	private _colorMap: Color[] | null;
 
 	constructor() {
 		this._map = Object.create(null);
@@ -44,18 +43,22 @@ export class TokenizationRegistryImpl implements ITokenizationRegistry {
 		});
 	}
 
-	public registerPromise(language: string, supportPromise: Thenable<ITokenizationSupport>): Thenable<IDisposable> {
+	public registerPromise(language: string, supportPromise: Thenable<ITokenizationSupport | null>): Thenable<IDisposable> {
 		const promise = this._promises[language] = supportPromise.then(support => {
 			delete this._promises[language];
-			return this.register(language, support);
+			if (support) {
+				return this.register(language, support);
+			} else {
+				return Disposable.None;
+			}
 		});
 		return promise;
 	}
 
-	public getPromise(language: string): Thenable<ITokenizationSupport> {
+	public getPromise(language: string): Thenable<ITokenizationSupport> | null {
 		const support = this.get(language);
 		if (support) {
-			return TPromise.as(support);
+			return Promise.resolve(support);
 		}
 		const promise = this._promises[language];
 		if (promise) {
@@ -76,11 +79,14 @@ export class TokenizationRegistryImpl implements ITokenizationRegistry {
 		});
 	}
 
-	public getColorMap(): Color[] {
+	public getColorMap(): Color[] | null {
 		return this._colorMap;
 	}
 
-	public getDefaultBackground(): Color {
-		return this._colorMap[ColorId.DefaultBackground];
+	public getDefaultBackground(): Color | null {
+		if (this._colorMap && this._colorMap.length > ColorId.DefaultBackground) {
+			return this._colorMap[ColorId.DefaultBackground];
+		}
+		return null;
 	}
 }

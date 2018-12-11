@@ -82,7 +82,7 @@ class FolderDetector {
 	}
 
 	public start(): void {
-		let pattern = path.join(this._workspaceFolder.uri.fsPath, 'gulpfile{.babel.js,.js,.ts}');
+		let pattern = path.join(this._workspaceFolder.uri.fsPath, '{node_modules,gulpfile{.babel.js,.js,.ts}}');
 		this.fileWatcher = vscode.workspace.createFileSystemWatcher(pattern);
 		this.fileWatcher.onDidChange(() => this.promise = undefined);
 		this.fileWatcher.onDidCreate(() => this.promise = undefined);

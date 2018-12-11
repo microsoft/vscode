@@ -15,14 +15,14 @@ export class WordContextKey {
 	private readonly _confListener: IDisposable;
 
 	private _enabled: boolean;
-	private _selectionListener: IDisposable;
+	private _selectionListener?: IDisposable;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		this._ckAtEnd = WordContextKey.AtEnd.bindTo(contextKeyService);
-		this._editor.onDidChangeConfiguration(e => e.contribInfo && this._update());
+		this._confListener = this._editor.onDidChangeConfiguration(e => e.contribInfo && this._update());
 		this._update();
 	}
 
@@ -41,11 +41,11 @@ export class WordContextKey {
 
 		if (this._enabled) {
 			const checkForWordEnd = () => {
-				const model = this._editor.getModel();
-				if (!model) {
+				if (!this._editor.hasModel()) {
 					this._ckAtEnd.set(false);
 					return;
 				}
+				const model = this._editor.getModel();
 				const selection = this._editor.getSelection();
 				const word = model.getWordAtPosition(selection.getStartPosition());
 				if (!word) {

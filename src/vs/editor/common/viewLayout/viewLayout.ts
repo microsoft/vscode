@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { Scrollable, ScrollEvent, ScrollbarVisibility, IScrollDimensions, IScrollPosition } from 'vs/base/common/scrollable';
+import { IScrollDimensions, IScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { LinesLayout } from 'vs/editor/common/viewLayout/linesLayout';
-import { IViewLayout, IViewWhitespaceViewportData, Viewport } from 'vs/editor/common/viewModel/viewModel';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
-import { Event } from 'vs/base/common/event';
-import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
+import { IViewLayout, IViewWhitespaceViewportData, Viewport } from 'vs/editor/common/viewModel/viewModel';
 
 const SMOOTH_SCROLLING_TIME = 125;
 
@@ -192,7 +192,7 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		return this._linesLayout.getLineNumberAtOrAfterVerticalOffset(verticalOffset);
 	}
 
-	public getWhitespaceAtVerticalOffset(verticalOffset: number): IViewWhitespaceViewportData {
+	public getWhitespaceAtVerticalOffset(verticalOffset: number): IViewWhitespaceViewportData | null {
 		return this._linesLayout.getWhitespaceAtVerticalOffset(verticalOffset);
 	}
 	public getLinesViewportData(): IPartialViewLinesViewportData {

@@ -20,18 +20,18 @@
 
 .monaco-action-bar .action-item .action-label.extension-action.multiserver.install:after,
 .monaco-action-bar .action-item .action-label.extension-action.multiserver.update:after,
-.monaco-action-bar .action-item .action-label.extension-action.enable:after,
-.monaco-action-bar .action-item .action-label.extension-action.disable:after {
+.monaco-action-bar .action-item .action-label.extension-action.extension-editor-dropdown-action.dropdown:after {
 	content: '▼';
 	padding-left: 2px;
 	font-size: 80%;
 }
 
+.monaco-action-bar .action-item.disabled .action-label.extension-action.ignore,
+.monaco-action-bar .action-item.disabled .action-label.extension-action.undo-ignore,
 .monaco-action-bar .action-item.disabled .action-label.extension-action.install:not(.installing),
 .monaco-action-bar .action-item.disabled .action-label.extension-action.uninstall:not(.uninstalling),
 .monaco-action-bar .action-item.disabled .action-label.extension-action.update,
-.monaco-action-bar .action-item.disabled .action-label.extension-action.enable,
-.monaco-action-bar .action-item.disabled .action-label.extension-action.disable,
+.monaco-action-bar .action-item.disabled .action-label.extension-action.extension-editor-dropdown-action,
 .monaco-action-bar .action-item.disabled .action-label.extension-action.reload,
 .monaco-action-bar .action-item.disabled .action-label.disable-status.hide,
 .monaco-action-bar .action-item.disabled .action-label.malicious-status.not-malicious {
@@ -52,6 +52,11 @@
 .extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.disable-status,
 .extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.malicious-status {
 	font-weight: normal;
+}
+
+.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.disable-status:hover,
+.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.malicious-status:hover {
+	opacity: 0.9;
 }
 
 .extensions-viewlet>.extensions .extension>.details>.footer>.monaco-action-bar .action-item .action-label.extension-action.manage.hide {

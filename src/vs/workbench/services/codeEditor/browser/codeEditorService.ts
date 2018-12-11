@@ -3,14 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServiceImpl';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { IResourceInput } from 'vs/platform/editor/common/editor';
-import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { TextEditorOptions } from 'vs/workbench/common/editor';
+import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServiceImpl';
 import { ScrollType } from 'vs/editor/common/editorCommon';
+import { IResourceInput } from 'vs/platform/editor/common/editor';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { TextEditorOptions } from 'vs/workbench/common/editor';
+import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
 export class CodeEditorService extends CodeEditorServiceImpl {
 
@@ -34,7 +33,7 @@ export class CodeEditorService extends CodeEditorServiceImpl {
 		return null;
 	}
 
-	openCodeEditor(input: IResourceInput, source: ICodeEditor, sideBySide?: boolean): TPromise<ICodeEditor> {
+	openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Thenable<ICodeEditor> {
 
 		// Special case: If the active editor is a diff editor and the request to open originates and
 		// targets the modified side of it, we just apply the request there to prevent opening the modified
@@ -54,14 +53,14 @@ export class CodeEditorService extends CodeEditorServiceImpl {
 			const textOptions = TextEditorOptions.create(input.options);
 			textOptions.apply(targetEditor, ScrollType.Smooth);
 
-			return TPromise.as(targetEditor);
+			return Promise.resolve(targetEditor);
 		}
 
 		// Open using our normal editor service
 		return this.doOpenCodeEditor(input, source, sideBySide);
 	}
 
-	private doOpenCodeEditor(input: IResourceInput, source: ICodeEditor, sideBySide?: boolean): TPromise<ICodeEditor> {
+	private doOpenCodeEditor(input: IResourceInput, source: ICodeEditor, sideBySide?: boolean): Thenable<ICodeEditor> {
 		return this.editorService.openEditor(input, sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(control => {
 			if (control) {
 				const widget = control.getControl();

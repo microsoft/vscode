@@ -45,7 +45,7 @@ export const virtualMachineHint: { value(): number } = new class {
 			this._virtualMachineOUIs.set('00:16:3E', true);
 			this._virtualMachineOUIs.set('08:00:27', true);
 		}
-		return this._virtualMachineOUIs.findSubstr(mac);
+		return !!this._virtualMachineOUIs.findSubstr(mac);
 	}
 
 	value(): number {
@@ -92,6 +92,12 @@ function getMacMachineId(): Promise<string> {
 						resolve(undefined);
 					}
 				});
+
+				// Timeout due to hang with reduced privileges #58392
+				// TODO@sbatten: Remove this when getmac is patched
+				setTimeout(() => {
+					resolve(undefined);
+				}, 1000);
 			} catch (err) {
 				errors.onUnexpectedError(err);
 				resolve(undefined);

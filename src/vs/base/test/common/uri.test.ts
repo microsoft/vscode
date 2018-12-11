@@ -10,19 +10,20 @@ import { isWindows } from 'vs/base/common/platform';
 
 suite('URI', () => {
 	test('file#toString', () => {
-		assert.equal(URI.file('c:/win/path').toString(), 'file:///c:/win/path');
-		assert.equal(URI.file('C:/win/path').toString(), 'file:///c:/win/path');
-		assert.equal(URI.file('c:/win/path/').toString(), 'file:///c:/win/path/');
-		assert.equal(URI.file('/c:/win/path').toString(), 'file:///c:/win/path');
+		assert.equal(URI.file('c:/win/path').toString(), 'file:///c%3A/win/path');
+		assert.equal(URI.file('C:/win/path').toString(), 'file:///c%3A/win/path');
+		assert.equal(URI.file('c:/win/path/').toString(), 'file:///c%3A/win/path/');
+		assert.equal(URI.file('/c:/win/path').toString(), 'file:///c%3A/win/path');
 	});
 
 	test('URI.file (win-special)', () => {
 		if (isWindows) {
-			assert.equal(URI.file('c:\\win\\path').toString(), 'file:///c:/win/path');
-			assert.equal(URI.file('c:\\win/path').toString(), 'file:///c:/win/path');
+			assert.equal(URI.file('c:\\win\\path').toString(), 'file:///c%3A/win/path');
+			assert.equal(URI.file('c:\\win/path').toString(), 'file:///c%3A/win/path');
 		} else {
 			assert.equal(URI.file('c:\\win\\path').toString(), 'file:///c%3A%5Cwin%5Cpath');
 			assert.equal(URI.file('c:\\win/path').toString(), 'file:///c%3A%5Cwin/path');
+
 		}
 	});
 
@@ -239,7 +240,7 @@ suite('URI', () => {
 		if (isWindows) {
 			var value = URI.file('c:\\test\\drive');
 			assert.equal(value.path, '/c:/test/drive');
-			assert.equal(value.toString(), 'file:///c:/test/drive');
+			assert.equal(value.toString(), 'file:///c%3A/test/drive');
 
 			value = URI.file('\\\\shäres\\path\\c#\\plugin.json');
 			assert.equal(value.scheme, 'file');
@@ -259,15 +260,15 @@ suite('URI', () => {
 
 			value = URI.file('c:\\test with %\\path');
 			assert.equal(value.path, '/c:/test with %/path');
-			assert.equal(value.toString(), 'file:///c:/test%20with%20%25/path');
+			assert.equal(value.toString(), 'file:///c%3A/test%20with%20%25/path');
 
 			value = URI.file('c:\\test with %25\\path');
 			assert.equal(value.path, '/c:/test with %25/path');
-			assert.equal(value.toString(), 'file:///c:/test%20with%20%2525/path');
+			assert.equal(value.toString(), 'file:///c%3A/test%20with%20%2525/path');
 
 			value = URI.file('c:\\test with %25\\c#code');
 			assert.equal(value.path, '/c:/test with %25/c#code');
-			assert.equal(value.toString(), 'file:///c:/test%20with%20%2525/c%23code');
+			assert.equal(value.toString(), 'file:///c%3A/test%20with%20%2525/c%23code');
 
 			value = URI.file('\\\\shares');
 			assert.equal(value.scheme, 'file');

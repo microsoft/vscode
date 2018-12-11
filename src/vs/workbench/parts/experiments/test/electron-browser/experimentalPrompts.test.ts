@@ -4,21 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-
-import { IExperiment, ExperimentActionType, IExperimentService, ExperimentState } from 'vs/workbench/parts/experiments/node/experimentService';
-
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { Emitter } from 'vs/base/common/event';
-import { TestExperimentService } from 'vs/workbench/parts/experiments/test/node/experimentService.test';
-import { ExperimentalPrompts } from 'vs/workbench/parts/experiments/electron-browser/experimentalPrompt';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { INotificationService, Severity, IPromptChoice } from 'vs/platform/notification/common/notification';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { TestLifecycleService } from 'vs/workbench/test/workbenchTestServices';
+import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
+import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { ExperimentalPrompts } from 'vs/workbench/parts/experiments/electron-browser/experimentalPrompt';
+import { ExperimentActionType, ExperimentState, IExperiment, IExperimentActionPromptProperties, IExperimentService } from 'vs/workbench/parts/experiments/node/experimentService';
+import { TestExperimentService } from 'vs/workbench/parts/experiments/test/electron-browser/experimentService.test';
+import { TestLifecycleService } from 'vs/workbench/test/workbenchTestServices';
 
 suite('Experimental Prompts', () => {
 	let instantiationService: TestInstantiationService;
@@ -94,7 +91,7 @@ suite('Experimental Prompts', () => {
 		};
 
 		instantiationService.stub(INotificationService, {
-			prompt: (a: Severity, b: string, c: IPromptChoice[], d) => {
+			prompt: (a: Severity, b: string, c: IPromptChoice[], options) => {
 				assert.equal(b, promptText);
 				assert.equal(c.length, 2);
 				c[0].run();
@@ -104,7 +101,7 @@ suite('Experimental Prompts', () => {
 		experimentalPrompt = instantiationService.createInstance(ExperimentalPrompts);
 		onExperimentEnabledEvent.fire(experiment);
 
-		return TPromise.as(null).then(result => {
+		return Promise.resolve(null).then(result => {
 			assert.equal(storageData['state'], ExperimentState.Complete);
 		});
 
@@ -118,7 +115,7 @@ suite('Experimental Prompts', () => {
 		};
 
 		instantiationService.stub(INotificationService, {
-			prompt: (a: Severity, b: string, c: IPromptChoice[], d) => {
+			prompt: (a: Severity, b: string, c: IPromptChoice[], options) => {
 				assert.equal(b, promptText);
 				assert.equal(c.length, 2);
 				c[1].run();
@@ -128,7 +125,7 @@ suite('Experimental Prompts', () => {
 		experimentalPrompt = instantiationService.createInstance(ExperimentalPrompts);
 		onExperimentEnabledEvent.fire(experiment);
 
-		return TPromise.as(null).then(result => {
+		return Promise.resolve(null).then(result => {
 			assert.equal(storageData['state'], ExperimentState.Complete);
 		});
 
@@ -142,19 +139,56 @@ suite('Experimental Prompts', () => {
 		};
 
 		instantiationService.stub(INotificationService, {
-			prompt: (a: Severity, b: string, c: IPromptChoice[], d) => {
+			prompt: (a: Severity, b: string, c: IPromptChoice[], options) => {
 				assert.equal(b, promptText);
 				assert.equal(c.length, 2);
-				d();
+				options.onCancel();
 			}
 		});
 
 		experimentalPrompt = instantiationService.createInstance(ExperimentalPrompts);
 		onExperimentEnabledEvent.fire(experiment);
 
-		return TPromise.as(null).then(result => {
+		return Promise.resolve(null).then(result => {
 			assert.equal(storageData['state'], ExperimentState.Complete);
 		});
 
+	});
+
+	test('Test getPromptText', () => {
+		const simpleTextCase: IExperimentActionPromptProperties = {
+			promptText: 'My simple prompt',
+			commands: []
+		};
+		const multipleLocaleCase: IExperimentActionPromptProperties = {
+			promptText: {
+				en: 'My simple prompt for en',
+				de: 'My simple prompt for de',
+				'en-au': 'My simple prompt for Austrailian English',
+				'en-us': 'My simple prompt for US English'
+			},
+			commands: []
+		};
+		const englishUSTextCase: IExperimentActionPromptProperties = {
+			promptText: {
+				'en-us': 'My simple prompt for en'
+			},
+			commands: []
+		};
+		const noEnglishTextCase: IExperimentActionPromptProperties = {
+			promptText: {
+				'de-de': 'My simple prompt for German'
+			},
+			commands: []
+		};
+
+		assert.equal(ExperimentalPrompts.getLocalizedText(simpleTextCase.promptText, 'any-language'), simpleTextCase.promptText);
+		assert.equal(ExperimentalPrompts.getLocalizedText(multipleLocaleCase.promptText, 'en'), multipleLocaleCase.promptText['en']);
+		assert.equal(ExperimentalPrompts.getLocalizedText(multipleLocaleCase.promptText, 'de'), multipleLocaleCase.promptText['de']);
+		assert.equal(ExperimentalPrompts.getLocalizedText(multipleLocaleCase.promptText, 'en-au'), multipleLocaleCase.promptText['en-au']);
+		assert.equal(ExperimentalPrompts.getLocalizedText(multipleLocaleCase.promptText, 'en-gb'), multipleLocaleCase.promptText['en']);
+		assert.equal(ExperimentalPrompts.getLocalizedText(multipleLocaleCase.promptText, 'fr'), multipleLocaleCase.promptText['en']);
+		assert.equal(ExperimentalPrompts.getLocalizedText(englishUSTextCase.promptText, 'fr'), englishUSTextCase.promptText['en-us']);
+		assert.equal(!!ExperimentalPrompts.getLocalizedText(noEnglishTextCase.promptText, 'fr'), false);
 	});
 });

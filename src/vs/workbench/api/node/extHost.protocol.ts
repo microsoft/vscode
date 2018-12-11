@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { SerializedError } from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
@@ -24,23 +25,25 @@ import { LabelRules } from 'vs/platform/label/common/label';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { IPickOptions, IQuickInputButton, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { IPatternInfo, IQueryOptions, IRawFileMatch2, IRawSearchQuery, ISearchCompleteStats } from 'vs/platform/search/common/search';
+import { IPatternInfo, IRawFileMatch2, IRawQuery, IRawTextQuery, ISearchCompleteStats } from 'vs/platform/search/common/search';
 import { StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { EndOfLine, IFileOperationOptions, TextEditorLineNumbersStyle } from 'vs/workbench/api/node/extHostTypes';
 import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
 import { TaskDTO, TaskExecutionDTO, TaskFilterDTO, TaskHandleDTO, TaskProcessEndedDTO, TaskProcessStartedDTO, TaskSystemInfoDTO } from 'vs/workbench/api/shared/tasks';
-import { ITreeItem } from 'vs/workbench/common/views';
-import { IConfig, ITerminalSettings, IAdapterDescriptor } from 'vs/workbench/parts/debug/common/debug';
+import { ITreeItem, IRevealOptions } from 'vs/workbench/common/views';
+import { IAdapterDescriptor, IConfig, ITerminalSettings } from 'vs/workbench/parts/debug/common/debug';
+import { ITextQueryBuilderOptions } from 'vs/workbench/parts/search/common/queryBuilder';
 import { TaskSet } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITerminalDimensions } from 'vs/workbench/parts/terminal/common/terminal';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { createExtHostContextProxyIdentifier as createExtId, createMainContextProxyIdentifier as createMainId, IRPCProtocol, ProxyIdentifier } from 'vs/workbench/services/extensions/node/proxyIdentifier';
-import { IProgressOptions, IProgressStep } from 'vs/workbench/services/progress/common/progress';
+import { IRPCProtocol, ProxyIdentifier, createExtHostContextProxyIdentifier as createExtId, createMainContextProxyIdentifier as createMainId } from 'vs/workbench/services/extensions/node/proxyIdentifier';
+import { IProgressOptions, IProgressStep } from 'vs/platform/progress/common/progress';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import * as vscode from 'vscode';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { ResolvedAuthority } from 'vs/platform/remote/common/remoteAuthorityResolver';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -48,6 +51,7 @@ export interface IEnvironment {
 	appSettingsHome: URI;
 	extensionDevelopmentLocationURI: URI;
 	extensionTestsPath: string;
+	globalStorageHome: URI;
 }
 
 export interface IWorkspaceData {
@@ -67,6 +71,8 @@ export interface IInitData {
 	telemetryInfo: ITelemetryInfo;
 	logLevel: LogLevel;
 	logsLocation: URI;
+	autoStart: boolean;
+	remoteAuthority?: string | null;
 }
 
 export interface IConfigurationInitData extends IConfigurationData {
@@ -79,12 +85,18 @@ export interface IWorkspaceConfigurationChangeEventData {
 }
 
 export interface IExtHostContext extends IRPCProtocol {
+	remoteAuthority: string;
 }
 
 export interface IMainContext extends IRPCProtocol {
 }
 
 // --- main thread
+
+export interface MainThreadClipboardShape extends IDisposable {
+	$readText(): Promise<string>;
+	$writeText(value: string): Promise<void>;
+}
 
 export interface MainThreadCommandsShape extends IDisposable {
 	$registerCommand(id: string): void;
@@ -93,10 +105,16 @@ export interface MainThreadCommandsShape extends IDisposable {
 	$getCommands(): Thenable<string[]>;
 }
 
+export interface CommentProviderFeatures {
+	startDraftLabel?: string;
+	deleteDraftLabel?: string;
+	finishDraftLabel?: string;
+}
+
 export interface MainThreadCommentsShape extends IDisposable {
-	$registerDocumentCommentProvider(handle: number): void;
+	$registerDocumentCommentProvider(handle: number, features: CommentProviderFeatures): void;
 	$unregisterDocumentCommentProvider(handle: number): void;
-	$registerWorkspaceCommentProvider(handle: number): void;
+	$registerWorkspaceCommentProvider(handle: number, extensionId: string): void;
 	$unregisterWorkspaceCommentProvider(handle: number): void;
 	$onDidCommentThreadsChange(handle: number, event: modes.CommentThreadChangedEvent): void;
 }
@@ -204,9 +222,10 @@ export interface MainThreadTextEditorsShape extends IDisposable {
 }
 
 export interface MainThreadTreeViewsShape extends IDisposable {
-	$registerTreeViewDataProvider(treeViewId: string): void;
+	$registerTreeViewDataProvider(treeViewId: string, options: { showCollapseAll: boolean }): void;
 	$refresh(treeViewId: string, itemsToRefresh?: { [treeItemHandle: string]: ITreeItem }): Thenable<void>;
-	$reveal(treeViewId: string, treeItem: ITreeItem, parentChain: ITreeItem[], options: { select: boolean, focus: boolean }): Thenable<void>;
+	$reveal(treeViewId: string, treeItem: ITreeItem, parentChain: ITreeItem[], options: IRevealOptions): Thenable<void>;
+	$setMessage(treeViewId: string, message: string | IMarkdownString): void;
 }
 
 export interface MainThreadErrorsShape extends IDisposable {
@@ -268,10 +287,11 @@ export interface ISerializedSignatureHelpProviderMetadata {
 
 export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$unregister(handle: number): void;
-	$registerOutlineSupport(handle: number, selector: ISerializedDocumentFilter[], extensionId: string): void;
+	$registerOutlineSupport(handle: number, selector: ISerializedDocumentFilter[], label: string): void;
 	$registerCodeLensSupport(handle: number, selector: ISerializedDocumentFilter[], eventHandle: number): void;
 	$emitCodeLensEvent(eventHandle: number, event?: any): void;
-	$registerDeclaractionSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
+	$registerDefinitionSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
+	$registerDeclarationSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerImplementationSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerTypeDefinitionSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerHoverProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
@@ -288,6 +308,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerDocumentLinkProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerDocumentColorProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerFoldingRangeProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
+	$registerSelectionRangeProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$setLanguageConfiguration(handle: number, languageId: string, configuration: ISerializedLanguageConfiguration): void;
 }
 
@@ -410,9 +431,9 @@ export interface TransferInputBox extends BaseTransferQuickInput {
 }
 
 export interface MainThreadQuickOpenShape extends IDisposable {
-	$show(options: IPickOptions<TransferQuickPickItems>, token: CancellationToken): Thenable<number | number[]>;
-	$setItems(items: TransferQuickPickItems[]): Thenable<void>;
-	$setError(error: Error): Thenable<void>;
+	$show(instance: number, options: IPickOptions<TransferQuickPickItems>, token: CancellationToken): Thenable<number | number[]>;
+	$setItems(instance: number, items: TransferQuickPickItems[]): Thenable<void>;
+	$setError(instance: number, error: Error): Thenable<void>;
 	$input(options: vscode.InputBoxOptions, validateInput: boolean, token: CancellationToken): Thenable<string>;
 	$createOrUpdate(params: TransferQuickInput): Thenable<void>;
 	$dispose(id: number): Thenable<void>;
@@ -425,7 +446,7 @@ export interface MainThreadStatusBarShape extends IDisposable {
 
 export interface MainThreadStorageShape extends IDisposable {
 	$getValue<T>(shared: boolean, key: string): Thenable<T>;
-	$setValue(shared: boolean, key: string, value: any): Thenable<void>;
+	$setValue(shared: boolean, key: string, value: object): Thenable<void>;
 }
 
 export interface MainThreadTelemetryShape extends IDisposable {
@@ -440,7 +461,7 @@ export interface WebviewPanelShowOptions {
 }
 
 export interface MainThreadWebviewsShape extends IDisposable {
-	$createWebviewPanel(handle: WebviewPanelHandle, viewType: string, title: string, showOptions: WebviewPanelShowOptions, options: vscode.WebviewPanelOptions & vscode.WebviewOptions, extensionLocation: UriComponents): void;
+	$createWebviewPanel(handle: WebviewPanelHandle, viewType: string, title: string, showOptions: WebviewPanelShowOptions, options: vscode.WebviewPanelOptions & vscode.WebviewOptions, extensionId: string, extensionLocation: UriComponents): void;
 	$disposeWebview(handle: WebviewPanelHandle): void;
 	$reveal(handle: WebviewPanelHandle, showOptions: WebviewPanelShowOptions): void;
 	$setTitle(handle: WebviewPanelHandle, value: string): void;
@@ -477,10 +498,11 @@ export interface ExtHostUrlsShape {
 
 export interface MainThreadWorkspaceShape extends IDisposable {
 	$startFileSearch(includePattern: string, includeFolder: URI, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Thenable<UriComponents[]>;
-	$startTextSearch(query: IPatternInfo, options: IQueryOptions, requestId: number, token: CancellationToken): Thenable<vscode.TextSearchComplete>;
+	$startTextSearch(query: IPatternInfo, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Thenable<vscode.TextSearchComplete>;
 	$checkExists(includes: string[], token: CancellationToken): Thenable<boolean>;
 	$saveAll(includeUntitled?: boolean): Thenable<boolean>;
 	$updateWorkspaceFolders(extensionName: string, index: number, deleteCount: number, workspaceFoldersToAdd: { uri: UriComponents, name?: string }[]): Thenable<void>;
+	$resolveProxy(url: string): Thenable<string>;
 }
 
 export interface IFileChangeDto {
@@ -572,6 +594,7 @@ export interface MainThreadSCMShape extends IDisposable {
 
 	$setInputBoxValue(sourceControlHandle: number, value: string): void;
 	$setInputBoxPlaceholder(sourceControlHandle: number, placeholder: string): void;
+	$setInputBoxVisibility(sourceControlHandle: number, visible: boolean): void;
 	$setValidationProviderIsEnabled(sourceControlHandle: number, enabled: boolean): void;
 }
 
@@ -583,11 +606,15 @@ export interface MainThreadDebugServiceShape extends IDisposable {
 	$acceptDAError(handle: number, name: string, message: string, stack: string): void;
 	$acceptDAExit(handle: number, code: number, signal: string): void;
 	$registerDebugConfigurationProvider(type: string, hasProvideMethod: boolean, hasResolveMethod: boolean, hasProvideDaMethod: boolean, hasProvideTrackerMethod: boolean, handle: number): Thenable<void>;
-	$unregisterDebugConfigurationProvider(handle: number): Thenable<void>;
+	$registerDebugAdapterDescriptorFactory(type: string, handle: number): Thenable<void>;
+	$registerDebugAdapterTrackerFactory(type: string, handle: number);
+	$unregisterDebugConfigurationProvider(handle: number): void;
+	$unregisterDebugAdapterDescriptorFactory(handle: number): void;
+	$unregisterDebugAdapterTrackerFactory(handle: number): void;
 	$startDebugging(folder: UriComponents | undefined, nameOrConfig: string | vscode.DebugConfiguration): Thenable<boolean>;
 	$customDebugAdapterRequest(id: DebugSessionUUID, command: string, args: any): Thenable<any>;
-	$appendDebugConsole(value: string): Thenable<void>;
-	$startBreakpointEvents(): Thenable<void>;
+	$appendDebugConsole(value: string): void;
+	$startBreakpointEvents(): void;
 	$registerBreakpoints(breakpoints: (ISourceMultiBreakpointDto | IFunctionBreakpointDto)[]): Thenable<void>;
 	$unregisterBreakpoints(breakpointIds: string[], functionBreakpointIds: string[]): Thenable<void>;
 }
@@ -702,12 +729,14 @@ export interface ExtHostFileSystemShape {
 }
 
 export interface ExtHostSearchShape {
-	$provideFileSearchResults(handle: number, session: number, query: IRawSearchQuery, token: CancellationToken): Thenable<ISearchCompleteStats>;
+	$provideFileSearchResults(handle: number, session: number, query: IRawQuery, token: CancellationToken): Thenable<ISearchCompleteStats>;
+	$provideTextSearchResults(handle: number, session: number, query: IRawTextQuery, token: CancellationToken): Thenable<ISearchCompleteStats>;
 	$clearCache(cacheKey: string): Thenable<void>;
-	$provideTextSearchResults(handle: number, session: number, pattern: IPatternInfo, query: IRawSearchQuery, token: CancellationToken): Thenable<ISearchCompleteStats>;
 }
 
 export interface ExtHostExtensionServiceShape {
+	$resolveAuthority(remoteAuthority: string): Thenable<ResolvedAuthority>;
+	$startExtensionHost(enabledExtensionIds: string[]): Thenable<void>;
 	$activateByEvent(activationEvent: string): Thenable<void>;
 }
 
@@ -833,6 +862,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideCodeLenses(handle: number, resource: UriComponents, token: CancellationToken): Thenable<modes.ICodeLensSymbol[]>;
 	$resolveCodeLens(handle: number, resource: UriComponents, symbol: modes.ICodeLensSymbol, token: CancellationToken): Thenable<modes.ICodeLensSymbol>;
 	$provideDefinition(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Thenable<DefinitionLinkDto[]>;
+	$provideDeclaration(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Thenable<DefinitionLinkDto[]>;
 	$provideImplementation(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Thenable<DefinitionLinkDto[]>;
 	$provideTypeDefinition(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Thenable<DefinitionLinkDto[]>;
 	$provideHover(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Thenable<modes.Hover>;
@@ -856,6 +886,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideDocumentColors(handle: number, resource: UriComponents, token: CancellationToken): Thenable<IRawColorInfo[]>;
 	$provideColorPresentations(handle: number, resource: UriComponents, colorInfo: IRawColorInfo, token: CancellationToken): Thenable<modes.IColorPresentation[]>;
 	$provideFoldingRanges(handle: number, resource: UriComponents, context: modes.FoldingContext, token: CancellationToken): Thenable<modes.FoldingRange[]>;
+	$provideSelectionRanges(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Thenable<IRange[]>;
 }
 
 export interface ExtHostQuickOpenShape {
@@ -886,7 +917,7 @@ export interface ExtHostTerminalServiceShape {
 	$acceptTerminalRendererInput(id: number, data: string): void;
 	$acceptTerminalTitleChange(id: number, name: string): void;
 	$acceptTerminalRendererDimensions(id: number, cols: number, rows: number): void;
-	$createProcess(id: number, shellLaunchConfig: ShellLaunchConfigDto, cols: number, rows: number): void;
+	$createProcess(id: number, shellLaunchConfig: ShellLaunchConfigDto, activeWorkspaceRootUri: URI, cols: number, rows: number): void;
 	$acceptProcessInput(id: number, data: string): void;
 	$acceptProcessResize(id: number, cols: number, rows: number): void;
 	$acceptProcessShutdown(id: number, immediate: boolean): void;
@@ -906,7 +937,7 @@ export interface ExtHostTaskShape {
 	$onDidStartTaskProcess(value: TaskProcessStartedDTO): void;
 	$onDidEndTaskProcess(value: TaskProcessEndedDTO): void;
 	$OnDidEndTask(execution: TaskExecutionDTO): void;
-	$resolveVariables(workspaceFolder: UriComponents, variables: string[]): Thenable<any>;
+	$resolveVariables(workspaceFolder: UriComponents, toResolve: { process?: { name: string; cwd?: string }, variables: string[] }): Thenable<{ process?: string; variables: { [key: string]: string } }>;
 }
 
 export interface IBreakpointDto {
@@ -950,21 +981,26 @@ export interface ISourceMultiBreakpointDto {
 	}[];
 }
 
-export interface IDebugSessionDto {
+export interface IDebugSessionFullDto {
 	id: DebugSessionUUID;
 	type: string;
 	name: string;
+	folderUri: UriComponents | undefined;
+	configuration: IConfig;
 }
+
+export type IDebugSessionDto = IDebugSessionFullDto | DebugSessionUUID;
 
 export interface ExtHostDebugServiceShape {
 	$substituteVariables(folder: UriComponents | undefined, config: IConfig): Thenable<IConfig>;
-	$runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Thenable<void>;
-	$startDASession(handle: number, session: IDebugSessionDto, folder: UriComponents | undefined, debugConfiguration: IConfig): Thenable<void>;
+	$runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Thenable<number | undefined>;
+	$startDASession(handle: number, session: IDebugSessionDto): Thenable<void>;
 	$stopDASession(handle: number): Thenable<void>;
 	$sendDAMessage(handle: number, message: DebugProtocol.ProtocolMessage): void;
 	$resolveDebugConfiguration(handle: number, folder: UriComponents | undefined, debugConfiguration: IConfig): Thenable<IConfig>;
 	$provideDebugConfigurations(handle: number, folder: UriComponents | undefined): Thenable<IConfig[]>;
-	$provideDebugAdapter(handle: number, session: IDebugSessionDto, folderUri: UriComponents | undefined, debugConfiguration: IConfig): Thenable<IAdapterDescriptor>;
+	$legacyDebugAdapterExecutable(handle: number, folderUri: UriComponents | undefined): Thenable<IAdapterDescriptor>; // TODO@AW legacy
+	$provideDebugAdapter(handle: number, session: IDebugSessionDto): Thenable<IAdapterDescriptor>;
 	$acceptDebugSessionStarted(session: IDebugSessionDto): void;
 	$acceptDebugSessionTerminated(session: IDebugSessionDto): void;
 	$acceptDebugSessionActiveChanged(session: IDebugSessionDto): void;
@@ -1008,7 +1044,14 @@ export interface ExtHostCommentsShape {
 	$replyToCommentThread(handle: number, document: UriComponents, range: IRange, commentThread: modes.CommentThread, text: string): Thenable<modes.CommentThread>;
 	$editComment(handle: number, document: UriComponents, comment: modes.Comment, text: string): Thenable<void>;
 	$deleteComment(handle: number, document: UriComponents, comment: modes.Comment): Thenable<void>;
+	$startDraft(handle: number): Thenable<void>;
+	$deleteDraft(handle: number): Thenable<void>;
+	$finishDraft(handle: number): Thenable<void>;
 	$provideWorkspaceComments(handle: number): Thenable<modes.CommentThread[]>;
+}
+
+export interface ExtHostStorageShape {
+	$acceptValue(shared: boolean, key: string, value: object): void;
 }
 
 export interface MainThreadFileIconThemeShape extends IDisposable {
@@ -1021,6 +1064,7 @@ export interface ExtHostFileIconThemeShape {
 // --- proxy identifiers
 
 export const MainContext = {
+	MainThreadClipboard: <ProxyIdentifier<MainThreadClipboardShape>>createMainId<MainThreadClipboardShape>('MainThreadClipboard'),
 	MainThreadCommands: <ProxyIdentifier<MainThreadCommandsShape>>createMainId<MainThreadCommandsShape>('MainThreadCommands'),
 	MainThreadComments: createMainId<MainThreadCommentsShape>('MainThreadComments'),
 	MainThreadConfiguration: createMainId<MainThreadConfigurationShape>('MainThreadConfiguration'),
@@ -1083,6 +1127,7 @@ export const ExtHostContext = {
 	ExtHostWebviews: createExtId<ExtHostWebviewsShape>('ExtHostWebviews'),
 	ExtHostProgress: createMainId<ExtHostProgressShape>('ExtHostProgress'),
 	ExtHostComments: createMainId<ExtHostCommentsShape>('ExtHostComments'),
+	ExtHostStorage: createMainId<ExtHostStorageShape>('ExtHostStorage'),
 	ExtHostUrls: createExtId<ExtHostUrlsShape>('ExtHostUrls'),
 	ExtHostOutputService: createMainId<ExtHostOutputServiceShape>('ExtHostOutputService'),
 	ExtHostFileIconTheme: createExtId<ExtHostFileIconThemeShape>('ExtHostFileIconTheme'),

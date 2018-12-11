@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Event } from 'vs/base/common/event';
 
 export interface IEditorModel {
@@ -17,7 +16,7 @@ export interface IEditorModel {
 	/**
 	 * Loads the model.
 	 */
-	load(): TPromise<IEditorModel>;
+	load(): Thenable<IEditorModel>;
 
 	/**
 	 * Dispose associated resources

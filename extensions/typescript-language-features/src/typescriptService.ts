@@ -9,10 +9,10 @@ import * as Proto from './protocol';
 import API from './utils/api';
 import { TypeScriptServiceConfiguration } from './utils/configuration';
 import Logger from './utils/logger';
-import { TypeScriptServerPlugin } from './utils/plugins';
+import { PluginManager } from './utils/plugins';
 
 export class CancelledResponse {
-	readonly type: 'cancelled' = 'cancelled';
+	public readonly type: 'cancelled' = 'cancelled';
 
 	constructor(
 		public readonly reason: string
@@ -20,7 +20,7 @@ export class CancelledResponse {
 }
 
 export class NoContentResponse {
-	readonly type: 'noContent' = 'noContent';
+	public readonly type: 'noContent' = 'noContent';
 }
 
 export type ServerResponse<T extends Proto.Response> = T | CancelledResponse | NoContentResponse;
@@ -57,26 +57,32 @@ interface TypeScriptRequestTypes {
 	'typeDefinition': [Proto.FileLocationRequestArgs, Proto.TypeDefinitionResponse];
 }
 
-
 export interface ITypeScriptServiceClient {
 	/**
 	 * Convert a resource (VS Code) to a normalized path (TypeScript).
 	 *
 	 * Does not try handling case insensitivity.
 	 */
-	normalizedPath(resource: vscode.Uri): string | null;
+	normalizedPath(resource: vscode.Uri): string | undefined;
 
 	/**
 	 * Map a resource to a normalized path
 	 *
 	 * This will attempt to handle case insensitivity.
 	 */
-	toPath(resource: vscode.Uri): string | null;
+	toPath(resource: vscode.Uri): string | undefined;
 
 	/**
 	 * Convert a path to a resource.
 	 */
 	toResource(filepath: string): vscode.Uri;
+
+	/**
+	 * Tries to ensure that a vscode document is open on the TS server.
+	 *
+	 * Returns the normalized path.
+	 */
+	toOpenedFilePath(document: vscode.TextDocument): string | undefined;
 
 	getWorkspaceRootForResource(resource: vscode.Uri): string | undefined;
 
@@ -87,7 +93,7 @@ export interface ITypeScriptServiceClient {
 	readonly onTypesInstallerInitializationFailed: vscode.Event<Proto.TypesInstallerInitializationFailedEventBody>;
 
 	readonly apiVersion: API;
-	readonly plugins: TypeScriptServerPlugin[];
+	readonly pluginManager: PluginManager;
 	readonly configuration: TypeScriptServiceConfiguration;
 	readonly logger: Logger;
 	readonly bufferSyncSupport: BufferSyncSupport;
@@ -95,7 +101,8 @@ export interface ITypeScriptServiceClient {
 	execute<K extends keyof TypeScriptRequestTypes>(
 		command: K,
 		args: TypeScriptRequestTypes[K][0],
-		token: vscode.CancellationToken
+		token: vscode.CancellationToken,
+		lowPriority?: boolean
 	): Promise<ServerResponse<TypeScriptRequestTypes[K][1]>>;
 
 	executeWithoutWaitingForResponse(command: 'open', args: Proto.OpenRequestArgs): void;

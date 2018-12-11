@@ -95,7 +95,7 @@ class Snapper {
 
 	private _themedTokenize(grammar: IGrammar, lines: string[]): IThemedToken[] {
 		let colorMap = TokenizationRegistry.getColorMap();
-		let state: StackElement = null;
+		let state: StackElement | null = null;
 		let result: IThemedToken[] = [], resultLen = 0;
 		for (let i = 0, len = lines.length; i < len; i++) {
 			let line = lines[i];
@@ -123,13 +123,13 @@ class Snapper {
 	}
 
 	private _tokenize(grammar: IGrammar, lines: string[]): IToken[] {
-		let state: StackElement = null;
+		let state: StackElement | null = null;
 		let result: IToken[] = [], resultLen = 0;
 		for (let i = 0, len = lines.length; i < len; i++) {
 			let line = lines[i];
 
 			let tokenizationResult = grammar.tokenizeLine(line, state);
-			let lastScopes: string = null;
+			let lastScopes: string | null = null;
 
 			for (let j = 0, lenJ = tokenizationResult.tokens.length; j < lenJ; j++) {
 				let token = tokenizationResult.tokens[j];
@@ -215,15 +215,14 @@ class Snapper {
 	}
 
 	public captureSyntaxTokens(fileName: string, content: string): Thenable<IToken[]> {
-		return this.modeService.getOrCreateModeByFilepathOrFirstLine(fileName).then(mode => {
-			return this.textMateService.createGrammar(mode.getId()).then((grammar) => {
-				let lines = content.split(/\r\n|\r|\n/);
+		const modeId = this.modeService.getModeIdByFilepathOrFirstLine(fileName);
+		return this.textMateService.createGrammar(modeId).then((grammar) => {
+			let lines = content.split(/\r\n|\r|\n/);
 
-				let result = this._tokenize(grammar, lines);
-				return this._getThemesResult(grammar, lines).then((themesResult) => {
-					this._enrichResult(result, themesResult);
-					return result.filter(t => t.c.length > 0);
-				});
+			let result = this._tokenize(grammar, lines);
+			return this._getThemesResult(grammar, lines).then((themesResult) => {
+				this._enrichResult(result, themesResult);
+				return result.filter(t => t.c.length > 0);
 			});
 		});
 	}

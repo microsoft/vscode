@@ -21,7 +21,6 @@ import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
 import { escape } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import 'vs/css!./outlinePanel';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
@@ -31,7 +30,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
-import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
+import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureRegistry';
 import { OutlineElement, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -98,7 +97,7 @@ class RequestOracle {
 	private _update(): void {
 
 		let widget = this._editorService.activeTextEditorWidget;
-		let codeEditor: ICodeEditor = undefined;
+		let codeEditor: ICodeEditor | undefined = undefined;
 		if (isCodeEditor(widget)) {
 			codeEditor = widget;
 		} else if (isDiffEditor(widget)) {
@@ -231,7 +230,6 @@ export class OutlinePanel extends ViewletPanel {
 	private _outlineViewState = new OutlineViewState();
 	private _requestOracle: RequestOracle;
 	private _cachedHeight: number;
-	private _pendingLayout: IDisposable;
 	private _domNode: HTMLElement;
 	private _message: HTMLDivElement;
 	private _inputContainer: HTMLDivElement;
@@ -377,29 +375,19 @@ export class OutlinePanel extends ViewletPanel {
 	}
 
 	protected layoutBody(height: number): void {
-		if (!this.isExpanded()) {
-			// workaround https://github.com/Microsoft/vscode/issues/60018
-			return;
-		}
 		if (height !== this._cachedHeight) {
 			this._cachedHeight = height;
-			if (this._pendingLayout) {
-				this._pendingLayout.dispose();
-			}
-			this._pendingLayout = dom.measure(() => {
-				// this._input.layout();
-				const inputHeight = dom.getTotalHeight(this._inputContainer);
-				this._tree.layout(height - (inputHeight + 5 /*progressbar height, defined in outlinePanel.css*/));
-			});
+			const treeHeight = height - (5 /*progressbar height*/ + 33 /*input height*/);
+			this._tree.layout(treeHeight);
 		}
 	}
 
-	setVisible(visible: boolean): TPromise<void> {
+	setVisible(visible: boolean): void {
 		if (visible && this.isExpanded() && !this._requestOracle) {
 			// workaround for https://github.com/Microsoft/vscode/issues/60011
 			this.setExpanded(true);
 		}
-		return super.setVisible(visible);
+		super.setVisible(visible);
 	}
 
 	setExpanded(expanded: boolean): void {
@@ -711,11 +699,17 @@ export class OutlinePanel extends ViewletPanel {
 			lineNumber: selection.selectionStartLineNumber,
 			column: selection.selectionStartColumn
 		}, first instanceof OutlineElement ? first : undefined);
-		if (item) {
-			await this._tree.reveal(item, .5);
-			this._tree.setFocus(item, this);
-			this._tree.setSelection([item], this);
+		if (!item) {
+			// nothing to reveal
+			return;
 		}
+		let top = this._tree.getRelativeTop(item);
+		if (top < 0 || top > 1) {
+			// only when outside view port
+			await this._tree.reveal(item, .5);
+		}
+		this._tree.setFocus(item, this);
+		this._tree.setSelection([item], this);
 	}
 
 	focusHighlightedElement(up: boolean): void {

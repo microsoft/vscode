@@ -63,12 +63,24 @@ export function rename(oldPath: string, newPath: string): Promise<void> {
 	return nfcall(fs.rename, oldPath, newPath);
 }
 
+export function renameIgnoreError(oldPath: string, newPath: string): Promise<void> {
+	return new Promise(resolve => {
+		fs.rename(oldPath, newPath, () => resolve());
+	});
+}
+
 export function rmdir(path: string): Promise<void> {
 	return nfcall(fs.rmdir, path);
 }
 
 export function unlink(path: string): Promise<void> {
 	return nfcall(fs.unlink, path);
+}
+
+export function unlinkIgnoreError(path: string): Promise<void> {
+	return new Promise(resolve => {
+		fs.unlink(path, () => resolve());
+	});
 }
 
 export function symlink(target: string, path: string, type?: string): Promise<void> {
@@ -98,10 +110,11 @@ export function writeFile(path: string, data: string, options?: extfs.IWriteFile
 export function writeFile(path: string, data: Buffer, options?: extfs.IWriteFileOptions): Promise<void>;
 export function writeFile(path: string, data: Uint8Array, options?: extfs.IWriteFileOptions): Promise<void>;
 export function writeFile(path: string, data: NodeJS.ReadableStream, options?: extfs.IWriteFileOptions): Promise<void>;
-export function writeFile(path: string, data: any, options?: extfs.IWriteFileOptions): Promise<void> {
+export function writeFile(path: string, data: any, options?: extfs.IWriteFileOptions): Promise<void>;
+export function writeFile(path: string, data: any, options?: extfs.IWriteFileOptions): any {
 	const queueKey = toQueueKey(path);
 
-	return Promise.resolve(ensureWriteFileQueue(queueKey).queue(() => nfcall(extfs.writeFileAndFlush, path, data, options)));
+	return ensureWriteFileQueue(queueKey).queue(() => nfcall(extfs.writeFileAndFlush, path, data, options));
 }
 
 function toQueueKey(path: string): string {
@@ -157,7 +170,7 @@ export function fileExists(path: string): Promise<boolean> {
 /**
  * Deletes a path from disk.
  */
-let _tmpDir: string = null;
+let _tmpDir: string | null = null;
 function getTmpDir(): string {
 	if (!_tmpDir) {
 		_tmpDir = os.tmpdir();
@@ -171,7 +184,7 @@ export function del(path: string, tmp = getTmpDir()): Promise<void> {
 export function whenDeleted(path: string): Promise<void> {
 
 	// Complete when wait marker file is deleted
-	return new Promise<void>(c => {
+	return new Promise<void>(resolve => {
 		let running = false;
 		const interval = setInterval(() => {
 			if (!running) {
@@ -181,7 +194,7 @@ export function whenDeleted(path: string): Promise<void> {
 
 					if (!exists) {
 						clearInterval(interval);
-						c(null);
+						resolve(void 0);
 					}
 				});
 			}

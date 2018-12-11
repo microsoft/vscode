@@ -44,7 +44,10 @@ export class DarwinUpdateService extends AbstractUpdateService {
 
 	private onError(err: string): void {
 		this.logService.error('UpdateService error:', err);
-		this.setState(State.Idle(UpdateType.Archive, err));
+
+		// only show message when explicitly checking for updates
+		const message: string | undefined = !!context ? err : undefined;
+		this.setState(State.Idle(UpdateType.Archive, message));
 	}
 
 	protected buildUpdateFeedUrl(quality: string): string | undefined {
@@ -103,12 +106,6 @@ export class DarwinUpdateService extends AbstractUpdateService {
 	}
 
 	protected doQuitAndInstall(): void {
-		// for some reason updating on Mac causes the local storage not to be flushed.
-		// we workaround this issue by forcing an explicit flush of the storage data.
-		// see also https://github.com/Microsoft/vscode/issues/172
-		this.logService.trace('update#quitAndInstall(): calling flushStorageData()');
-		electron.session.defaultSession.flushStorageData();
-
 		this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
 		electron.autoUpdater.quitAndInstall();
 	}

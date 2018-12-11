@@ -43,10 +43,10 @@ class RenameSkeleton {
 		return this._provider.length > 0;
 	}
 
-	async resolveRenameLocation(token: CancellationToken): Promise<RenameLocation & Rejection> {
+	async resolveRenameLocation(token: CancellationToken): Promise<RenameLocation & Rejection | null | undefined> {
 
 		let [provider] = this._provider;
-		let res: RenameLocation & Rejection;
+		let res: RenameLocation & Rejection | null | undefined;
 
 		if (provider.resolveRenameLocation) {
 			res = await provider.resolveRenameLocation(this.model, this.position, token);
@@ -116,15 +116,19 @@ class RenameController implements IEditorContribution {
 		this._renameInputVisible = CONTEXT_RENAME_INPUT_VISIBLE.bindTo(contextKeyService);
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this._renameInputField.dispose();
 	}
 
-	public getId(): string {
+	getId(): string {
 		return RenameController.ID;
 	}
 
-	public async run(token: CancellationToken): Promise<void> {
+	async run(token: CancellationToken): Promise<void> {
+
+		if (!this.editor.hasModel()) {
+			return undefined;
+		}
 
 		const position = this.editor.getPosition();
 		const skeleton = new RenameSkeleton(this.editor.getModel(), position);
@@ -133,7 +137,7 @@ class RenameController implements IEditorContribution {
 			return undefined;
 		}
 
-		let loc: RenameLocation & Rejection;
+		let loc: RenameLocation & Rejection | null | undefined;
 		try {
 			loc = await skeleton.resolveRenameLocation(token);
 		} catch (e) {
@@ -175,6 +179,11 @@ class RenameController implements IEditorContribution {
 			const state = new EditorState(this.editor, CodeEditorStateFlag.Position | CodeEditorStateFlag.Value | CodeEditorStateFlag.Selection | CodeEditorStateFlag.Scroll);
 
 			const renameOperation = Promise.resolve(skeleton.provideRenameEdits(newNameOrFocusFlag, 0, [], token).then(result => {
+
+				if (!this.editor.hasModel()) {
+					return undefined;
+				}
+
 				if (result.rejectReason) {
 					if (state.validate(this.editor)) {
 						MessageController.get(this.editor).showMessage(result.rejectReason, this.editor.getPosition());
@@ -187,7 +196,7 @@ class RenameController implements IEditorContribution {
 				return this._bulkEditService.apply(result, { editor: this.editor }).then(result => {
 					// alert
 					if (result.ariaSummary) {
-						alert(nls.localize('aria', "Successfully renamed '{0}' to '{1}'. Summary: {2}", loc.text, newNameOrFocusFlag, result.ariaSummary));
+						alert(nls.localize('aria', "Successfully renamed '{0}' to '{1}'. Summary: {2}", loc!.text, newNameOrFocusFlag, result.ariaSummary));
 					}
 				});
 
@@ -242,6 +251,9 @@ export class RenameAction extends EditorAction {
 
 		if (URI.isUri(uri) && Position.isIPosition(pos)) {
 			return editorService.openCodeEditor({ resource: uri }, editorService.getActiveCodeEditor()).then(editor => {
+				if (!editor) {
+					return;
+				}
 				editor.setPosition(pos);
 				editor.invokeWithinContext(accessor => {
 					this.reportTelemetry(accessor, editor);
@@ -258,7 +270,7 @@ export class RenameAction extends EditorAction {
 		if (controller) {
 			return Promise.resolve(controller.run(CancellationToken.None));
 		}
-		return undefined;
+		return Promise.resolve();
 	}
 }
 

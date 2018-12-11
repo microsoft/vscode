@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IMenubarService, IMenubarData, IMenubarKeybinding } from 'vs/platform/menubar/common/menubar';
+import { IMenubarService, IMenubarData } from 'vs/platform/menubar/common/menubar';
 import { Menubar } from 'vs/platform/menubar/electron-main/menubar';
 import { ILogService } from 'vs/platform/log/common/log';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class MenubarService implements IMenubarService {
@@ -22,13 +21,13 @@ export class MenubarService implements IMenubarService {
 		this._menubar = this.instantiationService.createInstance(Menubar);
 	}
 
-	updateMenubar(windowId: number, menus: IMenubarData, additionalKeybindings?: Array<IMenubarKeybinding>): TPromise<void> {
+	updateMenubar(windowId: number, menus: IMenubarData): Promise<void> {
 		this.logService.trace('menubarService#updateMenubar', windowId);
 
 		if (this._menubar) {
-			this._menubar.updateMenu(menus, windowId, additionalKeybindings);
+			this._menubar.updateMenu(menus, windowId);
 		}
 
-		return TPromise.as(null);
+		return Promise.resolve(void 0);
 	}
 }

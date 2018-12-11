@@ -6,22 +6,22 @@
 import 'vs/css!./list';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { range } from 'vs/base/common/arrays';
-import { IVirtualDelegate, IRenderer, IListEvent, IListOpenEvent, IListContextMenuEvent } from './list';
+import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent } from './list';
 import { List, IListStyles, IListOptions } from './listWidget';
 import { IPagedModel } from 'vs/base/common/paging';
 import { Event, mapEvent } from 'vs/base/common/event';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
-export interface IPagedRenderer<TElement, TTemplateData> extends IRenderer<TElement, TTemplateData> {
+export interface IPagedRenderer<TElement, TTemplateData> extends IListRenderer<TElement, TTemplateData> {
 	renderPlaceholder(index: number, templateData: TTemplateData): void;
 }
 
 export interface ITemplateData<T> {
-	data: T;
-	disposable: IDisposable;
+	data?: T;
+	disposable?: IDisposable;
 }
 
-class PagedRenderer<TElement, TTemplateData> implements IRenderer<number, ITemplateData<TTemplateData>> {
+class PagedRenderer<TElement, TTemplateData> implements IListRenderer<number, ITemplateData<TTemplateData>> {
 
 	get templateId(): string { return this.renderer.templateId; }
 
@@ -36,7 +36,13 @@ class PagedRenderer<TElement, TTemplateData> implements IRenderer<number, ITempl
 	}
 
 	renderElement(index: number, _: number, data: ITemplateData<TTemplateData>): void {
-		data.disposable.dispose();
+		if (data.disposable) {
+			data.disposable.dispose();
+		}
+
+		if (!data.data) {
+			return;
+		}
 
 		const model = this.modelProvider();
 
@@ -49,7 +55,7 @@ class PagedRenderer<TElement, TTemplateData> implements IRenderer<number, ITempl
 		data.disposable = { dispose: () => cts.cancel() };
 
 		this.renderer.renderPlaceholder(index, data.data);
-		promise.then(entry => this.renderer.renderElement(entry, index, data.data));
+		promise.then(entry => this.renderer.renderElement(entry, index, data.data!));
 	}
 
 	disposeElement(): void {
@@ -57,10 +63,14 @@ class PagedRenderer<TElement, TTemplateData> implements IRenderer<number, ITempl
 	}
 
 	disposeTemplate(data: ITemplateData<TTemplateData>): void {
-		data.disposable.dispose();
-		data.disposable = null;
-		this.renderer.disposeTemplate(data.data);
-		data.data = null;
+		if (data.disposable) {
+			data.disposable.dispose();
+			data.disposable = undefined;
+		}
+		if (data.data) {
+			this.renderer.disposeTemplate(data.data);
+			data.data = undefined;
+		}
 	}
 }
 
@@ -71,7 +81,7 @@ export class PagedList<T> implements IDisposable {
 
 	constructor(
 		container: HTMLElement,
-		virtualDelegate: IVirtualDelegate<number>,
+		virtualDelegate: IListVirtualDelegate<number>,
 		renderers: IPagedRenderer<T, any>[],
 		options: IListOptions<any> = {}
 	) {
@@ -111,7 +121,7 @@ export class PagedList<T> implements IDisposable {
 		return mapEvent(this.list.onFocusChange, ({ elements, indexes }) => ({ elements: elements.map(e => this._model.get(e)), indexes }));
 	}
 
-	get onOpen(): Event<IListOpenEvent<T>> {
+	get onOpen(): Event<IListEvent<T>> {
 		return mapEvent(this.list.onOpen, ({ elements, indexes, browserEvent }) => ({ elements: elements.map(e => this._model.get(e)), indexes, browserEvent }));
 	}
 
@@ -124,7 +134,7 @@ export class PagedList<T> implements IDisposable {
 	}
 
 	get onContextMenu(): Event<IListContextMenuEvent<T>> {
-		return mapEvent(this.list.onContextMenu, ({ element, index, anchor }) => ({ element: this._model.get(element), index, anchor }));
+		return mapEvent(this.list.onContextMenu, ({ element, index, anchor, browserEvent }) => (typeof element === 'undefined' ? { element, index, anchor, browserEvent } : { element: this._model.get(element), index, anchor, browserEvent }));
 	}
 
 	get model(): IPagedModel<T> {
@@ -162,14 +172,6 @@ export class PagedList<T> implements IDisposable {
 
 	focusPrevious(n?: number, loop?: boolean): void {
 		this.list.focusPrevious(n, loop);
-	}
-
-	selectNext(n?: number, loop?: boolean): void {
-		this.list.selectNext(n, loop);
-	}
-
-	selectPrevious(n?: number, loop?: boolean): void {
-		this.list.selectPrevious(n, loop);
 	}
 
 	focusNextPage(): void {

@@ -6,12 +6,12 @@
 import * as env from 'vs/base/common/platform';
 import * as pfs from 'vs/base/node/pfs';
 
-let _DEFAULT_TERMINAL_LINUX_READY: Promise<string> = null;
+let _DEFAULT_TERMINAL_LINUX_READY: Promise<string> | null = null;
 export function getDefaultTerminalLinuxReady(): Promise<string> {
 	if (!_DEFAULT_TERMINAL_LINUX_READY) {
 		_DEFAULT_TERMINAL_LINUX_READY = new Promise<string>(c => {
 			if (env.isLinux) {
-				Promise.all([pfs.exists('/etc/debian_version'), process.lazyEnv]).then(([isDebian]) => {
+				Promise.all([pfs.exists('/etc/debian_version'), process.lazyEnv || Promise.resolve(void 0)]).then(([isDebian]) => {
 					if (isDebian) {
 						c('x-terminal-emulator');
 					} else if (process.env.DESKTOP_SESSION === 'gnome' || process.env.DESKTOP_SESSION === 'gnome-classic') {
@@ -37,7 +37,7 @@ export function getDefaultTerminalLinuxReady(): Promise<string> {
 
 export const DEFAULT_TERMINAL_OSX = 'Terminal.app';
 
-let _DEFAULT_TERMINAL_WINDOWS: string = null;
+let _DEFAULT_TERMINAL_WINDOWS: string | null = null;
 export function getDefaultTerminalWindows(): string {
 	if (!_DEFAULT_TERMINAL_WINDOWS) {
 		const isWoW64 = !!process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');

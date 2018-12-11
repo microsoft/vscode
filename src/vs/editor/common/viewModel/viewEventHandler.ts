@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { Disposable } from 'vs/base/common/lifecycle';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export class ViewEventHandler extends Disposable {
 

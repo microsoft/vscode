@@ -64,13 +64,12 @@ export class DebugViewlet extends ViewContainerViewlet {
 		}));
 	}
 
-	create(parent: HTMLElement): Promise<void> {
-		return super.create(parent).then(() => {
-			DOM.addClass(parent, 'debug-viewlet');
-		});
+	create(parent: HTMLElement): void {
+		super.create(parent);
+		DOM.addClass(parent, 'debug-viewlet');
 	}
 
-	public focus(): void {
+	focus(): void {
 		super.focus();
 
 		if (this.startDebugActionItem) {
@@ -98,7 +97,7 @@ export class DebugViewlet extends ViewContainerViewlet {
 		return this._register(this.instantiationService.createInstance(SelectAndStartAction, SelectAndStartAction.ID, nls.localize('startAdditionalSession', "Start Additional Session")));
 	}
 
-	public getActions(): IAction[] {
+	getActions(): IAction[] {
 		if (this.showInitialDebugActions) {
 			return [this.startAction, this.configureAction, this.toggleReplAction];
 		}
@@ -106,12 +105,12 @@ export class DebugViewlet extends ViewContainerViewlet {
 		return DebugToolbar.getActions(this.allActions, this.toDispose, this.debugService, this.keybindingService, this.instantiationService);
 	}
 
-	public get showInitialDebugActions(): boolean {
+	get showInitialDebugActions(): boolean {
 		const state = this.debugService.state;
 		return state === State.Inactive || this.configurationService.getValue<IDebugConfiguration>('debug').toolBarLocation !== 'docked';
 	}
 
-	public getSecondaryActions(): IAction[] {
+	getSecondaryActions(): IAction[] {
 		if (this.showInitialDebugActions) {
 			return [];
 		}
@@ -119,7 +118,7 @@ export class DebugViewlet extends ViewContainerViewlet {
 		return [this.selectAndStartAction, this.configureAction, this.toggleReplAction];
 	}
 
-	public getActionItem(action: IAction): IActionItem {
+	getActionItem(action: IAction): IActionItem {
 		if (action.id === StartAction.ID) {
 			this.startDebugActionItem = this.instantiationService.createInstance(StartDebugActionItem, null, action);
 			return this.startDebugActionItem;
@@ -131,7 +130,7 @@ export class DebugViewlet extends ViewContainerViewlet {
 		return null;
 	}
 
-	public focusView(id: string): void {
+	focusView(id: string): void {
 		const view = this.getView(id);
 		if (view) {
 			view.focus();

@@ -32,6 +32,7 @@ const i18n = require('./lib/i18n');
 const deps = require('./dependencies');
 const getElectronVersion = require('./lib/electron').getElectronVersion;
 const createAsar = require('./lib/asar').createAsar;
+const minimist = require('minimist');
 
 const productionDependencies = deps.getProductionDependencies(path.dirname(__dirname));
 // @ts-ignore
@@ -310,19 +311,20 @@ function packageTask(platform, arch, opts) {
 		const deps = gulp.src(depsSrc, { base: '.', dot: true })
 			.pipe(filter(['**', '!**/package-lock.json']))
 			.pipe(util.cleanNodeModule('fsevents', ['binding.gyp', 'fsevents.cc', 'build/**', 'src/**', 'test/**'], ['**/*.node']))
-			.pipe(util.cleanNodeModule('oniguruma', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node', 'src/*.js']))
+			.pipe(util.cleanNodeModule('vscode-sqlite3', ['binding.gyp', 'benchmark/**', 'cloudformation/**', 'deps/**', 'test/**', 'build/**', 'src/**'], ['build/Release/*.node']))
+			.pipe(util.cleanNodeModule('oniguruma', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['build/Release/*.node', 'src/*.js']))
 			.pipe(util.cleanNodeModule('windows-mutex', ['binding.gyp', 'build/**', 'src/**'], ['**/*.node']))
-			.pipe(util.cleanNodeModule('native-keymap', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node']))
-			.pipe(util.cleanNodeModule('native-is-elevated', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node']))
-			.pipe(util.cleanNodeModule('native-watchdog', ['binding.gyp', 'build/**', 'src/**'], ['**/*.node']))
-			.pipe(util.cleanNodeModule('spdlog', ['binding.gyp', 'build/**', 'deps/**', 'src/**', 'test/**'], ['**/*.node']))
+			.pipe(util.cleanNodeModule('native-keymap', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['build/Release/*.node']))
+			.pipe(util.cleanNodeModule('native-is-elevated', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['build/Release/*.node']))
+			.pipe(util.cleanNodeModule('native-watchdog', ['binding.gyp', 'build/**', 'src/**'], ['build/Release/*.node']))
+			.pipe(util.cleanNodeModule('spdlog', ['binding.gyp', 'build/**', 'deps/**', 'src/**', 'test/**'], ['build/Release/*.node']))
 			.pipe(util.cleanNodeModule('jschardet', ['dist/**']))
 			.pipe(util.cleanNodeModule('windows-foreground-love', ['binding.gyp', 'build/**', 'src/**'], ['**/*.node']))
 			.pipe(util.cleanNodeModule('windows-process-tree', ['binding.gyp', 'build/**', 'src/**'], ['**/*.node']))
-			.pipe(util.cleanNodeModule('gc-signals', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node', 'src/index.js']))
+			.pipe(util.cleanNodeModule('gc-signals', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['build/Release/*.node', 'src/index.js']))
 			.pipe(util.cleanNodeModule('keytar', ['binding.gyp', 'build/**', 'src/**', 'script/**', 'node_modules/**'], ['**/*.node']))
 			.pipe(util.cleanNodeModule('node-pty', ['binding.gyp', 'build/**', 'src/**', 'tools/**'], ['build/Release/*.exe', 'build/Release/*.dll', 'build/Release/*.node']))
-			.pipe(util.cleanNodeModule('vscode-nsfw', ['binding.gyp', 'build/**', 'src/**', 'openpa/**', 'includes/**'], ['**/*.node', '**/*.a']))
+			.pipe(util.cleanNodeModule('vscode-nsfw', ['binding.gyp', 'build/**', 'src/**', 'openpa/**', 'includes/**'], ['build/Release/*.node', '**/*.a']))
 			.pipe(util.cleanNodeModule('vsda', ['binding.gyp', 'README.md', 'build/**', '*.bat', '*.sh', '*.cpp', '*.h'], ['build/Release/vsda.node']))
 			.pipe(createAsar(path.join(process.cwd(), 'node_modules'), ['**/*.node', '**/vscode-ripgrep/bin/*', '**/node-pty/build/Release/*'], 'app/node_modules.asar'));
 
@@ -392,6 +394,8 @@ function packageTask(platform, arch, opts) {
 
 			result = es.merge(result, gulp.src('resources/win32/bin/code.sh', { base: 'resources/win32' })
 				.pipe(replace('@@NAME@@', product.nameShort))
+				.pipe(replace('@@COMMIT@@', commit))
+				.pipe(replace('@@APPNAME@@', product.applicationName))
 				.pipe(rename(function (f) { f.basename = product.applicationName; f.extname = ''; })));
 
 			result = es.merge(result, gulp.src('resources/win32/VisualElementsManifest.xml', { base: 'resources/win32' })
@@ -475,7 +479,7 @@ gulp.task('vscode-translations-push', ['optimize-vscode'], function () {
 	).pipe(i18n.pushXlfFiles(apiHostname, apiName, apiToken));
 });
 
-gulp.task('vscode-translations-push-test', ['optimize-vscode'], function () {
+gulp.task('vscode-translations-export', ['optimize-vscode'], function () {
 	const pathToMetadata = './out-vscode/nls.metadata.json';
 	const pathToExtensions = './extensions/*';
 	const pathToSetup = 'build/win32/**/{Default.isl,messages.en.isl}';
@@ -484,20 +488,26 @@ gulp.task('vscode-translations-push-test', ['optimize-vscode'], function () {
 		gulp.src(pathToMetadata).pipe(i18n.createXlfFilesForCoreBundle()),
 		gulp.src(pathToSetup).pipe(i18n.createXlfFilesForIsl()),
 		gulp.src(pathToExtensions).pipe(i18n.createXlfFilesForExtensions())
-	).pipe(i18n.findObsoleteResources(apiHostname, apiName, apiToken)
-	).pipe(vfs.dest('../vscode-transifex-input'));
+	).pipe(vfs.dest('../vscode-translations-export'));
 });
 
 gulp.task('vscode-translations-pull', function () {
 	return es.merge([...i18n.defaultLanguages, ...i18n.extraLanguages].map(language => {
 		let includeDefault = !!innoSetupConfig[language.id].defaultInfo;
-		return i18n.pullSetupXlfFiles(apiHostname, apiName, apiToken, language, includeDefault).pipe(vfs.dest(`../vscode-localization/${language.id}/setup`));
+		return i18n.pullSetupXlfFiles(apiHostname, apiName, apiToken, language, includeDefault).pipe(vfs.dest(`../vscode-translations-import/${language.id}/setup`));
 	}));
 });
 
 gulp.task('vscode-translations-import', function () {
+	var options = minimist(process.argv.slice(2), {
+		string: 'location',
+		default: {
+			location: '../vscode-translations-import'
+		}
+	});
 	return es.merge([...i18n.defaultLanguages, ...i18n.extraLanguages].map(language => {
-		return gulp.src(`../vscode-localization/${language.id}/setup/*/*.xlf`)
+		let id = language.transifexId || language.id;
+		return gulp.src(`${options.location}/${id}/setup/*/*.xlf`)
 			.pipe(i18n.prepareIslFiles(language, innoSetupConfig[language.id]))
 			.pipe(vfs.dest(`./build/win32/i18n`));
 	}));

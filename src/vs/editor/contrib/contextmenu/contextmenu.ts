@@ -4,27 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { IAction } from 'vs/base/common/actions';
-import { ResolvedKeybinding, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
+import { IAction } from 'vs/base/common/actions';
+import { KeyCode, KeyMod, ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution, IScrollEvent, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
-
-export interface IPosition {
-	x: number;
-	y: number;
-}
 
 export class ContextMenuController implements IEditorContribution {
 
@@ -93,16 +88,16 @@ export class ContextMenuController implements IEditorContribution {
 		}
 
 		// Unless the user triggerd the context menu through Shift+F10, use the mouse position as menu position
-		let forcedPosition: IPosition;
+		let anchor: IAnchor;
 		if (e.target.type !== MouseTargetType.TEXTAREA) {
-			forcedPosition = { x: e.event.posx, y: e.event.posy + 1 };
+			anchor = { x: e.event.posx - 1, width: 2, y: e.event.posy - 1, height: 2 };
 		}
 
 		// Show the context menu
-		this.showContextMenu(forcedPosition);
+		this.showContextMenu(anchor);
 	}
 
-	public showContextMenu(forcedPosition?: IPosition): void {
+	public showContextMenu(anchor?: IAnchor): void {
 		if (!this._editor.getConfiguration().contribInfo.contextmenu) {
 			return; // Context menu is turned off through configuration
 		}
@@ -117,7 +112,7 @@ export class ContextMenuController implements IEditorContribution {
 
 		// Show menu if we have actions to show
 		if (menuActions.length > 0) {
-			this._doShowContextMenu(menuActions, forcedPosition);
+			this._doShowContextMenu(menuActions, anchor);
 		}
 	}
 
@@ -137,7 +132,7 @@ export class ContextMenuController implements IEditorContribution {
 		return result;
 	}
 
-	private _doShowContextMenu(actions: IAction[], forcedPosition: IPosition = null): void {
+	private _doShowContextMenu(actions: IAction[], anchor: IAnchor | null = null): void {
 
 		// Disable hover
 		const oldHoverSetting = this._editor.getConfiguration().contribInfo.hover;
@@ -147,7 +142,6 @@ export class ContextMenuController implements IEditorContribution {
 			}
 		});
 
-		let anchor: IAnchor = forcedPosition;
 		if (!anchor) {
 			// Ensure selection is visible
 			this._editor.revealPosition(this._editor.getPosition(), ScrollType.Immediate);
@@ -163,18 +157,12 @@ export class ContextMenuController implements IEditorContribution {
 			anchor = { x: posx, y: posy };
 		}
 
-		// prevent menu from appearing right below the cursor
-		anchor.height = 1;
-		anchor.width = 2;
-
 		// Show menu
 		this._contextMenuIsBeingShownCount++;
 		this._contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 
-			getActions: () => {
-				return Promise.resolve(actions);
-			},
+			getActions: () => actions,
 
 			getActionItem: (action) => {
 				const keybinding = this._keybindingFor(action);

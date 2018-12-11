@@ -7,8 +7,7 @@ import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { values } from 'vs/base/common/map';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { IFileMatch, IRawFileMatch2, ISearchComplete, ISearchCompleteStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, QueryType, SearchProviderType } from 'vs/platform/search/common/search';
+import { IFileMatch, IRawFileMatch2, ISearchComplete, ISearchCompleteStats, ISearchProgressItem, ISearchResultProvider, ISearchService, QueryType, SearchProviderType, ITextQuery, IFileQuery } from 'vs/platform/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ExtHostContext, ExtHostSearchShape, IExtHostContext, MainContext, MainThreadSearchShape } from '../node/extHost.protocol';
@@ -68,7 +67,7 @@ class SearchOperation {
 	private static _idPool = 0;
 
 	constructor(
-		readonly progress: (match: IFileMatch) => any,
+		readonly progress?: (match: IFileMatch) => any,
 		readonly id: number = ++SearchOperation._idPool,
 		readonly matches = new Map<string, IFileMatch>()
 	) {
@@ -78,12 +77,14 @@ class SearchOperation {
 	addMatch(match: IFileMatch): void {
 		if (this.matches.has(match.resource.toString())) {
 			// Merge with previous IFileMatches
-			this.matches.get(match.resource.toString()).matches.push(...match.matches);
+			this.matches.get(match.resource.toString()).results.push(...match.results);
 		} else {
 			this.matches.set(match.resource.toString(), match);
 		}
 
-		this.progress(this.matches.get(match.resource.toString()));
+		if (this.progress) {
+			this.progress(match);
+		}
 	}
 }
 
@@ -106,9 +107,17 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 		dispose(this._registrations);
 	}
 
-	search(query: ISearchQuery, onProgress?: (p: ISearchProgressItem) => void, token: CancellationToken = CancellationToken.None): TPromise<ISearchComplete> {
+	fileSearch(query: IFileQuery, token: CancellationToken = CancellationToken.None): Promise<ISearchComplete> {
+		return this.doSearch(query, null, token);
+	}
+
+	textSearch(query: ITextQuery, onProgress?: (p: ISearchProgressItem) => void, token: CancellationToken = CancellationToken.None): Promise<ISearchComplete> {
+		return this.doSearch(query, onProgress, token);
+	}
+
+	doSearch(query: ITextQuery | IFileQuery, onProgress?: (p: ISearchProgressItem) => void, token: CancellationToken = CancellationToken.None): Promise<ISearchComplete> {
 		if (isFalsyOrEmpty(query.folderQueries)) {
-			return TPromise.as(undefined);
+			return Promise.resolve(undefined);
 		}
 
 		const search = new SearchOperation(onProgress);
@@ -116,19 +125,19 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 
 		const searchP = query.type === QueryType.File
 			? this._proxy.$provideFileSearchResults(this._handle, search.id, query, token)
-			: this._proxy.$provideTextSearchResults(this._handle, search.id, query.contentPattern, query, token);
+			: this._proxy.$provideTextSearchResults(this._handle, search.id, query, token);
 
-		return TPromise.wrap(searchP).then((result: ISearchCompleteStats) => {
+		return Promise.resolve(searchP).then((result: ISearchCompleteStats) => {
 			this._searches.delete(search.id);
 			return { results: values(search.matches), stats: result.stats, limitHit: result.limitHit };
 		}, err => {
 			this._searches.delete(search.id);
-			return TPromise.wrapError(err);
+			return Promise.reject(err);
 		});
 	}
 
-	clearCache(cacheKey: string): TPromise<void> {
-		return TPromise.wrap(this._proxy.$clearCache(cacheKey));
+	clearCache(cacheKey: string): Promise<void> {
+		return Promise.resolve(this._proxy.$clearCache(cacheKey));
 	}
 
 	handleFindMatch(session: number, dataOrUri: (UriComponents | IRawFileMatch2)[]): void {
@@ -139,10 +148,10 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 
 		const searchOp = this._searches.get(session);
 		dataOrUri.forEach(result => {
-			if ((<IRawFileMatch2>result).matches) {
+			if ((<IRawFileMatch2>result).results) {
 				searchOp.addMatch({
 					resource: URI.revive((<IRawFileMatch2>result).resource),
-					matches: (<IRawFileMatch2>result).matches
+					results: (<IRawFileMatch2>result).results
 				});
 			} else {
 				searchOp.addMatch({

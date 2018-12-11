@@ -5,11 +5,11 @@
 
 import { window, workspace, Uri, Disposable, Event, EventEmitter, DecorationData, DecorationProvider, ThemeColor } from 'vscode';
 import * as path from 'path';
-import { Repository, GitResourceGroup, Status } from './repository';
+import { Repository, GitResourceGroup } from './repository';
 import { Model } from './model';
 import { debounce } from './decorators';
 import { filterEvent, dispose, anyEvent, fireEvent } from './util';
-import { GitErrorCodes } from './api/git';
+import { GitErrorCodes, Status } from './api/git';
 
 type Callback = { resolve: (status: boolean) => void, reject: (err: any) => void };
 

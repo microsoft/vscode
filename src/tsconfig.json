@@ -1,33 +1,10 @@
 {
+	"extends": "./tsconfig.base.json",
 	"compilerOptions": {
-		"module": "amd",
-		"moduleResolution": "node",
-		"noImplicitAny": false,
 		"removeComments": false,
 		"preserveConstEnums": true,
-		"target": "es5",
 		"sourceMap": false,
-		"experimentalDecorators": true,
-		"declaration": true,
-		"noImplicitReturns": true,
-		"noUnusedLocals": true,
-		"noImplicitThis": true,
-		"alwaysStrict": true,
-		"baseUrl": ".",
-		"outDir": "../out",
-		"paths": {
-			"vs/*": [
-				"./vs/*"
-			]
-		},
-		"types": [
-			"keytar",
-			"minimist",
-			"mocha",
-			"semver",
-			"sinon",
-			"winreg"
-		]
+		"outDir": "../out"
 	},
 	"include": [
 		"./typings",

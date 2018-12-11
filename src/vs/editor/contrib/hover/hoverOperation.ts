@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { CancelablePromise, RunOnceScheduler, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 export interface IHoverComputer<Result> {
 
@@ -47,8 +47,6 @@ export const enum HoverStartMode {
 
 export class HoverOperation<Result> {
 
-	static HOVER_TIME = 300;
-
 	private _computer: IHoverComputer<Result>;
 	private _state: ComputeHoverOperationState;
 	private _hoverTime: number;
@@ -56,17 +54,17 @@ export class HoverOperation<Result> {
 	private _firstWaitScheduler: RunOnceScheduler;
 	private _secondWaitScheduler: RunOnceScheduler;
 	private _loadingMessageScheduler: RunOnceScheduler;
-	private _asyncComputationPromise: CancelablePromise<Result>;
+	private _asyncComputationPromise: CancelablePromise<Result> | null;
 	private _asyncComputationPromiseDone: boolean;
 
 	private _completeCallback: (r: Result) => void;
-	private _errorCallback: (err: any) => void;
+	private _errorCallback: ((err: any) => void) | null | undefined;
 	private _progressCallback: (progress: any) => void;
 
-	constructor(computer: IHoverComputer<Result>, success: (r: Result) => void, error: (err: any) => void, progress: (progress: any) => void) {
+	constructor(computer: IHoverComputer<Result>, success: (r: Result) => void, error: ((err: any) => void) | null | undefined, progress: (progress: any) => void, hoverTime: number) {
 		this._computer = computer;
 		this._state = ComputeHoverOperationState.IDLE;
-		this._hoverTime = HoverOperation.HOVER_TIME;
+		this._hoverTime = hoverTime;
 
 		this._firstWaitScheduler = new RunOnceScheduler(() => this._triggerAsyncComputation(), 0);
 		this._secondWaitScheduler = new RunOnceScheduler(() => this._triggerSyncComputation(), 0);
@@ -102,7 +100,7 @@ export class HoverOperation<Result> {
 
 		if (this._computer.computeAsync) {
 			this._asyncComputationPromiseDone = false;
-			this._asyncComputationPromise = createCancelablePromise(token => this._computer.computeAsync(token));
+			this._asyncComputationPromise = createCancelablePromise(token => this._computer.computeAsync!(token));
 			this._asyncComputationPromise.then((asyncResult: Result) => {
 				this._asyncComputationPromiseDone = true;
 				this._withAsyncResult(asyncResult);

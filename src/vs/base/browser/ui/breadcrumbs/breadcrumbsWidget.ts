@@ -118,8 +118,8 @@ export class BreadcrumbsWidget {
 		this._freeNodes.length = 0;
 	}
 
-	layout(dim: dom.Dimension): void {
-		if (dom.Dimension.equals(dim, this._dimension)) {
+	layout(dim: dom.Dimension | undefined): void {
+		if (dim && dom.Dimension.equals(dim, this._dimension)) {
 			return;
 		}
 		if (this._pendingLayout) {
@@ -146,9 +146,11 @@ export class BreadcrumbsWidget {
 
 	private _updateScrollbar(): IDisposable {
 		return dom.measure(() => {
-			this._scrollable.setRevealOnScroll(false);
-			this._scrollable.scanDomNode();
-			this._scrollable.setRevealOnScroll(true);
+			dom.measure(() => { // double RAF
+				this._scrollable.setRevealOnScroll(false);
+				this._scrollable.scanDomNode();
+				this._scrollable.setRevealOnScroll(true);
+			});
 		});
 	}
 
@@ -277,8 +279,8 @@ export class BreadcrumbsWidget {
 	}
 
 	setItems(items: BreadcrumbsItem[]): void {
-		let prefix: number;
-		let removed: BreadcrumbsItem[];
+		let prefix: number | undefined;
+		let removed: BreadcrumbsItem[] = [];
 		try {
 			prefix = commonPrefixLength(this._items, items, (a, b) => a.equals(b));
 			removed = this._items.splice(prefix, this._items.length - prefix, ...items.slice(prefix));
@@ -302,17 +304,21 @@ export class BreadcrumbsWidget {
 		// case a: more nodes -> remove them
 		while (start < this._nodes.length) {
 			const free = this._nodes.pop();
-			this._freeNodes.push(free);
-			free.remove();
+			if (free) {
+				this._freeNodes.push(free);
+				free.remove();
+			}
 		}
 
 		// case b: more items -> render them
 		for (; start < this._items.length; start++) {
 			let item = this._items[start];
 			let node = this._freeNodes.length > 0 ? this._freeNodes.pop() : document.createElement('div');
-			this._renderItem(item, node);
-			this._domNode.appendChild(node);
-			this._nodes.push(node);
+			if (node) {
+				this._renderItem(item, node);
+				this._domNode.appendChild(node);
+				this._nodes.push(node);
+			}
 		}
 		this.layout(undefined);
 	}
@@ -327,7 +333,7 @@ export class BreadcrumbsWidget {
 	}
 
 	private _onClick(event: IMouseEvent): void {
-		for (let el = event.target; el; el = el.parentElement) {
+		for (let el: HTMLElement | null = event.target; el; el = el.parentElement) {
 			let idx = this._nodes.indexOf(el as any);
 			if (idx >= 0) {
 				this._focus(idx, event);

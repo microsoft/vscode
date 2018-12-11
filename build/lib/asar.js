@@ -4,33 +4,33 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
-var path = require("path");
-var es = require("event-stream");
-var pickle = require('chromium-pickle-js');
-var Filesystem = require('asar/lib/filesystem');
-var VinylFile = require("vinyl");
-var minimatch = require("minimatch");
+const path = require("path");
+const es = require("event-stream");
+const pickle = require('chromium-pickle-js');
+const Filesystem = require('asar/lib/filesystem');
+const VinylFile = require("vinyl");
+const minimatch = require("minimatch");
 function createAsar(folderPath, unpackGlobs, destFilename) {
-    var shouldUnpackFile = function (file) {
-        for (var i = 0; i < unpackGlobs.length; i++) {
+    const shouldUnpackFile = (file) => {
+        for (let i = 0; i < unpackGlobs.length; i++) {
             if (minimatch(file.relative, unpackGlobs[i])) {
                 return true;
             }
         }
         return false;
     };
-    var filesystem = new Filesystem(folderPath);
-    var out = [];
+    const filesystem = new Filesystem(folderPath);
+    const out = [];
     // Keep track of pending inserts
-    var pendingInserts = 0;
-    var onFileInserted = function () { pendingInserts--; };
+    let pendingInserts = 0;
+    let onFileInserted = () => { pendingInserts--; };
     // Do not insert twice the same directory
-    var seenDir = {};
-    var insertDirectoryRecursive = function (dir) {
+    const seenDir = {};
+    const insertDirectoryRecursive = (dir) => {
         if (seenDir[dir]) {
             return;
         }
-        var lastSlash = dir.lastIndexOf('/');
+        let lastSlash = dir.lastIndexOf('/');
         if (lastSlash === -1) {
             lastSlash = dir.lastIndexOf('\\');
         }
@@ -40,8 +40,8 @@ function createAsar(folderPath, unpackGlobs, destFilename) {
         seenDir[dir] = true;
         filesystem.insertDirectory(dir);
     };
-    var insertDirectoryForFile = function (file) {
-        var lastSlash = file.lastIndexOf('/');
+    const insertDirectoryForFile = (file) => {
+        let lastSlash = file.lastIndexOf('/');
         if (lastSlash === -1) {
             lastSlash = file.lastIndexOf('\\');
         }
@@ -49,7 +49,7 @@ function createAsar(folderPath, unpackGlobs, destFilename) {
             insertDirectoryRecursive(file.substring(0, lastSlash));
         }
     };
-    var insertFile = function (relativePath, stat, shouldUnpack) {
+    const insertFile = (relativePath, stat, shouldUnpack) => {
         insertDirectoryForFile(relativePath);
         pendingInserts++;
         filesystem.insertFile(relativePath, shouldUnpack, { stat: stat }, {}, onFileInserted);
@@ -59,13 +59,13 @@ function createAsar(folderPath, unpackGlobs, destFilename) {
             return;
         }
         if (!file.stat.isFile()) {
-            throw new Error("unknown item in stream!");
+            throw new Error(`unknown item in stream!`);
         }
-        var shouldUnpack = shouldUnpackFile(file);
+        const shouldUnpack = shouldUnpackFile(file);
         insertFile(file.relative, { size: file.contents.length, mode: file.stat.mode }, shouldUnpack);
         if (shouldUnpack) {
             // The file goes outside of xx.asar, in a folder xx.asar.unpacked
-            var relative = path.relative(folderPath, file.path);
+            const relative = path.relative(folderPath, file.path);
             this.queue(new VinylFile({
                 cwd: folderPath,
                 base: folderPath,
@@ -79,34 +79,33 @@ function createAsar(folderPath, unpackGlobs, destFilename) {
             out.push(file.contents);
         }
     }, function () {
-        var _this = this;
-        var finish = function () {
+        let finish = () => {
             {
-                var headerPickle = pickle.createEmpty();
+                const headerPickle = pickle.createEmpty();
                 headerPickle.writeString(JSON.stringify(filesystem.header));
-                var headerBuf = headerPickle.toBuffer();
-                var sizePickle = pickle.createEmpty();
+                const headerBuf = headerPickle.toBuffer();
+                const sizePickle = pickle.createEmpty();
                 sizePickle.writeUInt32(headerBuf.length);
-                var sizeBuf = sizePickle.toBuffer();
+                const sizeBuf = sizePickle.toBuffer();
                 out.unshift(headerBuf);
                 out.unshift(sizeBuf);
             }
-            var contents = Buffer.concat(out);
+            const contents = Buffer.concat(out);
             out.length = 0;
-            _this.queue(new VinylFile({
+            this.queue(new VinylFile({
                 cwd: folderPath,
                 base: folderPath,
                 path: destFilename,
                 contents: contents
             }));
-            _this.queue(null);
+            this.queue(null);
         };
         // Call finish() only when all file inserts have finished...
         if (pendingInserts === 0) {
             finish();
         }
         else {
-            onFileInserted = function () {
+            onFileInserted = () => {
                 pendingInserts--;
                 if (pendingInserts === 0) {
                     finish();

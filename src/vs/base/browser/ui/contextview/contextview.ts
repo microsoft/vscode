@@ -25,7 +25,8 @@ export const enum AnchorPosition {
 
 export interface IDelegate {
 	getAnchor(): HTMLElement | IAnchor;
-	render(container: HTMLElement): IDisposable;
+	render(container: HTMLElement): IDisposable | null;
+	focus?(): void;
 	layout?(): void;
 	anchorAlignment?: AnchorAlignment; // default: left
 	anchorPosition?: AnchorPosition; // default: below
@@ -99,10 +100,10 @@ export class ContextView extends Disposable {
 	private static readonly BUBBLE_UP_EVENTS = ['click', 'keydown', 'focus', 'blur'];
 	private static readonly BUBBLE_DOWN_EVENTS = ['click'];
 
-	private container: HTMLElement;
+	private container: HTMLElement | null;
 	private view: HTMLElement;
-	private delegate: IDelegate;
-	private toDisposeOnClean: IDisposable;
+	private delegate: IDelegate | null;
+	private toDisposeOnClean: IDisposable | null;
 	private toDisposeOnSetContainer: IDisposable;
 
 	constructor(container: HTMLElement) {
@@ -117,7 +118,7 @@ export class ContextView extends Disposable {
 		this._register(toDisposable(() => this.setContainer(null)));
 	}
 
-	public setContainer(container: HTMLElement): void {
+	public setContainer(container: HTMLElement | null): void {
 		if (this.container) {
 			this.toDisposeOnSetContainer = dispose(this.toDisposeOnSetContainer);
 			this.container.removeChild(this.view);
@@ -130,13 +131,13 @@ export class ContextView extends Disposable {
 			const toDisposeOnSetContainer: IDisposable[] = [];
 
 			ContextView.BUBBLE_UP_EVENTS.forEach(event => {
-				toDisposeOnSetContainer.push(DOM.addStandardDisposableListener(this.container, event, (e: Event) => {
+				toDisposeOnSetContainer.push(DOM.addStandardDisposableListener(this.container!, event, (e: Event) => {
 					this.onDOMEvent(e, <HTMLElement>document.activeElement, false);
 				}));
 			});
 
 			ContextView.BUBBLE_DOWN_EVENTS.forEach(event => {
-				toDisposeOnSetContainer.push(DOM.addStandardDisposableListener(this.container, event, (e: Event) => {
+				toDisposeOnSetContainer.push(DOM.addStandardDisposableListener(this.container!, event, (e: Event) => {
 					this.onDOMEvent(e, <HTMLElement>document.activeElement, true);
 				}, true));
 			});
@@ -165,6 +166,11 @@ export class ContextView extends Disposable {
 
 		// Layout
 		this.doLayout();
+
+		// Focus
+		if (this.delegate.focus) {
+			this.delegate.focus();
+		}
 	}
 
 	public layout(): void {
@@ -172,13 +178,13 @@ export class ContextView extends Disposable {
 			return;
 		}
 
-		if (this.delegate.canRelayout === false) {
+		if (this.delegate!.canRelayout === false) {
 			this.hide();
 			return;
 		}
 
-		if (this.delegate.layout) {
-			this.delegate.layout();
+		if (this.delegate!.layout) {
+			this.delegate!.layout!();
 		}
 
 		this.doLayout();
@@ -191,7 +197,7 @@ export class ContextView extends Disposable {
 		}
 
 		// Get anchor
-		let anchor = this.delegate.getAnchor();
+		let anchor = this.delegate!.getAnchor();
 
 		// Compute around
 		let around: IView;
@@ -212,18 +218,18 @@ export class ContextView extends Disposable {
 			around = {
 				top: realAnchor.y,
 				left: realAnchor.x,
-				width: realAnchor.width || 0,
-				height: realAnchor.height || 0
+				width: realAnchor.width || 1,
+				height: realAnchor.height || 2
 			};
 		}
 
 		const viewSizeWidth = DOM.getTotalWidth(this.view);
 		const viewSizeHeight = DOM.getTotalHeight(this.view);
 
-		const anchorPosition = this.delegate.anchorPosition || AnchorPosition.BELOW;
-		const anchorAlignment = this.delegate.anchorAlignment || AnchorAlignment.LEFT;
+		const anchorPosition = this.delegate!.anchorPosition || AnchorPosition.BELOW;
+		const anchorAlignment = this.delegate!.anchorAlignment || AnchorAlignment.LEFT;
 
-		const verticalAnchor: ILayoutAnchor = { offset: around.top, size: around.height, position: anchorPosition === AnchorPosition.BELOW ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After };
+		const verticalAnchor: ILayoutAnchor = { offset: around.top - window.pageYOffset, size: around.height, position: anchorPosition === AnchorPosition.BELOW ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After };
 
 		let horizontalAnchor: ILayoutAnchor;
 
@@ -233,7 +239,7 @@ export class ContextView extends Disposable {
 			horizontalAnchor = { offset: around.left + around.width, size: 0, position: LayoutAnchorPosition.After };
 		}
 
-		const top = layout(window.innerHeight, viewSizeHeight, verticalAnchor);
+		const top = layout(window.innerHeight, viewSizeHeight, verticalAnchor) + window.pageYOffset;
 
 		// if view intersects vertically with anchor, shift it horizontally
 		if (Range.intersects({ start: top, end: top + viewSizeHeight }, { start: verticalAnchor.offset, end: verticalAnchor.offset + verticalAnchor.size })) {
@@ -246,7 +252,7 @@ export class ContextView extends Disposable {
 		DOM.addClass(this.view, anchorPosition === AnchorPosition.BELOW ? 'bottom' : 'top');
 		DOM.addClass(this.view, anchorAlignment === AnchorAlignment.LEFT ? 'left' : 'right');
 
-		const containerPosition = DOM.getDomNodePagePosition(this.container);
+		const containerPosition = DOM.getDomNodePagePosition(this.container!);
 		this.view.style.top = `${top - containerPosition.top}px`;
 		this.view.style.left = `${left - containerPosition.left}px`;
 		this.view.style.width = 'initial';

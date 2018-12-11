@@ -7,10 +7,10 @@ import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import Severity from 'vs/base/common/severity';
-import { IMessage, IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionDescription, IMessage } from 'vs/workbench/services/extensions/common/extensions';
 
 const hasOwnProperty = Object.hasOwnProperty;
 const schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
@@ -71,8 +71,8 @@ export interface IExtensionPoint<T> {
 export class ExtensionPoint<T> implements IExtensionPoint<T> {
 
 	public readonly name: string;
-	private _handler: IExtensionPointHandler<T>;
-	private _users: IExtensionPointUser<T>[];
+	private _handler: IExtensionPointHandler<T> | null;
+	private _users: IExtensionPointUser<T>[] | null;
 	private _done: boolean;
 
 	constructor(name: string) {
@@ -213,6 +213,11 @@ export const schema = {
 						label: 'onDebugResolve',
 						description: nls.localize('vscode.extension.activationEvents.onDebugResolve', 'An activation event emitted whenever a debug session with the specific type is about to be launched (and a corresponding resolveDebugConfiguration method needs to be called).'),
 						body: 'onDebugResolve:${6:type}'
+					},
+					{
+						label: 'onDebugAdapterProtocolTracker',
+						description: nls.localize('vscode.extension.activationEvents.onDebugAdapterProtocolTracker', 'An activation event emitted whenever a debug session with the specific type is about to be launched and a debug protocol tracker might be needed.'),
+						body: 'onDebugAdapterProtocolTracker:${6:type}'
 					},
 					{
 						label: 'workspaceContains',

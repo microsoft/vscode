@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as strings from 'vs/base/common/strings';
-import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { ILineMapperFactory, ILineMapping, OutputPosition } from 'vs/editor/common/viewModel/splitLinesCollection';
 import { CharCode } from 'vs/base/common/charCode';
+import * as strings from 'vs/base/common/strings';
+import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
 import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
 import { toUint32Array } from 'vs/editor/common/core/uint';
-import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
+import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
+import { ILineMapperFactory, ILineMapping, OutputPosition } from 'vs/editor/common/viewModel/splitLinesCollection';
 
 const enum CharacterClass {
 	NONE = 0,
@@ -74,7 +74,7 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 		return currentVisibleColumn + columnSize;
 	}
 
-	public createLineMapping(lineText: string, tabSize: number, breakingColumn: number, columnsForFullWidthChar: number, hardWrappingIndent: WrappingIndent): ILineMapping {
+	public createLineMapping(lineText: string, tabSize: number, breakingColumn: number, columnsForFullWidthChar: number, hardWrappingIndent: WrappingIndent): ILineMapping | null {
 		if (breakingColumn === -1) {
 			return null;
 		}

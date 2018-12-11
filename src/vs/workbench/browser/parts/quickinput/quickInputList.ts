@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./quickInput';
-import { IVirtualDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
 import * as dom from 'vs/base/browser/dom';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
@@ -27,6 +27,7 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
 import { getIconClass } from 'vs/workbench/browser/parts/quickinput/quickInputUtils';
+import { IListOptions } from 'vs/base/browser/ui/list/listWidget';
 
 const $ = dom.$;
 
@@ -83,7 +84,7 @@ interface IListElementTemplateData {
 	toDisposeTemplate: IDisposable[];
 }
 
-class ListElementRenderer implements IRenderer<ListElement, IListElementTemplateData> {
+class ListElementRenderer implements IListRenderer<ListElement, IListElementTemplateData> {
 
 	static readonly ID = 'listelement';
 
@@ -116,7 +117,7 @@ class ListElementRenderer implements IRenderer<ListElement, IListElementTemplate
 
 		// Detail
 		const detailContainer = dom.append(row2, $('.quick-input-list-label-meta'));
-		data.detail = new HighlightedLabel(detailContainer);
+		data.detail = new HighlightedLabel(detailContainer, true);
 
 		// Separator
 		data.separator = dom.append(data.entry, $('.quick-input-list-separator'));
@@ -198,7 +199,7 @@ class ListElementRenderer implements IRenderer<ListElement, IListElementTemplate
 	}
 }
 
-class ListElementDelegate implements IVirtualDelegate<ListElement> {
+class ListElementDelegate implements IListVirtualDelegate<ListElement> {
 
 	getHeight(element: ListElement): number {
 		return element.saneDetail ? 44 : 22;
@@ -244,10 +245,11 @@ export class QuickInputList {
 		this.container = dom.append(this.parent, $('.quick-input-list'));
 		const delegate = new ListElementDelegate();
 		this.list = this.instantiationService.createInstance(WorkbenchList, this.container, delegate, [new ListElementRenderer()], {
-			identityProvider: element => element.label,
+			identityProvider: { getId: element => element.saneLabel },
 			openController: { shouldOpen: () => false }, // Workaround #58124
+			setRowLineHeight: false,
 			multipleSelectionSupport: false
-		}) as WorkbenchList<ListElement>;
+		} as IListOptions<ListElement>) as WorkbenchList<ListElement>;
 		this.list.getHTMLElement().id = id;
 		this.disposables.push(this.list);
 		this.disposables.push(this.list.onKeyDown(e => {
@@ -275,6 +277,12 @@ export class QuickInputList {
 						this._onLeave.fire();
 					}
 					break;
+			}
+		}));
+		this.disposables.push(this.list.onMouseDown(e => {
+			if (e.browserEvent.button !== 2) {
+				// Works around / fixes #64350.
+				e.browserEvent.preventDefault();
 			}
 		}));
 		this.disposables.push(dom.addDisposableListener(this.container, dom.EventType.CLICK, e => {

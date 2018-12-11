@@ -20,6 +20,7 @@ import { HideWebViewEditorFindCommand, OpenWebviewDeveloperToolsAction, ReloadWe
 import { WebviewEditor } from './webviewEditor';
 import { WebviewEditorInput } from './webviewEditorInput';
 import { IWebviewEditorService, WebviewEditorService } from './webviewEditorService';
+import { InputFocusedContextKey } from 'vs/platform/workbench/common/contextkeys';
 
 (Registry.as<IEditorRegistry>(EditorExtensions.Editors)).registerEditor(new EditorDescriptor(
 	WebviewEditor,
@@ -31,7 +32,7 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 	WebviewEditorInputFactory.ID,
 	WebviewEditorInputFactory);
 
-registerSingleton(IWebviewEditorService, WebviewEditorService);
+registerSingleton(IWebviewEditorService, WebviewEditorService, true);
 
 
 const webviewDeveloperCategory = localize('developer', "Developer");
@@ -65,7 +66,7 @@ export function registerWebViewCommands(editorId: string): void {
 
 	const selectAllCommand = new SelectAllWebviewEditorCommand({
 		id: SelectAllWebviewEditorCommand.ID,
-		precondition: contextKeyExpr,
+		precondition: ContextKeyExpr.and(contextKeyExpr, ContextKeyExpr.not(InputFocusedContextKey)),
 		kbOpts: {
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_A,
 			weight: KeybindingWeight.EditorContrib
