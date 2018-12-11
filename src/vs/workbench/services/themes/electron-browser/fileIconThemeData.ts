@@ -109,18 +109,18 @@ export class FileIconThemeData implements IFileIconTheme {
 	}
 
 	private load(fileService: IFileService): Thenable<string> {
-		if (this.location) {
-			return _loadIconThemeDocument(fileService, this.location).then(iconThemeDocument => {
-				const result = _processIconThemeDocument(this.id, this.location, iconThemeDocument);
-				this.styleSheetContent = result.content;
-				this.hasFileIcons = result.hasFileIcons;
-				this.hasFolderIcons = result.hasFolderIcons;
-				this.hidesExplorerArrows = result.hidesExplorerArrows;
-				this.isLoaded = true;
-				return this.styleSheetContent;
-			});
+		if (!this.location) {
+			return Promise.resolve(this.styleSheetContent);
 		}
-		return Promise.resolve(this.styleSheetContent);
+		return _loadIconThemeDocument(fileService, this.location).then(iconThemeDocument => {
+			const result = _processIconThemeDocument(this.id, this.location, iconThemeDocument);
+			this.styleSheetContent = result.content;
+			this.hasFileIcons = result.hasFileIcons;
+			this.hasFolderIcons = result.hasFolderIcons;
+			this.hidesExplorerArrows = result.hidesExplorerArrows;
+			this.isLoaded = true;
+			return this.styleSheetContent;
+		});
 	}
 }
 
