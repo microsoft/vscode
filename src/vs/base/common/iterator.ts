@@ -41,6 +41,22 @@ export module Iterator {
 		};
 	}
 
+	export function fromObject<T>(obj: Record<any, T>): Iterator<T> {
+		let keys: string[] | undefined;
+		let index = 0;
+		return {
+			next(): IteratorResult<T> {
+				if (!keys) {
+					keys = Object.keys(obj);
+				}
+				if (index >= keys.length) {
+					return FIN;
+				}
+				return { done: false, value: obj[keys[index]] };
+			}
+		};
+	}
+
 	export function from<T>(elements: Iterator<T> | T[] | undefined): Iterator<T> {
 		if (!elements) {
 			return Iterator.empty();

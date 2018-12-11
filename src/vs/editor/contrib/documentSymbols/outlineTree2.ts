@@ -21,33 +21,34 @@ import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ITreeRenderer, ITreeNode, ITreeFilter, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
+import { ITreeRenderer, ITreeNode, ITreeFilter, TreeFilterResult, TreeVisibility, ITreeElement } from 'vs/base/browser/ui/tree/tree';
+import { Iterator } from 'vs/base/common/iterator';
 
-export type OutlineItem = OutlineGroup | OutlineElement;
+export type NOutlineItem = OutlineGroup | OutlineElement;
 
-export class OutlineFilter implements ITreeFilter<OutlineItem> {
+export class NOutlineFilter implements ITreeFilter<NOutlineItem> {
 
 	enabled: boolean = true;
 
-	filter(element: OutlineItem, parentVisibility: TreeVisibility): TreeFilterResult<void> {
+	filter(element: NOutlineItem, parentVisibility: TreeVisibility): TreeFilterResult<void> {
 		return !this.enabled || !(element instanceof OutlineElement) || Boolean(element.score);
 	}
 }
 
-export class OutlineIdentityProvider implements IIdentityProvider<OutlineItem> {
+export class NOutlineIdentityProvider implements IIdentityProvider<NOutlineItem> {
 	getId(element: TreeElement): { toString(): string; } {
 		return element.id;
 	}
 }
 
-export class OutlineGroupTemplate {
+export class NOutlineGroupTemplate {
 	static id = 'OutlineGroupTemplate';
 
 	labelContainer: HTMLElement;
 	label: HighlightedLabel;
 }
 
-export class OutlineElementTemplate {
+export class NOutlineElementTemplate {
 	static id = 'OutlineElementTemplate';
 
 	labelContainer: HTMLElement;
@@ -57,55 +58,55 @@ export class OutlineElementTemplate {
 	decoration: HTMLElement;
 }
 
-export class OutlineVirtualDelegate implements IListVirtualDelegate<OutlineItem> {
+export class NOutlineVirtualDelegate implements IListVirtualDelegate<NOutlineItem> {
 
-	getHeight(_element: OutlineItem): number {
+	getHeight(_element: NOutlineItem): number {
 		return 22;
 	}
 
-	getTemplateId(element: OutlineItem): string {
+	getTemplateId(element: NOutlineItem): string {
 		if (element instanceof OutlineGroup) {
-			return OutlineGroupTemplate.id;
+			return NOutlineGroupTemplate.id;
 		} else {
-			return OutlineElementTemplate.id;
+			return NOutlineElementTemplate.id;
 		}
 	}
 }
 
-export class OutlineGroupRenderer implements ITreeRenderer<OutlineGroup, void, OutlineGroupTemplate> {
+export class NOutlineGroupRenderer implements ITreeRenderer<OutlineGroup, void, NOutlineGroupTemplate> {
 
-	readonly templateId: string = OutlineGroupTemplate.id;
+	readonly templateId: string = NOutlineGroupTemplate.id;
 
-	renderTemplate(container: HTMLElement): OutlineGroupTemplate {
+	renderTemplate(container: HTMLElement): NOutlineGroupTemplate {
 		const labelContainer = dom.$('.outline-element-label');
 		dom.addClass(container, 'outline-element');
 		dom.append(container, labelContainer);
 		return { labelContainer, label: new HighlightedLabel(labelContainer, true) };
 	}
 
-	renderElement(node: ITreeNode<OutlineGroup, void>, index: number, template: OutlineGroupTemplate): void {
+	renderElement(node: ITreeNode<OutlineGroup, void>, index: number, template: NOutlineGroupTemplate): void {
 		template.label.set(node.element.provider.displayName || localize('provider', "Outline Provider"));
 	}
 
-	disposeTemplate(template: OutlineGroupTemplate): void {
+	disposeTemplate(template: NOutlineGroupTemplate): void {
 		template.label.dispose();
 	}
 
-	disposeElement(element: ITreeNode<OutlineGroup, void>, index: number, template: OutlineGroupTemplate): void {
+	disposeElement(): void {
 		//
 	}
 }
 
-export class OutlineElementRenderer implements ITreeRenderer<OutlineElement, void, OutlineElementTemplate> {
+export class NOutlineElementRenderer implements ITreeRenderer<OutlineElement, void, NOutlineElementTemplate> {
 
-	readonly templateId: string = OutlineElementTemplate.id;
+	readonly templateId: string = NOutlineElementTemplate.id;
 
 	renderProblemColors = true;
 	renderProblemBadges = true;
 
 	constructor(@IThemeService readonly _themeService: IThemeService) { }
 
-	renderTemplate(container: HTMLElement): OutlineElementTemplate {
+	renderTemplate(container: HTMLElement): NOutlineElementTemplate {
 		const icon = dom.$('.outline-element-icon symbol-icon');
 		const labelContainer = dom.$('.outline-element-label');
 		const detail = dom.$('.outline-element-detail');
@@ -115,9 +116,9 @@ export class OutlineElementRenderer implements ITreeRenderer<OutlineElement, voi
 		return { icon, labelContainer, label: new HighlightedLabel(labelContainer, true), detail, decoration };
 	}
 
-	renderElement({ element }: ITreeNode<OutlineElement, void>, index: number, template: OutlineElementTemplate): void {
+	renderElement({ element }: ITreeNode<OutlineElement, void>, index: number, template: NOutlineElementTemplate): void {
 		template.icon.className = `outline-element-icon ${symbolKindToCssClass(element.symbol.kind)}`;
-		template.label.set(element.symbol.name, element.score ? createMatches(element.score[1]) : undefined, localize('title.template', "{0} ({1})", element.symbol.name, OutlineElementRenderer._symbolKindNames[element.symbol.kind]));
+		template.label.set(element.symbol.name, element.score ? createMatches(element.score[1]) : undefined, localize('title.template', "{0} ({1})", element.symbol.name, NOutlineElementRenderer._symbolKindNames[element.symbol.kind]));
 		template.detail.innerText = element.symbol.detail || '';
 		this._renderMarkerInfo(element, template);
 	}
@@ -190,14 +191,24 @@ export class OutlineElementRenderer implements ITreeRenderer<OutlineElement, voi
 		[SymbolKind.Variable]: localize('Variable', "variable"),
 	};
 
-	disposeTemplate(template: OutlineElementTemplate): void {
+	disposeTemplate(template: NOutlineElementTemplate): void {
 		template.label.dispose();
 	}
 
-	disposeElement(element: ITreeNode<OutlineElement, void>, index: number, template: OutlineElementTemplate): void {
-		throw new Error('Method not implemented.');
+	disposeElement(): void {
 	}
 }
+
+export function createModelIterator(model: OutlineModel): Iterator<ITreeElement<NOutlineItem>> {
+	return Iterator.map(Iterator.fromObject(model.children), element => {
+		return <ITreeElement<NOutlineItem>>{
+			element,
+			children: Iterator.fromObject(element.children)
+		};
+	});
+}
+
+// ^^^^ NEW / OLD vvvv
 
 export const enum OutlineItemCompareType {
 	ByPosition,
