@@ -284,7 +284,7 @@ agent-base@4, agent-base@^4.1.0:
   dependencies:
     es6-promisify "^5.0.0"
 
-agent-base@4.2.1, agent-base@~4.2.0:
+agent-base@~4.2.0:
   version "4.2.1"
   resolved "https://registry.yarnpkg.com/agent-base/-/agent-base-4.2.1.tgz#d89e5999f797875674c07d87f260fc41e83e8ca9"
   integrity sha512-JVwXMr9nHYTUXsBFKUqhJwvlcYU/blreOEUkhNR2eXZIvwd+c+o5V4MgDPKWnMS/56awN3TRzIP+KoPn+roQtg==
@@ -9394,12 +9394,11 @@ vscode-nsfw@1.1.1:
     lodash.isundefined "^3.0.1"
     nan "^2.10.0"
 
-vscode-proxy-agent@0.1.1:
-  version "0.1.1"
-  resolved "https://registry.yarnpkg.com/vscode-proxy-agent/-/vscode-proxy-agent-0.1.1.tgz#dabf44726afe838143d445a88ae03455928cc4a7"
-  integrity sha512-/sC95JmVy+HjJIFzza131muUAyCy0aT8a5zIgu9bkrntzsh3V/sKtbVX64Ig59dvgyOghsSEF4D9wQKGbmrAQg==
+vscode-proxy-agent@0.2.0:
+  version "0.2.0"
+  resolved "https://registry.yarnpkg.com/vscode-proxy-agent/-/vscode-proxy-agent-0.2.0.tgz#5ae6e1f8e1b8715a4058fafb6d10cd2409d72620"
+  integrity sha512-x6RUOUkV18iM78+6S70VjiwiHuY7qmk3CU9+u+0y4c1Y/X8/IcTJfPsngoAXrrojoKcplyLdp3YCZbj1rFNo/Q==
   dependencies:
-    agent-base "4.2.1"
     debug "3.1.0"
     http-proxy-agent "2.1.0"
     https-proxy-agent "2.2.1"
