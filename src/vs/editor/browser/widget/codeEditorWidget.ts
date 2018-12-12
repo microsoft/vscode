@@ -396,7 +396,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._modelData.model;
 	}
 
-	public setModel(model: ITextModel | null = null): void {
+	public setModel(_model: ITextModel | editorCommon.IDiffEditorModel | null = null): void {
+		const model = <ITextModel | null>_model;
 		if (this._modelData === null && model === null) {
 			// Current model is the new model
 			return;
@@ -817,7 +818,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		};
 	}
 
-	public restoreViewState(s: editorCommon.ICodeEditorViewState): void {
+	public restoreViewState(s: editorCommon.ICodeEditorViewState | null): void {
 		if (!this._modelData || !this._modelData.hasRealView) {
 			return;
 		}

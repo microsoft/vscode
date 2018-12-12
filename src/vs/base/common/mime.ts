@@ -106,7 +106,7 @@ export function clearTextMimes(onlyUserConfigured?: boolean): void {
 /**
  * Given a file, return the best matching mime type for it
  */
-export function guessMimeTypes(path: string, firstLine?: string): string[] {
+export function guessMimeTypes(path: string | null, firstLine?: string): string[] {
 	if (!path) {
 		return [MIME_UNKNOWN];
 	}
