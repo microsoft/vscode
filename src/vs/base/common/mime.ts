@@ -13,20 +13,20 @@ export const MIME_BINARY = 'application/octet-stream';
 export const MIME_UNKNOWN = 'application/unknown';
 
 export interface ITextMimeAssociation {
-	id: string;
-	mime: string;
-	filename?: string;
-	extension?: string;
-	filepattern?: string;
-	firstline?: RegExp;
-	userConfigured?: boolean;
+	readonly id: string;
+	readonly mime: string;
+	readonly filename?: string;
+	readonly extension?: string;
+	readonly filepattern?: string;
+	readonly firstline?: RegExp;
+	readonly userConfigured?: boolean;
 }
 
 interface ITextMimeAssociationItem extends ITextMimeAssociation {
-	filenameLowercase?: string;
-	extensionLowercase?: string;
-	filepatternLowercase?: string;
-	filepatternOnPath?: boolean;
+	readonly filenameLowercase?: string;
+	readonly extensionLowercase?: string;
+	readonly filepatternLowercase?: string;
+	readonly filepatternOnPath?: boolean;
 }
 
 let registeredAssociations: ITextMimeAssociationItem[] = [];
