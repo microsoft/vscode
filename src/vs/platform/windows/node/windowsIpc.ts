@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Event } from 'vs/base/common/event';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
 import { IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, CrashReporterStartOptions, IMessageBoxResult, MessageBoxOptions, SaveDialogOptions, OpenDialogOptions, IDevToolsOptions, INewWindowOptions } from 'vs/platform/windows/common/windows';
@@ -136,83 +135,83 @@ export class WindowsChannelClient implements IWindowsService {
 	get onWindowUnmaximize(): Event<number> { return this.channel.listen('onWindowUnmaximize'); }
 	get onRecentlyOpenedChange(): Event<void> { return this.channel.listen('onRecentlyOpenedChange'); }
 
-	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
+	pickFileFolderAndOpen(options: INativeOpenDialogOptions): Thenable<void> {
 		return this.channel.call('pickFileFolderAndOpen', options);
 	}
 
-	pickFileAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
+	pickFileAndOpen(options: INativeOpenDialogOptions): Thenable<void> {
 		return this.channel.call('pickFileAndOpen', options);
 	}
 
-	pickFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
+	pickFolderAndOpen(options: INativeOpenDialogOptions): Thenable<void> {
 		return this.channel.call('pickFolderAndOpen', options);
 	}
 
-	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
+	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): Thenable<void> {
 		return this.channel.call('pickWorkspaceAndOpen', options);
 	}
 
-	showMessageBox(windowId: number, options: MessageBoxOptions): TPromise<IMessageBoxResult> {
+	showMessageBox(windowId: number, options: MessageBoxOptions): Thenable<IMessageBoxResult> {
 		return this.channel.call('showMessageBox', [windowId, options]);
 	}
 
-	showSaveDialog(windowId: number, options: SaveDialogOptions): TPromise<string> {
+	showSaveDialog(windowId: number, options: SaveDialogOptions): Thenable<string> {
 		return this.channel.call('showSaveDialog', [windowId, options]);
 	}
 
-	showOpenDialog(windowId: number, options: OpenDialogOptions): TPromise<string[]> {
+	showOpenDialog(windowId: number, options: OpenDialogOptions): Thenable<string[]> {
 		return this.channel.call('showOpenDialog', [windowId, options]);
 	}
 
-	reloadWindow(windowId: number, args?: ParsedArgs): TPromise<void> {
+	reloadWindow(windowId: number, args?: ParsedArgs): Thenable<void> {
 		return this.channel.call('reloadWindow', [windowId, args]);
 	}
 
-	openDevTools(windowId: number, options?: IDevToolsOptions): TPromise<void> {
+	openDevTools(windowId: number, options?: IDevToolsOptions): Thenable<void> {
 		return this.channel.call('openDevTools', [windowId, options]);
 	}
 
-	toggleDevTools(windowId: number): TPromise<void> {
+	toggleDevTools(windowId: number): Thenable<void> {
 		return this.channel.call('toggleDevTools', windowId);
 	}
 
-	closeWorkspace(windowId: number): TPromise<void> {
+	closeWorkspace(windowId: number): Thenable<void> {
 		return this.channel.call('closeWorkspace', windowId);
 	}
 
-	enterWorkspace(windowId: number, path: string): TPromise<IEnterWorkspaceResult> {
+	enterWorkspace(windowId: number, path: string): Thenable<IEnterWorkspaceResult> {
 		return this.channel.call('enterWorkspace', [windowId, path]);
 	}
 
-	createAndEnterWorkspace(windowId: number, folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult> {
+	createAndEnterWorkspace(windowId: number, folders?: IWorkspaceFolderCreationData[], path?: string): Thenable<IEnterWorkspaceResult> {
 		return this.channel.call('createAndEnterWorkspace', [windowId, folders, path]);
 	}
 
-	saveAndEnterWorkspace(windowId: number, path: string): TPromise<IEnterWorkspaceResult> {
+	saveAndEnterWorkspace(windowId: number, path: string): Thenable<IEnterWorkspaceResult> {
 		return this.channel.call('saveAndEnterWorkspace', [windowId, path]);
 	}
 
-	toggleFullScreen(windowId: number): TPromise<void> {
+	toggleFullScreen(windowId: number): Thenable<void> {
 		return this.channel.call('toggleFullScreen', windowId);
 	}
 
-	setRepresentedFilename(windowId: number, fileName: string): TPromise<void> {
+	setRepresentedFilename(windowId: number, fileName: string): Thenable<void> {
 		return this.channel.call('setRepresentedFilename', [windowId, fileName]);
 	}
 
-	addRecentlyOpened(files: URI[]): TPromise<void> {
+	addRecentlyOpened(files: URI[]): Thenable<void> {
 		return this.channel.call('addRecentlyOpened', files);
 	}
 
-	removeFromRecentlyOpened(paths: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI)[]): TPromise<void> {
+	removeFromRecentlyOpened(paths: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI)[]): Thenable<void> {
 		return this.channel.call('removeFromRecentlyOpened', paths);
 	}
 
-	clearRecentlyOpened(): TPromise<void> {
+	clearRecentlyOpened(): Thenable<void> {
 		return this.channel.call('clearRecentlyOpened');
 	}
 
-	getRecentlyOpened(windowId: number): TPromise<IRecentlyOpened> {
+	getRecentlyOpened(windowId: number): Thenable<IRecentlyOpened> {
 		return this.channel.call('getRecentlyOpened', windowId)
 			.then((recentlyOpened: IRecentlyOpened) => {
 				recentlyOpened.workspaces = recentlyOpened.workspaces.map(workspace => isWorkspaceIdentifier(workspace) ? workspace : URI.revive(workspace));
@@ -221,127 +220,127 @@ export class WindowsChannelClient implements IWindowsService {
 			});
 	}
 
-	newWindowTab(): TPromise<void> {
+	newWindowTab(): Thenable<void> {
 		return this.channel.call('newWindowTab');
 	}
 
-	showPreviousWindowTab(): TPromise<void> {
+	showPreviousWindowTab(): Thenable<void> {
 		return this.channel.call('showPreviousWindowTab');
 	}
 
-	showNextWindowTab(): TPromise<void> {
+	showNextWindowTab(): Thenable<void> {
 		return this.channel.call('showNextWindowTab');
 	}
 
-	moveWindowTabToNewWindow(): TPromise<void> {
+	moveWindowTabToNewWindow(): Thenable<void> {
 		return this.channel.call('moveWindowTabToNewWindow');
 	}
 
-	mergeAllWindowTabs(): TPromise<void> {
+	mergeAllWindowTabs(): Thenable<void> {
 		return this.channel.call('mergeAllWindowTabs');
 	}
 
-	toggleWindowTabsBar(): TPromise<void> {
+	toggleWindowTabsBar(): Thenable<void> {
 		return this.channel.call('toggleWindowTabsBar');
 	}
 
-	focusWindow(windowId: number): TPromise<void> {
+	focusWindow(windowId: number): Thenable<void> {
 		return this.channel.call('focusWindow', windowId);
 	}
 
-	closeWindow(windowId: number): TPromise<void> {
+	closeWindow(windowId: number): Thenable<void> {
 		return this.channel.call('closeWindow', windowId);
 	}
 
-	isFocused(windowId: number): TPromise<boolean> {
+	isFocused(windowId: number): Thenable<boolean> {
 		return this.channel.call('isFocused', windowId);
 	}
 
-	isMaximized(windowId: number): TPromise<boolean> {
+	isMaximized(windowId: number): Thenable<boolean> {
 		return this.channel.call('isMaximized', windowId);
 	}
 
-	maximizeWindow(windowId: number): TPromise<void> {
+	maximizeWindow(windowId: number): Thenable<void> {
 		return this.channel.call('maximizeWindow', windowId);
 	}
 
-	unmaximizeWindow(windowId: number): TPromise<void> {
+	unmaximizeWindow(windowId: number): Thenable<void> {
 		return this.channel.call('unmaximizeWindow', windowId);
 	}
 
-	minimizeWindow(windowId: number): TPromise<void> {
+	minimizeWindow(windowId: number): Thenable<void> {
 		return this.channel.call('minimizeWindow', windowId);
 	}
 
-	onWindowTitleDoubleClick(windowId: number): TPromise<void> {
+	onWindowTitleDoubleClick(windowId: number): Thenable<void> {
 		return this.channel.call('onWindowTitleDoubleClick', windowId);
 	}
 
-	setDocumentEdited(windowId: number, flag: boolean): TPromise<void> {
+	setDocumentEdited(windowId: number, flag: boolean): Thenable<void> {
 		return this.channel.call('setDocumentEdited', [windowId, flag]);
 	}
 
-	quit(): TPromise<void> {
+	quit(): Thenable<void> {
 		return this.channel.call('quit');
 	}
 
-	relaunch(options: { addArgs?: string[], removeArgs?: string[] }): TPromise<void> {
+	relaunch(options: { addArgs?: string[], removeArgs?: string[] }): Thenable<void> {
 		return this.channel.call('relaunch', [options]);
 	}
 
-	whenSharedProcessReady(): TPromise<void> {
+	whenSharedProcessReady(): Thenable<void> {
 		return this.channel.call('whenSharedProcessReady');
 	}
 
-	toggleSharedProcess(): TPromise<void> {
+	toggleSharedProcess(): Thenable<void> {
 		return this.channel.call('toggleSharedProcess');
 	}
 
-	openWindow(windowId: number, paths: URI[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean, args?: ParsedArgs }): TPromise<void> {
+	openWindow(windowId: number, paths: URI[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean, args?: ParsedArgs }): Thenable<void> {
 		return this.channel.call('openWindow', [windowId, paths, options]);
 	}
 
-	openNewWindow(options?: INewWindowOptions): TPromise<void> {
+	openNewWindow(options?: INewWindowOptions): Thenable<void> {
 		return this.channel.call('openNewWindow', options);
 	}
 
-	showWindow(windowId: number): TPromise<void> {
+	showWindow(windowId: number): Thenable<void> {
 		return this.channel.call('showWindow', windowId);
 	}
 
-	getWindows(): TPromise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]> {
+	getWindows(): Thenable<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]> {
 		return this.channel.call<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]>('getWindows').then(result => { result.forEach(win => win.folderUri = win.folderUri ? URI.revive(win.folderUri) : win.folderUri); return result; });
 	}
 
-	getWindowCount(): TPromise<number> {
+	getWindowCount(): Thenable<number> {
 		return this.channel.call('getWindowCount');
 	}
 
-	log(severity: string, ...messages: string[]): TPromise<void> {
+	log(severity: string, ...messages: string[]): Thenable<void> {
 		return this.channel.call('log', [severity, messages]);
 	}
 
-	showItemInFolder(path: string): TPromise<void> {
+	showItemInFolder(path: string): Thenable<void> {
 		return this.channel.call('showItemInFolder', path);
 	}
 
-	getActiveWindowId(): TPromise<number | undefined> {
+	getActiveWindowId(): Thenable<number | undefined> {
 		return this.channel.call('getActiveWindowId');
 	}
 
-	openExternal(url: string): TPromise<boolean> {
+	openExternal(url: string): Thenable<boolean> {
 		return this.channel.call('openExternal', url);
 	}
 
-	startCrashReporter(config: CrashReporterStartOptions): TPromise<void> {
+	startCrashReporter(config: CrashReporterStartOptions): Thenable<void> {
 		return this.channel.call('startCrashReporter', config);
 	}
 
-	updateTouchBar(windowId: number, items: ISerializableCommandAction[][]): TPromise<void> {
+	updateTouchBar(windowId: number, items: ISerializableCommandAction[][]): Thenable<void> {
 		return this.channel.call('updateTouchBar', [windowId, items]);
 	}
 
-	openAboutDialog(): TPromise<void> {
+	openAboutDialog(): Thenable<void> {
 		return this.channel.call('openAboutDialog');
 	}
 

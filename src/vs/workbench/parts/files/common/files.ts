@@ -11,7 +11,6 @@ import { ExplorerItem, OpenEditor } from 'vs/workbench/parts/files/common/explor
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService, ILanguageSelection } from 'vs/editor/common/services/modeService';
@@ -36,7 +35,7 @@ export interface IExplorerViewlet extends IViewlet {
 }
 
 export interface IExplorerView {
-	select(resource: URI, reveal?: boolean): TPromise<void>;
+	select(resource: URI, reveal?: boolean): Thenable<void>;
 }
 
 /**
@@ -155,7 +154,7 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 	) {
 	}
 
-	provideTextContent(resource: URI): TPromise<ITextModel> {
+	provideTextContent(resource: URI): Thenable<ITextModel> {
 		const fileOnDiskResource = resource.with({ scheme: Schemas.file });
 
 		// Make sure our file from disk is resolved up to date
@@ -179,7 +178,7 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 		});
 	}
 
-	private resolveEditorModel(resource: URI, createAsNeeded = true): TPromise<ITextModel> {
+	private resolveEditorModel(resource: URI, createAsNeeded = true): Thenable<ITextModel> {
 		const fileOnDiskResource = resource.with({ scheme: Schemas.file });
 
 		return this.textFileService.resolveTextContent(fileOnDiskResource).then(content => {

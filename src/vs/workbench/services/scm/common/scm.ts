@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
@@ -13,7 +12,7 @@ import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { ISequence } from 'vs/base/common/sequence';
 
 export interface IBaselineResourceProvider {
-	getBaselineResource(resource: URI): TPromise<URI>;
+	getBaselineResource(resource: URI): Thenable<URI>;
 }
 
 export const ISCMService = createDecorator<ISCMService>('scm');
@@ -64,7 +63,7 @@ export interface ISCMProvider extends IDisposable {
 	readonly statusBarCommands?: Command[];
 	readonly onDidChange: Event<void>;
 
-	getOriginalResource(uri: URI): TPromise<URI>;
+	getOriginalResource(uri: URI): Thenable<URI>;
 }
 
 export const enum InputValidationType {
@@ -79,7 +78,7 @@ export interface IInputValidation {
 }
 
 export interface IInputValidator {
-	(value: string, cursorPosition: number): TPromise<IInputValidation | undefined>;
+	(value: string, cursorPosition: number): Thenable<IInputValidation | undefined>;
 }
 
 export interface ISCMInput {

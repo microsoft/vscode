@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { URI } from 'vs/base/common/uri';
 import { suggestFilename } from 'vs/base/common/mime';
 import { memoize } from 'vs/base/common/decorators';
@@ -28,7 +27,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 
 	private _hasAssociatedFilePath: boolean;
 	private cachedModel: UntitledEditorModel;
-	private modelResolve: TPromise<UntitledEditorModel>;
+	private modelResolve: Thenable<UntitledEditorModel>;
 
 	private readonly _onDidModelChangeContent: Emitter<void> = this._register(new Emitter<void>());
 	get onDidModelChangeContent(): Event<void> { return this._onDidModelChangeContent.event; }
@@ -163,15 +162,15 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		return this.hasAssociatedFilePath;
 	}
 
-	confirmSave(): TPromise<ConfirmResult> {
+	confirmSave(): Thenable<ConfirmResult> {
 		return this.textFileService.confirmSave([this.resource]);
 	}
 
-	save(): TPromise<boolean> {
+	save(): Thenable<boolean> {
 		return this.textFileService.save(this.resource);
 	}
 
-	revert(): TPromise<boolean> {
+	revert(): Thenable<boolean> {
 		if (this.cachedModel) {
 			this.cachedModel.revert();
 		}

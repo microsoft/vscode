@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 import * as Filters from 'vs/base/common/filters';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Action, IAction } from 'vs/base/common/actions';
 import { IStringDictionary } from 'vs/base/common/collections';
 
@@ -68,7 +67,7 @@ export class TaskGroupEntry extends Model.QuickOpenEntryGroup {
 
 export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 
-	private tasks: TPromise<(CustomTask | ContributedTask)[]>;
+	private tasks: Thenable<(CustomTask | ContributedTask)[]>;
 
 	constructor(
 		protected quickOpenService: IQuickOpenService,
@@ -149,7 +148,7 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 		}
 	}
 
-	protected abstract getTasks(): TPromise<(CustomTask | ContributedTask)[]>;
+	protected abstract getTasks(): Thenable<(CustomTask | ContributedTask)[]>;
 
 	protected abstract createEntry(task: CustomTask | ContributedTask, highlights: Model.IHighlight[]): TaskEntry;
 

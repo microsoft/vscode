@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { localize } from 'vs/nls';
 import { Event } from 'vs/base/common/event';
 import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
@@ -81,11 +80,11 @@ export interface IWorkspacesMainService extends IWorkspacesService {
 	onWorkspaceSaved: Event<IWorkspaceSavedEvent>;
 	onUntitledWorkspaceDeleted: Event<IWorkspaceIdentifier>;
 
-	saveWorkspace(workspace: IWorkspaceIdentifier, target: string): TPromise<IWorkspaceIdentifier>;
+	saveWorkspace(workspace: IWorkspaceIdentifier, target: string): Thenable<IWorkspaceIdentifier>;
 
 	createWorkspaceSync(folders?: IWorkspaceFolderCreationData[]): IWorkspaceIdentifier;
 
-	resolveWorkspace(path: string): TPromise<IResolvedWorkspace | null>;
+	resolveWorkspace(path: string): Thenable<IResolvedWorkspace | null>;
 
 	resolveWorkspaceSync(path: string): IResolvedWorkspace | null;
 
@@ -101,7 +100,7 @@ export interface IWorkspacesMainService extends IWorkspacesService {
 export interface IWorkspacesService {
 	_serviceBrand: any;
 
-	createWorkspace(folders?: IWorkspaceFolderCreationData[]): TPromise<IWorkspaceIdentifier>;
+	createWorkspace(folders?: IWorkspaceFolderCreationData[]): Thenable<IWorkspaceIdentifier>;
 }
 
 export function isSingleFolderWorkspaceIdentifier(obj: any): obj is ISingleFolderWorkspaceIdentifier {

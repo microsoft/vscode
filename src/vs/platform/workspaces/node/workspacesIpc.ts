@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
 import { IWorkspacesService, IWorkspaceIdentifier, IWorkspaceFolderCreationData, IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
@@ -45,7 +44,7 @@ export class WorkspacesChannelClient implements IWorkspacesService {
 
 	constructor(private channel: IChannel) { }
 
-	createWorkspace(folders?: IWorkspaceFolderCreationData[]): TPromise<IWorkspaceIdentifier> {
+	createWorkspace(folders?: IWorkspaceFolderCreationData[]): Thenable<IWorkspaceIdentifier> {
 		return this.channel.call('createWorkspace', folders);
 	}
 }

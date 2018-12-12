@@ -10,7 +10,6 @@ import * as platform from 'vs/base/common/platform';
 import * as Objects from 'vs/base/common/objects';
 import * as Types from 'vs/base/common/types';
 import { Schemas } from 'vs/base/common/network';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { sequence } from 'vs/base/common/async';
 import { toResource } from 'vs/workbench/common/editor';
 import { IStringDictionary, forEach, fromMap } from 'vs/base/common/collections';
@@ -83,7 +82,7 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 		}, envVariables);
 	}
 
-	public resolveWithInteractionReplace(folder: IWorkspaceFolder, config: any, section?: string, variables?: IStringDictionary<string>): TPromise<any> {
+	public resolveWithInteractionReplace(folder: IWorkspaceFolder, config: any, section?: string, variables?: IStringDictionary<string>): Thenable<any> {
 		// resolve any non-interactive variables
 		config = this.resolveAny(folder, config);
 
@@ -100,7 +99,7 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 		});
 	}
 
-	public resolveWithInteraction(folder: IWorkspaceFolder, config: any, section?: string, variables?: IStringDictionary<string>): TPromise<Map<string, string>> {
+	public resolveWithInteraction(folder: IWorkspaceFolder, config: any, section?: string, variables?: IStringDictionary<string>): Thenable<Map<string, string>> {
 		// resolve any non-interactive variables
 		const resolved = this.resolveAnyMap(folder, config);
 		config = resolved.newConfig;
@@ -144,7 +143,7 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 	 * @param configuration
 	 * @param variableToCommandMap Aliases for commands
 	 */
-	private resolveWithCommands(configuration: any, variableToCommandMap: IStringDictionary<string>): TPromise<IStringDictionary<string>> {
+	private resolveWithCommands(configuration: any, variableToCommandMap: IStringDictionary<string>): Thenable<IStringDictionary<string>> {
 		if (!configuration) {
 			return Promise.resolve(undefined);
 		}
@@ -156,7 +155,7 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 		let cancelled = false;
 		const commandValueMapping: IStringDictionary<string> = Object.create(null);
 
-		const factory: { (): TPromise<any> }[] = commands.map(commandVariable => {
+		const factory: { (): Thenable<any> }[] = commands.map(commandVariable => {
 			return () => {
 				let commandId = variableToCommandMap ? variableToCommandMap[commandVariable] : undefined;
 				if (!commandId) {

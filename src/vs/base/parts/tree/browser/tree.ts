@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as WinJS from 'vs/base/common/winjs.base';
 import * as Touch from 'vs/base/browser/touch';
 import * as Mouse from 'vs/base/browser/mouseEvent';
 import * as Keyboard from 'vs/base/browser/keyboardEvent';
@@ -50,7 +49,7 @@ export interface ITree {
 	/**
 	 * Sets the input of the tree.
 	 */
-	setInput(element: any): WinJS.Promise;
+	setInput(element: any): Thenable<any>;
 
 	/**
 	 * Returns the tree's input.
@@ -76,7 +75,7 @@ export interface ITree {
 	 * Refreshes an element.
 	 * Provide no arguments and it will refresh the input element.
 	 */
-	refresh(element?: any, recursive?: boolean): WinJS.Promise;
+	refresh(element?: any, recursive?: boolean): Thenable<any>;
 
 	/**
 	 * Updates an element's width.
@@ -87,36 +86,36 @@ export interface ITree {
 	 * Expands an element.
 	 * The returned promise returns a boolean for whether the element was expanded or not.
 	 */
-	expand(element: any): WinJS.Promise;
+	expand(element: any): Thenable<any>;
 
 	/**
 	 * Expands several elements.
 	 * The returned promise returns a boolean array for whether the elements were expanded or not.
 	 */
-	expandAll(elements?: any[]): WinJS.Promise;
+	expandAll(elements?: any[]): Thenable<any>;
 
 	/**
 	 * Collapses an element.
 	 * The returned promise returns a boolean for whether the element was collapsed or not.
 	 */
-	collapse(element: any, recursive?: boolean): WinJS.Promise;
+	collapse(element: any, recursive?: boolean): Thenable<any>;
 
 	/**
 	 * Collapses several elements.
 	 * Provide no arguments and it will recursively collapse all elements in the tree
 	 * The returned promise returns a boolean for whether the elements were collapsed or not.
 	 */
-	collapseAll(elements?: any[], recursive?: boolean): WinJS.Promise;
+	collapseAll(elements?: any[], recursive?: boolean): Thenable<any>;
 
 	/**
 	 * Toggles an element's expansion state.
 	 */
-	toggleExpansion(element: any, recursive?: boolean): WinJS.Promise;
+	toggleExpansion(element: any, recursive?: boolean): Thenable<any>;
 
 	/**
 	 * Toggles several element's expansion state.
 	 */
-	toggleExpansionAll(elements: any[]): WinJS.Promise;
+	toggleExpansionAll(elements: any[]): Thenable<any>;
 
 	/**
 	 * Returns whether an element is expanded or not.
@@ -132,7 +131,7 @@ export interface ITree {
 	 * Reveals an element in the tree. The relativeTop is a value between 0 and 1. The closer to 0 the more the
 	 * element will scroll up to the top.
 	 */
-	reveal(element: any, relativeTop?: number): WinJS.Promise;
+	reveal(element: any, relativeTop?: number): Thenable<any>;
 
 	/**
 	 * Returns the relative top position of any given element, if visible.
@@ -378,12 +377,12 @@ export interface IDataSource {
 	/**
 	 * Returns the element's children as an array in a promise.
 	 */
-	getChildren(tree: ITree, element: any): WinJS.Promise;
+	getChildren(tree: ITree, element: any): Thenable<any>;
 
 	/**
 	 * Returns the element's parent in a promise.
 	 */
-	getParent(tree: ITree, element: any): WinJS.Promise;
+	getParent(tree: ITree, element: any): Thenable<any>;
 
 	/**
 	 * Returns whether an element should be expanded when first added to the tree.

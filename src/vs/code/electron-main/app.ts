@@ -38,7 +38,6 @@ import pkg from 'vs/platform/node/package';
 import { ProxyAuthHandler } from 'vs/code/electron-main/auth';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
 import { isUndefinedOrNull } from 'vs/base/common/types';
@@ -85,7 +84,7 @@ export class CodeApplication extends Disposable {
 	private electronIpcServer: ElectronIPCServer;
 
 	private sharedProcess: SharedProcess;
-	private sharedProcessClient: TPromise<Client>;
+	private sharedProcessClient: Thenable<Client>;
 
 	constructor(
 		private mainIpcServer: Server,
@@ -173,7 +172,7 @@ export class CodeApplication extends Disposable {
 
 		class ActiveConnection {
 			private _authority: string;
-			private _client: TPromise<Client<RemoteAgentConnectionContext>>;
+			private _client: Thenable<Client<RemoteAgentConnectionContext>>;
 			private _disposeRunner: RunOnceScheduler;
 
 			constructor(authority: string, host: string, port: number) {
@@ -190,7 +189,7 @@ export class CodeApplication extends Disposable {
 				});
 			}
 
-			public getClient(): TPromise<Client<RemoteAgentConnectionContext>> {
+			public getClient(): Thenable<Client<RemoteAgentConnectionContext>> {
 				this._disposeRunner.schedule();
 				return this._client;
 			}
@@ -382,7 +381,7 @@ export class CodeApplication extends Disposable {
 		}
 	}
 
-	startup(): TPromise<void> {
+	startup(): Thenable<void> {
 		this.logService.debug('Starting VS Code');
 		this.logService.debug(`from: ${this.environmentService.appRoot}`);
 		this.logService.debug('args:', this.environmentService.args);
@@ -457,7 +456,7 @@ export class CodeApplication extends Disposable {
 		}
 	}
 
-	private resolveMachineId(): string | TPromise<string> {
+	private resolveMachineId(): string | Thenable<string> {
 		const machineId = this.stateService.getItem<string>(CodeApplication.MACHINE_ID_KEY);
 		if (machineId) {
 			return machineId;
@@ -645,7 +644,7 @@ export class CodeApplication extends Disposable {
 			const environmentService = accessor.get(IEnvironmentService);
 
 			urlService.registerHandler({
-				handleURL(uri: URI): TPromise<boolean> {
+				handleURL(uri: URI): Thenable<boolean> {
 					if (windowsMainService.getWindowCount() === 0) {
 						const cli = { ...environmentService.args, goto: true };
 						const [window] = windowsMainService.open({ context: OpenContext.API, cli, forceEmpty: true });

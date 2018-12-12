@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { isFunction } from 'vs/base/common/types';
 import { ITree, IRenderer, IFilter, IDataSource, IAccessibilityProvider } from 'vs/base/parts/tree/browser/tree';
 import { IModel } from 'vs/base/parts/quickopen/common/quickOpen';
@@ -37,12 +36,12 @@ export class DataSource implements IDataSource {
 		return model && model === element && model.entries.length > 0;
 	}
 
-	getChildren(tree: ITree, element: any): TPromise<any[]> {
+	getChildren(tree: ITree, element: any): Thenable<any[]> {
 		const model = this.modelProvider.getModel();
 		return Promise.resolve(model === element ? model.entries : []);
 	}
 
-	getParent(tree: ITree, element: any): TPromise<any> {
+	getParent(tree: ITree, element: any): Thenable<any> {
 		return Promise.resolve(null);
 	}
 }

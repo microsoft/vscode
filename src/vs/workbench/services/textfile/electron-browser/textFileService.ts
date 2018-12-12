@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as paths from 'vs/base/common/paths';
 import * as strings from 'vs/base/common/strings';
 import { isWindows } from 'vs/base/common/platform';
@@ -56,7 +55,7 @@ export class TextFileService extends AbstractTextFileService {
 		super(lifecycleService, contextService, configurationService, fileService, untitledEditorService, instantiationService, notificationService, environmentService, backupFileService, windowsService, windowService, historyService, contextKeyService, modelService);
 	}
 
-	resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent> {
+	resolveTextContent(resource: URI, options?: IResolveContentOptions): Thenable<IRawTextContent> {
 		return this.fileService.resolveStreamContent(resource, options).then(streamContent => {
 			return createTextBufferFactoryFromStream(streamContent.value).then(res => {
 				const r: IRawTextContent = {
@@ -73,7 +72,7 @@ export class TextFileService extends AbstractTextFileService {
 		});
 	}
 
-	confirmSave(resources?: URI[]): TPromise<ConfirmResult> {
+	confirmSave(resources?: URI[]): Thenable<ConfirmResult> {
 		if (this.environmentService.isExtensionDevelopment) {
 			return Promise.resolve(ConfirmResult.DONT_SAVE); // no veto when we are in extension dev mode because we cannot assum we run interactive (e.g. tests)
 		}
@@ -104,7 +103,7 @@ export class TextFileService extends AbstractTextFileService {
 		});
 	}
 
-	promptForPath(resource: URI, defaultUri: URI): TPromise<URI> {
+	promptForPath(resource: URI, defaultUri: URI): Thenable<URI> {
 
 		// Help user to find a name for the file by opening it first
 		return this.editorService.openEditor({ resource, options: { revealIfOpened: true, preserveFocus: true, } }).then(() => {

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { URI } from 'vs/base/common/uri';
 import * as perf from 'vs/base/common/performance';
 import { ThrottledDelayer, Delayer } from 'vs/base/common/async';
@@ -733,7 +732,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 	/**
 	 * Refresh the contents of the explorer to get up to date data from the disk about the file structure.
 	 */
-	public refresh(): TPromise<void> {
+	public refresh(): Thenable<void> {
 		if (!this.explorerViewer || this.explorerViewer.getHighlight()) {
 			return Promise.resolve(null);
 		}
@@ -762,7 +761,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		});
 	}
 
-	private doRefresh(targetsToExpand: URI[] = []): TPromise<any> {
+	private doRefresh(targetsToExpand: URI[] = []): Thenable<any> {
 		const targetsToResolve = this.model.roots.map(root => ({ root, resource: root.resource, options: { resolveTo: [] } }));
 
 		// First time refresh: Receive target through active editor input or selection and also include settings from previous session
@@ -801,7 +800,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		return promise;
 	}
 
-	private resolveRoots(targetsToResolve: { root: ExplorerItem, resource: URI, options: { resolveTo: any[] } }[], targetsToExpand: URI[]): TPromise<any> {
+	private resolveRoots(targetsToResolve: { root: ExplorerItem, resource: URI, options: { resolveTo: any[] } }[], targetsToExpand: URI[]): Thenable<any> {
 
 		// Display roots only when multi folder workspace
 		let input = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? this.model.roots[0] : this.model;
@@ -864,7 +863,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		// There is a remote root, resolve the roots sequantally
 		let statsToExpand: ExplorerItem[] = [];
 		let delayer = new Delayer(100);
-		let delayerPromise: TPromise;
+		let delayerPromise: Thenable<any>;
 		return Promise.all(targetsToResolve.map((target, index) => this.fileService.resolveFile(target.resource, target.options)
 			.then(result => result.isDirectory ? ExplorerItem.create(result, target.root, target.options.resolveTo) : errorRoot(target.resource, target.root), () => errorRoot(target.resource, target.root))
 			.then(modelStat => {
@@ -920,7 +919,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 	 * Selects and reveal the file element provided by the given resource if its found in the explorer. Will try to
 	 * resolve the path from the disk in case the explorer is not yet expanded to the file yet.
 	 */
-	public select(resource: URI, reveal: boolean = this.autoReveal): TPromise<void> {
+	public select(resource: URI, reveal: boolean = this.autoReveal): Thenable<void> {
 
 		// Require valid path
 		if (!resource) {
@@ -968,7 +967,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			: undefined;
 	}
 
-	private doSelect(fileStat: ExplorerItem, reveal: boolean): TPromise<void> {
+	private doSelect(fileStat: ExplorerItem, reveal: boolean): Thenable<void> {
 		if (!fileStat) {
 			return Promise.resolve(null);
 		}
@@ -983,7 +982,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		}
 
 		// Reveal depending on flag
-		let revealPromise: TPromise<void>;
+		let revealPromise: Thenable<void>;
 		if (reveal) {
 			revealPromise = this.reveal(fileStat, 0.5);
 		} else {
@@ -999,7 +998,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		});
 	}
 
-	private reveal(element: any, relativeTop?: number): TPromise<void> {
+	private reveal(element: any, relativeTop?: number): Thenable<void> {
 		if (!this.tree) {
 			return Promise.resolve(null); // return early if viewlet has not yet been created
 		}

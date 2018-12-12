@@ -26,7 +26,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowsMainService, IOpenConfiguration, IWindowsCountChangedEvent, ICodeWindow, IWindowState as ISingleWindowState, WindowMode } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
 import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkspacesMainService, IWorkspaceIdentifier, WORKSPACE_FILTER, IWorkspaceFolderCreationData, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
@@ -1489,15 +1488,15 @@ export class WindowsManager implements IWindowsMainService {
 		});
 	}
 
-	saveAndEnterWorkspace(win: ICodeWindow, path: string): TPromise<IEnterWorkspaceResult> {
+	saveAndEnterWorkspace(win: ICodeWindow, path: string): Thenable<IEnterWorkspaceResult> {
 		return this.workspacesManager.saveAndEnterWorkspace(win, path).then(result => this.doEnterWorkspace(win, result));
 	}
 
-	enterWorkspace(win: ICodeWindow, path: string): TPromise<IEnterWorkspaceResult> {
+	enterWorkspace(win: ICodeWindow, path: string): Thenable<IEnterWorkspaceResult> {
 		return this.workspacesManager.enterWorkspace(win, path).then(result => this.doEnterWorkspace(win, result));
 	}
 
-	createAndEnterWorkspace(win: ICodeWindow, folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult> {
+	createAndEnterWorkspace(win: ICodeWindow, folders?: IWorkspaceFolderCreationData[], path?: string): Thenable<IEnterWorkspaceResult> {
 		return this.workspacesManager.createAndEnterWorkspace(win, folders, path).then(result => this.doEnterWorkspace(win, result));
 	}
 
@@ -1853,7 +1852,7 @@ class Dialogs {
 		});
 	}
 
-	private getFileOrFolderUris(options: IInternalNativeOpenDialogOptions): TPromise<URI[]> {
+	private getFileOrFolderUris(options: IInternalNativeOpenDialogOptions): Thenable<URI[]> {
 
 		// Ensure dialog options
 		if (!options.dialogOptions) {
@@ -1985,7 +1984,7 @@ class WorkspacesManager {
 	) {
 	}
 
-	saveAndEnterWorkspace(window: ICodeWindow, path: string): TPromise<IEnterWorkspaceResult> {
+	saveAndEnterWorkspace(window: ICodeWindow, path: string): Thenable<IEnterWorkspaceResult> {
 		if (!window || !window.win || !window.isReady || !window.openedWorkspace || !path || !this.isValidTargetWorkspacePath(window, path)) {
 			return Promise.resolve(null); // return early if the window is not ready or disposed or does not have a workspace
 		}
@@ -1993,7 +1992,7 @@ class WorkspacesManager {
 		return this.doSaveAndOpenWorkspace(window, window.openedWorkspace, path);
 	}
 
-	enterWorkspace(window: ICodeWindow, path: string): TPromise<IEnterWorkspaceResult> {
+	enterWorkspace(window: ICodeWindow, path: string): Thenable<IEnterWorkspaceResult> {
 		if (!window || !window.win || !window.isReady) {
 			return Promise.resolve(null); // return early if the window is not ready or disposed
 		}
@@ -2010,7 +2009,7 @@ class WorkspacesManager {
 
 	}
 
-	createAndEnterWorkspace(window: ICodeWindow, folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult> {
+	createAndEnterWorkspace(window: ICodeWindow, folders?: IWorkspaceFolderCreationData[], path?: string): Thenable<IEnterWorkspaceResult> {
 		if (!window || !window.win || !window.isReady) {
 			return Promise.resolve(null); // return early if the window is not ready or disposed
 		}
@@ -2027,7 +2026,7 @@ class WorkspacesManager {
 
 	}
 
-	private isValidTargetWorkspacePath(window: ICodeWindow, path?: string): TPromise<boolean> {
+	private isValidTargetWorkspacePath(window: ICodeWindow, path?: string): Thenable<boolean> {
 		if (!path) {
 			return Promise.resolve(true);
 		}
@@ -2053,8 +2052,8 @@ class WorkspacesManager {
 		return Promise.resolve(true); // OK
 	}
 
-	private doSaveAndOpenWorkspace(window: ICodeWindow, workspace: IWorkspaceIdentifier, path?: string): TPromise<IEnterWorkspaceResult> {
-		let savePromise: TPromise<IWorkspaceIdentifier>;
+	private doSaveAndOpenWorkspace(window: ICodeWindow, workspace: IWorkspaceIdentifier, path?: string): Thenable<IEnterWorkspaceResult> {
+		let savePromise: Thenable<IWorkspaceIdentifier>;
 		if (path) {
 			savePromise = this.workspacesMainService.saveWorkspace(workspace, path);
 		} else {
@@ -2099,7 +2098,7 @@ class WorkspacesManager {
 		});
 	}
 
-	promptToSaveUntitledWorkspace(window: ICodeWindow, workspace: IWorkspaceIdentifier): TPromise<boolean> {
+	promptToSaveUntitledWorkspace(window: ICodeWindow, workspace: IWorkspaceIdentifier): Thenable<boolean> {
 		enum ConfirmResult {
 			SAVE,
 			DONT_SAVE,

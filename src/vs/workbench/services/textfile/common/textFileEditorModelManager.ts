@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { URI } from 'vs/base/common/uri';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { dispose, IDisposable, Disposable } from 'vs/base/common/lifecycle';
@@ -48,7 +47,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 	private mapResourceToStateChangeListener: ResourceMap<IDisposable>;
 	private mapResourceToModelContentChangeListener: ResourceMap<IDisposable>;
 	private mapResourceToModel: ResourceMap<ITextFileEditorModel>;
-	private mapResourceToPendingModelLoaders: ResourceMap<TPromise<ITextFileEditorModel>>;
+	private mapResourceToPendingModelLoaders: ResourceMap<Thenable<ITextFileEditorModel>>;
 
 	constructor(
 		@ILifecycleService private lifecycleService: ILifecycleService,
@@ -60,7 +59,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		this.mapResourceToDisposeListener = new ResourceMap<IDisposable>();
 		this.mapResourceToStateChangeListener = new ResourceMap<IDisposable>();
 		this.mapResourceToModelContentChangeListener = new ResourceMap<IDisposable>();
-		this.mapResourceToPendingModelLoaders = new ResourceMap<TPromise<ITextFileEditorModel>>();
+		this.mapResourceToPendingModelLoaders = new ResourceMap<Thenable<ITextFileEditorModel>>();
 
 		this.registerListeners();
 	}
@@ -122,7 +121,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		return this.mapResourceToModel.get(resource);
 	}
 
-	loadOrCreate(resource: URI, options?: IModelLoadOrCreateOptions): TPromise<ITextFileEditorModel> {
+	loadOrCreate(resource: URI, options?: IModelLoadOrCreateOptions): Thenable<ITextFileEditorModel> {
 
 		// Return early if model is currently being loaded
 		const pendingLoad = this.mapResourceToPendingModelLoaders.get(resource);
@@ -130,7 +129,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 			return pendingLoad;
 		}
 
-		let modelPromise: TPromise<ITextFileEditorModel>;
+		let modelPromise: Thenable<ITextFileEditorModel>;
 
 		// Model exists
 		let model = this.get(resource);

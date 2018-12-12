@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import * as objects from 'vs/base/common/objects';
 import * as DOM from 'vs/base/browser/dom';
@@ -76,7 +75,7 @@ export class FileDataSource implements IDataSource {
 		return stat instanceof Model || (stat instanceof ExplorerItem && (stat.isDirectory || stat.isRoot));
 	}
 
-	public getChildren(tree: ITree, stat: ExplorerItem | Model): TPromise<ExplorerItem[]> {
+	public getChildren(tree: ITree, stat: ExplorerItem | Model): Thenable<ExplorerItem[]> {
 		if (stat instanceof Model) {
 			return Promise.resolve(stat.roots);
 		}
@@ -121,7 +120,7 @@ export class FileDataSource implements IDataSource {
 		}
 	}
 
-	public getParent(tree: ITree, stat: ExplorerItem | Model): TPromise<ExplorerItem> {
+	public getParent(tree: ITree, stat: ExplorerItem | Model): Thenable<ExplorerItem> {
 		if (!stat) {
 			return Promise.resolve(null); // can be null if nothing selected in the tree
 		}
@@ -174,7 +173,7 @@ export class ActionRunner extends BaseActionRunner implements IActionRunner {
 		this.viewletState = state;
 	}
 
-	public run(action: IAction, context?: any): TPromise<any> {
+	public run(action: IAction, context?: any): Thenable<any> {
 		return super.run(action, { viewletState: this.viewletState });
 	}
 }
@@ -931,7 +930,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		}
 	}
 
-	private handleExternalDrop(tree: ITree, data: DesktopDragAndDropData, target: ExplorerItem | Model, originalEvent: DragMouseEvent): TPromise<void> {
+	private handleExternalDrop(tree: ITree, data: DesktopDragAndDropData, target: ExplorerItem | Model, originalEvent: DragMouseEvent): Thenable<void> {
 		const droppedResources = extractResources(originalEvent.browserEvent as DragEvent, true);
 
 		// Check for dropped external files to be folders
@@ -945,7 +944,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 			if (folders.length > 0) {
 
 				// If we are in no-workspace context, ask for confirmation to create a workspace
-				let confirmedPromise: TPromise<IConfirmationResult> = Promise.resolve({ confirmed: true });
+				let confirmedPromise: Thenable<IConfirmationResult> = Promise.resolve({ confirmed: true });
 				if (this.contextService.getWorkbenchState() !== WorkbenchState.WORKSPACE) {
 					confirmedPromise = this.dialogService.confirm({
 						message: folders.length > 1 ? nls.localize('dropFolders', "Do you want to add the folders to the workspace?") : nls.localize('dropFolder', "Do you want to add the folder to the workspace?"),
@@ -974,11 +973,11 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		});
 	}
 
-	private handleExplorerDrop(tree: ITree, data: IDragAndDropData, target: ExplorerItem | Model, originalEvent: DragMouseEvent): TPromise<void> {
+	private handleExplorerDrop(tree: ITree, data: IDragAndDropData, target: ExplorerItem | Model, originalEvent: DragMouseEvent): Thenable<void> {
 		const sources: ExplorerItem[] = resources.distinctParents(data.getData(), s => s.resource);
 		const isCopy = (originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh);
 
-		let confirmPromise: TPromise<IConfirmationResult>;
+		let confirmPromise: Thenable<IConfirmationResult>;
 
 		// Handle confirm setting
 		const confirmDragAndDrop = !isCopy && this.configurationService.getValue<boolean>(FileDragAndDrop.CONFIRM_DND_SETTING_KEY);
@@ -1001,7 +1000,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		return confirmPromise.then(res => {
 
 			// Check for confirmation checkbox
-			let updateConfirmSettingsPromise: TPromise<void> = Promise.resolve(void 0);
+			let updateConfirmSettingsPromise: Thenable<void> = Promise.resolve(void 0);
 			if (res.confirmed && res.checkboxChecked === true) {
 				updateConfirmSettingsPromise = this.configurationService.updateValue(FileDragAndDrop.CONFIRM_DND_SETTING_KEY, false, ConfigurationTarget.USER);
 			}
@@ -1017,7 +1016,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		});
 	}
 
-	private doHandleRootDrop(roots: ExplorerItem[], target: ExplorerItem | Model): TPromise<void> {
+	private doHandleRootDrop(roots: ExplorerItem[], target: ExplorerItem | Model): Thenable<void> {
 		if (roots.length === 0) {
 			return Promise.resolve(undefined);
 		}
@@ -1049,7 +1048,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		return this.workspaceEditingService.updateFolders(0, workspaceCreationData.length, workspaceCreationData);
 	}
 
-	private doHandleExplorerDrop(tree: ITree, source: ExplorerItem, target: ExplorerItem | Model, isCopy: boolean): TPromise<void> {
+	private doHandleExplorerDrop(tree: ITree, source: ExplorerItem, target: ExplorerItem | Model, isCopy: boolean): Thenable<void> {
 		if (!(target instanceof ExplorerItem)) {
 			return Promise.resolve(void 0);
 		}

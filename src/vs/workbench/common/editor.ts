@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as objects from 'vs/base/common/objects';
 import * as types from 'vs/base/common/types';
@@ -312,7 +311,7 @@ export interface IEditorInput extends IDisposable {
 	/**
 	 * Reverts this input.
 	 */
-	revert(options?: IRevertOptions): TPromise<boolean>;
+	revert(options?: IRevertOptions): Thenable<boolean>;
 
 	/**
 	 * Returns if the other object matches this input.
@@ -415,21 +414,21 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	/**
 	 * Subclasses should bring up a proper dialog for the user if the editor is dirty and return the result.
 	 */
-	confirmSave(): TPromise<ConfirmResult> {
+	confirmSave(): Thenable<ConfirmResult> {
 		return Promise.resolve(ConfirmResult.DONT_SAVE);
 	}
 
 	/**
 	 * Saves the editor if it is dirty. Subclasses return a promise with a boolean indicating the success of the operation.
 	 */
-	save(): TPromise<boolean> {
+	save(): Thenable<boolean> {
 		return Promise.resolve(true);
 	}
 
 	/**
 	 * Reverts the editor if it is dirty. Subclasses return a promise with a boolean indicating the success of the operation.
 	 */
-	revert(options?: IRevertOptions): TPromise<boolean> {
+	revert(options?: IRevertOptions): Thenable<boolean> {
 		return Promise.resolve(true);
 	}
 
@@ -547,15 +546,15 @@ export class SideBySideEditorInput extends EditorInput {
 		return this.master.isDirty();
 	}
 
-	confirmSave(): TPromise<ConfirmResult> {
+	confirmSave(): Thenable<ConfirmResult> {
 		return this.master.confirmSave();
 	}
 
-	save(): TPromise<boolean> {
+	save(): Thenable<boolean> {
 		return this.master.save();
 	}
 
-	revert(): TPromise<boolean> {
+	revert(): Thenable<boolean> {
 		return this.master.revert();
 	}
 

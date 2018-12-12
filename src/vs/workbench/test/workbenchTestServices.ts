@@ -5,7 +5,6 @@
 
 import 'vs/workbench/parts/files/electron-browser/files.contribution'; // load our contribution into the test
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
@@ -205,7 +204,7 @@ export class TestTextFileService extends TextFileService {
 		this.resolveTextContentError = error;
 	}
 
-	public resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent> {
+	public resolveTextContent(resource: URI, options?: IResolveContentOptions): Thenable<IRawTextContent> {
 		if (this.resolveTextContentError) {
 			const error = this.resolveTextContentError;
 			this.resolveTextContentError = null;
@@ -225,11 +224,11 @@ export class TestTextFileService extends TextFileService {
 		});
 	}
 
-	public promptForPath(_resource: URI, _defaultPath: URI): TPromise<URI> {
+	public promptForPath(_resource: URI, _defaultPath: URI): Thenable<URI> {
 		return Promise.resolve(this.promptPath);
 	}
 
-	public confirmSave(_resources?: URI[]): TPromise<ConfirmResult> {
+	public confirmSave(_resources?: URI[]): Thenable<ConfirmResult> {
 		return Promise.resolve(this.confirmResult);
 	}
 
@@ -237,7 +236,7 @@ export class TestTextFileService extends TextFileService {
 		super.onFilesConfigurationChange(configuration);
 	}
 
-	protected cleanupBackupsBeforeShutdown(): TPromise<void> {
+	protected cleanupBackupsBeforeShutdown(): Thenable<void> {
 		this.cleanupBackupsBeforeShutdownCalled = true;
 		return Promise.resolve();
 	}
@@ -386,11 +385,11 @@ export class TestDialogService implements IDialogService {
 
 	public _serviceBrand: any;
 
-	public confirm(_confirmation: IConfirmation): TPromise<IConfirmationResult> {
+	public confirm(_confirmation: IConfirmation): Thenable<IConfirmationResult> {
 		return Promise.resolve({ confirmed: false });
 	}
 
-	public show(_severity: Severity, _message: string, _buttons: string[], _options?: IDialogOptions): TPromise<number> {
+	public show(_severity: Severity, _message: string, _buttons: string[], _options?: IDialogOptions): Thenable<number> {
 		return Promise.resolve(0);
 	}
 }
@@ -408,22 +407,22 @@ export class TestFileDialogService implements IFileDialogService {
 	public defaultWorkspacePath(_schemeFilter: string): URI {
 		return void 0;
 	}
-	public pickFileFolderAndOpen(_options: IPickAndOpenOptions): TPromise<any> {
+	public pickFileFolderAndOpen(_options: IPickAndOpenOptions): Thenable<any> {
 		return Promise.resolve(0);
 	}
-	public pickFileAndOpen(_options: IPickAndOpenOptions): TPromise<any> {
+	public pickFileAndOpen(_options: IPickAndOpenOptions): Thenable<any> {
 		return Promise.resolve(0);
 	}
-	public pickFolderAndOpen(_options: IPickAndOpenOptions): TPromise<any> {
+	public pickFolderAndOpen(_options: IPickAndOpenOptions): Thenable<any> {
 		return Promise.resolve(0);
 	}
-	public pickWorkspaceAndOpen(_options: IPickAndOpenOptions): TPromise<any> {
+	public pickWorkspaceAndOpen(_options: IPickAndOpenOptions): Thenable<any> {
 		return Promise.resolve(0);
 	}
-	public showSaveDialog(_options: ISaveDialogOptions): TPromise<URI> {
+	public showSaveDialog(_options: ISaveDialogOptions): Thenable<URI> {
 		return Promise.resolve();
 	}
-	public showOpenDialog(_options: IOpenDialogOptions): TPromise<URI[]> {
+	public showOpenDialog(_options: IOpenDialogOptions): Thenable<URI[]> {
 		return Promise.resolve();
 	}
 }
@@ -486,13 +485,13 @@ export class TestPartService implements IPartService {
 		return false;
 	}
 
-	public setSideBarHidden(_hidden: boolean): TPromise<void> { return Promise.resolve(null); }
+	public setSideBarHidden(_hidden: boolean): Thenable<void> { return Promise.resolve(null); }
 
 	public isPanelHidden(): boolean {
 		return false;
 	}
 
-	public setPanelHidden(_hidden: boolean): TPromise<void> { return Promise.resolve(null); }
+	public setPanelHidden(_hidden: boolean): Thenable<void> { return Promise.resolve(null); }
 
 	public toggleMaximizedPanel(): void { }
 
@@ -512,7 +511,7 @@ export class TestPartService implements IPartService {
 		return 0;
 	}
 
-	public setPanelPosition(_position: PartPosition): TPromise<void> {
+	public setPanelPosition(_position: PartPosition): Thenable<void> {
 		return Promise.resolve(null);
 	}
 
@@ -649,11 +648,11 @@ export class TestEditorGroup implements IEditorGroupView {
 		return -1;
 	}
 
-	openEditor(_editor: IEditorInput, _options?: IEditorOptions): TPromise<IEditor> {
+	openEditor(_editor: IEditorInput, _options?: IEditorOptions): Thenable<IEditor> {
 		return Promise.resolve(null);
 	}
 
-	openEditors(_editors: IEditorInputWithOptions[]): TPromise<IEditor> {
+	openEditors(_editors: IEditorInputWithOptions[]): Thenable<IEditor> {
 		return Promise.resolve(null);
 	}
 
@@ -673,19 +672,19 @@ export class TestEditorGroup implements IEditorGroupView {
 
 	copyEditor(_editor: IEditorInput, _target: IEditorGroup, _options?: ICopyEditorOptions): void { }
 
-	closeEditor(_editor?: IEditorInput): TPromise<void> {
+	closeEditor(_editor?: IEditorInput): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	closeEditors(_editors: IEditorInput[] | { except?: IEditorInput; direction?: CloseDirection; savedOnly?: boolean; }): TPromise<void> {
+	closeEditors(_editors: IEditorInput[] | { except?: IEditorInput; direction?: CloseDirection; savedOnly?: boolean; }): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	closeAllEditors(): TPromise<void> {
+	closeAllEditors(): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	replaceEditors(_editors: IEditorReplacement[]): TPromise<void> {
+	replaceEditors(_editors: IEditorReplacement[]): Thenable<void> {
 		return Promise.resolve();
 	}
 
@@ -796,7 +795,7 @@ export class TestFileService implements IFileService {
 		this._onAfterOperation.fire(event);
 	}
 
-	resolveFile(resource: URI, _options?: IResolveFileOptions): TPromise<IFileStat> {
+	resolveFile(resource: URI, _options?: IResolveFileOptions): Thenable<IFileStat> {
 		return Promise.resolve({
 			resource,
 			etag: Date.now().toString(),
@@ -807,15 +806,15 @@ export class TestFileService implements IFileService {
 		});
 	}
 
-	resolveFiles(toResolve: { resource: URI, options?: IResolveFileOptions }[]): TPromise<IResolveFileResult[]> {
+	resolveFiles(toResolve: { resource: URI, options?: IResolveFileOptions }[]): Thenable<IResolveFileResult[]> {
 		return Promise.all(toResolve.map(resourceAndOption => this.resolveFile(resourceAndOption.resource, resourceAndOption.options))).then(stats => stats.map(stat => ({ stat, success: true })));
 	}
 
-	existsFile(_resource: URI): TPromise<boolean> {
+	existsFile(_resource: URI): Thenable<boolean> {
 		return Promise.resolve(null);
 	}
 
-	resolveContent(resource: URI, _options?: IResolveContentOptions): TPromise<IContent> {
+	resolveContent(resource: URI, _options?: IResolveContentOptions): Thenable<IContent> {
 		return Promise.resolve({
 			resource: resource,
 			value: this.content,
@@ -826,7 +825,7 @@ export class TestFileService implements IFileService {
 		});
 	}
 
-	resolveStreamContent(resource: URI, _options?: IResolveContentOptions): TPromise<IStreamContent> {
+	resolveStreamContent(resource: URI, _options?: IResolveContentOptions): Thenable<IStreamContent> {
 		return Promise.resolve({
 			resource: resource,
 			value: {
@@ -846,7 +845,7 @@ export class TestFileService implements IFileService {
 		});
 	}
 
-	updateContent(resource: URI, _value: string | ITextSnapshot, _options?: IUpdateContentOptions): TPromise<IFileStat> {
+	updateContent(resource: URI, _value: string | ITextSnapshot, _options?: IUpdateContentOptions): Thenable<IFileStat> {
 		return timeout(0).then(() => ({
 			resource,
 			etag: 'index.txt',
@@ -857,15 +856,15 @@ export class TestFileService implements IFileService {
 		}));
 	}
 
-	moveFile(_source: URI, _target: URI, _overwrite?: boolean): TPromise<IFileStat> {
+	moveFile(_source: URI, _target: URI, _overwrite?: boolean): Thenable<IFileStat> {
 		return Promise.resolve(null);
 	}
 
-	copyFile(_source: URI, _target: URI, _overwrite?: boolean): TPromise<IFileStat> {
+	copyFile(_source: URI, _target: URI, _overwrite?: boolean): Thenable<IFileStat> {
 		return Promise.resolve(null);
 	}
 
-	createFile(_resource: URI, _content?: string, _options?: ICreateFileOptions): TPromise<IFileStat> {
+	createFile(_resource: URI, _content?: string, _options?: ICreateFileOptions): Thenable<IFileStat> {
 		return Promise.resolve(null);
 	}
 
@@ -873,7 +872,7 @@ export class TestFileService implements IFileService {
 		return Promise.resolve([]);
 	}
 
-	createFolder(_resource: URI): TPromise<IFileStat> {
+	createFolder(_resource: URI): Thenable<IFileStat> {
 		return Promise.resolve(null);
 	}
 
@@ -891,7 +890,7 @@ export class TestFileService implements IFileService {
 		return resource.scheme === 'file';
 	}
 
-	del(_resource: URI, _options?: { useTrash?: boolean, recursive?: boolean }): TPromise<void> {
+	del(_resource: URI, _options?: { useTrash?: boolean, recursive?: boolean }): Thenable<void> {
 		return Promise.resolve(null);
 	}
 
@@ -912,15 +911,15 @@ export class TestFileService implements IFileService {
 export class TestBackupFileService implements IBackupFileService {
 	public _serviceBrand: any;
 
-	public hasBackups(): TPromise<boolean> {
+	public hasBackups(): Thenable<boolean> {
 		return Promise.resolve(false);
 	}
 
-	public hasBackup(_resource: URI): TPromise<boolean> {
+	public hasBackup(_resource: URI): Thenable<boolean> {
 		return Promise.resolve(false);
 	}
 
-	public loadBackupResource(resource: URI): TPromise<URI> {
+	public loadBackupResource(resource: URI): Thenable<URI> {
 		return this.hasBackup(resource).then(hasBackup => {
 			if (hasBackup) {
 				return this.toBackupResource(resource);
@@ -930,11 +929,11 @@ export class TestBackupFileService implements IBackupFileService {
 		});
 	}
 
-	public registerResourceForBackup(_resource: URI): TPromise<void> {
+	public registerResourceForBackup(_resource: URI): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	public deregisterResourceForBackup(_resource: URI): TPromise<void> {
+	public deregisterResourceForBackup(_resource: URI): Thenable<void> {
 		return Promise.resolve();
 	}
 
@@ -942,11 +941,11 @@ export class TestBackupFileService implements IBackupFileService {
 		return null;
 	}
 
-	public backupResource(_resource: URI, _content: ITextSnapshot): TPromise<void> {
+	public backupResource(_resource: URI, _content: ITextSnapshot): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	public getWorkspaceFileBackups(): TPromise<URI[]> {
+	public getWorkspaceFileBackups(): Thenable<URI[]> {
 		return Promise.resolve([]);
 	}
 
@@ -957,15 +956,15 @@ export class TestBackupFileService implements IBackupFileService {
 		return textBuffer.getValueInRange(range, EndOfLinePreference.TextDefined);
 	}
 
-	public resolveBackupContent(_backup: URI): TPromise<ITextBufferFactory> {
+	public resolveBackupContent(_backup: URI): Thenable<ITextBufferFactory> {
 		return Promise.resolve(null);
 	}
 
-	public discardResourceBackup(_resource: URI): TPromise<void> {
+	public discardResourceBackup(_resource: URI): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	public discardAllWorkspaceBackups(): TPromise<void> {
+	public discardAllWorkspaceBackups(): Thenable<void> {
 		return Promise.resolve();
 	}
 }
@@ -1004,11 +1003,11 @@ export class TestWindowService implements IWindowService {
 
 	hasFocus = true;
 
-	isFocused(): TPromise<boolean> {
+	isFocused(): Thenable<boolean> {
 		return Promise.resolve(false);
 	}
 
-	isMaximized(): TPromise<boolean> {
+	isMaximized(): Thenable<boolean> {
 		return Promise.resolve(false);
 	}
 
@@ -1020,111 +1019,111 @@ export class TestWindowService implements IWindowService {
 		return 0;
 	}
 
-	pickFileFolderAndOpen(_options: INativeOpenDialogOptions): TPromise<void> {
+	pickFileFolderAndOpen(_options: INativeOpenDialogOptions): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	pickFileAndOpen(_options: INativeOpenDialogOptions): TPromise<void> {
+	pickFileAndOpen(_options: INativeOpenDialogOptions): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	pickFolderAndOpen(_options: INativeOpenDialogOptions): TPromise<void> {
+	pickFolderAndOpen(_options: INativeOpenDialogOptions): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	pickWorkspaceAndOpen(_options: INativeOpenDialogOptions): TPromise<void> {
+	pickWorkspaceAndOpen(_options: INativeOpenDialogOptions): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	reloadWindow(): TPromise<void> {
+	reloadWindow(): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	openDevTools(): TPromise<void> {
+	openDevTools(): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	toggleDevTools(): TPromise<void> {
+	toggleDevTools(): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	closeWorkspace(): TPromise<void> {
+	closeWorkspace(): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	enterWorkspace(_path: string): TPromise<IEnterWorkspaceResult> {
+	enterWorkspace(_path: string): Thenable<IEnterWorkspaceResult> {
 		return Promise.resolve();
 	}
 
-	createAndEnterWorkspace(_folders?: IWorkspaceFolderCreationData[], _path?: string): TPromise<IEnterWorkspaceResult> {
+	createAndEnterWorkspace(_folders?: IWorkspaceFolderCreationData[], _path?: string): Thenable<IEnterWorkspaceResult> {
 		return Promise.resolve();
 	}
 
-	saveAndEnterWorkspace(_path: string): TPromise<IEnterWorkspaceResult> {
+	saveAndEnterWorkspace(_path: string): Thenable<IEnterWorkspaceResult> {
 		return Promise.resolve();
 	}
 
-	toggleFullScreen(): TPromise<void> {
+	toggleFullScreen(): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	setRepresentedFilename(_fileName: string): TPromise<void> {
+	setRepresentedFilename(_fileName: string): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	getRecentlyOpened(): TPromise<IRecentlyOpened> {
+	getRecentlyOpened(): Thenable<IRecentlyOpened> {
 		return Promise.resolve();
 	}
 
-	focusWindow(): TPromise<void> {
+	focusWindow(): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	maximizeWindow(): TPromise<void> {
+	maximizeWindow(): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	unmaximizeWindow(): TPromise<void> {
+	unmaximizeWindow(): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	minimizeWindow(): TPromise<void> {
+	minimizeWindow(): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	openWindow(_paths: URI[], _options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean }): TPromise<void> {
+	openWindow(_paths: URI[], _options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean }): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	closeWindow(): TPromise<void> {
+	closeWindow(): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	setDocumentEdited(_flag: boolean): TPromise<void> {
+	setDocumentEdited(_flag: boolean): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	onWindowTitleDoubleClick(): TPromise<void> {
+	onWindowTitleDoubleClick(): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	show(): TPromise<void> {
+	show(): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	showMessageBox(_options: Electron.MessageBoxOptions): TPromise<IMessageBoxResult> {
+	showMessageBox(_options: Electron.MessageBoxOptions): Thenable<IMessageBoxResult> {
 		return Promise.resolve({ button: 0 });
 	}
 
-	showSaveDialog(_options: Electron.SaveDialogOptions): TPromise<string> {
+	showSaveDialog(_options: Electron.SaveDialogOptions): Thenable<string> {
 		return Promise.resolve(void 0);
 	}
 
-	showOpenDialog(_options: Electron.OpenDialogOptions): TPromise<string[]> {
+	showOpenDialog(_options: Electron.OpenDialogOptions): Thenable<string[]> {
 		return Promise.resolve(void 0);
 	}
 
-	updateTouchBar(_items: ISerializableCommandAction[][]): TPromise<void> {
+	updateTouchBar(_items: ISerializableCommandAction[][]): Thenable<void> {
 		return Promise.resolve();
 	}
 
@@ -1144,7 +1143,7 @@ export class TestLifecycleService implements ILifecycleService {
 	private _onWillShutdown = new Emitter<WillShutdownEvent>();
 	private _onShutdown = new Emitter<void>();
 
-	when(): TPromise<void> {
+	when(): Thenable<void> {
 		return Promise.resolve();
 	}
 
@@ -1185,211 +1184,211 @@ export class TestWindowsService implements IWindowsService {
 	onWindowUnmaximize: Event<number>;
 	onRecentlyOpenedChange: Event<void>;
 
-	isFocused(_windowId: number): TPromise<boolean> {
+	isFocused(_windowId: number): Thenable<boolean> {
 		return Promise.resolve(false);
 	}
 
-	pickFileFolderAndOpen(_options: INativeOpenDialogOptions): TPromise<void> {
+	pickFileFolderAndOpen(_options: INativeOpenDialogOptions): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	pickFileAndOpen(_options: INativeOpenDialogOptions): TPromise<void> {
+	pickFileAndOpen(_options: INativeOpenDialogOptions): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	pickFolderAndOpen(_options: INativeOpenDialogOptions): TPromise<void> {
+	pickFolderAndOpen(_options: INativeOpenDialogOptions): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	pickWorkspaceAndOpen(_options: INativeOpenDialogOptions): TPromise<void> {
+	pickWorkspaceAndOpen(_options: INativeOpenDialogOptions): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	reloadWindow(_windowId: number): TPromise<void> {
+	reloadWindow(_windowId: number): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	openDevTools(_windowId: number): TPromise<void> {
+	openDevTools(_windowId: number): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	toggleDevTools(_windowId: number): TPromise<void> {
+	toggleDevTools(_windowId: number): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	closeWorkspace(_windowId: number): TPromise<void> {
+	closeWorkspace(_windowId: number): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	enterWorkspace(_windowId: number, _path: string): TPromise<IEnterWorkspaceResult> {
+	enterWorkspace(_windowId: number, _path: string): Thenable<IEnterWorkspaceResult> {
 		return Promise.resolve();
 	}
 
-	createAndEnterWorkspace(_windowId: number, _folders?: IWorkspaceFolderCreationData[], _path?: string): TPromise<IEnterWorkspaceResult> {
+	createAndEnterWorkspace(_windowId: number, _folders?: IWorkspaceFolderCreationData[], _path?: string): Thenable<IEnterWorkspaceResult> {
 		return Promise.resolve();
 	}
 
-	saveAndEnterWorkspace(_windowId: number, _path: string): TPromise<IEnterWorkspaceResult> {
+	saveAndEnterWorkspace(_windowId: number, _path: string): Thenable<IEnterWorkspaceResult> {
 		return Promise.resolve();
 	}
 
-	toggleFullScreen(_windowId: number): TPromise<void> {
+	toggleFullScreen(_windowId: number): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	setRepresentedFilename(_windowId: number, _fileName: string): TPromise<void> {
+	setRepresentedFilename(_windowId: number, _fileName: string): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	addRecentlyOpened(_files: URI[]): TPromise<void> {
+	addRecentlyOpened(_files: URI[]): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	removeFromRecentlyOpened(_paths: URI[]): TPromise<void> {
+	removeFromRecentlyOpened(_paths: URI[]): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	clearRecentlyOpened(): TPromise<void> {
+	clearRecentlyOpened(): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	getRecentlyOpened(_windowId: number): TPromise<IRecentlyOpened> {
+	getRecentlyOpened(_windowId: number): Thenable<IRecentlyOpened> {
 		return Promise.resolve();
 	}
 
-	focusWindow(_windowId: number): TPromise<void> {
+	focusWindow(_windowId: number): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	closeWindow(_windowId: number): TPromise<void> {
+	closeWindow(_windowId: number): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	isMaximized(_windowId: number): TPromise<boolean> {
+	isMaximized(_windowId: number): Thenable<boolean> {
 		return Promise.resolve();
 	}
 
-	maximizeWindow(_windowId: number): TPromise<void> {
+	maximizeWindow(_windowId: number): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	minimizeWindow(_windowId: number): TPromise<void> {
+	minimizeWindow(_windowId: number): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	unmaximizeWindow(_windowId: number): TPromise<void> {
+	unmaximizeWindow(_windowId: number): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	onWindowTitleDoubleClick(_windowId: number): TPromise<void> {
+	onWindowTitleDoubleClick(_windowId: number): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	setDocumentEdited(_windowId: number, _flag: boolean): TPromise<void> {
+	setDocumentEdited(_windowId: number, _flag: boolean): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	quit(): TPromise<void> {
+	quit(): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	relaunch(_options: { addArgs?: string[], removeArgs?: string[] }): TPromise<void> {
+	relaunch(_options: { addArgs?: string[], removeArgs?: string[] }): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	whenSharedProcessReady(): TPromise<void> {
+	whenSharedProcessReady(): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	toggleSharedProcess(): TPromise<void> {
+	toggleSharedProcess(): Thenable<void> {
 		return Promise.resolve();
 	}
 
 	// Global methods
-	openWindow(_windowId: number, _paths: URI[], _options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean }): TPromise<void> {
+	openWindow(_windowId: number, _paths: URI[], _options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean }): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	openNewWindow(): TPromise<void> {
+	openNewWindow(): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	showWindow(_windowId: number): TPromise<void> {
+	showWindow(_windowId: number): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	getWindows(): TPromise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]> {
+	getWindows(): Thenable<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]> {
 		return Promise.resolve();
 	}
 
-	getWindowCount(): TPromise<number> {
+	getWindowCount(): Thenable<number> {
 		return Promise.resolve(this.windowCount);
 	}
 
-	log(_severity: string, ..._messages: string[]): TPromise<void> {
+	log(_severity: string, ..._messages: string[]): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	showItemInFolder(_path: string): TPromise<void> {
+	showItemInFolder(_path: string): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	newWindowTab(): TPromise<void> {
+	newWindowTab(): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	showPreviousWindowTab(): TPromise<void> {
+	showPreviousWindowTab(): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	showNextWindowTab(): TPromise<void> {
+	showNextWindowTab(): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	moveWindowTabToNewWindow(): TPromise<void> {
+	moveWindowTabToNewWindow(): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	mergeAllWindowTabs(): TPromise<void> {
+	mergeAllWindowTabs(): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	toggleWindowTabsBar(): TPromise<void> {
+	toggleWindowTabsBar(): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	updateTouchBar(_windowId: number, _items: ISerializableCommandAction[][]): TPromise<void> {
+	updateTouchBar(_windowId: number, _items: ISerializableCommandAction[][]): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	getActiveWindowId(): TPromise<number | undefined> {
+	getActiveWindowId(): Thenable<number | undefined> {
 		return Promise.resolve(undefined);
 	}
 
 	// This needs to be handled from browser process to prevent
 	// foreground ordering issues on Windows
-	openExternal(_url: string): TPromise<boolean> {
+	openExternal(_url: string): Thenable<boolean> {
 		return Promise.resolve(true);
 	}
 
 	// TODO: this is a bit backwards
-	startCrashReporter(_config: Electron.CrashReporterStartOptions): TPromise<void> {
+	startCrashReporter(_config: Electron.CrashReporterStartOptions): Thenable<void> {
 		return Promise.resolve();
 	}
 
-	showMessageBox(_windowId: number, _options: Electron.MessageBoxOptions): TPromise<IMessageBoxResult> {
+	showMessageBox(_windowId: number, _options: Electron.MessageBoxOptions): Thenable<IMessageBoxResult> {
 		return Promise.resolve();
 	}
 
-	showSaveDialog(_windowId: number, _options: Electron.SaveDialogOptions): TPromise<string> {
+	showSaveDialog(_windowId: number, _options: Electron.SaveDialogOptions): Thenable<string> {
 		return Promise.resolve();
 	}
 
-	showOpenDialog(_windowId: number, _options: Electron.OpenDialogOptions): TPromise<string[]> {
+	showOpenDialog(_windowId: number, _options: Electron.OpenDialogOptions): Thenable<string[]> {
 		return Promise.resolve();
 	}
 
-	openAboutDialog(): TPromise<void> {
+	openAboutDialog(): Thenable<void> {
 		return Promise.resolve();
 	}
 

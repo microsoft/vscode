@@ -11,7 +11,6 @@ import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ResourceMap } from 'vs/base/common/map';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
 import { Schemas } from 'vs/base/common/network';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -86,7 +85,7 @@ export interface IUntitledEditorService {
 	 * It is valid to pass in a file resource. In that case the path will be used as identifier.
 	 * The use case is to be able to create a new file with a specific path with VSCode.
 	 */
-	loadOrCreate(options: IModelLoadOrCreateOptions): TPromise<UntitledEditorModel>;
+	loadOrCreate(options: IModelLoadOrCreateOptions): Thenable<UntitledEditorModel>;
 
 	/**
 	 * A check to find out if a untitled resource has a file path associated or not.

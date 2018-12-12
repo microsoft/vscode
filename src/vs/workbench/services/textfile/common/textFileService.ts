@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { URI } from 'vs/base/common/uri';
 import * as paths from 'vs/base/common/paths';
 import * as errors from 'vs/base/common/errors';
@@ -97,11 +96,11 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		return this._models;
 	}
 
-	abstract resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent>;
+	abstract resolveTextContent(resource: URI, options?: IResolveContentOptions): Thenable<IRawTextContent>;
 
-	abstract promptForPath(resource: URI, defaultPath: URI): TPromise<URI>;
+	abstract promptForPath(resource: URI, defaultPath: URI): Thenable<URI>;
 
-	abstract confirmSave(resources?: URI[]): TPromise<ConfirmResult>;
+	abstract confirmSave(resources?: URI[]): Thenable<ConfirmResult>;
 
 	private registerListeners(): void {
 
@@ -117,7 +116,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		}));
 	}
 
-	private beforeShutdown(reason: ShutdownReason): boolean | TPromise<boolean> {
+	private beforeShutdown(reason: ShutdownReason): boolean | Thenable<boolean> {
 
 		// Dirty files need treatment on shutdown
 		const dirty = this.getDirty();
@@ -146,7 +145,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		return this.noVeto({ cleanUpBackups: true });
 	}
 
-	private handleDirtyBeforeShutdown(dirty: URI[], reason: ShutdownReason): boolean | TPromise<boolean> {
+	private handleDirtyBeforeShutdown(dirty: URI[], reason: ShutdownReason): boolean | Thenable<boolean> {
 
 		// If hot exit is enabled, backup dirty files and allow to exit without confirmation
 		if (this.isHotExitEnabled) {
@@ -169,7 +168,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		return this.confirmBeforeShutdown();
 	}
 
-	private backupBeforeShutdown(dirtyToBackup: URI[], textFileEditorModelManager: ITextFileEditorModelManager, reason: ShutdownReason): TPromise<IBackupResult> {
+	private backupBeforeShutdown(dirtyToBackup: URI[], textFileEditorModelManager: ITextFileEditorModelManager, reason: ShutdownReason): Thenable<IBackupResult> {
 		return this.windowsService.getWindowCount().then(windowCount => {
 
 			// When quit is requested skip the confirm callback and attempt to backup all workspaces.
@@ -215,7 +214,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		});
 	}
 
-	private backupAll(dirtyToBackup: URI[], textFileEditorModelManager: ITextFileEditorModelManager): TPromise<void> {
+	private backupAll(dirtyToBackup: URI[], textFileEditorModelManager: ITextFileEditorModelManager): Thenable<void> {
 
 		// split up between files and untitled
 		const filesToBackup: ITextFileEditorModel[] = [];
@@ -231,7 +230,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		return this.doBackupAll(filesToBackup, untitledToBackup);
 	}
 
-	private doBackupAll(dirtyFileModels: ITextFileEditorModel[], untitledResources: URI[]): TPromise<void> {
+	private doBackupAll(dirtyFileModels: ITextFileEditorModel[], untitledResources: URI[]): Thenable<void> {
 
 		// Handle file resources first
 		return Promise.all(dirtyFileModels.map(model => this.backupFileService.backupResource(model.getResource(), model.createSnapshot(), model.getVersionId()))).then(results => {
@@ -251,7 +250,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		});
 	}
 
-	private confirmBeforeShutdown(): boolean | TPromise<boolean> {
+	private confirmBeforeShutdown(): boolean | Thenable<boolean> {
 		return this.confirmSave().then(confirm => {
 
 			// Save
@@ -284,7 +283,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		});
 	}
 
-	private noVeto(options: { cleanUpBackups: boolean }): boolean | TPromise<boolean> {
+	private noVeto(options: { cleanUpBackups: boolean }): boolean | Thenable<boolean> {
 		if (!options.cleanUpBackups) {
 			return false;
 		}
@@ -296,7 +295,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		return this.cleanupBackupsBeforeShutdown().then(() => false, () => false);
 	}
 
-	protected cleanupBackupsBeforeShutdown(): TPromise<void> {
+	protected cleanupBackupsBeforeShutdown(): Thenable<void> {
 		if (this.environmentService.isExtensionDevelopment) {
 			return Promise.resolve(void 0);
 		}
@@ -381,7 +380,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		return this.untitledEditorService.getDirty().some(dirty => !resource || dirty.toString() === resource.toString());
 	}
 
-	save(resource: URI, options?: ISaveOptions): TPromise<boolean> {
+	save(resource: URI, options?: ISaveOptions): Thenable<boolean> {
 
 		// Run a forced save if we detect the file is not dirty so that save participants can still run
 		if (options && options.force && this.fileService.canHandleResource(resource) && !this.isDirty(resource)) {
@@ -400,9 +399,9 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		return this.saveAll([resource], options).then(result => result.results.length === 1 && result.results[0].success);
 	}
 
-	saveAll(includeUntitled?: boolean, options?: ISaveOptions): TPromise<ITextFileOperationResult>;
-	saveAll(resources: URI[], options?: ISaveOptions): TPromise<ITextFileOperationResult>;
-	saveAll(arg1?: any, options?: ISaveOptions): TPromise<ITextFileOperationResult> {
+	saveAll(includeUntitled?: boolean, options?: ISaveOptions): Thenable<ITextFileOperationResult>;
+	saveAll(resources: URI[], options?: ISaveOptions): Thenable<ITextFileOperationResult>;
+	saveAll(arg1?: any, options?: ISaveOptions): Thenable<ITextFileOperationResult> {
 
 		// get all dirty
 		let toSave: URI[] = [];
@@ -426,7 +425,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		return this.doSaveAll(filesToSave, untitledToSave, options);
 	}
 
-	private doSaveAll(fileResources: URI[], untitledResources: URI[], options?: ISaveOptions): TPromise<ITextFileOperationResult> {
+	private doSaveAll(fileResources: URI[], untitledResources: URI[], options?: ISaveOptions): Thenable<ITextFileOperationResult> {
 
 		// Handle files first that can just be saved
 		return this.doSaveAllFiles(fileResources, options).then(async result => {
@@ -460,7 +459,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 			}
 
 			// Handle untitled
-			const untitledSaveAsPromises: TPromise<void>[] = [];
+			const untitledSaveAsPromises: Thenable<void>[] = [];
 			targetsForUntitled.forEach((target, index) => {
 				const untitledSaveAsPromise = this.saveAs(untitledResources[index], target).then(uri => {
 					result.results.push({
@@ -477,7 +476,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		});
 	}
 
-	private doSaveAllFiles(resources?: URI[], options: ISaveOptions = Object.create(null)): TPromise<ITextFileOperationResult> {
+	private doSaveAllFiles(resources?: URI[], options: ISaveOptions = Object.create(null)): Thenable<ITextFileOperationResult> {
 		const dirtyFileModels = this.getDirtyFileModels(Array.isArray(resources) ? resources : void 0 /* Save All */)
 			.filter(model => {
 				if ((model.hasState(ModelState.CONFLICT) || model.hasState(ModelState.ERROR)) && (options.reason === SaveReason.AUTO || options.reason === SaveReason.FOCUS_CHANGE || options.reason === SaveReason.WINDOW_CHANGE)) {
@@ -524,10 +523,10 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		return this.getFileModels(arg1).filter(model => model.isDirty());
 	}
 
-	saveAs(resource: URI, target?: URI, options?: ISaveOptions): TPromise<URI> {
+	saveAs(resource: URI, target?: URI, options?: ISaveOptions): Thenable<URI> {
 
 		// Get to target resource
-		let targetPromise: TPromise<URI>;
+		let targetPromise: Thenable<URI>;
 		if (target) {
 			targetPromise = Promise.resolve(target);
 		} else {
@@ -554,10 +553,10 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		});
 	}
 
-	private doSaveAs(resource: URI, target?: URI, options?: ISaveOptions): TPromise<URI> {
+	private doSaveAs(resource: URI, target?: URI, options?: ISaveOptions): Thenable<URI> {
 
 		// Retrieve text model from provided resource if any
-		let modelPromise: TPromise<ITextFileEditorModel | UntitledEditorModel> = Promise.resolve(null);
+		let modelPromise: Thenable<ITextFileEditorModel | UntitledEditorModel> = Promise.resolve(null);
 		if (this.fileService.canHandleResource(resource)) {
 			modelPromise = Promise.resolve(this._models.get(resource));
 		} else if (resource.scheme === Schemas.untitled && this.untitledEditorService.exists(resource)) {
@@ -584,8 +583,8 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		});
 	}
 
-	private doSaveTextFileAs(sourceModel: ITextFileEditorModel | UntitledEditorModel, resource: URI, target: URI, options?: ISaveOptions): TPromise<void> {
-		let targetModelResolver: TPromise<ITextFileEditorModel>;
+	private doSaveTextFileAs(sourceModel: ITextFileEditorModel | UntitledEditorModel, resource: URI, target: URI, options?: ISaveOptions): Thenable<void> {
+		let targetModelResolver: Thenable<ITextFileEditorModel>;
 
 		// Prefer an existing model if it is already loaded for the given target resource
 		const targetModel = this.models.get(target);
@@ -638,11 +637,11 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		return URI.file(untitledFileName);
 	}
 
-	revert(resource: URI, options?: IRevertOptions): TPromise<boolean> {
+	revert(resource: URI, options?: IRevertOptions): Thenable<boolean> {
 		return this.revertAll([resource], options).then(result => result.results.length === 1 && result.results[0].success);
 	}
 
-	revertAll(resources?: URI[], options?: IRevertOptions): TPromise<ITextFileOperationResult> {
+	revertAll(resources?: URI[], options?: IRevertOptions): Thenable<ITextFileOperationResult> {
 
 		// Revert files first
 		return this.doRevertAllFiles(resources, options).then(operation => {
@@ -655,7 +654,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		});
 	}
 
-	private doRevertAllFiles(resources?: URI[], options?: IRevertOptions): TPromise<ITextFileOperationResult> {
+	private doRevertAllFiles(resources?: URI[], options?: IRevertOptions): Thenable<ITextFileOperationResult> {
 		const fileModels = options && options.force ? this.getFileModels(resources) : this.getDirtyFileModels(resources);
 
 		const mapResourceToResult = new ResourceMap<IResult>();
@@ -687,7 +686,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		})).then(r => ({ results: mapResourceToResult.values() }));
 	}
 
-	create(resource: URI, contents?: string, options?: { overwrite?: boolean }): TPromise<void> {
+	create(resource: URI, contents?: string, options?: { overwrite?: boolean }): Thenable<void> {
 		const existingModel = this.models.get(resource);
 
 		return this.fileService.createFile(resource, contents, options).then(() => {
@@ -704,14 +703,14 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		});
 	}
 
-	delete(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): TPromise<void> {
+	delete(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): Thenable<void> {
 		const dirtyFiles = this.getDirty().filter(dirty => isEqualOrParent(dirty, resource, !platform.isLinux /* ignorecase */));
 
 		return this.revertAll(dirtyFiles, { soft: true }).then(() => this.fileService.del(resource, options));
 	}
 
-	move(source: URI, target: URI, overwrite?: boolean): TPromise<void> {
-		const waitForPromises: TPromise[] = [];
+	move(source: URI, target: URI, overwrite?: boolean): Thenable<void> {
+		const waitForPromises: Thenable<any>[] = [];
 
 		// Event
 		this._onWillMove.fire({
@@ -728,7 +727,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		return Promise.all(waitForPromises).then(() => {
 
 			// Handle target models if existing (if target URI is a folder, this can be multiple)
-			let handleTargetModelPromise: TPromise<any> = Promise.resolve();
+			let handleTargetModelPromise: Thenable<any> = Promise.resolve();
 			const dirtyTargetModels = this.getDirtyFileModels().filter(model => isEqualOrParent(model.getResource(), target, false /* do not ignorecase, see https://github.com/Microsoft/vscode/issues/56384 */));
 			if (dirtyTargetModels.length) {
 				handleTargetModelPromise = this.revertAll(dirtyTargetModels.map(targetModel => targetModel.getResource()), { soft: true });
@@ -737,7 +736,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 			return handleTargetModelPromise.then(() => {
 
 				// Handle dirty source models if existing (if source URI is a folder, this can be multiple)
-				let handleDirtySourceModels: TPromise<any>;
+				let handleDirtySourceModels: Thenable<any>;
 				const dirtySourceModels = this.getDirtyFileModels().filter(model => isEqualOrParent(model.getResource(), source, !platform.isLinux /* ignorecase */));
 				const dirtyTargetModels: URI[] = [];
 				if (dirtySourceModels.length) {

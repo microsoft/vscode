@@ -14,7 +14,6 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { join } from 'vs/base/common/paths';
 import { basename, dirname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IDataSource, IFilter, IRenderer, ISorter, ITree } from 'vs/base/parts/tree/browser/tree';
 import 'vs/css!./media/breadcrumbscontrol';
 import { OutlineElement, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
@@ -228,7 +227,7 @@ export class FileDataSource implements IDataSource {
 		return URI.isUri(element) || IWorkspace.isIWorkspace(element) || IWorkspaceFolder.isIWorkspaceFolder(element) || element.isDirectory;
 	}
 
-	getChildren(tree: ITree, element: IWorkspace | IWorkspaceFolder | IFileStat | URI): TPromise<IWorkspaceFolder[] | IFileStat[]> {
+	getChildren(tree: ITree, element: IWorkspace | IWorkspaceFolder | IFileStat | URI): Thenable<IWorkspaceFolder[] | IFileStat[]> {
 		if (IWorkspace.isIWorkspace(element)) {
 			return Promise.resolve(element.folders).then(folders => {
 				for (let child of folders) {
@@ -253,7 +252,7 @@ export class FileDataSource implements IDataSource {
 		});
 	}
 
-	getParent(tree: ITree, element: IWorkspace | URI | IWorkspaceFolder | IFileStat): TPromise<IWorkspaceFolder | IFileStat> {
+	getParent(tree: ITree, element: IWorkspace | URI | IWorkspaceFolder | IFileStat): Thenable<IWorkspaceFolder | IFileStat> {
 		return Promise.resolve(this._parents.get(element));
 	}
 }
