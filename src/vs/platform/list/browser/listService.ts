@@ -621,12 +621,12 @@ export class TreeResourceNavigator2<T, TFilterData> extends Disposable {
 	}
 
 	private onSelection(e: ITreeEvent<T>): void {
-		if (!e.browserEvent || !(e.browserEvent instanceof MouseEvent)) {
+		if (!e.browserEvent) {
 			return;
 		}
 
 		const isDoubleClick = e.browserEvent.detail === 2;
-		const sideBySide = e.browserEvent.ctrlKey || e.browserEvent.metaKey || e.browserEvent.altKey;
+		const sideBySide = e.browserEvent instanceof MouseEvent && (e.browserEvent.ctrlKey || e.browserEvent.metaKey || e.browserEvent.altKey);
 		this.open(!isDoubleClick, isDoubleClick, sideBySide);
 	}
 
