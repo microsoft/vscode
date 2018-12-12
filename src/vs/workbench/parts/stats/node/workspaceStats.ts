@@ -91,12 +91,12 @@ const PyModulesToLookFor = [
 
 type Tags = { [index: string]: boolean | number | string };
 
-function stripLowLevelDomains(domain: string): string {
+function stripLowLevelDomains(domain: string): string | null {
 	const match = domain.match(SecondLevelDomainMatcher);
 	return match ? match[1] : null;
 }
 
-function extractDomain(url: string): string {
+function extractDomain(url: string): string | null {
 	if (url.indexOf('://') === -1) {
 		const match = url.match(SshProtocolMatcher);
 		if (match) {
@@ -118,7 +118,7 @@ function extractDomain(url: string): string {
 
 export function getDomainsOfRemotes(text: string, whitelist: string[]): string[] {
 	const domains = new Set<string>();
-	let match: RegExpExecArray;
+	let match: RegExpExecArray | null;
 	while (match = RemoteMatcher.exec(text)) {
 		const domain = extractDomain(match[1]);
 		if (domain) {
@@ -138,12 +138,12 @@ export function getDomainsOfRemotes(text: string, whitelist: string[]): string[]
 		.map(key => whitemap[key] ? key : key.replace(AnyButDot, 'a'));
 }
 
-function stripPort(authority: string): string {
+function stripPort(authority: string): string | null {
 	const match = authority.match(AuthorityMatcher);
 	return match ? match[2] : null;
 }
 
-function normalizeRemote(host: string, path: string, stripEndingDotGit: boolean): string {
+function normalizeRemote(host: string, path: string, stripEndingDotGit: boolean): string | null {
 	if (host && path) {
 		if (stripEndingDotGit && endsWith(path, '.git')) {
 			path = path.substr(0, path.length - 4);
@@ -153,7 +153,7 @@ function normalizeRemote(host: string, path: string, stripEndingDotGit: boolean)
 	return null;
 }
 
-function extractRemote(url: string, stripEndingDotGit: boolean): string {
+function extractRemote(url: string, stripEndingDotGit: boolean): string | null {
 	if (url.indexOf('://') === -1) {
 		const match = url.match(SshUrlMatcher);
 		if (match) {
@@ -173,7 +173,7 @@ function extractRemote(url: string, stripEndingDotGit: boolean): string {
 
 export function getRemotes(text: string, stripEndingDotGit: boolean = false): string[] {
 	const remotes: string[] = [];
-	let match: RegExpExecArray;
+	let match: RegExpExecArray | null;
 	while (match = RemoteMatcher.exec(text)) {
 		const remote = extractRemote(match[1], stripEndingDotGit);
 		if (remote) {
@@ -549,12 +549,12 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		}
 	}
 
-	private findFolders(configuration: IWindowConfiguration): URI[] {
+	private findFolders(configuration: IWindowConfiguration): URI[] | undefined {
 		const folder = this.findFolder(configuration);
 		return folder && [folder];
 	}
 
-	private findFolder({ filesToOpen, filesToCreate, filesToDiff }: IWindowConfiguration): URI {
+	private findFolder({ filesToOpen, filesToCreate, filesToDiff }: IWindowConfiguration): URI | undefined {
 		if (filesToOpen && filesToOpen.length) {
 			return this.parentURI(filesToOpen[0].fileUri);
 		} else if (filesToCreate && filesToCreate.length) {
@@ -565,7 +565,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		return undefined;
 	}
 
-	private parentURI(uri: URI): URI {
+	private parentURI(uri: URI): URI | undefined {
 		const path = uri.path;
 		const i = path.lastIndexOf('/');
 		return i !== -1 ? uri.with({ path: path.substr(0, i) }) : undefined;
@@ -682,7 +682,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				*/
 				this.telemetryService.publicLog('workspace.azure', tags);
 			}
-		}).then(null, onUnexpectedError);
+		}).then(void 0, onUnexpectedError);
 	}
 
 	private reportCloudStats(): void {
