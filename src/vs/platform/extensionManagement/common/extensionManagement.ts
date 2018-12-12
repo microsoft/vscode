@@ -356,7 +356,6 @@ export const enum EnablementState {
 
 export const IExtensionEnablementService = createDecorator<IExtensionEnablementService>('extensionEnablementService');
 
-// TODO: @sandy: Merge this into IExtensionManagementService when we have a storage service available in Shared process
 export interface IExtensionEnablementService {
 	_serviceBrand: any;
 
