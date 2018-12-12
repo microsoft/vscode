@@ -11,7 +11,7 @@ import { append, $, toggleClass } from 'vs/base/browser/dom';
 import { Event, Relay } from 'vs/base/common/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { ITreeModel, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeFilter } from 'vs/base/browser/ui/tree/tree';
+import { ITreeModel, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeFilter, ITreeNavigator } from 'vs/base/browser/ui/tree/tree';
 import { ISpliceable } from 'vs/base/common/sequence';
 
 function asListOptions<T, TFilterData>(options?: IAbstractTreeOptions<T, TFilterData>): IListOptions<ITreeNode<T, TFilterData>> | undefined {
@@ -491,8 +491,68 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	protected abstract createModel(view: ISpliceable<ITreeNode<T, TFilterData>>, options: IAbstractTreeOptions<T, TFilterData>): ITreeModel<T, TFilterData, TRef>;
 
+	navigate(): ITreeNavigator<T> {
+		return new TreeNavigator(this.view, this.model);
+	}
+
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
 		this.view.dispose();
+	}
+}
+
+interface ITreeNavigatorView<T extends NonNullable<any>, TFilterData> {
+	readonly length: number;
+	element(index: number): ITreeNode<T, TFilterData>;
+}
+
+class TreeNavigator<T extends NonNullable<any>, TFilterData, TRef> implements ITreeNavigator<T> {
+
+	private index: number = -1;
+
+	constructor(private view: ITreeNavigatorView<T, TFilterData>, private model: ITreeModel<T, TFilterData, TRef>) { }
+
+	current(): T | null {
+		if (this.index < 0 || this.index >= this.view.length) {
+			return null;
+		}
+
+		return this.view.element(this.index).element;
+	}
+
+	previous(): T | null {
+		this.index--;
+		return this.current();
+	}
+
+	next(): T | null {
+		this.index++;
+		return this.current();
+	}
+
+	parent(): T | null {
+		if (this.index < 0 || this.index >= this.view.length) {
+			return null;
+		}
+
+		const node = this.view.element(this.index);
+
+		if (!node.parent) {
+			this.index = -1;
+			return this.current();
+		}
+
+		this.index = this.model.getListIndex(this.model.getNodeLocation(node.parent));
+		return this.current();
+	}
+
+	first(): T | null {
+		this.index = 0;
+		return this.current();
+	}
+
+	last(): T | null {
+		this.index = this.view.length - 1;
+		return this.current();
 	}
 }

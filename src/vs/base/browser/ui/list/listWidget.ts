@@ -1096,6 +1096,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this.eventBufferer.bufferEvents(() => this.spliceable.splice(start, deleteCount, elements));
 	}
 
+	element(index: number): T {
+		return this.view.element(index);
+	}
+
 	get length(): number {
 		return this.view.length;
 	}
