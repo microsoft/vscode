@@ -42,6 +42,8 @@ import { IRPCProtocol, ProxyIdentifier, createExtHostContextProxyIdentifier as c
 import { IProgressOptions, IProgressStep } from 'vs/platform/progress/common/progress';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import * as vscode from 'vscode';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { ResolvedAuthority } from 'vs/platform/remote/common/remoteAuthorityResolver';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -49,6 +51,7 @@ export interface IEnvironment {
 	appSettingsHome: URI;
 	extensionDevelopmentLocationURI: URI;
 	extensionTestsPath: string;
+	globalStorageHome: URI;
 }
 
 export interface IWorkspaceData {
@@ -68,6 +71,7 @@ export interface IInitData {
 	telemetryInfo: ITelemetryInfo;
 	logLevel: LogLevel;
 	logsLocation: URI;
+	autoStart: boolean;
 	remoteAuthority?: string | null;
 }
 
@@ -101,8 +105,14 @@ export interface MainThreadCommandsShape extends IDisposable {
 	$getCommands(): Thenable<string[]>;
 }
 
+export interface CommentProviderFeatures {
+	startDraftLabel?: string;
+	deleteDraftLabel?: string;
+	finishDraftLabel?: string;
+}
+
 export interface MainThreadCommentsShape extends IDisposable {
-	$registerDocumentCommentProvider(handle: number): void;
+	$registerDocumentCommentProvider(handle: number, features: CommentProviderFeatures): void;
 	$unregisterDocumentCommentProvider(handle: number): void;
 	$registerWorkspaceCommentProvider(handle: number, extensionId: string): void;
 	$unregisterWorkspaceCommentProvider(handle: number): void;
@@ -215,6 +225,7 @@ export interface MainThreadTreeViewsShape extends IDisposable {
 	$registerTreeViewDataProvider(treeViewId: string, options: { showCollapseAll: boolean }): void;
 	$refresh(treeViewId: string, itemsToRefresh?: { [treeItemHandle: string]: ITreeItem }): Thenable<void>;
 	$reveal(treeViewId: string, treeItem: ITreeItem, parentChain: ITreeItem[], options: IRevealOptions): Thenable<void>;
+	$setMessage(treeViewId: string, message: string | IMarkdownString): void;
 }
 
 export interface MainThreadErrorsShape extends IDisposable {
@@ -276,7 +287,7 @@ export interface ISerializedSignatureHelpProviderMetadata {
 
 export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$unregister(handle: number): void;
-	$registerOutlineSupport(handle: number, selector: ISerializedDocumentFilter[], extensionId: string): void;
+	$registerOutlineSupport(handle: number, selector: ISerializedDocumentFilter[], label: string): void;
 	$registerCodeLensSupport(handle: number, selector: ISerializedDocumentFilter[], eventHandle: number): void;
 	$emitCodeLensEvent(eventHandle: number, event?: any): void;
 	$registerDefinitionSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
@@ -297,6 +308,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerDocumentLinkProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerDocumentColorProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerFoldingRangeProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
+	$registerSelectionRangeProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$setLanguageConfiguration(handle: number, languageId: string, configuration: ISerializedLanguageConfiguration): void;
 }
 
@@ -594,9 +606,11 @@ export interface MainThreadDebugServiceShape extends IDisposable {
 	$acceptDAError(handle: number, name: string, message: string, stack: string): void;
 	$acceptDAExit(handle: number, code: number, signal: string): void;
 	$registerDebugConfigurationProvider(type: string, hasProvideMethod: boolean, hasResolveMethod: boolean, hasProvideDaMethod: boolean, hasProvideTrackerMethod: boolean, handle: number): Thenable<void>;
-	$registerDebugAdapterProvider(type: string, handle: number): Thenable<void>;
+	$registerDebugAdapterDescriptorFactory(type: string, handle: number): Thenable<void>;
+	$registerDebugAdapterTrackerFactory(type: string, handle: number);
 	$unregisterDebugConfigurationProvider(handle: number): void;
-	$unregisterDebugAdapterProvider(handle: number): void;
+	$unregisterDebugAdapterDescriptorFactory(handle: number): void;
+	$unregisterDebugAdapterTrackerFactory(handle: number): void;
 	$startDebugging(folder: UriComponents | undefined, nameOrConfig: string | vscode.DebugConfiguration): Thenable<boolean>;
 	$customDebugAdapterRequest(id: DebugSessionUUID, command: string, args: any): Thenable<any>;
 	$appendDebugConsole(value: string): void;
@@ -721,6 +735,8 @@ export interface ExtHostSearchShape {
 }
 
 export interface ExtHostExtensionServiceShape {
+	$resolveAuthority(remoteAuthority: string): Thenable<ResolvedAuthority>;
+	$startExtensionHost(enabledExtensionIds: string[]): Thenable<void>;
 	$activateByEvent(activationEvent: string): Thenable<void>;
 }
 
@@ -870,6 +886,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideDocumentColors(handle: number, resource: UriComponents, token: CancellationToken): Thenable<IRawColorInfo[]>;
 	$provideColorPresentations(handle: number, resource: UriComponents, colorInfo: IRawColorInfo, token: CancellationToken): Thenable<modes.IColorPresentation[]>;
 	$provideFoldingRanges(handle: number, resource: UriComponents, context: modes.FoldingContext, token: CancellationToken): Thenable<modes.FoldingRange[]>;
+	$provideSelectionRanges(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Thenable<IRange[]>;
 }
 
 export interface ExtHostQuickOpenShape {
@@ -900,7 +917,7 @@ export interface ExtHostTerminalServiceShape {
 	$acceptTerminalRendererInput(id: number, data: string): void;
 	$acceptTerminalTitleChange(id: number, name: string): void;
 	$acceptTerminalRendererDimensions(id: number, cols: number, rows: number): void;
-	$createProcess(id: number, shellLaunchConfig: ShellLaunchConfigDto, cols: number, rows: number): void;
+	$createProcess(id: number, shellLaunchConfig: ShellLaunchConfigDto, activeWorkspaceRootUri: URI, cols: number, rows: number): void;
 	$acceptProcessInput(id: number, data: string): void;
 	$acceptProcessResize(id: number, cols: number, rows: number): void;
 	$acceptProcessShutdown(id: number, immediate: boolean): void;
@@ -976,7 +993,7 @@ export type IDebugSessionDto = IDebugSessionFullDto | DebugSessionUUID;
 
 export interface ExtHostDebugServiceShape {
 	$substituteVariables(folder: UriComponents | undefined, config: IConfig): Thenable<IConfig>;
-	$runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Thenable<void>;
+	$runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Thenable<number | undefined>;
 	$startDASession(handle: number, session: IDebugSessionDto): Thenable<void>;
 	$stopDASession(handle: number): Thenable<void>;
 	$sendDAMessage(handle: number, message: DebugProtocol.ProtocolMessage): void;
@@ -1027,6 +1044,9 @@ export interface ExtHostCommentsShape {
 	$replyToCommentThread(handle: number, document: UriComponents, range: IRange, commentThread: modes.CommentThread, text: string): Thenable<modes.CommentThread>;
 	$editComment(handle: number, document: UriComponents, comment: modes.Comment, text: string): Thenable<void>;
 	$deleteComment(handle: number, document: UriComponents, comment: modes.Comment): Thenable<void>;
+	$startDraft(handle: number): Thenable<void>;
+	$deleteDraft(handle: number): Thenable<void>;
+	$finishDraft(handle: number): Thenable<void>;
 	$provideWorkspaceComments(handle: number): Thenable<modes.CommentThread[]>;
 }
 

@@ -41,8 +41,15 @@ export class Debugger implements IDebugger {
 		this.mergedExtensionDescriptions = [extensionDescription];
 	}
 
+	public createDebugAdapter(session: IDebugSession, outputService: IOutputService): Promise<IDebugAdapter> {
+		return new Promise<IDebugAdapter>((resolve, reject) => {
+			this.configurationManager.activateDebuggers('onDebugAdapterProtocolTracker', this.type).then(_ => {
+				resolve(this._createDebugAdapter(session, outputService));
+			}, reject);
+		});
+	}
 
-	createDebugAdapter(session: IDebugSession, outputService: IOutputService): Promise<IDebugAdapter> {
+	private _createDebugAdapter(session: IDebugSession, outputService: IOutputService): Promise<IDebugAdapter> {
 		if (this.inExtHost()) {
 			return Promise.resolve(this.configurationManager.createDebugAdapter(session));
 		} else {
@@ -56,7 +63,13 @@ export class Debugger implements IDebugger {
 						// TODO@AW: this.inExtHost() should now return true
 						return Promise.resolve(this.configurationManager.createDebugAdapter(session));
 					default:
-						throw new Error('Cannot create debug adapter.');
+						throw new Error('unknown type');
+				}
+			}).catch(err => {
+				if (err && err.message) {
+					throw new Error(nls.localize('cannot.create.da.with.err', "Cannot create debug adapter ({0}).", err.message));
+				} else {
+					throw new Error(nls.localize('cannot.create.da', "Cannot create debug adapter."));
 				}
 			});
 		}
@@ -76,11 +89,13 @@ export class Debugger implements IDebugger {
 		return this.configurationManager.provideDebugAdapter(session).then(adapter => {
 
 			if (adapter) {
+				console.info('DebugConfigurationProvider.debugAdapterExecutable is deprecated and will be removed soon; please use DebugAdapterDescriptorFactory.createDebugAdapterDescriptor instead.');
 				return adapter;
 			}
 
 			// try deprecated command based extension API "adapterExecutableCommand" to determine the executable
 			if (this.debuggerContribution.adapterExecutableCommand) {
+				console.info('debugAdapterExecutable attribute in package.json is deprecated and support for it will be removed soon; please use DebugAdapterDescriptorFactory.createDebugAdapterDescriptor instead.');
 				const rootFolder = session.root ? session.root.uri.toString() : undefined;
 				return this.commandService.executeCommand<IDebugAdapterExecutable>(this.debuggerContribution.adapterExecutableCommand, rootFolder).then((ae: { command: string, args: string[] }) => {
 					return <IAdapterDescriptor>{
@@ -92,21 +107,25 @@ export class Debugger implements IDebugger {
 			}
 
 			// fallback: use executable information from package.json
-			return ExecutableDebugAdapter.platformAdapterExecutable(this.mergedExtensionDescriptions, this.type);
+			const ae = ExecutableDebugAdapter.platformAdapterExecutable(this.mergedExtensionDescriptions, this.type);
+			if (ae === undefined) {
+				throw new Error('no executable specified in package.json');
+			}
+			return ae;
 		});
 	}
 
 	substituteVariables(folder: IWorkspaceFolder, config: IConfig): Thenable<IConfig> {
 		if (this.inExtHost()) {
 			return this.configurationManager.substituteVariables(this.type, folder, config).then(config => {
-				return this.configurationResolverService.resolveWithCommands(folder, config, this.variables);
+				return this.configurationResolverService.resolveWithInteractionReplace(folder, config, 'launch', this.variables);
 			});
 		} else {
-			return this.configurationResolverService.resolveWithCommands(folder, config, this.variables);
+			return this.configurationResolverService.resolveWithInteractionReplace(folder, config, 'launch', this.variables);
 		}
 	}
 
-	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<void> {
+	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined> {
 		const config = this.configurationService.getValue<ITerminalSettings>('terminal');
 		return this.configurationManager.runInTerminal(this.inExtHost() ? this.type : '*', args, config);
 	}

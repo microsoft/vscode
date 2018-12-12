@@ -102,7 +102,7 @@ export interface IExtensionHostProfile {
 /**
  * Extension id or one of the four known program states.
  */
-export type ProfileSegmentId = string | 'idle' | 'program' | 'gc' | 'self';
+export type ProfileSegmentId = string | 'idle' | 'program' | 'gc' | 'self' | null;
 
 export class ActivationTimes {
 	constructor(
@@ -182,6 +182,12 @@ export interface IExtensionService extends ICpuProfilerTarget {
 	 * Return all registered extensions
 	 */
 	getExtensions(): Promise<IExtensionDescription[]>;
+
+	/**
+	 * Return a specific extension
+	 * @param id An extension id
+	 */
+	getExtension(id: string): Promise<IExtensionDescription | undefined>;
 
 	/**
 	 * Read all contributions to an extension point.

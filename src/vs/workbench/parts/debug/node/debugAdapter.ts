@@ -336,14 +336,14 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 				if (Array.isArray(this.adapterExecutable.args) && this.adapterExecutable.args.length > 0) {
 					const isElectron = !!process.env['ELECTRON_RUN_AS_NODE'] || !!process.versions['electron'];
 					const options: cp.ForkOptions = {
-						env: this.adapterExecutable.env
-							? objects.mixin(objects.mixin({}, process.env), this.adapterExecutable.env)
+						env: this.adapterExecutable.options && this.adapterExecutable.options.env
+							? objects.mixin(objects.mixin({}, process.env), this.adapterExecutable.options.env)
 							: process.env,
 						execArgv: isElectron ? ['-e', 'delete process.env.ELECTRON_RUN_AS_NODE;require(process.argv[1])'] : [],
 						silent: true
 					};
-					if (this.adapterExecutable.cwd) {
-						options.cwd = this.adapterExecutable.cwd;
+					if (this.adapterExecutable.options && this.adapterExecutable.options.cwd) {
+						options.cwd = this.adapterExecutable.options.cwd;
 					}
 					const child = cp.fork(this.adapterExecutable.args[0], this.adapterExecutable.args.slice(1), options);
 					if (!child.pid) {
@@ -356,12 +356,12 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 				}
 			} else {
 				const options: cp.SpawnOptions = {
-					env: this.adapterExecutable.env
-						? objects.mixin(objects.mixin({}, process.env), this.adapterExecutable.env)
+					env: this.adapterExecutable.options && this.adapterExecutable.options.env
+						? objects.mixin(objects.mixin({}, process.env), this.adapterExecutable.options.env)
 						: process.env
 				};
-				if (this.adapterExecutable.cwd) {
-					options.cwd = this.adapterExecutable.cwd;
+				if (this.adapterExecutable.options && this.adapterExecutable.options.cwd) {
+					options.cwd = this.adapterExecutable.options.cwd;
 				}
 				this.serverProcess = cp.spawn(this.adapterExecutable.command, this.adapterExecutable.args, options);
 				resolve(null);
@@ -474,8 +474,8 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 		return result;
 	}
 
-	static platformAdapterExecutable(extensionDescriptions: IExtensionDescription[], debugType: string): IDebugAdapterExecutable {
-		const result: IDebuggerContribution = Object.create(null);
+	static platformAdapterExecutable(extensionDescriptions: IExtensionDescription[], debugType: string): IDebugAdapterExecutable | undefined {
+		let result: IDebuggerContribution = Object.create(null);
 		debugType = debugType.toLowerCase();
 
 		// merge all contributions into one
@@ -488,7 +488,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 						const extractedDbg = ExecutableDebugAdapter.extract(dbg, ed.extensionLocation.fsPath);
 
 						// merge
-						objects.mixin(result, extractedDbg, ed.isBuiltin);
+						result = objects.mixin(result, extractedDbg, ed.isBuiltin);
 					});
 				}
 			}
@@ -519,12 +519,15 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 				command: runtime,
 				args: (runtimeArgs || []).concat([program]).concat(args || [])
 			};
-		} else {
+		} else if (program) {
 			return {
 				type: 'executable',
 				command: program,
 				args: args || []
 			};
 		}
+
+		// nothing found
+		return undefined;
 	}
 }

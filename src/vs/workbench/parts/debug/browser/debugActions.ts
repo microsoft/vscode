@@ -10,7 +10,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IDebugService, State, IDebugSession, IThread, IEnablement, IBreakpoint, IStackFrame, REPL_ID }
+import { IDebugService, State, IDebugSession, IThread, IEnablement, IBreakpoint, IStackFrame, REPL_ID, IConfig }
 	from 'vs/workbench/parts/debug/common/debug';
 import { Variable, Expression, Thread, Breakpoint } from 'vs/workbench/parts/debug/common/debugModel';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -19,11 +19,11 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { CollapseAction } from 'vs/workbench/browser/viewlet';
-import { ITree } from 'vs/base/parts/tree/browser/tree';
+import { CollapseAction2 } from 'vs/workbench/browser/viewlet';
 import { first } from 'vs/base/common/arrays';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { memoize } from 'vs/base/common/decorators';
+import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 
 export abstract class AbstractDebugAction extends Action {
 
@@ -133,7 +133,13 @@ export class StartAction extends AbstractDebugAction {
 		this.toDispose.push(this.contextService.onDidChangeWorkbenchState(() => this.updateEnablement()));
 	}
 
-	public run(): Thenable<any> {
+	// Note: When this action is executed from the process explorer, a config is passed. For all
+	// other cases it is run with no arguments.
+	public run(config?: IConfig): Thenable<any> {
+		if (config) {
+			return this.debugService.startDebugging(undefined, config, this.isNoDebug());
+		}
+
 		const configurationManager = this.debugService.getConfigurationManager();
 		let launch = configurationManager.selectedConfiguration.launch;
 		if (!launch || launch.getConfigurationNames().length === 0) {
@@ -797,9 +803,9 @@ export class ReverseContinueAction extends AbstractDebugAction {
 	}
 }
 
-export class ReplCollapseAllAction extends CollapseAction {
-	constructor(viewer: ITree, private toFocus: { focus(): void; }) {
-		super(viewer, true, undefined);
+export class ReplCollapseAllAction extends CollapseAction2 {
+	constructor(tree: AsyncDataTree<any>, private toFocus: { focus(): void; }) {
+		super(tree, true, undefined);
 	}
 
 	public run(event?: any): Thenable<any> {

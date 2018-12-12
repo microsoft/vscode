@@ -15,7 +15,7 @@
         css-less-scss: [ aeschli ],
         debug-console: [],
         debug: {
-            assignees: [ weinand ],
+            assignees: [ isidorn ],
             assignLabel: false
         },
         diff-editor: [],
@@ -81,7 +81,7 @@
         hot-exit: [],
         html: [ aeschli ],
         install-update: [],
-        integrated-terminal: [],
+        integrated-terminal: [ Tyriar ],
         integration-test: [],
         intellisense-config: [],
         issue-reporter: [ RMacfarlane ],
@@ -131,7 +131,7 @@
             assignLabel: false
         },
         suggest: [],
-        tasks: [ dbaeumer ],
+        tasks: [ alexr00 ],
         telemetry: [],
         themes: [],
         tokenization: [],

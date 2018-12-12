@@ -141,18 +141,18 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 		this.refCount = 0;
 		this._disposables = [];
 
-		let createCSSRules = (type: ModelDecorationCSSRuleType) => {
-			let rules = new DecorationCSSRules(type, providerArgs, themeService);
+		const createCSSRules = (type: ModelDecorationCSSRuleType) => {
+			const rules = new DecorationCSSRules(type, providerArgs, themeService);
+			this._disposables.push(rules);
 			if (rules.hasContent) {
-				this._disposables.push(rules);
 				return rules.className;
 			}
 			return void 0;
 		};
-		let createInlineCSSRules = (type: ModelDecorationCSSRuleType) => {
-			let rules = new DecorationCSSRules(type, providerArgs, themeService);
+		const createInlineCSSRules = (type: ModelDecorationCSSRuleType) => {
+			const rules = new DecorationCSSRules(type, providerArgs, themeService);
+			this._disposables.push(rules);
 			if (rules.hasContent) {
-				this._disposables.push(rules);
 				return { className: rules.className, hasLetterSpacing: rules.hasLetterSpacing };
 			}
 			return null;
@@ -210,7 +210,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 
 const _CSS_MAP: { [prop: string]: string; } = {
 	color: 'color:{0} !important;',
-	opacity: 'opacity:{0}; will-change: opacity;', // TODO@Ben: 'will-change: opacity' is a workaround for https://github.com/Microsoft/vscode/issues/52196
+	opacity: 'opacity:{0};',
 	backgroundColor: 'background-color:{0};',
 
 	outline: 'outline:{0};',

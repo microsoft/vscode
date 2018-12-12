@@ -9,14 +9,13 @@ import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { IStateService } from 'vs/platform/state/common/state';
 import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage } from 'electron';
-import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/node/product';
-import { IWindowSettings, MenuBarVisibility, IWindowConfiguration, ReadyState, IRunActionInWindowRequest } from 'vs/platform/windows/common/windows';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IWindowSettings, MenuBarVisibility, IWindowConfiguration, ReadyState, IRunActionInWindowRequest, getTitleBarStyle } from 'vs/platform/windows/common/windows';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ICodeWindow, IWindowState, WindowMode } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspaceIdentifier, IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
@@ -25,6 +24,7 @@ import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import * as perf from 'vs/base/common/performance';
 import { resolveMarketplaceHeaders } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 import { getBackgroundColor } from 'vs/code/electron-main/theme';
+import { IStorageMainService } from 'vs/platform/storage/node/storageMainService';
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
@@ -52,7 +52,7 @@ interface ITouchBarSegment extends Electron.SegmentedControlSegment {
 	id: string;
 }
 
-export class CodeWindow implements ICodeWindow {
+export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private static readonly MIN_WIDTH = 200;
 	private static readonly MIN_HEIGHT = 120;
@@ -67,15 +67,14 @@ export class CodeWindow implements ICodeWindow {
 	private _readyState: ReadyState;
 	private windowState: IWindowState;
 	private currentMenuBarVisibility: MenuBarVisibility;
-	private toDispose: IDisposable[];
 	private representedFilename: string;
 
-	private whenReadyCallbacks: TValueCallback<ICodeWindow>[];
+	private whenReadyCallbacks: { (window: ICodeWindow): void }[];
 
 	private currentConfig: IWindowConfiguration;
 	private pendingLoadConfig: IWindowConfiguration;
 
-	private marketplaceHeadersPromise: TPromise<object>;
+	private marketplaceHeadersPromise: Thenable<object>;
 
 	private touchBarGroups: Electron.TouchBarSegmentedControl[];
 
@@ -86,13 +85,15 @@ export class CodeWindow implements ICodeWindow {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IStateService private stateService: IStateService,
 		@IWorkspacesMainService private workspacesMainService: IWorkspacesMainService,
-		@IBackupMainService private backupMainService: IBackupMainService
+		@IBackupMainService private backupMainService: IBackupMainService,
+		@IStorageMainService private storageMainService: IStorageMainService
 	) {
+		super();
+
 		this.touchBarGroups = [];
 		this._lastFocusTime = -1;
 		this._readyState = ReadyState.NONE;
 		this.whenReadyCallbacks = [];
-		this.toDispose = [];
 
 		// create browser window
 		this.createBrowserWindow(config);
@@ -155,28 +156,11 @@ export class CodeWindow implements ICodeWindow {
 			}
 		}
 
-		let useNativeTabs = false;
 		if (isMacintosh && windowConfig && windowConfig.nativeTabs === true) {
 			options.tabbingIdentifier = product.nameShort; // this opts in to sierra tabs
-			useNativeTabs = true;
 		}
 
-		let useCustomTitleStyle = false;
-		if (isMacintosh) {
-			useCustomTitleStyle = !windowConfig || !windowConfig.titleBarStyle || windowConfig.titleBarStyle === 'custom'; // Default to custom on macOS
-
-			const isDev = !this.environmentService.isBuilt || !!config.extensionDevelopmentPath;
-			if (isDev) {
-				useCustomTitleStyle = false; // not enabled when developing due to https://github.com/electron/electron/issues/3647
-			}
-		} else {
-			useCustomTitleStyle = !windowConfig || !windowConfig.titleBarStyle || windowConfig.titleBarStyle === 'custom'; // Default to custom
-		}
-
-		if (useNativeTabs) {
-			useCustomTitleStyle = false; // native tabs on sierra do not work with custom title style
-		}
-
+		const useCustomTitleStyle = getTitleBarStyle(this.configurationService, this.environmentService, !!config.extensionDevelopmentPath) === 'custom';
 		if (useCustomTitleStyle) {
 			options.titleBarStyle = 'hidden';
 			this.hiddenTitleBarStyle = true;
@@ -293,19 +277,19 @@ export class CodeWindow implements ICodeWindow {
 		}
 	}
 
-	ready(): TPromise<ICodeWindow> {
-		return new TPromise<ICodeWindow>((c) => {
-			if (this._readyState === ReadyState.READY) {
-				return c(this);
+	ready(): Thenable<ICodeWindow> {
+		return new Promise<ICodeWindow>(resolve => {
+			if (this.isReady) {
+				return resolve(this);
 			}
 
 			// otherwise keep and call later when we are ready
-			this.whenReadyCallbacks.push(c);
+			this.whenReadyCallbacks.push(resolve);
 		});
 	}
 
-	get readyState(): ReadyState {
-		return this._readyState;
+	get isReady(): boolean {
+		return this._readyState === ReadyState.READY;
 	}
 
 	private handleMarketplaceRequests(): void {
@@ -377,15 +361,20 @@ export class CodeWindow implements ICodeWindow {
 		});
 
 		// Simple fullscreen doesn't resize automatically when the resolution changes
-		screen.on('display-metrics-changed', () => {
-			if (isMacintosh && this.isFullScreen() && !this.useNativeFullScreen()) {
-				this.setFullScreen(false);
-				this.setFullScreen(true);
-			}
-		});
+		if (isMacintosh) {
+			const displayMetricsChangedListener = () => {
+				if (this.isFullScreen() && !this.useNativeFullScreen()) {
+					this.setFullScreen(false);
+					this.setFullScreen(true);
+				}
+			};
+
+			screen.addListener('display-metrics-changed', displayMetricsChangedListener);
+			this._register(toDisposable(() => screen.removeListener('display-metrics-changed', displayMetricsChangedListener)));
+		}
 
 		// Window (Un)Maximize
-		this._win.on('maximize', (e) => {
+		this._win.on('maximize', e => {
 			if (this.currentConfig) {
 				this.currentConfig.maximized = true;
 			}
@@ -393,7 +382,7 @@ export class CodeWindow implements ICodeWindow {
 			app.emit('browser-window-maximize', e, this._win);
 		});
 
-		this._win.on('unmaximize', (e) => {
+		this._win.on('unmaximize', e => {
 			if (this.currentConfig) {
 				this.currentConfig.maximized = false;
 			}
@@ -416,10 +405,10 @@ export class CodeWindow implements ICodeWindow {
 		});
 
 		// Handle configuration changes
-		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated()));
+		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated()));
 
 		// Handle Workspace events
-		this.toDispose.push(this.workspacesMainService.onUntitledWorkspaceDeleted(e => this.onUntitledWorkspaceDeleted(e)));
+		this._register(this.workspacesMainService.onUntitledWorkspaceDeleted(e => this.onUntitledWorkspaceDeleted(e)));
 
 		// TODO@Ben workaround for https://github.com/Microsoft/vscode/issues/13612
 		// It looks like smooth scrolling disappears as soon as the window is minimized
@@ -479,7 +468,7 @@ export class CodeWindow implements ICodeWindow {
 
 	private registerNavigationListenerOn(command: 'swipe' | 'app-command', back: 'left' | 'browser-backward', forward: 'right' | 'browser-forward', acrossEditors: boolean) {
 		this._win.on(command as 'swipe' /* | 'app-command' */, (e: Electron.Event, cmd: string) => {
-			if (this.readyState !== ReadyState.READY) {
+			if (!this.isReady) {
 				return; // window must be ready
 			}
 
@@ -501,7 +490,7 @@ export class CodeWindow implements ICodeWindow {
 
 		// If this is the first time the window is loaded, we associate the paths
 		// directly with the window because we assume the loading will just work
-		if (this.readyState === ReadyState.NONE) {
+		if (this._readyState === ReadyState.NONE) {
 			this.currentConfig = config;
 		}
 
@@ -614,6 +603,9 @@ export class CodeWindow implements ICodeWindow {
 
 		// Dump Perf Counters
 		windowConfiguration.perfEntries = perf.exportEntries();
+
+		// Parts splash
+		windowConfiguration.partsSplashData = this.storageMainService.get('parts-splash-data', void 0);
 
 		// Config (combination of process.argv and window configuration)
 		const environment = parseArgs(process.argv);
@@ -867,6 +859,10 @@ export class CodeWindow implements ICodeWindow {
 		return windowConfig.nativeFullScreen !== false;
 	}
 
+	isMinimized(): boolean {
+		return this._win.isMinimized();
+	}
+
 	private getMenuBarVisibility(): MenuBarVisibility {
 		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 		if (!windowConfig || !windowConfig.menuBarVisibility) {
@@ -970,9 +966,11 @@ export class CodeWindow implements ICodeWindow {
 	}
 
 	sendWhenReady(channel: string, ...args: any[]): void {
-		this.ready().then(() => {
+		if (this.isReady) {
 			this.send(channel, ...args);
-		});
+		} else {
+			this.ready().then(() => this.send(channel, ...args));
+		}
 	}
 
 	send(channel: string, ...args: any[]): void {
@@ -1049,11 +1047,11 @@ export class CodeWindow implements ICodeWindow {
 	}
 
 	dispose(): void {
+		super.dispose();
+
 		if (this.showTimeoutHandle) {
 			clearTimeout(this.showTimeoutHandle);
 		}
-
-		this.toDispose = dispose(this.toDispose);
 
 		this._win = null; // Important to dereference the window object to allow for GC
 	}

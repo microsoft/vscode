@@ -421,6 +421,15 @@ export interface ConfigurationProperties {
 	problemMatchers?: (string | ProblemMatcher)[];
 }
 
+export enum RunOnOptions {
+	default = 1,
+	folderOpen = 2
+}
+
+export interface RunOptions {
+	reevaluateOnRerun?: boolean;
+	runOn?: RunOnOptions;
+}
 export interface CommonTask {
 
 	/**
@@ -434,6 +443,8 @@ export interface CommonTask {
 	_label: string;
 
 	type: string;
+
+	runOptions: RunOptions;
 }
 
 export interface CustomTask extends CommonTask, ConfigurationProperties {
@@ -756,6 +767,12 @@ export interface TaskEvent {
 	processId?: number;
 	exitCode?: number;
 	__task?: Task;
+}
+
+export const enum TaskRunSource {
+	User, // Default
+	FolderOpen,
+	ConfigurationChange
 }
 
 export namespace TaskEvent {

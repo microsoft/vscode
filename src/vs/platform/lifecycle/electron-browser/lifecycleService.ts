@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { ILifecycleService, WillShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase, handleVetos, LifecyclePhaseToString, ShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, BeforeShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase, handleVetos, LifecyclePhaseToString, WillShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ipcRenderer as ipc } from 'electron';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -22,11 +22,14 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 
 	_serviceBrand: any;
 
+	private readonly _onBeforeShutdown = this._register(new Emitter<BeforeShutdownEvent>());
+	get onBeforeShutdown(): Event<BeforeShutdownEvent> { return this._onBeforeShutdown.event; }
+
 	private readonly _onWillShutdown = this._register(new Emitter<WillShutdownEvent>());
 	get onWillShutdown(): Event<WillShutdownEvent> { return this._onWillShutdown.event; }
 
-	private readonly _onShutdown = this._register(new Emitter<ShutdownEvent>());
-	get onShutdown(): Event<ShutdownEvent> { return this._onShutdown.event; }
+	private readonly _onShutdown = this._register(new Emitter<void>());
+	get onShutdown(): Event<void> { return this._onShutdown.event; }
 
 	private readonly _startupKind: StartupKind;
 	get startupKind(): StartupKind { return this._startupKind; }
@@ -35,6 +38,8 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 	get phase(): LifecyclePhase { return this._phase; }
 
 	private phaseWhen = new Map<LifecyclePhase, Barrier>();
+
+	private shutdownReason: ShutdownReason;
 
 	constructor(
 		@INotificationService private notificationService: INotificationService,
@@ -74,17 +79,16 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 		ipc.on('vscode:onBeforeUnload', (event, reply: { okChannel: string, cancelChannel: string, reason: ShutdownReason }) => {
 			this.logService.trace(`lifecycle: onBeforeUnload (reason: ${reply.reason})`);
 
-			// store shutdown reason to retrieve next startup
-			this.storageService.store(LifecycleService.LAST_SHUTDOWN_REASON_KEY, JSON.stringify(reply.reason), StorageScope.WORKSPACE);
-
-			// trigger onWillShutdown events and veto collecting
-			this.handleWillShutdown(reply.reason).then(veto => {
+			// trigger onBeforeShutdown events and veto collecting
+			this.handleBeforeShutdown(reply.reason).then(veto => {
 				if (veto) {
 					this.logService.trace('lifecycle: onBeforeUnload prevented via veto');
-					this.storageService.remove(LifecycleService.LAST_SHUTDOWN_REASON_KEY, StorageScope.WORKSPACE);
+
 					ipc.send(reply.cancelChannel, windowId);
 				} else {
 					this.logService.trace('lifecycle: onBeforeUnload continues without veto');
+
+					this.shutdownReason = reply.reason;
 					ipc.send(reply.okChannel, windowId);
 				}
 			});
@@ -94,17 +98,27 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 		ipc.on('vscode:onWillUnload', (event, reply: { replyChannel: string, reason: ShutdownReason }) => {
 			this.logService.trace(`lifecycle: onWillUnload (reason: ${reply.reason})`);
 
-			// trigger onShutdown events and joining
-			return this.handleShutdown(reply.reason).then(() => {
+			// trigger onWillShutdown events and joining
+			return this.handleWillShutdown(reply.reason).then(() => {
+
+				// trigger onShutdown event now that we know we will quit
+				this._onShutdown.fire();
+
+				// acknowledge to main side
 				ipc.send(reply.replyChannel, windowId);
 			});
 		});
+
+		// Save shutdown reason to retrieve on next startup
+		this.storageService.onWillSaveState(() => {
+			this.storageService.store(LifecycleService.LAST_SHUTDOWN_REASON_KEY, this.shutdownReason, StorageScope.WORKSPACE);
+		});
 	}
 
-	private handleWillShutdown(reason: ShutdownReason): Promise<boolean> {
+	private handleBeforeShutdown(reason: ShutdownReason): Promise<boolean> {
 		const vetos: (boolean | Thenable<boolean>)[] = [];
 
-		this._onWillShutdown.fire({
+		this._onBeforeShutdown.fire({
 			veto(value) {
 				vetos.push(value);
 			},
@@ -117,10 +131,10 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 		});
 	}
 
-	private handleShutdown(reason: ShutdownReason): Thenable<void> {
+	private handleWillShutdown(reason: ShutdownReason): Thenable<void> {
 		const joiners: Thenable<void>[] = [];
 
-		this._onShutdown.fire({
+		this._onWillShutdown.fire({
 			join(promise) {
 				if (promise) {
 					joiners.push(promise);

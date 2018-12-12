@@ -16,6 +16,7 @@ export interface IRemoteAgentEnvironmentDTO {
 	logsPath: UriComponents;
 	extensionsPath: UriComponents;
 	extensionHostLogsPath: UriComponents;
+	globalStorageHome: UriComponents;
 	extensions: IExtensionDescription[];
 	os: OperatingSystem;
 }
@@ -34,6 +35,7 @@ export class RemoteExtensionEnvironmentChannelClient {
 					logsPath: URI.revive(data.logsPath),
 					extensionsPath: URI.revive(data.extensionsPath),
 					extensionHostLogsPath: URI.revive(data.extensionHostLogsPath),
+					globalStorageHome: URI.revive(data.globalStorageHome),
 					extensions: data.extensions.map(ext => { (<any>ext).extensionLocation = URI.revive(ext.extensionLocation); return ext; }),
 					os: data.os
 				};

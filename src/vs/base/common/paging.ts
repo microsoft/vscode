@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { isArray } from 'vs/base/common/types';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
@@ -93,7 +92,7 @@ export class PagedModel<T> implements IPagedModel<T> {
 
 	resolve(index: number, cancellationToken: CancellationToken): Thenable<T> {
 		if (cancellationToken.isCancellationRequested) {
-			return TPromise.wrapError(canceled());
+			return Promise.reject(canceled());
 		}
 
 		const pageIndex = Math.floor(index / this.pager.pageSize);
@@ -101,7 +100,7 @@ export class PagedModel<T> implements IPagedModel<T> {
 		const page = this.pages[pageIndex];
 
 		if (page.isResolved) {
-			return TPromise.as(page.elements[indexInPage]);
+			return Promise.resolve(page.elements[indexInPage]);
 		}
 
 		if (!page.promise) {
@@ -116,7 +115,7 @@ export class PagedModel<T> implements IPagedModel<T> {
 					page.isResolved = false;
 					page.promise = null;
 					page.cts = null;
-					return TPromise.wrapError(err);
+					return Promise.reject(err);
 				});
 		}
 
@@ -153,7 +152,7 @@ export class DelayedPagedModel<T> implements IPagedModel<T> {
 	}
 
 	resolve(index: number, cancellationToken: CancellationToken): Thenable<T> {
-		return new TPromise((c, e) => {
+		return new Promise((c, e) => {
 			if (cancellationToken.isCancellationRequested) {
 				return e(canceled());
 			}
@@ -198,7 +197,7 @@ export function mergePagers<T>(one: IPager<T>, other: IPager<T>): IPager<T> {
 		total: one.total + other.total,
 		pageSize: one.pageSize + other.pageSize,
 		getPage(pageIndex: number, token): Thenable<T[]> {
-			return TPromise.join([one.getPage(pageIndex, token), other.getPage(pageIndex, token)])
+			return Promise.all([one.getPage(pageIndex, token), other.getPage(pageIndex, token)])
 				.then(([onePage, otherPage]) => [...onePage, ...otherPage]);
 		}
 	};

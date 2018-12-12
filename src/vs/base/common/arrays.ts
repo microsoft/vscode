@@ -334,7 +334,14 @@ export function move(array: any[], from: number, to: number): void {
  * 	and not empty.
  */
 export function isFalsyOrEmpty(obj: any): boolean {
-	return !Array.isArray(obj) || (<Array<any>>obj).length === 0;
+	return !Array.isArray(obj) || obj.length === 0;
+}
+
+/**
+ * @returns {{true}} if the provided object is an array and has at least one element.
+ */
+export function isNonEmptyArray<T>(obj: ReadonlyArray<T> | undefined | null): obj is Array<T> {
+	return Array.isArray(obj) && obj.length > 0;
 }
 
 /**

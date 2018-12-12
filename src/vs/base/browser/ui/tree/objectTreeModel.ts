@@ -4,43 +4,86 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ISpliceable } from 'vs/base/common/sequence';
-import { Iterator, ISequence } from 'vs/base/common/iterator';
-import { IndexTreeModel } from 'vs/base/browser/ui/tree/indexTreeModel';
+import { Iterator, ISequence, getSequenceIterator } from 'vs/base/common/iterator';
+import { IndexTreeModel, IIndexTreeModelOptions } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { Event } from 'vs/base/common/event';
-import { ITreeModel, ITreeNode, ITreeElement, ITreeModelOptions } from 'vs/base/browser/ui/tree/tree';
+import { ITreeModel, ITreeNode, ITreeElement } from 'vs/base/browser/ui/tree/tree';
 
-export class ObjectTreeModel<T extends NonNullable<any>, TFilterData = void> implements ITreeModel<T, TFilterData, T> {
+export interface IObjectTreeModelOptions<T, TFilterData> extends IIndexTreeModelOptions<T, TFilterData> { }
 
-	private model: IndexTreeModel<T, TFilterData>;
-	private nodes = new Map<T, ITreeNode<T, TFilterData>>();
+export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends NonNullable<any> = void> implements ITreeModel<T | null, TFilterData, T | null> {
+
+	private model: IndexTreeModel<T | null, TFilterData>;
+	private nodes = new Map<T | null, ITreeNode<T, TFilterData>>();
 
 	readonly onDidChangeCollapseState: Event<ITreeNode<T, TFilterData>>;
 	readonly onDidChangeRenderNodeCount: Event<ITreeNode<T, TFilterData>>;
 
 	get size(): number { return this.nodes.size; }
 
-	constructor(list: ISpliceable<ITreeNode<T, TFilterData>>, options: ITreeModelOptions<T, TFilterData> = {}) {
-		this.model = new IndexTreeModel(list, options);
-		this.onDidChangeCollapseState = this.model.onDidChangeCollapseState;
-		this.onDidChangeRenderNodeCount = this.model.onDidChangeRenderNodeCount;
+	constructor(list: ISpliceable<ITreeNode<T, TFilterData>>, options: IObjectTreeModelOptions<T, TFilterData> = {}) {
+		this.model = new IndexTreeModel(list, null, options);
+		this.onDidChangeCollapseState = this.model.onDidChangeCollapseState as Event<ITreeNode<T, TFilterData>>;
+		this.onDidChangeRenderNodeCount = this.model.onDidChangeRenderNodeCount as Event<ITreeNode<T, TFilterData>>;
 	}
 
-	setChildren(element: T | null, children?: ISequence<ITreeElement<T>>): Iterator<ITreeElement<T>> {
+	setChildren(
+		element: T | null,
+		children: ISequence<ITreeElement<T>> | undefined,
+		onDidCreateNode?: (node: ITreeNode<T, TFilterData>) => void,
+		onDidDeleteNode?: (node: ITreeNode<T, TFilterData>) => void
+	): Iterator<ITreeElement<T | null>> {
 		const location = this.getElementLocation(element);
-		const insertedElements = new Set<T>();
+		const insertedElements = new Set<T | null>();
 
-		const onDidCreateNode = (node: ITreeNode<T, TFilterData>) => {
+		const _onDidCreateNode = (node: ITreeNode<T, TFilterData>) => {
 			insertedElements.add(node.element);
 			this.nodes.set(node.element, node);
-		};
 
-		const onDidDeleteNode = (node: ITreeNode<T, TFilterData>) => {
-			if (!insertedElements.has(node.element)) {
-				this.nodes.delete(node.element);
+			if (onDidCreateNode) {
+				onDidCreateNode(node);
 			}
 		};
 
-		return this.model.splice([...location, 0], Number.MAX_VALUE, children, onDidCreateNode, onDidDeleteNode);
+		const _onDidDeleteNode = (node: ITreeNode<T, TFilterData>) => {
+			if (!insertedElements.has(node.element)) {
+				this.nodes.delete(node.element);
+			}
+
+			if (onDidDeleteNode) {
+				onDidDeleteNode(node);
+			}
+		};
+
+		return this.model.splice(
+			[...location, 0],
+			Number.MAX_VALUE,
+			this.preserveCollapseState(children),
+			_onDidCreateNode,
+			_onDidDeleteNode
+		);
+	}
+
+	private preserveCollapseState(elements: ISequence<ITreeElement<T | null>> | undefined): ISequence<ITreeElement<T | null>> {
+		const iterator = elements ? getSequenceIterator(elements) : Iterator.empty<ITreeElement<T>>();
+
+		return Iterator.map(iterator, treeElement => {
+			const node = this.nodes.get(treeElement.element);
+
+			if (!node) {
+				return treeElement;
+			}
+
+			const collapsible = typeof treeElement.collapsible === 'boolean' ? treeElement.collapsible : node.collapsible;
+			const collapsed = typeof treeElement.collapsed !== 'undefined' ? treeElement.collapsed : (collapsible && node.collapsed);
+
+			return {
+				...treeElement,
+				collapsible,
+				collapsed,
+				children: this.preserveCollapseState(treeElement.children)
+			};
+		});
 	}
 
 	getParentElement(ref: T | null = null): T | null {
@@ -48,14 +91,14 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData = void> imp
 		return this.model.getParentElement(location);
 	}
 
-	getFirstChildElement(ref: T | null = null): T | null {
+	getFirstElementChild(ref: T | null = null): T | null | undefined {
 		const location = this.getElementLocation(ref);
-		return this.model.getFirstChildElement(location);
+		return this.model.getFirstElementChild(location);
 	}
 
-	getLastAncestorElement(ref: T | null = null): T | null {
+	getLastElementAncestor(ref: T | null = null): T | null | undefined {
 		const location = this.getElementLocation(ref);
-		return this.model.getLastAncestorElement(location);
+		return this.model.getLastElementAncestor(location);
 	}
 
 	getListIndex(element: T): number {
@@ -77,6 +120,11 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData = void> imp
 		this.model.collapseAll();
 	}
 
+	isCollapsible(element: T): boolean {
+		const location = this.getElementLocation(element);
+		return this.model.isCollapsible(location);
+	}
+
 	isCollapsed(element: T): boolean {
 		const location = this.getElementLocation(element);
 		return this.model.isCollapsed(location);
@@ -86,7 +134,7 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData = void> imp
 		this.model.refilter();
 	}
 
-	getNode(element: T | null = null): ITreeNode<T, TFilterData> {
+	getNode(element: T | null = null): ITreeNode<T | null, TFilterData> {
 		const location = this.getElementLocation(element);
 		return this.model.getNode(location);
 	}

@@ -39,11 +39,11 @@ export class DataSource implements IDataSource {
 
 	getChildren(tree: ITree, element: any): TPromise<any[]> {
 		const model = this.modelProvider.getModel();
-		return TPromise.as(model === element ? model.entries : []);
+		return Promise.resolve(model === element ? model.entries : []);
 	}
 
 	getParent(tree: ITree, element: any): TPromise<any> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }
 

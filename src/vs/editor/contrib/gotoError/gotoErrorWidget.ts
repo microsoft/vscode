@@ -21,7 +21,7 @@ import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElemen
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { getBaseLabel, getPathLabel } from 'vs/base/common/labels';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Event, Emitter } from 'vs/base/common/event';
 
 class MessageWidget {
@@ -94,11 +94,11 @@ class MessageWidget {
 
 		dom.clearNode(this._relatedBlock);
 
-		if (!isFalsyOrEmpty(relatedInformation)) {
+		if (isNonEmptyArray(relatedInformation)) {
 			this._relatedBlock.style.paddingTop = `${Math.floor(this._editor.getConfiguration().lineHeight * .66)}px`;
 			this._lines += 1;
 
-			for (const related of relatedInformation || []) {
+			for (const related of relatedInformation) {
 
 				let container = document.createElement('div');
 
@@ -125,6 +125,7 @@ class MessageWidget {
 			const sourceElement = document.createElement('div');
 			sourceElement.innerText = `[${source}] `;
 			dom.addClass(sourceElement, 'source');
+			this._editor.applyFontInfo(sourceElement);
 			this._messageBlock.appendChild(sourceElement);
 		}
 		const messageElement = document.createElement('div');
@@ -135,6 +136,7 @@ class MessageWidget {
 			const codeElement = document.createElement('div');
 			codeElement.innerText = ` [${code}]`;
 			dom.addClass(codeElement, 'code');
+			this._editor.applyFontInfo(codeElement);
 			this._messageBlock.appendChild(codeElement);
 		}
 

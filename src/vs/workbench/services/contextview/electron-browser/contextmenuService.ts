@@ -39,7 +39,7 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 		if (actions.length) {
 			const onHide = once(() => {
 				if (delegate.onHide) {
-					delegate.onHide(undefined);
+					delegate.onHide(false);
 				}
 
 				this._onDidContextMenu.fire();
@@ -142,6 +142,6 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 		const context = delegate.getActionsContext ? delegate.getActionsContext(event) : event;
 		const res = actionRunner.run(actionToRun, context) || Promise.resolve(null);
 
-		res.then(null, e => this.notificationService.error(e));
+		res.then(undefined, e => this.notificationService.error(e));
 	}
 }

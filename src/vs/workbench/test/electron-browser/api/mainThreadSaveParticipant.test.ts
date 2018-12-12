@@ -48,25 +48,25 @@ suite('MainThreadSaveParticipant', function () {
 		// No new line for empty lines
 		let lineContent = '';
 		model.textEditorModel.setValue(lineContent);
-		participant.participate(model, { reason: SaveReason.EXPLICIT });
+		await participant.participate(model, { reason: SaveReason.EXPLICIT });
 		assert.equal(snapshotToString(model.createSnapshot()), lineContent);
 
 		// No new line if last line already empty
 		lineContent = `Hello New Line${model.textEditorModel.getEOL()}`;
 		model.textEditorModel.setValue(lineContent);
-		participant.participate(model, { reason: SaveReason.EXPLICIT });
+		await participant.participate(model, { reason: SaveReason.EXPLICIT });
 		assert.equal(snapshotToString(model.createSnapshot()), lineContent);
 
 		// New empty line added (single line)
 		lineContent = 'Hello New Line';
 		model.textEditorModel.setValue(lineContent);
-		participant.participate(model, { reason: SaveReason.EXPLICIT });
+		await participant.participate(model, { reason: SaveReason.EXPLICIT });
 		assert.equal(snapshotToString(model.createSnapshot()), `${lineContent}${model.textEditorModel.getEOL()}`);
 
 		// New empty line added (multi line)
 		lineContent = `Hello New Line${model.textEditorModel.getEOL()}Hello New Line${model.textEditorModel.getEOL()}Hello New Line`;
 		model.textEditorModel.setValue(lineContent);
-		participant.participate(model, { reason: SaveReason.EXPLICIT });
+		await participant.participate(model, { reason: SaveReason.EXPLICIT });
 		assert.equal(snapshotToString(model.createSnapshot()), `${lineContent}${model.textEditorModel.getEOL()}`);
 	});
 
@@ -83,25 +83,25 @@ suite('MainThreadSaveParticipant', function () {
 		// No new line removal if last line is not new line
 		let lineContent = `${textContent}`;
 		model.textEditorModel.setValue(lineContent);
-		participant.participate(model, { reason: SaveReason.EXPLICIT });
+		await participant.participate(model, { reason: SaveReason.EXPLICIT });
 		assert.equal(snapshotToString(model.createSnapshot()), lineContent);
 
 		// No new line removal if last line is single new line
 		lineContent = `${textContent}${eol}`;
 		model.textEditorModel.setValue(lineContent);
-		participant.participate(model, { reason: SaveReason.EXPLICIT });
+		await participant.participate(model, { reason: SaveReason.EXPLICIT });
 		assert.equal(snapshotToString(model.createSnapshot()), lineContent);
 
 		// Remove new line (single line with two new lines)
 		lineContent = `${textContent}${eol}${eol}`;
 		model.textEditorModel.setValue(lineContent);
-		participant.participate(model, { reason: SaveReason.EXPLICIT });
+		await participant.participate(model, { reason: SaveReason.EXPLICIT });
 		assert.equal(snapshotToString(model.createSnapshot()), `${textContent}${eol}`);
 
 		// Remove new lines (multiple lines with multiple new lines)
 		lineContent = `${textContent}${eol}${textContent}${eol}${eol}${eol}`;
 		model.textEditorModel.setValue(lineContent);
-		participant.participate(model, { reason: SaveReason.EXPLICIT });
+		await participant.participate(model, { reason: SaveReason.EXPLICIT });
 		assert.equal(snapshotToString(model.createSnapshot()), `${textContent}${eol}${textContent}${eol}`);
 	});
 
@@ -127,7 +127,7 @@ suite('MainThreadSaveParticipant', function () {
 		assert.equal(snapshotToString(model.createSnapshot()), `${textContent}`);
 
 		// trim final new lines should not mess the undo stack
-		participant.participate(model, { reason: SaveReason.EXPLICIT });
+		await participant.participate(model, { reason: SaveReason.EXPLICIT });
 		model.textEditorModel.redo();
 		assert.equal(snapshotToString(model.createSnapshot()), `${textContent}.`);
 	});
@@ -146,7 +146,7 @@ suite('MainThreadSaveParticipant', function () {
 
 		// save many times
 		for (let i = 0; i < 10; i++) {
-			participant.participate(model, { reason: SaveReason.EXPLICIT });
+			await participant.participate(model, { reason: SaveReason.EXPLICIT });
 		}
 
 		// confirm trimming

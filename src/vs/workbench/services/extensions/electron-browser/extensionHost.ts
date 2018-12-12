@@ -11,16 +11,15 @@ import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { timeout } from 'vs/base/common/async';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event, anyEvent, debounceEvent, fromNodeEventEmitter, mapEvent } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import * as objects from 'vs/base/common/objects';
 import { isWindows } from 'vs/base/common/platform';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IRemoteConsoleLog, log, parse } from 'vs/base/node/console';
-import { findFreePort } from 'vs/base/node/ports';
+import { findFreePort, randomPort } from 'vs/base/node/ports';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
 import { Protocol, generateRandomPipeName } from 'vs/base/parts/ipc/node/ipc.net';
 import { IBroadcast, IBroadcastService } from 'vs/platform/broadcast/electron-browser/broadcastService';
@@ -43,7 +42,7 @@ import { IExtensionDescription } from 'vs/workbench/services/extensions/common/e
 
 export interface IExtensionHostStarter {
 	readonly onCrashed: Event<[number, string]>;
-	start(): TPromise<IMessagePassingProtocol>;
+	start(): Thenable<IMessagePassingProtocol>;
 	getInspectPort(): number;
 	dispose(): void;
 }
@@ -91,9 +90,10 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 	private _inspectPort: number;
 	private _extensionHostProcess: ChildProcess;
 	private _extensionHostConnection: Socket;
-	private _messageProtocol: TPromise<IMessagePassingProtocol>;
+	private _messageProtocol: Promise<IMessagePassingProtocol>;
 
 	constructor(
+		private readonly _autoStart: boolean,
 		private readonly _extensions: Promise<IExtensionDescription[]>,
 		private readonly _extensionHostLogsLocation: URI,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
@@ -125,7 +125,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
 		this._toDispose = [];
 		this._toDispose.push(this._onCrashed);
-		this._toDispose.push(this._lifecycleService.onWillShutdown((e) => this._onWillShutdown(e)));
+		this._toDispose.push(this._lifecycleService.onWillShutdown(e => this._onWillShutdown(e)));
 		this._toDispose.push(this._lifecycleService.onShutdown(reason => this.terminate()));
 		this._toDispose.push(this._broadcastService.onBroadcast(b => this._onBroadcast(b)));
 
@@ -158,14 +158,14 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		}
 	}
 
-	public start(): TPromise<IMessagePassingProtocol> {
+	public start(): Promise<IMessagePassingProtocol> {
 		if (this._terminating) {
 			// .terminate() was called
 			return null;
 		}
 
 		if (!this._messageProtocol) {
-			this._messageProtocol = TPromise.join([this._tryListenOnPipe(), this._tryFindDebugPort()]).then(data => {
+			this._messageProtocol = Promise.all([this._tryListenOnPipe(), this._tryFindDebugPort()]).then(data => {
 				const pipeName = data[0];
 				const portData = data[1];
 
@@ -212,15 +212,15 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 				type Output = { data: string, format: string[] };
 				this._extensionHostProcess.stdout.setEncoding('utf8');
 				this._extensionHostProcess.stderr.setEncoding('utf8');
-				const onStdout = fromNodeEventEmitter<string>(this._extensionHostProcess.stdout, 'data');
-				const onStderr = fromNodeEventEmitter<string>(this._extensionHostProcess.stderr, 'data');
-				const onOutput = anyEvent(
-					mapEvent(onStdout, o => ({ data: `%c${o}`, format: [''] })),
-					mapEvent(onStderr, o => ({ data: `%c${o}`, format: ['color: red'] }))
+				const onStdout = Event.fromNodeEventEmitter<string>(this._extensionHostProcess.stdout, 'data');
+				const onStderr = Event.fromNodeEventEmitter<string>(this._extensionHostProcess.stderr, 'data');
+				const onOutput = Event.any(
+					Event.map(onStdout, o => ({ data: `%c${o}`, format: [''] })),
+					Event.map(onStderr, o => ({ data: `%c${o}`, format: ['color: red'] }))
 				);
 
 				// Debounce all output, so we can render it in the Chrome console as a group
-				const onDebouncedOutput = debounceEvent<Output>(onOutput, (r, o) => {
+				const onDebouncedOutput = Event.debounce<Output>(onOutput, (r, o) => {
 					return r
 						? { data: r.data + o.data, format: [...r.format, ...o.format] }
 						: { data: o.data, format: o.format };
@@ -311,7 +311,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 	 */
 	private _tryFindDebugPort(): Promise<{ expected: number; actual: number }> {
 		let expected: number;
-		let startPort = 9333;
+		let startPort = randomPort();
 		if (typeof this._environmentService.debugExtensionHost.port === 'number') {
 			startPort = expected = this._environmentService.debugExtensionHost.port;
 		}
@@ -412,8 +412,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		});
 	}
 
-	private _createExtHostInitData(): TPromise<IInitData> {
-		return TPromise.join([this._telemetryService.getTelemetryInfo(), this._extensions])
+	private _createExtHostInitData(): Promise<IInitData> {
+		return Promise.all([this._telemetryService.getTelemetryInfo(), this._extensions])
 			.then(([telemetryInfo, extensionDescriptions]) => {
 				const configurationData: IConfigurationInitData = { ...this._configurationService.getConfigurationData(), configurationScopes: {} };
 				const workspace = this._contextService.getWorkspace();
@@ -425,7 +425,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 						appRoot: this._environmentService.appRoot ? URI.file(this._environmentService.appRoot) : void 0,
 						appSettingsHome: this._environmentService.appSettingsHome ? URI.file(this._environmentService.appSettingsHome) : void 0,
 						extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
-						extensionTestsPath: this._environmentService.extensionTestsPath
+						extensionTestsPath: this._environmentService.extensionTestsPath,
+						globalStorageHome: URI.file(this._environmentService.globalStorageHome)
 					},
 					workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : {
 						configuration: workspace.configuration,
@@ -438,7 +439,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 					configuration: !this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment ? { ...configurationData, configurationScopes: getScopes() } : configurationData,
 					telemetryInfo,
 					logLevel: this._logService.getLevel(),
-					logsLocation: this._extensionHostLogsLocation
+					logsLocation: this._extensionHostLogsLocation,
+					autoStart: this._autoStart
 				};
 				return r;
 			});
@@ -563,7 +565,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 				}
 			});
 
-			event.veto(timeout(100 /* wait a bit for IPC to get delivered */).then(() => false));
+			event.join(timeout(100 /* wait a bit for IPC to get delivered */));
 		}
 	}
 }

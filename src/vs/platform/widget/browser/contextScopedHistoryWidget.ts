@@ -30,7 +30,7 @@ export function createAndBindHistoryNavigationWidgetScopedContextKeyService(cont
 
 export class ContextScopedHistoryInputBox extends HistoryInputBox {
 
-	constructor(container: HTMLElement, contextViewProvider: IContextViewProvider, options: IHistoryInputOptions,
+	constructor(container: HTMLElement, contextViewProvider: IContextViewProvider | undefined, options: IHistoryInputOptions,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(container, contextViewProvider, options);
@@ -41,7 +41,7 @@ export class ContextScopedHistoryInputBox extends HistoryInputBox {
 
 export class ContextScopedFindInput extends FindInput {
 
-	constructor(container: HTMLElement, contextViewProvider: IContextViewProvider, options: IFindInputOptions,
+	constructor(container: HTMLElement | null, contextViewProvider: IContextViewProvider, options: IFindInputOptions,
 		@IContextKeyService contextKeyService: IContextKeyService, showFindOptions: boolean = false
 	) {
 		super(container, contextViewProvider, showFindOptions, options);
@@ -57,8 +57,11 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyCode.UpArrow,
 	secondary: [KeyMod.Alt | KeyCode.UpArrow],
 	handler: (accessor, arg2) => {
-		const historyInputBox: IHistoryNavigationWidget = getContextScopedWidget<IContextScopedHistoryNavigationWidget>(accessor.get(IContextKeyService), HistoryNavigationWidgetContext).historyNavigator;
-		historyInputBox.showPreviousValue();
+		const widget = getContextScopedWidget<IContextScopedHistoryNavigationWidget>(accessor.get(IContextKeyService), HistoryNavigationWidgetContext);
+		if (widget) {
+			const historyInputBox: IHistoryNavigationWidget = widget.historyNavigator;
+			historyInputBox.showPreviousValue();
+		}
 	}
 });
 
@@ -69,7 +72,10 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyCode.DownArrow,
 	secondary: [KeyMod.Alt | KeyCode.DownArrow],
 	handler: (accessor, arg2) => {
-		const historyInputBox: IHistoryNavigationWidget = getContextScopedWidget<IContextScopedHistoryNavigationWidget>(accessor.get(IContextKeyService), HistoryNavigationWidgetContext).historyNavigator;
-		historyInputBox.showNextValue();
+		const widget = getContextScopedWidget<IContextScopedHistoryNavigationWidget>(accessor.get(IContextKeyService), HistoryNavigationWidgetContext);
+		if (widget) {
+			const historyInputBox: IHistoryNavigationWidget = widget.historyNavigator;
+			historyInputBox.showNextValue();
+		}
 	}
 });

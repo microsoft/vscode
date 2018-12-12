@@ -158,9 +158,10 @@ export class ExtHostSearch implements ExtHostSearchShape {
 			this._internalFileSearchProvider.clearCache(cacheKey);
 		}
 
-		// Actually called once per provider.
-		// Only relevant to file index search.
-		return this._fileIndexSearchManager.clearCache(cacheKey);
+		this._fileSearchManager.clearCache(cacheKey);
+		this._fileIndexSearchManager.clearCache(cacheKey);
+
+		return Promise.resolve(undefined);
 	}
 
 	$provideTextSearchResults(handle: number, session: number, rawQuery: IRawTextQuery, token: CancellationToken): Thenable<ISearchCompleteStats> {

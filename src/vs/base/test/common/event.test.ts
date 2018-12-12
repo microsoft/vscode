@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { Event, Emitter, debounceEvent, EventBufferer, once, fromPromise, stopwatch, buffer, echo, EventMultiplexer, latch, AsyncEmitter, IWaitUntil } from 'vs/base/common/event';
+import { Event, Emitter, EventBufferer, EventMultiplexer, AsyncEmitter, IWaitUntil } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as Errors from 'vs/base/common/errors';
 import { timeout } from 'vs/base/common/async';
@@ -153,7 +153,7 @@ suite('Event', function () {
 	test('Debounce Event', function (done: () => void) {
 		let doc = new Samples.Document3();
 
-		let onDocDidChange = debounceEvent(doc.onDidChange, (prev: string[], cur) => {
+		let onDocDidChange = Event.debounce(doc.onDidChange, (prev: string[], cur) => {
 			if (!prev) {
 				prev = [cur];
 			} else if (prev.indexOf(cur) < 0) {
@@ -183,7 +183,7 @@ suite('Event', function () {
 
 	test('Debounce Event - leading', async function () {
 		const emitter = new Emitter<void>();
-		let debounced = debounceEvent(emitter.event, (l, e) => e, 0, /*leading=*/true);
+		let debounced = Event.debounce(emitter.event, (l, e) => e, 0, /*leading=*/true);
 
 		let calls = 0;
 		debounced(() => {
@@ -199,7 +199,7 @@ suite('Event', function () {
 
 	test('Debounce Event - leading', async function () {
 		const emitter = new Emitter<void>();
-		let debounced = debounceEvent(emitter.event, (l, e) => e, 0, /*leading=*/true);
+		let debounced = Event.debounce(emitter.event, (l, e) => e, 0, /*leading=*/true);
 
 		let calls = 0;
 		debounced(() => {
@@ -384,8 +384,8 @@ suite('Event utils', () => {
 			let counter1 = 0, counter2 = 0, counter3 = 0;
 
 			const listener1 = emitter.event(() => counter1++);
-			const listener2 = once(emitter.event)(() => counter2++);
-			const listener3 = once(emitter.event)(() => counter3++);
+			const listener2 = Event.once(emitter.event)(() => counter2++);
+			const listener3 = Event.once(emitter.event)(() => counter3++);
 
 			assert.equal(counter1, 0);
 			assert.equal(counter2, 0);
@@ -412,7 +412,7 @@ suite('Event utils', () => {
 		test('should emit when done', async () => {
 			let count = 0;
 
-			const event = fromPromise(Promise.resolve(null));
+			const event = Event.fromPromise(Promise.resolve(null));
 			event(() => count++);
 
 			assert.equal(count, 0);
@@ -425,7 +425,7 @@ suite('Event utils', () => {
 			let count = 0;
 
 			const promise = timeout(5);
-			const event = fromPromise(promise);
+			const event = Event.fromPromise(promise);
 			event(() => count++);
 
 			assert.equal(count, 0);
@@ -438,7 +438,7 @@ suite('Event utils', () => {
 
 		test('should emit', () => {
 			const emitter = new Emitter<void>();
-			const event = stopwatch(emitter.event);
+			const event = Event.stopwatch(emitter.event);
 
 			return new Promise((c, e) => {
 				event(duration => {
@@ -462,7 +462,7 @@ suite('Event utils', () => {
 			const result: number[] = [];
 			const emitter = new Emitter<number>();
 			const event = emitter.event;
-			const bufferedEvent = buffer(event);
+			const bufferedEvent = Event.buffer(event);
 
 			emitter.fire(1);
 			emitter.fire(2);
@@ -484,7 +484,7 @@ suite('Event utils', () => {
 			const result: number[] = [];
 			const emitter = new Emitter<number>();
 			const event = emitter.event;
-			const bufferedEvent = buffer(event, true);
+			const bufferedEvent = Event.buffer(event, true);
 
 			emitter.fire(1);
 			emitter.fire(2);
@@ -506,7 +506,7 @@ suite('Event utils', () => {
 			const result: number[] = [];
 			const emitter = new Emitter<number>();
 			const event = emitter.event;
-			const bufferedEvent = buffer(event, false, [-2, -1, 0]);
+			const bufferedEvent = Event.buffer(event, false, [-2, -1, 0]);
 
 			emitter.fire(1);
 			emitter.fire(2);
@@ -524,7 +524,7 @@ suite('Event utils', () => {
 			const result: number[] = [];
 			const emitter = new Emitter<number>();
 			const event = emitter.event;
-			const echoEvent = echo(event);
+			const echoEvent = Event.echo(event);
 
 			emitter.fire(1);
 			emitter.fire(2);
@@ -547,7 +547,7 @@ suite('Event utils', () => {
 			const result2: number[] = [];
 			const emitter = new Emitter<number>();
 			const event = emitter.event;
-			const echoEvent = echo(event);
+			const echoEvent = Event.echo(event);
 
 			emitter.fire(1);
 			emitter.fire(2);
@@ -744,7 +744,7 @@ suite('Event utils', () => {
 
 	test('latch', () => {
 		const emitter = new Emitter<number>();
-		const event = latch(emitter.event);
+		const event = Event.latch(emitter.event);
 
 		const result: number[] = [];
 		const listener = event(num => result.push(num));

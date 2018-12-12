@@ -12,6 +12,7 @@ import commonSchema from './jsonSchemaCommon';
 import { ProblemMatcherRegistry } from 'vs/workbench/parts/tasks/common/problemMatcher';
 import { TaskDefinitionRegistry } from '../common/taskDefinitionRegistry';
 import * as ConfigurationResolverUtils from 'vs/workbench/services/configurationResolver/common/configurationResolverUtils';
+import { inputsSchema } from 'vs/workbench/services/configurationResolver/common/configurationResolverSchema';
 
 function fixReferences(literal: any) {
 	if (Array.isArray(literal)) {
@@ -281,6 +282,24 @@ const identifier: IJSONSchema = {
 	deprecationMessage: nls.localize('JsonSchema.tasks.identifier.deprecated', 'User defined identifiers are deprecated. For custom task use the name as a reference and for tasks provided by extensions use their defined task identifier.')
 };
 
+const runOptions: IJSONSchema = {
+	type: 'object',
+	properties: {
+		reevaluateOnRerun: {
+			type: 'boolean',
+			description: nls.localize('JsonSchema.tasks.reevaluateOnRerun', 'Whether to reevaluate task variables on rerun.'),
+			default: true
+		},
+		runOn: {
+			type: 'string',
+			enum: ['default', 'folderOpen'],
+			description: nls.localize('JsonSchema.tasks.runOn', 'Configures when the task should be run. If set to folderOpen, then the task will be run automatically when the folder is opened.'),
+			default: 'default'
+		},
+	},
+	description: nls.localize('JsonSchema.tasks.runOptions', 'The task\'s run related options')
+};
+
 const options: IJSONSchema = Objects.deepClone(commonSchema.definitions.options);
 options.properties.shell = Objects.deepClone(commonSchema.definitions.shellConfiguration);
 
@@ -314,7 +333,8 @@ let taskConfiguration: IJSONSchema = {
 		problemMatcher: {
 			$ref: '#/definitions/problemMatcherType',
 			description: nls.localize('JsonSchema.tasks.matchers', 'The problem matcher(s) to use. Can either be a string or a problem matcher definition or an array of strings and problem matchers.')
-		}
+		},
+		runOptions: Objects.deepClone(runOptions),
 	}
 };
 
@@ -362,6 +382,7 @@ taskDescription.properties.type = Objects.deepClone(taskType);
 taskDescription.properties.presentation = Objects.deepClone(presentation);
 taskDescription.properties.terminal = terminal;
 taskDescription.properties.group = Objects.deepClone(group);
+taskDescription.properties.runOptions = Objects.deepClone(runOptions);
 taskDescription.properties.taskName.deprecationMessage = nls.localize(
 	'JsonSchema.tasks.taskName.deprecated',
 	'The task\'s name property is deprecated. Use the label property instead.'
@@ -393,6 +414,7 @@ definitions.taskDescription.properties.isTestCommand.deprecationMessage = nls.lo
 	'The property isTestCommand is deprecated. Use the group property instead. See also the 1.14 release notes.'
 );
 
+
 taskDefinitions.push({
 	$ref: '#/definitions/taskDescription'
 } as IJSONSchema);
@@ -401,6 +423,9 @@ let tasks = definitions.taskRunnerConfiguration.properties.tasks;
 tasks.items = {
 	oneOf: taskDefinitions
 };
+
+
+definitions.taskRunnerConfiguration.properties.inputs = inputsSchema.definitions.inputs;
 
 definitions.commandConfiguration.properties.isShellCommand = Objects.deepClone(shellCommand);
 definitions.options.properties.shell = {

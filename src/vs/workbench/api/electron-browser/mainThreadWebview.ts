@@ -19,6 +19,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorG
 import * as vscode from 'vscode';
 import { extHostNamedCustomer } from './extHostCustomers';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 @extHostNamedCustomer(MainContext.MainThreadWebviews)
 export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviver {
@@ -53,8 +54,8 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 
 		this._toDispose.push(_webviewService.registerReviver(MainThreadWebviews.viewType, this));
 
-		lifecycleService.onWillShutdown(e => {
-			e.veto(this._onWillShutdown());
+		lifecycleService.onBeforeShutdown(e => {
+			e.veto(this._onBeforeShutdown());
 		}, this, this._toDispose);
 	}
 
@@ -169,7 +170,9 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 			}
 
 			return this._proxy.$deserializeWebviewPanel(handle, webview.state.viewType, webview.getTitle(), state, editorGroupToViewColumn(this._editorGroupService, webview.group), webview.options)
-				.then(undefined, () => {
+				.then(undefined, error => {
+					onUnexpectedError(error);
+
 					webview.html = MainThreadWebviews.getDeserializationFailedContents(viewType);
 				});
 		}));
@@ -183,7 +186,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		return this._revivers.has(webview.state.viewType) || !!webview.reviver;
 	}
 
-	private _onWillShutdown(): boolean {
+	private _onBeforeShutdown(): boolean {
 		this._webviews.forEach((view) => {
 			if (this.canRevive(view)) {
 				view.state.state = view.webviewState;

@@ -186,11 +186,11 @@ export abstract class PeekViewWidget extends ZoneWidget {
 	}
 
 	protected _doLayoutHead(heightInPixel: number, widthInPixel: number): void {
-		this._headElement.style.height = strings.format('{0}px', heightInPixel);
+		this._headElement.style.height = `${heightInPixel}px`;
 		this._headElement.style.lineHeight = this._headElement.style.height;
 	}
 
 	protected _doLayoutBody(heightInPixel: number, widthInPixel: number): void {
-		this._bodyElement.style.height = strings.format('{0}px', heightInPixel);
+		this._bodyElement.style.height = `${heightInPixel}px`;
 	}
 }

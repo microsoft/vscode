@@ -17,6 +17,7 @@ import { values } from 'vs/base/common/map';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IAction } from 'vs/base/common/actions';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 export const TEST_VIEW_CONTAINER_ID = 'workbench.view.extension.test';
 
@@ -119,6 +120,7 @@ export interface IViewDescriptor {
 export interface IViewDescriptorCollection {
 	readonly onDidChangeActiveViews: Event<{ added: IViewDescriptor[], removed: IViewDescriptor[] }>;
 	readonly activeViewDescriptors: IViewDescriptor[];
+	readonly allViewDescriptors: IViewDescriptor[];
 }
 
 export interface IViewsRegistry {
@@ -234,11 +236,13 @@ export interface IViewsService {
 
 // Custom views
 
-export interface ITreeViewer extends IDisposable {
+export interface ITreeView extends IDisposable {
 
 	dataProvider: ITreeViewDataProvider;
 
 	showCollapseAllAction: boolean;
+
+	message: string | IMarkdownString;
 
 	readonly visible: boolean;
 
@@ -289,7 +293,7 @@ export interface IRevealOptions {
 
 export interface ICustomViewDescriptor extends IViewDescriptor {
 
-	readonly treeViewer: ITreeViewer;
+	readonly treeView: ITreeView;
 
 }
 
@@ -321,6 +325,8 @@ export interface ITreeItem {
 	collapsibleState: TreeItemCollapsibleState;
 
 	label?: ITreeItemLabel;
+
+	description?: string | boolean;
 
 	icon?: UriComponents;
 

@@ -296,14 +296,14 @@ class UpdateImportsOnFileRenameHandler {
 				start: change.start,
 				end: {
 					line: change.end.line,
-					offset: change.end.offset - match[1].length
-				}
+					offset: change.end.offset - match[1].length,
+				},
 			};
 		});
 
 		return {
 			fileName: edit.fileName,
-			textChanges
+			textChanges,
 		};
 	}
 }

@@ -9,9 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { TerminateResponse } from 'vs/base/common/processes';
 import { Event } from 'vs/base/common/event';
 import { Platform } from 'vs/base/common/platform';
-
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-
 import { Task, TaskEvent, KeyedTaskIdentifier } from './tasks';
 
 export const enum TaskErrors {
@@ -85,6 +83,7 @@ export const enum TaskExecuteKind {
 export interface ITaskExecuteResult {
 	kind: TaskExecuteKind;
 	promise: TPromise<ITaskSummary>;
+	task: Task;
 	started?: {
 		restartOnFileChanges?: string;
 	};
@@ -120,7 +119,7 @@ export interface TaskSystemInfo {
 	platform: Platform;
 	context: any;
 	uriProvider: (this: void, path: string) => URI;
-	resolveVariables(workspaceFolder: IWorkspaceFolder, toResolve: ResolveSet): TPromise<ResolvedVariables>;
+	resolveVariables(workspaceFolder: IWorkspaceFolder, toResolve: ResolveSet): Promise<ResolvedVariables>;
 }
 
 export interface TaskSystemInfoResovler {
@@ -130,6 +129,7 @@ export interface TaskSystemInfoResovler {
 export interface ITaskSystem {
 	onDidStateChange: Event<TaskEvent>;
 	run(task: Task, resolver: ITaskResolver): ITaskExecuteResult;
+	rerun(): ITaskExecuteResult | undefined;
 	isActive(): TPromise<boolean>;
 	isActiveSync(): boolean;
 	getActiveTasks(): Task[];

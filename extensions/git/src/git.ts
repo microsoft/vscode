@@ -822,14 +822,30 @@ export class Repository {
 		}
 	}
 
-	async diff(path: string, cached = false): Promise<string> {
+	async apply(patch: string, reverse?: boolean): Promise<void> {
+		const args = ['apply', patch];
+
+		if (reverse) {
+			args.push('-R');
+		}
+
+		try {
+			await this.run(args);
+		} catch (err) {
+			if (/patch does not apply/.test(err.stderr)) {
+				err.gitErrorCode = GitErrorCodes.PatchDoesNotApply;
+			}
+
+			throw err;
+		}
+	}
+
+	async diff(cached = false): Promise<string> {
 		const args = ['diff'];
 
 		if (cached) {
 			args.push('--cached');
 		}
-
-		args.push('--', path);
 
 		const result = await this.run(args);
 		return result.stdout;
@@ -1106,14 +1122,7 @@ export class Repository {
 	}
 
 	async reset(treeish: string, hard: boolean = false): Promise<void> {
-		const args = ['reset'];
-
-		if (hard) {
-			args.push('--hard');
-		}
-
-		args.push(treeish);
-
+		const args = ['reset', hard ? '--hard' : '--soft', treeish];
 		await this.run(args);
 	}
 
@@ -1157,7 +1166,7 @@ export class Repository {
 		await this.run(args);
 	}
 
-	async fetch(options: { remote?: string, ref?: string, all?: boolean } = {}): Promise<void> {
+	async fetch(options: { remote?: string, ref?: string, all?: boolean, prune?: boolean } = {}): Promise<void> {
 		const args = ['fetch'];
 
 		if (options.remote) {
@@ -1169,6 +1178,11 @@ export class Repository {
 		} else if (options.all) {
 			args.push('--all');
 		}
+
+		if (options.prune) {
+			args.push('--prune');
+		}
+
 
 		try {
 			await this.run(args);

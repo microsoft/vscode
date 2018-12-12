@@ -21,9 +21,9 @@ import { attachMenuStyler } from 'vs/platform/theme/common/styler';
 import { domEvent } from 'vs/base/browser/event';
 
 export class ContextMenuHandler {
-	private element: HTMLElement;
+	private element: HTMLElement | null;
 	private elementDisposable: IDisposable;
-	private menuContainerElement: HTMLElement;
+	private menuContainerElement: HTMLElement | null;
 	private focusToReturn: HTMLElement;
 
 	constructor(
@@ -37,7 +37,7 @@ export class ContextMenuHandler {
 		this.setContainer(element);
 	}
 
-	setContainer(container: HTMLElement): void {
+	setContainer(container: HTMLElement | null): void {
 		if (this.element) {
 			this.elementDisposable = dispose(this.elementDisposable);
 			this.element = null;
@@ -57,9 +57,12 @@ export class ContextMenuHandler {
 
 		this.focusToReturn = document.activeElement as HTMLElement;
 
+		let menu: Menu | undefined;
+
 		this.contextViewService.showContextView({
 			getAnchor: () => delegate.getAnchor(),
 			canRelayout: false,
+			anchorAlignment: delegate.anchorAlignment,
 
 			render: (container) => {
 				this.menuContainerElement = container;
@@ -76,7 +79,7 @@ export class ContextMenuHandler {
 				actionRunner.onDidBeforeRun(this.onActionRun, this, menuDisposables);
 				actionRunner.onDidRun(this.onDidActionRun, this, menuDisposables);
 
-				const menu = new Menu(container, actions, {
+				menu = new Menu(container, actions, {
 					actionItemProvider: delegate.getActionItem,
 					context: delegate.getActionsContext ? delegate.getActionsContext() : null,
 					actionRunner,
@@ -89,14 +92,18 @@ export class ContextMenuHandler {
 				menu.onDidBlur(() => this.contextViewService.hideContextView(true), null, menuDisposables);
 				domEvent(window, EventType.BLUR)(() => { this.contextViewService.hideContextView(true); }, null, menuDisposables);
 
-				menu.focus(!!delegate.autoSelectFirstItem);
-
 				return combinedDisposable([...menuDisposables, menu]);
+			},
+
+			focus: () => {
+				if (menu) {
+					menu.focus(!!delegate.autoSelectFirstItem);
+				}
 			},
 
 			onHide: (didCancel?: boolean) => {
 				if (delegate.onHide) {
-					delegate.onHide(didCancel);
+					delegate.onHide(!!didCancel);
 				}
 
 				this.menuContainerElement = null;
@@ -135,7 +142,7 @@ export class ContextMenuHandler {
 		}
 
 		let event = new StandardMouseEvent(e);
-		let element = event.target;
+		let element: HTMLElement | null = event.target;
 
 		while (element) {
 			if (element === this.menuContainerElement) {

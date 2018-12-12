@@ -464,7 +464,7 @@ Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescri
 ));
 
 // Register view location updater
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(SearchViewLocationUpdater, LifecyclePhase.Restoring);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(SearchViewLocationUpdater, LifecyclePhase.Starting);
 
 // Actions
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
@@ -673,7 +673,17 @@ configurationRegistry.registerConfiguration({
 		'search.usePCRE2': {
 			type: 'boolean',
 			default: false,
-			description: nls.localize('search.usePCRE2', "Whether to use the PCRE2 regex engine in text search. This enables using some advanced regex features like lookbehind and backreferences. However, not all PCRE2 features are supported - only features that are also supported by JavaScript.")
+			description: nls.localize('search.usePCRE2', "Whether to use the PCRE2 regex engine in text search. This enables using some advanced regex features like lookahead and backreferences. However, not all PCRE2 features are supported - only features that are also supported by JavaScript.")
+		},
+		'search.actionsPosition': {
+			type: 'string',
+			enum: ['auto', 'right'],
+			enumDescriptions: [
+				nls.localize('search.actionsPositionAuto', "Position the actionbar to the right when the search view is narrow, and immediately after the content when the search view is wide."),
+				nls.localize('search.actionsPositionRight', "Always position the actionbar to the right."),
+			],
+			default: 'auto',
+			description: nls.localize('search.actionsPosition', "Controls the positioning of the actionbar on rows in the search view.")
 		}
 	}
 });

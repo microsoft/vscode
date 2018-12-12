@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Panel } from 'vs/workbench/browser/panel';
 import { EditorInput, EditorOptions, IEditor, GroupIdentifier, IEditorMemento } from 'vs/workbench/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -13,7 +12,7 @@ import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/group/
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { LRUCache } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
-import { once, Event } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { isEmptyObject } from 'vs/base/common/types';
 import { DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 
@@ -42,8 +41,8 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; }> = Event.None;
 
 	protected _input: EditorInput;
+	protected _options: EditorOptions;
 
-	private _options: EditorOptions;
 	private _group: IEditorGroup;
 
 	constructor(
@@ -82,7 +81,7 @@ export abstract class BaseEditor extends Panel implements IEditor {
 		this._input = input;
 		this._options = options;
 
-		return TPromise.wrap<void>(null);
+		return Promise.resolve();
 	}
 
 	/**
@@ -206,7 +205,7 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 
 		// Automatically clear when editor input gets disposed if any
 		if (resourceOrEditor instanceof EditorInput) {
-			once(resourceOrEditor.onDispose)(() => {
+			Event.once(resourceOrEditor.onDispose)(() => {
 				this.clearEditorState(resource);
 			});
 		}

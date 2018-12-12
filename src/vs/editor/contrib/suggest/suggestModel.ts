@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -16,7 +16,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
 import { CompletionItemProvider, StandardTokenType, CompletionContext, CompletionProviderRegistry, CompletionTriggerKind } from 'vs/editor/common/modes';
 import { CompletionModel } from './completionModel';
-import { ISuggestionItem, getSuggestionComparator, provideSuggestionItems, getSnippetSuggestSupport } from './suggest';
+import { CompletionItem, getSuggestionComparator, provideSuggestionItems, getSnippetSuggestSupport } from './suggest';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
@@ -193,10 +193,7 @@ export class SuggestModel implements IDisposable {
 
 		const supportsByTriggerCharacter: { [ch: string]: Set<CompletionItemProvider> } = Object.create(null);
 		for (const support of CompletionProviderRegistry.all(this._editor.getModel())) {
-			if (isFalsyOrEmpty(support.triggerCharacters)) {
-				continue;
-			}
-			for (const ch of support.triggerCharacters) {
+			for (const ch of support.triggerCharacters || []) {
 				let set = supportsByTriggerCharacter[ch];
 				if (!set) {
 					set = supportsByTriggerCharacter[ch] = new Set();
@@ -213,7 +210,7 @@ export class SuggestModel implements IDisposable {
 			if (supports) {
 				// keep existing items that where not computed by the
 				// supports/providers that want to trigger now
-				const items: ISuggestionItem[] = this._completionModel ? this._completionModel.adopt(supports) : undefined;
+				const items: CompletionItem[] = this._completionModel ? this._completionModel.adopt(supports) : undefined;
 				this.trigger({ auto: true, triggerCharacter: lastChar }, Boolean(this._completionModel), values(supports), items);
 			}
 		});
@@ -226,23 +223,19 @@ export class SuggestModel implements IDisposable {
 	}
 
 	cancel(retrigger: boolean = false): void {
-
-		this._triggerRefilter.cancel();
-
-		if (this._triggerQuickSuggest) {
+		if (this._state !== State.Idle) {
+			this._triggerRefilter.cancel();
 			this._triggerQuickSuggest.cancel();
+			if (this._requestToken) {
+				this._requestToken.cancel();
+				this._requestToken = undefined;
+			}
+			this._state = State.Idle;
+			dispose(this._completionModel);
+			this._completionModel = null;
+			this._context = null;
+			this._onDidCancel.fire({ retrigger });
 		}
-
-		if (this._requestToken) {
-			this._requestToken.cancel();
-		}
-
-		this._state = State.Idle;
-		dispose(this._completionModel);
-		this._completionModel = null;
-		this._context = null;
-
-		this._onDidCancel.fire({ retrigger });
 	}
 
 	private _updateActiveSuggestSession(): void {
@@ -353,7 +346,7 @@ export class SuggestModel implements IDisposable {
 		}
 	}
 
-	trigger(context: SuggestTriggerContext, retrigger: boolean = false, onlyFrom?: CompletionItemProvider[], existingItems?: ISuggestionItem[]): void {
+	trigger(context: SuggestTriggerContext, retrigger: boolean = false, onlyFrom?: CompletionItemProvider[], existingItems?: CompletionItem[]): void {
 
 		const model = this._editor.getModel();
 
@@ -386,8 +379,6 @@ export class SuggestModel implements IDisposable {
 
 		this._requestToken = new CancellationTokenSource();
 
-		// TODO: Remove this workaround - https://github.com/Microsoft/vscode/issues/61917
-		// let wordDistance = Promise.resolve().then(() => WordDistance.create(this._editorWorker, this._editor));
 		let wordDistance = WordDistance.create(this._editorWorker, this._editor);
 
 		let items = provideSuggestionItems(
@@ -411,7 +402,7 @@ export class SuggestModel implements IDisposable {
 				return;
 			}
 
-			if (!isFalsyOrEmpty(existingItems)) {
+			if (isNonEmptyArray(existingItems)) {
 				const cmpFn = getSuggestionComparator(this._editor.getConfiguration().contribInfo.suggest.snippets);
 				items = items.concat(existingItems).sort(cmpFn);
 			}

@@ -240,7 +240,7 @@ CommandsRegistry.registerCommand({
 			.filter(resource => resource.scheme !== Schemas.untitled);
 
 		if (resources.length) {
-			return textFileService.revertAll(resources, { force: true }).then(null, error => {
+			return textFileService.revertAll(resources, { force: true }).then(void 0, error => {
 				notificationService.error(nls.localize('genericRevertError', "Failed to revert '{0}': {1}", resources.map(r => paths.basename(r.fsPath)).join(', '), toErrorMessage(error, false)));
 			});
 		}

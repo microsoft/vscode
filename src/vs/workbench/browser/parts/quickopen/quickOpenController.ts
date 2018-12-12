@@ -456,7 +456,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 				if (resolvedHandler.hasShortResponseTime()) {
 					responseDelay = timeout(QuickOpenController.MAX_SHORT_RESPONSE_TIME);
 				} else {
-					responseDelay = Promise.resolve(void 0);
+					responseDelay = Promise.resolve();
 				}
 
 				responseDelay.then(() => {

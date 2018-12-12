@@ -247,13 +247,9 @@ export class MarkerRenderer implements ITreeRenderer<Marker, MarkerFilterData, I
 		templateData.description.element.title = marker.message;
 
 		dom.toggleClass(templateData.code.element, 'marker-code', !!marker.code);
-		templateData.code.set(marker.code || '', codeMatches);
+		templateData.code.set(marker.code, codeMatches);
 
 		templateData.lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(marker.startLineNumber, marker.startColumn);
-	}
-
-	disposeElement(): void {
-		// noop
 	}
 
 	disposeTemplate(templateData: IMarkerTemplateData): void {
@@ -312,10 +308,6 @@ export class RelatedInformationRenderer implements ITreeRenderer<RelatedInformat
 		templateData.lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(relatedInformation.startLineNumber, relatedInformation.startColumn);
 		templateData.description.set(relatedInformation.message, messageMatches);
 		templateData.description.element.title = relatedInformation.message;
-	}
-
-	disposeElement(): void {
-		// noop
 	}
 
 	disposeTemplate(templateData: IRelatedInformationTemplateData): void {

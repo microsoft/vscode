@@ -1,0 +1,152 @@
+steps:
+- task: NodeTool@0
+  inputs:
+    versionSpec: "8.12.0"
+
+- task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+  inputs:
+    versionSpec: "1.10.1"
+
+- task: UsePythonVersion@0
+  inputs:
+    versionSpec: '2.x'
+    addToPath: true
+
+- powershell: |
+    . build/azure-pipelines/win32/exec.ps1
+    $ErrorActionPreference = "Stop"
+    "machine monacotools.visualstudio.com password $(VSO_PAT)" | Out-File "$env:USERPROFILE\_netrc" -Encoding ASCII
+    $env:npm_config_arch="$(VSCODE_ARCH)"
+    $env:CHILD_CONCURRENCY="1"
+    $env:VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)"
+    exec { yarn }
+    exec { npm run gulp -- hygiene }
+    exec { npm run monaco-compile-check }
+    exec { npm run strict-null-check }
+    exec { npm run gulp -- mixin }
+    exec { node build/azure-pipelines/common/installDistro.js }
+    exec { node build/lib/builtInExtensions.js }
+
+- powershell: |
+    . build/azure-pipelines/win32/exec.ps1
+    $ErrorActionPreference = "Stop"
+    $env:VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)"
+    exec { npm run gulp -- "vscode-win32-$(VSCODE_ARCH)-min" }
+    exec { npm run gulp -- "vscode-win32-$(VSCODE_ARCH)-inno-updater" }
+  name: build
+
+- powershell: |
+    . build/azure-pipelines/win32/exec.ps1
+    $ErrorActionPreference = "Stop"
+    exec { npm run gulp -- "electron-$(VSCODE_ARCH)" }
+    exec { .\scripts\test.bat --build --tfs "Unit Tests" }
+    # yarn smoketest -- --build "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
+  name: test
+
+- task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
+  inputs:
+    ConnectedServiceName: 'ESRP CodeSign'
+    FolderPath: '$(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)'
+    Pattern: '*.dll,*.exe,*.node'
+    signConfigType: inlineSignParams
+    inlineOperation: |
+      [
+        {
+          "keyCode": "CP-230012",
+          "operationSetCode": "SigntoolSign",
+          "parameters": [
+            {
+              "parameterName": "OpusName",
+              "parameterValue": "VS Code"
+            },
+            {
+              "parameterName": "OpusInfo",
+              "parameterValue": "https://code.visualstudio.com/"
+            },
+            {
+              "parameterName": "Append",
+              "parameterValue": "/as"
+            },
+            {
+              "parameterName": "FileDigest",
+              "parameterValue": "/fd \"SHA256\""
+            },
+            {
+              "parameterName": "PageHash",
+              "parameterValue": "/NPH"
+            },
+            {
+              "parameterName": "TimeStamp",
+              "parameterValue": "/tr \"http://rfc3161.gtm.corp.microsoft.com/TSS/HttpTspServer\" /td sha256"
+            }
+          ],
+          "toolName": "sign",
+          "toolVersion": "1.0"
+        },
+        {
+          "keyCode": "CP-230012",
+          "operationSetCode": "SigntoolVerify",
+          "parameters": [
+            {
+              "parameterName": "VerifyAll",
+              "parameterValue": "/all"
+            }
+          ],
+          "toolName": "sign",
+          "toolVersion": "1.0"
+        }
+      ]
+    SessionTimeout: 120
+
+- task: NuGetCommand@2
+  displayName: Install ESRPClient.exe
+  inputs:
+    restoreSolution: 'build\azure-pipelines\win32\ESRPClient\packages.config'
+    feedsToUse: config
+    nugetConfigPath: 'build\azure-pipelines\win32\ESRPClient\NuGet.config'
+    externalFeedCredentials: 3fc0b7f7-da09-4ae7-a9c8-d69824b1819b
+    restoreDirectory: packages
+
+- task: ESRPImportCertTask@1
+  displayName: Import ESRP Request Signing Certificate
+  inputs:
+    ESRP: 'ESRP CodeSign'
+
+- powershell: |
+    $ErrorActionPreference = "Stop"
+    .\build\azure-pipelines\win32\import-esrp-auth-cert.ps1 -AuthCertificateBase64 $(ESRP_AUTH_CERTIFICATE) -AuthCertificateKey $(ESRP_AUTH_CERTIFICATE_KEY)
+  displayName: Import ESRP Auth Certificate
+
+- powershell: |
+    . build/azure-pipelines/win32/exec.ps1
+    $ErrorActionPreference = "Stop"
+    exec { npm run gulp -- "vscode-win32-$(VSCODE_ARCH)-archive" "vscode-win32-$(VSCODE_ARCH)-system-setup" "vscode-win32-$(VSCODE_ARCH)-user-setup" --sign }
+
+    $Repo = "$(pwd)"
+    $Root = "$Repo\.."
+    $SystemExe = "$Repo\.build\win32-$(VSCODE_ARCH)\system-setup\VSCodeSetup.exe"
+    $UserExe = "$Repo\.build\win32-$(VSCODE_ARCH)\user-setup\VSCodeSetup.exe"
+    $Zip = "$Repo\.build\win32-$(VSCODE_ARCH)\archive\VSCode-win32-$(VSCODE_ARCH).zip"
+    $Build = "$Root\VSCode-win32-$(VSCODE_ARCH)"
+
+    # get version
+    $PackageJson = Get-Content -Raw -Path "$Build\resources\app\package.json" | ConvertFrom-Json
+    $Version = $PackageJson.version
+    $Quality = "$env:VSCODE_QUALITY"
+    $env:AZURE_STORAGE_ACCESS_KEY_2 = "$(AZURE_STORAGE_ACCESS_KEY_2)"
+    $env:MOONCAKE_STORAGE_ACCESS_KEY = "$(MOONCAKE_STORAGE_ACCESS_KEY)"
+    $env:AZURE_DOCUMENTDB_MASTERKEY = "$(AZURE_DOCUMENTDB_MASTERKEY)"
+
+    $assetPlatform = if ("$(VSCODE_ARCH)" -eq "ia32") { "win32" } else { "win32-x64" }
+
+    exec { node build/azure-pipelines/common/publish.js $Quality "$global:assetPlatform-archive" archive "VSCode-win32-$(VSCODE_ARCH)-$Version.zip" $Version true $Zip }
+    exec { node build/azure-pipelines/common/publish.js $Quality "$global:assetPlatform" setup "VSCodeSetup-$(VSCODE_ARCH)-$Version.exe" $Version true $SystemExe }
+    exec { node build/azure-pipelines/common/publish.js $Quality "$global:assetPlatform-user" setup "VSCodeUserSetup-$(VSCODE_ARCH)-$Version.exe" $Version true $UserExe }
+
+    # publish hockeyapp symbols
+    $hockeyAppId = if ("$(VSCODE_ARCH)" -eq "ia32") { "$(VSCODE_HOCKEYAPP_ID_WIN32)" } else { "$(VSCODE_HOCKEYAPP_ID_WIN64)" }
+    exec { node build/azure-pipelines/common/symbols.js "$(VSCODE_MIXIN_PASSWORD)" "$(VSCODE_HOCKEYAPP_TOKEN)" "$(VSCODE_ARCH)" $hockeyAppId }
+
+- task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
+  displayName: 'Component Detection'
+  continueOnError: true

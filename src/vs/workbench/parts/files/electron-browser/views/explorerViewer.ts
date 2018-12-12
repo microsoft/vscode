@@ -115,7 +115,7 @@ export class FileDataSource implements IDataSource {
 				return []; // we could not resolve any children because of an error
 			});
 
-			this.progressService.showWhile(promise, this.partService.isCreated() ? 800 : 3200 /* less ugly initial startup */);
+			this.progressService.showWhile(promise, this.partService.isRestored() ? 800 : 3200 /* less ugly initial startup */);
 
 			return promise;
 		}
@@ -1068,7 +1068,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 			// Otherwise move
 			const targetResource = resources.joinPath(target.resource, source.name);
 
-			return this.textFileService.move(source.resource, targetResource).then(null, error => {
+			return this.textFileService.move(source.resource, targetResource).then(void 0, error => {
 
 				// Conflict
 				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MOVE_CONFLICT) {
@@ -1082,7 +1082,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 					// Move with overwrite if the user confirms
 					return this.dialogService.confirm(confirm).then(res => {
 						if (res.confirmed) {
-							return this.textFileService.move(source.resource, targetResource, true /* overwrite */).then(null, error => this.notificationService.error(error));
+							return this.textFileService.move(source.resource, targetResource, true /* overwrite */).then(void 0, error => this.notificationService.error(error));
 						}
 
 						return void 0;

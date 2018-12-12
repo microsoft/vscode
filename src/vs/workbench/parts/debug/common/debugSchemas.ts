@@ -8,6 +8,7 @@ import * as nls from 'vs/nls';
 import { IDebuggerContribution, ICompound } from 'vs/workbench/parts/debug/common/debug';
 import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { inputsSchema } from 'vs/workbench/services/configurationResolver/common/configurationResolverSchema';
 
 // debuggers extension point
 export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IDebuggerContribution[]>('debuggers', [], {
@@ -185,6 +186,7 @@ export const launchSchema: IJSONSchema = {
 			default: [
 				defaultCompound
 			]
-		}
+		},
+		inputs: inputsSchema.definitions.inputs
 	}
 };

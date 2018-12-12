@@ -92,6 +92,12 @@ function getMacMachineId(): Promise<string> {
 						resolve(undefined);
 					}
 				});
+
+				// Timeout due to hang with reduced privileges #58392
+				// TODO@sbatten: Remove this when getmac is patched
+				setTimeout(() => {
+					resolve(undefined);
+				}, 1000);
 			} catch (err) {
 				errors.onUnexpectedError(err);
 				resolve(undefined);

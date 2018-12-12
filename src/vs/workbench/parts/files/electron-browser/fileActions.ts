@@ -48,6 +48,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { Constants } from 'vs/editor/common/core/uint';
 import { CLOSE_EDITORS_AND_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { IViewlet } from 'vs/workbench/common/viewlet';
+import { coalesce } from 'vs/base/common/arrays';
 
 export interface IEditableData {
 	action: IAction;
@@ -156,7 +157,7 @@ class TriggerRenameFileAction extends BaseFileAction {
 	}
 
 	public validateFileName(name: string): string {
-		const names: string[] = name.split(/[\\/]/).filter(part => !!part);
+		const names: string[] = coalesce(name.split(/[\\/]/));
 		if (names.length > 1) {	// error only occurs on multi-path
 			const comparer = isLinux ? strings.compare : strings.compareIgnoreCase;
 			if (comparer(names[0], this.element.name) === 0) {
@@ -254,7 +255,7 @@ export abstract class BaseRenameAction extends BaseFileAction {
 		}
 
 		// Call function and Emit Event through viewer
-		const promise = this.runAction(name).then(null, (error: any) => {
+		const promise = this.runAction(name).then(void 0, (error: any) => {
 			this.onError(error);
 		});
 
@@ -520,7 +521,7 @@ class CreateFolderAction extends BaseCreateAction {
 
 	public runAction(fileName: string): TPromise<any> {
 		const resource = this.element.parent.resource;
-		return this.fileService.createFolder(resources.joinPath(resource, fileName)).then(null, (error) => {
+		return this.fileService.createFolder(resources.joinPath(resource, fileName)).then(void 0, (error) => {
 			this.onErrorWithRetry(error, () => this.runAction(fileName));
 		});
 	}
@@ -1119,7 +1120,7 @@ export class GlobalCompareResourcesAction extends Action {
 		if (activeResource) {
 
 			// Compare with next editor that opens
-			const toDispose = this.editorService.overrideOpenEditor((editor, options, group) => {
+			const toDispose = this.editorService.overrideOpenEditor(editor => {
 
 				// Only once!
 				toDispose.dispose();
@@ -1440,7 +1441,7 @@ export function validateFileName(parent: ExplorerItem, name: string): string {
 		return nls.localize('fileNameStartsWithSlashError', "A file or folder name cannot start with a slash.");
 	}
 
-	const names: string[] = name.split(/[\\/]/).filter(part => !!part);
+	const names = coalesce(name.split(/[\\/]/));
 
 	// Do not allow to overwrite existing file
 	const childExists = !!parent.getChild(name);

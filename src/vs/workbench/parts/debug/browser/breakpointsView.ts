@@ -74,8 +74,9 @@ export class BreakpointsView extends ViewletPanel {
 			this.instantiationService.createInstance(FunctionBreakpointsRenderer),
 			new FunctionBreakpointInputRenderer(this.debugService, this.contextViewService, this.themeService)
 		], {
-				identityProvider: element => element.getId(),
-				multipleSelectionSupport: false
+				identityProvider: { getId: element => element.getId() },
+				multipleSelectionSupport: false,
+				typeLabelProvider: { getTypeLabel: e => e }
 			}) as WorkbenchList<IEnablement>;
 
 		CONTEXT_BREAKPOINTS_FOCUSED.bindTo(this.list.contextKeyService);
@@ -134,6 +135,10 @@ export class BreakpointsView extends ViewletPanel {
 	}
 
 	private onListContextMenu(e: IListContextMenuEvent<IEnablement>): void {
+		if (!e.element) {
+			return;
+		}
+
 		const actions: IAction[] = [];
 		const element = e.element;
 
@@ -142,9 +147,11 @@ export class BreakpointsView extends ViewletPanel {
 			actions.push(new Action('workbench.action.debug.openEditorAndEditBreakpoint', nls.localize('editBreakpoint', "Edit {0}...", breakpointType), undefined, true, () => {
 				if (element instanceof Breakpoint) {
 					return openBreakpointSource(element, false, false, this.debugService, this.editorService).then(editor => {
-						const codeEditor = editor.getControl();
-						if (isCodeEditor(codeEditor)) {
-							codeEditor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showBreakpointWidget(element.lineNumber, element.column);
+						if (editor) {
+							const codeEditor = editor.getControl();
+							if (isCodeEditor(codeEditor)) {
+								codeEditor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showBreakpointWidget(element.lineNumber, element.column);
+							}
 						}
 					});
 				}
@@ -343,10 +350,6 @@ class BreakpointsRenderer implements IListRenderer<IBreakpoint, IBreakpointTempl
 		}
 	}
 
-	disposeElement(): void {
-		// noop
-	}
-
 	disposeTemplate(templateData: IBreakpointTemplateData): void {
 		dispose(templateData.toDispose);
 	}
@@ -389,10 +392,6 @@ class ExceptionBreakpointsRenderer implements IListRenderer<IExceptionBreakpoint
 		data.name.textContent = exceptionBreakpoint.label || `${exceptionBreakpoint.filter} exceptions`;
 		data.breakpoint.title = data.name.textContent;
 		data.checkbox.checked = exceptionBreakpoint.enabled;
-	}
-
-	disposeElement(): void {
-		// noop
 	}
 
 	disposeTemplate(templateData: IBaseBreakpointTemplateData): void {
@@ -448,10 +447,6 @@ class FunctionBreakpointsRenderer implements IListRenderer<FunctionBreakpoint, I
 		if (session && !session.capabilities.supportsFunctionBreakpoints) {
 			data.breakpoint.title = nls.localize('functionBreakpointsNotSupported', "Function breakpoints are not supported by this debug type");
 		}
-	}
-
-	disposeElement(): void {
-		// noop
 	}
 
 	disposeTemplate(templateData: IBaseBreakpointWithIconTemplateData): void {
@@ -541,10 +536,6 @@ class FunctionBreakpointInputRenderer implements IListRenderer<IFunctionBreakpoi
 			data.inputBox.focus();
 			data.inputBox.select();
 		}, 0);
-	}
-
-	disposeElement(): void {
-		// noop
 	}
 
 	disposeTemplate(templateData: IInputTemplateData): void {

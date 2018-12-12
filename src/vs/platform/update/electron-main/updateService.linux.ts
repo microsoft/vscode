@@ -13,7 +13,6 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ILogService } from 'vs/platform/log/common/log';
 import { createUpdateURL, AbstractUpdateService } from 'vs/platform/update/electron-main/abstractUpdateService';
 import { asJson } from 'vs/base/node/request';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { shell } from 'electron';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import * as path from 'path';
@@ -65,7 +64,7 @@ export class LinuxUpdateService extends AbstractUpdateService {
 						this.setState(State.AvailableForDownload(update));
 					}
 				})
-				.then(null, err => {
+				.then(void 0, err => {
 					this.logService.error(err);
 
 					/* __GDPR__
@@ -74,7 +73,10 @@ export class LinuxUpdateService extends AbstractUpdateService {
 						}
 						*/
 					this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
-					this.setState(State.Idle(UpdateType.Archive, err.message || err));
+
+					// only show message when explicitly checking for updates
+					const message: string | undefined = !!context ? (err.message || err) : undefined;
+					this.setState(State.Idle(UpdateType.Archive, message));
 				});
 		}
 	}
@@ -83,7 +85,7 @@ export class LinuxUpdateService extends AbstractUpdateService {
 		// If the application was installed as a snap, updates happen in the
 		// background automatically, we just need to check to see if an update
 		// has already happened.
-		realpath(`/snap/${product.applicationName}/current`, (err, resolvedCurrentSnapPath) => {
+		realpath(`${path.dirname(process.env.SNAP!)}/current`, (err, resolvedCurrentSnapPath) => {
 			if (err) {
 				this.logService.error('update#checkForSnapUpdate(): Could not get realpath of application.');
 				return;
@@ -100,7 +102,7 @@ export class LinuxUpdateService extends AbstractUpdateService {
 		});
 	}
 
-	protected doDownloadUpdate(state: AvailableForDownload): TPromise<void> {
+	protected async doDownloadUpdate(state: AvailableForDownload): Promise<void> {
 		// Use the download URL if available as we don't currently detect the package type that was
 		// installed and the website download page is more useful than the tarball generally.
 		if (product.downloadUrl && product.downloadUrl.length > 0) {
@@ -110,7 +112,6 @@ export class LinuxUpdateService extends AbstractUpdateService {
 		}
 
 		this.setState(State.Idle(UpdateType.Archive));
-		return TPromise.as(void 0);
 	}
 
 	protected doQuitAndInstall(): void {

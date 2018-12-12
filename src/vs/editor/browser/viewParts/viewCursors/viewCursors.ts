@@ -89,6 +89,7 @@ export class ViewCursors extends ViewPart {
 		if (e.viewInfo) {
 			this._cursorBlinking = this._context.configuration.editor.viewInfo.cursorBlinking;
 			this._cursorStyle = this._context.configuration.editor.viewInfo.cursorStyle;
+			this._cursorSmoothCaretAnimation = this._context.configuration.editor.viewInfo.cursorSmoothCaretAnimation;
 		}
 
 		this._primaryCursor.onConfigurationChanged(e);

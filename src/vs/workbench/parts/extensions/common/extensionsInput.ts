@@ -38,7 +38,7 @@ export class ExtensionsInput extends EditorInput {
 		return this.extension === otherExtensionInput.extension;
 	}
 
-	resolve(): Promise<any> {
+	resolve(): Thenable<any> {
 		return Promise.resolve(null);
 	}
 

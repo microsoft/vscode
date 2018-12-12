@@ -20,7 +20,7 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { Extensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { EditorInput, Extensions as EditorInputExtensions, IEditorInputFactory, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { KeybindingsEditor } from 'vs/workbench/parts/preferences/browser/keybindingsEditor';
 import { ConfigureLanguageBasedSettingsAction, OpenDefaultKeybindingsFileAction, OpenFolderSettingsAction, OpenGlobalKeybindingsAction, OpenGlobalKeybindingsFileAction, OpenGlobalSettingsAction, OpenRawDefaultSettingsAction, OpenSettings2Action, OpenSettingsAction, OpenSettingsJsonAction, OpenWorkspaceSettingsAction, OPEN_FOLDER_SETTINGS_COMMAND } from 'vs/workbench/parts/preferences/browser/preferencesActions';
@@ -32,8 +32,12 @@ import { SettingsEditor2 } from 'vs/workbench/parts/preferences/electron-browser
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { DefaultPreferencesEditorInput, KeybindingsEditorInput, PreferencesEditorInput, SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
+import { ResourceContextKey } from 'vs/workbench/common/resources';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 
-registerSingleton(IPreferencesSearchService, PreferencesSearchService);
+registerSingleton(IPreferencesSearchService, PreferencesSearchService, true);
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	new EditorDescriptor(
@@ -339,7 +343,103 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(PreferencesContribution, LifecyclePhase.Starting);
+class PreferencesActionsContribution extends Disposable implements IWorkbenchContribution {
+
+	constructor(
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IPreferencesService private preferencesService: IPreferencesService,
+		@IWorkspaceContextService private workpsaceContextService: IWorkspaceContextService
+	) {
+		super();
+		MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+			command: {
+				id: OpenGlobalKeybindingsAction.ID,
+				title: OpenGlobalKeybindingsAction.LABEL,
+				iconLocation: {
+					light: URI.parse(require.toUrl(`vs/workbench/parts/preferences/electron-browser/media/preferences-editor.svg`)),
+					dark: URI.parse(require.toUrl(`vs/workbench/parts/preferences/electron-browser/media/preferences-editor-inverse.svg`))
+				}
+			},
+			when: ResourceContextKey.Resource.isEqualTo(URI.file(environmentService.appKeybindingsPath).toString()),
+			group: 'navigation',
+			order: 1
+		});
+
+		const commandId = '_workbench.openUserSettingsEditor';
+		CommandsRegistry.registerCommand(commandId, () => this.preferencesService.openGlobalSettings(false));
+		MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+			command: {
+				id: commandId,
+				title: OpenSettings2Action.LABEL,
+				iconLocation: {
+					light: URI.parse(require.toUrl(`vs/workbench/parts/preferences/electron-browser/media/preferences-editor.svg`)),
+					dark: URI.parse(require.toUrl(`vs/workbench/parts/preferences/electron-browser/media/preferences-editor-inverse.svg`))
+				}
+			},
+			when: ResourceContextKey.Resource.isEqualTo(URI.file(environmentService.appSettingsPath).toString()),
+			group: 'navigation',
+			order: 1
+		});
+
+
+		this.updatePreferencesEditorMenuItem();
+		this._register(workpsaceContextService.onDidChangeWorkbenchState(() => this.updatePreferencesEditorMenuItem()));
+		this._register(workpsaceContextService.onDidChangeWorkspaceFolders(() => this.updatePreferencesEditorMenuItemForWorkspaceFolders()));
+	}
+
+	private updatePreferencesEditorMenuItem() {
+		const commandId = '_workbench.openWorkspaceSettingsEditor';
+		if (this.workpsaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE && !CommandsRegistry.getCommand(commandId)) {
+			CommandsRegistry.registerCommand(commandId, () => this.preferencesService.openWorkspaceSettings(false));
+			MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+				command: {
+					id: commandId,
+					title: OpenSettings2Action.LABEL,
+					iconLocation: {
+						light: URI.parse(require.toUrl(`vs/workbench/parts/preferences/electron-browser/media/preferences-editor.svg`)),
+						dark: URI.parse(require.toUrl(`vs/workbench/parts/preferences/electron-browser/media/preferences-editor-inverse.svg`))
+					}
+				},
+				when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.workspaceSettingsResource.toString()), new RawContextKey<string>('workbenchState', '').isEqualTo('workspace')),
+				group: 'navigation',
+				order: 1
+			});
+		}
+		this.updatePreferencesEditorMenuItemForWorkspaceFolders();
+	}
+
+	private updatePreferencesEditorMenuItemForWorkspaceFolders() {
+		for (const folder of this.workpsaceContextService.getWorkspace().folders) {
+			const commandId = `_workbench.openFolderSettings.${folder.uri.toString()}`;
+			if (!CommandsRegistry.getCommand(commandId)) {
+				CommandsRegistry.registerCommand(commandId, () => {
+					if (this.workpsaceContextService.getWorkbenchState() === WorkbenchState.FOLDER) {
+						return this.preferencesService.openWorkspaceSettings(false);
+					} else {
+						return this.preferencesService.openFolderSettings(folder.uri, false);
+					}
+				});
+				MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+					command: {
+						id: commandId,
+						title: OpenSettings2Action.LABEL,
+						iconLocation: {
+							light: URI.parse(require.toUrl(`vs/workbench/parts/preferences/electron-browser/media/preferences-editor.svg`)),
+							dark: URI.parse(require.toUrl(`vs/workbench/parts/preferences/electron-browser/media/preferences-editor-inverse.svg`))
+						}
+					},
+					when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.getFolderSettingsResource(folder.uri).toString())),
+					group: 'navigation',
+					order: 1
+				});
+			}
+		}
+	}
+}
+
+const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
+workbenchContributionsRegistry.registerWorkbenchContribution(PreferencesActionsContribution, LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(PreferencesContribution, LifecyclePhase.Starting);
 
 CommandsRegistry.registerCommand(OPEN_FOLDER_SETTINGS_COMMAND, function (accessor: ServicesAccessor, resource: URI) {
 	const preferencesService = accessor.get(IPreferencesService);

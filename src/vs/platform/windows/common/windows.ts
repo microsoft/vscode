@@ -5,10 +5,10 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event, latch, anyEvent } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { IProcessEnvironment } from 'vs/base/common/platform';
-import { ParsedArgs } from 'vs/platform/environment/common/environment';
+import { IProcessEnvironment, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
@@ -16,6 +16,7 @@ import { ExportData } from 'vs/base/common/performance';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export const IWindowsService = createDecorator<IWindowsService>('windowsService');
 
@@ -114,9 +115,9 @@ export interface IWindowsService {
 	openDevTools(windowId: number, options?: IDevToolsOptions): TPromise<void>;
 	toggleDevTools(windowId: number): TPromise<void>;
 	closeWorkspace(windowId: number): TPromise<void>;
-	enterWorkspace(windowId: number, path: string): TPromise<IEnterWorkspaceResult>;
-	createAndEnterWorkspace(windowId: number, folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult>;
-	saveAndEnterWorkspace(windowId: number, path: string): TPromise<IEnterWorkspaceResult>;
+	enterWorkspace(windowId: number, path: string): TPromise<IEnterWorkspaceResult | undefined>;
+	createAndEnterWorkspace(windowId: number, folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult | undefined>;
+	saveAndEnterWorkspace(windowId: number, path: string): TPromise<IEnterWorkspaceResult | undefined>;
 	toggleFullScreen(windowId: number): TPromise<void>;
 	setRepresentedFilename(windowId: number, fileName: string): TPromise<void>;
 	addRecentlyOpened(files: URI[]): TPromise<void>;
@@ -182,8 +183,10 @@ export interface IWindowService {
 
 	_serviceBrand: any;
 
-	onDidChangeFocus: Event<boolean>;
-	onDidChangeMaximize: Event<boolean>;
+	readonly onDidChangeFocus: Event<boolean>;
+	readonly onDidChangeMaximize: Event<boolean>;
+
+	readonly hasFocus: boolean;
 
 	getConfiguration(): IWindowConfiguration;
 	getCurrentWindowId(): number;
@@ -196,9 +199,9 @@ export interface IWindowService {
 	toggleDevTools(): TPromise<void>;
 	closeWorkspace(): TPromise<void>;
 	updateTouchBar(items: ISerializableCommandAction[][]): TPromise<void>;
-	enterWorkspace(path: string): TPromise<IEnterWorkspaceResult>;
-	createAndEnterWorkspace(folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult>;
-	saveAndEnterWorkspace(path: string): TPromise<IEnterWorkspaceResult>;
+	enterWorkspace(path: string): TPromise<IEnterWorkspaceResult | undefined>;
+	createAndEnterWorkspace(folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult | undefined>;
+	saveAndEnterWorkspace(path: string): TPromise<IEnterWorkspaceResult | undefined>;
 	toggleFullScreen(): TPromise<void>;
 	setRepresentedFilename(fileName: string): TPromise<void>;
 	getRecentlyOpened(): TPromise<IRecentlyOpened>;
@@ -242,6 +245,39 @@ export interface IWindowSettings {
 	closeWhenEmpty: boolean;
 	smoothScrollingWorkaround: boolean;
 	clickThroughInactive: boolean;
+}
+
+export function getTitleBarStyle(configurationService: IConfigurationService, environment: IEnvironmentService, isExtensionDevelopment = environment.isExtensionDevelopment): 'native' | 'custom' {
+	const configuration = configurationService.getValue<IWindowSettings>('window');
+
+	const isDev = !environment.isBuilt || isExtensionDevelopment;
+	if (isMacintosh && isDev) {
+		return 'native'; // not enabled when developing due to https://github.com/electron/electron/issues/3647
+	}
+
+	if (configuration) {
+		const useNativeTabs = isMacintosh && configuration.nativeTabs === true;
+		if (useNativeTabs) {
+			return 'native'; // native tabs on sierra do not work with custom title style
+		}
+
+		const useSimpleFullScreen = isMacintosh && configuration.nativeFullScreen === false;
+		if (useSimpleFullScreen) {
+			return 'native'; // simple fullscreen does not work well with custom title style (https://github.com/Microsoft/vscode/issues/63291)
+		}
+
+		const smoothScrollingWorkaround = isWindows && configuration.smoothScrollingWorkaround === true;
+		if (smoothScrollingWorkaround) {
+			return 'native'; // smooth scrolling workaround does not work with custom title style
+		}
+
+		const style = configuration.titleBarStyle;
+		if (style === 'native') {
+			return 'native';
+		}
+	}
+
+	return 'custom'; // default to custom on all OS
 }
 
 export const enum OpenContext {
@@ -354,6 +390,7 @@ export interface IWindowConfiguration extends ParsedArgs {
 	highContrast?: boolean;
 	frameless?: boolean;
 	accessibilitySupport?: boolean;
+	partsSplashData?: string;
 
 	perfStartTime?: number;
 	perfAppReady?: number;
@@ -370,6 +407,7 @@ export interface IWindowConfiguration extends ParsedArgs {
 export interface IRunActionInWindowRequest {
 	id: string;
 	from: 'menu' | 'touchbar' | 'mouse';
+	args?: any[];
 }
 
 export class ActiveWindowManager implements IDisposable {
@@ -379,7 +417,7 @@ export class ActiveWindowManager implements IDisposable {
 	private _activeWindowId: number | undefined;
 
 	constructor(@IWindowsService windowsService: IWindowsService) {
-		const onActiveWindowChange = latch(anyEvent(windowsService.onWindowOpen, windowsService.onWindowFocus));
+		const onActiveWindowChange = Event.latch(Event.any(windowsService.onWindowOpen, windowsService.onWindowFocus));
 		onActiveWindowChange(this.setActiveWindow, this, this.disposables);
 
 		this.firstActiveWindowIdPromise = windowsService.getActiveWindowId()
@@ -399,7 +437,7 @@ export class ActiveWindowManager implements IDisposable {
 			return this.firstActiveWindowIdPromise;
 		}
 
-		return TPromise.as(`window:${this._activeWindowId}`);
+		return Promise.resolve(`window:${this._activeWindowId}`);
 	}
 
 	dispose() {

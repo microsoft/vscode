@@ -23,6 +23,7 @@ export class RawDebugSession {
 	private _capabilities: DebugProtocol.Capabilities;
 
 	// shutdown
+	private debugAdapterStopped: boolean;
 	private inShutdown: boolean;
 	private terminated: boolean;
 	private firedAdapterExitEvent: boolean;
@@ -56,6 +57,7 @@ export class RawDebugSession {
 		this._capabilities = Object.create(null);
 		this._readyForBreakpoints = false;
 		this.inShutdown = false;
+		this.debugAdapterStopped = false;
 		this.firedAdapterExitEvent = false;
 		this.didReceiveStoppedEvent = false;
 
@@ -436,6 +438,7 @@ export class RawDebugSession {
 			const da = this.debugAdapter;
 			this.debugAdapter = null;
 			return da.stopSession().then(_ => {
+				this.debugAdapterStopped = true;
 				this.fireAdapterExitEvent(error);
 			}, err => {
 				this.fireAdapterExitEvent(error);
@@ -454,7 +457,7 @@ export class RawDebugSession {
 				emittedStopped: this.didReceiveStoppedEvent,
 				sessionLengthInSeconds: (new Date().getTime() - this.startTime) / 1000
 			};
-			if (error) {
+			if (error && !this.debugAdapterStopped) {
 				e.error = error;
 			}
 			this._onDidExitAdapter.fire(e);
@@ -475,9 +478,14 @@ export class RawDebugSession {
 
 		switch (request.command) {
 			case 'runInTerminal':
-				dbgr.runInTerminal(<DebugProtocol.RunInTerminalRequestArguments>request.arguments).then(_ => {
-					response.body = {};
-					safeSendResponse(response);
+				dbgr.runInTerminal(request.arguments as DebugProtocol.RunInTerminalRequestArguments).then(shellProcessId => {
+					const resp = response as DebugProtocol.RunInTerminalResponse;
+					if (typeof shellProcessId === 'number') {
+						resp.body = {
+							shellProcessId: shellProcessId
+						};
+					}
+					safeSendResponse(resp);
 				}, err => {
 					response.success = false;
 					response.message = err.message;

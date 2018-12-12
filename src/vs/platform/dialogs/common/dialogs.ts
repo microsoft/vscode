@@ -139,7 +139,6 @@ export interface IDialogService {
 	show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Thenable<number>;
 }
 
-
 export const IFileDialogService = createDecorator<IFileDialogService>('fileDialogService');
 
 /**

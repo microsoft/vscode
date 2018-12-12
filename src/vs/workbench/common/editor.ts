@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Event, Emitter, once } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import * as objects from 'vs/base/common/objects';
 import * as types from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -302,7 +302,7 @@ export interface IEditorInput extends IDisposable {
 	/**
 	 * Resolves the input.
 	 */
-	resolve(): TPromise<IEditorModel>;
+	resolve(): Thenable<IEditorModel>;
 
 	/**
 	 * Returns if this input is dirty or not.
@@ -403,7 +403,7 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	 * Returns a type of EditorModel that represents the resolved input. Subclasses should
 	 * override to provide a meaningful model.
 	 */
-	abstract resolve(): TPromise<IEditorModel>;
+	abstract resolve(): Thenable<IEditorModel>;
 
 	/**
 	 * An editor that is dirty will be asked to be saved once it closes.
@@ -416,21 +416,21 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	 * Subclasses should bring up a proper dialog for the user if the editor is dirty and return the result.
 	 */
 	confirmSave(): TPromise<ConfirmResult> {
-		return TPromise.wrap(ConfirmResult.DONT_SAVE);
+		return Promise.resolve(ConfirmResult.DONT_SAVE);
 	}
 
 	/**
 	 * Saves the editor if it is dirty. Subclasses return a promise with a boolean indicating the success of the operation.
 	 */
 	save(): TPromise<boolean> {
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 
 	/**
 	 * Reverts the editor if it is dirty. Subclasses return a promise with a boolean indicating the success of the operation.
 	 */
 	revert(options?: IRevertOptions): TPromise<boolean> {
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 
 	/**
@@ -567,14 +567,14 @@ export class SideBySideEditorInput extends EditorInput {
 	private registerListeners(): void {
 
 		// When the details or master input gets disposed, dispose this diff editor input
-		const onceDetailsDisposed = once(this.details.onDispose);
+		const onceDetailsDisposed = Event.once(this.details.onDispose);
 		this._register(onceDetailsDisposed(() => {
 			if (!this.isDisposed()) {
 				this.dispose();
 			}
 		}));
 
-		const onceMasterDisposed = once(this.master.onDispose);
+		const onceMasterDisposed = Event.once(this.master.onDispose);
 		this._register(onceMasterDisposed(() => {
 			if (!this.isDisposed()) {
 				this.dispose();
@@ -586,8 +586,8 @@ export class SideBySideEditorInput extends EditorInput {
 		this._register(this.master.onDidChangeLabel(() => this._onDidChangeLabel.fire()));
 	}
 
-	resolve(): TPromise<EditorModel> {
-		return TPromise.as(null);
+	resolve(): Thenable<EditorModel> {
+		return Promise.resolve(null);
 	}
 
 	getTypeId(): string {
@@ -637,8 +637,8 @@ export class EditorModel extends Disposable implements IEditorModel {
 	/**
 	 * Causes this model to load returning a promise when loading is completed.
 	 */
-	load(): TPromise<EditorModel> {
-		return TPromise.as(this);
+	load(): Thenable<EditorModel> {
+		return Promise.resolve(this);
 	}
 
 	/**
@@ -916,7 +916,7 @@ export class EditorCommandsContextActionRunner extends ActionRunner {
 		super();
 	}
 
-	run(action: IAction, context?: any): TPromise<void> {
+	run(action: IAction, context?: any): Thenable<void> {
 		return super.run(action, this.context);
 	}
 }

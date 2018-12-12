@@ -11,7 +11,6 @@ import { ILocalization } from 'vs/platform/localizations/common/localizations';
 import { URI } from 'vs/base/common/uri';
 import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IRemoteAuthorityResolver } from 'vs/platform/remote/common/remoteAuthorityResolver';
 
 export const EXTENSION_IDENTIFIER_PATTERN = '^([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*)$';
 export const EXTENSION_IDENTIFIER_REGEX = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
@@ -109,7 +108,6 @@ export interface IExtensionContributions {
 	views?: { [location: string]: IView[] };
 	colors?: IColor[];
 	localizations?: ILocalization[];
-	remoteAuthorityResolvers?: IRemoteAuthorityResolver[];
 }
 
 export type ExtensionKind = 'ui' | 'workspace';
@@ -177,6 +175,11 @@ export function isIExtensionIdentifier(thing: any): thing is IExtensionIdentifie
 export interface IExtensionIdentifier {
 	id: string;
 	uuid?: string;
+}
+
+export interface IGalleryExtensionVersion {
+	version: string;
+	date: string;
 }
 
 export interface IGalleryExtension {
@@ -279,7 +282,8 @@ export interface IExtensionGalleryService {
 	getManifest(extension: IGalleryExtension, token: CancellationToken): Promise<IExtensionManifest>;
 	getChangelog(extension: IGalleryExtension, token: CancellationToken): Promise<string>;
 	getCoreTranslation(extension: IGalleryExtension, languageId: string): Promise<ITranslation>;
-	loadCompatibleVersion(extension: IGalleryExtension): Promise<IGalleryExtension>;
+	loadCompatibleVersion(extension: IGalleryExtension, fromVersion?: string): Promise<IGalleryExtension>;
+	getAllVersions(extension: IGalleryExtension, compatible: boolean): Promise<IGalleryExtensionVersion[]>;
 	loadAllDependencies(dependencies: IExtensionIdentifier[], token: CancellationToken): Promise<IGalleryExtension[]>;
 	getExtensionsReport(): Promise<IReportedExtension[]>;
 	getExtension(id: IExtensionIdentifier, version?: string): Promise<IGalleryExtension>;
@@ -339,7 +343,7 @@ export interface IExtensionManagementServer {
 export interface IExtensionManagementServerService {
 	_serviceBrand: any;
 	readonly localExtensionManagementServer: IExtensionManagementServer | null;
-	readonly otherExtensionManagementServer: IExtensionManagementServer | null;
+	readonly remoteExtensionManagementServer: IExtensionManagementServer | null;
 	getExtensionManagementServer(location: URI): IExtensionManagementServer | null;
 }
 
@@ -426,8 +430,6 @@ export interface IExtensionTipsService {
 	getOtherRecommendations(): Promise<IExtensionRecommendation[]>;
 	getWorkspaceRecommendations(): Promise<IExtensionRecommendation[]>;
 	getKeymapRecommendations(): IExtensionRecommendation[];
-	getAllRecommendations(): Promise<IExtensionRecommendation[]>;
-	getKeywordsForExtension(extension: string): string[];
 	toggleIgnoredRecommendation(extensionId: string, shouldIgnore: boolean): void;
 	getAllIgnoredRecommendations(): { global: string[], workspace: string[] };
 	onRecommendationChange: Event<RecommendationChangeNotification>;

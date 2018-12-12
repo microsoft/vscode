@@ -11,7 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { keys } from 'vs/base/common/map';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { ExtensionCommentProviderHandler } from 'vs/workbench/api/electron-browser/mainThreadComments';
+import { MainThreadDocumentCommentProvider } from 'vs/workbench/api/electron-browser/mainThreadComments';
 import { assign } from 'vs/base/common/objects';
 import { ICommentThreadChangedEvent } from 'vs/workbench/parts/comments/common/commentModel';
 
@@ -41,7 +41,7 @@ export interface ICommentService {
 	setDocumentComments(resource: URI, commentInfos: ICommentInfo[]): void;
 	setWorkspaceComments(owner: string, commentsByResource: CommentThread[]): void;
 	removeWorkspaceComments(owner: string): void;
-	registerDataProvider(owner: string, commentProvider: ExtensionCommentProviderHandler): void;
+	registerDataProvider(owner: string, commentProvider: MainThreadDocumentCommentProvider): void;
 	unregisterDataProvider(owner: string): void;
 	updateComments(ownerId: string, event: CommentThreadChangedEvent): void;
 	createNewCommentThread(owner: string, resource: URI, range: Range, text: string): Promise<CommentThread | null>;
@@ -49,6 +49,12 @@ export interface ICommentService {
 	editComment(owner: string, resource: URI, comment: Comment, text: string): Promise<void>;
 	deleteComment(owner: string, resource: URI, comment: Comment): Promise<boolean>;
 	getComments(resource: URI): Promise<ICommentInfo[]>;
+	startDraft(owner: string): void;
+	deleteDraft(owner: string): void;
+	finishDraft(owner: string): void;
+	getStartDraftLabel(owner: string): string;
+	getDeleteDraftLabel(owner: string): string;
+	getFinishDraftLabel(owner: string): string;
 }
 
 export class CommentService extends Disposable implements ICommentService {
@@ -142,6 +148,66 @@ export class CommentService extends Disposable implements ICommentService {
 		return Promise.resolve(false);
 	}
 
+	async startDraft(owner: string): Promise<void> {
+		const commentProvider = this._commentProviders.get(owner);
+
+		if (commentProvider && commentProvider.startDraft) {
+			return commentProvider.startDraft(CancellationToken.None);
+		} else {
+			throw new Error('Not supported');
+		}
+	}
+
+	async deleteDraft(owner: string): Promise<void> {
+		const commentProvider = this._commentProviders.get(owner);
+
+		if (commentProvider && commentProvider.deleteDraft) {
+			return commentProvider.deleteDraft(CancellationToken.None);
+		} else {
+			throw new Error('Not supported');
+		}
+	}
+
+	async finishDraft(owner: string): Promise<void> {
+		const commentProvider = this._commentProviders.get(owner);
+
+		if (commentProvider && commentProvider.finishDraft) {
+			return commentProvider.finishDraft(CancellationToken.None);
+		} else {
+			throw new Error('Not supported');
+		}
+	}
+
+	getStartDraftLabel(owner: string): string | null {
+		const commentProvider = this._commentProviders.get(owner);
+
+		if (commentProvider) {
+			return commentProvider.startDraftLabel;
+		}
+
+		return null;
+	}
+
+	getDeleteDraftLabel(owner: string): string {
+		const commentProvider = this._commentProviders.get(owner);
+
+		if (commentProvider) {
+			return commentProvider.deleteDraftLabel;
+		}
+
+		return null;
+	}
+
+	getFinishDraftLabel(owner: string): string {
+		const commentProvider = this._commentProviders.get(owner);
+
+		if (commentProvider) {
+			return commentProvider.finishDraftLabel;
+		}
+
+		return null;
+	}
+
 	getComments(resource: URI): Promise<ICommentInfo[]> {
 		const result: Promise<ICommentInfo>[] = [];
 		for (const owner of keys(this._commentProviders)) {
@@ -153,7 +219,8 @@ export class CommentService extends Disposable implements ICommentService {
 							owner: owner,
 							threads: commentInfo.threads,
 							commentingRanges: commentInfo.commentingRanges,
-							reply: commentInfo.reply
+							reply: commentInfo.reply,
+							draftMode: commentInfo.draftMode
 						};
 					} else {
 						return null;

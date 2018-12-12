@@ -5,8 +5,8 @@
 
 import 'vs/css!./welcomePage';
 import { URI } from 'vs/base/common/uri';
+import * as strings from 'vs/base/common/strings';
 import * as path from 'path';
-import { readdir } from 'vs/base/node/extfs';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import * as arrays from 'vs/base/common/arrays';
 import { WalkThroughInput } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughInput';
@@ -15,7 +15,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { onUnexpectedError, isPromiseCanceledError } from 'vs/base/common/errors';
 import { IWindowService } from 'vs/platform/windows/common/windows';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
@@ -41,6 +40,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { TimeoutTimer } from 'vs/base/common/async';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { IFileService } from 'vs/platform/files/common/files';
 
 used();
 
@@ -55,6 +55,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IEditorService editorService: IEditorService,
 		@IBackupFileService backupFileService: IBackupFileService,
+		@IFileService fileService: IFileService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@ICommandService private commandService: ICommandService,
@@ -66,39 +67,40 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 				if (!activeEditor && !hasBackups) {
 					const openWithReadme = configurationService.getValue(configurationKey) === 'readme';
 					if (openWithReadme) {
-						const workSpaceFolders = contextService.getWorkspace().folders.map(el => el.uri);
-						for (let i = 0; i < workSpaceFolders.length; i += 1) {
-							const workSpaceFolder = workSpaceFolders[i];
-							let foldersChecked = 0;
-							readdir(workSpaceFolder.path, (err, files) => {
-								foldersChecked += 1;
-								if (err) {
-									onUnexpectedError(err);
-								} else {
-									for (const content of files) {
-										if (content.toLowerCase().lastIndexOf('readme', 0) === 0) {
-											const readmeLocation = path.join(workSpaceFolder.path, content);
-											if (readmeLocation.toLowerCase().slice(readmeLocation.length - 3) === '.md') {
-												return !editorService.activeEditor && this.commandService
-													.executeCommand('markdown.showPreview', URI.file(readmeLocation));
-											}
-											return !editorService.activeEditor && editorService
-												.openEditor({ resource: URI.file(readmeLocation) });
-										}
+						return Promise.all(contextService.getWorkspace().folders.map(folder => {
+							const folderUri = folder.uri;
+							return fileService.readFolder(folderUri)
+								.then(files => {
+									const file = arrays.find(files.sort(), file => strings.startsWith(file.toLowerCase(), 'readme'));
+									if (file) {
+										return folderUri.with({
+											path: path.posix.join(folderUri.path, file)
+										});
 									}
-								}
-								if (foldersChecked === workSpaceFolders.length - 1) {
-									return instantiationService.createInstance(WelcomePage).openEditor();
+									return undefined;
+								}, onUnexpectedError);
+						})).then(arrays.coalesce)
+							.then<any>(readmes => {
+								if (!editorService.activeEditor) {
+									if (readmes.length) {
+										const isMarkDown = (readme: URI) => strings.endsWith(readme.path.toLowerCase(), '.md');
+										return Promise.all([
+											this.commandService.executeCommand('markdown.showPreview', null, readmes.filter(isMarkDown), { locked: true }),
+											editorService.openEditors(readmes.filter(readme => !isMarkDown(readme))
+												.map(readme => ({ resource: readme }))),
+										]);
+									} else {
+										return instantiationService.createInstance(WelcomePage).openEditor();
+									}
 								}
 								return undefined;
 							});
-						}
 					} else {
 						return instantiationService.createInstance(WelcomePage).openEditor();
 					}
 				}
 				return undefined;
-			}).then(null, onUnexpectedError);
+			}).then(void 0, onUnexpectedError);
 		}
 	}
 }
@@ -127,7 +129,7 @@ export class WelcomePageAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<void> {
+	public run(): Thenable<void> {
 		return this.instantiationService.createInstance(WelcomePage)
 			.openEditor()
 			.then(() => undefined);
@@ -288,7 +290,7 @@ class WelcomePage {
 		return this.editorService.openEditor(this.editorInput, { pinned: false });
 	}
 
-	private onReady(container: HTMLElement, recentlyOpened: TPromise<{ files: URI[]; workspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[]; }>, installedExtensions: TPromise<IExtensionStatus[]>): void {
+	private onReady(container: HTMLElement, recentlyOpened: Thenable<{ files: URI[]; workspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[]; }>, installedExtensions: Promise<IExtensionStatus[]>): void {
 		const enabled = isWelcomePageEnabled(this.configurationService, this.contextService);
 		const showOnStartup = <HTMLInputElement>container.querySelector('#showOnStartup');
 		if (enabled) {
@@ -371,7 +373,7 @@ class WelcomePage {
 
 				ul.insertBefore(li, before);
 			});
-		}).then(null, onUnexpectedError);
+		}).then(void 0, onUnexpectedError);
 
 		this.addExtensionList(container, '.extensionPackList', extensionPacks, extensionPackStrings);
 		this.addExtensionList(container, '.keymapList', keymapExtensions, keymapStrings);
@@ -478,7 +480,7 @@ class WelcomePage {
 						messageDelay.cancelAndSet(() => {
 							this.notificationService.info(strings.installing.replace('{0}', extensionSuggestion.name));
 						}, 300);
-						TPromise.join(extensionSuggestion.isKeymap ? extensions.filter(extension => isKeymapExtension(this.tipsService, extension) && extension.globallyEnabled)
+						Promise.all(extensionSuggestion.isKeymap ? extensions.filter(extension => isKeymapExtension(this.tipsService, extension) && extension.globallyEnabled)
 							.map(extension => {
 								return this.extensionEnablementService.setEnablement(extension.local, EnablementState.Disabled);
 							}) : []).then(() => {
@@ -518,7 +520,7 @@ class WelcomePage {
 										return undefined;
 									}
 								});
-							}).then(null, err => {
+							}).then(void 0, err => {
 								/* __GDPR__FRAGMENT__
 									"WelcomePageInstalled-4" : {
 										"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -551,11 +553,11 @@ class WelcomePage {
 						});
 						this.extensionsWorkbenchService.queryGallery({ names: [extensionSuggestion.id] })
 							.then(result => this.extensionsWorkbenchService.open(result.firstPage[0]))
-							.then(null, onUnexpectedError);
+							.then(void 0, onUnexpectedError);
 					}
 				}]
 			);
-		}).then(null, err => {
+		}).then(void 0, err => {
 			/* __GDPR__FRAGMENT__
 				"WelcomePageInstalled-6" : {
 					"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -574,7 +576,7 @@ class WelcomePage {
 		});
 	}
 
-	private updateInstalledExtensions(container: HTMLElement, installedExtensions: TPromise<IExtensionStatus[]>) {
+	private updateInstalledExtensions(container: HTMLElement, installedExtensions: Promise<IExtensionStatus[]>) {
 		installedExtensions.then(extensions => {
 			const elements = container.querySelectorAll('.installExtension, .enabledExtension');
 			for (let i = 0; i < elements.length; i++) {
@@ -592,7 +594,7 @@ class WelcomePage {
 						enabled[i].classList.add('installed');
 					}
 				});
-		}).then(null, onUnexpectedError);
+		}).then(void 0, onUnexpectedError);
 	}
 
 	dispose(): void {

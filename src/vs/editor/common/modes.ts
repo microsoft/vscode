@@ -433,7 +433,7 @@ export interface CompletionItem {
 	 * *Note:* The range must be a [single line](#Range.isSingleLine) and it must
 	 * [contain](#Range.contains) the position at which completion has been [requested](#CompletionItemProvider.provideCompletionItems).
 	 */
-	range?: IRange;
+	range: IRange;
 	/**
 	 * An optional set of characters that when pressed while this completion is active will accept it first and
 	 * then type that character. *Note* that all commit characters should have `length=1` and that superfluous
@@ -450,13 +450,6 @@ export interface CompletionItem {
 	 * A command that should be run upon acceptance of this item.
 	 */
 	command?: Command;
-
-	/**@internal*/
-	_labelLow?: string;
-	/**@internal*/
-	_sortTextLow?: string;
-	/**@internal*/
-	_filterTextLow?: string;
 }
 
 export interface CompletionList {
@@ -553,7 +546,7 @@ export interface CodeActionProvider {
 	provideCodeActions(model: model.ITextModel, range: Range | Selection, context: CodeActionContext, token: CancellationToken): ProviderResult<CodeAction[]>;
 
 	/**
-	 * Optional list of of CodeActionKinds that this provider returns.
+	 * Optional list of CodeActionKinds that this provider returns.
 	 */
 	providedCodeActionKinds?: ReadonlyArray<string>;
 }
@@ -615,14 +608,14 @@ export interface SignatureHelp {
 	activeParameter: number;
 }
 
-export enum SignatureHelpTriggerReason {
+export enum SignatureHelpTriggerKind {
 	Invoke = 1,
 	TriggerCharacter = 2,
 	ContentChange = 3,
 }
 
 export interface SignatureHelpContext {
-	readonly triggerReason: SignatureHelpTriggerReason;
+	readonly triggerKind: SignatureHelpTriggerKind;
 	readonly triggerCharacter?: string;
 	readonly isRetrigger: boolean;
 }
@@ -876,7 +869,7 @@ export interface DocumentSymbolProvider {
 	provideDocumentSymbols(model: model.ITextModel, token: CancellationToken): ProviderResult<DocumentSymbol[]>;
 }
 
-export type TextEdit = { range: IRange; text: string; eol?: model.EndOfLineSequence; } | { range: undefined; text: undefined; eol: model.EndOfLineSequence; };
+export type TextEdit = { range: IRange; text: string; eol?: model.EndOfLineSequence; };
 
 /**
  * Interface used to format a model
@@ -1031,6 +1024,14 @@ export interface DocumentColorProvider {
 	 */
 	provideColorPresentations(model: model.ITextModel, colorInfo: IColorInformation, token: CancellationToken): ProviderResult<IColorPresentation[]>;
 }
+
+export interface SelectionRangeProvider {
+	/**
+	 * Provide ranges that should be selected from the given position.
+	 */
+	provideSelectionRanges(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<IRange[]>;
+}
+
 export interface FoldingContext {
 }
 /**
@@ -1145,6 +1146,16 @@ export interface CommentInfo {
 	threads: CommentThread[];
 	commentingRanges?: IRange[];
 	reply?: Command;
+	draftMode: DraftMode;
+}
+
+/**
+ * @internal
+ */
+export enum DraftMode {
+	NotSupported,
+	InDraft,
+	NotInDraft
 }
 
 /**
@@ -1192,6 +1203,7 @@ export interface Comment {
 	readonly canEdit?: boolean;
 	readonly canDelete?: boolean;
 	readonly command?: Command;
+	readonly isDraft?: boolean;
 }
 
 /**
@@ -1212,6 +1224,11 @@ export interface CommentThreadChangedEvent {
 	 * Changed comment threads.
 	 */
 	readonly changed: CommentThread[];
+
+	/**
+	 * changed draft mode.
+	 */
+	readonly draftMode: DraftMode;
 }
 
 /**
@@ -1223,6 +1240,13 @@ export interface DocumentCommentProvider {
 	replyToCommentThread(resource: URI, range: Range, thread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
 	editComment(resource: URI, comment: Comment, text: string, token: CancellationToken): Promise<void>;
 	deleteComment(resource: URI, comment: Comment, token: CancellationToken): Promise<void>;
+	startDraft?(token: CancellationToken): Promise<void>;
+	deleteDraft?(token: CancellationToken): Promise<void>;
+	finishDraft?(token: CancellationToken): Promise<void>;
+
+	startDraftLabel?: string;
+	deleteDraftLabel?: string;
+	finishDraftLabel?: string;
 	onDidChangeCommentThreads(): Event<CommentThreadChangedEvent>;
 }
 
@@ -1336,6 +1360,11 @@ export const LinkProviderRegistry = new LanguageFeatureRegistry<LinkProvider>();
  * @internal
  */
 export const ColorProviderRegistry = new LanguageFeatureRegistry<DocumentColorProvider>();
+
+/**
+ * @internal
+ */
+export const SelectionRangeRegistry = new LanguageFeatureRegistry<SelectionRangeProvider>();
 
 /**
  * @internal

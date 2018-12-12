@@ -10,6 +10,7 @@ import * as dom from 'vs/base/browser/dom';
 import * as paths from 'vs/base/common/paths';
 import * as os from 'os';
 import { Event, Emitter } from 'vs/base/common/event';
+import { debounce } from 'vs/base/common/decorators';
 import { WindowsShellHelper } from 'vs/workbench/parts/terminal/node/windowsShellHelper';
 import { Terminal as XTermTerminal, ISearchOptions } from 'vscode-xterm';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -17,6 +18,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, IShellLaunchConfig, ITerminalProcessManager, ProcessState, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ITerminalDimensions } from 'vs/workbench/parts/terminal/common/terminal';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
@@ -310,13 +312,15 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 		this._xterm.winptyCompatInit();
 		this._xterm.on('linefeed', () => this._onLineFeed());
+		this._xterm.on('key', (key, ev) => this._onKey(key, ev));
+
 		if (this._processManager) {
 			this._processManager.onProcessData(data => this._onProcessData(data));
 			this._xterm.on('data', data => this._processManager.write(data));
 			// TODO: How does the cwd work on detached processes?
 			this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, platform.platform);
 			this.processReady.then(() => {
-				this._linkHandler.initialCwd = this._processManager.initialCwd;
+				this._linkHandler.processCwd = this._processManager.initialCwd;
 			});
 		}
 		this._xterm.on('focus', () => this._onFocus.fire(this));
@@ -402,10 +406,10 @@ export class TerminalInstance implements ITerminalInstance {
 
 				return undefined;
 			});
-			this._disposables.push(dom.addDisposableListener(this._xterm.element, 'mousedown', (event: KeyboardEvent) => {
+			this._disposables.push(dom.addDisposableListener(this._xterm.element, 'mousedown', () => {
 				// We need to listen to the mouseup event on the document since the user may release
 				// the mouse button anywhere outside of _xterm.element.
-				const listener = dom.addDisposableListener(document, 'mouseup', (event: KeyboardEvent) => {
+				const listener = dom.addDisposableListener(document, 'mouseup', () => {
 					// Delay with a setTimeout to allow the mouseup to propagate through the DOM
 					// before evaluating the new selection state.
 					setTimeout(() => this._refreshSelectionContextKey(), 0);
@@ -414,7 +418,7 @@ export class TerminalInstance implements ITerminalInstance {
 			}));
 
 			// xterm.js currently drops selection on keyup as we need to handle this case.
-			this._disposables.push(dom.addDisposableListener(this._xterm.element, 'keyup', (event: KeyboardEvent) => {
+			this._disposables.push(dom.addDisposableListener(this._xterm.element, 'keyup', () => {
 				// Wait until keyup has propagated through the DOM before evaluating
 				// the new selection state.
 				setTimeout(() => this._refreshSelectionContextKey(), 0);
@@ -424,7 +428,7 @@ export class TerminalInstance implements ITerminalInstance {
 			const focusTrap: HTMLElement = document.createElement('div');
 			focusTrap.setAttribute('tabindex', '0');
 			dom.addClass(focusTrap, 'focus-trap');
-			this._disposables.push(dom.addDisposableListener(focusTrap, 'focus', (event: FocusEvent) => {
+			this._disposables.push(dom.addDisposableListener(focusTrap, 'focus', () => {
 				let currentElement = focusTrap;
 				while (!dom.hasClass(currentElement, 'part')) {
 					currentElement = currentElement.parentElement;
@@ -434,18 +438,18 @@ export class TerminalInstance implements ITerminalInstance {
 			}));
 			xtermHelper.insertBefore(focusTrap, this._xterm.textarea);
 
-			this._disposables.push(dom.addDisposableListener(this._xterm.textarea, 'focus', (event: KeyboardEvent) => {
+			this._disposables.push(dom.addDisposableListener(this._xterm.textarea, 'focus', () => {
 				this._terminalFocusContextKey.set(true);
 				this._onFocused.fire(this);
 			}));
-			this._disposables.push(dom.addDisposableListener(this._xterm.textarea, 'blur', (event: KeyboardEvent) => {
+			this._disposables.push(dom.addDisposableListener(this._xterm.textarea, 'blur', () => {
 				this._terminalFocusContextKey.reset();
 				this._refreshSelectionContextKey();
 			}));
-			this._disposables.push(dom.addDisposableListener(this._xterm.element, 'focus', (event: KeyboardEvent) => {
+			this._disposables.push(dom.addDisposableListener(this._xterm.element, 'focus', () => {
 				this._terminalFocusContextKey.set(true);
 			}));
-			this._disposables.push(dom.addDisposableListener(this._xterm.element, 'blur', (event: KeyboardEvent) => {
+			this._disposables.push(dom.addDisposableListener(this._xterm.element, 'blur', () => {
 				this._terminalFocusContextKey.reset();
 				this._refreshSelectionContextKey();
 			}));
@@ -940,6 +944,24 @@ export class TerminalInstance implements ITerminalInstance {
 		this._onLineData.fire(lineData);
 	}
 
+	private _onKey(key: string, ev: KeyboardEvent): void {
+		const event = new StandardKeyboardEvent(ev);
+
+		if (event.equals(KeyCode.Enter)) {
+			this._updateProcessCwd();
+		}
+	}
+
+	@debounce(2000)
+	private async _updateProcessCwd(): Promise<string> {
+		// reset cwd if it has changed, so file based url paths can be resolved
+		const cwd = await this.getCwd();
+		if (cwd) {
+			this._linkHandler.processCwd = cwd;
+		}
+		return cwd;
+	}
+
 	public updateConfig(): void {
 		const config = this._configHelper.config;
 		this._setCursorBlink(config.cursorBlinking);
@@ -1150,7 +1172,10 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public get initialCwd(): string {
-		return this._processManager.initialCwd;
+		if (this._processManager) {
+			return this._processManager.initialCwd;
+		}
+		return '';
 	}
 
 	public getCwd(): Promise<string> {

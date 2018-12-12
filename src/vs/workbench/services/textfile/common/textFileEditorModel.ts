@@ -6,7 +6,7 @@
 import * as path from 'vs/base/common/paths';
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
-import { TPromise, TValueCallback, ErrorCallback } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { guessMimeTypes } from 'vs/base/common/mime';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { URI } from 'vs/base/common/uri';
@@ -207,7 +207,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	revert(soft?: boolean): TPromise<void> {
 		if (!this.isResolved()) {
-			return TPromise.wrap<void>(null);
+			return Promise.resolve(null);
 		}
 
 		// Cancel any running auto-save
@@ -218,7 +218,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		let loadPromise: TPromise<TextFileEditorModel>;
 		if (soft) {
-			loadPromise = TPromise.as(this);
+			loadPromise = Promise.resolve();
 		} else {
 			loadPromise = this.load({ forceReadFromDisk: true });
 		}
@@ -232,7 +232,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// Set flags back to previous values, we are still dirty if revert failed
 			undo();
 
-			return TPromise.wrapError(error);
+			return Promise.reject(error);
 		});
 	}
 
@@ -245,7 +245,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		if (this.dirty || this.saveSequentializer.hasPendingSave()) {
 			this.logService.trace('load() - exit - without loading because model is dirty or being saved', this.resource);
 
-			return TPromise.as(this);
+			return Promise.resolve(this);
 		}
 
 		// Only for new models we support to load from backup
@@ -262,7 +262,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 			// Make sure meanwhile someone else did not suceed or start loading
 			if (this.createTextEditorModelPromise || this.textEditorModel) {
-				return this.createTextEditorModelPromise || TPromise.as(this);
+				return this.createTextEditorModelPromise || this;
 			}
 
 			// If we have a backup, continue loading with it
@@ -333,18 +333,18 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 						this.setDirty(false); // Ensure we are not tracking a stale state
 					}
 
-					return TPromise.as<TextFileEditorModel>(this);
+					return this;
 				}
 
 				// Ignore when a model has been resolved once and the file was deleted meanwhile. Since
 				// we already have the model loaded, we can return to this state and update the orphaned
 				// flag to indicate that this model has no version on disk anymore.
 				if (this.isResolved() && result === FileOperationResult.FILE_NOT_FOUND) {
-					return TPromise.as<TextFileEditorModel>(this);
+					return this;
 				}
 
 				// Otherwise bubble up the error
-				return TPromise.wrapError<TextFileEditorModel>(error);
+				return Promise.reject<TextFileEditorModel>(error);
 			});
 	}
 
@@ -402,7 +402,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Update Existing Model
 		if (this.textEditorModel) {
-			return this.doUpdateTextModel(content.value);
+			this.doUpdateTextModel(content.value);
+
+			return Promise.resolve(this);
 		}
 
 		// Join an existing request to create the editor model to avoid race conditions
@@ -416,7 +418,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.doCreateTextModel(content.resource, content.value, backup);
 	}
 
-	private doUpdateTextModel(value: ITextBufferFactory): TPromise<TextFileEditorModel> {
+	private doUpdateTextModel(value: ITextBufferFactory): void {
 		this.logService.trace('load() - updated text editor model', this.resource);
 
 		// Ensure we are not tracking a stale state
@@ -432,43 +434,41 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Ensure we track the latest saved version ID given that the contents changed
 		this.updateSavedVersionId();
-
-		return TPromise.as<TextFileEditorModel>(this);
 	}
 
 	private doCreateTextModel(resource: URI, value: ITextBufferFactory, backup: URI): TPromise<TextFileEditorModel> {
 		this.logService.trace('load() - created text editor model', this.resource);
 
 		this.createTextEditorModelPromise = this.doLoadBackup(backup).then(backupContent => {
+			this.createTextEditorModelPromise = null;
+
+			// Create model
 			const hasBackupContent = !!backupContent;
+			this.createTextEditorModel(hasBackupContent ? backupContent : value, resource);
 
-			return this.createTextEditorModel(hasBackupContent ? backupContent : value, resource).then(() => {
-				this.createTextEditorModelPromise = null;
-
-				// We restored a backup so we have to set the model as being dirty
-				// We also want to trigger auto save if it is enabled to simulate the exact same behaviour
-				// you would get if manually making the model dirty (fixes https://github.com/Microsoft/vscode/issues/16977)
-				if (hasBackupContent) {
-					this.makeDirty();
-					if (this.autoSaveAfterMilliesEnabled) {
-						this.doAutoSave(this.versionId);
-					}
+			// We restored a backup so we have to set the model as being dirty
+			// We also want to trigger auto save if it is enabled to simulate the exact same behaviour
+			// you would get if manually making the model dirty (fixes https://github.com/Microsoft/vscode/issues/16977)
+			if (hasBackupContent) {
+				this.makeDirty();
+				if (this.autoSaveAfterMilliesEnabled) {
+					this.doAutoSave(this.versionId);
 				}
+			}
 
-				// Ensure we are not tracking a stale state
-				else {
-					this.setDirty(false);
-				}
+			// Ensure we are not tracking a stale state
+			else {
+				this.setDirty(false);
+			}
 
-				// Model Listeners
-				this.installModelListeners();
+			// Model Listeners
+			this.installModelListeners();
 
-				return this;
-			}, error => {
-				this.createTextEditorModelPromise = null;
+			return this;
+		}, error => {
+			this.createTextEditorModelPromise = null;
 
-				return TPromise.wrapError<TextFileEditorModel>(error);
-			});
+			return Promise.reject<TextFileEditorModel>(error);
 		});
 
 		return this.createTextEditorModelPromise;
@@ -486,7 +486,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private doLoadBackup(backup: URI): TPromise<ITextBufferFactory> {
 		if (!backup) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		return this.backupFileService.resolveBackupContent(backup).then(backupContent => backupContent, error => null /* ignore errors */);
@@ -584,7 +584,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	save(options: ISaveOptions = Object.create(null)): TPromise<void> {
 		if (!this.isResolved()) {
-			return TPromise.wrap<void>(null);
+			return Promise.resolve(null);
 		}
 
 		this.logService.trace('save() - enter', this.resource);
@@ -623,7 +623,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		if ((!options.force && !this.dirty) || versionId !== this.versionId) {
 			this.logService.trace(`doSave(${versionId}) - exit - because not dirty and/or versionId is different (this.isDirty: ${this.dirty}, this.versionId: ${this.versionId})`, this.resource);
 
-			return TPromise.wrap<void>(null);
+			return Promise.resolve(null);
 		}
 
 		// Return if currently saving by storing this save request as the next save that should happen.
@@ -659,11 +659,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				return this.versionId;
 			};
 
-			saveParticipantPromise = TPromise.as(undefined).then(() => {
-				this.blockModelContentChange = true;
-
-				return TextFileEditorModel.saveParticipant.participate(this, { reason: options.reason });
-			}).then(onCompleteOrError, onCompleteOrError);
+			this.blockModelContentChange = true;
+			saveParticipantPromise = TextFileEditorModel.saveParticipant.participate(this, { reason: options.reason }).then(onCompleteOrError, onCompleteOrError);
 		}
 
 		// mark the save participant as current pending save operation
@@ -1039,14 +1036,14 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 interface IPendingSave {
 	versionId: number;
-	promise: TPromise<void>;
+	promise: Thenable<void>;
 }
 
 interface ISaveOperation {
-	promise: TPromise<void>;
-	promiseValue: TValueCallback<void>;
-	promiseError: ErrorCallback;
-	run: () => TPromise<void>;
+	promise: Thenable<void>;
+	promiseResolve: () => void;
+	promiseReject: (error: Error) => void;
+	run: () => Thenable<void>;
 }
 
 export class SaveSequentializer {
@@ -1065,11 +1062,11 @@ export class SaveSequentializer {
 		return !!this._pendingSave;
 	}
 
-	get pendingSave(): TPromise<void> {
+	get pendingSave(): Thenable<void> {
 		return this._pendingSave ? this._pendingSave.promise : void 0;
 	}
 
-	setPending(versionId: number, promise: TPromise<void>): TPromise<void> {
+	setPending(versionId: number, promise: Thenable<void>): Thenable<void> {
 		this._pendingSave = { versionId, promise };
 
 		promise.then(() => this.donePending(versionId), () => this.donePending(versionId));
@@ -1094,28 +1091,28 @@ export class SaveSequentializer {
 			this._nextSave = void 0;
 
 			// Run next save and complete on the associated promise
-			saveOperation.run().then(saveOperation.promiseValue, saveOperation.promiseError);
+			saveOperation.run().then(saveOperation.promiseResolve, saveOperation.promiseReject);
 		}
 	}
 
-	setNext(run: () => TPromise<void>): TPromise<void> {
+	setNext(run: () => Thenable<void>): Thenable<void> {
 
 		// this is our first next save, so we create associated promise with it
 		// so that we can return a promise that completes when the save operation
 		// has completed.
 		if (!this._nextSave) {
-			let promiseValue: TValueCallback<void>;
-			let promiseError: ErrorCallback;
-			const promise = new TPromise<void>((c, e) => {
-				promiseValue = c;
-				promiseError = e;
+			let promiseResolve: () => void;
+			let promiseReject: (error: Error) => void;
+			const promise = new Promise<void>((resolve, reject) => {
+				promiseResolve = resolve;
+				promiseReject = reject;
 			});
 
 			this._nextSave = {
 				run,
 				promise,
-				promiseValue,
-				promiseError
+				promiseResolve: promiseResolve,
+				promiseReject: promiseReject
 			};
 		}
 

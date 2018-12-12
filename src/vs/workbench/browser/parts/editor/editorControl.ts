@@ -61,13 +61,13 @@ export class EditorControl extends Disposable {
 
 		// Editor control
 		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(editor);
-		const control = this.doShowEditorControl(descriptor, options);
+		const control = this.doShowEditorControl(descriptor);
 
 		// Set input
 		return this.doSetInput(control, editor, options).then((editorChanged => (({ control, editorChanged } as IOpenEditorResult))));
 	}
 
-	private doShowEditorControl(descriptor: IEditorDescriptor, options: EditorOptions): BaseEditor {
+	private doShowEditorControl(descriptor: IEditorDescriptor): BaseEditor {
 
 		// Return early if the currently active editor control can handle the input
 		if (this._activeControl && descriptor.describes(this._activeControl)) {
@@ -163,16 +163,16 @@ export class EditorControl extends Disposable {
 				control.focus();
 			}
 
-			return TPromise.as(false);
+			return Promise.resolve(false);
 		}
 
 		// Show progress while setting input after a certain timeout. If the workbench is opening
 		// be more relaxed about progress showing by increasing the delay a little bit to reduce flicker.
-		const operation = this.editorOperation.start(this.partService.isCreated() ? 800 : 3200);
+		const operation = this.editorOperation.start(this.partService.isRestored() ? 800 : 3200);
 
 		// Call into editor control
 		const editorWillChange = !inputMatches;
-		return TPromise.wrap(control.setInput(editor, options, operation.token)).then(() => {
+		return control.setInput(editor, options, operation.token).then(() => {
 
 			// Focus (unless prevented or another operation is running)
 			if (operation.isCurrent()) {
@@ -191,7 +191,7 @@ export class EditorControl extends Disposable {
 			// Operation done
 			operation.stop();
 
-			return TPromise.wrapError(e);
+			return Promise.reject(e);
 		});
 	}
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as os from 'os';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
 import * as terminalEnvironment from 'vs/workbench/parts/terminal/node/terminalEnvironment';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -365,7 +365,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		}
 	}
 
-	public $createProcess(id: number, shellLaunchConfig: ShellLaunchConfigDto, cols: number, rows: number): void {
+	public $createProcess(id: number, shellLaunchConfig: ShellLaunchConfigDto, activeWorkspaceRootUriComponents: UriComponents, cols: number, rows: number): void {
 		// TODO: This function duplicates a lot of TerminalProcessManager.createProcess, ideally
 		// they would be merged into a single implementation.
 
@@ -383,10 +383,9 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 			shellLaunchConfig.args = shellArgsConfigValue;
 		}
 
-		// TODO: Base the cwd on the last active workspace root
-		// const lastActiveWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
-		// this.initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, lastActiveWorkspaceRootUri, this._configHelper);
-		const initialCwd = os.homedir();
+		// TODO: @daniel
+		const activeWorkspaceRootUri = URI.revive(activeWorkspaceRootUriComponents);
+		const initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, activeWorkspaceRootUri, terminalConfig.cwd);
 
 		// TODO: Pull in and resolve config settings
 		// // Resolve env vars from config and shell

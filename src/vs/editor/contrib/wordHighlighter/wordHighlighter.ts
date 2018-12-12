@@ -47,7 +47,7 @@ export function getOccurrencesAtPosition(model: ITextModel, position: Position, 
 	return first<DocumentHighlight[] | null | undefined>(orderedByScore.map(provider => () => {
 		return Promise.resolve(provider.provideDocumentHighlights(model, position, token))
 			.then(undefined, onUnexpectedExternalError);
-	}), result => !arrays.isFalsyOrEmpty(result));
+	}), arrays.isNonEmptyArray);
 }
 
 interface IOccurenceAtPositionRequest {

@@ -19,7 +19,7 @@ interface MyQuickPickItem extends vscode.QuickPickItem {
 enum MessageAction {
 	useLocal,
 	useBundled,
-	learnMore
+	learnMore,
 }
 
 export class TypeScriptVersionPicker {
@@ -61,7 +61,7 @@ export class TypeScriptVersionPicker {
 				: '') + localize('useVSCodeVersionOption', 'Use VS Code\'s Version'),
 			description: shippedVersion.versionString,
 			detail: shippedVersion.pathLabel,
-			id: MessageAction.useBundled
+			id: MessageAction.useBundled,
 		});
 
 		for (const version of this.versionProvider.localVersions) {
@@ -72,7 +72,7 @@ export class TypeScriptVersionPicker {
 				description: version.versionString,
 				detail: version.pathLabel,
 				id: MessageAction.useLocal,
-				version: version
+				version
 			});
 		}
 
@@ -86,7 +86,7 @@ export class TypeScriptVersionPicker {
 			placeHolder: localize(
 				'selectTsVersion',
 				'Select the TypeScript version used for JavaScript and TypeScript language features'),
-			ignoreFocusOut: firstRun
+			ignoreFocusOut: firstRun,
 		});
 
 		if (!selected) {
@@ -111,7 +111,6 @@ export class TypeScriptVersionPicker {
 				const previousVersion = this.currentVersion;
 				this._currentVersion = shippedVersion;
 				return { oldVersion: previousVersion, newVersion: shippedVersion };
-
 
 			case MessageAction.learnMore:
 				vscode.commands.executeCommand('vscode.open', vscode.Uri.parse('https://go.microsoft.com/fwlink/?linkid=839919'));

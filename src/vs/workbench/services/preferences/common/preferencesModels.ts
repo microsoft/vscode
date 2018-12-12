@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten, tail, find } from 'vs/base/common/arrays';
+import { flatten, tail, find, coalesce } from 'vs/base/common/arrays';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { Emitter, Event } from 'vs/base/common/event';
 import { JSONVisitor, visit } from 'vs/base/common/json';
@@ -512,7 +512,7 @@ export class DefaultSettings extends Disposable {
 	}
 
 	private getMostCommonlyUsedSettings(allSettingsGroups: ISettingsGroup[]): ISettingsGroup {
-		const settings = this._mostCommonlyUsedSettingsKeys.map(key => {
+		const settings = coalesce(this._mostCommonlyUsedSettingsKeys.map(key => {
 			const setting = this._settingsByName.get(key);
 			if (setting) {
 				return <ISetting>{
@@ -529,7 +529,7 @@ export class DefaultSettings extends Disposable {
 				};
 			}
 			return null;
-		}).filter(setting => !!setting);
+		}));
 
 		return <ISettingsGroup>{
 			id: 'mostCommonlyUsed',

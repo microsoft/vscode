@@ -15,7 +15,7 @@ import { BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export interface ICheckboxOpts extends ICheckboxStyles {
-	readonly actionClassName: string;
+	readonly actionClassName?: string;
 	readonly title: string;
 	readonly isChecked: boolean;
 }
@@ -92,7 +92,7 @@ export class Checkbox extends Widget {
 
 		this.domNode = document.createElement('div');
 		this.domNode.title = this._opts.title;
-		this.domNode.className = 'monaco-custom-checkbox ' + this._opts.actionClassName + ' ' + (this._checked ? 'checked' : 'unchecked');
+		this.domNode.className = 'monaco-custom-checkbox ' + (this._opts.actionClassName || '') + ' ' + (this._checked ? 'checked' : 'unchecked');
 		this.domNode.tabIndex = 0;
 		this.domNode.setAttribute('role', 'checkbox');
 		this.domNode.setAttribute('aria-checked', String(this._checked));

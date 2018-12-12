@@ -7,6 +7,7 @@ import { ITerminalChildProcess } from 'vs/workbench/parts/terminal/node/terminal
 import { Event, Emitter } from 'vs/base/common/event';
 import { ITerminalService, ITerminalProcessExtHostProxy, IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export class TerminalProcessExtHostProxy implements ITerminalChildProcess, ITerminalProcessExtHostProxy {
@@ -31,6 +32,7 @@ export class TerminalProcessExtHostProxy implements ITerminalChildProcess, ITerm
 	constructor(
 		public terminalId: number,
 		shellLaunchConfig: IShellLaunchConfig,
+		activeWorkspaceRootUri: URI,
 		cols: number,
 		rows: number,
 		@ITerminalService private _terminalService: ITerminalService,
@@ -39,7 +41,7 @@ export class TerminalProcessExtHostProxy implements ITerminalChildProcess, ITerm
 		this._extensionService.whenInstalledExtensionsRegistered().then(() => {
 			// TODO: MainThreadTerminalService is not ready at this point, fix this
 			setTimeout(() => {
-				this._terminalService.requestExtHostProcess(this, shellLaunchConfig, cols, rows);
+				this._terminalService.requestExtHostProcess(this, shellLaunchConfig, activeWorkspaceRootUri, cols, rows);
 			}, 0);
 		});
 	}

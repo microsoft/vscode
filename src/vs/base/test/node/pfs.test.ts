@@ -73,11 +73,11 @@ suite('PFS', () => {
 			assert.ok(fs.existsSync(newDir));
 
 			return Promise.all([
-				pfs.writeFile(testFile, 'Hello World 1', null),
-				pfs.writeFile(testFile, 'Hello World 2', null),
-				timeout(10).then(() => pfs.writeFile(testFile, 'Hello World 3', null)),
-				pfs.writeFile(testFile, 'Hello World 4', null),
-				timeout(10).then(() => pfs.writeFile(testFile, 'Hello World 5', null))
+				pfs.writeFile(testFile, 'Hello World 1', void 0),
+				pfs.writeFile(testFile, 'Hello World 2', void 0),
+				timeout(10).then(() => pfs.writeFile(testFile, 'Hello World 3', void 0)),
+				pfs.writeFile(testFile, 'Hello World 4', void 0),
+				timeout(10).then(() => pfs.writeFile(testFile, 'Hello World 5', void 0))
 			]).then(() => {
 				assert.equal(fs.readFileSync(testFile), 'Hello World 5');
 
@@ -115,6 +115,40 @@ suite('PFS', () => {
 
 			return pfs.rimraf(newDir).then(() => {
 				assert.ok(!fs.existsSync(newDir));
+			});
+		});
+	});
+
+	test('unlinkIgnoreError', function () {
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'extfs', id);
+
+		return pfs.mkdirp(newDir, 493).then(() => {
+			return pfs.unlinkIgnoreError(path.join(newDir, 'foo')).then(() => {
+
+				return pfs.del(parentDir, os.tmpdir());
+			}, error => {
+				assert.fail(error);
+
+				return Promise.reject(error);
+			});
+		});
+	});
+
+	test('moveIgnoreError', function () {
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'extfs', id);
+
+		return pfs.mkdirp(newDir, 493).then(() => {
+			return pfs.renameIgnoreError(path.join(newDir, 'foo'), path.join(newDir, 'bar')).then(() => {
+
+				return pfs.del(parentDir, os.tmpdir());
+			}, error => {
+				assert.fail(error);
+
+				return Promise.reject(error);
 			});
 		});
 	});

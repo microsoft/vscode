@@ -1,4 +1,4 @@
 test/**
 src/**/*.ts
 tsconfig.json
-OSSREADME.json
+cgmanifest.json

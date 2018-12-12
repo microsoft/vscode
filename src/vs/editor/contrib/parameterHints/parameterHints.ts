@@ -25,8 +25,8 @@ class ParameterHintsController implements IEditorContribution {
 		return editor.getContribution<ParameterHintsController>(ParameterHintsController.ID);
 	}
 
-	private editor: ICodeEditor;
-	private widget: ParameterHintsWidget;
+	private readonly editor: ICodeEditor;
+	private readonly widget: ParameterHintsWidget;
 
 	constructor(editor: ICodeEditor, @IInstantiationService instantiationService: IInstantiationService) {
 		this.editor = editor;
@@ -54,7 +54,7 @@ class ParameterHintsController implements IEditorContribution {
 	}
 
 	dispose(): void {
-		this.widget = dispose(this.widget);
+		dispose(this.widget);
 	}
 }
 
@@ -78,7 +78,7 @@ export class TriggerParameterHintsAction extends EditorAction {
 		let controller = ParameterHintsController.get(editor);
 		if (controller) {
 			controller.trigger({
-				triggerReason: modes.SignatureHelpTriggerReason.Invoke
+				triggerKind: modes.SignatureHelpTriggerKind.Invoke
 			});
 		}
 	}

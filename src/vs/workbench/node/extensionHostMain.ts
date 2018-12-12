@@ -3,20 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { join } from 'path';
 import { timeout } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Counter } from 'vs/base/common/numbers';
 import { URI, setUriThrowOnMissingScheme } from 'vs/base/common/uri';
 import { IURITransformer } from 'vs/base/common/uriIpc';
-import * as pfs from 'vs/base/node/pfs';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
-import { IEnvironment, IInitData, IWorkspaceData, MainContext, MainThreadWorkspaceShape } from 'vs/workbench/api/node/extHost.protocol';
+import { IEnvironment, IInitData, MainContext } from 'vs/workbench/api/node/extHost.protocol';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
-import { ExtensionActivatedByEvent } from 'vs/workbench/api/node/extHostExtensionActivator';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
@@ -48,33 +43,26 @@ export function exit(code?: number) {
 	nativeExit(code);
 }
 
-interface ITestRunner {
-	run(testsRoot: string, clb: (error: Error, failures?: number) => void): void;
-}
-
 export class ExtensionHostMain {
 
-	private static readonly WORKSPACE_CONTAINS_TIMEOUT = 7000;
 
-	private _isTerminating: boolean = false;
-	private _workspace: IWorkspaceData;
-	private _environment: IEnvironment;
-	private _extensionService: ExtHostExtensionService;
-	private _extHostConfiguration: ExtHostConfiguration;
-	private _extHostLogService: ExtHostLogService;
+	private _isTerminating: boolean;
+	private readonly _environment: IEnvironment;
+	private readonly _extensionService: ExtHostExtensionService;
+	private readonly _extHostConfiguration: ExtHostConfiguration;
+	private readonly _extHostLogService: ExtHostLogService;
 	private disposables: IDisposable[] = [];
 
 	private _searchRequestIdProvider: Counter;
-	private _mainThreadWorkspace: MainThreadWorkspaceShape;
 
 	constructor(protocol: IMessagePassingProtocol, initData: IInitData) {
+		this._isTerminating = false;
 		const uriTransformer: IURITransformer = null;
 		const rpcProtocol = new RPCProtocol(protocol, null, uriTransformer);
 
 		// ensure URIs are transformed and revived
 		initData = this.transform(initData, rpcProtocol);
 		this._environment = initData.environment;
-		this._workspace = initData.workspace;
 
 		const allowExit = !!this._environment.extensionTestsPath; // to support other test frameworks like Jasmin that use process.exit (https://github.com/Microsoft/vscode/issues/37708)
 		patchProcess(allowExit);
@@ -90,8 +78,7 @@ export class ExtensionHostMain {
 		this._extHostLogService.trace('initData', initData);
 
 		this._extHostConfiguration = new ExtHostConfiguration(rpcProtocol.getProxy(MainContext.MainThreadConfiguration), extHostWorkspace, initData.configuration);
-		const mainThreadTelemetry = rpcProtocol.getProxy(MainContext.MainThreadTelemetry);
-		this._extensionService = new ExtHostExtensionService(initData, rpcProtocol, extHostWorkspace, this._extHostConfiguration, this._extHostLogService, mainThreadTelemetry);
+		this._extensionService = new ExtHostExtensionService(nativeExit, initData, rpcProtocol, extHostWorkspace, this._extHostConfiguration, this._extHostLogService);
 
 		// error forwarding and stack trace scanning
 		Error.stackTraceLimit = 100; // increase number of stack frames (from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
@@ -125,17 +112,6 @@ export class ExtensionHostMain {
 				mainThreadErrors.$onUnexpectedError(data);
 			}
 		});
-
-		this._mainThreadWorkspace = rpcProtocol.getProxy(MainContext.MainThreadWorkspace);
-	}
-
-	start(): Thenable<void> {
-		return this._extensionService.onExtensionAPIReady()
-			.then(() => this.handleEagerExtensions())
-			.then(() => this.handleExtensionTests())
-			.then(() => {
-				this._extHostLogService.info(`eager extensions activated`);
-			});
 	}
 
 	terminate(): void {
@@ -151,169 +127,12 @@ export class ExtensionHostMain {
 			// TODO: write to log once we have one
 		});
 
-		let allPromises: Thenable<void>[] = [];
-		try {
-			const allExtensions = this._extensionService.getAllExtensionDescriptions();
-			const allExtensionsIds = allExtensions.map(ext => ext.id);
-			const activatedExtensions = allExtensionsIds.filter(id => this._extensionService.isActivated(id));
+		const extensionsDeactivated = this._extensionService.deactivateAll();
 
-			allPromises = activatedExtensions.map((extensionId) => {
-				return this._extensionService.deactivate(extensionId);
-			});
-		} catch (err) {
-			// TODO: write to log once we have one
-		}
-
-		const extensionsDeactivated = Promise.all(allPromises).then<void>(() => void 0);
-
-		// Give extensions 1 second to wrap up any async dispose, then exit
+		// Give extensions 1 second to wrap up any async dispose, then exit in at most 4 seconds
 		setTimeout(() => {
 			Promise.race([timeout(4000), extensionsDeactivated]).then(() => exit(), () => exit());
 		}, 1000);
-	}
-
-	// Handle "eager" activation extensions
-	private handleEagerExtensions(): Promise<void> {
-		this._extensionService.activateByEvent('*', true).then(null, (err) => {
-			console.error(err);
-		});
-
-		return this.handleWorkspaceContainsEagerExtensions();
-	}
-
-	private handleWorkspaceContainsEagerExtensions(): Promise<void> {
-		if (!this._workspace || this._workspace.folders.length === 0) {
-			return Promise.resolve(null);
-		}
-
-		return Promise.all(
-			this._extensionService.getAllExtensionDescriptions().map((desc) => {
-				return this.handleWorkspaceContainsEagerExtension(desc);
-			})
-		).then(() => { });
-	}
-
-	private handleWorkspaceContainsEagerExtension(desc: IExtensionDescription): Promise<void> {
-		const activationEvents = desc.activationEvents;
-		if (!activationEvents) {
-			return Promise.resolve(void 0);
-		}
-
-		const fileNames: string[] = [];
-		const globPatterns: string[] = [];
-
-		for (let i = 0; i < activationEvents.length; i++) {
-			if (/^workspaceContains:/.test(activationEvents[i])) {
-				const fileNameOrGlob = activationEvents[i].substr('workspaceContains:'.length);
-				if (fileNameOrGlob.indexOf('*') >= 0 || fileNameOrGlob.indexOf('?') >= 0) {
-					globPatterns.push(fileNameOrGlob);
-				} else {
-					fileNames.push(fileNameOrGlob);
-				}
-			}
-		}
-
-		if (fileNames.length === 0 && globPatterns.length === 0) {
-			return Promise.resolve(void 0);
-		}
-
-		const fileNamePromise = Promise.all(fileNames.map((fileName) => this.activateIfFileName(desc.id, fileName))).then(() => { });
-		const globPatternPromise = this.activateIfGlobPatterns(desc.id, globPatterns);
-
-		return Promise.all([fileNamePromise, globPatternPromise]).then(() => { });
-	}
-
-	private async activateIfFileName(extensionId: string, fileName: string): Promise<void> {
-
-		// find exact path
-		for (const { uri } of this._workspace.folders) {
-			if (await pfs.exists(join(URI.revive(uri).fsPath, fileName))) {
-				// the file was found
-				return (
-					this._extensionService.activateById(extensionId, new ExtensionActivatedByEvent(true, `workspaceContains:${fileName}`))
-						.then(null, err => console.error(err))
-				);
-			}
-		}
-
-		return undefined;
-	}
-
-	private async activateIfGlobPatterns(extensionId: string, globPatterns: string[]): Promise<void> {
-		this._extHostLogService.trace(`extensionHostMain#activateIfGlobPatterns: fileSearch, extension: ${extensionId}, entryPoint: workspaceContains`);
-
-		if (globPatterns.length === 0) {
-			return Promise.resolve(void 0);
-		}
-
-		const tokenSource = new CancellationTokenSource();
-		const searchP = this._mainThreadWorkspace.$checkExists(globPatterns, tokenSource.token);
-
-		const timer = setTimeout(async () => {
-			tokenSource.cancel();
-			this._extensionService.activateById(extensionId, new ExtensionActivatedByEvent(true, `workspaceContainsTimeout:${globPatterns.join(',')}`))
-				.then(null, err => console.error(err));
-		}, ExtensionHostMain.WORKSPACE_CONTAINS_TIMEOUT);
-
-		let exists: boolean;
-		try {
-			exists = await searchP;
-		} catch (err) {
-			if (!errors.isPromiseCanceledError(err)) {
-				console.error(err);
-			}
-		}
-
-		tokenSource.dispose();
-		clearTimeout(timer);
-
-		if (exists) {
-			// a file was found matching one of the glob patterns
-			return (
-				this._extensionService.activateById(extensionId, new ExtensionActivatedByEvent(true, `workspaceContains:${globPatterns.join(',')}`))
-					.then(null, err => console.error(err))
-			);
-		}
-
-		return Promise.resolve(void 0);
-	}
-
-	private handleExtensionTests(): Promise<void> {
-		if (!this._environment.extensionTestsPath || !this._environment.extensionDevelopmentLocationURI) {
-			return Promise.resolve(null);
-		}
-
-		// Require the test runner via node require from the provided path
-		let testRunner: ITestRunner;
-		let requireError: Error;
-		try {
-			testRunner = <any>require.__$__nodeRequire(this._environment.extensionTestsPath);
-		} catch (error) {
-			requireError = error;
-		}
-
-		// Execute the runner if it follows our spec
-		if (testRunner && typeof testRunner.run === 'function') {
-			return new Promise<void>((c, e) => {
-				testRunner.run(this._environment.extensionTestsPath, (error, failures) => {
-					if (error) {
-						e(error.toString());
-					} else {
-						c(null);
-					}
-
-					// after tests have run, we shutdown the host
-					this.gracefulExit(failures && failures > 0 ? 1 /* ERROR */ : 0 /* OK */);
-				});
-			});
-		}
-
-		// Otherwise make sure to shutdown anyway even in case of an error
-		else {
-			this.gracefulExit(1 /* ERROR */);
-		}
-
-		return Promise.reject(new Error(requireError ? requireError.toString() : nls.localize('extensionTestError', "Path {0} does not point to a valid extension test runner.", this._environment.extensionTestsPath)));
 	}
 
 	private transform(initData: IInitData, rpcProtocol: RPCProtocol): IInitData {
@@ -321,14 +140,9 @@ export class ExtensionHostMain {
 		initData.environment.appRoot = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.appRoot));
 		initData.environment.appSettingsHome = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.appSettingsHome));
 		initData.environment.extensionDevelopmentLocationURI = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.extensionDevelopmentLocationURI));
+		initData.environment.globalStorageHome = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.globalStorageHome));
 		initData.logsLocation = URI.revive(rpcProtocol.transformIncomingURIs(initData.logsLocation));
 		initData.workspace = rpcProtocol.transformIncomingURIs(initData.workspace);
 		return initData;
-	}
-
-	private gracefulExit(code: number): void {
-		// to give the PH process a chance to flush any outstanding console
-		// messages to the main process, we delay the exit() by some time
-		setTimeout(() => exit(code), 500);
 	}
 }

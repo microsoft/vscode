@@ -10,7 +10,6 @@ import { Action } from 'vs/base/common/actions';
 import { IWindowService, IWindowsService, MenuBarVisibility } from 'vs/platform/windows/common/windows';
 import * as nls from 'vs/nls';
 import product from 'vs/platform/node/product';
-import * as errors from 'vs/base/common/errors';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
@@ -29,7 +28,7 @@ import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderW
 import { FileKind } from 'vs/platform/files/common/files';
 import { IssueType } from 'vs/platform/issue/common/issue';
 import { domEvent } from 'vs/base/browser/event';
-import { once } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
 import { getDomNodePagePosition, createStyleSheet, createCSSRule } from 'vs/base/browser/dom';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -482,9 +481,7 @@ export abstract class BaseOpenRecentAction extends Action {
 			onKeyMods: mods => keyMods = mods,
 			quickNavigate: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : void 0,
 			onDidTriggerItemButton: context => {
-				this.windowsService.removeFromRecentlyOpened([context.item.workspace]).then(() => {
-					context.removeItem();
-				}).then(null, errors.onUnexpectedError);
+				this.windowsService.removeFromRecentlyOpened([context.item.workspace]).then(() => context.removeItem());
 			}
 		})
 			.then(pick => {
@@ -1288,10 +1285,10 @@ export class InspectContextKeysAction extends Action {
 			hoverFeedback.style.height = `${position.height}px`;
 		}));
 
-		const onMouseDown = once(domEvent(document.body, 'mousedown', true));
+		const onMouseDown = Event.once(domEvent(document.body, 'mousedown', true));
 		onMouseDown(e => { e.preventDefault(); e.stopPropagation(); }, null, disposables);
 
-		const onMouseUp = once(domEvent(document.body, 'mouseup', true));
+		const onMouseUp = Event.once(domEvent(document.body, 'mouseup', true));
 		onMouseUp(e => {
 			e.preventDefault();
 			e.stopPropagation();

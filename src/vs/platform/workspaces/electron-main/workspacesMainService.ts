@@ -52,7 +52,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 
 	resolveWorkspace(path: string): TPromise<IResolvedWorkspace | null> {
 		if (!this.isWorkspacePath(path)) {
-			return TPromise.as(null); // does not look like a valid workspace config file
+			return Promise.resolve(null); // does not look like a valid workspace config file
 		}
 
 		return readFile(path, 'utf8').then(contents => this.doResolveWorkspace(path, contents));
@@ -191,7 +191,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 
 		// Return early if target is same as source
 		if (isEqual(workspace.configPath, targetConfigPath, !isLinux)) {
-			return TPromise.as(workspace);
+			return Promise.resolve(workspace);
 		}
 
 		// Read the contents of the workspace file and resolve it
@@ -201,7 +201,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 			try {
 				storedWorkspace = this.doParseStoredWorkspace(workspace.configPath, rawWorkspaceContents);
 			} catch (error) {
-				return TPromise.wrapError(error);
+				return Promise.reject(error);
 			}
 
 			const sourceConfigFolder = dirname(workspace.configPath);

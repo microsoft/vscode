@@ -19,7 +19,7 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 	_serviceBrand: any;
 
 	readonly localExtensionManagementServer: IExtensionManagementServer;
-	readonly otherExtensionManagementServer: IExtensionManagementServer | null = null;
+	readonly remoteExtensionManagementServer: IExtensionManagementServer | null = null;
 
 	constructor(
 		localExtensionManagementService: IExtensionManagementService,
@@ -29,7 +29,7 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 		const remoteAgentConnection = remoteAgentService.getConnection();
 		if (remoteAgentConnection) {
 			const extensionManagementService = new ExtensionManagementChannelClient(remoteAgentConnection.getChannel<IChannel>('extensions'));
-			this.otherExtensionManagementServer = { authority: remoteAgentConnection.remoteAuthority, extensionManagementService, label: remoteAgentConnection.remoteAuthority };
+			this.remoteExtensionManagementServer = { authority: remoteAgentConnection.remoteAuthority, extensionManagementService, label: remoteAgentConnection.remoteAuthority };
 		}
 	}
 
@@ -38,7 +38,7 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 			return this.localExtensionManagementServer;
 		}
 		if (location.scheme === REMOTE_HOST_SCHEME) {
-			return this.otherExtensionManagementServer;
+			return this.remoteExtensionManagementServer;
 		}
 		return null;
 	}
@@ -63,7 +63,7 @@ export class SingleServerExtensionManagementServerService implements IExtensionM
 		return this.extensionManagementServer.authority === localExtensionManagementServerAuthority ? this.extensionManagementServer : null;
 	}
 
-	get otherExtensionManagementServer(): IExtensionManagementServer | null {
+	get remoteExtensionManagementServer(): IExtensionManagementServer | null {
 		return this.extensionManagementServer.authority !== localExtensionManagementServerAuthority ? this.extensionManagementServer : null;
 	}
 }

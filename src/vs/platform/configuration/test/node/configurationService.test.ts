@@ -95,6 +95,21 @@ suite('ConfigurationService - Node', () => {
 		service.dispose();
 	});
 
+	test('trigger configuration change event', async () => {
+		const res = await testFile('config', 'config.json');
+
+		const service = new ConfigurationService(new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, res.testFile));
+		return new Promise((c, e) => {
+			service.onDidChangeConfiguration(() => {
+				assert.equal(service.getValue('foo'), 'bar');
+				service.dispose();
+				c();
+			});
+			fs.writeFileSync(res.testFile, '{ "foo": "bar" }');
+		});
+
+	});
+
 	test('reloadConfiguration', async () => {
 		const res = await testFile('config', 'config.json');
 

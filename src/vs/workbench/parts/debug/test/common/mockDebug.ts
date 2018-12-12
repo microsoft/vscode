@@ -123,7 +123,7 @@ export class MockDebugService implements IDebugService {
 }
 
 export class MockSession implements IDebugSession {
-	getReplElements(): ReadonlyArray<IReplElement> {
+	getReplElements(): IReplElement[] {
 		return [];
 	}
 
@@ -179,7 +179,7 @@ export class MockSession implements IDebugSession {
 
 	setConfiguration(configuration: { resolved: IConfig, unresolved: IConfig }) { }
 
-	getAllThreads(): ReadonlyArray<IThread> {
+	getAllThreads(): IThread[] {
 		return [];
 	}
 

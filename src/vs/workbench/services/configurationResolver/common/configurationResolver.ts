@@ -24,9 +24,31 @@ export interface IConfigurationResolverService {
 	resolveAny(folder: IWorkspaceFolder, config: any, commandValueMapping?: IStringDictionary<string>): any;
 
 	/**
-	 * Recursively resolves all variables (including commands) in the given config and returns a copy of it with substituted values.
-	 * If a "variables" dictionary (with names -> command ids) is given,
-	 * command variables are first mapped through it before being resolved.
+	 * Recursively resolves all variables (including commands and user input) in the given config and returns a copy of it with substituted values.
+	 * If a "variables" dictionary (with names -> command ids) is given, command variables are first mapped through it before being resolved.
+	 * @param folder
+	 * @param config
+	 * @param section For example, 'tasks' or 'debug'. Used for resolving inputs.
+	 * @param variables Aliases for commands.
 	 */
-	resolveWithCommands(folder: IWorkspaceFolder, config: any, variables?: IStringDictionary<string>): TPromise<any>;
+	resolveWithInteractionReplace(folder: IWorkspaceFolder, config: any, section?: string, variables?: IStringDictionary<string>): TPromise<any>;
+
+	/**
+	 * Similar to resolveWithInteractionReplace, except without the replace. Returns a map of variables and their resolution.
+	 * Keys in the map will be of the format input:variableName or command:variableName.
+	 */
+	resolveWithInteraction(folder: IWorkspaceFolder, config: any, section?: string, variables?: IStringDictionary<string>): TPromise<Map<string, string>>;
+}
+
+export const enum ConfiguredInputType {
+	PromptString,
+	PickString
+}
+
+export interface ConfiguredInput {
+	id: string;
+	description: string;
+	default?: string;
+	type: ConfiguredInputType;
+	options?: string[];
 }

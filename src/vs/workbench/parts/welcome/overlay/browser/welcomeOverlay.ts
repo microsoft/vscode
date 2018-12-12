@@ -10,7 +10,6 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ShowAllCommandsAction } from 'vs/workbench/parts/quickopen/browser/commandsHandler';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Parts, IPartService } from 'vs/workbench/services/part/common/partService';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
@@ -122,12 +121,12 @@ export class WelcomeOverlayAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<void> {
+	public run(): Thenable<void> {
 		if (!welcomeOverlay) {
 			welcomeOverlay = this.instantiationService.createInstance(WelcomeOverlay);
 		}
 		welcomeOverlay.show();
-		return null;
+		return Promise.resolve();
 	}
 }
 
@@ -143,11 +142,11 @@ export class HideWelcomeOverlayAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<void> {
+	public run(): Thenable<void> {
 		if (welcomeOverlay) {
 			welcomeOverlay.hide();
 		}
-		return null;
+		return Promise.resolve();
 	}
 }
 

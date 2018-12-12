@@ -11,7 +11,7 @@ suite('RequestQueue', () => {
 	test('should be empty on creation', async () => {
 		const queue = new RequestQueue();
 		assert.strictEqual(queue.length, 0);
-		assert.strictEqual(queue.shift(), undefined);
+		assert.strictEqual(queue.dequeue(), undefined);
 	});
 
 	suite('RequestQueue.createRequest', () => {
@@ -33,25 +33,25 @@ suite('RequestQueue', () => {
 		assert.strictEqual(queue.length, 0);
 
 		const request1 = queue.createRequest('a', 1);
-		queue.push({ request: request1, expectsResponse: true, isAsync: false, queueingType: RequestQueueingType.Normal });
+		queue.enqueue({ request: request1, expectsResponse: true, isAsync: false, queueingType: RequestQueueingType.Normal });
 		assert.strictEqual(queue.length, 1);
 
 		const request2 = queue.createRequest('b', 2);
-		queue.push({ request: request2, expectsResponse: true, isAsync: false, queueingType: RequestQueueingType.Normal });
+		queue.enqueue({ request: request2, expectsResponse: true, isAsync: false, queueingType: RequestQueueingType.Normal });
 		assert.strictEqual(queue.length, 2);
 
 		{
-			const item = queue.shift();
+			const item = queue.dequeue();
 			assert.strictEqual(queue.length, 1);
 			assert.strictEqual(item!.request.command, 'a');
 		}
 		{
-			const item = queue.shift();
+			const item = queue.dequeue();
 			assert.strictEqual(queue.length, 0);
 			assert.strictEqual(item!.request.command, 'b');
 		}
 		{
-			const item = queue.shift();
+			const item = queue.dequeue();
 			assert.strictEqual(item, undefined);
 			assert.strictEqual(queue.length, 0);
 		}
@@ -61,28 +61,28 @@ suite('RequestQueue', () => {
 		const queue = new RequestQueue();
 		assert.strictEqual(queue.length, 0);
 
-		queue.push({ request: queue.createRequest('low-1', 1), expectsResponse: true, isAsync: false, queueingType: RequestQueueingType.LowPriority });
-		queue.push({ request: queue.createRequest('low-2', 1), expectsResponse: true, isAsync: false, queueingType: RequestQueueingType.LowPriority });
-		queue.push({ request: queue.createRequest('normal-1', 2), expectsResponse: true, isAsync: false, queueingType: RequestQueueingType.Normal });
-		queue.push({ request: queue.createRequest('normal-2', 2), expectsResponse: true, isAsync: false, queueingType: RequestQueueingType.Normal });
+		queue.enqueue({ request: queue.createRequest('low-1', 1), expectsResponse: true, isAsync: false, queueingType: RequestQueueingType.LowPriority });
+		queue.enqueue({ request: queue.createRequest('low-2', 1), expectsResponse: true, isAsync: false, queueingType: RequestQueueingType.LowPriority });
+		queue.enqueue({ request: queue.createRequest('normal-1', 2), expectsResponse: true, isAsync: false, queueingType: RequestQueueingType.Normal });
+		queue.enqueue({ request: queue.createRequest('normal-2', 2), expectsResponse: true, isAsync: false, queueingType: RequestQueueingType.Normal });
 
 		{
-			const item = queue.shift();
+			const item = queue.dequeue();
 			assert.strictEqual(queue.length, 3);
 			assert.strictEqual(item!.request.command, 'normal-1');
 		}
 		{
-			const item = queue.shift();
+			const item = queue.dequeue();
 			assert.strictEqual(queue.length, 2);
 			assert.strictEqual(item!.request.command, 'normal-2');
 		}
 		{
-			const item = queue.shift();
+			const item = queue.dequeue();
 			assert.strictEqual(queue.length, 1);
 			assert.strictEqual(item!.request.command, 'low-1');
 		}
 		{
-			const item = queue.shift();
+			const item = queue.dequeue();
 			assert.strictEqual(queue.length, 0);
 			assert.strictEqual(item!.request.command, 'low-2');
 		}
@@ -92,28 +92,28 @@ suite('RequestQueue', () => {
 		const queue = new RequestQueue();
 		assert.strictEqual(queue.length, 0);
 
-		queue.push({ request: queue.createRequest('low-1', 0), expectsResponse: true, isAsync: false, queueingType: RequestQueueingType.LowPriority });
-		queue.push({ request: queue.createRequest('fence', 0), expectsResponse: true, isAsync: false, queueingType: RequestQueueingType.Fence });
-		queue.push({ request: queue.createRequest('low-2', 0), expectsResponse: true, isAsync: false, queueingType: RequestQueueingType.LowPriority });
-		queue.push({ request: queue.createRequest('normal', 0), expectsResponse: true, isAsync: false, queueingType: RequestQueueingType.Normal });
+		queue.enqueue({ request: queue.createRequest('low-1', 0), expectsResponse: true, isAsync: false, queueingType: RequestQueueingType.LowPriority });
+		queue.enqueue({ request: queue.createRequest('fence', 0), expectsResponse: true, isAsync: false, queueingType: RequestQueueingType.Fence });
+		queue.enqueue({ request: queue.createRequest('low-2', 0), expectsResponse: true, isAsync: false, queueingType: RequestQueueingType.LowPriority });
+		queue.enqueue({ request: queue.createRequest('normal', 0), expectsResponse: true, isAsync: false, queueingType: RequestQueueingType.Normal });
 
 		{
-			const item = queue.shift();
+			const item = queue.dequeue();
 			assert.strictEqual(queue.length, 3);
 			assert.strictEqual(item!.request.command, 'low-1');
 		}
 		{
-			const item = queue.shift();
+			const item = queue.dequeue();
 			assert.strictEqual(queue.length, 2);
 			assert.strictEqual(item!.request.command, 'fence');
 		}
 		{
-			const item = queue.shift();
+			const item = queue.dequeue();
 			assert.strictEqual(queue.length, 1);
 			assert.strictEqual(item!.request.command, 'normal');
 		}
 		{
-			const item = queue.shift();
+			const item = queue.dequeue();
 			assert.strictEqual(queue.length, 0);
 			assert.strictEqual(item!.request.command, 'low-2');
 		}
