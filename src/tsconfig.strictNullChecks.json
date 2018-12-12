@@ -747,6 +747,7 @@
 		"./vs/workbench/parts/tasks/electron-browser/runAutomaticTasks.ts",
 		"./vs/workbench/parts/tasks/node/tasks.ts",
 		"./vs/workbench/parts/tasks/test/common/problemMatcher.test.ts",
+		"./vs/workbench/parts/terminal/browser/terminalFindWidget.ts",
 		"./vs/workbench/parts/terminal/browser/terminalTab.ts",
 		"./vs/workbench/parts/terminal/browser/terminalWidgetManager.ts",
 		"./vs/workbench/parts/terminal/common/terminal.ts",

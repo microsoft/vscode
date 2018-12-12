@@ -34,7 +34,7 @@ export interface IFeedbackDelegate {
 
 export interface IFeedbackDropdownOptions {
 	contextViewProvider: IContextViewService;
-	feedbackService?: IFeedbackDelegate;
+	feedbackService: IFeedbackDelegate;
 	onFeedbackVisibilityChange?: (visible: boolean) => void;
 }
 
@@ -43,9 +43,9 @@ export class FeedbackDropdown extends Dropdown {
 
 	private feedback: string = '';
 	private sentiment: number = 1;
-	private autoHideTimeout: number;
+	private autoHideTimeout?: number;
 
-	private feedbackDelegate: IFeedbackDelegate;
+	private readonly feedbackDelegate: IFeedbackDelegate;
 
 	private feedbackForm: HTMLFormElement;
 	private feedbackDescriptionInput: HTMLTextAreaElement;
@@ -122,7 +122,7 @@ export class FeedbackDropdown extends Dropdown {
 
 		disposables.push(dom.addDisposableListener(closeBtn, dom.EventType.MOUSE_OVER, () => {
 			const theme = this.themeService.getTheme();
-			let darkenFactor: number;
+			let darkenFactor: number | undefined;
 			switch (theme.type) {
 				case 'light':
 					darkenFactor = 0.1;
@@ -207,7 +207,7 @@ export class FeedbackDropdown extends Dropdown {
 		submitBugLink.tabIndex = 0;
 
 		disposables.push(dom.addDisposableListener(submitBugLink, 'click', e => {
-			dom.EventHelper.stop(event);
+			dom.EventHelper.stop(e);
 			const actionId = 'workbench.action.openIssueReporter';
 			this.commandService.executeCommand(actionId);
 			this.hide();
@@ -372,7 +372,7 @@ export class FeedbackDropdown extends Dropdown {
 
 		if (this.autoHideTimeout) {
 			clearTimeout(this.autoHideTimeout);
-			this.autoHideTimeout = null;
+			this.autoHideTimeout = undefined;
 		}
 
 		if (this.hideButton && !this.hideButton.checked) {
