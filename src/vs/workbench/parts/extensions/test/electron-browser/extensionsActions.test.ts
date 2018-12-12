@@ -32,8 +32,10 @@ import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { URLService } from 'vs/platform/url/common/urlService';
 import { URI } from 'vs/base/common/uri';
-import { SingleServerExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/node/remoteAgentService';
+import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 
 suite('ExtensionsActions Test', () => {
 
@@ -67,8 +69,9 @@ suite('ExtensionsActions Test', () => {
 		instantiationService.stub(IExtensionManagementService, 'onDidInstallExtension', didInstallEvent.event);
 		instantiationService.stub(IExtensionManagementService, 'onUninstallExtension', uninstallEvent.event);
 		instantiationService.stub(IExtensionManagementService, 'onDidUninstallExtension', didUninstallEvent.event);
+		instantiationService.stub(IRemoteAgentService, RemoteAgentService);
 
-		instantiationService.stub(IExtensionManagementServerService, instantiationService.createInstance(SingleServerExtensionManagementServerService, <IExtensionManagementServer>{ authority: 'vscode-local', extensionManagementService: instantiationService.get(IExtensionManagementService), label: 'local' }));
+		instantiationService.stub(IExtensionManagementServerService, instantiationService.createInstance(ExtensionManagementServerService, <IExtensionManagementServer>{ authority: 'vscode-local', extensionManagementService: instantiationService.get(IExtensionManagementService), label: 'local' }));
 
 		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 

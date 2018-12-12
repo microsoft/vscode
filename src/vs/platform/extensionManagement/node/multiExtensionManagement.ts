@@ -17,7 +17,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IRemoteAuthorityResolverService, ResolvedAuthority } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { getManifest } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 
-export class MulitExtensionManagementService extends Disposable implements IExtensionManagementService {
+export class MultiExtensionManagementService extends Disposable implements IExtensionManagementService {
 
 	_serviceBrand: any;
 
@@ -49,15 +49,27 @@ export class MulitExtensionManagementService extends Disposable implements IExte
 	}
 
 	uninstall(extension: ILocalExtension, force?: boolean): Promise<void> {
-		return this.getServer(extension).extensionManagementService.uninstall(extension, force);
+		const server = this.getServer(extension);
+		if (server) {
+			return server.extensionManagementService.uninstall(extension, force);
+		}
+		return Promise.reject(`Invalid location ${extension.location.toString()}`);
 	}
 
 	reinstallFromGallery(extension: ILocalExtension): Promise<void> {
-		return this.getServer(extension).extensionManagementService.reinstallFromGallery(extension);
+		const server = this.getServer(extension);
+		if (server) {
+			return server.extensionManagementService.reinstallFromGallery(extension);
+		}
+		return Promise.reject(`Invalid location ${extension.location.toString()}`);
 	}
 
 	updateMetadata(extension: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension> {
-		return this.getServer(extension).extensionManagementService.updateMetadata(extension, metadata);
+		const server = this.getServer(extension);
+		if (server) {
+			return server.extensionManagementService.updateMetadata(extension, metadata);
+		}
+		return Promise.reject(`Invalid location ${extension.location.toString()}`);
 	}
 
 	zip(extension: ILocalExtension): Promise<URI> {
@@ -65,38 +77,38 @@ export class MulitExtensionManagementService extends Disposable implements IExte
 	}
 
 	unzip(zipLocation: URI, type: LocalExtensionType): Promise<IExtensionIdentifier> {
-		return Promise.all(this.servers.map(({ extensionManagementService }) => extensionManagementService.unzip(zipLocation, type))).then(() => null);
+		return Promise.all(this.servers.map(({ extensionManagementService }) => extensionManagementService.unzip(zipLocation, type))).then(([extensionIdentifier]) => extensionIdentifier);
 	}
 
 	install(vsix: URI): Promise<IExtensionIdentifier> {
-		if (!this.extensionManagementServerService.remoteExtensionManagementServer) {
-			return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.install(vsix);
+		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
+			return Promise.all([getManifest(vsix.fsPath), this.hasToSyncExtensions()])
+				.then(([manifest, syncExtensions]) => {
+					const servers = isUIExtension(manifest, this.configurationService) ? [this.extensionManagementServerService.localExtensionManagementServer] : syncExtensions ? this.servers : [this.extensionManagementServerService.remoteExtensionManagementServer!];
+					return Promise.all(servers.map(server => server.extensionManagementService.install(vsix)))
+						.then(([extensionIdentifier]) => extensionIdentifier);
+				});
 		}
-		return Promise.all([getManifest(vsix.fsPath), this.hasToSyncExtensions()])
-			.then(([manifest, syncExtensions]) => {
-				const servers = isUIExtension(manifest, this.configurationService) ? [this.extensionManagementServerService.localExtensionManagementServer] : syncExtensions ? this.servers : [this.extensionManagementServerService.remoteExtensionManagementServer];
-				return Promise.all(servers.map(server => server.extensionManagementService.install(vsix)))
-					.then(() => null);
-			});
+		return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.install(vsix);
 	}
 
 	installFromGallery(gallery: IGalleryExtension): Promise<void> {
-		if (!this.extensionManagementServerService.remoteExtensionManagementServer) {
-			return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.installFromGallery(gallery);
+		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
+			return Promise.all([this.extensionGalleryService.getManifest(gallery, CancellationToken.None), this.hasToSyncExtensions()])
+				.then(([manifest, syncExtensions]) => {
+					const servers = isUIExtension(manifest, this.configurationService) ? [this.extensionManagementServerService.localExtensionManagementServer] : syncExtensions ? this.servers : [this.extensionManagementServerService.remoteExtensionManagementServer!];
+					return Promise.all(servers.map(server => server.extensionManagementService.installFromGallery(gallery)))
+						.then(() => void 0);
+				});
 		}
-		return Promise.all([this.extensionGalleryService.getManifest(gallery, CancellationToken.None), this.hasToSyncExtensions()])
-			.then(([manifest, syncExtensions]) => {
-				const servers = isUIExtension(manifest, this.configurationService) ? [this.extensionManagementServerService.localExtensionManagementServer] : syncExtensions ? this.servers : [this.extensionManagementServerService.remoteExtensionManagementServer];
-				return Promise.all(servers.map(server => server.extensionManagementService.installFromGallery(gallery)))
-					.then(() => null);
-			});
+		return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.installFromGallery(gallery);
 	}
 
 	getExtensionsReport(): Promise<IReportedExtension[]> {
 		return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.getExtensionsReport();
 	}
 
-	private getServer(extension: ILocalExtension): IExtensionManagementServer {
+	private getServer(extension: ILocalExtension): IExtensionManagementServer | null {
 		return this.extensionManagementServerService.getExtensionManagementServer(extension.location);
 	}
 
