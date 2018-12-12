@@ -191,7 +191,7 @@ export class ReleaseNotesManager {
 	private async getRenderer(text: string): Promise<marked.Renderer> {
 		let result: Thenable<ITokenizationSupport>[] = [];
 		const renderer = new marked.Renderer();
-		renderer.code = (code, lang) => {
+		renderer.code = (_code, lang) => {
 			const modeId = this._modeService.getModeIdForLanguageName(lang);
 			result.push(this._extensionService.whenInstalledExtensionsRegistered().then(_ => {
 				this._modeService.triggerMode(modeId);
@@ -203,7 +203,10 @@ export class ReleaseNotesManager {
 		marked(text, { renderer });
 		await Promise.all(result);
 
-		renderer.code = (code, lang) => `<code>${tokenizeToString(code, TokenizationRegistry.get(lang))}</code>`;
+		renderer.code = (code, lang) => {
+			const modeId = this._modeService.getModeIdForLanguageName(lang);
+			return `<code>${tokenizeToString(code, TokenizationRegistry.get(modeId))}</code>`;
+		};
 		return renderer;
 	}
 }
