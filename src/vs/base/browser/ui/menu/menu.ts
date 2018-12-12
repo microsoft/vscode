@@ -26,7 +26,7 @@ export interface IMenuOptions {
 	context?: any;
 	actionItemProvider?: IActionItemProvider;
 	actionRunner?: IActionRunner;
-	getKeyBinding?: (action: IAction) => ResolvedKeybinding;
+	getKeyBinding?: (action: IAction) => ResolvedKeybinding | null;
 	ariaLabel?: string;
 	enableMnemonics?: boolean;
 	anchorAlignment?: AnchorAlignment;
