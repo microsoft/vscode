@@ -1073,28 +1073,23 @@ export function incrementFileName(name: string, isFolder: boolean): string {
 		return strings.format('{0}.1{1}', name.substr(0, lastIndexOfDot), name.substr(lastIndexOfDot));
 	}
 
-	// folder.1=>folder.2
-	if (isFolder && name.match(/(\d+)$/)) {
-		return name.replace(/(\d+)$/, (match: string, ...groups: any[]) => {
-			let number = parseInt(groups[0]);
-			return number < maxNumber
-				? strings.pad(number + 1, groups[0].length)
-				: strings.format('{0}.1', groups[0]);
-		});
+	// folder - Copy(2)=>folder - Copy(3)
+	if (isFolder && name.match(/- Copy\(\d+\)/)) {
+		let number = parseInt(name.replace(/.*\D(?=\d)|\D+$/g, "")) + 1;
+		return name.replace(/- Copy\(\d+\)/, "- Copy(" + number + ")");
 	}
 
-	// 1.folder=>2.folder
-	if (isFolder && name.match(/^(\d+)/)) {
-		return name.replace(/^(\d+)(.*)$/, (match: string, ...groups: any[]) => {
-			let number = parseInt(groups[0]);
-			return number < maxNumber
-				? strings.pad(number + 1, groups[0].length) + groups[1]
-				: strings.format('{0}{1}.1', groups[0], groups[1]);
-		});
+	// folder - Copy=>folder - Copy(2)
+	if (isFolder && name.match(/- Copy/)) {
+		return name.replace(/- Copy/, "- Copy(2)");
 	}
 
-	// file/folder=>file.1/folder.1
-	return strings.format('{0}.1', name);
+	if(isFolder){
+		return strings.format('{0} - Copy', name);
+	}
+	else{
+		return strings.format('{0}.1', name);
+	}
 }
 
 // Global Compare with
