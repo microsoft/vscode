@@ -633,11 +633,13 @@ export class DelegatingEditorService extends EditorService {
 	}
 
 	protected doOpenEditor(group: IEditorGroup, editor: IEditorInput, options?: IEditorOptions): TPromise<IEditor> {
-		const handleOpen = this.editorOpenHandler ? this.editorOpenHandler(group, editor, options) : TPromise.as(void 0);
+		if (!this.editorOpenHandler) {
+			return super.doOpenEditor(group, editor, options);
+		}
 
-		return handleOpen.then(control => {
+		return this.editorOpenHandler(group, editor, options).then(control => {
 			if (control) {
-				return TPromise.as<IEditor>(control); // the opening was handled, so return early
+				return control; // the opening was handled, so return early
 			}
 
 			return super.doOpenEditor(group, editor, options);

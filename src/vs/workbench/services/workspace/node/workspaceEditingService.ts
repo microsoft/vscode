@@ -54,7 +54,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		const wantsToAdd = Array.isArray(foldersToAdd) && foldersToAdd.length > 0;
 
 		if (!wantsToAdd && !wantsToDelete) {
-			return Promise.resolve(void 0); // return early if there is nothing to do
+			return Promise.resolve(); // return early if there is nothing to do
 		}
 
 		// Add Folders
@@ -107,7 +107,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 			newWorkspaceFolders = distinct(newWorkspaceFolders, folder => isLinux ? folder.uri.toString() : folder.uri.toString().toLowerCase());
 
 			if (state === WorkbenchState.EMPTY && newWorkspaceFolders.length === 0 || state === WorkbenchState.FOLDER && newWorkspaceFolders.length === 1) {
-				return Promise.resolve(void 0); // return if the operation is a no-op for the current state
+				return Promise.resolve(); // return if the operation is a no-op for the current state
 			}
 
 			return this.createAndEnterWorkspace(newWorkspaceFolders);
@@ -156,14 +156,14 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		switch (error.code) {
 			case JSONEditingErrorCode.ERROR_INVALID_FILE:
 				this.onInvalidWorkspaceConfigurationFileError();
-				return Promise.resolve(void 0);
+				return Promise.resolve();
 			case JSONEditingErrorCode.ERROR_FILE_DIRTY:
 				this.onWorkspaceConfigurationFileDirtyError();
-				return Promise.resolve(void 0);
+				return Promise.resolve();
 		}
 		this.notificationService.error(error.message);
 
-		return Promise.resolve(void 0);
+		return Promise.resolve();
 	}
 
 	private onInvalidWorkspaceConfigurationFileError(): void {
@@ -213,7 +213,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 				});
 			}
 
-			return Promise.resolve(void 0);
+			return Promise.resolve();
 		}).then(void 0, error => {
 			if (!extensionHostStarted) {
 				startExtensionHost(); // start the extension host if not started

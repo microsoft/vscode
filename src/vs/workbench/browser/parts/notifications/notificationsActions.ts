@@ -29,7 +29,7 @@ export class ClearNotificationAction extends Action {
 	run(notification: INotificationViewItem): Promise<any> {
 		this.commandService.executeCommand(CLEAR_NOTIFICATION, notification);
 
-		return Promise.resolve(void 0);
+		return Promise.resolve();
 	}
 }
 
@@ -49,7 +49,7 @@ export class ClearAllNotificationsAction extends Action {
 	run(notification: INotificationViewItem): Promise<any> {
 		this.commandService.executeCommand(CLEAR_ALL_NOTIFICATIONS);
 
-		return Promise.resolve(void 0);
+		return Promise.resolve();
 	}
 }
 
@@ -69,7 +69,7 @@ export class HideNotificationsCenterAction extends Action {
 	run(notification: INotificationViewItem): Promise<any> {
 		this.commandService.executeCommand(HIDE_NOTIFICATIONS_CENTER);
 
-		return Promise.resolve(void 0);
+		return Promise.resolve();
 	}
 }
 
@@ -89,7 +89,7 @@ export class ExpandNotificationAction extends Action {
 	run(notification: INotificationViewItem): Promise<any> {
 		this.commandService.executeCommand(EXPAND_NOTIFICATION, notification);
 
-		return Promise.resolve(void 0);
+		return Promise.resolve();
 	}
 }
 
@@ -109,7 +109,7 @@ export class CollapseNotificationAction extends Action {
 	run(notification: INotificationViewItem): Promise<any> {
 		this.commandService.executeCommand(COLLAPSE_NOTIFICATION, notification);
 
-		return Promise.resolve(void 0);
+		return Promise.resolve();
 	}
 }
 
@@ -147,7 +147,7 @@ export class CopyNotificationMessageAction extends Action {
 	run(notification: INotificationViewItem): Promise<any> {
 		this.clipboardService.writeText(notification.message.raw);
 
-		return Promise.resolve(void 0);
+		return Promise.resolve();
 	}
 }
 
@@ -173,6 +173,6 @@ export class NotificationActionRunner extends ActionRunner {
 		// Run and make sure to notify on any error again
 		super.runAction(action, context).then(void 0, error => this.notificationService.error(error));
 
-		return Promise.resolve(void 0);
+		return Promise.resolve();
 	}
 }

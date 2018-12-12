@@ -178,7 +178,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 
 		this.dispose(); // a reverted untitled editor is no longer valid, so we dispose it
 
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 
 	suggestFileName(): string {

@@ -938,12 +938,12 @@ export class FileService extends Disposable implements IFileService {
 		if (!recursive) {
 			assertNonRecursiveDelete = pfs.stat(absolutePath).then(stat => {
 				if (!stat.isDirectory()) {
-					return Promise.resolve();
+					return void 0;
 				}
 
 				return pfs.readdir(absolutePath).then(children => {
 					if (children.length === 0) {
-						return Promise.resolve();
+						return void 0;
 					}
 
 					return Promise.reject(new Error(nls.localize('deleteFailed', "Failed to delete non-empty folder '{0}'.", paths.basename(absolutePath))));

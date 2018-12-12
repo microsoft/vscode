@@ -653,7 +653,7 @@ export class CodeApplication extends Disposable {
 						return window.ready().then(() => urlService.open(uri));
 					}
 
-					return TPromise.as(false);
+					return Promise.resolve(false);
 				}
 			});
 		}

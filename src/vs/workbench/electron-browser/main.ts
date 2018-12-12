@@ -165,7 +165,7 @@ function createWorkspaceInitializationPayload(configuration: IWindowConfiguratio
 	}
 
 	// Single-folder workspace
-	let workspaceInitializationPayload: Promise<IWorkspaceInitializationPayload> = Promise.resolve(void 0);
+	let workspaceInitializationPayload: Promise<IWorkspaceInitializationPayload> = Promise.resolve();
 	if (configuration.folderUri) {
 		workspaceInitializationPayload = resolveSingleFolderWorkspaceInitializationPayload(configuration.folderUri);
 	}

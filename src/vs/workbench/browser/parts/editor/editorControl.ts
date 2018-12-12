@@ -61,13 +61,13 @@ export class EditorControl extends Disposable {
 
 		// Editor control
 		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(editor);
-		const control = this.doShowEditorControl(descriptor, options);
+		const control = this.doShowEditorControl(descriptor);
 
 		// Set input
 		return this.doSetInput(control, editor, options).then((editorChanged => (({ control, editorChanged } as IOpenEditorResult))));
 	}
 
-	private doShowEditorControl(descriptor: IEditorDescriptor, options: EditorOptions): BaseEditor {
+	private doShowEditorControl(descriptor: IEditorDescriptor): BaseEditor {
 
 		// Return early if the currently active editor control can handle the input
 		if (this._activeControl && descriptor.describes(this._activeControl)) {
@@ -163,7 +163,7 @@ export class EditorControl extends Disposable {
 				control.focus();
 			}
 
-			return TPromise.as(false);
+			return Promise.resolve(false);
 		}
 
 		// Show progress while setting input after a certain timeout. If the workbench is opening

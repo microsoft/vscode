@@ -121,25 +121,26 @@ suite('Editor service', () => {
 				assert.equal(visibleEditorChangeEventCounter, 1);
 
 				// Close input
-				editor.group.closeEditor(input);
-				assert.equal(didCloseEditorListenerCounter, 1);
-				assert.equal(activeEditorChangeEventCounter, 2);
-				assert.equal(visibleEditorChangeEventCounter, 2);
-				assert.ok(input.gotDisposed);
+				return editor.group.closeEditor(input).then(() => {
+					assert.equal(didCloseEditorListenerCounter, 1);
+					assert.equal(activeEditorChangeEventCounter, 2);
+					assert.equal(visibleEditorChangeEventCounter, 2);
+					assert.ok(input.gotDisposed);
 
-				// Open again 2 inputs
-				return service.openEditor(input, { pinned: true }).then(editor => {
-					return service.openEditor(otherInput, { pinned: true }).then(editor => {
-						assert.equal(service.visibleControls.length, 1);
-						assert.equal(service.isOpen(input), true);
-						assert.equal(service.isOpen(otherInput), true);
+					// Open again 2 inputs
+					return service.openEditor(input, { pinned: true }).then(editor => {
+						return service.openEditor(otherInput, { pinned: true }).then(editor => {
+							assert.equal(service.visibleControls.length, 1);
+							assert.equal(service.isOpen(input), true);
+							assert.equal(service.isOpen(otherInput), true);
 
-						assert.equal(activeEditorChangeEventCounter, 4);
-						assert.equal(visibleEditorChangeEventCounter, 4);
+							assert.equal(activeEditorChangeEventCounter, 4);
+							assert.equal(visibleEditorChangeEventCounter, 4);
 
-						activeEditorChangeListener.dispose();
-						visibleEditorChangeListener.dispose();
-						didCloseEditorListener.dispose();
+							activeEditorChangeListener.dispose();
+							visibleEditorChangeListener.dispose();
+							didCloseEditorListener.dispose();
+						});
 					});
 				});
 			});

@@ -30,7 +30,7 @@ export interface ISaveParticipant {
 	/**
 	 * Participate in a save of a model. Allows to change the model before it is being saved to disk.
 	 */
-	participate(model: ITextFileEditorModel, env: { reason: SaveReason }): void;
+	participate(model: ITextFileEditorModel, env: { reason: SaveReason }): Thenable<void>;
 }
 
 /**

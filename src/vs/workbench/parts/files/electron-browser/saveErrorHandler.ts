@@ -217,7 +217,7 @@ class DoNotShowResolveConflictLearnMoreAction extends Action {
 		// Hide notification
 		notification.dispose();
 
-		return Promise.resolve(void 0);
+		return Promise.resolve();
 	}
 }
 

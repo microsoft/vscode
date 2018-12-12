@@ -6,14 +6,12 @@ import * as dom from 'vs/base/browser/dom';
 import { Emitter } from 'vs/base/common/event';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { EditorInput, EditorModel, GroupIdentifier, IEditorInput } from 'vs/workbench/common/editor';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import * as vscode from 'vscode';
 import { WebviewEvents, WebviewInputOptions, WebviewReviver } from './webviewEditorService';
 import { WebviewElement } from './webviewElement';
-
 
 export class WebviewEditorInput extends EditorInput {
 	private static handlePool = 0;
@@ -223,7 +221,7 @@ export class WebviewEditorInput extends EditorInput {
 			return this.reviver.reviveWebview(this).then(() => new EditorModel());
 		}
 
-		return TPromise.as(new EditorModel());
+		return Promise.resolve(new EditorModel());
 	}
 
 	public supportsSplitEditor() {

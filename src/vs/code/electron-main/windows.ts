@@ -1987,7 +1987,7 @@ class WorkspacesManager {
 
 	saveAndEnterWorkspace(window: ICodeWindow, path: string): TPromise<IEnterWorkspaceResult> {
 		if (!window || !window.win || !window.isReady || !window.openedWorkspace || !path || !this.isValidTargetWorkspacePath(window, path)) {
-			return TPromise.as(null); // return early if the window is not ready or disposed or does not have a workspace
+			return Promise.resolve(null); // return early if the window is not ready or disposed or does not have a workspace
 		}
 
 		return this.doSaveAndOpenWorkspace(window, window.openedWorkspace, path);
@@ -1995,12 +1995,12 @@ class WorkspacesManager {
 
 	enterWorkspace(window: ICodeWindow, path: string): TPromise<IEnterWorkspaceResult> {
 		if (!window || !window.win || !window.isReady) {
-			return TPromise.as(null); // return early if the window is not ready or disposed
+			return Promise.resolve(null); // return early if the window is not ready or disposed
 		}
 
 		return this.isValidTargetWorkspacePath(window, path).then(isValid => {
 			if (!isValid) {
-				return TPromise.as<IEnterWorkspaceResult>(null); // return early if the workspace is not valid
+				return null; // return early if the workspace is not valid
 			}
 
 			return this.workspacesMainService.resolveWorkspace(path).then(workspace => {
@@ -2012,12 +2012,12 @@ class WorkspacesManager {
 
 	createAndEnterWorkspace(window: ICodeWindow, folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult> {
 		if (!window || !window.win || !window.isReady) {
-			return TPromise.as(null); // return early if the window is not ready or disposed
+			return Promise.resolve(null); // return early if the window is not ready or disposed
 		}
 
 		return this.isValidTargetWorkspacePath(window, path).then(isValid => {
 			if (!isValid) {
-				return TPromise.as(null); // return early if the workspace is not valid
+				return null; // return early if the workspace is not valid
 			}
 
 			return this.workspacesMainService.createWorkspace(folders).then(workspace => {
@@ -2058,7 +2058,7 @@ class WorkspacesManager {
 		if (path) {
 			savePromise = this.workspacesMainService.saveWorkspace(workspace, path);
 		} else {
-			savePromise = TPromise.as(workspace);
+			savePromise = Promise.resolve(workspace);
 		}
 
 		return savePromise.then(workspace => this.doOpenWorkspace(window, workspace));

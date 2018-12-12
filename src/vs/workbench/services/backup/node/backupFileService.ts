@@ -160,7 +160,7 @@ export class BackupFileService implements IBackupFileService {
 
 	backupResource(resource: Uri, content: ITextSnapshot, versionId?: number): TPromise<void> {
 		if (this.isShuttingDown) {
-			return TPromise.as(void 0);
+			return Promise.resolve();
 		}
 
 		return this.ready.then(model => {
@@ -249,48 +249,48 @@ export class InMemoryBackupFileService implements IBackupFileService {
 	private backups: Map<string, ITextSnapshot> = new Map();
 
 	hasBackups(): TPromise<boolean> {
-		return TPromise.as(this.backups.size > 0);
+		return Promise.resolve(this.backups.size > 0);
 	}
 
 	loadBackupResource(resource: Uri): TPromise<Uri | undefined> {
 		const backupResource = this.toBackupResource(resource);
 		if (this.backups.has(backupResource.toString())) {
-			return TPromise.as(backupResource);
+			return Promise.resolve(backupResource);
 		}
 
-		return TPromise.as(void 0);
+		return Promise.resolve();
 	}
 
 	backupResource(resource: Uri, content: ITextSnapshot, versionId?: number): TPromise<void> {
 		const backupResource = this.toBackupResource(resource);
 		this.backups.set(backupResource.toString(), content);
 
-		return TPromise.as(void 0);
+		return Promise.resolve();
 	}
 
 	resolveBackupContent(backupResource: Uri): TPromise<ITextBufferFactory | undefined> {
 		const snapshot = this.backups.get(backupResource.toString());
 		if (snapshot) {
-			return TPromise.as(createTextBufferFactoryFromSnapshot(snapshot));
+			return Promise.resolve(createTextBufferFactoryFromSnapshot(snapshot));
 		}
 
-		return TPromise.as(void 0);
+		return Promise.resolve();
 	}
 
 	getWorkspaceFileBackups(): TPromise<Uri[]> {
-		return TPromise.as(keys(this.backups).map(key => Uri.parse(key)));
+		return Promise.resolve(keys(this.backups).map(key => Uri.parse(key)));
 	}
 
 	discardResourceBackup(resource: Uri): TPromise<void> {
 		this.backups.delete(this.toBackupResource(resource).toString());
 
-		return TPromise.as(void 0);
+		return Promise.resolve();
 	}
 
 	discardAllWorkspaceBackups(): TPromise<void> {
 		this.backups.clear();
 
-		return TPromise.as(void 0);
+		return Promise.resolve();
 	}
 
 	toBackupResource(resource: Uri): Uri {

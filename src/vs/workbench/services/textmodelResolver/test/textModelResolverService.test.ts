@@ -20,6 +20,7 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { Event } from 'vs/base/common/event';
 import { snapshotToString } from 'vs/platform/files/common/files';
+import { timeout } from 'vs/base/common/async';
 
 class ServiceAccessor {
 	constructor(
@@ -106,7 +107,9 @@ suite('Workbench - TextModelResolverService', () => {
 				});
 
 				ref.dispose();
-				assert.equal(disposed, true);
+				return timeout(0).then(() => { // due to the reference resolving the model first which is async
+					assert.equal(disposed, true);
+				});
 			});
 		});
 	});

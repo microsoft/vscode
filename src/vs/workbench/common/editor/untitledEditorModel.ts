@@ -154,35 +154,27 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 				untitledContents = createTextBufferFactory(this.initialValue || '');
 			}
 
-			return this.doLoad(untitledContents).then(model => {
+			// Create text editor model if not yet done
+			if (!this.textEditorModel) {
+				this.createTextEditorModel(untitledContents, this.resource, this.modeId);
+			}
 
-				// Encoding
-				this.configuredEncoding = this.configurationService.getValue<string>(this.resource, 'files.encoding');
+			// Otherwise update
+			else {
+				this.updateTextEditorModel(untitledContents);
+			}
 
-				// Listen to content changes
-				this._register(this.textEditorModel.onDidChangeContent(() => this.onModelContentChanged()));
+			// Encoding
+			this.configuredEncoding = this.configurationService.getValue<string>(this.resource, 'files.encoding');
 
-				// Listen to mode changes
-				this._register(this.textEditorModel.onDidChangeLanguage(() => this.onConfigurationChange())); // mode change can have impact on config
+			// Listen to content changes
+			this._register(this.textEditorModel.onDidChangeContent(() => this.onModelContentChanged()));
 
-				return model;
-			});
+			// Listen to mode changes
+			this._register(this.textEditorModel.onDidChangeLanguage(() => this.onConfigurationChange())); // mode change can have impact on config
+
+			return this;
 		});
-	}
-
-	private doLoad(content: ITextBufferFactory): Thenable<UntitledEditorModel> {
-
-		// Create text editor model if not yet done
-		if (!this.textEditorModel) {
-			return this.createTextEditorModel(content, this.resource, this.modeId).then(model => this);
-		}
-
-		// Otherwise update
-		else {
-			this.updateTextEditorModel(content);
-		}
-
-		return Promise.resolve<UntitledEditorModel>(this);
 	}
 
 	private onModelContentChanged(): void {

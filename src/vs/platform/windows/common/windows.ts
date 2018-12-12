@@ -437,7 +437,7 @@ export class ActiveWindowManager implements IDisposable {
 			return this.firstActiveWindowIdPromise;
 		}
 
-		return TPromise.as(`window:${this._activeWindowId}`);
+		return Promise.resolve(`window:${this._activeWindowId}`);
 	}
 
 	dispose() {

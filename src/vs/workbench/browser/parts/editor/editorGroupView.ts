@@ -277,7 +277,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		});
 
 		// Toolbar actions
-		const removeGroupAction = this._register(new Action(CLOSE_EDITOR_GROUP_COMMAND_ID, localize('closeGroupAction', "Close"), 'close-editor-group', true, () => { this.accessor.removeGroup(this); return TPromise.as(true); }));
+		const removeGroupAction = this._register(new Action(CLOSE_EDITOR_GROUP_COMMAND_ID, localize('closeGroupAction', "Close"), 'close-editor-group', true, () => { this.accessor.removeGroup(this); return Promise.resolve(true); }));
 		const keybinding = this.keybindingService.lookupKeybinding(removeGroupAction.id);
 		containerToolbar.push(removeGroupAction, { icon: true, label: false, keybinding: keybinding ? keybinding.getLabel() : void 0 });
 	}
@@ -400,7 +400,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	private restoreEditors(from: IEditorGroupView | ISerializedEditorGroup): Thenable<void> {
 		if (this._group.count === 0) {
-			return Promise.resolve(void 0); // nothing to show
+			return Promise.resolve(); // nothing to show
 		}
 
 		// Determine editor options
@@ -729,7 +729,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Guard against invalid inputs
 		if (!editor) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		// Editor opening event allows for prevention
@@ -806,7 +806,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				return null; // error: return NULL as result to signal this
 			});
 		} else {
-			openEditorPromise = TPromise.as(null); // inactive: return NULL as result to signal this
+			openEditorPromise = Promise.resolve(null); // inactive: return NULL as result to signal this
 		}
 
 		// Show in title control after editor control because some actions depend on it
@@ -850,7 +850,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	openEditors(editors: { editor: EditorInput, options?: EditorOptions }[]): TPromise<IEditor> {
 		if (!editors.length) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		// Do not modify original array
@@ -961,7 +961,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	closeEditor(editor: EditorInput = this.activeEditor): TPromise<void> {
 		if (!editor) {
-			return TPromise.as(void 0);
+			return Promise.resolve();
 		}
 
 		// Check for dirty and veto
@@ -1077,7 +1077,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	private handleDirty(editors: EditorInput[]): TPromise<boolean /* veto */> {
 		if (!editors.length) {
-			return TPromise.as(false); // no veto
+			return Promise.resolve(false); // no veto
 		}
 
 		const editor = editors.shift();
@@ -1111,7 +1111,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			this.accessor.groups.some(groupView => groupView !== this && groupView.group.contains(editor, true /* support side by side */)) ||  // editor is opened in other group
 			editor instanceof SideBySideEditorInput && this.isOpened(editor.master) // side by side editor master is still opened
 		) {
-			return TPromise.as(false);
+			return Promise.resolve(false);
 		}
 
 		// Switch to editor that we want to handle and confirm to save/revert
@@ -1154,7 +1154,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	closeEditors(args: EditorInput[] | ICloseEditorsFilter): TPromise<void> {
 		if (this.isEmpty()) {
-			return TPromise.as(void 0);
+			return Promise.resolve();
 		}
 
 		const editors = this.getEditorsToClose(args);
@@ -1235,7 +1235,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				this.accessor.removeGroup(this);
 			}
 
-			return TPromise.as(void 0);
+			return Promise.resolve();
 		}
 
 		// Check for dirty and veto
@@ -1331,7 +1331,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			return openEditorResult.then(() => void 0);
 		}
 
-		return TPromise.as(void 0);
+		return Promise.resolve();
 	}
 
 	//#endregion
