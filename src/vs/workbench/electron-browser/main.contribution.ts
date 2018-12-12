@@ -383,7 +383,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 	group: '2_reference',
 	command: {
 		id: 'workbench.action.openTipsAndTricksUrl',
-		title: nls.localize({ key: 'miTipsAndTricks', comment: ['&& denotes a mnemonic'] }, "&&Tips and Tricks")
+		title: nls.localize({ key: 'miTipsAndTricks', comment: ['&& denotes a mnemonic'] }, "Tips and Tri&&cks")
 	},
 	order: 3
 });
@@ -430,7 +430,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 	group: '4_legal',
 	command: {
 		id: 'workbench.action.openPrivacyStatementUrl',
-		title: nls.localize({ key: 'miPrivacyStatement', comment: ['&& denotes a mnemonic'] }, "&&Privacy Statement")
+		title: nls.localize({ key: 'miPrivacyStatement', comment: ['&& denotes a mnemonic'] }, "Privac&&y Statement")
 	},
 	order: 2
 });
