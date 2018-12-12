@@ -35,7 +35,6 @@ export const Selection = api.Selection;
 export const SelectionDirection = api.SelectionDirection;
 export const MarkerSeverity = api.MarkerSeverity;
 export const MarkerTag = api.MarkerTag;
-export const Promise = api.Promise;
 export const Uri = api.Uri;
 export const Token = api.Token;
 export const editor = api.editor;
