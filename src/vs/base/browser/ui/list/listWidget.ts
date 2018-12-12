@@ -345,6 +345,7 @@ class TypeLabelController<T> implements IDisposable {
 		private keyboardNavigationLabelProvider: IKeyboardNavigationLabelProvider<T>
 	) {
 		const onChar = Event.chain(domEvent(view.domNode, 'keydown'))
+			.filter(e => !isInputElement(e.target as HTMLElement))
 			.map(event => new StandardKeyboardEvent(event))
 			.filter(keyboardNavigationLabelProvider.mightProducePrintableCharacter ? e => keyboardNavigationLabelProvider.mightProducePrintableCharacter!(e) : e => TypeLabelController.mightProducePrintableCharacter(e))
 			.map(event => event.browserEvent.key)
