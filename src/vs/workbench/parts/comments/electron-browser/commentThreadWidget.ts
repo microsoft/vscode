@@ -265,6 +265,15 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._commentThread = commentThread;
 		this._commentElements = newCommentNodeList;
 		this.createThreadLabel();
+
+		// Move comment glyph widget and show position if the line has changed.
+		const lineNumber = this._commentThread.range.startLineNumber;
+		if (this._commentGlyph.getPosition().position.lineNumber !== lineNumber) {
+			this._commentGlyph.setLineNumber(lineNumber);
+			if (!this._isCollapsed) {
+				this.show({ lineNumber, column: 1 }, 2);
+			}
+		}
 	}
 
 	updateDraftMode(draftMode: modes.DraftMode) {
