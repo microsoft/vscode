@@ -18,6 +18,7 @@ import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableEle
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { Event, Emitter } from 'vs/base/common/event';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
+import { assign } from 'vs/base/common/objects';
 
 export const MENU_MNEMONIC_REGEX: RegExp = /\(&{1,2}(.)\)|&{1,2}(.)/;
 export const MENU_ESCAPED_MNEMONIC_REGEX: RegExp = /(?:&amp;){1,2}(.)/;
@@ -280,7 +281,12 @@ export class Menu extends ActionBar {
 				}
 			}
 
-			const menuActionItem = new MenuActionItem(options.context, action, menuItemOptions);
+			const context = { args: action.label };
+			if (options.context) {
+				assign(context, options.context);
+			}
+
+			const menuActionItem = new MenuActionItem(context, action, menuItemOptions);
 
 			if (options.enableMnemonics) {
 				const mnemonic = menuActionItem.getMnemonic();

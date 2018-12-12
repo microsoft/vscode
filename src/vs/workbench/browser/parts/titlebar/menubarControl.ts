@@ -116,6 +116,17 @@ export class MenubarControl extends Disposable {
 			'Help': this._register(this.menuService.createMenu(MenuId.MenubarHelpMenu, this.contextKeyService))
 		};
 
+		CommandsRegistry.registerCommand(`workbench.action.openRecentItem`, function (accessor: ServicesAccessor, uri: URI, isFile: boolean, event: MouseEvent | KeyboardEvent) {
+			const windowService = accessor.get(IWindowService);
+
+			const openInNewWindow = event && ((!isMacintosh && (event.ctrlKey || event.shiftKey)) || (isMacintosh && (event.metaKey || event.altKey)));
+
+			return windowService.openWindow([uri], {
+				forceNewWindow: openInNewWindow,
+				forceOpenWorkspaceAsFile: isFile
+			});
+		});
+
 		if (isMacintosh) {
 			this.menus['Preferences'] = this._register(this.menuService.createMenu(MenuId.MenubarPreferencesMenu, this.contextKeyService));
 		}
@@ -336,22 +347,12 @@ export class MenubarControl extends Disposable {
 			label = this.labelService.getUriLabel(uri);
 		}
 
-		this.recentMenuCommands.push(CommandsRegistry.registerCommand(`workbench.action.openRecent${MenubarControl.RecentItemId}`, function (accessor: ServicesAccessor) {
-			const windowService = accessor.get(IWindowService);
-
-			// const openInNewWindow = event && ((!isMacintosh && (event.ctrlKey || event.shiftKey)) || (isMacintosh && (event.metaKey || event.altKey)));
-
-			return windowService.openWindow([uri], {
-				forceNewWindow: false,
-				forceOpenWorkspaceAsFile: isFile
-			});
-		}));
-
 		return MenuRegistry.appendMenuItem(MenuId.MenubarRecentMenu, {
 			title: label,
 			command: {
 				title: label,
-				id: `workbench.action.openRecent${MenubarControl.RecentItemId}`,
+				id: `workbench.action.openRecentItem`,
+				args: [uri, isFile]
 			},
 			order: MenubarControl.RecentItemId++,
 			group: group
@@ -391,6 +392,7 @@ export class MenubarControl extends Disposable {
 		dispose(...this.recentMenuCommands);
 		this.openRecentMenuItems = [];
 		this.recentMenuCommands = [];
+		MenubarControl.RecentItemId = 0;
 		if (!this.recentlyOpened) {
 			return;
 		}
@@ -530,7 +532,7 @@ export class MenubarControl extends Disposable {
 		// Update the menu actions
 		const updateActions = (menu: IMenu, target: IAction[], rootTitle: string) => {
 			target.splice(0);
-			let groups = menu.getActions();
+			let groups = menu.getActions({ shouldForwardArgs: true });
 			for (let group of groups) {
 				const [, actions] = group;
 
@@ -544,7 +546,6 @@ export class MenubarControl extends Disposable {
 								updateActions(menu, actions, rootTitle);
 								this.menubar.updateMenu({ actions: actions, label: this.topLevelTitles[rootTitle] });
 							}));
-
 						}
 
 						const submenu = this.menus[action.item.submenu];

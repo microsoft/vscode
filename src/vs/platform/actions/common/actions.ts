@@ -28,6 +28,7 @@ export interface ICommandAction extends IBaseCommandAction {
 	iconLocation?: { dark: URI; light?: URI; };
 	precondition?: ContextKeyExpr;
 	toggled?: ContextKeyExpr;
+	args?: any[];
 }
 
 export interface ISerializableCommandAction extends IBaseCommandAction {
@@ -256,6 +257,10 @@ export class MenuItemAction extends ExecuteCommandAction {
 
 	run(...args: any[]): Promise<any> {
 		let runArgs: any[] = [];
+
+		if (this.item.args) {
+			runArgs = [...runArgs, ...this.item.args];
+		}
 
 		if (this._options.arg) {
 			runArgs = [...runArgs, this._options.arg];
