@@ -228,7 +228,7 @@ export class Separator extends Action {
 export interface IActionItemOptions extends IBaseActionItemOptions {
 	icon?: boolean;
 	label?: boolean;
-	keybinding?: string;
+	keybinding?: string | null;
 }
 
 export class ActionItem extends BaseActionItem {

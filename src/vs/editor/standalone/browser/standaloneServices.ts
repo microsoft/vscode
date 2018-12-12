@@ -53,12 +53,12 @@ export module StaticServices {
 
 	export class LazyStaticService<T> {
 		private _serviceId: ServiceIdentifier<T>;
-		private _factory: (overrides: IEditorOverrideServices) => T;
-		private _value: T;
+		private _factory: (overrides?: IEditorOverrideServices) => T;
+		private _value: T | null;
 
 		public get id() { return this._serviceId; }
 
-		constructor(serviceId: ServiceIdentifier<T>, factory: (overrides: IEditorOverrideServices) => T) {
+		constructor(serviceId: ServiceIdentifier<T>, factory: (overrides?: IEditorOverrideServices) => T) {
 			this._serviceId = serviceId;
 			this._factory = factory;
 			this._value = null;
