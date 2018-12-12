@@ -178,7 +178,7 @@ export class StorageService extends Disposable implements IStorageService {
 				}
 
 				return writeFile(workspaceStorageMetaPath, JSON.stringify(meta, void 0, 2));
-			}).then(null, error => onUnexpectedError(error));
+			}).then(void 0, error => onUnexpectedError(error));
 		}
 	}
 

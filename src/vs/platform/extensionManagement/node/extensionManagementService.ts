@@ -81,7 +81,7 @@ function readManifest(extensionPath: string): Promise<{ manifest: IExtensionMani
 		pfs.readFile(path.join(extensionPath, 'package.json'), 'utf8')
 			.then(raw => parseManifest(raw)),
 		pfs.readFile(path.join(extensionPath, 'package.nls.json'), 'utf8')
-			.then(null, err => err.code !== 'ENOENT' ? Promise.reject<string>(err) : '{}')
+			.then(void 0, err => err.code !== 'ENOENT' ? Promise.reject<string>(err) : '{}')
 			.then(raw => JSON.parse(raw))
 	];
 
@@ -476,7 +476,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 
 	private rename(id: string, extractPath: string, renamePath: string, retryUntil: number): Promise<void> {
 		return pfs.rename(extractPath, renamePath)
-			.then(null, error => {
+			.then(void 0, error => {
 				if (isWindows && error && error.code === 'EPERM' && Date.now() < retryUntil) {
 					this.logService.info(`Failed renaming ${extractPath} to ${renamePath} with 'EPERM' error. Trying again...`);
 					return this.rename(id, extractPath, renamePath, retryUntil);
@@ -705,11 +705,11 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		const promises = [];
 
 		if (type === null || type === LocalExtensionType.System) {
-			promises.push(this.scanSystemExtensions().then(null, e => new ExtensionManagementError(this.joinErrors(e).message, ERROR_SCANNING_SYS_EXTENSIONS)));
+			promises.push(this.scanSystemExtensions().then(void 0, e => new ExtensionManagementError(this.joinErrors(e).message, ERROR_SCANNING_SYS_EXTENSIONS)));
 		}
 
 		if (type === null || type === LocalExtensionType.User) {
-			promises.push(this.scanUserExtensions(true).then(null, e => new ExtensionManagementError(this.joinErrors(e).message, ERROR_SCANNING_USER_EXTENSIONS)));
+			promises.push(this.scanUserExtensions(true).then(void 0, e => new ExtensionManagementError(this.joinErrors(e).message, ERROR_SCANNING_USER_EXTENSIONS)));
 		}
 
 		return Promise.all<ILocalExtension[]>(promises).then(flatten, errors => Promise.reject(this.joinErrors(errors)));
@@ -786,7 +786,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 					const galleryIdentifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name), uuid: identifier.uuid };
 					return { type, identifier, galleryIdentifier, manifest, metadata, location: URI.file(extensionPath), readmeUrl, changelogUrl };
 				}))
-			.then(null, () => null);
+			.then(void 0, () => null);
 	}
 
 	removeDeprecatedExtensions(): Promise<any> {
@@ -861,7 +861,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		return await this.uninstalledFileLimiter.queue(() => {
 			let result: T | null = null;
 			return pfs.readFile(this.uninstalledPath, 'utf8')
-				.then(null, err => err.code === 'ENOENT' ? Promise.resolve('{}') : Promise.reject(err))
+				.then(void 0, err => err.code === 'ENOENT' ? Promise.resolve('{}') : Promise.reject(err))
 				.then<{ [id: string]: boolean }>(raw => { try { return JSON.parse(raw); } catch (e) { return {}; } })
 				.then(uninstalled => { result = fn(uninstalled); return uninstalled; })
 				.then(uninstalled => {

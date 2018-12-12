@@ -164,7 +164,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 					});
 				});
 			})
-			.then(null, err => {
+			.then(void 0, err => {
 				this.logService.error(err);
 				/* __GDPR__
 					"update:notAvailable" : {

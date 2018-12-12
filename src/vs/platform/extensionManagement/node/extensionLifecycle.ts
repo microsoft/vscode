@@ -34,7 +34,7 @@ export class ExtensionsLifecycle extends Disposable {
 				this.runLifecycleHook(script.script, 'uninstall', script.args, true, extension)
 					.then(() => this.logService.info(extension.identifier.id, `Finished running post uninstall script`), err => this.logService.error(extension.identifier.id, `Failed to run post uninstall script: ${err}`)));
 		}
-		return rimraf(this.getExtensionStoragePath(extension)).then(null, e => this.logService.error('Error while removing extension storage path', e));
+		return rimraf(this.getExtensionStoragePath(extension)).then(void 0, e => this.logService.error('Error while removing extension storage path', e));
 	}
 
 	private parseScript(extension: ILocalExtension, type: string): { script: string, args: string[] } | null {

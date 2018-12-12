@@ -361,7 +361,7 @@ export class EditorWorkerClient extends Disposable {
 	}
 
 	protected _getProxy(): Promise<EditorSimpleWorkerImpl> {
-		return this._getOrCreateWorker().getProxyObject().then(null, (err) => {
+		return this._getOrCreateWorker().getProxyObject().then(void 0, (err) => {
 			logOnceWebWorkerWarning(err);
 			this._worker = new SynchronousWorkerClient(new EditorSimpleWorkerImpl(null));
 			return this._getOrCreateWorker().getProxyObject();

@@ -151,7 +151,7 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, log
 			// directory file names end with '/'
 			if (/\/$/.test(fileName)) {
 				const targetFileName = path.join(targetPath, fileName);
-				last = createCancelablePromise(token => mkdirp(targetFileName, void 0, token).then(() => readNextEntry(token)).then(null, e));
+				last = createCancelablePromise(token => mkdirp(targetFileName, void 0, token).then(() => readNextEntry(token)).then(void 0, e));
 				return;
 			}
 
@@ -165,7 +165,7 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, log
 
 function openZip(zipFile: string, lazy: boolean = false): Promise<ZipFile> {
 	return nfcall<ZipFile>(_openZip, zipFile, lazy ? { lazyEntries: true } : void 0)
-		.then(null, err => Promise.reject(toExtractError(err)));
+		.then(void 0, err => Promise.reject(toExtractError(err)));
 }
 
 export interface IFile {

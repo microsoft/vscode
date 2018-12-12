@@ -64,7 +64,7 @@ suite('Async', () => {
 		order.push('afterCreate');
 
 		const promise = cancellablePromise
-			.then(null, err => null)
+			.then(void 0, err => null)
 			.then(() => order.push('finally'));
 
 		cancellablePromise.cancel();
@@ -86,7 +86,7 @@ suite('Async', () => {
 		order.push('afterCreate');
 
 		const promise = cancellablePromise
-			.then(null, err => null)
+			.then(void 0, err => null)
 			.then(() => order.push('finally'));
 
 		cancellablePromise.cancel();
@@ -108,7 +108,7 @@ suite('Async', () => {
 	// 	order.push('afterCreate');
 
 	// 	promise = promise
-	// 		.then(null, err => null)
+	// 		.then(void 0, err => null)
 	// 		.then(() => order.push('finally'));
 
 	// 	promise.cancel();
@@ -130,7 +130,7 @@ suite('Async', () => {
 	// 	order.push('afterCreate');
 
 	// 	promise = promise
-	// 		.then(null, err => null)
+	// 		.then(void 0, err => null)
 	// 		.then(() => order.push('finally'));
 
 	// 	promise.cancel();
@@ -263,13 +263,13 @@ suite('Async', () => {
 
 		assert(!delayer.isTriggered());
 
-		promises.push(delayer.trigger(factory).then(null, () => { assert(true, 'yes, it was cancelled'); }));
+		promises.push(delayer.trigger(factory).then(void 0, () => { assert(true, 'yes, it was cancelled'); }));
 		assert(delayer.isTriggered());
 
-		promises.push(delayer.trigger(factory).then(null, () => { assert(true, 'yes, it was cancelled'); }));
+		promises.push(delayer.trigger(factory).then(void 0, () => { assert(true, 'yes, it was cancelled'); }));
 		assert(delayer.isTriggered());
 
-		promises.push(delayer.trigger(factory).then(null, () => { assert(true, 'yes, it was cancelled'); }));
+		promises.push(delayer.trigger(factory).then(void 0, () => { assert(true, 'yes, it was cancelled'); }));
 		assert(delayer.isTriggered());
 
 		delayer.cancel();
@@ -294,10 +294,10 @@ suite('Async', () => {
 			assert.equal(result, 1);
 			assert(!delayer.isTriggered());
 
-			promises.push(delayer.trigger(factory).then(null, () => { assert(true, 'yes, it was cancelled'); }));
+			promises.push(delayer.trigger(factory).then(void 0, () => { assert(true, 'yes, it was cancelled'); }));
 			assert(delayer.isTriggered());
 
-			promises.push(delayer.trigger(factory).then(null, () => { assert(true, 'yes, it was cancelled'); }));
+			promises.push(delayer.trigger(factory).then(void 0, () => { assert(true, 'yes, it was cancelled'); }));
 			assert(delayer.isTriggered());
 
 			delayer.cancel();
@@ -499,7 +499,7 @@ suite('Async', () => {
 
 		queue.queue(f1);
 		queue.queue(f2);
-		queue.queue(f3).then(null, () => error = true);
+		queue.queue(f3).then(void 0, () => error = true);
 		queue.queue(f4);
 		return queue.queue(f5).then(() => {
 			assert.equal(res[0], 1);
