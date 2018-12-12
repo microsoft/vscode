@@ -301,7 +301,7 @@ export class LinkComputer {
  * document. *Note* that this operation is computational
  * expensive and should not run in the UI thread.
  */
-export function computeLinks(model: ILinkComputerTarget): ILink[] {
+export function computeLinks(model: ILinkComputerTarget | null): ILink[] {
 	if (!model || typeof model.getLineCount !== 'function' || typeof model.getLineContent !== 'function') {
 		// Unknown caller!
 		return [];

@@ -10,6 +10,7 @@
 		"./vs/base/node/**/*.ts",
 		"./vs/editor/common/**/*.ts",
 		"./vs/editor/browser/**/*.ts",
+		"./vs/editor/test/**/*.ts",
 		"./vs/editor/contrib/smartSelect/**/*.ts"
 	],
 	"files": [

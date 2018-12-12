@@ -24,7 +24,7 @@ export function isConfigurationOverrides(thing: any): thing is IConfigurationOve
 
 export interface IConfigurationOverrides {
 	overrideIdentifier?: string | null;
-	resource?: URI;
+	resource?: URI | null;
 }
 
 export const enum ConfigurationTarget {
