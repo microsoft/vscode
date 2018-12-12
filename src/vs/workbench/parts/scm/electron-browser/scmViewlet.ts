@@ -423,7 +423,7 @@ class ResourceGroupRenderer implements IListRenderer<ISCMResourceGroup, Resource
 		template.actionBar.context = group;
 
 		const disposables: IDisposable[] = [];
-		disposables.push(connectPrimaryMenuToInlineActionBar(this.menus.getMenu(group), template.actionBar));
+		disposables.push(connectPrimaryMenuToInlineActionBar(this.menus.getResourceGroupMenu(group), template.actionBar));
 
 		const updateCount = () => template.count.setCount(group.elements.length);
 		group.onDidSplice(updateCount, null, disposables);
@@ -516,7 +516,7 @@ class ResourceRenderer implements IListRenderer<ISCMResource, ResourceTemplate> 
 		template.actionBar.context = resource;
 
 		const disposables: IDisposable[] = [];
-		disposables.push(connectPrimaryMenuToInlineActionBar(this.menus.getMenu(resource.resourceGroup), template.actionBar));
+		disposables.push(connectPrimaryMenuToInlineActionBar(this.menus.getResourceMenu(resource.resourceGroup), template.actionBar));
 
 		toggleClass(template.name, 'strike-through', resource.decorations.strikeThrough);
 		toggleClass(template.element, 'faded', resource.decorations.faded);
