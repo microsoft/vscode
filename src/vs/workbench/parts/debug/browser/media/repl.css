@@ -9,6 +9,7 @@
 	height: 100%;
 	box-sizing: border-box;
 	overflow: hidden;
+	cursor: text;
 }
 
 .monaco-workbench .repl .surveyor {
@@ -34,6 +35,11 @@
 	white-space: pre-wrap;
 	/* Break on all #7533 */
 	word-break: break-all;
+}
+
+.monaco-workbench.mac .repl .repl-tree .monaco-list-row .monaco-tl-twistie.collapsible + .monaco-tl-contents,
+.monaco-workbench.mac .repl .repl-tree .monaco-list-row .monaco-tl-twistie {
+	cursor: pointer;
 }
 
 .monaco-workbench.mac .repl .repl-tree .monaco-list-row .input.expression,
