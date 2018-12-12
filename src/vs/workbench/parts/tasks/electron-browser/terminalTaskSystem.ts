@@ -719,14 +719,18 @@ export class TerminalTaskSystem implements ITaskSystem {
 				if (basename === 'cmd.exe' && ((options.cwd && TPath.isUNC(options.cwd)) || (!options.cwd && TPath.isUNC(process.cwd())))) {
 					return undefined;
 				}
-				if (basename === 'powershell.exe' || basename === 'pwsh.exe') {
+				if ((basename === 'powershell.exe') || (basename === 'pwsh.exe')) {
 					if (!shellSpecified) {
 						toAdd.push('-Command');
 					}
-				} else if (basename === 'bash.exe' || basename === 'zsh.exe') {
+				} else if ((basename === 'bash.exe') || (basename === 'zsh.exe')) {
 					windowsShellArgs = false;
 					if (!shellSpecified) {
 						toAdd.push('-c');
+					}
+				} else if (basename === 'wsl.exe') {
+					if (!shellSpecified) {
+						toAdd.push('-e');
 					}
 				} else {
 					if (!shellSpecified) {
