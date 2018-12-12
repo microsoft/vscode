@@ -339,6 +339,7 @@
 		"./vs/editor/contrib/cursorUndo/cursorUndo.ts",
 		"./vs/editor/contrib/dnd/dnd.ts",
 		"./vs/editor/contrib/dnd/dragAndDropCommand.ts",
+		"./vs/editor/contrib/find/findController.ts",
 		"./vs/editor/contrib/find/findDecorations.ts",
 		"./vs/editor/contrib/find/findModel.ts",
 		"./vs/editor/contrib/find/findOptionsWidget.ts",
