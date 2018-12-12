@@ -106,7 +106,7 @@ export function clearTextMimes(onlyUserConfigured?: boolean): void {
 /**
  * Given a file, return the best matching mime type for it
  */
-export function guessMimeTypes(path: string, firstLine?: string, skipUserAssociations: boolean = false): string[] {
+export function guessMimeTypes(path: string, firstLine?: string): string[] {
 	if (!path) {
 		return [MIME_UNKNOWN];
 	}
@@ -114,12 +114,10 @@ export function guessMimeTypes(path: string, firstLine?: string, skipUserAssocia
 	path = path.toLowerCase();
 	const filename = paths.basename(path);
 
-	if (!skipUserAssociations) {
-		// 1.) User configured mappings have highest priority
-		const configuredMime = guessMimeTypeByPath(path, filename, userRegisteredAssociations);
-		if (configuredMime) {
-			return [configuredMime, MIME_TEXT];
-		}
+	// 1.) User configured mappings have highest priority
+	const configuredMime = guessMimeTypeByPath(path, filename, userRegisteredAssociations);
+	if (configuredMime) {
+		return [configuredMime, MIME_TEXT];
 	}
 
 	// 2.) Registered mappings have middle priority
