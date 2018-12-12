@@ -1993,8 +1993,8 @@ declare namespace monaco.editor {
 	 * (Serializable) View state for the diff editor.
 	 */
 	export interface IDiffEditorViewState {
-		original: ICodeEditorViewState;
-		modified: ICodeEditorViewState;
+		original: ICodeEditorViewState | null;
+		modified: ICodeEditorViewState | null;
 	}
 
 	/**
