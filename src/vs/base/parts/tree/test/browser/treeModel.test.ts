@@ -40,8 +40,8 @@ class TreeContext implements _.ITreeContext {
 	public options: _.ITreeOptions = { autoExpandSingleChildren: true };
 	public dataSource: _.IDataSource;
 	public renderer: _.IRenderer;
-	public controller: _.IController;
-	public dnd: _.IDragAndDrop;
+	public controller?: _.IController;
+	public dnd?: _.IDragAndDrop;
 	public filter: _.IFilter;
 	public sorter: _.ISorter;
 
@@ -349,9 +349,9 @@ suite('TreeModel - TreeNavigator', () => {
 	test('next()', () => {
 		return model.setInput(SAMPLE.AB).then(() => {
 			var nav = model.getNavigator();
-			assert.equal(nav.next().id, 'a');
-			assert.equal(nav.next().id, 'b');
-			assert.equal(nav.next().id, 'c');
+			assert.equal(nav.next()!.id, 'a');
+			assert.equal(nav.next()!.id, 'b');
+			assert.equal(nav.next()!.id, 'c');
 			assert.equal(nav.next() && false, null);
 		});
 	});
@@ -363,9 +363,9 @@ suite('TreeModel - TreeNavigator', () => {
 			nav.next();
 			nav.next();
 
-			assert.equal(nav.next().id, 'c');
-			assert.equal(nav.previous().id, 'b');
-			assert.equal(nav.previous().id, 'a');
+			assert.equal(nav.next()!.id, 'c');
+			assert.equal(nav.previous()!.id, 'b');
+			assert.equal(nav.previous()!.id, 'a');
 			assert.equal(nav.previous() && false, null);
 		});
 	});
@@ -375,20 +375,20 @@ suite('TreeModel - TreeNavigator', () => {
 			return model.expandAll([{ id: 'a' }, { id: 'c' }]).then(() => {
 				var nav = model.getNavigator();
 
-				assert.equal(nav.next().id, 'a');
-				assert.equal(nav.next().id, 'aa');
-				assert.equal(nav.parent().id, 'a');
+				assert.equal(nav.next()!.id, 'a');
+				assert.equal(nav.next()!.id, 'aa');
+				assert.equal(nav.parent()!.id, 'a');
 
-				assert.equal(nav.next().id, 'aa');
-				assert.equal(nav.next().id, 'ab');
-				assert.equal(nav.parent().id, 'a');
+				assert.equal(nav.next()!.id, 'aa');
+				assert.equal(nav.next()!.id, 'ab');
+				assert.equal(nav.parent()!.id, 'a');
 
-				assert.equal(nav.next().id, 'aa');
-				assert.equal(nav.next().id, 'ab');
-				assert.equal(nav.next().id, 'b');
-				assert.equal(nav.next().id, 'c');
-				assert.equal(nav.next().id, 'ca');
-				assert.equal(nav.parent().id, 'c');
+				assert.equal(nav.next()!.id, 'aa');
+				assert.equal(nav.next()!.id, 'ab');
+				assert.equal(nav.next()!.id, 'b');
+				assert.equal(nav.next()!.id, 'c');
+				assert.equal(nav.next()!.id, 'ca');
+				assert.equal(nav.parent()!.id, 'c');
 
 				assert.equal(nav.parent() && false, null);
 			});
@@ -399,8 +399,8 @@ suite('TreeModel - TreeNavigator', () => {
 		return model.setInput(SAMPLE.AB).then(() => {
 			var nav = model.getNavigator(SAMPLE.AB.children[0]);
 			return model.expand({ id: 'a' }).then(() => {
-				assert.equal(nav.next().id, 'aa');
-				assert.equal(nav.next().id, 'ab');
+				assert.equal(nav.next()!.id, 'aa');
+				assert.equal(nav.next()!.id, 'ab');
 				assert.equal(nav.next() && false, null);
 			});
 		});
@@ -410,9 +410,9 @@ suite('TreeModel - TreeNavigator', () => {
 		return model.setInput(SAMPLE.AB).then(() => {
 			var nav = model.getNavigator(SAMPLE.AB.children[0]);
 			return model.expand({ id: 'a' }).then(() => {
-				assert.equal(nav.next().id, 'aa');
-				assert.equal(nav.next().id, 'ab');
-				assert.equal(nav.previous().id, 'aa');
+				assert.equal(nav.next()!.id, 'aa');
+				assert.equal(nav.next()!.id, 'ab');
+				assert.equal(nav.previous()!.id, 'aa');
 				assert.equal(nav.previous() && false, null);
 			});
 		});
@@ -423,8 +423,8 @@ suite('TreeModel - TreeNavigator', () => {
 			return model.expandAll([{ id: 'a' }, { id: 'c' }]).then(() => {
 				var nav = model.getNavigator(SAMPLE.AB.children[0]);
 
-				assert.equal(nav.next().id, 'aa');
-				assert.equal(nav.next().id, 'ab');
+				assert.equal(nav.next()!.id, 'aa');
+				assert.equal(nav.next()!.id, 'ab');
 				assert.equal(nav.parent() && false, null);
 			});
 		});
@@ -434,10 +434,10 @@ suite('TreeModel - TreeNavigator', () => {
 		return model.setInput(SAMPLE.AB).then(() => {
 			var nav = model.getNavigator(SAMPLE.AB.children[0], false);
 			return model.expand({ id: 'a' }).then(() => {
-				assert.equal(nav.next().id, 'aa');
-				assert.equal(nav.next().id, 'ab');
-				assert.equal(nav.next().id, 'b');
-				assert.equal(nav.next().id, 'c');
+				assert.equal(nav.next()!.id, 'aa');
+				assert.equal(nav.next()!.id, 'ab');
+				assert.equal(nav.next()!.id, 'b');
+				assert.equal(nav.next()!.id, 'c');
 				assert.equal(nav.next() && false, null);
 			});
 		});
@@ -447,14 +447,14 @@ suite('TreeModel - TreeNavigator', () => {
 		return model.setInput(SAMPLE.AB).then(() => {
 			var nav = model.getNavigator(SAMPLE.AB.children[0], false);
 			return model.expand({ id: 'a' }).then(() => {
-				assert.equal(nav.next().id, 'aa');
-				assert.equal(nav.next().id, 'ab');
-				assert.equal(nav.next().id, 'b');
-				assert.equal(nav.next().id, 'c');
-				assert.equal(nav.previous().id, 'b');
-				assert.equal(nav.previous().id, 'ab');
-				assert.equal(nav.previous().id, 'aa');
-				assert.equal(nav.previous().id, 'a');
+				assert.equal(nav.next()!.id, 'aa');
+				assert.equal(nav.next()!.id, 'ab');
+				assert.equal(nav.next()!.id, 'b');
+				assert.equal(nav.next()!.id, 'c');
+				assert.equal(nav.previous()!.id, 'b');
+				assert.equal(nav.previous()!.id, 'ab');
+				assert.equal(nav.previous()!.id, 'aa');
+				assert.equal(nav.previous()!.id, 'a');
 				assert.equal(nav.previous() && false, null);
 			});
 		});
@@ -465,9 +465,9 @@ suite('TreeModel - TreeNavigator', () => {
 			return model.expandAll([{ id: 'a' }, { id: 'c' }]).then(() => {
 				var nav = model.getNavigator(SAMPLE.AB.children[0], false);
 
-				assert.equal(nav.next().id, 'aa');
-				assert.equal(nav.next().id, 'ab');
-				assert.equal(nav.parent().id, 'a');
+				assert.equal(nav.next()!.id, 'aa');
+				assert.equal(nav.next()!.id, 'ab');
+				assert.equal(nav.parent()!.id, 'a');
 				assert.equal(nav.parent() && false, null);
 			});
 		});
@@ -478,8 +478,8 @@ suite('TreeModel - TreeNavigator', () => {
 			return model.expand(SAMPLE.DEEP.children[0]).then(() => {
 				return model.expand(SAMPLE.DEEP.children[0].children[0]).then(() => {
 					var nav = model.getNavigator(SAMPLE.DEEP.children[0].children[0]);
-					assert.equal(nav.next().id, 'xa');
-					assert.equal(nav.next().id, 'xb');
+					assert.equal(nav.next()!.id, 'xa');
+					assert.equal(nav.next()!.id, 'xb');
 					assert.equal(nav.next() && false, null);
 				});
 			});
@@ -491,9 +491,9 @@ suite('TreeModel - TreeNavigator', () => {
 			return model.expand(SAMPLE.DEEP.children[0]).then(() => {
 				return model.expand(SAMPLE.DEEP.children[0].children[0]).then(() => {
 					var nav = model.getNavigator(SAMPLE.DEEP.children[0].children[0]);
-					assert.equal(nav.next().id, 'xa');
-					assert.equal(nav.next().id, 'xb');
-					assert.equal(nav.previous().id, 'xa');
+					assert.equal(nav.next()!.id, 'xa');
+					assert.equal(nav.next()!.id, 'xb');
+					assert.equal(nav.previous()!.id, 'xa');
 					assert.equal(nav.previous() && false, null);
 				});
 			});
@@ -504,7 +504,7 @@ suite('TreeModel - TreeNavigator', () => {
 		return model.setInput(SAMPLE.AB).then(() => {
 			return model.expandAll([{ id: 'a' }, { id: 'c' }]).then(() => {
 				const nav = model.getNavigator();
-				assert.equal(nav.last().id, 'cb');
+				assert.equal(nav.last()!.id, 'cb');
 			});
 		});
 	});
@@ -537,17 +537,17 @@ suite('TreeModel - Expansion', () => {
 			counter.listen(model.onDidExpandItem, (e) => {
 				assert.equal(e.item.id, 'a');
 				var nav = model.getNavigator(e.item);
-				assert.equal(nav.next().id, 'aa');
-				assert.equal(nav.next().id, 'ab');
+				assert.equal(nav.next()!.id, 'aa');
+				assert.equal(nav.next()!.id, 'ab');
 				assert.equal(nav.next() && false, null);
 			});
 
 			assert(!model.isExpanded(SAMPLE.AB.children[0]));
 
 			var nav = model.getNavigator();
-			assert.equal(nav.next().id, 'a');
-			assert.equal(nav.next().id, 'b');
-			assert.equal(nav.next().id, 'c');
+			assert.equal(nav.next()!.id, 'a');
+			assert.equal(nav.next()!.id, 'b');
+			assert.equal(nav.next()!.id, 'c');
 			assert.equal(nav.next() && false, null);
 
 			assert.equal(model.getExpandedElements().length, 0);
@@ -556,11 +556,11 @@ suite('TreeModel - Expansion', () => {
 				assert(model.isExpanded(SAMPLE.AB.children[0]));
 
 				nav = model.getNavigator();
-				assert.equal(nav.next().id, 'a');
-				assert.equal(nav.next().id, 'aa');
-				assert.equal(nav.next().id, 'ab');
-				assert.equal(nav.next().id, 'b');
-				assert.equal(nav.next().id, 'c');
+				assert.equal(nav.next()!.id, 'a');
+				assert.equal(nav.next()!.id, 'aa');
+				assert.equal(nav.next()!.id, 'ab');
+				assert.equal(nav.next()!.id, 'b');
+				assert.equal(nav.next()!.id, 'c');
 				assert.equal(nav.next() && false, null);
 
 				var expandedElements = model.getExpandedElements();
@@ -627,9 +627,9 @@ suite('TreeModel - Expansion', () => {
 			assert(!model.isExpanded(SAMPLE.AB.children[0]));
 
 			var nav = model.getNavigator();
-			assert.equal(nav.next().id, 'a');
-			assert.equal(nav.next().id, 'b');
-			assert.equal(nav.next().id, 'c');
+			assert.equal(nav.next()!.id, 'a');
+			assert.equal(nav.next()!.id, 'b');
+			assert.equal(nav.next()!.id, 'c');
 			assert.equal(nav.next() && false, null);
 
 			var f: () => void = counter.listen(model.onRefreshItemChildren, (e) => {
@@ -646,11 +646,11 @@ suite('TreeModel - Expansion', () => {
 				assert(model.isExpanded(SAMPLE.AB.children[0]));
 
 				nav = model.getNavigator();
-				assert.equal(nav.next().id, 'a');
-				assert.equal(nav.next().id, 'aa');
-				assert.equal(nav.next().id, 'ab');
-				assert.equal(nav.next().id, 'b');
-				assert.equal(nav.next().id, 'c');
+				assert.equal(nav.next()!.id, 'a');
+				assert.equal(nav.next()!.id, 'aa');
+				assert.equal(nav.next()!.id, 'ab');
+				assert.equal(nav.next()!.id, 'b');
+				assert.equal(nav.next()!.id, 'c');
 				assert.equal(nav.next() && false, null);
 
 				assert.equal(counter.count, 2);
@@ -662,11 +662,11 @@ suite('TreeModel - Expansion', () => {
 		return model.setInput(SAMPLE.AB).then(() => {
 			return model.collapseAll([{ id: 'a' }, { id: 'b' }, { id: 'c' }]).then(() => {
 				var nav = model.getNavigator();
-				assert.equal(nav.next().id, 'a');
-				assert.equal(nav.next().id, 'b');
-				assert.equal(nav.next().id, 'c');
-				assert.equal(nav.previous().id, 'b');
-				assert.equal(nav.previous().id, 'a');
+				assert.equal(nav.next()!.id, 'a');
+				assert.equal(nav.next()!.id, 'b');
+				assert.equal(nav.next()!.id, 'c');
+				assert.equal(nav.previous()!.id, 'b');
+				assert.equal(nav.previous()!.id, 'a');
 				assert.equal(nav.previous() && false, null);
 			});
 		});
@@ -735,20 +735,20 @@ suite('TreeModel - Filter', () => {
 
 			return model.expandAll([{ id: 'a' }, { id: 'c' }]).then(() => {
 				var nav = model.getNavigator();
-				assert.equal(nav.next().id, 'a');
-				assert.equal(nav.next().id, 'aa');
-				assert.equal(nav.next().id, 'ab');
-				assert.equal(nav.next().id, 'b');
-				assert.equal(nav.next().id, 'c');
-				assert.equal(nav.next().id, 'ca');
-				assert.equal(nav.next().id, 'cb');
+				assert.equal(nav.next()!.id, 'a');
+				assert.equal(nav.next()!.id, 'aa');
+				assert.equal(nav.next()!.id, 'ab');
+				assert.equal(nav.next()!.id, 'b');
+				assert.equal(nav.next()!.id, 'c');
+				assert.equal(nav.next()!.id, 'ca');
+				assert.equal(nav.next()!.id, 'cb');
 
-				assert.equal(nav.previous().id, 'ca');
-				assert.equal(nav.previous().id, 'c');
-				assert.equal(nav.previous().id, 'b');
-				assert.equal(nav.previous().id, 'ab');
-				assert.equal(nav.previous().id, 'aa');
-				assert.equal(nav.previous().id, 'a');
+				assert.equal(nav.previous()!.id, 'ca');
+				assert.equal(nav.previous()!.id, 'c');
+				assert.equal(nav.previous()!.id, 'b');
+				assert.equal(nav.previous()!.id, 'ab');
+				assert.equal(nav.previous()!.id, 'aa');
+				assert.equal(nav.previous()!.id, 'a');
 				assert.equal(nav.previous() && false, null);
 			});
 		});
@@ -773,11 +773,11 @@ suite('TreeModel - Filter', () => {
 			return model.expand({ id: 'a' }).then(() => {
 
 				var nav = model.getNavigator();
-				assert.equal(nav.next().id, 'a');
-				assert.equal(nav.next().id, 'aa');
-				assert.equal(nav.next().id, 'ab');
-				assert.equal(nav.previous().id, 'aa');
-				assert.equal(nav.previous().id, 'a');
+				assert.equal(nav.next()!.id, 'a');
+				assert.equal(nav.next()!.id, 'aa');
+				assert.equal(nav.next()!.id, 'ab');
+				assert.equal(nav.previous()!.id, 'aa');
+				assert.equal(nav.previous()!.id, 'a');
 				assert.equal(nav.previous() && false, null);
 			});
 		});
@@ -790,10 +790,10 @@ suite('TreeModel - Filter', () => {
 		return model.setInput(SAMPLE.AB).then(() => {
 			return model.expand({ id: 'a' }).then(() => {
 				var nav = model.getNavigator();
-				assert.equal(nav.next().id, 'a');
-				assert.equal(nav.next().id, 'aa');
-				assert.equal(nav.next().id, 'b');
-				assert.equal(nav.next().id, 'c');
+				assert.equal(nav.next()!.id, 'a');
+				assert.equal(nav.next()!.id, 'aa');
+				assert.equal(nav.next()!.id, 'b');
+				assert.equal(nav.next()!.id, 'c');
 				assert.equal(nav.next() && false, null);
 			});
 		});
@@ -807,13 +807,13 @@ suite('TreeModel - Filter', () => {
 			return model.expand({ id: 'c' }).then(() => {
 
 				var nav = model.getNavigator();
-				assert.equal(nav.next().id, 'b');
-				assert.equal(nav.next().id, 'c');
-				assert.equal(nav.next().id, 'ca');
-				assert.equal(nav.next().id, 'cb');
-				assert.equal(nav.previous().id, 'ca');
-				assert.equal(nav.previous().id, 'c');
-				assert.equal(nav.previous().id, 'b');
+				assert.equal(nav.next()!.id, 'b');
+				assert.equal(nav.next()!.id, 'c');
+				assert.equal(nav.next()!.id, 'ca');
+				assert.equal(nav.next()!.id, 'cb');
+				assert.equal(nav.previous()!.id, 'ca');
+				assert.equal(nav.previous()!.id, 'c');
+				assert.equal(nav.previous()!.id, 'b');
 				assert.equal(nav.previous() && false, null);
 			});
 		});
@@ -827,13 +827,13 @@ suite('TreeModel - Filter', () => {
 			return model.expand({ id: 'c' }).then(() => {
 
 				var nav = model.getNavigator();
-				assert.equal(nav.next().id, 'b');
-				assert.equal(nav.next().id, 'c');
-				assert.equal(nav.next().id, 'ca');
-				assert.equal(nav.next().id, 'cb');
-				assert.equal(nav.previous().id, 'ca');
-				assert.equal(nav.previous().id, 'c');
-				assert.equal(nav.previous().id, 'b');
+				assert.equal(nav.next()!.id, 'b');
+				assert.equal(nav.next()!.id, 'c');
+				assert.equal(nav.next()!.id, 'ca');
+				assert.equal(nav.next()!.id, 'cb');
+				assert.equal(nav.previous()!.id, 'ca');
+				assert.equal(nav.previous()!.id, 'c');
+				assert.equal(nav.previous()!.id, 'b');
 				assert.equal(nav.previous() && false, null);
 			});
 		});
@@ -845,7 +845,7 @@ suite('TreeModel - Filter', () => {
 
 		return model.setInput(SAMPLE.AB).then(() => {
 			var nav = model.getNavigator({ id: 'c' }, false);
-			assert.equal(nav.previous().id, 'a');
+			assert.equal(nav.previous()!.id, 'a');
 			assert.equal(nav.previous() && false, null);
 		});
 	});
@@ -1079,7 +1079,7 @@ suite('TreeModel - Traits', () => {
 class DynamicModel implements _.IDataSource {
 
 	private data: any;
-	public promiseFactory: { (): Thenable<any>; };
+	public promiseFactory: { (): Thenable<any>; } | null;
 
 	private _onGetChildren = new Emitter<any>();
 	readonly onGetChildren: Event<any> = this._onGetChildren.event;
@@ -1188,16 +1188,16 @@ suite('TreeModel - Dynamic data model', () => {
 
 		return model.setInput('root').then(() => {
 			var nav = model.getNavigator();
-			assert.equal(nav.next().id, 'super');
-			assert.equal(nav.next().id, 'hyper');
-			assert.equal(nav.next().id, 'mega');
+			assert.equal(nav.next()!.id, 'super');
+			assert.equal(nav.next()!.id, 'hyper');
+			assert.equal(nav.next()!.id, 'mega');
 			assert.equal(nav.next() && false, null);
 
 			dataModel.removeChild('root', 'hyper');
 			return model.refresh().then(() => {
 				nav = model.getNavigator();
-				assert.equal(nav.next().id, 'super');
-				assert.equal(nav.next().id, 'mega');
+				assert.equal(nav.next()!.id, 'super');
+				assert.equal(nav.next()!.id, 'mega');
 				assert.equal(nav.next() && false, null);
 
 				dataModel.addChild('mega', 'micro');
@@ -1207,17 +1207,17 @@ suite('TreeModel - Dynamic data model', () => {
 				return model.refresh().then(() => {
 					return model.expand('mega').then(() => {
 						nav = model.getNavigator();
-						assert.equal(nav.next().id, 'super');
-						assert.equal(nav.next().id, 'mega');
-						assert.equal(nav.next().id, 'micro');
-						assert.equal(nav.next().id, 'nano');
-						assert.equal(nav.next().id, 'pico');
+						assert.equal(nav.next()!.id, 'super');
+						assert.equal(nav.next()!.id, 'mega');
+						assert.equal(nav.next()!.id, 'micro');
+						assert.equal(nav.next()!.id, 'nano');
+						assert.equal(nav.next()!.id, 'pico');
 						assert.equal(nav.next() && false, null);
 
 						model.collapse('mega');
 						nav = model.getNavigator();
-						assert.equal(nav.next().id, 'super');
-						assert.equal(nav.next().id, 'mega');
+						assert.equal(nav.next()!.id, 'super');
+						assert.equal(nav.next()!.id, 'mega');
 						assert.equal(nav.next() && false, null);
 					});
 				});
@@ -1238,12 +1238,12 @@ suite('TreeModel - Dynamic data model', () => {
 			return model.expand('super').then(() => {
 
 				var nav = model.getNavigator();
-				assert.equal(nav.next().id, 'super');
-				assert.equal(nav.next().id, 'apples');
-				assert.equal(nav.next().id, 'bananas');
-				assert.equal(nav.next().id, 'pears');
-				assert.equal(nav.next().id, 'hyper');
-				assert.equal(nav.next().id, 'mega');
+				assert.equal(nav.next()!.id, 'super');
+				assert.equal(nav.next()!.id, 'apples');
+				assert.equal(nav.next()!.id, 'bananas');
+				assert.equal(nav.next()!.id, 'pears');
+				assert.equal(nav.next()!.id, 'hyper');
+				assert.equal(nav.next()!.id, 'mega');
 				assert.equal(nav.next() && false, null);
 
 				dataModel.move('bananas', 'super', 'hyper');
@@ -1253,12 +1253,12 @@ suite('TreeModel - Dynamic data model', () => {
 
 					return model.expandAll(['hyper', 'mega']).then(() => {
 						nav = model.getNavigator();
-						assert.equal(nav.next().id, 'super');
-						assert.equal(nav.next().id, 'pears');
-						assert.equal(nav.next().id, 'hyper');
-						assert.equal(nav.next().id, 'bananas');
-						assert.equal(nav.next().id, 'mega');
-						assert.equal(nav.next().id, 'apples');
+						assert.equal(nav.next()!.id, 'super');
+						assert.equal(nav.next()!.id, 'pears');
+						assert.equal(nav.next()!.id, 'hyper');
+						assert.equal(nav.next()!.id, 'bananas');
+						assert.equal(nav.next()!.id, 'mega');
+						assert.equal(nav.next()!.id, 'apples');
 						assert.equal(nav.next() && false, null);
 					});
 				});
@@ -1310,10 +1310,10 @@ suite('TreeModel - Dynamic data model', () => {
 				return model.expand('mother').then(() => {
 
 					var nav = model.getNavigator();
-					assert.equal(nav.next().id, 'father');
-					assert.equal(nav.next().id, 'son');
-					assert.equal(nav.next().id, 'mother');
-					assert.equal(nav.next().id, 'daughter');
+					assert.equal(nav.next()!.id, 'father');
+					assert.equal(nav.next()!.id, 'son');
+					assert.equal(nav.next()!.id, 'mother');
+					assert.equal(nav.next()!.id, 'daughter');
 					assert.equal(nav.next() && false, null);
 
 					dataModel.removeChild('father', 'son');
@@ -1341,10 +1341,10 @@ suite('TreeModel - Dynamic data model', () => {
 						assert.equal(gotTimes, 2);
 
 						nav = model.getNavigator();
-						assert.equal(nav.next().id, 'father');
-						assert.equal(nav.next().id, 'brother');
-						assert.equal(nav.next().id, 'mother');
-						assert.equal(nav.next().id, 'sister');
+						assert.equal(nav.next()!.id, 'father');
+						assert.equal(nav.next()!.id, 'brother');
+						assert.equal(nav.next()!.id, 'mother');
+						assert.equal(nav.next()!.id, 'sister');
 						assert.equal(nav.next() && false, null);
 
 						getListener.dispose();
@@ -1364,9 +1364,9 @@ suite('TreeModel - Dynamic data model', () => {
 			return model.expand('grandfather').then(() => {
 				return model.expand('father').then(() => {
 					var nav = model.getNavigator();
-					assert.equal(nav.next().id, 'grandfather');
-					assert.equal(nav.next().id, 'father');
-					assert.equal(nav.next().id, 'son');
+					assert.equal(nav.next()!.id, 'grandfather');
+					assert.equal(nav.next()!.id, 'father');
+					assert.equal(nav.next()!.id, 'son');
 					assert.equal(nav.next() && false, null);
 
 					var refreshTimes = 0;
@@ -1378,7 +1378,7 @@ suite('TreeModel - Dynamic data model', () => {
 					var gotTimes = 0;
 					var gotListener = dataModel.onDidGetChildren((element) => { gotTimes++; });
 
-					var p1Completes = [];
+					var p1Completes: Array<(value?: any) => void> = [];
 					dataModel.promiseFactory = () => { return new Promise((c) => { p1Completes.push(c); }); };
 
 					model.refresh('grandfather').then(() => {
@@ -1388,7 +1388,7 @@ suite('TreeModel - Dynamic data model', () => {
 						assert.equal(gotTimes, 0);
 
 						// unblock the first get
-						p1Completes.shift()();
+						p1Completes.shift()!();
 
 						// once the first get is unblocked, the second get should appear
 						assert.equal(refreshTimes, 2); // (+1) first father refresh
@@ -1405,7 +1405,7 @@ suite('TreeModel - Dynamic data model', () => {
 						assert.equal(gotTimes, 1);
 
 						// unblock the second get
-						p1Completes.shift()();
+						p1Completes.shift()!();
 
 						// the third get should have appeared, it should've been waiting for the second one
 						assert.equal(refreshTimes, 4); // (+1) first son request
@@ -1421,9 +1421,9 @@ suite('TreeModel - Dynamic data model', () => {
 
 						return p2.then(() => {
 							nav = model.getNavigator();
-							assert.equal(nav.next().id, 'grandfather');
-							assert.equal(nav.next().id, 'father');
-							assert.equal(nav.next().id, 'son');
+							assert.equal(nav.next()!.id, 'grandfather');
+							assert.equal(nav.next()!.id, 'father');
+							assert.equal(nav.next()!.id, 'son');
 							assert.equal(nav.next() && false, null);
 
 							getListener.dispose();
@@ -1617,7 +1617,6 @@ suite('TreeModel - bugs', () => {
 			while (listeners.length > 0) { listeners.pop()(); }
 			listeners = null;
 			model.dispose();
-			model = null;
 
 			assert.equal(counter.count, 0);
 		});
@@ -1643,8 +1642,8 @@ suite('TreeModel - bugs', () => {
 		await model.expand('father');
 
 		let nav = model.getNavigator();
-		assert.equal(nav.next().id, 'father');
-		assert.equal(nav.next().id, 'son');
+		assert.equal(nav.next()!.id, 'father');
+		assert.equal(nav.next()!.id, 'son');
 		assert.equal(nav.next(), null);
 
 		await model.collapse('father');
@@ -1654,7 +1653,7 @@ suite('TreeModel - bugs', () => {
 		await model.expand('father');
 
 		nav = model.getNavigator();
-		assert.equal(nav.next().id, 'father');
+		assert.equal(nav.next()!.id, 'father');
 		assert.equal(nav.next(), null);
 
 		counter.dispose();

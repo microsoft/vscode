@@ -13,7 +13,7 @@ suite('Polyfill Promise', function () {
 		const actual: string[] = [];
 		const promise = new Promise(resolve => {
 			actual.push('inCtor');
-			resolve(null);
+			resolve(void 0);
 		}).then(() => actual.push('inThen'));
 		actual.push('afterCtor');
 		return promise.then(() => {
