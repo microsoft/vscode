@@ -405,6 +405,9 @@ export class LoadedScriptsView extends ViewletPanel {
 				identityProvider: {
 					getId: element => element.getId()
 				},
+				typeLabelProvider: {
+					getTypeLabel: element => element.getLabel()
+				},
 				filter: this.filter,
 				accessibilityProvider: new LoadedSciptsAccessibilityProvider(),
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'loadedScriptsAriaLabel' }, "Debug Loaded Scripts"),
