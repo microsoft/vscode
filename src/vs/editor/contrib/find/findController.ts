@@ -109,7 +109,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 			this.disposeModel();
 
 			this._state.change({
-				searchScope: void 0,
+				searchScope: null,
 				matchCase: this._storageService.getBoolean('editor.matchCase', StorageScope.WORKSPACE, false),
 				wholeWord: this._storageService.getBoolean('editor.wholeWord', StorageScope.WORKSPACE, false),
 				isRegex: this._storageService.getBoolean('editor.isRegex', StorageScope.WORKSPACE, false)
@@ -191,7 +191,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	public closeFindWidget(): void {
 		this._state.change({
 			isRevealed: false,
-			searchScope: void 0
+			searchScope: null
 		}, false);
 		this._editor.focus();
 	}
@@ -219,7 +219,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 
 	public toggleSearchScope(): void {
 		if (this._state.searchScope) {
-			this._state.change({ searchScope: void 0 }, true);
+			this._state.change({ searchScope: null }, true);
 		} else {
 			if (this._editor.hasModel()) {
 				let selection = this._editor.getSelection();
