@@ -240,13 +240,15 @@ export class EnvironmentService implements IEnvironmentService {
 	get driverHandle(): string | undefined { return this._args['driver']; }
 	get driverVerbose(): boolean { return !!this._args['driver-verbose']; }
 
+	private static processLogFilePath: string | undefined;
+
 	constructor(private _args: ParsedArgs, private _execPath: string) {
-		if (!process.env['VSCODE_LOGS']) {
+		if (!EnvironmentService.processLogFilePath) {
 			const key = toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '');
-			process.env['VSCODE_LOGS'] = path.join(this.userDataPath, 'logs', key);
+			EnvironmentService.processLogFilePath = path.join(this.userDataPath, 'logs', key);
 		}
 
-		this.logsPath = process.env['VSCODE_LOGS']!;
+		this.logsPath = EnvironmentService.processLogFilePath;
 	}
 }
 
