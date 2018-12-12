@@ -28,7 +28,7 @@ interface ISelectListTemplateData {
 	root: HTMLElement;
 	text: HTMLElement;
 	itemDescription: HTMLElement;
-	decorationRight: HTMLElement;
+	decoratorRight: HTMLElement;
 	disposables: IDisposable[];
 }
 
@@ -43,7 +43,7 @@ class SelectListRenderer implements IListRenderer<ISelectOptionItem, ISelectList
 		data.disposables = [];
 		data.root = container;
 		data.text = dom.append(container, $('.option-text'));
-		data.decorationRight = dom.append(container, $('.option-decoration-right'));
+		data.decoratorRight = dom.append(container, $('.option-decorator-right'));
 		data.itemDescription = dom.append(container, $('.option-text-description'));
 		dom.addClass(data.itemDescription, 'visually-hidden');
 
@@ -53,11 +53,11 @@ class SelectListRenderer implements IListRenderer<ISelectOptionItem, ISelectList
 	renderElement(element: ISelectOptionItem, index: number, templateData: ISelectListTemplateData): void {
 		const data = <ISelectListTemplateData>templateData;
 		const text = (<ISelectOptionItem>element).text;
-		const decorationRight = (<ISelectOptionItem>element).decorationRight;
+		const decoratorRight = (<ISelectOptionItem>element).decoratorRight;
 		const isDisabled = (<ISelectOptionItem>element).isDisabled;
 
 		data.text.textContent = text;
-		data.decorationRight.innerText = (!!decorationRight ? decorationRight : '');
+		data.decoratorRight.innerText = (!!decoratorRight ? decoratorRight : '');
 
 		if (typeof element.description === 'string') {
 			const itemDescriptionId = (text.replace(/ /g, '_').toLowerCase() + '_description_' + data.root.id);
@@ -327,6 +327,10 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 
 		if (this.styles.listFocusForeground) {
 			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.focused:not(:hover) { color: ${this.styles.listFocusForeground} !important; }`);
+		}
+
+		if (this.styles.decoratorRightForeground) {
+			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row .option-decorator-right { color: ${this.styles.decoratorRightForeground} !important; }`);
 		}
 
 		if (this.styles.selectBackground && this.styles.selectBorder && !this.styles.selectBorder.equals(this.styles.selectBackground)) {
@@ -690,7 +694,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 			let longestLength = 0;
 
 			this.options.forEach((option, index) => {
-				const len = option.text.length + (!!option.decorationRight ? option.decorationRight.length : 0);
+				const len = option.text.length + (!!option.decoratorRight ? option.decoratorRight.length : 0);
 				if (len > longestLength) {
 					longest = index;
 					longestLength = len;
@@ -698,7 +702,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 			});
 
 
-			container.innerHTML = this.options[longest].text + (!!this.options[longest].decorationRight ? (this.options[longest].decorationRight + ' ') : '');
+			container.innerHTML = this.options[longest].text + (!!this.options[longest].decoratorRight ? (this.options[longest].decoratorRight + ' ') : '');
 			elementWidth = dom.getTotalWidth(container);
 		}
 

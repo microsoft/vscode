@@ -1174,7 +1174,7 @@ export class SettingsRenderer implements ITreeRenderer {
 				text: data,
 				description: (enumDescriptions && enumDescriptions[index] && (enumDescriptionsAreMarkdown ? fixSettingLinks(enumDescriptions[index], false) : enumDescriptions[index])),
 				descriptionIsMarkdown: enumDescriptionsAreMarkdown,
-				decorationRight: (data === dataElement.defaultValue ? localize('settings.Default', "({0})", 'default') : '')
+				decoratorRight: (data === dataElement.defaultValue ? localize('settings.Default', "{0}", 'default') : '')
 			});
 
 		template.selectBox.setOptions(displayOptions);
