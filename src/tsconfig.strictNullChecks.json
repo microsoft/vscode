@@ -619,6 +619,7 @@
 		"./vs/platform/update/electron-main/updateService.darwin.ts",
 		"./vs/platform/update/electron-main/updateService.linux.ts",
 		"./vs/platform/update/electron-main/updateService.snap.ts",
+		"./vs/platform/update/electron-main/updateService.win32.ts",
 		"./vs/platform/update/node/update.config.contribution.ts",
 		"./vs/platform/update/node/updateIpc.ts",
 		"./vs/platform/url/common/url.ts",
