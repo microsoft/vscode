@@ -23,6 +23,7 @@ export interface IExtensionContext {
 	globalState: IExtensionMemento;
 	extensionPath: string;
 	storagePath: string;
+	globalStoragePath: string;
 	asAbsolutePath(relativePath: string): string;
 	readonly logPath: string;
 }
@@ -42,6 +43,14 @@ export interface IExtensionAPI {
 	// _extensionAPIBrand: any;
 }
 
+/* __GDPR__FRAGMENT__
+	"ExtensionActivationTimes" : {
+		"startup": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"codeLoadingTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"activateCallTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"activateResolvedTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+	}
+*/
 export class ExtensionActivationTimes {
 
 	public static readonly NONE = new ExtensionActivationTimes(false, -1, -1, -1);
@@ -332,7 +341,7 @@ export class ExtensionsActivator {
 			return this._activatingExtensions[extensionDescription.id];
 		}
 
-		this._activatingExtensions[extensionDescription.id] = this._host.actualActivateExtension(extensionDescription, reason).then(null, (err) => {
+		this._activatingExtensions[extensionDescription.id] = this._host.actualActivateExtension(extensionDescription, reason).then(void 0, (err) => {
 			this._host.showMessage(Severity.Error, nls.localize('activationError', "Activating extension '{0}' failed: {1}.", extensionDescription.id, err.message));
 			console.error('Activating extension `' + extensionDescription.id + '` failed: ', err.message);
 			console.log('Here is the error stack: ', err.stack);

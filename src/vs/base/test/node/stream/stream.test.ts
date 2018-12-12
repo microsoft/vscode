@@ -14,7 +14,7 @@ suite('Stream', () => {
 
 		return stream.readExactlyByFile(file, 10).then(({ buffer, bytesRead }) => {
 			assert.equal(bytesRead, 10);
-			assert.equal(buffer.toString(), '/*--------');
+			assert.equal(buffer!.toString(), '/*--------');
 		});
 	});
 

@@ -110,6 +110,8 @@ export interface IExtensionContributions {
 	localizations?: ILocalization[];
 }
 
+export type ExtensionKind = 'ui' | 'workspace';
+
 export interface IExtensionManifest {
 	name: string;
 	publisher: string;
@@ -124,6 +126,7 @@ export interface IExtensionManifest {
 	activationEvents?: string[];
 	extensionDependencies?: string[];
 	extensionPack?: string[];
+	extensionKind?: ExtensionKind;
 	contributes?: IExtensionContributions;
 	repository?: {
 		url: string;
@@ -172,6 +175,11 @@ export function isIExtensionIdentifier(thing: any): thing is IExtensionIdentifie
 export interface IExtensionIdentifier {
 	id: string;
 	uuid?: string;
+}
+
+export interface IGalleryExtensionVersion {
+	version: string;
+	date: string;
 }
 
 export interface IGalleryExtension {
@@ -274,7 +282,8 @@ export interface IExtensionGalleryService {
 	getManifest(extension: IGalleryExtension, token: CancellationToken): Promise<IExtensionManifest>;
 	getChangelog(extension: IGalleryExtension, token: CancellationToken): Promise<string>;
 	getCoreTranslation(extension: IGalleryExtension, languageId: string): Promise<ITranslation>;
-	loadCompatibleVersion(extension: IGalleryExtension): Promise<IGalleryExtension>;
+	loadCompatibleVersion(extension: IGalleryExtension, fromVersion?: string): Promise<IGalleryExtension>;
+	getAllVersions(extension: IGalleryExtension, compatible: boolean): Promise<IGalleryExtensionVersion[]>;
 	loadAllDependencies(dependencies: IExtensionIdentifier[], token: CancellationToken): Promise<IGalleryExtension[]>;
 	getExtensionsReport(): Promise<IReportedExtension[]>;
 	getExtension(id: IExtensionIdentifier, version?: string): Promise<IGalleryExtension>;
@@ -299,6 +308,9 @@ export interface DidUninstallExtensionEvent {
 	identifier: IExtensionIdentifier;
 	error?: string;
 }
+
+export const INSTALL_ERROR_MALICIOUS = 'malicious';
+export const INSTALL_ERROR_INCOMPATIBLE = 'incompatible';
 
 export interface IExtensionManagementService {
 	_serviceBrand: any;
@@ -330,9 +342,9 @@ export interface IExtensionManagementServer {
 
 export interface IExtensionManagementServerService {
 	_serviceBrand: any;
-	readonly extensionManagementServers: IExtensionManagementServer[];
-	getLocalExtensionManagementServer(): IExtensionManagementServer;
-	getExtensionManagementServer(location: URI): IExtensionManagementServer;
+	readonly localExtensionManagementServer: IExtensionManagementServer;
+	readonly remoteExtensionManagementServer: IExtensionManagementServer | null;
+	getExtensionManagementServer(location: URI): IExtensionManagementServer | null;
 }
 
 export const enum EnablementState {
@@ -344,7 +356,6 @@ export const enum EnablementState {
 
 export const IExtensionEnablementService = createDecorator<IExtensionEnablementService>('extensionEnablementService');
 
-// TODO: @sandy: Merge this into IExtensionManagementService when we have a storage service available in Shared process
 export interface IExtensionEnablementService {
 	_serviceBrand: any;
 
@@ -418,8 +429,6 @@ export interface IExtensionTipsService {
 	getOtherRecommendations(): Promise<IExtensionRecommendation[]>;
 	getWorkspaceRecommendations(): Promise<IExtensionRecommendation[]>;
 	getKeymapRecommendations(): IExtensionRecommendation[];
-	getAllRecommendations(): Promise<IExtensionRecommendation[]>;
-	getKeywordsForExtension(extension: string): string[];
 	toggleIgnoredRecommendation(extensionId: string, shouldIgnore: boolean): void;
 	getAllIgnoredRecommendations(): { global: string[], workspace: string[] };
 	onRecommendationChange: Event<RecommendationChangeNotification>;

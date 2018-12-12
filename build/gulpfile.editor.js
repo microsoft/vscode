@@ -152,10 +152,19 @@ gulp.task('extract-editor-esm', ['clean-editor-esm', 'clean-editor-distro', 'ext
 	});
 });
 gulp.task('compile-editor-esm', ['extract-editor-esm', 'clean-editor-distro'], function () {
-	const result = cp.spawnSync(`node`, [`../node_modules/.bin/tsc`], {
-		cwd: path.join(__dirname, '../out-editor-esm')
-	});
-	console.log(result.stdout.toString());
+	if (process.platform === 'win32') {
+		const result = cp.spawnSync(`..\\node_modules\\.bin\\tsc.cmd`, {
+			cwd: path.join(__dirname, '../out-editor-esm')
+		});
+		console.log(result.stdout.toString());
+		console.log(result.stderr.toString());
+	} else {
+		const result = cp.spawnSync(`node`, [`../node_modules/.bin/tsc`], {
+			cwd: path.join(__dirname, '../out-editor-esm')
+		});
+		console.log(result.stdout.toString());
+		console.log(result.stderr.toString());
+	}
 });
 
 function toExternalDTS(contents) {

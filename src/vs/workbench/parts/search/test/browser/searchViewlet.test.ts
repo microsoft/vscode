@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { URI as uri } from 'vs/base/common/uri';
-import { Match, FileMatch, SearchResult } from 'vs/workbench/parts/search/common/searchModel';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { SearchDataSource, SearchSorter } from 'vs/workbench/parts/search/browser/searchResultsView';
-import { IFileMatch, TextSearchMatch, OneLineRange, ITextSearchMatch, QueryType } from 'vs/platform/search/common/search';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { IFileMatch, ITextSearchMatch, OneLineRange, QueryType } from 'vs/platform/search/common/search';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TestContextService } from 'vs/workbench/test/workbenchTestServices';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
+import { SearchDataSource, SearchSorter } from 'vs/workbench/parts/search/browser/searchResultsView';
+import { FileMatch, Match, SearchResult } from 'vs/workbench/parts/search/common/searchModel';
+import { TestContextService } from 'vs/workbench/test/workbenchTestServices';
 
 suite('Search - Viewlet', () => {
 	let instantiation: TestInstantiationService;
@@ -36,20 +36,24 @@ suite('Search - Viewlet', () => {
 			}]
 		};
 
-		const ranges = {
-			startLineNumber: 1,
-			startColumn: 0,
-			endLineNumber: 1,
-			endColumn: 1
-		};
 		result.add([{
 			resource: uri.parse('file:///c:/foo'),
 			results: [{
 				preview: {
 					text: 'bar',
-					matches: ranges
+					matches: {
+						startLineNumber: 0,
+						startColumn: 0,
+						endLineNumber: 0,
+						endColumn: 1
+					}
 				},
-				ranges
+				ranges: {
+					startLineNumber: 1,
+					startColumn: 0,
+					endLineNumber: 1,
+					endColumn: 1
+				}
 			}]
 		}]);
 
@@ -70,9 +74,9 @@ suite('Search - Viewlet', () => {
 		let fileMatch1 = aFileMatch('C:\\foo');
 		let fileMatch2 = aFileMatch('C:\\with\\path');
 		let fileMatch3 = aFileMatch('C:\\with\\path\\foo');
-		let lineMatch1 = new Match(fileMatch1, new TextSearchMatch('bar', new OneLineRange(0, 1, 1)));
-		let lineMatch2 = new Match(fileMatch1, new TextSearchMatch('bar', new OneLineRange(2, 1, 1)));
-		let lineMatch3 = new Match(fileMatch1, new TextSearchMatch('bar', new OneLineRange(2, 1, 1)));
+		let lineMatch1 = new Match(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(0, 1, 1));
+		let lineMatch2 = new Match(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(2, 1, 1));
+		let lineMatch3 = new Match(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(2, 1, 1));
 
 		let s = new SearchSorter();
 

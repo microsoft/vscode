@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 import * as Filters from 'vs/base/common/filters';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Action, IAction } from 'vs/base/common/actions';
 import { IStringDictionary } from 'vs/base/common/collections';
 
@@ -15,7 +14,7 @@ import * as Model from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 
 import { Task, CustomTask, ContributedTask } from 'vs/workbench/parts/tasks/common/tasks';
-import { ITaskService, RunOptions } from 'vs/workbench/parts/tasks/common/taskService';
+import { ITaskService, ProblemMatcherRunOptions } from 'vs/workbench/parts/tasks/common/taskService';
 import { ActionBarContributor, ContributableActionProvider } from 'vs/workbench/browser/actions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
@@ -48,8 +47,10 @@ export class TaskEntry extends Model.QuickOpenEntry {
 		return this._task;
 	}
 
-	protected doRun(task: CustomTask | ContributedTask, options?: RunOptions): boolean {
-		this.taskService.run(task, options);
+	protected doRun(task: CustomTask | ContributedTask, options?: ProblemMatcherRunOptions): boolean {
+		this.taskService.run(task, options).then(undefined, reason => {
+			// eat the error, it has already been surfaced to the user and we don't care about it here
+		});
 		if (!task.command || task.command.presentation.focus) {
 			this.quickOpenService.close();
 			return false;
@@ -66,7 +67,7 @@ export class TaskGroupEntry extends Model.QuickOpenEntryGroup {
 
 export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 
-	private tasks: TPromise<(CustomTask | ContributedTask)[]>;
+	private tasks: Thenable<(CustomTask | ContributedTask)[]>;
 
 	constructor(
 		protected quickOpenService: IQuickOpenService,
@@ -86,7 +87,7 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 		this.tasks = undefined;
 	}
 
-	public getResults(input: string, token: CancellationToken): TPromise<Model.QuickOpenModel> {
+	public getResults(input: string, token: CancellationToken): Thenable<Model.QuickOpenModel> {
 		return this.tasks.then((tasks) => {
 			let entries: Model.QuickOpenEntry[] = [];
 			if (tasks.length === 0 || token.isCancellationRequested) {
@@ -147,7 +148,7 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 		}
 	}
 
-	protected abstract getTasks(): TPromise<(CustomTask | ContributedTask)[]>;
+	protected abstract getTasks(): Thenable<(CustomTask | ContributedTask)[]>;
 
 	protected abstract createEntry(task: CustomTask | ContributedTask, highlights: Model.IHighlight[]): TaskEntry;
 
@@ -172,7 +173,7 @@ class CustomizeTaskAction extends Action {
 		this.class = 'quick-open-task-configure';
 	}
 
-	public run(element: any): TPromise<any> {
+	public run(element: any): Thenable<any> {
 		let task = this.getTask(element);
 		if (ContributedTask.is(task)) {
 			return this.taskService.customize(task, undefined, true).then(() => {

@@ -75,11 +75,11 @@ class StartupTimings implements IWorkbenchContribution {
 			return;
 		}
 
-		const waitWhenNoCachedData = () => {
+		const waitWhenNoCachedData: () => Promise<void> = () => {
 			// wait 15s for cached data to be produced
 			return !didUseCachedData()
 				? timeout(15000)
-				: Promise.resolve();
+				: Promise.resolve<void>();
 		};
 
 		Promise.all([

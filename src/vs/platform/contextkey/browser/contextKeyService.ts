@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event, debounceEvent } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { keys } from 'vs/base/common/map';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -193,14 +193,14 @@ class ContextKey<T> implements IContextKey<T> {
 	}
 }
 
-export class ContextKeyChangeEvent implements IContextKeyChangeEvent {
-
-	private _keys: string[] = [];
-
-	collect(oneOrManyKeys: string | string[]): void {
-		this._keys = this._keys.concat(oneOrManyKeys);
+class SimpleContextKeyChangeEvent implements IContextKeyChangeEvent {
+	constructor(private readonly _key: string) { }
+	affectsSome(keys: IReadableSet<string>): boolean {
+		return keys.has(this._key);
 	}
-
+}
+class ArrayContextKeyChangeEvent implements IContextKeyChangeEvent {
+	constructor(private readonly _keys: string[]) { }
 	affectsSome(keys: IReadableSet<string>): boolean {
 		for (const key of this._keys) {
 			if (keys.has(key)) {
@@ -236,13 +236,11 @@ export abstract class AbstractContextKeyService implements IContextKeyService {
 
 	public get onDidChangeContext(): Event<IContextKeyChangeEvent> {
 		if (!this._onDidChangeContext) {
-			this._onDidChangeContext = debounceEvent<string | string[], ContextKeyChangeEvent>(this._onDidChangeContextKey.event, (prev, cur) => {
-				if (!prev) {
-					prev = new ContextKeyChangeEvent();
-				}
-				prev.collect(cur);
-				return prev;
-			}, 25);
+			this._onDidChangeContext = Event.map(this._onDidChangeContextKey.event, ((changedKeyOrKeys): IContextKeyChangeEvent => {
+				return typeof changedKeyOrKeys === 'string'
+					? new SimpleContextKeyChangeEvent(changedKeyOrKeys)
+					: new ArrayContextKeyChangeEvent(changedKeyOrKeys);
+			}));
 		}
 		return this._onDidChangeContext;
 	}

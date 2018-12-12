@@ -11,7 +11,6 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./lightBulbWidget';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
 import { CodeActionsComputeEvent } from './codeActionModel';
 
 export class LightBulbWidget implements IDisposable, IContentWidget {
@@ -122,12 +121,8 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 
 		const selection = this._model.rangeOrSelection;
 		this._model.actions.then(fixes => {
-			if (!token.isCancellationRequested && fixes && fixes.length > 0) {
-				if (!selection || selection.isEmpty() && fixes.every(fix => !!(fix.kind && CodeActionKind.Refactor.contains(fix.kind)))) {
-					this.hide();
-				} else {
-					this._show();
-				}
+			if (!token.isCancellationRequested && fixes && fixes.length > 0 && selection) {
+				this._show();
 			} else {
 				this.hide();
 			}

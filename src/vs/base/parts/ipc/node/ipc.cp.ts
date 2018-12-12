@@ -7,7 +7,7 @@ import { ChildProcess, fork, ForkOptions } from 'child_process';
 import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Delayer, always, createCancelablePromise } from 'vs/base/common/async';
 import { deepClone, assign } from 'vs/base/common/objects';
-import { Emitter, fromNodeEventEmitter, Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { createQueuedSender } from 'vs/base/node/processes';
 import { ChannelServer as IPCServer, ChannelClient as IPCClient, IChannelClient, IChannel } from 'vs/base/parts/ipc/node/ipc';
 import { isRemoteConsoleLog, log } from 'vs/base/node/console';
@@ -19,8 +19,8 @@ import * as errors from 'vs/base/common/errors';
  * We should move all implementations to use named ipc.net, so we stop depending on cp.fork.
  */
 
-export class Server extends IPCServer {
-	constructor() {
+export class Server<TContext extends string> extends IPCServer<TContext> {
+	constructor(ctx: TContext) {
 		super({
 			send: r => {
 				try {
@@ -29,8 +29,8 @@ export class Server extends IPCServer {
 					}
 				} catch (e) { /* not much to do */ }
 			},
-			onMessage: fromNodeEventEmitter(process, 'message', msg => Buffer.from(msg, 'base64'))
-		});
+			onMessage: Event.fromNodeEventEmitter(process, 'message', msg => Buffer.from(msg, 'base64'))
+		}, ctx);
 
 		process.once('disconnect', () => this.dispose());
 	}
@@ -199,7 +199,7 @@ export class Client implements IChannelClient, IDisposable {
 			this.child = fork(this.modulePath, args, forkOpts);
 
 			const onMessageEmitter = new Emitter<Buffer>();
-			const onRawMessage = fromNodeEventEmitter(this.child, 'message', msg => msg);
+			const onRawMessage = Event.fromNodeEventEmitter(this.child, 'message', msg => msg);
 
 			onRawMessage(msg => {
 

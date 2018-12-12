@@ -6,16 +6,15 @@
 import 'vs/css!./media/panel';
 import * as dom from 'vs/base/browser/dom';
 import { IAction } from 'vs/base/common/actions';
-import { debounceEvent } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { CollapseAllAction, DefaultAccessibilityProvider, DefaultController, DefaultDragAndDrop } from 'vs/base/parts/tree/browser/treeDefaults';
 import { isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { CommentThreadChangedEvent } from 'vs/editor/common/modes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TreeResourceNavigator, WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Panel } from 'vs/workbench/browser/panel';
-import { CommentNode, CommentsModel, ResourceWithCommentThreads } from 'vs/workbench/parts/comments/common/commentModel';
+import { CommentNode, CommentsModel, ResourceWithCommentThreads, ICommentThreadChangedEvent } from 'vs/workbench/parts/comments/common/commentModel';
 import { ReviewController } from 'vs/workbench/parts/comments/electron-browser/commentsEditorContribution';
 import { CommentsDataFilter, CommentsDataSource, CommentsModelRenderer } from 'vs/workbench/parts/comments/electron-browser/commentsTreeViewer';
 import { ICommentService, IWorkspaceCommentThreadsEvent } from 'vs/workbench/parts/comments/electron-browser/commentService';
@@ -143,7 +142,7 @@ export class CommentsPanel extends Panel {
 			});
 
 		const commentsNavigator = this._register(new TreeResourceNavigator(this.tree, { openOnFocus: true }));
-		this._register(debounceEvent(commentsNavigator.openResource, (last, event) => event, 100, true)(options => {
+		this._register(Event.debounce(commentsNavigator.openResource, (last, event) => event, 100, true)(options => {
 			this.openFile(options.element, options.editorOptions.pinned, options.editorOptions.preserveFocus, options.sideBySide);
 		}));
 	}
@@ -217,10 +216,12 @@ export class CommentsPanel extends Panel {
 					selection: range
 				}
 			}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(editor => {
-				const control = editor.getControl();
-				if (threadToReveal && isCodeEditor(control)) {
-					const controller = ReviewController.get(control);
-					controller.revealCommentThread(threadToReveal, commentToReveal.commentId, true);
+				if (editor) {
+					const control = editor.getControl();
+					if (threadToReveal && isCodeEditor(control)) {
+						const controller = ReviewController.get(control);
+						controller.revealCommentThread(threadToReveal, commentToReveal.commentId, true);
+					}
 				}
 			});
 		}
@@ -256,7 +257,7 @@ export class CommentsPanel extends Panel {
 		this.refresh();
 	}
 
-	private onCommentsUpdated(e: CommentThreadChangedEvent): void {
+	private onCommentsUpdated(e: ICommentThreadChangedEvent): void {
 		const didUpdate = this.commentsModel.updateCommentThreads(e);
 		if (didUpdate) {
 			this.refresh();

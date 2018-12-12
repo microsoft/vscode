@@ -21,7 +21,7 @@ export interface IHistoryMainService {
 
 	onRecentlyOpenedChange: CommonEvent<void>;
 
-	addRecentlyOpened(workspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[], files: URI[]): void;
+	addRecentlyOpened(workspaces: undefined | (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[], files: URI[]): void;
 	getRecentlyOpened(currentWorkspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier, currentFiles?: IPath[]): IRecentlyOpened;
 	removeFromRecentlyOpened(paths: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | string)[]): void;
 	clearRecentlyOpened(): void;

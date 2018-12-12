@@ -31,7 +31,7 @@
 		"prefix": "emitter",
 		"description": "Add emitter and event properties",
 		"body": [
-			"private _onDid$1 = new Emitter<$2>();",
+			"private readonly _onDid$1 = new Emitter<$2>();",
 			"readonly onDid$1: Event<$2> = this._onDid$1.event;"
 		],
 	}

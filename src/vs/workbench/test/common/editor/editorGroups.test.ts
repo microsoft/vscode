@@ -18,7 +18,6 @@ import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 
@@ -78,7 +77,7 @@ class TestEditorInput extends EditorInput {
 		super();
 	}
 	getTypeId() { return 'testEditorInputForGroups'; }
-	resolve(): TPromise<IEditorModel> { return null; }
+	resolve(): Thenable<IEditorModel> { return Promise.resolve(null); }
 
 	matches(other: TestEditorInput): boolean {
 		return other && this.id === other.id && other instanceof TestEditorInput;
@@ -98,7 +97,7 @@ class NonSerializableTestEditorInput extends EditorInput {
 		super();
 	}
 	getTypeId() { return 'testEditorInputForGroups-nonSerializable'; }
-	resolve(): TPromise<IEditorModel> { return null; }
+	resolve(): Thenable<IEditorModel> { return Promise.resolve(null); }
 
 	matches(other: NonSerializableTestEditorInput): boolean {
 		return other && this.id === other.id && other instanceof NonSerializableTestEditorInput;
@@ -111,7 +110,7 @@ class TestFileEditorInput extends EditorInput implements IFileEditorInput {
 		super();
 	}
 	getTypeId() { return 'testFileEditorInputForGroups'; }
-	resolve(): TPromise<IEditorModel> { return null; }
+	resolve(): Thenable<IEditorModel> { return Promise.resolve(null); }
 
 	matches(other: TestFileEditorInput): boolean {
 		return other && this.id === other.id && other instanceof TestFileEditorInput;

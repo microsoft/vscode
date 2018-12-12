@@ -12,7 +12,6 @@ import * as objects from 'vs/base/common/objects';
 import * as paths from 'vs/base/common/paths';
 import { getNLines } from 'vs/base/common/strings';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
@@ -26,10 +25,10 @@ export const ISearchService = createDecorator<ISearchService>('searchService');
  */
 export interface ISearchService {
 	_serviceBrand: any;
-	textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): TPromise<ISearchComplete>;
-	fileSearch(query: IFileQuery, token?: CancellationToken): TPromise<ISearchComplete>;
+	textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete>;
+	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete>;
 	extendQuery(query: ITextQuery | IFileQuery): void;
-	clearCache(cacheKey: string): TPromise<void>;
+	clearCache(cacheKey: string): Thenable<void>;
 	registerSearchResultProvider(scheme: string, type: SearchProviderType, provider: ISearchResultProvider): IDisposable;
 }
 
@@ -58,9 +57,9 @@ export const enum SearchProviderType {
 }
 
 export interface ISearchResultProvider {
-	textSearch(query: ITextQuery, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): TPromise<ISearchComplete>;
-	fileSearch(query: IFileQuery, token?: CancellationToken): TPromise<ISearchComplete>;
-	clearCache(cacheKey: string): TPromise<void>;
+	textSearch(query: ITextQuery, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): Promise<ISearchComplete>;
+	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete>;
+	clearCache(cacheKey: string): Thenable<void>;
 }
 
 export interface IFolderQuery<U extends UriComponents=URI> {
@@ -112,6 +111,8 @@ export interface ITextQueryProps<U extends UriComponents> extends ICommonQueryPr
 	usePCRE2?: boolean;
 	afterContext?: number;
 	beforeContext?: number;
+
+	userDisabledExcludesAndIgnoreFiles?: boolean;
 }
 
 export type IFileQuery = IFileQueryProps<URI>;
@@ -145,7 +146,6 @@ export interface IPatternInfo {
 	wordSeparators?: string;
 	isMultiline?: boolean;
 	isCaseSensitive?: boolean;
-	isSmartCase?: boolean;
 }
 
 export interface IExtendedExtensionSearchOptions {
@@ -319,7 +319,7 @@ export class OneLineRange extends SearchRange {
 export interface ISearchConfigurationProperties {
 	exclude: glob.IExpression;
 	useRipgrep: boolean;
-	disableRipgrep: boolean;
+	useLegacySearch: boolean;
 	/**
 	 * Use ignore file for file search.
 	 */
@@ -332,6 +332,7 @@ export interface ISearchConfigurationProperties {
 	useReplacePreview: boolean;
 	showLineNumbers: boolean;
 	usePCRE2: boolean;
+	actionsPosition: 'auto' | 'right';
 }
 
 export interface ISearchConfiguration extends IFilesConfiguration {
@@ -383,4 +384,33 @@ export function pathIncludedInQuery(queryProps: ICommonQueryProps<URI>, fsPath: 
 	}
 
 	return true;
+}
+
+export enum SearchErrorCode {
+	unknownEncoding = 1,
+	regexParseError,
+	globParseError,
+	invalidLiteral,
+	rgProcessError,
+	other
+}
+
+export class SearchError extends Error {
+	constructor(message: string, readonly code?: SearchErrorCode) {
+		super(message);
+	}
+}
+
+export function deserializeSearchError(errorMsg: string): SearchError {
+	try {
+		const details = JSON.parse(errorMsg);
+		return new SearchError(details.message, details.code);
+	} catch (e) {
+		return new SearchError(errorMsg, SearchErrorCode.other);
+	}
+}
+
+export function serializeSearchError(searchError: SearchError): Error {
+	const details = { message: searchError.message, code: searchError.code };
+	return new Error(JSON.stringify(details));
 }

@@ -5,7 +5,7 @@
 
 import { SplitView, Orientation, ISplitViewStyles, IView as ISplitViewView } from 'vs/base/browser/ui/splitview/splitview';
 import { $ } from 'vs/base/browser/dom';
-import { Event, mapEvent } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { IView } from 'vs/base/browser/ui/grid/gridview';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Color } from 'vs/base/common/color';
@@ -39,7 +39,7 @@ function toSplitViewView(view: IView, getHeight: () => number): ISplitViewView {
 		element: view.element,
 		get maximumSize() { return view.maximumWidth; },
 		get minimumSize() { return view.minimumWidth; },
-		onDidChange: mapEvent(view.onDidChange, e => e && e.width),
+		onDidChange: Event.map(view.onDidChange, e => e && e.width),
 		layout: size => view.layout(size, getHeight())
 	};
 }
@@ -58,7 +58,7 @@ export class CenteredViewLayout {
 	private emptyViews: ISplitViewView[] | undefined;
 	private splitViewDisposables: IDisposable[] = [];
 
-	constructor(private container: HTMLElement, private view: IView, public readonly state: CenteredViewState = GOLDEN_RATIO) {
+	constructor(private container: HTMLElement, private view: IView, public readonly state: CenteredViewState = { leftMarginRatio: GOLDEN_RATIO.leftMarginRatio, rightMarginRatio: GOLDEN_RATIO.rightMarginRatio }) {
 		this.container.appendChild(this.view.element);
 		// Make sure to hide the split view overflow like sashes #52892
 		this.container.style.overflow = 'hidden';

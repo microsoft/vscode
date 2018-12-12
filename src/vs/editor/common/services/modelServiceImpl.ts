@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
+import { escape } from 'vs/base/common/strings';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as network from 'vs/base/common/network';
 import { basename } from 'vs/base/common/paths';
@@ -192,36 +192,33 @@ class ModelMarkerHandler {
 		let { message, source, relatedInformation, code } = marker;
 
 		if (typeof message === 'string') {
-			message = message.trim();
 
+			hoverMessage = new MarkdownString();
+			// Disable markdown renderer sanitize to allow html
+			// Hence, escape all input strings
+			hoverMessage.sanitize = false;
+
+			hoverMessage.appendMarkdown(`<div>`);
+			hoverMessage.appendMarkdown(`<span style='font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback"; white-space: pre-wrap;'>${escape(message.trim())}</span>`);
 			if (source) {
-				if (/\n/g.test(message)) {
-					if (code) {
-						message = nls.localize('diagAndSourceAndCodeMultiline', "[{0}]\n{1} [{2}]", source, message, code);
-					} else {
-						message = nls.localize('diagAndSourceMultiline', "[{0}]\n{1}", source, message);
-					}
-				} else {
-					if (code) {
-						message = nls.localize('diagAndSourceAndCode', "[{0}] {1} [{2}]", source, message, code);
-					} else {
-						message = nls.localize('diagAndSource', "[{0}] {1}", source, message);
-					}
+				hoverMessage.appendMarkdown(`<span style='opacity: 0.6; padding-left:6px;'>${escape(source)}</span>`);
+				if (code) {
+					hoverMessage.appendMarkdown(`<span style='opacity: 0.6; padding-left:2px;'>(${escape(code)})</span>`);
 				}
+			} else if (code) {
+				hoverMessage.appendMarkdown(`<span style='opacity: 0.6; padding-left:6px;'>(${escape(code)})</span>`);
 			}
+			hoverMessage.appendMarkdown(`</div>`);
 
-			hoverMessage = new MarkdownString().appendCodeblock('_', message);
-
-			if (!isFalsyOrEmpty(relatedInformation)) {
-				hoverMessage.appendMarkdown('\n');
-				for (const { message, resource, startLineNumber, startColumn } of relatedInformation!) {
-					hoverMessage.appendMarkdown(
-						`* [${basename(resource.path)}(${startLineNumber}, ${startColumn})](${resource.toString(false)}#${startLineNumber},${startColumn}): `
-					);
-					hoverMessage.appendText(`${message}`);
-					hoverMessage.appendMarkdown('\n');
+			if (isNonEmptyArray(relatedInformation)) {
+				hoverMessage.appendMarkdown(`<ul>`);
+				for (const { message, resource, startLineNumber, startColumn } of relatedInformation) {
+					hoverMessage.appendMarkdown(`<li>`);
+					hoverMessage.appendMarkdown(`<a href='#' data-href='${resource.toString(false)}#${startLineNumber},${startColumn}'>${escape(basename(resource.path))}(${startLineNumber}, ${startColumn})</a>`);
+					hoverMessage.appendMarkdown(`<span>: ${escape(message)}</span>`);
+					hoverMessage.appendMarkdown(`</li>`);
 				}
-				hoverMessage.appendMarkdown('\n');
+				hoverMessage.appendMarkdown(`</ul>`);
 			}
 		}
 
@@ -259,7 +256,7 @@ const DEFAULT_EOL = (platform.isLinux || platform.isMacintosh) ? DefaultEndOfLin
 export class ModelServiceImpl extends Disposable implements IModelService {
 	public _serviceBrand: any;
 
-	private _markerService: IMarkerService;
+	private _markerService: IMarkerService | null;
 	private _markerServiceSubscription: IDisposable;
 	private _configurationService: IConfigurationService;
 	private _configurationServiceSubscription: IDisposable;
@@ -271,7 +268,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 	private readonly _onModelRemoved: Emitter<ITextModel> = this._register(new Emitter<ITextModel>());
 	public readonly onModelRemoved: Event<ITextModel> = this._onModelRemoved.event;
 
-	private readonly _onModelModeChanged: Emitter<{ model: ITextModel; oldModeId: string; }> = this._register(new Emitter<{ model: ITextModel; oldModeId: string; }>());
+	private readonly _onModelModeChanged: Emitter<{ model: ITextModel; oldModeId: string; }> = this._register(new Emitter<{ model: ITextModel; oldModeId: string; }>({ leakWarningThreshold: 500 }));
 	public readonly onModelModeChanged: Event<{ model: ITextModel; oldModeId: string; }> = this._onModelModeChanged.event;
 
 	private _modelCreationOptionsByLanguageAndResource: {
@@ -284,7 +281,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 	private _models: { [modelId: string]: ModelData; };
 
 	constructor(
-		@IMarkerService markerService: IMarkerService,
+		@IMarkerService markerService: IMarkerService | null,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITextResourcePropertiesService resourcePropertiesService: ITextResourcePropertiesService,
 	) {
@@ -354,7 +351,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		};
 	}
 
-	public getCreationOptions(language: string, resource: URI, isForSimpleWidget: boolean): ITextModelCreationOptions {
+	public getCreationOptions(language: string, resource: URI | null | undefined, isForSimpleWidget: boolean): ITextModelCreationOptions {
 		let creationOptions = this._modelCreationOptionsByLanguageAndResource[language + resource];
 		if (!creationOptions) {
 			const editor = this._configurationService.getValue<IRawEditorConfig>('editor', { overrideIdentifier: language, resource });
@@ -422,7 +419,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 			if (!modelData) {
 				return;
 			}
-			ModelMarkerHandler.setMarkers(modelData, this._markerService);
+			ModelMarkerHandler.setMarkers(modelData, this._markerService!);
 		});
 	}
 
@@ -432,7 +429,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 			|| model.uri.scheme === network.Schemas.internal
 			|| model.uri.scheme === network.Schemas.vscode) {
 			if (this._markerService) {
-				this._markerService.read({ resource: model.uri }).map(marker => marker.owner).forEach(owner => this._markerService.remove(owner, [model.uri]));
+				this._markerService.read({ resource: model.uri }).map(marker => marker.owner).forEach(owner => this._markerService!.remove(owner, [model.uri]));
 			}
 		}
 
@@ -442,7 +439,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 
 	// --- begin IModelService
 
-	private _createModelData(value: string | ITextBufferFactory, languageIdentifier: LanguageIdentifier, resource: URI, isForSimpleWidget: boolean): ModelData {
+	private _createModelData(value: string | ITextBufferFactory, languageIdentifier: LanguageIdentifier, resource: URI | null | undefined, isForSimpleWidget: boolean): ModelData {
 		// create & save the model
 		const options = this.getCreationOptions(languageIdentifier.language, resource, isForSimpleWidget);
 		const model: TextModel = new TextModel(value, options, languageIdentifier, resource);
@@ -533,7 +530,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		return [EditOperation.replaceMove(oldRange, textBuffer.getValueInRange(newRange, EndOfLinePreference.TextDefined))];
 	}
 
-	public createModel(value: string | ITextBufferFactory, languageSelection: ILanguageSelection | null, resource: URI, isForSimpleWidget: boolean = false): ITextModel {
+	public createModel(value: string | ITextBufferFactory, languageSelection: ILanguageSelection | null, resource: URI | null | undefined, isForSimpleWidget: boolean = false): ITextModel {
 		let modelData: ModelData;
 
 		if (languageSelection) {

@@ -69,7 +69,7 @@ export interface IActionDescriptor {
 	contextMenuOrder?: number;
 	/**
 	 * Method that will be executed when the action is triggered.
-	 * @param editor The editor instance is passed in as a convinience
+	 * @param editor The editor instance is passed in as a convenience
 	 */
 	run(editor: ICodeEditor): void | Promise<void>;
 }
@@ -360,7 +360,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 
 	constructor(
 		domElement: HTMLElement,
-		options: IDiffEditorConstructionOptions,
+		options: IDiffEditorConstructionOptions | undefined,
 		toDispose: IDisposable,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,

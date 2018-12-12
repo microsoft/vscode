@@ -19,7 +19,6 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import * as strings from 'vs/base/common/strings';
 import * as types from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as extfs from 'vs/base/node/extfs';
 import * as flow from 'vs/base/node/flow';
 import { IFileQuery, IFolderQuery, IProgress, ISearchEngineStats } from 'vs/platform/search/common/search';
@@ -174,7 +173,7 @@ export class FileWalker {
 			});
 		}, (errors, result) => {
 			this.fileWalkSW.stop();
-			const err = errors ? errors.filter(e => !!e)[0] : null;
+			const err = errors ? arrays.coalesce(errors)[0] : null;
 			done(err, this.isLimitHit);
 		});
 	}
@@ -697,7 +696,7 @@ class AbsoluteAndRelativeParsedExpression {
 		this.relativeParsedExpr = relativeGlobExpr && glob.parse(relativeGlobExpr, { trimForExclusions: true });
 	}
 
-	public test(_path: string, basename?: string, hasSibling?: (name: string) => boolean | TPromise<boolean>): string | TPromise<string> {
+	public test(_path: string, basename?: string, hasSibling?: (name: string) => boolean | Promise<boolean>): string | Promise<string> {
 		return (this.relativeParsedExpr && this.relativeParsedExpr(_path, basename, hasSibling)) ||
 			(this.absoluteParsedExpr && this.absoluteParsedExpr(path.join(this.root, _path), basename, hasSibling));
 	}

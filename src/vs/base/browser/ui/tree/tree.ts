@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { Iterator } from 'vs/base/common/iterator';
-import { IListRenderer } from 'vs/base/browser/ui/list/list';
+import { IListRenderer, AbstractListRenderer } from 'vs/base/browser/ui/list/list';
 
 export const enum TreeVisibility {
 
@@ -64,7 +64,7 @@ export interface ITreeFilter<T, TFilterData = void> {
 	 *
 	 * @param element The tree element.
 	 */
-	filter(element: T): TreeFilterResult<TFilterData>;
+	filter(element: T, parentVisibility: TreeVisibility): TreeFilterResult<TFilterData>;
 }
 
 export interface ITreeElement<T> {
@@ -92,12 +92,13 @@ export interface ITreeModel<T, TFilterData, TRef> {
 	getListIndex(location: TRef): number;
 	getNode(location?: TRef): ITreeNode<T, any>;
 	getNodeLocation(node: ITreeNode<T, any>): TRef;
-	getParentNodeLocation(location: TRef): TRef | null;
+	getParentNodeLocation(location: TRef): TRef;
 
-	getParentElement(location: TRef): T | null;
-	getFirstChildElement(location: TRef): T | null;
-	getLastAncestorElement(location: TRef): T | null;
+	getParentElement(location: TRef): T;
+	getFirstElementChild(location: TRef): T | undefined;
+	getLastElementAncestor(location?: TRef): T | undefined;
 
+	isCollapsible(location: TRef): boolean;
 	isCollapsed(location: TRef): boolean;
 	setCollapsed(location: TRef, collapsed: boolean): boolean;
 	toggleCollapsed(location: TRef): void;
@@ -106,7 +107,65 @@ export interface ITreeModel<T, TFilterData, TRef> {
 	refilter(): void;
 }
 
-export interface ITreeRenderer<T, TFilterData, TTemplateData> extends IListRenderer<ITreeNode<T, TFilterData>, TTemplateData> {
-	renderTwistie?(element: T, twistieElement: HTMLElement): boolean;
+export interface ITreeRenderer<T, TFilterData = void, TTemplateData = void> extends IListRenderer<ITreeNode<T, TFilterData>, TTemplateData> {
+	renderTwistie?(element: T, twistieElement: HTMLElement): void;
 	onDidChangeTwistieState?: Event<T>;
+}
+
+export interface ITreeEvent<T> {
+	elements: T[];
+	browserEvent?: UIEvent;
+}
+
+export interface ITreeMouseEvent<T> {
+	browserEvent: MouseEvent;
+	element: T | null;
+}
+
+export interface ITreeContextMenuEvent<T> {
+	browserEvent: UIEvent;
+	element: T | null;
+	anchor: HTMLElement | { x: number; y: number; } | undefined;
+}
+
+export interface ITreeNavigator<T> {
+	current(): T | null;
+	previous(): T | null;
+	parent(): T | null;
+	first(): T | null;
+	last(): T | null;
+	next(): T | null;
+}
+
+/**
+ * Use this renderer when you want to re-render elements on account of
+ * an event firing.
+ */
+export abstract class AbstractTreeRenderer<T, TFilterData = void, TTemplateData = void>
+	extends AbstractListRenderer<ITreeNode<T, TFilterData>, TTemplateData>
+	implements ITreeRenderer<T, TFilterData, TTemplateData> {
+
+	private elementsToNodes = new Map<T, ITreeNode<T, TFilterData>>();
+
+	constructor(onDidChange: Event<T | T[] | undefined>) {
+		super(Event.map(onDidChange, e => {
+			if (typeof e === 'undefined') {
+				return undefined;
+			} else if (Array.isArray(e)) {
+				return e.map(e => this.elementsToNodes.get(e) || null).filter(e => e !== null);
+			} else {
+				return this.elementsToNodes.get(e) || null;
+			}
+		}));
+	}
+
+	renderElement(node: ITreeNode<T, TFilterData>, index: number, templateData: TTemplateData): void {
+		super.renderElement(node, index, templateData);
+		this.elementsToNodes.set(node.element, node);
+	}
+
+	disposeElement(node: ITreeNode<T, TFilterData>, index: number, templateData: TTemplateData): void {
+		this.elementsToNodes.set(node.element, node);
+		super.disposeElement(node, index, templateData);
+	}
 }

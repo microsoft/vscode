@@ -74,7 +74,8 @@ class TestToken {
 		this.color = color;
 	}
 
-	public static toTokens(tokens: TestToken[]): Uint32Array {
+	public static toTokens(tokens: TestToken[]): Uint32Array;
+	public static toTokens(tokens: TestToken[] | null): Uint32Array | null {
 		if (tokens === null) {
 			return null;
 		}
@@ -659,7 +660,7 @@ suite('ModelLinesTokens', () => {
 	test('updates tokens on insertion 10', () => {
 		testLineEditTokens(
 			'',
-			null,
+			null!,
 			[{
 				startColumn: 1,
 				endColumn: 1,

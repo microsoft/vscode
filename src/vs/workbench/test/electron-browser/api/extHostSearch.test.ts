@@ -690,8 +690,8 @@ suite('ExtHostSearch', () => {
 
 			const makeComparable = (results: vscode.TextSearchResult[]) => results
 				.sort((a, b) => {
-					const compareKeyA = extensionResultIsMatch(a) ? a.preview.text : a.text;
-					const compareKeyB = extensionResultIsMatch(b) ? b.preview.text : b.text;
+					const compareKeyA = a.uri.toString() + ': ' + (extensionResultIsMatch(a) ? a.preview.text : a.text);
+					const compareKeyB = b.uri.toString() + ': ' + (extensionResultIsMatch(b) ? b.preview.text : b.text);
 					return compareKeyB.localeCompare(compareKeyA);
 				})
 				.map(r => extensionResultIsMatch(r) ? {

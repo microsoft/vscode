@@ -32,8 +32,7 @@ export class CallbackMap<R extends Proto.Response> {
 	public add(seq: number, callback: CallbackItem<ServerResponse<R> | undefined>, isAsync: boolean) {
 		if (isAsync) {
 			this._asyncCallbacks.set(seq, callback);
-		}
-		else {
+		} else {
 			this._callbacks.set(seq, callback);
 		}
 	}

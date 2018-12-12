@@ -252,7 +252,7 @@ class TestModel {
 		r.push('\t],');
 		r.push('\t[');
 		r = r.concat(this.edits.map((i) => {
-			let text = `['` + i.text.split('\n').join(`', '`) + `']`;
+			let text = `['` + i.text!.split('\n').join(`', '`) + `']`;
 			return `\t\teditOp(${i.range.startLineNumber}, ${i.range.startColumn}, ${i.range.endLineNumber}, ${i.range.endColumn}, ${text}),`;
 		}));
 		r.push('\t],');

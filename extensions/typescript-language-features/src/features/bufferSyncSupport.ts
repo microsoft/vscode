@@ -55,7 +55,7 @@ class SyncedBuffer {
 		}
 
 		if (this.client.apiVersion.gte(API.v240)) {
-			const tsPluginsForDocument = this.client.plugins
+			const tsPluginsForDocument = this.client.pluginManager.plugins
 				.filter(x => x.languages.indexOf(this.document.languageId) >= 0);
 
 			if (tsPluginsForDocument.length) {

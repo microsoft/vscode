@@ -25,7 +25,8 @@ export const enum AnchorPosition {
 
 export interface IDelegate {
 	getAnchor(): HTMLElement | IAnchor;
-	render(container: HTMLElement): IDisposable;
+	render(container: HTMLElement): IDisposable | null;
+	focus?(): void;
 	layout?(): void;
 	anchorAlignment?: AnchorAlignment; // default: left
 	anchorPosition?: AnchorPosition; // default: below
@@ -165,6 +166,11 @@ export class ContextView extends Disposable {
 
 		// Layout
 		this.doLayout();
+
+		// Focus
+		if (this.delegate.focus) {
+			this.delegate.focus();
+		}
 	}
 
 	public layout(): void {
@@ -212,8 +218,8 @@ export class ContextView extends Disposable {
 			around = {
 				top: realAnchor.y,
 				left: realAnchor.x,
-				width: realAnchor.width || 0,
-				height: realAnchor.height || 0
+				width: realAnchor.width || 1,
+				height: realAnchor.height || 2
 			};
 		}
 
@@ -223,7 +229,7 @@ export class ContextView extends Disposable {
 		const anchorPosition = this.delegate!.anchorPosition || AnchorPosition.BELOW;
 		const anchorAlignment = this.delegate!.anchorAlignment || AnchorAlignment.LEFT;
 
-		const verticalAnchor: ILayoutAnchor = { offset: around.top, size: around.height, position: anchorPosition === AnchorPosition.BELOW ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After };
+		const verticalAnchor: ILayoutAnchor = { offset: around.top - window.pageYOffset, size: around.height, position: anchorPosition === AnchorPosition.BELOW ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After };
 
 		let horizontalAnchor: ILayoutAnchor;
 
@@ -233,7 +239,7 @@ export class ContextView extends Disposable {
 			horizontalAnchor = { offset: around.left + around.width, size: 0, position: LayoutAnchorPosition.After };
 		}
 
-		const top = layout(window.innerHeight, viewSizeHeight, verticalAnchor);
+		const top = layout(window.innerHeight, viewSizeHeight, verticalAnchor) + window.pageYOffset;
 
 		// if view intersects vertically with anchor, shift it horizontally
 		if (Range.intersects({ start: top, end: top + viewSizeHeight }, { start: verticalAnchor.offset, end: verticalAnchor.offset + verticalAnchor.size })) {

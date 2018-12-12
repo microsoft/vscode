@@ -5,7 +5,6 @@
 
 import 'vs/css!./media/keybindingsEditor';
 import { localize } from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Delayer } from 'vs/base/common/async';
 import * as DOM from 'vs/base/browser/dom';
 import { OS } from 'vs/base/common/platform';
@@ -97,7 +96,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	) {
 		super(KeybindingsEditor.ID, telemetryService, themeService, storageService);
 		this.delayedFiltering = new Delayer<void>(300);
-		this._register(keybindingsService.onDidUpdateKeybindings(() => this.render(false, CancellationToken.None)));
+		this._register(keybindingsService.onDidUpdateKeybindings(() => this.render(true, CancellationToken.None)));
 
 		this.keybindingsEditorContextKey = CONTEXT_KEYBINDINGS_EDITOR.bindTo(this.contextKeyService);
 		this.searchFocusContextKey = CONTEXT_KEYBINDINGS_SEARCH_FOCUS.bindTo(this.contextKeyService);
@@ -154,7 +153,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		return focusedElement && focusedElement.templateId === KEYBINDING_ENTRY_TEMPLATE_ID ? <IKeybindingItemEntry>focusedElement : null;
 	}
 
-	defineKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any> {
+	defineKeybinding(keybindingEntry: IKeybindingItemEntry): Thenable<any> {
 		this.selectEntry(keybindingEntry);
 		this.showOverlayContainer();
 		return this.defineKeybindingWidget.define().then(key => {
@@ -182,7 +181,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		});
 	}
 
-	removeKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any> {
+	removeKeybinding(keybindingEntry: IKeybindingItemEntry): Thenable<any> {
 		this.selectEntry(keybindingEntry);
 		if (keybindingEntry.keybindingItem.keybinding) { // This should be a pre-condition
 			this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_REMOVE, keybindingEntry.keybindingItem.command, keybindingEntry.keybindingItem.keybinding);
@@ -193,10 +192,10 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 						this.selectEntry(keybindingEntry);
 					});
 		}
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
-	resetKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any> {
+	resetKeybinding(keybindingEntry: IKeybindingItemEntry): Thenable<any> {
 		this.selectEntry(keybindingEntry);
 		this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_RESET, keybindingEntry.keybindingItem.command, keybindingEntry.keybindingItem.keybinding);
 		return this.keybindingEditingService.resetKeybinding(keybindingEntry.keybindingItem.keybindingItem)
@@ -212,7 +211,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 				});
 	}
 
-	copyKeybinding(keybinding: IKeybindingItemEntry): TPromise<any> {
+	copyKeybinding(keybinding: IKeybindingItemEntry): void {
 		this.selectEntry(keybinding);
 		this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_COPY, keybinding.keybindingItem.command, keybinding.keybindingItem.keybinding);
 		const userFriendlyKeybinding: IUserFriendlyKeybinding = {
@@ -223,14 +222,12 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			userFriendlyKeybinding.when = keybinding.keybindingItem.when;
 		}
 		this.clipboardService.writeText(JSON.stringify(userFriendlyKeybinding, null, '  '));
-		return TPromise.as(null);
 	}
 
-	copyKeybindingCommand(keybinding: IKeybindingItemEntry): TPromise<any> {
+	copyKeybindingCommand(keybinding: IKeybindingItemEntry): void {
 		this.selectEntry(keybinding);
 		this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, keybinding.keybindingItem.command, keybinding.keybindingItem.keybinding);
 		this.clipboardService.writeText(keybinding.keybindingItem.command);
-		return TPromise.as(null);
 	}
 
 	focusSearch(): void {
@@ -246,12 +243,11 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.searchWidget.clear();
 	}
 
-	showSimilarKeybindings(keybindingEntry: IKeybindingItemEntry): TPromise<any> {
+	showSimilarKeybindings(keybindingEntry: IKeybindingItemEntry): void {
 		const value = `"${keybindingEntry.keybindingItem.keybinding.getAriaLabel()}"`;
 		if (value !== this.searchWidget.getValue()) {
 			this.searchWidget.setValue(value);
 		}
-		return TPromise.as(null);
 	}
 
 	private createAriaLabelElement(parent: HTMLElement): void {
@@ -402,7 +398,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.keybindingsListContainer = DOM.append(parent, $('.keybindings-list-container'));
 
 		this.keybindingsList = this._register(this.instantiationService.createInstance(WorkbenchList, this.keybindingsListContainer, new Delegate(), [new KeybindingHeaderRenderer(), new KeybindingItemRenderer(this, this.keybindingsService)],
-			{ identityProvider: e => e.id, mouseSupport: true, ariaLabel: localize('keybindingsLabel', "Keybindings"), setRowLineHeight: false })) as WorkbenchList<IListEntry>;
+			{ identityProvider: { getId: e => e.id }, ariaLabel: localize('keybindingsLabel', "Keybindings"), setRowLineHeight: false })) as WorkbenchList<IListEntry>;
 		this._register(this.keybindingsList.onContextMenu(e => this.onContextMenu(e)));
 		this._register(this.keybindingsList.onFocusChange(e => this.onFocusChange(e)));
 		this._register(this.keybindingsList.onDidFocus(() => {
@@ -425,7 +421,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		}));
 	}
 
-	private render(preserveFocus: boolean, token: CancellationToken): TPromise<any> {
+	private render(preserveFocus: boolean, token: CancellationToken): Thenable<any> {
 		if (this.input) {
 			return this.input.resolve()
 				.then((keybindingsModel: KeybindingsEditorModel) => {
@@ -450,7 +446,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 					this.renderKeybindingsEntries(false, preserveFocus);
 				});
 		}
-		return TPromise.as(null);
+		return Promise.resolve();
 	}
 
 	private filterKeybindings(): void {
@@ -556,11 +552,15 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	}
 
 	private onContextMenu(e: IListContextMenuEvent<IListEntry>): void {
+		if (!e.element) {
+			return;
+		}
+
 		if (e.element.templateId === KEYBINDING_ENTRY_TEMPLATE_ID) {
 			this.selectEntry(<IKeybindingItemEntry>e.element);
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
-				getActions: () => TPromise.as([
+				getActions: () => [
 					this.createCopyAction(<IKeybindingItemEntry>e.element),
 					this.createCopyCommandAction(<IKeybindingItemEntry>e.element),
 					new Separator(),
@@ -568,7 +568,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 					this.createRemoveAction(<IKeybindingItemEntry>e.element),
 					this.createResetAction(<IKeybindingItemEntry>e.element),
 					new Separator(),
-					this.createShowConflictsAction(<IKeybindingItemEntry>e.element)])
+					this.createShowConflictsAction(<IKeybindingItemEntry>e.element)]
 			});
 		}
 	}
@@ -731,9 +731,6 @@ class KeybindingHeaderRenderer implements IListRenderer<IListEntry, any> {
 	renderElement(entry: IListEntry, index: number, template: any): void {
 	}
 
-	disposeElement(): void {
-	}
-
 	disposeTemplate(template: any): void {
 	}
 }
@@ -770,8 +767,6 @@ class KeybindingItemRenderer implements IListRenderer<IKeybindingItemEntry, Keyb
 		template.source.render(keybindingEntry);
 		template.when.render(keybindingEntry);
 	}
-
-	disposeElement(): void { }
 
 	disposeTemplate(template: KeybindingItemTemplate): void {
 		template.actions.dispose();
@@ -863,15 +858,15 @@ class CommandColumn extends Column {
 		this.commandColumn.setAttribute('aria-label', this.getAriaLabel(keybindingItemEntry));
 		let commandLabel: HighlightedLabel;
 		if (keybindingItem.commandLabel) {
-			commandLabel = new HighlightedLabel(this.commandColumn);
+			commandLabel = new HighlightedLabel(this.commandColumn, false);
 			commandLabel.set(keybindingItem.commandLabel, keybindingItemEntry.commandLabelMatches);
 		}
 		if (keybindingItemEntry.commandDefaultLabelMatches) {
-			commandLabel = new HighlightedLabel(DOM.append(this.commandColumn, $('.command-default-label')));
+			commandLabel = new HighlightedLabel(DOM.append(this.commandColumn, $('.command-default-label')), false);
 			commandLabel.set(keybindingItem.commandDefaultLabel, keybindingItemEntry.commandDefaultLabelMatches);
 		}
 		if (keybindingItemEntry.commandIdMatches || !keybindingItem.commandLabel) {
-			commandLabel = new HighlightedLabel(DOM.append(this.commandColumn, $('.code')));
+			commandLabel = new HighlightedLabel(DOM.append(this.commandColumn, $('.code')), false);
 			commandLabel.set(keybindingItem.command, keybindingItemEntry.commandIdMatches);
 		}
 		if (commandLabel) {
@@ -918,7 +913,7 @@ class SourceColumn extends Column {
 	render(keybindingItemEntry: IKeybindingItemEntry): void {
 		DOM.clearNode(this.sourceColumn);
 		this.sourceColumn.setAttribute('aria-label', this.getAriaLabel(keybindingItemEntry));
-		new HighlightedLabel(this.sourceColumn).set(keybindingItemEntry.keybindingItem.source, keybindingItemEntry.sourceMatches);
+		new HighlightedLabel(this.sourceColumn, false).set(keybindingItemEntry.keybindingItem.source, keybindingItemEntry.sourceMatches);
 	}
 
 	private getAriaLabel(keybindingItemEntry: IKeybindingItemEntry): string {
@@ -942,7 +937,7 @@ class WhenColumn extends Column {
 		DOM.toggleClass(this.whenColumn, 'code', !!keybindingItemEntry.keybindingItem.when);
 		DOM.toggleClass(this.whenColumn, 'empty', !keybindingItemEntry.keybindingItem.when);
 		if (keybindingItemEntry.keybindingItem.when) {
-			const whenLabel = new HighlightedLabel(this.whenColumn);
+			const whenLabel = new HighlightedLabel(this.whenColumn, false);
 			whenLabel.set(keybindingItemEntry.keybindingItem.when, keybindingItemEntry.whenMatches);
 			this.whenColumn.title = keybindingItemEntry.keybindingItem.when;
 			whenLabel.element.title = keybindingItemEntry.keybindingItem.when;

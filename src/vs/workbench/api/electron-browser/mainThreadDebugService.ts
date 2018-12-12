@@ -5,8 +5,7 @@
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { URI as uri } from 'vs/base/common/uri';
-import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, ITerminalSettings, IDebugAdapter, IDebugAdapterProvider, IDebugSession } from 'vs/workbench/parts/debug/common/debug';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, ITerminalSettings, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugSession, IDebugAdapterFactory, IDebugAdapterTrackerFactory } from 'vs/workbench/parts/debug/common/debug';
 import {
 	ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext,
 	IExtHostContext, IBreakpointsDeltaDto, ISourceMultiBreakpointDto, ISourceBreakpointDto, IFunctionBreakpointDto, IDebugSessionDto
@@ -16,17 +15,19 @@ import severity from 'vs/base/common/severity';
 import { AbstractDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { convertToVSCPaths, convertToDAPaths, stringToUri, uriToString } from 'vs/workbench/parts/debug/common/debugUtils';
-import { deepClone } from 'vs/base/common/objects';
-
 
 @extHostNamedCustomer(MainContext.MainThreadDebugService)
-export class MainThreadDebugService implements MainThreadDebugServiceShape, IDebugAdapterProvider {
+export class MainThreadDebugService implements MainThreadDebugServiceShape, IDebugAdapterFactory {
 
 	private _proxy: ExtHostDebugServiceShape;
 	private _toDispose: IDisposable[];
 	private _breakpointEventsActive: boolean;
 	private _debugAdapters: Map<number, ExtensionHostDebugAdapter>;
 	private _debugAdaptersHandleCounter = 1;
+	private _debugConfigurationProviders: Map<number, IDebugConfigurationProvider>;
+	private _debugAdapterDescriptorFactories: Map<number, IDebugAdapterDescriptorFactory>;
+	private _debugAdapterTrackerFactories: Map<number, IDebugAdapterTrackerFactory>;
+	private _sessions: Set<DebugSessionUUID>;
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -43,12 +44,17 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		}));
 		this._toDispose.push(debugService.onDidEndSession(session => {
 			this._proxy.$acceptDebugSessionTerminated(this.getSessionDto(session));
+			this._sessions.delete(session.getId());
 		}));
 		this._toDispose.push(debugService.getViewModel().onDidFocusSession(session => {
 			this._proxy.$acceptDebugSessionActiveChanged(this.getSessionDto(session));
 		}));
 
-		this._debugAdapters = new Map<number, ExtensionHostDebugAdapter>();
+		this._debugAdapters = new Map();
+		this._debugConfigurationProviders = new Map();
+		this._debugAdapterDescriptorFactories = new Map();
+		this._debugAdapterTrackerFactories = new Map();
+		this._sessions = new Set();
 	}
 
 	public dispose(): void {
@@ -57,29 +63,28 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 
 	// interface IDebugAdapterProvider
 
-	createDebugAdapter(session: IDebugSession, folder: IWorkspaceFolder, config: IConfig): IDebugAdapter {
+	createDebugAdapter(session: IDebugSession): IDebugAdapter {
 		const handle = this._debugAdaptersHandleCounter++;
-		const da = new ExtensionHostDebugAdapter(handle, this._proxy, this.getSessionDto(session), folder, config);
+		const da = new ExtensionHostDebugAdapter(this, handle, this._proxy, session);
 		this._debugAdapters.set(handle, da);
 		return da;
 	}
 
-	substituteVariables(folder: IWorkspaceFolder, config: IConfig): TPromise<IConfig> {
-		return TPromise.wrap(this._proxy.$substituteVariables(folder ? folder.uri : undefined, config));
+	substituteVariables(folder: IWorkspaceFolder, config: IConfig): Promise<IConfig> {
+		return Promise.resolve(this._proxy.$substituteVariables(folder ? folder.uri : undefined, config));
 	}
 
-	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void> {
-		return TPromise.wrap(this._proxy.$runInTerminal(args, config));
+	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<number | undefined> {
+		return Promise.resolve(this._proxy.$runInTerminal(args, config));
 	}
-
 
 	// RPC methods (MainThreadDebugServiceShape)
 
 	public $registerDebugTypes(debugTypes: string[]) {
-		this._toDispose.push(this.debugService.getConfigurationManager().registerDebugAdapterProvider(debugTypes, this));
+		this._toDispose.push(this.debugService.getConfigurationManager().registerDebugAdapterFactory(debugTypes, this));
 	}
 
-	public $startBreakpointEvents(): Thenable<void> {
+	public $startBreakpointEvents(): void {
 
 		if (!this._breakpointEventsActive) {
 			this._breakpointEventsActive = true;
@@ -114,8 +119,6 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 				});
 			}
 		}
-
-		return TPromise.wrap<void>(undefined);
 	}
 
 	public $registerBreakpoints(DTOs: (ISourceMultiBreakpointDto | IFunctionBreakpointDto)[]): Thenable<void> {
@@ -156,27 +159,71 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		};
 		if (hasProvide) {
 			provider.provideDebugConfigurations = (folder) => {
-				return TPromise.wrap(this._proxy.$provideDebugConfigurations(handle, folder));
+				return Promise.resolve(this._proxy.$provideDebugConfigurations(handle, folder));
 			};
 		}
 		if (hasResolve) {
 			provider.resolveDebugConfiguration = (folder, config) => {
-				return TPromise.wrap(this._proxy.$resolveDebugConfiguration(handle, folder, config));
+				return Promise.resolve(this._proxy.$resolveDebugConfiguration(handle, folder, config));
 			};
 		}
 		if (hasProvideDebugAdapter) {
-			provider.provideDebugAdapter = (session, folder, config) => {
-				return TPromise.wrap(this._proxy.$provideDebugAdapter(handle, this.getSessionDto(session), folder, config));
+			provider.debugAdapterExecutable = (folder) => {
+				return Promise.resolve(this._proxy.$legacyDebugAdapterExecutable(handle, folder));
 			};
 		}
-		this.debugService.getConfigurationManager().registerDebugConfigurationProvider(handle, provider);
+		this._debugConfigurationProviders.set(handle, provider);
+		this._toDispose.push(this.debugService.getConfigurationManager().registerDebugConfigurationProvider(provider));
 
-		return TPromise.wrap<void>(undefined);
+		return Promise.resolve(undefined);
 	}
 
-	public $unregisterDebugConfigurationProvider(handle: number): Thenable<void> {
-		this.debugService.getConfigurationManager().unregisterDebugConfigurationProvider(handle);
-		return TPromise.wrap<void>(undefined);
+	public $unregisterDebugConfigurationProvider(handle: number): void {
+		const provider = this._debugConfigurationProviders.get(handle);
+		if (provider) {
+			this._debugConfigurationProviders.delete(handle);
+			this.debugService.getConfigurationManager().unregisterDebugConfigurationProvider(provider);
+		}
+	}
+
+	public $registerDebugAdapterDescriptorFactory(debugType: string, handle: number): Thenable<void> {
+
+		const provider = <IDebugAdapterDescriptorFactory>{
+			type: debugType,
+			createDebugAdapterDescriptor: session => {
+				return Promise.resolve(this._proxy.$provideDebugAdapter(handle, this.getSessionDto(session)));
+			}
+		};
+		this._debugAdapterDescriptorFactories.set(handle, provider);
+		this._toDispose.push(this.debugService.getConfigurationManager().registerDebugAdapterDescriptorFactory(provider));
+
+		return Promise.resolve(undefined);
+	}
+
+	public $unregisterDebugAdapterDescriptorFactory(handle: number): void {
+		const provider = this._debugAdapterDescriptorFactories.get(handle);
+		if (provider) {
+			this._debugAdapterDescriptorFactories.delete(handle);
+			this.debugService.getConfigurationManager().unregisterDebugAdapterDescriptorFactory(provider);
+		}
+	}
+
+	public $registerDebugAdapterTrackerFactory(debugType: string, handle: number) {
+		const factory = <IDebugAdapterTrackerFactory>{
+			type: debugType,
+		};
+		this._debugAdapterTrackerFactories.set(handle, factory);
+		this._toDispose.push(this.debugService.getConfigurationManager().registerDebugAdapterTrackerFactory(factory));
+
+		return Promise.resolve(undefined);
+	}
+
+	public $unregisterDebugAdapterTrackerFactory(handle: number) {
+		const factory = this._debugAdapterTrackerFactories.get(handle);
+		if (factory) {
+			this._debugAdapterTrackerFactories.delete(handle);
+			this.debugService.getConfigurationManager().unregisterDebugAdapterTrackerFactory(factory);
+		}
 	}
 
 	public $startDebugging(_folderUri: uri | undefined, nameOrConfiguration: string | IConfig): Thenable<boolean> {
@@ -185,7 +232,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		return this.debugService.startDebugging(launch, nameOrConfiguration).then(success => {
 			return success;
 		}, err => {
-			return TPromise.wrapError(new Error(err && err.message ? err.message : 'cannot start debugging'));
+			return Promise.reject(new Error(err && err.message ? err.message : 'cannot start debugging'));
 		});
 	}
 
@@ -196,27 +243,24 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 				if (response && response.success) {
 					return response.body;
 				} else {
-					return TPromise.wrapError(new Error(response ? response.message : 'custom request failed'));
+					return Promise.reject(new Error(response ? response.message : 'custom request failed'));
 				}
 			});
 		}
-		return TPromise.wrapError(new Error('debug session not found'));
+		return Promise.reject(new Error('debug session not found'));
 	}
 
-	public $appendDebugConsole(value: string): Thenable<void> {
+	public $appendDebugConsole(value: string): void {
 		// Use warning as severity to get the orange color for messages coming from the debug extension
 		const session = this.debugService.getViewModel().focusedSession;
 		if (session) {
 			session.appendToRepl(value, severity.Warning);
 		}
-		return TPromise.wrap<void>(undefined);
 	}
 
 	public $acceptDAMessage(handle: number, message: DebugProtocol.ProtocolMessage) {
 
-		convertToVSCPaths(message, source => uriToString(source));
-
-		this._debugAdapters.get(handle).acceptMessage(message);
+		this._debugAdapters.get(handle).acceptMessage(convertToVSCPaths(message, source => uriToString(source)));
 	}
 
 	public $acceptDAError(handle: number, name: string, message: string, stack: string) {
@@ -229,13 +273,21 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 
 	// dto helpers
 
-	private getSessionDto(session: IDebugSession): IDebugSessionDto {
+	getSessionDto(session: IDebugSession): IDebugSessionDto {
 		if (session) {
-			return {
-				id: <DebugSessionUUID>session.getId(),
-				type: session.configuration.type,
-				name: session.configuration.name
-			};
+			const sessionID = <DebugSessionUUID>session.getId();
+			if (this._sessions.has(sessionID)) {
+				return sessionID;
+			} else {
+				this._sessions.add(sessionID);
+				return {
+					id: sessionID,
+					type: session.configuration.type,
+					name: session.configuration.name,
+					folderUri: session.root ? session.root.uri : undefined,
+					configuration: session.configuration
+				};
+			}
 		}
 		return undefined;
 	}
@@ -276,7 +328,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
  */
 class ExtensionHostDebugAdapter extends AbstractDebugAdapter {
 
-	constructor(private _handle: number, private _proxy: ExtHostDebugServiceShape, private _sessionDto: IDebugSessionDto, private folder: IWorkspaceFolder, private config: IConfig) {
+	constructor(private _ds: MainThreadDebugService, private _handle: number, private _proxy: ExtHostDebugServiceShape, private _session: IDebugSession) {
 		super();
 	}
 
@@ -288,21 +340,16 @@ class ExtensionHostDebugAdapter extends AbstractDebugAdapter {
 		this._onExit.fire(code);
 	}
 
-	public startSession(): TPromise<void> {
-		return TPromise.wrap(this._proxy.$startDASession(this._handle, this._sessionDto, this.folder ? this.folder.uri : undefined, this.config));
+	public startSession(): Promise<void> {
+		return Promise.resolve(this._proxy.$startDASession(this._handle, this._ds.getSessionDto(this._session)));
 	}
 
 	public sendMessage(message: DebugProtocol.ProtocolMessage): void {
 
-		// since we modify Source.paths in the message in place, we need to make a copy of it (see #61129)
-		const msg = deepClone(message);
-
-		convertToDAPaths(msg, source => stringToUri(source));
-
-		this._proxy.$sendDAMessage(this._handle, msg);
+		this._proxy.$sendDAMessage(this._handle, convertToDAPaths(message, source => stringToUri(source)));
 	}
 
-	public stopSession(): TPromise<void> {
-		return TPromise.wrap(this._proxy.$stopDASession(this._handle));
+	public stopSession(): Promise<void> {
+		return Promise.resolve(this._proxy.$stopDASession(this._handle));
 	}
 }

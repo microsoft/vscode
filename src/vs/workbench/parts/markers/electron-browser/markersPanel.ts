@@ -6,7 +6,6 @@
 import 'vs/css!./media/markers';
 
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
 import { IAction, IActionItem, Action } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -26,15 +25,14 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Iterator } from 'vs/base/common/iterator';
-import { ITreeElement, ITreeNode } from 'vs/base/browser/ui/tree/tree';
-import { debounceEvent, Relay, Event, Emitter } from 'vs/base/common/event';
-import { WorkbenchObjectTree, ObjectTreeResourceNavigator } from 'vs/platform/list/browser/listService';
+import { ITreeElement, ITreeNode, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
+import { Relay, Event, Emitter } from 'vs/base/common/event';
+import { WorkbenchObjectTree, TreeResourceNavigator2 } from 'vs/platform/list/browser/listService';
 import { FilterOptions } from 'vs/workbench/parts/markers/electron-browser/markersFilterOptions';
 import { IExpression, getEmptyExpression } from 'vs/base/common/glob';
 import { mixin, deepClone } from 'vs/base/common/objects';
 import { IWorkspaceFolder, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { isAbsolute, join } from 'vs/base/common/paths';
-import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/abstractTree';
 import { FilterData, FileResourceMarkersRenderer, Filter, VirtualDelegate, ResourceMarkersRenderer, MarkerRenderer, RelatedInformationRenderer, TreeElement, MarkersTreeAccessibilityProvider } from 'vs/workbench/parts/markers/electron-browser/markersTreeViewer';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Separator, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -202,7 +200,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		return false;
 	}
 
-	private refreshPanel(): TPromise<any> {
+	private refreshPanel(): void {
 		if (this.isVisible()) {
 			this.cachedFilterStats = undefined;
 			this.tree.setChildren(null, createModelIterator(this.markersWorkbenchService.markersModel));
@@ -212,7 +210,6 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 			this.renderMessage();
 			this._onDidFilter.fire();
 		}
-		return TPromise.as(null);
 	}
 
 	private updateFilter() {
@@ -221,6 +218,9 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		this.filter.options = new FilterOptions(this.filterAction.filterText, excludeExpression);
 		this.tree.refilter();
 		this._onDidFilter.fire();
+
+		const { total, filtered } = this.getFilterStats();
+		dom.toggleClass(this.treeContainer, 'hidden', total > 0 && filtered === 0);
 		this.renderMessage();
 	}
 
@@ -288,13 +288,20 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		this.filter = new Filter();
 		const accessibilityProvider = this.instantiationService.createInstance(MarkersTreeAccessibilityProvider);
 
+		const identityProvider = {
+			getId(element: TreeElement) {
+				return element.hash;
+			}
+		};
+
 		this.tree = this.instantiationService.createInstance(WorkbenchObjectTree,
 			this.treeContainer,
 			virtualDelegate,
 			renderers,
 			{
 				filter: this.filter,
-				accessibilityProvider
+				accessibilityProvider,
+				identityProvider
 			}
 		) as any as WorkbenchObjectTree<TreeElement, FilterData>;
 
@@ -303,8 +310,8 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		const markerFocusContextKey = Constants.MarkerFocusContextKey.bindTo(this.tree.contextKeyService);
 		const relatedInformationFocusContextKey = Constants.RelatedInformationFocusContextKey.bindTo(this.tree.contextKeyService);
 		this._register(this.tree.onDidChangeFocus(focus => {
-			markerFocusContextKey.set(focus.elements.some(e => e.element instanceof Marker));
-			relatedInformationFocusContextKey.set(focus.elements.some(e => e.element instanceof RelatedInformation));
+			markerFocusContextKey.set(focus.elements.some(e => e instanceof Marker));
+			relatedInformationFocusContextKey.set(focus.elements.some(e => e instanceof RelatedInformation));
 		}));
 		const focusTracker = this._register(dom.trackFocus(this.tree.getHTMLElement()));
 		this._register(focusTracker.onDidBlur(() => {
@@ -312,8 +319,8 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 			relatedInformationFocusContextKey.set(false);
 		}));
 
-		const markersNavigator = this._register(new ObjectTreeResourceNavigator(this.tree, { openOnFocus: true }));
-		this._register(debounceEvent(markersNavigator.openResource, (last, event) => event, 75, true)(options => {
+		const markersNavigator = this._register(new TreeResourceNavigator2(this.tree, { openOnFocus: true }));
+		this._register(Event.debounce(markersNavigator.openResource, (last, event) => event, 75, true)(options => {
 			this.openFileAtElement(options.element, options.editorOptions.preserveFocus, options.sideBySide, options.editorOptions.pinned);
 		}));
 
@@ -347,7 +354,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	}
 
 	private createListeners(): void {
-		const onModelChange = debounceEvent<URI, URI[]>(this.markersWorkbenchService.markersModel.onDidChange, (uris, uri) => { if (!uris) { uris = []; } uris.push(uri); return uris; }, 0);
+		const onModelChange = Event.debounce<URI, URI[]>(this.markersWorkbenchService.markersModel.onDidChange, (uris, uri) => { if (!uris) { uris = []; } uris.push(uri); return uris; }, 0);
 
 		this._register(onModelChange(this.onDidChangeModel, this));
 		this._register(this.editorService.onDidActiveEditorChange(this.onActiveEditorChanged, this));
@@ -540,7 +547,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		this.rangeHighlightDecorations.highlightRange(selection);
 	}
 
-	private onContextMenu(e: ITreeContextMenuEvent<TreeElement, FilterData>): void {
+	private onContextMenu(e: ITreeContextMenuEvent<TreeElement>): void {
 		if (!e.element) {
 			return;
 		}
@@ -548,21 +555,23 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		e.browserEvent.preventDefault();
 		e.browserEvent.stopPropagation();
 
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => e.anchor,
-			getActions: () => TPromise.wrap(this._getMenuActions(e.element.element)),
-			getActionItem: (action) => {
-				const keybinding = this.keybindingService.lookupKeybinding(action.id);
-				if (keybinding) {
-					return new ActionItem(action, action, { label: true, keybinding: keybinding.getLabel() });
+		this._getMenuActions(e.element).then(actions => {
+			this.contextMenuService.showContextMenu({
+				getAnchor: () => e.anchor,
+				getActions: () => actions,
+				getActionItem: (action) => {
+					const keybinding = this.keybindingService.lookupKeybinding(action.id);
+					if (keybinding) {
+						return new ActionItem(action, action, { label: true, keybinding: keybinding.getLabel() });
+					}
+					return null;
+				},
+				onHide: (wasCancelled?: boolean) => {
+					if (wasCancelled) {
+						this.tree.domFocus();
+					}
 				}
-				return null;
-			},
-			onHide: (wasCancelled?: boolean) => {
-				if (wasCancelled) {
-					this.tree.domFocus();
-				}
-			}
+			});
 		});
 	}
 

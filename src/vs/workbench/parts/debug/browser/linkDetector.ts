@@ -5,7 +5,6 @@
 
 import { URI as uri } from 'vs/base/common/uri';
 import { isMacintosh } from 'vs/base/common/platform';
-import * as errors from 'vs/base/common/errors';
 import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import * as nls from 'vs/nls';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
@@ -34,7 +33,7 @@ export class LinkDetector {
 	 * 'onclick' event is attached to all anchored links that opens them in the editor.
 	 * If no links were detected, returns the original string.
 	 */
-	public handleLinks(text: string): HTMLElement | string {
+	handleLinks(text: string): HTMLElement | string {
 		if (text.length > LinkDetector.MAX_LENGTH) {
 			return text;
 		}
@@ -106,6 +105,6 @@ export class LinkDetector {
 					startColumn: column
 				}
 			}
-		}, group).then(null, errors.onUnexpectedError);
+		}, group);
 	}
 }

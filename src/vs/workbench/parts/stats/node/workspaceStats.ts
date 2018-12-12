@@ -5,7 +5,6 @@
 
 import { localize } from 'vs/nls';
 import * as crypto from 'crypto';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import { IFileService, IFileStat, IResolveFileResult } from 'vs/platform/files/common/files';
@@ -92,12 +91,12 @@ const PyModulesToLookFor = [
 
 type Tags = { [index: string]: boolean | number | string };
 
-function stripLowLevelDomains(domain: string): string {
+function stripLowLevelDomains(domain: string): string | null {
 	const match = domain.match(SecondLevelDomainMatcher);
 	return match ? match[1] : null;
 }
 
-function extractDomain(url: string): string {
+function extractDomain(url: string): string | null {
 	if (url.indexOf('://') === -1) {
 		const match = url.match(SshProtocolMatcher);
 		if (match) {
@@ -119,7 +118,7 @@ function extractDomain(url: string): string {
 
 export function getDomainsOfRemotes(text: string, whitelist: string[]): string[] {
 	const domains = new Set<string>();
-	let match: RegExpExecArray;
+	let match: RegExpExecArray | null;
 	while (match = RemoteMatcher.exec(text)) {
 		const domain = extractDomain(match[1]);
 		if (domain) {
@@ -139,12 +138,12 @@ export function getDomainsOfRemotes(text: string, whitelist: string[]): string[]
 		.map(key => whitemap[key] ? key : key.replace(AnyButDot, 'a'));
 }
 
-function stripPort(authority: string): string {
+function stripPort(authority: string): string | null {
 	const match = authority.match(AuthorityMatcher);
 	return match ? match[2] : null;
 }
 
-function normalizeRemote(host: string, path: string, stripEndingDotGit: boolean): string {
+function normalizeRemote(host: string, path: string, stripEndingDotGit: boolean): string | null {
 	if (host && path) {
 		if (stripEndingDotGit && endsWith(path, '.git')) {
 			path = path.substr(0, path.length - 4);
@@ -154,7 +153,7 @@ function normalizeRemote(host: string, path: string, stripEndingDotGit: boolean)
 	return null;
 }
 
-function extractRemote(url: string, stripEndingDotGit: boolean): string {
+function extractRemote(url: string, stripEndingDotGit: boolean): string | null {
 	if (url.indexOf('://') === -1) {
 		const match = url.match(SshUrlMatcher);
 		if (match) {
@@ -174,7 +173,7 @@ function extractRemote(url: string, stripEndingDotGit: boolean): string {
 
 export function getRemotes(text: string, stripEndingDotGit: boolean = false): string[] {
 	const remotes: string[] = [];
-	let match: RegExpExecArray;
+	let match: RegExpExecArray | null;
 	while (match = RemoteMatcher.exec(text)) {
 		const remote = extractRemote(match[1], stripEndingDotGit);
 		if (remote) {
@@ -190,7 +189,7 @@ export function getHashedRemotesFromConfig(text: string, stripEndingDotGit: bool
 	});
 }
 
-export function getHashedRemotesFromUri(workspaceUri: URI, fileService: IFileService, stripEndingDotGit: boolean = false): TPromise<string[]> {
+export function getHashedRemotesFromUri(workspaceUri: URI, fileService: IFileService, stripEndingDotGit: boolean = false): Thenable<string[]> {
 	const path = workspaceUri.path;
 	const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
 	return fileService.resolveFile(uri).then(() => {
@@ -228,6 +227,8 @@ export class WorkspaceStats implements IWorkbenchContribution {
 
 		// Cloud Stats
 		this.reportCloudStats();
+
+		this.reportProxyStats();
 	}
 
 	private static searchArray(arr: string[], regEx: RegExp): boolean {
@@ -309,7 +310,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			"workspace.py.azure-cognitiveservices" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 		}
 	*/
-	private resolveWorkspaceTags(configuration: IWindowConfiguration, participant?: (rootFiles: string[]) => void): TPromise<Tags> {
+	private resolveWorkspaceTags(configuration: IWindowConfiguration, participant?: (rootFiles: string[]) => void): Thenable<Tags> {
 		const tags: Tags = Object.create(null);
 
 		const state = this.contextService.getWorkbenchState();
@@ -340,7 +341,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 
 		const folders = !isEmpty ? workspace.folders.map(folder => folder.uri) : this.environmentService.appQuality !== 'stable' && this.findFolders(configuration);
 		if (!folders || !folders.length || !this.fileService) {
-			return TPromise.as(tags);
+			return Promise.resolve(tags);
 		}
 
 		return this.fileService.resolveFiles(folders.map(resource => ({ resource }))).then((files: IResolveFileResult[]) => {
@@ -413,7 +414,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				tags['workspace.android.cpp'] = true;
 			}
 
-			function getFilePromises(filename, fileService, contentHandler): TPromise<void>[] {
+			function getFilePromises(filename, fileService, contentHandler): Thenable<void>[] {
 				return !nameSet.has(filename) ? [] : folders.map(workspaceUri => {
 					const uri = workspaceUri.with({ path: `${workspaceUri.path !== '/' ? workspaceUri.path : ''}/${filename}` });
 					return fileService.resolveFile(uri).then(() => {
@@ -493,10 +494,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 					// Ignore errors when resolving file or parsing file contents
 				}
 			});
-			return TPromise.join([...packageJsonPromises, ...requirementsTxtPromises, ...pipfilePromises]).then(function () {
-				return tags;
-			}
-			);
+			return Promise.all([...packageJsonPromises, ...requirementsTxtPromises, ...pipfilePromises]).then(() => tags);
 		});
 	}
 
@@ -551,12 +549,12 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		}
 	}
 
-	private findFolders(configuration: IWindowConfiguration): URI[] {
+	private findFolders(configuration: IWindowConfiguration): URI[] | undefined {
 		const folder = this.findFolder(configuration);
 		return folder && [folder];
 	}
 
-	private findFolder({ filesToOpen, filesToCreate, filesToDiff }: IWindowConfiguration): URI {
+	private findFolder({ filesToOpen, filesToCreate, filesToDiff }: IWindowConfiguration): URI | undefined {
 		if (filesToOpen && filesToOpen.length) {
 			return this.parentURI(filesToOpen[0].fileUri);
 		} else if (filesToCreate && filesToCreate.length) {
@@ -567,7 +565,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		return undefined;
 	}
 
-	private parentURI(uri: URI): URI {
+	private parentURI(uri: URI): URI | undefined {
 		const path = uri.path;
 		const i = path.lastIndexOf('/');
 		return i !== -1 ? uri.with({ path: path.substr(0, i) }) : undefined;
@@ -586,7 +584,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 	}
 
 	private reportRemoteDomains(workspaceUris: URI[]): void {
-		TPromise.join<string[]>(workspaceUris.map(workspaceUri => {
+		Promise.all<string[]>(workspaceUris.map(workspaceUri => {
 			const path = workspaceUri.path;
 			const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
 			return this.fileService.resolveFile(uri).then(() => {
@@ -609,7 +607,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 	}
 
 	private reportRemotes(workspaceUris: URI[]): void {
-		TPromise.join<string[]>(workspaceUris.map(workspaceUri => {
+		Promise.all<string[]>(workspaceUris.map(workspaceUri => {
 			return getHashedRemotesFromUri(workspaceUri, this.fileService, true);
 		})).then(hashedRemotes => {
 			/* __GDPR__
@@ -626,7 +624,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			"node" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 		}
 	*/
-	private reportAzureNode(workspaceUris: URI[], tags: Tags): TPromise<Tags> {
+	private reportAzureNode(workspaceUris: URI[], tags: Tags): Thenable<Tags> {
 		// TODO: should also work for `node_modules` folders several levels down
 		const uris = workspaceUris.map(workspaceUri => {
 			const path = workspaceUri.path;
@@ -651,8 +649,8 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			"java" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 		}
 	*/
-	private reportAzureJava(workspaceUris: URI[], tags: Tags): TPromise<Tags> {
-		return TPromise.join(workspaceUris.map(workspaceUri => {
+	private reportAzureJava(workspaceUris: URI[], tags: Tags): Thenable<Tags> {
+		return Promise.all(workspaceUris.map(workspaceUri => {
 			const path = workspaceUri.path;
 			const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/pom.xml` });
 			return this.fileService.resolveFile(uri).then(stats => {
@@ -684,7 +682,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				*/
 				this.telemetryService.publicLog('workspace.azure', tags);
 			}
-		}).then(null, onUnexpectedError);
+		}).then(void 0, onUnexpectedError);
 	}
 
 	private reportCloudStats(): void {
@@ -694,5 +692,21 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			this.reportRemotes(uris);
 			this.reportAzure(uris);
 		}
+	}
+
+	private reportProxyStats() {
+		this.windowService.resolveProxy('https://www.example.com/')
+			.then(proxy => {
+				let type = proxy ? String(proxy).trim().split(/\s+/, 1)[0] : 'EMPTY';
+				if (['DIRECT', 'PROXY', 'HTTPS', 'SOCKS', 'EMPTY'].indexOf(type) === -1) {
+					type = 'UNKNOWN';
+				}
+				/* __GDPR__
+					"resolveProxy.stats" : {
+						"type": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+					}
+				*/
+				this.telemetryService.publicLog('resolveProxy.stats', { type });
+			}).then(void 0, onUnexpectedError);
 	}
 }

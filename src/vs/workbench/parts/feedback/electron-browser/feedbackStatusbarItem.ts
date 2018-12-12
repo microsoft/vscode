@@ -110,7 +110,7 @@ export class FeedbackStatusbarItem extends Themable implements IStatusbarItem {
 
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => this.container,
-				getActions: () => Promise.resolve([this.hideAction])
+				getActions: () => [this.hideAction]
 			});
 		}));
 

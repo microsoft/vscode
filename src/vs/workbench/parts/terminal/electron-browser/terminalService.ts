@@ -23,10 +23,12 @@ import { TerminalTab } from 'vs/workbench/parts/terminal/browser/terminalTab';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ipcRenderer as ipc } from 'electron';
-import { IOpenFileRequest } from 'vs/platform/windows/common/windows';
+import { IOpenFileRequest, IWindowService } from 'vs/platform/windows/common/windows';
 import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { URI } from 'vs/base/common/uri';
 import { IQuickInputService, IQuickPickItem, IPickOptions } from 'vs/platform/quickinput/common/quickInput';
+import { coalesce } from 'vs/base/common/arrays';
 
 export class TerminalService extends AbstractTerminalService implements ITerminalService {
 	private _configHelper: TerminalConfigHelper;
@@ -48,7 +50,8 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IDialogService private readonly _dialogService: IDialogService,
-		@IExtensionService private readonly _extensionService: IExtensionService
+		@IExtensionService private readonly _extensionService: IExtensionService,
+		@IWindowService private readonly _windowService: IWindowService,
 	) {
 		super(contextKeyService, panelService, partService, lifecycleService, storageService);
 
@@ -98,12 +101,12 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		return instance;
 	}
 
-	public requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number): void {
+	public requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI, cols: number, rows: number): void {
 		// Ensure extension host is ready before requesting a process
 		this._extensionService.whenInstalledExtensionsRegistered().then(() => {
 			// TODO: MainThreadTerminalService is not ready at this point, fix this
 			setTimeout(() => {
-				this._onInstanceRequestExtHostProcess.fire({ proxy, shellLaunchConfig, cols, rows });
+				this._onInstanceRequestExtHostProcess.fire({ proxy, shellLaunchConfig, activeWorkspaceRootUri, cols, rows });
 			}, 500);
 		});
 	}
@@ -147,9 +150,19 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 			return;
 		}
 
+		if (this._windowService.getConfiguration().remoteAuthority) {
+			// Don't suggest if the opened workspace is remote
+			return;
+		}
+
 		// Only suggest when the terminal instance is being created by an explicit user action to
 		// launch a terminal, as opposed to something like tasks, debug, panel restore, etc.
 		if (!wasNewTerminalAction) {
+			return;
+		}
+
+		if (this._windowService.getConfiguration().remoteAuthority) {
+			// Don't suggest if the opened workspace is remote
 			return;
 		}
 
@@ -238,14 +251,16 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		};
 		const promises: PromiseLike<[string, string]>[] = [];
 		Object.keys(expectedLocations).forEach(key => promises.push(this._validateShellPaths(key, expectedLocations[key])));
-		return Promise.all(promises).then(results => {
-			return results.filter(result => !!result).map(result => {
-				return <IQuickPickItem>{
-					label: result[0],
-					description: result[1]
-				};
+		return Promise.all(promises)
+			.then(coalesce)
+			.then(results => {
+				return results.map(result => {
+					return <IQuickPickItem>{
+						label: result[0],
+						description: result[1]
+					};
+				});
 			});
-		});
 	}
 
 	private _validateShellPaths(label: string, potentialPaths: string[]): PromiseLike<[string, string]> {

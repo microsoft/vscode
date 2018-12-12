@@ -5,7 +5,6 @@
 
 import { Profile, ProfileNode } from 'v8-inspect-profiler';
 import { TernarySearchTree } from 'vs/base/common/map';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { realpathSync } from 'vs/base/node/extfs';
 import { IExtensionDescription, IExtensionHostProfile, IExtensionService, ProfileSegmentId, ProfileSession } from 'vs/workbench/services/extensions/common/extensions';
 
@@ -14,20 +13,16 @@ export class ExtensionHostProfiler {
 	constructor(private readonly _port: number, @IExtensionService private readonly _extensionService: IExtensionService) {
 	}
 
-	public start(): TPromise<ProfileSession> {
-		return TPromise.wrap(import('v8-inspect-profiler')).then(profiler => {
-			return profiler.startProfiling({ port: this._port }).then(session => {
-				return {
-					stop: () => {
-						return TPromise.wrap(session.stop()).then(profile => {
-							return this._extensionService.getExtensions().then(extensions => {
-								return this.distill(profile.profile, extensions);
-							});
-						});
-					}
-				};
-			});
-		});
+	public async start(): Promise<ProfileSession> {
+		const profiler = await import('v8-inspect-profiler');
+		const session = await profiler.startProfiling({ port: this._port });
+		return {
+			stop: async () => {
+				const profile = await session.stop();
+				const extensions = await this._extensionService.getExtensions();
+				return this.distill((profile as any).profile, extensions);
+			}
+		};
 	}
 
 	private distill(profile: Profile, extensions: IExtensionDescription[]): IExtensionHostProfile {
@@ -74,13 +69,13 @@ export class ExtensionHostProfiler {
 		}
 		visit(nodes[0], null);
 
-		let samples = profile.samples;
-		let timeDeltas = profile.timeDeltas;
+		const samples = profile.samples || [];
+		let timeDeltas = profile.timeDeltas || [];
 		let distilledDeltas: number[] = [];
 		let distilledIds: ProfileSegmentId[] = [];
 
 		let currSegmentTime = 0;
-		let currSegmentId: string = void 0;
+		let currSegmentId: string | undefined;
 		for (let i = 0; i < samples.length; i++) {
 			let id = samples[i];
 			let segmentId = idsToSegmentId.get(id);
@@ -89,7 +84,7 @@ export class ExtensionHostProfiler {
 					distilledIds.push(currSegmentId);
 					distilledDeltas.push(currSegmentTime);
 				}
-				currSegmentId = segmentId;
+				currSegmentId = segmentId || undefined;
 				currSegmentTime = 0;
 			}
 			currSegmentTime += timeDeltas[i];
@@ -98,9 +93,6 @@ export class ExtensionHostProfiler {
 			distilledIds.push(currSegmentId);
 			distilledDeltas.push(currSegmentTime);
 		}
-		idsToNodes = null;
-		idsToSegmentId = null;
-		searchTree = null;
 
 		return {
 			startTime: profile.startTime,

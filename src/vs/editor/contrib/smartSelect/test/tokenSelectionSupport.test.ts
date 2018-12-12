@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
-import { TokenSelectionSupport } from 'vs/editor/contrib/smartSelect/tokenSelectionSupport';
 import { MockMode, StaticLanguageSelector } from 'vs/editor/test/common/mocks/mockMode';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
@@ -16,6 +15,29 @@ import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/jav
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
+import { TokenTreeSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/tokenTree';
+import { MarkerService } from 'vs/platform/markers/common/markerService';
+import { BracketSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/bracketSelections';
+
+class TestTextResourcePropertiesService implements ITextResourcePropertiesService {
+
+	_serviceBrand: any;
+
+	constructor(
+		@IConfigurationService private configurationService: IConfigurationService,
+	) {
+	}
+
+	getEOL(resource: URI | undefined): string {
+		const filesConfiguration = this.configurationService.getValue<{ eol: string }>('files');
+		if (filesConfiguration && filesConfiguration.eol) {
+			if (filesConfiguration.eol !== 'auto') {
+				return filesConfiguration.eol;
+			}
+		}
+		return (isLinux || isMacintosh) ? '\n' : '\r\n';
+	}
+}
 
 class MockJSMode extends MockMode {
 
@@ -36,16 +58,14 @@ class MockJSMode extends MockMode {
 	}
 }
 
-suite('TokenSelectionSupport', () => {
+suite('SmartSelect', () => {
 
-	let modelService: ModelServiceImpl | null = null;
-	let tokenSelectionSupport: TokenSelectionSupport;
-	let mode: MockJSMode | null = null;
+	let modelService: ModelServiceImpl;
+	let mode: MockJSMode;
 
 	setup(() => {
 		const configurationService = new TestConfigurationService();
-		modelService = new ModelServiceImpl(null, configurationService, new TestTextResourcePropertiesService(configurationService));
-		tokenSelectionSupport = new TokenSelectionSupport(modelService);
+		modelService = new ModelServiceImpl(new MarkerService(), configurationService, new TestTextResourcePropertiesService(configurationService));
 		mode = new MockJSMode();
 	});
 
@@ -56,12 +76,13 @@ suite('TokenSelectionSupport', () => {
 
 	function assertGetRangesToPosition(text: string[], lineNumber: number, column: number, ranges: Range[]): void {
 		let uri = URI.file('test.js');
-		modelService.createModel(text.join('\n'), new StaticLanguageSelector(mode.getLanguageIdentifier()), uri);
+		let model = modelService.createModel(text.join('\n'), new StaticLanguageSelector(mode.getLanguageIdentifier()), uri);
 
-		let actual = tokenSelectionSupport.getRangesToPositionSync(uri, new Position(lineNumber, column));
+		let actual = new TokenTreeSelectionRangeProvider().provideSelectionRanges(model, new Position(lineNumber, column));
 
-		let actualStr = actual.map(r => new Range(r.range.startLineNumber, r.range.startColumn, r.range.endLineNumber, r.range.endColumn).toString());
-		let desiredStr = ranges.map(r => String(r));
+
+		let actualStr = actual.map(r => new Range(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn).toString());
+		let desiredStr = ranges.reverse().map(r => String(r));
 
 		assert.deepEqual(actualStr, desiredStr);
 
@@ -70,7 +91,7 @@ suite('TokenSelectionSupport', () => {
 
 	test('getRangesToPosition #1', () => {
 
-		assertGetRangesToPosition([
+		return assertGetRangesToPosition([
 			'function a(bar, foo){',
 			'\tif (bar) {',
 			'\t\treturn (bar + (2 * foo))',
@@ -93,7 +114,7 @@ suite('TokenSelectionSupport', () => {
 
 	test('getRangesToPosition #56886. Skip empty lines correctly.', () => {
 
-		assertGetRangesToPosition([
+		return assertGetRangesToPosition([
 			'function a(bar, foo){',
 			'\tif (bar) {',
 			'',
@@ -109,7 +130,7 @@ suite('TokenSelectionSupport', () => {
 
 	test('getRangesToPosition #56886. Do not skip lines with only whitespaces.', () => {
 
-		assertGetRangesToPosition([
+		return assertGetRangesToPosition([
 			'function a(bar, foo){',
 			'\tif (bar) {',
 			' ',
@@ -127,7 +148,7 @@ suite('TokenSelectionSupport', () => {
 
 	test('getRangesToPosition #40658. Cursor at first position inside brackets should select line inside.', () => {
 
-		assertGetRangesToPosition([
+		return assertGetRangesToPosition([
 			' [ ]',
 			' { } ',
 			'( ) '
@@ -141,7 +162,7 @@ suite('TokenSelectionSupport', () => {
 
 	test('getRangesToPosition #40658. Cursor in empty brackets should reveal brackets first.', () => {
 
-		assertGetRangesToPosition([
+		return assertGetRangesToPosition([
 			' [] ',
 			' { } ',
 			'  ( ) '
@@ -154,7 +175,7 @@ suite('TokenSelectionSupport', () => {
 
 	test('getRangesToPosition #40658. Tokens before bracket will be revealed first.', () => {
 
-		assertGetRangesToPosition([
+		return assertGetRangesToPosition([
 			'  [] ',
 			' { } ',
 			'selectthis( ) '
@@ -164,25 +185,67 @@ suite('TokenSelectionSupport', () => {
 				new Range(3, 1, 3, 11)
 			]);
 	});
-});
 
-class TestTextResourcePropertiesService implements ITextResourcePropertiesService {
+	// -- bracket selections
 
-	_serviceBrand: any;
+	async function assertRanges(value: string, ...expected: IRange[]): Promise<void> {
 
-	constructor(
-		@IConfigurationService private configurationService: IConfigurationService,
-	) {
-	}
+		let model = modelService.createModel(value, new StaticLanguageSelector(mode.getLanguageIdentifier()), URI.parse('fake:lang'));
+		let pos = model.getPositionAt(value.indexOf('I'));
+		let provider = new BracketSelectionRangeProvider();
+		let ranges = await provider.provideSelectionRanges(model, pos);
+		modelService.destroyModel(model.uri);
 
-	getEOL(resource: URI): string {
-		const filesConfiguration = this.configurationService.getValue<{ eol: string }>('files');
-		if (filesConfiguration && filesConfiguration.eol) {
-			if (filesConfiguration.eol !== 'auto') {
-				return filesConfiguration.eol;
-			}
+		assert.equal(expected.length, ranges.length);
+		for (const range of ranges) {
+			let exp = expected.shift() || null;
+			assert.ok(Range.equalsRange(range, exp), `A=${range} <> E=${exp}`);
 		}
-		return (isLinux || isMacintosh) ? '\n' : '\r\n';
 	}
-}
 
+	test('bracket selection', async () => {
+		await assertRanges('(I)',
+			new Range(1, 2, 1, 3), new Range(1, 1, 1, 4)
+		);
+
+		await assertRanges('[[[](I)]]',
+			new Range(1, 6, 1, 7), new Range(1, 5, 1, 8), // ()
+			new Range(1, 3, 1, 8), new Range(1, 2, 1, 9), // [[]()]
+			new Range(1, 2, 1, 9), new Range(1, 1, 1, 10), // [[[]()]]
+		);
+
+		await assertRanges('[a[](I)a]',
+			new Range(1, 6, 1, 7), new Range(1, 5, 1, 8),
+			new Range(1, 2, 1, 9), new Range(1, 1, 1, 10),
+		);
+
+		// no bracket
+		await assertRanges('fofofIfofo');
+
+		// empty
+		await assertRanges('[[[]()]]I');
+		await assertRanges('I[[[]()]]');
+
+		// edge
+		await assertRanges('[I[[]()]]', new Range(1, 2, 1, 9), new Range(1, 1, 1, 10));
+		await assertRanges('[[[]()]I]', new Range(1, 2, 1, 9), new Range(1, 1, 1, 10));
+
+		await assertRanges('aaa(aaa)bbb(bIb)ccc(ccc)', new Range(1, 13, 1, 16), new Range(1, 12, 1, 17));
+		await assertRanges('(aaa(aaa)bbb(bIb)ccc(ccc))', new Range(1, 14, 1, 17), new Range(1, 13, 1, 18), new Range(1, 2, 1, 26), new Range(1, 1, 1, 27));
+	});
+
+	test('bracket with leading/trailing', async () => {
+
+		await assertRanges('for(a of b){\n  foo(I);\n}',
+			new Range(2, 7, 2, 8), new Range(2, 6, 2, 9),
+			new Range(1, 13, 3, 1), new Range(1, 12, 3, 2),
+			new Range(1, 1, 3, 2), new Range(1, 1, 3, 2),
+		);
+
+		await assertRanges('for(a of b)\n{\n  foo(I);\n}',
+			new Range(3, 7, 3, 8), new Range(3, 6, 3, 9),
+			new Range(2, 2, 4, 1), new Range(2, 1, 4, 2),
+			new Range(1, 1, 4, 2), new Range(1, 1, 4, 2),
+		);
+	});
+});

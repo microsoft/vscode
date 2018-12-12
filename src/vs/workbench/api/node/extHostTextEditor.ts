@@ -25,7 +25,7 @@ export class TextEditorDecorationType implements vscode.TextEditorDecorationType
 	constructor(proxy: MainThreadTextEditorsShape, options: vscode.DecorationRenderOptions) {
 		this.key = TextEditorDecorationType._Keys.nextId();
 		this._proxy = proxy;
-		this._proxy.$registerTextEditorDecorationType(this.key, <any>/* URI vs Uri */ options);
+		this._proxy.$registerTextEditorDecorationType(this.key, TypeConverters.DecorationRenderOptions.from(options));
 	}
 
 	public dispose(): void {
@@ -604,7 +604,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 }
 
 function warnOnError(promise: Thenable<any>): void {
-	promise.then(null, (err) => {
+	promise.then(void 0, (err) => {
 		console.warn(err);
 	});
 }

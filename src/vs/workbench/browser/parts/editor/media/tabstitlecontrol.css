@@ -5,11 +5,15 @@
 
 /* Title Container */
 
-.monaco-workbench > .part.editor > .content .editor-group-container > .title.tabs > .monaco-scrollable-element {
+.monaco-workbench > .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container {
+	display: flex;
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container > .monaco-scrollable-element {
 	flex: 1;
 }
 
-.monaco-workbench > .part.editor > .content .editor-group-container > .title.tabs > .monaco-scrollable-element .scrollbar {
+.monaco-workbench > .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container > .monaco-scrollable-element .scrollbar {
 	z-index: 3; /* on top of tabs */
 	cursor: default;
 }
@@ -240,18 +244,18 @@
 	padding-right: 5px; /* we need less room when sizing is shrink */
 }
 
-.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-off.dirty {
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-off.dirty:not(.dirty-border-top) {
 	background-repeat: no-repeat;
 	background-position-y: center;
 	background-position-x: calc(100% - 6px); /* to the right of the tab label */
 	padding-right: 28px; /* make room for dirty indication when we are running without close button */
 }
 
-.vs .monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-off.dirty {
+.vs .monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-off.dirty:not(.dirty-border-top) {
 	background-image: url('close-dirty.svg');
 }
 
-.vs-dark .monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-off.dirty,
+.vs-dark .monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-off.dirty:not(.dirty-border-top),
 .hc-black .monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-off.dirty {
 	background-image: url('close-dirty-inverse.svg');
 }

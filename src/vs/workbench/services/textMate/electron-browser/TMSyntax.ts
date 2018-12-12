@@ -11,7 +11,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 import * as resources from 'vs/base/common/resources';
 import * as types from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
 import { IState, ITokenizationSupport, LanguageId, TokenMetadata, TokenizationRegistry } from 'vs/editor/common/modes';
 import { nullTokenize2 } from 'vs/editor/common/modes/nullMode';
@@ -20,6 +19,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { IEmbeddedLanguagesMap, ITMSyntaxExtensionPoint, TokenTypesContribution, grammarsExtPoint } from 'vs/workbench/services/textMate/electron-browser/TMGrammars';
 import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
@@ -57,7 +57,7 @@ export class TMScopeRegistry {
 		return this._scopeNameToLanguageRegistration[scopeName] || null;
 	}
 
-	public getGrammarLocation(scopeName: string): URI {
+	public getGrammarLocation(scopeName: string): URI | null {
 		let data = this.getLanguageRegistration(scopeName);
 		return data ? data.grammarLocation : null;
 	}
@@ -81,7 +81,7 @@ export class TMLanguageRegistration {
 	readonly embeddedLanguages: IEmbeddedLanguagesMap;
 	readonly tokenTypes: ITokenTypeMap;
 
-	constructor(scopeName: string, grammarLocation: URI, embeddedLanguages: IEmbeddedLanguagesMap, tokenTypes: TokenTypesContribution | undefined) {
+	constructor(scopeName: string, grammarLocation: URI, embeddedLanguages: IEmbeddedLanguagesMap | undefined, tokenTypes: TokenTypesContribution | undefined) {
 		this.scopeName = scopeName;
 		this.grammarLocation = grammarLocation;
 
@@ -135,7 +135,7 @@ interface ICreateGrammarResult {
 export class TextMateService implements ITextMateService {
 	public _serviceBrand: any;
 
-	private _grammarRegistry: TPromise<[Registry, StackElement]>;
+	private _grammarRegistry: Promise<[Registry, StackElement]> | null;
 	private _modeService: IModeService;
 	private _themeService: IWorkbenchThemeService;
 	private _fileService: IFileService;
@@ -157,7 +157,8 @@ export class TextMateService implements ITextMateService {
 		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
 		@IFileService fileService: IFileService,
 		@INotificationService notificationService: INotificationService,
-		@ILogService logService: ILogService
+		@ILogService logService: ILogService,
+		@IExtensionService extensionService: IExtensionService
 	) {
 		this._styleElement = dom.createStyleSheet();
 		this._styleElement.className = 'vscode-tokens-styles';
@@ -198,19 +199,22 @@ export class TextMateService implements ITextMateService {
 				}
 			}
 		}
-		TokenizationRegistry.setColorMap([null, defaultForeground, defaultBackground]);
+		TokenizationRegistry.setColorMap([null!, defaultForeground, defaultBackground]);
 
 		this._modeService.onDidCreateMode((mode) => {
 			let modeId = mode.getId();
-			if (this._languageToScope.has(modeId)) {
-				this.registerDefinition(modeId);
-			}
+			// Modes can be instantiated before the extension points have finished registering
+			extensionService.whenInstalledExtensionsRegistered().then(() => {
+				if (this._languageToScope.has(modeId)) {
+					this.registerDefinition(modeId);
+				}
+			});
 		});
 	}
 
-	private _getOrCreateGrammarRegistry(): TPromise<[Registry, StackElement]> {
+	private _getOrCreateGrammarRegistry(): Promise<[Registry, StackElement]> {
 		if (!this._grammarRegistry) {
-			this._grammarRegistry = TPromise.wrap(import('vscode-textmate')).then(({ Registry, INITIAL, parseRawGrammar }) => {
+			this._grammarRegistry = import('vscode-textmate').then(({ Registry, INITIAL, parseRawGrammar }) => {
 				const grammarRegistry = new Registry({
 					loadGrammar: (scopeName: string) => {
 						const location = this._scopeRegistry.getGrammarLocation(scopeName);
@@ -226,7 +230,13 @@ export class TextMateService implements ITextMateService {
 						});
 					},
 					getInjections: (scopeName: string) => {
-						return this._injections[scopeName];
+						const scopeParts = scopeName.split('.');
+						let injections: string[] = [];
+						for (let i = 1; i <= scopeParts.length; i++) {
+							const subScopeName = scopeParts.slice(0, i).join('.');
+							injections = [...injections, ...this._injections[subScopeName]];
+						}
+						return injections;
 					}
 				});
 				this._updateTheme(grammarRegistry);
@@ -239,7 +249,7 @@ export class TextMateService implements ITextMateService {
 	}
 
 	private static _toColorMap(colorMap: string[]): Color[] {
-		let result: Color[] = [null];
+		let result: Color[] = [null!];
 		for (let i = 1, len = colorMap.length; i < len; i++) {
 			result[i] = Color.fromHex(colorMap[i]);
 		}
@@ -358,16 +368,16 @@ export class TextMateService implements ITextMateService {
 		return result;
 	}
 
-	public createGrammar(modeId: string): TPromise<IGrammar> {
+	public createGrammar(modeId: string): Promise<IGrammar> {
 		return this._createGrammar(modeId).then(r => r.grammar);
 	}
 
-	private _createGrammar(modeId: string): TPromise<ICreateGrammarResult> {
+	private _createGrammar(modeId: string): Promise<ICreateGrammarResult> {
 		let scopeName = this._languageToScope.get(modeId);
 		let languageRegistration = this._scopeRegistry.getLanguageRegistration(scopeName);
 		if (!languageRegistration) {
 			// No TM grammar defined
-			return TPromise.wrapError<ICreateGrammarResult>(new Error(nls.localize('no-tm-grammar', "No TM Grammar registered for this language.")));
+			return Promise.reject(new Error(nls.localize('no-tm-grammar', "No TM Grammar registered for this language.")));
 		}
 		let embeddedLanguages = this._resolveEmbeddedLanguages(languageRegistration.embeddedLanguages);
 		let rawInjectedEmbeddedLanguages = this._injectedEmbeddedLanguages[scopeName];
@@ -380,7 +390,7 @@ export class TextMateService implements ITextMateService {
 			}
 		}
 
-		let languageId = this._modeService.getLanguageIdentifier(modeId).id;
+		let languageId = this._modeService.getLanguageIdentifier(modeId)!.id;
 		let containsEmbeddedLanguages = (Object.keys(embeddedLanguages).length > 0);
 		return this._getOrCreateGrammarRegistry().then((_res) => {
 			const [grammarRegistry, initialState] = _res;

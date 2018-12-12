@@ -6,8 +6,7 @@
 import 'vs/css!./codelensWidget';
 import * as dom from 'vs/base/browser/dom';
 import { coalesce, isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { escape, format } from 'vs/base/common/strings';
+import { escape } from 'vs/base/common/strings';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
@@ -15,8 +14,6 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { Command, ICodeLensSymbol } from 'vs/editor/common/modes';
 import { editorCodeLensForeground } from 'vs/editor/common/view/editorColorRegistry';
 import { ICodeLensData } from 'vs/editor/contrib/codelens/codelens';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
@@ -60,7 +57,6 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 
 	private readonly _id: string;
 	private readonly _domNode: HTMLElement;
-	private readonly _disposables: IDisposable[] = [];
 	private readonly _editor: editorBrowser.ICodeEditor;
 
 	private _widgetPosition: editorBrowser.IContentWidgetPosition;
@@ -68,11 +64,8 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 
 	constructor(
 		editor: editorBrowser.ICodeEditor,
-		symbolRange: Range,
-		commandService: ICommandService,
-		notificationService: INotificationService
+		symbolRange: Range
 	) {
-
 		this._id = 'codeLensWidget' + (++CodeLensContentWidget._idPool);
 		this._editor = editor;
 
@@ -82,35 +75,16 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 		this._domNode.innerHTML = '&nbsp;';
 		dom.addClass(this._domNode, 'codelens-decoration');
 		dom.addClass(this._domNode, 'invisible-cl');
-		this._updateHeight();
-
-		this._disposables.push(this._editor.onDidChangeConfiguration(e => e.fontInfo && this._updateHeight()));
-
-		this._disposables.push(dom.addDisposableListener(this._domNode, 'click', e => {
-			let element = <HTMLElement>e.target;
-			if (element.tagName === 'A' && element.id) {
-				let command = this._commands[element.id];
-				if (command) {
-					editor.focus();
-					commandService.executeCommand(command.id, ...command.arguments).then(undefined, err => {
-						notificationService.error(err);
-					});
-				}
-			}
-		}));
-
+		this.updateHeight();
 		this.updateVisibility();
 	}
 
-	dispose(): void {
-		dispose(this._disposables);
-	}
-
-	private _updateHeight(): void {
+	updateHeight(): void {
 		const { fontInfo, lineHeight } = this._editor.getConfiguration();
 		this._domNode.style.height = `${Math.round(lineHeight * 1.1)}px`;
 		this._domNode.style.lineHeight = `${lineHeight}px`;
 		this._domNode.style.fontSize = `${Math.round(fontInfo.fontSize * .9)}px`;
+		this._domNode.style.paddingRight = `${Math.round(fontInfo.fontSize * .45)}px`;
 		this._domNode.innerHTML = '&nbsp;';
 	}
 
@@ -135,16 +109,22 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 			let title = escape(command.title);
 			let part: string;
 			if (command.id) {
-				part = format('<a id={0}>{1}</a>', i, title);
+				part = `<a id=${i}>${title}</a>`;
 				this._commands[i] = command;
 			} else {
-				part = format('<span>{0}</span>', title);
+				part = `<span>${title}</span>`;
 			}
 			html.push(part);
 		}
 
 		this._domNode.innerHTML = html.join('<span>&nbsp;|&nbsp;</span>');
 		this._editor.layoutContentWidget(this);
+	}
+
+	getCommand(link: HTMLLinkElement): Command | undefined {
+		return link.parentElement === this._domNode
+			? this._commands[link.id]
+			: undefined;
 	}
 
 	getId(): string {
@@ -220,8 +200,7 @@ export class CodeLens {
 		editor: editorBrowser.ICodeEditor,
 		helper: CodeLensHelper,
 		viewZoneChangeAccessor: editorBrowser.IViewZoneChangeAccessor,
-		commandService: ICommandService, notificationService: INotificationService,
-		updateCallabck: Function
+		updateCallback: Function
 	) {
 		this._editor = editor;
 		this._data = data;
@@ -243,8 +222,8 @@ export class CodeLens {
 			}
 		});
 
-		this._contentWidget = new CodeLensContentWidget(editor, range, commandService, notificationService);
-		this._viewZone = new CodeLensViewZone(range.startLineNumber - 1, updateCallabck);
+		this._contentWidget = new CodeLensContentWidget(editor, range);
+		this._viewZone = new CodeLensViewZone(range.startLineNumber - 1, updateCallback);
 
 		this._viewZoneId = viewZoneChangeAccessor.addZone(this._viewZone);
 		this._editor.addContentWidget(this._contentWidget);
@@ -258,8 +237,6 @@ export class CodeLens {
 			viewZoneChangeAccessor.removeZone(this._viewZoneId);
 		}
 		this._editor.removeContentWidget(this._contentWidget);
-
-		this._contentWidget.dispose();
 	}
 
 	isValid(): boolean {
@@ -299,6 +276,14 @@ export class CodeLens {
 
 	updateCommands(symbols: ICodeLensSymbol[]): void {
 		this._contentWidget.withCommands(symbols);
+	}
+
+	updateHeight(): void {
+		this._contentWidget.updateHeight();
+	}
+
+	getCommand(link: HTMLLinkElement): Command | undefined {
+		return this._contentWidget.getCommand(link);
 	}
 
 	getLineNumber(): number {

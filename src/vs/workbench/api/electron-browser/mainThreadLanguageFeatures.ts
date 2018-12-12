@@ -148,10 +148,18 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	// --- declaration
 
-	$registerDeclaractionSupport(handle: number, selector: ISerializedDocumentFilter[]): void {
+	$registerDefinitionSupport(handle: number, selector: ISerializedDocumentFilter[]): void {
 		this._registrations[handle] = modes.DefinitionProviderRegistry.register(typeConverters.LanguageSelector.from(selector), <modes.DefinitionProvider>{
 			provideDefinition: (model, position, token): Thenable<modes.DefinitionLink[]> => {
 				return this._proxy.$provideDefinition(handle, model.uri, position, token).then(MainThreadLanguageFeatures._reviveDefinitionLinkDto);
+			}
+		});
+	}
+
+	$registerDeclarationSupport(handle: number, selector: ISerializedDocumentFilter[]): void {
+		this._registrations[handle] = modes.DeclarationProviderRegistry.register(typeConverters.LanguageSelector.from(selector), <modes.DeclarationProvider>{
+			provideDeclaration: (model, position, token) => {
+				return this._proxy.$provideDeclaration(handle, model.uri, position, token).then(MainThreadLanguageFeatures._reviveDefinitionLinkDto);
 			}
 		});
 	}
@@ -367,6 +375,16 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		this._registrations[handle] = modes.FoldingRangeProviderRegistry.register(typeConverters.LanguageSelector.from(selector), <modes.FoldingRangeProvider>{
 			provideFoldingRanges: (model, context, token) => {
 				return proxy.$provideFoldingRanges(handle, model.uri, context, token);
+			}
+		});
+	}
+
+	// -- smart select
+
+	$registerSelectionRangeProvider(handle: number, selector: ISerializedDocumentFilter[]): void {
+		this._registrations[handle] = modes.SelectionRangeRegistry.register(typeConverters.LanguageSelector.from(selector), {
+			provideSelectionRanges: (model, position, token) => {
+				return this._proxy.$provideSelectionRanges(handle, model.uri, position, token);
 			}
 		});
 	}

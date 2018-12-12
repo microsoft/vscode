@@ -6,14 +6,13 @@
 import * as assert from 'assert';
 import * as errors from 'vs/base/common/errors';
 import * as objects from 'vs/base/common/objects';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { CacheState } from 'vs/workbench/parts/search/browser/openFileHandler';
-import { DeferredTPromise } from 'vs/base/test/common/utils';
+import { DeferredPromise } from 'vs/base/test/common/utils';
 import { QueryType, IFileQuery } from 'vs/platform/search/common/search';
 
 suite('CacheState', () => {
 
-	test('reuse old cacheKey until new cache is loaded', function () {
+	test('reuse old cacheKey until new cache is loaded', async function () {
 
 		const cache = new MockCache();
 
@@ -26,7 +25,7 @@ suite('CacheState', () => {
 		assert.strictEqual(first.isLoaded, false);
 		assert.strictEqual(first.isUpdating, true);
 
-		cache.loading[firstKey].complete(null);
+		await cache.loading[firstKey].complete(null);
 		assert.strictEqual(first.isLoaded, true);
 		assert.strictEqual(first.isUpdating, false);
 
@@ -34,18 +33,18 @@ suite('CacheState', () => {
 		second.load();
 		assert.strictEqual(second.isLoaded, true);
 		assert.strictEqual(second.isUpdating, true);
-		assert.strictEqual(Object.keys(cache.disposing).length, 0);
+		await cache.awaitDisposal(0);
 		assert.strictEqual(second.cacheKey, firstKey); // still using old cacheKey
 
 		const secondKey = cache.cacheKeys[1];
-		cache.loading[secondKey].complete(null);
+		await cache.loading[secondKey].complete(null);
 		assert.strictEqual(second.isLoaded, true);
 		assert.strictEqual(second.isUpdating, false);
-		assert.strictEqual(Object.keys(cache.disposing).length, 1);
+		await cache.awaitDisposal(1);
 		assert.strictEqual(second.cacheKey, secondKey);
 	});
 
-	test('do not spawn additional load if previous is still loading', function () {
+	test('do not spawn additional load if previous is still loading', async function () {
 
 		const cache = new MockCache();
 
@@ -64,29 +63,29 @@ suite('CacheState', () => {
 		assert.strictEqual(Object.keys(cache.loading).length, 1); // still only one loading
 		assert.strictEqual(second.cacheKey, firstKey);
 
-		cache.loading[firstKey].complete(null);
+		await cache.loading[firstKey].complete(null);
 		assert.strictEqual(second.isLoaded, true);
 		assert.strictEqual(second.isUpdating, false);
-		assert.strictEqual(Object.keys(cache.disposing).length, 0);
+		await cache.awaitDisposal(0);
 	});
 
-	test('do not use previous cacheKey if query changed', function () {
+	test('do not use previous cacheKey if query changed', async function () {
 
 		const cache = new MockCache();
 
 		const first = createCacheState(cache);
 		const firstKey = first.cacheKey;
 		first.load();
-		cache.loading[firstKey].complete(null);
+		await cache.loading[firstKey].complete(null);
 		assert.strictEqual(first.isLoaded, true);
 		assert.strictEqual(first.isUpdating, false);
-		assert.strictEqual(Object.keys(cache.disposing).length, 0);
+		await cache.awaitDisposal(0);
 
 		cache.baseQuery.excludePattern = { '**/node_modules': true };
 		const second = createCacheState(cache, first);
 		assert.strictEqual(second.isLoaded, false);
 		assert.strictEqual(second.isUpdating, false);
-		assert.strictEqual(Object.keys(cache.disposing).length, 1);
+		await cache.awaitDisposal(1);
 
 		second.load();
 		assert.strictEqual(second.isLoaded, false);
@@ -95,40 +94,40 @@ suite('CacheState', () => {
 		const secondKey = cache.cacheKeys[1];
 		assert.strictEqual(second.cacheKey, secondKey);
 
-		cache.loading[secondKey].complete(null);
+		await cache.loading[secondKey].complete(null);
 		assert.strictEqual(second.isLoaded, true);
 		assert.strictEqual(second.isUpdating, false);
-		assert.strictEqual(Object.keys(cache.disposing).length, 1);
+		await cache.awaitDisposal(1);
 	});
 
-	test('dispose propagates', function () {
+	test('dispose propagates', async function () {
 
 		const cache = new MockCache();
 
 		const first = createCacheState(cache);
 		const firstKey = first.cacheKey;
 		first.load();
-		cache.loading[firstKey].complete(null);
+		await cache.loading[firstKey].complete(null);
 		const second = createCacheState(cache, first);
 		assert.strictEqual(second.isLoaded, true);
 		assert.strictEqual(second.isUpdating, false);
-		assert.strictEqual(Object.keys(cache.disposing).length, 0);
+		await cache.awaitDisposal(0);
 
 		second.dispose();
 		assert.strictEqual(second.isLoaded, false);
 		assert.strictEqual(second.isUpdating, false);
-		assert.strictEqual(Object.keys(cache.disposing).length, 1);
+		await cache.awaitDisposal(1);
 		assert.ok(cache.disposing[firstKey]);
 	});
 
-	test('keep using old cacheKey when loading fails', function () {
+	test('keep using old cacheKey when loading fails', async function () {
 
 		const cache = new MockCache();
 
 		const first = createCacheState(cache);
 		const firstKey = first.cacheKey;
 		first.load();
-		cache.loading[firstKey].complete(null);
+		await cache.loading[firstKey].complete(null);
 
 		const second = createCacheState(cache, first);
 		second.load();
@@ -136,14 +135,14 @@ suite('CacheState', () => {
 		const origErrorHandler = errors.errorHandler.getUnexpectedErrorHandler();
 		try {
 			errors.setUnexpectedErrorHandler(() => null);
-			cache.loading[secondKey].error('loading failed');
+			await cache.loading[secondKey].error('loading failed');
 		} finally {
 			errors.setUnexpectedErrorHandler(origErrorHandler);
 		}
 		assert.strictEqual(second.isLoaded, true);
 		assert.strictEqual(second.isUpdating, false);
 		assert.strictEqual(Object.keys(cache.loading).length, 2);
-		assert.strictEqual(Object.keys(cache.disposing).length, 0);
+		await cache.awaitDisposal(0);
 		assert.strictEqual(second.cacheKey, firstKey); // keep using old cacheKey
 
 		const third = createCacheState(cache, second);
@@ -151,15 +150,15 @@ suite('CacheState', () => {
 		assert.strictEqual(third.isLoaded, true);
 		assert.strictEqual(third.isUpdating, true);
 		assert.strictEqual(Object.keys(cache.loading).length, 3);
-		assert.strictEqual(Object.keys(cache.disposing).length, 0);
+		await cache.awaitDisposal(0);
 		assert.strictEqual(third.cacheKey, firstKey);
 
 		const thirdKey = cache.cacheKeys[2];
-		cache.loading[thirdKey].complete(null);
+		await cache.loading[thirdKey].complete(null);
 		assert.strictEqual(third.isLoaded, true);
 		assert.strictEqual(third.isUpdating, false);
 		assert.strictEqual(Object.keys(cache.loading).length, 3);
-		assert.strictEqual(Object.keys(cache.disposing).length, 2);
+		await cache.awaitDisposal(2);
 		assert.strictEqual(third.cacheKey, thirdKey); // recover with next successful load
 	});
 
@@ -175,8 +174,10 @@ suite('CacheState', () => {
 	class MockCache {
 
 		public cacheKeys: string[] = [];
-		public loading: { [cacheKey: string]: DeferredTPromise<any> } = {};
-		public disposing: { [cacheKey: string]: DeferredTPromise<void> } = {};
+		public loading: { [cacheKey: string]: DeferredPromise<any> } = {};
+		public disposing: { [cacheKey: string]: DeferredPromise<void> } = {};
+
+		private _awaitDisposal: (() => void)[][] = [];
 
 		public baseQuery: IFileQuery = {
 			type: QueryType.File
@@ -187,16 +188,31 @@ suite('CacheState', () => {
 			return objects.assign({ cacheKey: cacheKey }, this.baseQuery);
 		}
 
-		public load(query: IFileQuery): TPromise<any> {
-			const promise = new DeferredTPromise<any>();
+		public load(query: IFileQuery): Promise<any> {
+			const promise = new DeferredPromise<any>();
 			this.loading[query.cacheKey] = promise;
-			return promise;
+			return promise.p;
 		}
 
-		public dispose(cacheKey: string): TPromise<void> {
-			const promise = new DeferredTPromise<void>();
+		public dispose(cacheKey: string): Promise<void> {
+			const promise = new DeferredPromise<void>();
 			this.disposing[cacheKey] = promise;
-			return promise;
+			const n = Object.keys(this.disposing).length;
+			for (const done of this._awaitDisposal[n] || []) {
+				done();
+			}
+			delete this._awaitDisposal[n];
+			return promise.p;
+		}
+
+		public awaitDisposal(n: number) {
+			return new Promise(resolve => {
+				if (n === Object.keys(this.disposing).length) {
+					resolve();
+				} else {
+					(this._awaitDisposal[n] || (this._awaitDisposal[n] = [])).push(resolve);
+				}
+			});
 		}
 	}
 });

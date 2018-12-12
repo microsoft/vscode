@@ -422,6 +422,7 @@ suite('window namespace tests', () => {
 			canPickMany: true
 		});
 		const first = new Promise(resolve => resolves.push(resolve));
+		await new Promise(resolve => setTimeout(resolve, 10)); // Allow UI to update.
 		await commands.executeCommand('workbench.action.quickOpenSelectNext');
 		assert.equal(await first, 'eins');
 		await commands.executeCommand('workbench.action.quickPickManyToggle');
@@ -520,6 +521,7 @@ suite('window namespace tests', () => {
 	test('showWorkspaceFolderPick', async function () {
 		const p = window.showWorkspaceFolderPick(undefined);
 
+		await timeout(10);
 		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
 		try {
 			await p;
@@ -696,3 +698,7 @@ suite('window namespace tests', () => {
 		});
 	});
 });
+
+async function timeout(ms = 0): Promise<void> {
+	return new Promise<void>(resolve => setTimeout(() => resolve(), ms));
+}

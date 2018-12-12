@@ -300,6 +300,7 @@ configurationRegistry.registerConfiguration({
 				'workbench.action.tasks.build',
 				'workbench.action.tasks.restartTask',
 				'workbench.action.tasks.runTask',
+				'workbench.action.tasks.reRunTask',
 				'workbench.action.tasks.showLog',
 				'workbench.action.tasks.showTasks',
 				'workbench.action.tasks.terminate',
@@ -321,6 +322,10 @@ configurationRegistry.registerConfiguration({
 				'workbench.action.focusSixthEditorGroup',
 				'workbench.action.focusSeventhEditorGroup',
 				'workbench.action.focusEighthEditorGroup',
+				'workbench.action.nextPanelView',
+				'workbench.action.previousPanelView',
+				'workbench.action.nextSideBarView',
+				'workbench.action.previousSideBarView',
 				debugActions.StartAction.ID,
 				debugActions.StopAction.ID,
 				debugActions.RunAction.ID,
@@ -379,18 +384,18 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('terminal.integrated.experimentalBufferImpl', "Controls the terminal's internal buffer implementation. This setting is picked up on terminal creation and will not apply to existing terminals."),
 			type: 'string',
 			enum: ['JsArray', 'TypedArray'],
-			default: 'JsArray'
+			default: 'TypedArray'
 		},
 		'terminal.integrated.splitCwd': {
-			description: nls.localize('terminal.integrated.splitCwd', "Controls the source of the starting cwd for terminals created by splitting."),
+			description: nls.localize('terminal.integrated.splitCwd', "Controls the working directory a split terminal starts with."),
 			type: 'string',
-			enum: ['workspaceRoot', 'sourceInitialCwd', 'sourceCwd'],
+			enum: ['workspaceRoot', 'initial', 'inherited'],
 			enumDescriptions: [
-				nls.localize('terminal.integrated.splitCwd.workspaceRoot', "A new split terminal will use the workspace root as the cwd."),
-				nls.localize('terminal.integrated.splitCwd.sourceInitialCwd', "A new split terminal will use the cwd that the parent terminal started with."),
-				nls.localize('terminal.integrated.splitCwd.sourceCwd', "On macOS and Linux, a new split terminal will use the cwd of the parent terminal. On Windows, this behaves the same as sourceInitialCwd."),
+				nls.localize('terminal.integrated.splitCwd.workspaceRoot', "A new split terminal will use the workspace root as the working directory. In a multi-root workspace a choice for which root folder to use is offered."),
+				nls.localize('terminal.integrated.splitCwd.initial', "A new split terminal will use the working directory that the parent terminal started with."),
+				nls.localize('terminal.integrated.splitCwd.inherited', "On macOS and Linux, a new split terminal will use the working directory of the parent terminal. On Windows, this behaves the same as initial."),
 			],
-			default: 'sourceCwd'
+			default: 'inherited'
 		},
 	}
 });

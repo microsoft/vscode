@@ -10,7 +10,8 @@ export const IStateService = createDecorator<IStateService>('stateService');
 export interface IStateService {
 	_serviceBrand: any;
 
-	getItem<T>(key: string, defaultValue?: T): T;
+	getItem<T>(key: string, defaultValue: T): T;
+	getItem<T>(key: string, defaultValue?: T): T | undefined;
 	setItem(key: string, data: any): void;
 	removeItem(key: string): void;
 }

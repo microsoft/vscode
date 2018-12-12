@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import * as platform from 'vs/base/common/platform';
 import * as touch from 'vs/base/browser/touch';
@@ -190,9 +189,9 @@ export class DefaultController implements _.IController {
 
 			if (this.shouldToggleExpansion(element, event, origin)) {
 				if (tree.isExpanded(element)) {
-					tree.collapse(element).then(null, errors.onUnexpectedError);
+					tree.collapse(element).then(void 0, errors.onUnexpectedError);
 				} else {
-					tree.expand(element).then(null, errors.onUnexpectedError);
+					tree.expand(element).then(void 0, errors.onUnexpectedError);
 				}
 			}
 		}
@@ -282,7 +281,7 @@ export class DefaultController implements _.IController {
 			tree.clearHighlight(payload);
 		} else {
 			tree.focusPrevious(1, payload);
-			tree.reveal(tree.getFocus()).then(null, errors.onUnexpectedError);
+			tree.reveal(tree.getFocus()).then(void 0, errors.onUnexpectedError);
 		}
 		return true;
 	}
@@ -294,7 +293,7 @@ export class DefaultController implements _.IController {
 			tree.clearHighlight(payload);
 		} else {
 			tree.focusPreviousPage(payload);
-			tree.reveal(tree.getFocus()).then(null, errors.onUnexpectedError);
+			tree.reveal(tree.getFocus()).then(void 0, errors.onUnexpectedError);
 		}
 		return true;
 	}
@@ -306,7 +305,7 @@ export class DefaultController implements _.IController {
 			tree.clearHighlight(payload);
 		} else {
 			tree.focusNext(1, payload);
-			tree.reveal(tree.getFocus()).then(null, errors.onUnexpectedError);
+			tree.reveal(tree.getFocus()).then(void 0, errors.onUnexpectedError);
 		}
 		return true;
 	}
@@ -318,7 +317,7 @@ export class DefaultController implements _.IController {
 			tree.clearHighlight(payload);
 		} else {
 			tree.focusNextPage(payload);
-			tree.reveal(tree.getFocus()).then(null, errors.onUnexpectedError);
+			tree.reveal(tree.getFocus()).then(void 0, errors.onUnexpectedError);
 		}
 		return true;
 	}
@@ -330,7 +329,7 @@ export class DefaultController implements _.IController {
 			tree.clearHighlight(payload);
 		} else {
 			tree.focusFirst(payload);
-			tree.reveal(tree.getFocus()).then(null, errors.onUnexpectedError);
+			tree.reveal(tree.getFocus()).then(void 0, errors.onUnexpectedError);
 		}
 		return true;
 	}
@@ -342,7 +341,7 @@ export class DefaultController implements _.IController {
 			tree.clearHighlight(payload);
 		} else {
 			tree.focusLast(payload);
-			tree.reveal(tree.getFocus()).then(null, errors.onUnexpectedError);
+			tree.reveal(tree.getFocus()).then(void 0, errors.onUnexpectedError);
 		}
 		return true;
 	}
@@ -360,7 +359,7 @@ export class DefaultController implements _.IController {
 					return tree.reveal(tree.getFocus());
 				}
 				return undefined;
-			}).then(null, errors.onUnexpectedError);
+			}).then(void 0, errors.onUnexpectedError);
 		}
 		return true;
 	}
@@ -378,7 +377,7 @@ export class DefaultController implements _.IController {
 					return tree.reveal(tree.getFocus());
 				}
 				return undefined;
-			}).then(null, errors.onUnexpectedError);
+			}).then(void 0, errors.onUnexpectedError);
 		}
 		return true;
 	}
@@ -556,9 +555,9 @@ export class CollapseAllAction extends Action {
 		super('vs.tree.collapse', nls.localize('collapse', "Collapse"), 'monaco-tree-action collapse-all', enabled);
 	}
 
-	public run(context?: any): TPromise<any> {
+	public run(context?: any): Thenable<any> {
 		if (this.viewer.getHighlight()) {
-			return TPromise.as(null); // Global action disabled if user is in edit mode from another action
+			return Promise.resolve(); // Global action disabled if user is in edit mode from another action
 		}
 
 		this.viewer.collapseAll();
@@ -567,6 +566,6 @@ export class CollapseAllAction extends Action {
 		this.viewer.domFocus();
 		this.viewer.focusFirst();
 
-		return TPromise.as(null);
+		return Promise.resolve();
 	}
 }

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IAction, Action } from 'vs/base/common/actions';
@@ -22,6 +21,7 @@ import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/commo
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { LogViewerInput } from 'vs/workbench/parts/output/browser/logViewer';
+import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 
 export class ToggleOutputAction extends TogglePanelAction {
 
@@ -49,11 +49,11 @@ export class ClearOutputAction extends Action {
 		super(id, label, 'output-action clear-output');
 	}
 
-	public run(): TPromise<boolean> {
+	public run(): Promise<boolean> {
 		this.outputService.getActiveChannel().clear();
 		aria.status(nls.localize('outputCleared', "Output was cleared"));
 
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 }
 
@@ -70,14 +70,14 @@ export class ToggleOutputScrollLockAction extends Action {
 		this.toDispose.push(this.outputService.onActiveOutputChannel(channel => this.setClass(this.outputService.getActiveChannel().scrollLock)));
 	}
 
-	public run(): TPromise<boolean> {
+	public run(): Promise<boolean> {
 		const activeChannel = this.outputService.getActiveChannel();
 		if (activeChannel) {
 			activeChannel.scrollLock = !activeChannel.scrollLock;
 			this.setClass(activeChannel.scrollLock);
 		}
 
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 
 	private setClass(locked: boolean) {
@@ -104,7 +104,7 @@ export class SwitchOutputAction extends Action {
 		this.class = 'output-action switch-to-output';
 	}
 
-	public run(channelId?: string): TPromise<any> {
+	public run(channelId?: string): Thenable<any> {
 		return this.outputService.showChannel(channelId);
 	}
 }
@@ -161,7 +161,7 @@ export class SwitchOutputActionItem extends SelectActionItem {
 				selected = logChannelIndex !== -1 ? separatorIndex + 1 + logChannelIndex : 0;
 			}
 		}
-		this.setOptions(options, Math.max(0, selected), separatorIndex !== -1 ? separatorIndex : void 0);
+		this.setOptions(options.map((label, index) => <ISelectOptionItem>{ text: label, isDisabled: (index === separatorIndex ? true : undefined) }), Math.max(0, selected));
 	}
 }
 
@@ -187,8 +187,8 @@ export class OpenLogOutputFile extends Action {
 		this.enabled = outputChannelDescriptor && outputChannelDescriptor.file && outputChannelDescriptor.log;
 	}
 
-	public run(): TPromise<any> {
-		return this.enabled ? this.editorService.openEditor(this.instantiationService.createInstance(LogViewerInput, this.getOutputChannelDescriptor())).then(() => null) : TPromise.as(null);
+	public run(): Thenable<any> {
+		return this.enabled ? this.editorService.openEditor(this.instantiationService.createInstance(LogViewerInput, this.getOutputChannelDescriptor())).then(() => null) : Promise.resolve(null);
 	}
 
 	private getOutputChannelDescriptor(): IOutputChannelDescriptor {
@@ -209,7 +209,7 @@ export class ShowLogsOutputChannelAction extends Action {
 		super(id, label);
 	}
 
-	run(): TPromise<void> {
+	run(): Thenable<void> {
 		const entries: IQuickPickItem[] = this.outputService.getChannelDescriptors().filter(c => c.file && c.log)
 			.map(({ id, label }) => (<IQuickPickItem>{ id, label }));
 
@@ -241,7 +241,7 @@ export class OpenOutputLogFileAction extends Action {
 		super(id, label);
 	}
 
-	run(): TPromise<void> {
+	run(): Thenable<void> {
 		const entries: IOutputChannelQuickPickItem[] = this.outputService.getChannelDescriptors().filter(c => c.file && c.log)
 			.map(channel => (<IOutputChannelQuickPickItem>{ id: channel.id, label: channel.label, channel }));
 
