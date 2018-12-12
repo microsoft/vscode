@@ -651,7 +651,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// we do not want to trigger another auto save or similar, so we block this
 		// In addition we update our version right after in case it changed because of a model change
 		// Save participants can also be skipped through API.
-		let saveParticipantPromise = TPromise.as(versionId);
+		let saveParticipantPromise: Thenable<number> = Promise.resolve(versionId);
 		if (TextFileEditorModel.saveParticipant && !options.skipSaveParticipants) {
 			const onCompleteOrError = () => {
 				this.blockModelContentChange = false;
