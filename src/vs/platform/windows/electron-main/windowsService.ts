@@ -87,19 +87,19 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 	async showMessageBox(windowId: number, options: Electron.MessageBoxOptions): Promise<IMessageBoxResult> {
 		this.logService.trace('windowsService#showMessageBox', windowId);
 
-		return this.withWindow(windowId, codeWindow => this.windowsMainService.showMessageBox(options, codeWindow), () => this.windowsMainService.showMessageBox(options));
+		return this.withWindow(windowId, codeWindow => this.windowsMainService.showMessageBox(options, codeWindow), () => this.windowsMainService.showMessageBox(options))!;
 	}
 
 	async showSaveDialog(windowId: number, options: Electron.SaveDialogOptions): Promise<string> {
 		this.logService.trace('windowsService#showSaveDialog', windowId);
 
-		return this.withWindow(windowId, codeWindow => this.windowsMainService.showSaveDialog(options, codeWindow), () => this.windowsMainService.showSaveDialog(options));
+		return this.withWindow(windowId, codeWindow => this.windowsMainService.showSaveDialog(options, codeWindow), () => this.windowsMainService.showSaveDialog(options))!;
 	}
 
 	async showOpenDialog(windowId: number, options: Electron.OpenDialogOptions): Promise<string[]> {
 		this.logService.trace('windowsService#showOpenDialog', windowId);
 
-		return this.withWindow(windowId, codeWindow => this.windowsMainService.showOpenDialog(options, codeWindow), () => this.windowsMainService.showOpenDialog(options));
+		return this.withWindow(windowId, codeWindow => this.windowsMainService.showOpenDialog(options, codeWindow), () => this.windowsMainService.showOpenDialog(options))!;
 	}
 
 	async reloadWindow(windowId: number, args: ParsedArgs): TPromise<void> {
@@ -190,7 +190,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 	async getRecentlyOpened(windowId: number): TPromise<IRecentlyOpened> {
 		this.logService.trace('windowsService#getRecentlyOpened', windowId);
 
-		return this.withWindow(windowId, codeWindow => this.historyService.getRecentlyOpened(codeWindow.config.workspace || codeWindow.config.folderUri, codeWindow.config.filesToOpen), () => this.historyService.getRecentlyOpened());
+		return this.withWindow(windowId, codeWindow => this.historyService.getRecentlyOpened(codeWindow.config.workspace || codeWindow.config.folderUri, codeWindow.config.filesToOpen), () => this.historyService.getRecentlyOpened())!;
 	}
 
 	async newWindowTab(): TPromise<void> {
@@ -244,13 +244,13 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 	async isFocused(windowId: number): TPromise<boolean> {
 		this.logService.trace('windowsService#isFocused', windowId);
 
-		return this.withWindow(windowId, codeWindow => codeWindow.win.isFocused(), () => false);
+		return this.withWindow(windowId, codeWindow => codeWindow.win.isFocused(), () => false)!;
 	}
 
 	async isMaximized(windowId: number): TPromise<boolean> {
 		this.logService.trace('windowsService#isMaximized', windowId);
 
-		return this.withWindow(windowId, codeWindow => codeWindow.win.isMaximized(), () => false);
+		return this.withWindow(windowId, codeWindow => codeWindow.win.isMaximized(), () => false)!;
 	}
 
 	async maximizeWindow(windowId: number): TPromise<void> {
@@ -457,7 +457,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		});
 	}
 
-	private withWindow<T>(windowId: number, fn: (window: ICodeWindow) => T, fallback?: () => T): T {
+	private withWindow<T>(windowId: number, fn: (window: ICodeWindow) => T, fallback?: () => T): T | undefined {
 		const codeWindow = this.windowsMainService.getWindowById(windowId);
 		if (codeWindow) {
 			return fn(codeWindow);
