@@ -1054,7 +1054,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 	private collectVariables(variables: Set<string>, value: string | CommandString): void {
 		let string: string = Types.isString(value) ? value : value.value;
 		let r = /\$\{(.*?)\}/g;
-		let matches: RegExpExecArray;
+		let matches: RegExpExecArray | null;
 		do {
 			matches = r.exec(string);
 			if (matches) {
