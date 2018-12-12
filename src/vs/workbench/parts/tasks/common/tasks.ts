@@ -109,6 +109,10 @@ export interface CommandOptions {
 	env?: { [key: string]: string; };
 }
 
+export namespace CommandOptions {
+	export const defaults: CommandOptions = { cwd: '${workspaceFolder}' };
+}
+
 export enum RevealKind {
 	/**
 	 * Always brings the terminal to front if the task is executed.
@@ -210,6 +214,12 @@ export interface PresentationOptions {
 	 * Controls whether to clear the terminal before executing the task.
 	 */
 	clear: boolean;
+}
+
+export namespace PresentationOptions {
+	export const defaults: PresentationOptions = {
+		echo: true, reveal: RevealKind.Always, focus: false, panel: PanelKind.Shared, showReuseMessage: true, clear: false
+	};
 }
 
 export enum RuntimeType {
@@ -430,6 +440,11 @@ export interface RunOptions {
 	reevaluateOnRerun?: boolean;
 	runOn?: RunOnOptions;
 }
+
+export namespace RunOptions {
+	export const defaults: RunOptions = { reevaluateOnRerun: true, runOn: RunOnOptions.default };
+}
+
 export interface CommonTask {
 
 	/**
