@@ -125,8 +125,8 @@ export class CallStackView extends ViewletPanel {
 						return element.getId();
 					}
 				},
-				typeLabelProvider: {
-					getTypeLabel: e => {
+				keyboardNavigationLabelProvider: {
+					getKeyboardNavigationLabel: e => {
 						if (e instanceof DebugSession) {
 							return e.getLabel();
 						}

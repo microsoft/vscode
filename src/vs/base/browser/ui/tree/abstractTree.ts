@@ -35,9 +35,9 @@ function asListOptions<T, TFilterData>(options?: IAbstractTreeOptions<T, TFilter
 				return options.accessibilityProvider!.getAriaLabel(e.element);
 			}
 		},
-		typeLabelProvider: options.typeLabelProvider && {
-			getTypeLabel(e) {
-				return options.typeLabelProvider!.getTypeLabel(e.element);
+		keyboardNavigationLabelProvider: options.keyboardNavigationLabelProvider && {
+			getKeyboardNavigationLabel(e) {
+				return options.keyboardNavigationLabelProvider!.getKeyboardNavigationLabel(e.element);
 			}
 		}
 	};

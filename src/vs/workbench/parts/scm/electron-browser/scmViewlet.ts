@@ -13,7 +13,7 @@ import { PanelViewlet, ViewletPanel, IViewletPanelOptions } from 'vs/workbench/b
 import { append, $, addClass, toggleClass, trackFocus, Dimension, addDisposableListener, removeClass } from 'vs/base/browser/dom';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
-import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListEvent, ITypeLabelProvider, IIdentityProvider } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListEvent, IKeyboardNavigationLabelProvider, IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { VIEWLET_ID, VIEW_CONTAINER } from 'vs/workbench/parts/scm/common/scm';
 import { FileLabel } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
@@ -566,8 +566,8 @@ const scmResourceIdentityProvider = new class implements IIdentityProvider<ISCMR
 	}
 };
 
-const scmTypeLabelProvider = new class implements ITypeLabelProvider<ISCMResourceGroup | ISCMResource> {
-	getTypeLabel(e: ISCMResourceGroup | ISCMResource) {
+const scmKeyboardNavigationLabelProvider = new class implements IKeyboardNavigationLabelProvider<ISCMResourceGroup | ISCMResource> {
+	getKeyboardNavigationLabel(e: ISCMResourceGroup | ISCMResource) {
 		if (isSCMResource(e)) {
 			return basename(e.sourceUri.fsPath);
 		} else {
@@ -876,7 +876,7 @@ export class RepositoryPanel extends ViewletPanel {
 
 		this.list = this.instantiationService.createInstance(WorkbenchList, this.listContainer, delegate, renderers, {
 			identityProvider: scmResourceIdentityProvider,
-			typeLabelProvider: scmTypeLabelProvider
+			keyboardNavigationLabelProvider: scmKeyboardNavigationLabelProvider
 		}) as WorkbenchList<ISCMResourceGroup | ISCMResource>;
 
 		Event.chain(this.list.onOpen)

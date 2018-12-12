@@ -57,8 +57,8 @@ export interface IIdentityProvider<T> {
 	getId(element: T): { toString(): string; };
 }
 
-export interface ITypeLabelProvider<T> {
-	getTypeLabel(element: T): { toString(): string; };
+export interface IKeyboardNavigationLabelProvider<T> {
+	getKeyboardNavigationLabel(element: T): { toString(): string; };
 	mightProducePrintableCharacter?(event: IKeyboardEvent): boolean;
 }
 

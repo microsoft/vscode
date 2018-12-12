@@ -16,7 +16,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Event, Emitter, EventBufferer } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
-import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent, IIdentityProvider, ITypeLabelProvider } from './list';
+import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent, IIdentityProvider, IKeyboardNavigationLabelProvider } from './list';
 import { ListView, IListViewOptions } from './listView';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
@@ -342,11 +342,11 @@ class TypeLabelController<T> implements IDisposable {
 	constructor(
 		private list: List<T>,
 		private view: ListView<T>,
-		private typeLabelProvider: ITypeLabelProvider<T>
+		private keyboardNavigationLabelProvider: IKeyboardNavigationLabelProvider<T>
 	) {
 		const onChar = Event.chain(domEvent(view.domNode, 'keydown'))
 			.map(event => new StandardKeyboardEvent(event))
-			.filter(typeLabelProvider.mightProducePrintableCharacter ? e => typeLabelProvider.mightProducePrintableCharacter!(e) : e => TypeLabelController.mightProducePrintableCharacter(e))
+			.filter(keyboardNavigationLabelProvider.mightProducePrintableCharacter ? e => keyboardNavigationLabelProvider.mightProducePrintableCharacter!(e) : e => TypeLabelController.mightProducePrintableCharacter(e))
 			.map(event => event.browserEvent.key)
 			.event;
 
@@ -369,7 +369,7 @@ class TypeLabelController<T> implements IDisposable {
 
 		for (let i = 0; i < this.list.length; i++) {
 			const index = (start + i + delta) % this.list.length;
-			const label = this.typeLabelProvider.getTypeLabel(this.view.element(index));
+			const label = this.keyboardNavigationLabelProvider.getKeyboardNavigationLabel(this.view.element(index));
 
 			if (matchesPrefix(word, label.toString())) {
 				this.list.setFocus([index]);
@@ -724,7 +724,7 @@ export class DefaultStyleController implements IStyleController {
 
 export interface IListOptions<T> extends IListViewOptions, IListStyles {
 	identityProvider?: IIdentityProvider<T>;
-	typeLabelProvider?: ITypeLabelProvider<T>;
+	keyboardNavigationLabelProvider?: IKeyboardNavigationLabelProvider<T>;
 	ariaLabel?: string;
 	mouseSupport?: boolean;
 	selectOnMouseDown?: boolean;
@@ -1061,8 +1061,8 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 			this.disposables.push(controller);
 		}
 
-		if (options.typeLabelProvider) {
-			const controller = new TypeLabelController(this, this.view, options.typeLabelProvider);
+		if (options.keyboardNavigationLabelProvider) {
+			const controller = new TypeLabelController(this, this.view, options.keyboardNavigationLabelProvider);
 			this.disposables.push(controller);
 		}
 

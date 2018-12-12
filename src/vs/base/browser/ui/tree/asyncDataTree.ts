@@ -153,9 +153,9 @@ function asObjectTreeOptions<T, TFilterData>(options?: IAsyncDataTreeOptions<T, 
 				return options.filter!.filter(e.element!, parentVisibility);
 			}
 		},
-		typeLabelProvider: options.typeLabelProvider && {
-			getTypeLabel(e) {
-				return options.typeLabelProvider!.getTypeLabel(e.element!);
+		keyboardNavigationLabelProvider: options.keyboardNavigationLabelProvider && {
+			getKeyboardNavigationLabel(e) {
+				return options.keyboardNavigationLabelProvider!.getKeyboardNavigationLabel(e.element!);
 			}
 		}
 	};

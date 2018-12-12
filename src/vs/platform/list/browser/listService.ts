@@ -168,11 +168,11 @@ function toWorkbenchListOptions<T>(options: IListOptions<T>, configurationServic
 
 	options.openController = new WorkbenchOpenController(configurationService, options.openController);
 
-	if (options.typeLabelProvider) {
-		const tlp = options.typeLabelProvider;
+	if (options.keyboardNavigationLabelProvider) {
+		const tlp = options.keyboardNavigationLabelProvider;
 
-		options.typeLabelProvider = {
-			getTypeLabel(e) { return tlp.getTypeLabel(e); },
+		options.keyboardNavigationLabelProvider = {
+			getKeyboardNavigationLabel(e) { return tlp.getKeyboardNavigationLabel(e); },
 			mightProducePrintableCharacter(e) { return keybindingService.mightProducePrintableCharacter(e); }
 		};
 	}
