@@ -16,8 +16,8 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 import {
-	ContributedTask, ExtensionTaskSourceTransfer, KeyedTaskIdentifier, TaskExecution, Task, TaskEvent, TaskEventKind,
-	PresentationOptions, CommandOptions, CommandConfiguration, RuntimeType, CustomTask, TaskScope, TaskSource, TaskSourceKind, ExtensionTaskSource, RevealKind, PanelKind, RunOptions
+	ContributedTask, KeyedTaskIdentifier, TaskExecution, Task, TaskEvent, TaskEventKind,
+	PresentationOptions, CommandOptions, CommandConfiguration, RuntimeType, CustomTask, TaskScope, TaskSource, TaskSourceKind, ExtensionTaskSource, RunOptions, TaskSet
 } from 'vs/workbench/parts/tasks/common/tasks';
 
 
@@ -95,9 +95,9 @@ namespace TaskPresentationOptionsDTO {
 	}
 	export function to(value: TaskPresentationOptionsDTO): PresentationOptions {
 		if (value === void 0 || value === null) {
-			return { reveal: RevealKind.Always, echo: true, focus: false, panel: PanelKind.Shared, showReuseMessage: true, clear: false };
+			return PresentationOptions.defaults;
 		}
-		return Objects.assign(Object.create(null), value);
+		return Objects.assign(Object.create(null), PresentationOptions.defaults, value);
 	}
 }
 
@@ -107,6 +107,12 @@ namespace RunOptionsDTO {
 			return undefined;
 		}
 		return Objects.assign(Object.create(null), value);
+	}
+	export function to(value: RunOptionsDTO): RunOptions {
+		if (value === void 0 || value === null) {
+			return RunOptions.defaults;
+		}
+		return Objects.assign(Object.create(null), RunOptions.defaults, value);
 	}
 }
 
@@ -122,10 +128,10 @@ namespace ProcessExecutionOptionsDTO {
 	}
 	export function to(value: ProcessExecutionOptionsDTO): CommandOptions {
 		if (value === void 0 || value === null) {
-			return undefined;
+			return CommandOptions.defaults;
 		}
 		return {
-			cwd: value.cwd,
+			cwd: value.cwd || CommandOptions.defaults.cwd,
 			env: value.env
 		};
 	}
@@ -155,9 +161,7 @@ namespace ProcessExecutionDTO {
 			args: value.args,
 			presentation: undefined
 		};
-		if (value.options) {
-			result.options = ProcessExecutionOptionsDTO.to(value.options);
-		}
+		result.options = ProcessExecutionOptionsDTO.to(value.options);
 		return result;
 	}
 }
@@ -168,7 +172,7 @@ namespace ShellExecutionOptionsDTO {
 			return undefined;
 		}
 		let result: ShellExecutionOptionsDTO = {
-			cwd: value.cwd,
+			cwd: value.cwd || CommandOptions.defaults.cwd,
 			env: value.env
 		};
 		if (value.shell) {
@@ -337,8 +341,6 @@ namespace TaskDTO {
 			return undefined;
 		}
 		command.presentation = TaskPresentationOptionsDTO.to(task.presentationOptions);
-		command.presentation = Objects.assign(command.presentation || ({} as PresentationOptions), { echo: true, reveal: RevealKind.Always, focus: false, panel: PanelKind.Shared });
-
 		let source = TaskSourceDTO.to(task.source, workspace);
 
 		let label = nls.localize('task.label', '{0}: {1}', source.label, task.name);
@@ -357,7 +359,7 @@ namespace TaskDTO {
 			isBackground: !!task.isBackground,
 			problemMatchers: task.problemMatchers.slice(),
 			hasDefinedMatchers: task.hasDefinedMatchers,
-			runOptions: task.runOptions,
+			runOptions: RunOptionsDTO.to(task.runOptions),
 		};
 		return result;
 	}
@@ -413,24 +415,18 @@ export class MainThreadTask implements MainThreadTaskShape {
 			provideTasks: (validTypes: IStringDictionary<boolean>) => {
 				return Promise.resolve(this._proxy.$provideTasks(handle, validTypes)).then((value) => {
 					let tasks: Task[] = [];
-					for (let task of value.tasks) {
-						let taskTransfer = task._source as any as ExtensionTaskSourceTransfer;
-						if (taskTransfer.__workspaceFolder !== void 0 && taskTransfer.__definition !== void 0) {
-							(task._source as any).workspaceFolder = this._workspaceContextServer.getWorkspaceFolder(URI.revive(taskTransfer.__workspaceFolder));
-							delete taskTransfer.__workspaceFolder;
-							let taskIdentifier = TaskDefinition.createTaskIdentifier(taskTransfer.__definition, console);
-							delete taskTransfer.__definition;
-							if (taskIdentifier !== void 0) {
-								(task as ContributedTask).defines = taskIdentifier;
-								task._id = `${task._id}.${taskIdentifier._key}`;
-								tasks.push(task);
-							}
+					for (let dto of value.tasks) {
+						let task = TaskDTO.to(dto, this._workspaceContextServer, true);
+						if (task) {
+							tasks.push(task);
 						} else {
-							console.warn(`Dropping task ${task.name}. Missing workspace folder and task definition`);
+							console.error(`Task System: can not convert task: ${JSON.stringify(dto.definition, undefined, 0)}. Task will be dropped`);
 						}
 					}
-					value.tasks = tasks;
-					return value;
+					return {
+						tasks,
+						extension: value.extension
+					} as TaskSet;
 				});
 			}
 		};
