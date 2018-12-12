@@ -495,7 +495,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			return this.fileService.resolveContent(workspaceConfig)
 				.then(content => {
 					if (Object.keys(parse(content.value)).indexOf('settings') === -1) {
-						return this.jsonEditingService.write(resource, { key: 'settings', value: {} }, true).then(null, () => { });
+						return this.jsonEditingService.write(resource, { key: 'settings', value: {} }, true).then(void 0, () => { });
 					}
 					return null;
 				});
@@ -504,9 +504,9 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	private createIfNotExists(resource: URI, contents: string): Thenable<any> {
-		return this.fileService.resolveContent(resource, { acceptTextOnly: true }).then(null, error => {
+		return this.fileService.resolveContent(resource, { acceptTextOnly: true }).then(void 0, error => {
 			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
-				return this.fileService.updateContent(resource, contents).then(null, error => {
+				return this.fileService.updateContent(resource, contents).then(void 0, error => {
 					return Promise.reject(new Error(nls.localize('fail.createSettings', "Unable to create '{0}' ({1}).", this.labelService.getUriLabel(resource, { relative: true }), error)));
 				});
 			}

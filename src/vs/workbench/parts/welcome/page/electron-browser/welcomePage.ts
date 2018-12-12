@@ -100,7 +100,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 					}
 				}
 				return undefined;
-			}).then(null, onUnexpectedError);
+			}).then(void 0, onUnexpectedError);
 		}
 	}
 }
@@ -373,7 +373,7 @@ class WelcomePage {
 
 				ul.insertBefore(li, before);
 			});
-		}).then(null, onUnexpectedError);
+		}).then(void 0, onUnexpectedError);
 
 		this.addExtensionList(container, '.extensionPackList', extensionPacks, extensionPackStrings);
 		this.addExtensionList(container, '.keymapList', keymapExtensions, keymapStrings);
@@ -520,7 +520,7 @@ class WelcomePage {
 										return undefined;
 									}
 								});
-							}).then(null, err => {
+							}).then(void 0, err => {
 								/* __GDPR__FRAGMENT__
 									"WelcomePageInstalled-4" : {
 										"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -553,11 +553,11 @@ class WelcomePage {
 						});
 						this.extensionsWorkbenchService.queryGallery({ names: [extensionSuggestion.id] })
 							.then(result => this.extensionsWorkbenchService.open(result.firstPage[0]))
-							.then(null, onUnexpectedError);
+							.then(void 0, onUnexpectedError);
 					}
 				}]
 			);
-		}).then(null, err => {
+		}).then(void 0, err => {
 			/* __GDPR__FRAGMENT__
 				"WelcomePageInstalled-6" : {
 					"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -594,7 +594,7 @@ class WelcomePage {
 						enabled[i].classList.add('installed');
 					}
 				});
-		}).then(null, onUnexpectedError);
+		}).then(void 0, onUnexpectedError);
 	}
 
 	dispose(): void {

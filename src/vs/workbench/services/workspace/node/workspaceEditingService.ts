@@ -214,7 +214,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 			}
 
 			return Promise.resolve(void 0);
-		}).then(null, error => {
+		}).then(void 0, error => {
 			if (!extensionHostStarted) {
 				startExtensionHost(); // start the extension host if not started
 			}

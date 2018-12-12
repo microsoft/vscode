@@ -53,7 +53,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 		backups.forEach(backup => {
 			const openedEditor = this.editorService.getOpened({ resource: backup });
 			if (openedEditor) {
-				restorePromises.push(openedEditor.resolve().then(null, () => unresolved.push(backup)));
+				restorePromises.push(openedEditor.resolve().then(void 0, () => unresolved.push(backup)));
 			} else {
 				unresolved.push(backup);
 			}

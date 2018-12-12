@@ -707,6 +707,6 @@ export class WorkspaceStats implements IWorkbenchContribution {
 					}
 				*/
 				this.telemetryService.publicLog('resolveProxy.stats', { type });
-			}).then(null, onUnexpectedError);
+			}).then(void 0, onUnexpectedError);
 	}
 }

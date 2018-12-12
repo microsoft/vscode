@@ -38,7 +38,7 @@ export class ConfigureLocaleAction extends Action {
 
 	public run(event?: any): Thenable<IEditor> {
 		const file = URI.file(join(this.environmentService.appSettingsHome, 'locale.json'));
-		return this.fileService.resolveFile(file).then(null, (error) => {
+		return this.fileService.resolveFile(file).then(void 0, (error) => {
 			return this.fileService.createFile(file, ConfigureLocaleAction.DEFAULT_CONTENT);
 		}).then((stat) => {
 			if (!stat) {

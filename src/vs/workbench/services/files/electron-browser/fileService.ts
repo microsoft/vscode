@@ -599,7 +599,7 @@ export class FileService extends Disposable implements IFileService {
 						return pfs.truncate(absolutePath, 0).then(() => {
 
 							// 5.) set contents (with r+ mode) and resolve
-							return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite, { flag: 'r+' }).then(null, error => {
+							return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite, { flag: 'r+' }).then(void 0, error => {
 								if (this.environmentService.verbose) {
 									console.error(`Truncate succeeded, but save failed (${error}), retrying after 100ms`);
 								}
@@ -622,7 +622,7 @@ export class FileService extends Disposable implements IFileService {
 					}
 				});
 			});
-		}).then(null, error => {
+		}).then(void 0, error => {
 			if (error.code === 'EACCES' || error.code === 'EPERM') {
 				return Promise.reject(new FileOperationError(
 					nls.localize('filePermission', "Permission denied writing to file ({0})", resource.toString(true)),
@@ -705,7 +705,7 @@ export class FileService extends Disposable implements IFileService {
 					});
 				});
 			});
-		}).then(null, error => {
+		}).then(void 0, error => {
 			if (this.environmentService.verbose) {
 				this.handleError(`Unable to write to file '${resource.toString(true)}' as elevated user (${error})`);
 			}

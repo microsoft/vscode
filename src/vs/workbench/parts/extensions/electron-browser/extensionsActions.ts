@@ -1168,7 +1168,7 @@ export class UpdateAllAction extends Action {
 	}
 
 	private install(extension: IExtension): Promise<void> {
-		return this.extensionsWorkbenchService.install(extension).then(null, err => {
+		return this.extensionsWorkbenchService.install(extension).then(void 0, err => {
 			if (!extension.gallery) {
 				return this.notificationService.error(err);
 			}
@@ -1553,7 +1553,7 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 					let model = new PagedModel(pager);
 					for (let i = 0; i < pager.total; i++) {
 						installPromises.push(model.resolve(i, CancellationToken.None).then(e => {
-							return this.extensionWorkbenchService.install(e).then(null, err => {
+							return this.extensionWorkbenchService.install(e).then(void 0, err => {
 								console.error(err);
 								return promptDownloadManually(e.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", e.id), err, this.instantiationService, this.notificationService, this.openerService);
 							});

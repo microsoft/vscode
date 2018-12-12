@@ -319,7 +319,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		// call deactivate if available
 		try {
 			if (typeof extension.module.deactivate === 'function') {
-				result = Promise.resolve(extension.module.deactivate()).then(null, (err) => {
+				result = Promise.resolve(extension.module.deactivate()).then(void 0, (err) => {
 					// TODO: Do something with err if this is not the shutdown case
 					return Promise.resolve(void 0);
 				});
@@ -465,7 +465,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 
 	// Handle "eager" activation extensions
 	private _handleEagerExtensions(): Promise<void> {
-		this._activateByEvent('*', true).then(null, (err) => {
+		this._activateByEvent('*', true).then(void 0, (err) => {
 			console.error(err);
 		});
 
@@ -522,7 +522,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 				// the file was found
 				return (
 					this._activateById(extensionId, new ExtensionActivatedByEvent(true, `workspaceContains:${fileName}`))
-						.then(null, err => console.error(err))
+						.then(void 0, err => console.error(err))
 				);
 			}
 		}
@@ -543,7 +543,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		const timer = setTimeout(async () => {
 			tokenSource.cancel();
 			this._activateById(extensionId, new ExtensionActivatedByEvent(true, `workspaceContainsTimeout:${globPatterns.join(',')}`))
-				.then(null, err => console.error(err));
+				.then(void 0, err => console.error(err));
 		}, ExtHostExtensionService.WORKSPACE_CONTAINS_TIMEOUT);
 
 		let exists: boolean;
@@ -562,7 +562,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 			// a file was found matching one of the glob patterns
 			return (
 				this._activateById(extensionId, new ExtensionActivatedByEvent(true, `workspaceContains:${globPatterns.join(',')}`))
-					.then(null, err => console.error(err))
+					.then(void 0, err => console.error(err))
 			);
 		}
 

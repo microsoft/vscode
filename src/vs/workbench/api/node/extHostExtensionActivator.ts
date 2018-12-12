@@ -341,7 +341,7 @@ export class ExtensionsActivator {
 			return this._activatingExtensions[extensionDescription.id];
 		}
 
-		this._activatingExtensions[extensionDescription.id] = this._host.actualActivateExtension(extensionDescription, reason).then(null, (err) => {
+		this._activatingExtensions[extensionDescription.id] = this._host.actualActivateExtension(extensionDescription, reason).then(void 0, (err) => {
 			this._host.showMessage(Severity.Error, nls.localize('activationError', "Activating extension '{0}' failed: {1}.", extensionDescription.id, err.message));
 			console.error('Activating extension `' + extensionDescription.id + '` failed: ', err.message);
 			console.log('Here is the error stack: ', err.stack);

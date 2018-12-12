@@ -538,7 +538,7 @@ export class ExtensionEditor extends BaseEditor {
 				this.contentDisposables.push(wbeviewElement);
 				return wbeviewElement;
 			})
-			.then(null, () => {
+			.then(void 0, () => {
 				const p = append(this.content, $('p.nocontent'));
 				p.textContent = noContentCopy;
 				return p;

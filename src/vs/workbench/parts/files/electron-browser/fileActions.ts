@@ -255,7 +255,7 @@ export abstract class BaseRenameAction extends BaseFileAction {
 		}
 
 		// Call function and Emit Event through viewer
-		const promise = this.runAction(name).then(null, (error: any) => {
+		const promise = this.runAction(name).then(void 0, (error: any) => {
 			this.onError(error);
 		});
 
@@ -521,7 +521,7 @@ class CreateFolderAction extends BaseCreateAction {
 
 	public runAction(fileName: string): TPromise<any> {
 		const resource = this.element.parent.resource;
-		return this.fileService.createFolder(resources.joinPath(resource, fileName)).then(null, (error) => {
+		return this.fileService.createFolder(resources.joinPath(resource, fileName)).then(void 0, (error) => {
 			this.onErrorWithRetry(error, () => this.runAction(fileName));
 		});
 	}

@@ -141,7 +141,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 				// async reload: trigger a reload but return immediately
 				if (options.reload.async) {
 					modelPromise = TPromise.as(model);
-					model.load(options).then(null, onUnexpectedError);
+					model.load(options).then(void 0, onUnexpectedError);
 				}
 
 				// sync reload: do not return until model reloaded

@@ -100,7 +100,7 @@ export class GalleryExtensionsHandler extends QuickOpenHandler {
 								.then(viewlet => viewlet as IExtensionsViewlet)
 								.then(viewlet => viewlet.search(`@id:${text}`))
 								.then(() => this.extensionsService.installFromGallery(galleryExtension))
-								.then(null, err => this.notificationService.error(err));
+								.then(void 0, err => this.notificationService.error(err));
 						};
 
 						entries.push(new SimpleEntry(label, action));

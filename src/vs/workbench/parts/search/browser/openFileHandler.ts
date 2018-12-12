@@ -320,11 +320,11 @@ export class CacheState {
 
 	dispose(): void {
 		if (this.promise) {
-			this.promise.then(null, () => { })
+			this.promise.then(void 0, () => { })
 				.then(() => {
 					this.loadingPhase = LoadingPhase.Disposed;
 					return this.doDispose(this._cacheKey);
-				}).then(null, err => {
+				}).then(void 0, err => {
 					errors.onUnexpectedError(err);
 				});
 		} else {
