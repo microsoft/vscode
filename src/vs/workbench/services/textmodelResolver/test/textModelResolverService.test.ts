@@ -18,8 +18,9 @@ import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textF
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { once } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { snapshotToString } from 'vs/platform/files/common/files';
+import { timeout } from 'vs/base/common/async';
 
 class ServiceAccessor {
 	constructor(
@@ -75,7 +76,7 @@ suite('Workbench - TextModelResolverService', () => {
 
 			let disposed = false;
 			let disposedPromise = new Promise(resolve => {
-				once(model.onDispose)(() => {
+				Event.once(model.onDispose)(() => {
 					disposed = true;
 					resolve();
 				});
@@ -101,12 +102,14 @@ suite('Workbench - TextModelResolverService', () => {
 				assert.equal(editorModel.getValue(), 'Hello Html');
 
 				let disposed = false;
-				once(model.onDispose)(() => {
+				Event.once(model.onDispose)(() => {
 					disposed = true;
 				});
 
 				ref.dispose();
-				assert.equal(disposed, true);
+				return timeout(0).then(() => { // due to the reference resolving the model first which is async
+					assert.equal(disposed, true);
+				});
 			});
 		});
 	});

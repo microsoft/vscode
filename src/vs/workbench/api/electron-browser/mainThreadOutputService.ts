@@ -11,7 +11,7 @@ import { MainThreadOutputServiceShape, MainContext, IExtHostContext, ExtHostOutp
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { UriComponents, URI } from 'vs/base/common/uri';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { anyEvent } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 
 @extHostNamedCustomer(MainContext.MainThreadOutputService)
 export class MainThreadOutputService extends Disposable implements MainThreadOutputServiceShape {
@@ -41,7 +41,7 @@ export class MainThreadOutputService extends Disposable implements MainThreadOut
 			const visibleChannel: IOutputChannel = panel && panel.getId() === OUTPUT_PANEL_ID ? this._outputService.getActiveChannel() : null;
 			this._proxy.$setVisibleChannel(visibleChannel ? visibleChannel.id : null);
 		};
-		this._register(anyEvent<any>(this._outputService.onActiveOutputChannel, this._panelService.onDidPanelOpen, this._panelService.onDidPanelClose)(() => setVisibleChannel()));
+		this._register(Event.any<any>(this._outputService.onActiveOutputChannel, this._panelService.onDidPanelOpen, this._panelService.onDidPanelClose)(() => setVisibleChannel()));
 		setVisibleChannel();
 	}
 

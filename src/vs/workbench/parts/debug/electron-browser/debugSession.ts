@@ -583,7 +583,7 @@ export class DebugSession implements IDebugSession {
 			aria.status(nls.localize('debuggingStarted', "Debugging started."));
 			const sendConfigurationDone = () => {
 				if (this.raw && this.raw.capabilities.supportsConfigurationDoneRequest) {
-					return this.raw.configurationDone().then(null, e => {
+					return this.raw.configurationDone().then(void 0, e => {
 						// Disconnect the debug session on configuration done error #10596
 						if (this.raw) {
 							this.raw.disconnect();
@@ -643,7 +643,7 @@ export class DebugSession implements IDebugSession {
 		this.rawListeners.push(this.raw.onDidTerminateDebugee(event => {
 			aria.status(nls.localize('debuggingStopped', "Debugging stopped."));
 			if (event.body && event.body.restart) {
-				this.debugService.restartSession(this, event.body.restart).then(null, onUnexpectedError);
+				this.debugService.restartSession(this, event.body.restart).then(void 0, onUnexpectedError);
 			} else {
 				this.raw.disconnect();
 			}

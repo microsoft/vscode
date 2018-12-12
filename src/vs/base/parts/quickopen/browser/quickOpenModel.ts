@@ -11,7 +11,7 @@ import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/
 import { IQuickNavigateConfiguration, IModel, IDataSource, IFilter, IAccessiblityProvider, IRenderer, IRunner, Mode } from 'vs/base/parts/quickopen/common/quickOpen';
 import { Action, IAction, IActionRunner } from 'vs/base/common/actions';
 import { compareAnything } from 'vs/base/common/comparers';
-import { ActionBar, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import * as DOM from 'vs/base/browser/dom';
 import { IQuickOpenStyles } from 'vs/base/parts/quickopen/browser/quickOpenWidget';
@@ -19,6 +19,7 @@ import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLa
 import { OS } from 'vs/base/common/platform';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { IItemAccessor } from 'vs/base/parts/quickopen/common/quickOpenScorer';
+import { coalesce } from 'vs/base/common/arrays';
 
 export interface IContext {
 	event: any;
@@ -89,8 +90,7 @@ export class QuickOpenEntry {
 	 * The label of the entry to use when a screen reader wants to read about the entry
 	 */
 	getAriaLabel(): string {
-		return [this.getLabel(), this.getDescription(), this.getDetail()]
-			.filter(s => !!s)
+		return coalesce([this.getLabel(), this.getDescription(), this.getDetail()])
 			.join(', ');
 	}
 
@@ -300,7 +300,7 @@ class NoActionProvider implements IActionProvider {
 		return null;
 	}
 
-	getActionItem(tree: ITree, element: any, action: Action): IActionItem {
+	getActionItem(tree: ITree, element: any, action: Action) {
 		return null;
 	}
 }

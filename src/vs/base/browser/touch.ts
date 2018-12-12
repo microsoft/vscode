@@ -81,9 +81,9 @@ export class Gesture extends Disposable {
 		this.activeTouches = {};
 		this.handle = null;
 		this.targets = [];
-		this._register(DomUtils.addDisposableListener(document, 'touchstart', (e) => this.onTouchStart(e)));
-		this._register(DomUtils.addDisposableListener(document, 'touchend', (e) => this.onTouchEnd(e)));
-		this._register(DomUtils.addDisposableListener(document, 'touchmove', (e) => this.onTouchMove(e)));
+		this._register(DomUtils.addDisposableListener(document, 'touchstart', (e: TouchEvent) => this.onTouchStart(e)));
+		this._register(DomUtils.addDisposableListener(document, 'touchend', (e: TouchEvent) => this.onTouchEnd(e)));
+		this._register(DomUtils.addDisposableListener(document, 'touchmove', (e: TouchEvent) => this.onTouchMove(e)));
 	}
 
 	public static addTarget(element: HTMLElement): void {

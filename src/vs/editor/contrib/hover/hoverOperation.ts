@@ -58,10 +58,10 @@ export class HoverOperation<Result> {
 	private _asyncComputationPromiseDone: boolean;
 
 	private _completeCallback: (r: Result) => void;
-	private _errorCallback?: (err: any) => void;
+	private _errorCallback: ((err: any) => void) | null | undefined;
 	private _progressCallback: (progress: any) => void;
 
-	constructor(computer: IHoverComputer<Result>, success: (r: Result) => void, error: undefined | ((err: any) => void), progress: (progress: any) => void, hoverTime: number) {
+	constructor(computer: IHoverComputer<Result>, success: (r: Result) => void, error: ((err: any) => void) | null | undefined, progress: (progress: any) => void, hoverTime: number) {
 		this._computer = computer;
 		this._state = ComputeHoverOperationState.IDLE;
 		this._hoverTime = hoverTime;

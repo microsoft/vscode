@@ -145,7 +145,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			}
 		}
 
-		this.initialize().then(null, errors.onUnexpectedError).then(_ => {
+		this.initialize().then(void 0, errors.onUnexpectedError).then(_ => {
 			this.installConfigurationListener();
 		});
 

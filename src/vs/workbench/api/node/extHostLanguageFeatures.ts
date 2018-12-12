@@ -16,7 +16,7 @@ import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHos
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import { asThenable } from 'vs/base/common/async';
 import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IdObject, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, ISerializedLanguageConfiguration, WorkspaceSymbolDto, SuggestResultDto, WorkspaceSymbolsDto, SuggestionDto, CodeActionDto, ISerializedDocumentFilter, WorkspaceEditDto, ISerializedSignatureHelpProviderMetadata } from './extHost.protocol';
-import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
+import { regExpLeadsToEndlessLoop, regExpFlags } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range as EditorRange } from 'vs/editor/common/core/range';
 import { isFalsyOrEmpty, isNonEmptyArray } from 'vs/base/common/arrays';
@@ -688,11 +688,7 @@ class SuggestAdapter {
 			insertTextRules: item.keepWhitespace ? modes.CompletionItemInsertTextRule.KeepWhitespace : 0,
 			additionalTextEdits: item.additionalTextEdits && item.additionalTextEdits.map(typeConvert.TextEdit.from),
 			command: this._commands.toInternal(item.command),
-			commitCharacters: item.commitCharacters,
-			// help with perf
-			_labelLow: item.label.toLowerCase(),
-			_filterTextLow: item.filterText && item.filterText.toLowerCase(),
-			_sortTextLow: item.sortText && item.sortText.toLowerCase()
+			commitCharacters: item.commitCharacters
 		};
 
 		// 'insertText'-logic
@@ -850,11 +846,39 @@ class FoldingProviderAdapter {
 	}
 }
 
+class SelectionRangeAdapter {
+
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _provider: vscode.SelectionRangeProvider
+	) { }
+
+	provideSelectionRanges(resource: URI, position: IPosition, token: CancellationToken): Promise<IRange[]> {
+		const { document } = this._documents.getDocumentData(resource);
+		const pos = typeConvert.Position.to(position);
+		return asThenable(() => this._provider.provideSelectionRanges(document, pos, token)).then(ranges => {
+			if (isFalsyOrEmpty(ranges)) {
+				return undefined;
+			}
+			let result: IRange[] = [];
+			let last: vscode.Position | vscode.Range = pos;
+			for (const range of ranges) {
+				if (!range.contains(last)) {
+					throw new Error('INVALID selection range, must contain the previous range');
+				}
+				result.push(typeConvert.Range.from(range));
+				last = range;
+			}
+			return result;
+		});
+	}
+}
+
 type Adapter = OutlineAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapter
 	| DocumentHighlightAdapter | ReferenceAdapter | CodeActionAdapter | DocumentFormattingAdapter
 	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
 	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter | TypeDefinitionAdapter
-	| ColorProviderAdapter | FoldingProviderAdapter | DeclarationAdapter;
+	| ColorProviderAdapter | FoldingProviderAdapter | DeclarationAdapter | SelectionRangeAdapter;
 
 class AdapterData {
 	constructor(
@@ -957,7 +981,10 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 			if (data.extension) {
 				Promise.resolve(p).then(
 					() => this._logService.trace(`[${data.extension.id}] provider DONE after ${Date.now() - t1}ms`),
-					err => this._logService.trace(`[${data.extension.id}] provider FAILED`, err)
+					err => {
+						this._logService.error(`[${data.extension.id}] provider FAILED`);
+						this._logService.error(err);
+					}
 				);
 			}
 			return p;
@@ -1245,6 +1272,18 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._withAdapter(handle, FoldingProviderAdapter, adapter => adapter.provideFoldingRanges(URI.revive(resource), context, token));
 	}
 
+	// --- smart select
+
+	registerSelectionRangeProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.SelectionRangeProvider): vscode.Disposable {
+		const handle = this._addNewAdapter(new SelectionRangeAdapter(this._documents, provider), extension);
+		this._proxy.$registerSelectionRangeProvider(handle, this._transformDocumentSelector(selector));
+		return this._createDisposable(handle);
+	}
+
+	$provideSelectionRanges(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Thenable<IRange[]> {
+		return this._withAdapter(handle, SelectionRangeAdapter, adapter => adapter.provideSelectionRanges(URI.revive(resource), position, token));
+	}
+
 	// --- configuration
 
 	private static _serializeRegExp(regExp: RegExp): ISerializedRegExp {
@@ -1256,7 +1295,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		}
 		return {
 			pattern: regExp.source,
-			flags: (regExp.global ? 'g' : '') + (regExp.ignoreCase ? 'i' : '') + (regExp.multiline ? 'm' : ''),
+			flags: regExpFlags(regExp),
 		};
 	}
 

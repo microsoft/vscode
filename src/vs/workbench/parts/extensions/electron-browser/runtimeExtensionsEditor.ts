@@ -38,7 +38,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { randomPort } from 'vs/base/node/ports';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { ILabelService } from 'vs/platform/label/common/label';
 import { renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { join } from 'path';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -117,7 +117,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IExtensionHostProfileService private readonly _extensionHostProfileService: IExtensionHostProfileService,
 		@IStorageService storageService: IStorageService,
-		@IRemoteAuthorityResolverService private remoteAuthorityResolverService: IRemoteAuthorityResolverService
+		@ILabelService private readonly _labelService: ILabelService
 	) {
 		super(RuntimeExtensionsEditor.ID, telemetryService, themeService, storageService);
 
@@ -375,11 +375,11 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 					const el = $('span');
 					el.innerHTML = renderOcticons(`$(rss) ${element.description.extensionLocation.authority}`);
 					data.msgContainer.appendChild(el);
-					this.remoteAuthorityResolverService.getRemoteAuthorityResolver(element.description.extensionLocation.authority).then(resolver => {
-						if (resolver && resolver.label.length) {
-							el.innerHTML = renderOcticons(`$(rss) ${resolver.label}`);
-						}
-					});
+
+					const hostLabel = this._labelService.getHostLabel();
+					if (hostLabel) {
+						el.innerHTML = renderOcticons(`$(rss) ${hostLabel}`);
+					}
 				}
 
 				if (this._profileInfo) {
@@ -389,8 +389,6 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				}
 
 			},
-
-			disposeElement: () => null,
 
 			disposeTemplate: (data: IRuntimeExtensionTemplateData): void => {
 				data.disposables = dispose(data.disposables);
@@ -507,24 +505,27 @@ export class ReportExtensionIssueAction extends Action {
 			baseUrl = product.reportIssueUrl;
 		}
 
+		let title: string;
 		let message: string;
 		let reason: string;
 		if (extension.unresponsiveProfile) {
 			// unresponsive extension host caused
 			reason = 'Performance';
+			title = 'Extension causes high cpu load';
 			let path = join(os.homedir(), `${extension.description.id}-unresponsive.cpuprofile.txt`);
 			task = async () => {
 				const profiler = await import('v8-inspect-profiler');
 				const data = profiler.rewriteAbsolutePaths({ profile: <any>extension.unresponsiveProfile.data }, 'pii_removed');
-				writeFile(path, JSON.stringify(data)).catch(onUnexpectedError);
+				profiler.writeProfile(data, path).then(undefined, onUnexpectedError);
 			};
-			message = `:warning: Make sure to **attach** this file from your *home*-directory: \`${path}\` :warning:`;
+			message = `:warning: Make sure to **attach** this file from your *home*-directory: \`${path}\` :warning:\n\nFind more details here: https://github.com/Microsoft/vscode/wiki/Explain:-extension-causes-high-cpu-load`;
 
 		} else {
 			// generic
-			clipboard.writeText('```json \n' + JSON.stringify(extension.status, null, '\t') + '\n```');
 			reason = 'Bug';
+			title = 'Extension issue';
 			message = ':warning: We have written the needed data into your clipboard. Please paste! :warning:';
+			clipboard.writeText('```json \n' + JSON.stringify(extension.status, null, '\t') + '\n```');
 		}
 
 		const osVersion = `${os.type()} ${os.arch()} ${os.release()}`;
@@ -538,7 +539,7 @@ export class ReportExtensionIssueAction extends Action {
 		);
 
 		return {
-			url: `${baseUrl}${queryStringPrefix}body=${body}`,
+			url: `${baseUrl}${queryStringPrefix}body=${body}&title=${encodeURIComponent(title)}`,
 			task
 		};
 	}

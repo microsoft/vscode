@@ -189,9 +189,9 @@ export class DefaultController implements _.IController {
 
 			if (this.shouldToggleExpansion(element, event, origin)) {
 				if (tree.isExpanded(element)) {
-					tree.collapse(element).then(null, errors.onUnexpectedError);
+					tree.collapse(element).then(void 0, errors.onUnexpectedError);
 				} else {
-					tree.expand(element).then(null, errors.onUnexpectedError);
+					tree.expand(element).then(void 0, errors.onUnexpectedError);
 				}
 			}
 		}
@@ -281,7 +281,7 @@ export class DefaultController implements _.IController {
 			tree.clearHighlight(payload);
 		} else {
 			tree.focusPrevious(1, payload);
-			tree.reveal(tree.getFocus()).then(null, errors.onUnexpectedError);
+			tree.reveal(tree.getFocus()).then(void 0, errors.onUnexpectedError);
 		}
 		return true;
 	}
@@ -293,7 +293,7 @@ export class DefaultController implements _.IController {
 			tree.clearHighlight(payload);
 		} else {
 			tree.focusPreviousPage(payload);
-			tree.reveal(tree.getFocus()).then(null, errors.onUnexpectedError);
+			tree.reveal(tree.getFocus()).then(void 0, errors.onUnexpectedError);
 		}
 		return true;
 	}
@@ -305,7 +305,7 @@ export class DefaultController implements _.IController {
 			tree.clearHighlight(payload);
 		} else {
 			tree.focusNext(1, payload);
-			tree.reveal(tree.getFocus()).then(null, errors.onUnexpectedError);
+			tree.reveal(tree.getFocus()).then(void 0, errors.onUnexpectedError);
 		}
 		return true;
 	}
@@ -317,7 +317,7 @@ export class DefaultController implements _.IController {
 			tree.clearHighlight(payload);
 		} else {
 			tree.focusNextPage(payload);
-			tree.reveal(tree.getFocus()).then(null, errors.onUnexpectedError);
+			tree.reveal(tree.getFocus()).then(void 0, errors.onUnexpectedError);
 		}
 		return true;
 	}
@@ -329,7 +329,7 @@ export class DefaultController implements _.IController {
 			tree.clearHighlight(payload);
 		} else {
 			tree.focusFirst(payload);
-			tree.reveal(tree.getFocus()).then(null, errors.onUnexpectedError);
+			tree.reveal(tree.getFocus()).then(void 0, errors.onUnexpectedError);
 		}
 		return true;
 	}
@@ -341,7 +341,7 @@ export class DefaultController implements _.IController {
 			tree.clearHighlight(payload);
 		} else {
 			tree.focusLast(payload);
-			tree.reveal(tree.getFocus()).then(null, errors.onUnexpectedError);
+			tree.reveal(tree.getFocus()).then(void 0, errors.onUnexpectedError);
 		}
 		return true;
 	}
@@ -359,7 +359,7 @@ export class DefaultController implements _.IController {
 					return tree.reveal(tree.getFocus());
 				}
 				return undefined;
-			}).then(null, errors.onUnexpectedError);
+			}).then(void 0, errors.onUnexpectedError);
 		}
 		return true;
 	}
@@ -377,7 +377,7 @@ export class DefaultController implements _.IController {
 					return tree.reveal(tree.getFocus());
 				}
 				return undefined;
-			}).then(null, errors.onUnexpectedError);
+			}).then(void 0, errors.onUnexpectedError);
 		}
 		return true;
 	}

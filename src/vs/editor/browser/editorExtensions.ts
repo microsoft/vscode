@@ -166,7 +166,7 @@ export abstract class EditorCommand extends Command {
 		});
 	}
 
-	public abstract runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | Thenable<void>;
+	public abstract runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void | Thenable<void>;
 }
 
 //#endregion EditorCommand

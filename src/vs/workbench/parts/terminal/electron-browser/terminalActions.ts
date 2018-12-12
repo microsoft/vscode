@@ -29,6 +29,7 @@ import { TERMINAL_COMMAND_ID } from 'vs/workbench/parts/terminal/common/terminal
 import { Command } from 'vs/editor/browser/editorExtensions';
 import { timeout } from 'vs/base/common/async';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
+import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 
 export const TERMINAL_PICKER_PREFIX = 'term ';
 
@@ -725,7 +726,7 @@ export class SwitchTerminalActionItem extends SelectActionItem {
 		@IThemeService themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService
 	) {
-		super(null, action, terminalService.getTabLabels(), terminalService.activeTabIndex, contextViewService, { ariaLabel: nls.localize('terminals', 'Open Terminals.') });
+		super(null, action, terminalService.getTabLabels().map(label => <ISelectOptionItem>{ text: label }), terminalService.activeTabIndex, contextViewService, { ariaLabel: nls.localize('terminals', 'Open Terminals.') });
 
 		this.toDispose.push(terminalService.onInstancesChanged(this._updateItems, this));
 		this.toDispose.push(terminalService.onActiveTabChanged(this._updateItems, this));
@@ -734,7 +735,7 @@ export class SwitchTerminalActionItem extends SelectActionItem {
 	}
 
 	private _updateItems(): void {
-		this.setOptions(this.terminalService.getTabLabels(), this.terminalService.activeTabIndex);
+		this.setOptions(this.terminalService.getTabLabels().map(label => <ISelectOptionItem>{ text: label }), this.terminalService.activeTabIndex);
 	}
 }
 

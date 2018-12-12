@@ -21,6 +21,7 @@ import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/commo
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { LogViewerInput } from 'vs/workbench/parts/output/browser/logViewer';
+import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 
 export class ToggleOutputAction extends TogglePanelAction {
 
@@ -160,7 +161,7 @@ export class SwitchOutputActionItem extends SelectActionItem {
 				selected = logChannelIndex !== -1 ? separatorIndex + 1 + logChannelIndex : 0;
 			}
 		}
-		this.setOptions(options, Math.max(0, selected), separatorIndex !== -1 ? separatorIndex : void 0);
+		this.setOptions(options.map((label, index) => <ISelectOptionItem>{ text: label, isDisabled: (index === separatorIndex ? true : undefined) }), Math.max(0, selected));
 	}
 }
 

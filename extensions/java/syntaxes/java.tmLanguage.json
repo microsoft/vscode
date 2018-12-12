@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-java/commit/95ebcd0b15c369666ecc4d1593495466132dd5bf",
+	"version": "https://github.com/atom/language-java/commit/7c3d0d3e37920790cd3afb4e68830bdb215851a3",
 	"name": "Java",
 	"scopeName": "source.java",
 	"patterns": [
@@ -269,7 +269,7 @@
 			]
 		},
 		"class": {
-			"begin": "(?=\\w?[\\w\\s]*(?:class|(?<!@)interface|enum)\\s+\\w+)",
+			"begin": "(?=\\w?[\\w\\s]*\\b(?:class|(?<!@)interface|enum)\\s+\\w+)",
 			"end": "}",
 			"endCaptures": {
 				"0": {
@@ -658,6 +658,28 @@
 								},
 								{
 									"include": "#comments"
+								},
+								{
+									"begin": "(\\w+)\\s*({)",
+									"beginCaptures": {
+										"1": {
+											"name": "constant.other.enum.java"
+										},
+										"2": {
+											"name": "punctuation.bracket.curly.java"
+										}
+									},
+									"end": "\\}",
+									"endCaptures": {
+										"0": {
+											"name": "punctuation.bracket.curly.java"
+										}
+									},
+									"patterns": [
+										{
+											"include": "#class-body"
+										}
+									]
 								},
 								{
 									"begin": "(\\w+)\\s*(\\()",

@@ -52,7 +52,11 @@ export class ExtHostComments implements ExtHostCommentsShape {
 	): vscode.Disposable {
 		const handle = ExtHostComments.handlePool++;
 		this._documentProviders.set(handle, provider);
-		this._proxy.$registerDocumentCommentProvider(handle);
+		this._proxy.$registerDocumentCommentProvider(handle, {
+			startDraftLabel: provider.startDraftLabel,
+			deleteDraftLabel: provider.deleteDraftLabel,
+			finishDraftLabel: provider.finishDraftLabel
+		});
 		this.registerListeners(handle, provider);
 
 		return {
@@ -117,6 +121,27 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		});
 	}
 
+	$startDraft(handle: number): Thenable<void> {
+		const provider = this._documentProviders.get(handle);
+		return asThenable(() => {
+			return provider.startDraft(CancellationToken.None);
+		});
+	}
+
+	$deleteDraft(handle: number): Thenable<void> {
+		const provider = this._documentProviders.get(handle);
+		return asThenable(() => {
+			return provider.deleteDraft(CancellationToken.None);
+		});
+	}
+
+	$finishDraft(handle: number): Thenable<void> {
+		const provider = this._documentProviders.get(handle);
+		return asThenable(() => {
+			return provider.finishDraft(CancellationToken.None);
+		});
+	}
+
 	$provideDocumentComments(handle: number, uri: UriComponents): Thenable<modes.CommentInfo> {
 		const data = this._documents.getDocumentData(URI.revive(uri));
 		if (!data || !data.document) {
@@ -148,7 +173,8 @@ export class ExtHostComments implements ExtHostCommentsShape {
 			this._proxy.$onDidCommentThreadsChange(handle, {
 				changed: event.changed.map(thread => convertToCommentThread(provider, thread, this._commandsConverter)),
 				added: event.added.map(thread => convertToCommentThread(provider, thread, this._commandsConverter)),
-				removed: event.removed.map(thread => convertToCommentThread(provider, thread, this._commandsConverter))
+				removed: event.removed.map(thread => convertToCommentThread(provider, thread, this._commandsConverter)),
+				draftMode: !!(provider as vscode.DocumentCommentProvider).startDraft && !!(provider as vscode.DocumentCommentProvider).finishDraft ? (event.inDraftMode ? modes.DraftMode.InDraft : modes.DraftMode.NotInDraft) : modes.DraftMode.NotSupported
 			});
 		});
 	}
@@ -157,7 +183,8 @@ export class ExtHostComments implements ExtHostCommentsShape {
 function convertCommentInfo(owner: number, provider: vscode.DocumentCommentProvider, vscodeCommentInfo: vscode.CommentInfo, commandsConverter: CommandsConverter): modes.CommentInfo {
 	return {
 		threads: vscodeCommentInfo.threads.map(x => convertToCommentThread(provider, x, commandsConverter)),
-		commentingRanges: vscodeCommentInfo.commentingRanges ? vscodeCommentInfo.commentingRanges.map(range => extHostTypeConverter.Range.from(range)) : []
+		commentingRanges: vscodeCommentInfo.commentingRanges ? vscodeCommentInfo.commentingRanges.map(range => extHostTypeConverter.Range.from(range)) : [],
+		draftMode: provider.startDraft && provider.finishDraft ? (vscodeCommentInfo.inDraftMode ? modes.DraftMode.InDraft : modes.DraftMode.NotInDraft) : modes.DraftMode.NotSupported
 	};
 }
 
@@ -197,7 +224,8 @@ function convertFromComment(comment: modes.Comment): vscode.Comment {
 		userName: comment.userName,
 		userIconPath: userIconPath,
 		canEdit: comment.canEdit,
-		canDelete: comment.canDelete
+		canDelete: comment.canDelete,
+		isDraft: comment.isDraft
 	};
 }
 
@@ -212,6 +240,7 @@ function convertToComment(provider: vscode.DocumentCommentProvider | vscode.Work
 		userIconPath: iconPath,
 		canEdit: canEdit,
 		canDelete: canDelete,
-		command: vscodeComment.command ? commandsConverter.toInternal(vscodeComment.command) : null
+		command: vscodeComment.command ? commandsConverter.toInternal(vscodeComment.command) : null,
+		isDraft: vscodeComment.isDraft
 	};
 }

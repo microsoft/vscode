@@ -14,11 +14,11 @@ class TypeScriptDocumentHighlightProvider implements vscode.DocumentHighlightPro
 	) { }
 
 	public async provideDocumentHighlights(
-		resource: vscode.TextDocument,
+		document: vscode.TextDocument,
 		position: vscode.Position,
 		token: vscode.CancellationToken
 	): Promise<vscode.DocumentHighlight[]> {
-		const file = this.client.toPath(resource.uri);
+		const file = this.client.toOpenedFilePath(document);
 		if (!file) {
 			return [];
 		}

@@ -4,18 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { IExpression, IDebugService, IEnablement } from 'vs/workbench/parts/debug/common/debug';
+import { IExpression, IDebugService } from 'vs/workbench/parts/debug/common/debug';
 import { Expression, Variable } from 'vs/workbench/parts/debug/common/debugModel';
-import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { ITree, ContextMenuEvent, IActionProvider } from 'vs/base/parts/tree/browser/tree';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInputValidationOptions, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
-import { IControllerOptions } from 'vs/base/parts/tree/browser/treeDefaults';
-import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
-import { WorkbenchTreeController } from 'vs/platform/list/browser/listService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
+import { ITreeRenderer, ITreeNode, AbstractTreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
@@ -122,66 +115,6 @@ export interface IInputBoxOptions {
 	onFinish: (value: string, success: boolean) => void;
 }
 
-export class BaseDebugController extends WorkbenchTreeController {
-
-	private contributedContextMenu: IMenu;
-
-	constructor(
-		private actionProvider: IActionProvider,
-		menuId: MenuId,
-		options: IControllerOptions,
-		@IDebugService protected debugService: IDebugService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IMenuService menuService: IMenuService,
-		@IConfigurationService configurationService: IConfigurationService
-	) {
-		super(options, configurationService);
-
-		this.contributedContextMenu = menuService.createMenu(menuId, contextKeyService);
-		this.disposables.push(this.contributedContextMenu);
-	}
-
-	public onContextMenu(tree: ITree, element: IEnablement, event: ContextMenuEvent, focusElement = true): boolean {
-		if (event.target && event.target.tagName && event.target.tagName.toLowerCase() === 'input') {
-			return false;
-		}
-
-		event.preventDefault();
-		event.stopPropagation();
-
-		if (focusElement) {
-			tree.setFocus(element);
-		}
-
-		if (this.actionProvider.hasSecondaryActions(tree, element)) {
-			const anchor = { x: event.posx, y: event.posy };
-			this.contextMenuService.showContextMenu({
-				getAnchor: () => anchor,
-				getActions: () => {
-					const actions = this.actionProvider.getSecondaryActions(tree, element);
-					fillInContextMenuActions(this.contributedContextMenu, { arg: this.getContext(element) }, actions, this.contextMenuService);
-					return actions;
-				},
-				onHide: (wasCancelled?: boolean) => {
-					if (wasCancelled) {
-						tree.domFocus();
-					}
-				},
-				getActionsContext: () => element
-			});
-
-			return true;
-		}
-
-		return false;
-	}
-
-	protected getContext(element: any): any {
-		return undefined;
-	}
-}
-
 export interface IExpressionTemplateData {
 	expression: HTMLElement;
 	name: HTMLSpanElement;
@@ -191,24 +124,16 @@ export interface IExpressionTemplateData {
 	toDispose: IDisposable[];
 }
 
-export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpression, void, IExpressionTemplateData>, IDisposable {
-
-	protected renderedExpressions = new Map<IExpression, IExpressionTemplateData>();
-	private toDispose: IDisposable[];
+export abstract class AbstractExpressionsRenderer
+	extends AbstractTreeRenderer<IExpression, void, IExpressionTemplateData>
+	implements ITreeRenderer<IExpression, void, IExpressionTemplateData>, IDisposable {
 
 	constructor(
 		@IDebugService protected debugService: IDebugService,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IThemeService private themeService: IThemeService
 	) {
-		this.toDispose = [];
-
-		this.toDispose.push(this.debugService.getViewModel().onDidSelectExpression(expression => {
-			const template = this.renderedExpressions.get(expression);
-			if (template) {
-				template.enableInputBox(expression, this.getInputBoxOptions(expression));
-			}
-		}));
+		super(debugService.getViewModel().onDidSelectExpression);
 	}
 
 	abstract get templateId(): string;
@@ -270,8 +195,10 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 		return data;
 	}
 
-	renderElement({ element }: ITreeNode<IExpression>, index: number, data: IExpressionTemplateData): void {
-		this.renderedExpressions.set(element, data);
+	renderElement(node: ITreeNode<IExpression>, index: number, data: IExpressionTemplateData): void {
+		super.renderElement(node, index, data);
+
+		const { element } = node;
 		if (element === this.debugService.getViewModel().getSelectedExpression()) {
 			data.enableInputBox(element, this.getInputBoxOptions(element));
 		} else {
@@ -284,14 +211,5 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 
 	disposeTemplate(templateData: IExpressionTemplateData): void {
 		dispose(templateData.toDispose);
-	}
-
-	disposeElement(element: ITreeNode<Expression, void>): void {
-		this.renderedExpressions.delete(element.element);
-	}
-
-	dispose(): void {
-		this.renderedExpressions = undefined;
-		dispose(this.toDispose);
 	}
 }

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Socket, Server as NetServer, createConnection, createServer } from 'net';
-import { Event, Emitter, once, mapEvent, fromNodeEventEmitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IMessagePassingProtocol, ClientConnectionEvent, IPCServer, IPCClient } from 'vs/base/parts/ipc/node/ipc';
 import { join } from 'path';
 import { tmpdir } from 'os';
@@ -207,11 +207,11 @@ export class Protocol implements IDisposable, IMessagePassingProtocol {
 export class Server extends IPCServer {
 
 	private static toClientConnectionEvent(server: NetServer): Event<ClientConnectionEvent> {
-		const onConnection = fromNodeEventEmitter<Socket>(server, 'connection');
+		const onConnection = Event.fromNodeEventEmitter<Socket>(server, 'connection');
 
-		return mapEvent(onConnection, socket => ({
+		return Event.map(onConnection, socket => ({
 			protocol: new Protocol(socket),
-			onDidClientDisconnect: once(fromNodeEventEmitter<void>(socket, 'close'))
+			onDidClientDisconnect: Event.once(Event.fromNodeEventEmitter<void>(socket, 'close'))
 		}));
 	}
 

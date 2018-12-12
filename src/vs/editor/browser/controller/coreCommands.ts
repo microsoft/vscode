@@ -29,7 +29,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 const CORE_WEIGHT = KeybindingWeight.EditorCore;
 
 export abstract class CoreEditorCommand extends EditorCommand {
-	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+	public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void {
 		const cursors = editor._getCursors();
 		if (!cursors) {
 			// the editor has no view => has no cursors

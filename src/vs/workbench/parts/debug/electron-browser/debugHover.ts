@@ -30,6 +30,8 @@ import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { WorkbenchAsyncDataTree, IListService } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { coalesce } from 'vs/base/common/arrays';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 const $ = dom.$;
 const MAX_TREE_HEIGHT = 324;
@@ -48,7 +50,7 @@ export class DebugHoverWidget implements IContentWidget {
 	private complexValueContainer: HTMLElement;
 	private complexValueTitle: HTMLElement;
 	private valueContainer: HTMLElement;
-	private stoleFocus: boolean;
+	private treeContainer: HTMLElement;
 	private toDispose: lifecycle.IDisposable[];
 	private scrollbar: DomScrollableElement;
 	private dataSource: DebugHoverDataSource;
@@ -60,7 +62,8 @@ export class DebugHoverWidget implements IContentWidget {
 		@IThemeService private themeService: IThemeService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IListService private listService: IListService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IKeybindingService private keybindingService: IKeybindingService
 	) {
 		this.toDispose = [];
 
@@ -73,15 +76,16 @@ export class DebugHoverWidget implements IContentWidget {
 		this.domNode = $('.debug-hover-widget');
 		this.complexValueContainer = dom.append(this.domNode, $('.complex-value'));
 		this.complexValueTitle = dom.append(this.complexValueContainer, $('.title'));
-		const treeContainer = dom.append(this.complexValueContainer, $('.debug-hover-tree'));
-		treeContainer.setAttribute('role', 'tree');
+		this.treeContainer = dom.append(this.complexValueContainer, $('.debug-hover-tree'));
+		this.treeContainer.setAttribute('role', 'tree');
 		this.dataSource = new DebugHoverDataSource();
 
-		this.tree = new WorkbenchAsyncDataTree(treeContainer, new DebugHoverDelegate(), [this.instantiationService.createInstance(VariablesRenderer)],
+		this.tree = new WorkbenchAsyncDataTree(this.treeContainer, new DebugHoverDelegate(), [this.instantiationService.createInstance(VariablesRenderer)],
 			this.dataSource, {
 				ariaLabel: nls.localize('treeAriaLabel', "Debug Hover"),
 				accessibilityProvider: new DebugHoverAccessibilityProvider(),
-			}, this.contextKeyService, this.listService, this.themeService, this.configurationService);
+				mouseSupport: false
+			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
 
 		this.valueContainer = $('.value');
 		this.valueContainer.tabIndex = 0;
@@ -104,14 +108,13 @@ export class DebugHoverWidget implements IContentWidget {
 				this.domNode.style.border = null;
 			}
 		}));
+		this.toDispose.push(this.tree.onDidChangeContentHeight(() => this.layoutTreeAndContainer()));
 
 		this.registerListeners();
 		this.editor.addContentWidget(this);
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.tree.onMouseClick(event => this.onMouseClick(event.element)));
-
 		this.toDispose.push(dom.addStandardDisposableListener(this.domNode, 'keydown', (e: IKeyboardEvent) => {
 			if (e.equals(KeyCode.Escape)) {
 				this.hide();
@@ -153,7 +156,7 @@ export class DebugHoverWidget implements IContentWidget {
 			const result = new Expression(matchingExpression);
 			promise = result.evaluate(session, this.debugService.getViewModel().focusedStackFrame, 'hover').then(() => result);
 		} else {
-			promise = this.findExpressionInStackFrame(matchingExpression.split('.').map(word => word.trim()).filter(word => !!word));
+			promise = this.findExpressionInStackFrame(coalesce(matchingExpression.split('.').map(word => word.trim())));
 		}
 
 		return promise.then(expression => {
@@ -199,7 +202,7 @@ export class DebugHoverWidget implements IContentWidget {
 		return this.debugService.getViewModel().focusedStackFrame.getScopes()
 			.then(scopes => scopes.filter(s => !s.expensive))
 			.then(scopes => Promise.all(scopes.map(scope => this.doFindExpression(scope, namesToFind))))
-			.then(expressions => expressions.filter(exp => !!exp))
+			.then(coalesce)
 			// only show if all expressions found have the same value
 			.then(expressions => (expressions.length > 0 && expressions.every(e => e.value === expressions[0].value)) ? expressions[0] : null);
 	}
@@ -211,7 +214,6 @@ export class DebugHoverWidget implements IContentWidget {
 
 		this.showAtPosition = position;
 		this._isVisible = true;
-		this.stoleFocus = focus;
 
 		if (!expression.hasChildren || forceValueHover) {
 			this.complexValueContainer.hidden = true;
@@ -239,7 +241,7 @@ export class DebugHoverWidget implements IContentWidget {
 		return this.tree.refresh(null).then(() => {
 			this.complexValueTitle.textContent = expression.value;
 			this.complexValueTitle.title = expression.value;
-			this.tree.layout(MAX_TREE_HEIGHT);
+			this.layoutTreeAndContainer();
 			this.editor.layoutContentWidget(this);
 			this.scrollbar.scanDomNode();
 			if (focus) {
@@ -249,12 +251,10 @@ export class DebugHoverWidget implements IContentWidget {
 		});
 	}
 
-	private onMouseClick(element: IExpression): void {
-		if (element && element.hasChildren) {
-			this.tree.setFocus([]);
-			this.tree.setSelection([]);
-			this.editor.focus();
-		}
+	private layoutTreeAndContainer(): void {
+		const treeHeight = Math.min(MAX_TREE_HEIGHT, this.tree.visibleNodeCount * 18);
+		this.treeContainer.style.height = `${treeHeight}px`;
+		this.tree.layout(treeHeight);
 	}
 
 	hide(): void {
@@ -266,9 +266,7 @@ export class DebugHoverWidget implements IContentWidget {
 		this.editor.deltaDecorations(this.highlightDecorations, []);
 		this.highlightDecorations = [];
 		this.editor.layoutContentWidget(this);
-		if (this.stoleFocus) {
-			this.editor.focus();
-		}
+		this.editor.focus();
 	}
 
 	getPosition(): IContentWidgetPosition {

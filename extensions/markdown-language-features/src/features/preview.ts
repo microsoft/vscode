@@ -18,6 +18,48 @@ import { isMarkdownFile } from '../util/file';
 import { resolveLinkToMarkdownFile } from '../commands/openDocumentLink';
 const localize = nls.loadMessageBundle();
 
+interface WebviewMessage {
+	readonly source: string;
+}
+
+interface CacheImageSizesMessage extends WebviewMessage {
+	readonly type: 'cacheImageSizes';
+	readonly body: { id: string, width: number, height: number }[];
+}
+
+interface RevealLineMessage extends WebviewMessage {
+	readonly type: 'revealLine';
+	readonly body: {
+		readonly line: number;
+	};
+}
+
+interface DidClickMessage extends WebviewMessage {
+	readonly type: 'didClick';
+	readonly body: {
+		readonly line: number;
+	};
+}
+
+interface ClickLinkMessage extends WebviewMessage {
+	readonly type: 'clickLink';
+	readonly body: {
+		readonly path: string;
+		readonly fragment?: string;
+	};
+}
+
+interface ShowPreviewSecuritySelectorMessage extends WebviewMessage {
+	readonly type: 'showPreviewSecuritySelector';
+}
+
+interface PreviewStyleLoadErrorMessage extends WebviewMessage {
+	readonly type: 'previewStyleLoadError';
+	readonly body: {
+		readonly unloadedStyles: string[];
+	};
+}
+
 export class MarkdownPreview {
 
 	public static viewType = 'markdown.preview';
@@ -119,7 +161,7 @@ export class MarkdownPreview {
 			this._onDidChangeViewStateEmitter.fire(e);
 		}, null, this.disposables);
 
-		this.editor.webview.onDidReceiveMessage(e => {
+		this.editor.webview.onDidReceiveMessage((e: CacheImageSizesMessage | RevealLineMessage | DidClickMessage | ClickLinkMessage | ShowPreviewSecuritySelectorMessage | PreviewStyleLoadErrorMessage) => {
 			if (e.source !== this._resource.toString()) {
 				return;
 			}
@@ -138,11 +180,11 @@ export class MarkdownPreview {
 					break;
 
 				case 'clickLink':
-					this.onDidClickPreviewLink(e.body.path, e.body.fragement);
+					this.onDidClickPreviewLink(e.body.path, e.body.fragment);
 					break;
 
 				case 'showPreviewSecuritySelector':
-					vscode.commands.executeCommand('markdown.showPreviewSecuritySelector', e.body.source);
+					vscode.commands.executeCommand('markdown.showPreviewSecuritySelector', e.source);
 					break;
 
 				case 'previewStyleLoadError':

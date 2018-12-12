@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { OpenContext, IWindowConfiguration, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, INewWindowOptions } from 'vs/platform/windows/common/windows';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { Event } from 'vs/base/common/event';
@@ -97,9 +96,9 @@ export interface IWindowsMainService {
 	// methods
 	ready(initialUserEnv: IProcessEnvironment): void;
 	reload(win: ICodeWindow, cli?: ParsedArgs): void;
-	enterWorkspace(win: ICodeWindow, path: string): TPromise<IEnterWorkspaceResult>;
-	createAndEnterWorkspace(win: ICodeWindow, folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult>;
-	saveAndEnterWorkspace(win: ICodeWindow, path: string): TPromise<IEnterWorkspaceResult>;
+	enterWorkspace(win: ICodeWindow, path: string): Thenable<IEnterWorkspaceResult>;
+	createAndEnterWorkspace(win: ICodeWindow, folders?: IWorkspaceFolderCreationData[], path?: string): Thenable<IEnterWorkspaceResult>;
+	saveAndEnterWorkspace(win: ICodeWindow, path: string): Thenable<IEnterWorkspaceResult>;
 	closeWorkspace(win: ICodeWindow): void;
 	open(openConfig: IOpenConfiguration): ICodeWindow[];
 	openExtensionDevelopmentHostWindow(openConfig: IOpenConfiguration): void;
@@ -112,7 +111,7 @@ export interface IWindowsMainService {
 	showOpenDialog(options: Electron.OpenDialogOptions, win?: ICodeWindow): Thenable<string[]>;
 	focusLastActive(cli: ParsedArgs, context: OpenContext): ICodeWindow;
 	getLastActiveWindow(): ICodeWindow;
-	waitForWindowCloseOrLoad(windowId: number): TPromise<void>;
+	waitForWindowCloseOrLoad(windowId: number): Thenable<void>;
 	openNewWindow(context: OpenContext, options?: INewWindowOptions): ICodeWindow[];
 	openNewTabbedWindow(context: OpenContext): ICodeWindow[];
 	sendToFocused(channel: string, ...args: any[]): void;
@@ -142,6 +141,6 @@ export interface IOpenConfiguration {
 }
 
 export interface ISharedProcess {
-	whenReady(): TPromise<void>;
+	whenReady(): Thenable<void>;
 	toggle(): void;
 }

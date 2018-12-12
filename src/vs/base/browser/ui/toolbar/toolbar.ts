@@ -31,7 +31,7 @@ export class ToolBar extends Disposable {
 	private options: IToolBarOptions;
 	private actionBar: ActionBar;
 	private toggleMenuAction: ToggleMenuAction;
-	private toggleMenuActionItem: DropdownMenuActionItem;
+	private toggleMenuActionItem?: DropdownMenuActionItem;
 	private hasSecondaryActions: boolean;
 	private lookupKeybindings: boolean;
 
@@ -72,9 +72,9 @@ export class ToolBar extends Disposable {
 						'toolbar-toggle-more',
 						this.options.anchorAlignmentProvider
 					);
-					this.toggleMenuActionItem.setActionContext(this.actionBar.context);
+					this.toggleMenuActionItem!.setActionContext(this.actionBar.context);
 
-					return this.toggleMenuActionItem;
+					return this.toggleMenuActionItem || null;
 				}
 
 				return options.actionItemProvider ? options.actionItemProvider(action) : null;
@@ -118,8 +118,8 @@ export class ToolBar extends Disposable {
 			let primaryActionsToSet = primaryActions ? primaryActions.slice(0) : [];
 
 			// Inject additional action to open secondary actions if present
-			this.hasSecondaryActions = secondaryActions && secondaryActions.length > 0;
-			if (this.hasSecondaryActions) {
+			this.hasSecondaryActions = !!(secondaryActions && secondaryActions.length > 0);
+			if (this.hasSecondaryActions && secondaryActions) {
 				this.toggleMenuAction.menuActions = secondaryActions.slice(0);
 				primaryActionsToSet.push(this.toggleMenuAction);
 			}
@@ -132,10 +132,10 @@ export class ToolBar extends Disposable {
 		};
 	}
 
-	private getKeybindingLabel(action: IAction): string {
-		const key = this.lookupKeybindings ? this.options.getKeyBinding(action) : void 0;
+	private getKeybindingLabel(action: IAction): string | undefined {
+		const key = this.lookupKeybindings && this.options.getKeyBinding ? this.options.getKeyBinding(action) : void 0;
 
-		return key ? key.getLabel() : void 0;
+		return (key && key.getLabel()) || void 0;
 	}
 
 	addPrimaryAction(primaryAction: IAction): () => void {
@@ -173,7 +173,7 @@ class ToggleMenuAction extends Action {
 
 	constructor(toggleDropdownMenu: () => void, title?: string) {
 		title = title || nls.localize('moreActions', "More Actions...");
-		super(ToggleMenuAction.ID, title, null, true);
+		super(ToggleMenuAction.ID, title, void 0, true);
 
 		this.toggleDropdownMenu = toggleDropdownMenu;
 	}

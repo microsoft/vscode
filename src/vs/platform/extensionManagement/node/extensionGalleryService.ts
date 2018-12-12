@@ -473,6 +473,9 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	}
 
 	private queryGallery(query: Query, token: CancellationToken): Promise<{ galleryExtensions: IRawGalleryExtension[], total: number; }> {
+		if (!this.isEnabled()) {
+			return Promise.reject(new Error('No extension gallery service configured.'));
+		}
 		return this.commonHeadersPromise.then(commonHeaders => {
 			const data = JSON.stringify(query.raw);
 			const headers = assign({}, commonHeaders, {
@@ -517,7 +520,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 				type: 'POST',
 				url: this.api(`/publishers/${publisher}/extensions/${name}/${version}/stats?statType=${type}`),
 				headers
-			}, CancellationToken.None).then(null, () => null);
+			}, CancellationToken.None).then(void 0, () => null);
 		});
 	}
 
@@ -731,7 +734,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 					return asText(context)
 						.then(message => Promise.reject(new Error(`Expected 200, got back ${context.res.statusCode} instead.\n\n${message}`)));
 				})
-				.then(null, err => {
+				.then(void 0, err => {
 					if (isPromiseCanceledError(err)) {
 						return Promise.reject(err);
 					}
@@ -754,7 +757,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 					this.telemetryService.publicLog('galleryService:cdnFallback', { url, message });
 
 					const fallbackOptions = assign({}, options, { url: fallbackUrl });
-					return this.requestService.request(fallbackOptions, token).then(null, err => {
+					return this.requestService.request(fallbackOptions, token).then(void 0, err => {
 						if (isPromiseCanceledError(err)) {
 							return Promise.reject(err);
 						}

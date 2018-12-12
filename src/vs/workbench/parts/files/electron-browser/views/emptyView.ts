@@ -7,7 +7,6 @@ import * as nls from 'vs/nls';
 import * as errors from 'vs/base/common/errors';
 import * as env from 'vs/base/common/platform';
 import * as DOM from 'vs/base/browser/dom';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction } from 'vs/base/common/actions';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -124,7 +123,7 @@ export class EmptyView extends ViewletPanel {
 		// no-op
 	}
 
-	public setVisible(visible: boolean): TPromise<void> {
+	public setVisible(visible: boolean): Thenable<void> {
 		return Promise.resolve(null);
 	}
 
@@ -134,7 +133,7 @@ export class EmptyView extends ViewletPanel {
 		}
 	}
 
-	protected reveal(element: any, relativeTop?: number): TPromise<void> {
+	protected reveal(element: any, relativeTop?: number): Thenable<void> {
 		return Promise.resolve(null);
 	}
 

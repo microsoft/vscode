@@ -14,13 +14,12 @@ import { isEqualOrParent } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { EnablementState, IExtensionEnablementService, IExtensionIdentifier, IExtensionManagementService, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { BetterMergeDisabledNowKey, BetterMergeId, areSameExtensions, getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { BetterMergeId, areSameExtensions, getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { ActivationTimes, ExtensionPointContribution, IExtensionDescription, IExtensionService, IExtensionsStatus, IMessage, ProfileSession, IWillActivateEvent, IResponsiveStateChangeEvent } from 'vs/workbench/services/extensions/common/extensions';
@@ -71,7 +70,6 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IExtensionEnablementService private readonly _extensionEnablementService: IExtensionEnablementService,
-		@IStorageService private readonly _storageService: IStorageService,
 		@IWindowService private readonly _windowService: IWindowService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IExtensionManagementService private readonly _extensionManagementService: IExtensionManagementService
@@ -112,8 +110,8 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			// reschedule to ensure this runs after restoring viewlets, panels, and editors
 			runWhenIdle(() => {
 				perf.mark('willLoadExtensions');
+				this._startExtensionHostProcess(true, []);
 				this._scanAndHandleExtensions();
-				this._startExtensionHostProcess([]);
 				this.whenInstalledExtensionsRegistered().then(() => perf.mark('didLoadExtensions'));
 			}, 50 /*max delay*/);
 		});
@@ -127,11 +125,11 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 	public restartExtensionHost(): void {
 		this._stopExtensionHostProcess();
-		this._startExtensionHostProcess(Object.keys(this._allRequestedActivateEvents));
+		this._startExtensionHostProcess(false, Object.keys(this._allRequestedActivateEvents));
 	}
 
 	public startExtensionHost(): void {
-		this._startExtensionHostProcess(Object.keys(this._allRequestedActivateEvents));
+		this._startExtensionHostProcess(false, Object.keys(this._allRequestedActivateEvents));
 	}
 
 	public stopExtensionHost(): void {
@@ -153,10 +151,10 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		}
 	}
 
-	private _startExtensionHostProcess(initialActivationEvents: string[]): void {
+	private _startExtensionHostProcess(isInitialStart: boolean, initialActivationEvents: string[]): void {
 		this._stopExtensionHostProcess();
 
-		const extHostProcessWorker = this._instantiationService.createInstance(ExtensionHostProcessWorker, this.getExtensions(), this._extensionHostLogsLocation);
+		const extHostProcessWorker = this._instantiationService.createInstance(ExtensionHostProcessWorker, !isInitialStart, this.getExtensions(), this._extensionHostLogsLocation);
 		const extHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, extHostProcessWorker, null, initialActivationEvents);
 		extHostProcessManager.onDidCrash(([code, signal]) => this._onExtensionHostCrashed(code, signal));
 		extHostProcessManager.onDidChangeResponsiveState((responsiveState) => { this._onDidChangeResponsiveChange.fire({ target: extHostProcessManager, isResponsive: responsiveState === ResponsiveState.Responsive }); });
@@ -196,7 +194,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			},
 			{
 				label: nls.localize('restart', "Restart Extension Host"),
-				run: () => this._startExtensionHostProcess(Object.keys(this._allRequestedActivateEvents))
+				run: () => this._startExtensionHostProcess(false, Object.keys(this._allRequestedActivateEvents))
 			}]
 		);
 	}
@@ -318,7 +316,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 	// --- impl
 
-	private _scanAndHandleExtensions(): void {
+	private async _scanAndHandleExtensions(): Promise<void> {
 		this._extensionScanner.startScanningExtensions(new Logger((severity, source, message) => {
 			if (this._isDev && source) {
 				this._logOrShowMessage(severity, `[${source}]: ${message}`);
@@ -327,25 +325,29 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			}
 		}));
 
-		this._extensionScanner.scannedExtensions
-			.then(allExtensions => this._getRuntimeExtensions(allExtensions))
-			.then(allExtensions => {
-				this._registry = new ExtensionDescriptionRegistry(allExtensions);
+		const extensionHost = this._extensionHostProcessManagers[0];
+		const extensions = await this._extensionScanner.scannedExtensions;
+		const enabledExtensions = await this._getRuntimeExtensions(extensions);
+		extensionHost.start(enabledExtensions.map(extension => extension.id));
+		this._onHasExtensions(enabledExtensions);
+	}
 
-				let availableExtensions = this._registry.getAllExtensionDescriptions();
-				let extensionPoints = ExtensionsRegistry.getExtensionPoints();
+	private _onHasExtensions(allExtensions: IExtensionDescription[]): void {
+		this._registry = new ExtensionDescriptionRegistry(allExtensions);
 
-				let messageHandler = (msg: IMessage) => this._handleExtensionPointMessage(msg);
+		let availableExtensions = this._registry.getAllExtensionDescriptions();
+		let extensionPoints = ExtensionsRegistry.getExtensionPoints();
 
-				for (let i = 0, len = extensionPoints.length; i < len; i++) {
-					ExtensionService._handleExtensionPoint(extensionPoints[i], availableExtensions, messageHandler);
-				}
+		let messageHandler = (msg: IMessage) => this._handleExtensionPointMessage(msg);
 
-				perf.mark('extensionHostReady');
-				this._installedExtensionsReady.open();
-				this._onDidRegisterExtensions.fire(void 0);
-				this._onDidChangeExtensionsStatus.fire(availableExtensions.map(e => e.id));
-			});
+		for (let i = 0, len = extensionPoints.length; i < len; i++) {
+			ExtensionService._handleExtensionPoint(extensionPoints[i], availableExtensions, messageHandler);
+		}
+
+		perf.mark('extensionHostReady');
+		this._installedExtensionsReady.open();
+		this._onDidRegisterExtensions.fire(void 0);
+		this._onDidChangeExtensionsStatus.fire(availableExtensions.map(e => e.id));
 	}
 
 	private _getRuntimeExtensions(allExtensions: IExtensionDescription[]): Promise<IExtensionDescription[]> {
@@ -406,7 +408,6 @@ export class ExtensionService extends Disposable implements IExtensionService {
 							return Promise.all(toDisable.map(e => this._extensionEnablementService.setEnablement(e, EnablementState.Disabled)));
 						})
 						.then(() => {
-							this._storageService.store(BetterMergeDisabledNowKey, true, StorageScope.GLOBAL);
 							return runtimeExtensions;
 						});
 				} else {

@@ -10,7 +10,8 @@ import * as PConst from '../protocol.const';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
 import { ConfigurationDependentRegistration, VersionDependentRegistration } from '../utils/dependentRegistration';
-import { TypeScriptBaseCodeLensProvider, ReferencesCodeLens, getSymbolRange, CachedResponse } from './baseCodeLensProvider';
+import { TypeScriptBaseCodeLensProvider, ReferencesCodeLens, getSymbolRange } from './baseCodeLensProvider';
+import { CachedResponse } from '../tsServer/cachedResponse';
 import * as typeConverters from '../utils/typeConverters';
 
 const localize = nls.loadMessageBundle();

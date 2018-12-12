@@ -10,7 +10,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IDataSource, ITree, IRenderer } from 'vs/base/parts/tree/browser/tree';
 import { Action } from 'vs/base/common/actions';
 import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/parts/extensions/common/extensions';
-import { once } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
@@ -132,7 +132,7 @@ export class Renderer implements IRenderer {
 
 	private renderExtension(tree: ITree, extensionData: IExtensionData, data: IExtensionTemplateData): void {
 		const extension = extensionData.extension;
-		const onError = once(domEvent(data.icon, 'error'));
+		const onError = Event.once(domEvent(data.icon, 'error'));
 		onError(() => data.icon.src = extension.iconUrlFallback, null, data.extensionDisposables);
 		data.icon.src = extension.iconUrl;
 

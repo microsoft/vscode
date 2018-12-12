@@ -12,6 +12,7 @@ import commonSchema from './jsonSchemaCommon';
 import { ProblemMatcherRegistry } from 'vs/workbench/parts/tasks/common/problemMatcher';
 import { TaskDefinitionRegistry } from '../common/taskDefinitionRegistry';
 import * as ConfigurationResolverUtils from 'vs/workbench/services/configurationResolver/common/configurationResolverUtils';
+import { inputsSchema } from 'vs/workbench/services/configurationResolver/common/configurationResolverSchema';
 
 function fixReferences(literal: any) {
 	if (Array.isArray(literal)) {
@@ -284,10 +285,10 @@ const identifier: IJSONSchema = {
 const runOptions: IJSONSchema = {
 	type: 'object',
 	properties: {
-		rerunBehavior: {
-			type: 'string',
-			enum: ['reevauate', 'useEvaluated'],
-			description: nls.localize('JsonSchema.tasks.rerunBehavior', 'The task\'s behavior on rerun')
+		reevaluateOnRerun: {
+			type: 'boolean',
+			description: nls.localize('JsonSchema.tasks.reevaluateOnRerun', 'Whether to reevaluate task variables on rerun.'),
+			default: true
 		},
 		runOn: {
 			type: 'string',
@@ -413,7 +414,6 @@ definitions.taskDescription.properties.isTestCommand.deprecationMessage = nls.lo
 	'The property isTestCommand is deprecated. Use the group property instead. See also the 1.14 release notes.'
 );
 
-fixReferences(taskDescription);
 
 taskDefinitions.push({
 	$ref: '#/definitions/taskDescription'
@@ -423,6 +423,9 @@ let tasks = definitions.taskRunnerConfiguration.properties.tasks;
 tasks.items = {
 	oneOf: taskDefinitions
 };
+
+
+definitions.taskRunnerConfiguration.properties.inputs = inputsSchema.definitions.inputs;
 
 definitions.commandConfiguration.properties.isShellCommand = Objects.deepClone(shellCommand);
 definitions.options.properties.shell = {

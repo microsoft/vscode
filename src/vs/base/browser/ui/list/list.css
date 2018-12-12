@@ -8,6 +8,9 @@
 	height: 100%;
 	width: 100%;
 	white-space: nowrap;
+}
+
+.monaco-list.mouse-support {
 	-webkit-user-select: none;
 	-khtml-user-select: none;
 	-moz-user-select: -moz-none;
@@ -32,9 +35,12 @@
 	-o-box-sizing:		border-box;
 	-ms-box-sizing:		border-box;
 	box-sizing:			border-box;
-	cursor: pointer;
 	overflow: hidden;
 	width: 100%;
+}
+
+.monaco-list.mouse-support .monaco-list-row {
+	cursor: pointer;
 	touch-action: none;
 }
 

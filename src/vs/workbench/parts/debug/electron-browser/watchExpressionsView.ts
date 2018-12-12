@@ -67,8 +67,9 @@ export class WatchExpressionsView extends ViewletPanel {
 			new WatchExpressionsDataSource(this.debugService), {
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'watchAriaTreeLabel' }, "Debug Watch Expressions"),
 				accessibilityProvider: new WatchExpressionsAccessibilityProvider(),
-				identityProvider: { getId: element => element.getId() }
-			}, this.contextKeyService, this.listService, this.themeService, this.configurationService);
+				identityProvider: { getId: element => element.getId() },
+				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: e => e }
+			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
 
 		this.tree.refresh(null);
 
@@ -118,6 +119,11 @@ export class WatchExpressionsView extends ViewletPanel {
 	}
 
 	private onMouseDblClick(e: ITreeMouseEvent<IExpression>): void {
+		if ((e.browserEvent.target as HTMLElement).className.indexOf('twistie') >= 0) {
+			// Ignore double click events on twistie
+			return;
+		}
+
 		const element = e.element;
 		// double click on primitive value: open input box to be able to select and copy value.
 		if (element instanceof Expression) {
@@ -190,7 +196,7 @@ class WatchExpressionsDataSource implements IDataSource<IExpression> {
 			return true;
 		}
 
-		return (<IExpression>element).hasChildren;
+		return element.hasChildren;
 	}
 
 	getChildren(element: IExpression | null): Thenable<(IExpression)[]> {

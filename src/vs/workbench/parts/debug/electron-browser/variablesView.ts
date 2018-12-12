@@ -32,9 +32,6 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 
 const $ = dom.$;
 
-// TODO@Isidor Remember expanded elements when there are some (otherwise don't override/erase the previous ones)
-// Just give the identity provider to the tree and that should solve it
-
 export const variableSetEmitter = new Emitter<void>();
 
 export class VariablesView extends ViewletPanel {
@@ -82,8 +79,9 @@ export class VariablesView extends ViewletPanel {
 			new VariablesDataSource(this.debugService), {
 				ariaLabel: nls.localize('variablesAriaTreeLabel', "Debug Variables"),
 				accessibilityProvider: new VariablesAccessibilityProvider(),
-				identityProvider: { getId: element => element.getId() }
-			}, this.contextKeyService, this.listService, this.themeService, this.configurationService);
+				identityProvider: { getId: element => element.getId() },
+				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: e => e }
+			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
 
 		CONTEXT_VARIABLES_FOCUSED.bindTo(this.contextKeyService.createScoped(treeContainer));
 
@@ -126,10 +124,9 @@ export class VariablesView extends ViewletPanel {
 	}
 
 	private onMouseDblClick(e: ITreeMouseEvent<IExpression | IScope>): void {
-		const element = e.element;
 		const session = this.debugService.getViewModel().focusedSession;
-		if (element instanceof Variable && session.capabilities.supportsSetVariable) {
-			this.debugService.getViewModel().setSelectedExpression(element);
+		if (e.element instanceof Variable && session.capabilities.supportsSetVariable) {
+			this.debugService.getViewModel().setSelectedExpression(e.element);
 		}
 	}
 
@@ -216,10 +213,6 @@ class ScopesRenderer implements ITreeRenderer<IScope, void, IScopeTemplateData> 
 		templateData.name.textContent = element.element.name;
 	}
 
-	disposeElement(element: ITreeNode<IScope, void>, index: number, templateData: IScopeTemplateData): void {
-		// noop
-	}
-
 	disposeTemplate(templateData: IScopeTemplateData): void {
 		// noop
 	}
@@ -258,7 +251,6 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 }
 
 class VariablesAccessibilityProvider implements IAccessibilityProvider<IExpression | IScope> {
-
 	getAriaLabel(element: IExpression | IScope): string {
 		if (element instanceof Scope) {
 			return nls.localize('variableScopeAriaLabel', "Scope {0}, variables, debug", element.name);

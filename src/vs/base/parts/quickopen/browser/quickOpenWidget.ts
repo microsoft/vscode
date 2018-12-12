@@ -155,13 +155,13 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 		this._register(DOM.addDisposableListener(this.element, DOM.EventType.FOCUS, e => this.gainingFocus(), true));
 		this._register(DOM.addDisposableListener(this.element, DOM.EventType.BLUR, e => this.loosingFocus(e), true));
 		this._register(DOM.addDisposableListener(this.element, DOM.EventType.KEY_DOWN, e => {
-			const keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e as KeyboardEvent);
+			const keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
 			if (keyboardEvent.keyCode === KeyCode.Escape) {
 				DOM.EventHelper.stop(e, true);
 
 				this.hide(HideReason.CANCELED);
 			} else if (keyboardEvent.keyCode === KeyCode.Tab && !keyboardEvent.altKey && !keyboardEvent.ctrlKey && !keyboardEvent.metaKey) {
-				const stops = e.currentTarget.querySelectorAll('input, .monaco-tree, .monaco-tree-row.focused .action-label.icon');
+				const stops = (e.currentTarget as HTMLElement).querySelectorAll('input, .monaco-tree, .monaco-tree-row.focused .action-label.icon') as NodeListOf<HTMLElement>;
 				if (keyboardEvent.shiftKey && keyboardEvent.target === stops[0]) {
 					DOM.EventHelper.stop(e, true);
 					stops[stops.length - 1].focus();
@@ -285,7 +285,7 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 		}));
 
 		this._register(DOM.addDisposableListener(this.treeContainer, DOM.EventType.KEY_DOWN, e => {
-			const keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e as KeyboardEvent);
+			const keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
 
 			// Only handle when in quick navigation mode
 			if (!this.quickNavigateConfiguration) {
@@ -301,7 +301,7 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 		}));
 
 		this._register(DOM.addDisposableListener(this.treeContainer, DOM.EventType.KEY_UP, e => {
-			const keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e as KeyboardEvent);
+			const keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
 			const keyCode = keyboardEvent.keyCode;
 
 			// Only handle when in quick navigation mode

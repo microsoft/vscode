@@ -231,7 +231,7 @@ export class NodeBasedFolderConfiguration extends AbstractFolderConfiguration {
 			return this.resolveContents(stat.children.filter(stat => isFolderConfigurationFile(stat.resource))
 				.map(stat => stat.resource));
 		}, err => [] /* never fail this call */)
-			.then(null, errors.onUnexpectedError);
+			.then(void 0, errors.onUnexpectedError);
 	}
 
 	private resolveContents(resources: URI[]): Promise<{ resource: URI, value: string }[]> {
@@ -285,9 +285,9 @@ export class FileServiceBasedFolderConfiguration extends AbstractFolderConfigura
 				if (stat.isDirectory && stat.children) {
 					stat.children
 						.filter(child => isFolderConfigurationFile(child.resource))
-						.forEach(child => workspaceFilePathToConfiguration[this.toFolderRelativePath(child.resource)] = Promise.resolve(this.fileService.resolveContent(child.resource)).then(null, errors.onUnexpectedError));
+						.forEach(child => workspaceFilePathToConfiguration[this.toFolderRelativePath(child.resource)] = Promise.resolve(this.fileService.resolveContent(child.resource)).then(void 0, errors.onUnexpectedError));
 				}
-			}).then(null, err => [] /* never fail this call */);
+			}).then(void 0, err => [] /* never fail this call */);
 
 		return bulkContentFetchromise.then(() => Promise.all(collections.values(workspaceFilePathToConfiguration)));
 	}
@@ -401,7 +401,7 @@ export class CachedFolderConfiguration extends Disposable implements IFolderConf
 
 	private createCachedFolder(): Promise<boolean> {
 		return Promise.resolve(pfs.exists(this.cachedFolderPath))
-			.then(null, () => false)
+			.then(void 0, () => false)
 			.then(exists => exists ? exists : pfs.mkdirp(this.cachedFolderPath).then(() => true, () => false));
 	}
 }

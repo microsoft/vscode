@@ -87,7 +87,7 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 			const instantiationService = accessor.get(IInstantiationService);
 			const lifecycleService = accessor.get(ILifecycleService);
 
-			Promise.resolve(this.triggerAndDisposeAction(instantiationService, lifecycleService, descriptor, args)).then(null, err => {
+			Promise.resolve(this.triggerAndDisposeAction(instantiationService, lifecycleService, descriptor, args)).then(void 0, err => {
 				notificationService.error(err);
 			});
 		};

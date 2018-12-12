@@ -360,7 +360,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 
 	constructor(
 		domElement: HTMLElement,
-		options: IDiffEditorConstructionOptions,
+		options: IDiffEditorConstructionOptions | undefined,
 		toDispose: IDisposable,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,

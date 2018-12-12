@@ -10,7 +10,7 @@ import { Diagnostic, DiagnosticSeverity, Range, DiagnosticRelatedInformation, Lo
 import { MainThreadDiagnosticsShape, IMainContext } from 'vs/workbench/api/node/extHost.protocol';
 import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
-import { Emitter, toPromise } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 
 suite('ExtHostDiagnostics', () => {
 
@@ -292,7 +292,7 @@ suite('ExtHostDiagnostics', () => {
 		let diag2 = new Diagnostic(new Range(1, 1, 2, 3), 'diag2');
 		let diag3 = new Diagnostic(new Range(1, 1, 2, 3), 'diag3');
 
-		let p = toPromise(emitter.event).then(a => {
+		let p = Event.toPromise(emitter.event).then(a => {
 			assert.equal(a.length, 1);
 			assert.equal(a[0].toString(), 'aa:bb');
 			assert.ok(URI.isUri(a[0]));
@@ -300,7 +300,7 @@ suite('ExtHostDiagnostics', () => {
 		collection.set(URI.parse('aa:bb'), []);
 		await p;
 
-		p = toPromise(emitter.event).then(e => {
+		p = Event.toPromise(emitter.event).then(e => {
 			assert.equal(e.length, 2);
 			assert.ok(URI.isUri(e[0]));
 			assert.ok(URI.isUri(e[1]));
@@ -313,7 +313,7 @@ suite('ExtHostDiagnostics', () => {
 		]);
 		await p;
 
-		p = toPromise(emitter.event).then(e => {
+		p = Event.toPromise(emitter.event).then(e => {
 			assert.equal(e.length, 2);
 			assert.ok(typeof e[0] === 'string');
 			assert.ok(typeof e[1] === 'string');
@@ -330,7 +330,7 @@ suite('ExtHostDiagnostics', () => {
 
 		// delete
 		collection.set(URI.parse('aa:bb'), [diag1]);
-		let p = toPromise(emitter.event).then(e => {
+		let p = Event.toPromise(emitter.event).then(e => {
 			assert.equal(e[0].toString(), 'aa:bb');
 		});
 		collection.delete(URI.parse('aa:bb'));
@@ -338,7 +338,7 @@ suite('ExtHostDiagnostics', () => {
 
 		// set->undefined (as delete)
 		collection.set(URI.parse('aa:bb'), [diag1]);
-		p = toPromise(emitter.event).then(e => {
+		p = Event.toPromise(emitter.event).then(e => {
 			assert.equal(e[0].toString(), 'aa:bb');
 		});
 		collection.set(URI.parse('aa:bb'), undefined);

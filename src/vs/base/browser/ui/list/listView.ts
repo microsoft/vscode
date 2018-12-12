@@ -7,7 +7,7 @@ import { getOrDefault } from 'vs/base/common/objects';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Gesture, EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import * as DOM from 'vs/base/browser/dom';
-import { Event, mapEvent, filterEvent } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollEvent, ScrollbarVisibility, INewScrollDimensions } from 'vs/base/common/scrollable';
@@ -48,6 +48,7 @@ export interface IListViewOptions {
 	readonly verticalScrollMode?: ScrollbarVisibility;
 	readonly setRowLineHeight?: boolean;
 	readonly supportDynamicHeights?: boolean;
+	readonly mouseSupport?: boolean;
 }
 
 const DefaultOptions = {
@@ -82,6 +83,10 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private supportDynamicHeights: boolean;
 	private disposables: IDisposable[];
 
+	private _onDidChangeContentHeight = new Emitter<number>();
+	readonly onDidChangeContentHeight: Event<number> = Event.latch(this._onDidChangeContentHeight.event);
+	get contentHeight(): number { return this.rangeMap.size; }
+
 	constructor(
 		container: HTMLElement,
 		private virtualDelegate: IListVirtualDelegate<T>,
@@ -103,6 +108,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		this.domNode = document.createElement('div');
 		this.domNode.className = 'monaco-list';
+		DOM.toggleClass(this.domNode, 'mouse-support', typeof options.mouseSupport === 'boolean' ? options.mouseSupport : true);
 
 		this.rowsContainer = document.createElement('div');
 		this.rowsContainer.className = 'monaco-list-rows';
@@ -128,7 +134,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		domEvent(this.scrollableElement.getDomNode(), 'scroll')
 			(e => (e.target as HTMLElement).scrollTop = 0, null, this.disposables);
 
-		const onDragOver = mapEvent(domEvent(this.rowsContainer, 'dragover'), e => new DragMouseEvent(e));
+		const onDragOver = Event.map(domEvent(this.rowsContainer, 'dragover'), e => new DragMouseEvent(e));
 		onDragOver(this.onDragOver, this, this.disposables);
 
 		this.setRowLineHeight = getOrDefault(options, o => o.setRowLineHeight, DefaultOptions.setRowLineHeight);
@@ -148,6 +154,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			return this._splice(start, deleteCount, elements);
 		} finally {
 			this.splicing = false;
+			this._onDidChangeContentHeight.fire(this.contentHeight);
 		}
 	}
 
@@ -225,7 +232,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	private updateScrollHeight(): void {
-		this._scrollHeight = this.getContentHeight();
+		this._scrollHeight = this.contentHeight;
 		this.rowsContainer.style.height = `${this._scrollHeight}px`;
 
 		if (!this.scrollableElementUpdateDisposable) {
@@ -375,10 +382,6 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		item.row = null;
 	}
 
-	getContentHeight(): number {
-		return this.rangeMap.size;
-	}
-
 	getScrollTop(): number {
 		const scrollPosition = this.scrollableElement.getScrollPosition();
 		return scrollPosition.scrollTop;
@@ -408,17 +411,17 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	// Events
 
-	@memoize get onMouseClick(): Event<IListMouseEvent<T>> { return mapEvent(domEvent(this.domNode, 'click'), e => this.toMouseEvent(e)); }
-	@memoize get onMouseDblClick(): Event<IListMouseEvent<T>> { return mapEvent(domEvent(this.domNode, 'dblclick'), e => this.toMouseEvent(e)); }
-	@memoize get onMouseMiddleClick(): Event<IListMouseEvent<T>> { return filterEvent(mapEvent(domEvent(this.domNode, 'auxclick'), e => this.toMouseEvent(e as MouseEvent)), e => e.browserEvent.button === 1); }
-	@memoize get onMouseUp(): Event<IListMouseEvent<T>> { return mapEvent(domEvent(this.domNode, 'mouseup'), e => this.toMouseEvent(e)); }
-	@memoize get onMouseDown(): Event<IListMouseEvent<T>> { return mapEvent(domEvent(this.domNode, 'mousedown'), e => this.toMouseEvent(e)); }
-	@memoize get onMouseOver(): Event<IListMouseEvent<T>> { return mapEvent(domEvent(this.domNode, 'mouseover'), e => this.toMouseEvent(e)); }
-	@memoize get onMouseMove(): Event<IListMouseEvent<T>> { return mapEvent(domEvent(this.domNode, 'mousemove'), e => this.toMouseEvent(e)); }
-	@memoize get onMouseOut(): Event<IListMouseEvent<T>> { return mapEvent(domEvent(this.domNode, 'mouseout'), e => this.toMouseEvent(e)); }
-	@memoize get onContextMenu(): Event<IListMouseEvent<T>> { return mapEvent(domEvent(this.domNode, 'contextmenu'), e => this.toMouseEvent(e)); }
-	@memoize get onTouchStart(): Event<IListTouchEvent<T>> { return mapEvent(domEvent(this.domNode, 'touchstart'), e => this.toTouchEvent(e)); }
-	@memoize get onTap(): Event<IListGestureEvent<T>> { return mapEvent(domEvent(this.rowsContainer, TouchEventType.Tap), e => this.toGestureEvent(e)); }
+	@memoize get onMouseClick(): Event<IListMouseEvent<T>> { return Event.map(domEvent(this.domNode, 'click'), e => this.toMouseEvent(e)); }
+	@memoize get onMouseDblClick(): Event<IListMouseEvent<T>> { return Event.map(domEvent(this.domNode, 'dblclick'), e => this.toMouseEvent(e)); }
+	@memoize get onMouseMiddleClick(): Event<IListMouseEvent<T>> { return Event.filter(Event.map(domEvent(this.domNode, 'auxclick'), e => this.toMouseEvent(e as MouseEvent)), e => e.browserEvent.button === 1); }
+	@memoize get onMouseUp(): Event<IListMouseEvent<T>> { return Event.map(domEvent(this.domNode, 'mouseup'), e => this.toMouseEvent(e)); }
+	@memoize get onMouseDown(): Event<IListMouseEvent<T>> { return Event.map(domEvent(this.domNode, 'mousedown'), e => this.toMouseEvent(e)); }
+	@memoize get onMouseOver(): Event<IListMouseEvent<T>> { return Event.map(domEvent(this.domNode, 'mouseover'), e => this.toMouseEvent(e)); }
+	@memoize get onMouseMove(): Event<IListMouseEvent<T>> { return Event.map(domEvent(this.domNode, 'mousemove'), e => this.toMouseEvent(e)); }
+	@memoize get onMouseOut(): Event<IListMouseEvent<T>> { return Event.map(domEvent(this.domNode, 'mouseout'), e => this.toMouseEvent(e)); }
+	@memoize get onContextMenu(): Event<IListMouseEvent<T>> { return Event.map(domEvent(this.domNode, 'contextmenu'), e => this.toMouseEvent(e)); }
+	@memoize get onTouchStart(): Event<IListTouchEvent<T>> { return Event.map(domEvent(this.domNode, 'touchstart'), e => this.toTouchEvent(e)); }
+	@memoize get onTap(): Event<IListGestureEvent<T>> { return Event.map(domEvent(this.rowsContainer, TouchEventType.Tap), e => this.toGestureEvent(e)); }
 
 	private toMouseEvent(browserEvent: MouseEvent): IListMouseEvent<T> {
 		const index = this.getItemIndexFromEventTarget(browserEvent.target || null);
@@ -602,10 +605,10 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 					this.scrollTop = this.elementTop(secondElementIndex) - secondElementTopDelta!;
 				}
 
+				this._onDidChangeContentHeight.fire(this.contentHeight);
 				return;
 			}
 		}
-
 	}
 
 	private probeDynamicHeight(index: number): number {

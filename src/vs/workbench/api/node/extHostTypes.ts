@@ -1118,7 +1118,7 @@ export class SignatureHelp {
 	}
 }
 
-export enum SignatureHelpTriggerReason {
+export enum SignatureHelpTriggerKind {
 	Invoke = 1,
 	TriggerCharacter = 2,
 	ContentChange = 3,
@@ -1591,12 +1591,7 @@ export enum TaskScope {
 	Workspace = 2
 }
 
-export enum RerunBehavior {
-	reevaluate = 1,
-	useEvaluated = 2,
-}
-
-export class Task implements vscode.Task2 {
+export class Task implements vscode.Task {
 
 	private static ProcessType: string = 'process';
 	private static ShellType: string = 'shell';

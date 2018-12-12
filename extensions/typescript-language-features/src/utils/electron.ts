@@ -14,9 +14,9 @@ const getRootTempDir = (() => {
 	return () => {
 		if (!dir) {
 			dir = temp.getTempFile(`vscode-typescript`);
-			if (!fs.existsSync(dir)) {
-				fs.mkdirSync(dir);
-			}
+		}
+		if (!fs.existsSync(dir)) {
+			fs.mkdirSync(dir);
 		}
 		return dir;
 	};

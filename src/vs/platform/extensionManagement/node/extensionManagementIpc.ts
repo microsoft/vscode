@@ -5,7 +5,7 @@
 
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
 import { IExtensionManagementService, ILocalExtension, InstallExtensionEvent, DidInstallExtensionEvent, IGalleryExtension, LocalExtensionType, DidUninstallExtensionEvent, IExtensionIdentifier, IGalleryMetadata, IReportedExtension } from '../common/extensionManagement';
-import { Event, buffer, mapEvent } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 
@@ -17,17 +17,17 @@ export class ExtensionManagementChannel implements IServerChannel {
 	onDidUninstallExtension: Event<DidUninstallExtensionEvent>;
 
 	constructor(private service: IExtensionManagementService, private getUriTransformer: (requestContext: any) => IURITransformer) {
-		this.onInstallExtension = buffer(service.onInstallExtension, true);
-		this.onDidInstallExtension = buffer(service.onDidInstallExtension, true);
-		this.onUninstallExtension = buffer(service.onUninstallExtension, true);
-		this.onDidUninstallExtension = buffer(service.onDidUninstallExtension, true);
+		this.onInstallExtension = Event.buffer(service.onInstallExtension, true);
+		this.onDidInstallExtension = Event.buffer(service.onDidInstallExtension, true);
+		this.onUninstallExtension = Event.buffer(service.onUninstallExtension, true);
+		this.onDidUninstallExtension = Event.buffer(service.onDidUninstallExtension, true);
 	}
 
 	listen(context, event: string): Event<any> {
 		const uriTransformer = this.getUriTransformer(context);
 		switch (event) {
 			case 'onInstallExtension': return this.onInstallExtension;
-			case 'onDidInstallExtension': return mapEvent(this.onDidInstallExtension, i => ({ ...i, local: this._transformOutgoing(i.local, uriTransformer) }));
+			case 'onDidInstallExtension': return Event.map(this.onDidInstallExtension, i => ({ ...i, local: this._transformOutgoing(i.local, uriTransformer) }));
 			case 'onUninstallExtension': return this.onUninstallExtension;
 			case 'onDidUninstallExtension': return this.onDidUninstallExtension;
 		}
@@ -70,7 +70,7 @@ export class ExtensionManagementChannelClient implements IExtensionManagementSer
 	constructor(private channel: IChannel) { }
 
 	get onInstallExtension(): Event<InstallExtensionEvent> { return this.channel.listen('onInstallExtension'); }
-	get onDidInstallExtension(): Event<DidInstallExtensionEvent> { return mapEvent(this.channel.listen<DidInstallExtensionEvent>('onDidInstallExtension'), i => ({ ...i, local: this._transformIncoming(i.local) })); }
+	get onDidInstallExtension(): Event<DidInstallExtensionEvent> { return Event.map(this.channel.listen<DidInstallExtensionEvent>('onDidInstallExtension'), i => ({ ...i, local: this._transformIncoming(i.local) })); }
 	get onUninstallExtension(): Event<IExtensionIdentifier> { return this.channel.listen('onUninstallExtension'); }
 	get onDidUninstallExtension(): Event<DidUninstallExtensionEvent> { return this.channel.listen('onDidUninstallExtension'); }
 

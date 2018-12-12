@@ -77,17 +77,14 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 				this.notificationService.prompt(
 					Severity.Info,
 					updateAndRestart ? localize('updateLocale', "Would you like to change VS Code's UI language to {0} and restart?", e.local.manifest.contributes.localizations[0].languageName || e.local.manifest.contributes.localizations[0].languageId)
-						: localize('activateLanguagePack', "Would you like to restart VS Code to activate the language pack that was just installed?"),
+						: localize('activateLanguagePack', "In order to use VS Code in {0}, VS Code needs to restart.", e.local.manifest.contributes.localizations[0].languageName || e.local.manifest.contributes.localizations[0].languageId),
 					[{
-						label: localize('yes', "Yes"),
+						label: updateAndRestart ? localize('yes', "Yes") : localize('restart now', "Restart Now"),
 						run: () => {
 							const file = URI.file(join(this.environmentService.appSettingsHome, 'locale.json'));
 							const updatePromise = updateAndRestart ? this.jsonEditingService.write(file, { key: 'locale', value: locale }, true) : Promise.resolve(null);
 							updatePromise.then(() => this.windowsService.relaunch({}), e => this.notificationService.error(e));
 						}
-					}, {
-						label: localize('no', "No"),
-						run: () => { }
 					}, {
 						label: localize('neverAgain', "Don't Show Again"),
 						isSecondary: true,

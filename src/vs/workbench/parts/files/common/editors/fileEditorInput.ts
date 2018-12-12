@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { memoize } from 'vs/base/common/decorators';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
@@ -29,7 +28,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 	private preferredEncoding: string;
 	private forceOpenAsBinary: boolean;
 	private forceOpenAsText: boolean;
-	private textModelReference: TPromise<IReference<ITextEditorModel>>;
+	private textModelReference: Thenable<IReference<ITextEditorModel>>;
 	private name: string;
 
 	/**
@@ -223,15 +222,15 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		return model.isDirty();
 	}
 
-	confirmSave(): TPromise<ConfirmResult> {
+	confirmSave(): Thenable<ConfirmResult> {
 		return this.textFileService.confirmSave([this.resource]);
 	}
 
-	save(): TPromise<boolean> {
+	save(): Thenable<boolean> {
 		return this.textFileService.save(this.resource);
 	}
 
-	revert(options?: IRevertOptions): TPromise<boolean> {
+	revert(options?: IRevertOptions): Thenable<boolean> {
 		return this.textFileService.revert(this.resource, options);
 	}
 

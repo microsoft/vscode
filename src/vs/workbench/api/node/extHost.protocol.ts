@@ -43,6 +43,7 @@ import { IProgressOptions, IProgressStep } from 'vs/platform/progress/common/pro
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import * as vscode from 'vscode';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { ResolvedAuthority } from 'vs/platform/remote/common/remoteAuthorityResolver';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -50,7 +51,7 @@ export interface IEnvironment {
 	appSettingsHome: URI;
 	extensionDevelopmentLocationURI: URI;
 	extensionTestsPath: string;
-	globalStorageHome: string;
+	globalStorageHome: URI;
 }
 
 export interface IWorkspaceData {
@@ -70,6 +71,7 @@ export interface IInitData {
 	telemetryInfo: ITelemetryInfo;
 	logLevel: LogLevel;
 	logsLocation: URI;
+	autoStart: boolean;
 	remoteAuthority?: string | null;
 }
 
@@ -103,8 +105,14 @@ export interface MainThreadCommandsShape extends IDisposable {
 	$getCommands(): Thenable<string[]>;
 }
 
+export interface CommentProviderFeatures {
+	startDraftLabel?: string;
+	deleteDraftLabel?: string;
+	finishDraftLabel?: string;
+}
+
 export interface MainThreadCommentsShape extends IDisposable {
-	$registerDocumentCommentProvider(handle: number): void;
+	$registerDocumentCommentProvider(handle: number, features: CommentProviderFeatures): void;
 	$unregisterDocumentCommentProvider(handle: number): void;
 	$registerWorkspaceCommentProvider(handle: number, extensionId: string): void;
 	$unregisterWorkspaceCommentProvider(handle: number): void;
@@ -300,6 +308,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerDocumentLinkProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerDocumentColorProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerFoldingRangeProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
+	$registerSelectionRangeProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$setLanguageConfiguration(handle: number, languageId: string, configuration: ISerializedLanguageConfiguration): void;
 }
 
@@ -726,6 +735,8 @@ export interface ExtHostSearchShape {
 }
 
 export interface ExtHostExtensionServiceShape {
+	$resolveAuthority(remoteAuthority: string): Thenable<ResolvedAuthority>;
+	$startExtensionHost(enabledExtensionIds: string[]): Thenable<void>;
 	$activateByEvent(activationEvent: string): Thenable<void>;
 }
 
@@ -875,6 +886,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideDocumentColors(handle: number, resource: UriComponents, token: CancellationToken): Thenable<IRawColorInfo[]>;
 	$provideColorPresentations(handle: number, resource: UriComponents, colorInfo: IRawColorInfo, token: CancellationToken): Thenable<modes.IColorPresentation[]>;
 	$provideFoldingRanges(handle: number, resource: UriComponents, context: modes.FoldingContext, token: CancellationToken): Thenable<modes.FoldingRange[]>;
+	$provideSelectionRanges(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Thenable<IRange[]>;
 }
 
 export interface ExtHostQuickOpenShape {
@@ -1032,6 +1044,9 @@ export interface ExtHostCommentsShape {
 	$replyToCommentThread(handle: number, document: UriComponents, range: IRange, commentThread: modes.CommentThread, text: string): Thenable<modes.CommentThread>;
 	$editComment(handle: number, document: UriComponents, comment: modes.Comment, text: string): Thenable<void>;
 	$deleteComment(handle: number, document: UriComponents, comment: modes.Comment): Thenable<void>;
+	$startDraft(handle: number): Thenable<void>;
+	$deleteDraft(handle: number): Thenable<void>;
+	$finishDraft(handle: number): Thenable<void>;
 	$provideWorkspaceComments(handle: number): Thenable<modes.CommentThread[]>;
 }
 

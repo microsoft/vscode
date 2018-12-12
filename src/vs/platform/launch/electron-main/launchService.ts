@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IURLService } from 'vs/platform/url/common/url';
@@ -61,10 +60,10 @@ function parseOpenUrl(args: ParsedArgs): URI[] {
 
 export interface ILaunchService {
 	_serviceBrand: any;
-	start(args: ParsedArgs, userEnv: IProcessEnvironment): TPromise<void>;
-	getMainProcessId(): TPromise<number>;
-	getMainProcessInfo(): TPromise<IMainProcessInfo>;
-	getLogsPath(): TPromise<string>;
+	start(args: ParsedArgs, userEnv: IProcessEnvironment): Thenable<void>;
+	getMainProcessId(): Thenable<number>;
+	getMainProcessInfo(): Thenable<IMainProcessInfo>;
+	getLogsPath(): Thenable<string>;
 }
 
 export class LaunchChannel implements IServerChannel {
@@ -75,7 +74,7 @@ export class LaunchChannel implements IServerChannel {
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(_, command: string, arg: any): TPromise<any> {
+	call(_, command: string, arg: any): Thenable<any> {
 		switch (command) {
 			case 'start':
 				const { args, userEnv } = arg as IStartArguments;
@@ -101,19 +100,19 @@ export class LaunchChannelClient implements ILaunchService {
 
 	constructor(private channel: IChannel) { }
 
-	start(args: ParsedArgs, userEnv: IProcessEnvironment): TPromise<void> {
+	start(args: ParsedArgs, userEnv: IProcessEnvironment): Thenable<void> {
 		return this.channel.call('start', { args, userEnv });
 	}
 
-	getMainProcessId(): TPromise<number> {
+	getMainProcessId(): Thenable<number> {
 		return this.channel.call('get-main-process-id', null);
 	}
 
-	getMainProcessInfo(): TPromise<IMainProcessInfo> {
+	getMainProcessInfo(): Thenable<IMainProcessInfo> {
 		return this.channel.call('get-main-process-info', null);
 	}
 
-	getLogsPath(): TPromise<string> {
+	getLogsPath(): Thenable<string> {
 		return this.channel.call('get-logs-path', null);
 	}
 }
@@ -131,14 +130,14 @@ export class LaunchService implements ILaunchService {
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) { }
 
-	start(args: ParsedArgs, userEnv: IProcessEnvironment): TPromise<void> {
+	start(args: ParsedArgs, userEnv: IProcessEnvironment): Thenable<void> {
 		this.logService.trace('Received data from other instance: ', args, userEnv);
 
 		const urlsToOpen = parseOpenUrl(args);
 
 		// Check early for open-url which is handled in URL service
 		if (urlsToOpen.length) {
-			let whenWindowReady = TPromise.as<any>(null);
+			let whenWindowReady: Thenable<any> = Promise.resolve<any>(null);
 
 			// Create a window if there is none
 			if (this.windowsMainService.getWindowCount() === 0) {
@@ -153,14 +152,14 @@ export class LaunchService implements ILaunchService {
 				}
 			});
 
-			return TPromise.as(void 0);
+			return Promise.resolve(void 0);
 		}
 
 		// Otherwise handle in windows service
 		return this.startOpenWindow(args, userEnv);
 	}
 
-	private startOpenWindow(args: ParsedArgs, userEnv: IProcessEnvironment): TPromise<void> {
+	private startOpenWindow(args: ParsedArgs, userEnv: IProcessEnvironment): Thenable<void> {
 		const context = !!userEnv['VSCODE_CLI'] ? OpenContext.CLI : OpenContext.DESKTOP;
 		let usedWindows: ICodeWindow[] = [];
 
@@ -230,16 +229,16 @@ export class LaunchService implements ILaunchService {
 			]).then(() => void 0, () => void 0);
 		}
 
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 
-	getMainProcessId(): TPromise<number> {
+	getMainProcessId(): Thenable<number> {
 		this.logService.trace('Received request for process ID from other instance.');
 
-		return TPromise.as(process.pid);
+		return Promise.resolve(process.pid);
 	}
 
-	getMainProcessInfo(): TPromise<IMainProcessInfo> {
+	getMainProcessInfo(): Thenable<IMainProcessInfo> {
 		this.logService.trace('Received request for main process info from other instance.');
 
 		const windows: IWindowInfo[] = [];
@@ -252,17 +251,17 @@ export class LaunchService implements ILaunchService {
 			}
 		});
 
-		return TPromise.wrap({
+		return Promise.resolve({
 			mainPID: process.pid,
 			mainArguments: process.argv.slice(1),
 			windows
-		} as IMainProcessInfo);
+		});
 	}
 
-	getLogsPath(): TPromise<string> {
+	getLogsPath(): Thenable<string> {
 		this.logService.trace('Received request for logs path from other instance.');
 
-		return TPromise.as(this.environmentService.logsPath);
+		return Promise.resolve(this.environmentService.logsPath);
 	}
 
 	private codeWindowToInfo(window: ICodeWindow): IWindowInfo {

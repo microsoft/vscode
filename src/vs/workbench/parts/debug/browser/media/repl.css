@@ -9,6 +9,7 @@
 	height: 100%;
 	box-sizing: border-box;
 	overflow: hidden;
+	cursor: text;
 }
 
 .monaco-workbench .repl .surveyor {
@@ -21,6 +22,11 @@
 	visibility: hidden;
 }
 
+/* Align twisite to last line - for input output pair expressions. */
+.monaco-workbench .repl .repl-tree .monaco-tl-twistie {
+	background-position-y: calc(100% - 2px);
+}
+
 .monaco-workbench .repl .repl-tree .monaco-list .monaco-list-row .monaco-tl-contents {
 	line-height: 18px;
 	user-select: text;
@@ -31,6 +37,11 @@
 	word-break: break-all;
 }
 
+.monaco-workbench.mac .repl .repl-tree .monaco-list-row .monaco-tl-twistie.collapsible + .monaco-tl-contents,
+.monaco-workbench.mac .repl .repl-tree .monaco-list-row .monaco-tl-twistie {
+	cursor: pointer;
+}
+
 .monaco-workbench.mac .repl .repl-tree .monaco-list-row .input.expression,
 .monaco-workbench.mac .repl .repl-tree .monaco-list-row .output.expression {
 	font-size: 12px;
@@ -39,7 +50,6 @@
 .monaco-workbench .repl .repl-tree .monaco-list-row .output.expression.value-and-source {
 	display: flex;
 }
-
 
 .monaco-workbench .repl .repl-tree .monaco-list-row .output.expression.value-and-source .value {
 	flex: 1;
@@ -77,11 +87,6 @@
 	border-top: 1px solid rgba(128, 128, 128, 0.35);
 }
 
-/* Disable repl hover highlight in tree. */
-.monaco-workbench .repl .repl-tree .monaco-list .monaco-list-rows > .monaco-list-row:hover:not(.highlighted):not(.selected):not(.focused)  {
-	background-color: inherit;
-}
-
 /* Only show 'stale expansion' info when the element gets expanded. */
 .monaco-workbench .repl .repl-tree .monaco-list .monaco-list-rows > .monaco-list-row:not(.expanded) .input-output-pair > .output > .annotation::before  {
 	content: '';
@@ -94,9 +99,6 @@
 .monaco-workbench .repl .repl-input-wrapper:before {
 	left: 8px;
 	position: absolute;
-}
-
-.monaco-workbench .repl .repl-input-wrapper:before {
 	content: '\276f';
 	line-height: 18px;
 }

@@ -63,7 +63,7 @@ export interface IWorkspaceContextService {
 	 * Returns the folder for the given resource from the workspace.
 	 * Can be null if there is no workspace or the resource is not inside the workspace.
 	 */
-	getWorkspaceFolder(resource: URI): IWorkspaceFolder;
+	getWorkspaceFolder(resource: URI): IWorkspaceFolder | null;
 
 	/**
 	 * Return `true` if the current workspace has the given identifier otherwise `false`.

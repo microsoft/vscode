@@ -41,7 +41,7 @@ interface ILanguageConfiguration {
 	autoCloseBefore?: string;
 }
 
-function isStringArr(something: string[]): boolean {
+function isStringArr(something: string[] | null): something is string[] {
 	if (!Array.isArray(something)) {
 		return false;
 	}
@@ -54,7 +54,7 @@ function isStringArr(something: string[]): boolean {
 
 }
 
-function isCharacterPair(something: CharacterPair): boolean {
+function isCharacterPair(something: CharacterPair | null): boolean {
 	return (
 		isStringArr(something)
 		&& something.length === 2
@@ -82,7 +82,7 @@ export class LanguageConfigurationFileHandler {
 			});
 		});
 		textMateService.onDidEncounterLanguage((languageId) => {
-			this._loadConfigurationsForMode(this._modeService.getLanguageIdentifier(languageId));
+			this._loadConfigurationsForMode(this._modeService.getLanguageIdentifier(languageId)!);
 		});
 	}
 
@@ -109,7 +109,7 @@ export class LanguageConfigurationFileHandler {
 		});
 	}
 
-	private _extractValidCommentRule(languageIdentifier: LanguageIdentifier, configuration: ILanguageConfiguration): CommentRule {
+	private _extractValidCommentRule(languageIdentifier: LanguageIdentifier, configuration: ILanguageConfiguration): CommentRule | null {
 		const source = configuration.comments;
 		if (typeof source === 'undefined') {
 			return null;
@@ -139,7 +139,7 @@ export class LanguageConfigurationFileHandler {
 		return result;
 	}
 
-	private _extractValidBrackets(languageIdentifier: LanguageIdentifier, configuration: ILanguageConfiguration): CharacterPair[] {
+	private _extractValidBrackets(languageIdentifier: LanguageIdentifier, configuration: ILanguageConfiguration): CharacterPair[] | null {
 		const source = configuration.brackets;
 		if (typeof source === 'undefined') {
 			return null;
@@ -163,7 +163,7 @@ export class LanguageConfigurationFileHandler {
 		return result;
 	}
 
-	private _extractValidAutoClosingPairs(languageIdentifier: LanguageIdentifier, configuration: ILanguageConfiguration): IAutoClosingPairConditional[] {
+	private _extractValidAutoClosingPairs(languageIdentifier: LanguageIdentifier, configuration: ILanguageConfiguration): IAutoClosingPairConditional[] | null {
 		const source = configuration.autoClosingPairs;
 		if (typeof source === 'undefined') {
 			return null;
@@ -209,7 +209,7 @@ export class LanguageConfigurationFileHandler {
 		return result;
 	}
 
-	private _extractValidSurroundingPairs(languageIdentifier: LanguageIdentifier, configuration: ILanguageConfiguration): IAutoClosingPair[] {
+	private _extractValidSurroundingPairs(languageIdentifier: LanguageIdentifier, configuration: ILanguageConfiguration): IAutoClosingPair[] | null {
 		const source = configuration.surroundingPairs;
 		if (typeof source === 'undefined') {
 			return null;
@@ -327,7 +327,7 @@ export class LanguageConfigurationFileHandler {
 		return null;
 	}
 
-	private _mapIndentationRules(indentationRules: IIndentationRules): IndentationRule {
+	private _mapIndentationRules(indentationRules: IIndentationRules): IndentationRule | null {
 		try {
 			let increaseIndentPattern = this._parseRegex(indentationRules.increaseIndentPattern);
 			let decreaseIndentPattern = this._parseRegex(indentationRules.decreaseIndentPattern);

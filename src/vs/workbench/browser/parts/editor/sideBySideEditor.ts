@@ -15,7 +15,7 @@ import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/br
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 import { SplitView, Sizing, Orientation } from 'vs/base/browser/ui/splitview/splitview';
-import { Event, Relay, anyEvent, mapEvent, Emitter } from 'vs/base/common/event';
+import { Event, Relay, Emitter } from 'vs/base/common/event';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export class SideBySideEditor extends BaseEditor {
@@ -54,7 +54,7 @@ export class SideBySideEditor extends BaseEditor {
 
 	private onDidCreateEditors = this._register(new Emitter<{ width: number; height: number; }>());
 	private _onDidSizeConstraintsChange = this._register(new Relay<{ width: number; height: number; }>());
-	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; }> = anyEvent(this.onDidCreateEditors.event, this._onDidSizeConstraintsChange.event);
+	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; }> = Event.any(this.onDidCreateEditors.event, this._onDidSizeConstraintsChange.event);
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -193,9 +193,9 @@ export class SideBySideEditor extends BaseEditor {
 		this.detailsEditor = details;
 		this.masterEditor = master;
 
-		this._onDidSizeConstraintsChange.input = anyEvent(
-			mapEvent(details.onDidSizeConstraintsChange, () => undefined),
-			mapEvent(master.onDidSizeConstraintsChange, () => undefined)
+		this._onDidSizeConstraintsChange.input = Event.any(
+			Event.map(details.onDidSizeConstraintsChange, () => undefined),
+			Event.map(master.onDidSizeConstraintsChange, () => undefined)
 		);
 
 		this.onDidCreateEditors.fire();

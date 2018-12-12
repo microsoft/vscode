@@ -24,6 +24,7 @@ import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/commo
 export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchContribution {
 
 	private readonly _session = new Map<ICpuProfilerTarget, CancellationTokenSource>();
+	private readonly _blame = new Set<string>();
 
 	constructor(
 		@IExtensionService private _extensionService: IExtensionService,
@@ -170,12 +171,18 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 			return;
 		}
 
+		// only blame once per extension, don't blame too often
+		if (this._blame.has(extension.id) || this._blame.size >= 3) {
+			return;
+		}
+		this._blame.add(extension.id);
+
 		// user-facing message when very bad...
 		this._notificationService.prompt(
-			Severity.Info,
+			Severity.Warning,
 			localize(
 				'unresponsive-exthost',
-				"The extension '{0}' took a very long time to complete its last task and it has prevented other extensions from running.",
+				"The extension '{0}' took a very long time to complete its last operation and it has prevented other extensions from running.",
 				extension.displayName || extension.name
 			),
 			[{
@@ -187,7 +194,7 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 				run: () => {
 					/* __GDPR__
 						"exthostunresponsive/report" : {
-							"id" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+							"id" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 						}
 					*/
 					this._telemetryService.publicLog('exthostunresponsive/report', { id });

@@ -14,7 +14,7 @@ import { always, timeout } from 'vs/base/common/async';
 import { ProgressBadge, IActivityService } from 'vs/workbench/services/activity/common/activity';
 import { INotificationService, Severity, INotificationHandle, INotificationActions } from 'vs/platform/notification/common/notification';
 import { Action } from 'vs/base/common/actions';
-import { once } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 
 export class ProgressService2 implements IProgressService2 {
 
@@ -165,7 +165,7 @@ export class ProgressService2 implements IProgressService2 {
 
 			updateProgress(handle, increment);
 
-			once(handle.onDidClose)(() => {
+			Event.once(handle.onDidClose)(() => {
 				dispose(toDispose);
 			});
 
