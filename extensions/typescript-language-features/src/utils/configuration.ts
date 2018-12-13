@@ -85,10 +85,10 @@ export class TypeScriptServiceConfiguration {
 	}
 
 	private static fixPathPrefixes(inspectValue: string): string {
-		const pathPrefixes = ['~', '${home}'];
+		const pathPrefixes = ['~/'];
 		for (const pathPrefix of pathPrefixes) {
 			if (inspectValue.startsWith(pathPrefix)) {
-				const homedir = os.homedir();
+				const homedir = os.homedir().concat('/');
 				return inspectValue.replace(pathPrefix, homedir);
 			}
 		}
