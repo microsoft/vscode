@@ -176,7 +176,7 @@
 	user-select: text;
 }
 
-.search-view > .results > .monaco-tree .sub-content {
+.search-view > .results > .monaco-list .sub-content {
 	overflow: hidden;
 }
 
@@ -193,10 +193,10 @@
 	flex: 1;
 }
 
-.search-view:not(.wide) .monaco-tree .monaco-tree-row:hover:not(.highlighted) .foldermatch .monaco-icon-label,
-.search-view:not(.wide) .monaco-tree .monaco-tree-row.focused .foldermatch .monaco-icon-label,
-.search-view:not(.wide) .monaco-tree .monaco-tree-row:hover:not(.highlighted) .filematch .monaco-icon-label,
-.search-view:not(.wide) .monaco-tree .monaco-tree-row.focused .filematch .monaco-icon-label {
+.search-view:not(.wide) .monaco-list .monaco-list-row:hover:not(.highlighted) .foldermatch .monaco-icon-label,
+.search-view:not(.wide) .monaco-list .monaco-list-row.focused .foldermatch .monaco-icon-label,
+.search-view:not(.wide) .monaco-list .monaco-list-row:hover:not(.highlighted) .filematch .monaco-icon-label,
+.search-view:not(.wide) .monaco-list .monaco-list-row.focused .filematch .monaco-icon-label {
 	flex: 1;
 }
 
@@ -216,6 +216,7 @@
 	position: relative;
 	line-height: 22px;
 	display: flex;
+	overflow: hidden;
 }
 
 .search-view .linematch > .match {
@@ -239,40 +240,48 @@
 	font-style: italic;
 }
 
-.search-view.wide .monaco-tree .monaco-tree-row .foldermatch .actionBarContainer,
-.search-view.wide .monaco-tree .monaco-tree-row .filematch .actionBarContainer,
-.search-view .monaco-tree .monaco-tree-row .linematch .actionBarContainer {
+.search-view .query-clear {
+	background: url("action-query-clear.svg") center center no-repeat;
+}
+
+.search-view.wide .monaco-list .monaco-list-row .foldermatch .actionBarContainer,
+.search-view.wide .monaco-list .monaco-list-row .filematch .actionBarContainer,
+.search-view .monaco-list .monaco-list-row .linematch .actionBarContainer {
 	flex: 1 0 auto;
 }
 
-.search-view:not(.wide) .monaco-tree .monaco-tree-row .foldermatch .actionBarContainer,
-.search-view:not(.wide) .monaco-tree .monaco-tree-row .filematch .actionBarContainer {
+.search-view:not(.wide) .monaco-list .monaco-list-row .foldermatch .actionBarContainer,
+.search-view:not(.wide) .monaco-list .monaco-list-row .filematch .actionBarContainer {
 	flex: 0 0 auto;
 }
 
-.search-view.actions-right .monaco-tree .monaco-tree-row .foldermatch .actionBarContainer,
-.search-view.actions-right .monaco-tree .monaco-tree-row .filematch .actionBarContainer,
-.search-view.actions-right .monaco-tree .monaco-tree-row .linematch .actionBarContainer,
-.search-view:not(.wide) .monaco-tree .monaco-tree-row .linematch .actionBarContainer {
+.search-view.actions-right .monaco-list .monaco-list-row .foldermatch .actionBarContainer,
+.search-view.actions-right .monaco-list .monaco-list-row .filematch .actionBarContainer,
+.search-view.actions-right .monaco-list .monaco-list-row .linematch .actionBarContainer,
+.search-view:not(.wide) .monaco-list .monaco-list-row .linematch .actionBarContainer {
 	text-align: right;
 }
 
-.search-view .monaco-tree .monaco-tree-row .monaco-action-bar {
+.search-view .monaco-list .monaco-list-row .monaco-action-bar {
 	line-height: 1em;
 	display: none;
 	padding: 0 0.8em 0 0.4em;
 }
 
-.search-view .monaco-tree .monaco-tree-row .monaco-action-bar .action-item {
+.search-view .monaco-list .monaco-list-row .monaco-action-bar .action-item {
 	margin: 0;
 }
 
-.search-view .monaco-tree .monaco-tree-row:hover:not(.highlighted) .monaco-action-bar,
-.search-view .monaco-tree .monaco-tree-row.focused .monaco-action-bar {
+.search-view .monaco-list .monaco-list-row:hover:not(.highlighted) .monaco-action-bar,
+.search-view .monaco-list .monaco-list-row.focused .monaco-action-bar {
 	display: inline-block;
 }
 
-.search-view .monaco-tree .monaco-tree-row .monaco-action-bar .action-label {
+/* .search-view:not(.wide) .monaco-list .monaco-list-row .linematch .actionBarContainer {
+	flex: 1;
+} */
+
+.search-view .monaco-list .monaco-list-row .monaco-action-bar .action-label {
 	margin-right: 0.2em;
 	margin-top: 4px;
 	background-repeat: no-repeat;
@@ -281,7 +290,7 @@
 }
 
 /* Adjusts spacing in high contrast mode so that actions are vertically centered */
-.hc-black .monaco-tree .monaco-tree-row .monaco-action-bar .action-label {
+.hc-black .monaco-list .monaco-list-row .monaco-action-bar .action-label {
 	margin-top: 2px;
 }
 
@@ -315,17 +324,17 @@
 	margin-right: 12px;
 }
 
-.search-view:not(.wide) > .results > .monaco-tree .monaco-tree-row:hover .content .filematch .monaco-count-badge,
-.search-view:not(.wide) > .results > .monaco-tree .monaco-tree-row:hover .content .foldermatch .monaco-count-badge,
-.search-view:not(.wide) > .results > .monaco-tree .monaco-tree-row:hover .content .linematch .monaco-count-badge,
-.search-view:not(.wide) > .results > .monaco-tree .monaco-tree-row.focused .content .filematch .monaco-count-badge,
-.search-view:not(.wide) > .results > .monaco-tree .monaco-tree-row.focused .content .foldermatch .monaco-count-badge,
-.search-view:not(.wide) > .results > .monaco-tree .monaco-tree-row.focused .content .linematch .monaco-count-badge {
+.search-view:not(.wide) > .results > .monaco-list .monaco-list-row:hover .filematch .monaco-count-badge,
+.search-view:not(.wide) > .results > .monaco-list .monaco-list-row:hover .foldermatch .monaco-count-badge,
+.search-view:not(.wide) > .results > .monaco-list .monaco-list-row:hover .linematch .monaco-count-badge,
+.search-view:not(.wide) > .results > .monaco-list .monaco-list-row.focused .filematch .monaco-count-badge,
+.search-view:not(.wide) > .results > .monaco-list .monaco-list-row.focused .foldermatch .monaco-count-badge,
+.search-view:not(.wide) > .results > .monaco-list .monaco-list-row.focused .linematch .monaco-count-badge {
 	display: none;
 }
 
-.search-view .focused .monaco-tree-row.selected:not(.highlighted) > .content.actions .action-remove,
-.vs-dark .monaco-workbench .search-view .focused .monaco-tree-row.selected:not(.highlighted) > .content.actions .action-remove {
+.search-view .focused .monaco-list-row.selected:not(.highlighted) > .actions .action-remove,
+.vs-dark .monaco-workbench .search-view .focused .monaco-list-row.selected:not(.highlighted) > .actions .action-remove {
 	background: url("action-remove-focus.svg") center center no-repeat;
 }
 
