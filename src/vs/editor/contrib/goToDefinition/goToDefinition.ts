@@ -9,7 +9,7 @@ import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
-import { DefinitionLink, DefinitionProviderRegistry, ImplementationProviderRegistry, TypeDefinitionProviderRegistry, DeclarationProviderRegistry } from 'vs/editor/common/modes';
+import { DefinitionLink, DefinitionProviderRegistry, ImplementationProviderRegistry, TypeDefinitionProviderRegistry, DeclarationProviderRegistry, ProviderResult } from 'vs/editor/common/modes';
 import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureRegistry';
 
 
@@ -17,7 +17,7 @@ function getDefinitions<T>(
 	model: ITextModel,
 	position: Position,
 	registry: LanguageFeatureRegistry<T>,
-	provide: (provider: T, model: ITextModel, position: Position) => DefinitionLink | DefinitionLink[] | null | undefined | Promise<DefinitionLink | DefinitionLink[] | null | undefined>
+	provide: (provider: T, model: ITextModel, position: Position) => ProviderResult<DefinitionLink | DefinitionLink[]>
 ): Promise<DefinitionLink[]> {
 	const provider = registry.ordered(model);
 
