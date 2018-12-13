@@ -362,6 +362,7 @@ declare namespace monaco {
 		 */
 		MAX_VALUE = 112
 	}
+
 	export class KeyMod {
 		static readonly CtrlCmd: number;
 		static readonly Shift: number;

@@ -136,7 +136,6 @@
 		"./vs/base/test/common/types.test.ts",
 		"./vs/base/test/common/utils.ts",
 		"./vs/base/test/common/uuid.test.ts",
-		"./vs/base/test/common/winjs.polyfill.promise.test.ts",
 		"./vs/base/test/common/winjs.promise.test.ts",
 		"./vs/base/test/node/console.test.ts",
 		"./vs/base/test/node/decoder.test.ts",
