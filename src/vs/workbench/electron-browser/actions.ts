@@ -29,7 +29,7 @@ import { FileKind } from 'vs/platform/files/common/files';
 import { IssueType } from 'vs/platform/issue/common/issue';
 import { domEvent } from 'vs/base/browser/event';
 import { Event } from 'vs/base/common/event';
-import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { getDomNodePagePosition, createStyleSheet, createCSSRule, append, $ } from 'vs/base/browser/dom';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Context } from 'vs/platform/contextkey/browser/contextKeyService';
@@ -41,6 +41,8 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IQuickInputService, IQuickPickItem, IQuickInputButton, IQuickPickSeparator, IKeyMods } from 'vs/platform/quickinput/common/quickInput';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { timeout } from 'vs/base/common/async';
 
 // --- actions
 
@@ -1304,60 +1306,103 @@ export class InspectContextKeysAction extends Action {
 	}
 }
 
-export class ToggleMouseClicksAction extends Action {
+export class ToggleScreencastModeAction extends Action {
 
-	static readonly ID = 'workbench.action.toggleMouseClicks';
-	static LABEL = nls.localize('toggle mouse clicks', "Toggle Mouse Clicks");
+	static readonly ID = 'workbench.action.toggleScreencastMode';
+	static LABEL = nls.localize('toggle mouse clicks', "Toggle Screencast Mode");
 
 	static disposable: IDisposable | undefined;
 
-	constructor(id: string, label: string) {
+	constructor(id: string, label: string, @IKeybindingService private keybindingService: IKeybindingService) {
 		super(id, label);
 	}
 
 	async run(): Promise<void> {
-		if (ToggleMouseClicksAction.disposable) {
-			ToggleMouseClicksAction.disposable.dispose();
-			ToggleMouseClicksAction.disposable = undefined;
+		if (ToggleScreencastModeAction.disposable) {
+			ToggleScreencastModeAction.disposable.dispose();
+			ToggleScreencastModeAction.disposable = undefined;
 			return;
 		}
 
-		const marker = append(document.body, $('.marker'));
-		marker.style.position = 'absolute';
-		marker.style.border = '2px solid red';
-		marker.style.borderRadius = '20px';
-		marker.style.width = '20px';
-		marker.style.height = '20px';
-		marker.style.top = '0';
-		marker.style.left = '0';
-		marker.style.zIndex = '100000';
-		marker.style.content = ' ';
-		marker.style.pointerEvents = 'none';
-		marker.style.display = 'none';
+		const mouseMarker = append(document.body, $('div'));
+		mouseMarker.style.position = 'absolute';
+		mouseMarker.style.border = '2px solid red';
+		mouseMarker.style.borderRadius = '20px';
+		mouseMarker.style.width = '20px';
+		mouseMarker.style.height = '20px';
+		mouseMarker.style.top = '0';
+		mouseMarker.style.left = '0';
+		mouseMarker.style.zIndex = '100000';
+		mouseMarker.style.content = ' ';
+		mouseMarker.style.pointerEvents = 'none';
+		mouseMarker.style.display = 'none';
 
 		const onMouseDown = domEvent(document.body, 'mousedown', true);
 		const onMouseUp = domEvent(document.body, 'mouseup', true);
 		const onMouseMove = domEvent(document.body, 'mousemove', true);
 
-		const listener = onMouseDown(e => {
-			marker.style.top = `${e.clientY - 10}px`;
-			marker.style.left = `${e.clientX - 10}px`;
-			marker.style.display = 'block';
+		const mouseListener = onMouseDown(e => {
+			mouseMarker.style.top = `${e.clientY - 10}px`;
+			mouseMarker.style.left = `${e.clientX - 10}px`;
+			mouseMarker.style.display = 'block';
 
 			const mouseMoveListener = onMouseMove(e => {
-				marker.style.top = `${e.clientY - 10}px`;
-				marker.style.left = `${e.clientX - 10}px`;
+				mouseMarker.style.top = `${e.clientY - 10}px`;
+				mouseMarker.style.left = `${e.clientX - 10}px`;
 			});
 
 			Event.once(onMouseUp)(() => {
-				marker.style.display = 'none';
+				mouseMarker.style.display = 'none';
 				mouseMoveListener.dispose();
 			});
 		});
 
-		ToggleMouseClicksAction.disposable = toDisposable(() => {
-			listener.dispose();
-			document.body.removeChild(marker);
+		const keyboardMarker = append(document.body, $('div'));
+		keyboardMarker.style.position = 'absolute';
+		keyboardMarker.style.backgroundColor = 'rgba(0, 0, 0 ,0.5)';
+		keyboardMarker.style.width = '100%';
+		keyboardMarker.style.height = '100px';
+		keyboardMarker.style.bottom = '20%';
+		keyboardMarker.style.left = '0';
+		keyboardMarker.style.zIndex = '100000';
+		keyboardMarker.style.pointerEvents = 'none';
+		keyboardMarker.style.color = 'white';
+		keyboardMarker.style.lineHeight = '100px';
+		keyboardMarker.style.textAlign = 'center';
+		keyboardMarker.style.fontSize = '56px';
+		keyboardMarker.style.display = 'none';
+
+		const onKeyDown = domEvent(document.body, 'keydown', true);
+		let keyboardTimeout: IDisposable = Disposable.None;
+
+		const keyboardListener = onKeyDown(e => {
+			keyboardTimeout.dispose();
+
+			const event = new StandardKeyboardEvent(e);
+			const keybinding = this.keybindingService.resolveKeyboardEvent(event);
+			const label = keybinding.getLabel();
+
+			if (!event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey && this.keybindingService.mightProducePrintableCharacter(event) && label) {
+				keyboardMarker.textContent += ' ' + label;
+			} else {
+				keyboardMarker.textContent = label;
+			}
+
+			keyboardMarker.style.display = 'block';
+
+			const promise = timeout(800);
+			keyboardTimeout = toDisposable(() => promise.cancel());
+
+			promise.then(() => {
+				keyboardMarker.textContent = '';
+				keyboardMarker.style.display = 'none';
+			});
+		});
+
+		ToggleScreencastModeAction.disposable = toDisposable(() => {
+			mouseListener.dispose();
+			keyboardListener.dispose();
+			document.body.removeChild(mouseMarker);
 		});
 	}
 }
