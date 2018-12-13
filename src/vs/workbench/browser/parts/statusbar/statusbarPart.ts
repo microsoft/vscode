@@ -191,7 +191,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 		// Create new
 		let statusDispose: IDisposable;
-		let showHandle = setTimeout(() => {
+		let showHandle: any = setTimeout(() => {
 			statusDispose = this.addEntry({ text: message }, StatusbarAlignment.LEFT, -Number.MAX_VALUE /* far right on left hand side */);
 			showHandle = null;
 		}, delayBy);
@@ -252,7 +252,7 @@ class StatusBarEntryItem implements IStatusbarItem {
 		if (this.entry.command) {
 			textContainer = document.createElement('a');
 
-			toDispose.push(addDisposableListener(textContainer, 'click', () => this.executeCommand(this.entry.command, this.entry.arguments)));
+			toDispose.push(addDisposableListener(textContainer, 'click', () => this.executeCommand(this.entry.command!, this.entry.arguments)));
 		} else {
 			textContainer = document.createElement('span');
 		}
