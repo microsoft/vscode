@@ -907,7 +907,7 @@ class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 			ctrlKey: false
 		};
 
-		this._subscriptions.push(domEvent(document.body, 'keydown')(e => {
+		this._subscriptions.push(domEvent(document.body, 'keydown', true)(e => {
 			const event = new StandardKeyboardEvent(e);
 
 			if (e.altKey && !this._keyStatus.altKey) {
@@ -930,7 +930,8 @@ class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 				this.fire(this._keyStatus);
 			}
 		}));
-		this._subscriptions.push(domEvent(document.body, 'keyup')(e => {
+
+		this._subscriptions.push(domEvent(document.body, 'keyup', true)(e => {
 			if (!e.altKey && this._keyStatus.altKey) {
 				this._keyStatus.lastKeyReleased = 'alt';
 			} else if (!e.ctrlKey && this._keyStatus.ctrlKey) {
@@ -953,10 +954,10 @@ class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 				this.fire(this._keyStatus);
 			}
 		}));
-		this._subscriptions.push(domEvent(document.body, 'mousedown')(e => {
+
+		this._subscriptions.push(domEvent(document.body, 'mousedown', true)(e => {
 			this._keyStatus.lastKeyPressed = undefined;
 		}));
-
 
 		this._subscriptions.push(domEvent(window, 'blur')(e => {
 			this._keyStatus.lastKeyPressed = undefined;
