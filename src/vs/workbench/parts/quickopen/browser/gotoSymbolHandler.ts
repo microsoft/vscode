@@ -23,7 +23,7 @@ import { overviewRulerRangeHighlight } from 'vs/editor/common/view/editorColorRe
 import { GroupIdentifier, IEditorInput } from 'vs/workbench/common/editor';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
-import { asThenable } from 'vs/base/common/async';
+import { asPromise } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 
 export const GOTO_SYMBOL_PREFIX = '@';
@@ -499,7 +499,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 			}
 
 			if (model && types.isFunction((<ITextModel>model).getLanguageIdentifier)) {
-				return Promise.resolve(asThenable(() => getDocumentSymbols(<ITextModel>model, true, this.pendingOutlineRequest.token)).then(entries => {
+				return Promise.resolve(asPromise(() => getDocumentSymbols(<ITextModel>model, true, this.pendingOutlineRequest.token)).then(entries => {
 					return new OutlineModel(this.toQuickOpenEntries(entries));
 				}));
 			}

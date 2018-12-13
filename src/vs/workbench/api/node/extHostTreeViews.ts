@@ -12,7 +12,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ExtHostTreeViewsShape, MainThreadTreeViewsShape } from './extHost.protocol';
 import { ITreeItem, TreeViewItemHandleArg, ITreeItemLabel, IRevealOptions } from 'vs/workbench/common/views';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
-import { asThenable } from 'vs/base/common/async';
+import { asPromise } from 'vs/base/common/async';
 import { TreeItemCollapsibleState, ThemeIcon, MarkdownString } from 'vs/workbench/api/node/extHostTypes';
 import { isUndefinedOrNull, isString } from 'vs/base/common/types';
 import { equals, coalesce } from 'vs/base/common/arrays';
@@ -280,7 +280,7 @@ class ExtHostTreeView<T> extends Disposable {
 		if (node) {
 			return Promise.resolve(node.parent ? this.elements.get(node.parent.item.handle) : null);
 		}
-		return asThenable(() => this.dataProvider.getParent(element));
+		return asPromise(() => this.dataProvider.getParent(element));
 	}
 
 	private resolveTreeNode(element: T, parent?: TreeNode): Promise<TreeNode> {
@@ -288,7 +288,7 @@ class ExtHostTreeView<T> extends Disposable {
 		if (node) {
 			return Promise.resolve(node);
 		}
-		return asThenable(() => this.dataProvider.getTreeItem(element))
+		return asPromise(() => this.dataProvider.getTreeItem(element))
 			.then(extTreeItem => this.createHandle(element, extTreeItem, parent, true))
 			.then(handle => this.getChildren(parent ? parent.item.handle : null)
 				.then(() => {
@@ -322,10 +322,10 @@ class ExtHostTreeView<T> extends Disposable {
 		this.clearChildren(parentElement);
 
 		const parentNode = parentElement ? this.nodes.get(parentElement) : void 0;
-		return asThenable(() => this.dataProvider.getChildren(parentElement))
+		return asPromise(() => this.dataProvider.getChildren(parentElement))
 			.then(elements => Promise.all(
 				coalesce(elements || [])
-					.map(element => asThenable(() => this.dataProvider.getTreeItem(element))
+					.map(element => asPromise(() => this.dataProvider.getTreeItem(element))
 						.then(extTreeItem => extTreeItem ? this.createAndRegisterTreeNode(element, extTreeItem, parentNode) : null))))
 			.then(coalesce);
 	}
@@ -390,7 +390,7 @@ class ExtHostTreeView<T> extends Disposable {
 		const extElement = this.getExtensionElement(treeItemHandle);
 		const existing = this.nodes.get(extElement);
 		this.clearChildren(extElement); // clear children cache
-		return asThenable(() => this.dataProvider.getTreeItem(extElement))
+		return asPromise(() => this.dataProvider.getTreeItem(extElement))
 			.then(extTreeItem => {
 				if (extTreeItem) {
 					const newNode = this.createTreeNode(extElement, extTreeItem, existing.parent);

@@ -7,7 +7,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { debounce } from 'vs/base/common/decorators';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { asThenable } from 'vs/base/common/async';
+import { asPromise } from 'vs/base/common/async';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext, ExtHostSCMShape } from './extHost.protocol';
@@ -286,7 +286,7 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 			return Promise.resolve(null);
 		}
 
-		return asThenable(() => this._commands.executeCommand(command.command, ...command.arguments));
+		return asPromise(() => this._commands.executeCommand(command.command, ...command.arguments));
 	}
 
 	_takeResourceStateSnapshot(): SCMRawResourceSplice[] {
@@ -618,7 +618,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 			return Promise.resolve(null);
 		}
 
-		return asThenable(() => sourceControl.quickDiffProvider.provideOriginalResource(uri, token));
+		return asPromise(() => sourceControl.quickDiffProvider.provideOriginalResource(uri, token));
 	}
 
 	$onInputBoxValueChange(sourceControlHandle: number, value: string): Promise<void> {
@@ -665,7 +665,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 			return Promise.resolve(undefined);
 		}
 
-		return asThenable(() => sourceControl.inputBox.validateInput(value, cursorPosition)).then(result => {
+		return asPromise(() => sourceControl.inputBox.validateInput(value, cursorPosition)).then(result => {
 			if (!result) {
 				return Promise.resolve(undefined);
 			}

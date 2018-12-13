@@ -14,7 +14,7 @@ import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
-import { asThenable } from 'vs/base/common/async';
+import { asPromise } from 'vs/base/common/async';
 import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IdObject, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, ISerializedLanguageConfiguration, WorkspaceSymbolDto, SuggestResultDto, WorkspaceSymbolsDto, SuggestionDto, CodeActionDto, ISerializedDocumentFilter, WorkspaceEditDto, ISerializedSignatureHelpProviderMetadata } from './extHost.protocol';
 import { regExpLeadsToEndlessLoop, regExpFlags } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
@@ -40,7 +40,7 @@ class OutlineAdapter {
 
 	provideDocumentSymbols(resource: URI, token: CancellationToken): Promise<modes.DocumentSymbol[]> {
 		let doc = this._documents.getDocumentData(resource).document;
-		return asThenable(() => this._provider.provideDocumentSymbols(doc, token)).then(value => {
+		return asPromise(() => this._provider.provideDocumentSymbols(doc, token)).then(value => {
 			if (isFalsyOrEmpty(value)) {
 				return undefined;
 			}
@@ -107,7 +107,7 @@ class CodeLensAdapter {
 	provideCodeLenses(resource: URI, token: CancellationToken): Promise<modes.ICodeLensSymbol[]> {
 		const doc = this._documents.getDocumentData(resource).document;
 
-		return asThenable(() => this._provider.provideCodeLenses(doc, token)).then(lenses => {
+		return asPromise(() => this._provider.provideCodeLenses(doc, token)).then(lenses => {
 			if (Array.isArray(lenses)) {
 				return lenses.map(lens => {
 					const id = this._heapService.keep(lens);
@@ -132,7 +132,7 @@ class CodeLensAdapter {
 		if (typeof this._provider.resolveCodeLens !== 'function' || lens.isResolved) {
 			resolve = Promise.resolve(lens);
 		} else {
-			resolve = asThenable(() => this._provider.resolveCodeLens(lens, token));
+			resolve = asPromise(() => this._provider.resolveCodeLens(lens, token));
 		}
 
 		return resolve.then(newLens => {
@@ -162,7 +162,7 @@ class DefinitionAdapter {
 	provideDefinition(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.DefinitionLink[]> {
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = typeConvert.Position.to(position);
-		return asThenable(() => this._provider.provideDefinition(doc, pos, token)).then(convertToDefinitionLinks);
+		return asPromise(() => this._provider.provideDefinition(doc, pos, token)).then(convertToDefinitionLinks);
 	}
 }
 
@@ -176,7 +176,7 @@ class DeclarationAdapter {
 	provideDeclaration(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.DefinitionLink[]> {
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = typeConvert.Position.to(position);
-		return asThenable(() => this._provider.provideDeclaration(doc, pos, token)).then(convertToDefinitionLinks);
+		return asPromise(() => this._provider.provideDeclaration(doc, pos, token)).then(convertToDefinitionLinks);
 	}
 }
 
@@ -190,7 +190,7 @@ class ImplementationAdapter {
 	provideImplementation(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.DefinitionLink[]> {
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = typeConvert.Position.to(position);
-		return asThenable(() => this._provider.provideImplementation(doc, pos, token)).then(convertToDefinitionLinks);
+		return asPromise(() => this._provider.provideImplementation(doc, pos, token)).then(convertToDefinitionLinks);
 	}
 }
 
@@ -204,7 +204,7 @@ class TypeDefinitionAdapter {
 	provideTypeDefinition(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.DefinitionLink[]> {
 		const doc = this._documents.getDocumentData(resource).document;
 		const pos = typeConvert.Position.to(position);
-		return asThenable(() => this._provider.provideTypeDefinition(doc, pos, token)).then(convertToDefinitionLinks);
+		return asPromise(() => this._provider.provideTypeDefinition(doc, pos, token)).then(convertToDefinitionLinks);
 	}
 }
 
@@ -220,7 +220,7 @@ class HoverAdapter {
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = typeConvert.Position.to(position);
 
-		return asThenable(() => this._provider.provideHover(doc, pos, token)).then(value => {
+		return asPromise(() => this._provider.provideHover(doc, pos, token)).then(value => {
 			if (!value || isFalsyOrEmpty(value.contents)) {
 				return undefined;
 			}
@@ -248,7 +248,7 @@ class DocumentHighlightAdapter {
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = typeConvert.Position.to(position);
 
-		return asThenable(() => this._provider.provideDocumentHighlights(doc, pos, token)).then(value => {
+		return asPromise(() => this._provider.provideDocumentHighlights(doc, pos, token)).then(value => {
 			if (Array.isArray(value)) {
 				return value.map(typeConvert.DocumentHighlight.from);
 			}
@@ -268,7 +268,7 @@ class ReferenceAdapter {
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = typeConvert.Position.to(position);
 
-		return asThenable(() => this._provider.provideReferences(doc, pos, context, token)).then(value => {
+		return asPromise(() => this._provider.provideReferences(doc, pos, context, token)).then(value => {
 			if (Array.isArray(value)) {
 				return value.map(typeConvert.location.from);
 			}
@@ -311,7 +311,7 @@ class CodeActionAdapter {
 			only: context.only ? new CodeActionKind(context.only) : undefined
 		};
 
-		return asThenable(() => this._provider.provideCodeActions(doc, ran, codeActionContext, token)).then(commandsOrActions => {
+		return asPromise(() => this._provider.provideCodeActions(doc, ran, codeActionContext, token)).then(commandsOrActions => {
 			if (isFalsyOrEmpty(commandsOrActions)) {
 				return undefined;
 			}
@@ -367,7 +367,7 @@ class DocumentFormattingAdapter {
 
 		const { document } = this._documents.getDocumentData(resource);
 
-		return asThenable(() => this._provider.provideDocumentFormattingEdits(document, <any>options, token)).then(value => {
+		return asPromise(() => this._provider.provideDocumentFormattingEdits(document, <any>options, token)).then(value => {
 			if (Array.isArray(value)) {
 				return value.map(typeConvert.TextEdit.from);
 			}
@@ -388,7 +388,7 @@ class RangeFormattingAdapter {
 		const { document } = this._documents.getDocumentData(resource);
 		const ran = typeConvert.Range.to(range);
 
-		return asThenable(() => this._provider.provideDocumentRangeFormattingEdits(document, ran, <any>options, token)).then(value => {
+		return asPromise(() => this._provider.provideDocumentRangeFormattingEdits(document, ran, <any>options, token)).then(value => {
 			if (Array.isArray(value)) {
 				return value.map(typeConvert.TextEdit.from);
 			}
@@ -411,7 +411,7 @@ class OnTypeFormattingAdapter {
 		const { document } = this._documents.getDocumentData(resource);
 		const pos = typeConvert.Position.to(position);
 
-		return asThenable(() => this._provider.provideOnTypeFormattingEdits(document, pos, ch, <any>options, token)).then(value => {
+		return asPromise(() => this._provider.provideOnTypeFormattingEdits(document, pos, ch, <any>options, token)).then(value => {
 			if (Array.isArray(value)) {
 				return value.map(typeConvert.TextEdit.from);
 			}
@@ -432,7 +432,7 @@ class NavigateTypeAdapter {
 
 	provideWorkspaceSymbols(search: string, token: CancellationToken): Promise<WorkspaceSymbolsDto> {
 		const result: WorkspaceSymbolsDto = IdObject.mixin({ symbols: [] });
-		return asThenable(() => this._provider.provideWorkspaceSymbols(search, token)).then(value => {
+		return asPromise(() => this._provider.provideWorkspaceSymbols(search, token)).then(value => {
 			if (isNonEmptyArray(value)) {
 				for (const item of value) {
 					if (!item) {
@@ -464,7 +464,7 @@ class NavigateTypeAdapter {
 
 		const item = this._symbolCache[symbol._id];
 		if (item) {
-			return asThenable(() => this._provider.resolveWorkspaceSymbol(item, token)).then(value => {
+			return asPromise(() => this._provider.resolveWorkspaceSymbol(item, token)).then(value => {
 				return value && mixin(symbol, typeConvert.WorkspaceSymbol.from(value), true);
 			});
 		}
@@ -498,7 +498,7 @@ class RenameAdapter {
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = typeConvert.Position.to(position);
 
-		return asThenable(() => this._provider.provideRenameEdits(doc, pos, newName, token)).then(value => {
+		return asPromise(() => this._provider.provideRenameEdits(doc, pos, newName, token)).then(value => {
 			if (!value) {
 				return undefined;
 			}
@@ -522,7 +522,7 @@ class RenameAdapter {
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = typeConvert.Position.to(position);
 
-		return asThenable(() => this._provider.prepareRename(doc, pos, token)).then(rangeOrLocation => {
+		return asPromise(() => this._provider.prepareRename(doc, pos, token)).then(rangeOrLocation => {
 
 			let range: vscode.Range;
 			let text: string;
@@ -588,7 +588,7 @@ class SuggestAdapter {
 		const doc = this._documents.getDocumentData(resource).document;
 		const pos = typeConvert.Position.to(position);
 
-		return asThenable<vscode.CompletionItem[] | vscode.CompletionList>(
+		return asPromise<vscode.CompletionItem[] | vscode.CompletionList>(
 			() => this._provider.provideCompletionItems(doc, pos, token, typeConvert.CompletionContext.to(context))
 		).then(value => {
 
@@ -642,7 +642,7 @@ class SuggestAdapter {
 			return Promise.resolve(suggestion);
 		}
 
-		return asThenable(() => this._provider.resolveCompletionItem(item, token)).then(resolvedItem => {
+		return asPromise(() => this._provider.resolveCompletionItem(item, token)).then(resolvedItem => {
 
 			if (!resolvedItem) {
 				return suggestion;
@@ -738,7 +738,7 @@ class SignatureHelpAdapter {
 		const doc = this._documents.getDocumentData(resource).document;
 		const pos = typeConvert.Position.to(position);
 
-		return asThenable(() => this._provider.provideSignatureHelp(doc, pos, token, context)).then(value => {
+		return asPromise(() => this._provider.provideSignatureHelp(doc, pos, token, context)).then(value => {
 			if (value) {
 				return typeConvert.SignatureHelp.from(value);
 			}
@@ -758,7 +758,7 @@ class LinkProviderAdapter {
 	provideLinks(resource: URI, token: CancellationToken): Promise<modes.ILink[]> {
 		const doc = this._documents.getDocumentData(resource).document;
 
-		return asThenable(() => this._provider.provideDocumentLinks(doc, token)).then(links => {
+		return asPromise(() => this._provider.provideDocumentLinks(doc, token)).then(links => {
 			if (!Array.isArray(links)) {
 				return undefined;
 			}
@@ -784,7 +784,7 @@ class LinkProviderAdapter {
 			return undefined;
 		}
 
-		return asThenable(() => this._provider.resolveDocumentLink(item, token)).then(value => {
+		return asPromise(() => this._provider.resolveDocumentLink(item, token)).then(value => {
 			if (value) {
 				return typeConvert.DocumentLink.from(value);
 			}
@@ -802,7 +802,7 @@ class ColorProviderAdapter {
 
 	provideColors(resource: URI, token: CancellationToken): Promise<IRawColorInfo[]> {
 		const doc = this._documents.getDocumentData(resource).document;
-		return asThenable(() => this._provider.provideDocumentColors(doc, token)).then(colors => {
+		return asPromise(() => this._provider.provideDocumentColors(doc, token)).then(colors => {
 			if (!Array.isArray(colors)) {
 				return [];
 			}
@@ -822,7 +822,7 @@ class ColorProviderAdapter {
 		const document = this._documents.getDocumentData(resource).document;
 		const range = typeConvert.Range.to(raw.range);
 		const color = typeConvert.Color.to(raw.color);
-		return asThenable(() => this._provider.provideColorPresentations(color, { document, range }, token)).then(value => {
+		return asPromise(() => this._provider.provideColorPresentations(color, { document, range }, token)).then(value => {
 			return value.map(typeConvert.ColorPresentation.from);
 		});
 	}
@@ -837,7 +837,7 @@ class FoldingProviderAdapter {
 
 	provideFoldingRanges(resource: URI, context: modes.FoldingContext, token: CancellationToken): Promise<modes.FoldingRange[]> {
 		const doc = this._documents.getDocumentData(resource).document;
-		return asThenable(() => this._provider.provideFoldingRanges(doc, context, token)).then(ranges => {
+		return asPromise(() => this._provider.provideFoldingRanges(doc, context, token)).then(ranges => {
 			if (!Array.isArray(ranges)) {
 				return void 0;
 			}
@@ -856,7 +856,7 @@ class SelectionRangeAdapter {
 	provideSelectionRanges(resource: URI, position: IPosition, token: CancellationToken): Promise<IRange[]> {
 		const { document } = this._documents.getDocumentData(resource);
 		const pos = typeConvert.Position.to(position);
-		return asThenable(() => this._provider.provideSelectionRanges(document, pos, token)).then(ranges => {
+		return asPromise(() => this._provider.provideSelectionRanges(document, pos, token)).then(ranges => {
 			if (isFalsyOrEmpty(ranges)) {
 				return undefined;
 			}

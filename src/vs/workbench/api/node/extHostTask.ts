@@ -8,7 +8,7 @@ import * as path from 'path';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import * as Objects from 'vs/base/common/objects';
-import { asThenable } from 'vs/base/common/async';
+import { asPromise } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { win32 } from 'vs/base/node/processes';
 
@@ -870,7 +870,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 		if (!handler) {
 			return Promise.reject(new Error('no handler found'));
 		}
-		return asThenable(() => handler.provider.provideTasks(CancellationToken.None)).then(value => {
+		return asPromise(() => handler.provider.provideTasks(CancellationToken.None)).then(value => {
 			let sanitized: vscode.Task[] = [];
 			for (let task of value) {
 				if (task.definition && validTypes[task.definition.type] === true) {

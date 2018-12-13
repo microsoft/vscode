@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { asThenable } from 'vs/base/common/async';
+import { asPromise } from 'vs/base/common/async';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as modes from 'vs/editor/common/modes';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
@@ -76,7 +76,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		}
 
 		const provider = this._documentProviders.get(handle);
-		return asThenable(() => {
+		return asPromise(() => {
 			return provider.createNewCommentThread(data.document, ran, text, CancellationToken.None);
 		}).then(commentThread => commentThread ? convertToCommentThread(provider, commentThread, this._commandsConverter) : null);
 	}
@@ -90,7 +90,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		}
 
 		const provider = this._documentProviders.get(handle);
-		return asThenable(() => {
+		return asPromise(() => {
 			return provider.replyToCommentThread(data.document, ran, convertFromCommentThread(thread), text, CancellationToken.None);
 		}).then(commentThread => commentThread ? convertToCommentThread(provider, commentThread, this._commandsConverter) : null);
 	}
@@ -103,7 +103,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		}
 
 		const provider = this._documentProviders.get(handle);
-		return asThenable(() => {
+		return asPromise(() => {
 			return provider.editComment(data.document, convertFromComment(comment), text, CancellationToken.None);
 		});
 	}
@@ -116,28 +116,28 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		}
 
 		const provider = this._documentProviders.get(handle);
-		return asThenable(() => {
+		return asPromise(() => {
 			return provider.deleteComment(data.document, convertFromComment(comment), CancellationToken.None);
 		});
 	}
 
 	$startDraft(handle: number): Promise<void> {
 		const provider = this._documentProviders.get(handle);
-		return asThenable(() => {
+		return asPromise(() => {
 			return provider.startDraft(CancellationToken.None);
 		});
 	}
 
 	$deleteDraft(handle: number): Promise<void> {
 		const provider = this._documentProviders.get(handle);
-		return asThenable(() => {
+		return asPromise(() => {
 			return provider.deleteDraft(CancellationToken.None);
 		});
 	}
 
 	$finishDraft(handle: number): Promise<void> {
 		const provider = this._documentProviders.get(handle);
-		return asThenable(() => {
+		return asPromise(() => {
 			return provider.finishDraft(CancellationToken.None);
 		});
 	}
@@ -149,7 +149,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		}
 
 		const provider = this._documentProviders.get(handle);
-		return asThenable(() => {
+		return asPromise(() => {
 			return provider.provideDocumentComments(data.document, CancellationToken.None);
 		}).then(commentInfo => commentInfo ? convertCommentInfo(handle, provider, commentInfo, this._commandsConverter) : null);
 	}
@@ -160,7 +160,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 			return Promise.resolve(null);
 		}
 
-		return asThenable(() => {
+		return asPromise(() => {
 			return provider.provideWorkspaceComments(CancellationToken.None);
 		}).then(comments =>
 			comments.map(comment => convertToCommentThread(provider, comment, this._commandsConverter)

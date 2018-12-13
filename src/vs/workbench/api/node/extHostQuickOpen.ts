@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { asThenable } from 'vs/base/common/async';
+import { asPromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
@@ -150,7 +150,7 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 
 	$validateInput(input: string): Promise<string> {
 		if (this._validateInput) {
-			return asThenable(() => this._validateInput(input));
+			return asPromise(() => this._validateInput(input));
 		}
 		return undefined;
 	}

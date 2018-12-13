@@ -7,7 +7,7 @@ import * as paths from 'vs/base/common/paths';
 import { Schemas } from 'vs/base/common/network';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
-import { asThenable } from 'vs/base/common/async';
+import { asPromise } from 'vs/base/common/async';
 import * as nls from 'vs/nls';
 import {
 	MainContext, MainThreadDebugServiceShape, ExtHostDebugServiceShape, DebugSessionUUID,
@@ -558,7 +558,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		if (!provider.provideDebugConfigurations) {
 			return Promise.reject(new Error('handler has no method provideDebugConfigurations'));
 		}
-		return asThenable(() => provider.provideDebugConfigurations(this.getFolder(folderUri), CancellationToken.None));
+		return asPromise(() => provider.provideDebugConfigurations(this.getFolder(folderUri), CancellationToken.None));
 	}
 
 	public $resolveDebugConfiguration(configProviderHandle: number, folderUri: UriComponents | undefined, debugConfiguration: vscode.DebugConfiguration): Promise<vscode.DebugConfiguration> {
@@ -569,7 +569,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		if (!provider.resolveDebugConfiguration) {
 			return Promise.reject(new Error('handler has no method resolveDebugConfiguration'));
 		}
-		return asThenable(() => provider.resolveDebugConfiguration(this.getFolder(folderUri), debugConfiguration, CancellationToken.None));
+		return asPromise(() => provider.resolveDebugConfiguration(this.getFolder(folderUri), debugConfiguration, CancellationToken.None));
 	}
 
 	// TODO@AW legacy
@@ -581,7 +581,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		if (!provider.debugAdapterExecutable) {
 			return Promise.reject(new Error('handler has no method debugAdapterExecutable'));
 		}
-		return asThenable(() => provider.debugAdapterExecutable(this.getFolder(folderUri), CancellationToken.None)).then(x => this.convertToDto(x));
+		return asPromise(() => provider.debugAdapterExecutable(this.getFolder(folderUri), CancellationToken.None)).then(x => this.convertToDto(x));
 	}
 
 	public $provideDebugAdapter(adapterProviderHandle: number, sessionDto: IDebugSessionDto): Promise<IAdapterDescriptor> {
@@ -696,11 +696,11 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 		const promises1 = this._configProviders
 			.filter(tuple => tuple.provider.provideDebugAdapterTracker && (tuple.type === type || tuple.type === '*'))
-			.map(tuple => asThenable(() => tuple.provider.provideDebugAdapterTracker(session, session.workspaceFolder, session.configuration, CancellationToken.None)).then(p => p).catch(err => null));
+			.map(tuple => asPromise(() => tuple.provider.provideDebugAdapterTracker(session, session.workspaceFolder, session.configuration, CancellationToken.None)).then(p => p).catch(err => null));
 
 		const promises2 = this._trackerFactories
 			.filter(tuple => tuple.type === type || tuple.type === '*')
-			.map(tuple => asThenable(() => tuple.factory.createDebugAdapterTracker(session)).then(p => p).catch(err => null));
+			.map(tuple => asPromise(() => tuple.factory.createDebugAdapterTracker(session)).then(p => p).catch(err => null));
 
 		const promises = promises1.concat(promises2);
 
@@ -736,13 +736,13 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		const pairs = this._configProviders.filter(p => p.type === session.type);
 		if (pairs.length > 0) {
 			if (pairs[0].provider.debugAdapterExecutable) {
-				return asThenable(() => pairs[0].provider.debugAdapterExecutable(session.workspaceFolder, CancellationToken.None));
+				return asPromise(() => pairs[0].provider.debugAdapterExecutable(session.workspaceFolder, CancellationToken.None));
 			}
 		}
 
 		if (adapterProvider) {
 			const extensionRegistry = await this._extensionService.getExtensionRegistry();
-			return asThenable(() => adapterProvider.createDebugAdapterDescriptor(session, this.daExecutableFromPackage(session, extensionRegistry)));
+			return asPromise(() => adapterProvider.createDebugAdapterDescriptor(session, this.daExecutableFromPackage(session, extensionRegistry)));
 		}
 
 		// try deprecated command based extension API "adapterExecutableCommand" to determine the executable
