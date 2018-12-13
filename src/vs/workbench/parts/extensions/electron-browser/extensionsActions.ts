@@ -491,7 +491,7 @@ export abstract class DropDownAction extends Action {
 		return this._actionItem;
 	}
 
-	public run({ actionGroups, disposeActionsOnHide }: { actionGroups: IAction[][], disposeActionsOnHide: boolean }): Thenable<any> {
+	public run({ actionGroups, disposeActionsOnHide }: { actionGroups: IAction[][], disposeActionsOnHide: boolean }): Promise<any> {
 		if (this._actionItem) {
 			this._actionItem.showMenu(actionGroups, disposeActionsOnHide);
 		}
@@ -595,7 +595,7 @@ export class ManageExtensionAction extends DropDownAction {
 		return groups;
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 		return this.extensionService.getExtensions().then(runtimeExtensions => super.run({ actionGroups: this.getActionGroups(runtimeExtensions), disposeActionsOnHide: true }));
 	}
 
@@ -628,7 +628,7 @@ export class InstallAnotherVersionAction extends Action {
 		this.enabled = this.extension && !!this.extension.gallery;
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 		return this.quickInputService.pick(this.getVersionEntries(), { placeHolder: localize('selectVersion', "Select Version to Install"), matchOnDetail: true })
 			.then(pick => {
 				if (pick) {
@@ -992,7 +992,7 @@ export class ExtensionEditorDropDownAction extends DropDownAction {
 		}
 	}
 
-	public run(): Thenable<any> {
+	public run(): Promise<any> {
 		const enabledActions = this.actions.filter(a => a.enabled);
 		if (enabledActions.length === 1) {
 			enabledActions[0].run();
@@ -1334,7 +1334,7 @@ export class ShowEnabledExtensionsAction extends Action {
 		super(id, label, null, true);
 	}
 
-	run(): Thenable<void> {
+	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
@@ -1357,7 +1357,7 @@ export class ShowInstalledExtensionsAction extends Action {
 		super(id, label, null, true);
 	}
 
-	run(): Thenable<void> {
+	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
@@ -1380,7 +1380,7 @@ export class ShowDisabledExtensionsAction extends Action {
 		super(id, label, 'null', true);
 	}
 
-	run(): Thenable<void> {
+	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
@@ -1412,7 +1412,7 @@ export class ClearExtensionsInputAction extends Action {
 		this.enabled = !!value;
 	}
 
-	run(): Thenable<void> {
+	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
@@ -1439,7 +1439,7 @@ export class ShowBuiltInExtensionsAction extends Action {
 		super(id, label, null, true);
 	}
 
-	run(): Thenable<void> {
+	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
@@ -1462,7 +1462,7 @@ export class ShowOutdatedExtensionsAction extends Action {
 		super(id, label, null, true);
 	}
 
-	run(): Thenable<void> {
+	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
@@ -1485,7 +1485,7 @@ export class ShowPopularExtensionsAction extends Action {
 		super(id, label, null, true);
 	}
 
-	run(): Thenable<void> {
+	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
@@ -1508,7 +1508,7 @@ export class ShowRecommendedExtensionsAction extends Action {
 		super(id, label, null, true);
 	}
 
-	run(): Thenable<void> {
+	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
@@ -1541,7 +1541,7 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 		this.recommendations = recommendations;
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
@@ -1549,7 +1549,7 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 				viewlet.focus();
 				const names = this.recommendations.map(({ extensionId }) => extensionId);
 				return this.extensionWorkbenchService.queryGallery({ names, source: 'install-all-workspace-recommendations' }).then(pager => {
-					let installPromises: Thenable<void>[] = [];
+					let installPromises: Promise<void>[] = [];
 					let model = new PagedModel(pager);
 					for (let i = 0; i < pager.total; i++) {
 						installPromises.push(model.resolve(i, CancellationToken.None).then(e => {
@@ -1584,7 +1584,7 @@ export class InstallRecommendedExtensionAction extends Action {
 		this.extensionId = extensionId;
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
@@ -1680,7 +1680,7 @@ export class ShowRecommendedKeymapExtensionsAction extends Action {
 		super(id, label, null, true);
 	}
 
-	run(): Thenable<void> {
+	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
@@ -1703,7 +1703,7 @@ export class ShowLanguageExtensionsAction extends Action {
 		super(id, label, null, true);
 	}
 
-	run(): Thenable<void> {
+	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
@@ -1726,7 +1726,7 @@ export class ShowAzureExtensionsAction extends Action {
 		super(id, label, null, true);
 	}
 
-	run(): Thenable<void> {
+	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
@@ -1765,7 +1765,7 @@ export class ChangeSortAction extends Action {
 		this.enabled = value && this.query.isValid() && !this.query.equals(query);
 	}
 
-	run(): Thenable<void> {
+	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
@@ -1803,7 +1803,7 @@ export class ChangeGroupAction extends Action {
 		this.query = new Query(query.value, query.sortBy, this.groupBy || query.groupBy);
 	}
 
-	run(): Thenable<void> {
+	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
@@ -2619,12 +2619,12 @@ export class ReinstallAction extends Action {
 		return this.extensionsWorkbenchService.local.filter(l => l.type === LocalExtensionType.User && l.local).length > 0;
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 		return this.quickInputService.pick(this.getEntries(), { placeHolder: localize('selectExtensionToReinstall', "Select Extension to Reinstall") })
 			.then(pick => pick && this.reinstallExtension(pick.extension));
 	}
 
-	private getEntries(): Thenable<(IQuickPickItem & { extension: IExtension })[]> {
+	private getEntries(): Promise<(IQuickPickItem & { extension: IExtension })[]> {
 		return this.extensionsWorkbenchService.queryLocal()
 			.then(local => {
 				const entries = local
@@ -2641,7 +2641,7 @@ export class ReinstallAction extends Action {
 			});
 	}
 
-	private reinstallExtension(extension: IExtension): Thenable<void> {
+	private reinstallExtension(extension: IExtension): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID)
 			.then((viewlet: IExtensionsViewlet) => {
 				viewlet.search('');
@@ -2700,7 +2700,7 @@ export class InstallSpecificVersionOfExtensionAction extends Action {
 
 	private async getExtensionEntries(): Promise<(IQuickPickItem & { extension: IExtension, versions: IGalleryExtensionVersion[] })[]> {
 		const installed = await this.extensionsWorkbenchService.queryLocal();
-		const versionsPromises: Thenable<{ extension: IExtension, versions: IGalleryExtensionVersion[] }>[] = [];
+		const versionsPromises: Promise<{ extension: IExtension, versions: IGalleryExtensionVersion[] }>[] = [];
 		for (const extension of installed) {
 			if (this.isEnabled(extension)) {
 				versionsPromises.push(this.extensionGalleryService.getAllVersions(extension.gallery, true)
@@ -2722,7 +2722,7 @@ export class InstallSpecificVersionOfExtensionAction extends Action {
 			});
 	}
 
-	private install(extension: IExtension, version: string): Thenable<void> {
+	private install(extension: IExtension, version: string): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID)
 			.then((viewlet: IExtensionsViewlet) => {
 				viewlet.search('');

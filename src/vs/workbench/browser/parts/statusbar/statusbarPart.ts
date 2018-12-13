@@ -329,7 +329,7 @@ class ManageExtensionAction extends Action {
 		super('statusbar.manage.extension', nls.localize('manageExtension', "Manage Extension"));
 	}
 
-	run(extensionId: string): Thenable<any> {
+	run(extensionId: string): Promise<any> {
 		return this.commandService.executeCommand('_extensions.manage', extensionId);
 	}
 }

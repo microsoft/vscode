@@ -69,7 +69,7 @@ interface OutputChannel extends IOutputChannel {
 	readonly file: URI;
 	readonly onDidAppendedContent: Event<void>;
 	readonly onDispose: Event<void>;
-	loadModel(): Thenable<ITextModel>;
+	loadModel(): Promise<ITextModel>;
 }
 
 abstract class AbstractFileOutputChannel extends Disposable implements OutputChannel {
@@ -151,7 +151,7 @@ abstract class AbstractFileOutputChannel extends Disposable implements OutputCha
 		}
 	}
 
-	abstract loadModel(): Thenable<ITextModel>;
+	abstract loadModel(): Promise<ITextModel>;
 	abstract append(message: string);
 
 	protected onModelCreated(model: ITextModel) { }
@@ -216,7 +216,7 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 		this.appendedMessage = '';
 	}
 
-	loadModel(): Thenable<ITextModel> {
+	loadModel(): Promise<ITextModel> {
 		this.loadingFromFileInProgress = true;
 		if (this.modelUpdater.isScheduled()) {
 			this.modelUpdater.cancel();
@@ -242,7 +242,7 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 			});
 	}
 
-	private resetModel(): Thenable<void> {
+	private resetModel(): Promise<void> {
 		this.startOffset = 0;
 		this.endOffset = 0;
 		if (this.model) {
@@ -251,7 +251,7 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 		return Promise.resolve(null);
 	}
 
-	private loadFile(): Thenable<string> {
+	private loadFile(): Promise<string> {
 		return this.fileService.resolveContent(this.file, { position: this.startOffset, encoding: 'utf8' })
 			.then(content => this.appendedMessage ? content.value + this.appendedMessage : content.value);
 	}
@@ -309,7 +309,7 @@ class OutputFileListener extends Disposable {
 		this.syncDelayer.trigger(loop);
 	}
 
-	private doWatch(): Thenable<void> {
+	private doWatch(): Promise<void> {
 		return this.fileService.resolveFile(this.file)
 			.then(stat => {
 				if (stat.etag !== this.etag) {
@@ -341,7 +341,7 @@ class FileOutputChannel extends AbstractFileOutputChannel implements OutputChann
 
 	private updateInProgress: boolean = false;
 	private etag: string = '';
-	private loadModelPromise: Thenable<ITextModel> = Promise.resolve();
+	private loadModelPromise: Promise<ITextModel> = Promise.resolve();
 
 	constructor(
 		outputChannelDescriptor: IOutputChannelDescriptor,
@@ -357,7 +357,7 @@ class FileOutputChannel extends AbstractFileOutputChannel implements OutputChann
 		this._register(toDisposable(() => this.fileHandler.unwatch()));
 	}
 
-	loadModel(): Thenable<ITextModel> {
+	loadModel(): Promise<ITextModel> {
 		this.loadModelPromise = this.fileService.resolveContent(this.file, { position: this.startOffset, encoding: 'utf8' })
 			.then(content => {
 				this.endOffset = this.startOffset + Buffer.from(content.value).byteLength;
@@ -473,7 +473,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		this._register(this.storageService.onWillSaveState(() => this.saveState()));
 	}
 
-	provideTextContent(resource: URI): Thenable<ITextModel> {
+	provideTextContent(resource: URI): Promise<ITextModel> {
 		const channel = <OutputChannel>this.getChannel(resource.path);
 		if (channel) {
 			return channel.loadModel();
@@ -481,7 +481,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		return null;
 	}
 
-	showChannel(id: string, preserveFocus?: boolean): Thenable<void> {
+	showChannel(id: string, preserveFocus?: boolean): Promise<void> {
 		const channel = this.getChannel(id);
 		if (!channel || this.isChannelShown(channel)) {
 			if (this._outputPanel && !preserveFocus) {
@@ -491,7 +491,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		}
 
 		this.activeChannel = channel;
-		let promise: Thenable<void>;
+		let promise: Promise<void>;
 		if (this.isPanelShown()) {
 			promise = this.doShowChannel(channel, preserveFocus);
 		} else {
@@ -523,7 +523,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		}
 	}
 
-	private onDidPanelOpen(panel: IPanel, preserveFocus: boolean): Thenable<void> {
+	private onDidPanelOpen(panel: IPanel, preserveFocus: boolean): Promise<void> {
 		if (panel && panel.getId() === OUTPUT_PANEL_ID) {
 			this._outputPanel = <OutputPanel>this.panelService.getActivePanel();
 			if (this.activeChannel) {
@@ -604,7 +604,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		}
 	}
 
-	private doShowChannel(channel: IOutputChannel, preserveFocus: boolean): Thenable<void> {
+	private doShowChannel(channel: IOutputChannel, preserveFocus: boolean): Promise<void> {
 		if (this._outputPanel) {
 			CONTEXT_ACTIVE_LOG_OUTPUT.bindTo(this.contextKeyService).set(channel instanceof FileOutputChannel && channel.outputChannelDescriptor.log);
 			return this._outputPanel.setInput(this.createInput(channel), EditorOptions.create({ preserveFocus }), CancellationToken.None)
@@ -650,7 +650,7 @@ export class LogContentProvider {
 	) {
 	}
 
-	provideTextContent(resource: URI): Thenable<ITextModel> {
+	provideTextContent(resource: URI): Promise<ITextModel> {
 		if (resource.scheme === LOG_SCHEME) {
 			let channel = this.getChannel(resource);
 			if (channel) {
@@ -731,7 +731,7 @@ class BufferredOutputChannel extends Disposable implements OutputChannel {
 		this.lastReadId = void 0;
 	}
 
-	loadModel(): Thenable<ITextModel> {
+	loadModel(): Promise<ITextModel> {
 		const { value, id } = this.bufferredContent.getDelta(this.lastReadId);
 		if (this.model) {
 			this.model.setValue(value);

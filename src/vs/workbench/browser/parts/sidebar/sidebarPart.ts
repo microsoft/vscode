@@ -175,7 +175,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		}
 	}
 
-	openViewlet(id: string, focus?: boolean): Thenable<IViewlet> {
+	openViewlet(id: string, focus?: boolean): Promise<IViewlet> {
 		if (this.getViewlet(id)) {
 			return Promise.resolve(this.doOpenViewlet(id, focus));
 		}
@@ -259,7 +259,7 @@ class FocusSideBarAction extends Action {
 		super(id, label);
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 
 		// Show side bar
 		if (!this.partService.isVisible(Parts.SIDEBAR_PART)) {

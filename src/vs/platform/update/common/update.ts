@@ -76,7 +76,7 @@ export const State = {
 export interface IAutoUpdater extends Event.NodeEventEmitter {
 	setFeedURL(url: string): void;
 	checkForUpdates(): void;
-	applyUpdate?(): Thenable<void>;
+	applyUpdate?(): Promise<void>;
 	quitAndInstall(): void;
 }
 
@@ -88,10 +88,10 @@ export interface IUpdateService {
 	readonly onStateChange: Event<State>;
 	readonly state: State;
 
-	checkForUpdates(context: any): Thenable<void>;
-	downloadUpdate(): Thenable<void>;
-	applyUpdate(): Thenable<void>;
-	quitAndInstall(): Thenable<void>;
+	checkForUpdates(context: any): Promise<void>;
+	downloadUpdate(): Promise<void>;
+	applyUpdate(): Promise<void>;
+	quitAndInstall(): Promise<void>;
 
-	isLatestVersion(): Thenable<boolean | undefined>;
+	isLatestVersion(): Promise<boolean | undefined>;
 }

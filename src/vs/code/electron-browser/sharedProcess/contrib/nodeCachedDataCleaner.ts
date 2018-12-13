@@ -47,7 +47,7 @@ export class NodeCachedDataCleaner {
 			readdir(nodeCachedDataRootDir).then(entries => {
 
 				const now = Date.now();
-				const deletes: Thenable<any>[] = [];
+				const deletes: Promise<any>[] = [];
 
 				entries.forEach(entry => {
 					// name check

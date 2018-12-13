@@ -28,7 +28,7 @@ export class FileIconThemeData implements IFileIconTheme {
 
 	private constructor() { }
 
-	public ensureLoaded(fileService: IFileService): Thenable<string> {
+	public ensureLoaded(fileService: IFileService): Promise<string> {
 		if (!this.isLoaded) {
 			if (this.location) {
 				return _loadIconThemeDocument(fileService, this.location).then(iconThemeDocument => {
@@ -155,7 +155,7 @@ interface IconThemeDocument extends IconsAssociation {
 	hidesExplorerArrows?: boolean;
 }
 
-function _loadIconThemeDocument(fileService: IFileService, location: URI): Thenable<IconThemeDocument> {
+function _loadIconThemeDocument(fileService: IFileService, location: URI): Promise<IconThemeDocument> {
 	return fileService.resolveContent(location, { encoding: 'utf8' }).then((content) => {
 		let errors: Json.ParseError[] = [];
 		let contentValue = Json.parse(content.value.toString(), errors);

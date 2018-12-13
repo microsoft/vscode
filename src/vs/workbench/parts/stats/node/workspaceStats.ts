@@ -189,7 +189,7 @@ export function getHashedRemotesFromConfig(text: string, stripEndingDotGit: bool
 	});
 }
 
-export function getHashedRemotesFromUri(workspaceUri: URI, fileService: IFileService, stripEndingDotGit: boolean = false): Thenable<string[]> {
+export function getHashedRemotesFromUri(workspaceUri: URI, fileService: IFileService, stripEndingDotGit: boolean = false): Promise<string[]> {
 	const path = workspaceUri.path;
 	const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
 	return fileService.resolveFile(uri).then(() => {
@@ -310,7 +310,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			"workspace.py.azure-cognitiveservices" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 		}
 	*/
-	private resolveWorkspaceTags(configuration: IWindowConfiguration, participant?: (rootFiles: string[]) => void): Thenable<Tags> {
+	private resolveWorkspaceTags(configuration: IWindowConfiguration, participant?: (rootFiles: string[]) => void): Promise<Tags> {
 		const tags: Tags = Object.create(null);
 
 		const state = this.contextService.getWorkbenchState();
@@ -414,7 +414,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				tags['workspace.android.cpp'] = true;
 			}
 
-			function getFilePromises(filename, fileService, contentHandler): Thenable<void>[] {
+			function getFilePromises(filename, fileService, contentHandler): Promise<void>[] {
 				return !nameSet.has(filename) ? [] : folders.map(workspaceUri => {
 					const uri = workspaceUri.with({ path: `${workspaceUri.path !== '/' ? workspaceUri.path : ''}/${filename}` });
 					return fileService.resolveFile(uri).then(() => {
@@ -624,7 +624,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			"node" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 		}
 	*/
-	private reportAzureNode(workspaceUris: URI[], tags: Tags): Thenable<Tags> {
+	private reportAzureNode(workspaceUris: URI[], tags: Tags): Promise<Tags> {
 		// TODO: should also work for `node_modules` folders several levels down
 		const uris = workspaceUris.map(workspaceUri => {
 			const path = workspaceUri.path;
@@ -649,7 +649,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			"java" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 		}
 	*/
-	private reportAzureJava(workspaceUris: URI[], tags: Tags): Thenable<Tags> {
+	private reportAzureJava(workspaceUris: URI[], tags: Tags): Promise<Tags> {
 		return Promise.all(workspaceUris.map(workspaceUri => {
 			const path = workspaceUri.path;
 			const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/pom.xml` });

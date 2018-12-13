@@ -30,13 +30,13 @@ export interface IConfigurationResolverService {
 	 * @param section For example, 'tasks' or 'debug'. Used for resolving inputs.
 	 * @param variables Aliases for commands.
 	 */
-	resolveWithInteractionReplace(folder: IWorkspaceFolder, config: any, section?: string, variables?: IStringDictionary<string>): Thenable<any>;
+	resolveWithInteractionReplace(folder: IWorkspaceFolder, config: any, section?: string, variables?: IStringDictionary<string>): Promise<any>;
 
 	/**
 	 * Similar to resolveWithInteractionReplace, except without the replace. Returns a map of variables and their resolution.
 	 * Keys in the map will be of the format input:variableName or command:variableName.
 	 */
-	resolveWithInteraction(folder: IWorkspaceFolder, config: any, section?: string, variables?: IStringDictionary<string>): Thenable<Map<string, string>>;
+	resolveWithInteraction(folder: IWorkspaceFolder, config: any, section?: string, variables?: IStringDictionary<string>): Promise<Map<string, string>>;
 }
 
 export const enum ConfiguredInputType {

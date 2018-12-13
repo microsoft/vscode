@@ -47,7 +47,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 	private mapResourceToStateChangeListener: ResourceMap<IDisposable>;
 	private mapResourceToModelContentChangeListener: ResourceMap<IDisposable>;
 	private mapResourceToModel: ResourceMap<ITextFileEditorModel>;
-	private mapResourceToPendingModelLoaders: ResourceMap<Thenable<ITextFileEditorModel>>;
+	private mapResourceToPendingModelLoaders: ResourceMap<Promise<ITextFileEditorModel>>;
 
 	constructor(
 		@ILifecycleService private lifecycleService: ILifecycleService,
@@ -59,7 +59,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		this.mapResourceToDisposeListener = new ResourceMap<IDisposable>();
 		this.mapResourceToStateChangeListener = new ResourceMap<IDisposable>();
 		this.mapResourceToModelContentChangeListener = new ResourceMap<IDisposable>();
-		this.mapResourceToPendingModelLoaders = new ResourceMap<Thenable<ITextFileEditorModel>>();
+		this.mapResourceToPendingModelLoaders = new ResourceMap<Promise<ITextFileEditorModel>>();
 
 		this.registerListeners();
 	}
@@ -121,7 +121,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		return this.mapResourceToModel.get(resource);
 	}
 
-	loadOrCreate(resource: URI, options?: IModelLoadOrCreateOptions): Thenable<ITextFileEditorModel> {
+	loadOrCreate(resource: URI, options?: IModelLoadOrCreateOptions): Promise<ITextFileEditorModel> {
 
 		// Return early if model is currently being loaded
 		const pendingLoad = this.mapResourceToPendingModelLoaders.get(resource);
@@ -129,7 +129,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 			return pendingLoad;
 		}
 
-		let modelPromise: Thenable<ITextFileEditorModel>;
+		let modelPromise: Promise<ITextFileEditorModel>;
 
 		// Model exists
 		let model = this.get(resource);

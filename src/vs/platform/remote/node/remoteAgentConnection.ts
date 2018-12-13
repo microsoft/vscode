@@ -11,7 +11,7 @@ export interface RemoteAgentConnectionContext {
 	clientId: string;
 }
 
-export function connectRemoteAgentManagement(remoteAuthority: string, host: string, port: number, clientId: string): Thenable<Client<RemoteAgentConnectionContext>> {
+export function connectRemoteAgentManagement(remoteAuthority: string, host: string, port: number, clientId: string): Promise<Client<RemoteAgentConnectionContext>> {
 	throw new Error(`Not implemented`);
 }
 
@@ -20,6 +20,6 @@ export interface IExtensionHostConnectionResult {
 	debugPort?: number;
 }
 
-export function connectRemoteAgentExtensionHost(host: string, port: number, debugArguments: IExtensionHostDebugParams): Thenable<IExtensionHostConnectionResult> {
+export function connectRemoteAgentExtensionHost(host: string, port: number, debugArguments: IExtensionHostDebugParams): Promise<IExtensionHostConnectionResult> {
 	throw new Error(`Not implemented`);
 }

@@ -70,7 +70,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private saveSequentializer: SaveSequentializer;
 	private disposed: boolean;
 	private lastSaveAttemptTime: number;
-	private createTextEditorModelPromise: Thenable<TextFileEditorModel>;
+	private createTextEditorModelPromise: Promise<TextFileEditorModel>;
 	private inConflictMode: boolean;
 	private inOrphanMode: boolean;
 	private inErrorMode: boolean;
@@ -150,7 +150,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		if (fileEventImpactsModel && this.inOrphanMode !== newInOrphanModeGuess) {
-			let checkOrphanedPromise: Thenable<boolean>;
+			let checkOrphanedPromise: Promise<boolean>;
 			if (newInOrphanModeGuess) {
 				// We have received reports of users seeing delete events even though the file still
 				// exists (network shares issue: https://github.com/Microsoft/vscode/issues/13665).
@@ -204,7 +204,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.versionId;
 	}
 
-	revert(soft?: boolean): Thenable<void> {
+	revert(soft?: boolean): Promise<void> {
 		if (!this.isResolved()) {
 			return Promise.resolve(null);
 		}
@@ -215,7 +215,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Unset flags
 		const undo = this.setDirty(false);
 
-		let loadPromise: Thenable<TextFileEditorModel>;
+		let loadPromise: Promise<TextFileEditorModel>;
 		if (soft) {
 			loadPromise = Promise.resolve();
 		} else {
@@ -235,7 +235,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		});
 	}
 
-	load(options?: ILoadOptions): Thenable<TextFileEditorModel> {
+	load(options?: ILoadOptions): Promise<TextFileEditorModel> {
 		this.logService.trace('load() - enter', this.resource);
 
 		// It is very important to not reload the model when the model is dirty.
@@ -256,7 +256,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.loadFromFile(options);
 	}
 
-	private loadFromBackup(options?: ILoadOptions): Thenable<TextFileEditorModel> {
+	private loadFromBackup(options?: ILoadOptions): Promise<TextFileEditorModel> {
 		return this.backupFileService.loadBackupResource(this.resource).then(backup => {
 
 			// Make sure meanwhile someone else did not suceed or start loading
@@ -284,7 +284,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		});
 	}
 
-	private loadFromFile(options?: ILoadOptions): Thenable<TextFileEditorModel> {
+	private loadFromFile(options?: ILoadOptions): Promise<TextFileEditorModel> {
 		const forceReadFromDisk = options && options.forceReadFromDisk;
 		const allowBinary = this.isResolved() /* always allow if we resolved previously */ || (options && options.allowBinary);
 
@@ -347,7 +347,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			});
 	}
 
-	private loadWithContent(content: IRawTextContent, options?: ILoadOptions, backup?: URI): Thenable<TextFileEditorModel> {
+	private loadWithContent(content: IRawTextContent, options?: ILoadOptions, backup?: URI): Promise<TextFileEditorModel> {
 		return this.doLoadWithContent(content, backup).then(model => {
 			// Telemetry: We log the fileGet telemetry event after the model has been loaded to ensure a good mimetype
 			const settingsType = this.getTypeIfSettings();
@@ -373,7 +373,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		});
 	}
 
-	private doLoadWithContent(content: IRawTextContent, backup?: URI): Thenable<TextFileEditorModel> {
+	private doLoadWithContent(content: IRawTextContent, backup?: URI): Promise<TextFileEditorModel> {
 		this.logService.trace('load() - resolved content', this.resource);
 
 		// Update our resolved disk stat model
@@ -435,7 +435,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.updateSavedVersionId();
 	}
 
-	private doCreateTextModel(resource: URI, value: ITextBufferFactory, backup: URI): Thenable<TextFileEditorModel> {
+	private doCreateTextModel(resource: URI, value: ITextBufferFactory, backup: URI): Promise<TextFileEditorModel> {
 		this.logService.trace('load() - created text editor model', this.resource);
 
 		this.createTextEditorModelPromise = this.doLoadBackup(backup).then(backupContent => {
@@ -483,7 +483,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this._register(this.textEditorModel.onDidChangeContent(() => this.onModelContentChanged()));
 	}
 
-	private doLoadBackup(backup: URI): Thenable<ITextBufferFactory> {
+	private doLoadBackup(backup: URI): Promise<ITextBufferFactory> {
 		if (!backup) {
 			return Promise.resolve(null);
 		}
@@ -581,7 +581,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 	}
 
-	save(options: ISaveOptions = Object.create(null)): Thenable<void> {
+	save(options: ISaveOptions = Object.create(null)): Promise<void> {
 		if (!this.isResolved()) {
 			return Promise.resolve(null);
 		}
@@ -594,7 +594,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.doSave(this.versionId, options);
 	}
 
-	private doSave(versionId: number, options: ISaveOptions): Thenable<void> {
+	private doSave(versionId: number, options: ISaveOptions): Promise<void> {
 		if (isUndefinedOrNull(options.reason)) {
 			options.reason = SaveReason.EXPLICIT;
 		}
@@ -650,7 +650,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// we do not want to trigger another auto save or similar, so we block this
 		// In addition we update our version right after in case it changed because of a model change
 		// Save participants can also be skipped through API.
-		let saveParticipantPromise: Thenable<number> = Promise.resolve(versionId);
+		let saveParticipantPromise: Promise<number> = Promise.resolve(versionId);
 		if (TextFileEditorModel.saveParticipant && !options.skipSaveParticipants) {
 			const onCompleteOrError = () => {
 				this.blockModelContentChange = false;
@@ -833,7 +833,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return telemetryData;
 	}
 
-	private doTouch(versionId: number): Thenable<void> {
+	private doTouch(versionId: number): Promise<void> {
 		return this.saveSequentializer.setPending(versionId, this.fileService.updateContent(this.lastResolvedDiskStat.resource, this.createSnapshot(), {
 			mtime: this.lastResolvedDiskStat.mtime,
 			encoding: this.getEncoding(),
@@ -1035,14 +1035,14 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 interface IPendingSave {
 	versionId: number;
-	promise: Thenable<void>;
+	promise: Promise<void>;
 }
 
 interface ISaveOperation {
-	promise: Thenable<void>;
+	promise: Promise<void>;
 	promiseResolve: () => void;
 	promiseReject: (error: Error) => void;
-	run: () => Thenable<void>;
+	run: () => Promise<void>;
 }
 
 export class SaveSequentializer {
@@ -1061,11 +1061,11 @@ export class SaveSequentializer {
 		return !!this._pendingSave;
 	}
 
-	get pendingSave(): Thenable<void> {
+	get pendingSave(): Promise<void> {
 		return this._pendingSave ? this._pendingSave.promise : void 0;
 	}
 
-	setPending(versionId: number, promise: Thenable<void>): Thenable<void> {
+	setPending(versionId: number, promise: Promise<void>): Promise<void> {
 		this._pendingSave = { versionId, promise };
 
 		promise.then(() => this.donePending(versionId), () => this.donePending(versionId));
@@ -1094,7 +1094,7 @@ export class SaveSequentializer {
 		}
 	}
 
-	setNext(run: () => Thenable<void>): Thenable<void> {
+	setNext(run: () => Promise<void>): Promise<void> {
 
 		// this is our first next save, so we create associated promise with it
 		// so that we can return a promise that completes when the save operation

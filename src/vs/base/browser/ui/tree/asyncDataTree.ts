@@ -16,7 +16,7 @@ import { Iterator } from 'vs/base/common/iterator';
 
 export interface IDataSource<T extends NonNullable<any>> {
 	hasChildren(element: T | null): boolean;
-	getChildren(element: T | null): Thenable<T[]>;
+	getChildren(element: T | null): Promise<T[]>;
 }
 
 enum AsyncDataTreeNodeState {
@@ -177,7 +177,7 @@ export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> imple
 	private readonly tree: ObjectTree<IAsyncDataTreeNode<T>, TFilterData>;
 	private readonly root: IAsyncDataTreeNode<T>;
 	private readonly nodes = new Map<T | null, IAsyncDataTreeNode<T>>();
-	private readonly refreshPromises = new Map<IAsyncDataTreeNode<T>, Thenable<void>>();
+	private readonly refreshPromises = new Map<IAsyncDataTreeNode<T>, Promise<void>>();
 	private readonly identityProvider?: IIdentityProvider<T>;
 
 	private readonly _onDidChangeNodeState = new Emitter<IAsyncDataTreeNode<T>>();
@@ -278,7 +278,7 @@ export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> imple
 
 	// Data Tree
 
-	refresh(element: T | null, recursive = true): Thenable<void> {
+	refresh(element: T | null, recursive = true): Promise<void> {
 		return this.refreshNode(this.getDataNode(element), recursive, ChildrenResolutionReason.Refresh);
 	}
 
@@ -436,7 +436,7 @@ export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> imple
 		}
 	}
 
-	private _refreshNode(node: IAsyncDataTreeNode<T>, recursive: boolean, reason: ChildrenResolutionReason): Thenable<void> {
+	private _refreshNode(node: IAsyncDataTreeNode<T>, recursive: boolean, reason: ChildrenResolutionReason): Promise<void> {
 		let result = this.refreshPromises.get(node);
 
 		if (result) {
@@ -448,7 +448,7 @@ export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> imple
 		return always(result, () => this.refreshPromises.delete(node));
 	}
 
-	private doRefresh(node: IAsyncDataTreeNode<T>, recursive: boolean, reason: ChildrenResolutionReason): Thenable<void> {
+	private doRefresh(node: IAsyncDataTreeNode<T>, recursive: boolean, reason: ChildrenResolutionReason): Promise<void> {
 		const hasChildren = !!this.dataSource.hasChildren(node.element);
 
 		if (!hasChildren) {

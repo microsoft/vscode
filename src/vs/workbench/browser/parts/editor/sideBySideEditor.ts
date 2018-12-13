@@ -92,7 +92,7 @@ export class SideBySideEditor extends BaseEditor {
 		this.updateStyles();
 	}
 
-	setInput(newInput: SideBySideEditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+	setInput(newInput: SideBySideEditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 		const oldInput = <SideBySideEditorInput>this.input;
 		return super.setInput(newInput, options, token)
 			.then(() => this.updateInput(oldInput, newInput, options, token));
@@ -157,7 +157,7 @@ export class SideBySideEditor extends BaseEditor {
 		return this.detailsEditor;
 	}
 
-	private updateInput(oldInput: SideBySideEditorInput, newInput: SideBySideEditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+	private updateInput(oldInput: SideBySideEditorInput, newInput: SideBySideEditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 		if (!newInput.matches(oldInput)) {
 			if (oldInput) {
 				this.disposeEditors();
@@ -172,7 +172,7 @@ export class SideBySideEditor extends BaseEditor {
 		).then(() => void 0);
 	}
 
-	private setNewInput(newInput: SideBySideEditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+	private setNewInput(newInput: SideBySideEditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 		const detailsEditor = this._createEditor(<EditorInput>newInput.details, this.detailsEditorContainer);
 		const masterEditor = this._createEditor(<EditorInput>newInput.master, this.masterEditorContainer);
 

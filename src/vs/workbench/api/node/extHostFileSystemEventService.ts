@@ -139,7 +139,7 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 		};
 	}
 
-	$onWillRename(oldUriDto: UriComponents, newUriDto: UriComponents): Thenable<any> {
+	$onWillRename(oldUriDto: UriComponents, newUriDto: UriComponents): Promise<any> {
 		const oldUri = URI.revive(oldUriDto);
 		const newUri = URI.revive(newUriDto);
 
@@ -148,7 +148,7 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 			return {
 				oldUri,
 				newUri,
-				waitUntil: (thenable: Thenable<vscode.WorkspaceEdit>): void => {
+				waitUntil: (thenable: Promise<vscode.WorkspaceEdit>): void => {
 					if (Object.isFrozen(bucket)) {
 						throw new TypeError('waitUntil cannot be called async');
 					}

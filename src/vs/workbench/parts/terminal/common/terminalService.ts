@@ -82,7 +82,7 @@ export abstract class TerminalService implements ITerminalService {
 		this.onInstancesChanged(() => updateTerminalContextKeys());
 	}
 
-	protected abstract _showTerminalCloseConfirmation(): PromiseLike<boolean>;
+	protected abstract _showTerminalCloseConfirmation(): Promise<boolean>;
 	protected abstract _showNotEnoughSpaceToast(): void;
 	public abstract createTerminal(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
 	public abstract createTerminalRenderer(name: string): ITerminalInstance;
@@ -92,7 +92,7 @@ export abstract class TerminalService implements ITerminalService {
 	public abstract setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 	public abstract requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI, cols: number, rows: number): void;
 
-	private _onBeforeShutdown(): boolean | PromiseLike<boolean> {
+	private _onBeforeShutdown(): boolean | Promise<boolean> {
 		if (this.terminalInstances.length === 0) {
 			// No terminal instances, don't veto
 			return false;

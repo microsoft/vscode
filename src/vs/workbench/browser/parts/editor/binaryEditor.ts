@@ -21,7 +21,7 @@ import { dispose } from 'vs/base/common/lifecycle';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export interface IOpenCallbacks {
-	openInternal: (input: EditorInput, options: EditorOptions) => Thenable<void>;
+	openInternal: (input: EditorInput, options: EditorOptions) => Promise<void>;
 	openExternal: (uri: URI) => void;
 }
 
@@ -72,7 +72,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		parent.appendChild(this.scrollbar.getDomNode());
 	}
 
-	setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+	setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 		return super.setInput(input, options, token).then(() => {
 			return input.resolve().then(model => {
 

@@ -227,7 +227,7 @@ export class FileDataSource implements IDataSource {
 		return URI.isUri(element) || IWorkspace.isIWorkspace(element) || IWorkspaceFolder.isIWorkspaceFolder(element) || element.isDirectory;
 	}
 
-	getChildren(tree: ITree, element: IWorkspace | IWorkspaceFolder | IFileStat | URI): Thenable<IWorkspaceFolder[] | IFileStat[]> {
+	getChildren(tree: ITree, element: IWorkspace | IWorkspaceFolder | IFileStat | URI): Promise<IWorkspaceFolder[] | IFileStat[]> {
 		if (IWorkspace.isIWorkspace(element)) {
 			return Promise.resolve(element.folders).then(folders => {
 				for (let child of folders) {
@@ -252,7 +252,7 @@ export class FileDataSource implements IDataSource {
 		});
 	}
 
-	getParent(tree: ITree, element: IWorkspace | URI | IWorkspaceFolder | IFileStat): Thenable<IWorkspaceFolder | IFileStat> {
+	getParent(tree: ITree, element: IWorkspace | URI | IWorkspaceFolder | IFileStat): Promise<IWorkspaceFolder | IFileStat> {
 		return Promise.resolve(this._parents.get(element));
 	}
 }

@@ -44,7 +44,7 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 		);
 	}
 
-	private openInternal(input: EditorInput, options: EditorOptions): Thenable<void> {
+	private openInternal(input: EditorInput, options: EditorOptions): Promise<void> {
 		if (input instanceof FileEditorInput) {
 			input.setForceOpenAsText();
 

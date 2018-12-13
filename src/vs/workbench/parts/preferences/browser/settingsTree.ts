@@ -240,7 +240,7 @@ export class SimplePagedDataSource implements IDataSource {
 		return this.realDataSource.hasChildren(tree, element);
 	}
 
-	getChildren(tree: ITree, element: SettingsTreeGroupElement): Thenable<any> {
+	getChildren(tree: ITree, element: SettingsTreeGroupElement): Promise<any> {
 		return this.realDataSource.getChildren(tree, element).then(realChildren => {
 			return this._getChildren(realChildren);
 		});
@@ -257,7 +257,7 @@ export class SimplePagedDataSource implements IDataSource {
 		}
 	}
 
-	getParent(tree: ITree, element: any): Thenable<any> {
+	getParent(tree: ITree, element: any): Promise<any> {
 		return this.realDataSource.getParent(tree, element);
 	}
 

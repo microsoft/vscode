@@ -900,15 +900,7 @@ export class TerminalInstance implements ITerminalInstance {
 			this._xterm.writeln(shell.initialText);
 		}
 
-		// Initialize new process
 		const oldTitle = this._title;
-		this._shellLaunchConfig = shell;
-		this._createProcess();
-		if (oldTitle !== this._title) {
-			this.setTitle(this._title, true);
-		}
-		this._processManager.onProcessData(data => this._onProcessData(data));
-
 		// Clean up waitOnExit state
 		if (this._isExiting && this._shellLaunchConfig.waitOnExit) {
 			this._xterm.setOption('disableStdin', false);
@@ -916,7 +908,13 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 
 		// Set the new shell launch config
-		this._shellLaunchConfig = shell;
+		this._shellLaunchConfig = shell; // Must be done before calling _createProcess()
+		// Initialize new process
+		this._createProcess();
+		if (oldTitle !== this._title) {
+			this.setTitle(this._title, true);
+		}
+		this._processManager.onProcessData(data => this._onProcessData(data));
 	}
 
 	private _sendRendererInput(input: string): void {

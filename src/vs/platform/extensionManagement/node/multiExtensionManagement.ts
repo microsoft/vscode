@@ -112,8 +112,8 @@ export class MultiExtensionManagementService extends Disposable implements IExte
 		return this.extensionManagementServerService.getExtensionManagementServer(extension.location);
 	}
 
-	private _remoteAuthorityResolverPromise: Thenable<ResolvedAuthority>;
-	private hasToSyncExtensions(): Thenable<boolean> {
+	private _remoteAuthorityResolverPromise: Promise<ResolvedAuthority>;
+	private hasToSyncExtensions(): Promise<boolean> {
 		if (!this.extensionManagementServerService.remoteExtensionManagementServer) {
 			return Promise.resolve(false);
 		}

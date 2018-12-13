@@ -53,7 +53,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 
 const HELP_PREFIX = '?';
 
-type ValueCallback<T = any> = (value: T | Thenable<T>) => void;
+type ValueCallback<T = any> = (value: T | Promise<T>) => void;
 
 export class QuickOpenController extends Component implements IQuickOpenService {
 
@@ -452,7 +452,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 			const previousInput = this.quickOpenWidget.getInput();
 			const wasShowingHistory = previousInput && previousInput.entries && previousInput.entries.some(e => e instanceof EditorHistoryEntry || e instanceof EditorHistoryEntryGroup);
 			if (wasShowingHistory || matchingHistoryEntries.length > 0) {
-				let responseDelay: Thenable<void>;
+				let responseDelay: Promise<void>;
 				if (resolvedHandler.hasShortResponseTime()) {
 					responseDelay = timeout(QuickOpenController.MAX_SHORT_RESPONSE_TIME);
 				} else {
@@ -836,7 +836,7 @@ export class RemoveFromEditorHistoryAction extends Action {
 		super(id, label);
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 		interface IHistoryPickEntry extends IQuickPickItem {
 			input: IEditorInput | IResourceInput;
 		}

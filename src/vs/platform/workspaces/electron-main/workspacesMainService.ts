@@ -49,7 +49,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 		this.workspacesHome = environmentService.workspacesHome;
 	}
 
-	resolveWorkspace(path: string): Thenable<IResolvedWorkspace | null> {
+	resolveWorkspace(path: string): Promise<IResolvedWorkspace | null> {
 		if (!this.isWorkspacePath(path)) {
 			return Promise.resolve(null); // does not look like a valid workspace config file
 		}
@@ -114,7 +114,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 		return isParent(path, this.environmentService.workspacesHome, !isLinux /* ignore case */);
 	}
 
-	createWorkspace(folders?: IWorkspaceFolderCreationData[]): Thenable<IWorkspaceIdentifier> {
+	createWorkspace(folders?: IWorkspaceFolderCreationData[]): Promise<IWorkspaceIdentifier> {
 		const { workspace, configParent, storedWorkspace } = this.createUntitledWorkspace(folders);
 
 		return mkdirp(configParent).then(() => {
@@ -186,7 +186,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 		return this.isInsideWorkspacesHome(workspace.configPath);
 	}
 
-	saveWorkspace(workspace: IWorkspaceIdentifier, targetConfigPath: string): Thenable<IWorkspaceIdentifier> {
+	saveWorkspace(workspace: IWorkspaceIdentifier, targetConfigPath: string): Promise<IWorkspaceIdentifier> {
 
 		// Return early if target is same as source
 		if (isEqual(workspace.configPath, targetConfigPath, !isLinux)) {

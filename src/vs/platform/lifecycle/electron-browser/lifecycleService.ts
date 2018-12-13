@@ -116,7 +116,7 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 	}
 
 	private handleBeforeShutdown(reason: ShutdownReason): Promise<boolean> {
-		const vetos: (boolean | Thenable<boolean>)[] = [];
+		const vetos: (boolean | Promise<boolean>)[] = [];
 
 		this._onBeforeShutdown.fire({
 			veto(value) {
@@ -131,8 +131,8 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 		});
 	}
 
-	private handleWillShutdown(reason: ShutdownReason): Thenable<void> {
-		const joiners: Thenable<void>[] = [];
+	private handleWillShutdown(reason: ShutdownReason): Promise<void> {
+		const joiners: Promise<void>[] = [];
 
 		this._onWillShutdown.fire({
 			join(promise) {
@@ -169,7 +169,7 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 		}
 	}
 
-	when(phase: LifecyclePhase): Thenable<any> {
+	when(phase: LifecyclePhase): Promise<any> {
 		if (phase <= this._phase) {
 			return Promise.resolve();
 		}

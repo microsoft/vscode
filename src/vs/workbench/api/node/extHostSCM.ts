@@ -7,7 +7,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { debounce } from 'vs/base/common/decorators';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { asThenable } from 'vs/base/common/async';
+import { asPromise } from 'vs/base/common/async';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext, ExtHostSCMShape } from './extHost.protocol';
@@ -279,14 +279,14 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 		return this._resourceStatesMap.get(handle);
 	}
 
-	$executeResourceCommand(handle: number): Thenable<void> {
+	$executeResourceCommand(handle: number): Promise<void> {
 		const command = this._resourceStatesCommandsMap.get(handle);
 
 		if (!command) {
 			return Promise.resolve(null);
 		}
 
-		return asThenable(() => this._commands.executeCommand(command.command, ...command.arguments));
+		return asPromise(() => this._commands.executeCommand(command.command, ...command.arguments));
 	}
 
 	_takeResourceStateSnapshot(): SCMRawResourceSplice[] {
@@ -608,7 +608,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		return inputBox;
 	}
 
-	$provideOriginalResource(sourceControlHandle: number, uriComponents: UriComponents, token: CancellationToken): Thenable<UriComponents> {
+	$provideOriginalResource(sourceControlHandle: number, uriComponents: UriComponents, token: CancellationToken): Promise<UriComponents> {
 		const uri = URI.revive(uriComponents);
 		this.logService.trace('ExtHostSCM#$provideOriginalResource', sourceControlHandle, uri.toString());
 
@@ -618,7 +618,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 			return Promise.resolve(null);
 		}
 
-		return asThenable(() => sourceControl.quickDiffProvider.provideOriginalResource(uri, token));
+		return asPromise(() => sourceControl.quickDiffProvider.provideOriginalResource(uri, token));
 	}
 
 	$onInputBoxValueChange(sourceControlHandle: number, value: string): Promise<void> {
@@ -634,7 +634,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		return Promise.resolve(null);
 	}
 
-	$executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number): Thenable<void> {
+	$executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number): Promise<void> {
 		this.logService.trace('ExtHostSCM#$executeResourceCommand', sourceControlHandle, groupHandle, handle);
 
 		const sourceControl = this._sourceControls.get(sourceControlHandle);
@@ -652,7 +652,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		return group.$executeResourceCommand(handle);
 	}
 
-	$validateInput(sourceControlHandle: number, value: string, cursorPosition: number): Thenable<[string, number] | undefined> {
+	$validateInput(sourceControlHandle: number, value: string, cursorPosition: number): Promise<[string, number] | undefined> {
 		this.logService.trace('ExtHostSCM#$validateInput', sourceControlHandle);
 
 		const sourceControl = this._sourceControls.get(sourceControlHandle);
@@ -665,7 +665,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 			return Promise.resolve(undefined);
 		}
 
-		return asThenable(() => sourceControl.inputBox.validateInput(value, cursorPosition)).then(result => {
+		return asPromise(() => sourceControl.inputBox.validateInput(value, cursorPosition)).then(result => {
 			if (!result) {
 				return Promise.resolve(undefined);
 			}
@@ -674,7 +674,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		});
 	}
 
-	$setSelectedSourceControls(selectedSourceControlHandles: number[]): Thenable<void> {
+	$setSelectedSourceControls(selectedSourceControlHandles: number[]): Promise<void> {
 		this.logService.trace('ExtHostSCM#$setSelectedSourceControls', selectedSourceControlHandles);
 
 		const set = new Set<number>();

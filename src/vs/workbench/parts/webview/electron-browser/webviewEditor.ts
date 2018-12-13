@@ -158,7 +158,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 		super.clearInput();
 	}
 
-	setInput(input: WebviewEditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+	setInput(input: WebviewEditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 		if (this.input) {
 			(this.input as WebviewEditorInput).releaseWebview(this);
 			this._webview = undefined;

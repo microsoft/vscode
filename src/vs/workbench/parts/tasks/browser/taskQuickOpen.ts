@@ -32,7 +32,7 @@ export class QuickOpenHandler extends base.QuickOpenHandler {
 
 	public static readonly ID = 'workbench.picker.tasks';
 
-	private activationPromise: Thenable<void>;
+	private activationPromise: Promise<void>;
 
 	constructor(
 		@IQuickOpenService quickOpenService: IQuickOpenService,
@@ -47,7 +47,7 @@ export class QuickOpenHandler extends base.QuickOpenHandler {
 		return nls.localize('tasksAriaLabel', "Type the name of a task to run");
 	}
 
-	protected getTasks(): Thenable<(CustomTask | ContributedTask)[]> {
+	protected getTasks(): Promise<(CustomTask | ContributedTask)[]> {
 		return this.activationPromise.then(() => {
 			return this.taskService.tasks().then(tasks => tasks.filter<CustomTask | ContributedTask>((task): task is CustomTask | ContributedTask => ContributedTask.is(task) || CustomTask.is(task)));
 		});

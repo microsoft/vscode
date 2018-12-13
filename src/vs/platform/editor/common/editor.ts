@@ -16,7 +16,7 @@ export interface IEditorModel {
 	/**
 	 * Loads the model.
 	 */
-	load(): Thenable<IEditorModel>;
+	load(): Promise<IEditorModel>;
 
 	/**
 	 * Dispose associated resources

@@ -135,7 +135,7 @@ suite.skip('QuickOpen performance (integration)', () => {
 				if (testWorkspaceArg || verboseResults) { // Don't measure by default
 					const cachedEvents: Timer.ITimerEvent[] = [];
 					let i = n;
-					return (function iterate(): Thenable<Timer.ITimerEvent> {
+					return (function iterate(): Promise<Timer.ITimerEvent> {
 						if (!i--) {
 							return undefined;
 						}

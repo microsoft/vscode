@@ -21,7 +21,7 @@ export interface IWatchError {
 
 export interface IWatcherService {
 	watch(options: IWatcherOptions): Event<IRawFileChange[] | IWatchError>;
-	setRoots(roots: IWatcherRequest[]): Thenable<void>;
-	setVerboseLogging(enabled: boolean): Thenable<void>;
-	stop(): Thenable<void>;
+	setRoots(roots: IWatcherRequest[]): Promise<void>;
+	setVerboseLogging(enabled: boolean): Promise<void>;
+	stop(): Promise<void>;
 }

@@ -162,7 +162,7 @@ export class VariablesDataSource implements IDataSource<IExpression | IScope> {
 		return element.hasChildren;
 	}
 
-	getChildren(element: IExpression | IScope | null): Thenable<(IExpression | IScope)[]> {
+	getChildren(element: IExpression | IScope | null): Promise<(IExpression | IScope)[]> {
 		if (element === null) {
 			const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 			return stackFrame ? stackFrame.getScopes() : Promise.resolve([]);

@@ -23,7 +23,7 @@ export interface IHeapService {
 	 * Track gc-collection for all new objects that
 	 * have the $ident-value set.
 	 */
-	trackRecursive<T>(obj: T | Thenable<T>): Thenable<T>;
+	trackRecursive<T>(obj: T | Promise<T>): Promise<T>;
 }
 
 export class HeapService implements IHeapService {
@@ -45,7 +45,7 @@ export class HeapService implements IHeapService {
 		clearInterval(this._consumeHandle);
 	}
 
-	trackRecursive<T>(obj: T | Thenable<T>): Thenable<T> {
+	trackRecursive<T>(obj: T | Promise<T>): Promise<T> {
 		if (isThenable(obj)) {
 			return obj.then(result => this.trackRecursive(result));
 		} else {

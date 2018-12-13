@@ -84,7 +84,7 @@ export class CodeApplication extends Disposable {
 	private electronIpcServer: ElectronIPCServer;
 
 	private sharedProcess: SharedProcess;
-	private sharedProcessClient: Thenable<Client>;
+	private sharedProcessClient: Promise<Client>;
 
 	constructor(
 		private mainIpcServer: Server,
@@ -172,7 +172,7 @@ export class CodeApplication extends Disposable {
 
 		class ActiveConnection {
 			private _authority: string;
-			private _client: Thenable<Client<RemoteAgentConnectionContext>>;
+			private _client: Promise<Client<RemoteAgentConnectionContext>>;
 			private _disposeRunner: RunOnceScheduler;
 
 			constructor(authority: string, host: string, port: number) {
@@ -189,7 +189,7 @@ export class CodeApplication extends Disposable {
 				});
 			}
 
-			public getClient(): Thenable<Client<RemoteAgentConnectionContext>> {
+			public getClient(): Promise<Client<RemoteAgentConnectionContext>> {
 				this._disposeRunner.schedule();
 				return this._client;
 			}
@@ -381,7 +381,7 @@ export class CodeApplication extends Disposable {
 		}
 	}
 
-	startup(): Thenable<void> {
+	startup(): Promise<void> {
 		this.logService.debug('Starting VS Code');
 		this.logService.debug(`from: ${this.environmentService.appRoot}`);
 		this.logService.debug('args:', this.environmentService.args);
@@ -456,7 +456,7 @@ export class CodeApplication extends Disposable {
 		}
 	}
 
-	private resolveMachineId(): string | Thenable<string> {
+	private resolveMachineId(): string | Promise<string> {
 		const machineId = this.stateService.getItem<string>(CodeApplication.MACHINE_ID_KEY);
 		if (machineId) {
 			return machineId;
@@ -504,7 +504,7 @@ export class CodeApplication extends Disposable {
 		});
 	}
 
-	private initServices(machineId: string): Thenable<IInstantiationService> {
+	private initServices(machineId: string): Promise<IInstantiationService> {
 		const services = new ServiceCollection();
 
 		if (process.platform === 'win32') {
@@ -544,7 +544,7 @@ export class CodeApplication extends Disposable {
 		return appInstantiationService.invokeFunction(accessor => this.initStorageService(accessor)).then(() => appInstantiationService);
 	}
 
-	private initStorageService(accessor: ServicesAccessor): Thenable<void> {
+	private initStorageService(accessor: ServicesAccessor): Promise<void> {
 		const storageMainService = accessor.get(IStorageMainService) as StorageMainService;
 
 		// Ensure to close storage on shutdown
@@ -644,7 +644,7 @@ export class CodeApplication extends Disposable {
 			const environmentService = accessor.get(IEnvironmentService);
 
 			urlService.registerHandler({
-				handleURL(uri: URI): Thenable<boolean> {
+				handleURL(uri: URI): Promise<boolean> {
 					if (windowsMainService.getWindowCount() === 0) {
 						const cli = { ...environmentService.args, goto: true };
 						const [window] = windowsMainService.open({ context: OpenContext.API, cli, forceEmpty: true });

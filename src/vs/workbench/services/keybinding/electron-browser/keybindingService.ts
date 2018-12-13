@@ -230,15 +230,18 @@ let keybindingType: IJSONSchema = {
 	}
 };
 
-let keybindingsExtPoint = ExtensionsRegistry.registerExtensionPoint<ContributedKeyBinding | ContributedKeyBinding[]>('keybindings', [], {
-	description: nls.localize('vscode.extension.contributes.keybindings', "Contributes keybindings."),
-	oneOf: [
-		keybindingType,
-		{
-			type: 'array',
-			items: keybindingType
-		}
-	]
+const keybindingsExtPoint = ExtensionsRegistry.registerExtensionPoint<ContributedKeyBinding | ContributedKeyBinding[]>({
+	extensionPoint: 'keybindings',
+	jsonSchema: {
+		description: nls.localize('vscode.extension.contributes.keybindings', "Contributes keybindings."),
+		oneOf: [
+			keybindingType,
+			{
+				type: 'array',
+				items: keybindingType
+			}
+		]
+	}
 });
 
 export const enum DispatchConfig {

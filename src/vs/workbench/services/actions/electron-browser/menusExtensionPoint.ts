@@ -276,7 +276,10 @@ namespace schema {
 	};
 }
 
-ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.IUserFriendlyCommand[]>('commands', [], schema.commandsContribution).setHandler(extensions => {
+ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.IUserFriendlyCommand[]>({
+	extensionPoint: 'commands',
+	jsonSchema: schema.commandsContribution
+}).setHandler(extensions => {
 
 	function handleCommand(userFriendlyCommand: schema.IUserFriendlyCommand, extension: IExtensionPointUser<any>) {
 
@@ -316,7 +319,10 @@ ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.I
 });
 
 
-ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyMenuItem[] }>('menus', [], schema.menusContribtion).setHandler(extensions => {
+ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyMenuItem[] }>({
+	extensionPoint: 'menus',
+	jsonSchema: schema.menusContribtion
+}).setHandler(extensions => {
 	for (let extension of extensions) {
 		const { value, collector } = extension;
 

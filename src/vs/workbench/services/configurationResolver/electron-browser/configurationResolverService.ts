@@ -82,7 +82,7 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 		}, envVariables);
 	}
 
-	public resolveWithInteractionReplace(folder: IWorkspaceFolder, config: any, section?: string, variables?: IStringDictionary<string>): Thenable<any> {
+	public resolveWithInteractionReplace(folder: IWorkspaceFolder, config: any, section?: string, variables?: IStringDictionary<string>): Promise<any> {
 		// resolve any non-interactive variables
 		config = this.resolveAny(folder, config);
 
@@ -99,7 +99,7 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 		});
 	}
 
-	public resolveWithInteraction(folder: IWorkspaceFolder, config: any, section?: string, variables?: IStringDictionary<string>): Thenable<Map<string, string>> {
+	public resolveWithInteraction(folder: IWorkspaceFolder, config: any, section?: string, variables?: IStringDictionary<string>): Promise<Map<string, string>> {
 		// resolve any non-interactive variables
 		const resolved = this.resolveAnyMap(folder, config);
 		config = resolved.newConfig;
@@ -143,7 +143,7 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 	 * @param configuration
 	 * @param variableToCommandMap Aliases for commands
 	 */
-	private resolveWithCommands(configuration: any, variableToCommandMap: IStringDictionary<string>): Thenable<IStringDictionary<string>> {
+	private resolveWithCommands(configuration: any, variableToCommandMap: IStringDictionary<string>): Promise<IStringDictionary<string>> {
 		if (!configuration) {
 			return Promise.resolve(undefined);
 		}
@@ -155,7 +155,7 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 		let cancelled = false;
 		const commandValueMapping: IStringDictionary<string> = Object.create(null);
 
-		const factory: { (): Thenable<any> }[] = commands.map(commandVariable => {
+		const factory: { (): Promise<any> }[] = commands.map(commandVariable => {
 			return () => {
 				let commandId = variableToCommandMap ? variableToCommandMap[commandVariable] : undefined;
 				if (!commandId) {

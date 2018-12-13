@@ -67,7 +67,7 @@ class DiffMenuItemActionItem extends MenuItemActionItem {
 
 class DiffActionRunner extends ActionRunner {
 
-	runAction(action: IAction, context: any): Thenable<any> {
+	runAction(action: IAction, context: any): Promise<any> {
 		if (action instanceof MenuItemAction) {
 			return action.run(...context);
 		}
@@ -135,7 +135,7 @@ class UIEditorAction extends Action {
 		this.editor = editor;
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 		return Promise.resolve(this.instantiationService.invokeFunction(accessor => this.action.run(accessor, this.editor, null)));
 	}
 }
@@ -937,7 +937,7 @@ export class DirtyDiffModel {
 	get modified(): ITextModel { return this._editorModel; }
 
 	private diffDelayer: ThrottledDelayer<IChange[]>;
-	private _originalURIPromise: Thenable<URI>;
+	private _originalURIPromise: Promise<URI>;
 	private repositoryDisposables = new Set<IDisposable[]>();
 	private originalModelDisposables: IDisposable[] = [];
 	private disposables: IDisposable[] = [];
@@ -980,7 +980,7 @@ export class DirtyDiffModel {
 		this.triggerDiff();
 	}
 
-	private triggerDiff(): Thenable<any> {
+	private triggerDiff(): Promise<any> {
 		if (!this.diffDelayer) {
 			return Promise.resolve(null);
 		}
@@ -1005,7 +1005,7 @@ export class DirtyDiffModel {
 			});
 	}
 
-	private diff(): Thenable<IChange[]> {
+	private diff(): Promise<IChange[]> {
 		return this.getOriginalURIPromise().then(originalURI => {
 			if (!this._editorModel || this._editorModel.isDisposed() || !originalURI) {
 				return Promise.resolve([]); // disposed
@@ -1019,7 +1019,7 @@ export class DirtyDiffModel {
 		});
 	}
 
-	private getOriginalURIPromise(): Thenable<URI> {
+	private getOriginalURIPromise(): Promise<URI> {
 		if (this._originalURIPromise) {
 			return this._originalURIPromise;
 		}
@@ -1061,7 +1061,7 @@ export class DirtyDiffModel {
 		});
 	}
 
-	private getOriginalResource(): Thenable<URI> {
+	private getOriginalResource(): Promise<URI> {
 		if (!this._editorModel) {
 			return Promise.resolve(null);
 		}

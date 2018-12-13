@@ -38,10 +38,10 @@ class ServiceAccessor {
 
 class BeforeShutdownEventImpl implements BeforeShutdownEvent {
 
-	public value: boolean | Thenable<boolean>;
+	public value: boolean | Promise<boolean>;
 	public reason = ShutdownReason.CLOSE;
 
-	veto(value: boolean | Thenable<boolean>): void {
+	veto(value: boolean | Promise<boolean>): void {
 		this.value = value;
 	}
 }
@@ -147,7 +147,7 @@ suite('Files - TextFileService', () => {
 			const event = new BeforeShutdownEventImpl();
 			accessor.lifecycleService.fireWillShutdown(event);
 
-			return (<Thenable<boolean>>event.value).then(veto => {
+			return (<Promise<boolean>>event.value).then(veto => {
 				assert.ok(!veto);
 				assert.ok(!model.isDirty());
 			});
@@ -426,7 +426,7 @@ suite('Files - TextFileService', () => {
 			});
 		});
 
-		function hotExitTest(this: any, setting: string, shutdownReason: ShutdownReason, multipleWindows: boolean, workspace: true, shouldVeto: boolean): Thenable<void> {
+		function hotExitTest(this: any, setting: string, shutdownReason: ShutdownReason, multipleWindows: boolean, workspace: true, shouldVeto: boolean): Promise<void> {
 			model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
 			(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
 
@@ -453,7 +453,7 @@ suite('Files - TextFileService', () => {
 				event.reason = shutdownReason;
 				accessor.lifecycleService.fireWillShutdown(event);
 
-				return (<Thenable<boolean>>event.value).then(veto => {
+				return (<Promise<boolean>>event.value).then(veto => {
 					// When hot exit is set, backups should never be cleaned since the confirm result is cancel
 					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
 					assert.equal(veto, shouldVeto);

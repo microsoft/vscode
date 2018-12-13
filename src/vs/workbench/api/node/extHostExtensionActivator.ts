@@ -14,7 +14,7 @@ const NO_OP_VOID_PROMISE = Promise.resolve<void>(void 0);
 
 export interface IExtensionMemento {
 	get<T>(key: string, defaultValue: T): T;
-	update(key: string, value: any): Thenable<boolean>;
+	update(key: string, value: any): Promise<boolean>;
 }
 
 export interface IExtensionContext {

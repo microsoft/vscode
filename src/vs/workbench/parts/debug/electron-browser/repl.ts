@@ -386,7 +386,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 		CompletionProviderRegistry.register({ scheme: DEBUG_SCHEME, pattern: '**/replinput', hasAccessToAllModels: true }, {
 			triggerCharacters: ['.'],
-			provideCompletionItems: (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken): Thenable<CompletionList> => {
+			provideCompletionItems: (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken): Promise<CompletionList> => {
 				// Disable history navigation because up and down are used to navigate through the suggest widget
 				this.historyNavigationEnablement.set(false);
 
@@ -759,7 +759,7 @@ class ReplDataSource implements IDataSource<IReplElement> {
 		return element === null || !!(<IExpressionContainer>element).hasChildren;
 	}
 
-	getChildren(element: IReplElement | null): Thenable<IReplElement[]> {
+	getChildren(element: IReplElement | null): Promise<IReplElement[]> {
 		if (element === null) {
 			return Promise.resolve(this.input ? this.input.getReplElements() : []);
 		}

@@ -81,7 +81,7 @@ export const enum TaskExecuteKind {
 
 export interface ITaskExecuteResult {
 	kind: TaskExecuteKind;
-	promise: Thenable<ITaskSummary>;
+	promise: Promise<ITaskSummary>;
 	task: Task;
 	started?: {
 		restartOnFileChanges?: string;
@@ -129,11 +129,11 @@ export interface ITaskSystem {
 	onDidStateChange: Event<TaskEvent>;
 	run(task: Task, resolver: ITaskResolver): ITaskExecuteResult;
 	rerun(): ITaskExecuteResult | undefined;
-	isActive(): Thenable<boolean>;
+	isActive(): Promise<boolean>;
 	isActiveSync(): boolean;
 	getActiveTasks(): Task[];
 	canAutoTerminate(): boolean;
-	terminate(task: Task): Thenable<TaskTerminateResponse>;
-	terminateAll(): Thenable<TaskTerminateResponse[]>;
+	terminate(task: Task): Promise<TaskTerminateResponse>;
+	terminateAll(): Promise<TaskTerminateResponse[]>;
 	revealTask(task: Task): boolean;
 }

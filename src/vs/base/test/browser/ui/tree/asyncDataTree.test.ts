@@ -55,7 +55,7 @@ suite('AsyncDataTree', function () {
 			hasChildren(element: Element | null): boolean {
 				return !element || (element.children && element.children.length > 0);
 			}
-			getChildren(element: Element | null): Thenable<Element[]> {
+			getChildren(element: Element | null): Promise<Element[]> {
 				if (!element) {
 					return Promise.resolve(root.children);
 				}

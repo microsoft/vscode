@@ -28,7 +28,7 @@ export class CompletionItem {
 
 	_brand: 'ISuggestionItem';
 
-	readonly resolve: (token: CancellationToken) => Thenable<void>;
+	readonly resolve: (token: CancellationToken) => Promise<void>;
 
 	// perf
 	readonly labelLow: string;
@@ -250,7 +250,7 @@ registerDefaultLanguageCommand('_executeCompletionItemProvider', (model, positio
 		suggestions: []
 	};
 
-	let resolving: Thenable<any>[] = [];
+	let resolving: Promise<any>[] = [];
 	let maxItemsToResolve = args['maxItemsToResolve'] || 0;
 
 	return provideSuggestionItems(model, position).then(items => {

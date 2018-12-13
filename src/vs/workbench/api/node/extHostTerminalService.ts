@@ -119,7 +119,7 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 		this._name = name;
 	}
 
-	public get processId(): Thenable<number> {
+	public get processId(): Promise<number> {
 		return this._pidPromise;
 	}
 

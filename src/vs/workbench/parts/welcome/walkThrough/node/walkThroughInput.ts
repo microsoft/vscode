@@ -50,7 +50,7 @@ export class WalkThroughInput extends EditorInput {
 
 	private disposables: IDisposable[] = [];
 
-	private promise: Thenable<WalkThroughModel> | null;
+	private promise: Promise<WalkThroughModel> | null;
 
 	private maxTopScroll = 0;
 	private maxBottomScroll = 0;
@@ -100,7 +100,7 @@ export class WalkThroughInput extends EditorInput {
 		return this.options.onReady;
 	}
 
-	resolve(): Thenable<WalkThroughModel> {
+	resolve(): Promise<WalkThroughModel> {
 		if (!this.promise) {
 			this.promise = this.textModelResolverService.createModelReference(this.options.resource)
 				.then(ref => {
@@ -108,7 +108,7 @@ export class WalkThroughInput extends EditorInput {
 						return new WalkThroughModel(ref, []);
 					}
 
-					const snippets: Thenable<IReference<ITextEditorModel>>[] = [];
+					const snippets: Promise<IReference<ITextEditorModel>>[] = [];
 					let i = 0;
 					const renderer = new marked.Renderer();
 					renderer.code = (code, lang) => {

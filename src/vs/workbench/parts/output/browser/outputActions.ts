@@ -104,7 +104,7 @@ export class SwitchOutputAction extends Action {
 		this.class = 'output-action switch-to-output';
 	}
 
-	public run(channelId?: string): Thenable<any> {
+	public run(channelId?: string): Promise<any> {
 		return this.outputService.showChannel(channelId);
 	}
 }
@@ -187,7 +187,7 @@ export class OpenLogOutputFile extends Action {
 		this.enabled = outputChannelDescriptor && outputChannelDescriptor.file && outputChannelDescriptor.log;
 	}
 
-	public run(): Thenable<any> {
+	public run(): Promise<any> {
 		return this.enabled ? this.editorService.openEditor(this.instantiationService.createInstance(LogViewerInput, this.getOutputChannelDescriptor())).then(() => null) : Promise.resolve(null);
 	}
 
@@ -209,7 +209,7 @@ export class ShowLogsOutputChannelAction extends Action {
 		super(id, label);
 	}
 
-	run(): Thenable<void> {
+	run(): Promise<void> {
 		const entries: IQuickPickItem[] = this.outputService.getChannelDescriptors().filter(c => c.file && c.log)
 			.map(({ id, label }) => (<IQuickPickItem>{ id, label }));
 
@@ -241,7 +241,7 @@ export class OpenOutputLogFileAction extends Action {
 		super(id, label);
 	}
 
-	run(): Thenable<void> {
+	run(): Promise<void> {
 		const entries: IOutputChannelQuickPickItem[] = this.outputService.getChannelDescriptors().filter(c => c.file && c.log)
 			.map(channel => (<IOutputChannelQuickPickItem>{ id: channel.id, label: channel.label, channel }));
 

@@ -56,7 +56,7 @@ export class EditorControl extends Disposable {
 		return this._activeControl;
 	}
 
-	openEditor(editor: EditorInput, options?: EditorOptions): Thenable<IOpenEditorResult> {
+	openEditor(editor: EditorInput, options?: EditorOptions): Promise<IOpenEditorResult> {
 
 		// Editor control
 		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(editor);
@@ -145,7 +145,7 @@ export class EditorControl extends Disposable {
 		this._onDidSizeConstraintsChange.fire();
 	}
 
-	private doSetInput(control: BaseEditor, editor: EditorInput, options: EditorOptions): Thenable<boolean> {
+	private doSetInput(control: BaseEditor, editor: EditorInput, options: EditorOptions): Promise<boolean> {
 
 		// If the input did not change, return early and only apply the options
 		// unless the options instruct us to force open it even if it is the same

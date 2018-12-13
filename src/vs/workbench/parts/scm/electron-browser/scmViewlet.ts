@@ -88,7 +88,7 @@ class StatusBarAction extends Action {
 		this.tooltip = command.tooltip;
 	}
 
-	run(): Thenable<void> {
+	run(): Promise<void> {
 		return this.commandService.executeCommand(this.command.id, ...this.command.arguments);
 	}
 }
@@ -457,7 +457,7 @@ class MultipleSelectionActionRunner extends ActionRunner {
 		super();
 	}
 
-	runAction(action: IAction, context: ISCMResource): Thenable<any> {
+	runAction(action: IAction, context: ISCMResource): Promise<any> {
 		if (action instanceof MenuItemAction) {
 			const selection = this.getSelectedResources();
 			const filteredSelection = selection.filter(s => s !== context);

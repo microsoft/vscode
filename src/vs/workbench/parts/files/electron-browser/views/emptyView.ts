@@ -123,7 +123,7 @@ export class EmptyView extends ViewletPanel {
 		// no-op
 	}
 
-	public setVisible(visible: boolean): Thenable<void> {
+	public setVisible(visible: boolean): Promise<void> {
 		return Promise.resolve(null);
 	}
 
@@ -133,7 +133,7 @@ export class EmptyView extends ViewletPanel {
 		}
 	}
 
-	protected reveal(element: any, relativeTop?: number): Thenable<void> {
+	protected reveal(element: any, relativeTop?: number): Promise<void> {
 		return Promise.resolve(null);
 	}
 

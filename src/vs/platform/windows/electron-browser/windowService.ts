@@ -49,127 +49,127 @@ export class WindowService extends Disposable implements IWindowService {
 		return this.configuration;
 	}
 
-	pickFileFolderAndOpen(options: INativeOpenDialogOptions): Thenable<void> {
+	pickFileFolderAndOpen(options: INativeOpenDialogOptions): Promise<void> {
 		options.windowId = this.windowId;
 
 		return this.windowsService.pickFileFolderAndOpen(options);
 	}
 
-	pickFileAndOpen(options: INativeOpenDialogOptions): Thenable<void> {
+	pickFileAndOpen(options: INativeOpenDialogOptions): Promise<void> {
 		options.windowId = this.windowId;
 
 		return this.windowsService.pickFileAndOpen(options);
 	}
 
-	pickFolderAndOpen(options: INativeOpenDialogOptions): Thenable<void> {
+	pickFolderAndOpen(options: INativeOpenDialogOptions): Promise<void> {
 		options.windowId = this.windowId;
 
 		return this.windowsService.pickFolderAndOpen(options);
 	}
 
-	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): Thenable<void> {
+	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): Promise<void> {
 		options.windowId = this.windowId;
 
 		return this.windowsService.pickWorkspaceAndOpen(options);
 	}
 
-	reloadWindow(args?: ParsedArgs): Thenable<void> {
+	reloadWindow(args?: ParsedArgs): Promise<void> {
 		return this.windowsService.reloadWindow(this.windowId, args);
 	}
 
-	openDevTools(options?: IDevToolsOptions): Thenable<void> {
+	openDevTools(options?: IDevToolsOptions): Promise<void> {
 		return this.windowsService.openDevTools(this.windowId, options);
 	}
 
-	toggleDevTools(): Thenable<void> {
+	toggleDevTools(): Promise<void> {
 		return this.windowsService.toggleDevTools(this.windowId);
 	}
 
-	closeWorkspace(): Thenable<void> {
+	closeWorkspace(): Promise<void> {
 		return this.windowsService.closeWorkspace(this.windowId);
 	}
 
-	enterWorkspace(path: string): Thenable<IEnterWorkspaceResult | undefined> {
+	enterWorkspace(path: string): Promise<IEnterWorkspaceResult | undefined> {
 		return this.windowsService.enterWorkspace(this.windowId, path);
 	}
 
-	createAndEnterWorkspace(folders?: IWorkspaceFolderCreationData[], path?: string): Thenable<IEnterWorkspaceResult | undefined> {
+	createAndEnterWorkspace(folders?: IWorkspaceFolderCreationData[], path?: string): Promise<IEnterWorkspaceResult | undefined> {
 		return this.windowsService.createAndEnterWorkspace(this.windowId, folders, path);
 	}
 
-	saveAndEnterWorkspace(path: string): Thenable<IEnterWorkspaceResult | undefined> {
+	saveAndEnterWorkspace(path: string): Promise<IEnterWorkspaceResult | undefined> {
 		return this.windowsService.saveAndEnterWorkspace(this.windowId, path);
 	}
 
-	openWindow(paths: URI[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean, args?: ParsedArgs }): Thenable<void> {
+	openWindow(paths: URI[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean, args?: ParsedArgs }): Promise<void> {
 		return this.windowsService.openWindow(this.windowId, paths, options);
 	}
 
-	closeWindow(): Thenable<void> {
+	closeWindow(): Promise<void> {
 		return this.windowsService.closeWindow(this.windowId);
 	}
 
-	toggleFullScreen(): Thenable<void> {
+	toggleFullScreen(): Promise<void> {
 		return this.windowsService.toggleFullScreen(this.windowId);
 	}
 
-	setRepresentedFilename(fileName: string): Thenable<void> {
+	setRepresentedFilename(fileName: string): Promise<void> {
 		return this.windowsService.setRepresentedFilename(this.windowId, fileName);
 	}
 
-	getRecentlyOpened(): Thenable<IRecentlyOpened> {
+	getRecentlyOpened(): Promise<IRecentlyOpened> {
 		return this.windowsService.getRecentlyOpened(this.windowId);
 	}
 
-	focusWindow(): Thenable<void> {
+	focusWindow(): Promise<void> {
 		return this.windowsService.focusWindow(this.windowId);
 	}
 
-	isFocused(): Thenable<boolean> {
+	isFocused(): Promise<boolean> {
 		return this.windowsService.isFocused(this.windowId);
 	}
 
-	isMaximized(): Thenable<boolean> {
+	isMaximized(): Promise<boolean> {
 		return this.windowsService.isMaximized(this.windowId);
 	}
 
-	maximizeWindow(): Thenable<void> {
+	maximizeWindow(): Promise<void> {
 		return this.windowsService.maximizeWindow(this.windowId);
 	}
 
-	unmaximizeWindow(): Thenable<void> {
+	unmaximizeWindow(): Promise<void> {
 		return this.windowsService.unmaximizeWindow(this.windowId);
 	}
 
-	minimizeWindow(): Thenable<void> {
+	minimizeWindow(): Promise<void> {
 		return this.windowsService.minimizeWindow(this.windowId);
 	}
 
-	onWindowTitleDoubleClick(): Thenable<void> {
+	onWindowTitleDoubleClick(): Promise<void> {
 		return this.windowsService.onWindowTitleDoubleClick(this.windowId);
 	}
 
-	setDocumentEdited(flag: boolean): Thenable<void> {
+	setDocumentEdited(flag: boolean): Promise<void> {
 		return this.windowsService.setDocumentEdited(this.windowId, flag);
 	}
 
-	show(): Thenable<void> {
+	show(): Promise<void> {
 		return this.windowsService.showWindow(this.windowId);
 	}
 
-	showMessageBox(options: Electron.MessageBoxOptions): Thenable<IMessageBoxResult> {
+	showMessageBox(options: Electron.MessageBoxOptions): Promise<IMessageBoxResult> {
 		return this.windowsService.showMessageBox(this.windowId, options);
 	}
 
-	showSaveDialog(options: Electron.SaveDialogOptions): Thenable<string> {
+	showSaveDialog(options: Electron.SaveDialogOptions): Promise<string> {
 		return this.windowsService.showSaveDialog(this.windowId, options);
 	}
 
-	showOpenDialog(options: Electron.OpenDialogOptions): Thenable<string[]> {
+	showOpenDialog(options: Electron.OpenDialogOptions): Promise<string[]> {
 		return this.windowsService.showOpenDialog(this.windowId, options);
 	}
 
-	updateTouchBar(items: ISerializableCommandAction[][]): Thenable<void> {
+	updateTouchBar(items: ISerializableCommandAction[][]): Promise<void> {
 		return this.windowsService.updateTouchBar(this.windowId, items);
 	}
 

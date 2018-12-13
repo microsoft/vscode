@@ -43,7 +43,7 @@ export class WindowsChannel implements IServerChannel {
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(_, command: string, arg?: any): Thenable<any> {
+	call(_, command: string, arg?: any): Promise<any> {
 		switch (command) {
 			case 'pickFileFolderAndOpen': return this.service.pickFileFolderAndOpen(arg);
 			case 'pickFileAndOpen': return this.service.pickFileAndOpen(arg);
@@ -135,83 +135,83 @@ export class WindowsChannelClient implements IWindowsService {
 	get onWindowUnmaximize(): Event<number> { return this.channel.listen('onWindowUnmaximize'); }
 	get onRecentlyOpenedChange(): Event<void> { return this.channel.listen('onRecentlyOpenedChange'); }
 
-	pickFileFolderAndOpen(options: INativeOpenDialogOptions): Thenable<void> {
+	pickFileFolderAndOpen(options: INativeOpenDialogOptions): Promise<void> {
 		return this.channel.call('pickFileFolderAndOpen', options);
 	}
 
-	pickFileAndOpen(options: INativeOpenDialogOptions): Thenable<void> {
+	pickFileAndOpen(options: INativeOpenDialogOptions): Promise<void> {
 		return this.channel.call('pickFileAndOpen', options);
 	}
 
-	pickFolderAndOpen(options: INativeOpenDialogOptions): Thenable<void> {
+	pickFolderAndOpen(options: INativeOpenDialogOptions): Promise<void> {
 		return this.channel.call('pickFolderAndOpen', options);
 	}
 
-	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): Thenable<void> {
+	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): Promise<void> {
 		return this.channel.call('pickWorkspaceAndOpen', options);
 	}
 
-	showMessageBox(windowId: number, options: MessageBoxOptions): Thenable<IMessageBoxResult> {
+	showMessageBox(windowId: number, options: MessageBoxOptions): Promise<IMessageBoxResult> {
 		return this.channel.call('showMessageBox', [windowId, options]);
 	}
 
-	showSaveDialog(windowId: number, options: SaveDialogOptions): Thenable<string> {
+	showSaveDialog(windowId: number, options: SaveDialogOptions): Promise<string> {
 		return this.channel.call('showSaveDialog', [windowId, options]);
 	}
 
-	showOpenDialog(windowId: number, options: OpenDialogOptions): Thenable<string[]> {
+	showOpenDialog(windowId: number, options: OpenDialogOptions): Promise<string[]> {
 		return this.channel.call('showOpenDialog', [windowId, options]);
 	}
 
-	reloadWindow(windowId: number, args?: ParsedArgs): Thenable<void> {
+	reloadWindow(windowId: number, args?: ParsedArgs): Promise<void> {
 		return this.channel.call('reloadWindow', [windowId, args]);
 	}
 
-	openDevTools(windowId: number, options?: IDevToolsOptions): Thenable<void> {
+	openDevTools(windowId: number, options?: IDevToolsOptions): Promise<void> {
 		return this.channel.call('openDevTools', [windowId, options]);
 	}
 
-	toggleDevTools(windowId: number): Thenable<void> {
+	toggleDevTools(windowId: number): Promise<void> {
 		return this.channel.call('toggleDevTools', windowId);
 	}
 
-	closeWorkspace(windowId: number): Thenable<void> {
+	closeWorkspace(windowId: number): Promise<void> {
 		return this.channel.call('closeWorkspace', windowId);
 	}
 
-	enterWorkspace(windowId: number, path: string): Thenable<IEnterWorkspaceResult> {
+	enterWorkspace(windowId: number, path: string): Promise<IEnterWorkspaceResult> {
 		return this.channel.call('enterWorkspace', [windowId, path]);
 	}
 
-	createAndEnterWorkspace(windowId: number, folders?: IWorkspaceFolderCreationData[], path?: string): Thenable<IEnterWorkspaceResult> {
+	createAndEnterWorkspace(windowId: number, folders?: IWorkspaceFolderCreationData[], path?: string): Promise<IEnterWorkspaceResult> {
 		return this.channel.call('createAndEnterWorkspace', [windowId, folders, path]);
 	}
 
-	saveAndEnterWorkspace(windowId: number, path: string): Thenable<IEnterWorkspaceResult> {
+	saveAndEnterWorkspace(windowId: number, path: string): Promise<IEnterWorkspaceResult> {
 		return this.channel.call('saveAndEnterWorkspace', [windowId, path]);
 	}
 
-	toggleFullScreen(windowId: number): Thenable<void> {
+	toggleFullScreen(windowId: number): Promise<void> {
 		return this.channel.call('toggleFullScreen', windowId);
 	}
 
-	setRepresentedFilename(windowId: number, fileName: string): Thenable<void> {
+	setRepresentedFilename(windowId: number, fileName: string): Promise<void> {
 		return this.channel.call('setRepresentedFilename', [windowId, fileName]);
 	}
 
-	addRecentlyOpened(files: URI[]): Thenable<void> {
+	addRecentlyOpened(files: URI[]): Promise<void> {
 		return this.channel.call('addRecentlyOpened', files);
 	}
 
-	removeFromRecentlyOpened(paths: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI)[]): Thenable<void> {
+	removeFromRecentlyOpened(paths: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI)[]): Promise<void> {
 		return this.channel.call('removeFromRecentlyOpened', paths);
 	}
 
-	clearRecentlyOpened(): Thenable<void> {
+	clearRecentlyOpened(): Promise<void> {
 		return this.channel.call('clearRecentlyOpened');
 	}
 
-	getRecentlyOpened(windowId: number): Thenable<IRecentlyOpened> {
+	getRecentlyOpened(windowId: number): Promise<IRecentlyOpened> {
 		return this.channel.call('getRecentlyOpened', windowId)
 			.then((recentlyOpened: IRecentlyOpened) => {
 				recentlyOpened.workspaces = recentlyOpened.workspaces.map(workspace => isWorkspaceIdentifier(workspace) ? workspace : URI.revive(workspace));
@@ -220,127 +220,127 @@ export class WindowsChannelClient implements IWindowsService {
 			});
 	}
 
-	newWindowTab(): Thenable<void> {
+	newWindowTab(): Promise<void> {
 		return this.channel.call('newWindowTab');
 	}
 
-	showPreviousWindowTab(): Thenable<void> {
+	showPreviousWindowTab(): Promise<void> {
 		return this.channel.call('showPreviousWindowTab');
 	}
 
-	showNextWindowTab(): Thenable<void> {
+	showNextWindowTab(): Promise<void> {
 		return this.channel.call('showNextWindowTab');
 	}
 
-	moveWindowTabToNewWindow(): Thenable<void> {
+	moveWindowTabToNewWindow(): Promise<void> {
 		return this.channel.call('moveWindowTabToNewWindow');
 	}
 
-	mergeAllWindowTabs(): Thenable<void> {
+	mergeAllWindowTabs(): Promise<void> {
 		return this.channel.call('mergeAllWindowTabs');
 	}
 
-	toggleWindowTabsBar(): Thenable<void> {
+	toggleWindowTabsBar(): Promise<void> {
 		return this.channel.call('toggleWindowTabsBar');
 	}
 
-	focusWindow(windowId: number): Thenable<void> {
+	focusWindow(windowId: number): Promise<void> {
 		return this.channel.call('focusWindow', windowId);
 	}
 
-	closeWindow(windowId: number): Thenable<void> {
+	closeWindow(windowId: number): Promise<void> {
 		return this.channel.call('closeWindow', windowId);
 	}
 
-	isFocused(windowId: number): Thenable<boolean> {
+	isFocused(windowId: number): Promise<boolean> {
 		return this.channel.call('isFocused', windowId);
 	}
 
-	isMaximized(windowId: number): Thenable<boolean> {
+	isMaximized(windowId: number): Promise<boolean> {
 		return this.channel.call('isMaximized', windowId);
 	}
 
-	maximizeWindow(windowId: number): Thenable<void> {
+	maximizeWindow(windowId: number): Promise<void> {
 		return this.channel.call('maximizeWindow', windowId);
 	}
 
-	unmaximizeWindow(windowId: number): Thenable<void> {
+	unmaximizeWindow(windowId: number): Promise<void> {
 		return this.channel.call('unmaximizeWindow', windowId);
 	}
 
-	minimizeWindow(windowId: number): Thenable<void> {
+	minimizeWindow(windowId: number): Promise<void> {
 		return this.channel.call('minimizeWindow', windowId);
 	}
 
-	onWindowTitleDoubleClick(windowId: number): Thenable<void> {
+	onWindowTitleDoubleClick(windowId: number): Promise<void> {
 		return this.channel.call('onWindowTitleDoubleClick', windowId);
 	}
 
-	setDocumentEdited(windowId: number, flag: boolean): Thenable<void> {
+	setDocumentEdited(windowId: number, flag: boolean): Promise<void> {
 		return this.channel.call('setDocumentEdited', [windowId, flag]);
 	}
 
-	quit(): Thenable<void> {
+	quit(): Promise<void> {
 		return this.channel.call('quit');
 	}
 
-	relaunch(options: { addArgs?: string[], removeArgs?: string[] }): Thenable<void> {
+	relaunch(options: { addArgs?: string[], removeArgs?: string[] }): Promise<void> {
 		return this.channel.call('relaunch', [options]);
 	}
 
-	whenSharedProcessReady(): Thenable<void> {
+	whenSharedProcessReady(): Promise<void> {
 		return this.channel.call('whenSharedProcessReady');
 	}
 
-	toggleSharedProcess(): Thenable<void> {
+	toggleSharedProcess(): Promise<void> {
 		return this.channel.call('toggleSharedProcess');
 	}
 
-	openWindow(windowId: number, paths: URI[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean, args?: ParsedArgs }): Thenable<void> {
+	openWindow(windowId: number, paths: URI[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean, args?: ParsedArgs }): Promise<void> {
 		return this.channel.call('openWindow', [windowId, paths, options]);
 	}
 
-	openNewWindow(options?: INewWindowOptions): Thenable<void> {
+	openNewWindow(options?: INewWindowOptions): Promise<void> {
 		return this.channel.call('openNewWindow', options);
 	}
 
-	showWindow(windowId: number): Thenable<void> {
+	showWindow(windowId: number): Promise<void> {
 		return this.channel.call('showWindow', windowId);
 	}
 
-	getWindows(): Thenable<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]> {
+	getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]> {
 		return this.channel.call<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]>('getWindows').then(result => { result.forEach(win => win.folderUri = win.folderUri ? URI.revive(win.folderUri) : win.folderUri); return result; });
 	}
 
-	getWindowCount(): Thenable<number> {
+	getWindowCount(): Promise<number> {
 		return this.channel.call('getWindowCount');
 	}
 
-	log(severity: string, ...messages: string[]): Thenable<void> {
+	log(severity: string, ...messages: string[]): Promise<void> {
 		return this.channel.call('log', [severity, messages]);
 	}
 
-	showItemInFolder(path: string): Thenable<void> {
+	showItemInFolder(path: string): Promise<void> {
 		return this.channel.call('showItemInFolder', path);
 	}
 
-	getActiveWindowId(): Thenable<number | undefined> {
+	getActiveWindowId(): Promise<number | undefined> {
 		return this.channel.call('getActiveWindowId');
 	}
 
-	openExternal(url: string): Thenable<boolean> {
+	openExternal(url: string): Promise<boolean> {
 		return this.channel.call('openExternal', url);
 	}
 
-	startCrashReporter(config: CrashReporterStartOptions): Thenable<void> {
+	startCrashReporter(config: CrashReporterStartOptions): Promise<void> {
 		return this.channel.call('startCrashReporter', config);
 	}
 
-	updateTouchBar(windowId: number, items: ISerializableCommandAction[][]): Thenable<void> {
+	updateTouchBar(windowId: number, items: ISerializableCommandAction[][]): Promise<void> {
 		return this.channel.call('updateTouchBar', [windowId, items]);
 	}
 
-	openAboutDialog(): Thenable<void> {
+	openAboutDialog(): Promise<void> {
 		return this.channel.call('openAboutDialog');
 	}
 

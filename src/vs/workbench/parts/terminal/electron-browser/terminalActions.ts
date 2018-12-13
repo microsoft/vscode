@@ -79,7 +79,7 @@ export class ToggleTerminalAction extends TogglePanelAction {
 		super(id, label, TERMINAL_PANEL_ID, panelService, partService);
 	}
 
-	public run(event?: any): PromiseLike<any> {
+	public run(event?: any): Promise<any> {
 		if (this.terminalService.terminalInstances.length === 0) {
 			// If there is not yet an instance attempt to create it here so that we can suggest a
 			// new shell on Windows (and not do so when the panel is restored on reload).
@@ -106,7 +106,7 @@ export class KillTerminalAction extends Action {
 		super(id, label, 'terminal-action kill');
 	}
 
-	public run(event?: any): PromiseLike<any> {
+	public run(event?: any): Promise<any> {
 		const instance = this.terminalService.getActiveInstance();
 		if (instance) {
 			instance.dispose(true);
@@ -304,7 +304,7 @@ export class CreateNewTerminalAction extends Action {
 		super(id, label, 'terminal-action new');
 	}
 
-	public run(event?: any): PromiseLike<any> {
+	public run(event?: any): Promise<any> {
 		const folders = this.workspaceContextService.getWorkspace().folders;
 		if (event instanceof MouseEvent && (event.altKey || event.ctrlKey)) {
 			const activeInstance = this.terminalService.getActiveInstance();
@@ -316,7 +316,7 @@ export class CreateNewTerminalAction extends Action {
 			}
 		}
 
-		let instancePromise: PromiseLike<ITerminalInstance>;
+		let instancePromise: Promise<ITerminalInstance>;
 		if (folders.length <= 1) {
 			// Allow terminal service to handle the path when there is only a
 			// single root
@@ -380,7 +380,7 @@ export class SplitTerminalAction extends Action {
 		super(id, label, 'terminal-action split');
 	}
 
-	public run(event?: any): PromiseLike<any> {
+	public run(event?: any): Promise<any> {
 		const instance = this._terminalService.getActiveInstance();
 		if (!instance) {
 			return Promise.resolve(void 0);
@@ -957,7 +957,7 @@ export class RenameTerminalAction extends Action {
 		super(id, label);
 	}
 
-	public run(entry?: TerminalEntry): PromiseLike<any> {
+	public run(entry?: TerminalEntry): Promise<any> {
 		const terminalInstance = entry ? entry.instance : this.terminalService.getActiveInstance();
 		if (!terminalInstance) {
 			return Promise.resolve(void 0);
@@ -1042,7 +1042,7 @@ export class QuickOpenTermAction extends Action {
 		super(id, label);
 	}
 
-	public run(): PromiseLike<void> {
+	public run(): Promise<void> {
 		return this.quickOpenService.show(TERMINAL_PICKER_PREFIX, null);
 	}
 }

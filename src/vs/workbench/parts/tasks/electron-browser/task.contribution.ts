@@ -453,7 +453,7 @@ class TaskService extends Disposable implements ITaskService {
 	private _providers: Map<number, ITaskProvider>;
 	private _taskSystemInfos: Map<string, TaskSystemInfo>;
 
-	private _workspaceTasksPromise: Thenable<Map<string, WorkspaceFolderTaskResult>>;
+	private _workspaceTasksPromise: Promise<Map<string, WorkspaceFolderTaskResult>>;
 
 	private _taskSystem: ITaskSystem;
 	private _taskSystemListener: IDisposable;
@@ -700,7 +700,7 @@ class TaskService extends Disposable implements ITaskService {
 		this._taskSystemInfos.set(key, info);
 	}
 
-	public getTask(folder: IWorkspaceFolder | string, identifier: string | TaskIdentifier, compareId: boolean = false): Thenable<Task> {
+	public getTask(folder: IWorkspaceFolder | string, identifier: string | TaskIdentifier, compareId: boolean = false): Promise<Task> {
 		let name = Types.isString(folder) ? folder : folder.name;
 		if (this.ignoredWorkspaceFolders.some(ignored => ignored.name === name)) {
 			return Promise.reject(new Error(nls.localize('TaskServer.folderIgnored', 'The folder {0} is ignored since it uses task version 0.1.0', name)));
@@ -728,7 +728,7 @@ class TaskService extends Disposable implements ITaskService {
 		});
 	}
 
-	public tasks(filter?: TaskFilter): Thenable<Task[]> {
+	public tasks(filter?: TaskFilter): Promise<Task[]> {
 		let range = filter && filter.version ? filter.version : undefined;
 		let engine = this.executionEngine;
 
@@ -764,14 +764,14 @@ class TaskService extends Disposable implements ITaskService {
 		return new TaskSorter(this.contextService.getWorkspace() ? this.contextService.getWorkspace().folders : []);
 	}
 
-	public isActive(): Thenable<boolean> {
+	public isActive(): Promise<boolean> {
 		if (!this._taskSystem) {
 			return Promise.resolve(false);
 		}
 		return this._taskSystem.isActive();
 	}
 
-	public getActiveTasks(): Thenable<Task[]> {
+	public getActiveTasks(): Promise<Task[]> {
 		if (!this._taskSystem) {
 			return Promise.resolve([]);
 		}
@@ -814,7 +814,7 @@ class TaskService extends Disposable implements ITaskService {
 		this.openerService.open(URI.parse('https://go.microsoft.com/fwlink/?LinkId=733558'));
 	}
 
-	public build(): Thenable<ITaskSummary> {
+	public build(): Promise<ITaskSummary> {
 		return this.getGroupedTasks().then((tasks) => {
 			let runnable = this.createRunnableTask(tasks, TaskGroup.Build);
 			if (!runnable || !runnable.task) {
@@ -831,7 +831,7 @@ class TaskService extends Disposable implements ITaskService {
 		});
 	}
 
-	public runTest(): Thenable<ITaskSummary> {
+	public runTest(): Promise<ITaskSummary> {
 		return this.getGroupedTasks().then((tasks) => {
 			let runnable = this.createRunnableTask(tasks, TaskGroup.Test);
 			if (!runnable || !runnable.task) {
@@ -848,7 +848,7 @@ class TaskService extends Disposable implements ITaskService {
 		});
 	}
 
-	public run(task: Task, options?: ProblemMatcherRunOptions): Thenable<ITaskSummary> {
+	public run(task: Task, options?: ProblemMatcherRunOptions): Promise<ITaskSummary> {
 		return this.getGroupedTasks().then((grouped) => {
 			if (!task) {
 				throw new TaskError(Severity.Info, nls.localize('TaskServer.noTask', 'Requested task {0} to execute not found.', task.name), TaskErrors.TaskNotFound);
@@ -891,7 +891,7 @@ class TaskService extends Disposable implements ITaskService {
 		return false;
 	}
 
-	private attachProblemMatcher(task: ContributedTask | CustomTask): Thenable<Task> {
+	private attachProblemMatcher(task: ContributedTask | CustomTask): Promise<Task> {
 		interface ProblemMatcherPickEntry extends IQuickPickItem {
 			matcher: NamedProblemMatcher;
 			never?: boolean;
@@ -954,7 +954,7 @@ class TaskService extends Disposable implements ITaskService {
 		return Promise.resolve(task);
 	}
 
-	public getTasksForGroup(group: string): Thenable<Task[]> {
+	public getTasksForGroup(group: string): Promise<Task[]> {
 		return this.getGroupedTasks().then((groups) => {
 			let result: Task[] = [];
 			groups.forEach((tasks) => {
@@ -985,7 +985,7 @@ class TaskService extends Disposable implements ITaskService {
 		return false;
 	}
 
-	public customize(task: ContributedTask | CustomTask, properties?: CustomizationProperties, openConfig?: boolean): Thenable<void> {
+	public customize(task: ContributedTask | CustomTask, properties?: CustomizationProperties, openConfig?: boolean): Promise<void> {
 		let workspaceFolder = Task.getWorkspaceFolder(task);
 		if (!workspaceFolder) {
 			return Promise.resolve(undefined);
@@ -1029,7 +1029,7 @@ class TaskService extends Disposable implements ITaskService {
 			}
 		}
 
-		let promise: Thenable<void>;
+		let promise: Promise<void>;
 		if (!fileConfig) {
 			let value = {
 				version: '2.0.0',
@@ -1093,7 +1093,7 @@ class TaskService extends Disposable implements ITaskService {
 		});
 	}
 
-	private writeConfiguration(workspaceFolder: IWorkspaceFolder, key: string, value: any): Thenable<void> {
+	private writeConfiguration(workspaceFolder: IWorkspaceFolder, key: string, value: any): Promise<void> {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 			return this.configurationService.updateValue(key, value, { resource: workspaceFolder.uri }, ConfigurationTarget.WORKSPACE);
 		} else if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
@@ -1103,7 +1103,7 @@ class TaskService extends Disposable implements ITaskService {
 		}
 	}
 
-	public openConfig(task: CustomTask | undefined): Thenable<void> {
+	public openConfig(task: CustomTask | undefined): Promise<void> {
 		let resource: URI;
 		if (task) {
 			resource = Task.getWorkspaceFolder(task).toResource(task._source.config.file);
@@ -1229,7 +1229,7 @@ class TaskService extends Disposable implements ITaskService {
 		};
 	}
 
-	private executeTask(task: Task, resolver: ITaskResolver): Thenable<ITaskSummary> {
+	private executeTask(task: Task, resolver: ITaskResolver): Promise<ITaskSummary> {
 		return ProblemMatcherRegistry.onReady().then(() => {
 			return this.textFileService.saveAll().then((value) => { // make sure all dirty files are saved
 				let executeResult = this.getTaskSystem().run(task, resolver);
@@ -1238,7 +1238,7 @@ class TaskService extends Disposable implements ITaskService {
 		});
 	}
 
-	private handleExecuteResult(executeResult: ITaskExecuteResult): Thenable<ITaskSummary> {
+	private handleExecuteResult(executeResult: ITaskExecuteResult): Promise<ITaskSummary> {
 		let key = Task.getRecentlyUsedKey(executeResult.task);
 		if (key) {
 			this.getRecentlyUsedTasks().set(key, key, Touch.AsOld);
@@ -1286,14 +1286,14 @@ class TaskService extends Disposable implements ITaskService {
 		});
 	}
 
-	public terminate(task: Task): Thenable<TaskTerminateResponse> {
+	public terminate(task: Task): Promise<TaskTerminateResponse> {
 		if (!this._taskSystem) {
 			return Promise.resolve({ success: true, task: undefined });
 		}
 		return this._taskSystem.terminate(task);
 	}
 
-	public terminateAll(): Thenable<TaskTerminateResponse[]> {
+	public terminateAll(): Promise<TaskTerminateResponse[]> {
 		if (!this._taskSystem) {
 			return Promise.resolve<TaskTerminateResponse[]>([]);
 		}
@@ -1333,7 +1333,7 @@ class TaskService extends Disposable implements ITaskService {
 		return this._taskSystem;
 	}
 
-	private getGroupedTasks(): Thenable<TaskMap> {
+	private getGroupedTasks(): Promise<TaskMap> {
 		return Promise.all([this.extensionService.activateByEvent('onCommand:workbench.action.tasks.runTask'), TaskDefinitionRegistry.onReady()]).then(() => {
 			let validTypes: IStringDictionary<boolean> = Object.create(null);
 			TaskDefinitionRegistry.all().forEach(definition => validTypes[definition.taskType] = true);
@@ -1500,7 +1500,7 @@ class TaskService extends Disposable implements ITaskService {
 		return result;
 	}
 
-	public getWorkspaceTasks(runSource: TaskRunSource = TaskRunSource.User): Thenable<Map<string, WorkspaceFolderTaskResult>> {
+	public getWorkspaceTasks(runSource: TaskRunSource = TaskRunSource.User): Promise<Map<string, WorkspaceFolderTaskResult>> {
 		if (this._workspaceTasksPromise) {
 			return this._workspaceTasksPromise;
 		}
@@ -1521,11 +1521,11 @@ class TaskService extends Disposable implements ITaskService {
 		});
 	}
 
-	private computeWorkspaceTasks(runSource: TaskRunSource = TaskRunSource.User): Thenable<Map<string, WorkspaceFolderTaskResult>> {
+	private computeWorkspaceTasks(runSource: TaskRunSource = TaskRunSource.User): Promise<Map<string, WorkspaceFolderTaskResult>> {
 		if (this.workspaceFolders.length === 0) {
 			return Promise.resolve(new Map<string, WorkspaceFolderTaskResult>());
 		} else {
-			let promises: Thenable<WorkspaceFolderTaskResult>[] = [];
+			let promises: Promise<WorkspaceFolderTaskResult>[] = [];
 			for (let folder of this.workspaceFolders) {
 				promises.push(this.computeWorkspaceFolderTasks(folder, runSource).then((value) => value, () => undefined));
 			}
@@ -1724,7 +1724,7 @@ class TaskService extends Disposable implements ITaskService {
 		};
 	}
 
-	public beforeShutdown(): boolean | Thenable<boolean> {
+	public beforeShutdown(): boolean | Promise<boolean> {
 		if (!this._taskSystem) {
 			return false;
 		}
@@ -1737,7 +1737,7 @@ class TaskService extends Disposable implements ITaskService {
 			return false;
 		}
 
-		let terminatePromise: Thenable<IConfirmationResult>;
+		let terminatePromise: Promise<IConfirmationResult>;
 		if (this._taskSystem.canAutoTerminate()) {
 			terminatePromise = Promise.resolve({ confirmed: true });
 		} else {
@@ -1901,8 +1901,8 @@ class TaskService extends Disposable implements ITaskService {
 		return entries;
 	}
 
-	private showQuickPick(tasks: Thenable<Task[]> | Task[], placeHolder: string, defaultEntry?: TaskQuickPickEntry, group: boolean = false, sort: boolean = false, selectedEntry?: TaskQuickPickEntry): Thenable<Task> {
-		let _createEntries = (): Thenable<TaskQuickPickEntry[]> => {
+	private showQuickPick(tasks: Promise<Task[]> | Task[], placeHolder: string, defaultEntry?: TaskQuickPickEntry, group: boolean = false, sort: boolean = false, selectedEntry?: TaskQuickPickEntry): Promise<Task> {
+		let _createEntries = (): Promise<TaskQuickPickEntry[]> => {
 			if (Array.isArray(tasks)) {
 				return Promise.resolve(this.createTaskQuickPickEntries(tasks, group, sort, selectedEntry));
 			} else {
@@ -1929,7 +1929,7 @@ class TaskService extends Disposable implements ITaskService {
 			}).then(entry => entry ? entry.task : undefined);
 	}
 
-	private showIgnoredFoldersMessage(): Thenable<void> {
+	private showIgnoredFoldersMessage(): Promise<void> {
 		if (this.ignoredWorkspaceFolders.length === 0 || !this.showIgnoreMessage) {
 			return Promise.resolve(undefined);
 		}
@@ -2135,7 +2135,7 @@ class TaskService extends Disposable implements ITaskService {
 		if (!this.canRunCommand()) {
 			return;
 		}
-		let runQuickPick = (promise?: Thenable<Task[]>) => {
+		let runQuickPick = (promise?: Promise<Task[]>) => {
 			this.showQuickPick(promise || this.getActiveTasks(),
 				nls.localize('TaskService.tastToTerminate', 'Select task to terminate'),
 				{
@@ -2152,7 +2152,7 @@ class TaskService extends Disposable implements ITaskService {
 		};
 		if (this.inTerminal()) {
 			let identifier = this.getTaskIdentifier(arg);
-			let promise: Thenable<Task[]>;
+			let promise: Promise<Task[]>;
 			if (identifier !== void 0) {
 				promise = this.getActiveTasks();
 				promise.then((tasks) => {
@@ -2191,7 +2191,7 @@ class TaskService extends Disposable implements ITaskService {
 		if (!this.canRunCommand()) {
 			return;
 		}
-		let runQuickPick = (promise?: Thenable<Task[]>) => {
+		let runQuickPick = (promise?: Promise<Task[]>) => {
 			this.showQuickPick(promise || this.getActiveTasks(),
 				nls.localize('TaskService.tastToRestart', 'Select the task to restart'),
 				{
@@ -2208,7 +2208,7 @@ class TaskService extends Disposable implements ITaskService {
 		};
 		if (this.inTerminal()) {
 			let identifier = this.getTaskIdentifier(arg);
-			let promise: Thenable<Task[]>;
+			let promise: Promise<Task[]>;
 			if (identifier !== void 0) {
 				promise = this.getActiveTasks();
 				promise.then((tasks) => {
@@ -2248,7 +2248,7 @@ class TaskService extends Disposable implements ITaskService {
 		if (!this.canRunCommand()) {
 			return undefined;
 		}
-		let taskPromise: Thenable<TaskMap>;
+		let taskPromise: Promise<TaskMap>;
 		if (this.schemaVersion === JsonSchemaVersion.V2_0_0) {
 			taskPromise = this.getGroupedTasks();
 		} else {
@@ -2314,7 +2314,7 @@ class TaskService extends Disposable implements ITaskService {
 			return candidate && !!candidate.task;
 		}
 
-		let stats = this.contextService.getWorkspace().folders.map<Thenable<IFileStat>>((folder) => {
+		let stats = this.contextService.getWorkspace().folders.map<Promise<IFileStat>>((folder) => {
 			return this.fileService.resolveFile(folder.toResource('.vscode/tasks.json')).then(stat => stat, () => undefined);
 		});
 

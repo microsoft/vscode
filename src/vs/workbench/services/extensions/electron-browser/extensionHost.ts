@@ -42,7 +42,7 @@ import { IExtensionDescription } from 'vs/workbench/services/extensions/common/e
 
 export interface IExtensionHostStarter {
 	readonly onCrashed: Event<[number, string]>;
-	start(): Thenable<IMessagePassingProtocol>;
+	start(): Promise<IMessagePassingProtocol>;
 	getInspectPort(): number;
 	dispose(): void;
 }

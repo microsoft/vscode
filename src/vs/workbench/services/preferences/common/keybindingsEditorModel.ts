@@ -161,7 +161,7 @@ export class KeybindingsEditorModel extends EditorModel {
 		return result;
 	}
 
-	public resolve(editorActionsLabels: { [id: string]: string; }): Thenable<EditorModel> {
+	public resolve(editorActionsLabels: { [id: string]: string; }): Promise<EditorModel> {
 		const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 
 		this._keybindingItemsSortedByPrecedence = [];
