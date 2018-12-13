@@ -314,6 +314,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	private doOpenSettings(configurationTarget: ConfigurationTarget, resource: URI, options?: ISettingsEditorOptions, group?: IEditorGroup): Thenable<IEditor> {
 		const openDefaultSettings = !!this.configurationService.getValue(DEFAULT_SETTINGS_EDITOR_SETTING);
+
 		return this.getOrCreateEditableSettingsEditorInput(configurationTarget, resource)
 			.then(editableSettingsEditorInput => {
 				if (!options) {
@@ -323,12 +324,15 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 				}
 
 				if (openDefaultSettings) {
-					const defaultPreferencesEditorInput = this.instantiationService.createInstance(DefaultPreferencesEditorInput, this.getDefaultSettingsResource(configurationTarget));
-					const preferencesEditorInput = new PreferencesEditorInput(this.getPreferencesEditorInputName(configurationTarget, resource), editableSettingsEditorInput.getDescription(), defaultPreferencesEditorInput, <EditorInput>editableSettingsEditorInput);
-					this.lastOpenedSettingsInput = preferencesEditorInput;
-					return this.editorService.openEditor(preferencesEditorInput, SettingsEditorOptions.create(options), group);
+					const activeEditorGroup = this.editorGroupService.activeGroup;
+					const sideEditorGroup = this.editorGroupService.addGroup(activeEditorGroup.id, GroupDirection.RIGHT);
+					return Promise.all([
+						this.editorService.openEditor({ resource: this.defaultSettingsRawResource, options: { pinned: true, preserveFocus: true, revealIfOpened: true }, label: nls.localize('defaultSettings', "Default Settings"), description: '' }),
+						this.editorService.openEditor(editableSettingsEditorInput, { pinned: true, revealIfOpened: true }, sideEditorGroup.id)
+					]).then(() => null);
+				} else {
+					return this.editorService.openEditor(editableSettingsEditorInput, SettingsEditorOptions.create(options), group);
 				}
-				return this.editorService.openEditor(editableSettingsEditorInput, SettingsEditorOptions.create(options), group);
 			});
 	}
 
