@@ -90,7 +90,13 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 		pid?: number
 	) {
 		super(proxy, id);
-		this._createProcessIdPromise(pid);
+		this._pidPromise = new Promise<number>(c => {
+			if (pid === RENDERER_NO_PROCESS_ID) {
+				c(undefined);
+			} else {
+				this._pidPromiseComplete = c;
+			}
+		});
 	}
 
 	public create(
@@ -133,21 +139,18 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 		this._queueApiRequest(this._proxy.$hide, []);
 	}
 
-	public _createProcessIdPromise(pid?: number): void {
-		this._pidPromise = new Promise<number>(c => {
-			if (pid === RENDERER_NO_PROCESS_ID) {
-				c(undefined);
-			} else {
-				this._pidPromiseComplete = c;
-			}
-		});
-	}
-
 	public _setProcessId(processId: number): void {
 		// The event may fire 2 times when the panel is restored
 		if (this._pidPromiseComplete) {
 			this._pidPromiseComplete(processId);
 			this._pidPromiseComplete = null;
+		} else {
+			// Recreate the promise if this is the nth processId set (eg. reused task terminals)
+			this._pidPromise.then(pid => {
+				if (pid !== processId) {
+					this._pidPromise = Promise.resolve(processId);
+				}
+			});
 		}
 	}
 
@@ -353,10 +356,6 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
 	public $acceptTerminalProcessId(id: number, processId: number): void {
 		this._performTerminalIdAction(id, terminal => terminal._setProcessId(processId));
-	}
-
-	public $acceptTerminalProcessLaunching(id: number): void {
-		this._performTerminalIdAction(id, terminal => terminal._createProcessIdPromise());
 	}
 
 	private _performTerminalIdAction(id: number, callback: (terminal: ExtHostTerminal) => void): void {
