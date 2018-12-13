@@ -98,7 +98,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		commentThread: modes.CommentThread,
 		pendingComment: string,
 		draftMode: modes.DraftMode,
-		options: IOptions = {}
+		options: IOptions = { keepEditorSelection: true }
 	) {
 		super(editor, options);
 		this._resizeObserver = null;
@@ -270,9 +270,10 @@ export class ReviewZoneWidget extends ZoneWidget {
 		const lineNumber = this._commentThread.range.startLineNumber;
 		if (this._commentGlyph.getPosition().position.lineNumber !== lineNumber) {
 			this._commentGlyph.setLineNumber(lineNumber);
-			if (!this._isCollapsed) {
-				this.show({ lineNumber, column: 1 }, 2);
-			}
+		}
+
+		if (!this._isCollapsed) {
+			this.show({ lineNumber, column: 1 }, 2);
 		}
 	}
 
@@ -383,7 +384,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 	private createCommentWidgetActions(container: HTMLElement, model: ITextModel) {
 		const button = new Button(container);
-		attachButtonStyler(button, this.themeService);
+		this._localToDispose.push(attachButtonStyler(button, this.themeService));
 		button.label = 'Add comment';
 
 		button.enabled = model.getValueLength() > 0;

@@ -23,9 +23,8 @@ export class CommentGlyphWidget {
 
 	constructor(editor: ICodeEditor, lineNumber: number) {
 		this._commentsOptions = this.createDecorationOptions();
-		this._lineNumber = lineNumber;
 		this._editor = editor;
-		this.update();
+		this.setLineNumber(lineNumber);
 	}
 
 	private createDecorationOptions(): ModelDecorationOptions {
@@ -41,11 +40,12 @@ export class CommentGlyphWidget {
 		return ModelDecorationOptions.createDynamic(decorationOptions);
 	}
 
-	update() {
+	setLineNumber(lineNumber: number): void {
+		this._lineNumber = lineNumber;
 		let commentsDecorations = [{
 			range: {
-				startLineNumber: this._lineNumber, startColumn: 1,
-				endLineNumber: this._lineNumber, endColumn: 1
+				startLineNumber: lineNumber, startColumn: 1,
+				endLineNumber: lineNumber, endColumn: 1
 			},
 			options: this._commentsOptions
 		}];
@@ -53,15 +53,14 @@ export class CommentGlyphWidget {
 		this.commentsDecorations = this._editor.deltaDecorations(this.commentsDecorations, commentsDecorations);
 	}
 
-	setLineNumber(lineNumber: number): void {
-		this._lineNumber = lineNumber;
-		this.update();
-	}
-
 	getPosition(): IContentWidgetPosition {
+		const range = this._editor.hasModel() && this.commentsDecorations && this.commentsDecorations.length
+			? this._editor.getModel().getDecorationRange(this.commentsDecorations[0])
+			: null;
+
 		return {
 			position: {
-				lineNumber: this._lineNumber,
+				lineNumber: range ? range.startLineNumber : this._lineNumber,
 				column: 1
 			},
 			preference: [ContentWidgetPositionPreference.EXACT]
