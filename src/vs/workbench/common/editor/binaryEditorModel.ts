@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorModel } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
-import { DataUri } from 'vs/workbench/common/resources';
+import { DataUri } from 'vs/base/common/resources';
 
 /**
  * An editor model that just represents a resource that can be loaded.
@@ -75,18 +74,20 @@ export class BinaryEditorModel extends EditorModel {
 		return this.etag;
 	}
 
-	load(): TPromise<EditorModel> {
+	load(): Promise<EditorModel> {
 
 		// Make sure to resolve up to date stat for file resources
 		if (this.fileService.canHandleResource(this.resource)) {
 			return this.fileService.resolveFile(this.resource).then(stat => {
 				this.etag = stat.etag;
-				this.size = stat.size;
+				if (typeof stat.size === 'number') {
+					this.size = stat.size;
+				}
 
 				return this;
 			});
 		}
 
-		return TPromise.wrap(this);
+		return Promise.resolve(this);
 	}
 }

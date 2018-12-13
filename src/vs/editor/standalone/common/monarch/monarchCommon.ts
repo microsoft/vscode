@@ -32,7 +32,7 @@ export interface ILexerMin {
 
 export interface ILexer extends ILexerMin {
 	maxStack: number;
-	start: string;
+	start: string | null;
 	ignoreCase: boolean;
 	tokenPostfix: string;
 
@@ -93,7 +93,7 @@ export interface IAction {
 export interface IBranch {
 	name: string;
 	value: FuzzyAction;
-	test: (id: string, matches: string[], state: string, eos: boolean) => boolean;
+	test?: (id: string, matches: string[], state: string, eos: boolean) => boolean;
 }
 
 // Small helper functions
@@ -130,11 +130,8 @@ export function log(lexer: ILexerMin, msg: string) {
 
 // Throwing errors
 
-/**
- * Throws error. May actually just log the error and continue.
- */
-export function throwError(lexer: ILexerMin, msg: string) {
-	throw new Error(`${lexer.languageId}: ${msg}`);
+export function createError(lexer: ILexerMin, msg: string): Error {
+	return new Error(`${lexer.languageId}: ${msg}`);
 }
 
 // Helper functions for rule finding and substitution
@@ -150,7 +147,7 @@ export function throwError(lexer: ILexerMin, msg: string) {
  */
 export function substituteMatches(lexer: ILexerMin, str: string, id: string, matches: string[], state: string): string {
 	const re = /\$((\$)|(#)|(\d\d?)|[sS](\d\d?)|@(\w+))/g;
-	let stateMatches: string[] = null;
+	let stateMatches: string[] | null = null;
 	return str.replace(re, function (full, sub?, dollar?, hash?, n?, s?, attr?, ofs?, total?) {
 		if (!empty(dollar)) {
 			return '$'; // $$
@@ -178,7 +175,8 @@ export function substituteMatches(lexer: ILexerMin, str: string, id: string, mat
 /**
  * Find the tokenizer rules for a specific state (i.e. next action)
  */
-export function findRules(lexer: ILexer, state: string): IRule[] {
+export function findRules(lexer: ILexer, inState: string): IRule[] | null {
+	let state: string | null = inState;
 	while (state && state.length > 0) {
 		const rules = lexer.tokenizer[state];
 		if (rules) {
@@ -200,7 +198,8 @@ export function findRules(lexer: ILexer, state: string): IRule[] {
  * This is used during compilation where we may know the defined states
  * but not yet whether the corresponding rules are correct.
  */
-export function stateExists(lexer: ILexerMin, state: string): boolean {
+export function stateExists(lexer: ILexerMin, inState: string): boolean {
+	let state: string | null = inState;
 	while (state && state.length > 0) {
 		const exist = lexer.stateNames[state];
 		if (exist) {

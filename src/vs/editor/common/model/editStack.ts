@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { ICursorStateComputer, IIdentifiedSingleEditOperation, EndOfLineSequence } from 'vs/editor/common/model';
 import { Selection } from 'vs/editor/common/core/selection';
+import { EndOfLineSequence, ICursorStateComputer, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 
 interface IEditOperation {
@@ -14,8 +14,8 @@ interface IEditOperation {
 
 interface IStackElement {
 	readonly beforeVersionId: number;
-	readonly beforeCursorState: Selection[];
-	readonly afterCursorState: Selection[];
+	readonly beforeCursorState: Selection[] | null;
+	readonly afterCursorState: Selection[] | null;
 	readonly afterVersionId: number;
 
 	undo(model: TextModel): void;
@@ -25,7 +25,7 @@ interface IStackElement {
 class EditStackElement implements IStackElement {
 	public readonly beforeVersionId: number;
 	public readonly beforeCursorState: Selection[];
-	public afterCursorState: Selection[];
+	public afterCursorState: Selection[] | null;
 	public afterVersionId: number;
 
 	public editOperations: IEditOperation[];
@@ -68,8 +68,8 @@ function getModelEOL(model: TextModel): EndOfLineSequence {
 
 class EOLStackElement implements IStackElement {
 	public readonly beforeVersionId: number;
-	public readonly beforeCursorState: Selection[];
-	public readonly afterCursorState: Selection[];
+	public readonly beforeCursorState: Selection[] | null;
+	public readonly afterCursorState: Selection[] | null;
 	public afterVersionId: number;
 
 	public eol: EndOfLineSequence;
@@ -96,14 +96,14 @@ class EOLStackElement implements IStackElement {
 }
 
 export interface IUndoRedoResult {
-	selections: Selection[];
+	selections: Selection[] | null;
 	recordedVersionId: number;
 }
 
 export class EditStack {
 
 	private model: TextModel;
-	private currentOpenStackElement: IStackElement;
+	private currentOpenStackElement: IStackElement | null;
 	private past: IStackElement[];
 	private future: IStackElement[];
 
@@ -145,11 +145,11 @@ export class EditStack {
 		this.pushStackElement();
 	}
 
-	public pushEditOperation(beforeCursorState: Selection[], editOperations: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer): Selection[] {
+	public pushEditOperation(beforeCursorState: Selection[], editOperations: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer | null): Selection[] | null {
 		// No support for parallel universes :(
 		this.future = [];
 
-		let stackElement: EditStackElement = null;
+		let stackElement: EditStackElement | null = null;
 
 		if (this.currentOpenStackElement) {
 			if (this.currentOpenStackElement instanceof EditStackElement) {
@@ -168,13 +168,13 @@ export class EditStack {
 			operations: this.model.applyEdits(editOperations)
 		};
 
-		stackElement.editOperations.push(inverseEditOperation);
-		stackElement.afterCursorState = EditStack._computeCursorState(cursorStateComputer, inverseEditOperation.operations);
-		stackElement.afterVersionId = this.model.getVersionId();
-		return stackElement.afterCursorState;
+		stackElement!.editOperations.push(inverseEditOperation);
+		stackElement!.afterCursorState = EditStack._computeCursorState(cursorStateComputer, inverseEditOperation.operations);
+		stackElement!.afterVersionId = this.model.getVersionId();
+		return stackElement!.afterCursorState;
 	}
 
-	private static _computeCursorState(cursorStateComputer: ICursorStateComputer, inverseEditOperations: IIdentifiedSingleEditOperation[]): Selection[] {
+	private static _computeCursorState(cursorStateComputer: ICursorStateComputer | null, inverseEditOperations: IIdentifiedSingleEditOperation[]): Selection[] | null {
 		try {
 			return cursorStateComputer ? cursorStateComputer(inverseEditOperations) : null;
 		} catch (e) {
@@ -183,12 +183,12 @@ export class EditStack {
 		}
 	}
 
-	public undo(): IUndoRedoResult {
+	public undo(): IUndoRedoResult | null {
 
 		this.pushStackElement();
 
 		if (this.past.length > 0) {
-			const pastStackElement = this.past.pop();
+			const pastStackElement = this.past.pop()!;
 
 			try {
 				pastStackElement.undo(this.model);
@@ -213,10 +213,10 @@ export class EditStack {
 		return (this.past.length > 0);
 	}
 
-	public redo(): IUndoRedoResult {
+	public redo(): IUndoRedoResult | null {
 
 		if (this.future.length > 0) {
-			const futureStackElement = this.future.pop();
+			const futureStackElement = this.future.pop()!;
 
 			try {
 				futureStackElement.redo(this.model);

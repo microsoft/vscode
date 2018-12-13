@@ -5,21 +5,20 @@
 
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { ITextBufferFactory, ITextModel, ITextModelCreationOptions } from 'vs/editor/common/model';
+import { ILanguageSelection } from 'vs/editor/common/services/modeService';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ITextModel, ITextModelCreationOptions, ITextBufferFactory } from 'vs/editor/common/model';
-import { IMode } from 'vs/editor/common/modes';
 
 export const IModelService = createDecorator<IModelService>('modelService');
 
 export interface IModelService {
 	_serviceBrand: any;
 
-	createModel(value: string | ITextBufferFactory, modeOrPromise: TPromise<IMode> | IMode, resource: URI, isForSimpleWidget?: boolean): ITextModel;
+	createModel(value: string | ITextBufferFactory, languageSelection: ILanguageSelection | null, resource: URI | undefined, isForSimpleWidget?: boolean): ITextModel;
 
 	updateModel(model: ITextModel, value: string | ITextBufferFactory): void;
 
-	setMode(model: ITextModel, modeOrPromise: TPromise<IMode> | IMode): void;
+	setMode(model: ITextModel, languageSelection: ILanguageSelection): void;
 
 	destroyModel(resource: URI): void;
 
@@ -27,7 +26,7 @@ export interface IModelService {
 
 	getCreationOptions(language: string, resource: URI, isForSimpleWidget: boolean): ITextModelCreationOptions;
 
-	getModel(resource: URI): ITextModel;
+	getModel(resource: URI): ITextModel | null;
 
 	onModelAdded: Event<ITextModel>;
 

@@ -9,7 +9,7 @@ import { setUnexpectedErrorHandler, errorHandler } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import * as types from 'vs/workbench/api/node/extHostTypes';
 import { TextModel as EditorModel } from 'vs/editor/common/model/textModel';
-import { Position as EditorPosition } from 'vs/editor/common/core/position';
+import { Position as EditorPosition, Position } from 'vs/editor/common/core/position';
 import { Range as EditorRange } from 'vs/editor/common/core/range';
 import { TestRPCProtocol } from './testRPCProtocol';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
@@ -24,7 +24,7 @@ import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumen
 import { getDocumentSymbols } from 'vs/editor/contrib/quickOpen/quickOpen';
 import * as modes from 'vs/editor/common/modes';
 import { getCodeLensData } from 'vs/editor/contrib/codelens/codelens';
-import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition } from 'vs/editor/contrib/goToDefinition/goToDefinition';
+import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition, getDeclarationsAtPosition } from 'vs/editor/contrib/goToDefinition/goToDefinition';
 import { getHover } from 'vs/editor/contrib/hover/getHover';
 import { getOccurrencesAtPosition } from 'vs/editor/contrib/wordHighlighter/wordHighlighter';
 import { provideReferences } from 'vs/editor/contrib/referenceSearch/referenceSearch';
@@ -44,6 +44,8 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { ITextModel, EndOfLineSequence } from 'vs/editor/common/model';
 import { getColors } from 'vs/editor/contrib/colorPicker/color';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { nullExtensionDescription as defaultExtension } from 'vs/workbench/services/extensions/common/extensions';
+import { provideSelectionRanges } from 'vs/editor/contrib/smartSelect/smartSelect';
 
 const defaultSelector = { scheme: 'far' };
 const model: ITextModel = EditorModel.createFromString(
@@ -132,7 +134,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 	test('DocumentSymbols, register/deregister', function () {
 		assert.equal(modes.DocumentSymbolProviderRegistry.all(model).length, 0);
-		let d1 = extHost.registerDocumentSymbolProvider(defaultSelector, <vscode.DocumentSymbolProvider>{
+		let d1 = extHost.registerDocumentSymbolProvider(defaultExtension, defaultSelector, <vscode.DocumentSymbolProvider>{
 			provideDocumentSymbols() {
 				return <vscode.SymbolInformation[]>[];
 			}
@@ -147,12 +149,12 @@ suite('ExtHostLanguageFeatures', function () {
 	});
 
 	test('DocumentSymbols, evil provider', function () {
-		disposables.push(extHost.registerDocumentSymbolProvider(defaultSelector, <vscode.DocumentSymbolProvider>{
+		disposables.push(extHost.registerDocumentSymbolProvider(defaultExtension, defaultSelector, <vscode.DocumentSymbolProvider>{
 			provideDocumentSymbols(): any {
 				throw new Error('evil document symbol provider');
 			}
 		}));
-		disposables.push(extHost.registerDocumentSymbolProvider(defaultSelector, <vscode.DocumentSymbolProvider>{
+		disposables.push(extHost.registerDocumentSymbolProvider(defaultExtension, defaultSelector, <vscode.DocumentSymbolProvider>{
 			provideDocumentSymbols(): any {
 				return [new types.SymbolInformation('test', types.SymbolKind.Field, new types.Range(0, 0, 0, 0))];
 			}
@@ -167,7 +169,7 @@ suite('ExtHostLanguageFeatures', function () {
 	});
 
 	test('DocumentSymbols, data conversion', function () {
-		disposables.push(extHost.registerDocumentSymbolProvider(defaultSelector, <vscode.DocumentSymbolProvider>{
+		disposables.push(extHost.registerDocumentSymbolProvider(defaultExtension, defaultSelector, <vscode.DocumentSymbolProvider>{
 			provideDocumentSymbols(): any {
 				return [new types.SymbolInformation('test', types.SymbolKind.Field, new types.Range(0, 0, 0, 0))];
 			}
@@ -189,12 +191,12 @@ suite('ExtHostLanguageFeatures', function () {
 
 	test('CodeLens, evil provider', function () {
 
-		disposables.push(extHost.registerCodeLensProvider(defaultSelector, <vscode.CodeLensProvider>{
+		disposables.push(extHost.registerCodeLensProvider(defaultExtension, defaultSelector, <vscode.CodeLensProvider>{
 			provideCodeLenses(): any {
 				throw new Error('evil');
 			}
 		}));
-		disposables.push(extHost.registerCodeLensProvider(defaultSelector, <vscode.CodeLensProvider>{
+		disposables.push(extHost.registerCodeLensProvider(defaultExtension, defaultSelector, <vscode.CodeLensProvider>{
 			provideCodeLenses() {
 				return [new types.CodeLens(new types.Range(0, 0, 0, 0))];
 			}
@@ -209,7 +211,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 	test('CodeLens, do not resolve a resolved lens', function () {
 
-		disposables.push(extHost.registerCodeLensProvider(defaultSelector, <vscode.CodeLensProvider>{
+		disposables.push(extHost.registerCodeLensProvider(defaultExtension, defaultSelector, <vscode.CodeLensProvider>{
 			provideCodeLenses(): any {
 				return [new types.CodeLens(
 					new types.Range(0, 0, 0, 0),
@@ -235,7 +237,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 	test('CodeLens, missing command', function () {
 
-		disposables.push(extHost.registerCodeLensProvider(defaultSelector, <vscode.CodeLensProvider>{
+		disposables.push(extHost.registerCodeLensProvider(defaultExtension, defaultSelector, <vscode.CodeLensProvider>{
 			provideCodeLenses() {
 				return [new types.CodeLens(new types.Range(0, 0, 0, 0))];
 			}
@@ -260,7 +262,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 	test('Definition, data conversion', function () {
 
-		disposables.push(extHost.registerDefinitionProvider(defaultSelector, <vscode.DefinitionProvider>{
+		disposables.push(extHost.registerDefinitionProvider(defaultExtension, defaultSelector, <vscode.DefinitionProvider>{
 			provideDefinition(): any {
 				return [new types.Location(model.uri, new types.Range(1, 2, 3, 4))];
 			}
@@ -279,12 +281,12 @@ suite('ExtHostLanguageFeatures', function () {
 
 	test('Definition, one or many', function () {
 
-		disposables.push(extHost.registerDefinitionProvider(defaultSelector, <vscode.DefinitionProvider>{
+		disposables.push(extHost.registerDefinitionProvider(defaultExtension, defaultSelector, <vscode.DefinitionProvider>{
 			provideDefinition(): any {
 				return [new types.Location(model.uri, new types.Range(1, 1, 1, 1))];
 			}
 		}));
-		disposables.push(extHost.registerDefinitionProvider(defaultSelector, <vscode.DefinitionProvider>{
+		disposables.push(extHost.registerDefinitionProvider(defaultExtension, defaultSelector, <vscode.DefinitionProvider>{
 			provideDefinition(): any {
 				return new types.Location(model.uri, new types.Range(1, 1, 1, 1));
 			}
@@ -300,13 +302,13 @@ suite('ExtHostLanguageFeatures', function () {
 
 	test('Definition, registration order', function () {
 
-		disposables.push(extHost.registerDefinitionProvider(defaultSelector, <vscode.DefinitionProvider>{
+		disposables.push(extHost.registerDefinitionProvider(defaultExtension, defaultSelector, <vscode.DefinitionProvider>{
 			provideDefinition(): any {
 				return [new types.Location(URI.parse('far://first'), new types.Range(2, 3, 4, 5))];
 			}
 		}));
 
-		disposables.push(extHost.registerDefinitionProvider(defaultSelector, <vscode.DefinitionProvider>{
+		disposables.push(extHost.registerDefinitionProvider(defaultExtension, defaultSelector, <vscode.DefinitionProvider>{
 			provideDefinition(): any {
 				return new types.Location(URI.parse('far://second'), new types.Range(1, 2, 3, 4));
 			}
@@ -326,12 +328,12 @@ suite('ExtHostLanguageFeatures', function () {
 
 	test('Definition, evil provider', function () {
 
-		disposables.push(extHost.registerDefinitionProvider(defaultSelector, <vscode.DefinitionProvider>{
+		disposables.push(extHost.registerDefinitionProvider(defaultExtension, defaultSelector, <vscode.DefinitionProvider>{
 			provideDefinition(): any {
 				throw new Error('evil provider');
 			}
 		}));
-		disposables.push(extHost.registerDefinitionProvider(defaultSelector, <vscode.DefinitionProvider>{
+		disposables.push(extHost.registerDefinitionProvider(defaultExtension, defaultSelector, <vscode.DefinitionProvider>{
 			provideDefinition(): any {
 				return new types.Location(model.uri, new types.Range(1, 1, 1, 1));
 			}
@@ -345,11 +347,32 @@ suite('ExtHostLanguageFeatures', function () {
 		});
 	});
 
+	// -- declaration
+
+	test('Declaration, data conversion', function () {
+
+		disposables.push(extHost.registerDeclarationProvider(defaultExtension, defaultSelector, <vscode.DeclarationProvider>{
+			provideDeclaration(): any {
+				return [new types.Location(model.uri, new types.Range(1, 2, 3, 4))];
+			}
+		}));
+
+		return rpcProtocol.sync().then(() => {
+
+			return getDeclarationsAtPosition(model, new EditorPosition(1, 1), CancellationToken.None).then(value => {
+				assert.equal(value.length, 1);
+				let [entry] = value;
+				assert.deepEqual(entry.range, { startLineNumber: 2, startColumn: 3, endLineNumber: 4, endColumn: 5 });
+				assert.equal(entry.uri.toString(), model.uri.toString());
+			});
+		});
+	});
+
 	// --- implementation
 
 	test('Implementation, data conversion', function () {
 
-		disposables.push(extHost.registerImplementationProvider(defaultSelector, <vscode.ImplementationProvider>{
+		disposables.push(extHost.registerImplementationProvider(defaultExtension, defaultSelector, <vscode.ImplementationProvider>{
 			provideImplementation(): any {
 				return [new types.Location(model.uri, new types.Range(1, 2, 3, 4))];
 			}
@@ -369,7 +392,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 	test('Type Definition, data conversion', function () {
 
-		disposables.push(extHost.registerTypeDefinitionProvider(defaultSelector, <vscode.TypeDefinitionProvider>{
+		disposables.push(extHost.registerTypeDefinitionProvider(defaultExtension, defaultSelector, <vscode.TypeDefinitionProvider>{
 			provideTypeDefinition(): any {
 				return [new types.Location(model.uri, new types.Range(1, 2, 3, 4))];
 			}
@@ -389,7 +412,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 	test('HoverProvider, word range at pos', function () {
 
-		disposables.push(extHost.registerHoverProvider(defaultSelector, <vscode.HoverProvider>{
+		disposables.push(extHost.registerHoverProvider(defaultExtension, defaultSelector, <vscode.HoverProvider>{
 			provideHover(): any {
 				return new types.Hover('Hello');
 			}
@@ -407,7 +430,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 	test('HoverProvider, given range', function () {
 
-		disposables.push(extHost.registerHoverProvider(defaultSelector, <vscode.HoverProvider>{
+		disposables.push(extHost.registerHoverProvider(defaultExtension, defaultSelector, <vscode.HoverProvider>{
 			provideHover(): any {
 				return new types.Hover('Hello', new types.Range(3, 0, 8, 7));
 			}
@@ -425,14 +448,14 @@ suite('ExtHostLanguageFeatures', function () {
 
 
 	test('HoverProvider, registration order', function () {
-		disposables.push(extHost.registerHoverProvider(defaultSelector, <vscode.HoverProvider>{
+		disposables.push(extHost.registerHoverProvider(defaultExtension, defaultSelector, <vscode.HoverProvider>{
 			provideHover(): any {
 				return new types.Hover('registered first');
 			}
 		}));
 
 
-		disposables.push(extHost.registerHoverProvider(defaultSelector, <vscode.HoverProvider>{
+		disposables.push(extHost.registerHoverProvider(defaultExtension, defaultSelector, <vscode.HoverProvider>{
 			provideHover(): any {
 				return new types.Hover('registered second');
 			}
@@ -451,12 +474,12 @@ suite('ExtHostLanguageFeatures', function () {
 
 	test('HoverProvider, evil provider', function () {
 
-		disposables.push(extHost.registerHoverProvider(defaultSelector, <vscode.HoverProvider>{
+		disposables.push(extHost.registerHoverProvider(defaultExtension, defaultSelector, <vscode.HoverProvider>{
 			provideHover(): any {
 				throw new Error('evil');
 			}
 		}));
-		disposables.push(extHost.registerHoverProvider(defaultSelector, <vscode.HoverProvider>{
+		disposables.push(extHost.registerHoverProvider(defaultExtension, defaultSelector, <vscode.HoverProvider>{
 			provideHover(): any {
 				return new types.Hover('Hello');
 			}
@@ -475,7 +498,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 	test('Occurrences, data conversion', function () {
 
-		disposables.push(extHost.registerDocumentHighlightProvider(defaultSelector, <vscode.DocumentHighlightProvider>{
+		disposables.push(extHost.registerDocumentHighlightProvider(defaultExtension, defaultSelector, <vscode.DocumentHighlightProvider>{
 			provideDocumentHighlights(): any {
 				return [new types.DocumentHighlight(new types.Range(0, 0, 0, 4))];
 			}
@@ -494,12 +517,12 @@ suite('ExtHostLanguageFeatures', function () {
 
 	test('Occurrences, order 1/2', function () {
 
-		disposables.push(extHost.registerDocumentHighlightProvider(defaultSelector, <vscode.DocumentHighlightProvider>{
+		disposables.push(extHost.registerDocumentHighlightProvider(defaultExtension, defaultSelector, <vscode.DocumentHighlightProvider>{
 			provideDocumentHighlights(): any {
 				return [];
 			}
 		}));
-		disposables.push(extHost.registerDocumentHighlightProvider('*', <vscode.DocumentHighlightProvider>{
+		disposables.push(extHost.registerDocumentHighlightProvider(defaultExtension, '*', <vscode.DocumentHighlightProvider>{
 			provideDocumentHighlights(): any {
 				return [new types.DocumentHighlight(new types.Range(0, 0, 0, 4))];
 			}
@@ -518,12 +541,12 @@ suite('ExtHostLanguageFeatures', function () {
 
 	test('Occurrences, order 2/2', function () {
 
-		disposables.push(extHost.registerDocumentHighlightProvider(defaultSelector, <vscode.DocumentHighlightProvider>{
+		disposables.push(extHost.registerDocumentHighlightProvider(defaultExtension, defaultSelector, <vscode.DocumentHighlightProvider>{
 			provideDocumentHighlights(): any {
 				return [new types.DocumentHighlight(new types.Range(0, 0, 0, 2))];
 			}
 		}));
-		disposables.push(extHost.registerDocumentHighlightProvider('*', <vscode.DocumentHighlightProvider>{
+		disposables.push(extHost.registerDocumentHighlightProvider(defaultExtension, '*', <vscode.DocumentHighlightProvider>{
 			provideDocumentHighlights(): any {
 				return [new types.DocumentHighlight(new types.Range(0, 0, 0, 4))];
 			}
@@ -542,13 +565,13 @@ suite('ExtHostLanguageFeatures', function () {
 
 	test('Occurrences, evil provider', function () {
 
-		disposables.push(extHost.registerDocumentHighlightProvider(defaultSelector, <vscode.DocumentHighlightProvider>{
+		disposables.push(extHost.registerDocumentHighlightProvider(defaultExtension, defaultSelector, <vscode.DocumentHighlightProvider>{
 			provideDocumentHighlights(): any {
 				throw new Error('evil');
 			}
 		}));
 
-		disposables.push(extHost.registerDocumentHighlightProvider(defaultSelector, <vscode.DocumentHighlightProvider>{
+		disposables.push(extHost.registerDocumentHighlightProvider(defaultExtension, defaultSelector, <vscode.DocumentHighlightProvider>{
 			provideDocumentHighlights(): any {
 				return [new types.DocumentHighlight(new types.Range(0, 0, 0, 4))];
 			}
@@ -566,13 +589,13 @@ suite('ExtHostLanguageFeatures', function () {
 
 	test('References, registration order', function () {
 
-		disposables.push(extHost.registerReferenceProvider(defaultSelector, <vscode.ReferenceProvider>{
+		disposables.push(extHost.registerReferenceProvider(defaultExtension, defaultSelector, <vscode.ReferenceProvider>{
 			provideReferences(): any {
 				return [new types.Location(URI.parse('far://register/first'), new types.Range(0, 0, 0, 0))];
 			}
 		}));
 
-		disposables.push(extHost.registerReferenceProvider(defaultSelector, <vscode.ReferenceProvider>{
+		disposables.push(extHost.registerReferenceProvider(defaultExtension, defaultSelector, <vscode.ReferenceProvider>{
 			provideReferences(): any {
 				return [new types.Location(URI.parse('far://register/second'), new types.Range(0, 0, 0, 0))];
 			}
@@ -592,7 +615,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 	test('References, data conversion', function () {
 
-		disposables.push(extHost.registerReferenceProvider(defaultSelector, <vscode.ReferenceProvider>{
+		disposables.push(extHost.registerReferenceProvider(defaultExtension, defaultSelector, <vscode.ReferenceProvider>{
 			provideReferences(): any {
 				return [new types.Location(model.uri, new types.Position(0, 0))];
 			}
@@ -613,12 +636,12 @@ suite('ExtHostLanguageFeatures', function () {
 
 	test('References, evil provider', function () {
 
-		disposables.push(extHost.registerReferenceProvider(defaultSelector, <vscode.ReferenceProvider>{
+		disposables.push(extHost.registerReferenceProvider(defaultExtension, defaultSelector, <vscode.ReferenceProvider>{
 			provideReferences(): any {
 				throw new Error('evil');
 			}
 		}));
-		disposables.push(extHost.registerReferenceProvider(defaultSelector, <vscode.ReferenceProvider>{
+		disposables.push(extHost.registerReferenceProvider(defaultExtension, defaultSelector, <vscode.ReferenceProvider>{
 			provideReferences(): any {
 				return [new types.Location(model.uri, new types.Range(0, 0, 0, 0))];
 			}
@@ -637,7 +660,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 	test('Quick Fix, command data conversion', function () {
 
-		disposables.push(extHost.registerCodeActionProvider(defaultSelector, {
+		disposables.push(extHost.registerCodeActionProvider(defaultExtension, defaultSelector, {
 			provideCodeActions(): vscode.Command[] {
 				return [
 					{ command: 'test1', title: 'Testing1' },
@@ -661,7 +684,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 	test('Quick Fix, code action data conversion', function () {
 
-		disposables.push(extHost.registerCodeActionProvider(defaultSelector, {
+		disposables.push(extHost.registerCodeActionProvider(defaultExtension, defaultSelector, {
 			provideCodeActions(): vscode.CodeAction[] {
 				return [
 					{
@@ -689,7 +712,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 	test('Cannot read property \'id\' of undefined, #29469', function () {
 
-		disposables.push(extHost.registerCodeActionProvider(defaultSelector, <vscode.CodeActionProvider>{
+		disposables.push(extHost.registerCodeActionProvider(defaultExtension, defaultSelector, <vscode.CodeActionProvider>{
 			provideCodeActions(): any {
 				return [
 					undefined,
@@ -708,12 +731,12 @@ suite('ExtHostLanguageFeatures', function () {
 
 	test('Quick Fix, evil provider', function () {
 
-		disposables.push(extHost.registerCodeActionProvider(defaultSelector, <vscode.CodeActionProvider>{
+		disposables.push(extHost.registerCodeActionProvider(defaultExtension, defaultSelector, <vscode.CodeActionProvider>{
 			provideCodeActions(): any {
 				throw new Error('evil');
 			}
 		}));
-		disposables.push(extHost.registerCodeActionProvider(defaultSelector, <vscode.CodeActionProvider>{
+		disposables.push(extHost.registerCodeActionProvider(defaultExtension, defaultSelector, <vscode.CodeActionProvider>{
 			provideCodeActions(): any {
 				return [<vscode.Command>{ command: 'test', title: 'Testing' }];
 			}
@@ -730,13 +753,13 @@ suite('ExtHostLanguageFeatures', function () {
 
 	test('Navigate types, evil provider', function () {
 
-		disposables.push(extHost.registerWorkspaceSymbolProvider(<vscode.WorkspaceSymbolProvider>{
+		disposables.push(extHost.registerWorkspaceSymbolProvider(defaultExtension, <vscode.WorkspaceSymbolProvider>{
 			provideWorkspaceSymbols(): any {
 				throw new Error('evil');
 			}
 		}));
 
-		disposables.push(extHost.registerWorkspaceSymbolProvider(<vscode.WorkspaceSymbolProvider>{
+		disposables.push(extHost.registerWorkspaceSymbolProvider(defaultExtension, <vscode.WorkspaceSymbolProvider>{
 			provideWorkspaceSymbols(): any {
 				return [new types.SymbolInformation('testing', types.SymbolKind.Array, new types.Range(0, 0, 1, 1))];
 			}
@@ -758,7 +781,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 	test('Rename, evil provider 0/2', function () {
 
-		disposables.push(extHost.registerRenameProvider(defaultSelector, <vscode.RenameProvider>{
+		disposables.push(extHost.registerRenameProvider(defaultExtension, defaultSelector, <vscode.RenameProvider>{
 			provideRenameEdits(): any {
 				throw new class Foo { };
 			}
@@ -776,7 +799,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 	test('Rename, evil provider 1/2', function () {
 
-		disposables.push(extHost.registerRenameProvider(defaultSelector, <vscode.RenameProvider>{
+		disposables.push(extHost.registerRenameProvider(defaultExtension, defaultSelector, <vscode.RenameProvider>{
 			provideRenameEdits(): any {
 				throw Error('evil');
 			}
@@ -792,13 +815,13 @@ suite('ExtHostLanguageFeatures', function () {
 
 	test('Rename, evil provider 2/2', function () {
 
-		disposables.push(extHost.registerRenameProvider('*', <vscode.RenameProvider>{
+		disposables.push(extHost.registerRenameProvider(defaultExtension, '*', <vscode.RenameProvider>{
 			provideRenameEdits(): any {
 				throw Error('evil');
 			}
 		}));
 
-		disposables.push(extHost.registerRenameProvider(defaultSelector, <vscode.RenameProvider>{
+		disposables.push(extHost.registerRenameProvider(defaultExtension, defaultSelector, <vscode.RenameProvider>{
 			provideRenameEdits(): any {
 				let edit = new types.WorkspaceEdit();
 				edit.replace(model.uri, new types.Range(0, 0, 0, 0), 'testing');
@@ -816,7 +839,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 	test('Rename, ordering', function () {
 
-		disposables.push(extHost.registerRenameProvider('*', <vscode.RenameProvider>{
+		disposables.push(extHost.registerRenameProvider(defaultExtension, '*', <vscode.RenameProvider>{
 			provideRenameEdits(): any {
 				let edit = new types.WorkspaceEdit();
 				edit.replace(model.uri, new types.Range(0, 0, 0, 0), 'testing');
@@ -825,7 +848,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		disposables.push(extHost.registerRenameProvider(defaultSelector, <vscode.RenameProvider>{
+		disposables.push(extHost.registerRenameProvider(defaultExtension, defaultSelector, <vscode.RenameProvider>{
 			provideRenameEdits(): any {
 				return;
 			}
@@ -846,13 +869,13 @@ suite('ExtHostLanguageFeatures', function () {
 
 	test('Parameter Hints, order', function () {
 
-		disposables.push(extHost.registerSignatureHelpProvider(defaultSelector, <vscode.SignatureHelpProvider>{
+		disposables.push(extHost.registerSignatureHelpProvider(defaultExtension, defaultSelector, <vscode.SignatureHelpProvider>{
 			provideSignatureHelp(): any {
 				return undefined;
 			}
 		}, []));
 
-		disposables.push(extHost.registerSignatureHelpProvider(defaultSelector, <vscode.SignatureHelpProvider>{
+		disposables.push(extHost.registerSignatureHelpProvider(defaultExtension, defaultSelector, <vscode.SignatureHelpProvider>{
 			provideSignatureHelp(): vscode.SignatureHelp {
 				return {
 					signatures: [],
@@ -864,14 +887,14 @@ suite('ExtHostLanguageFeatures', function () {
 
 		return rpcProtocol.sync().then(() => {
 
-			return provideSignatureHelp(model, new EditorPosition(1, 1), { triggerReason: modes.SignatureHelpTriggerReason.Invoke }, CancellationToken.None).then(value => {
+			return provideSignatureHelp(model, new EditorPosition(1, 1), { triggerKind: modes.SignatureHelpTriggerKind.Invoke, isRetrigger: false }, CancellationToken.None).then(value => {
 				assert.ok(value);
 			});
 		});
 	});
 	test('Parameter Hints, evil provider', function () {
 
-		disposables.push(extHost.registerSignatureHelpProvider(defaultSelector, <vscode.SignatureHelpProvider>{
+		disposables.push(extHost.registerSignatureHelpProvider(defaultExtension, defaultSelector, <vscode.SignatureHelpProvider>{
 			provideSignatureHelp(): any {
 				throw new Error('evil');
 			}
@@ -879,7 +902,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		return rpcProtocol.sync().then(() => {
 
-			return provideSignatureHelp(model, new EditorPosition(1, 1), { triggerReason: modes.SignatureHelpTriggerReason.Invoke }, CancellationToken.None).then(value => {
+			return provideSignatureHelp(model, new EditorPosition(1, 1), { triggerKind: modes.SignatureHelpTriggerKind.Invoke, isRetrigger: false }, CancellationToken.None).then(value => {
 				assert.equal(value, undefined);
 			});
 		});
@@ -889,13 +912,13 @@ suite('ExtHostLanguageFeatures', function () {
 
 	test('Suggest, order 1/3', function () {
 
-		disposables.push(extHost.registerCompletionItemProvider('*', <vscode.CompletionItemProvider>{
+		disposables.push(extHost.registerCompletionItemProvider(defaultExtension, '*', <vscode.CompletionItemProvider>{
 			provideCompletionItems(): any {
 				return [new types.CompletionItem('testing1')];
 			}
 		}, []));
 
-		disposables.push(extHost.registerCompletionItemProvider(defaultSelector, <vscode.CompletionItemProvider>{
+		disposables.push(extHost.registerCompletionItemProvider(defaultExtension, defaultSelector, <vscode.CompletionItemProvider>{
 			provideCompletionItems(): any {
 				return [new types.CompletionItem('testing2')];
 			}
@@ -904,20 +927,20 @@ suite('ExtHostLanguageFeatures', function () {
 		return rpcProtocol.sync().then(() => {
 			return provideSuggestionItems(model, new EditorPosition(1, 1), 'none').then(value => {
 				assert.equal(value.length, 1);
-				assert.equal(value[0].suggestion.insertText, 'testing2');
+				assert.equal(value[0].completion.insertText, 'testing2');
 			});
 		});
 	});
 
 	test('Suggest, order 2/3', function () {
 
-		disposables.push(extHost.registerCompletionItemProvider('*', <vscode.CompletionItemProvider>{
+		disposables.push(extHost.registerCompletionItemProvider(defaultExtension, '*', <vscode.CompletionItemProvider>{
 			provideCompletionItems(): any {
 				return [new types.CompletionItem('weak-selector')]; // weaker selector but result
 			}
 		}, []));
 
-		disposables.push(extHost.registerCompletionItemProvider(defaultSelector, <vscode.CompletionItemProvider>{
+		disposables.push(extHost.registerCompletionItemProvider(defaultExtension, defaultSelector, <vscode.CompletionItemProvider>{
 			provideCompletionItems(): any {
 				return []; // stronger selector but not a good result;
 			}
@@ -926,20 +949,20 @@ suite('ExtHostLanguageFeatures', function () {
 		return rpcProtocol.sync().then(() => {
 			return provideSuggestionItems(model, new EditorPosition(1, 1), 'none').then(value => {
 				assert.equal(value.length, 1);
-				assert.equal(value[0].suggestion.insertText, 'weak-selector');
+				assert.equal(value[0].completion.insertText, 'weak-selector');
 			});
 		});
 	});
 
 	test('Suggest, order 2/3', function () {
 
-		disposables.push(extHost.registerCompletionItemProvider(defaultSelector, <vscode.CompletionItemProvider>{
+		disposables.push(extHost.registerCompletionItemProvider(defaultExtension, defaultSelector, <vscode.CompletionItemProvider>{
 			provideCompletionItems(): any {
 				return [new types.CompletionItem('strong-1')];
 			}
 		}, []));
 
-		disposables.push(extHost.registerCompletionItemProvider(defaultSelector, <vscode.CompletionItemProvider>{
+		disposables.push(extHost.registerCompletionItemProvider(defaultExtension, defaultSelector, <vscode.CompletionItemProvider>{
 			provideCompletionItems(): any {
 				return [new types.CompletionItem('strong-2')];
 			}
@@ -948,21 +971,21 @@ suite('ExtHostLanguageFeatures', function () {
 		return rpcProtocol.sync().then(() => {
 			return provideSuggestionItems(model, new EditorPosition(1, 1), 'none').then(value => {
 				assert.equal(value.length, 2);
-				assert.equal(value[0].suggestion.insertText, 'strong-1'); // sort by label
-				assert.equal(value[1].suggestion.insertText, 'strong-2');
+				assert.equal(value[0].completion.insertText, 'strong-1'); // sort by label
+				assert.equal(value[1].completion.insertText, 'strong-2');
 			});
 		});
 	});
 
 	test('Suggest, evil provider', function () {
 
-		disposables.push(extHost.registerCompletionItemProvider(defaultSelector, <vscode.CompletionItemProvider>{
+		disposables.push(extHost.registerCompletionItemProvider(defaultExtension, defaultSelector, <vscode.CompletionItemProvider>{
 			provideCompletionItems(): any {
 				throw new Error('evil');
 			}
 		}, []));
 
-		disposables.push(extHost.registerCompletionItemProvider(defaultSelector, <vscode.CompletionItemProvider>{
+		disposables.push(extHost.registerCompletionItemProvider(defaultExtension, defaultSelector, <vscode.CompletionItemProvider>{
 			provideCompletionItems(): any {
 				return [new types.CompletionItem('testing')];
 			}
@@ -979,7 +1002,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 	test('Suggest, CompletionList', function () {
 
-		disposables.push(extHost.registerCompletionItemProvider(defaultSelector, <vscode.CompletionItemProvider>{
+		disposables.push(extHost.registerCompletionItemProvider(defaultExtension, defaultSelector, <vscode.CompletionItemProvider>{
 			provideCompletionItems(): any {
 				return new types.CompletionList([<any>new types.CompletionItem('hello')], true);
 			}
@@ -996,7 +1019,7 @@ suite('ExtHostLanguageFeatures', function () {
 	// --- format
 
 	test('Format Doc, data conversion', function () {
-		disposables.push(extHost.registerDocumentFormattingEditProvider(defaultSelector, <vscode.DocumentFormattingEditProvider>{
+		disposables.push(extHost.registerDocumentFormattingEditProvider(defaultExtension, defaultSelector, <vscode.DocumentFormattingEditProvider>{
 			provideDocumentFormattingEdits(): any {
 				return [new types.TextEdit(new types.Range(0, 0, 0, 0), 'testing'), types.TextEdit.setEndOfLine(types.EndOfLine.LF)];
 			}
@@ -1011,13 +1034,13 @@ suite('ExtHostLanguageFeatures', function () {
 
 				assert.equal(second.eol, EndOfLineSequence.LF);
 				assert.equal(second.text, '');
-				assert.equal(second.range, undefined);
+				assert.deepEqual(second.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 });
 			});
 		});
 	});
 
 	test('Format Doc, evil provider', function () {
-		disposables.push(extHost.registerDocumentFormattingEditProvider(defaultSelector, <vscode.DocumentFormattingEditProvider>{
+		disposables.push(extHost.registerDocumentFormattingEditProvider(defaultExtension, defaultSelector, <vscode.DocumentFormattingEditProvider>{
 			provideDocumentFormattingEdits(): any {
 				throw new Error('evil');
 			}
@@ -1030,19 +1053,19 @@ suite('ExtHostLanguageFeatures', function () {
 
 	test('Format Doc, order', function () {
 
-		disposables.push(extHost.registerDocumentFormattingEditProvider(defaultSelector, <vscode.DocumentFormattingEditProvider>{
+		disposables.push(extHost.registerDocumentFormattingEditProvider(defaultExtension, defaultSelector, <vscode.DocumentFormattingEditProvider>{
 			provideDocumentFormattingEdits(): any {
 				return undefined;
 			}
 		}));
 
-		disposables.push(extHost.registerDocumentFormattingEditProvider(defaultSelector, <vscode.DocumentFormattingEditProvider>{
+		disposables.push(extHost.registerDocumentFormattingEditProvider(defaultExtension, defaultSelector, <vscode.DocumentFormattingEditProvider>{
 			provideDocumentFormattingEdits(): any {
 				return [new types.TextEdit(new types.Range(0, 0, 0, 0), 'testing')];
 			}
 		}));
 
-		disposables.push(extHost.registerDocumentFormattingEditProvider(defaultSelector, <vscode.DocumentFormattingEditProvider>{
+		disposables.push(extHost.registerDocumentFormattingEditProvider(defaultExtension, defaultSelector, <vscode.DocumentFormattingEditProvider>{
 			provideDocumentFormattingEdits(): any {
 				return undefined;
 			}
@@ -1059,7 +1082,7 @@ suite('ExtHostLanguageFeatures', function () {
 	});
 
 	test('Format Range, data conversion', function () {
-		disposables.push(extHost.registerDocumentRangeFormattingEditProvider(defaultSelector, <vscode.DocumentRangeFormattingEditProvider>{
+		disposables.push(extHost.registerDocumentRangeFormattingEditProvider(defaultExtension, defaultSelector, <vscode.DocumentRangeFormattingEditProvider>{
 			provideDocumentRangeFormattingEdits(): any {
 				return [new types.TextEdit(new types.Range(0, 0, 0, 0), 'testing')];
 			}
@@ -1076,17 +1099,17 @@ suite('ExtHostLanguageFeatures', function () {
 	});
 
 	test('Format Range, + format_doc', function () {
-		disposables.push(extHost.registerDocumentRangeFormattingEditProvider(defaultSelector, <vscode.DocumentRangeFormattingEditProvider>{
+		disposables.push(extHost.registerDocumentRangeFormattingEditProvider(defaultExtension, defaultSelector, <vscode.DocumentRangeFormattingEditProvider>{
 			provideDocumentRangeFormattingEdits(): any {
 				return [new types.TextEdit(new types.Range(0, 0, 0, 0), 'range')];
 			}
 		}));
-		disposables.push(extHost.registerDocumentRangeFormattingEditProvider(defaultSelector, <vscode.DocumentRangeFormattingEditProvider>{
+		disposables.push(extHost.registerDocumentRangeFormattingEditProvider(defaultExtension, defaultSelector, <vscode.DocumentRangeFormattingEditProvider>{
 			provideDocumentRangeFormattingEdits(): any {
 				return [new types.TextEdit(new types.Range(2, 3, 4, 5), 'range2')];
 			}
 		}));
-		disposables.push(extHost.registerDocumentFormattingEditProvider(defaultSelector, <vscode.DocumentFormattingEditProvider>{
+		disposables.push(extHost.registerDocumentFormattingEditProvider(defaultExtension, defaultSelector, <vscode.DocumentFormattingEditProvider>{
 			provideDocumentFormattingEdits(): any {
 				return [new types.TextEdit(new types.Range(0, 0, 1, 1), 'doc')];
 			}
@@ -1105,7 +1128,7 @@ suite('ExtHostLanguageFeatures', function () {
 	});
 
 	test('Format Range, evil provider', function () {
-		disposables.push(extHost.registerDocumentRangeFormattingEditProvider(defaultSelector, <vscode.DocumentRangeFormattingEditProvider>{
+		disposables.push(extHost.registerDocumentRangeFormattingEditProvider(defaultExtension, defaultSelector, <vscode.DocumentRangeFormattingEditProvider>{
 			provideDocumentRangeFormattingEdits(): any {
 				throw new Error('evil');
 			}
@@ -1118,7 +1141,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 	test('Format on Type, data conversion', function () {
 
-		disposables.push(extHost.registerOnTypeFormattingEditProvider(defaultSelector, <vscode.OnTypeFormattingEditProvider>{
+		disposables.push(extHost.registerOnTypeFormattingEditProvider(defaultExtension, defaultSelector, <vscode.OnTypeFormattingEditProvider>{
 			provideOnTypeFormattingEdits(): any {
 				return [new types.TextEdit(new types.Range(0, 0, 0, 0), arguments[2])];
 			}
@@ -1137,7 +1160,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 	test('Links, data conversion', function () {
 
-		disposables.push(extHost.registerDocumentLinkProvider(defaultSelector, <vscode.DocumentLinkProvider>{
+		disposables.push(extHost.registerDocumentLinkProvider(defaultExtension, defaultSelector, <vscode.DocumentLinkProvider>{
 			provideDocumentLinks() {
 				return [new types.DocumentLink(new types.Range(0, 0, 1, 1), URI.parse('foo:bar#3'))];
 			}
@@ -1156,13 +1179,13 @@ suite('ExtHostLanguageFeatures', function () {
 
 	test('Links, evil provider', function () {
 
-		disposables.push(extHost.registerDocumentLinkProvider(defaultSelector, <vscode.DocumentLinkProvider>{
+		disposables.push(extHost.registerDocumentLinkProvider(defaultExtension, defaultSelector, <vscode.DocumentLinkProvider>{
 			provideDocumentLinks() {
 				return [new types.DocumentLink(new types.Range(0, 0, 1, 1), URI.parse('foo:bar#3'))];
 			}
 		}));
 
-		disposables.push(extHost.registerDocumentLinkProvider(defaultSelector, <vscode.DocumentLinkProvider>{
+		disposables.push(extHost.registerDocumentLinkProvider(defaultExtension, defaultSelector, <vscode.DocumentLinkProvider>{
 			provideDocumentLinks(): any {
 				throw new Error();
 			}
@@ -1181,7 +1204,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 	test('Document colors, data conversion', function () {
 
-		disposables.push(extHost.registerColorProvider(defaultSelector, <vscode.DocumentColorProvider>{
+		disposables.push(extHost.registerColorProvider(defaultExtension, defaultSelector, <vscode.DocumentColorProvider>{
 			provideDocumentColors(): vscode.ColorInformation[] {
 				return [new types.ColorInformation(new types.Range(0, 0, 0, 20), new types.Color(0.1, 0.2, 0.3, 0.4))];
 			},
@@ -1198,6 +1221,22 @@ suite('ExtHostLanguageFeatures', function () {
 				assert.deepEqual(first.colorInfo.color, { red: 0.1, green: 0.2, blue: 0.3, alpha: 0.4 });
 				assert.deepEqual(first.colorInfo.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 21 });
 			});
+		});
+	});
+
+	// -- selection ranges
+
+	test('Selection Ranges, data conversion', async function () {
+		disposables.push(extHost.registerSelectionRangeProvider(defaultExtension, defaultSelector, <vscode.SelectionRangeProvider>{
+			provideSelectionRanges() {
+				return [new types.Range(0, 10, 0, 18), new types.Range(0, 2, 0, 20)];
+			}
+		}));
+
+		await rpcProtocol.sync();
+
+		provideSelectionRanges(model, new Position(1, 17), CancellationToken.None).then(ranges => {
+			assert.ok(ranges.length >= 2);
 		});
 	});
 });

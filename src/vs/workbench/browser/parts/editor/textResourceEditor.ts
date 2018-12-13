@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -19,7 +18,7 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/res
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { once } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -55,7 +54,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		return nls.localize('textEditor', "Text Editor");
 	}
 
-	setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+	setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 
 		// Remember view settings if input changes
 		this.saveTextResourceEditorViewState(this.input);
@@ -71,7 +70,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 
 				// Assert Model instance
 				if (!(resolvedModel instanceof BaseTextEditorModel)) {
-					return TPromise.wrapError<void>(new Error('Unable to open file as text'));
+					return Promise.reject(new Error('Unable to open file as text'));
 				}
 
 				// Set Editor Model
@@ -164,15 +163,14 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		super.clearInput();
 	}
 
-	shutdown(): void {
+	protected saveState(): void {
 
 		// Save View State (only for untitled)
 		if (this.input instanceof UntitledEditorInput) {
 			this.saveTextResourceEditorViewState(this.input);
 		}
 
-		// Call Super
-		super.shutdown();
+		super.saveState();
 	}
 
 	private saveTextResourceEditorViewState(input: EditorInput): void {
@@ -192,7 +190,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 			super.saveTextEditorViewState(resource);
 
 			// Make sure to clean up when the input gets disposed
-			once(input.onDispose)(() => {
+			Event.once(input.onDispose)(() => {
 				super.clearTextEditorViewState([resource]);
 			});
 		}

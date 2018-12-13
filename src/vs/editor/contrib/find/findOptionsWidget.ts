@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import { CaseSensitiveCheckbox, RegexCheckbox, WholeWordsCheckbox } from 'vs/base/browser/ui/findinput/findInputCheckboxes';
 import { Widget } from 'vs/base/browser/ui/widget';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { FIND_IDS } from 'vs/editor/contrib/find/findModel';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
-import { CaseSensitiveCheckbox, WholeWordsCheckbox, RegexCheckbox } from 'vs/base/browser/ui/findinput/findInputCheckboxes';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { IThemeService, ITheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { inputActiveOptionBorder, editorWidgetBackground, contrastBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { contrastBorder, editorWidgetBackground, inputActiveOptionBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
 export class FindOptionsWidget extends Widget implements IOverlayWidget {
 
@@ -46,7 +46,7 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 		this._domNode.setAttribute('role', 'presentation');
 		this._domNode.setAttribute('aria-hidden', 'true');
 
-		let inputActiveOptionBorderColor = themeService.getTheme().getColor(inputActiveOptionBorder);
+		const inputActiveOptionBorderColor = themeService.getTheme().getColor(inputActiveOptionBorder) || undefined;
 
 		this.caseSensitive = this._register(new CaseSensitiveCheckbox({
 			appendTitle: this._keybindingLabelFor(FIND_IDS.ToggleCaseSensitiveCommand),
@@ -179,7 +179,7 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 	}
 
 	private _applyTheme(theme: ITheme) {
-		let inputStyles = { inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder) };
+		let inputStyles = { inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder) || undefined };
 		this.caseSensitive.style(inputStyles);
 		this.wholeWords.style(inputStyles);
 		this.regex.style(inputStyles);

@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nativeWatchdog from 'native-watchdog';
+import { createConnection } from 'net';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { ExtensionHostMain, exit } from 'vs/workbench/node/extensionHostMain';
-import { IInitData } from 'vs/workbench/api/node/extHost.protocol';
+import { Event } from 'vs/base/common/event';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
 import { Protocol } from 'vs/base/parts/ipc/node/ipc.net';
-import { createConnection } from 'net';
-import { Event, filterEvent } from 'vs/base/common/event';
-import { createMessageOfType, MessageType, isMessageOfType } from 'vs/workbench/common/extensionHostProtocol';
-import * as nativeWatchdog from 'native-watchdog';
 import product from 'vs/platform/node/product';
+import { IInitData } from 'vs/workbench/api/node/extHost.protocol';
+import { MessageType, createMessageOfType, isMessageOfType } from 'vs/workbench/common/extensionHostProtocol';
+import { ExtensionHostMain, exit } from 'vs/workbench/node/extensionHostMain';
 
 // With Electron 2.x and node.js 8.x the "natives" module
 // can cause a native crash (see https://github.com/nodejs/node/issues/19891 and
@@ -61,7 +61,7 @@ function createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 
 			private _terminating = false;
 
-			readonly onMessage: Event<any> = filterEvent(protocol.onMessage, msg => {
+			readonly onMessage: Event<any> = Event.filter(protocol.onMessage, msg => {
 				if (!isMessageOfType(msg, MessageType.Terminate)) {
 					return true;
 				}
@@ -167,7 +167,6 @@ createExtHostProtocol().then(protocol => {
 	// setup things
 	const extensionHostMain = new ExtensionHostMain(renderer.protocol, renderer.initData);
 	onTerminate = () => extensionHostMain.terminate();
-	return extensionHostMain.start();
 }).catch(err => console.error(err));
 
 function patchExecArgv() {

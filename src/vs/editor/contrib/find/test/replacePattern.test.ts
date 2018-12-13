@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { parseReplaceString, ReplacePattern, ReplacePiece } from 'vs/editor/contrib/find/replacePattern';
+import { ReplacePattern, ReplacePiece, parseReplaceString } from 'vs/editor/contrib/find/replacePattern';
 
 suite('Replace Pattern test', () => {
 

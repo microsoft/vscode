@@ -1,0 +1,67 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-tl-row {
+	display: flex;
+	height: 100%;
+	align-items: center;
+}
+
+.monaco-tl-twistie,
+.monaco-tl-contents {
+	height: 100%;
+}
+
+.monaco-tl-twistie {
+	font-size: 10px;
+	text-align: right;
+	margin-right: 6px;
+	flex-shrink: 0;
+}
+
+.monaco-tl-contents {
+	flex: 1;
+	overflow: hidden;
+}
+
+.monaco-tl-twistie.collapsible {
+	background-size: 16px;
+	background-position: 100% 50%;
+	background-repeat: no-repeat;
+	background-image: url("expanded.svg");
+}
+
+.monaco-tl-twistie.collapsible.collapsed:not(.loading) {
+	display: inline-block;
+	background-image: url("collapsed.svg");
+}
+
+.vs-dark .monaco-tl-twistie.collapsible:not(.loading) {
+	background-image: url("expanded-dark.svg");
+}
+
+.vs-dark .monaco-tl-twistie.collapsible.collapsed:not(.loading) {
+	background-image: url("collapsed-dark.svg");
+}
+
+.hc-black .monaco-tl-twistie.collapsible:not(.loading) {
+	background-image: url("expanded-hc.svg");
+}
+
+.hc-black .monaco-tl-twistie.collapsible.collapsed:not(.loading) {
+	background-image: url("collapsed-hc.svg");
+}
+
+.monaco-tl-twistie.loading {
+	background-image: url("loading.svg");
+}
+
+.vs-dark .monaco-tl-twistie.loading {
+	background-image: url("loading-dark.svg");
+}
+
+.hc-black .monaco-tl-twistie.loading {
+	background-image: url("loading-hc.svg");
+}

@@ -15,7 +15,7 @@ export interface IParsedVersion {
 	minorMustEqual: boolean;
 	patchBase: number;
 	patchMustEqual: boolean;
-	preRelease: string;
+	preRelease: string | null;
 }
 
 export interface INormalizedVersion {
@@ -35,7 +35,7 @@ export function isValidVersionStr(version: string): boolean {
 	return (version === '*' || VERSION_REGEXP.test(version));
 }
 
-export function parseVersion(version: string): IParsedVersion {
+export function parseVersion(version: string): IParsedVersion | null {
 	if (!isValidVersionStr(version)) {
 		return null;
 	}
@@ -57,6 +57,9 @@ export function parseVersion(version: string): IParsedVersion {
 	}
 
 	let m = version.match(VERSION_REGEXP);
+	if (!m) {
+		return null;
+	}
 	return {
 		hasCaret: m[1] === '^',
 		hasGreaterEquals: m[1] === '>=',
@@ -70,7 +73,7 @@ export function parseVersion(version: string): IParsedVersion {
 	};
 }
 
-export function normalizeVersion(version: IParsedVersion): INormalizedVersion {
+export function normalizeVersion(version: IParsedVersion | null): INormalizedVersion | null {
 	if (!version) {
 		return null;
 	}
@@ -103,14 +106,14 @@ export function normalizeVersion(version: IParsedVersion): INormalizedVersion {
 }
 
 export function isValidVersion(_version: string | INormalizedVersion, _desiredVersion: string | INormalizedVersion): boolean {
-	let version: INormalizedVersion;
+	let version: INormalizedVersion | null;
 	if (typeof _version === 'string') {
 		version = normalizeVersion(parseVersion(_version));
 	} else {
 		version = _version;
 	}
 
-	let desiredVersion: INormalizedVersion;
+	let desiredVersion: INormalizedVersion | null;
 	if (typeof _desiredVersion === 'string') {
 		desiredVersion = normalizeVersion(parseVersion(_desiredVersion));
 	} else {

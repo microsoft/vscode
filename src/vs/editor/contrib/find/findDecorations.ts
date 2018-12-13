@@ -4,25 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { FindMatch, IModelDecorationsChangeAccessor, IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { overviewRulerFindMatchForeground } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IModelDecorationsChangeAccessor, FindMatch, IModelDeltaDecoration, TrackedRangeStickiness, OverviewRulerLane } from 'vs/editor/common/model';
 
 export class FindDecorations implements IDisposable {
 
-	private _editor: ICodeEditor;
+	private _editor: IActiveCodeEditor;
 	private _decorations: string[];
 	private _overviewRulerApproximateDecorations: string[];
-	private _findScopeDecorationId: string;
-	private _rangeHighlightDecorationId: string;
-	private _highlightedDecorationId: string;
+	private _findScopeDecorationId: string | null;
+	private _rangeHighlightDecorationId: string | null;
+	private _highlightedDecorationId: string | null;
 	private _startPosition: Position;
 
-	constructor(editor: ICodeEditor) {
+	constructor(editor: IActiveCodeEditor) {
 		this._editor = editor;
 		this._decorations = [];
 		this._overviewRulerApproximateDecorations = [];
@@ -35,13 +35,11 @@ export class FindDecorations implements IDisposable {
 	public dispose(): void {
 		this._editor.deltaDecorations(this._allDecorations(), []);
 
-		this._editor = null;
 		this._decorations = [];
 		this._overviewRulerApproximateDecorations = [];
 		this._findScopeDecorationId = null;
 		this._rangeHighlightDecorationId = null;
 		this._highlightedDecorationId = null;
-		this._startPosition = null;
 	}
 
 	public reset(): void {
@@ -56,7 +54,7 @@ export class FindDecorations implements IDisposable {
 		return this._decorations.length;
 	}
 
-	public getFindScope(): Range {
+	public getFindScope(): Range | null {
 		if (this._findScopeDecorationId) {
 			return this._editor.getModel().getDecorationRange(this._findScopeDecorationId);
 		}
@@ -92,8 +90,8 @@ export class FindDecorations implements IDisposable {
 		return 1;
 	}
 
-	public setCurrentFindMatch(nextMatch: Range): number {
-		let newCurrentDecorationId: string = null;
+	public setCurrentFindMatch(nextMatch: Range | null): number {
+		let newCurrentDecorationId: string | null = null;
 		let matchPosition = 0;
 		if (nextMatch) {
 			for (let i = 0, len = this._decorations.length; i < len; i++) {
@@ -121,7 +119,7 @@ export class FindDecorations implements IDisposable {
 					this._rangeHighlightDecorationId = null;
 				}
 				if (newCurrentDecorationId !== null) {
-					let rng = this._editor.getModel().getDecorationRange(newCurrentDecorationId);
+					let rng = this._editor.getModel().getDecorationRange(newCurrentDecorationId)!;
 					if (rng.startLineNumber !== rng.endLineNumber && rng.endColumn === 1) {
 						let lineBeforeEnd = rng.endLineNumber - 1;
 						let lineBeforeEndMaxColumn = this._editor.getModel().getLineMaxColumn(lineBeforeEnd);
@@ -135,7 +133,7 @@ export class FindDecorations implements IDisposable {
 		return matchPosition;
 	}
 
-	public set(findMatches: FindMatch[], findScope: Range): void {
+	public set(findMatches: FindMatch[], findScope: Range | null): void {
 		this._editor.changeDecorations((accessor) => {
 
 			let findMatchesOptions: ModelDecorationOptions = FindDecorations._FIND_MATCH_DECORATION;
@@ -207,7 +205,7 @@ export class FindDecorations implements IDisposable {
 		});
 	}
 
-	public matchBeforePosition(position: Position): Range {
+	public matchBeforePosition(position: Position): Range | null {
 		if (this._decorations.length === 0) {
 			return null;
 		}
@@ -229,7 +227,7 @@ export class FindDecorations implements IDisposable {
 		return this._editor.getModel().getDecorationRange(this._decorations[this._decorations.length - 1]);
 	}
 
-	public matchAfterPosition(position: Position): Range {
+	public matchAfterPosition(position: Position): Range | null {
 		if (this._decorations.length === 0) {
 			return null;
 		}

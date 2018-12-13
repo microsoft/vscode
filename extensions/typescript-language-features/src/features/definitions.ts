@@ -22,7 +22,7 @@ export default class TypeScriptDefinitionProvider extends DefinitionProviderBase
 		token: vscode.CancellationToken
 	): Promise<vscode.DefinitionLink[] | vscode.Definition | undefined> {
 		if (this.client.apiVersion.gte(API.v270)) {
-			const filepath = this.client.toPath(document.uri);
+			const filepath = this.client.toOpenedFilePath(document);
 			if (!filepath) {
 				return undefined;
 			}
@@ -37,11 +37,11 @@ export default class TypeScriptDefinitionProvider extends DefinitionProviderBase
 			return response.body.definitions
 				.map(location => {
 					const target = typeConverters.Location.fromTextSpan(this.client.toResource(location.file), location);
-					return <vscode.DefinitionLink>{
+					return {
 						originSelectionRange: span,
 						targetRange: target.range,
 						targetUri: target.uri,
-					};
+					} as vscode.DefinitionLink;
 				});
 		}
 

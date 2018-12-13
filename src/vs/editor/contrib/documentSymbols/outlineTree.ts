@@ -146,13 +146,13 @@ export class OutlineRenderer implements IRenderer {
 			const decoration = dom.$('.outline-element-decoration');
 			dom.addClass(container, 'outline-element');
 			dom.append(container, icon, labelContainer, detail, decoration);
-			return { icon, labelContainer, label: new HighlightedLabel(labelContainer), detail, decoration };
+			return { icon, labelContainer, label: new HighlightedLabel(labelContainer, true), detail, decoration };
 		}
 		if (templateId === 'outline-group') {
 			const labelContainer = dom.$('.outline-element-label');
 			dom.addClass(container, 'outline-element');
 			dom.append(container, labelContainer);
-			return { labelContainer, label: new HighlightedLabel(labelContainer) };
+			return { labelContainer, label: new HighlightedLabel(labelContainer, true) };
 		}
 
 		throw new Error(templateId);

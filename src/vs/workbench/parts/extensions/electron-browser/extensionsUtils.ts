@@ -5,7 +5,7 @@
 
 import * as arrays from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
-import { Event, chain, anyEvent, debounceEvent } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -16,6 +16,7 @@ import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiati
 import { areSameExtensions, adoptToGalleryExtensionId, getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { Severity, INotificationService } from 'vs/platform/notification/common/notification';
+import product from 'vs/platform/node/product';
 
 export interface IExtensionStatus {
 	identifier: IExtensionIdentifier;
@@ -39,7 +40,7 @@ export class KeymapExtensions implements IWorkbenchContribution {
 			lifecycleService.onShutdown(() => this.dispose()),
 			instantiationService.invokeFunction(onExtensionChanged)((identifiers => {
 				Promise.all(identifiers.map(identifier => this.checkForOtherKeymaps(identifier)))
-					.then(null, onUnexpectedError);
+					.then(void 0, onUnexpectedError);
 			}))
 		);
 	}
@@ -99,11 +100,11 @@ export class KeymapExtensions implements IWorkbenchContribution {
 export function onExtensionChanged(accessor: ServicesAccessor): Event<IExtensionIdentifier[]> {
 	const extensionService = accessor.get(IExtensionManagementService);
 	const extensionEnablementService = accessor.get(IExtensionEnablementService);
-	const onDidInstallExtension = chain(extensionService.onDidInstallExtension)
+	const onDidInstallExtension = Event.chain(extensionService.onDidInstallExtension)
 		.filter(e => e.operation === InstallOperation.Install)
 		.event;
-	return debounceEvent<IExtensionIdentifier, IExtensionIdentifier[]>(anyEvent(
-		chain(anyEvent(onDidInstallExtension, extensionService.onDidUninstallExtension))
+	return Event.debounce<IExtensionIdentifier, IExtensionIdentifier[]>(Event.any(
+		Event.chain(Event.any(onDidInstallExtension, extensionService.onDidUninstallExtension))
 			.map(e => ({ id: stripVersion(e.identifier.id), uuid: e.identifier.uuid }))
 			.event,
 		extensionEnablementService.onEnablementChanged
@@ -141,4 +142,9 @@ export function isKeymapExtension(tipsService: IExtensionTipsService, extension:
 
 function stripVersion(id: string): string {
 	return getIdAndVersionFromLocalExtensionId(id).id;
+}
+
+export function getKeywordsForExtension(extension: string): string[] {
+	const keywords = product.extensionKeywords || {};
+	return keywords[extension] || [];
 }

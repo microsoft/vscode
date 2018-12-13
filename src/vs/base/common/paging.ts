@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { isArray } from 'vs/base/common/types';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
@@ -16,13 +15,13 @@ export interface IPager<T> {
 	firstPage: T[];
 	total: number;
 	pageSize: number;
-	getPage(pageIndex: number, cancellationToken: CancellationToken): Thenable<T[]>;
+	getPage(pageIndex: number, cancellationToken: CancellationToken): Promise<T[]>;
 }
 
 interface IPage<T> {
 	isResolved: boolean;
-	promise: Thenable<void>;
-	cts: CancellationTokenSource;
+	promise: Promise<void> | null;
+	cts: CancellationTokenSource | null;
 	promiseIndexes: Set<number>;
 	elements: T[];
 }
@@ -44,7 +43,7 @@ export interface IPagedModel<T> {
 	length: number;
 	isResolved(index: number): boolean;
 	get(index: number): T;
-	resolve(index: number, cancellationToken: CancellationToken): Thenable<T>;
+	resolve(index: number, cancellationToken: CancellationToken): Promise<T>;
 }
 
 export function singlePagePager<T>(elements: T[]): IPager<T> {
@@ -52,7 +51,9 @@ export function singlePagePager<T>(elements: T[]): IPager<T> {
 		firstPage: elements,
 		total: elements.length,
 		pageSize: elements.length,
-		getPage: null
+		getPage: (pageIndex: number, cancellationToken: CancellationToken): Promise<T[]> => {
+			return Promise.resolve(elements);
+		}
 	};
 }
 
@@ -89,9 +90,9 @@ export class PagedModel<T> implements IPagedModel<T> {
 		return page.elements[indexInPage];
 	}
 
-	resolve(index: number, cancellationToken: CancellationToken): Thenable<T> {
+	resolve(index: number, cancellationToken: CancellationToken): Promise<T> {
 		if (cancellationToken.isCancellationRequested) {
-			return TPromise.wrapError(canceled());
+			return Promise.reject(canceled());
 		}
 
 		const pageIndex = Math.floor(index / this.pager.pageSize);
@@ -99,7 +100,7 @@ export class PagedModel<T> implements IPagedModel<T> {
 		const page = this.pages[pageIndex];
 
 		if (page.isResolved) {
-			return TPromise.as(page.elements[indexInPage]);
+			return Promise.resolve(page.elements[indexInPage]);
 		}
 
 		if (!page.promise) {
@@ -114,7 +115,7 @@ export class PagedModel<T> implements IPagedModel<T> {
 					page.isResolved = false;
 					page.promise = null;
 					page.cts = null;
-					return TPromise.wrapError(err);
+					return Promise.reject(err);
 				});
 		}
 
@@ -150,8 +151,8 @@ export class DelayedPagedModel<T> implements IPagedModel<T> {
 		return this.model.get(index);
 	}
 
-	resolve(index: number, cancellationToken: CancellationToken): Thenable<T> {
-		return new TPromise((c, e) => {
+	resolve(index: number, cancellationToken: CancellationToken): Promise<T> {
+		return new Promise((c, e) => {
 			if (cancellationToken.isCancellationRequested) {
 				return e(canceled());
 			}
@@ -195,8 +196,8 @@ export function mergePagers<T>(one: IPager<T>, other: IPager<T>): IPager<T> {
 		firstPage: [...one.firstPage, ...other.firstPage],
 		total: one.total + other.total,
 		pageSize: one.pageSize + other.pageSize,
-		getPage(pageIndex: number, token): Thenable<T[]> {
-			return TPromise.join([one.getPage(pageIndex, token), other.getPage(pageIndex, token)])
+		getPage(pageIndex: number, token): Promise<T[]> {
+			return Promise.all([one.getPage(pageIndex, token), other.getPage(pageIndex, token)])
 				.then(([onePage, otherPage]) => [...onePage, ...otherPage]);
 		}
 	};

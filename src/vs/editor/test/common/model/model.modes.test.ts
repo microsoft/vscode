@@ -2,15 +2,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import * as assert from 'assert';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import * as modes from 'vs/editor/common/modes';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
-import { TokenizationResult2 } from 'vs/editor/common/core/token';
 
 // --------- utils
 
@@ -25,15 +26,15 @@ suite('Editor Model - Model Modes 1', () => {
 
 	const tokenizationSupport: modes.ITokenizationSupport = {
 		getInitialState: () => NULL_STATE,
-		tokenize: undefined,
+		tokenize: undefined!,
 		tokenize2: (line: string, state: modes.IState): TokenizationResult2 => {
 			calledFor.push(line.charAt(0));
-			return new TokenizationResult2(null, state);
+			return new TokenizationResult2(null!, state);
 		}
 	};
 
-	let thisModel: TextModel = null;
-	let languageRegistration: IDisposable = null;
+	let thisModel: TextModel;
+	let languageRegistration: IDisposable;
 
 	setup(() => {
 		const TEXT =
@@ -50,9 +51,7 @@ suite('Editor Model - Model Modes 1', () => {
 
 	teardown(() => {
 		thisModel.dispose();
-		thisModel = null;
 		languageRegistration.dispose();
-		languageRegistration = null;
 		calledFor = [];
 	});
 
@@ -173,10 +172,10 @@ suite('Editor Model - Model Modes 2', () => {
 
 	const tokenizationSupport: modes.ITokenizationSupport = {
 		getInitialState: () => new ModelState2(''),
-		tokenize: undefined,
+		tokenize: undefined!,
 		tokenize2: (line: string, state: modes.IState): TokenizationResult2 => {
 			(<ModelState2>state).prevLineContent = line;
-			return new TokenizationResult2(null, state);
+			return new TokenizationResult2(null!, state);
 		}
 	};
 
@@ -197,13 +196,13 @@ suite('Editor Model - Model Modes 2', () => {
 	function statesEqual(model: TextModel, states: string[]): void {
 		let i, len = states.length - 1;
 		for (i = 0; i < len; i++) {
-			stateEqual(model._tokens._getState(i), states[i]);
+			stateEqual(model._tokens._getState(i)!, states[i]);
 		}
 		stateEqual((<any>model)._tokens._lastState, states[len]);
 	}
 
-	let thisModel: TextModel = null;
-	let languageRegistration: IDisposable = null;
+	let thisModel: TextModel;
+	let languageRegistration: IDisposable;
 
 	setup(() => {
 		const TEXT =
@@ -219,9 +218,7 @@ suite('Editor Model - Model Modes 2', () => {
 
 	teardown(() => {
 		thisModel.dispose();
-		thisModel = null;
 		languageRegistration.dispose();
-		languageRegistration = null;
 	});
 
 	test('getTokensForInvalidLines one text insert', () => {

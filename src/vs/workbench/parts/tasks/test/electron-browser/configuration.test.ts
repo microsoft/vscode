@@ -26,7 +26,7 @@ class ProblemReporter implements IProblemReporter {
 	private _validationStatus: ValidationStatus = new ValidationStatus();
 
 	public receivedMessage: boolean = false;
-	public lastMessage: string = undefined;
+	public lastMessage: string | undefined = undefined;
 
 	public info(message: string): void {
 		this.log(message);
@@ -83,7 +83,7 @@ class PresentationBuilder {
 	public result: Tasks.PresentationOptions;
 
 	constructor(public parent: CommandConfigurationBuilder) {
-		this.result = { echo: false, reveal: Tasks.RevealKind.Always, focus: false, panel: Tasks.PanelKind.Shared, showReuseMessage: true };
+		this.result = { echo: false, reveal: Tasks.RevealKind.Always, focus: false, panel: Tasks.PanelKind.Shared, showReuseMessage: true, clear: false };
 	}
 
 	public echo(value: boolean): PresentationBuilder {
@@ -185,14 +185,15 @@ class CustomTaskBuilder {
 			_id: name,
 			_source: { kind: Tasks.TaskSourceKind.Workspace, label: 'workspace', config: { workspaceFolder: workspaceFolder, element: undefined, index: -1, file: '.vscode/tasks.json' } },
 			_label: name,
-			type: 'custom',
+			type: Tasks.CUSTOMIZED_TASK_TYPE,
 			identifier: name,
 			name: name,
 			command: this.commandBuilder.result,
 			isBackground: false,
 			promptOnClose: true,
 			problemMatchers: [],
-			hasDefinedMatchers: false
+			hasDefinedMatchers: false,
+			runOptions: { reevaluateOnRerun: true },
 		};
 	}
 

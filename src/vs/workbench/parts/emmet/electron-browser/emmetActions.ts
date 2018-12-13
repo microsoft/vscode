@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorAction, ServicesAccessor, IActionOptions } from 'vs/editor/browser/editorExtensions';
 import { grammarsExtPoint, ITMSyntaxExtensionPoint } from 'vs/workbench/services/textMate/electron-browser/TMGrammars';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -21,21 +20,20 @@ export interface IGrammarContributions {
 }
 
 export interface ILanguageIdentifierResolver {
-	getLanguageIdentifier(modeId: LanguageId): LanguageIdentifier;
+	getLanguageIdentifier(modeId: string | LanguageId): LanguageIdentifier | null;
 }
 
 class GrammarContributions implements IGrammarContributions {
 
-	private static _grammars: ModeScopeMap = null;
+	private static _grammars: ModeScopeMap = {};
 
 	constructor(contributions: ExtensionPointContribution<ITMSyntaxExtensionPoint[]>[]) {
-		if (GrammarContributions._grammars === null) {
+		if (!Object.keys(GrammarContributions._grammars).length) {
 			this.fillModeScopeMap(contributions);
 		}
 	}
 
 	private fillModeScopeMap(contributions: ExtensionPointContribution<ITMSyntaxExtensionPoint[]>[]) {
-		GrammarContributions._grammars = {};
 		contributions.forEach((contribution) => {
 			contribution.value.forEach((grammar) => {
 				if (grammar.language && grammar.scopeName) {
@@ -65,26 +63,26 @@ export abstract class EmmetEditorAction extends EditorAction {
 
 	private static readonly emmetSupportedModes = ['html', 'css', 'xml', 'xsl', 'haml', 'jade', 'jsx', 'slim', 'scss', 'sass', 'less', 'stylus', 'styl', 'svg'];
 
-	private _lastGrammarContributions: TPromise<GrammarContributions> = null;
-	private _lastExtensionService: IExtensionService = null;
-	private _withGrammarContributions(extensionService: IExtensionService): TPromise<GrammarContributions> {
+	private _lastGrammarContributions: Promise<GrammarContributions> | null = null;
+	private _lastExtensionService: IExtensionService | null = null;
+	private _withGrammarContributions(extensionService: IExtensionService): Promise<GrammarContributions | null> {
 		if (this._lastExtensionService !== extensionService) {
 			this._lastExtensionService = extensionService;
 			this._lastGrammarContributions = extensionService.readExtensionPointContributions(grammarsExtPoint).then((contributions) => {
 				return new GrammarContributions(contributions);
 			});
 		}
-		return this._lastGrammarContributions;
+		return this._lastGrammarContributions || Promise.resolve(null);
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const extensionService = accessor.get(IExtensionService);
 		const modeService = accessor.get(IModeService);
 		const commandService = accessor.get(ICommandService);
 
 		return this._withGrammarContributions(extensionService).then((grammarContributions) => {
 
-			if (this.id === 'editor.emmet.action.expandAbbreviation') {
+			if (this.id === 'editor.emmet.action.expandAbbreviation' && grammarContributions) {
 				return commandService.executeCommand<void>('emmet.expandAbbreviation', EmmetEditorAction.getLanguage(modeService, editor, grammarContributions));
 			}
 
@@ -94,11 +92,23 @@ export abstract class EmmetEditorAction extends EditorAction {
 	}
 
 	public static getLanguage(languageIdentifierResolver: ILanguageIdentifierResolver, editor: ICodeEditor, grammars: IGrammarContributions) {
-		let position = editor.getSelection().getStartPosition();
-		editor.getModel().tokenizeIfCheap(position.lineNumber);
-		let languageId = editor.getModel().getLanguageIdAtPosition(position.lineNumber, position.column);
-		let language = languageIdentifierResolver.getLanguageIdentifier(languageId).language;
-		let syntax = language.split('.').pop();
+		const model = editor.getModel();
+		const selection = editor.getSelection();
+
+		if (!model || !selection) {
+			return null;
+		}
+
+		const position = selection.getStartPosition();
+		model.tokenizeIfCheap(position.lineNumber);
+		const languageId = model.getLanguageIdAtPosition(position.lineNumber, position.column);
+		const languageIdentifier = languageIdentifierResolver.getLanguageIdentifier(languageId);
+		const language = languageIdentifier ? languageIdentifier.language : '';
+		const syntax = language.split('.').pop();
+
+		if (!syntax) {
+			return null;
+		}
 
 		let checkParentMode = (): string => {
 			let languageGrammar = grammars.getGrammar(syntax);

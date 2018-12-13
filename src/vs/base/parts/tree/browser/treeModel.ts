@@ -8,9 +8,8 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import * as arrays from 'vs/base/common/arrays';
 import { INavigator } from 'vs/base/common/iterator';
-import * as WinJS from 'vs/base/common/winjs.base';
 import * as _ from './tree';
-import { Event, Emitter, once, EventMultiplexer, Relay } from 'vs/base/common/event';
+import { Event, Emitter, EventMultiplexer, Relay } from 'vs/base/common/event';
 
 interface IMap<T> { [id: string]: T; }
 interface IItemMap extends IMap<Item> { }
@@ -79,20 +78,20 @@ export class Lock {
 		return !!this.locks[item.id];
 	}
 
-	public run(item: Item, fn: () => WinJS.Promise): WinJS.Promise {
+	public run(item: Item, fn: () => Promise<any>): Promise<any> {
 		var lock = this.getLock(item);
 
 		if (lock) {
-			return new WinJS.TPromise((c, e) => {
-				once(lock.onDispose)(() => {
+			return new Promise((c, e) => {
+				Event.once(lock.onDispose)(() => {
 					return this.run(item, fn).then(c, e);
 				});
 			});
 		}
 
-		var result: WinJS.Promise;
+		var result: Promise<any>;
 
-		return new WinJS.TPromise((c, e) => {
+		return new Promise((c, e) => {
 
 			if (item.isDisposed()) {
 				return e(new Error('Item is disposed.'));
@@ -346,29 +345,29 @@ export class Item {
 		this.expanded = value;
 	}
 
-	public reveal(relativeTop: number = null): void {
+	public reveal(relativeTop: number | null = null): void {
 		var eventData: IItemRevealEvent = { item: this, relativeTop: relativeTop };
 		this._onDidReveal.fire(eventData);
 	}
 
-	public expand(): WinJS.Promise {
+	public expand(): Promise<any> {
 		if (this.isExpanded() || !this.doesHaveChildren || this.lock.isLocked(this)) {
-			return WinJS.TPromise.as(false);
+			return Promise.resolve(false);
 		}
 
 		var result = this.lock.run(this, () => {
 			if (this.isExpanded() || !this.doesHaveChildren) {
-				return WinJS.TPromise.as(false);
+				return Promise.resolve(false);
 			}
 
 			var eventData: IItemExpandEvent = { item: this };
-			var result: WinJS.Promise;
+			var result: Promise<any>;
 			this._onExpand.fire(eventData);
 
 			if (this.needsChildrenRefresh) {
 				result = this.refreshChildren(false, true, true);
 			} else {
-				result = WinJS.TPromise.as(null);
+				result = Promise.resolve(null);
 			}
 
 			return result.then(() => {
@@ -392,9 +391,9 @@ export class Item {
 		});
 	}
 
-	public collapse(recursive: boolean = false): WinJS.Promise {
+	public collapse(recursive: boolean = false): Promise<any> {
 		if (recursive) {
-			var collapseChildrenPromise = WinJS.TPromise.as(null);
+			var collapseChildrenPromise = Promise.resolve(null);
 			this.forEachChild((child) => {
 				collapseChildrenPromise = collapseChildrenPromise.then(() => child.collapse(true));
 			});
@@ -403,7 +402,7 @@ export class Item {
 			});
 		} else {
 			if (!this.isExpanded() || this.lock.isLocked(this)) {
-				return WinJS.TPromise.as(false);
+				return Promise.resolve(false);
 			}
 
 			return this.lock.run(this, () => {
@@ -412,7 +411,7 @@ export class Item {
 				this._setExpanded(false);
 				this._onDidCollapse.fire(eventData);
 
-				return WinJS.TPromise.as(true);
+				return Promise.resolve(true);
 			});
 		}
 	}
@@ -448,7 +447,7 @@ export class Item {
 		return this.height;
 	}
 
-	private refreshChildren(recursive: boolean, safe: boolean = false, force: boolean = false): WinJS.Promise {
+	private refreshChildren(recursive: boolean, safe: boolean = false, force: boolean = false): Promise<any> {
 		if (!force && !this.isExpanded()) {
 			const setNeedsChildrenRefresh = (item: Item) => {
 				item.needsChildrenRefresh = true;
@@ -457,7 +456,7 @@ export class Item {
 
 			setNeedsChildrenRefresh(this);
 
-			return WinJS.TPromise.as(this);
+			return Promise.resolve(this);
 		}
 
 		this.needsChildrenRefresh = false;
@@ -466,20 +465,20 @@ export class Item {
 			var eventData: IItemChildrenRefreshEvent = { item: this, isNested: safe };
 			this._onRefreshChildren.fire(eventData);
 
-			var childrenPromise: WinJS.Promise;
+			var childrenPromise: Promise<any>;
 			if (this.doesHaveChildren) {
 				childrenPromise = this.context.dataSource.getChildren(this.context.tree, this.element);
 			} else {
-				childrenPromise = WinJS.TPromise.as([]);
+				childrenPromise = Promise.resolve([]);
 			}
 
 			const result = childrenPromise.then((elements: any[]) => {
 				if (this.isDisposed() || this.registry.isDisposed()) {
-					return WinJS.TPromise.as(null);
+					return Promise.resolve(null);
 				}
 
 				if (!Array.isArray(elements)) {
-					return WinJS.TPromise.wrapError(new Error('Please return an array of children.'));
+					return Promise.reject(new Error('Please return an array of children.'));
 				}
 
 				elements = !elements ? [] : elements.slice(0);
@@ -510,30 +509,30 @@ export class Item {
 				}
 
 				if (recursive) {
-					return WinJS.Promise.join(this.mapEachChild((child) => {
+					return Promise.all(this.mapEachChild((child) => {
 						return child.doRefresh(recursive, true);
 					}));
 				} else {
-					return WinJS.Promise.join(this.mapEachChild((child) => {
+					return Promise.all(this.mapEachChild((child) => {
 						if (child.isExpanded() && child.needsChildrenRefresh) {
 							return child.doRefresh(recursive, true);
 						} else {
 							child.updateVisibility();
-							return WinJS.TPromise.as(null);
+							return Promise.resolve(null);
 						}
 					}));
 				}
 			});
 
 			return result
-				.then(null, onUnexpectedError)
+				.then(void 0, onUnexpectedError)
 				.then(() => this._onDidRefreshChildren.fire(eventData));
 		};
 
 		return safe ? doRefresh() : this.lock.run(this, doRefresh);
 	}
 
-	private doRefresh(recursive: boolean, safe: boolean = false): WinJS.Promise {
+	private doRefresh(recursive: boolean, safe: boolean = false): Promise<any> {
 		this.doesHaveChildren = this.context.dataSource.hasChildren(this.context.tree, this.element);
 		this.height = this._getHeight();
 		this.updateVisibility();
@@ -547,7 +546,7 @@ export class Item {
 		this.setVisible(this._isVisible());
 	}
 
-	public refresh(recursive: boolean): WinJS.Promise {
+	public refresh(recursive: boolean): Promise<any> {
 		return this.doRefresh(recursive);
 	}
 
@@ -838,8 +837,8 @@ function getRange(one: Item, other: Item): Item[] {
 	var item = oneHierarchy[length - 1];
 	var nav = item.getNavigator();
 
-	var oneIndex: number = null;
-	var otherIndex: number = null;
+	var oneIndex: number | null = null;
+	var otherIndex: number | null = null;
 
 	var index = 0;
 	var result: Item[] = [];
@@ -930,7 +929,7 @@ export class TreeModel {
 		this.traitsToItems = {};
 	}
 
-	public setInput(element: any): WinJS.Promise {
+	public setInput(element: any): Promise<any> {
 		var eventData: IInputEvent = { item: this.input };
 		this._onSetInput.fire(eventData);
 
@@ -977,11 +976,11 @@ export class TreeModel {
 		return this.input ? this.input.getElement() : null;
 	}
 
-	public refresh(element: any = null, recursive: boolean = true): WinJS.Promise {
+	public refresh(element: any = null, recursive: boolean = true): Promise<any> {
 		var item = this.getItem(element);
 
 		if (!item) {
-			return WinJS.TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		var eventData: IRefreshEvent = { item: item, recursive: recursive };
@@ -991,17 +990,17 @@ export class TreeModel {
 		});
 	}
 
-	public expand(element: any): WinJS.Promise {
+	public expand(element: any): Promise<any> {
 		var item = this.getItem(element);
 
 		if (!item) {
-			return WinJS.TPromise.as(false);
+			return Promise.resolve(false);
 		}
 
 		return item.expand();
 	}
 
-	public expandAll(elements?: any[]): WinJS.Promise {
+	public expandAll(elements?: any[]): Promise<any> {
 		if (!elements) {
 			elements = [];
 
@@ -1013,24 +1012,54 @@ export class TreeModel {
 			}
 		}
 
+		return this._expandAll(elements);
+	}
+
+	private _expandAll(elements: any[]): Promise<any> {
+		if (elements.length === 0) {
+			return Promise.resolve(null);
+		}
+
+		const elementsToExpand: any[] = [];
+		const elementsToDelay: any[] = [];
+
+		for (const element of elements) {
+			var item = this.getItem(element);
+
+			if (item) {
+				elementsToExpand.push(element);
+			} else {
+				elementsToDelay.push(element);
+			}
+		}
+
+		if (elementsToExpand.length === 0) {
+			return Promise.resolve(null);
+		}
+
+		return this.__expandAll(elementsToExpand)
+			.then(() => this._expandAll(elementsToDelay));
+	}
+
+	private __expandAll(elements: any[]): Promise<any> {
 		var promises = [];
 		for (var i = 0, len = elements.length; i < len; i++) {
 			promises.push(this.expand(elements[i]));
 		}
-		return WinJS.Promise.join(promises);
+		return Promise.all(promises);
 	}
 
-	public collapse(element: any, recursive: boolean = false): WinJS.Promise {
+	public collapse(element: any, recursive: boolean = false): Promise<any> {
 		var item = this.getItem(element);
 
 		if (!item) {
-			return WinJS.TPromise.as(false);
+			return Promise.resolve(false);
 		}
 
 		return item.collapse(recursive);
 	}
 
-	public collapseAll(elements: any[] = null, recursive: boolean = false): WinJS.Promise {
+	public collapseAll(elements: any[] | null = null, recursive: boolean = false): Promise<any> {
 		if (!elements) {
 			elements = [this.input];
 			recursive = true;
@@ -1039,19 +1068,19 @@ export class TreeModel {
 		for (var i = 0, len = elements.length; i < len; i++) {
 			promises.push(this.collapse(elements[i], recursive));
 		}
-		return WinJS.Promise.join(promises);
+		return Promise.all(promises);
 	}
 
-	public toggleExpansion(element: any, recursive: boolean = false): WinJS.Promise {
+	public toggleExpansion(element: any, recursive: boolean = false): Promise<any> {
 		return this.isExpanded(element) ? this.collapse(element, recursive) : this.expand(element);
 	}
 
-	public toggleExpansionAll(elements: any[]): WinJS.Promise {
+	public toggleExpansionAll(elements: any[]): Promise<any> {
 		var promises = [];
 		for (var i = 0, len = elements.length; i < len; i++) {
 			promises.push(this.toggleExpansion(elements[i]));
 		}
-		return WinJS.Promise.join(promises);
+		return Promise.all(promises);
 	}
 
 	public isExpanded(element: any): boolean {
@@ -1078,9 +1107,9 @@ export class TreeModel {
 		return result;
 	}
 
-	public reveal(element: any, relativeTop: number = null): WinJS.Promise {
+	public reveal(element: any, relativeTop: number | null = null): Promise<any> {
 		return this.resolveUnknownParentChain(element).then((chain: any[]) => {
-			var result = WinJS.TPromise.as(null);
+			var result = Promise.resolve(null);
 
 			chain.forEach((e) => {
 				result = result.then(() => this.expand(e));
@@ -1096,10 +1125,10 @@ export class TreeModel {
 		});
 	}
 
-	private resolveUnknownParentChain(element: any): WinJS.Promise {
+	private resolveUnknownParentChain(element: any): Promise<any> {
 		return this.context.dataSource.getParent(this.context.tree, element).then((parent) => {
 			if (!parent) {
-				return WinJS.TPromise.as([]);
+				return Promise.resolve([]);
 			}
 
 			return this.resolveUnknownParentChain(parent).then((result) => {
@@ -1221,8 +1250,8 @@ export class TreeModel {
 
 	public selectPrevious(count: number = 1, clearSelection: boolean = true, eventPayload?: any): void {
 		var selection = this.getSelection(),
-			item: Item = null,
-			previousItem: Item = null;
+			item: Item | null = null,
+			previousItem: Item | null = null;
 
 		if (selection.length === 0) {
 			let nav = this.getNavigator(this.input);

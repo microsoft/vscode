@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
@@ -19,9 +18,10 @@ import { Dimension, size, clearNode } from 'vs/base/browser/dom';
 import { IFileService } from 'vs/platform/files/common/files';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { dispose } from 'vs/base/common/lifecycle';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export interface IOpenCallbacks {
-	openInternal: (input: EditorInput, options: EditorOptions) => Thenable<void>;
+	openInternal: (input: EditorInput, options: EditorOptions) => Promise<void>;
 	openExternal: (uri: URI) => void;
 }
 
@@ -48,8 +48,9 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		telemetryService: ITelemetryService,
 		themeService: IThemeService,
 		@IFileService private readonly _fileService: IFileService,
+		@IStorageService storageService: IStorageService
 	) {
-		super(id, telemetryService, themeService);
+		super(id, telemetryService, themeService, storageService);
 
 		this.callbacks = callbacks;
 	}
@@ -71,7 +72,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		parent.appendChild(this.scrollbar.getDomNode());
 	}
 
-	setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+	setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 		return super.setInput(input, options, token).then(() => {
 			return input.resolve().then(model => {
 
@@ -82,7 +83,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 
 				// Assert Model instance
 				if (!(model instanceof BinaryEditorModel)) {
-					return TPromise.wrapError<void>(new Error('Unable to open file as binary'));
+					return Promise.reject(new Error('Unable to open file as binary'));
 				}
 
 				// Render Input

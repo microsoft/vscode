@@ -5,7 +5,6 @@
 
 import 'vs/css!./media/output';
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Action, IAction } from 'vs/base/common/actions';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -113,10 +112,10 @@ export class OutputPanel extends AbstractTextResourceEditor {
 		return channel ? nls.localize('outputPanelWithInputAriaLabel', "{0}, Output panel", channel.label) : nls.localize('outputPanelAriaLabel', "Output panel");
 	}
 
-	public setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+	public setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 		this._focus = !options.preserveFocus;
 		if (input.matches(this.input)) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		if (this.input) {

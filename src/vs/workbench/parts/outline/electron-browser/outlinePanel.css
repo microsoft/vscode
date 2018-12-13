@@ -36,15 +36,6 @@
 	padding-right: 22px;
 }
 
-.monaco-workbench .outline-panel .outline-input .monaco-custom-checkbox {
-	position: absolute;
-	top: 5px;
-	right: 13px;
-	bottom: 0;
-	display: flex;
-	align-items: center;
-}
-
 .monaco-workbench .outline-panel .outline-tree {
 	height: 100%;
 }

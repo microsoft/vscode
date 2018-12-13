@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./iPadShowKeyboard';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
 
 export class IPadShowKeyboard implements IEditorContribution {
 
 	private static readonly ID = 'editor.contrib.iPadShowKeyboard';
 
 	private editor: ICodeEditor;
-	private widget: ShowKeyboardWidget;
+	private widget: ShowKeyboardWidget | null;
 	private toDispose: IDisposable[];
 
 	constructor(editor: ICodeEditor) {
@@ -29,14 +29,13 @@ export class IPadShowKeyboard implements IEditorContribution {
 	}
 
 	private update(): void {
-		const hasWidget = (!!this.widget);
 		const shouldHaveWidget = (!this.editor.getConfiguration().readOnly);
 
-		if (!hasWidget && shouldHaveWidget) {
+		if (!this.widget && shouldHaveWidget) {
 
 			this.widget = new ShowKeyboardWidget(this.editor);
 
-		} else if (hasWidget && !shouldHaveWidget) {
+		} else if (this.widget && !shouldHaveWidget) {
 
 			this.widget.dispose();
 			this.widget = null;

@@ -269,33 +269,13 @@
 			}
 
 			::-webkit-scrollbar-thumb {
-				background-color: rgba(121, 121, 121, 0.4);
+				background-color: var(--vscode-scrollbarSlider-background);
 			}
-			body.vscode-light::-webkit-scrollbar-thumb {
-				background-color: rgba(100, 100, 100, 0.4);
-			}
-			body.vscode-high-contrast::-webkit-scrollbar-thumb {
-				background-color: rgba(111, 195, 223, 0.3);
-			}
-
 			::-webkit-scrollbar-thumb:hover {
-				background-color: rgba(100, 100, 100, 0.7);
+				background-color: var(--vscode-scrollbarSlider-hoverBackground);
 			}
-			body.vscode-light::-webkit-scrollbar-thumb:hover {
-				background-color: rgba(100, 100, 100, 0.7);
-			}
-			body.vscode-high-contrast::-webkit-scrollbar-thumb:hover {
-				background-color: rgba(111, 195, 223, 0.8);
-			}
-
 			::-webkit-scrollbar-thumb:active {
-				background-color: rgba(85, 85, 85, 0.8);
-			}
-			body.vscode-light::-webkit-scrollbar-thumb:active {
-				background-color: rgba(0, 0, 0, 0.6);
-			}
-			body.vscode-high-contrast::-webkit-scrollbar-thumb:active {
-				background-color: rgba(111, 195, 223, 0.8);
+				background-color: var(--vscode-scrollbarSlider-activeBackground);
 			}
 			`;
 			if (newDocument.head.hasChildNodes()) {
@@ -307,7 +287,7 @@
 			styleBody(newDocument.body);
 
 			const frame = getActiveFrame();
-
+			const wasFirstLoad = firstLoad;
 			// keep current scrollY around and use later
 			var setInitialScrollPosition;
 			if (firstLoad) {
@@ -334,7 +314,9 @@
 				previousPendingFrame.setAttribute('id', '');
 				document.body.removeChild(previousPendingFrame);
 			}
-			pendingMessages = [];
+			if (!wasFirstLoad) {
+				pendingMessages = [];
+			}
 
 			const newFrame = document.createElement('iframe');
 			newFrame.setAttribute('id', 'pending-frame');
@@ -345,6 +327,20 @@
 
 			// write new content onto iframe
 			newFrame.contentDocument.open('text/html', 'replace');
+			newFrame.contentWindow.addEventListener('focus', function () { ipcRenderer.sendToHost('did-focus'); });
+			newFrame.contentWindow.addEventListener('blur', function () { ipcRenderer.sendToHost('did-blur'); });
+			newFrame.contentWindow.addEventListener('keydown', function (e) {
+				ipcRenderer.sendToHost('did-keydown', {
+					key: e.key,
+					keyCode: e.keyCode,
+					code: e.code,
+					shiftKey: e.shiftKey,
+					altKey: e.altKey,
+					ctrlKey: e.ctrlKey,
+					metaKey: e.metaKey,
+					repeat: e.repeat
+				});
+			});
 			newFrame.contentWindow.onbeforeunload = () => {
 				if (isInDevelopmentMode) { // Allow reloads while developing a webview
 					ipcRenderer.sendToHost('do-reload');
@@ -413,14 +409,14 @@
 		// Forward message to the embedded iframe
 		ipcRenderer.on('message', (_event, data) => {
 			const pending = getPendingFrame();
-			if (pending) {
-				pendingMessages.push(data);
-			} else {
+			if (!pending) {
 				const target = getActiveFrame();
 				if (target) {
 					target.contentWindow.postMessage(data, '*');
+					return;
 				}
 			}
+			pendingMessages.push(data);
 		});
 
 		ipcRenderer.on('initial-scroll-position', (_event, progress) => {

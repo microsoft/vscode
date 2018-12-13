@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as platform from 'vs/base/common/platform';
-import { Emitter, debounceEvent } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { ITerminalInstance } from 'vs/workbench/parts/terminal/common/terminal';
 import { Terminal as XTermTerminal } from 'vscode-xterm';
 import WindowsProcessTreeType = require('windows-process-tree');
@@ -27,7 +27,7 @@ let windowsProcessTree: typeof WindowsProcessTreeType;
 export class WindowsShellHelper {
 	private _onCheckShell: Emitter<Promise<string>>;
 	private _isDisposed: boolean;
-	private _currentRequest: Promise<string>;
+	private _currentRequest: Promise<string> | null;
 	private _newLineFeed: boolean;
 
 	public constructor(
@@ -50,7 +50,7 @@ export class WindowsShellHelper {
 			this._onCheckShell = new Emitter<Promise<string>>();
 			// The debounce is necessary to prevent multiple processes from spawning when
 			// the enter key or output is spammed
-			debounceEvent(this._onCheckShell.event, (l, e) => e, 150, true)(() => {
+			Event.debounce(this._onCheckShell.event, (l, e) => e, 150, true)(() => {
 				setTimeout(() => {
 					this.checkShell();
 				}, 50);

@@ -5,20 +5,16 @@
 
 import { Delayer } from 'vs/base/common/async';
 import * as DOM from 'vs/base/browser/dom';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Action, IAction, IActionChangeEvent } from 'vs/base/common/actions';
 import { HistoryInputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import Messages from 'vs/workbench/parts/markers/electron-browser/messages';
 import Constants from 'vs/workbench/parts/markers/electron-browser/constants';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { CollapseAllAction as TreeCollapseAction } from 'vs/base/parts/tree/browser/treeDefaults';
-import * as Tree from 'vs/base/parts/tree/browser/tree';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachInputBoxStyler, attachStylerCallback, attachCheckboxStyler } from 'vs/platform/theme/common/styler';
 import { IMarkersWorkbenchService } from 'vs/workbench/parts/markers/electron-browser/markers';
@@ -37,6 +33,15 @@ import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/commo
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { isEqual } from 'vs/base/common/resources';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { CodeAction } from 'vs/editor/common/modes';
+import { Range } from 'vs/editor/common/core/range';
+import { IMarkerData } from 'vs/platform/markers/common/markers';
+import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
+import { URI } from 'vs/base/common/uri';
+import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
+import { Event } from 'vs/base/common/event';
+import { FilterOptions } from 'vs/workbench/parts/markers/electron-browser/markersFilterOptions';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export class ToggleMarkersPanelAction extends TogglePanelAction {
 
@@ -63,15 +68,9 @@ export class ShowProblemsPanelAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
-		return this.panelService.openPanel(Constants.MARKERS_PANEL_ID, true);
-	}
-}
-
-export class CollapseAllAction extends TreeCollapseAction {
-
-	constructor(viewer: Tree.ITree, enabled: boolean) {
-		super(viewer, enabled);
+	public run(): Promise<any> {
+		this.panelService.openPanel(Constants.MARKERS_PANEL_ID, true);
+		return Promise.resolve(null);
 	}
 }
 
@@ -122,6 +121,12 @@ export class MarkersFilterAction extends Action {
 	}
 }
 
+export interface IMarkerFilterController {
+	onDidFilter: Event<void>;
+	getFilterOptions(): FilterOptions;
+	getFilterStats(): { total: number, filtered: number };
+}
+
 export class MarkersFilterActionItem extends BaseActionItem {
 
 	private delayedFilterUpdate: Delayer<void>;
@@ -133,16 +138,16 @@ export class MarkersFilterActionItem extends BaseActionItem {
 
 	constructor(
 		readonly action: MarkersFilterAction,
+		private filterController: IMarkerFilterController,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IThemeService private themeService: IThemeService,
-		@IMarkersWorkbenchService private markersWorkbenchService: IMarkersWorkbenchService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(null, action);
 		this.focusContextKey = Constants.MarkerPanelFilterFocusContextKey.bindTo(contextKeyService);
-		this.delayedFilterUpdate = new Delayer<void>(500);
+		this.delayedFilterUpdate = new Delayer<void>(200);
 		this._register(toDisposable(() => this.delayedFilterUpdate.cancel()));
 	}
 
@@ -184,9 +189,9 @@ export class MarkersFilterActionItem extends BaseActionItem {
 				this.filterInputBox.value = this.action.filterText;
 			}
 		}));
-		this._register(DOM.addStandardDisposableListener(this.filterInputBox.inputElement, 'keydown', (keyboardEvent) => this.onInputKeyDown(keyboardEvent, this.filterInputBox)));
-		this._register(DOM.addStandardDisposableListener(container, 'keydown', this.handleKeyboardEvent));
-		this._register(DOM.addStandardDisposableListener(container, 'keyup', this.handleKeyboardEvent));
+		this._register(DOM.addStandardDisposableListener(this.filterInputBox.inputElement, DOM.EventType.KEY_DOWN, (e: any) => this.onInputKeyDown(e, this.filterInputBox)));
+		this._register(DOM.addStandardDisposableListener(container, DOM.EventType.KEY_DOWN, this.handleKeyboardEvent));
+		this._register(DOM.addStandardDisposableListener(container, DOM.EventType.KEY_UP, this.handleKeyboardEvent));
 
 		const focusTracker = this._register(DOM.trackFocus(this.filterInputBox.inputElement));
 		this._register(focusTracker.onDidFocus(() => this.focusContextKey.set(true)));
@@ -213,7 +218,7 @@ export class MarkersFilterActionItem extends BaseActionItem {
 			this.filterBadge.style.borderColor = border;
 		}));
 		this.updateBadge();
-		this._register(this.markersWorkbenchService.onDidChange(() => this.updateBadge()));
+		this._register(this.filterController.onDidFilter(() => this.updateBadge()));
 	}
 
 	private createFilesExcludeCheckbox(container: HTMLElement): void {
@@ -244,7 +249,7 @@ export class MarkersFilterActionItem extends BaseActionItem {
 	}
 
 	private updateBadge(): void {
-		const { total, filtered } = this.markersWorkbenchService.markersModel.stats();
+		const { total, filtered } = this.filterController.getFilterStats();
 		DOM.toggleClass(this.filterBadge, 'hidden', total === filtered || filtered === 0);
 		this.filterBadge.textContent = localize('showing filtered problems', "Showing {0} of {1}", filtered, total);
 		this.adjustInputBox();
@@ -255,36 +260,34 @@ export class MarkersFilterActionItem extends BaseActionItem {
 	}
 
 	// Action toolbar is swallowing some keys for action items which should not be for an input box
-	private handleKeyboardEvent(e: IKeyboardEvent) {
-		switch (e.keyCode) {
-			case KeyCode.Space:
-			case KeyCode.LeftArrow:
-			case KeyCode.RightArrow:
-			case KeyCode.Escape:
-				e.stopPropagation();
-				break;
+	private handleKeyboardEvent(event: StandardKeyboardEvent) {
+		if (event.equals(KeyCode.Space)
+			|| event.equals(KeyCode.LeftArrow)
+			|| event.equals(KeyCode.RightArrow)
+			|| event.equals(KeyCode.Escape)
+		) {
+			event.stopPropagation();
 		}
 	}
 
-	private onInputKeyDown(keyboardEvent: IKeyboardEvent, filterInputBox: HistoryInputBox) {
+	private onInputKeyDown(event: StandardKeyboardEvent, filterInputBox: HistoryInputBox) {
 		let handled = false;
-		switch (keyboardEvent.keyCode) {
-			case KeyCode.Escape:
-				filterInputBox.value = '';
-				handled = true;
-				break;
+		if (event.equals(KeyCode.Escape)) {
+			filterInputBox.value = '';
+			handled = true;
 		}
 		if (handled) {
-			keyboardEvent.stopPropagation();
-			keyboardEvent.preventDefault();
+			event.stopPropagation();
+			event.preventDefault();
 		}
 	}
 
 	private reportFilteringUsed(): void {
-		let data = {};
-		data['errors'] = this.markersWorkbenchService.markersModel.filterOptions.filterErrors;
-		data['warnings'] = this.markersWorkbenchService.markersModel.filterOptions.filterWarnings;
-		data['infos'] = this.markersWorkbenchService.markersModel.filterOptions.filterInfos;
+		const filterOptions = this.filterController.getFilterOptions();
+		const data = {};
+		data['errors'] = filterOptions.filterErrors;
+		data['warnings'] = filterOptions.filterWarnings;
+		data['infos'] = filterOptions.filterInfos;
 		/* __GDPR__
 			"problems.filter" : {
 				"errors" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -301,6 +304,7 @@ export class QuickFixAction extends Action {
 	public static readonly ID: string = 'workbench.actions.problems.quickfix';
 
 	private updated: boolean = false;
+	private _allFixesPromise: Promise<CodeAction[]>;
 	private disposables: IDisposable[] = [];
 
 	constructor(
@@ -308,10 +312,10 @@ export class QuickFixAction extends Action {
 		@IBulkEditService private bulkEditService: IBulkEditService,
 		@ICommandService private commandService: ICommandService,
 		@IEditorService private editorService: IEditorService,
-		@IModelService modelService: IModelService
+		@IModelService private modelService: IModelService
 	) {
 		super(QuickFixAction.ID, Messages.MARKERS_PANEL_ACTION_TOOLTIP_QUICKFIX, 'markers-panel-action-quickfix', false);
-		if (modelService.getModel(this.marker.resourceMarkers.uri)) {
+		if (modelService.getModel(this.marker.resource)) {
 			this.update();
 		} else {
 			modelService.onModelAdded(model => {
@@ -320,18 +324,17 @@ export class QuickFixAction extends Action {
 				}
 			}, this, this.disposables);
 		}
-
 	}
 
 	private update(): void {
 		if (!this.updated) {
-			this.marker.resourceMarkers.hasFixes(this.marker).then(hasFixes => this.enabled = hasFixes);
+			this.hasFixes(this.marker).then(hasFixes => this.enabled = hasFixes);
 			this.updated = true;
 		}
 	}
 
 	async getQuickFixActions(): Promise<IAction[]> {
-		const codeActions = await this.marker.resourceMarkers.getFixes(this.marker);
+		const codeActions = await this.getFixes(this.marker);
 		return codeActions.map(codeAction => new Action(
 			codeAction.command ? codeAction.command.id : codeAction.title,
 			codeAction.title,
@@ -343,7 +346,7 @@ export class QuickFixAction extends Action {
 			}));
 	}
 
-	public openFileAtMarker(element: Marker): TPromise<void> {
+	public openFileAtMarker(element: Marker): Promise<void> {
 		const { resource, selection } = { resource: element.resource, selection: element.range };
 		return this.editorService.openEditor({
 			resource,
@@ -354,6 +357,39 @@ export class QuickFixAction extends Action {
 				revealIfVisible: true
 			},
 		}, ACTIVE_GROUP).then(() => null);
+	}
+
+	private getFixes(marker: Marker): Promise<CodeAction[]> {
+		return this._getFixes(marker.resource, new Range(marker.range.startLineNumber, marker.range.startColumn, marker.range.endLineNumber, marker.range.endColumn));
+	}
+
+	private async hasFixes(marker: Marker): Promise<boolean> {
+		if (!this.modelService.getModel(marker.resource)) {
+			// Return early, If the model is not yet created
+			return false;
+		}
+		if (!this._allFixesPromise) {
+			this._allFixesPromise = this._getFixes(marker.resource);
+		}
+		const allFixes = await this._allFixesPromise;
+		if (allFixes.length) {
+			const markerKey = IMarkerData.makeKey(marker.marker);
+			for (const fix of allFixes) {
+				if (fix.diagnostics && fix.diagnostics.some(d => IMarkerData.makeKey(d) === markerKey)) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	private async _getFixes(uri: URI, range?: Range): Promise<CodeAction[]> {
+		const model = this.modelService.getModel(uri);
+		if (model) {
+			const codeActions = await getCodeActions(model, range ? range : model.getFullModelRange(), { type: 'manual', filter: { kind: CodeActionKind.QuickFix } });
+			return codeActions;
+		}
+		return [];
 	}
 
 	dispose(): void {
@@ -373,10 +409,11 @@ export class QuickFixActionItem extends ActionItem {
 	public onClick(event: DOM.EventLike): void {
 		DOM.EventHelper.stop(event, true);
 		const elementPosition = DOM.getDomNodePagePosition(this.element);
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => ({ x: elementPosition.left + 10, y: elementPosition.top + elementPosition.height }),
-			getActions: () => TPromise.wrap((<QuickFixAction>this.getAction()).getQuickFixActions()),
+		(<QuickFixAction>this.getAction()).getQuickFixActions().then(actions => {
+			this.contextMenuService.showContextMenu({
+				getAnchor: () => ({ x: elementPosition.left + 10, y: elementPosition.top + elementPosition.height }),
+				getActions: () => actions
+			});
 		});
 	}
-
 }

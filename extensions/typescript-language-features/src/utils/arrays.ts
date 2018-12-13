@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-export function equals<T>(one: T[], other: T[], itemEquals: (a: T, b: T) => boolean = (a, b) => a === b): boolean {
+export function equals<T>(one: ReadonlyArray<T>, other: ReadonlyArray<T>, itemEquals: (a: T, b: T) => boolean = (a, b) => a === b): boolean {
 	if (one.length !== other.length) {
 		return false;
 	}
@@ -16,6 +16,6 @@ export function equals<T>(one: T[], other: T[], itemEquals: (a: T, b: T) => bool
 	return true;
 }
 
-export function flatten<T>(arr: T[][]): T[] {
-	return [].concat.apply([], arr);
+export function flatten<T>(arr: ReadonlyArray<T>[]): T[] {
+	return ([] as T[]).concat.apply([], arr);
 }

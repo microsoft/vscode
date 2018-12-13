@@ -6,17 +6,17 @@
 import 'vs/css!./decorations';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { Range } from 'vs/editor/common/core/range';
+import { HorizontalRange, RenderingContext } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { RenderingContext, HorizontalRange } from 'vs/editor/common/view/renderingContext';
-import { ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
 
 export class DecorationsOverlay extends DynamicViewOverlay {
 
 	private _context: ViewContext;
 	private _lineHeight: number;
 	private _typicalHalfwidthCharacterWidth: number;
-	private _renderResult: string[];
+	private _renderResult: string[] | null;
 
 	constructor(context: ViewContext) {
 		super();
@@ -30,7 +30,6 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 
 	public dispose(): void {
 		this._context.removeEventHandler(this);
-		this._context = null;
 		this._renderResult = null;
 		super.dispose();
 	}
@@ -83,14 +82,14 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 
 		// Sort decorations for consistent render output
 		decorations = decorations.sort((a, b) => {
-			if (a.options.zIndex < b.options.zIndex) {
+			if (a.options.zIndex! < b.options.zIndex!) {
 				return -1;
 			}
-			if (a.options.zIndex > b.options.zIndex) {
+			if (a.options.zIndex! > b.options.zIndex!) {
 				return 1;
 			}
-			const aClassName = a.options.className;
-			const bClassName = b.options.className;
+			const aClassName = a.options.className!;
+			const bClassName = b.options.className!;
 
 			if (aClassName < bClassName) {
 				return -1;
@@ -149,9 +148,9 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 		const lineHeight = String(this._lineHeight);
 		const visibleStartLineNumber = ctx.visibleRange.startLineNumber;
 
-		let prevClassName: string = null;
+		let prevClassName: string | null = null;
 		let prevShowIfCollapsed: boolean = false;
-		let prevRange: Range = null;
+		let prevRange: Range | null = null;
 
 		for (let i = 0, lenI = decorations.length; i < lenI; i++) {
 			const d = decorations[i];
@@ -160,23 +159,23 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 				continue;
 			}
 
-			const className = d.options.className;
-			const showIfCollapsed = d.options.showIfCollapsed;
+			const className = d.options.className!;
+			const showIfCollapsed = Boolean(d.options.showIfCollapsed);
 
 			let range = d.range;
 			if (showIfCollapsed && range.endColumn === 1 && range.endLineNumber !== range.startLineNumber) {
 				range = new Range(range.startLineNumber, range.startColumn, range.endLineNumber - 1, this._context.model.getLineMaxColumn(range.endLineNumber - 1));
 			}
 
-			if (prevClassName === className && prevShowIfCollapsed === showIfCollapsed && Range.areIntersectingOrTouching(prevRange, range)) {
+			if (prevClassName === className && prevShowIfCollapsed === showIfCollapsed && Range.areIntersectingOrTouching(prevRange!, range)) {
 				// merge into previous decoration
-				prevRange = Range.plusRange(prevRange, range);
+				prevRange = Range.plusRange(prevRange!, range);
 				continue;
 			}
 
 			// flush previous decoration
 			if (prevClassName !== null) {
-				this._renderNormalDecoration(ctx, prevRange, prevClassName, prevShowIfCollapsed, lineHeight, visibleStartLineNumber, output);
+				this._renderNormalDecoration(ctx, prevRange!, prevClassName, prevShowIfCollapsed, lineHeight, visibleStartLineNumber, output);
 			}
 
 			prevClassName = className;
@@ -185,7 +184,7 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 		}
 
 		if (prevClassName !== null) {
-			this._renderNormalDecoration(ctx, prevRange, prevClassName, prevShowIfCollapsed, lineHeight, visibleStartLineNumber, output);
+			this._renderNormalDecoration(ctx, prevRange!, prevClassName, prevShowIfCollapsed, lineHeight, visibleStartLineNumber, output);
 		}
 	}
 

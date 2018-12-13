@@ -5,7 +5,6 @@
 
 import { URI as uri } from 'vs/base/common/uri';
 import { isMacintosh } from 'vs/base/common/platform';
-import * as errors from 'vs/base/common/errors';
 import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import * as nls from 'vs/nls';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
@@ -34,19 +33,19 @@ export class LinkDetector {
 	 * 'onclick' event is attached to all anchored links that opens them in the editor.
 	 * If no links were detected, returns the original string.
 	 */
-	public handleLinks(text: string): HTMLElement | string {
+	handleLinks(text: string): HTMLElement | string {
 		if (text.length > LinkDetector.MAX_LENGTH) {
 			return text;
 		}
 
-		let linkContainer: HTMLElement;
+		let linkContainer: HTMLElement | undefined;
 		for (let pattern of LinkDetector.FILE_LOCATION_PATTERNS) {
 			pattern.lastIndex = 0; // the holy grail of software development
 			let lastMatchIndex = 0;
 
 			let match = pattern.exec(text);
 			while (match !== null) {
-				let resource: uri = null;
+				let resource: uri | null = null;
 				if (!resource) {
 					match = pattern.exec(text);
 					continue;
@@ -68,7 +67,7 @@ export class LinkDetector {
 				linkContainer.appendChild(link);
 				const line = Number(match[3]);
 				const column = match[4] ? Number(match[4]) : undefined;
-				link.onclick = (e) => this.onLinkClick(new StandardMouseEvent(e), resource, line, column);
+				link.onclick = (e) => this.onLinkClick(new StandardMouseEvent(e), resource!, line, column);
 
 				lastMatchIndex = pattern.lastIndex;
 				const currentMatch = match;
@@ -106,6 +105,6 @@ export class LinkDetector {
 					startColumn: column
 				}
 			}
-		}, group).then(null, errors.onUnexpectedError);
+		}, group);
 	}
 }

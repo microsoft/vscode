@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
 import * as nls from 'vs/nls';
 import * as paths from 'vs/base/common/paths';
@@ -13,18 +12,18 @@ import { URI } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import { IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { getIconClasses } from 'vs/workbench/browser/labels';
+import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenEntry, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenHandler, EditorQuickOpenEntry } from 'vs/workbench/browser/quickopen';
-import { QueryBuilder } from 'vs/workbench/parts/search/common/queryBuilder';
+import { QueryBuilder, IFileQueryBuilderOptions } from 'vs/workbench/parts/search/common/queryBuilder';
 import { EditorInput, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IQueryOptions, ISearchService, IFileSearchStats, ISearchQuery, ISearchComplete } from 'vs/platform/search/common/search';
+import { ISearchService, IFileSearchStats, IFileQuery, ISearchComplete } from 'vs/platform/search/common/search';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IRange } from 'vs/editor/common/core/range';
@@ -138,12 +137,12 @@ export class OpenFileHandler extends QuickOpenHandler {
 		this.options = options;
 	}
 
-	getResults(searchValue: string, token: CancellationToken, maxSortedResults?: number): TPromise<FileQuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken, maxSortedResults?: number): Promise<FileQuickOpenModel> {
 		const query = prepareQuery(searchValue);
 
 		// Respond directly to empty search
 		if (!query.value) {
-			return TPromise.as(new FileQuickOpenModel([]));
+			return Promise.resolve(new FileQuickOpenModel([]));
 		}
 
 		// Untildify file pattern
@@ -153,7 +152,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 		return this.doFindResults(query, token, this.cacheState.cacheKey, maxSortedResults);
 	}
 
-	private doFindResults(query: IPreparedQuery, token: CancellationToken, cacheKey?: string, maxSortedResults?: number): TPromise<FileQuickOpenModel> {
+	private doFindResults(query: IPreparedQuery, token: CancellationToken, cacheKey?: string, maxSortedResults?: number): Promise<FileQuickOpenModel> {
 		const queryOptions = this.doResolveQueryOptions(query, cacheKey, maxSortedResults);
 
 		let iconClass: string;
@@ -163,15 +162,15 @@ export class OpenFileHandler extends QuickOpenHandler {
 
 		return this.getAbsolutePathResult(query).then(result => {
 			if (token.isCancellationRequested) {
-				return TPromise.wrap(<ISearchComplete>{ results: [] });
+				return Promise.resolve(<ISearchComplete>{ results: [] });
 			}
 
 			// If the original search value is an existing file on disk, return it immediately and bypass the search service
 			if (result) {
-				return TPromise.wrap(<ISearchComplete>{ results: [{ resource: result }] });
+				return Promise.resolve(<ISearchComplete>{ results: [{ resource: result }] });
 			}
 
-			return this.searchService.search(this.queryBuilder.file(this.contextService.getWorkspace().folders.map(folder => folder.uri), queryOptions), token);
+			return this.searchService.fileSearch(this.queryBuilder.file(this.contextService.getWorkspace().folders.map(folder => folder.uri), queryOptions), token);
 		}).then(complete => {
 			const results: QuickOpenEntry[] = [];
 
@@ -190,18 +189,19 @@ export class OpenFileHandler extends QuickOpenHandler {
 		});
 	}
 
-	private getAbsolutePathResult(query: IPreparedQuery): TPromise<URI> {
+	private getAbsolutePathResult(query: IPreparedQuery): Promise<URI> {
 		if (paths.isAbsolute(query.original)) {
 			const resource = URI.file(query.original);
 
 			return this.fileService.resolveFile(resource).then(stat => stat.isDirectory ? void 0 : resource, error => void 0);
 		}
 
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
-	private doResolveQueryOptions(query: IPreparedQuery, cacheKey?: string, maxSortedResults?: number): IQueryOptions {
-		const queryOptions: IQueryOptions = {
+	private doResolveQueryOptions(query: IPreparedQuery, cacheKey?: string, maxSortedResults?: number): IFileQueryBuilderOptions {
+		const queryOptions: IFileQueryBuilderOptions = {
+			_reason: 'openFileHandler',
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorService, this.contextService),
 			filePattern: query.value,
 			cacheKey
@@ -220,12 +220,13 @@ export class OpenFileHandler extends QuickOpenHandler {
 	}
 
 	onOpen(): void {
-		this.cacheState = new CacheState(cacheKey => this.cacheQuery(cacheKey), query => this.searchService.search(query), cacheKey => this.searchService.clearCache(cacheKey), this.cacheState);
+		this.cacheState = new CacheState(cacheKey => this.cacheQuery(cacheKey), query => this.searchService.fileSearch(query), cacheKey => this.searchService.clearCache(cacheKey), this.cacheState);
 		this.cacheState.load();
 	}
 
-	private cacheQuery(cacheKey: string): ISearchQuery {
-		const options: IQueryOptions = {
+	private cacheQuery(cacheKey: string): IFileQuery {
+		const options: IFileQueryBuilderOptions = {
+			_reason: 'openFileHandler',
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorService, this.contextService),
 			filePattern: '',
 			cacheKey: cacheKey,
@@ -268,12 +269,12 @@ enum LoadingPhase {
 export class CacheState {
 
 	private _cacheKey = defaultGenerator.nextId();
-	private query: ISearchQuery;
+	private query: IFileQuery;
 
 	private loadingPhase = LoadingPhase.Created;
-	private promise: TPromise<void>;
+	private promise: Promise<void>;
 
-	constructor(cacheQuery: (cacheKey: string) => ISearchQuery, private doLoad: (query: ISearchQuery) => TPromise<any>, private doDispose: (cacheKey: string) => TPromise<void>, private previous: CacheState) {
+	constructor(cacheQuery: (cacheKey: string) => IFileQuery, private doLoad: (query: IFileQuery) => Promise<any>, private doDispose: (cacheKey: string) => Promise<void>, private previous: CacheState) {
 		this.query = cacheQuery(this._cacheKey);
 		if (this.previous) {
 			const current = objects.assign({}, this.query, { cacheKey: null });
@@ -319,11 +320,11 @@ export class CacheState {
 
 	dispose(): void {
 		if (this.promise) {
-			this.promise.then(null, () => { })
+			this.promise.then(void 0, () => { })
 				.then(() => {
 					this.loadingPhase = LoadingPhase.Disposed;
 					return this.doDispose(this._cacheKey);
-				}).then(null, err => {
+				}).then(void 0, err => {
 					errors.onUnexpectedError(err);
 				});
 		} else {

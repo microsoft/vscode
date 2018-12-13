@@ -9,10 +9,10 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
 
-export type styleFn = (colors: { [name: string]: Color }) => void;
+export type styleFn = (colors: { [name: string]: Color | null }) => void;
 
 export interface IStyleOverrides {
-	[color: string]: ColorIdentifier;
+	[color: string]: ColorIdentifier | undefined;
 }
 
 export interface IThemable {
@@ -24,7 +24,7 @@ export interface IColorMapping {
 }
 
 export interface IComputedStyles {
-	[color: string]: Color;
+	[color: string]: Color | null;
 }
 
 export function computeStyles(theme: ITheme, styleMap: IColorMapping): IComputedStyles {
@@ -117,6 +117,7 @@ export interface ISelectBoxStyleOverrides extends IStyleOverrides, IListStyleOve
 	selectBackground?: ColorIdentifier;
 	selectListBackground?: ColorIdentifier;
 	selectForeground?: ColorIdentifier;
+	decoratorRightForeground?: ColorIdentifier;
 	selectBorder?: ColorIdentifier;
 	focusBorder?: ColorIdentifier;
 }
@@ -126,6 +127,7 @@ export function attachSelectBoxStyler(widget: IThemable, themeService: IThemeSer
 		selectBackground: (style && style.selectBackground) || selectBackground,
 		selectListBackground: (style && style.selectListBackground) || selectListBackground,
 		selectForeground: (style && style.selectForeground) || selectForeground,
+		decoratorRightForeground: (style && style.pickerGroupForeground) || pickerGroupForeground,
 		selectBorder: (style && style.selectBorder) || selectBorder,
 		focusBorder: (style && style.focusBorder) || focusBorder,
 		listFocusBackground: (style && style.listFocusBackground) || listFocusBackground,

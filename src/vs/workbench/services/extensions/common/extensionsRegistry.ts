@@ -7,10 +7,10 @@ import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import Severity from 'vs/base/common/severity';
-import { IMessage, IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionDescription, IMessage } from 'vs/workbench/services/extensions/common/extensions';
 
 const hasOwnProperty = Object.hasOwnProperty;
 const schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
@@ -71,8 +71,8 @@ export interface IExtensionPoint<T> {
 export class ExtensionPoint<T> implements IExtensionPoint<T> {
 
 	public readonly name: string;
-	private _handler: IExtensionPointHandler<T>;
-	private _users: IExtensionPointUser<T>[];
+	private _handler: IExtensionPointHandler<T> | null;
+	private _users: IExtensionPointUser<T>[] | null;
 	private _done: boolean;
 
 	constructor(name: string) {
@@ -215,6 +215,11 @@ export const schema = {
 						body: 'onDebugResolve:${6:type}'
 					},
 					{
+						label: 'onDebugAdapterProtocolTracker',
+						description: nls.localize('vscode.extension.activationEvents.onDebugAdapterProtocolTracker', 'An activation event emitted whenever a debug session with the specific type is about to be launched and a debug protocol tracker might be needed.'),
+						body: 'onDebugAdapterProtocolTracker:${6:type}'
+					},
+					{
 						label: 'workspaceContains',
 						description: nls.localize('vscode.extension.activationEvents.workspaceContains', 'An activation event emitted whenever a folder is opened that contains at least a file matching the specified glob pattern.'),
 						body: 'workspaceContains:${4:filePattern}'
@@ -326,6 +331,13 @@ export const schema = {
 	}
 };
 
+export interface IExtensionPointDescriptor {
+	isDynamic?: boolean;
+	extensionPoint: string;
+	deps?: IExtensionPoint<any>[];
+	jsonSchema: IJSONSchema;
+}
+
 export class ExtensionsRegistryImpl {
 
 	private _extensionPoints: { [extPoint: string]: ExtensionPoint<any>; };
@@ -334,14 +346,14 @@ export class ExtensionsRegistryImpl {
 		this._extensionPoints = {};
 	}
 
-	public registerExtensionPoint<T>(extensionPoint: string, deps: IExtensionPoint<any>[], jsonSchema: IJSONSchema): IExtensionPoint<T> {
-		if (hasOwnProperty.call(this._extensionPoints, extensionPoint)) {
-			throw new Error('Duplicate extension point: ' + extensionPoint);
+	public registerExtensionPoint<T>(desc: IExtensionPointDescriptor): IExtensionPoint<T> {
+		if (hasOwnProperty.call(this._extensionPoints, desc.extensionPoint)) {
+			throw new Error('Duplicate extension point: ' + desc.extensionPoint);
 		}
-		let result = new ExtensionPoint<T>(extensionPoint);
-		this._extensionPoints[extensionPoint] = result;
+		let result = new ExtensionPoint<T>(desc.extensionPoint);
+		this._extensionPoints[desc.extensionPoint] = result;
 
-		schema.properties['contributes'].properties[extensionPoint] = jsonSchema;
+		schema.properties['contributes'].properties[desc.extensionPoint] = desc.jsonSchema;
 		schemaRegistry.registerSchema(schemaId, schema);
 
 		return result;

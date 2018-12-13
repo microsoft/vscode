@@ -8,7 +8,7 @@ import { ITerminalCommandTracker } from 'vs/workbench/parts/terminal/common/term
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 /**
- * The minimize size of the prompt in which to assume the line is a command.
+ * The minimum size of the prompt in which to assume the line is a command.
  */
 const MINIMUM_PROMPT_LENGTH = 2;
 
@@ -34,7 +34,6 @@ export class TerminalCommandTracker implements ITerminalCommandTracker, IDisposa
 	}
 
 	public dispose(): void {
-		this._xterm = null;
 	}
 
 	private _onKey(key: string): void {

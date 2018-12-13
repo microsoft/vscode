@@ -46,6 +46,9 @@ export class MarkdownEngine {
 					if (lang && lang.toLocaleLowerCase() === 'json5') {
 						lang = 'json';
 					}
+					if (lang && lang.toLocaleLowerCase() === 'c#') {
+						lang = 'cs';
+					}
 					if (lang && hljs.getLanguage(lang)) {
 						try {
 							return `<div>${hljs.highlight(lang, str, true).value}</div>`;
@@ -106,13 +109,14 @@ export class MarkdownEngine {
 	}
 
 	public async parse(document: vscode.Uri, source: string): Promise<Token[]> {
+		const UNICODE_NEWLINE_REGEX = /\u2028|\u2029/g;
 		const { text, offset } = this.stripFrontmatter(source);
 		this.currentDocument = document;
 		this._slugCount = new Map<string, number>();
 
 		const engine = await this.getEngine(document);
 
-		return engine.parse(text, {}).map(token => {
+		return engine.parse(text.replace(UNICODE_NEWLINE_REGEX, ''), {}).map(token => {
 			if (token.map) {
 				token.map[0] += offset;
 				token.map[1] += offset;
@@ -178,7 +182,8 @@ export class MarkdownEngine {
 			try {
 				const externalSchemeUri = getUriForLinkWithKnownExternalScheme(link);
 				if (externalSchemeUri) {
-					return normalizeLink(externalSchemeUri.toString());
+					// set true to skip encoding
+					return normalizeLink(externalSchemeUri.toString(true));
 				}
 
 

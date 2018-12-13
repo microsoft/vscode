@@ -5,7 +5,7 @@
 
 import { IColorTheme, ITokenColorizationSetting } from 'vs/workbench/services/themes/common/workbenchThemeService';
 
-export function findMatchingThemeRule(theme: IColorTheme, scopes: string[], onlyColorRules: boolean = true): ThemeRule {
+export function findMatchingThemeRule(theme: IColorTheme, scopes: string[], onlyColorRules: boolean = true): ThemeRule | null {
 	for (let i = scopes.length - 1; i >= 0; i--) {
 		let parentScopes = scopes.slice(0, i);
 		let scope = scopes[i];
@@ -17,8 +17,8 @@ export function findMatchingThemeRule(theme: IColorTheme, scopes: string[], only
 	return null;
 }
 
-function findMatchingThemeRule2(theme: IColorTheme, scope: string, parentScopes: string[], onlyColorRules: boolean): ThemeRule {
-	let result: ThemeRule = null;
+function findMatchingThemeRule2(theme: IColorTheme, scope: string, parentScopes: string[], onlyColorRules: boolean): ThemeRule | null {
+	let result: ThemeRule | null = null;
 
 	// Loop backwards, to ensure the last most specific rule wins
 	for (let i = theme.tokenColors.length - 1; i >= 0; i--) {
@@ -69,7 +69,7 @@ export class ThemeRule {
 		return ThemeRule._matches(this.scope, this.parentScopes, scope, parentScopes);
 	}
 
-	private static _cmp(a: ThemeRule, b: ThemeRule): number {
+	private static _cmp(a: ThemeRule | null, b: ThemeRule | null): number {
 		if (a === null && b === null) {
 			return 0;
 		}
@@ -101,7 +101,7 @@ export class ThemeRule {
 		return 0;
 	}
 
-	public isMoreSpecific(other: ThemeRule): boolean {
+	public isMoreSpecific(other: ThemeRule | null): boolean {
 		return (ThemeRule._cmp(this, other) > 0);
 	}
 

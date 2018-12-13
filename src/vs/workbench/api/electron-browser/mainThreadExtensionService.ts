@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import Severity from 'vs/base/common/severity';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { MainThreadExtensionServiceShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
-import { ExtensionService } from 'vs/workbench/services/extensions/electron-browser/extensionService';
-import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { SerializedError } from 'vs/base/common/errors';
+import Severity from 'vs/base/common/severity';
+import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
+import { IExtHostContext, MainContext, MainThreadExtensionServiceShape } from 'vs/workbench/api/node/extHost.protocol';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtensionService } from 'vs/workbench/services/extensions/electron-browser/extensionService';
 
 @extHostNamedCustomer(MainContext.MainThreadExtensionService)
 export class MainThreadExtensionService implements MainThreadExtensionServiceShape {
@@ -30,8 +30,11 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 	$localShowMessage(severity: Severity, msg: string): void {
 		this._extensionService._logOrShowMessage(severity, msg);
 	}
-	$onExtensionActivated(extensionId: string, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationEvent: string): void {
-		this._extensionService._onExtensionActivated(extensionId, startup, codeLoadingTime, activateCallTime, activateResolvedTime, activationEvent);
+	$onWillActivateExtension(extensionId: string): void {
+		this._extensionService._onWillActivateExtension(extensionId);
+	}
+	$onDidActivateExtension(extensionId: string, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationEvent: string): void {
+		this._extensionService._onDidActivateExtension(extensionId, startup, codeLoadingTime, activateCallTime, activateResolvedTime, activationEvent);
 	}
 	$onExtensionRuntimeError(extensionId: string, data: SerializedError): void {
 		const error = new Error();

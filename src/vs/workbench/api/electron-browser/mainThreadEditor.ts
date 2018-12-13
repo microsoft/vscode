@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IEditor } from 'vs/workbench/common/editor';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import { Selection, ISelection } from 'vs/editor/common/core/selection';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
-import { EndOfLine, TextEditorLineNumbersStyle } from 'vs/workbench/api/node/extHostTypes';
-import { TextEditorCursorStyle, cursorStyleToString, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
-import { IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate, TextEditorRevealType, IApplyEditsOptions, IUndoStopOptions, IEditorPropertiesChangeData } from 'vs/workbench/api/node/extHost.protocol';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ITextModel, ISingleEditOperation, EndOfLineSequence, IIdentifiedSingleEditOperation, ITextModelUpdateOptions } from 'vs/editor/common/model';
+import { RenderLineNumbersType, TextEditorCursorStyle, cursorStyleToString } from 'vs/editor/common/config/editorOptions';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import { ISelection, Selection } from 'vs/editor/common/core/selection';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import { EndOfLineSequence, IIdentifiedSingleEditOperation, ISingleEditOperation, ITextModel, ITextModelUpdateOptions } from 'vs/editor/common/model';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
+import { IApplyEditsOptions, IEditorPropertiesChangeData, IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate, IUndoStopOptions, TextEditorRevealType } from 'vs/workbench/api/node/extHost.protocol';
+import { EndOfLine, TextEditorLineNumbersStyle } from 'vs/workbench/api/node/extHostTypes';
+import { IEditor } from 'vs/workbench/common/editor';
 
 export interface IFocusTracker {
 	onGainedFocus(): void;
@@ -32,7 +32,7 @@ export class MainThreadTextEditorProperties {
 	}
 
 	private static _readSelectionsFromCodeEditor(previousProperties: MainThreadTextEditorProperties, codeEditor: ICodeEditor): Selection[] {
-		let result: Selection[] = null;
+		let result: Selection[] | null = null;
 		if (codeEditor) {
 			result = codeEditor.getSelections();
 		}

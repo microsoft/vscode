@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
 import * as types from 'vs/base/common/types';
@@ -21,9 +20,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { registerEditorAction, EditorAction, IEditorCommandMenuOptions } from 'vs/editor/browser/editorExtensions';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { once } from 'vs/base/common/event';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { LRUCache } from 'vs/base/common/map';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
@@ -33,6 +30,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 export const ALL_COMMANDS_PREFIX = '>';
 
@@ -56,7 +54,7 @@ function resolveCommandHistory(configurationService: IConfigurationService): num
 	return commandHistory;
 }
 
-class CommandsHistory {
+class CommandsHistory extends Disposable {
 
 	static readonly DEFAULT_COMMANDS_HISTORY_LENGTH = 50;
 
@@ -67,13 +65,19 @@ class CommandsHistory {
 
 	constructor(
 		@IStorageService private storageService: IStorageService,
-		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
+		super();
+
 		this.updateConfiguration();
 		this.load();
 
 		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this._register(this.configurationService.onDidChangeConfiguration(e => this.updateConfiguration()));
+		this._register(this.storageService.onWillSaveState(() => this.saveState()));
 	}
 
 	private updateConfiguration(): void {
@@ -85,7 +89,7 @@ class CommandsHistory {
 	}
 
 	private load(): void {
-		const raw = this.storageService.get(CommandsHistory.PREF_KEY_CACHE);
+		const raw = this.storageService.get(CommandsHistory.PREF_KEY_CACHE, StorageScope.GLOBAL);
 		let serializedCache: ISerializedCommandHistory;
 		if (raw) {
 			try {
@@ -106,20 +110,7 @@ class CommandsHistory {
 			entries.forEach(entry => commandHistory.set(entry.key, entry.value));
 		}
 
-		commandCounter = this.storageService.getInteger(CommandsHistory.PREF_KEY_COUNTER, void 0, commandCounter);
-	}
-
-	private registerListeners(): void {
-		this.configurationService.onDidChangeConfiguration(e => this.updateConfiguration());
-		once(this.lifecycleService.onShutdown)(reason => this.save());
-	}
-
-	private save(): void {
-		const serializedCache: ISerializedCommandHistory = { usesLRU: true, entries: [] };
-		commandHistory.forEach((value, key) => serializedCache.entries.push({ key, value }));
-
-		this.storageService.store(CommandsHistory.PREF_KEY_CACHE, JSON.stringify(serializedCache));
-		this.storageService.store(CommandsHistory.PREF_KEY_COUNTER, commandCounter);
+		commandCounter = this.storageService.getInteger(CommandsHistory.PREF_KEY_COUNTER, StorageScope.GLOBAL, commandCounter);
 	}
 
 	push(commandId: string): void {
@@ -128,6 +119,14 @@ class CommandsHistory {
 
 	peek(commandId: string): number {
 		return commandHistory.peek(commandId);
+	}
+
+	private saveState(): void {
+		const serializedCache: ISerializedCommandHistory = { usesLRU: true, entries: [] };
+		commandHistory.forEach((value, key) => serializedCache.entries.push({ key, value }));
+
+		this.storageService.store(CommandsHistory.PREF_KEY_CACHE, JSON.stringify(serializedCache), StorageScope.GLOBAL);
+		this.storageService.store(CommandsHistory.PREF_KEY_COUNTER, commandCounter, StorageScope.GLOBAL);
 	}
 }
 
@@ -145,7 +144,7 @@ export class ShowAllCommandsAction extends Action {
 		super(id, label);
 	}
 
-	run(context?: any): TPromise<void> {
+	run(context?: any): Promise<void> {
 		const config = <IWorkbenchQuickOpenConfiguration>this.configurationService.getValue();
 		const restoreInput = config.workbench && config.workbench.commandPalette && config.workbench.commandPalette.preserveInput === true;
 
@@ -157,7 +156,7 @@ export class ShowAllCommandsAction extends Action {
 
 		this.quickOpenService.show(value, { inputSelection: lastCommandPaletteInput ? { start: 1 /* after prefix */, end: value.length } : void 0 });
 
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }
 
@@ -174,14 +173,14 @@ export class ClearCommandHistoryAction extends Action {
 		super(id, label);
 	}
 
-	run(context?: any): TPromise<void> {
+	run(context?: any): Promise<void> {
 		const commandHistoryLength = resolveCommandHistory(this.configurationService);
 		if (commandHistoryLength > 0) {
 			commandHistory = new LRUCache<string, number>(commandHistoryLength);
 			commandCounter = 1;
 		}
 
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }
 
@@ -200,13 +199,13 @@ class CommandPaletteEditorAction extends EditorAction {
 		});
 	}
 
-	run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
+	run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const quickOpenService = accessor.get(IQuickOpenService);
 
 		// Show with prefix
 		quickOpenService.show(ALL_COMMANDS_PREFIX);
 
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }
 
@@ -304,7 +303,7 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 						}
 					*/
 					this.telemetryService.publicLog('workbenchActionExecuted', { id: action.id, from: 'quick open' });
-					(action.run() || TPromise.as(null)).then(() => {
+					(action.run() || Promise.resolve()).then(() => {
 						if (action instanceof Action) {
 							action.dispose();
 						}
@@ -398,7 +397,7 @@ export class CommandsHandler extends QuickOpenHandler {
 		this.commandHistoryEnabled = resolveCommandHistory(this.configurationService) > 0;
 	}
 
-	getResults(searchValue: string, token: CancellationToken): TPromise<QuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel> {
 
 		// wait for extensions being registered to cover all commands
 		// also from extensions
@@ -425,6 +424,7 @@ export class CommandsHandler extends QuickOpenHandler {
 			const menu = this.editorService.invokeWithinEditorContext(accessor => this.menuService.createMenu(MenuId.CommandPalette, accessor.get(IContextKeyService)));
 			const menuActions = menu.getActions().reduce((r, [, actions]) => [...r, ...actions], <MenuItemAction[]>[]).filter(action => action instanceof MenuItemAction) as MenuItemAction[];
 			const commandEntries = this.menuItemActionsToEntries(menuActions, searchValue);
+			menu.dispose();
 
 			// Concat
 			let entries = [...editorEntries, ...commandEntries];

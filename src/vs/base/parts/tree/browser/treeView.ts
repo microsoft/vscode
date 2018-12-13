@@ -260,8 +260,11 @@ export class ViewItem implements IViewItem {
 		}
 
 		if (!skipUserRender && this.element) {
-			const style = window.getComputedStyle(this.element);
-			const paddingLeft = parseFloat(style.paddingLeft);
+			let paddingLeft: number | undefined;
+			if (this.context.horizontalScrolling) {
+				const style = window.getComputedStyle(this.element);
+				paddingLeft = parseFloat(style.paddingLeft);
+			}
 
 			if (this.context.horizontalScrolling) {
 				this.element.style.width = 'fit-content';
@@ -849,6 +852,7 @@ export class TreeView extends HeightMap {
 	}
 
 	private set scrollHeight(scrollHeight: number) {
+		scrollHeight = scrollHeight + (this.horizontalScrolling ? 10 : 0);
 		this.scrollableElement.setScrollDimensions({ scrollHeight });
 	}
 
@@ -871,12 +875,9 @@ export class TreeView extends HeightMap {
 	}
 
 	public set scrollTop(scrollTop: number) {
-		this.scrollableElement.setScrollDimensions({
-			scrollHeight: this.getContentHeight()
-		});
-		this.scrollableElement.setScrollPosition({
-			scrollTop: scrollTop
-		});
+		const scrollHeight = this.getContentHeight() + (this.horizontalScrolling ? 10 : 0);
+		this.scrollableElement.setScrollDimensions({ scrollHeight });
+		this.scrollableElement.setScrollPosition({ scrollTop });
 	}
 
 	public getScrollPosition(): number {
@@ -1657,7 +1658,7 @@ export class TreeView extends HeightMap {
 	// DOM changes
 
 	private insertItemInDOM(item: ViewItem): void {
-		var elementAfter: HTMLElement = null;
+		var elementAfter: HTMLElement | null = null;
 		var itemAfter = <ViewItem>this.itemAfter(item);
 
 		if (itemAfter && itemAfter.element) {

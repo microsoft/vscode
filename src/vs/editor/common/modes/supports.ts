@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as modes from 'vs/editor/common/modes';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
+import * as modes from 'vs/editor/common/modes';
 
 export function createScopedLineTokens(context: LineTokens, offset: number): ScopedLineTokens {
 	let tokenCount = context.getCount();

@@ -2,9 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import * as assert from 'assert';
-import { strcmp, parseTokenTheme, TokenTheme, ParsedTokenThemeRule, ColorMap, ExternalThemeTrieElement, ThemeTrieElementRule } from 'vs/editor/common/modes/supports/tokenization';
 import { FontStyle } from 'vs/editor/common/modes';
+import { ColorMap, ExternalThemeTrieElement, ParsedTokenThemeRule, ThemeTrieElementRule, TokenTheme, parseTokenTheme, strcmp } from 'vs/editor/common/modes/supports/tokenization';
 
 suite('Token theme matching', () => {
 

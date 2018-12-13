@@ -5,18 +5,18 @@
 
 import 'vs/css!./simpleFindWidget';
 import * as nls from 'vs/nls';
+import * as dom from 'vs/base/browser/dom';
+import { FindInput } from 'vs/base/browser/ui/findinput/findInput';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Delayer } from 'vs/base/common/async';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import * as dom from 'vs/base/browser/dom';
-import { FindInput } from 'vs/base/browser/ui/findinput/findInput';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { registerThemingParticipant, ITheme } from 'vs/platform/theme/common/themeService';
-import { inputBackground, inputActiveOptionBorder, inputForeground, inputBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationInfoBorder, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationWarningBorder, inputValidationErrorBackground, inputValidationErrorForeground, inputValidationErrorBorder, editorWidgetBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
-import { SimpleButton } from './findWidget';
-import { ContextScopedFindInput } from 'vs/platform/widget/browser/contextScopedHistoryWidget';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
+import { SimpleButton } from 'vs/editor/contrib/find/findWidget';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { editorWidgetBackground, inputActiveOptionBorder, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { ITheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { ContextScopedFindInput } from 'vs/platform/widget/browser/contextScopedHistoryWidget';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
@@ -26,7 +26,7 @@ const NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
 
 export abstract class SimpleFindWidget extends Widget {
 	private _findInput: FindInput;
-	private _domNode: HTMLElement;
+	private _domNode?: HTMLElement;
 	private _innerDomNode: HTMLElement;
 	private _isVisible: boolean = false;
 	private _focusTracker: dom.IFocusTracker;
@@ -186,7 +186,7 @@ export abstract class SimpleFindWidget extends Widget {
 		}
 	}
 
-	public getDomNode(): HTMLElement {
+	public getDomNode() {
 		return this._domNode;
 	}
 

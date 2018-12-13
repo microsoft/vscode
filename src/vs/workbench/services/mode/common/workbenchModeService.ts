@@ -4,18 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as resources from 'vs/base/common/resources';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as mime from 'vs/base/common/mime';
-import { IFilesConfiguration, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IExtensionPointUser, ExtensionMessageCollector, IExtensionPoint, ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import * as resources from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { URI } from 'vs/base/common/uri';
+import { FILES_ASSOCIATIONS_CONFIG, IFilesConfiguration } from 'vs/platform/files/common/files';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtensionMessageCollector, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
 export interface IRawLanguageExtensionPoint {
 	id: string;
@@ -28,61 +27,65 @@ export interface IRawLanguageExtensionPoint {
 	configuration: string;
 }
 
-export const languagesExtPoint: IExtensionPoint<IRawLanguageExtensionPoint[]> = ExtensionsRegistry.registerExtensionPoint<IRawLanguageExtensionPoint[]>('languages', [], {
-	description: nls.localize('vscode.extension.contributes.languages', 'Contributes language declarations.'),
-	type: 'array',
-	items: {
-		type: 'object',
-		defaultSnippets: [{ body: { id: '${1:languageId}', aliases: ['${2:label}'], extensions: ['${3:extension}'], configuration: './language-configuration.json' } }],
-		properties: {
-			id: {
-				description: nls.localize('vscode.extension.contributes.languages.id', 'ID of the language.'),
-				type: 'string'
-			},
-			aliases: {
-				description: nls.localize('vscode.extension.contributes.languages.aliases', 'Name aliases for the language.'),
-				type: 'array',
-				items: {
+export const languagesExtPoint: IExtensionPoint<IRawLanguageExtensionPoint[]> = ExtensionsRegistry.registerExtensionPoint<IRawLanguageExtensionPoint[]>({
+	isDynamic: true,
+	extensionPoint: 'languages',
+	jsonSchema: {
+		description: nls.localize('vscode.extension.contributes.languages', 'Contributes language declarations.'),
+		type: 'array',
+		items: {
+			type: 'object',
+			defaultSnippets: [{ body: { id: '${1:languageId}', aliases: ['${2:label}'], extensions: ['${3:extension}'], configuration: './language-configuration.json' } }],
+			properties: {
+				id: {
+					description: nls.localize('vscode.extension.contributes.languages.id', 'ID of the language.'),
 					type: 'string'
-				}
-			},
-			extensions: {
-				description: nls.localize('vscode.extension.contributes.languages.extensions', 'File extensions associated to the language.'),
-				default: ['.foo'],
-				type: 'array',
-				items: {
+				},
+				aliases: {
+					description: nls.localize('vscode.extension.contributes.languages.aliases', 'Name aliases for the language.'),
+					type: 'array',
+					items: {
+						type: 'string'
+					}
+				},
+				extensions: {
+					description: nls.localize('vscode.extension.contributes.languages.extensions', 'File extensions associated to the language.'),
+					default: ['.foo'],
+					type: 'array',
+					items: {
+						type: 'string'
+					}
+				},
+				filenames: {
+					description: nls.localize('vscode.extension.contributes.languages.filenames', 'File names associated to the language.'),
+					type: 'array',
+					items: {
+						type: 'string'
+					}
+				},
+				filenamePatterns: {
+					description: nls.localize('vscode.extension.contributes.languages.filenamePatterns', 'File name glob patterns associated to the language.'),
+					type: 'array',
+					items: {
+						type: 'string'
+					}
+				},
+				mimetypes: {
+					description: nls.localize('vscode.extension.contributes.languages.mimetypes', 'Mime types associated to the language.'),
+					type: 'array',
+					items: {
+						type: 'string'
+					}
+				},
+				firstLine: {
+					description: nls.localize('vscode.extension.contributes.languages.firstLine', 'A regular expression matching the first line of a file of the language.'),
 					type: 'string'
+				},
+				configuration: {
+					description: nls.localize('vscode.extension.contributes.languages.configuration', 'A relative path to a file containing configuration options for the language.'),
+					type: 'string',
+					default: './language-configuration.json'
 				}
-			},
-			filenames: {
-				description: nls.localize('vscode.extension.contributes.languages.filenames', 'File names associated to the language.'),
-				type: 'array',
-				items: {
-					type: 'string'
-				}
-			},
-			filenamePatterns: {
-				description: nls.localize('vscode.extension.contributes.languages.filenamePatterns', 'File name glob patterns associated to the language.'),
-				type: 'array',
-				items: {
-					type: 'string'
-				}
-			},
-			mimetypes: {
-				description: nls.localize('vscode.extension.contributes.languages.mimetypes', 'Mime types associated to the language.'),
-				type: 'array',
-				items: {
-					type: 'string'
-				}
-			},
-			firstLine: {
-				description: nls.localize('vscode.extension.contributes.languages.firstLine', 'A regular expression matching the first line of a file of the language.'),
-				type: 'string'
-			},
-			configuration: {
-				description: nls.localize('vscode.extension.contributes.languages.configuration', 'A relative path to a file containing configuration options for the language.'),
-				type: 'string',
-				default: './language-configuration.json'
 			}
 		}
 	}
@@ -91,7 +94,7 @@ export const languagesExtPoint: IExtensionPoint<IRawLanguageExtensionPoint[]> = 
 export class WorkbenchModeServiceImpl extends ModeServiceImpl {
 	private _configurationService: IConfigurationService;
 	private _extensionService: IExtensionService;
-	private _onReadyPromise: TPromise<boolean>;
+	private _onReadyPromise: Promise<boolean>;
 
 	constructor(
 		@IExtensionService extensionService: IExtensionService,
@@ -116,7 +119,7 @@ export class WorkbenchModeServiceImpl extends ModeServiceImpl {
 				for (let j = 0, lenJ = extension.value.length; j < lenJ; j++) {
 					let ext = extension.value[j];
 					if (isValidLanguageExtensionPoint(ext, extension.collector)) {
-						let configuration: URI;
+						let configuration: URI | undefined = undefined;
 						if (ext.configuration) {
 							configuration = resources.joinPath(extension.description.extensionLocation, ext.configuration);
 						}
@@ -134,14 +137,18 @@ export class WorkbenchModeServiceImpl extends ModeServiceImpl {
 				}
 			}
 
-			ModesRegistry.registerLanguages(allValidLanguages);
+			ModesRegistry.setDynamicLanguages(allValidLanguages);
 
 		});
 
+		this.updateMime();
 		this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(FILES_ASSOCIATIONS_CONFIG)) {
 				this.updateMime();
 			}
+		});
+		this._extensionService.whenInstalledExtensionsRegistered().then(() => {
+			this.updateMime();
 		});
 
 		this.onDidCreateMode((mode) => {
@@ -149,12 +156,11 @@ export class WorkbenchModeServiceImpl extends ModeServiceImpl {
 		});
 	}
 
-	protected _onReady(): TPromise<boolean> {
+	protected _onReady(): Promise<boolean> {
 		if (!this._onReadyPromise) {
-			this._onReadyPromise = this._extensionService.whenInstalledExtensionsRegistered().then(() => {
-				this.updateMime();
-				return true;
-			});
+			this._onReadyPromise = Promise.resolve(
+				this._extensionService.whenInstalledExtensionsRegistered().then(() => true)
+			);
 		}
 
 		return this._onReadyPromise;
@@ -175,6 +181,8 @@ export class WorkbenchModeServiceImpl extends ModeServiceImpl {
 				mime.registerTextMime({ id: langId, mime: mimetype, filepattern: pattern, userConfigured: true });
 			});
 		}
+
+		this._onLanguagesMaybeChanged.fire();
 	}
 }
 

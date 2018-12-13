@@ -12,12 +12,12 @@ import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/commo
 import { ExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/node/extensionsWorkbenchService';
 import {
 	IExtensionManagementService, IExtensionGalleryService, IExtensionEnablementService, IExtensionTipsService, ILocalExtension, LocalExtensionType, IGalleryExtension, IQueryOptions,
-	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, IExtensionManagementServerService, IExtensionManagementServer, EnablementState, ExtensionRecommendationReason
+	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, IExtensionManagementServerService, IExtensionManagementServer, EnablementState, ExtensionRecommendationReason, SortBy
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId, getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionManagementService, getLocalExtensionIdFromManifest } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionTipsService } from 'vs/workbench/parts/extensions/electron-browser/extensionTipsService';
-import { TestExtensionEnablementService } from 'vs/platform/extensionManagement/test/common/extensionEnablementService.test';
+import { TestExtensionEnablementService } from 'vs/platform/extensionManagement/test/electron-browser/extensionEnablementService.test';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 import { IURLService } from 'vs/platform/url/common/url';
 import { Emitter } from 'vs/base/common/event';
@@ -32,10 +32,12 @@ import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { URLService } from 'vs/platform/url/common/urlService';
 import { URI } from 'vs/base/common/uri';
-import { SingleServerExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { SinonStub } from 'sinon';
 import { IExperimentService, ExperimentService, ExperimentState, ExperimentActionType } from 'vs/workbench/parts/experiments/node/experimentService';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/node/remoteAgentService';
+import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
+import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
 
 
 suite('ExtensionsListView Tests', () => {
@@ -83,8 +85,9 @@ suite('ExtensionsListView Tests', () => {
 		instantiationService.stub(IExtensionManagementService, 'onDidInstallExtension', didInstallEvent.event);
 		instantiationService.stub(IExtensionManagementService, 'onUninstallExtension', uninstallEvent.event);
 		instantiationService.stub(IExtensionManagementService, 'onDidUninstallExtension', didUninstallEvent.event);
+		instantiationService.stub(IRemoteAgentService, RemoteAgentService);
 
-		instantiationService.stub(IExtensionManagementServerService, instantiationService.createInstance(SingleServerExtensionManagementServerService, <IExtensionManagementServer>{ authority: 'vscode-local', extensionManagementService: instantiationService.get(IExtensionManagementService), label: 'local' }));
+		instantiationService.stub(IExtensionManagementServerService, instantiationService.createInstance(ExtensionManagementServerService, <IExtensionManagementServer>{ authority: 'vscode-local', extensionManagementService: instantiationService.get(IExtensionManagementService), label: 'local' }));
 
 		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 
@@ -150,6 +153,33 @@ suite('ExtensionsListView Tests', () => {
 		assert.equal(ExtensionsListView.isInstalledExtensionsQuery('@enabled searchText'), true);
 		assert.equal(ExtensionsListView.isInstalledExtensionsQuery('@disabled searchText'), true);
 		assert.equal(ExtensionsListView.isInstalledExtensionsQuery('@outdated searchText'), true);
+	});
+
+	test('Test empty query equates to sort by install count', () => {
+		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage());
+		return testableView.show('').then(() => {
+			assert.ok(target.calledOnce);
+			const options: IQueryOptions = target.args[0][0];
+			assert.equal(options.sortBy, SortBy.InstallCount);
+		});
+	});
+
+	test('Test non empty query without sort doesnt use sortBy', () => {
+		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage());
+		return testableView.show('some extension').then(() => {
+			assert.ok(target.calledOnce);
+			const options: IQueryOptions = target.args[0][0];
+			assert.equal(options.sortBy, undefined);
+		});
+	});
+
+	test('Test query with sort uses sortBy', () => {
+		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage());
+		return testableView.show('some extension @sort:rating').then(() => {
+			assert.ok(target.calledOnce);
+			const options: IQueryOptions = target.args[0][0];
+			assert.equal(options.sortBy, SortBy.WeightedRating);
+		});
 	});
 
 	test('Test installed query results', () => {
@@ -394,20 +424,20 @@ suite('ExtensionsListView Tests', () => {
 
 	test('Test preferred search experiment', () => {
 		const searchText = 'search-me';
-		const realResults = [
+		const actual = [
 			fileBasedRecommendationA,
 			workspaceRecommendationA,
 			otherRecommendationA,
 			workspaceRecommendationB
 		];
-		const preferredResults = [
+		const expected = [
 			workspaceRecommendationA,
 			workspaceRecommendationB,
 			fileBasedRecommendationA,
 			otherRecommendationA
 		];
 
-		const queryTarget = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...realResults));
+		const queryTarget = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...actual));
 		const experimentTarget = <SinonStub>instantiationService.stubPromise(IExperimentService, 'getExperimentsByType', [{
 			id: 'someId',
 			enabled: true,
@@ -434,9 +464,35 @@ suite('ExtensionsListView Tests', () => {
 			assert.ok(experimentTarget.calledOnce);
 			assert.ok(queryTarget.calledOnce);
 			assert.equal(options.text, searchText);
-			assert.equal(result.length, preferredResults.length);
-			for (let i = 0; i < preferredResults.length; i++) {
-				assert.equal(result.get(i).id, preferredResults[i].identifier.id);
+			assert.equal(result.length, expected.length);
+			for (let i = 0; i < expected.length; i++) {
+				assert.equal(result.get(i).id, expected[i].identifier.id);
+			}
+		});
+	});
+
+	test('Skip preferred search experiment when user defines sort order', () => {
+		const searchText = 'search-me';
+		const realResults = [
+			fileBasedRecommendationA,
+			workspaceRecommendationA,
+			otherRecommendationA,
+			workspaceRecommendationB
+		];
+
+		const queryTarget = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...realResults));
+
+		testableView.dispose();
+		testableView = instantiationService.createInstance(ExtensionsListView, {});
+
+		return testableView.show('search-me @sort:installs').then(result => {
+			const options: IQueryOptions = queryTarget.args[0][0];
+
+			assert.ok(queryTarget.calledOnce);
+			assert.equal(options.text, searchText);
+			assert.equal(result.length, realResults.length);
+			for (let i = 0; i < realResults.length; i++) {
+				assert.equal(result.get(i).id, realResults[i].identifier.id);
 			}
 		});
 	});

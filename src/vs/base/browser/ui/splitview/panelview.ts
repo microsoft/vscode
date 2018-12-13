@@ -5,7 +5,7 @@
 
 import 'vs/css!./panelview';
 import { IDisposable, dispose, combinedDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { Event, Emitter, chain, filterEvent } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -160,7 +160,7 @@ export abstract class Panel implements IView {
 
 		this.updateHeader();
 
-		const onHeaderKeyDown = chain(domEvent(this.header, 'keydown'))
+		const onHeaderKeyDown = Event.chain(domEvent(this.header, 'keydown'))
 			.map(e => new StandardKeyboardEvent(e));
 
 		onHeaderKeyDown.filter(e => e.keyCode === KeyCode.Enter || e.keyCode === KeyCode.Space)
@@ -188,9 +188,9 @@ export abstract class Panel implements IView {
 
 	layout(size: number): void {
 		const headerSize = this.headerVisible ? Panel.HEADER_SIZE : 0;
-		this.layoutBody(size - headerSize);
 
 		if (this.isExpanded()) {
+			this.layoutBody(size - headerSize);
 			this.expandedSize = size;
 		}
 	}
@@ -256,7 +256,7 @@ class PanelDraggable extends Disposable {
 	}
 
 	private onDragStart(e: DragEvent): void {
-		if (!this.dnd.canDrag(this.panel)) {
+		if (!this.dnd.canDrag(this.panel) || !e.dataTransfer) {
 			e.preventDefault();
 			e.stopPropagation();
 			return;
@@ -264,7 +264,7 @@ class PanelDraggable extends Disposable {
 
 		e.dataTransfer.effectAllowed = 'move';
 
-		const dragImage = append(document.body, $('.monaco-panel-drag-image', {}, this.panel.draggableElement.textContent));
+		const dragImage = append(document.body, $('.monaco-panel-drag-image', {}, this.panel.draggableElement.textContent || ''));
 		e.dataTransfer.setDragImage(dragImage, -10, -10);
 		setTimeout(() => document.body.removeChild(dragImage), 0);
 
@@ -326,7 +326,7 @@ class PanelDraggable extends Disposable {
 	}
 
 	private render(): void {
-		let backgroundColor: string = null;
+		let backgroundColor: string | null = null;
 
 		if (this.dragOverCounter > 0) {
 			backgroundColor = (this.panel.dropBackground || PanelDraggable.DefaultDragOverBackgroundColor).toString();
@@ -363,7 +363,7 @@ interface IPanelItem {
 
 export class PanelView extends Disposable {
 
-	private dnd: IPanelDndController | null;
+	private dnd: IPanelDndController | undefined;
 	private dndContext: IDndContext = { draggable: null };
 	private el: HTMLElement;
 	private panelItems: IPanelItem[] = [];
@@ -391,7 +391,7 @@ export class PanelView extends Disposable {
 		let shouldAnimate = false;
 		disposables.push(scheduleAtNextAnimationFrame(() => shouldAnimate = true));
 
-		filterEvent(panel.onDidChange, () => shouldAnimate)
+		Event.filter(panel.onDidChange, () => shouldAnimate)
 			(this.setupAnimation, this, disposables);
 
 		const panelItem = { panel, disposable: combinedDisposable(disposables) };

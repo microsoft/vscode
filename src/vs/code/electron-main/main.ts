@@ -14,8 +14,7 @@ import { mkdirp, readdir, rimraf } from 'vs/base/node/pfs';
 import { validatePaths } from 'vs/code/node/paths';
 import { LifecycleService, ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { Server, serve, connect } from 'vs/base/parts/ipc/node/ipc.net';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { ILaunchChannel, LaunchChannelClient } from 'vs/platform/launch/electron-main/launchService';
+import { LaunchChannelClient } from 'vs/platform/launch/electron-main/launchService';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/node/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -48,23 +47,18 @@ import { uploadLogs } from 'vs/code/electron-main/logUploader';
 import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { CommandLineDialogService } from 'vs/platform/dialogs/node/dialogService';
-import { ILabelService, LabelService } from 'vs/platform/label/common/label';
+import { createWaitMarkerFile } from 'vs/code/node/wait';
 
 function createServices(args: ParsedArgs, bufferLogService: BufferLogService): IInstantiationService {
 	const services = new ServiceCollection();
 
 	const environmentService = new EnvironmentService(args, process.execPath);
-	const consoleLogService = new ConsoleLogMainService(getLogLevel(environmentService));
-	const logService = new MultiplexLogService([consoleLogService, bufferLogService]);
-	const labelService = new LabelService(environmentService, undefined);
 
+	const logService = new MultiplexLogService([new ConsoleLogMainService(getLogLevel(environmentService)), bufferLogService]);
 	process.once('exit', () => logService.dispose());
-
-	// Eventually cleanup
 	setTimeout(() => cleanupOlderLogs(environmentService).then(null, err => console.error(err)), 10000);
 
 	services.set(IEnvironmentService, environmentService);
-	services.set(ILabelService, labelService);
 	services.set(ILogService, logService);
 	services.set(IWorkspacesMainService, new SyncDescriptor(WorkspacesMainService));
 	services.set(IHistoryMainService, new SyncDescriptor(HistoryMainService));
@@ -91,32 +85,33 @@ async function cleanupOlderLogs(environmentService: EnvironmentService): Promise
 	const oldSessions = allSessions.sort().filter((d, i) => d !== currentLog);
 	const toDelete = oldSessions.slice(0, Math.max(0, oldSessions.length - 9));
 
-	await TPromise.join(toDelete.map(name => rimraf(path.join(logsRoot, name))));
+	await Promise.all(toDelete.map(name => rimraf(path.join(logsRoot, name))));
 }
 
-function createPaths(environmentService: IEnvironmentService): TPromise<any> {
+function createPaths(environmentService: IEnvironmentService): Promise<any> {
 	const paths = [
-		environmentService.appSettingsHome,
 		environmentService.extensionsPath,
 		environmentService.nodeCachedDataDir,
-		environmentService.logsPath
+		environmentService.logsPath,
+		environmentService.globalStorageHome,
+		environmentService.workspaceStorageHome
 	];
 
-	return TPromise.join(paths.map(p => p && mkdirp(p))) as TPromise<any>;
+	return Promise.all(paths.map(path => path && mkdirp(path)));
 }
 
 class ExpectedError extends Error {
 	public readonly isExpected = true;
 }
 
-function setupIPC(accessor: ServicesAccessor): Thenable<Server> {
+function setupIPC(accessor: ServicesAccessor): Promise<Server> {
 	const logService = accessor.get(ILogService);
 	const environmentService = accessor.get(IEnvironmentService);
 	const requestService = accessor.get(IRequestService);
 	const diagnosticsService = accessor.get(IDiagnosticsService);
 
-	function allowSetForegroundWindow(service: LaunchChannelClient): TPromise<void> {
-		let promise = TPromise.wrap<void>(void 0);
+	function allowSetForegroundWindow(service: LaunchChannelClient): Promise<void> {
+		let promise: Promise<void> = Promise.resolve();
 		if (platform.isWindows) {
 			promise = service.getMainProcessId()
 				.then(processId => {
@@ -134,7 +129,7 @@ function setupIPC(accessor: ServicesAccessor): Thenable<Server> {
 		return promise;
 	}
 
-	function setup(retry: boolean): Thenable<Server> {
+	function setup(retry: boolean): Promise<Server> {
 		return serve(environmentService.mainIPCHandle).then(server => {
 
 			// Print --status usage info
@@ -195,7 +190,7 @@ function setupIPC(accessor: ServicesAccessor): Thenable<Server> {
 						}, 10000);
 					}
 
-					const channel = client.getChannel<ILaunchChannel>('launch');
+					const channel = client.getChannel('launch');
 					const service = new LaunchChannelClient(channel);
 
 					// Process Info
@@ -207,7 +202,7 @@ function setupIPC(accessor: ServicesAccessor): Thenable<Server> {
 
 					// Log uploader
 					if (typeof environmentService.args['upload-logs'] !== 'undefined') {
-						return uploadLogs(channel, requestService, environmentService)
+						return uploadLogs(service, requestService, environmentService)
 							.then(() => Promise.reject(new ExpectedError()));
 					}
 
@@ -293,12 +288,55 @@ function quit(accessor: ServicesAccessor, reason?: ExpectedError | Error): void 
 	lifecycleService.kill(exitCode);
 }
 
-function main() {
+function patchEnvironment(environmentService: IEnvironmentService): typeof process.env {
+	const instanceEnvironment: typeof process.env = {
+		VSCODE_IPC_HOOK: environmentService.mainIPCHandle,
+		VSCODE_NLS_CONFIG: process.env['VSCODE_NLS_CONFIG'],
+		VSCODE_LOGS: process.env['VSCODE_LOGS']
+	};
+
+	if (process.env['VSCODE_PORTABLE']) {
+		instanceEnvironment['VSCODE_PORTABLE'] = process.env['VSCODE_PORTABLE'];
+	}
+
+	assign(process.env, instanceEnvironment);
+
+	return instanceEnvironment;
+}
+
+function startup(args: ParsedArgs): void {
+
+	// We need to buffer the spdlog logs until we are sure
+	// we are the only instance running, otherwise we'll have concurrent
+	// log file access on Windows (https://github.com/Microsoft/vscode/issues/41218)
+	const bufferLogService = new BufferLogService();
+
+	const instantiationService = createServices(args, bufferLogService);
+	instantiationService.invokeFunction(accessor => {
+		const environmentService = accessor.get(IEnvironmentService);
+
+		// Patch `process.env` with the instance's environment
+		const instanceEnvironment = patchEnvironment(environmentService);
+
+		// Startup
+		return instantiationService
+			.invokeFunction(a => createPaths(a.get(IEnvironmentService)))
+			.then(() => instantiationService.invokeFunction(setupIPC))
+			.then(mainIpcServer => {
+				bufferLogService.logger = createSpdLogService('main', bufferLogService.getLevel(), environmentService.logsPath);
+
+				return instantiationService.createInstance(CodeApplication, mainIpcServer, instanceEnvironment).startup();
+			});
+	}).then(null, err => instantiationService.invokeFunction(quit, err));
+}
+
+function main(): void {
 
 	// Set the error handler early enough so that we are not getting the
 	// default electron error dialog popping up
 	setUnexpectedErrorHandler(err => console.error(err));
 
+	// Parse arguments
 	let args: ParsedArgs;
 	try {
 		args = parseMainProcessArgv(process.argv);
@@ -310,37 +348,28 @@ function main() {
 		return void 0;
 	}
 
-	// We need to buffer the spdlog logs until we are sure
-	// we are the only instance running, otherwise we'll have concurrent
-	// log file access on Windows
-	// https://github.com/Microsoft/vscode/issues/41218
-	const bufferLogService = new BufferLogService();
-	const instantiationService = createServices(args, bufferLogService);
+	// If we are started with --wait create a random temporary file
+	// and pass it over to the starting instance. We can use this file
+	// to wait for it to be deleted to monitor that the edited file
+	// is closed and then exit the waiting process.
+	//
+	// Note: we are not doing this if the wait marker has been already
+	// added as argument. This can happen if Code was started from CLI.
+	if (args.wait && !args.waitMarkerFilePath) {
+		createWaitMarkerFile(args.verbose).then(waitMarkerFilePath => {
+			if (waitMarkerFilePath) {
+				process.argv.push('--waitMarkerFilePath', waitMarkerFilePath);
+				args.waitMarkerFilePath = waitMarkerFilePath;
+			}
 
-	return instantiationService.invokeFunction(accessor => {
+			startup(args);
+		});
+	}
 
-		// Patch `process.env` with the instance's environment
-		const environmentService = accessor.get(IEnvironmentService);
-		const instanceEnv: typeof process.env = {
-			VSCODE_IPC_HOOK: environmentService.mainIPCHandle,
-			VSCODE_NLS_CONFIG: process.env['VSCODE_NLS_CONFIG'],
-			VSCODE_LOGS: process.env['VSCODE_LOGS']
-		};
-
-		if (process.env['VSCODE_PORTABLE']) {
-			instanceEnv['VSCODE_PORTABLE'] = process.env['VSCODE_PORTABLE'];
-		}
-
-		assign(process.env, instanceEnv);
-
-		// Startup
-		return instantiationService.invokeFunction(a => createPaths(a.get(IEnvironmentService)))
-			.then(() => instantiationService.invokeFunction(setupIPC))
-			.then(mainIpcServer => {
-				bufferLogService.logger = createSpdLogService('main', bufferLogService.getLevel(), environmentService.logsPath);
-				return instantiationService.createInstance(CodeApplication, mainIpcServer, instanceEnv).startup();
-			});
-	}).then(null, err => instantiationService.invokeFunction(quit, err));
+	// Otherwise just startup normally
+	else {
+		startup(args);
+	}
 }
 
 main();

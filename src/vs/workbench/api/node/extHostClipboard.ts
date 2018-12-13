@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { IMainContext, MainContext, MainThreadClipboardShape } from 'vs/workbench/api/node/extHost.protocol';
 import * as vscode from 'vscode';
 

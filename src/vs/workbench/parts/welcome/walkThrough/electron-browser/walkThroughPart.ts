@@ -23,7 +23,7 @@ import { localize } from 'vs/nls';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { once } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { isObject } from 'vs/base/common/types';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -78,9 +78,9 @@ export class WalkThroughPart extends BaseEditor {
 		@INotificationService private notificationService: INotificationService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
-		super(WalkThroughPart.ID, telemetryService, themeService);
+		super(WalkThroughPart.ID, telemetryService, themeService, storageService);
 		this.editorFocus = WALK_THROUGH_FOCUS.bindTo(this.contextKeyService);
-		this.editorMemento = this.getEditorMemento<IWalkThroughEditorViewState>(storageService, editorGroupService, WALK_THROUGH_EDITOR_VIEW_STATE_PREFERENCE_KEY);
+		this.editorMemento = this.getEditorMemento<IWalkThroughEditorViewState>(editorGroupService, WALK_THROUGH_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 	}
 
 	createEditor(container: HTMLElement): void {
@@ -251,7 +251,7 @@ export class WalkThroughPart extends BaseEditor {
 		this.scrollbar.setScrollPosition({ scrollTop: scrollPosition.scrollTop + scrollDimensions.height });
 	}
 
-	setInput(input: WalkThroughInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+	setInput(input: WalkThroughInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 		if (this.input instanceof WalkThroughInput) {
 			this.saveTextEditorViewState(this.input);
 		}
@@ -356,7 +356,7 @@ export class WalkThroughPart extends BaseEditor {
 						}
 					}));
 
-					this.contentDisposables.push(once(editor.onMouseDown)(() => {
+					this.contentDisposables.push(Event.once(editor.onMouseDown)(() => {
 						/* __GDPR__
 							"walkThroughSnippetInteraction" : {
 								"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -370,7 +370,7 @@ export class WalkThroughPart extends BaseEditor {
 							snippet: i
 						});
 					}));
-					this.contentDisposables.push(once(editor.onKeyDown)(() => {
+					this.contentDisposables.push(Event.once(editor.onKeyDown)(() => {
 						/* __GDPR__
 							"walkThroughSnippetInteraction" : {
 								"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -384,7 +384,7 @@ export class WalkThroughPart extends BaseEditor {
 							snippet: i
 						});
 					}));
-					this.contentDisposables.push(once(editor.onDidChangeModelContent)(() => {
+					this.contentDisposables.push(Event.once(editor.onDidChangeModelContent)(() => {
 						/* __GDPR__
 							"walkThroughSnippetInteraction" : {
 								"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -477,7 +477,7 @@ export class WalkThroughPart extends BaseEditor {
 	private saveTextEditorViewState(input: WalkThroughInput): void {
 		const scrollPosition = this.scrollbar.getScrollPosition();
 
-		this.editorMemento.saveState(this.group, input, {
+		this.editorMemento.saveEditorState(this.group, input, {
 			viewState: {
 				scrollTop: scrollPosition.scrollTop,
 				scrollLeft: scrollPosition.scrollLeft
@@ -486,7 +486,7 @@ export class WalkThroughPart extends BaseEditor {
 	}
 
 	private loadTextEditorViewState(input: WalkThroughInput) {
-		const state = this.editorMemento.loadState(this.group, input);
+		const state = this.editorMemento.loadEditorState(this.group, input);
 		if (state) {
 			this.scrollbar.setScrollPosition(state.viewState);
 		}
@@ -499,11 +499,12 @@ export class WalkThroughPart extends BaseEditor {
 		super.clearInput();
 	}
 
-	public shutdown(): void {
+	protected saveState(): void {
 		if (this.input instanceof WalkThroughInput) {
 			this.saveTextEditorViewState(this.input);
 		}
-		super.shutdown();
+
+		super.saveState();
 	}
 
 	dispose(): void {

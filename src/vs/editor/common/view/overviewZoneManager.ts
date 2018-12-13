@@ -41,7 +41,7 @@ export class OverviewRulerZone {
 	public readonly endLineNumber: number;
 	public readonly color: string;
 
-	private _colorZone: ColorZone;
+	private _colorZone: ColorZone | null;
 
 	constructor(
 		startLineNumber: number,
@@ -68,7 +68,7 @@ export class OverviewRulerZone {
 		this._colorZone = colorZone;
 	}
 
-	public getColorZones(): ColorZone {
+	public getColorZones(): ColorZone | null {
 		return this._colorZone;
 	}
 }

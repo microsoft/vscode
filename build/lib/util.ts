@@ -91,7 +91,7 @@ export function fixWin32DirectoryPermissions(): NodeJS.ReadWriteStream {
 	});
 }
 
-export function setExecutableBit(pattern: string | string[]): NodeJS.ReadWriteStream {
+export function setExecutableBit(pattern?: string | string[]): NodeJS.ReadWriteStream {
 	const setBit = es.mapSync<VinylFile, VinylFile>(f => {
 		f.stat.mode = /* 100755 */ 33261;
 		return f;

@@ -3,31 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
-import { IChannel } from 'vs/base/parts/ipc/node/ipc';
+import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
 
-export interface IURLServiceChannel extends IChannel {
-	call(command: 'open', url: string): Thenable<boolean>;
-	call(command: string, arg?: any): Thenable<any>;
-}
-
-export class URLServiceChannel implements IURLServiceChannel {
+export class URLServiceChannel implements IServerChannel {
 
 	constructor(private service: IURLService) { }
 
-	listen<T>(event: string, arg?: any): Event<T> {
-		throw new Error('No events');
+	listen<T>(_, event: string): Event<T> {
+		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(command: string, arg?: any): Thenable<any> {
+	call(_, command: string, arg?: any): Promise<any> {
 		switch (command) {
 			case 'open': return this.service.open(URI.revive(arg));
 		}
-		return undefined;
+
+		throw new Error(`Call not found: ${command}`);
 	}
 }
 
@@ -37,8 +32,8 @@ export class URLServiceChannelClient implements IURLService {
 
 	constructor(private channel: IChannel) { }
 
-	open(url: URI): TPromise<boolean> {
-		return TPromise.wrap(this.channel.call('open', url.toJSON()));
+	open(url: URI): Promise<boolean> {
+		return this.channel.call('open', url.toJSON());
 	}
 
 	registerHandler(handler: IURLHandler): IDisposable {
@@ -46,24 +41,20 @@ export class URLServiceChannelClient implements IURLService {
 	}
 }
 
-export interface IURLHandlerChannel extends IChannel {
-	call(command: 'handleURL', arg: any): Thenable<boolean>;
-	call(command: string, arg?: any): Thenable<any>;
-}
-
-export class URLHandlerChannel implements IURLHandlerChannel {
+export class URLHandlerChannel implements IServerChannel {
 
 	constructor(private handler: IURLHandler) { }
 
-	listen<T>(event: string, arg?: any): Event<T> {
-		throw new Error('No events');
+	listen<T>(_, event: string): Event<T> {
+		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(command: string, arg?: any): Thenable<any> {
+	call(_, command: string, arg?: any): Promise<any> {
 		switch (command) {
 			case 'handleURL': return this.handler.handleURL(URI.revive(arg));
 		}
-		return undefined;
+
+		throw new Error(`Call not found: ${command}`);
 	}
 }
 
@@ -71,7 +62,7 @@ export class URLHandlerChannelClient implements IURLHandler {
 
 	constructor(private channel: IChannel) { }
 
-	handleURL(uri: URI): TPromise<boolean> {
-		return TPromise.wrap(this.channel.call('handleURL', uri.toJSON()));
+	handleURL(uri: URI): Promise<boolean> {
+		return this.channel.call('handleURL', uri.toJSON());
 	}
 }

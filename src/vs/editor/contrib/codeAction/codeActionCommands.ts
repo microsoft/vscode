@@ -93,7 +93,7 @@ export class QuickFixController implements IEditorContribution {
 			// Triggered for specific scope
 			// Apply if we only have one action or requested autoApply, otherwise show menu
 			e.actions.then(fixes => {
-				if (e.trigger.autoApply === CodeActionAutoApply.First || (e.trigger.autoApply === CodeActionAutoApply.IfSingle && fixes.length === 1)) {
+				if (fixes.length > 0 && e.trigger.autoApply === CodeActionAutoApply.First || (e.trigger.autoApply === CodeActionAutoApply.IfSingle && fixes.length === 1)) {
 					this._onApplyCodeAction(fixes[0]);
 				} else {
 					this._codeActionContextMenu.show(e.actions, e.position);
@@ -128,7 +128,7 @@ export class QuickFixController implements IEditorContribution {
 		}
 	}
 
-	public triggerFromEditorSelection(filter?: CodeActionFilter, autoApply?: CodeActionAutoApply): Thenable<CodeAction[] | undefined> {
+	public triggerFromEditorSelection(filter?: CodeActionFilter, autoApply?: CodeActionAutoApply): Promise<CodeAction[] | undefined> {
 		return this._model.trigger({ type: 'manual', filter, autoApply });
 	}
 

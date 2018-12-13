@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Command } from 'vs/editor/common/modes';
 import { UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -17,6 +16,8 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { values } from 'vs/base/common/map';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IAction } from 'vs/base/common/actions';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 export const TEST_VIEW_CONTAINER_ID = 'workbench.view.extension.test';
 
@@ -119,6 +120,7 @@ export interface IViewDescriptor {
 export interface IViewDescriptorCollection {
 	readonly onDidChangeActiveViews: Event<{ added: IViewDescriptor[], removed: IViewDescriptor[] }>;
 	readonly activeViewDescriptors: IViewDescriptor[];
+	readonly allViewDescriptors: IViewDescriptor[];
 }
 
 export interface IViewsRegistry {
@@ -133,10 +135,9 @@ export interface IViewsRegistry {
 
 	getViews(loc: ViewContainer): IViewDescriptor[];
 
-	getView(id: string): IViewDescriptor;
+	getView(id: string): IViewDescriptor | null;
 
 	getAllViews(): IViewDescriptor[];
-
 }
 
 export const ViewsRegistry: IViewsRegistry = new class implements IViewsRegistry {
@@ -194,7 +195,7 @@ export const ViewsRegistry: IViewsRegistry = new class implements IViewsRegistry
 		return this._views.get(loc) || [];
 	}
 
-	getView(id: string): IViewDescriptor {
+	getView(id: string): IViewDescriptor | null {
 		for (const viewContainer of this._viewContainer) {
 			const viewDescriptor = (this._views.get(viewContainer) || []).filter(v => v.id === id)[0];
 			if (viewDescriptor) {
@@ -219,7 +220,7 @@ export interface IView {
 
 export interface IViewsViewlet extends IViewlet {
 
-	openView(id: string, focus?: boolean): TPromise<IView>;
+	openView(id: string, focus?: boolean): IView;
 
 }
 
@@ -228,16 +229,22 @@ export const IViewsService = createDecorator<IViewsService>('viewsService');
 export interface IViewsService {
 	_serviceBrand: any;
 
-	openView(id: string, focus?: boolean): TPromise<IView>;
+	openView(id: string, focus?: boolean): Promise<IView>;
 
 	getViewDescriptors(container: ViewContainer): IViewDescriptorCollection;
 }
 
 // Custom views
 
-export interface ITreeViewer extends IDisposable {
+export interface ITreeView extends IDisposable {
 
 	dataProvider: ITreeViewDataProvider;
+
+	showCollapseAllAction: boolean;
+
+	message: string | IMarkdownString;
+
+	readonly visible: boolean;
 
 	readonly onDidExpandItem: Event<ITreeItem>;
 
@@ -247,9 +254,9 @@ export interface ITreeViewer extends IDisposable {
 
 	readonly onDidChangeVisibility: Event<boolean>;
 
-	readonly visible: boolean;
+	readonly onDidChangeActions: Event<void>;
 
-	refresh(treeItems?: ITreeItem[]): TPromise<void>;
+	refresh(treeItems?: ITreeItem[]): Promise<void>;
 
 	setVisibility(visible: boolean): void;
 
@@ -261,12 +268,32 @@ export interface ITreeViewer extends IDisposable {
 
 	getOptimalWidth(): number;
 
-	reveal(item: ITreeItem, parentChain: ITreeItem[], options: { select?: boolean }): TPromise<void>;
+	reveal(item: ITreeItem): Promise<void>;
+
+	expand(itemOrItems: ITreeItem | ITreeItem[]): Promise<void>;
+
+	setSelection(items: ITreeItem[]): void;
+
+	setFocus(item: ITreeItem): void;
+
+	getPrimaryActions(): IAction[];
+
+	getSecondaryActions(): IAction[];
+}
+
+export interface IRevealOptions {
+
+	select?: boolean;
+
+	focus?: boolean;
+
+	expand?: boolean | number;
+
 }
 
 export interface ICustomViewDescriptor extends IViewDescriptor {
 
-	readonly treeViewer: ITreeViewer;
+	readonly treeView: ITreeView;
 
 }
 
@@ -281,6 +308,14 @@ export enum TreeItemCollapsibleState {
 	Expanded = 2
 }
 
+export interface ITreeItemLabel {
+
+	label: string;
+
+	highlights?: [number, number][];
+
+}
+
 export interface ITreeItem {
 
 	handle: string;
@@ -289,7 +324,9 @@ export interface ITreeItem {
 
 	collapsibleState: TreeItemCollapsibleState;
 
-	label?: string;
+	label?: ITreeItemLabel;
+
+	description?: string | boolean;
 
 	icon?: UriComponents;
 
@@ -310,6 +347,6 @@ export interface ITreeItem {
 
 export interface ITreeViewDataProvider {
 
-	getChildren(element?: ITreeItem): TPromise<ITreeItem[]>;
+	getChildren(element?: ITreeItem): Promise<ITreeItem[]>;
 
 }

@@ -10,7 +10,7 @@ import { Diagnostic, DiagnosticSeverity, Range, DiagnosticRelatedInformation, Lo
 import { MainThreadDiagnosticsShape, IMainContext } from 'vs/workbench/api/node/extHost.protocol';
 import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
-import { Emitter, toPromise } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 
 suite('ExtHostDiagnostics', () => {
 
@@ -292,7 +292,7 @@ suite('ExtHostDiagnostics', () => {
 		let diag2 = new Diagnostic(new Range(1, 1, 2, 3), 'diag2');
 		let diag3 = new Diagnostic(new Range(1, 1, 2, 3), 'diag3');
 
-		let p = toPromise(emitter.event).then(a => {
+		let p = Event.toPromise(emitter.event).then(a => {
 			assert.equal(a.length, 1);
 			assert.equal(a[0].toString(), 'aa:bb');
 			assert.ok(URI.isUri(a[0]));
@@ -300,7 +300,7 @@ suite('ExtHostDiagnostics', () => {
 		collection.set(URI.parse('aa:bb'), []);
 		await p;
 
-		p = toPromise(emitter.event).then(e => {
+		p = Event.toPromise(emitter.event).then(e => {
 			assert.equal(e.length, 2);
 			assert.ok(URI.isUri(e[0]));
 			assert.ok(URI.isUri(e[1]));
@@ -313,7 +313,7 @@ suite('ExtHostDiagnostics', () => {
 		]);
 		await p;
 
-		p = toPromise(emitter.event).then(e => {
+		p = Event.toPromise(emitter.event).then(e => {
 			assert.equal(e.length, 2);
 			assert.ok(typeof e[0] === 'string');
 			assert.ok(typeof e[1] === 'string');
@@ -330,7 +330,7 @@ suite('ExtHostDiagnostics', () => {
 
 		// delete
 		collection.set(URI.parse('aa:bb'), [diag1]);
-		let p = toPromise(emitter.event).then(e => {
+		let p = Event.toPromise(emitter.event).then(e => {
 			assert.equal(e[0].toString(), 'aa:bb');
 		});
 		collection.delete(URI.parse('aa:bb'));
@@ -338,7 +338,7 @@ suite('ExtHostDiagnostics', () => {
 
 		// set->undefined (as delete)
 		collection.set(URI.parse('aa:bb'), [diag1]);
-		p = toPromise(emitter.event).then(e => {
+		p = Event.toPromise(emitter.event).then(e => {
 			assert.equal(e[0].toString(), 'aa:bb');
 		});
 		collection.set(URI.parse('aa:bb'), undefined);
@@ -398,5 +398,30 @@ suite('ExtHostDiagnostics', () => {
 		assert.equal(ownerHistory.length, 2);
 		assert.equal(ownerHistory[0], 'foo');
 		assert.equal(ownerHistory[1], 'foo0');
+	});
+
+	test('Error updating diagnostics from extension #60394', function () {
+		let callCount = 0;
+		let collection = new DiagnosticCollection('ddd', 'test', 100, new class extends DiagnosticsShape {
+			$changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]) {
+				callCount += 1;
+			}
+		}, new Emitter<any>());
+
+		let array: Diagnostic[] = [];
+		let diag1 = new Diagnostic(new Range(0, 0, 1, 1), 'Foo');
+		let diag2 = new Diagnostic(new Range(0, 0, 1, 1), 'Bar');
+
+		array.push(diag1, diag2);
+
+		collection.set(URI.parse('test:me'), array);
+		assert.equal(callCount, 1);
+
+		collection.set(URI.parse('test:me'), array);
+		assert.equal(callCount, 1); // equal array
+
+		array.push(diag2);
+		collection.set(URI.parse('test:me'), array);
+		assert.equal(callCount, 2); // same but un-equal array
 	});
 });

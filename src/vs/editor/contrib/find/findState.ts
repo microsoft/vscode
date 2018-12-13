@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
 
@@ -41,7 +41,7 @@ export interface INewFindReplaceState {
 	wholeWordOverride?: FindOptionOverride;
 	matchCase?: boolean;
 	matchCaseOverride?: FindOptionOverride;
-	searchScope?: Range;
+	searchScope?: Range | null;
 }
 
 function effectiveOptionValue(override: FindOptionOverride, value: boolean): boolean {
@@ -65,10 +65,10 @@ export class FindReplaceState implements IDisposable {
 	private _wholeWordOverride: FindOptionOverride;
 	private _matchCase: boolean;
 	private _matchCaseOverride: FindOptionOverride;
-	private _searchScope: Range;
+	private _searchScope: Range | null;
 	private _matchesPosition: number;
 	private _matchesCount: number;
-	private _currentMatch: Range;
+	private _currentMatch: Range | null;
 	private readonly _onFindReplaceStateChange: Emitter<FindReplaceStateChangedEvent>;
 
 	public get searchString(): string { return this._searchString; }
@@ -83,10 +83,10 @@ export class FindReplaceState implements IDisposable {
 	public get actualWholeWord(): boolean { return this._wholeWord; }
 	public get actualMatchCase(): boolean { return this._matchCase; }
 
-	public get searchScope(): Range { return this._searchScope; }
+	public get searchScope(): Range | null { return this._searchScope; }
 	public get matchesPosition(): number { return this._matchesPosition; }
 	public get matchesCount(): number { return this._matchesCount; }
-	public get currentMatch(): Range { return this._currentMatch; }
+	public get currentMatch(): Range | null { return this._currentMatch; }
 	public get onFindReplaceStateChange(): Event<FindReplaceStateChangedEvent> { return this._onFindReplaceStateChange.event; }
 
 	constructor() {
@@ -110,7 +110,7 @@ export class FindReplaceState implements IDisposable {
 	public dispose(): void {
 	}
 
-	public changeMatchInfo(matchesPosition: number, matchesCount: number, currentMatch: Range): void {
+	public changeMatchInfo(matchesPosition: number, matchesCount: number, currentMatch: Range | undefined): void {
 		let changeEvent: FindReplaceStateChangedEvent = {
 			moveCursor: false,
 			updateHistory: false,

@@ -18,7 +18,7 @@ function assertRanges(lines: string[], expected: ExpectedIndentRange[], offside:
 	let model = TextModel.createFromString(lines.join('\n'));
 	let actual = computeRanges(model, offside, markers);
 
-	let actualRanges = [];
+	let actualRanges: ExpectedIndentRange[] = [];
 	for (let i = 0; i < actual.length; i++) {
 		actualRanges[i] = r(actual.getStartLineNumber(i), actual.getEndLineNumber(i), actual.getParentIndex(i));
 	}

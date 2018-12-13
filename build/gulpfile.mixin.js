@@ -13,7 +13,6 @@ const es = require('event-stream');
 const util = require('./lib/util');
 const remote = require('gulp-remote-src');
 const zip = require('gulp-vinyl-zip');
-const assign = require('object-assign');
 
 const pkg = require('../package.json');
 
@@ -55,7 +54,7 @@ gulp.task('mixin', function () {
 			.pipe(util.rebase(2))
 			.pipe(productJsonFilter)
 			.pipe(buffer())
-			.pipe(json(o => assign({}, require('../product.json'), o)))
+			.pipe(json(o => Object.assign({}, require('../product.json'), o)))
 			.pipe(productJsonFilter.restore);
 
 		all = es.merge(mixin);

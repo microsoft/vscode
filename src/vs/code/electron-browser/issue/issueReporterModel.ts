@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { assign } from 'vs/base/common/objects';
-import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IssueType, ISettingSearchResult } from 'vs/platform/issue/common/issue';
+import { IssueType, ISettingSearchResult, IssueReporterExtensionData } from 'vs/platform/issue/common/issue';
 
 export interface IssueReporterData {
-	issueType?: IssueType;
+	issueType: IssueType;
 	issueDescription?: string;
 
 	versionInfo?: any;
@@ -16,19 +15,19 @@ export interface IssueReporterData {
 	processInfo?: any;
 	workspaceInfo?: any;
 
-	includeSystemInfo?: boolean;
-	includeWorkspaceInfo?: boolean;
-	includeProcessInfo?: boolean;
-	includeExtensions?: boolean;
-	includeSearchedExtensions?: boolean;
-	includeSettingsSearchDetails?: boolean;
+	includeSystemInfo: boolean;
+	includeWorkspaceInfo: boolean;
+	includeProcessInfo: boolean;
+	includeExtensions: boolean;
+	includeSearchedExtensions: boolean;
+	includeSettingsSearchDetails: boolean;
 
 	numberOfThemeExtesions?: number;
-	allExtensions?: ILocalExtension[];
-	enabledNonThemeExtesions?: ILocalExtension[];
+	allExtensions: IssueReporterExtensionData[];
+	enabledNonThemeExtesions?: IssueReporterExtensionData[];
 	extensionsDisabled?: boolean;
 	fileOnExtension?: boolean;
-	selectedExtension?: ILocalExtension;
+	selectedExtension?: IssueReporterExtensionData;
 	actualSearchResults?: ISettingSearchResult[];
 	query?: string;
 	filterResultCount?: number;
@@ -37,14 +36,16 @@ export interface IssueReporterData {
 export class IssueReporterModel {
 	private _data: IssueReporterData;
 
-	constructor(initialData?: IssueReporterData) {
+	constructor(initialData?: Partial<IssueReporterData>) {
 		const defaultData = {
+			issueType: IssueType.Bug,
 			includeSystemInfo: true,
 			includeWorkspaceInfo: true,
 			includeProcessInfo: true,
 			includeExtensions: true,
 			includeSearchedExtensions: true,
-			includeSettingsSearchDetails: true
+			includeSettingsSearchDetails: true,
+			allExtensions: []
 		};
 
 		this._data = initialData ? assign(defaultData, initialData) : defaultData;
@@ -54,7 +55,7 @@ export class IssueReporterModel {
 		return this._data;
 	}
 
-	update(newData: IssueReporterData): void {
+	update(newData: Partial<IssueReporterData>): void {
 		assign(this._data, newData);
 	}
 
@@ -76,12 +77,12 @@ ${this.getInfos()}
 			|| this._data.issueType === IssueType.PerformanceIssue
 			|| this._data.issueType === IssueType.FeatureRequest;
 
-		return fileOnExtensionSupported && this._data.fileOnExtension;
+		return !!(fileOnExtensionSupported && this._data.fileOnExtension);
 	}
 
 	private getExtensionVersion(): string {
-		if (this.fileOnExtension()) {
-			return `\nExtension version: ${this._data.selectedExtension.manifest.version}`;
+		if (this.fileOnExtension() && this._data.selectedExtension) {
+			return `\nExtension version: ${this._data.selectedExtension.version}`;
 		} else {
 			return '';
 		}
@@ -103,7 +104,7 @@ ${this.getInfos()}
 		let info = '';
 
 		if (this._data.issueType === IssueType.Bug || this._data.issueType === IssueType.PerformanceIssue) {
-			if (this._data.includeSystemInfo) {
+			if (this._data.includeSystemInfo && this._data.systemInfo) {
 				info += this.generateSystemInfoMd();
 			}
 		}
@@ -198,7 +199,7 @@ ${this._data.workspaceInfo};
 		let tableHeader = `Extension|Author (truncated)|Version
 ---|---|---`;
 		const table = this._data.enabledNonThemeExtesions.map(e => {
-			return `${e.manifest.name}|${e.manifest.publisher.substr(0, 3)}|${e.manifest.version}`;
+			return `${e.name}|${e.publisher.substr(0, 3)}|${e.version}`;
 		}).join('\n');
 
 		return `<details><summary>Extensions (${this._data.enabledNonThemeExtesions.length})</summary>

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Position } from 'vs/editor/common/core/position';
-import { withTestCodeEditor, TestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { TestCodeEditor, withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 
 export function deserializePipePositions(text: string): [string, Position[]] {
 	let resultText = '';

@@ -19,7 +19,6 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IDisposable, Disposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { memoize } from 'vs/base/common/decorators';
@@ -126,7 +125,7 @@ class ImageView {
 			return InlineImageView.create(container, descriptor, fileService, scrollbar, metadataClb);
 		}
 
-		return LargeImageView.create(container, descriptor, openExternalClb);
+		return LargeImageView.create(container, descriptor, openExternalClb, metadataClb);
 	}
 
 	private static shouldShowImageInline(descriptor: IResourceDescriptor): boolean {
@@ -153,14 +152,18 @@ class LargeImageView {
 	static create(
 		container: HTMLElement,
 		descriptor: IResourceDescriptor,
-		openExternalClb: (uri: URI) => void
+		openExternalClb: (uri: URI) => void,
+		metadataClb: (meta: string) => void
 	) {
+		const size = BinarySize.formatSize(descriptor.size);
+		metadataClb(size);
+
 		DOM.clearNode(container);
 
 		const disposables: IDisposable[] = [];
 
 		const label = document.createElement('p');
-		label.textContent = nls.localize('largeImageError', "The image is not displayed in the editor because it is too large ({0}).", BinarySize.formatSize(descriptor.size));
+		label.textContent = nls.localize('largeImageError', "The image is not displayed in the editor because it is too large ({0}).", size);
 		container.appendChild(label);
 
 		if (descriptor.resource.scheme !== Schemas.data) {
@@ -182,17 +185,14 @@ class FileTooLargeFileView {
 		scrollbar: DomScrollableElement,
 		metadataClb: (meta: string) => void
 	) {
-		DOM.clearNode(container);
-
 		const size = BinarySize.formatSize(descriptor.size);
+		metadataClb(size);
+
+		DOM.clearNode(container);
 
 		const label = document.createElement('span');
 		label.textContent = nls.localize('nativeFileTooLargeError', "The file is not displayed in the editor because it is too large ({0}).", size);
 		container.appendChild(label);
-
-		if (metadataClb) {
-			metadataClb(size);
-		}
 
 		scrollbar.scanDomNode();
 
@@ -208,6 +208,8 @@ class FileSeemsBinaryFileView {
 		openInternalClb: (uri: URI) => void,
 		metadataClb: (meta: string) => void
 	) {
+		metadataClb(typeof descriptor.size === 'number' ? BinarySize.formatSize(descriptor.size) : '');
+
 		DOM.clearNode(container);
 
 		const disposables: IDisposable[] = [];
@@ -222,10 +224,6 @@ class FileSeemsBinaryFileView {
 			link.textContent = nls.localize('openAsText', "Do you want to open it anyway?");
 
 			disposables.push(DOM.addDisposableListener(link, DOM.EventType.CLICK, () => openInternalClb(descriptor.resource)));
-		}
-
-		if (metadataClb) {
-			metadataClb(typeof descriptor.size === 'number' ? BinarySize.formatSize(descriptor.size) : '');
 		}
 
 		scrollbar.scanDomNode();
@@ -284,7 +282,7 @@ class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 			DOM.addDisposableListener(this.statusBarItem, DOM.EventType.CLICK, () => {
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => container,
-					getActions: () => Promise.resolve(this.zoomActions)
+					getActions: () => this.zoomActions
 				});
 			});
 		}
@@ -383,7 +381,7 @@ class InlineImageView {
 
 		const initialState: ImageState = InlineImageView.imageStateCache.get(cacheKey) || { scale: 'fit', offsetX: 0, offsetY: 0 };
 		let scale = initialState.scale;
-		let image: HTMLImageElement = null;
+		let image: HTMLImageElement | null = null;
 
 		function updateScale(newScale: Scale) {
 			if (!image || !image.parentElement) {
@@ -414,7 +412,7 @@ class InlineImageView {
 
 				DOM.removeClass(image, 'scale-to-fit');
 				image.style.minWidth = `${(image.naturalWidth * scale)}px`;
-				image.style.widows = `${(image.naturalWidth * scale)}px`;
+				image.style.width = `${(image.naturalWidth * scale)}px`;
 
 				const newWidth = image.width;
 				const scaleFactor = (newWidth - oldWidth) / oldWidth;
@@ -438,7 +436,7 @@ class InlineImageView {
 			updateScale(scale);
 		}
 
-		disposables.push(DOM.addDisposableListener(container, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+		disposables.push(DOM.addDisposableListener(window, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			if (!image) {
 				return;
 			}
@@ -451,7 +449,7 @@ class InlineImageView {
 			}
 		}));
 
-		disposables.push(DOM.addDisposableListener(container, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
+		disposables.push(DOM.addDisposableListener(window, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
 			if (!image) {
 				return;
 			}
@@ -543,13 +541,11 @@ class InlineImageView {
 		image.style.visibility = 'hidden';
 
 		disposables.push(DOM.addDisposableListener(image, DOM.EventType.LOAD, e => {
-			let metadata: string;
 			if (typeof descriptor.size === 'number') {
 				metadataClb(nls.localize('imgMeta', '{0}x{1} {2}', image.naturalWidth, image.naturalHeight, BinarySize.formatSize(descriptor.size)));
 			} else {
 				metadataClb(nls.localize('imgMetaNoSize', '{0}x{1}', image.naturalWidth, image.naturalHeight));
 			}
-			metadataClb(metadata);
 
 			scrollbar.scanDomNode();
 			image.style.visibility = 'visible';
@@ -572,7 +568,7 @@ class InlineImageView {
 		return context;
 	}
 
-	private static imageSrc(descriptor: IResourceDescriptor, fileService: IFileService): TPromise<string> {
+	private static imageSrc(descriptor: IResourceDescriptor, fileService: IFileService): Promise<string> {
 		if (descriptor.resource.scheme === Schemas.data) {
 			return Promise.resolve(descriptor.resource.toString(true /* skip encoding */));
 		}
@@ -590,5 +586,6 @@ function getMime(descriptor: IResourceDescriptor) {
 	if (!mime && descriptor.resource.scheme !== Schemas.data) {
 		mime = mimes.getMediaMime(descriptor.resource.path);
 	}
+
 	return mime || mimes.MIME_BINARY;
 }

@@ -7,7 +7,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { RawContextKey, IContextKeyService, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ISnippetsService } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
-import { getNonWhitespacePrefix, SnippetSuggestion } from 'vs/workbench/parts/snippets/electron-browser/snippetsService';
+import { getNonWhitespacePrefix } from 'vs/workbench/parts/snippets/electron-browser/snippetsService';
 import { endsWith } from 'vs/base/common/strings';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -18,6 +18,7 @@ import { showSimpleSuggestions } from 'vs/editor/contrib/suggest/suggest';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Snippet } from 'vs/workbench/parts/snippets/electron-browser/snippetsFile';
+import { SnippetCompletion } from 'vs/workbench/parts/snippets/electron-browser/snippetCompletionProvider';
 
 export class TabCompletionController implements editorCommon.IEditorContribution {
 
@@ -128,7 +129,7 @@ export class TabCompletionController implements editorCommon.IEditorContribution
 			showSimpleSuggestions(this._editor, this._activeSnippets.map(snippet => {
 				const position = this._editor.getPosition();
 				const range = Range.fromPositions(position.delta(0, -snippet.prefix.length), position);
-				return new SnippetSuggestion(snippet, range);
+				return new SnippetCompletion(snippet, range);
 			}));
 		}
 	}
