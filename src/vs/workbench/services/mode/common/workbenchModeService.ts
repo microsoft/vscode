@@ -133,7 +133,7 @@ export class WorkbenchModeServiceImpl extends ModeServiceImpl {
 				}
 			}
 
-			ModesRegistry.registerLanguages(allValidLanguages);
+			ModesRegistry.setDynamicLanguages(allValidLanguages);
 
 		});
 
