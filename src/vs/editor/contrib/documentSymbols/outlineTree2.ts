@@ -21,8 +21,9 @@ import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ITreeRenderer, ITreeNode, ITreeFilter, TreeFilterResult, TreeVisibility, ITreeElement } from 'vs/base/browser/ui/tree/tree';
+import { ITreeRenderer, ITreeNode, ITreeFilter, TreeFilterResult, TreeVisibility, ITreeElement, AbstractTreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { Iterator } from 'vs/base/common/iterator';
+import { Event } from 'vs/base/common/event';
 
 export type NOutlineItem = OutlineGroup | OutlineElement;
 
@@ -73,7 +74,9 @@ export class NOutlineVirtualDelegate implements IListVirtualDelegate<NOutlineIte
 	}
 }
 
-export class NOutlineGroupRenderer implements ITreeRenderer<OutlineGroup, void, NOutlineGroupTemplate> {
+export class NOutlineGroupRenderer
+	extends AbstractTreeRenderer<OutlineGroup, void, NOutlineGroupTemplate>
+	implements ITreeRenderer<OutlineGroup, void, NOutlineGroupTemplate> {
 
 	readonly templateId: string = NOutlineGroupTemplate.id;
 
@@ -85,26 +88,30 @@ export class NOutlineGroupRenderer implements ITreeRenderer<OutlineGroup, void, 
 	}
 
 	renderElement(node: ITreeNode<OutlineGroup, void>, index: number, template: NOutlineGroupTemplate): void {
+		super.renderElement(node, index, template);
 		template.label.set(node.element.provider.displayName || localize('provider', "Outline Provider"));
 	}
 
 	disposeTemplate(template: NOutlineGroupTemplate): void {
 		template.label.dispose();
 	}
-
-	disposeElement(): void {
-		//
-	}
 }
 
-export class NOutlineElementRenderer implements ITreeRenderer<OutlineElement, void, NOutlineElementTemplate> {
+export class NOutlineElementRenderer
+	extends AbstractTreeRenderer<OutlineElement, void, NOutlineGroupTemplate>
+	implements ITreeRenderer<OutlineElement, void, NOutlineElementTemplate> {
 
 	readonly templateId: string = NOutlineElementTemplate.id;
 
 	renderProblemColors = true;
 	renderProblemBadges = true;
 
-	constructor(@IThemeService readonly _themeService: IThemeService) { }
+	constructor(
+		onDidChange: Event<OutlineElement | OutlineElement[] | undefined>,
+		@IThemeService readonly _themeService: IThemeService
+	) {
+		super(onDidChange);
+	}
 
 	renderTemplate(container: HTMLElement): NOutlineElementTemplate {
 		const icon = dom.$('.outline-element-icon symbol-icon');
@@ -116,7 +123,10 @@ export class NOutlineElementRenderer implements ITreeRenderer<OutlineElement, vo
 		return { icon, labelContainer, label: new HighlightedLabel(labelContainer, true), detail, decoration };
 	}
 
-	renderElement({ element }: ITreeNode<OutlineElement, void>, index: number, template: NOutlineElementTemplate): void {
+	renderElement(node: ITreeNode<OutlineElement, void>, index: number, template: NOutlineElementTemplate): void {
+		super.renderElement(node, index, template);
+
+		const { element } = node;
 		template.icon.className = `outline-element-icon ${symbolKindToCssClass(element.symbol.kind)}`;
 		template.label.set(element.symbol.name, element.score ? createMatches(element.score[1]) : undefined, localize('title.template', "{0} ({1})", element.symbol.name, NOutlineElementRenderer._symbolKindNames[element.symbol.kind]));
 		template.detail.innerText = element.symbol.detail || '';
@@ -193,9 +203,6 @@ export class NOutlineElementRenderer implements ITreeRenderer<OutlineElement, vo
 
 	disposeTemplate(template: NOutlineElementTemplate): void {
 		template.label.dispose();
-	}
-
-	disposeElement(): void {
 	}
 }
 
