@@ -84,7 +84,7 @@ export class WalkThroughSnippetContentProvider implements ITextModelContentProvi
 				const markdown = textBuffer.getValueInRange(range, EndOfLinePreference.TextDefined);
 				marked(markdown, { renderer });
 
-				const languageId = this.modeService.getModeIdForLanguageName(languageName);
+				const languageId = this.modeService.getModeIdForLanguageName(languageName) || '';
 				const languageSelection = this.modeService.create(languageId);
 				codeEditorModel = this.modelService.createModel(codeSnippet, languageSelection, resource);
 			} else {

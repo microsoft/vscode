@@ -36,11 +36,11 @@ export class ConfigureLocaleAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): Thenable<IEditor> {
+	public run(event?: any): Thenable<IEditor | undefined> {
 		const file = URI.file(join(this.environmentService.appSettingsHome, 'locale.json'));
 		return this.fileService.resolveFile(file).then(void 0, (error) => {
 			return this.fileService.createFile(file, ConfigureLocaleAction.DEFAULT_CONTENT);
-		}).then((stat) => {
+		}).then((stat): Thenable<IEditor | undefined> | undefined => {
 			if (!stat) {
 				return undefined;
 			}

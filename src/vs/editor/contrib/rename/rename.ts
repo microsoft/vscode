@@ -69,7 +69,7 @@ class RenameSkeleton {
 
 		if (i >= this._provider.length) {
 			return {
-				edits: undefined,
+				edits: [],
 				rejectReason: rejects.join('\n')
 			};
 		}

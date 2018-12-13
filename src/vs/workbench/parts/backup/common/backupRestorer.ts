@@ -28,13 +28,13 @@ export class BackupRestorer implements IWorkbenchContribution {
 		this.lifecycleService.when(LifecyclePhase.Restored).then(() => this.doRestoreBackups());
 	}
 
-	private doRestoreBackups(): Thenable<URI[]> {
+	private doRestoreBackups(): Thenable<URI[] | undefined> {
 
 		// Find all files and untitled with backups
 		return this.backupFileService.getWorkspaceFileBackups().then(backups => {
 
 			// Resolve backups that are opened
-			return this.doResolveOpenedBackups(backups).then(unresolved => {
+			return this.doResolveOpenedBackups(backups).then((unresolved): Thenable<URI[] | undefined> | undefined => {
 
 				// Some failed to restore or were not opened at all so we open and resolve them manually
 				if (unresolved.length > 0) {

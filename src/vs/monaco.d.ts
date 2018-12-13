@@ -5355,7 +5355,7 @@ declare namespace monaco.languages {
 	}
 
 	export interface WorkspaceEdit {
-		edits?: Array<ResourceTextEdit | ResourceFileEdit>;
+		edits: Array<ResourceTextEdit | ResourceFileEdit>;
 	}
 
 	export interface Rejection {

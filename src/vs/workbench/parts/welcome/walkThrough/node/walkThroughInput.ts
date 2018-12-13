@@ -50,7 +50,7 @@ export class WalkThroughInput extends EditorInput {
 
 	private disposables: IDisposable[] = [];
 
-	private promise: Thenable<WalkThroughModel>;
+	private promise: Thenable<WalkThroughModel> | null;
 
 	private maxTopScroll = 0;
 	private maxBottomScroll = 0;
