@@ -281,10 +281,9 @@ export class OutlinePanel extends ViewletPanel {
 			// dom node when the tree cannot take focus,
 			// e.g. when hidden
 			this._tree.domFocus();
-			// todo@joh,joao no isDOMFocused?
-			// if (!this._tree.isDOMFocused()) {
-			// 	this._domNode.focus();
-			// }
+			if (!this._tree.isDOMFocused()) {
+				this._domNode.focus();
+			}
 		}
 	}
 
