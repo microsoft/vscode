@@ -17,6 +17,8 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { URI } from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { generateUuid } from 'vs/base/common/uuid';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ICommentsConfiguration } from 'vs/workbench/parts/comments/electron-browser/comments.contribution';
 
 export class MainThreadDocumentCommentProvider implements modes.DocumentCommentProvider {
 	private _proxy: ExtHostCommentsShape;
@@ -72,18 +74,18 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	private _documentProviders = new Map<number, IDisposable>();
 	private _workspaceProviders = new Map<number, IDisposable>();
 	private _handlers = new Map<number, string>();
-	private _firstSessionStart: boolean;
+	private _openPanelListener: IDisposable;
 
 	constructor(
 		extHostContext: IExtHostContext,
 		@IEditorService private _editorService: IEditorService,
 		@ICommentService private _commentService: ICommentService,
 		@IPanelService private _panelService: IPanelService,
-		@ITelemetryService private _telemetryService: ITelemetryService
+		@ITelemetryService private _telemetryService: ITelemetryService,
+		@IConfigurationService private _configurationService: IConfigurationService
 	) {
 		super();
 		this._disposables = [];
-		this._firstSessionStart = true;
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostComments);
 	}
 
@@ -104,15 +106,41 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		this._handlers.set(handle, providerId);
 
 		this._panelService.setPanelEnablement(COMMENTS_PANEL_ID, true);
-		if (this._firstSessionStart) {
-			this._panelService.openPanel(COMMENTS_PANEL_ID);
-			this._firstSessionStart = false;
-		}
-		this._proxy.$provideWorkspaceComments(handle).then(commentThreads => {
-			if (commentThreads) {
-				this._commentService.setWorkspaceComments(providerId, commentThreads);
+
+		const openPanel = this._configurationService.getValue<ICommentsConfiguration>('comments').openPanel;
+
+
+		if (openPanel === 'neverOpen' && this._workspaceProviders.size === 1) {
+			// Since the panel has just been enabled but never opened, it has never been constructed so can't
+			// listen for comment threads being set or updated.
+			// Don't even bother fetching workspace comments until after its opened for the first time.
+			this._openPanelListener = this._panelService.onDidPanelOpen(e => {
+				if (e.panel.getId() === COMMENTS_PANEL_ID) {
+					this._proxy.$provideWorkspaceComments(handle).then(commentThreads => {
+						if (commentThreads) {
+							this._commentService.setWorkspaceComments(providerId, commentThreads);
+						}
+
+						this._openPanelListener.dispose();
+						this._openPanelListener = null;
+					});
+				}
+			});
+		} else {
+			if (openPanel === 'openOnSessionStart') {
+				this._panelService.openPanel(COMMENTS_PANEL_ID);
 			}
-		});
+
+			this._proxy.$provideWorkspaceComments(handle).then(commentThreads => {
+				if (commentThreads) {
+					if (openPanel === 'openOnSessionStartWithComments' && commentThreads.length) {
+						this._panelService.openPanel(COMMENTS_PANEL_ID);
+					}
+
+					this._commentService.setWorkspaceComments(providerId, commentThreads);
+				}
+			});
+		}
 
 		/* __GDPR__
 			"comments:registerWorkspaceCommentProvider" : {
@@ -129,6 +157,11 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		const handlerId = this._handlers.get(handle);
 		this._commentService.unregisterDataProvider(handlerId);
 		this._handlers.delete(handle);
+
+		if (this._openPanelListener) {
+			this._openPanelListener.dispose();
+			this._openPanelListener = null;
+		}
 	}
 
 	$unregisterWorkspaceCommentProvider(handle: number): void {
