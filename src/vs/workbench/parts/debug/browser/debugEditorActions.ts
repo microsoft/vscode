@@ -119,7 +119,7 @@ class RunToCursorAction extends EditorAction {
 		const debugService = accessor.get(IDebugService);
 		const focusedSession = debugService.getViewModel().focusedSession;
 		if (debugService.state !== State.Stopped || !focusedSession) {
-			return Promise.resolve(null);
+			return Promise.resolve(void 0);
 		}
 
 		let breakpointToRemove: IBreakpoint;

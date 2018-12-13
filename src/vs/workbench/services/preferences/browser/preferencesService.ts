@@ -210,7 +210,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			this.openOrSwitchSettings2(ConfigurationTarget.USER, undefined, options, group);
 	}
 
-	openWorkspaceSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditor> {
+	openWorkspaceSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditor | null> {
 		jsonEditor = typeof jsonEditor === 'undefined' ?
 			this.configurationService.getValue('workbench.settings.editor') === 'json' :
 			jsonEditor;
@@ -493,7 +493,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && target === ConfigurationTarget.WORKSPACE) {
 			const workspaceConfig = this.contextService.getWorkspace().configuration;
 			if (!workspaceConfig) {
-				return Promise.resolve(null);
+				return Promise.resolve(void 0);
 			}
 
 			return this.fileService.resolveContent(workspaceConfig)

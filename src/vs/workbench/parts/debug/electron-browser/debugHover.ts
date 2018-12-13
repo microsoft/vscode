@@ -178,7 +178,7 @@ export class DebugHoverWidget implements IContentWidget {
 		className: 'hoverHighlight'
 	});
 
-	private doFindExpression(container: IExpressionContainer, namesToFind: string[]): Promise<IExpression> {
+	private doFindExpression(container: IExpressionContainer, namesToFind: string[]): Promise<IExpression | null> {
 		if (!container) {
 			return Promise.resolve(null);
 		}
@@ -231,7 +231,7 @@ export class DebugHoverWidget implements IContentWidget {
 				this.valueContainer.focus();
 			}
 
-			return Promise.resolve(null);
+			return Promise.resolve(void 0);
 		}
 
 		this.valueContainer.hidden = true;

@@ -121,7 +121,7 @@ class NavBar {
 		this.currentId = id;
 		this._onChange.fire({ id, focus });
 		this.actions.forEach(a => a.enabled = a.id !== id);
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 
 	dispose(): void {
@@ -501,7 +501,7 @@ export class ExtensionEditor extends BaseEditor {
 			});
 	}
 
-	private open(id: string, extension: IExtension): Promise<IActiveElement> {
+	private open(id: string, extension: IExtension): Promise<IActiveElement | null> {
 		switch (id) {
 			case NavbarSection.Readme: return this.openReadme();
 			case NavbarSection.Contributions: return this.openContributions();
@@ -697,7 +697,7 @@ export class ExtensionEditor extends BaseEditor {
 				return this.extension.extensionPack.length > 0;
 			}
 
-			getChildren(): Promise<IExtensionData[]> {
+			getChildren(): Promise<IExtensionData[] | null> {
 				if (this.hasChildren) {
 					const names = arrays.distinct(this.extension.extensionPack, e => e.toLowerCase());
 					return extensionsWorkbenchService.queryGallery({ names, pageSize: names.length })

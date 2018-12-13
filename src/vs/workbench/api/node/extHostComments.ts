@@ -67,7 +67,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		};
 	}
 
-	$createNewCommentThread(handle: number, uri: UriComponents, range: IRange, text: string): Promise<modes.CommentThread> {
+	$createNewCommentThread(handle: number, uri: UriComponents, range: IRange, text: string): Promise<modes.CommentThread | null> {
 		const data = this._documents.getDocumentData(URI.revive(uri));
 		const ran = <vscode.Range>extHostTypeConverter.Range.to(range);
 
@@ -81,7 +81,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		}).then(commentThread => commentThread ? convertToCommentThread(provider, commentThread, this._commandsConverter) : null);
 	}
 
-	$replyToCommentThread(handle: number, uri: UriComponents, range: IRange, thread: modes.CommentThread, text: string): Promise<modes.CommentThread> {
+	$replyToCommentThread(handle: number, uri: UriComponents, range: IRange, thread: modes.CommentThread, text: string): Promise<modes.CommentThread | null> {
 		const data = this._documents.getDocumentData(URI.revive(uri));
 		const ran = <vscode.Range>extHostTypeConverter.Range.to(range);
 
@@ -154,7 +154,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		}).then(commentInfo => commentInfo ? convertCommentInfo(handle, provider, commentInfo, this._commandsConverter) : null);
 	}
 
-	$provideWorkspaceComments(handle: number): Promise<modes.CommentThread[]> {
+	$provideWorkspaceComments(handle: number): Promise<modes.CommentThread[] | null> {
 		const provider = this._workspaceProviders.get(handle);
 		if (!provider) {
 			return Promise.resolve(null);

@@ -219,7 +219,7 @@ export class Expression extends ExpressionContainer implements IExpression {
 			this.available = false;
 			this.reference = 0;
 
-			return Promise.resolve(null);
+			return Promise.resolve(void 0);
 		}
 
 		this.session = session;
@@ -427,7 +427,7 @@ export class Thread implements IThread {
 	 */
 	fetchCallStack(levels = 20): Promise<void> {
 		if (!this.stopped) {
-			return Promise.resolve(null);
+			return Promise.resolve(void 0);
 		}
 
 		const start = this.callStack.length;
@@ -472,7 +472,7 @@ export class Thread implements IThread {
 	/**
 	 * Returns exception info promise if the exception was thrown, otherwise null
 	 */
-	get exceptionInfo(): Promise<IExceptionInfo> {
+	get exceptionInfo(): Promise<IExceptionInfo | null> {
 		if (this.stoppedDetails && this.stoppedDetails.reason === 'exception') {
 			if (this.session.capabilities.supportsExceptionInfoRequest) {
 				return this.session.exceptionInfo(this.threadId);

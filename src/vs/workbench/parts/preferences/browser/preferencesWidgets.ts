@@ -554,7 +554,7 @@ export class SettingsTargetsWidget extends Widget {
 			this.settingsTarget = settingsTarget;
 			this._onDidTargetChange.fire(this.settingsTarget);
 		}
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 
 	private update(): void {

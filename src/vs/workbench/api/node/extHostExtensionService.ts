@@ -475,7 +475,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 
 	private _handleWorkspaceContainsEagerExtensions(workspace: IWorkspaceData): Promise<void> {
 		if (!workspace || workspace.folders.length === 0) {
-			return Promise.resolve(null);
+			return Promise.resolve(void 0);
 		}
 
 		return Promise.all(
@@ -572,7 +572,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 
 	private _handleExtensionTests(): Promise<void> {
 		if (!this._initData.environment.extensionTestsPath || !this._initData.environment.extensionDevelopmentLocationURI) {
-			return Promise.resolve(null);
+			return Promise.resolve(void 0);
 		}
 
 		// Require the test runner via node require from the provided path

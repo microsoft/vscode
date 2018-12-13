@@ -734,7 +734,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 	 */
 	public refresh(): Promise<void> {
 		if (!this.explorerViewer || this.explorerViewer.getHighlight()) {
-			return Promise.resolve(null);
+			return Promise.resolve(void 0);
 		}
 
 		// Focus
@@ -757,7 +757,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 				return this.select(resourceToFocus, true);
 			}
 
-			return Promise.resolve(null);
+			return Promise.resolve(void 0);
 		});
 	}
 
@@ -923,18 +923,18 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 		// Require valid path
 		if (!resource) {
-			return Promise.resolve(null);
+			return Promise.resolve(void 0);
 		}
 
 		// If path already selected, just reveal and return
 		const selection = this.hasSingleSelection(resource);
 		if (selection) {
-			return reveal ? this.reveal(selection, 0.5) : Promise.resolve(null);
+			return reveal ? this.reveal(selection, 0.5) : Promise.resolve(void 0);
 		}
 
 		// First try to get the stat object from the input to avoid a roundtrip
 		if (!this.isCreated) {
-			return Promise.resolve(null);
+			return Promise.resolve(void 0);
 		}
 
 		const fileStat = this.model.findClosest(resource);
@@ -969,7 +969,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 	private doSelect(fileStat: ExplorerItem, reveal: boolean): Promise<void> {
 		if (!fileStat) {
-			return Promise.resolve(null);
+			return Promise.resolve(void 0);
 		}
 
 		// Special case: we are asked to reveal and select an element that is not visible
@@ -977,7 +977,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		if (!this.filter.isVisible(this.tree, fileStat)) {
 			fileStat = fileStat.parent;
 			if (!fileStat) {
-				return Promise.resolve(null);
+				return Promise.resolve(void 0);
 			}
 		}
 
@@ -986,7 +986,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		if (reveal) {
 			revealPromise = this.reveal(fileStat, 0.5);
 		} else {
-			revealPromise = Promise.resolve(null);
+			revealPromise = Promise.resolve(void 0);
 		}
 
 		return revealPromise.then(() => {
@@ -1000,7 +1000,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 	private reveal(element: any, relativeTop?: number): Promise<void> {
 		if (!this.tree) {
-			return Promise.resolve(null); // return early if viewlet has not yet been created
+			return Promise.resolve(void 0); // return early if viewlet has not yet been created
 		}
 		return this.tree.reveal(element, relativeTop);
 	}

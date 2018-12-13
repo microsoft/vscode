@@ -120,7 +120,7 @@ export class FileDataSource implements IDataSource {
 		}
 	}
 
-	public getParent(tree: ITree, stat: ExplorerItem | Model): Promise<ExplorerItem> {
+	public getParent(tree: ITree, stat: ExplorerItem | Model): Promise<ExplorerItem | null> {
 		if (!stat) {
 			return Promise.resolve(null); // can be null if nothing selected in the tree
 		}

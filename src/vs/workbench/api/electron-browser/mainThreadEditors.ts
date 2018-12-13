@@ -166,7 +166,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
 		this._documentsAndEditors.getEditor(id).setSelections(selections);
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 
 	$trySetDecorations(id: string, key: string, ranges: IDecorationOptions[]): Promise<void> {
@@ -175,7 +175,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
 		this._documentsAndEditors.getEditor(id).setDecorations(key, ranges);
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 
 	$trySetDecorationsFast(id: string, key: string, ranges: number[]): Promise<void> {
@@ -184,7 +184,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
 		this._documentsAndEditors.getEditor(id).setDecorationsFast(key, ranges);
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 
 	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): Promise<void> {
@@ -200,7 +200,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
 		this._documentsAndEditors.getEditor(id).setConfiguration(options);
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 
 	$tryApplyEdits(id: string, modelVersionId: number, edits: ISingleEditOperation[], opts: IApplyEditsOptions): Promise<boolean> {

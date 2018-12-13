@@ -267,7 +267,7 @@ export class CollapseDeepestExpandedLevelAction extends Action {
 		if (searchView) {
 			const viewer = searchView.getControl();
 			if (viewer.getHighlight()) {
-				return Promise.resolve(null); // Global action disabled if user is in edit mode from another action
+				return Promise.resolve(void 0); // Global action disabled if user is in edit mode from another action
 			}
 
 			/**
@@ -303,7 +303,7 @@ export class CollapseDeepestExpandedLevelAction extends Action {
 			viewer.domFocus();
 			viewer.focusFirst();
 		}
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -358,7 +358,7 @@ export class CancelSearchAction extends Action {
 			searchView.cancelSearch();
 		}
 
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 }
 

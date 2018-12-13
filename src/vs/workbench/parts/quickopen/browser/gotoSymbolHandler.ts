@@ -490,7 +490,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		return this.cachedOutlineRequest;
 	}
 
-	private doGetActiveOutline(): Promise<OutlineModel> {
+	private doGetActiveOutline(): Promise<OutlineModel | null> {
 		const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
 		if (activeTextEditorWidget) {
 			let model = activeTextEditorWidget.getModel();

@@ -206,7 +206,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	revert(soft?: boolean): Promise<void> {
 		if (!this.isResolved()) {
-			return Promise.resolve(null);
+			return Promise.resolve(void 0);
 		}
 
 		// Cancel any running auto-save
@@ -483,7 +483,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this._register(this.textEditorModel.onDidChangeContent(() => this.onModelContentChanged()));
 	}
 
-	private doLoadBackup(backup: URI): Promise<ITextBufferFactory> {
+	private doLoadBackup(backup: URI): Promise<ITextBufferFactory | null> {
 		if (!backup) {
 			return Promise.resolve(null);
 		}
@@ -583,7 +583,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	save(options: ISaveOptions = Object.create(null)): Promise<void> {
 		if (!this.isResolved()) {
-			return Promise.resolve(null);
+			return Promise.resolve(void 0);
 		}
 
 		this.logService.trace('save() - enter', this.resource);
@@ -622,7 +622,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		if ((!options.force && !this.dirty) || versionId !== this.versionId) {
 			this.logService.trace(`doSave(${versionId}) - exit - because not dirty and/or versionId is different (this.isDirty: ${this.dirty}, this.versionId: ${this.versionId})`, this.resource);
 
-			return Promise.resolve(null);
+			return Promise.resolve(void 0);
 		}
 
 		// Return if currently saving by storing this save request as the next save that should happen.

@@ -81,7 +81,7 @@ export class CloseWorkspaceAction extends Action {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			this.notificationService.info(nls.localize('noWorkspaceOpened', "There is currently no workspace opened in this instance to close."));
 
-			return Promise.resolve(null);
+			return Promise.resolve(void 0);
 		}
 
 		return this.windowService.closeWorkspace();

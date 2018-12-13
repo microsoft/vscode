@@ -695,7 +695,7 @@ export class DebugService implements IDebugService {
 		});
 	}
 
-	private runTask(root: IWorkspaceFolder, taskId: string | TaskIdentifier): Promise<ITaskSummary> {
+	private runTask(root: IWorkspaceFolder, taskId: string | TaskIdentifier): Promise<ITaskSummary | null> {
 		if (!taskId) {
 			return Promise.resolve(null);
 		}

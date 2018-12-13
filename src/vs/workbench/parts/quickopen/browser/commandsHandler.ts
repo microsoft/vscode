@@ -156,7 +156,7 @@ export class ShowAllCommandsAction extends Action {
 
 		this.quickOpenService.show(value, { inputSelection: lastCommandPaletteInput ? { start: 1 /* after prefix */, end: value.length } : void 0 });
 
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -180,7 +180,7 @@ export class ClearCommandHistoryAction extends Action {
 			commandCounter = 1;
 		}
 
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -205,7 +205,7 @@ class CommandPaletteEditorAction extends EditorAction {
 		// Show with prefix
 		quickOpenService.show(ALL_COMMANDS_PREFIX);
 
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 }
 

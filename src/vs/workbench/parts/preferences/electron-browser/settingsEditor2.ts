@@ -894,7 +894,7 @@ export class SettingsEditor2 extends BaseEditor {
 			}
 		}
 
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 
 	private updateElementsByKey(keys: string[]): Promise<void> {
@@ -924,7 +924,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private renderTree(key?: string, force = false): Promise<void> {
 		if (!force && key && this.scheduledRefreshes.has(key)) {
 			this.updateModifiedLabelForKey(key);
-			return Promise.resolve(null);
+			return Promise.resolve(void 0);
 		}
 
 		// If a setting control is currently focused, schedule a refresh for later
