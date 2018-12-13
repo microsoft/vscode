@@ -297,18 +297,18 @@ namespace TaskDTO {
 		}
 		let result: TaskDTO = {
 			_id: task._id,
-			name: task.name,
-			definition: TaskDefinitionDTO.from(Task.getTaskDefinition(task)),
+			name: task.configurationProperties.name,
+			definition: TaskDefinitionDTO.from(task.getDefinition()),
 			source: TaskSourceDTO.from(task._source),
 			execution: undefined,
 			presentationOptions: task.command ? TaskPresentationOptionsDTO.from(task.command.presentation) : undefined,
-			isBackground: task.isBackground,
+			isBackground: task.configurationProperties.isBackground,
 			problemMatchers: [],
 			hasDefinedMatchers: ContributedTask.is(task) ? task.hasDefinedMatchers : false,
 			runOptions: RunOptionsDTO.from(task.runOptions),
 		};
-		if (task.group) {
-			result.group = task.group;
+		if (task.configurationProperties.group) {
+			result.group = task.configurationProperties.group;
 		}
 		if (task.command) {
 			if (task.command.runtime === RuntimeType.Process) {
@@ -317,8 +317,8 @@ namespace TaskDTO {
 				result.execution = ShellExecutionDTO.from(task.command);
 			}
 		}
-		if (task.problemMatchers) {
-			for (let matcher of task.problemMatchers) {
+		if (task.configurationProperties.problemMatchers) {
+			for (let matcher of task.configurationProperties.problemMatchers) {
 				if (Types.isString(matcher)) {
 					result.problemMatchers.push(matcher);
 				}
@@ -346,21 +346,23 @@ namespace TaskDTO {
 		let label = nls.localize('task.label', '{0}: {1}', source.label, task.name);
 		let definition = TaskDefinitionDTO.to(task.definition, executeOnly);
 		let id = `${task.source.extensionId}.${definition._key}`;
-		let result: ContributedTask = {
+		let result: ContributedTask = new ContributedTask({
 			_id: id, // uuidMap.getUUID(identifier)
 			_source: source,
 			_label: label,
 			type: definition.type,
 			defines: definition,
-			name: task.name,
-			identifier: label,
-			group: task.group,
 			command: command,
-			isBackground: !!task.isBackground,
-			problemMatchers: task.problemMatchers.slice(),
 			hasDefinedMatchers: task.hasDefinedMatchers,
 			runOptions: RunOptionsDTO.to(task.runOptions),
-		};
+			configurationProperties: {
+				name: task.name,
+				identifier: label,
+				group: task.group,
+				isBackground: !!task.isBackground,
+				problemMatchers: task.problemMatchers.slice(),
+			}
+		});
 		return result;
 	}
 }
@@ -392,13 +394,13 @@ export class MainThreadTask implements MainThreadTaskShape {
 		this._taskService.onDidStateChange((event: TaskEvent) => {
 			let task = event.__task;
 			if (event.kind === TaskEventKind.Start) {
-				this._proxy.$onDidStartTask(TaskExecutionDTO.from(Task.getTaskExecution(task)));
+				this._proxy.$onDidStartTask(TaskExecutionDTO.from(task.getTaskExecution()));
 			} else if (event.kind === TaskEventKind.ProcessStarted) {
-				this._proxy.$onDidStartTaskProcess(TaskProcessStartedDTO.from(Task.getTaskExecution(task), event.processId));
+				this._proxy.$onDidStartTaskProcess(TaskProcessStartedDTO.from(task.getTaskExecution(), event.processId));
 			} else if (event.kind === TaskEventKind.ProcessEnded) {
-				this._proxy.$onDidEndTaskProcess(TaskProcessEndedDTO.from(Task.getTaskExecution(task), event.exitCode));
+				this._proxy.$onDidEndTaskProcess(TaskProcessEndedDTO.from(task.getTaskExecution(), event.exitCode));
 			} else if (event.kind === TaskEventKind.End) {
-				this._proxy.$OnDidEndTask(TaskExecutionDTO.from(Task.getTaskExecution(task)));
+				this._proxy.$OnDidEndTask(TaskExecutionDTO.from(task.getTaskExecution()));
 			}
 		});
 	}
@@ -418,7 +420,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 					for (let dto of value.tasks) {
 						let task = TaskDTO.to(dto, this._workspaceContextServer, true);
 						if (task) {
-							tasks.push(task);
+							tasks.push(new ContributedTask(<ContributedTask>task));
 						} else {
 							console.error(`Task System: can not convert task: ${JSON.stringify(dto.definition, undefined, 0)}. Task will be dropped`);
 						}
