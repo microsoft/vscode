@@ -151,5 +151,38 @@ suite('ObjectTree', function () {
 			assert.equal(navigator.first(), 0);
 			assert.equal(navigator.last(), 2);
 		});
+
+		test('should be able to start from node', () => {
+			tree.setChildren(null, Iterator.fromArray([
+				{
+					element: 0, children: Iterator.fromArray([
+						{ element: 10 },
+						{ element: 11 },
+						{ element: 12 },
+					])
+				},
+				{ element: 1 },
+				{ element: 2 }
+			]));
+
+			const navigator = tree.navigate(1);
+
+			assert.equal(navigator.current(), 1);
+			assert.equal(navigator.next(), 2);
+			assert.equal(navigator.current(), 2);
+			assert.equal(navigator.previous(), 1);
+			assert.equal(navigator.current(), 1);
+			assert.equal(navigator.previous(), 12);
+			assert.equal(navigator.previous(), 11);
+			assert.equal(navigator.previous(), 10);
+			assert.equal(navigator.previous(), 0);
+			assert.equal(navigator.previous(), null);
+			assert.equal(navigator.next(), 0);
+			assert.equal(navigator.next(), 10);
+			assert.equal(navigator.parent(), 0);
+			assert.equal(navigator.parent(), null);
+			assert.equal(navigator.first(), 0);
+			assert.equal(navigator.last(), 2);
+		});
 	});
 });
