@@ -169,7 +169,7 @@ export class StatusBarController implements IWorkbenchContribution {
 		this.focusedProviderContextKey.set(repository && repository.provider.id);
 		this.focusDisposable.dispose();
 
-		if (repository) {
+		if (repository && repository.provider.onDidChangeStatusBarCommands) {
 			this.focusDisposable = repository.provider.onDidChangeStatusBarCommands(() => this.render(repository));
 		}
 

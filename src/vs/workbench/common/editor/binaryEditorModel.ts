@@ -80,7 +80,9 @@ export class BinaryEditorModel extends EditorModel {
 		if (this.fileService.canHandleResource(this.resource)) {
 			return this.fileService.resolveFile(this.resource).then(stat => {
 				this.etag = stat.etag;
-				this.size = stat.size;
+				if (typeof stat.size === 'number') {
+					this.size = stat.size;
+				}
 
 				return this;
 			});
