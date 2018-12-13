@@ -68,6 +68,7 @@ export abstract class TerminalService implements ITerminalService {
 		this._terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this._contextKeyService);
 		this._findWidgetVisible = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE.bindTo(this._contextKeyService);
 		this.onTabDisposed(tab => this._removeTab(tab));
+		this.onActiveTabChanged(() => this._onActiveInstanceChanged.fire(this.getActiveInstance()));
 
 		this._handleContextKeys();
 	}
