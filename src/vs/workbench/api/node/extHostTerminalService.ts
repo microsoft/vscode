@@ -144,6 +144,13 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 		if (this._pidPromiseComplete) {
 			this._pidPromiseComplete(processId);
 			this._pidPromiseComplete = null;
+		} else {
+			// Recreate the promise if this is the nth processId set (eg. reused task terminals)
+			this._pidPromise.then(pid => {
+				if (pid !== processId) {
+					this._pidPromise = Promise.resolve(processId);
+				}
+			});
 		}
 	}
 
