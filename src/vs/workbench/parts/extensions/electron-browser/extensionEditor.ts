@@ -602,24 +602,29 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		return this.loadContents(() => this.extensionDependencies.get())
-			.then(extensionDependencies => {
-				const content = $('div', { class: 'subcontent' });
-				const scrollableContent = new DomScrollableElement(content, {});
-				append(this.content, scrollableContent.getDomNode());
-				this.contentDisposables.push(scrollableContent);
+			.then<IActiveElement>(extensionDependencies => {
+				if (extensionDependencies) {
+					const content = $('div', { class: 'subcontent' });
+					const scrollableContent = new DomScrollableElement(content, {});
+					append(this.content, scrollableContent.getDomNode());
+					this.contentDisposables.push(scrollableContent);
 
-				const dependenciesTree = this.renderDependencies(content, extensionDependencies);
-				const layout = () => {
+					const dependenciesTree = this.renderDependencies(content, extensionDependencies);
+					const layout = () => {
+						scrollableContent.scanDomNode();
+						const scrollDimensions = scrollableContent.getScrollDimensions();
+						dependenciesTree.layout(scrollDimensions.height);
+					};
+					const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
+					this.contentDisposables.push(toDisposable(removeLayoutParticipant));
+
+					this.contentDisposables.push(dependenciesTree);
 					scrollableContent.scanDomNode();
-					const scrollDimensions = scrollableContent.getScrollDimensions();
-					dependenciesTree.layout(scrollDimensions.height);
-				};
-				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
-				this.contentDisposables.push(toDisposable(removeLayoutParticipant));
-
-				this.contentDisposables.push(dependenciesTree);
-				scrollableContent.scanDomNode();
-				return { focus() { dependenciesTree.domFocus(); } };
+					return { focus() { dependenciesTree.domFocus(); } };
+				} else {
+					append(this.content, $('p.nocontent')).textContent = localize('noDependencies', "No Dependencies");
+					return Promise.resolve(this.content);
+				}
 			}, error => {
 				append(this.content, $('p.nocontent')).textContent = error;
 				this.notificationService.error(error);

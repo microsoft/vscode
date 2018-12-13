@@ -766,7 +766,8 @@
 		"./vs/workbench/test/electron-browser/api/mock.ts",
 		"./vs/platform/extensionManagement/node/multiExtensionManagement.ts",
 		"./vs/platform/extensionManagement/node/extensionManagementService.ts",
-		"./vs/platform/extensionManagement/node/extensionGalleryService.ts"
+		"./vs/platform/extensionManagement/node/extensionGalleryService.ts",
+		"./vs/workbench/parts/extensions/node/extensionsWorkbenchService.ts"
 	],
 	"exclude": [
 		"./typings/require-monaco.d.ts"
