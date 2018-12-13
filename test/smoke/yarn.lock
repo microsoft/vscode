@@ -596,10 +596,10 @@ electron-download@^4.1.0:
     semver "^5.4.1"
     sumchecker "^2.0.2"
 
-electron@3.0.10:
-  version "3.0.10"
-  resolved "https://registry.yarnpkg.com/electron/-/electron-3.0.10.tgz#7d412856e8cf0d3041a612a32dd09e2af2d50f50"
-  integrity sha512-I39IeQP3NOlbjKzTDK8uK2JdiHDfhV5SruCS2Gttkn2MaKCY+yIzQ6Wr4DyBXLeTEkL1sbZxbqQVhCavAliv5w==
+electron@4.0.0-beta.9:
+  version "4.0.0-beta.9"
+  resolved "https://registry.yarnpkg.com/electron/-/electron-4.0.0-beta.9.tgz#18034e48e4e30fb49920974416edd77f6ba6a558"
+  integrity sha512-BPFkN4BFQy88x2ZHVmzI03i1mUgaQF/uROPb/TlGB/WNAD3v2OvA9Ak9yZ5ADNnwhlR28DtUGs/MuZfDZHZBoQ==
   dependencies:
     "@types/node" "^8.0.24"
     electron-download "^4.1.0"

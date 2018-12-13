@@ -384,7 +384,7 @@ class TimerService implements ITimerService {
 			release = os.release();
 			arch = os.arch();
 			loadavg = os.loadavg();
-			meminfo = process.getProcessMemoryInfo();
+			meminfo = Object.create(null); // TODO@Ben electron 4.0.x https://github.com/electron/electron/issues/13447
 
 			isVMLikelyhood = Math.round((virtualMachineHint.value() * 100));
 
