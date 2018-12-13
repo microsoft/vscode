@@ -14,32 +14,34 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 
-
-let themesExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>('themes', [], {
-	description: nls.localize('vscode.extension.contributes.themes', 'Contributes textmate color themes.'),
-	type: 'array',
-	items: {
-		type: 'object',
-		defaultSnippets: [{ body: { label: '${1:label}', id: '${2:id}', uiTheme: VS_DARK_THEME, path: './themes/${3:id}.tmTheme.' } }],
-		properties: {
-			id: {
-				description: nls.localize('vscode.extension.contributes.themes.id', 'Id of the icon theme as used in the user settings.'),
-				type: 'string'
+const themesExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>({
+	extensionPoint: 'themes',
+	jsonSchema: {
+		description: nls.localize('vscode.extension.contributes.themes', 'Contributes textmate color themes.'),
+		type: 'array',
+		items: {
+			type: 'object',
+			defaultSnippets: [{ body: { label: '${1:label}', id: '${2:id}', uiTheme: VS_DARK_THEME, path: './themes/${3:id}.tmTheme.' } }],
+			properties: {
+				id: {
+					description: nls.localize('vscode.extension.contributes.themes.id', 'Id of the icon theme as used in the user settings.'),
+					type: 'string'
+				},
+				label: {
+					description: nls.localize('vscode.extension.contributes.themes.label', 'Label of the color theme as shown in the UI.'),
+					type: 'string'
+				},
+				uiTheme: {
+					description: nls.localize('vscode.extension.contributes.themes.uiTheme', 'Base theme defining the colors around the editor: \'vs\' is the light color theme, \'vs-dark\' is the dark color theme. \'hc-black\' is the dark high contrast theme.'),
+					enum: [VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME]
+				},
+				path: {
+					description: nls.localize('vscode.extension.contributes.themes.path', 'Path of the tmTheme file. The path is relative to the extension folder and is typically \'./themes/themeFile.tmTheme\'.'),
+					type: 'string'
+				}
 			},
-			label: {
-				description: nls.localize('vscode.extension.contributes.themes.label', 'Label of the color theme as shown in the UI.'),
-				type: 'string'
-			},
-			uiTheme: {
-				description: nls.localize('vscode.extension.contributes.themes.uiTheme', 'Base theme defining the colors around the editor: \'vs\' is the light color theme, \'vs-dark\' is the dark color theme. \'hc-black\' is the dark high contrast theme.'),
-				enum: [VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME]
-			},
-			path: {
-				description: nls.localize('vscode.extension.contributes.themes.path', 'Path of the tmTheme file. The path is relative to the extension folder and is typically \'./themes/themeFile.tmTheme\'.'),
-				type: 'string'
-			}
-		},
-		required: ['path', 'uiTheme']
+			required: ['path', 'uiTheme']
+		}
 	}
 });
 

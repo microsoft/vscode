@@ -106,7 +106,11 @@ namespace snippetExt {
 		}
 	};
 
-	export const point = ExtensionsRegistry.registerExtensionPoint<snippetExt.ISnippetsExtensionPoint[]>('snippets', [languagesExtPoint], snippetExt.snippetsContribution);
+	export const point = ExtensionsRegistry.registerExtensionPoint<snippetExt.ISnippetsExtensionPoint[]>({
+		extensionPoint: 'snippets',
+		deps: [languagesExtPoint],
+		jsonSchema: snippetExt.snippetsContribution
+	});
 }
 
 function watch(service: IFileService, resource: URI, callback: (type: FileChangeType, resource: URI) => any): IDisposable {

@@ -331,6 +331,13 @@ export const schema = {
 	}
 };
 
+export interface IExtensionPointDescriptor {
+	isDynamic?: boolean;
+	extensionPoint: string;
+	deps?: IExtensionPoint<any>[];
+	jsonSchema: IJSONSchema;
+}
+
 export class ExtensionsRegistryImpl {
 
 	private _extensionPoints: { [extPoint: string]: ExtensionPoint<any>; };
@@ -339,14 +346,14 @@ export class ExtensionsRegistryImpl {
 		this._extensionPoints = {};
 	}
 
-	public registerExtensionPoint<T>(extensionPoint: string, deps: IExtensionPoint<any>[], jsonSchema: IJSONSchema): IExtensionPoint<T> {
-		if (hasOwnProperty.call(this._extensionPoints, extensionPoint)) {
-			throw new Error('Duplicate extension point: ' + extensionPoint);
+	public registerExtensionPoint<T>(desc: IExtensionPointDescriptor): IExtensionPoint<T> {
+		if (hasOwnProperty.call(this._extensionPoints, desc.extensionPoint)) {
+			throw new Error('Duplicate extension point: ' + desc.extensionPoint);
 		}
-		let result = new ExtensionPoint<T>(extensionPoint);
-		this._extensionPoints[extensionPoint] = result;
+		let result = new ExtensionPoint<T>(desc.extensionPoint);
+		this._extensionPoints[desc.extensionPoint] = result;
 
-		schema.properties['contributes'].properties[extensionPoint] = jsonSchema;
+		schema.properties['contributes'].properties[desc.extensionPoint] = desc.jsonSchema;
 		schemaRegistry.registerSchema(schemaId, schema);
 
 		return result;

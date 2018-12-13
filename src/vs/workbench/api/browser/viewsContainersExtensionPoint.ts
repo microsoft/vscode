@@ -74,7 +74,10 @@ export const viewsContainersContribution: IJSONSchema = {
 	}
 };
 
-export const viewsContainersExtensionPoint: IExtensionPoint<{ [loc: string]: IUserFriendlyViewsContainerDescriptor[] }> = ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: IUserFriendlyViewsContainerDescriptor[] }>('viewsContainers', [], viewsContainersContribution);
+export const viewsContainersExtensionPoint: IExtensionPoint<{ [loc: string]: IUserFriendlyViewsContainerDescriptor[] }> = ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: IUserFriendlyViewsContainerDescriptor[] }>({
+	extensionPoint: 'viewsContainers',
+	jsonSchema: viewsContainersContribution
+});
 
 const TEST_VIEW_CONTAINER_ORDER = 6;
 
