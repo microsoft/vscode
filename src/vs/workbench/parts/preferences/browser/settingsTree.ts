@@ -1173,7 +1173,8 @@ export class SettingsRenderer implements ITreeRenderer {
 			.map((data, index) => <ISelectOptionItem>{
 				text: data,
 				description: (enumDescriptions && enumDescriptions[index] && (enumDescriptionsAreMarkdown ? fixSettingLinks(enumDescriptions[index], false) : enumDescriptions[index])),
-				descriptionIsMarkdown: enumDescriptionsAreMarkdown
+				descriptionIsMarkdown: enumDescriptionsAreMarkdown,
+				decoratorRight: (data === dataElement.defaultValue ? localize('settings.Default', "{0}", 'default') : '')
 			});
 
 		template.selectBox.setOptions(displayOptions);
