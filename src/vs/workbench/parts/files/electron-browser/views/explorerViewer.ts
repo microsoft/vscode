@@ -64,7 +64,7 @@ export class ExplorerDataSource implements IDataSource<ExplorerItem> {
 		return element === null || element.isDirectory;
 	}
 
-	getChildren(element: ExplorerItem | null): Thenable<ExplorerItem[]> {
+	getChildren(element: ExplorerItem | null): Promise<ExplorerItem[]> {
 		if (element === null) {
 			if (this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER || this.model.roots[0].isError) {
 				// Display roots only when multi folder workspace
@@ -830,7 +830,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, void> {
 // 		}
 // 	}
 
-// 	private handleExternalDrop(tree: ITree, data: DesktopDragAndDropData, target: ExplorerItem | Model, originalEvent: DragMouseEvent): TPromise<void> {
+// 	private handleExternalDrop(tree: ITree, data: DesktopDragAndDropData, target: ExplorerItem | Model, originalEvent: DragMouseEvent): Promise<void> {
 // 		const droppedResources = extractResources(originalEvent.browserEvent as DragEvent, true);
 
 // 		// Check for dropped external files to be folders
@@ -844,7 +844,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, void> {
 // 			if (folders.length > 0) {
 
 // 				// If we are in no-workspace context, ask for confirmation to create a workspace
-// 				let confirmedPromise: TPromise<IConfirmationResult> = Promise.resolve({ confirmed: true });
+// 				let confirmedPromise: Promise<IConfirmationResult> = Promise.resolve({ confirmed: true });
 // 				if (this.contextService.getWorkbenchState() !== WorkbenchState.WORKSPACE) {
 // 					confirmedPromise = this.dialogService.confirm({
 // 						message: folders.length > 1 ? nls.localize('dropFolders', "Do you want to add the folders to the workspace?") : nls.localize('dropFolder', "Do you want to add the folder to the workspace?"),
@@ -873,11 +873,11 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, void> {
 // 		});
 // 	}
 
-// 	private handleExplorerDrop(tree: ITree, data: IDragAndDropData, target: ExplorerItem | Model, originalEvent: DragMouseEvent): TPromise<void> {
+// 	private handleExplorerDrop(tree: ITree, data: IDragAndDropData, target: ExplorerItem | Model, originalEvent: DragMouseEvent): Promise<void> {
 // 		const sources: ExplorerItem[] = resources.distinctParents(data.getData(), s => s.resource);
 // 		const isCopy = (originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh);
 
-// 		let confirmPromise: TPromise<IConfirmationResult>;
+// 		let confirmPromise: Promise<IConfirmationResult>;
 
 // 		// Handle confirm setting
 // 		const confirmDragAndDrop = !isCopy && this.configurationService.getValue<boolean>(FileDragAndDrop.CONFIRM_DND_SETTING_KEY);
@@ -900,7 +900,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, void> {
 // 		return confirmPromise.then(res => {
 
 // 			// Check for confirmation checkbox
-// 			let updateConfirmSettingsPromise: TPromise<void> = Promise.resolve(void 0);
+// 			let updateConfirmSettingsPromise: Promise<void> = Promise.resolve(void 0);
 // 			if (res.confirmed && res.checkboxChecked === true) {
 // 				updateConfirmSettingsPromise = this.configurationService.updateValue(FileDragAndDrop.CONFIRM_DND_SETTING_KEY, false, ConfigurationTarget.USER);
 // 			}
@@ -916,7 +916,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, void> {
 // 		});
 // 	}
 
-// 	private doHandleRootDrop(roots: ExplorerItem[], target: ExplorerItem | Model): TPromise<void> {
+// 	private doHandleRootDrop(roots: ExplorerItem[], target: ExplorerItem | Model): Promise<void> {
 // 		if (roots.length === 0) {
 // 			return Promise.resolve(undefined);
 // 		}
@@ -948,7 +948,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, void> {
 // 		return this.workspaceEditingService.updateFolders(0, workspaceCreationData.length, workspaceCreationData);
 // 	}
 
-// 	private doHandleExplorerDrop(tree: ITree, source: ExplorerItem, target: ExplorerItem | Model, isCopy: boolean): TPromise<void> {
+// 	private doHandleExplorerDrop(tree: ITree, source: ExplorerItem, target: ExplorerItem | Model, isCopy: boolean): Promise<void> {
 // 		if (!(target instanceof ExplorerItem)) {
 // 			return Promise.resolve(void 0);
 // 		}

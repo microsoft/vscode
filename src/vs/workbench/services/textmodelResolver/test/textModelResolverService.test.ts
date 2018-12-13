@@ -56,7 +56,7 @@ suite('Workbench - TextModelResolverService', () => {
 
 	test('resolve resource', function () {
 		const dispose = accessor.textModelResolverService.registerTextModelContentProvider('test', {
-			provideTextContent: function (resource: URI): Thenable<ITextModel> {
+			provideTextContent: function (resource: URI): Promise<ITextModel> {
 				if (resource.scheme === 'test') {
 					let modelContent = 'Hello Test';
 					let languageSelection = accessor.modeService.create('json');
@@ -136,7 +136,7 @@ suite('Workbench - TextModelResolverService', () => {
 		let waitForIt = new Promise(c => resolveModel = c);
 
 		const disposable = accessor.textModelResolverService.registerTextModelContentProvider('test', {
-			provideTextContent: (resource: URI): Thenable<ITextModel> => {
+			provideTextContent: (resource: URI): Promise<ITextModel> => {
 				return waitForIt.then(_ => {
 					let modelContent = 'Hello Test';
 					let languageSelection = accessor.modeService.create('json');

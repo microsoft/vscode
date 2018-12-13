@@ -270,7 +270,7 @@ export class ExtensionEditor extends BaseEditor {
 		this.content = append(body, $('.content'));
 	}
 
-	setInput(input: ExtensionsInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+	setInput(input: ExtensionsInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 		return this.extensionService.getExtensions()
 			.then(runningExtensions => {
 				this.activeElement = null;

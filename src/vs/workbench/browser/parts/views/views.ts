@@ -537,7 +537,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		return this.viewDescriptorCollections.get(container);
 	}
 
-	openView(id: string, focus: boolean): Thenable<IView> {
+	openView(id: string, focus: boolean): Promise<IView> {
 		const viewDescriptor = ViewsRegistry.getView(id);
 		if (viewDescriptor) {
 			const viewletDescriptor = this.viewletService.getViewlet(viewDescriptor.container.id);

@@ -39,7 +39,7 @@ export class OpenerService implements IOpenerService {
 		}
 
 		const { scheme, path, query, fragment } = resource;
-		let promise: Thenable<any> | undefined = undefined;
+		let promise: Promise<any> | undefined = undefined;
 
 		if (scheme === Schemas.http || scheme === Schemas.https || scheme === Schemas.mailto) {
 			// open http or default mail application

@@ -23,7 +23,7 @@ export class LogLevelSetterChannel implements IServerChannel {
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(_, command: string, arg?: any): Thenable<any> {
+	call(_, command: string, arg?: any): Promise<any> {
 		switch (command) {
 			case 'setLevel': this.service.setLevel(arg);
 		}

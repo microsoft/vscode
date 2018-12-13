@@ -27,7 +27,7 @@ export class CodeActionContextMenu {
 		private readonly _onApplyCodeAction: (action: CodeAction) => Promise<any>
 	) { }
 
-	show(fixes: Thenable<CodeAction[]>, at: { x: number; y: number } | Position) {
+	show(fixes: Promise<CodeAction[]>, at: { x: number; y: number } | Position) {
 
 		const actionsPromise = fixes ? fixes.then(value => {
 			return value.map(action => {

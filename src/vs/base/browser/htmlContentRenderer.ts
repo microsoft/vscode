@@ -24,7 +24,7 @@ export interface RenderOptions {
 	className?: string;
 	inline?: boolean;
 	actionHandler?: IContentActionHandler;
-	codeBlockRenderer?: (modeId: string, value: string) => Thenable<string>;
+	codeBlockRenderer?: (modeId: string, value: string) => Promise<string>;
 	codeBlockRenderCallback?: () => void;
 }
 

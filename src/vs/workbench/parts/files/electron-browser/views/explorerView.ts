@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { URI } from 'vs/base/common/uri';
 import * as perf from 'vs/base/common/performance';
 import { ThrottledDelayer } from 'vs/base/common/async';
@@ -324,7 +323,7 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 		if (visible) {
 			DOM.show(this.tree.getHTMLElement());
 			// If a refresh was requested and we are now visible, run it
-			let refreshPromise: Thenable<void> = Promise.resolve(null);
+			let refreshPromise: Promise<void> = Promise.resolve(null);
 			if (this.shouldRefresh) {
 				refreshPromise = this.doRefresh();
 				this.shouldRefresh = false; // Reset flag
@@ -417,8 +416,8 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 				identityProvider: {
 					getId: stat => stat.resource
 				},
-				typeLabelProvider: {
-					getTypeLabel: stat => stat.name
+				keyboardNavigationLabelProvider: {
+					getKeyboardNavigationLabel: stat => stat.name
 				},
 				filter: this.filter
 			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
@@ -482,7 +481,7 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 				// Add the new file to its parent (Model)
 				parents.forEach(p => {
 					// We have to check if the parent is resolved #29177
-					const thenable: Thenable<IFileStat> = p.isDirectoryResolved ? Promise.resolve(null) : this.fileService.resolveFile(p.resource);
+					const thenable: Promise<IFileStat> = p.isDirectoryResolved ? Promise.resolve(null) : this.fileService.resolveFile(p.resource);
 					thenable.then(stat => {
 						if (stat) {
 							const modelStat = ExplorerItem.create(stat, p.root);
@@ -707,7 +706,7 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 	/**
 	 * Refresh the contents of the explorer to get up to date data from the disk about the file structure.
 	 */
-	refresh(): TPromise<void> {
+	refresh(): Promise<void> {
 		if (!this.tree) {
 			return Promise.resolve(null);
 		}
@@ -736,7 +735,7 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 		});
 	}
 
-	private doRefresh(): TPromise<any> {
+	private doRefresh(): Promise<any> {
 		const targetsToResolve = this.model.roots.map(root => ({ root, resource: root.resource, options: { resolveTo: [] } }));
 
 		// First time refresh: Receive target through active editor input or selection and also include settings from previous session
@@ -768,7 +767,7 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 		return promise;
 	}
 
-	private resolveRoots(targetsToResolve: { root: ExplorerItem, resource: URI, options: { resolveTo: any[] } }[]): TPromise<any> {
+	private resolveRoots(targetsToResolve: { root: ExplorerItem, resource: URI, options: { resolveTo: any[] } }[]): Promise<any> {
 
 		if (!this.isCreated) {
 			perf.mark('willResolveExplorer');

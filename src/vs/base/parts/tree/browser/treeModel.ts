@@ -78,7 +78,7 @@ export class Lock {
 		return !!this.locks[item.id];
 	}
 
-	public run(item: Item, fn: () => Thenable<any>): Thenable<any> {
+	public run(item: Item, fn: () => Promise<any>): Promise<any> {
 		var lock = this.getLock(item);
 
 		if (lock) {
@@ -89,7 +89,7 @@ export class Lock {
 			});
 		}
 
-		var result: Thenable<any>;
+		var result: Promise<any>;
 
 		return new Promise((c, e) => {
 
@@ -350,7 +350,7 @@ export class Item {
 		this._onDidReveal.fire(eventData);
 	}
 
-	public expand(): Thenable<any> {
+	public expand(): Promise<any> {
 		if (this.isExpanded() || !this.doesHaveChildren || this.lock.isLocked(this)) {
 			return Promise.resolve(false);
 		}
@@ -361,7 +361,7 @@ export class Item {
 			}
 
 			var eventData: IItemExpandEvent = { item: this };
-			var result: Thenable<any>;
+			var result: Promise<any>;
 			this._onExpand.fire(eventData);
 
 			if (this.needsChildrenRefresh) {
@@ -391,7 +391,7 @@ export class Item {
 		});
 	}
 
-	public collapse(recursive: boolean = false): Thenable<any> {
+	public collapse(recursive: boolean = false): Promise<any> {
 		if (recursive) {
 			var collapseChildrenPromise = Promise.resolve(null);
 			this.forEachChild((child) => {
@@ -447,7 +447,7 @@ export class Item {
 		return this.height;
 	}
 
-	private refreshChildren(recursive: boolean, safe: boolean = false, force: boolean = false): Thenable<any> {
+	private refreshChildren(recursive: boolean, safe: boolean = false, force: boolean = false): Promise<any> {
 		if (!force && !this.isExpanded()) {
 			const setNeedsChildrenRefresh = (item: Item) => {
 				item.needsChildrenRefresh = true;
@@ -465,7 +465,7 @@ export class Item {
 			var eventData: IItemChildrenRefreshEvent = { item: this, isNested: safe };
 			this._onRefreshChildren.fire(eventData);
 
-			var childrenPromise: Thenable<any>;
+			var childrenPromise: Promise<any>;
 			if (this.doesHaveChildren) {
 				childrenPromise = this.context.dataSource.getChildren(this.context.tree, this.element);
 			} else {
@@ -532,7 +532,7 @@ export class Item {
 		return safe ? doRefresh() : this.lock.run(this, doRefresh);
 	}
 
-	private doRefresh(recursive: boolean, safe: boolean = false): Thenable<any> {
+	private doRefresh(recursive: boolean, safe: boolean = false): Promise<any> {
 		this.doesHaveChildren = this.context.dataSource.hasChildren(this.context.tree, this.element);
 		this.height = this._getHeight();
 		this.updateVisibility();
@@ -546,7 +546,7 @@ export class Item {
 		this.setVisible(this._isVisible());
 	}
 
-	public refresh(recursive: boolean): Thenable<any> {
+	public refresh(recursive: boolean): Promise<any> {
 		return this.doRefresh(recursive);
 	}
 
@@ -929,7 +929,7 @@ export class TreeModel {
 		this.traitsToItems = {};
 	}
 
-	public setInput(element: any): Thenable<any> {
+	public setInput(element: any): Promise<any> {
 		var eventData: IInputEvent = { item: this.input };
 		this._onSetInput.fire(eventData);
 
@@ -976,7 +976,7 @@ export class TreeModel {
 		return this.input ? this.input.getElement() : null;
 	}
 
-	public refresh(element: any = null, recursive: boolean = true): Thenable<any> {
+	public refresh(element: any = null, recursive: boolean = true): Promise<any> {
 		var item = this.getItem(element);
 
 		if (!item) {
@@ -990,7 +990,7 @@ export class TreeModel {
 		});
 	}
 
-	public expand(element: any): Thenable<any> {
+	public expand(element: any): Promise<any> {
 		var item = this.getItem(element);
 
 		if (!item) {
@@ -1000,7 +1000,7 @@ export class TreeModel {
 		return item.expand();
 	}
 
-	public expandAll(elements?: any[]): Thenable<any> {
+	public expandAll(elements?: any[]): Promise<any> {
 		if (!elements) {
 			elements = [];
 
@@ -1015,7 +1015,7 @@ export class TreeModel {
 		return this._expandAll(elements);
 	}
 
-	private _expandAll(elements: any[]): Thenable<any> {
+	private _expandAll(elements: any[]): Promise<any> {
 		if (elements.length === 0) {
 			return Promise.resolve(null);
 		}
@@ -1041,7 +1041,7 @@ export class TreeModel {
 			.then(() => this._expandAll(elementsToDelay));
 	}
 
-	private __expandAll(elements: any[]): Thenable<any> {
+	private __expandAll(elements: any[]): Promise<any> {
 		var promises = [];
 		for (var i = 0, len = elements.length; i < len; i++) {
 			promises.push(this.expand(elements[i]));
@@ -1049,7 +1049,7 @@ export class TreeModel {
 		return Promise.all(promises);
 	}
 
-	public collapse(element: any, recursive: boolean = false): Thenable<any> {
+	public collapse(element: any, recursive: boolean = false): Promise<any> {
 		var item = this.getItem(element);
 
 		if (!item) {
@@ -1059,7 +1059,7 @@ export class TreeModel {
 		return item.collapse(recursive);
 	}
 
-	public collapseAll(elements: any[] | null = null, recursive: boolean = false): Thenable<any> {
+	public collapseAll(elements: any[] | null = null, recursive: boolean = false): Promise<any> {
 		if (!elements) {
 			elements = [this.input];
 			recursive = true;
@@ -1071,11 +1071,11 @@ export class TreeModel {
 		return Promise.all(promises);
 	}
 
-	public toggleExpansion(element: any, recursive: boolean = false): Thenable<any> {
+	public toggleExpansion(element: any, recursive: boolean = false): Promise<any> {
 		return this.isExpanded(element) ? this.collapse(element, recursive) : this.expand(element);
 	}
 
-	public toggleExpansionAll(elements: any[]): Thenable<any> {
+	public toggleExpansionAll(elements: any[]): Promise<any> {
 		var promises = [];
 		for (var i = 0, len = elements.length; i < len; i++) {
 			promises.push(this.toggleExpansion(elements[i]));
@@ -1107,7 +1107,7 @@ export class TreeModel {
 		return result;
 	}
 
-	public reveal(element: any, relativeTop: number | null = null): Thenable<any> {
+	public reveal(element: any, relativeTop: number | null = null): Promise<any> {
 		return this.resolveUnknownParentChain(element).then((chain: any[]) => {
 			var result = Promise.resolve(null);
 
@@ -1125,7 +1125,7 @@ export class TreeModel {
 		});
 	}
 
-	private resolveUnknownParentChain(element: any): Thenable<any> {
+	private resolveUnknownParentChain(element: any): Promise<any> {
 		return this.context.dataSource.getParent(this.context.tree, element).then((parent) => {
 			if (!parent) {
 				return Promise.resolve([]);

@@ -50,7 +50,6 @@ import { ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/node/extensionsWorkbenchService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { SingleServerExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
 import { Query } from 'vs/workbench/parts/extensions/common/extensionQuery';
 import { SuggestEnabledInput, attachSuggestEnabledInputBoxStyler } from 'vs/workbench/parts/codeEditor/electron-browser/suggestEnabledInput';
 import { alert } from 'vs/base/browser/ui/aria/aria';
@@ -510,7 +509,6 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 				: viewDescriptor.id === `server.extensionsList.${this.extensionManagementServerService.remoteExtensionManagementServer.authority}` ? this.extensionManagementServerService.remoteExtensionManagementServer : null;
 			if (extensionManagementServer) {
 				const servicesCollection: ServiceCollection = new ServiceCollection();
-				servicesCollection.set(IExtensionManagementServerService, new SingleServerExtensionManagementServerService(extensionManagementServer));
 				servicesCollection.set(IExtensionManagementService, extensionManagementServer.extensionManagementService);
 				servicesCollection.set(IExtensionsWorkbenchService, new SyncDescriptor(ExtensionsWorkbenchService));
 				const instantiationService = this.instantiationService.createChild(servicesCollection);

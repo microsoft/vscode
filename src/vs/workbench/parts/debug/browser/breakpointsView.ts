@@ -76,7 +76,7 @@ export class BreakpointsView extends ViewletPanel {
 		], {
 				identityProvider: { getId: element => element.getId() },
 				multipleSelectionSupport: false,
-				typeLabelProvider: { getTypeLabel: e => e }
+				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: e => e }
 			}) as WorkbenchList<IEnablement>;
 
 		CONTEXT_BREAKPOINTS_FOCUSED.bindTo(this.list.contextKeyService);
@@ -543,7 +543,7 @@ class FunctionBreakpointInputRenderer implements IListRenderer<IFunctionBreakpoi
 	}
 }
 
-export function openBreakpointSource(breakpoint: IBreakpoint, sideBySide: boolean, preserveFocus: boolean, debugService: IDebugService, editorService: IEditorService): Thenable<IEditor> {
+export function openBreakpointSource(breakpoint: IBreakpoint, sideBySide: boolean, preserveFocus: boolean, debugService: IDebugService, editorService: IEditorService): Promise<IEditor> {
 	if (breakpoint.uri.scheme === DEBUG_SCHEME && debugService.state === State.Inactive) {
 		return Promise.resolve(null);
 	}

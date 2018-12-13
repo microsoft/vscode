@@ -24,9 +24,9 @@ export interface ISearchWorkerSearchResult {
 }
 
 export interface ISearchWorker {
-	initialize(): Thenable<void>;
-	search(args: ISearchWorkerSearchArgs): Thenable<ISearchWorkerSearchResult>;
-	cancel(): Thenable<void>;
+	initialize(): Promise<void>;
+	search(args: ISearchWorkerSearchArgs): Promise<ISearchWorkerSearchResult>;
+	cancel(): Promise<void>;
 }
 
 export class SearchWorkerChannel implements IServerChannel {
@@ -50,15 +50,15 @@ export class SearchWorkerChannel implements IServerChannel {
 export class SearchWorkerChannelClient implements ISearchWorker {
 	constructor(private channel: IChannel) { }
 
-	initialize(): Thenable<void> {
+	initialize(): Promise<void> {
 		return this.channel.call('initialize');
 	}
 
-	search(args: ISearchWorkerSearchArgs): Thenable<ISearchWorkerSearchResult> {
+	search(args: ISearchWorkerSearchArgs): Promise<ISearchWorkerSearchResult> {
 		return this.channel.call('search', args);
 	}
 
-	cancel(): Thenable<void> {
+	cancel(): Promise<void> {
 		return this.channel.call('cancel');
 	}
 }

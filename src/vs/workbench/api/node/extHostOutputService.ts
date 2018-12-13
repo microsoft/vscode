@@ -14,7 +14,7 @@ import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export abstract class AbstractExtHostOutputChannel extends Disposable implements vscode.OutputChannel {
 
-	readonly _id: Thenable<string>;
+	readonly _id: Promise<string>;
 	private readonly _name: string;
 	protected readonly _proxy: MainThreadOutputServiceShape;
 	private _disposed: boolean;

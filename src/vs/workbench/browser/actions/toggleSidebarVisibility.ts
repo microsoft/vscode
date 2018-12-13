@@ -26,7 +26,7 @@ export class ToggleSidebarVisibilityAction extends Action {
 		this.enabled = !!this.partService;
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 		const hideSidebar = this.partService.isVisible(Parts.SIDEBAR_PART);
 		this.partService.setSideBarHidden(hideSidebar);
 

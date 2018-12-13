@@ -29,7 +29,7 @@ export class ClosePanelAction extends Action {
 		super(id, name, 'hide-panel-action');
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 		this.partService.setPanelHidden(true);
 		return Promise.resolve(null);
 	}
@@ -48,7 +48,7 @@ export class TogglePanelAction extends Action {
 		super(id, name, partService.isVisible(Parts.PANEL_PART) ? 'panel expanded' : 'panel');
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 		this.partService.setPanelHidden(this.partService.isVisible(Parts.PANEL_PART));
 		return Promise.resolve(null);
 	}
@@ -68,7 +68,7 @@ class FocusPanelAction extends Action {
 		super(id, label);
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 
 		// Show panel
 		if (!this.partService.isVisible(Parts.PANEL_PART)) {
@@ -116,7 +116,7 @@ export class TogglePanelPositionAction extends Action {
 		setClassAndLabel();
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 		const position = this.partService.getPanelPosition();
 
 		this.partService.setPanelPosition(position === Position.BOTTOM ? Position.RIGHT : Position.BOTTOM);
@@ -156,7 +156,7 @@ export class ToggleMaximizedPanelAction extends Action {
 		}));
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 		if (!this.partService.isVisible(Parts.PANEL_PART)) {
 			this.partService.setPanelHidden(false);
 		}
@@ -181,7 +181,7 @@ export class PanelActivityAction extends ActivityAction {
 		super(activity);
 	}
 
-	run(event: any): Thenable<any> {
+	run(event: any): Promise<any> {
 		this.panelService.openPanel(this.activity.id, true);
 		this.activate();
 		return Promise.resolve(null);
@@ -198,7 +198,7 @@ export class SwitchPanelViewAction extends Action {
 		super(id, name);
 	}
 
-	run(offset: number): Thenable<any> {
+	run(offset: number): Promise<any> {
 		const pinnedPanels = this.panelService.getPinnedPanels();
 		const activePanel = this.panelService.getActivePanel();
 		if (!activePanel) {
@@ -229,7 +229,7 @@ export class PreviousPanelViewAction extends SwitchPanelViewAction {
 		super(id, name, panelService);
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 		return super.run(-1);
 	}
 }
@@ -247,7 +247,7 @@ export class NextPanelViewAction extends SwitchPanelViewAction {
 		super(id, name, panelService);
 	}
 
-	public run(): Thenable<any> {
+	public run(): Promise<any> {
 		return super.run(1);
 	}
 }

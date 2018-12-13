@@ -76,7 +76,7 @@ export interface IEditorOpeningEvent extends IEditorIdentifier {
 	 * to return a promise that resolves to NULL to prevent the opening
 	 * alltogether.
 	 */
-	prevent(callback: () => Thenable<IEditor>): void;
+	prevent(callback: () => Promise<IEditor>): void;
 }
 
 export interface IEditorGroupsAccessor {
@@ -102,7 +102,7 @@ export interface IEditorGroupsAccessor {
 
 export interface IEditorGroupView extends IDisposable, ISerializableView, IEditorGroup {
 	readonly group: EditorGroup;
-	readonly whenRestored: Thenable<void>;
+	readonly whenRestored: Promise<void>;
 	readonly disposed: boolean;
 
 	readonly onDidFocus: Event<void>;
@@ -155,5 +155,5 @@ export interface EditorGroupsServiceImpl extends IEditorGroupsService {
 	/**
 	 * A promise that resolves when groups have been restored.
 	 */
-	readonly whenRestored: Thenable<void>;
+	readonly whenRestored: Promise<void>;
 }

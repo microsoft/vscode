@@ -43,7 +43,7 @@ export abstract class AbstractDebugAction extends Action {
 		this.updateEnablement();
 	}
 
-	public run(e?: any): Thenable<any> {
+	public run(e?: any): Promise<any> {
 		throw new Error('implement me');
 	}
 
@@ -99,7 +99,7 @@ export class ConfigureAction extends AbstractDebugAction {
 		this.class = this.debugService.getConfigurationManager().selectedConfiguration.name ? 'debug-action configure' : 'debug-action configure notification';
 	}
 
-	public run(event?: any): Thenable<any> {
+	public run(event?: any): Promise<any> {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			this.notificationService.info(nls.localize('noFolderDebugConfig', "Please first open a folder in order to do advanced debug configuration."));
 			return Promise.resolve(null);
@@ -135,7 +135,7 @@ export class StartAction extends AbstractDebugAction {
 
 	// Note: When this action is executed from the process explorer, a config is passed. For all
 	// other cases it is run with no arguments.
-	public run(config?: IConfig): Thenable<any> {
+	public run(config?: IConfig): Promise<any> {
 		if (config && 'type' in config && 'request' in config) {
 			return this.debugService.startDebugging(undefined, config, this.isNoDebug());
 		}
@@ -203,7 +203,7 @@ export class SelectAndStartAction extends AbstractDebugAction {
 		super(id, label, undefined, debugService, keybindingService);
 	}
 
-	public run(): Thenable<any> {
+	public run(): Promise<any> {
 		return this.quickOpenService.show('debug ');
 	}
 }
@@ -233,7 +233,7 @@ export class RestartAction extends AbstractDebugAction {
 		this.updateLabel(session && session.configuration.request === 'attach' ? RestartAction.RECONNECT_LABEL : RestartAction.LABEL);
 	}
 
-	public run(session: IDebugSession): Thenable<any> {
+	public run(session: IDebugSession): Promise<any> {
 		if (!session || !session.getId) {
 			session = this.debugService.getViewModel().focusedSession;
 		}
@@ -744,7 +744,7 @@ export class FocusSessionAction extends AbstractDebugAction {
 		super(id, label, null, debugService, keybindingService, 100);
 	}
 
-	public run(sessionName: string): Thenable<any> {
+	public run(sessionName: string): Promise<any> {
 		const session = this.debugService.getModel().getSessions().filter(p => p.getLabel() === sessionName).pop();
 		this.debugService.focusStackFrame(undefined, undefined, session, true);
 		const stackFrame = this.debugService.getViewModel().focusedStackFrame;
@@ -808,7 +808,7 @@ export class ReplCollapseAllAction extends CollapseAction2 {
 		super(tree, true, undefined);
 	}
 
-	public run(event?: any): Thenable<any> {
+	public run(event?: any): Promise<any> {
 		return super.run(event).then(() => {
 			this.toFocus.focus();
 		});

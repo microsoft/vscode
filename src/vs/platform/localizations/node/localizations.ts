@@ -55,7 +55,7 @@ export class LocalizationsService extends Disposable implements ILocalizationsSe
 		this.extensionManagementService.getInstalled().then(installed => this.cache.update(installed));
 	}
 
-	getLanguageIds(type: LanguageType): Thenable<string[]> {
+	getLanguageIds(type: LanguageType): Promise<string[]> {
 		if (type === LanguageType.Core) {
 			return Promise.resolve([...systemLanguages]);
 		}
@@ -110,7 +110,7 @@ class LanguagePacksCache extends Disposable {
 		this.languagePacksFileLimiter = new Queue();
 	}
 
-	getLanguagePacks(): Thenable<{ [language: string]: ILanguagePack }> {
+	getLanguagePacks(): Promise<{ [language: string]: ILanguagePack }> {
 		// if queue is not empty, fetch from disk
 		if (this.languagePacksFileLimiter.size) {
 			return this.withLanguagePacks()
@@ -119,7 +119,7 @@ class LanguagePacksCache extends Disposable {
 		return Promise.resolve(this.languagePacks);
 	}
 
-	update(extensions: ILocalExtension[]): Thenable<{ [language: string]: ILanguagePack }> {
+	update(extensions: ILocalExtension[]): Promise<{ [language: string]: ILanguagePack }> {
 		return this.withLanguagePacks(languagePacks => {
 			Object.keys(languagePacks).forEach(language => delete languagePacks[language]);
 			this.createLanguagePacksFromExtensions(languagePacks, ...extensions);
@@ -168,7 +168,7 @@ class LanguagePacksCache extends Disposable {
 		}
 	}
 
-	private withLanguagePacks<T>(fn: (languagePacks: { [language: string]: ILanguagePack }) => T | null = () => null): Thenable<T> {
+	private withLanguagePacks<T>(fn: (languagePacks: { [language: string]: ILanguagePack }) => T | null = () => null): Promise<T> {
 		return this.languagePacksFileLimiter.queue(() => {
 			let result: T | null = null;
 			return pfs.readFile(this.languagePacksFilePath, 'utf8')

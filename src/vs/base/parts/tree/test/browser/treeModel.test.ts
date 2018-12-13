@@ -169,11 +169,11 @@ class TestDataSource implements _.IDataSource {
 		return !!element.children;
 	}
 
-	public getChildren(tree, element): Thenable<any> {
+	public getChildren(tree, element): Promise<any> {
 		return Promise.resolve(element.children);
 	}
 
-	public getParent(tree, element): Thenable<any> {
+	public getParent(tree, element): Promise<any> {
 		throw new Error('Not implemented');
 	}
 }
@@ -683,7 +683,7 @@ suite('TreeModel - Expansion', () => {
 					if (e === 'b') { return Promise.resolve(['b1']); }
 					return Promise.resolve([]);
 				},
-				getParent: (_, e): Thenable<any> => { throw new Error('not implemented'); },
+				getParent: (_, e): Promise<any> => { throw new Error('not implemented'); },
 				shouldAutoexpand: (_, e) => e === 'b'
 			}
 		});
@@ -1079,7 +1079,7 @@ suite('TreeModel - Traits', () => {
 class DynamicModel implements _.IDataSource {
 
 	private data: any;
-	public promiseFactory: { (): Thenable<any>; } | null;
+	public promiseFactory: { (): Promise<any>; } | null;
 
 	private _onGetChildren = new Emitter<any>();
 	readonly onGetChildren: Event<any> = this._onGetChildren.event;
@@ -1124,7 +1124,7 @@ class DynamicModel implements _.IDataSource {
 		return !!this.data[element];
 	}
 
-	public getChildren(tree, element): Thenable<any> {
+	public getChildren(tree, element): Promise<any> {
 		this._onGetChildren.fire(element);
 		var result = this.promiseFactory ? this.promiseFactory() : Promise.resolve(null);
 		return result.then(() => {
@@ -1133,7 +1133,7 @@ class DynamicModel implements _.IDataSource {
 		});
 	}
 
-	public getParent(tree, element): Thenable<any> {
+	public getParent(tree, element): Promise<any> {
 		throw new Error('Not implemented');
 	}
 }
@@ -1529,7 +1529,7 @@ suite('TreeModel - Dynamic data model', () => {
 			// delay expansions and refreshes
 			dataModel.promiseFactory = () => { return timeout(0); };
 
-			var promises: Thenable<any>[] = [];
+			var promises: Promise<any>[] = [];
 
 			promises.push(model.expand('father'));
 			dataModel.removeChild('root', 'father');
@@ -1573,7 +1573,7 @@ suite('TreeModel - bugs', () => {
 					if (e === 'bart') { return getBartChildren(); }
 					return Promise.resolve([]);
 				},
-				getParent: (_, e): Thenable<any> => { throw new Error('not implemented'); },
+				getParent: (_, e): Promise<any> => { throw new Error('not implemented'); },
 			}
 		});
 

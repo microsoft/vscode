@@ -16,7 +16,6 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { combinedDisposable, Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { isUndefinedOrNull } from 'vs/base/common/types';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IFilter, ITree, ITreeConfiguration, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
 import { ClickBehavior, DefaultController, DefaultTreestyler, IControllerOptions, OpenMode } from 'vs/base/parts/tree/browser/treeDefaults';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
@@ -168,11 +167,11 @@ function toWorkbenchListOptions<T>(options: IListOptions<T>, configurationServic
 
 	options.openController = new WorkbenchOpenController(configurationService, options.openController);
 
-	if (options.typeLabelProvider) {
-		const tlp = options.typeLabelProvider;
+	if (options.keyboardNavigationLabelProvider) {
+		const tlp = options.keyboardNavigationLabelProvider;
 
-		options.typeLabelProvider = {
-			getTypeLabel(e) { return tlp.getTypeLabel(e); },
+		options.keyboardNavigationLabelProvider = {
+			getKeyboardNavigationLabel(e) { return tlp.getKeyboardNavigationLabel(e); },
 			mightProducePrintableCharacter(e) { return keybindingService.mightProducePrintableCharacter(e); }
 		};
 	}
@@ -795,7 +794,7 @@ export class HighlightingWorkbenchTree extends WorkbenchTree {
 		this.disposables.push(this._onDidStartFilter);
 	}
 
-	setInput(element: any): TPromise<any> {
+	setInput(element: any): Promise<any> {
 		this.input.setEnabled(false);
 		return super.setInput(element).then(value => {
 			if (!this.input.inputElement) {
@@ -888,6 +887,8 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 	private hasDoubleSelection: IContextKey<boolean>;
 	private hasMultiSelection: IContextKey<boolean>;
 
+	private _useAltAsMultipleSelectionModifier: boolean;
+
 	constructor(
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
@@ -916,6 +917,8 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 		this.hasDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
 		this.hasMultiSelection = WorkbenchListMultiSelection.bindTo(this.contextKeyService);
 
+		this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
+
 		this.disposables.push(
 			this.contextKeyService,
 			(listService as ListService).register(this),
@@ -933,8 +936,17 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 				const focus = this.getFocus();
 
 				this.hasSelectionOrFocus.set(selection.length > 0 || focus.length > 0);
+			}),
+			configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
+					this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
+				}
 			})
 		);
+	}
+
+	get useAltAsMultipleSelectionModifier(): boolean {
+		return this._useAltAsMultipleSelectionModifier;
 	}
 
 	dispose(): void {
@@ -950,6 +962,8 @@ export class WorkbenchAsyncDataTree<T extends NonNullable<any>, TFilterData = vo
 	private hasSelectionOrFocus: IContextKey<boolean>;
 	private hasDoubleSelection: IContextKey<boolean>;
 	private hasMultiSelection: IContextKey<boolean>;
+
+	private _useAltAsMultipleSelectionModifier: boolean;
 
 	constructor(
 		container: HTMLElement,
@@ -980,6 +994,8 @@ export class WorkbenchAsyncDataTree<T extends NonNullable<any>, TFilterData = vo
 		this.hasDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
 		this.hasMultiSelection = WorkbenchListMultiSelection.bindTo(this.contextKeyService);
 
+		this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
+
 		this.disposables.push(
 			this.contextKeyService,
 			(listService as ListService).register(this),
@@ -997,8 +1013,17 @@ export class WorkbenchAsyncDataTree<T extends NonNullable<any>, TFilterData = vo
 				const focus = this.getFocus();
 
 				this.hasSelectionOrFocus.set(selection.length > 0 || focus.length > 0);
+			}),
+			configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
+					this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
+				}
 			})
 		);
+	}
+
+	get useAltAsMultipleSelectionModifier(): boolean {
+		return this._useAltAsMultipleSelectionModifier;
 	}
 }
 

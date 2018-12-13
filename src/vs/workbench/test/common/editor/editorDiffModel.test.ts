@@ -37,7 +37,7 @@ suite('Workbench editor model', () => {
 
 	test('TextDiffEditorModel', () => {
 		const dispose = accessor.textModelResolverService.registerTextModelContentProvider('test', {
-			provideTextContent: function (resource: URI): Thenable<ITextModel> {
+			provideTextContent: function (resource: URI): Promise<ITextModel> {
 				if (resource.scheme === 'test') {
 					let modelContent = 'Hello Test';
 					let languageSelection = accessor.modeService.create('json');

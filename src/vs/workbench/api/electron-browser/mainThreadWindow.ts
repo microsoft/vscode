@@ -25,7 +25,7 @@ export class MainThreadWindow implements MainThreadWindowShape {
 			(this.proxy.$onDidChangeWindowFocus, this.proxy, this.disposables);
 	}
 
-	$getWindowVisibility(): Thenable<boolean> {
+	$getWindowVisibility(): Promise<boolean> {
 		return this.windowService.isFocused();
 	}
 

@@ -106,6 +106,10 @@ export class ContextMenuHandler {
 					delegate.onHide(!!didCancel);
 				}
 
+				if (this.focusToReturn) {
+					this.focusToReturn.focus();
+				}
+
 				this.menuContainerElement = null;
 			}
 		});

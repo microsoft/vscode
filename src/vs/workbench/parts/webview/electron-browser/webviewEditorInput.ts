@@ -12,7 +12,6 @@ import { IPartService, Parts } from 'vs/workbench/services/part/common/partServi
 import * as vscode from 'vscode';
 import { WebviewEvents, WebviewInputOptions, WebviewReviver } from './webviewEditorService';
 import { WebviewElement } from './webviewElement';
-import { TPromise } from 'vs/base/common/winjs.base';
 
 export class WebviewEditorInput extends EditorInput {
 	private static handlePool = 0;
@@ -216,13 +215,12 @@ export class WebviewEditorInput extends EditorInput {
 		}
 	}
 
-	public resolve(): Thenable<IEditorModel> {
+	public resolve(): Promise<IEditorModel> {
 		if (this.reviver && !this._revived) {
 			this._revived = true;
 			return this.reviver.reviveWebview(this).then(() => new EditorModel());
 		}
-
-		return TPromise.as(new EditorModel());
+		return Promise.resolve(new EditorModel());
 	}
 
 	public supportsSplitEditor() {

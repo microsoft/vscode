@@ -65,7 +65,7 @@ export class HelpHandler extends QuickOpenHandler {
 		super();
 	}
 
-	getResults(searchValue: string, token: CancellationToken): Thenable<QuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 
 		const registry = (Registry.as<IQuickOpenRegistry>(Extensions.Quickopen));

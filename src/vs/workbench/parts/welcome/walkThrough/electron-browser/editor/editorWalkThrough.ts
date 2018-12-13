@@ -35,7 +35,7 @@ export class EditorWalkThroughAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Thenable<void> {
+	public run(): Promise<void> {
 		const input = this.instantiationService.createInstance(WalkThroughInput, inputOptions);
 		return this.editorService.openEditor(input, { pinned: true })
 			.then(() => void (0));

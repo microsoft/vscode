@@ -125,8 +125,8 @@ export class CallStackView extends ViewletPanel {
 						return element.getId();
 					}
 				},
-				typeLabelProvider: {
-					getTypeLabel: e => {
+				keyboardNavigationLabelProvider: {
+					getKeyboardNavigationLabel: e => {
 						if (e instanceof DebugSession) {
 							return e.getLabel();
 						}
@@ -581,7 +581,7 @@ class CallStackDataSource implements IDataSource<CallStackItem> {
 		return element === null || element instanceof DebugSession || (element instanceof Thread && element.stopped);
 	}
 
-	getChildren(element: CallStackItem | null): Thenable<CallStackItem[]> {
+	getChildren(element: CallStackItem | null): Promise<CallStackItem[]> {
 		if (element === null) {
 			const model = this.debugService.getModel();
 			const sessions = model.getSessions();

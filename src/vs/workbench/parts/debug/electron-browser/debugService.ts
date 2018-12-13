@@ -255,7 +255,7 @@ export class DebugService implements IDebugService {
 	 * main entry point
 	 * properly manages compounds, checks for errors and handles the initializing state.
 	 */
-	startDebugging(launch: ILaunch, configOrName?: IConfig | string, noDebug = false, unresolvedConfig?: IConfig, ): Thenable<boolean> {
+	startDebugging(launch: ILaunch, configOrName?: IConfig | string, noDebug = false, unresolvedConfig?: IConfig, ): Promise<boolean> {
 
 		this.startInitializingState();
 		// make sure to save all files and that the configuration is up to date
@@ -343,7 +343,7 @@ export class DebugService implements IDebugService {
 	/**
 	 * gets the debugger for the type, resolves configurations by providers, substitutes variables and runs prelaunch tasks
 	 */
-	private createSession(launch: ILaunch, config: IConfig, unresolvedConfig: IConfig, noDebug: boolean): Thenable<boolean> {
+	private createSession(launch: ILaunch, config: IConfig, unresolvedConfig: IConfig, noDebug: boolean): Promise<boolean> {
 		// We keep the debug type in a separate variable 'type' so that a no-folder config has no attributes.
 		// Storing the type in the config would break extensions that assume that the no-folder case is indicated by an empty config.
 		let type: string;
@@ -359,7 +359,7 @@ export class DebugService implements IDebugService {
 			config.noDebug = true;
 		}
 
-		const debuggerThenable: Thenable<void> = type ? Promise.resolve(null) : this.configurationManager.guessDebugger().then(dbgr => { type = dbgr && dbgr.type; });
+		const debuggerThenable: Promise<void> = type ? Promise.resolve(null) : this.configurationManager.guessDebugger().then(dbgr => { type = dbgr && dbgr.type; });
 		return debuggerThenable.then(() =>
 			this.configurationManager.resolveConfigurationByProviders(launch && launch.workspace ? launch.workspace.uri : undefined, type, config).then(config => {
 				// a falsy config indicates an aborted launch
@@ -417,7 +417,7 @@ export class DebugService implements IDebugService {
 	/**
 	 * instantiates the new session, initializes the session, registers session listeners and reports telemetry
 	 */
-	private doCreateSession(root: IWorkspaceFolder, configuration: { resolved: IConfig, unresolved: IConfig }): Thenable<boolean> {
+	private doCreateSession(root: IWorkspaceFolder, configuration: { resolved: IConfig, unresolved: IConfig }): Promise<boolean> {
 
 		const session = this.instantiationService.createInstance(DebugSession, configuration, root, this.model);
 		this.model.addSession(session);
@@ -474,7 +474,7 @@ export class DebugService implements IDebugService {
 		});
 	}
 
-	private launchOrAttachToSession(session: IDebugSession, focus = true): Thenable<void> {
+	private launchOrAttachToSession(session: IDebugSession, focus = true): Promise<void> {
 		const dbgr = this.configurationManager.getDebugger(session.configuration.type);
 		return session.initialize(dbgr).then(() => {
 			return session.launchOrAttach(session.configuration).then(() => {
@@ -546,10 +546,10 @@ export class DebugService implements IDebugService {
 		}));
 	}
 
-	restartSession(session: IDebugSession, restartData?: any): Thenable<any> {
+	restartSession(session: IDebugSession, restartData?: any): Promise<any> {
 		return this.textFileService.saveAll().then(() => {
 			const isAutoRestart = !!restartData;
-			const runTasks: () => Thenable<TaskRunResult> = () => {
+			const runTasks: () => Promise<TaskRunResult> = () => {
 				if (isAutoRestart) {
 					// Do not run preLaunch and postDebug tasks for automatic restarts
 					return Promise.resolve(TaskRunResult.Success);
@@ -595,7 +595,7 @@ export class DebugService implements IDebugService {
 								}
 							}
 
-							let substitutionThenable: Thenable<IConfig> = Promise.resolve(session.configuration);
+							let substitutionThenable: Promise<IConfig> = Promise.resolve(session.configuration);
 							if (needsToSubstitute) {
 								substitutionThenable = this.configurationManager.resolveConfigurationByProviders(launch.workspace ? launch.workspace.uri : undefined, unresolved.type, unresolved)
 									.then(resolved => this.substituteVariables(launch, resolved));
@@ -630,7 +630,7 @@ export class DebugService implements IDebugService {
 		return Promise.all(sessions.map(s => s.terminate()));
 	}
 
-	private substituteVariables(launch: ILaunch | undefined, config: IConfig): Thenable<IConfig> {
+	private substituteVariables(launch: ILaunch | undefined, config: IConfig): Promise<IConfig> {
 		const dbg = this.configurationManager.getDebugger(config.type);
 		if (dbg) {
 			let folder: IWorkspaceFolder | undefined = undefined;
@@ -652,7 +652,7 @@ export class DebugService implements IDebugService {
 		return Promise.resolve(config);
 	}
 
-	private showError(message: string, actions: IAction[] = []): Thenable<void> {
+	private showError(message: string, actions: IAction[] = []): Promise<void> {
 		const configureAction = this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL);
 		actions.push(configureAction);
 		return this.dialogService.show(severity.Error, message, actions.map(a => a.label).concat(nls.localize('cancel', "Cancel")), { cancelId: actions.length }).then(choice => {
@@ -666,7 +666,7 @@ export class DebugService implements IDebugService {
 
 	//---- task management
 
-	private runTaskAndCheckErrors(root: IWorkspaceFolder, taskId: string | TaskIdentifier): Thenable<TaskRunResult> {
+	private runTaskAndCheckErrors(root: IWorkspaceFolder, taskId: string | TaskIdentifier): Promise<TaskRunResult> {
 
 		const debugAnywayAction = new Action('debug.debugAnyway', nls.localize('debugAnyway', "Debug Anyway"), undefined, true, () => Promise.resolve(TaskRunResult.Success));
 		return this.runTask(root, taskId).then((taskSummary: ITaskSummary) => {
@@ -695,7 +695,7 @@ export class DebugService implements IDebugService {
 		});
 	}
 
-	private runTask(root: IWorkspaceFolder, taskId: string | TaskIdentifier): Thenable<ITaskSummary> {
+	private runTask(root: IWorkspaceFolder, taskId: string | TaskIdentifier): Promise<ITaskSummary> {
 		if (!taskId) {
 			return Promise.resolve(null);
 		}
@@ -1012,7 +1012,7 @@ export class DebugService implements IDebugService {
 
 	//---- telemetry
 
-	private telemetryDebugSessionStart(root: IWorkspaceFolder, type: string): Thenable<any> {
+	private telemetryDebugSessionStart(root: IWorkspaceFolder, type: string): Promise<any> {
 		const extension = this.configurationManager.getDebugger(type).extensionDescription;
 		/* __GDPR__
 			"debugSessionStart" : {
@@ -1036,7 +1036,7 @@ export class DebugService implements IDebugService {
 		});
 	}
 
-	private telemetryDebugSessionStop(session: IDebugSession, adapterExitEvent: AdapterEndEvent): Thenable<any> {
+	private telemetryDebugSessionStop(session: IDebugSession, adapterExitEvent: AdapterEndEvent): Promise<any> {
 
 		const breakpoints = this.model.getBreakpoints();
 
@@ -1058,7 +1058,7 @@ export class DebugService implements IDebugService {
 		});
 	}
 
-	private telemetryDebugMisconfiguration(debugType: string, message: string): Thenable<any> {
+	private telemetryDebugMisconfiguration(debugType: string, message: string): Promise<any> {
 		/* __GDPR__
 			"debugMisconfiguration" : {
 				"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -1071,7 +1071,7 @@ export class DebugService implements IDebugService {
 		});
 	}
 
-	private telemetryDebugAddBreakpoint(breakpoint: IBreakpoint, context: string): Thenable<any> {
+	private telemetryDebugAddBreakpoint(breakpoint: IBreakpoint, context: string): Promise<any> {
 		/* __GDPR__
 			"debugAddBreakpoint" : {
 				"context": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },

@@ -79,7 +79,7 @@ export class SearchDataSource implements IDataSource {
 		return [];
 	}
 
-	public getChildren(tree: ITree, element: any): Thenable<any[]> {
+	public getChildren(tree: ITree, element: any): Promise<any[]> {
 		return Promise.resolve(this._getChildren(element));
 	}
 
@@ -87,7 +87,7 @@ export class SearchDataSource implements IDataSource {
 		return element instanceof FileMatch || element instanceof FolderMatch || element instanceof SearchResult;
 	}
 
-	public getParent(tree: ITree, element: any): Thenable<any> {
+	public getParent(tree: ITree, element: any): Promise<any> {
 		let value: any = null;
 
 		if (element instanceof Match) {

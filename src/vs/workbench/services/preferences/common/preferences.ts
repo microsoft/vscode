@@ -201,18 +201,18 @@ export interface IPreferencesService {
 	workspaceSettingsResource: URI;
 	getFolderSettingsResource(resource: URI): URI;
 
-	resolveModel(uri: URI): Thenable<ITextModel>;
-	createPreferencesEditorModel<T>(uri: URI): Thenable<IPreferencesEditorModel<T>>;
+	resolveModel(uri: URI): Promise<ITextModel>;
+	createPreferencesEditorModel<T>(uri: URI): Promise<IPreferencesEditorModel<T>>;
 	createSettings2EditorModel(): Settings2EditorModel; // TODO
 
-	openRawDefaultSettings(): Thenable<IEditor>;
-	openSettings(jsonEditor?: boolean): Thenable<IEditor>;
-	openGlobalSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Thenable<IEditor>;
-	openWorkspaceSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Thenable<IEditor>;
-	openFolderSettings(folder: URI, jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Thenable<IEditor>;
-	switchSettings(target: ConfigurationTarget, resource: URI, jsonEditor?: boolean): Thenable<void>;
-	openGlobalKeybindingSettings(textual: boolean): Thenable<void>;
-	openDefaultKeybindingsFile(): Thenable<IEditor>;
+	openRawDefaultSettings(): Promise<IEditor>;
+	openSettings(jsonEditor?: boolean): Promise<IEditor>;
+	openGlobalSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditor>;
+	openWorkspaceSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditor>;
+	openFolderSettings(folder: URI, jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditor>;
+	switchSettings(target: ConfigurationTarget, resource: URI, jsonEditor?: boolean): Promise<void>;
+	openGlobalKeybindingSettings(textual: boolean): Promise<void>;
+	openDefaultKeybindingsFile(): Promise<IEditor>;
 
 	configureSettingsForLanguage(language: string): void;
 }

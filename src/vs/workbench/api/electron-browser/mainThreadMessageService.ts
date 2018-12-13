@@ -31,7 +31,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 		//
 	}
 
-	$showMessage(severity: Severity, message: string, options: MainThreadMessageOptions, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Thenable<number> {
+	$showMessage(severity: Severity, message: string, options: MainThreadMessageOptions, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Promise<number> {
 		if (options.modal) {
 			return this._showModalMessage(severity, message, commands);
 		} else {
@@ -39,7 +39,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 		}
 	}
 
-	private _showMessage(severity: Severity, message: string, commands: { title: string; isCloseAffordance: boolean; handle: number; }[], extension: IExtensionDescription): Thenable<number> {
+	private _showMessage(severity: Severity, message: string, commands: { title: string; isCloseAffordance: boolean; handle: number; }[], extension: IExtensionDescription): Promise<number> {
 
 		return new Promise<number>(resolve => {
 
@@ -96,7 +96,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 		});
 	}
 
-	private _showModalMessage(severity: Severity, message: string, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Thenable<number> {
+	private _showModalMessage(severity: Severity, message: string, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Promise<number> {
 		let cancelId: number | undefined = void 0;
 
 		const buttons = commands.map((command, index) => {

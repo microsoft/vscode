@@ -126,6 +126,11 @@ export class Menu extends ActionBar {
 			}
 		}));
 
+		this._register(addDisposableListener(this.domNode, EventType.MOUSE_UP, e => {
+			// Absorb clicks in menu dead space https://github.com/Microsoft/vscode/issues/63575
+			EventHelper.stop(e, true);
+		}));
+
 		this._register(addDisposableListener(this.actionsList, EventType.MOUSE_OVER, e => {
 			let target = e.target as HTMLElement;
 			if (!target || !isAncestor(target, this.actionsList) || target === this.actionsList) {

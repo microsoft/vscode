@@ -354,7 +354,7 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 		}
 		const callId = String(req);
 
-		let promise: Thenable<any>;
+		let promise: Promise<any>;
 		let cancel: () => void;
 		if (usesCancellationToken) {
 			const cancellationTokenSource = new CancellationTokenSource();
@@ -441,7 +441,7 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 		pendingReply.resolveErr(err);
 	}
 
-	private _invokeHandler(rpcId: number, methodName: string, args: any[]): Thenable<any> {
+	private _invokeHandler(rpcId: number, methodName: string, args: any[]): Promise<any> {
 		try {
 			return Promise.resolve(this._doInvokeHandler(rpcId, methodName, args));
 		} catch (err) {
@@ -461,7 +461,7 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 		return method.apply(actor, args);
 	}
 
-	private _remoteCall(rpcId: number, methodName: string, args: any[]): Thenable<any> {
+	private _remoteCall(rpcId: number, methodName: string, args: any[]): Promise<any> {
 		if (this._isDisposed) {
 			return Promise.reject<any>(errors.canceled());
 		}

@@ -53,7 +53,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 	private availableUpdate: IAvailableUpdate | undefined;
 
 	@memoize
-	get cachePath(): Thenable<string> {
+	get cachePath(): Promise<string> {
 		const result = path.join(tmpdir(), `vscode-update-${product.target}-${process.arch}`);
 		return pfs.mkdirp(result, void 0).then(() => result);
 	}

@@ -47,7 +47,7 @@ export class DataSource implements IDataSource<TreeElement> {
 		return false;
 	}
 
-	getChildren(element: TreeElement): Thenable<TreeElement[]> {
+	getChildren(element: TreeElement): Promise<TreeElement[]> {
 		if (!element && this.root instanceof FileReferences) {
 			element = this.root;
 		}

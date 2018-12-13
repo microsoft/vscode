@@ -238,7 +238,7 @@ function createWorkspaceService(payload: IWorkspaceInitializationPayload, enviro
 	});
 }
 
-function createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService, logService: ILogService, mainProcessClient: ElectronIPCClient): Thenable<StorageService> {
+function createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService, logService: ILogService, mainProcessClient: ElectronIPCClient): Promise<StorageService> {
 	const globalStorageDatabase = new GlobalStorageDatabaseChannelClient(mainProcessClient.getChannel('storage'));
 	const storageService = new StorageService(globalStorageDatabase, logService, environmentService);
 

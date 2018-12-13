@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { OpenContext, IWindowConfiguration, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, INewWindowOptions } from 'vs/platform/windows/common/windows';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { Event } from 'vs/base/common/event';
@@ -46,7 +45,7 @@ export interface ICodeWindow {
 	lastFocusTime: number;
 
 	isReady: boolean;
-	ready(): Thenable<ICodeWindow>;
+	ready(): Promise<ICodeWindow>;
 
 	addTabbedWindow(window: ICodeWindow): void;
 
@@ -97,9 +96,9 @@ export interface IWindowsMainService {
 	// methods
 	ready(initialUserEnv: IProcessEnvironment): void;
 	reload(win: ICodeWindow, cli?: ParsedArgs): void;
-	enterWorkspace(win: ICodeWindow, path: string): TPromise<IEnterWorkspaceResult>;
-	createAndEnterWorkspace(win: ICodeWindow, folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult>;
-	saveAndEnterWorkspace(win: ICodeWindow, path: string): TPromise<IEnterWorkspaceResult>;
+	enterWorkspace(win: ICodeWindow, path: string): Promise<IEnterWorkspaceResult>;
+	createAndEnterWorkspace(win: ICodeWindow, folders?: IWorkspaceFolderCreationData[], path?: string): Promise<IEnterWorkspaceResult>;
+	saveAndEnterWorkspace(win: ICodeWindow, path: string): Promise<IEnterWorkspaceResult>;
 	closeWorkspace(win: ICodeWindow): void;
 	open(openConfig: IOpenConfiguration): ICodeWindow[];
 	openExtensionDevelopmentHostWindow(openConfig: IOpenConfiguration): void;
@@ -107,12 +106,12 @@ export interface IWindowsMainService {
 	pickFolderAndOpen(options: INativeOpenDialogOptions): void;
 	pickFileAndOpen(options: INativeOpenDialogOptions): void;
 	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): void;
-	showMessageBox(options: Electron.MessageBoxOptions, win?: ICodeWindow): Thenable<IMessageBoxResult>;
-	showSaveDialog(options: Electron.SaveDialogOptions, win?: ICodeWindow): Thenable<string>;
-	showOpenDialog(options: Electron.OpenDialogOptions, win?: ICodeWindow): Thenable<string[]>;
+	showMessageBox(options: Electron.MessageBoxOptions, win?: ICodeWindow): Promise<IMessageBoxResult>;
+	showSaveDialog(options: Electron.SaveDialogOptions, win?: ICodeWindow): Promise<string>;
+	showOpenDialog(options: Electron.OpenDialogOptions, win?: ICodeWindow): Promise<string[]>;
 	focusLastActive(cli: ParsedArgs, context: OpenContext): ICodeWindow;
 	getLastActiveWindow(): ICodeWindow;
-	waitForWindowCloseOrLoad(windowId: number): TPromise<void>;
+	waitForWindowCloseOrLoad(windowId: number): Promise<void>;
 	openNewWindow(context: OpenContext, options?: INewWindowOptions): ICodeWindow[];
 	openNewTabbedWindow(context: OpenContext): ICodeWindow[];
 	sendToFocused(channel: string, ...args: any[]): void;
@@ -142,6 +141,6 @@ export interface IOpenConfiguration {
 }
 
 export interface ISharedProcess {
-	whenReady(): TPromise<void>;
+	whenReady(): Promise<void>;
 	toggle(): void;
 }

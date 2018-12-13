@@ -137,7 +137,7 @@ export class ShowViewletAction extends Action {
 		this.enabled = !!this.viewletService && !!this.editorGroupService;
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 
 		// Pass focus to viewlet if not open or focused
 		if (this.otherViewletShowing() || !this.sidebarHasFocus()) {

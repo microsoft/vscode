@@ -405,8 +405,8 @@ export class LoadedScriptsView extends ViewletPanel {
 				identityProvider: {
 					getId: element => element.getId()
 				},
-				typeLabelProvider: {
-					getTypeLabel: element => element.getLabel()
+				keyboardNavigationLabelProvider: {
+					getKeyboardNavigationLabel: element => element.getLabel()
 				},
 				filter: this.filter,
 				accessibilityProvider: new LoadedSciptsAccessibilityProvider(),
@@ -545,7 +545,7 @@ class LoadedScriptsDataSource implements IDataSource<LoadedScriptsItem> {
 		return element === null || element.hasChildren();
 	}
 
-	getChildren(element: LoadedScriptsItem | null): Thenable<LoadedScriptsItem[]> {
+	getChildren(element: LoadedScriptsItem | null): Promise<LoadedScriptsItem[]> {
 		if (element === null) {
 			element = this.root;
 		}

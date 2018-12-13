@@ -9,7 +9,6 @@ import { IEditorInput, IEditor, GroupIdentifier, IEditorInputWithOptions, IUntit
 import { Event } from 'vs/base/common/event';
 import { IEditor as ICodeEditor } from 'vs/editor/common/editorCommon';
 import { IEditorGroup, IEditorReplacement } from 'vs/workbench/services/group/common/editorGroupsService';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 export const IEditorService = createDecorator<IEditorService>('editorService');
@@ -37,7 +36,7 @@ export interface IOpenEditorOverride {
 	 * If defined, will prevent the opening of an editor and replace the resulting
 	 * promise with the provided promise for the openEditor() call.
 	 */
-	override?: TPromise<IEditor>;
+	override?: Promise<IEditor>;
 }
 
 export interface IEditorService {
@@ -115,10 +114,10 @@ export interface IEditorService {
 	 * @returns the editor that opened or NULL if the operation failed or the editor was not
 	 * opened to be active.
 	 */
-	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): TPromise<IEditor>;
-	openEditor(editor: IResourceInput | IUntitledResourceInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): TPromise<ITextEditor>;
-	openEditor(editor: IResourceDiffInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): TPromise<ITextDiffEditor>;
-	openEditor(editor: IResourceSideBySideInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): TPromise<ITextSideBySideEditor>;
+	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditor>;
+	openEditor(editor: IResourceInput | IUntitledResourceInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ITextEditor>;
+	openEditor(editor: IResourceDiffInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ITextDiffEditor>;
+	openEditor(editor: IResourceSideBySideInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ITextSideBySideEditor>;
 
 	/**
 	 * Open editors in an editor group.
@@ -131,8 +130,8 @@ export interface IEditorService {
 	 * @returns the editors that opened. The array can be empty or have less elements for editors
 	 * that failed to open or were instructed to open as inactive.
 	 */
-	openEditors(editors: IEditorInputWithOptions[], group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): TPromise<ReadonlyArray<IEditor>>;
-	openEditors(editors: IResourceEditor[], group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): TPromise<ReadonlyArray<IEditor>>;
+	openEditors(editors: IEditorInputWithOptions[], group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ReadonlyArray<IEditor>>;
+	openEditors(editors: IResourceEditor[], group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ReadonlyArray<IEditor>>;
 
 	/**
 	 * Replaces editors in an editor group with the provided replacement.
@@ -142,8 +141,8 @@ export interface IEditorService {
 	 * @returns a promise that is resolved when the replaced active
 	 * editor (if any) has finished loading.
 	 */
-	replaceEditors(editors: IResourceEditorReplacement[], group: IEditorGroup | GroupIdentifier): TPromise<void>;
-	replaceEditors(editors: IEditorReplacement[], group: IEditorGroup | GroupIdentifier): TPromise<void>;
+	replaceEditors(editors: IResourceEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
+	replaceEditors(editors: IEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
 
 	/**
 	 * Find out if the provided editor (or resource of an editor) is opened in any or

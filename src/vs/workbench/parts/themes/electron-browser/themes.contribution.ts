@@ -42,7 +42,7 @@ export class SelectColorThemeAction extends Action {
 		super(id, label);
 	}
 
-	run(): Thenable<void> {
+	run(): Promise<void> {
 		return this.themeService.getColorThemes().then(themes => {
 			const currentTheme = this.themeService.getColorTheme();
 
@@ -104,7 +104,7 @@ class SelectIconThemeAction extends Action {
 		super(id, label);
 	}
 
-	run(): Thenable<void> {
+	run(): Promise<void> {
 		return this.themeService.getFileIconThemes().then(themes => {
 			const currentTheme = this.themeService.getFileIconTheme();
 
@@ -193,7 +193,7 @@ class GenerateColorThemeAction extends Action {
 		super(id, label);
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 		let theme = this.themeService.getColorTheme();
 		let colors = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution).getColors();
 		let colorIds = colors.map(c => c.id).sort();

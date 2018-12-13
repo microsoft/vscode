@@ -39,7 +39,7 @@ export class MainThreadStorage implements MainThreadStorageShape {
 		this._storageListener.dispose();
 	}
 
-	$getValue<T>(shared: boolean, key: string): Thenable<T> {
+	$getValue<T>(shared: boolean, key: string): Promise<T> {
 		if (shared) {
 			this._sharedStorageKeysToWatch.set(key, true);
 		}
@@ -58,7 +58,7 @@ export class MainThreadStorage implements MainThreadStorageShape {
 		return JSON.parse(jsonValue);
 	}
 
-	$setValue(shared: boolean, key: string, value: object): Thenable<void> {
+	$setValue(shared: boolean, key: string, value: object): Promise<void> {
 		let jsonValue: string;
 		try {
 			jsonValue = JSON.stringify(value);

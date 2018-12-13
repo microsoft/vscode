@@ -43,27 +43,3 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 		return null;
 	}
 }
-
-export class SingleServerExtensionManagementServerService implements IExtensionManagementServerService {
-
-	_serviceBrand: any;
-
-
-	constructor(
-		private readonly extensionManagementServer: IExtensionManagementServer
-	) {
-	}
-
-	getExtensionManagementServer(location: URI): IExtensionManagementServer | null {
-		const authority = location.scheme === Schemas.file ? localExtensionManagementServerAuthority : location.authority;
-		return this.extensionManagementServer.authority === authority ? this.extensionManagementServer : null;
-	}
-
-	get localExtensionManagementServer(): IExtensionManagementServer | null {
-		return this.extensionManagementServer.authority === localExtensionManagementServerAuthority ? this.extensionManagementServer : null;
-	}
-
-	get remoteExtensionManagementServer(): IExtensionManagementServer | null {
-		return this.extensionManagementServer.authority !== localExtensionManagementServerAuthority ? this.extensionManagementServer : null;
-	}
-}

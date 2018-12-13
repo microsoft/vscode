@@ -206,13 +206,13 @@ suite('TelemetryService', () => {
 
 	class JoinableTelemetryService extends TelemetryService {
 
-		private readonly promises: Thenable<void>[] = [];
+		private readonly promises: Promise<void>[] = [];
 
 		join(): Promise<any> {
 			return Promise.all(this.promises);
 		}
 
-		publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): Thenable<void> {
+		publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): Promise<void> {
 			let p = super.publicLog(eventName, data, anonymizeFilePaths);
 			this.promises.push(p);
 			return p;

@@ -50,10 +50,10 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 		return this._extHostDocumentsAndEditors.allEditors();
 	}
 
-	showTextDocument(document: vscode.TextDocument, column: vscode.ViewColumn, preserveFocus: boolean): Thenable<vscode.TextEditor>;
-	showTextDocument(document: vscode.TextDocument, options: { column: vscode.ViewColumn, preserveFocus: boolean, pinned: boolean }): Thenable<vscode.TextEditor>;
-	showTextDocument(document: vscode.TextDocument, columnOrOptions: vscode.ViewColumn | vscode.TextDocumentShowOptions, preserveFocus?: boolean): Thenable<vscode.TextEditor>;
-	showTextDocument(document: vscode.TextDocument, columnOrOptions: vscode.ViewColumn | vscode.TextDocumentShowOptions, preserveFocus?: boolean): Thenable<vscode.TextEditor> {
+	showTextDocument(document: vscode.TextDocument, column: vscode.ViewColumn, preserveFocus: boolean): Promise<vscode.TextEditor>;
+	showTextDocument(document: vscode.TextDocument, options: { column: vscode.ViewColumn, preserveFocus: boolean, pinned: boolean }): Promise<vscode.TextEditor>;
+	showTextDocument(document: vscode.TextDocument, columnOrOptions: vscode.ViewColumn | vscode.TextDocumentShowOptions, preserveFocus?: boolean): Promise<vscode.TextEditor>;
+	showTextDocument(document: vscode.TextDocument, columnOrOptions: vscode.ViewColumn | vscode.TextDocumentShowOptions, preserveFocus?: boolean): Promise<vscode.TextEditor> {
 		let options: ITextDocumentShowOptions;
 		if (typeof columnOrOptions === 'number') {
 			options = {
@@ -87,7 +87,7 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 		return new TextEditorDecorationType(this._proxy, options);
 	}
 
-	applyWorkspaceEdit(edit: vscode.WorkspaceEdit): Thenable<boolean> {
+	applyWorkspaceEdit(edit: vscode.WorkspaceEdit): Promise<boolean> {
 		const dto = TypeConverters.WorkspaceEdit.from(edit, this._extHostDocumentsAndEditors);
 		return this._proxy.$tryApplyWorkspaceEdit(dto);
 	}
@@ -146,7 +146,7 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 		}
 	}
 
-	getDiffInformation(id: string): Thenable<vscode.LineChange[]> {
+	getDiffInformation(id: string): Promise<vscode.LineChange[]> {
 		return Promise.resolve(this._proxy.$getDiffInformation(id));
 	}
 }

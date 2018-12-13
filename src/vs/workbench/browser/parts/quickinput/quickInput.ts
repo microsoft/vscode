@@ -1143,7 +1143,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 				return;
 			}
 			const input = this.createInputBox();
-			const validateInput = options.validateInput || (() => <Thenable<undefined>>Promise.resolve(undefined));
+			const validateInput = options.validateInput || (() => <Promise<undefined>>Promise.resolve(undefined));
 			const onDidValueChange = Event.debounce(input.onDidChangeValue, (last, cur) => cur, 100);
 			let validationValue = options.value || '';
 			let validation = Promise.resolve(validateInput(validationValue));
