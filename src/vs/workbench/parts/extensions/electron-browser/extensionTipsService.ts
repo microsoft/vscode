@@ -854,7 +854,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 			fetchPromise = new Promise((c, e) => {
 				setTimeout(() => {
-					Promise.all([this.fetchExecutableRecommendations(), this.fetchDynamicWorkspaceRecommendations()]).then(() => c(null));
+					Promise.all([this.fetchExecutableRecommendations(), this.fetchDynamicWorkspaceRecommendations()]).then(() => c(void 0));
 				}, calledDuringStartup ? 10000 : 0);
 			});
 

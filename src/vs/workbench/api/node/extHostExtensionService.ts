@@ -591,7 +591,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 					if (error) {
 						e(error.toString());
 					} else {
-						c(null);
+						c(void 0);
 					}
 
 					// after tests have run, we shutdown the host
