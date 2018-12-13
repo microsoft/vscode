@@ -345,10 +345,11 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	// --- impl
 
 	private _activateExtension(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): Promise<ActivatedExtension> {
+		this._mainThreadExtensionsProxy.$onWillActivateExtension(extensionDescription.id);
 		return this._doActivateExtension(extensionDescription, reason).then((activatedExtension) => {
 			const activationTimes = activatedExtension.activationTimes;
 			let activationEvent = (reason instanceof ExtensionActivatedByEvent ? reason.activationEvent : null);
-			this._mainThreadExtensionsProxy.$onExtensionActivated(extensionDescription.id, activationTimes.startup, activationTimes.codeLoadingTime, activationTimes.activateCallTime, activationTimes.activateResolvedTime, activationEvent);
+			this._mainThreadExtensionsProxy.$onDidActivateExtension(extensionDescription.id, activationTimes.startup, activationTimes.codeLoadingTime, activationTimes.activateCallTime, activationTimes.activateResolvedTime, activationEvent);
 			this._logExtensionActivationTimes(extensionDescription, reason, 'success', activationTimes);
 			return activatedExtension;
 		}, (err) => {

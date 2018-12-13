@@ -61,6 +61,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 	// --- Members used per extension host process
 	private _extensionHostProcessManagers: ExtensionHostProcessManager[];
+	private _extensionHostActiveExtensions: { [id: string]: boolean; };
 	private _extensionHostProcessActivationTimes: { [id: string]: ActivationTimes; };
 	private _extensionHostExtensionRuntimeErrors: { [id: string]: Error[]; };
 
@@ -84,6 +85,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		this._extensionScanner = this._instantiationService.createInstance(CachedExtensionScanner);
 
 		this._extensionHostProcessManagers = [];
+		this._extensionHostActiveExtensions = Object.create(null);
 		this._extensionHostProcessActivationTimes = Object.create(null);
 		this._extensionHostExtensionRuntimeErrors = Object.create(null);
 
@@ -143,6 +145,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			this._extensionHostProcessManagers[i].dispose();
 		}
 		this._extensionHostProcessManagers = [];
+		this._extensionHostActiveExtensions = Object.create(null);
 		this._extensionHostProcessActivationTimes = Object.create(null);
 		this._extensionHostExtensionRuntimeErrors = Object.create(null);
 
@@ -518,7 +521,11 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		}
 	}
 
-	public _onExtensionActivated(extensionId: string, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationEvent: string): void {
+	public _onWillActivateExtension(extensionId: string): void {
+		this._extensionHostActiveExtensions[extensionId] = true;
+	}
+
+	public _onDidActivateExtension(extensionId: string, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationEvent: string): void {
 		this._extensionHostProcessActivationTimes[extensionId] = new ActivationTimes(startup, codeLoadingTime, activateCallTime, activateResolvedTime, activationEvent);
 		this._onDidChangeExtensionsStatus.fire([extensionId]);
 	}
