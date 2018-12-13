@@ -30,7 +30,7 @@ import { IssueType } from 'vs/platform/issue/common/issue';
 import { domEvent } from 'vs/base/browser/event';
 import { Event } from 'vs/base/common/event';
 import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
-import { getDomNodePagePosition, createStyleSheet, createCSSRule } from 'vs/base/browser/dom';
+import { getDomNodePagePosition, createStyleSheet, createCSSRule, append, $ } from 'vs/base/browser/dom';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Context } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
@@ -1301,5 +1301,63 @@ export class InspectContextKeysAction extends Action {
 		}, null, disposables);
 
 		return Promise.resolve(null);
+	}
+}
+
+export class ToggleMouseClicksAction extends Action {
+
+	static readonly ID = 'workbench.action.toggleMouseClicks';
+	static LABEL = nls.localize('toggle mouse clicks', "Toggle Mouse Clicks");
+
+	static disposable: IDisposable | undefined;
+
+	constructor(id: string, label: string) {
+		super(id, label);
+	}
+
+	async run(): Promise<void> {
+		if (ToggleMouseClicksAction.disposable) {
+			ToggleMouseClicksAction.disposable.dispose();
+			ToggleMouseClicksAction.disposable = undefined;
+			return;
+		}
+
+		const marker = append(document.body, $('.marker'));
+		marker.style.position = 'absolute';
+		marker.style.border = '2px solid red';
+		marker.style.borderRadius = '20px';
+		marker.style.width = '20px';
+		marker.style.height = '20px';
+		marker.style.top = '0';
+		marker.style.left = '0';
+		marker.style.zIndex = '100000';
+		marker.style.content = ' ';
+		marker.style.pointerEvents = 'none';
+		marker.style.display = 'none';
+
+		const onMouseDown = domEvent(document.body, 'mousedown', true);
+		const onMouseUp = domEvent(document.body, 'mouseup', true);
+		const onMouseMove = domEvent(document.body, 'mousemove', true);
+
+		const listener = onMouseDown(e => {
+			marker.style.top = `${e.clientY - 10}px`;
+			marker.style.left = `${e.clientX - 10}px`;
+			marker.style.display = 'block';
+
+			const mouseMoveListener = onMouseMove(e => {
+				marker.style.top = `${e.clientY - 10}px`;
+				marker.style.left = `${e.clientX - 10}px`;
+			});
+
+			Event.once(onMouseUp)(() => {
+				marker.style.display = 'none';
+				mouseMoveListener.dispose();
+			});
+		});
+
+		ToggleMouseClicksAction.disposable = toDisposable(() => {
+			listener.dispose();
+			document.body.removeChild(marker);
+		});
 	}
 }
