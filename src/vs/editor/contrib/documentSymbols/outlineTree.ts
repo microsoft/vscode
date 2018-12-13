@@ -20,6 +20,7 @@ import { WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { AbstractTree } from 'vs/base/browser/ui/tree/abstractTree';
 
 export const enum OutlineItemCompareType {
 	ByPosition,
@@ -251,7 +252,7 @@ export class OutlineTreeState {
 	readonly focused: string;
 	readonly expanded: string[];
 
-	static capture(tree: ITree): OutlineTreeState {
+	static capture(tree: AbstractTree<any, any, any>): OutlineTreeState {
 		// selection
 		let selected: string;
 		let element = tree.getSelection()[0];
@@ -261,14 +262,15 @@ export class OutlineTreeState {
 
 		// focus
 		let focused: string;
-		element = tree.getFocus(true);
+		// element = tree.getFocus(true);
+		element = tree.getFocus()[0]; // todo@joh include hidden?
 		if (element instanceof TreeElement) {
 			focused = element.id;
 		}
 
 		// expansion
 		let expanded = new Array<string>();
-		let nav = tree.getNavigator();
+		let nav = tree.navigate();
 		while (nav.next()) {
 			let element = nav.current();
 			if (element instanceof TreeElement) {
@@ -280,8 +282,10 @@ export class OutlineTreeState {
 		return { selected, focused, expanded };
 	}
 
-	static async restore(tree: ITree, state: OutlineTreeState, eventPayload: any): Promise<void> {
-		let model = <OutlineModel>tree.getInput();
+	static async restore(tree: AbstractTree<TreeElement, any, any>, state: OutlineTreeState, eventPayload: any): Promise<void> {
+		// let model = <OutlineModel>tree.getInput();
+		let root = tree.getNode();
+		let model = OutlineModel.get(root.children[0].element);
 		if (!state || !(model instanceof OutlineModel)) {
 			return Promise.resolve(undefined);
 		}
@@ -294,14 +298,15 @@ export class OutlineTreeState {
 				items.push(item);
 			}
 		}
-		await tree.collapseAll(undefined);
-		await tree.expandAll(items);
+
+		tree.collapseAll();
+		await tree.expandAll(items); // https://github.com/Microsoft/vscode/issues/64887
 
 		// selection & focus
 		let selected = model.getItemById(state.selected);
 		let focused = model.getItemById(state.focused);
 		tree.setSelection([selected], eventPayload);
-		tree.setFocus(focused, eventPayload);
+		tree.setFocus([focused], eventPayload);
 	}
 }
 

@@ -5,7 +5,6 @@
 
 import { posix } from 'path';
 import * as dom from 'vs/base/browser/dom';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
@@ -14,14 +13,13 @@ import { Action, IAction, RadioGroup } from 'vs/base/common/actions';
 import { firstIndex } from 'vs/base/common/arrays';
 import { createCancelablePromise, TimeoutTimer } from 'vs/base/common/async';
 import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
 import { escape } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import { ITree } from 'vs/base/parts/tree/browser/tree';
 import 'vs/css!./outlinePanel';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
@@ -49,7 +47,7 @@ import { ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IViewsService } from 'vs/workbench/common/views';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { OutlineController, OutlineItemComparator, OutlineItemCompareType, OutlineTreeState } from '../../../../editor/contrib/documentSymbols/outlineTree';
+import { OutlineItemComparator, OutlineItemCompareType, OutlineTreeState } from '../../../../editor/contrib/documentSymbols/outlineTree';
 import { OutlineConfigKeys, OutlineViewFiltered, OutlineViewFocused, OutlineViewId } from './outline';
 import { NOutlineItem, NOutlineVirtualDelegate, NOutlineGroupRenderer, NOutlineElementRenderer, NOutlineFilter, NOutlineIdentityProvider, createModelIterator as createOutlineModelIterator } from 'vs/editor/contrib/documentSymbols/outlineTree2';
 
@@ -238,6 +236,7 @@ export class OutlinePanel extends ViewletPanel {
 	// private _tree: WorkbenchTree;
 	private _tree: WorkbenchObjectTree<NOutlineItem>;
 	// private _treeDataSource: OutlineDataSource;
+	private _treeRefresh: Emitter<any>;
 	private _treeGroupRenderer: NOutlineGroupRenderer;
 	private _treeElementRenderer: NOutlineElementRenderer;
 	private _treeFilter: NOutlineFilter;
@@ -329,35 +328,10 @@ export class OutlinePanel extends ViewletPanel {
 			}
 		}));
 
-		const $this = this;
-		const controller = new class extends OutlineController {
-
-			constructor() {
-				super({}, $this.configurationService);
-			}
-
-			onKeyDown(tree: ITree, event: IKeyboardEvent) {
-				let handled = super.onKeyDown(tree, event);
-				if (handled) {
-					return true;
-				}
-				if (this.upKeyBindingDispatcher.has(event.keyCode)) {
-					return false;
-				}
-				// crazy -> during keydown focus moves to the input box
-				// and because of that the keyup event is handled by the
-				// input field
-				if ($this._keybindingService.mightProducePrintableCharacter(event)) {
-					$this._input.focus();
-					return true;
-				}
-				return false;
-			}
-		};
-
 		// TODO@joh: pass along to the renderers an event which should trigger a re-render of elements
-		this._treeGroupRenderer = this._instantiationService.createInstance(NOutlineGroupRenderer, Event.None);
-		this._treeElementRenderer = this._instantiationService.createInstance(NOutlineElementRenderer, Event.None);
+		this._treeRefresh = new Emitter();
+		this._treeGroupRenderer = this._instantiationService.createInstance(NOutlineGroupRenderer, this._treeRefresh.event);
+		this._treeElementRenderer = this._instantiationService.createInstance(NOutlineElementRenderer, this._treeRefresh.event);
 		this._treeFilter = this._instantiationService.createInstance(NOutlineFilter);
 
 		this._tree = <any>this._instantiationService.createInstance(WorkbenchObjectTree,
@@ -375,6 +349,38 @@ export class OutlinePanel extends ViewletPanel {
 
 		this._disposables.push(this._tree, this._input, this._treeGroupRenderer, this._treeElementRenderer);
 		this._disposables.push(this._outlineViewState.onDidChange(this._onDidChangeUserState, this));
+
+		//
+		// const $this = this;
+		// const controller = new class extends OutlineController {
+		// 	constructor() {
+		// 		super({}, $this.configurationService);
+		// 	}
+		// 	onKeyDown(tree: ITree, event: IKeyboardEvent) {
+		// 		let handled = super.onKeyDown(tree, event);
+		// 		if (handled) {
+		// 			return true;
+		// 		}
+		// 		if (this.upKeyBindingDispatcher.has(event.keyCode)) {
+		// 			return false;
+		// 		}
+		// 		// crazy -> during keydown focus moves to the input box
+		// 		// and because of that the keyup event is handled by the
+		// 		// input field
+		// 		if ($this._keybindingService.mightProducePrintableCharacter(event)) {
+		// 			$this._input.focus();
+		// 			return true;
+		// 		}
+		// 		return false;
+		// 	}
+		// };
+		this._tree.onKeyDown(event => {
+			if (this._keybindingService.mightProducePrintableCharacter(event)) {
+				// todo@joh old would check if the tree handled the event...
+				this._input.focus();
+				event.preventDefault();
+			}
+		});
 
 		// feature: toggle icons
 		dom.toggleClass(this._domNode, 'no-icons', !this._configurationService.getValue(OutlineConfigKeys.icons));
@@ -450,7 +456,8 @@ export class OutlinePanel extends ViewletPanel {
 		}
 		if (e.sortBy) {
 			this._treeComparator.type = this._outlineViewState.sortBy;
-			this._tree.refresh(undefined, true);
+			// this._tree.refresh(undefined, true);
+			this._treeRefresh.fire();
 		}
 		if (e.filterOnType) {
 			this._applyTypeToFilter();
@@ -459,7 +466,7 @@ export class OutlinePanel extends ViewletPanel {
 
 	private _showMessage(message: string) {
 		dom.addClass(this._domNode, 'message');
-		this._tree.setInput(undefined);
+		this._tree.setChildren(null);
 		this._tree.setChildren(null);
 		this._progressBar.stop().hide();
 		this._message.innerText = escape(message);
@@ -492,6 +499,7 @@ export class OutlinePanel extends ViewletPanel {
 
 		let textModel = editor.getModel();
 		let loadingMessage: IDisposable;
+
 		let oldModel = <OutlineModel>this._tree.getInput();
 		if (!oldModel) {
 			loadingMessage = new TimeoutTimer(
@@ -587,9 +595,10 @@ export class OutlinePanel extends ViewletPanel {
 				beforePatternState = OutlineTreeState.capture(this._tree);
 			}
 			let item = model.updateMatches(pattern);
-			await this._tree.refresh(undefined, true);
+			// await this._tree.refresh(undefined, true);
+			this._tree.refilter();
 			if (item) {
-				await this._tree.expandAll(undefined /*all*/);
+				await this._tree.expandAll(undefined /*all*/); // https://github.com/Microsoft/vscode/issues/64887
 				this._tree.reveal(item);
 				this._tree.setFocus([item], this);
 				this._tree.setSelection([item], this);
@@ -610,7 +619,7 @@ export class OutlinePanel extends ViewletPanel {
 		// feature: reveal outline selection in editor
 		// on change -> reveal/select defining range
 		this._editorDisposables.push(this._tree.onDidChangeSelection(e => {
-			if (e.payload === this || e.payload && e.payload.didClickOnTwistie) {
+			if (e.payload === this || e.payload && e.payload.didClickOnTwistie) { // https://github.com/Microsoft/vscode/issues/64743
 				return;
 			}
 			let [first] = e.selection;
@@ -656,7 +665,8 @@ export class OutlinePanel extends ViewletPanel {
 			const marker = this._markerService.read({ resource: textModel.uri, severities: MarkerSeverity.Error | MarkerSeverity.Warning });
 			if (marker.length > 0 || !ignoreEmpty) {
 				model.updateMarker(marker);
-				this._tree.refresh(undefined, true);
+				// this._tree.refresh(undefined, true);
+				this._treeRefresh.fire();
 			}
 		};
 		updateMarker([textModel.uri], true);
@@ -666,7 +676,8 @@ export class OutlinePanel extends ViewletPanel {
 			if (e.affectsConfiguration(OutlineConfigKeys.problemsBadges) || e.affectsConfiguration(OutlineConfigKeys.problemsColors)) {
 				this._treeElementRenderer.renderProblemColors = this._configurationService.getValue(OutlineConfigKeys.problemsColors);
 				this._treeElementRenderer.renderProblemBadges = this._configurationService.getValue(OutlineConfigKeys.problemsBadges);
-				this._tree.refresh(undefined, true);
+				// this._tree.refresh(undefined, true);
+				this._treeRefresh.fire();
 				return;
 			}
 			if (!e.affectsConfiguration(OutlineConfigKeys.problemsEnabled)) {
@@ -674,7 +685,8 @@ export class OutlinePanel extends ViewletPanel {
 			}
 			if (!this._configurationService.getValue(OutlineConfigKeys.problemsEnabled)) {
 				model.updateMarker([]);
-				this._tree.refresh(undefined, true);
+				// this._tree.refresh(undefined, true);
+				this._treeRefresh.fire();
 			} else {
 				updateMarker([textModel.uri], true);
 			}
@@ -711,7 +723,7 @@ export class OutlinePanel extends ViewletPanel {
 	}
 
 	private async _revealEditorSelection(model: OutlineModel, selection: Selection): Promise<void> {
-		if (!this._outlineViewState.followCursor || !this._tree.getInput() || !selection) {
+		if (!this._outlineViewState.followCursor || !this._tree.getNode() || !selection) {
 			return;
 		}
 		let [first] = this._tree.getSelection();
@@ -728,19 +740,20 @@ export class OutlinePanel extends ViewletPanel {
 			// only when outside view port
 			await this._tree.reveal(item, .5);
 		}
-		this._tree.setFocus(item, this);
-		this._tree.setSelection([item], this);
+		this._tree.setFocus([item], this); // todo@joao focus is weird
+		this._tree.setSelection([item], this); // https://github.com/Microsoft/vscode/issues/64743
 	}
 
 	focusHighlightedElement(up: boolean): void {
-		if (!this._tree.getInput()) {
+
+		if (!this._tree.getNode()) {
 			return;
 		}
 		if (!this._tree.isDOMFocused()) {
 			this._tree.domFocus();
 			return;
 		}
-		let navi = this._tree.getNavigator(this._tree.getFocus(), false);
+		let navi = this._tree.getNavigator(this._tree.getFocus(), false); // https://github.com/Microsoft/vscode/issues/64793
 		let candidate: any;
 		while (candidate = up ? navi.previous() : navi.next()) {
 			if (candidate instanceof OutlineElement && candidate.score && candidate.score[1].length > 0) {
@@ -749,12 +762,6 @@ export class OutlinePanel extends ViewletPanel {
 				break;
 			}
 		}
-		let focused = this._tree.getFocus()[0];
-		if (!focused) {
-			return;
-		}
-		let root = this._tree.getNode(focused);
-
 	}
 }
 
