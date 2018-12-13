@@ -74,7 +74,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	private _documentProviders = new Map<number, IDisposable>();
 	private _workspaceProviders = new Map<number, IDisposable>();
 	private _handlers = new Map<number, string>();
-	private _openPanelListener: IDisposable;
+	private _openPanelListener: IDisposable | null;
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -115,11 +115,11 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 								this._commentService.setWorkspaceComments(providerId, commentThreads);
 							}
 
-							this._openPanelListener.dispose();
-							this._openPanelListener = null;
 						});
 					});
 
+					this._openPanelListener.dispose();
+					this._openPanelListener = null;
 				}
 			});
 		}
