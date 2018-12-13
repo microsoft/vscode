@@ -199,7 +199,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return this.onColorThemeChange.event;
 	}
 
-	private initialize(): Thenable<[IColorTheme, IFileIconTheme]> {
+	private initialize(): Promise<[IColorTheme, IFileIconTheme]> {
 		let detectHCThemeSetting = this.configurationService.getValue<boolean>(DETECT_HC_SETTING);
 
 		let colorThemeSetting: string;
@@ -263,7 +263,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return this.currentColorTheme;
 	}
 
-	public getColorThemes(): Thenable<IColorTheme[]> {
+	public getColorThemes(): Promise<IColorTheme[]> {
 		return this.colorThemeStore.getColorThemes();
 	}
 
@@ -271,7 +271,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return this.getColorTheme();
 	}
 
-	public setColorTheme(themeId: string, settingsTarget: ConfigurationTarget): Thenable<IColorTheme> {
+	public setColorTheme(themeId: string, settingsTarget: ConfigurationTarget): Promise<IColorTheme> {
 		if (!themeId) {
 			return Promise.resolve(null);
 		}
@@ -329,7 +329,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		_applyRules(cssRules.join('\n'), colorThemeRulesClassName);
 	}
 
-	private applyTheme(newTheme: ColorThemeData, settingsTarget: ConfigurationTarget, silent = false): Thenable<IColorTheme> {
+	private applyTheme(newTheme: ColorThemeData, settingsTarget: ConfigurationTarget, silent = false): Promise<IColorTheme> {
 		if (this.container) {
 			if (this.currentColorTheme) {
 				removeClasses(this.container, this.currentColorTheme.id);
@@ -357,7 +357,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return this.writeColorThemeConfiguration(settingsTarget);
 	}
 
-	private writeColorThemeConfiguration(settingsTarget: ConfigurationTarget): Thenable<IColorTheme> {
+	private writeColorThemeConfiguration(settingsTarget: ConfigurationTarget): Promise<IColorTheme> {
 		if (!types.isUndefinedOrNull(settingsTarget)) {
 			return this.configurationWriter.writeConfiguration(COLOR_THEME_SETTING, this.currentColorTheme.settingsId, settingsTarget).then(_ => this.currentColorTheme);
 		}
@@ -390,7 +390,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		}
 	}
 
-	public getFileIconThemes(): Thenable<IFileIconTheme[]> {
+	public getFileIconThemes(): Promise<IFileIconTheme[]> {
 		return this.iconThemeStore.getFileIconThemes();
 	}
 
@@ -402,7 +402,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return this.currentIconTheme;
 	}
 
-	public setFileIconTheme(iconTheme: string, settingsTarget: ConfigurationTarget): Thenable<IFileIconTheme> {
+	public setFileIconTheme(iconTheme: string, settingsTarget: ConfigurationTarget): Promise<IFileIconTheme> {
 		iconTheme = iconTheme || '';
 		if (iconTheme === this.currentIconTheme.id && this.currentIconTheme.isLoaded) {
 			return this.writeFileIconConfiguration(settingsTarget);
@@ -443,7 +443,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 	}
 
-	private writeFileIconConfiguration(settingsTarget: ConfigurationTarget): Thenable<IFileIconTheme> {
+	private writeFileIconConfiguration(settingsTarget: ConfigurationTarget): Promise<IFileIconTheme> {
 		if (!types.isUndefinedOrNull(settingsTarget)) {
 			return this.configurationWriter.writeConfiguration(ICON_THEME_SETTING, this.currentIconTheme.settingsId, settingsTarget).then(_ => this.currentIconTheme);
 		}
@@ -471,7 +471,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	}
 }
 
-function _applyIconTheme(data: FileIconThemeData, onApply: (theme: FileIconThemeData) => Thenable<IFileIconTheme>): Thenable<IFileIconTheme> {
+function _applyIconTheme(data: FileIconThemeData, onApply: (theme: FileIconThemeData) => Promise<IFileIconTheme>): Promise<IFileIconTheme> {
 	_applyRules(data.styleSheetContent, iconThemeRulesClassName);
 	return onApply(data);
 }
@@ -496,7 +496,7 @@ class ConfigurationWriter {
 	constructor(@IConfigurationService private configurationService: IConfigurationService) {
 	}
 
-	public writeConfiguration(key: string, value: any, settingsTarget: ConfigurationTarget): Thenable<void> {
+	public writeConfiguration(key: string, value: any, settingsTarget: ConfigurationTarget): Promise<void> {
 		let settings = this.configurationService.inspect(key);
 		if (settingsTarget === ConfigurationTarget.USER) {
 			if (value === settings.user) {

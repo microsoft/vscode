@@ -46,7 +46,7 @@ export class OpenLatestReleaseNotesInBrowserAction extends Action {
 		super('update.openLatestReleaseNotes', nls.localize('releaseNotes', "Release Notes"), null, true);
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 		if (product.releaseNotesUrl) {
 			const uri = URI.parse(product.releaseNotesUrl);
 			return this.openerService.open(uri);
@@ -66,7 +66,7 @@ export abstract class AbstractShowReleaseNotesAction extends Action {
 		super(id, label, null, true);
 	}
 
-	run(): Thenable<boolean> {
+	run(): Promise<boolean> {
 		if (!this.enabled) {
 			return Promise.resolve(false);
 		}

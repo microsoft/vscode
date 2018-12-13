@@ -26,7 +26,7 @@ export const enum UnloadReason {
 export interface IWindowUnloadEvent {
 	window: ICodeWindow;
 	reason: UnloadReason;
-	veto(value: boolean | Thenable<boolean>): void;
+	veto(value: boolean | Promise<boolean>): void;
 }
 
 export interface ShutdownEvent {
@@ -35,7 +35,7 @@ export interface ShutdownEvent {
 	 * Allows to join the shutdown. The promise can be a long running operation but it
 	 * will block the application from closing.
 	 */
-	join(promise: Thenable<void>): void;
+	join(promise: Promise<void>): void;
 }
 
 export interface ILifecycleService {
@@ -79,7 +79,7 @@ export interface ILifecycleService {
 	/**
 	 * Unload a window for the provided reason. All lifecycle event handlers are triggered.
 	 */
-	unload(window: ICodeWindow, reason: UnloadReason): Thenable<boolean /* veto */>;
+	unload(window: ICodeWindow, reason: UnloadReason): Promise<boolean /* veto */>;
 
 	/**
 	 * Restart the application with optional arguments (CLI). All lifecycle event handlers are triggered.
@@ -89,7 +89,7 @@ export interface ILifecycleService {
 	/**
 	 * Shutdown the application normally. All lifecycle event handlers are triggered.
 	 */
-	quit(fromUpdate?: boolean): Thenable<boolean /* veto */>;
+	quit(fromUpdate?: boolean): Promise<boolean /* veto */>;
 
 	/**
 	 * Forcefully shutdown the application. No livecycle event handlers are triggered.
@@ -107,10 +107,10 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 	private oneTimeListenerTokenGenerator = 0;
 	private windowCounter = 0;
 
-	private pendingQuitPromise: Thenable<boolean> | null;
+	private pendingQuitPromise: Promise<boolean> | null;
 	private pendingQuitPromiseResolve: { (veto: boolean): void } | null;
 
-	private pendingWillShutdownPromise: Thenable<void> | null;
+	private pendingWillShutdownPromise: Promise<void> | null;
 
 	private _quitRequested = false;
 	get quitRequested(): boolean { return this._quitRequested; }
@@ -217,14 +217,14 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 		});
 	}
 
-	private beginOnWillShutdown(): Thenable<void> {
+	private beginOnWillShutdown(): Promise<void> {
 		if (this.pendingWillShutdownPromise) {
 			return this.pendingWillShutdownPromise; // shutdown is already running
 		}
 
 		this.logService.trace('Lifecycle#onWillShutdown.fire()');
 
-		const joiners: Thenable<void>[] = [];
+		const joiners: Promise<void>[] = [];
 
 		this._onWillShutdown.fire({
 			join(promise) {
@@ -292,7 +292,7 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 		});
 	}
 
-	unload(window: ICodeWindow, reason: UnloadReason): Thenable<boolean /* veto */> {
+	unload(window: ICodeWindow, reason: UnloadReason): Promise<boolean /* veto */> {
 
 		// Always allow to unload a window that is not yet ready
 		if (!window.isReady) {
@@ -348,7 +348,7 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 		}
 	}
 
-	private onBeforeUnloadWindowInRenderer(window: ICodeWindow, reason: UnloadReason): Thenable<boolean /* veto */> {
+	private onBeforeUnloadWindowInRenderer(window: ICodeWindow, reason: UnloadReason): Promise<boolean /* veto */> {
 		return new Promise<boolean>(c => {
 			const oneTimeEventToken = this.oneTimeListenerTokenGenerator++;
 			const okChannel = `vscode:ok${oneTimeEventToken}`;
@@ -366,8 +366,8 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 		});
 	}
 
-	private onBeforeUnloadWindowInMain(window: ICodeWindow, reason: UnloadReason): Thenable<boolean /* veto */> {
-		const vetos: (boolean | Thenable<boolean>)[] = [];
+	private onBeforeUnloadWindowInMain(window: ICodeWindow, reason: UnloadReason): Promise<boolean /* veto */> {
+		const vetos: (boolean | Promise<boolean>)[] = [];
 
 		this._onBeforeWindowUnload.fire({
 			reason,
@@ -380,7 +380,7 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 		return handleVetos(vetos, err => this.logService.error(err));
 	}
 
-	private onWillUnloadWindowInRenderer(window: ICodeWindow, reason: UnloadReason): Thenable<void> {
+	private onWillUnloadWindowInRenderer(window: ICodeWindow, reason: UnloadReason): Promise<void> {
 		return new Promise<void>(resolve => {
 			const oneTimeEventToken = this.oneTimeListenerTokenGenerator++;
 			const replyChannel = `vscode:reply${oneTimeEventToken}`;
@@ -395,7 +395,7 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 	 * A promise that completes to indicate if the quit request has been veto'd
 	 * by the user or not.
 	 */
-	quit(fromUpdate?: boolean): Thenable<boolean /* veto */> {
+	quit(fromUpdate?: boolean): Promise<boolean /* veto */> {
 		if (this.pendingQuitPromise) {
 			return this.pendingQuitPromise;
 		}

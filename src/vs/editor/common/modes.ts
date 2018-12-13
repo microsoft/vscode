@@ -221,7 +221,7 @@ export interface IState {
  * to that type `T`. In addition, `null` and `undefined` can be returned - either directly or from a
  * thenable.
  */
-export type ProviderResult<T> = T | undefined | null | Thenable<T | undefined | null>;
+export type ProviderResult<T> = T | undefined | null | Promise<T | undefined | null>;
 
 /**
  * A hover represents additional information for a symbol or word. Hovers are
@@ -1405,7 +1405,7 @@ export interface ITokenizationRegistry {
 	/**
 	 * Register a promise for a tokenization support.
 	 */
-	registerPromise(language: string, promise: Thenable<ITokenizationSupport>): Thenable<IDisposable>;
+	registerPromise(language: string, promise: Promise<ITokenizationSupport>): Promise<IDisposable>;
 
 	/**
 	 * Get the tokenization support for a language.
@@ -1417,7 +1417,7 @@ export interface ITokenizationRegistry {
 	 * Get the promise of a tokenization support for a language.
 	 * `null` is returned if no support is available and no promise for the support has been registered yet.
 	 */
-	getPromise(language: string): Thenable<ITokenizationSupport> | null;
+	getPromise(language: string): Promise<ITokenizationSupport> | null;
 
 	/**
 	 * Set the new color map that all tokens will use in their ColorId binary encoded bits for foreground and background.

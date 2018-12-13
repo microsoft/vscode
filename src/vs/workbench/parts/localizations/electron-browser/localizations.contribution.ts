@@ -215,7 +215,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 			.then(installed => installed.some(i => i.manifest && i.manifest.contributes && i.manifest.contributes.localizations && i.manifest.contributes.localizations.length && i.manifest.contributes.localizations.some(l => l.languageId.toLowerCase() === language)));
 	}
 
-	private installExtension(extension: IGalleryExtension): Thenable<void> {
+	private installExtension(extension: IGalleryExtension): Promise<void> {
 		return this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => viewlet.search(`@id:${extension.identifier.id}`))

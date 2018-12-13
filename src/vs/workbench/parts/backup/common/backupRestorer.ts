@@ -28,13 +28,13 @@ export class BackupRestorer implements IWorkbenchContribution {
 		this.lifecycleService.when(LifecyclePhase.Restored).then(() => this.doRestoreBackups());
 	}
 
-	private doRestoreBackups(): Thenable<URI[] | undefined> {
+	private doRestoreBackups(): Promise<URI[] | undefined> {
 
 		// Find all files and untitled with backups
 		return this.backupFileService.getWorkspaceFileBackups().then(backups => {
 
 			// Resolve backups that are opened
-			return this.doResolveOpenedBackups(backups).then((unresolved): Thenable<URI[] | undefined> | undefined => {
+			return this.doResolveOpenedBackups(backups).then((unresolved): Promise<URI[] | undefined> | undefined => {
 
 				// Some failed to restore or were not opened at all so we open and resolve them manually
 				if (unresolved.length > 0) {
@@ -46,8 +46,8 @@ export class BackupRestorer implements IWorkbenchContribution {
 		});
 	}
 
-	private doResolveOpenedBackups(backups: URI[]): Thenable<URI[]> {
-		const restorePromises: Thenable<any>[] = [];
+	private doResolveOpenedBackups(backups: URI[]): Promise<URI[]> {
+		const restorePromises: Promise<any>[] = [];
 		const unresolved: URI[] = [];
 
 		backups.forEach(backup => {
@@ -62,7 +62,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 		return Promise.all(restorePromises).then(() => unresolved, () => unresolved);
 	}
 
-	private doOpenEditors(resources: URI[]): Thenable<void> {
+	private doOpenEditors(resources: URI[]): Promise<void> {
 		const hasOpenedEditors = this.editorService.visibleEditors.length > 0;
 		const inputs = resources.map((resource, index) => this.resolveInput(resource, index, hasOpenedEditors));
 

@@ -42,7 +42,7 @@ export class OutputLinkProvider {
 		if (folders.length > 0) {
 			if (!this.linkProviderRegistration) {
 				this.linkProviderRegistration = LinkProviderRegistry.register([{ language: OUTPUT_MODE_ID, scheme: '*' }, { language: LOG_MODE_ID, scheme: '*' }], {
-					provideLinks: (model, token): Thenable<ILink[]> => {
+					provideLinks: (model, token): Promise<ILink[]> => {
 						return this.provideLinks(model.uri);
 					}
 				});

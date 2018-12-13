@@ -27,7 +27,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 
 	private _hasAssociatedFilePath: boolean;
 	private cachedModel: UntitledEditorModel;
-	private modelResolve: Thenable<UntitledEditorModel>;
+	private modelResolve: Promise<UntitledEditorModel>;
 
 	private readonly _onDidModelChangeContent: Emitter<void> = this._register(new Emitter<void>());
 	get onDidModelChangeContent(): Event<void> { return this._onDidModelChangeContent.event; }
@@ -162,15 +162,15 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		return this.hasAssociatedFilePath;
 	}
 
-	confirmSave(): Thenable<ConfirmResult> {
+	confirmSave(): Promise<ConfirmResult> {
 		return this.textFileService.confirmSave([this.resource]);
 	}
 
-	save(): Thenable<boolean> {
+	save(): Promise<boolean> {
 		return this.textFileService.save(this.resource);
 	}
 
-	revert(): Thenable<boolean> {
+	revert(): Promise<boolean> {
 		if (this.cachedModel) {
 			this.cachedModel.revert();
 		}
@@ -209,7 +209,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		}
 	}
 
-	resolve(): Thenable<UntitledEditorModel> {
+	resolve(): Promise<UntitledEditorModel> {
 
 		// Join a model resolve if we have had one before
 		if (this.modelResolve) {

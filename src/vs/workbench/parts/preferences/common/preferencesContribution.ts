@@ -32,7 +32,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 	private start(): void {
 
 		this.textModelResolverService.registerTextModelContentProvider('vscode', {
-			provideTextContent: (uri: URI): Thenable<ITextModel> => {
+			provideTextContent: (uri: URI): Promise<ITextModel> => {
 				if (uri.scheme !== 'vscode') {
 					return null;
 				}

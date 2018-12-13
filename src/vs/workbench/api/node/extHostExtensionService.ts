@@ -32,7 +32,7 @@ class ExtensionMemento implements IExtensionMemento {
 	private readonly _shared: boolean;
 	private readonly _storage: ExtHostStorage;
 
-	private readonly _init: Thenable<ExtensionMemento>;
+	private readonly _init: Promise<ExtensionMemento>;
 	private _value: { [n: string]: any; };
 	private readonly _storageListener: IDisposable;
 
@@ -53,7 +53,7 @@ class ExtensionMemento implements IExtensionMemento {
 		});
 	}
 
-	get whenReady(): Thenable<ExtensionMemento> {
+	get whenReady(): Promise<ExtensionMemento> {
 		return this._init;
 	}
 
@@ -65,7 +65,7 @@ class ExtensionMemento implements IExtensionMemento {
 		return value;
 	}
 
-	update(key: string, value: any): Thenable<boolean> {
+	update(key: string, value: any): Promise<boolean> {
 		this._value[key] = value;
 		return this._storage
 			.setValue(this._shared, this._id, this._value)
@@ -231,7 +231,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	}
 
 	public async deactivateAll(): Promise<void> {
-		let allPromises: Thenable<void>[] = [];
+		let allPromises: Promise<void>[] = [];
 		try {
 			const allExtensions = this._registry.getAllExtensionDescriptions();
 			const allExtensionsIds = allExtensions.map(ext => ext.id);
@@ -253,16 +253,16 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		return false;
 	}
 
-	private _activateByEvent(activationEvent: string, startup: boolean): Thenable<void> {
+	private _activateByEvent(activationEvent: string, startup: boolean): Promise<void> {
 		const reason = new ExtensionActivatedByEvent(startup, activationEvent);
 		return this._activator.activateByEvent(activationEvent, reason);
 	}
 
-	private _activateById(extensionId: string, reason: ExtensionActivationReason): Thenable<void> {
+	private _activateById(extensionId: string, reason: ExtensionActivationReason): Promise<void> {
 		return this._activator.activateById(extensionId, reason);
 	}
 
-	public activateByIdWithErrors(extensionId: string, reason: ExtensionActivationReason): Thenable<void> {
+	public activateByIdWithErrors(extensionId: string, reason: ExtensionActivationReason): Promise<void> {
 		return this._activateById(extensionId, reason).then(() => {
 			const extension = this._activator.getActivatedExtension(extensionId);
 			if (extension.activationFailed) {
@@ -300,7 +300,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		return this._extensionPathIndex;
 	}
 
-	private _deactivate(extensionId: string): Thenable<void> {
+	private _deactivate(extensionId: string): Promise<void> {
 		let result = Promise.resolve(void 0);
 
 		if (!this._barrier.isOpen()) {
@@ -428,7 +428,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		});
 	}
 
-	private static _callActivate(logService: ILogService, extensionId: string, extensionModule: IExtensionModule, context: IExtensionContext, activationTimesBuilder: ExtensionActivationTimesBuilder): Thenable<ActivatedExtension> {
+	private static _callActivate(logService: ILogService, extensionId: string, extensionModule: IExtensionModule, context: IExtensionContext, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<ActivatedExtension> {
 		// Make sure the extension's surface is not undefined
 		extensionModule = extensionModule || {
 			activate: undefined,
@@ -440,12 +440,12 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		});
 	}
 
-	private static _callActivateOptional(logService: ILogService, extensionId: string, extensionModule: IExtensionModule, context: IExtensionContext, activationTimesBuilder: ExtensionActivationTimesBuilder): Thenable<IExtensionAPI> {
+	private static _callActivateOptional(logService: ILogService, extensionId: string, extensionModule: IExtensionModule, context: IExtensionContext, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<IExtensionAPI> {
 		if (typeof extensionModule.activate === 'function') {
 			try {
 				activationTimesBuilder.activateCallStart();
 				logService.trace(`ExtensionService#_callActivateOptional ${extensionId}`);
-				const activateResult: Thenable<IExtensionAPI> = extensionModule.activate.apply(global, [context]);
+				const activateResult: Promise<IExtensionAPI> = extensionModule.activate.apply(global, [context]);
 				activationTimesBuilder.activateCallStop();
 
 				activationTimesBuilder.activateResolveStart();
@@ -614,7 +614,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		setTimeout(() => this._nativeExit(code), 500);
 	}
 
-	private _startExtensionHost(): Thenable<void> {
+	private _startExtensionHost(): Promise<void> {
 		if (this._started) {
 			throw new Error(`Extension host is already started!`);
 		}
@@ -634,12 +634,12 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		throw new Error(`Not implemented`);
 	}
 
-	public $startExtensionHost(enabledExtensionIds: string[]): Thenable<void> {
+	public $startExtensionHost(enabledExtensionIds: string[]): Promise<void> {
 		this._registry.keepOnly(enabledExtensionIds);
 		return this._startExtensionHost();
 	}
 
-	public $activateByEvent(activationEvent: string): Thenable<void> {
+	public $activateByEvent(activationEvent: string): Promise<void> {
 		return (
 			this._barrier.wait()
 				.then(_ => this._activateByEvent(activationEvent, false))

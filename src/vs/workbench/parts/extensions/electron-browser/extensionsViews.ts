@@ -401,8 +401,8 @@ export class ExtensionsListView extends ViewletPanel {
 
 	}
 
-	private _searchExperiments: Thenable<IExperiment[]>;
-	private getSearchExperiments(): Thenable<IExperiment[]> {
+	private _searchExperiments: Promise<IExperiment[]>;
+	private getSearchExperiments(): Promise<IExperiment[]> {
 		if (!this._searchExperiments) {
 			this._searchExperiments = this.experimentService.getExperimentsByType(ExperimentActionType.ExtensionSearchResults);
 		}

@@ -27,7 +27,7 @@ export class RemoteAuthorityResolverService implements IRemoteAuthorityResolverS
 		this._resolvedAuthorities = Object.create(null);
 	}
 
-	resolveAuthority(authority: string): Thenable<ResolvedAuthority> {
+	resolveAuthority(authority: string): Promise<ResolvedAuthority> {
 		if (this._resolvedAuthorities[authority]) {
 			return Promise.resolve(this._resolvedAuthorities[authority]);
 		}

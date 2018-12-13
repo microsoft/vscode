@@ -47,7 +47,7 @@ function renderBody(
 
 export class ReleaseNotesManager {
 
-	private _releaseNotesCache: { [version: string]: Thenable<string>; } = Object.create(null);
+	private _releaseNotesCache: { [version: string]: Promise<string>; } = Object.create(null);
 
 	private _currentReleaseNotes: WebviewEditorInput | undefined = undefined;
 	private _lastText: string;
@@ -110,7 +110,7 @@ export class ReleaseNotesManager {
 		return true;
 	}
 
-	private loadReleaseNotes(version: string): Thenable<string> {
+	private loadReleaseNotes(version: string): Promise<string> {
 		const match = /^(\d+\.\d+)\./.exec(version);
 		if (!match) {
 			return Promise.reject(new Error('not found'));
@@ -189,7 +189,7 @@ export class ReleaseNotesManager {
 	}
 
 	private async getRenderer(text: string): Promise<marked.Renderer> {
-		let result: Thenable<ITokenizationSupport>[] = [];
+		let result: Promise<ITokenizationSupport>[] = [];
 		const renderer = new marked.Renderer();
 		renderer.code = (_code, lang) => {
 			const modeId = this._modeService.getModeIdForLanguageName(lang);

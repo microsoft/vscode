@@ -106,7 +106,7 @@ export class ColorThemeStore {
 		});
 	}
 
-	public findThemeData(themeId: string, defaultId?: string): Thenable<ColorThemeData> {
+	public findThemeData(themeId: string, defaultId?: string): Promise<ColorThemeData> {
 		return this.getColorThemes().then(allThemes => {
 			let defaultTheme: ColorThemeData = void 0;
 			for (let t of allThemes) {
@@ -121,7 +121,7 @@ export class ColorThemeStore {
 		});
 	}
 
-	public findThemeDataBySettingsId(settingsId: string, defaultId: string): Thenable<ColorThemeData> {
+	public findThemeDataBySettingsId(settingsId: string, defaultId: string): Promise<ColorThemeData> {
 		return this.getColorThemes().then(allThemes => {
 			let defaultTheme: ColorThemeData = void 0;
 			for (let t of allThemes) {
@@ -136,7 +136,7 @@ export class ColorThemeStore {
 		});
 	}
 
-	public getColorThemes(): Thenable<IColorTheme[]> {
+	public getColorThemes(): Promise<IColorTheme[]> {
 		return this.extensionService.whenInstalledExtensionsRegistered().then(isReady => {
 			return this.extensionsColorThemes;
 		});

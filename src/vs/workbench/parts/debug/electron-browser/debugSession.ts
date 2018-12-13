@@ -135,7 +135,7 @@ export class DebugSession implements IDebugSession {
 	/**
 	 * create and initialize a new debug adapter for this session
 	 */
-	initialize(dbgr: IDebugger): Thenable<void> {
+	initialize(dbgr: IDebugger): Promise<void> {
 
 		if (this.raw) {
 			// if there was already a connection make sure to remove old listeners

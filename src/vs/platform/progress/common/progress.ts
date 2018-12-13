@@ -22,7 +22,7 @@ export interface IProgressService {
 	 * Indicate progress for the duration of the provided promise. Progress will stop in
 	 * any case of promise completion, error or cancellation.
 	 */
-	showWhile(promise: Thenable<any>, delay?: number): Thenable<void>;
+	showWhile(promise: Promise<any>, delay?: number): Promise<void>;
 }
 
 export const enum ProgressLocation {
@@ -52,7 +52,7 @@ export interface IProgressService2 {
 
 	_serviceBrand: any;
 
-	withProgress<P extends Thenable<R>, R=any>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => P, onDidCancel?: () => void): P;
+	withProgress<P extends Promise<R>, R=any>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => P, onDidCancel?: () => void): P;
 }
 
 export interface IProgressRunner {

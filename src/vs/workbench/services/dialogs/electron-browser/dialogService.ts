@@ -43,7 +43,7 @@ export class DialogService implements IDialogService {
 		@ILogService private logService: ILogService
 	) { }
 
-	confirm(confirmation: IConfirmation): Thenable<IConfirmationResult> {
+	confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
 		this.logService.trace('DialogService#confirm', confirmation.message);
 
 		const { options, buttonIndexMap } = this.massageMessageBoxOptions(this.getConfirmOptions(confirmation));
@@ -93,7 +93,7 @@ export class DialogService implements IDialogService {
 		return opts;
 	}
 
-	show(severity: Severity, message: string, buttons: string[], dialogOptions?: IDialogOptions): Thenable<number> {
+	show(severity: Severity, message: string, buttons: string[], dialogOptions?: IDialogOptions): Promise<number> {
 		this.logService.trace('DialogService#show', message);
 
 		const { options, buttonIndexMap } = this.massageMessageBoxOptions({
@@ -212,7 +212,7 @@ export class FileDialogService implements IFileDialogService {
 		};
 	}
 
-	public pickFileFolderAndOpen(options: IPickAndOpenOptions): Thenable<any> {
+	public pickFileFolderAndOpen(options: IPickAndOpenOptions): Promise<any> {
 		let defaultUri = options.defaultUri;
 		if (!defaultUri) {
 			options.defaultUri = this.defaultFilePath(Schemas.file);
@@ -221,7 +221,7 @@ export class FileDialogService implements IFileDialogService {
 
 	}
 
-	public pickFileAndOpen(options: IPickAndOpenOptions): Thenable<any> {
+	public pickFileAndOpen(options: IPickAndOpenOptions): Promise<any> {
 		let defaultUri = options.defaultUri;
 		if (!defaultUri) {
 			options.defaultUri = this.defaultFilePath(Schemas.file);
@@ -229,7 +229,7 @@ export class FileDialogService implements IFileDialogService {
 		return this.windowService.pickFileAndOpen(this.toNativeOpenDialogOptions(options));
 	}
 
-	public pickFolderAndOpen(options: IPickAndOpenOptions): Thenable<any> {
+	public pickFolderAndOpen(options: IPickAndOpenOptions): Promise<any> {
 		let defaultUri = options.defaultUri;
 		if (!defaultUri) {
 			options.defaultUri = this.defaultFolderPath(Schemas.file);
@@ -237,7 +237,7 @@ export class FileDialogService implements IFileDialogService {
 		return this.windowService.pickFolderAndOpen(this.toNativeOpenDialogOptions(options));
 	}
 
-	public pickWorkspaceAndOpen(options: IPickAndOpenOptions): Thenable<void> {
+	public pickWorkspaceAndOpen(options: IPickAndOpenOptions): Promise<void> {
 		let defaultUri = options.defaultUri;
 		if (!defaultUri) {
 			options.defaultUri = this.defaultWorkspacePath(Schemas.file);
@@ -254,7 +254,7 @@ export class FileDialogService implements IFileDialogService {
 		};
 	}
 
-	public showSaveDialog(options: ISaveDialogOptions): Thenable<URI> {
+	public showSaveDialog(options: ISaveDialogOptions): Promise<URI> {
 		const defaultUri = options.defaultUri;
 		if (defaultUri && defaultUri.scheme !== Schemas.file) {
 			return Promise.reject(new Error('Not supported - Save-dialogs can only be opened on `file`-uris.'));
@@ -267,7 +267,7 @@ export class FileDialogService implements IFileDialogService {
 		});
 	}
 
-	public showOpenDialog(options: IOpenDialogOptions): Thenable<URI[] | undefined> {
+	public showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined> {
 		const defaultUri = options.defaultUri;
 		if (defaultUri && defaultUri.scheme !== Schemas.file) {
 			return Promise.reject(new Error('Not supported - Open-dialogs can only be opened on `file`-uris.'));

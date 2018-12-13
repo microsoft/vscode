@@ -66,7 +66,7 @@ abstract class OccurenceAtPositionRequest implements IOccurenceAtPositionRequest
 		this.result = createCancelablePromise(token => this._compute(model, selection, wordSeparators, token));
 	}
 
-	protected abstract _compute(model: ITextModel, selection: Selection, wordSeparators: string, token: CancellationToken): Thenable<DocumentHighlight[]>;
+	protected abstract _compute(model: ITextModel, selection: Selection, wordSeparators: string, token: CancellationToken): Promise<DocumentHighlight[]>;
 
 	private _getCurrentWordRange(model: ITextModel, selection: Selection): Range | null {
 		const word = model.getWordAtPosition(selection.getPosition());
@@ -105,7 +105,7 @@ abstract class OccurenceAtPositionRequest implements IOccurenceAtPositionRequest
 }
 
 class SemanticOccurenceAtPositionRequest extends OccurenceAtPositionRequest {
-	protected _compute(model: ITextModel, selection: Selection, wordSeparators: string, token: CancellationToken): Thenable<DocumentHighlight[]> {
+	protected _compute(model: ITextModel, selection: Selection, wordSeparators: string, token: CancellationToken): Promise<DocumentHighlight[]> {
 		return getOccurrencesAtPosition(model, selection.getPosition(), token);
 	}
 }
@@ -119,7 +119,7 @@ class TextualOccurenceAtPositionRequest extends OccurenceAtPositionRequest {
 		this._selectionIsEmpty = selection.isEmpty();
 	}
 
-	protected _compute(model: ITextModel, selection: Selection, wordSeparators: string, token: CancellationToken): Thenable<DocumentHighlight[]> {
+	protected _compute(model: ITextModel, selection: Selection, wordSeparators: string, token: CancellationToken): Promise<DocumentHighlight[]> {
 		return timeout(250, token).then(() => {
 			if (!selection.isEmpty()) {
 				return [];

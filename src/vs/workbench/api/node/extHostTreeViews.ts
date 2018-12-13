@@ -82,7 +82,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 			get onDidChangeVisibility() { return treeView.onDidChangeVisibility; },
 			get message() { return treeView.message; },
 			set message(message: string | MarkdownString) { checkProposedApiEnabled(extension); treeView.message = message; },
-			reveal: (element: T, options?: IRevealOptions): Thenable<void> => {
+			reveal: (element: T, options?: IRevealOptions): Promise<void> => {
 				return treeView.reveal(element, options);
 			},
 			dispose: () => {
@@ -92,7 +92,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		};
 	}
 
-	$getChildren(treeViewId: string, treeItemHandle?: string): Thenable<ITreeItem[]> {
+	$getChildren(treeViewId: string, treeItemHandle?: string): Promise<ITreeItem[]> {
 		const treeView = this.treeViews.get(treeViewId);
 		if (!treeView) {
 			return Promise.reject(new Error(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId)));
@@ -194,7 +194,7 @@ class ExtHostTreeView<T> extends Disposable {
 		}
 	}
 
-	getChildren(parentHandle?: TreeItemHandle): Thenable<ITreeItem[]> {
+	getChildren(parentHandle?: TreeItemHandle): Promise<ITreeItem[]> {
 		const parentElement = parentHandle ? this.getExtensionElement(parentHandle) : void 0;
 		if (parentHandle && !parentElement) {
 			console.error(`No tree item with id \'${parentHandle}\' found.`);
@@ -260,7 +260,7 @@ class ExtHostTreeView<T> extends Disposable {
 		}
 	}
 
-	private resolveUnknownParentChain(element: T): Thenable<TreeNode[]> {
+	private resolveUnknownParentChain(element: T): Promise<TreeNode[]> {
 		return this.resolveParent(element)
 			.then((parent) => {
 				if (!parent) {
@@ -275,7 +275,7 @@ class ExtHostTreeView<T> extends Disposable {
 			});
 	}
 
-	private resolveParent(element: T): Thenable<T> {
+	private resolveParent(element: T): Promise<T> {
 		const node = this.nodes.get(element);
 		if (node) {
 			return Promise.resolve(node.parent ? this.elements.get(node.parent.item.handle) : null);
@@ -283,7 +283,7 @@ class ExtHostTreeView<T> extends Disposable {
 		return asThenable(() => this.dataProvider.getParent(element));
 	}
 
-	private resolveTreeNode(element: T, parent?: TreeNode): Thenable<TreeNode> {
+	private resolveTreeNode(element: T, parent?: TreeNode): Promise<TreeNode> {
 		const node = this.nodes.get(element);
 		if (node) {
 			return Promise.resolve(node);
@@ -317,7 +317,7 @@ class ExtHostTreeView<T> extends Disposable {
 		return this.roots;
 	}
 
-	private fetchChildrenNodes(parentElement?: T): Thenable<TreeNode[]> {
+	private fetchChildrenNodes(parentElement?: T): Promise<TreeNode[]> {
 		// clear children cache
 		this.clearChildren(parentElement);
 
@@ -330,7 +330,7 @@ class ExtHostTreeView<T> extends Disposable {
 			.then(coalesce);
 	}
 
-	private refresh(elements: T[]): Thenable<void> {
+	private refresh(elements: T[]): Promise<void> {
 		const hasRoot = elements.some(element => !element);
 		if (hasRoot) {
 			this.clearAll(); // clear cache
@@ -386,7 +386,7 @@ class ExtHostTreeView<T> extends Disposable {
 			.then(() => Object.keys(itemsToRefresh).length ? this.proxy.$refresh(this.viewId, itemsToRefresh) : null);
 	}
 
-	private refreshNode(treeItemHandle: TreeItemHandle): Thenable<TreeNode> {
+	private refreshNode(treeItemHandle: TreeItemHandle): Promise<TreeNode> {
 		const extElement = this.getExtensionElement(treeItemHandle);
 		const existing = this.nodes.get(extElement);
 		this.clearChildren(extElement); // clear children cache

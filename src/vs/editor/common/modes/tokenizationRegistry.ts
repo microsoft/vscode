@@ -11,7 +11,7 @@ import { ColorId, ITokenizationRegistry, ITokenizationSupport, ITokenizationSupp
 export class TokenizationRegistryImpl implements ITokenizationRegistry {
 
 	private _map: { [language: string]: ITokenizationSupport };
-	private _promises: { [language: string]: Thenable<IDisposable> };
+	private _promises: { [language: string]: Promise<IDisposable> };
 
 	private readonly _onDidChange: Emitter<ITokenizationSupportChangedEvent> = new Emitter<ITokenizationSupportChangedEvent>();
 	public readonly onDidChange: Event<ITokenizationSupportChangedEvent> = this._onDidChange.event;
@@ -43,7 +43,7 @@ export class TokenizationRegistryImpl implements ITokenizationRegistry {
 		});
 	}
 
-	public registerPromise(language: string, supportPromise: Thenable<ITokenizationSupport | null>): Thenable<IDisposable> {
+	public registerPromise(language: string, supportPromise: Promise<ITokenizationSupport | null>): Promise<IDisposable> {
 		const promise = this._promises[language] = supportPromise.then(support => {
 			delete this._promises[language];
 			if (support) {
@@ -55,7 +55,7 @@ export class TokenizationRegistryImpl implements ITokenizationRegistry {
 		return promise;
 	}
 
-	public getPromise(language: string): Thenable<ITokenizationSupport> | null {
+	public getPromise(language: string): Promise<ITokenizationSupport> | null {
 		const support = this.get(language);
 		if (support) {
 			return Promise.resolve(support);

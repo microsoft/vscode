@@ -35,7 +35,7 @@ export class DownloadServiceChannel implements IServerChannel {
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(_, command: string): Thenable<any> {
+	call(_, command: string): Promise<any> {
 		throw new Error(`Call not found: ${command}`);
 	}
 }

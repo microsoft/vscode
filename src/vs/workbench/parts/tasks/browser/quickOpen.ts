@@ -67,7 +67,7 @@ export class TaskGroupEntry extends Model.QuickOpenEntryGroup {
 
 export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 
-	private tasks: Thenable<(CustomTask | ContributedTask)[]>;
+	private tasks: Promise<(CustomTask | ContributedTask)[]>;
 
 	constructor(
 		protected quickOpenService: IQuickOpenService,
@@ -87,7 +87,7 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 		this.tasks = undefined;
 	}
 
-	public getResults(input: string, token: CancellationToken): Thenable<Model.QuickOpenModel> {
+	public getResults(input: string, token: CancellationToken): Promise<Model.QuickOpenModel> {
 		return this.tasks.then((tasks) => {
 			let entries: Model.QuickOpenEntry[] = [];
 			if (tasks.length === 0 || token.isCancellationRequested) {
@@ -148,7 +148,7 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 		}
 	}
 
-	protected abstract getTasks(): Thenable<(CustomTask | ContributedTask)[]>;
+	protected abstract getTasks(): Promise<(CustomTask | ContributedTask)[]>;
 
 	protected abstract createEntry(task: CustomTask | ContributedTask, highlights: Model.IHighlight[]): TaskEntry;
 
@@ -173,7 +173,7 @@ class CustomizeTaskAction extends Action {
 		this.class = 'quick-open-task-configure';
 	}
 
-	public run(element: any): Thenable<any> {
+	public run(element: any): Promise<any> {
 		let task = this.getTask(element);
 		if (ContributedTask.is(task)) {
 			return this.taskService.customize(task, undefined, true).then(() => {

@@ -127,7 +127,7 @@ export interface IDialogService {
 	/**
 	 * Ask the user for confirmation with a modal dialog.
 	 */
-	confirm(confirmation: IConfirmation): Thenable<IConfirmationResult>;
+	confirm(confirmation: IConfirmation): Promise<IConfirmationResult>;
 
 	/**
 	 * Present a modal dialog to the user.
@@ -136,7 +136,7 @@ export interface IDialogService {
 	 * then a promise with index of `cancelId` option is returned. If there is no such
 	 * option then promise with index `0` is returned.
 	 */
-	show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Thenable<number>;
+	show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<number>;
 }
 
 export const IFileDialogService = createDecorator<IFileDialogService>('fileDialogService');
@@ -169,32 +169,32 @@ export interface IFileDialogService {
 	/**
 	 * Shows a file-folder selection dialog and opens the selected entry.
 	 */
-	pickFileFolderAndOpen(options: IPickAndOpenOptions): Thenable<any>;
+	pickFileFolderAndOpen(options: IPickAndOpenOptions): Promise<any>;
 
 	/**
 	 * Shows a file selection dialog and opens the selected entry.
 	 */
-	pickFileAndOpen(options: IPickAndOpenOptions): Thenable<any>;
+	pickFileAndOpen(options: IPickAndOpenOptions): Promise<any>;
 
 	/**
 	 * Shows a folder selection dialog and opens the selected entry.
 	 */
-	pickFolderAndOpen(options: IPickAndOpenOptions): Thenable<any>;
+	pickFolderAndOpen(options: IPickAndOpenOptions): Promise<any>;
 
 	/**
 	 * Shows a workspace selection dialog and opens the selected entry.
 	 */
-	pickWorkspaceAndOpen(options: IPickAndOpenOptions): Thenable<any>;
+	pickWorkspaceAndOpen(options: IPickAndOpenOptions): Promise<any>;
 
 	/**
 	 * Shows a save file dialog and returns the chosen file URI.
 	 */
-	showSaveDialog(options: ISaveDialogOptions): Thenable<URI>;
+	showSaveDialog(options: ISaveDialogOptions): Promise<URI>;
 
 	/**
 	 * Shows a open file dialog and returns the chosen file URI.
 	 */
-	showOpenDialog(options: IOpenDialogOptions): Thenable<URI[] | undefined>;
+	showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined>;
 
 }
 

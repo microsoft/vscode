@@ -36,12 +36,12 @@ export class DataSource implements IDataSource {
 		return model && model === element && model.entries.length > 0;
 	}
 
-	getChildren(tree: ITree, element: any): Thenable<any[]> {
+	getChildren(tree: ITree, element: any): Promise<any[]> {
 		const model = this.modelProvider.getModel();
 		return Promise.resolve(model === element ? model.entries : []);
 	}
 
-	getParent(tree: ITree, element: any): Thenable<any> {
+	getParent(tree: ITree, element: any): Promise<any> {
 		return Promise.resolve(null);
 	}
 }

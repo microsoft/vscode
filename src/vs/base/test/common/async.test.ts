@@ -140,7 +140,7 @@ suite('Async', () => {
 
 		let throttler = new async.Throttler();
 
-		let promises: Thenable<any>[] = [];
+		let promises: Promise<any>[] = [];
 
 		promises.push(throttler.queue(factoryFactory(1)).then((n) => { assert.equal(n, 1); }));
 		promises.push(throttler.queue(factoryFactory(2)).then((n) => { assert.equal(n, 3); }));
@@ -156,7 +156,7 @@ suite('Async', () => {
 		};
 
 		let delayer = new async.Delayer(0);
-		let promises: Thenable<any>[] = [];
+		let promises: Promise<any>[] = [];
 
 		assert(!delayer.isTriggered());
 
@@ -204,7 +204,7 @@ suite('Async', () => {
 		};
 
 		let delayer = new async.Delayer(0);
-		let promises: Thenable<any>[] = [];
+		let promises: Promise<any>[] = [];
 
 		assert(!delayer.isTriggered());
 
@@ -231,7 +231,7 @@ suite('Async', () => {
 		};
 
 		let delayer = new async.Delayer(0);
-		let promises: Thenable<any>[] = [];
+		let promises: Promise<any>[] = [];
 
 		assert(!delayer.isTriggered());
 
@@ -281,7 +281,7 @@ suite('Async', () => {
 		};
 
 		let delayer = new async.Delayer(0);
-		let promises: Thenable<any>[] = [];
+		let promises: Promise<any>[] = [];
 
 		assert(!delayer.isTriggered());
 
@@ -326,7 +326,7 @@ suite('Async', () => {
 
 		let limiter = new async.Limiter(1);
 
-		let promises: Thenable<any>[] = [];
+		let promises: Promise<any>[] = [];
 		[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].forEach(n => promises.push(limiter.queue(factoryFactory(n))));
 
 		return Promise.all(promises).then((res) => {
@@ -347,7 +347,7 @@ suite('Async', () => {
 		let factoryFactory = (n: number) => () => async.timeout(0).then(() => n);
 
 		let limiter = new async.Limiter(1);
-		let promises: Thenable<any>[] = [];
+		let promises: Promise<any>[] = [];
 		[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].forEach(n => promises.push(limiter.queue(factoryFactory(n))));
 
 		return Promise.all(promises).then((res) => {
@@ -374,7 +374,7 @@ suite('Async', () => {
 
 		let limiter = new async.Limiter(5);
 
-		let promises: Thenable<any>[] = [];
+		let promises: Promise<any>[] = [];
 		[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].forEach(n => promises.push(limiter.queue(factoryFactory(n))));
 
 		return Promise.all(promises).then((res) => {

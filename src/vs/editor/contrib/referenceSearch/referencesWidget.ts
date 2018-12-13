@@ -441,7 +441,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		});
 	}
 
-	public setModel(newModel: ReferencesModel): Thenable<any> {
+	public setModel(newModel: ReferencesModel): Promise<any> {
 		// clean up
 		this._disposeOnNewModel = dispose(this._disposeOnNewModel);
 		this._model = newModel;
@@ -451,7 +451,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		return undefined;
 	}
 
-	private _onNewModel(): Thenable<any> {
+	private _onNewModel(): Promise<any> {
 
 		if (this._model.empty) {
 			this.setTitle('');

@@ -93,7 +93,7 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 		};
 	}
 
-	private triggerAndDisposeAction(instantiationService: IInstantiationService, lifecycleService: ILifecycleService, descriptor: SyncActionDescriptor, args: any): Thenable<void> {
+	private triggerAndDisposeAction(instantiationService: IInstantiationService, lifecycleService: ILifecycleService, descriptor: SyncActionDescriptor, args: any): Promise<void> {
 
 		// run action when workbench is created
 		return lifecycleService.when(LifecyclePhase.Ready).then(() => {

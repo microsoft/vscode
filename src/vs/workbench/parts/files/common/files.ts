@@ -35,7 +35,7 @@ export interface IExplorerViewlet extends IViewlet {
 }
 
 export interface IExplorerView {
-	select(resource: URI, reveal?: boolean): Thenable<void>;
+	select(resource: URI, reveal?: boolean): Promise<void>;
 }
 
 /**
@@ -154,7 +154,7 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 	) {
 	}
 
-	provideTextContent(resource: URI): Thenable<ITextModel> {
+	provideTextContent(resource: URI): Promise<ITextModel> {
 		const fileOnDiskResource = resource.with({ scheme: Schemas.file });
 
 		// Make sure our file from disk is resolved up to date
@@ -180,9 +180,9 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 		});
 	}
 
-	private resolveEditorModel(resource: URI, createAsNeeded?: true): Thenable<ITextModel>;
-	private resolveEditorModel(resource: URI, createAsNeeded?: boolean): Thenable<ITextModel | null>;
-	private resolveEditorModel(resource: URI, createAsNeeded: boolean = true): Thenable<ITextModel | null> {
+	private resolveEditorModel(resource: URI, createAsNeeded?: true): Promise<ITextModel>;
+	private resolveEditorModel(resource: URI, createAsNeeded?: boolean): Promise<ITextModel | null>;
+	private resolveEditorModel(resource: URI, createAsNeeded: boolean = true): Promise<ITextModel | null> {
 		const fileOnDiskResource = resource.with({ scheme: Schemas.file });
 
 		return this.textFileService.resolveTextContent(fileOnDiskResource).then(content => {

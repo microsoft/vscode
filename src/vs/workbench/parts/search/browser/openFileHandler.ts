@@ -137,7 +137,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 		this.options = options;
 	}
 
-	getResults(searchValue: string, token: CancellationToken, maxSortedResults?: number): Thenable<FileQuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken, maxSortedResults?: number): Promise<FileQuickOpenModel> {
 		const query = prepareQuery(searchValue);
 
 		// Respond directly to empty search
@@ -152,7 +152,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 		return this.doFindResults(query, token, this.cacheState.cacheKey, maxSortedResults);
 	}
 
-	private doFindResults(query: IPreparedQuery, token: CancellationToken, cacheKey?: string, maxSortedResults?: number): Thenable<FileQuickOpenModel> {
+	private doFindResults(query: IPreparedQuery, token: CancellationToken, cacheKey?: string, maxSortedResults?: number): Promise<FileQuickOpenModel> {
 		const queryOptions = this.doResolveQueryOptions(query, cacheKey, maxSortedResults);
 
 		let iconClass: string;
@@ -189,7 +189,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 		});
 	}
 
-	private getAbsolutePathResult(query: IPreparedQuery): Thenable<URI> {
+	private getAbsolutePathResult(query: IPreparedQuery): Promise<URI> {
 		if (paths.isAbsolute(query.original)) {
 			const resource = URI.file(query.original);
 
@@ -272,9 +272,9 @@ export class CacheState {
 	private query: IFileQuery;
 
 	private loadingPhase = LoadingPhase.Created;
-	private promise: Thenable<void>;
+	private promise: Promise<void>;
 
-	constructor(cacheQuery: (cacheKey: string) => IFileQuery, private doLoad: (query: IFileQuery) => Thenable<any>, private doDispose: (cacheKey: string) => Thenable<void>, private previous: CacheState) {
+	constructor(cacheQuery: (cacheKey: string) => IFileQuery, private doLoad: (query: IFileQuery) => Promise<any>, private doDispose: (cacheKey: string) => Promise<void>, private previous: CacheState) {
 		this.query = cacheQuery(this._cacheKey);
 		if (this.previous) {
 			const current = objects.assign({}, this.query, { cacheKey: null });

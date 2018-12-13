@@ -215,7 +215,7 @@ export class WebviewEditorInput extends EditorInput {
 		}
 	}
 
-	public resolve(): Thenable<IEditorModel> {
+	public resolve(): Promise<IEditorModel> {
 		if (this.reviver && !this._revived) {
 			this._revived = true;
 			return this.reviver.reviveWebview(this).then(() => new EditorModel());

@@ -20,7 +20,7 @@ export class WatcherChannel implements IServerChannel {
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(_, command: string, arg?: any): Thenable<any> {
+	call(_, command: string, arg?: any): Promise<any> {
 		switch (command) {
 			case 'setRoots': return this.service.setRoots(arg);
 			case 'setVerboseLogging': return this.service.setVerboseLogging(arg);
@@ -39,15 +39,15 @@ export class WatcherChannelClient implements IWatcherService {
 		return this.channel.listen('watch', options);
 	}
 
-	setVerboseLogging(enable: boolean): Thenable<void> {
+	setVerboseLogging(enable: boolean): Promise<void> {
 		return this.channel.call('setVerboseLogging', enable);
 	}
 
-	setRoots(roots: IWatcherRequest[]): Thenable<void> {
+	setRoots(roots: IWatcherRequest[]): Promise<void> {
 		return this.channel.call('setRoots', roots);
 	}
 
-	stop(): Thenable<void> {
+	stop(): Promise<void> {
 		return this.channel.call('stop');
 	}
 }

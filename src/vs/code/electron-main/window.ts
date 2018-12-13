@@ -74,7 +74,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private currentConfig: IWindowConfiguration;
 	private pendingLoadConfig: IWindowConfiguration;
 
-	private marketplaceHeadersPromise: Thenable<object>;
+	private marketplaceHeadersPromise: Promise<object>;
 
 	private touchBarGroups: Electron.TouchBarSegmentedControl[];
 
@@ -277,7 +277,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 	}
 
-	ready(): Thenable<ICodeWindow> {
+	ready(): Promise<ICodeWindow> {
 		return new Promise<ICodeWindow>(resolve => {
 			if (this.isReady) {
 				return resolve(this);

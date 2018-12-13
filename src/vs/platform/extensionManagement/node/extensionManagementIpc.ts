@@ -35,7 +35,7 @@ export class ExtensionManagementChannel implements IServerChannel {
 		throw new Error('Invalid listen');
 	}
 
-	call(context, command: string, args?: any): Thenable<any> {
+	call(context, command: string, args?: any): Promise<any> {
 		const uriTransformer = this.getUriTransformer(context);
 		switch (command) {
 			case 'zip': return this.service.zip(this._transformIncoming(args[0], uriTransformer)).then(uri => uriTransformer.transformOutgoing(uri));

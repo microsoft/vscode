@@ -67,7 +67,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		};
 	}
 
-	$createNewCommentThread(handle: number, uri: UriComponents, range: IRange, text: string): Thenable<modes.CommentThread> {
+	$createNewCommentThread(handle: number, uri: UriComponents, range: IRange, text: string): Promise<modes.CommentThread> {
 		const data = this._documents.getDocumentData(URI.revive(uri));
 		const ran = <vscode.Range>extHostTypeConverter.Range.to(range);
 
@@ -81,7 +81,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		}).then(commentThread => commentThread ? convertToCommentThread(provider, commentThread, this._commandsConverter) : null);
 	}
 
-	$replyToCommentThread(handle: number, uri: UriComponents, range: IRange, thread: modes.CommentThread, text: string): Thenable<modes.CommentThread> {
+	$replyToCommentThread(handle: number, uri: UriComponents, range: IRange, thread: modes.CommentThread, text: string): Promise<modes.CommentThread> {
 		const data = this._documents.getDocumentData(URI.revive(uri));
 		const ran = <vscode.Range>extHostTypeConverter.Range.to(range);
 
@@ -95,7 +95,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		}).then(commentThread => commentThread ? convertToCommentThread(provider, commentThread, this._commandsConverter) : null);
 	}
 
-	$editComment(handle: number, uri: UriComponents, comment: modes.Comment, text: string): Thenable<void> {
+	$editComment(handle: number, uri: UriComponents, comment: modes.Comment, text: string): Promise<void> {
 		const data = this._documents.getDocumentData(URI.revive(uri));
 
 		if (!data || !data.document) {
@@ -108,7 +108,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		});
 	}
 
-	$deleteComment(handle: number, uri: UriComponents, comment: modes.Comment): Thenable<void> {
+	$deleteComment(handle: number, uri: UriComponents, comment: modes.Comment): Promise<void> {
 		const data = this._documents.getDocumentData(URI.revive(uri));
 
 		if (!data || !data.document) {
@@ -121,28 +121,28 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		});
 	}
 
-	$startDraft(handle: number): Thenable<void> {
+	$startDraft(handle: number): Promise<void> {
 		const provider = this._documentProviders.get(handle);
 		return asThenable(() => {
 			return provider.startDraft(CancellationToken.None);
 		});
 	}
 
-	$deleteDraft(handle: number): Thenable<void> {
+	$deleteDraft(handle: number): Promise<void> {
 		const provider = this._documentProviders.get(handle);
 		return asThenable(() => {
 			return provider.deleteDraft(CancellationToken.None);
 		});
 	}
 
-	$finishDraft(handle: number): Thenable<void> {
+	$finishDraft(handle: number): Promise<void> {
 		const provider = this._documentProviders.get(handle);
 		return asThenable(() => {
 			return provider.finishDraft(CancellationToken.None);
 		});
 	}
 
-	$provideDocumentComments(handle: number, uri: UriComponents): Thenable<modes.CommentInfo> {
+	$provideDocumentComments(handle: number, uri: UriComponents): Promise<modes.CommentInfo> {
 		const data = this._documents.getDocumentData(URI.revive(uri));
 		if (!data || !data.document) {
 			return Promise.resolve(null);
@@ -154,7 +154,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		}).then(commentInfo => commentInfo ? convertCommentInfo(handle, provider, commentInfo, this._commandsConverter) : null);
 	}
 
-	$provideWorkspaceComments(handle: number): Thenable<modes.CommentThread[]> {
+	$provideWorkspaceComments(handle: number): Promise<modes.CommentThread[]> {
 		const provider = this._workspaceProviders.get(handle);
 		if (!provider) {
 			return Promise.resolve(null);

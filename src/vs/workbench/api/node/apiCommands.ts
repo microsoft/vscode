@@ -20,7 +20,7 @@ import { EditorGroupLayout } from 'vs/workbench/services/group/common/editorGrou
 // -----------------------------------------------------------------
 
 export interface ICommandsExecutor {
-	executeCommand<T>(id: string, ...args: any[]): Thenable<T>;
+	executeCommand<T>(id: string, ...args: any[]): Promise<T>;
 }
 
 function adjustHandler(handler: (executor: ICommandsExecutor, ...args: any[]) => any): ICommandHandler {
@@ -31,7 +31,7 @@ function adjustHandler(handler: (executor: ICommandsExecutor, ...args: any[]) =>
 
 export class PreviewHTMLAPICommand {
 	public static ID = 'vscode.previewHtml';
-	public static execute(executor: ICommandsExecutor, uri: URI, position?: vscode.ViewColumn, label?: string, options?: any): Thenable<any> {
+	public static execute(executor: ICommandsExecutor, uri: URI, position?: vscode.ViewColumn, label?: string, options?: any): Promise<any> {
 		return executor.executeCommand('_workbench.previewHtml',
 			uri,
 			typeof position === 'number' && typeConverters.ViewColumn.from(position),
@@ -44,7 +44,7 @@ CommandsRegistry.registerCommand(PreviewHTMLAPICommand.ID, adjustHandler(Preview
 
 export class OpenFolderAPICommand {
 	public static ID = 'vscode.openFolder';
-	public static execute(executor: ICommandsExecutor, uri?: URI, forceNewWindow?: boolean): Thenable<any> {
+	public static execute(executor: ICommandsExecutor, uri?: URI, forceNewWindow?: boolean): Promise<any> {
 		if (!uri) {
 			return executor.executeCommand('_files.pickFolderAndOpen', forceNewWindow);
 		}
@@ -62,7 +62,7 @@ CommandsRegistry.registerCommand(OpenFolderAPICommand.ID, adjustHandler(OpenFold
 
 export class DiffAPICommand {
 	public static ID = 'vscode.diff';
-	public static execute(executor: ICommandsExecutor, left: URI, right: URI, label: string, options?: vscode.TextDocumentShowOptions): Thenable<any> {
+	public static execute(executor: ICommandsExecutor, left: URI, right: URI, label: string, options?: vscode.TextDocumentShowOptions): Promise<any> {
 		return executor.executeCommand('_workbench.diff', [
 			left, right,
 			label,
@@ -76,7 +76,7 @@ CommandsRegistry.registerCommand(DiffAPICommand.ID, adjustHandler(DiffAPICommand
 
 export class OpenAPICommand {
 	public static ID = 'vscode.open';
-	public static execute(executor: ICommandsExecutor, resource: URI, columnOrOptions?: vscode.ViewColumn | vscode.TextDocumentShowOptions, label?: string): Thenable<any> {
+	public static execute(executor: ICommandsExecutor, resource: URI, columnOrOptions?: vscode.ViewColumn | vscode.TextDocumentShowOptions, label?: string): Promise<any> {
 		let options: ITextEditorOptions;
 		let position: EditorViewColumn;
 
@@ -101,7 +101,7 @@ CommandsRegistry.registerCommand(OpenAPICommand.ID, adjustHandler(OpenAPICommand
 
 export class RemoveFromRecentlyOpenedAPICommand {
 	public static ID = 'vscode.removeFromRecentlyOpened';
-	public static execute(executor: ICommandsExecutor, path: string): Thenable<any> {
+	public static execute(executor: ICommandsExecutor, path: string): Promise<any> {
 		return executor.executeCommand('_workbench.removeFromRecentlyOpened', path);
 	}
 }
@@ -109,7 +109,7 @@ CommandsRegistry.registerCommand(RemoveFromRecentlyOpenedAPICommand.ID, adjustHa
 
 export class SetEditorLayoutAPICommand {
 	public static ID = 'vscode.setEditorLayout';
-	public static execute(executor: ICommandsExecutor, layout: EditorGroupLayout): Thenable<any> {
+	public static execute(executor: ICommandsExecutor, layout: EditorGroupLayout): Promise<any> {
 		return executor.executeCommand('layoutEditorGroups', layout);
 	}
 }

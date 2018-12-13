@@ -10,12 +10,12 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 export const IURLService = createDecorator<IURLService>('urlService');
 
 export interface IURLHandler {
-	handleURL(uri: URI): Thenable<boolean>;
+	handleURL(uri: URI): Promise<boolean>;
 }
 
 export interface IURLService {
 	_serviceBrand: any;
 
-	open(url: URI): Thenable<boolean>;
+	open(url: URI): Promise<boolean>;
 	registerHandler(handler: IURLHandler): IDisposable;
 }

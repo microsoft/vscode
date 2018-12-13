@@ -411,7 +411,7 @@ export class ElectronWindow extends Themable {
 	}
 
 	private openResources(resources: (IResourceInput | IUntitledResourceInput)[], diffMode: boolean): void {
-		this.lifecycleService.when(LifecyclePhase.Ready).then((): Thenable<any> => {
+		this.lifecycleService.when(LifecyclePhase.Ready).then((): Promise<any> => {
 
 			// In diffMode we open 2 resources as diff
 			if (diffMode && resources.length === 2) {

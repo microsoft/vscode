@@ -37,7 +37,7 @@ export class TestConfigurationService implements IConfigurationService {
 		return Promise.resolve(void 0);
 	}
 
-	public setUserConfiguration(key: any, value: any, root?: URI): Thenable<void> {
+	public setUserConfiguration(key: any, value: any, root?: URI): Promise<void> {
 		if (root) {
 			const configForRoot = this.configurationByRoot.get(root.fsPath) || Object.create(null);
 			configForRoot[key] = value;

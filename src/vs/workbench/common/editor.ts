@@ -301,7 +301,7 @@ export interface IEditorInput extends IDisposable {
 	/**
 	 * Resolves the input.
 	 */
-	resolve(): Thenable<IEditorModel | null>;
+	resolve(): Promise<IEditorModel | null>;
 
 	/**
 	 * Returns if this input is dirty or not.
@@ -311,7 +311,7 @@ export interface IEditorInput extends IDisposable {
 	/**
 	 * Reverts this input.
 	 */
-	revert(options?: IRevertOptions): Thenable<boolean>;
+	revert(options?: IRevertOptions): Promise<boolean>;
 
 	/**
 	 * Returns if the other object matches this input.
@@ -402,7 +402,7 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	 * Returns a type of EditorModel that represents the resolved input. Subclasses should
 	 * override to provide a meaningful model.
 	 */
-	abstract resolve(): Thenable<IEditorModel | null>;
+	abstract resolve(): Promise<IEditorModel | null>;
 
 	/**
 	 * An editor that is dirty will be asked to be saved once it closes.
@@ -414,21 +414,21 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	/**
 	 * Subclasses should bring up a proper dialog for the user if the editor is dirty and return the result.
 	 */
-	confirmSave(): Thenable<ConfirmResult> {
+	confirmSave(): Promise<ConfirmResult> {
 		return Promise.resolve(ConfirmResult.DONT_SAVE);
 	}
 
 	/**
 	 * Saves the editor if it is dirty. Subclasses return a promise with a boolean indicating the success of the operation.
 	 */
-	save(): Thenable<boolean> {
+	save(): Promise<boolean> {
 		return Promise.resolve(true);
 	}
 
 	/**
 	 * Reverts the editor if it is dirty. Subclasses return a promise with a boolean indicating the success of the operation.
 	 */
-	revert(options?: IRevertOptions): Thenable<boolean> {
+	revert(options?: IRevertOptions): Promise<boolean> {
 		return Promise.resolve(true);
 	}
 
@@ -546,15 +546,15 @@ export class SideBySideEditorInput extends EditorInput {
 		return this.master.isDirty();
 	}
 
-	confirmSave(): Thenable<ConfirmResult> {
+	confirmSave(): Promise<ConfirmResult> {
 		return this.master.confirmSave();
 	}
 
-	save(): Thenable<boolean> {
+	save(): Promise<boolean> {
 		return this.master.save();
 	}
 
-	revert(): Thenable<boolean> {
+	revert(): Promise<boolean> {
 		return this.master.revert();
 	}
 
@@ -585,7 +585,7 @@ export class SideBySideEditorInput extends EditorInput {
 		this._register(this.master.onDidChangeLabel(() => this._onDidChangeLabel.fire()));
 	}
 
-	resolve(): Thenable<EditorModel | null> {
+	resolve(): Promise<EditorModel | null> {
 		return Promise.resolve(null);
 	}
 
@@ -636,7 +636,7 @@ export class EditorModel extends Disposable implements IEditorModel {
 	/**
 	 * Causes this model to load returning a promise when loading is completed.
 	 */
-	load(): Thenable<EditorModel> {
+	load(): Promise<EditorModel> {
 		return Promise.resolve(this);
 	}
 
@@ -915,7 +915,7 @@ export class EditorCommandsContextActionRunner extends ActionRunner {
 		super();
 	}
 
-	run(action: IAction, context?: any): Thenable<void> {
+	run(action: IAction, context?: any): Promise<void> {
 		return super.run(action, this.context);
 	}
 }

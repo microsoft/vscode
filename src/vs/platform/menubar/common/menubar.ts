@@ -11,7 +11,7 @@ export const IMenubarService = createDecorator<IMenubarService>('menubarService'
 export interface IMenubarService {
 	_serviceBrand: any;
 
-	updateMenubar(windowId: number, menuData: IMenubarData): Thenable<void>;
+	updateMenubar(windowId: number, menuData: IMenubarData): Promise<void>;
 }
 
 export interface IMenubarData {

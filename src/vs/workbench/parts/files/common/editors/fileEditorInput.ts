@@ -28,7 +28,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 	private preferredEncoding: string;
 	private forceOpenAsBinary: boolean;
 	private forceOpenAsText: boolean;
-	private textModelReference: Thenable<IReference<ITextEditorModel>>;
+	private textModelReference: Promise<IReference<ITextEditorModel>>;
 	private name: string;
 
 	/**
@@ -222,15 +222,15 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		return model.isDirty();
 	}
 
-	confirmSave(): Thenable<ConfirmResult> {
+	confirmSave(): Promise<ConfirmResult> {
 		return this.textFileService.confirmSave([this.resource]);
 	}
 
-	save(): Thenable<boolean> {
+	save(): Promise<boolean> {
 		return this.textFileService.save(this.resource);
 	}
 
-	revert(options?: IRevertOptions): Thenable<boolean> {
+	revert(options?: IRevertOptions): Promise<boolean> {
 		return this.textFileService.revert(this.resource, options);
 	}
 
@@ -238,7 +238,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		return this.forceOpenAsBinary ? BINARY_FILE_EDITOR_ID : TEXT_FILE_EDITOR_ID;
 	}
 
-	resolve(): Thenable<TextFileEditorModel | BinaryEditorModel> {
+	resolve(): Promise<TextFileEditorModel | BinaryEditorModel> {
 
 		// Resolve as binary
 		if (this.forceOpenAsBinary) {
@@ -249,7 +249,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		return this.doResolveAsText();
 	}
 
-	private doResolveAsText(): Thenable<TextFileEditorModel | BinaryEditorModel> {
+	private doResolveAsText(): Promise<TextFileEditorModel | BinaryEditorModel> {
 
 		// Resolve as text
 		return this.textFileService.models.loadOrCreate(this.resource, {
@@ -280,7 +280,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		});
 	}
 
-	private doResolveAsBinary(): Thenable<BinaryEditorModel> {
+	private doResolveAsBinary(): Promise<BinaryEditorModel> {
 		return this.instantiationService.createInstance(BinaryEditorModel, this.resource, this.getName()).load().then(m => m as BinaryEditorModel);
 	}
 

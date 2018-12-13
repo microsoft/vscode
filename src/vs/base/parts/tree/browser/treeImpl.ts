@@ -149,7 +149,7 @@ export class Tree implements _.ITree {
 		this.view.onHidden();
 	}
 
-	public setInput(element: any): Thenable<any> {
+	public setInput(element: any): Promise<any> {
 		return this.model.setInput(element);
 	}
 
@@ -157,7 +157,7 @@ export class Tree implements _.ITree {
 		return this.model.getInput();
 	}
 
-	public refresh(element: any = null, recursive = true): Thenable<any> {
+	public refresh(element: any = null, recursive = true): Promise<any> {
 		return this.model.refresh(element, recursive);
 	}
 
@@ -166,27 +166,27 @@ export class Tree implements _.ITree {
 		return this.view.updateWidth(item);
 	}
 
-	public expand(element: any): Thenable<any> {
+	public expand(element: any): Promise<any> {
 		return this.model.expand(element);
 	}
 
-	public expandAll(elements: any[]): Thenable<any> {
+	public expandAll(elements: any[]): Promise<any> {
 		return this.model.expandAll(elements);
 	}
 
-	public collapse(element: any, recursive: boolean = false): Thenable<any> {
+	public collapse(element: any, recursive: boolean = false): Promise<any> {
 		return this.model.collapse(element, recursive);
 	}
 
-	public collapseAll(elements: any[] | null = null, recursive: boolean = false): Thenable<any> {
+	public collapseAll(elements: any[] | null = null, recursive: boolean = false): Promise<any> {
 		return this.model.collapseAll(elements, recursive);
 	}
 
-	public toggleExpansion(element: any, recursive: boolean = false): Thenable<any> {
+	public toggleExpansion(element: any, recursive: boolean = false): Promise<any> {
 		return this.model.toggleExpansion(element, recursive);
 	}
 
-	public toggleExpansionAll(elements: any[]): Thenable<any> {
+	public toggleExpansionAll(elements: any[]): Promise<any> {
 		return this.model.toggleExpansionAll(elements);
 	}
 
@@ -198,7 +198,7 @@ export class Tree implements _.ITree {
 		return this.model.getExpandedElements();
 	}
 
-	public reveal(element: any, relativeTop: number | null = null): Thenable<any> {
+	public reveal(element: any, relativeTop: number | null = null): Promise<any> {
 		return this.model.reveal(element, relativeTop);
 	}
 

@@ -390,7 +390,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		this.rangeHighlightDecorationId = void 0;
 	}
 
-	getResults(searchValue: string, token: CancellationToken): Thenable<QuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 
 		// Support to cancel pending outline requests

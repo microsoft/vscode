@@ -16,7 +16,7 @@ import { createTextBufferFactoryFromStream, createTextBufferFactoryFromSnapshot 
 import { keys } from 'vs/base/common/map';
 
 export interface IBackupFilesModel {
-	resolve(backupRoot: string): Thenable<IBackupFilesModel>;
+	resolve(backupRoot: string): Promise<IBackupFilesModel>;
 
 	add(resource: Uri, versionId?: number): void;
 	has(resource: Uri, versionId?: number): boolean;
@@ -50,7 +50,7 @@ export class BackupSnapshot implements ITextSnapshot {
 export class BackupFilesModel implements IBackupFilesModel {
 	private cache: { [resource: string]: number /* version ID */ } = Object.create(null);
 
-	resolve(backupRoot: string): Thenable<IBackupFilesModel> {
+	resolve(backupRoot: string): Promise<IBackupFilesModel> {
 		return pfs.readDirsInDir(backupRoot).then(backupSchemas => {
 
 			// For all supported schemas
@@ -113,7 +113,7 @@ export class BackupFileService implements IBackupFileService {
 	private backupWorkspacePath: string;
 
 	private isShuttingDown: boolean;
-	private ready: Thenable<IBackupFilesModel>;
+	private ready: Promise<IBackupFilesModel>;
 	private ioOperationQueues: ResourceQueue; // queue IO operations to ensure write order
 
 	constructor(
@@ -132,19 +132,19 @@ export class BackupFileService implements IBackupFileService {
 		this.ready = this.init();
 	}
 
-	private init(): Thenable<IBackupFilesModel> {
+	private init(): Promise<IBackupFilesModel> {
 		const model = new BackupFilesModel();
 
 		return model.resolve(this.backupWorkspacePath);
 	}
 
-	hasBackups(): Thenable<boolean> {
+	hasBackups(): Promise<boolean> {
 		return this.ready.then(model => {
 			return model.count() > 0;
 		});
 	}
 
-	loadBackupResource(resource: Uri): Thenable<Uri | undefined> {
+	loadBackupResource(resource: Uri): Promise<Uri | undefined> {
 		return this.ready.then(model => {
 
 			// Return directly if we have a known backup with that resource
@@ -157,7 +157,7 @@ export class BackupFileService implements IBackupFileService {
 		});
 	}
 
-	backupResource(resource: Uri, content: ITextSnapshot, versionId?: number): Thenable<void> {
+	backupResource(resource: Uri, content: ITextSnapshot, versionId?: number): Promise<void> {
 		if (this.isShuttingDown) {
 			return Promise.resolve();
 		}
@@ -177,7 +177,7 @@ export class BackupFileService implements IBackupFileService {
 		});
 	}
 
-	discardResourceBackup(resource: Uri): Thenable<void> {
+	discardResourceBackup(resource: Uri): Promise<void> {
 		return this.ready.then(model => {
 			const backupResource = this.toBackupResource(resource);
 
@@ -187,7 +187,7 @@ export class BackupFileService implements IBackupFileService {
 		});
 	}
 
-	discardAllWorkspaceBackups(): Thenable<void> {
+	discardAllWorkspaceBackups(): Promise<void> {
 		this.isShuttingDown = true;
 
 		return this.ready.then(model => {
@@ -195,9 +195,9 @@ export class BackupFileService implements IBackupFileService {
 		});
 	}
 
-	getWorkspaceFileBackups(): Thenable<Uri[]> {
+	getWorkspaceFileBackups(): Promise<Uri[]> {
 		return this.ready.then(model => {
-			const readPromises: Thenable<Uri>[] = [];
+			const readPromises: Promise<Uri>[] = [];
 
 			model.get().forEach(fileBackup => {
 				readPromises.push(
@@ -209,7 +209,7 @@ export class BackupFileService implements IBackupFileService {
 		});
 	}
 
-	resolveBackupContent(backup: Uri): Thenable<ITextBufferFactory> {
+	resolveBackupContent(backup: Uri): Promise<ITextBufferFactory> {
 		return this.fileService.resolveStreamContent(backup, BACKUP_FILE_RESOLVE_OPTIONS).then(content => {
 
 			// Add a filter method to filter out everything until the meta marker
@@ -247,11 +247,11 @@ export class InMemoryBackupFileService implements IBackupFileService {
 
 	private backups: Map<string, ITextSnapshot> = new Map();
 
-	hasBackups(): Thenable<boolean> {
+	hasBackups(): Promise<boolean> {
 		return Promise.resolve(this.backups.size > 0);
 	}
 
-	loadBackupResource(resource: Uri): Thenable<Uri | undefined> {
+	loadBackupResource(resource: Uri): Promise<Uri | undefined> {
 		const backupResource = this.toBackupResource(resource);
 		if (this.backups.has(backupResource.toString())) {
 			return Promise.resolve(backupResource);
@@ -260,14 +260,14 @@ export class InMemoryBackupFileService implements IBackupFileService {
 		return Promise.resolve();
 	}
 
-	backupResource(resource: Uri, content: ITextSnapshot, versionId?: number): Thenable<void> {
+	backupResource(resource: Uri, content: ITextSnapshot, versionId?: number): Promise<void> {
 		const backupResource = this.toBackupResource(resource);
 		this.backups.set(backupResource.toString(), content);
 
 		return Promise.resolve();
 	}
 
-	resolveBackupContent(backupResource: Uri): Thenable<ITextBufferFactory | undefined> {
+	resolveBackupContent(backupResource: Uri): Promise<ITextBufferFactory | undefined> {
 		const snapshot = this.backups.get(backupResource.toString());
 		if (snapshot) {
 			return Promise.resolve(createTextBufferFactoryFromSnapshot(snapshot));
@@ -276,17 +276,17 @@ export class InMemoryBackupFileService implements IBackupFileService {
 		return Promise.resolve();
 	}
 
-	getWorkspaceFileBackups(): Thenable<Uri[]> {
+	getWorkspaceFileBackups(): Promise<Uri[]> {
 		return Promise.resolve(keys(this.backups).map(key => Uri.parse(key)));
 	}
 
-	discardResourceBackup(resource: Uri): Thenable<void> {
+	discardResourceBackup(resource: Uri): Promise<void> {
 		this.backups.delete(this.toBackupResource(resource).toString());
 
 		return Promise.resolve();
 	}
 
-	discardAllWorkspaceBackups(): Thenable<void> {
+	discardAllWorkspaceBackups(): Promise<void> {
 		this.backups.clear();
 
 		return Promise.resolve();

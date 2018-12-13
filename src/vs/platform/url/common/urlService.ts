@@ -18,7 +18,7 @@ export class URLService implements IURLService {
 
 	private handlers = new Set<IURLHandler>();
 
-	open(uri: URI): Thenable<boolean> {
+	open(uri: URI): Promise<boolean> {
 		const handlers = Array.from(this.handlers);
 		return first(handlers.map(h => () => h.handleURL(uri)), undefined, false);
 	}
@@ -35,11 +35,11 @@ export class RelayURLService extends URLService implements IURLHandler {
 		super();
 	}
 
-	open(uri: URI): Thenable<boolean> {
+	open(uri: URI): Promise<boolean> {
 		return this.urlService.open(uri);
 	}
 
-	handleURL(uri: URI): Thenable<boolean> {
+	handleURL(uri: URI): Promise<boolean> {
 		return super.open(uri);
 	}
 }

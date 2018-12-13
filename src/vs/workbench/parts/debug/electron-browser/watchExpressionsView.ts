@@ -199,7 +199,7 @@ class WatchExpressionsDataSource implements IDataSource<IExpression> {
 		return element.hasChildren;
 	}
 
-	getChildren(element: IExpression | null): Thenable<(IExpression)[]> {
+	getChildren(element: IExpression | null): Promise<(IExpression)[]> {
 		if (element === null) {
 			const watchExpressions = this.debugService.getModel().getWatchExpressions();
 			const viewModel = this.debugService.getViewModel();
