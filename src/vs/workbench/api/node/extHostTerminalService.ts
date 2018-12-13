@@ -106,8 +106,9 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 		env?: { [key: string]: string },
 		waitOnExit?: boolean
 	): void {
-		this._proxy.$createTerminal(this._name, shellPath, shellArgs, cwd, env, waitOnExit).then((id) => {
-			this._runQueuedRequests(id);
+		this._proxy.$createTerminal(this._name, shellPath, shellArgs, cwd, env, waitOnExit).then(terminal => {
+			this._name = terminal.name;
+			this._runQueuedRequests(terminal.id);
 		});
 	}
 
