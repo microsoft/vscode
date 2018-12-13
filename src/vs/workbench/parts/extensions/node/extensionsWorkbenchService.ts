@@ -157,7 +157,7 @@ class Extension implements IExtension {
 	}
 
 	get repository(): string {
-		return this.gallery && this.gallery.assets.repository.uri;
+		return this.gallery && this.gallery.assets.repository && this.gallery.assets.repository.uri;
 	}
 
 	get licenseUrl(): string {
