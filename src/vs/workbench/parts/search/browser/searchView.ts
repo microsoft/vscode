@@ -264,9 +264,9 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this.createSearchResultsView(parent);
 
 		this.actions = [
+			this.instantiationService.createInstance(ClearSearchResultsAction, ClearSearchResultsAction.ID, ClearSearchResultsAction.LABEL),
 			this.instantiationService.createInstance(RefreshAction, RefreshAction.ID, RefreshAction.LABEL),
 			this.instantiationService.createInstance(CollapseDeepestExpandedLevelAction, CollapseDeepestExpandedLevelAction.ID, CollapseDeepestExpandedLevelAction.LABEL),
-			this.instantiationService.createInstance(ClearSearchResultsAction, ClearSearchResultsAction.ID, ClearSearchResultsAction.LABEL)
 		];
 
 		if (filePatterns !== '' || patternExclusions !== '' || patternIncludes !== '' || queryDetailsExpanded !== '' || !useExcludesAndIgnoreFiles) {
