@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten, isFalsyOrEmpty, mergeSort } from 'vs/base/common/arrays';
+import { flatten, mergeSort, isNonEmptyArray } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { illegalArgument, isPromiseCanceledError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
@@ -23,8 +23,25 @@ export function getCodeActions(model: ITextModel, rangeOrSelection: Range | Sele
 
 	const promises = CodeActionProviderRegistry.all(model)
 		.filter(provider => {
+			if (!provider.providedCodeActionKinds) {
+				return true;
+			}
+
 			// Avoid calling providers that we know will not return code actions of interest
-			return !provider.providedCodeActionKinds || provider.providedCodeActionKinds.some(providedKind => isValidActionKind(trigger && trigger.filter, providedKind));
+			return provider.providedCodeActionKinds.some(providedKind => {
+				// Filter out actions by kind
+				// The provided kind can be either a subset of a superset of the filtered kind
+				if (trigger && trigger.filter && trigger.filter.kind && !(trigger.filter.kind.contains(providedKind) || new CodeActionKind(providedKind).contains(trigger.filter.kind.value))) {
+					return false;
+				}
+
+				// Don't return source actions unless they are explicitly requested
+				if (trigger && CodeActionKind.Source.contains(providedKind) && (!trigger.filter || !trigger.filter.includeSourceActions)) {
+					return false;
+				}
+
+				return true;
+			});
 		})
 		.map(support => {
 			return Promise.resolve(support.provideCodeActions(model, rangeOrSelection, codeActionContext, token)).then(providedCodeActions => {
@@ -66,15 +83,13 @@ function isValidActionKind(filter: CodeActionFilter | undefined, kind: string | 
 }
 
 function codeActionsComparator(a: CodeAction, b: CodeAction): number {
-	const aHasDiags = !isFalsyOrEmpty(a.diagnostics);
-	const bHasDiags = !isFalsyOrEmpty(b.diagnostics);
-	if (aHasDiags) {
-		if (bHasDiags) {
+	if (isNonEmptyArray(a.diagnostics)) {
+		if (isNonEmptyArray(b.diagnostics)) {
 			return a.diagnostics[0].message.localeCompare(b.diagnostics[0].message);
 		} else {
 			return -1;
 		}
-	} else if (bHasDiags) {
+	} else if (isNonEmptyArray(b.diagnostics)) {
 		return 1;
 	} else {
 		return 0;	// both have no diagnostics

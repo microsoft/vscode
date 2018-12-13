@@ -5,11 +5,15 @@
 
 /* Title Container */
 
-.monaco-workbench > .part.editor > .content .editor-group-container > .title.tabs > .monaco-scrollable-element {
+.monaco-workbench > .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container {
+	display: flex;
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container > .monaco-scrollable-element {
 	flex: 1;
 }
 
-.monaco-workbench > .part.editor > .content .editor-group-container > .title.tabs > .monaco-scrollable-element .scrollbar {
+.monaco-workbench > .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container > .monaco-scrollable-element .scrollbar {
 	z-index: 3; /* on top of tabs */
 	cursor: default;
 }
@@ -92,28 +96,33 @@
 	display: none; /* hidden by default until a color is provided (see below) */
 }
 
-.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.tab-border-top > .tab-border-top-container {
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.tab-border-top > .tab-border-top-container,
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.tab-border-bottom > .tab-border-bottom-container,
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty-border-top > .tab-border-top-container {
 	display: block;
 	position: absolute;
-	top: 0;
 	left: 0;
 	z-index: 6; /* over possible title border */
 	pointer-events: none;
-	background-color: var(--tab-border-top-color);
 	width: 100%;
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.tab-border-top > .tab-border-top-container {
+	top: 0;
 	height: 1px;
+	background-color: var(--tab-border-top-color);
 }
 
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.tab-border-bottom > .tab-border-bottom-container {
-	display: block;
-	position: absolute;
 	bottom: 0;
-	left: 0;
-	z-index: 6; /* over possible title border */
-	pointer-events: none;
-	background-color: var(--tab-border-bottom-color);
-	width: 100%;
 	height: 1px;
+	background-color: var(--tab-border-bottom-color);
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty-border-top > .tab-border-top-container {
+	top: 0;
+	height: 2px;
+	background-color: var(--tab-dirty-border-top-color);
 }
 
 /* Tab Label */
@@ -235,18 +244,18 @@
 	padding-right: 5px; /* we need less room when sizing is shrink */
 }
 
-.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-off.dirty {
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-off.dirty:not(.dirty-border-top) {
 	background-repeat: no-repeat;
 	background-position-y: center;
 	background-position-x: calc(100% - 6px); /* to the right of the tab label */
 	padding-right: 28px; /* make room for dirty indication when we are running without close button */
 }
 
-.vs .monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-off.dirty {
+.vs .monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-off.dirty:not(.dirty-border-top) {
 	background-image: url('close-dirty.svg');
 }
 
-.vs-dark .monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-off.dirty,
+.vs-dark .monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-off.dirty:not(.dirty-border-top),
 .hc-black .monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-off.dirty {
 	background-image: url('close-dirty-inverse.svg');
 }

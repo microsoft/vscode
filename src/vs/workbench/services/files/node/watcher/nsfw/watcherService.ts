@@ -6,13 +6,13 @@
 import { getNextTickChannel } from 'vs/base/parts/ipc/node/ipc';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import { toFileChangesEvent, IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
-import { IWatcherChannel, WatcherChannelClient } from 'vs/workbench/services/files/node/watcher/nsfw/watcherIpc';
+import { WatcherChannelClient } from 'vs/workbench/services/files/node/watcher/nsfw/watcherIpc';
 import { FileChangesEvent, IFilesConfiguration } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { filterEvent } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { IWatchError } from 'vs/workbench/services/files/node/watcher/nsfw/watcher';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 
@@ -65,16 +65,16 @@ export class FileWatcher {
 		}, null, this.toDispose);
 
 		// Initialize watcher
-		const channel = getNextTickChannel(client.getChannel<IWatcherChannel>('watcher'));
+		const channel = getNextTickChannel(client.getChannel('watcher'));
 		this.service = new WatcherChannelClient(channel);
 
 		const options = { verboseLogging: this.verboseLogging };
-		const onWatchEvent = filterEvent(this.service.watch(options), () => !this.isDisposed);
+		const onWatchEvent = Event.filter(this.service.watch(options), () => !this.isDisposed);
 
-		const onError = filterEvent<any, IWatchError>(onWatchEvent, (e): e is IWatchError => typeof e.message === 'string');
+		const onError = Event.filter<any, IWatchError>(onWatchEvent, (e): e is IWatchError => typeof e.message === 'string');
 		onError(err => this.errorLogger(err.message), null, this.toDispose);
 
-		const onFileChanges = filterEvent<any, IRawFileChange[]>(onWatchEvent, (e): e is IRawFileChange[] => Array.isArray(e) && e.length > 0);
+		const onFileChanges = Event.filter<any, IRawFileChange[]>(onWatchEvent, (e): e is IRawFileChange[] => Array.isArray(e) && e.length > 0);
 		onFileChanges(e => this.onFileChanges(toFileChangesEvent(e)), null, this.toDispose);
 
 		// Start watching

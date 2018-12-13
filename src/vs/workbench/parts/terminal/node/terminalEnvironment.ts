@@ -9,7 +9,7 @@ import * as platform from 'vs/base/common/platform';
 import pkg from 'vs/platform/node/package';
 import { URI as Uri } from 'vs/base/common/uri';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IShellLaunchConfig, ITerminalConfigHelper } from 'vs/workbench/parts/terminal/common/terminal';
+import { IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 
 /**
@@ -76,14 +76,9 @@ export function sanitizeEnvironment(env: platform.IProcessEnvironment): void {
 	});
 }
 
-export function addTerminalEnvironmentKeys(env: platform.IProcessEnvironment, isWindows: boolean, locale?: string): void {
+export function addTerminalEnvironmentKeys(env: platform.IProcessEnvironment, locale: string | undefined): void {
 	env['TERM_PROGRAM'] = 'vscode';
 	env['TERM_PROGRAM_VERSION'] = pkg.version;
-
-	// Don't set $LANG if OS is Windows and the setLocale setting is false
-	if (isWindows && !locale) {
-		return;
-	}
 	env['LANG'] = _getLangEnvVariable(locale);
 }
 
@@ -96,7 +91,7 @@ export function resolveConfigurationVariables(configurationResolverService: ICon
 	return env;
 }
 
-function _getLangEnvVariable(locale?: string): string {
+function _getLangEnvVariable(locale?: string) {
 	const parts = locale ? locale.split('-') : [];
 	const n = parts.length;
 	if (n === 0) {
@@ -129,23 +124,19 @@ function _getLangEnvVariable(locale?: string): string {
 	return parts.join('_') + '.UTF-8';
 }
 
-export function getCwd(shell: IShellLaunchConfig, root: Uri, configHelper: ITerminalConfigHelper): string {
+export function getCwd(shell: IShellLaunchConfig, root: Uri, customCwd: string): string {
 	if (shell.cwd) {
 		return shell.cwd;
 	}
 
-	let cwd: string;
+	let cwd: string | undefined;
 
 	// TODO: Handle non-existent customCwd
-	if (!shell.ignoreConfigurationCwd) {
-		// Evaluate custom cwd first
-		const customCwd = configHelper.config.cwd;
-		if (customCwd) {
-			if (paths.isAbsolute(customCwd)) {
-				cwd = customCwd;
-			} else if (root) {
-				cwd = paths.normalize(paths.join(root.fsPath, customCwd));
-			}
+	if (!shell.ignoreConfigurationCwd && customCwd) {
+		if (paths.isAbsolute(customCwd)) {
+			cwd = customCwd;
+		} else if (root) {
+			cwd = paths.normalize(paths.join(root.fsPath, customCwd));
 		}
 	}
 

@@ -2,23 +2,24 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
 import * as dom from 'vs/base/browser/dom';
+import { URI } from 'vs/base/common/uri';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServiceImpl';
 import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
-import { TestTheme, TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
+import { TestTheme, TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 
 const themeServiceMock = new TestThemeService();
 
 export class TestCodeEditorServiceImpl extends CodeEditorServiceImpl {
-	getActiveCodeEditor(): ICodeEditor {
+	getActiveCodeEditor(): ICodeEditor | null {
 		return null;
 	}
 
-	openCodeEditor(input: IResourceInput, source: ICodeEditor, sideBySide?: boolean): Promise<ICodeEditor> {
+	openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
 		return Promise.resolve(null);
 	}
 }
@@ -47,7 +48,7 @@ suite('Decoration Render Options', () => {
 		if ((<any>styleSheet.sheet).rules) {
 			return Array.prototype.map.call((<any>styleSheet.sheet).rules, (r: { cssText: string }) => r.cssText).join('\n');
 		}
-		return styleSheet.sheet.toString();
+		return styleSheet.sheet!.toString();
 	}
 
 	test('css properties', () => {
@@ -133,7 +134,7 @@ suite('Decoration Render Options', () => {
 
 		// unix file path (used as string)
 		let s = new TestCodeEditorServiceImpl(themeServiceMock, styleSheet);
-		s.registerDecorationType('example', { gutterIconPath: '/Users/foo/bar.png' });
+		s.registerDecorationType('example', { gutterIconPath: URI.file('/Users/foo/bar.png') });
 		let sheet = readStyleSheet(styleSheet);//.innerHTML || styleSheet.sheet.toString();
 		assert(
 			sheet.indexOf('background: url(\'file:///Users/foo/bar.png\') center center no-repeat;') > 0
@@ -142,7 +143,7 @@ suite('Decoration Render Options', () => {
 
 		// windows file path (used as string)
 		s = new TestCodeEditorServiceImpl(themeServiceMock, styleSheet);
-		s.registerDecorationType('example', { gutterIconPath: 'c:\\files\\miles\\more.png' });
+		s.registerDecorationType('example', { gutterIconPath: URI.file('c:\\files\\miles\\more.png') });
 		sheet = readStyleSheet(styleSheet);
 		// TODO@Alex test fails
 		// assert(
@@ -161,7 +162,7 @@ suite('Decoration Render Options', () => {
 
 		// single quote must always be escaped/encoded
 		s = new TestCodeEditorServiceImpl(themeServiceMock, styleSheet);
-		s.registerDecorationType('example', { gutterIconPath: '/Users/foo/b\'ar.png' });
+		s.registerDecorationType('example', { gutterIconPath: URI.file('/Users/foo/b\'ar.png') });
 		sheet = readStyleSheet(styleSheet);
 		assert(
 			sheet.indexOf('background: url(\'file:///Users/foo/b%27ar.png\') center center no-repeat;') > 0

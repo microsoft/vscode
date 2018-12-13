@@ -85,7 +85,7 @@ export class TypeScriptServiceConfiguration {
 
 	private static extractGlobalTsdk(configuration: vscode.WorkspaceConfiguration): string | null {
 		const inspect = configuration.inspect('typescript.tsdk');
-		if (inspect && inspect.globalValue && 'string' === typeof inspect.globalValue) {
+		if (inspect && typeof inspect.globalValue === 'string') {
 			return inspect.globalValue;
 		}
 		return null;
@@ -93,7 +93,7 @@ export class TypeScriptServiceConfiguration {
 
 	private static extractLocalTsdk(configuration: vscode.WorkspaceConfiguration): string | null {
 		const inspect = configuration.inspect('typescript.tsdk');
-		if (inspect && inspect.workspaceValue && 'string' === typeof inspect.workspaceValue) {
+		if (inspect && typeof inspect.workspaceValue === 'string') {
 			return inspect.workspaceValue;
 		}
 		return null;

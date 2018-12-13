@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten, tail, find } from 'vs/base/common/arrays';
+import { flatten, tail, find, coalesce } from 'vs/base/common/arrays';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { Emitter, Event } from 'vs/base/common/event';
 import { JSONVisitor, visit } from 'vs/base/common/json';
@@ -247,9 +247,9 @@ export class Settings2EditorModel extends AbstractSettingsModel implements ISett
 
 function parse(model: ITextModel, isSettingsProperty: (currentProperty: string, previousParents: string[]) => boolean): ISettingsGroup[] {
 	const settings: ISetting[] = [];
-	let overrideSetting: ISetting = null;
+	let overrideSetting: ISetting | null = null;
 
-	let currentProperty: string = null;
+	let currentProperty: string | null = null;
 	let currentParent: any = [];
 	let previousParents: any[] = [];
 	let settingsPropertyIndex: number = -1;
@@ -512,7 +512,7 @@ export class DefaultSettings extends Disposable {
 	}
 
 	private getMostCommonlyUsedSettings(allSettingsGroups: ISettingsGroup[]): ISettingsGroup {
-		const settings = this._mostCommonlyUsedSettingsKeys.map(key => {
+		const settings = coalesce(this._mostCommonlyUsedSettingsKeys.map(key => {
 			const setting = this._settingsByName.get(key);
 			if (setting) {
 				return <ISetting>{
@@ -529,7 +529,7 @@ export class DefaultSettings extends Disposable {
 				};
 			}
 			return null;
-		}).filter(setting => !!setting);
+		}));
 
 		return <ISettingsGroup>{
 			id: 'mostCommonlyUsed',
@@ -587,7 +587,7 @@ export class DefaultSettings extends Disposable {
 	}
 
 	private removeEmptySettingsGroups(settingsGroups: ISettingsGroup[]): ISettingsGroup[] {
-		const result = [];
+		const result: ISettingsGroup[] = [];
 		for (const settingsGroup of settingsGroups) {
 			settingsGroup.sections = settingsGroup.sections.filter(section => section.settings.length > 0);
 			if (settingsGroup.sections.length) {
@@ -722,6 +722,10 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	}
 
 	protected update(): IFilterResult {
+		if (this._model.isDisposed()) {
+			return null;
+		}
+
 		// Grab current result groups, only render non-empty groups
 		const resultGroups = map
 			.values(this._currentResultGroups)
@@ -910,7 +914,7 @@ class SettingsContentBuilder {
 
 	private _pushGroup(group: ISettingsGroup): ISetting {
 		const indent = '  ';
-		let lastSetting: ISetting = null;
+		let lastSetting: ISetting | null = null;
 		let groupStart = this.lineCountWithOffset + 1;
 		for (const section of group.sections) {
 			if (section.title) {
@@ -1082,12 +1086,12 @@ export function createValidator(prop: IConfigurationPropertySchema): ((value: an
 			{
 				enabled: prop.maxLength !== undefined,
 				isValid: (value => value.length <= prop.maxLength),
-				message: nls.localize('validations.maxLength', "Value must be fewer than {0} characters long.", prop.maxLength)
+				message: nls.localize('validations.maxLength', "Value must be {0} or fewer characters long.", prop.maxLength)
 			},
 			{
 				enabled: prop.minLength !== undefined,
 				isValid: (value => value.length >= prop.minLength),
-				message: nls.localize('validations.minLength', "Value must be more than {0} characters long.", prop.minLength)
+				message: nls.localize('validations.minLength', "Value must be {0} or more characters long.", prop.minLength)
 			},
 			{
 				enabled: patternRegex !== undefined,
@@ -1099,7 +1103,7 @@ export function createValidator(prop: IConfigurationPropertySchema): ((value: an
 		if (prop.type === 'string' && stringValidations.length === 0) { return null; }
 		if (isNullable && value === '') { return ''; }
 
-		let errors = [];
+		let errors: string[] = [];
 
 		if (isNumeric) {
 			if (value === '' || isNaN(+value)) {
@@ -1126,7 +1130,7 @@ function escapeInvisibleChars(enumValue: string): string {
 }
 
 export function defaultKeybindingsContents(keybindingService: IKeybindingService): string {
-	const defaultsHeader = '// ' + nls.localize('defaultKeybindingsHeader', "Overwrite key bindings by placing them into your key bindings file.");
+	const defaultsHeader = '// ' + nls.localize('defaultKeybindingsHeader', "Override key bindings by placing them into your key bindings file.");
 	return defaultsHeader + '\n' + keybindingService.getDefaultKeybindingsContent();
 }
 

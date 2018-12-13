@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { ListView } from 'vs/base/browser/ui/list/listView';
-import { IVirtualDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
 import { range } from 'vs/base/common/arrays';
 
 suite('ListView', function () {
@@ -14,18 +14,17 @@ suite('ListView', function () {
 		element.style.height = '200px';
 		element.style.width = '200px';
 
-		const delegate: IVirtualDelegate<number> = {
+		const delegate: IListVirtualDelegate<number> = {
 			getHeight() { return 20; },
 			getTemplateId() { return 'template'; }
 		};
 
 		let templatesCount = 0;
 
-		const renderer: IRenderer<number, void> = {
+		const renderer: IListRenderer<number, void> = {
 			templateId: 'template',
 			renderTemplate() { templatesCount++; },
 			renderElement() { },
-			disposeElement() { },
 			disposeTemplate() { templatesCount--; }
 		};
 

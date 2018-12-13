@@ -10,7 +10,6 @@ import { Action } from 'vs/base/common/actions';
 import { IWindowService, IWindowsService, MenuBarVisibility } from 'vs/platform/windows/common/windows';
 import * as nls from 'vs/nls';
 import product from 'vs/platform/node/product';
-import * as errors from 'vs/base/common/errors';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
@@ -29,9 +28,9 @@ import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderW
 import { FileKind } from 'vs/platform/files/common/files';
 import { IssueType } from 'vs/platform/issue/common/issue';
 import { domEvent } from 'vs/base/browser/event';
-import { once } from 'vs/base/common/event';
-import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
-import { getDomNodePagePosition, createStyleSheet, createCSSRule } from 'vs/base/browser/dom';
+import { Event } from 'vs/base/common/event';
+import { IDisposable, toDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
+import { getDomNodePagePosition, createStyleSheet, createCSSRule, append, $ } from 'vs/base/browser/dom';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Context } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
@@ -41,7 +40,9 @@ import { dirname } from 'vs/base/common/resources';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IQuickInputService, IQuickPickItem, IQuickInputButton, IQuickPickSeparator, IKeyMods } from 'vs/platform/quickinput/common/quickInput';
-import { getIconClasses } from 'vs/workbench/browser/labels';
+import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { timeout } from 'vs/base/common/async';
 
 // --- actions
 
@@ -54,7 +55,7 @@ export class CloseCurrentWindowAction extends Action {
 		super(id, label);
 	}
 
-	run(): Thenable<boolean> {
+	run(): Promise<boolean> {
 		this.windowService.closeWindow();
 
 		return Promise.resolve(true);
@@ -76,7 +77,7 @@ export class CloseWorkspaceAction extends Action {
 		super(id, label);
 	}
 
-	run(): Thenable<void> {
+	run(): Promise<void> {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			this.notificationService.info(nls.localize('noWorkspaceOpened', "There is currently no workspace opened in this instance to close."));
 
@@ -100,7 +101,7 @@ export class NewWindowAction extends Action {
 		super(id, label);
 	}
 
-	run(): Thenable<void> {
+	run(): Promise<void> {
 		return this.windowsService.openNewWindow();
 	}
 }
@@ -114,7 +115,7 @@ export class ToggleFullScreenAction extends Action {
 		super(id, label);
 	}
 
-	run(): Thenable<void> {
+	run(): Promise<void> {
 		return this.windowService.toggleFullScreen();
 	}
 }
@@ -134,7 +135,7 @@ export class ToggleMenuBarAction extends Action {
 		super(id, label);
 	}
 
-	run(): Thenable<void> {
+	run(): Promise<void> {
 		let currentVisibilityValue = this.configurationService.getValue<MenuBarVisibility>(ToggleMenuBarAction.menuBarVisibilityKey);
 		if (typeof currentVisibilityValue !== 'string') {
 			currentVisibilityValue = 'default';
@@ -162,7 +163,7 @@ export class ToggleDevToolsAction extends Action {
 		super(id, label);
 	}
 
-	run(): Thenable<void> {
+	run(): Promise<void> {
 		return this.windowsService.toggleDevTools();
 	}
 }
@@ -207,7 +208,7 @@ export class ZoomInAction extends BaseZoomAction {
 		super(id, label, configurationService);
 	}
 
-	run(): Thenable<boolean> {
+	run(): Promise<boolean> {
 		this.setConfiguredZoomLevel(webFrame.getZoomLevel() + 1);
 
 		return Promise.resolve(true);
@@ -227,7 +228,7 @@ export class ZoomOutAction extends BaseZoomAction {
 		super(id, label, configurationService);
 	}
 
-	run(): Thenable<boolean> {
+	run(): Promise<boolean> {
 		this.setConfiguredZoomLevel(webFrame.getZoomLevel() - 1);
 
 		return Promise.resolve(true);
@@ -247,7 +248,7 @@ export class ZoomResetAction extends BaseZoomAction {
 		super(id, label, configurationService);
 	}
 
-	run(): Thenable<boolean> {
+	run(): Promise<boolean> {
 		this.setConfiguredZoomLevel(0);
 
 		return Promise.resolve(true);
@@ -267,7 +268,7 @@ export class ReloadWindowAction extends Action {
 		super(id, label);
 	}
 
-	run(): Thenable<boolean> {
+	run(): Promise<boolean> {
 		return this.windowService.reloadWindow().then(() => true);
 	}
 }
@@ -285,7 +286,7 @@ export class ReloadWindowWithExtensionsDisabledAction extends Action {
 		super(id, label);
 	}
 
-	run(): Thenable<boolean> {
+	run(): Promise<boolean> {
 		return this.windowService.reloadWindow({ _: [], 'disable-extensions': true }).then(() => true);
 	}
 }
@@ -313,7 +314,7 @@ export abstract class BaseSwitchWindow extends Action {
 
 	protected abstract isQuickNavigate(): boolean;
 
-	run(): Thenable<void> {
+	run(): Promise<void> {
 		const currentWindowId = this.windowService.getCurrentWindowId();
 
 		return this.windowsService.getWindows().then(windows => {
@@ -423,7 +424,7 @@ export abstract class BaseOpenRecentAction extends Action {
 
 	protected abstract isQuickNavigate(): boolean;
 
-	run(): Thenable<void> {
+	run(): Promise<void> {
 		return this.windowService.getRecentlyOpened()
 			.then(({ workspaces, files }) => this.openRecent(workspaces, files));
 	}
@@ -482,9 +483,7 @@ export abstract class BaseOpenRecentAction extends Action {
 			onKeyMods: mods => keyMods = mods,
 			quickNavigate: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : void 0,
 			onDidTriggerItemButton: context => {
-				this.windowsService.removeFromRecentlyOpened([context.item.workspace]).then(() => {
-					context.removeItem();
-				}).then(null, errors.onUnexpectedError);
+				this.windowsService.removeFromRecentlyOpened([context.item.workspace]).then(() => context.removeItem());
 			}
 		})
 			.then(pick => {
@@ -558,7 +557,7 @@ export class OpenIssueReporterAction extends Action {
 		super(id, label);
 	}
 
-	run(): Thenable<boolean> {
+	run(): Promise<boolean> {
 		return this.issueService.openReporter()
 			.then(() => true);
 	}
@@ -576,7 +575,7 @@ export class OpenProcessExplorer extends Action {
 		super(id, label);
 	}
 
-	run(): Thenable<boolean> {
+	run(): Promise<boolean> {
 		return this.issueService.openProcessExplorer()
 			.then(() => true);
 	}
@@ -594,7 +593,7 @@ export class ReportPerformanceIssueUsingReporterAction extends Action {
 		super(id, label);
 	}
 
-	run(): Thenable<boolean> {
+	run(): Promise<boolean> {
 		// TODO: Reporter should send timings table as well
 		return this.issueService.openReporter({ issueType: IssueType.PerformanceIssue })
 			.then(() => true);
@@ -617,7 +616,7 @@ export class KeybindingsReferenceAction extends Action {
 		super(id, label);
 	}
 
-	run(): Thenable<void> {
+	run(): Promise<void> {
 		window.open(KeybindingsReferenceAction.URL);
 		return null;
 	}
@@ -638,7 +637,7 @@ export class OpenDocumentationUrlAction extends Action {
 		super(id, label);
 	}
 
-	run(): Thenable<void> {
+	run(): Promise<void> {
 		window.open(OpenDocumentationUrlAction.URL);
 		return null;
 	}
@@ -659,7 +658,7 @@ export class OpenIntroductoryVideosUrlAction extends Action {
 		super(id, label);
 	}
 
-	run(): Thenable<void> {
+	run(): Promise<void> {
 		window.open(OpenIntroductoryVideosUrlAction.URL);
 		return null;
 	}
@@ -680,7 +679,7 @@ export class OpenTipsAndTricksUrlAction extends Action {
 		super(id, label);
 	}
 
-	run(): Thenable<void> {
+	run(): Promise<void> {
 		window.open(OpenTipsAndTricksUrlAction.URL);
 		return null;
 	}
@@ -695,7 +694,7 @@ export class ToggleSharedProcessAction extends Action {
 		super(id, label);
 	}
 
-	run(): Thenable<void> {
+	run(): Promise<void> {
 		return this.windowsService.toggleSharedProcess();
 	}
 }
@@ -718,7 +717,7 @@ export abstract class BaseNavigationAction extends Action {
 		super(id, label);
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 		const isEditorFocus = this.partService.hasFocus(Parts.EDITOR_PART);
 		const isPanelFocus = this.partService.hasFocus(Parts.PANEL_PART);
 		const isSidebarFocus = this.partService.hasFocus(Parts.SIDEBAR_PART);
@@ -735,7 +734,7 @@ export abstract class BaseNavigationAction extends Action {
 		}
 
 		if (isSidebarFocus) {
-			return this.navigateOnSidebarFocus(isSidebarPositionLeft, isPanelPositionDown);
+			return Promise.resolve(this.navigateOnSidebarFocus(isSidebarPositionLeft, isPanelPositionDown));
 		}
 
 		return Promise.resolve(false);
@@ -749,13 +748,13 @@ export abstract class BaseNavigationAction extends Action {
 		return Promise.resolve(true);
 	}
 
-	protected navigateOnSidebarFocus(_isSidebarPositionLeft: boolean, _isPanelPositionDown: boolean): Promise<boolean | IViewlet> {
-		return Promise.resolve(true);
+	protected navigateOnSidebarFocus(_isSidebarPositionLeft: boolean, _isPanelPositionDown: boolean): boolean | IViewlet {
+		return true;
 	}
 
-	protected navigateToPanel(): Thenable<IPanel | boolean> {
+	protected navigateToPanel(): IPanel | boolean {
 		if (!this.partService.isVisible(Parts.PANEL_PART)) {
-			return Promise.resolve(false);
+			return false;
 		}
 
 		const activePanelId = this.panelService.getActivePanel().getId();
@@ -773,23 +772,23 @@ export abstract class BaseNavigationAction extends Action {
 		return this.viewletService.openViewlet(activeViewletId, true);
 	}
 
-	protected navigateAcrossEditorGroup(direction: GroupDirection): Promise<boolean> {
+	protected navigateAcrossEditorGroup(direction: GroupDirection): boolean {
 		return this.doNavigateToEditorGroup({ direction });
 	}
 
-	protected navigateToEditorGroup(location: GroupLocation): Promise<boolean> {
+	protected navigateToEditorGroup(location: GroupLocation): boolean {
 		return this.doNavigateToEditorGroup({ location });
 	}
 
-	private doNavigateToEditorGroup(scope: IFindGroupScope): Promise<boolean> {
+	private doNavigateToEditorGroup(scope: IFindGroupScope): boolean {
 		const targetGroup = this.editorGroupService.findGroup(scope, this.editorGroupService.activeGroup);
 		if (targetGroup) {
 			targetGroup.focus();
 
-			return Promise.resolve(true);
+			return true;
 		}
 
-		return Promise.resolve(false);
+		return false;
 	}
 }
 
@@ -810,18 +809,16 @@ export class NavigateLeftAction extends BaseNavigationAction {
 	}
 
 	protected navigateOnEditorFocus(isSidebarPositionLeft: boolean, _isPanelPositionDown: boolean): Promise<boolean | IViewlet> {
-		return this.navigateAcrossEditorGroup(GroupDirection.LEFT)
-			.then(didNavigate => {
-				if (didNavigate) {
-					return Promise.resolve(true);
-				}
+		const didNavigate = this.navigateAcrossEditorGroup(GroupDirection.LEFT);
+		if (didNavigate) {
+			return Promise.resolve(true);
+		}
 
-				if (isSidebarPositionLeft) {
-					return this.navigateToSidebar();
-				}
+		if (isSidebarPositionLeft) {
+			return this.navigateToSidebar();
+		}
 
-				return Promise.resolve(false);
-			});
+		return Promise.resolve(false);
 	}
 
 	protected navigateOnPanelFocus(isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): Promise<boolean | IViewlet> {
@@ -830,18 +827,18 @@ export class NavigateLeftAction extends BaseNavigationAction {
 		}
 
 		if (!isPanelPositionDown) {
-			return this.navigateToEditorGroup(GroupLocation.LAST);
+			return Promise.resolve(this.navigateToEditorGroup(GroupLocation.LAST));
 		}
 
 		return Promise.resolve(false);
 	}
 
-	protected navigateOnSidebarFocus(isSidebarPositionLeft: boolean, _isPanelPositionDown: boolean): Promise<boolean> {
+	protected navigateOnSidebarFocus(isSidebarPositionLeft: boolean, _isPanelPositionDown: boolean): boolean {
 		if (!isSidebarPositionLeft) {
 			return this.navigateToEditorGroup(GroupLocation.LAST);
 		}
 
-		return Promise.resolve(false);
+		return false;
 	}
 }
 
@@ -862,22 +859,20 @@ export class NavigateRightAction extends BaseNavigationAction {
 	}
 
 	protected navigateOnEditorFocus(isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): Promise<boolean | IViewlet | IPanel> {
-		return this.navigateAcrossEditorGroup(GroupDirection.RIGHT)
-			.then(didNavigate => {
-				if (didNavigate) {
-					return Promise.resolve(true);
-				}
+		const didNavigate = this.navigateAcrossEditorGroup(GroupDirection.RIGHT);
+		if (didNavigate) {
+			return Promise.resolve(true);
+		}
 
-				if (!isPanelPositionDown) {
-					return this.navigateToPanel();
-				}
+		if (!isPanelPositionDown) {
+			return Promise.resolve(this.navigateToPanel());
+		}
 
-				if (!isSidebarPositionLeft) {
-					return this.navigateToSidebar();
-				}
+		if (!isSidebarPositionLeft) {
+			return this.navigateToSidebar();
+		}
 
-				return Promise.resolve(false);
-			});
+		return Promise.resolve(false);
 	}
 
 	protected navigateOnPanelFocus(isSidebarPositionLeft: boolean, _isPanelPositionDown: boolean): Promise<boolean | IViewlet> {
@@ -888,12 +883,12 @@ export class NavigateRightAction extends BaseNavigationAction {
 		return Promise.resolve(false);
 	}
 
-	protected navigateOnSidebarFocus(isSidebarPositionLeft: boolean, _isPanelPositionDown: boolean): Promise<boolean> {
+	protected navigateOnSidebarFocus(isSidebarPositionLeft: boolean, _isPanelPositionDown: boolean): boolean {
 		if (isSidebarPositionLeft) {
 			return this.navigateToEditorGroup(GroupLocation.FIRST);
 		}
 
-		return Promise.resolve(false);
+		return false;
 	}
 }
 
@@ -914,12 +909,12 @@ export class NavigateUpAction extends BaseNavigationAction {
 	}
 
 	protected navigateOnEditorFocus(_isSidebarPositionLeft: boolean, _isPanelPositionDown: boolean): Promise<boolean> {
-		return this.navigateAcrossEditorGroup(GroupDirection.UP);
+		return Promise.resolve(this.navigateAcrossEditorGroup(GroupDirection.UP));
 	}
 
 	protected navigateOnPanelFocus(_isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): Promise<boolean> {
 		if (isPanelPositionDown) {
-			return this.navigateToEditorGroup(GroupLocation.LAST);
+			return Promise.resolve(this.navigateToEditorGroup(GroupLocation.LAST));
 		}
 
 		return Promise.resolve(false);
@@ -943,18 +938,16 @@ export class NavigateDownAction extends BaseNavigationAction {
 	}
 
 	protected navigateOnEditorFocus(_isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): Promise<boolean | IPanel> {
-		return this.navigateAcrossEditorGroup(GroupDirection.DOWN)
-			.then(didNavigate => {
-				if (didNavigate) {
-					return Promise.resolve(true);
-				}
+		const didNavigate = this.navigateAcrossEditorGroup(GroupDirection.DOWN);
+		if (didNavigate) {
+			return Promise.resolve(true);
+		}
 
-				if (isPanelPositionDown) {
-					return this.navigateToPanel();
-				}
+		if (isPanelPositionDown) {
+			return Promise.resolve(this.navigateToPanel());
+		}
 
-				return Promise.resolve(false);
-			});
+		return Promise.resolve(false);
 	}
 }
 
@@ -1005,7 +998,7 @@ export class IncreaseViewSizeAction extends BaseResizeViewAction {
 		super(id, label, partService);
 	}
 
-	run(): Thenable<boolean> {
+	run(): Promise<boolean> {
 		this.resizePart(BaseResizeViewAction.RESIZE_INCREMENT);
 		return Promise.resolve(true);
 	}
@@ -1025,7 +1018,7 @@ export class DecreaseViewSizeAction extends BaseResizeViewAction {
 		super(id, label, partService);
 	}
 
-	run(): Thenable<boolean> {
+	run(): Promise<boolean> {
 		this.resizePart(-BaseResizeViewAction.RESIZE_INCREMENT);
 		return Promise.resolve(true);
 	}
@@ -1044,7 +1037,7 @@ export class NewWindowTab extends Action {
 		super(NewWindowTab.ID, NewWindowTab.LABEL);
 	}
 
-	run(): Thenable<boolean> {
+	run(): Promise<boolean> {
 		return this.windowsService.newWindowTab().then(() => true);
 	}
 }
@@ -1062,7 +1055,7 @@ export class ShowPreviousWindowTab extends Action {
 		super(ShowPreviousWindowTab.ID, ShowPreviousWindowTab.LABEL);
 	}
 
-	run(): Thenable<boolean> {
+	run(): Promise<boolean> {
 		return this.windowsService.showPreviousWindowTab().then(() => true);
 	}
 }
@@ -1080,7 +1073,7 @@ export class ShowNextWindowTab extends Action {
 		super(ShowNextWindowTab.ID, ShowNextWindowTab.LABEL);
 	}
 
-	run(): Thenable<boolean> {
+	run(): Promise<boolean> {
 		return this.windowsService.showNextWindowTab().then(() => true);
 	}
 }
@@ -1098,7 +1091,7 @@ export class MoveWindowTabToNewWindow extends Action {
 		super(MoveWindowTabToNewWindow.ID, MoveWindowTabToNewWindow.LABEL);
 	}
 
-	run(): Thenable<boolean> {
+	run(): Promise<boolean> {
 		return this.windowsService.moveWindowTabToNewWindow().then(() => true);
 	}
 }
@@ -1116,7 +1109,7 @@ export class MergeAllWindowTabs extends Action {
 		super(MergeAllWindowTabs.ID, MergeAllWindowTabs.LABEL);
 	}
 
-	run(): Thenable<boolean> {
+	run(): Promise<boolean> {
 		return this.windowsService.mergeAllWindowTabs().then(() => true);
 	}
 }
@@ -1134,7 +1127,7 @@ export class ToggleWindowTabsBar extends Action {
 		super(ToggleWindowTabsBar.ID, ToggleWindowTabsBar.LABEL);
 	}
 
-	run(): Thenable<boolean> {
+	run(): Promise<boolean> {
 		return this.windowsService.toggleWindowTabsBar().then(() => true);
 	}
 }
@@ -1142,7 +1135,7 @@ export class ToggleWindowTabsBar extends Action {
 export class OpenTwitterUrlAction extends Action {
 
 	static readonly ID = 'workbench.action.openTwitterUrl';
-	static LABEL = nls.localize('openTwitterUrl', "Join us on Twitter", product.applicationName);
+	static LABEL = nls.localize('openTwitterUrl', "Join Us on Twitter", product.applicationName);
 
 	constructor(
 		id: string,
@@ -1151,7 +1144,7 @@ export class OpenTwitterUrlAction extends Action {
 		super(id, label);
 	}
 
-	run(): Thenable<boolean> {
+	run(): Promise<boolean> {
 		if (product.twitterUrl) {
 			return Promise.resolve(shell.openExternal(product.twitterUrl));
 		}
@@ -1172,7 +1165,7 @@ export class OpenRequestFeatureUrlAction extends Action {
 		super(id, label);
 	}
 
-	run(): Thenable<boolean> {
+	run(): Promise<boolean> {
 		if (product.requestFeatureUrl) {
 			return Promise.resolve(shell.openExternal(product.requestFeatureUrl));
 		}
@@ -1193,7 +1186,7 @@ export class OpenLicenseUrlAction extends Action {
 		super(id, label);
 	}
 
-	run(): Thenable<boolean> {
+	run(): Promise<boolean> {
 		if (product.licenseUrl) {
 			if (language) {
 				const queryArgChar = product.licenseUrl.indexOf('?') > 0 ? '&' : '?';
@@ -1220,7 +1213,7 @@ export class OpenPrivacyStatementUrlAction extends Action {
 		super(id, label);
 	}
 
-	run(): Thenable<boolean> {
+	run(): Promise<boolean> {
 		if (product.privacyStatementUrl) {
 			if (language) {
 				const queryArgChar = product.privacyStatementUrl.indexOf('?') > 0 ? '&' : '?';
@@ -1248,7 +1241,7 @@ export class ShowAboutDialogAction extends Action {
 		super(id, label);
 	}
 
-	run(): Thenable<void> {
+	run(): Promise<void> {
 		return this.windowsService.openAboutDialog();
 	}
 }
@@ -1267,7 +1260,7 @@ export class InspectContextKeysAction extends Action {
 		super(id, label);
 	}
 
-	run(): Thenable<void> {
+	run(): Promise<void> {
 		const disposables: IDisposable[] = [];
 
 		const stylesheet = createStyleSheet();
@@ -1294,10 +1287,10 @@ export class InspectContextKeysAction extends Action {
 			hoverFeedback.style.height = `${position.height}px`;
 		}));
 
-		const onMouseDown = once(domEvent(document.body, 'mousedown', true));
+		const onMouseDown = Event.once(domEvent(document.body, 'mousedown', true));
 		onMouseDown(e => { e.preventDefault(); e.stopPropagation(); }, null, disposables);
 
-		const onMouseUp = once(domEvent(document.body, 'mouseup', true));
+		const onMouseUp = Event.once(domEvent(document.body, 'mouseup', true));
 		onMouseUp(e => {
 			e.preventDefault();
 			e.stopPropagation();
@@ -1310,5 +1303,106 @@ export class InspectContextKeysAction extends Action {
 		}, null, disposables);
 
 		return Promise.resolve(null);
+	}
+}
+
+export class ToggleScreencastModeAction extends Action {
+
+	static readonly ID = 'workbench.action.toggleScreencastMode';
+	static LABEL = nls.localize('toggle mouse clicks', "Toggle Screencast Mode");
+
+	static disposable: IDisposable | undefined;
+
+	constructor(id: string, label: string, @IKeybindingService private keybindingService: IKeybindingService) {
+		super(id, label);
+	}
+
+	async run(): Promise<void> {
+		if (ToggleScreencastModeAction.disposable) {
+			ToggleScreencastModeAction.disposable.dispose();
+			ToggleScreencastModeAction.disposable = undefined;
+			return;
+		}
+
+		const mouseMarker = append(document.body, $('div'));
+		mouseMarker.style.position = 'absolute';
+		mouseMarker.style.border = '2px solid red';
+		mouseMarker.style.borderRadius = '20px';
+		mouseMarker.style.width = '20px';
+		mouseMarker.style.height = '20px';
+		mouseMarker.style.top = '0';
+		mouseMarker.style.left = '0';
+		mouseMarker.style.zIndex = '100000';
+		mouseMarker.style.content = ' ';
+		mouseMarker.style.pointerEvents = 'none';
+		mouseMarker.style.display = 'none';
+
+		const onMouseDown = domEvent(document.body, 'mousedown', true);
+		const onMouseUp = domEvent(document.body, 'mouseup', true);
+		const onMouseMove = domEvent(document.body, 'mousemove', true);
+
+		const mouseListener = onMouseDown(e => {
+			mouseMarker.style.top = `${e.clientY - 10}px`;
+			mouseMarker.style.left = `${e.clientX - 10}px`;
+			mouseMarker.style.display = 'block';
+
+			const mouseMoveListener = onMouseMove(e => {
+				mouseMarker.style.top = `${e.clientY - 10}px`;
+				mouseMarker.style.left = `${e.clientX - 10}px`;
+			});
+
+			Event.once(onMouseUp)(() => {
+				mouseMarker.style.display = 'none';
+				mouseMoveListener.dispose();
+			});
+		});
+
+		const keyboardMarker = append(document.body, $('div'));
+		keyboardMarker.style.position = 'absolute';
+		keyboardMarker.style.backgroundColor = 'rgba(0, 0, 0 ,0.5)';
+		keyboardMarker.style.width = '100%';
+		keyboardMarker.style.height = '100px';
+		keyboardMarker.style.bottom = '20%';
+		keyboardMarker.style.left = '0';
+		keyboardMarker.style.zIndex = '100000';
+		keyboardMarker.style.pointerEvents = 'none';
+		keyboardMarker.style.color = 'white';
+		keyboardMarker.style.lineHeight = '100px';
+		keyboardMarker.style.textAlign = 'center';
+		keyboardMarker.style.fontSize = '56px';
+		keyboardMarker.style.display = 'none';
+
+		const onKeyDown = domEvent(document.body, 'keydown', true);
+		let keyboardTimeout: IDisposable = Disposable.None;
+
+		const keyboardListener = onKeyDown(e => {
+			keyboardTimeout.dispose();
+
+			const event = new StandardKeyboardEvent(e);
+			const keybinding = this.keybindingService.resolveKeyboardEvent(event);
+			const label = keybinding.getLabel();
+
+			if (!event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey && this.keybindingService.mightProducePrintableCharacter(event) && label) {
+				keyboardMarker.textContent += ' ' + label;
+			} else {
+				keyboardMarker.textContent = label;
+			}
+
+			keyboardMarker.style.display = 'block';
+
+			const promise = timeout(800);
+			keyboardTimeout = toDisposable(() => promise.cancel());
+
+			promise.then(() => {
+				keyboardMarker.textContent = '';
+				keyboardMarker.style.display = 'none';
+			});
+		});
+
+		ToggleScreencastModeAction.disposable = toDisposable(() => {
+			mouseListener.dispose();
+			keyboardListener.dispose();
+			document.body.removeChild(mouseMarker);
+		});
 	}
 }

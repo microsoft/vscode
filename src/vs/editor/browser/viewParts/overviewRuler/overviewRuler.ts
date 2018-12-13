@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IOverviewRuler } from 'vs/editor/browser/editorBrowser';
+import { OverviewRulerPosition } from 'vs/editor/common/config/editorOptions';
+import { ColorZone, OverviewRulerZone, OverviewZoneManager } from 'vs/editor/common/view/overviewZoneManager';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { OverviewRulerPosition } from 'vs/editor/common/config/editorOptions';
-import { OverviewRulerZone, OverviewZoneManager, ColorZone } from 'vs/editor/common/view/overviewZoneManager';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
+import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 
 export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 
@@ -39,7 +39,6 @@ export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 
 	public dispose(): void {
 		this._context.removeEventHandler(this);
-		this._zoneManager = null;
 		super.dispose();
 	}
 
@@ -118,7 +117,7 @@ export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 		let colorZones = this._zoneManager.resolveColorZones();
 		let id2Color = this._zoneManager.getId2Color();
 
-		let ctx = this._domNode.domNode.getContext('2d');
+		let ctx = this._domNode.domNode.getContext('2d')!;
 		ctx.clearRect(0, 0, width, height);
 		if (colorZones.length > 0) {
 			this._renderOneLane(ctx, colorZones, id2Color, width);

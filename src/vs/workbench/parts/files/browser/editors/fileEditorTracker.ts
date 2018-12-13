@@ -168,7 +168,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 				// file is really gone and not just a faulty file event.
 				// This only applies to external file events, so we need to check for the isExternal
 				// flag.
-				let checkExists: Thenable<boolean>;
+				let checkExists: Promise<boolean>;
 				if (isExternal) {
 					checkExists = timeout(100).then(() => this.fileService.existsFile(resource));
 				} else {
@@ -314,7 +314,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 		// to have a size of 2 (1 running load and 1 queued load).
 		const queue = this.modelLoadQueue.queueFor(model.getResource());
 		if (queue.size <= 1) {
-			queue.queue(() => model.load().then(null, onUnexpectedError));
+			queue.queue(() => model.load().then<void>(null, onUnexpectedError));
 		}
 	}
 

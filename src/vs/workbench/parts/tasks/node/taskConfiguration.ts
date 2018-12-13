@@ -23,6 +23,7 @@ import * as Tasks from '../common/tasks';
 import { TaskDefinitionRegistry } from '../common/taskDefinitionRegistry';
 
 import { TaskDefinition } from 'vs/workbench/parts/tasks/node/tasks';
+import { ConfiguredInput } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 
 export const enum ShellQuoting {
 	/**
@@ -67,7 +68,7 @@ export interface ShellConfiguration {
 	quoting?: ShellQuotingOptions;
 }
 
-export interface CommandOptions {
+export interface CommandOptionsConfig {
 	/**
 	 * The current working directory of the executed program or shell.
 	 * If omitted VSCode's current workspace root is used.
@@ -86,7 +87,7 @@ export interface CommandOptions {
 	shell?: ShellConfiguration;
 }
 
-export interface PresentationOptions {
+export interface PresentationOptionsConfig {
 	/**
 	 * Controls whether the terminal executing a task is brought to front or not.
 	 * Defaults to `RevealKind.Always`.
@@ -112,6 +113,16 @@ export interface PresentationOptions {
 	 * Controls whether to show the "Terminal will be reused by tasks, press any key to close it" message.
 	 */
 	showReuseMessage?: boolean;
+
+	/**
+	 * Controls whether the terminal should be cleared before running the task.
+	 */
+	clear?: boolean;
+}
+
+export interface RunOptionsConfig {
+	reevaluateOnRerun?: boolean;
+	runOn?: string;
 }
 
 export interface TaskIdentifier {
@@ -169,7 +180,7 @@ export interface LegacyCommandProperties {
 	/**
 	 * @deprecated Use presentation instead
 	 */
-	terminal?: PresentationOptions;
+	terminal?: PresentationOptionsConfig;
 
 	/**
 	 * @deprecated Use inline commands.
@@ -223,7 +234,7 @@ export interface BaseCommandProperties {
 	/**
 	 * The command options used when the command is executed. Can be omitted.
 	 */
-	options?: CommandOptions;
+	options?: CommandOptionsConfig;
 
 	/**
 	 * The arguments passed to the command or additional arguments passed to the
@@ -296,23 +307,28 @@ export interface ConfigurationProperties {
 	/**
 	 * Controls the behavior of the used terminal
 	 */
-	presentation?: PresentationOptions;
+	presentation?: PresentationOptionsConfig;
 
 	/**
 	 * Controls shell options.
 	 */
-	options?: CommandOptions;
+	options?: CommandOptionsConfig;
 
 	/**
 	 * The problem matcher(s) to use to capture problems in the tasks
 	 * output.
 	 */
 	problemMatcher?: ProblemMatcherConfig.ProblemMatcherType;
+
+	/**
+	 * Task run options. Control run related properties.
+	 */
+	runOptions?: RunOptionsConfig;
 }
 
 export interface CustomTask extends CommandProperties, ConfigurationProperties {
 	/**
-	 * Custom tasks have the type 'custom'
+	 * Custom tasks have the type CUSTOMIZED_TASK_TYPE
 	 */
 	type?: string;
 
@@ -354,7 +370,7 @@ export interface BaseTaskRunnerConfiguration {
 	/**
 	 * The command options used when the command is executed. Can be omitted.
 	 */
-	options?: CommandOptions;
+	options?: CommandOptionsConfig;
 
 	/**
 	 * The arguments passed to the command. Can be omitted.
@@ -384,7 +400,7 @@ export interface BaseTaskRunnerConfiguration {
 	/**
 	 * Controls the behavior of the used terminal
 	 */
-	presentation?: PresentationOptions;
+	presentation?: PresentationOptionsConfig;
 
 	/**
 	 * If set to false the task name is added as an additional argument to the
@@ -436,6 +452,11 @@ export interface BaseTaskRunnerConfiguration {
 	 * Problem matcher declarations
 	 */
 	declares?: ProblemMatcherConfig.NamedProblemMatcher[];
+
+	/**
+	 * Optional user input varaibles.
+	 */
+	inputs?: ConfiguredInput[];
 }
 
 /**
@@ -619,6 +640,30 @@ function _freeze<T>(this: void, target: T, properties: MetaData<T, any>[]): Read
 	return target;
 }
 
+export namespace RunOnOptions {
+	export function fromString(value: string | undefined): Tasks.RunOnOptions {
+		if (!value) {
+			return Tasks.RunOnOptions.default;
+		}
+		switch (value.toLowerCase()) {
+			case 'folderopen':
+				return Tasks.RunOnOptions.folderOpen;
+			case 'default':
+			default:
+				return Tasks.RunOnOptions.default;
+		}
+	}
+}
+
+export namespace RunOptions {
+	export function fromConfiguration(value: RunOptionsConfig | undefined): Tasks.RunOptions {
+		return {
+			reevaluateOnRerun: value ? value.reevaluateOnRerun : true,
+			runOn: value ? RunOnOptions.fromString(value.runOn) : Tasks.RunOnOptions.default
+		};
+	}
+}
+
 interface ParseContext {
 	workspaceFolder: IWorkspaceFolder;
 	problemReporter: IProblemReporter;
@@ -684,9 +729,9 @@ namespace ShellConfiguration {
 namespace CommandOptions {
 
 	const properties: MetaData<Tasks.CommandOptions, Tasks.ShellConfiguration>[] = [{ property: 'cwd' }, { property: 'env' }, { property: 'shell', type: ShellConfiguration }];
-	const defaults: CommandOptions = { cwd: '${workspaceFolder}' };
+	const defaults: CommandOptionsConfig = { cwd: '${workspaceFolder}' };
 
-	export function from(this: void, options: CommandOptions, context: ParseContext): Tasks.CommandOptions {
+	export function from(this: void, options: CommandOptionsConfig, context: ParseContext): Tasks.CommandOptions {
 		let result: Tasks.CommandOptions = {};
 		if (options.cwd !== void 0) {
 			if (Types.isString(options.cwd)) {
@@ -742,10 +787,10 @@ namespace CommandOptions {
 namespace CommandConfiguration {
 
 	export namespace PresentationOptions {
-		const properties: MetaData<Tasks.PresentationOptions, void>[] = [{ property: 'echo' }, { property: 'reveal' }, { property: 'focus' }, { property: 'panel' }, { property: 'showReuseMessage' }];
+		const properties: MetaData<Tasks.PresentationOptions, void>[] = [{ property: 'echo' }, { property: 'reveal' }, { property: 'focus' }, { property: 'panel' }, { property: 'showReuseMessage' }, { property: 'clear' }];
 
 		interface PresentationOptionsShape extends LegacyCommandProperties {
-			presentation?: PresentationOptions;
+			presentation?: PresentationOptionsConfig;
 		}
 
 		export function from(this: void, config: PresentationOptionsShape, context: ParseContext): Tasks.PresentationOptions {
@@ -754,6 +799,7 @@ namespace CommandConfiguration {
 			let focus: boolean;
 			let panel: Tasks.PanelKind;
 			let showReuseMessage: boolean;
+			let clear: boolean;
 			if (Types.isBoolean(config.echoCommand)) {
 				echo = config.echoCommand;
 			}
@@ -777,11 +823,14 @@ namespace CommandConfiguration {
 				if (Types.isBoolean(presentation.showReuseMessage)) {
 					showReuseMessage = presentation.showReuseMessage;
 				}
+				if (Types.isBoolean(presentation.clear)) {
+					clear = presentation.clear;
+				}
 			}
-			if (echo === void 0 && reveal === void 0 && focus === void 0 && panel === void 0 && showReuseMessage === void 0) {
+			if (echo === void 0 && reveal === void 0 && focus === void 0 && panel === void 0 && showReuseMessage === void 0 && clear === void 0) {
 				return undefined;
 			}
-			return { echo, reveal, focus, panel, showReuseMessage };
+			return { echo, reveal, focus, panel, showReuseMessage, clear };
 		}
 
 		export function assignProperties(target: Tasks.PresentationOptions, source: Tasks.PresentationOptions): Tasks.PresentationOptions {
@@ -794,7 +843,7 @@ namespace CommandConfiguration {
 
 		export function fillDefaults(value: Tasks.PresentationOptions, context: ParseContext): Tasks.PresentationOptions {
 			let defaultEcho = context.engine === Tasks.ExecutionEngine.Terminal ? true : false;
-			return _fillDefaults(value, { echo: defaultEcho, reveal: Tasks.RevealKind.Always, focus: false, panel: Tasks.PanelKind.Shared, showReuseMessage: true }, properties, context);
+			return _fillDefaults(value, { echo: defaultEcho, reveal: Tasks.RevealKind.Always, focus: false, panel: Tasks.PanelKind.Shared, showReuseMessage: true, clear: false }, properties, context);
 		}
 
 		export function freeze(value: Tasks.PresentationOptions): Readonly<Tasks.PresentationOptions> {
@@ -1275,8 +1324,9 @@ namespace ConfiguringTask {
 			type: type,
 			configures: taskIdentifier,
 			_id: `${typeDeclaration.extensionId}.${taskIdentifier._key}`,
-			_source: Objects.assign({}, source, { config: configElement }),
-			_label: undefined
+			_source: Objects.assign({} as Tasks.WorkspaceTaskSource, source, { config: configElement }),
+			_label: undefined,
+			runOptions: RunOptions.fromConfiguration(external.runOptions)
 		};
 		let configuration = ConfigurationProperties.from(external, context, true);
 		if (configuration) {
@@ -1312,9 +1362,9 @@ namespace CustomTask {
 		}
 		let type = external.type;
 		if (type === void 0 || type === null) {
-			type = 'custom';
+			type = Tasks.CUSTOMIZED_TASK_TYPE;
 		}
-		if (type !== 'custom' && type !== 'shell' && type !== 'process') {
+		if (type !== Tasks.CUSTOMIZED_TASK_TYPE && type !== 'shell' && type !== 'process') {
 			context.problemReporter.error(nls.localize('ConfigurationParser.notCustom', 'Error: tasks is not declared as a custom task. The configuration will be ignored.\n{0}\n', JSON.stringify(external, null, 4)));
 			return undefined;
 		}
@@ -1328,14 +1378,15 @@ namespace CustomTask {
 		}
 
 		let result: Tasks.CustomTask = {
-			type: 'custom',
+			type: Tasks.CUSTOMIZED_TASK_TYPE,
 			_id: context.uuidMap.getUUID(taskName),
-			_source: Objects.assign({}, source, { config: { index, element: external, file: '.vscode\\tasks.json', workspaceFolder: context.workspaceFolder } }),
+			_source: Objects.assign({} as Tasks.WorkspaceTaskSource, source, { config: { index, element: external, file: '.vscode\\tasks.json', workspaceFolder: context.workspaceFolder } }),
 			_label: taskName,
 			name: taskName,
 			identifier: taskName,
 			hasDefinedMatchers: false,
-			command: undefined
+			command: undefined,
+			runOptions: RunOptions.fromConfiguration(external.runOptions)
 		};
 		let configuration = ConfigurationProperties.from(external, context, false);
 		if (configuration) {
@@ -1404,11 +1455,12 @@ namespace CustomTask {
 			_id: configuredProps._id,
 			_source: Objects.assign({}, configuredProps._source, { customizes: contributedTask.defines }),
 			_label: configuredProps.name || contributedTask._label,
-			type: 'custom',
+			type: Tasks.CUSTOMIZED_TASK_TYPE,
 			command: contributedTask.command,
 			name: configuredProps.name || contributedTask.name,
 			identifier: configuredProps.identifier || contributedTask.identifier,
-			hasDefinedMatchers: false
+			hasDefinedMatchers: false,
+			runOptions: contributedTask.runOptions,
 		};
 		let resultConfigProps: Tasks.ConfigurationProperties = result;
 
@@ -1451,7 +1503,7 @@ namespace TaskParser {
 	function isCustomTask(value: CustomTask | ConfiguringTask): value is CustomTask {
 		let type = value.type;
 		let customize = (value as any).customize;
-		return customize === void 0 && (type === void 0 || type === null || type === 'custom' || type === 'shell' || type === 'process');
+		return customize === void 0 && (type === void 0 || type === null || type === Tasks.CUSTOMIZED_TASK_TYPE || type === 'shell' || type === 'process');
 	}
 
 	export function from(this: void, externals: (CustomTask | ConfiguringTask)[], globals: Globals, context: ParseContext): TaskParseResult {
@@ -1561,7 +1613,7 @@ namespace Globals {
 
 	export function from(config: ExternalTaskRunnerConfiguration, context: ParseContext): Globals {
 		let result = fromBase(config, context);
-		let osGlobals: Globals = undefined;
+		let osGlobals: Globals | undefined = undefined;
 		if (config.windows && context.platform === Platform.Windows) {
 			osGlobals = fromBase(config.windows, context);
 		} else if (config.osx && context.platform === Platform.Mac) {
@@ -1828,9 +1880,9 @@ class ConfigurationParser {
 			let name = Tasks.CommandString.value(globals.command.name);
 			let task: Tasks.CustomTask = {
 				_id: context.uuidMap.getUUID(name),
-				_source: Objects.assign({}, source, { config: { index: -1, element: fileConfig, workspaceFolder: context.workspaceFolder } }),
+				_source: Objects.assign({} as Tasks.WorkspaceTaskSource, source, { config: { index: -1, element: fileConfig, workspaceFolder: context.workspaceFolder } }),
 				_label: name,
-				type: 'custom',
+				type: Tasks.CUSTOMIZED_TASK_TYPE,
 				name: name,
 				identifier: name,
 				group: Tasks.TaskGroup.Build,
@@ -1843,6 +1895,7 @@ class ConfigurationParser {
 				isBackground: isBackground,
 				problemMatchers: matchers,
 				hasDefinedMatchers: false,
+				runOptions: { reevaluateOnRerun: true },
 			};
 			let value = GroupKind.from(fileConfig.group);
 			if (value) {

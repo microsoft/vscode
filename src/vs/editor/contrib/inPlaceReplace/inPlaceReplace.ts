@@ -37,7 +37,7 @@ class InPlaceReplaceController implements IEditorContribution {
 	private readonly editor: ICodeEditor;
 	private readonly editorWorkerService: IEditorWorkerService;
 	private decorationIds: string[] = [];
-	private currentRequest: CancelablePromise<IInplaceReplaceSupportResult>;
+	private currentRequest: CancelablePromise<IInplaceReplaceSupportResult | null>;
 	private decorationRemover: CancelablePromise<void>;
 
 	constructor(
@@ -55,29 +55,31 @@ class InPlaceReplaceController implements IEditorContribution {
 		return InPlaceReplaceController.ID;
 	}
 
-	public run(source: string, up: boolean): Promise<void> {
+	public run(source: string, up: boolean): Promise<void> | undefined {
 
 		// cancel any pending request
 		if (this.currentRequest) {
 			this.currentRequest.cancel();
 		}
 
-		let selection = this.editor.getSelection();
+		const editorSelection = this.editor.getSelection();
 		const model = this.editor.getModel();
-		const modelURI = model.uri;
-
+		if (!model || !editorSelection) {
+			return undefined;
+		}
+		let selection = editorSelection;
 		if (selection.startLineNumber !== selection.endLineNumber) {
 			// Can't accept multiline selection
-			return null;
-		}
-
-		const state = new EditorState(this.editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position);
-
-		if (!this.editorWorkerService.canNavigateValueSet(modelURI)) {
 			return undefined;
 		}
 
-		this.currentRequest = createCancelablePromise(token => this.editorWorkerService.navigateValueSet(modelURI, selection, up));
+		const state = new EditorState(this.editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position);
+		const modelURI = model.uri;
+		if (!this.editorWorkerService.canNavigateValueSet(modelURI)) {
+			return Promise.resolve(void 0);
+		}
+
+		this.currentRequest = createCancelablePromise(token => this.editorWorkerService.navigateValueSet(modelURI, selection!, up));
 
 		return this.currentRequest.then(result => {
 
@@ -94,7 +96,7 @@ class InPlaceReplaceController implements IEditorContribution {
 			// Selection
 			let editRange = Range.lift(result.range);
 			let highlightRange = result.range;
-			let diff = result.value.length - (selection.endColumn - selection.startColumn);
+			let diff = result.value.length - (selection!.endColumn - selection!.startColumn);
 
 			// highlight
 			highlightRange = {
@@ -104,11 +106,11 @@ class InPlaceReplaceController implements IEditorContribution {
 				endColumn: highlightRange.startColumn + result.value.length
 			};
 			if (diff > 1) {
-				selection = new Selection(selection.startLineNumber, selection.startColumn, selection.endLineNumber, selection.endColumn + diff - 1);
+				selection = new Selection(selection!.startLineNumber, selection!.startColumn, selection!.endLineNumber, selection!.endColumn + diff - 1);
 			}
 
 			// Insert new text
-			const command = new InPlaceReplaceCommand(editRange, selection, result.value);
+			const command = new InPlaceReplaceCommand(editRange, selection!, result.value);
 
 			this.editor.pushUndoStop();
 			this.editor.executeCommand(source, command);
@@ -147,10 +149,10 @@ class InPlaceReplaceUp extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		let controller = InPlaceReplaceController.get(editor);
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> | undefined {
+		const controller = InPlaceReplaceController.get(editor);
 		if (!controller) {
-			return undefined;
+			return Promise.resolve(void 0);
 		}
 		return controller.run(this.id, true);
 	}
@@ -172,10 +174,10 @@ class InPlaceReplaceDown extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		let controller = InPlaceReplaceController.get(editor);
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> | undefined {
+		const controller = InPlaceReplaceController.get(editor);
 		if (!controller) {
-			return undefined;
+			return Promise.resolve(void 0);
 		}
 		return controller.run(this.id, false);
 	}

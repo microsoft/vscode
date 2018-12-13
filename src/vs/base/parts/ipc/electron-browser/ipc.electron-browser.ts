@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { fromNodeEventEmitter } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { IPCClient } from 'vs/base/parts/ipc/node/ipc';
 import { Protocol } from 'vs/base/parts/ipc/node/ipc.electron';
 import { ipcRenderer } from 'electron';
@@ -14,7 +14,7 @@ export class Client extends IPCClient implements IDisposable {
 	private protocol: Protocol;
 
 	private static createProtocol(): Protocol {
-		const onMessage = fromNodeEventEmitter<string>(ipcRenderer, 'ipc:message', (_, message: string) => message);
+		const onMessage = Event.fromNodeEventEmitter<string>(ipcRenderer, 'ipc:message', (_, message: string) => message);
 		ipcRenderer.send('ipc:hello');
 		return new Protocol(ipcRenderer, onMessage);
 	}

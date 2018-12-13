@@ -12,7 +12,7 @@ import { TextEdit } from 'vs/editor/common/modes';
 export class FormattingEdit {
 
 	private static _handleEolEdits(editor: ICodeEditor, edits: TextEdit[]): ISingleEditOperation[] {
-		let newEol: EndOfLineSequence = undefined;
+		let newEol: EndOfLineSequence | undefined = undefined;
 		let singleEdits: ISingleEditOperation[] = [];
 
 		for (let edit of edits) {
@@ -25,13 +25,18 @@ export class FormattingEdit {
 		}
 
 		if (typeof newEol === 'number') {
-			editor.getModel().pushEOL(newEol);
+			if (editor.hasModel()) {
+				editor.getModel().pushEOL(newEol);
+			}
 		}
 
 		return singleEdits;
 	}
 
 	private static _isFullModelReplaceEdit(editor: ICodeEditor, edit: ISingleEditOperation): boolean {
+		if (!editor.hasModel()) {
+			return false;
+		}
 		const model = editor.getModel();
 		const editRange = model.validateRange(edit.range);
 		const fullModelRange = model.getFullModelRange();

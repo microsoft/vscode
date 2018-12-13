@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as paths from 'vs/base/common/paths';
 import { URI } from 'vs/base/common/uri';
 import * as glob from 'vs/base/common/glob';
@@ -46,9 +45,14 @@ export interface IFileService {
 	onDidChangeFileSystemProviderRegistrations: Event<IFileSystemProviderRegistrationEvent>;
 
 	/**
-	 * Registeres a file system provider for a certain scheme.
+	 * Registers a file system provider for a certain scheme.
 	 */
 	registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable;
+
+	/**
+	 * Tries to activate a provider with the given scheme.
+	 */
+	activateProvider(scheme: string): Promise<void>;
 
 	/**
 	 * Checks if this file service can handle the given resource.
@@ -66,51 +70,51 @@ export interface IFileService {
 	 * the stat service is asked to automatically resolve child folders that only
 	 * contain a single element.
 	 */
-	resolveFile(resource: URI, options?: IResolveFileOptions): TPromise<IFileStat>;
+	resolveFile(resource: URI, options?: IResolveFileOptions): Promise<IFileStat>;
 
 	/**
-	 * Same as resolveFile but supports resolving mulitple resources in parallel.
+	 * Same as resolveFile but supports resolving multiple resources in parallel.
 	 * If one of the resolve targets fails to resolve returns a fake IFileStat instead of making the whole call fail.
 	 */
-	resolveFiles(toResolve: { resource: URI, options?: IResolveFileOptions }[]): TPromise<IResolveFileResult[]>;
+	resolveFiles(toResolve: { resource: URI, options?: IResolveFileOptions }[]): Promise<IResolveFileResult[]>;
 
 	/**
-	 *Finds out if a file identified by the resource exists.
+	 * Finds out if a file identified by the resource exists.
 	 */
-	existsFile(resource: URI): TPromise<boolean>;
+	existsFile(resource: URI): Promise<boolean>;
 
 	/**
 	 * Resolve the contents of a file identified by the resource.
 	 *
 	 * The returned object contains properties of the file and the full value as string.
 	 */
-	resolveContent(resource: URI, options?: IResolveContentOptions): TPromise<IContent>;
+	resolveContent(resource: URI, options?: IResolveContentOptions): Promise<IContent>;
 
 	/**
 	 * Resolve the contents of a file identified by the resource.
 	 *
 	 * The returned object contains properties of the file and the value as a readable stream.
 	 */
-	resolveStreamContent(resource: URI, options?: IResolveContentOptions): TPromise<IStreamContent>;
+	resolveStreamContent(resource: URI, options?: IResolveContentOptions): Promise<IStreamContent>;
 
 	/**
 	 * Updates the content replacing its previous value.
 	 */
-	updateContent(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): TPromise<IFileStat>;
+	updateContent(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): Promise<IFileStat>;
 
 	/**
 	 * Moves the file to a new path identified by the resource.
 	 *
 	 * The optional parameter overwrite can be set to replace an existing file at the location.
 	 */
-	moveFile(source: URI, target: URI, overwrite?: boolean): TPromise<IFileStat>;
+	moveFile(source: URI, target: URI, overwrite?: boolean): Promise<IFileStat>;
 
 	/**
 	 * Copies the file to a path identified by the resource.
 	 *
 	 * The optional parameter overwrite can be set to replace an existing file at the location.
 	 */
-	copyFile(source: URI, target: URI, overwrite?: boolean): TPromise<IFileStat>;
+	copyFile(source: URI, target: URI, overwrite?: boolean): Promise<IFileStat>;
 
 	/**
 	 * Creates a new file with the given path. The returned promise
@@ -118,20 +122,26 @@ export interface IFileService {
 	 *
 	 * The optional parameter content can be used as value to fill into the new file.
 	 */
-	createFile(resource: URI, content?: string, options?: ICreateFileOptions): TPromise<IFileStat>;
+	createFile(resource: URI, content?: string, options?: ICreateFileOptions): Promise<IFileStat>;
+
+	/**
+	 * Reads a folder's content with the given path. The returned promise
+	 * will have the list of children as a result.
+	 */
+	readFolder(resource: URI): Promise<string[]>;
 
 	/**
 	 * Creates a new folder with the given path. The returned promise
 	 * will have the stat model object as a result.
 	 */
-	createFolder(resource: URI): TPromise<IFileStat>;
+	createFolder(resource: URI): Promise<IFileStat>;
 
 	/**
 	 * Deletes the provided file. The optional useTrash parameter allows to
 	 * move the file to trash. The optional recursive parameter allows to delete
 	 * non-empty folders recursively.
 	 */
-	del(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): TPromise<void>;
+	del(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): Promise<void>;
 
 	/**
 	 * Allows to start a watcher that reports file change events on the provided resource.
@@ -193,25 +203,26 @@ export const enum FileSystemProviderCapabilities {
 export interface IFileSystemProvider {
 
 	readonly capabilities: FileSystemProviderCapabilities;
+	onDidChangeCapabilities: Event<void>;
 
 	onDidChangeFile: Event<IFileChange[]>;
 	watch(resource: URI, opts: IWatchOptions): IDisposable;
 
-	stat(resource: URI): Thenable<IStat>;
-	mkdir(resource: URI): Thenable<void>;
-	readdir(resource: URI): Thenable<[string, FileType][]>;
-	delete(resource: URI, opts: FileDeleteOptions): Thenable<void>;
+	stat(resource: URI): Promise<IStat>;
+	mkdir(resource: URI): Promise<void>;
+	readdir(resource: URI): Promise<[string, FileType][]>;
+	delete(resource: URI, opts: FileDeleteOptions): Promise<void>;
 
-	rename(from: URI, to: URI, opts: FileOverwriteOptions): Thenable<void>;
-	copy?(from: URI, to: URI, opts: FileOverwriteOptions): Thenable<void>;
+	rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void>;
+	copy?(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void>;
 
-	readFile?(resource: URI): Thenable<Uint8Array>;
-	writeFile?(resource: URI, content: Uint8Array, opts: FileWriteOptions): Thenable<void>;
+	readFile?(resource: URI): Promise<Uint8Array>;
+	writeFile?(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void>;
 
-	open?(resource: URI): Thenable<number>;
-	close?(fd: number): Thenable<void>;
-	read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Thenable<number>;
-	write?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Thenable<number>;
+	open?(resource: URI): Promise<number>;
+	close?(fd: number): Promise<void>;
+	read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number>;
+	write?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number>;
 }
 
 export interface IFileSystemProviderRegistrationEvent {
@@ -236,7 +247,7 @@ export class FileOperationEvent {
 		return this._resource;
 	}
 
-	get target(): IFileStat {
+	get target(): IFileStat | undefined {
 		return this._target;
 	}
 
@@ -484,12 +495,15 @@ export interface IStringStream {
  * Will return null when finished.
  */
 export interface ITextSnapshot {
-	read(): string;
+	read(): string | null;
 }
 
 export class StringSnapshot implements ITextSnapshot {
-	constructor(private _value: string) { }
-	read(): string {
+	private _value: string | null;
+	constructor(value: string) {
+		this._value = value;
+	}
+	read(): string | null {
 		let ret = this._value;
 		this._value = null;
 		return ret;
@@ -500,7 +514,7 @@ export class StringSnapshot implements ITextSnapshot {
  */
 export function snapshotToString(snapshot: ITextSnapshot): string {
 	const chunks: string[] = [];
-	let chunk: string;
+	let chunk: string | null;
 	while (typeof (chunk = snapshot.read()) === 'string') {
 		chunks.push(chunk);
 	}

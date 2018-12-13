@@ -11,7 +11,7 @@ import { MainContext, MainThreadDiagnosticsShape, ExtHostDiagnosticsShape, IMain
 import { DiagnosticSeverity, Diagnostic } from './extHostTypes';
 import * as converter from './extHostTypeConverters';
 import { mergeSort, equals } from 'vs/base/common/arrays';
-import { Event, Emitter, debounceEvent, mapEvent } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { keys } from 'vs/base/common/map';
 
 export class DiagnosticCollection implements vscode.DiagnosticCollection {
@@ -75,7 +75,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 			}
 
 			// update single row
-			this._data.set(first.toString(), diagnostics);
+			this._data.set(first.toString(), diagnostics.slice());
 			toSync = [first];
 
 		} else if (Array.isArray(first)) {
@@ -249,7 +249,7 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 		return { uris };
 	}
 
-	readonly onDidChangeDiagnostics: Event<vscode.DiagnosticChangeEvent> = mapEvent(debounceEvent(this._onDidChangeDiagnostics.event, ExtHostDiagnostics._debouncer, 50), ExtHostDiagnostics._mapper);
+	readonly onDidChangeDiagnostics: Event<vscode.DiagnosticChangeEvent> = Event.map(Event.debounce(this._onDidChangeDiagnostics.event, ExtHostDiagnostics._debouncer, 50), ExtHostDiagnostics._mapper);
 
 	constructor(mainContext: IMainContext) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadDiagnostics);

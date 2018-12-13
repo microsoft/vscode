@@ -2,18 +2,19 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import * as assert from 'assert';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IModelDeltaDecoration, TrackedRangeStickiness, EndOfLineSequence } from 'vs/editor/common/model';
+import { EndOfLineSequence, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 
 // --------- utils
 
 interface ILightWeightDecoration2 {
 	range: Range;
-	className: string;
+	className: string | null | undefined;
 }
 
 function modelHasDecorations(model: TextModel, decorations: ILightWeightDecoration2[]) {
@@ -45,11 +46,11 @@ function addDecoration(model: TextModel, startLineNumber: number, startColumn: n
 		return changeAccessor.addDecoration(new Range(startLineNumber, startColumn, endLineNumber, endColumn), {
 			className: className
 		});
-	});
+	})!;
 }
 
 function lineHasDecorations(model: TextModel, lineNumber: number, decorations: { start: number; end: number; className: string; }[]) {
-	let lineDecorations = [];
+	let lineDecorations: Array<{ start: number; end: number; className: string | null | undefined; }> = [];
 	let decs = model.getLineDecorations(lineNumber);
 	for (let i = 0, len = decs.length; i < len; i++) {
 		lineDecorations.push({
@@ -96,7 +97,6 @@ suite('Editor Model - Model Decorations', () => {
 
 	teardown(() => {
 		thisModel.dispose();
-		thisModel = null;
 	});
 
 	test('single character decoration', () => {
@@ -1140,8 +1140,8 @@ suite('deltaDecorations', () => {
 	function readModelDecorations(model: TextModel, ids: string[]): ILightWeightDecoration[] {
 		return ids.map((id) => {
 			return {
-				range: model.getDecorationRange(id),
-				id: model.getDecorationOptions(id).className
+				range: model.getDecorationRange(id)!,
+				id: model.getDecorationOptions(id)!.className!
 			};
 		});
 	}
@@ -1293,7 +1293,7 @@ suite('deltaDecorations', () => {
 
 		let actualDecoration = model.getDecorationOptions(ids[0]);
 
-		assert.deepEqual(actualDecoration.hoverMessage, { value: 'hello2' });
+		assert.deepEqual(actualDecoration!.hoverMessage, { value: 'hello2' });
 
 		model.dispose();
 	});
@@ -1317,7 +1317,7 @@ suite('deltaDecorations', () => {
 			);
 		});
 		model.changeDecorations((changeAccessor) => {
-			changeAccessor.removeDecoration(trackedRangeId);
+			changeAccessor.removeDecoration(trackedRangeId!);
 		});
 
 		let ids = model.deltaDecorations([], [

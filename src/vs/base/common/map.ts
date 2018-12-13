@@ -5,7 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { CharCode } from 'vs/base/common/charCode';
-import { Iterator } from './iterator';
+import { Iterator, IteratorResult, FIN } from './iterator';
 
 export function values<V = any>(set: Set<V>): V[];
 export function values<K = any, V = any>(map: Map<K, V>): V[];
@@ -30,6 +30,44 @@ export function getOrSet<K, V>(map: Map<K, V>, key: K, value: V): V {
 	}
 
 	return result;
+}
+
+export function mapToString<K, V>(map: Map<K, V>): string {
+	const entries: string[] = [];
+	map.forEach((value, key) => {
+		entries.push(`${key} => ${value}`);
+	});
+
+	return `Map(${map.size}) {${entries.join(', ')}}`;
+}
+
+export function setToString<K>(set: Set<K>): string {
+	const entries: K[] = [];
+	set.forEach(value => {
+		entries.push(value);
+	});
+
+	return `Set(${set.size}) {${entries.join(', ')}}`;
+}
+
+export function mapToSerializable(map: Map<string, string>): [string, string][] {
+	const serializable: [string, string][] = [];
+
+	map.forEach((value, key) => {
+		serializable.push([key, value]);
+	});
+
+	return serializable;
+}
+
+export function serializableToMap(serializable: [string, string][]): Map<string, string> {
+	const items = new Map<string, string>();
+
+	for (const [key, value] of serializable) {
+		items.set(key, value);
+	}
+
+	return items;
 }
 
 export interface IKeyIterator {
@@ -139,11 +177,11 @@ export class PathIterator implements IKeyIterator {
 
 class TernarySearchTreeNode<E> {
 	segment: string;
-	value: E;
+	value: E | undefined;
 	key: string;
-	left: TernarySearchTreeNode<E>;
-	mid: TernarySearchTreeNode<E>;
-	right: TernarySearchTreeNode<E>;
+	left: TernarySearchTreeNode<E> | undefined;
+	mid: TernarySearchTreeNode<E> | undefined;
+	right: TernarySearchTreeNode<E> | undefined;
 
 	isEmpty(): boolean {
 		return !this.left && !this.mid && !this.right && !this.value;
@@ -161,7 +199,7 @@ export class TernarySearchTree<E> {
 	}
 
 	private _iter: IKeyIterator;
-	private _root: TernarySearchTreeNode<E>;
+	private _root: TernarySearchTreeNode<E> | undefined;
 
 	constructor(segments: IKeyIterator) {
 		this._iter = segments;
@@ -171,7 +209,7 @@ export class TernarySearchTree<E> {
 		this._root = undefined;
 	}
 
-	set(key: string, element: E): E {
+	set(key: string, element: E): E | undefined {
 		let iter = this._iter.reset(key);
 		let node: TernarySearchTreeNode<E>;
 
@@ -217,7 +255,7 @@ export class TernarySearchTree<E> {
 		return oldElement;
 	}
 
-	get(key: string): E {
+	get(key: string): E | undefined {
 		let iter = this._iter.reset(key);
 		let node = this._root;
 		while (node) {
@@ -267,7 +305,7 @@ export class TernarySearchTree<E> {
 
 				// clean up empty nodes
 				while (stack.length > 0 && node.isEmpty()) {
-					let [dir, parent] = stack.pop();
+					let [dir, parent] = stack.pop()!;
 					switch (dir) {
 						case 1: parent.left = undefined; break;
 						case 0: parent.mid = undefined; break;
@@ -280,10 +318,10 @@ export class TernarySearchTree<E> {
 		}
 	}
 
-	findSubstr(key: string): E {
+	findSubstr(key: string): E | undefined {
 		let iter = this._iter.reset(key);
 		let node = this._root;
-		let candidate: E;
+		let candidate: E | undefined = undefined;
 		while (node) {
 			let val = iter.cmp(node.segment);
 			if (val > 0) {
@@ -304,7 +342,7 @@ export class TernarySearchTree<E> {
 		return node && node.value || candidate;
 	}
 
-	findSuperstr(key: string): Iterator<E> {
+	findSuperstr(key: string): Iterator<E> | undefined {
 		let iter = this._iter.reset(key);
 		let node = this._root;
 		while (node) {
@@ -332,13 +370,10 @@ export class TernarySearchTree<E> {
 	}
 
 	private _nodeIterator(node: TernarySearchTreeNode<E>): Iterator<E> {
-		let res = {
-			done: false,
-			value: undefined
-		};
+		let res: { done: false; value: E; };
 		let idx: number;
 		let data: E[];
-		let next = () => {
+		let next = (): IteratorResult<E> => {
 			if (!data) {
 				// lazy till first invocation
 				data = [];
@@ -346,10 +381,12 @@ export class TernarySearchTree<E> {
 				this._forEach(node, value => data.push(value));
 			}
 			if (idx >= data.length) {
-				res.done = true;
-				res.value = undefined;
+				return FIN;
+			}
+
+			if (!res) {
+				res = { done: false, value: data[idx++] };
 			} else {
-				res.done = false;
 				res.value = data[idx++];
 			}
 			return res;
@@ -361,7 +398,7 @@ export class TernarySearchTree<E> {
 		this._forEach(this._root, callback);
 	}
 
-	private _forEach(node: TernarySearchTreeNode<E>, callback: (value: E, index: string) => any) {
+	private _forEach(node: TernarySearchTreeNode<E> | undefined, callback: (value: E, index: string) => any) {
 		if (node) {
 			// left
 			this._forEach(node.left, callback);
@@ -390,35 +427,35 @@ export class ResourceMap<T> {
 		this.ignoreCase = false; // in the future this should be an uri-comparator
 	}
 
-	public set(resource: URI, value: T): void {
+	set(resource: URI, value: T): void {
 		this.map.set(this.toKey(resource), value);
 	}
 
-	public get(resource: URI): T {
+	get(resource: URI): T {
 		return this.map.get(this.toKey(resource));
 	}
 
-	public has(resource: URI): boolean {
+	has(resource: URI): boolean {
 		return this.map.has(this.toKey(resource));
 	}
 
-	public get size(): number {
+	get size(): number {
 		return this.map.size;
 	}
 
-	public clear(): void {
+	clear(): void {
 		this.map.clear();
 	}
 
-	public delete(resource: URI): boolean {
+	delete(resource: URI): boolean {
 		return this.map.delete(this.toKey(resource));
 	}
 
-	public forEach(clb: (value: T) => void): void {
+	forEach(clb: (value: T) => void): void {
 		this.map.forEach(clb);
 	}
 
-	public values(): T[] {
+	values(): T[] {
 		return values(this.map);
 	}
 
@@ -431,11 +468,11 @@ export class ResourceMap<T> {
 		return key;
 	}
 
-	public keys(): URI[] {
-		return keys(this.map).map(URI.parse);
+	keys(): URI[] {
+		return keys(this.map).map(k => URI.parse(k));
 	}
 
-	public clone(): ResourceMap<T> {
+	clone(): ResourceMap<T> {
 		const resourceMap = new ResourceMap<T>();
 
 		this.map.forEach((value, key) => resourceMap.map.set(key, value));
@@ -473,26 +510,26 @@ export class LinkedMap<K, V> {
 		this._size = 0;
 	}
 
-	public clear(): void {
+	clear(): void {
 		this._map.clear();
 		this._head = undefined;
 		this._tail = undefined;
 		this._size = 0;
 	}
 
-	public isEmpty(): boolean {
+	isEmpty(): boolean {
 		return !this._head && !this._tail;
 	}
 
-	public get size(): number {
+	get size(): number {
 		return this._size;
 	}
 
-	public has(key: K): boolean {
+	has(key: K): boolean {
 		return this._map.has(key);
 	}
 
-	public get(key: K, touch: Touch = Touch.None): V | undefined {
+	get(key: K, touch: Touch = Touch.None): V | undefined {
 		const item = this._map.get(key);
 		if (!item) {
 			return undefined;
@@ -503,7 +540,7 @@ export class LinkedMap<K, V> {
 		return item.value;
 	}
 
-	public set(key: K, value: V, touch: Touch = Touch.None): void {
+	set(key: K, value: V, touch: Touch = Touch.None): void {
 		let item = this._map.get(key);
 		if (item) {
 			item.value = value;
@@ -531,11 +568,11 @@ export class LinkedMap<K, V> {
 		}
 	}
 
-	public delete(key: K): boolean {
+	delete(key: K): boolean {
 		return !!this.remove(key);
 	}
 
-	public remove(key: K): V | undefined {
+	remove(key: K): V | undefined {
 		const item = this._map.get(key);
 		if (!item) {
 			return undefined;
@@ -546,7 +583,7 @@ export class LinkedMap<K, V> {
 		return item.value;
 	}
 
-	public shift(): V | undefined {
+	shift(): V | undefined {
 		if (!this._head && !this._tail) {
 			return undefined;
 		}
@@ -560,7 +597,7 @@ export class LinkedMap<K, V> {
 		return item.value;
 	}
 
-	public forEach(callbackfn: (value: V, key: K, map: LinkedMap<K, V>) => void, thisArg?: any): void {
+	forEach(callbackfn: (value: V, key: K, map: LinkedMap<K, V>) => void, thisArg?: any): void {
 		let current = this._head;
 		while (current) {
 			if (thisArg) {
@@ -572,7 +609,7 @@ export class LinkedMap<K, V> {
 		}
 	}
 
-	public values(): V[] {
+	values(): V[] {
 		let result: V[] = [];
 		let current = this._head;
 		while (current) {
@@ -582,7 +619,7 @@ export class LinkedMap<K, V> {
 		return result;
 	}
 
-	public keys(): K[] {
+	keys(): K[] {
 		let result: K[] = [];
 		let current = this._head;
 		while (current) {
@@ -593,7 +630,7 @@ export class LinkedMap<K, V> {
 	}
 
 	/* VS Code / Monaco editor runs on es5 which has no Symbol.iterator
-	public keys(): IterableIterator<K> {
+	keys(): IterableIterator<K> {
 		let current = this._head;
 		let iterator: IterableIterator<K> = {
 			[Symbol.iterator]() {
@@ -612,7 +649,7 @@ export class LinkedMap<K, V> {
 		return iterator;
 	}
 
-	public values(): IterableIterator<V> {
+	values(): IterableIterator<V> {
 		let current = this._head;
 		let iterator: IterableIterator<V> = {
 			[Symbol.iterator]() {
@@ -649,7 +686,9 @@ export class LinkedMap<K, V> {
 		}
 		this._head = current;
 		this._size = currentSize;
-		current.previous = void 0;
+		if (current) {
+			current.previous = void 0;
+		}
 	}
 
 	private addItemFirst(item: Item<K, V>): void {
@@ -760,7 +799,7 @@ export class LinkedMap<K, V> {
 		}
 	}
 
-	public toJSON(): [K, V][] {
+	toJSON(): [K, V][] {
 		const data: [K, V][] = [];
 
 		this.forEach((value, key) => {
@@ -770,7 +809,7 @@ export class LinkedMap<K, V> {
 		return data;
 	}
 
-	public fromJSON(data: [K, V][]): void {
+	fromJSON(data: [K, V][]): void {
 		this.clear();
 
 		for (const [key, value] of data) {
@@ -790,33 +829,33 @@ export class LRUCache<K, V> extends LinkedMap<K, V> {
 		this._ratio = Math.min(Math.max(0, ratio), 1);
 	}
 
-	public get limit(): number {
+	get limit(): number {
 		return this._limit;
 	}
 
-	public set limit(limit: number) {
+	set limit(limit: number) {
 		this._limit = limit;
 		this.checkTrim();
 	}
 
-	public get ratio(): number {
+	get ratio(): number {
 		return this._ratio;
 	}
 
-	public set ratio(ratio: number) {
+	set ratio(ratio: number) {
 		this._ratio = Math.min(Math.max(0, ratio), 1);
 		this.checkTrim();
 	}
 
-	public get(key: K): V | undefined {
+	get(key: K): V | undefined {
 		return super.get(key, Touch.AsNew);
 	}
 
-	public peek(key: K): V | undefined {
+	peek(key: K): V | undefined {
 		return super.get(key, Touch.None);
 	}
 
-	public set(key: K, value: V): void {
+	set(key: K, value: V): void {
 		super.set(key, value, Touch.AsNew);
 		this.checkTrim();
 	}

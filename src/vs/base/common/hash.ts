@@ -22,9 +22,9 @@ export function hash(obj: any, hashVal = 0): number {
 		case 'number':
 			return numberHash(obj, hashVal);
 		case 'undefined':
-			return numberHash(obj, 937);
+			return numberHash(0, 937);
 		default:
-			return numberHash(obj, 617);
+			return numberHash(0, 617);
 	}
 }
 
@@ -55,4 +55,18 @@ function objectHash(obj: any, initialHashVal: number): number {
 		hashVal = stringHash(key, hashVal);
 		return hash(obj[key], hashVal);
 	}, initialHashVal);
+}
+
+export class Hasher {
+
+	private _value = 0;
+
+	get value(): number {
+		return this._value;
+	}
+
+	hash(obj: any): number {
+		this._value = hash(obj, this._value);
+		return this._value;
+	}
 }

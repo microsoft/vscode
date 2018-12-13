@@ -21,14 +21,18 @@ export class ReplacePattern {
 		let parseParameters: boolean;
 		if (typeof arg2 === 'boolean') {
 			parseParameters = arg2;
+			this._regExp = arg3;
+
 		} else {
 			searchPatternInfo = arg2;
-			parseParameters = searchPatternInfo.isRegExp;
+			parseParameters = !!searchPatternInfo.isRegExp;
+			this._regExp = strings.createRegExp(searchPatternInfo.pattern, !!searchPatternInfo.isRegExp, { matchCase: searchPatternInfo.isCaseSensitive, wholeWord: searchPatternInfo.isWordMatch, multiline: searchPatternInfo.isMultiline, global: false });
 		}
+
 		if (parseParameters) {
 			this.parseReplaceString(replaceString);
 		}
-		this._regExp = arg3 ? arg3 : strings.createRegExp(searchPatternInfo.pattern, searchPatternInfo.isRegExp, { matchCase: searchPatternInfo.isCaseSensitive, wholeWord: searchPatternInfo.isWordMatch, multiline: searchPatternInfo.isMultiline, global: false });
+
 		if (this._regExp.global) {
 			this._regExp = strings.createRegExp(this._regExp.source, true, { matchCase: !this._regExp.ignoreCase, wholeWord: false, multiline: this._regExp.multiline, global: false });
 		}
@@ -50,7 +54,7 @@ export class ReplacePattern {
 	* Returns the replace string for the first match in the given text.
 	* If text has no matches then returns null.
 	*/
-	public getReplaceString(text: string): string {
+	public getReplaceString(text: string): string | null {
 		this._regExp.lastIndex = 0;
 		let match = this._regExp.exec(text);
 		if (match) {
@@ -63,6 +67,7 @@ export class ReplacePattern {
 			}
 			return this.pattern;
 		}
+
 		return null;
 	}
 
@@ -93,7 +98,7 @@ export class ReplacePattern {
 				}
 
 				let nextChCode = replaceString.charCodeAt(i);
-				let replaceWithCharacter: string = null;
+				let replaceWithCharacter: string | null = null;
 
 				switch (nextChCode) {
 					case CharCode.Backslash:
@@ -127,7 +132,7 @@ export class ReplacePattern {
 				}
 
 				let nextChCode = replaceString.charCodeAt(i);
-				let replaceWithCharacter: string = null;
+				let replaceWithCharacter: string | null = null;
 
 				switch (nextChCode) {
 					case CharCode.Digit0:

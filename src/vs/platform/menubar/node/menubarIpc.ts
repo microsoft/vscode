@@ -2,29 +2,24 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { IChannel } from 'vs/base/parts/ipc/node/ipc';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { IMenubarService, IMenubarData, IMenubarKeybinding } from 'vs/platform/menubar/common/menubar';
+import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
+import { IMenubarService, IMenubarData } from 'vs/platform/menubar/common/menubar';
 import { Event } from 'vs/base/common/event';
 
-export interface IMenubarChannel extends IChannel {
-	call(command: 'updateMenubar', arg: [number, IMenubarData]): TPromise<void>;
-	call(command: string, arg?: any): TPromise<any>;
-}
-
-export class MenubarChannel implements IMenubarChannel {
+export class MenubarChannel implements IServerChannel {
 
 	constructor(private service: IMenubarService) { }
 
-	listen<T>(event: string, arg?: any): Event<T> {
-		throw new Error('No events');
+	listen<T>(_, event: string): Event<T> {
+		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(command: string, arg?: any): TPromise<any> {
+	call(_, command: string, arg?: any): Promise<any> {
 		switch (command) {
-			case 'updateMenubar': return this.service.updateMenubar(arg[0], arg[1], arg[2]);
+			case 'updateMenubar': return this.service.updateMenubar(arg[0], arg[1]);
 		}
-		return undefined;
+
+		throw new Error(`Call not found: ${command}`);
 	}
 }
 
@@ -32,9 +27,9 @@ export class MenubarChannelClient implements IMenubarService {
 
 	_serviceBrand: any;
 
-	constructor(private channel: IMenubarChannel) { }
+	constructor(private channel: IChannel) { }
 
-	updateMenubar(windowId: number, menus: IMenubarData, additionalKeybindings?: Array<IMenubarKeybinding>): TPromise<void> {
-		return this.channel.call('updateMenubar', [windowId, menus, additionalKeybindings]);
+	updateMenubar(windowId: number, menuData: IMenubarData): Promise<void> {
+		return this.channel.call('updateMenubar', [windowId, menuData]);
 	}
 }

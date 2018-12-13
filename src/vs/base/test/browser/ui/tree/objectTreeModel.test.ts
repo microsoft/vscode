@@ -24,7 +24,7 @@ function toArray<T>(list: ITreeNode<T>[]): T[] {
 suite('ObjectTreeModel', function () {
 
 	test('ctor', () => {
-		const list = [] as ITreeNode<number>[];
+		const list: ITreeNode<number>[] = [];
 		const model = new ObjectTreeModel<number>(toSpliceable(list));
 		assert(model);
 		assert.equal(list.length, 0);
@@ -32,7 +32,7 @@ suite('ObjectTreeModel', function () {
 	});
 
 	test('flat', () => {
-		const list = [] as ITreeNode<number>[];
+		const list: ITreeNode<number>[] = [];
 		const model = new ObjectTreeModel<number>(toSpliceable(list));
 
 		model.setChildren(null, Iterator.fromArray([
@@ -53,13 +53,13 @@ suite('ObjectTreeModel', function () {
 		assert.deepEqual(toArray(list), [3, 4, 5]);
 		assert.equal(model.size, 3);
 
-		model.setChildren(null);
+		model.setChildren(null, Iterator.empty());
 		assert.deepEqual(toArray(list), []);
 		assert.equal(model.size, 0);
 	});
 
 	test('nested', () => {
-		const list = [] as ITreeNode<number>[];
+		const list: ITreeNode<number>[] = [];
 		const model = new ObjectTreeModel<number>(toSpliceable(list));
 
 		model.setChildren(null, Iterator.fromArray([
@@ -85,17 +85,17 @@ suite('ObjectTreeModel', function () {
 		assert.deepEqual(toArray(list), [0, 10, 11, 12, 120, 121, 1, 2]);
 		assert.equal(model.size, 8);
 
-		model.setChildren(0);
+		model.setChildren(0, Iterator.empty());
 		assert.deepEqual(toArray(list), [0, 1, 2]);
 		assert.equal(model.size, 3);
 
-		model.setChildren(null);
+		model.setChildren(null, Iterator.empty());
 		assert.deepEqual(toArray(list), []);
 		assert.equal(model.size, 0);
 	});
 
 	test('setChildren on collapsed node', () => {
-		const list = [] as ITreeNode<number>[];
+		const list: ITreeNode<number>[] = [];
 		const model = new ObjectTreeModel<number>(toSpliceable(list));
 
 		model.setChildren(null, Iterator.fromArray([
@@ -116,7 +116,7 @@ suite('ObjectTreeModel', function () {
 	});
 
 	test('setChildren on expanded, unrevealed node', () => {
-		const list = [] as ITreeNode<number>[];
+		const list: ITreeNode<number>[] = [];
 		const model = new ObjectTreeModel<number>(toSpliceable(list));
 
 		model.setChildren(null, [
@@ -139,5 +139,33 @@ suite('ObjectTreeModel', function () {
 
 		model.setCollapsed(1, false);
 		assert.deepEqual(toArray(list), [1, 11, 111, 112, 2]);
+	});
+
+	test('collapse state is preserved with strict identity', () => {
+		const list: ITreeNode<string>[] = [];
+		const model = new ObjectTreeModel<string>(toSpliceable(list), { collapseByDefault: true });
+		const data = [{ element: 'father', children: [{ element: 'child' }] }];
+
+		model.setChildren(null, data);
+		assert.deepEqual(toArray(list), ['father']);
+
+		model.setCollapsed('father', false);
+		assert.deepEqual(toArray(list), ['father', 'child']);
+
+		model.setChildren(null, data);
+		assert.deepEqual(toArray(list), ['father', 'child']);
+
+		const data2 = [{ element: 'father', children: [{ element: 'child' }] }, { element: 'uncle' }];
+		model.setChildren(null, data2);
+		assert.deepEqual(toArray(list), ['father', 'child', 'uncle']);
+
+		model.setChildren(null, [{ element: 'uncle' }]);
+		assert.deepEqual(toArray(list), ['uncle']);
+
+		model.setChildren(null, data2);
+		assert.deepEqual(toArray(list), ['father', 'uncle']);
+
+		model.setChildren(null, data);
+		assert.deepEqual(toArray(list), ['father']);
 	});
 });

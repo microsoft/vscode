@@ -3,39 +3,28 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var __assign = (this && this.__assign) || function () {
-    __assign = Object.assign || function(t) {
-        for (var s, i = 1, n = arguments.length; i < n; i++) {
-            s = arguments[i];
-            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
-                t[p] = s[p];
-        }
-        return t;
-    };
-    return __assign.apply(this, arguments);
-};
 Object.defineProperty(exports, "__esModule", { value: true });
-var es = require("event-stream");
-var fs = require("fs");
-var glob = require("glob");
-var gulp = require("gulp");
-var path = require("path");
-var File = require("vinyl");
-var vsce = require("vsce");
-var stats_1 = require("./stats");
-var util2 = require("./util");
-var remote = require("gulp-remote-src");
-var vzip = require('gulp-vinyl-zip');
-var filter = require("gulp-filter");
-var rename = require("gulp-rename");
-var util = require('gulp-util');
-var buffer = require('gulp-buffer');
-var json = require("gulp-json-editor");
-var webpack = require('webpack');
-var webpackGulp = require('webpack-stream');
-var root = path.resolve(path.join(__dirname, '..', '..'));
+const es = require("event-stream");
+const fs = require("fs");
+const glob = require("glob");
+const gulp = require("gulp");
+const path = require("path");
+const File = require("vinyl");
+const vsce = require("vsce");
+const stats_1 = require("./stats");
+const util2 = require("./util");
+const remote = require("gulp-remote-src");
+const vzip = require('gulp-vinyl-zip');
+const filter = require("gulp-filter");
+const rename = require("gulp-rename");
+const util = require('gulp-util');
+const buffer = require('gulp-buffer');
+const json = require("gulp-json-editor");
+const webpack = require('webpack');
+const webpackGulp = require('webpack-stream');
+const root = path.resolve(path.join(__dirname, '..', '..'));
 function fromLocal(extensionPath, sourceMappingURLBase) {
-    var webpackFilename = path.join(extensionPath, 'extension.webpack.config.js');
+    const webpackFilename = path.join(extensionPath, 'extension.webpack.config.js');
     if (fs.existsSync(webpackFilename)) {
         return fromLocalWebpack(extensionPath, sourceMappingURLBase);
     }
@@ -44,30 +33,32 @@ function fromLocal(extensionPath, sourceMappingURLBase) {
     }
 }
 function fromLocalWebpack(extensionPath, sourceMappingURLBase) {
-    var result = es.through();
-    var packagedDependencies = [];
-    var packageJsonConfig = require(path.join(extensionPath, 'package.json'));
-    var webpackRootConfig = require(path.join(extensionPath, 'extension.webpack.config.js'));
-    for (var key in webpackRootConfig.externals) {
-        if (key in packageJsonConfig.dependencies) {
-            packagedDependencies.push(key);
+    const result = es.through();
+    const packagedDependencies = [];
+    const packageJsonConfig = require(path.join(extensionPath, 'package.json'));
+    if (packageJsonConfig.dependencies) {
+        const webpackRootConfig = require(path.join(extensionPath, 'extension.webpack.config.js'));
+        for (const key in webpackRootConfig.externals) {
+            if (key in packageJsonConfig.dependencies) {
+                packagedDependencies.push(key);
+            }
         }
     }
-    vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.Yarn, packagedDependencies: packagedDependencies }).then(function (fileNames) {
-        var files = fileNames
-            .map(function (fileName) { return path.join(extensionPath, fileName); })
-            .map(function (filePath) { return new File({
+    vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.Yarn, packagedDependencies }).then(fileNames => {
+        const files = fileNames
+            .map(fileName => path.join(extensionPath, fileName))
+            .map(filePath => new File({
             path: filePath,
             stat: fs.statSync(filePath),
             base: extensionPath,
             contents: fs.createReadStream(filePath)
-        }); });
-        var filesStream = es.readArray(files);
+        }));
+        const filesStream = es.readArray(files);
         // check for a webpack configuration files, then invoke webpack
         // and merge its output with the files stream. also rewrite the package.json
         // file to a new entry point
-        var webpackConfigLocations = glob.sync(path.join(extensionPath, '/**/extension.webpack.config.js'), { ignore: ['**/node_modules'] });
-        var packageJsonFilter = filter(function (f) {
+        const webpackConfigLocations = glob.sync(path.join(extensionPath, '/**/extension.webpack.config.js'), { ignore: ['**/node_modules'] });
+        const packageJsonFilter = filter(f => {
             if (path.basename(f.path) === 'package.json') {
                 // only modify package.json's next to the webpack file.
                 // to be safe, use existsSync instead of path comparison.
@@ -75,22 +66,24 @@ function fromLocalWebpack(extensionPath, sourceMappingURLBase) {
             }
             return false;
         }, { restore: true });
-        var patchFilesStream = filesStream
+        const patchFilesStream = filesStream
             .pipe(packageJsonFilter)
             .pipe(buffer())
-            .pipe(json(function (data) {
-            // hardcoded entry point directory!
-            data.main = data.main.replace('/out/', /dist/);
+            .pipe(json((data) => {
+            if (data.main) {
+                // hardcoded entry point directory!
+                data.main = data.main.replace('/out/', /dist/);
+            }
             return data;
         }))
             .pipe(packageJsonFilter.restore);
-        var webpackStreams = webpackConfigLocations.map(function (webpackConfigPath) {
-            var webpackDone = function (err, stats) {
-                util.log("Bundled extension: " + util.colors.yellow(path.join(path.basename(extensionPath), path.relative(extensionPath, webpackConfigPath))) + "...");
+        const webpackStreams = webpackConfigLocations.map(webpackConfigPath => () => {
+            const webpackDone = (err, stats) => {
+                util.log(`Bundled extension: ${util.colors.yellow(path.join(path.basename(extensionPath), path.relative(extensionPath, webpackConfigPath)))}...`);
                 if (err) {
                     result.emit('error', err);
                 }
-                var compilation = stats.compilation;
+                const { compilation } = stats;
                 if (compilation.errors.length > 0) {
                     result.emit('error', compilation.errors.join('\n'));
                 }
@@ -98,8 +91,8 @@ function fromLocalWebpack(extensionPath, sourceMappingURLBase) {
                     result.emit('error', compilation.warnings.join('\n'));
                 }
             };
-            var webpackConfig = __assign({}, require(webpackConfigPath), { mode: 'production' });
-            var relativeOutputPath = path.relative(extensionPath, webpackConfig.output.path);
+            const webpackConfig = Object.assign({}, require(webpackConfigPath), { mode: 'production' });
+            const relativeOutputPath = path.relative(extensionPath, webpackConfig.output.path);
             return webpackGulp(webpackConfig, webpack, webpackDone)
                 .pipe(es.through(function (data) {
                 data.stat = data.stat || {};
@@ -111,9 +104,9 @@ function fromLocalWebpack(extensionPath, sourceMappingURLBase) {
                 // * rewrite sourceMappingURL
                 // * save to disk so that upload-task picks this up
                 if (sourceMappingURLBase) {
-                    var contents = data.contents.toString('utf8');
+                    const contents = data.contents.toString('utf8');
                     data.contents = Buffer.from(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, function (_m, g1) {
-                        return "\n//# sourceMappingURL=" + sourceMappingURLBase + "/extensions/" + path.basename(extensionPath) + "/" + relativeOutputPath + "/" + g1;
+                        return `\n//# sourceMappingURL=${sourceMappingURLBase}/extensions/${path.basename(extensionPath)}/${relativeOutputPath}/${g1}`;
                     }), 'utf8');
                     if (/\.js\.map$/.test(data.path)) {
                         if (!fs.existsSync(path.dirname(data.path))) {
@@ -125,8 +118,14 @@ function fromLocalWebpack(extensionPath, sourceMappingURLBase) {
                 this.emit('data', data);
             }));
         });
-        es.merge.apply(es, webpackStreams.concat([patchFilesStream])).pipe(result);
-    }).catch(function (err) {
+        es.merge(sequence(webpackStreams), patchFilesStream)
+            // .pipe(es.through(function (data) {
+            // 	// debug
+            // 	console.log('out', data.path, data.contents.length);
+            // 	this.emit('data', data);
+            // }))
+            .pipe(result);
+    }).catch(err => {
         console.error(extensionPath);
         console.error(packagedDependencies);
         result.emit('error', err);
@@ -134,56 +133,56 @@ function fromLocalWebpack(extensionPath, sourceMappingURLBase) {
     return result.pipe(stats_1.createStatsStream(path.basename(extensionPath)));
 }
 function fromLocalNormal(extensionPath) {
-    var result = es.through();
+    const result = es.through();
     vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.Yarn })
-        .then(function (fileNames) {
-        var files = fileNames
-            .map(function (fileName) { return path.join(extensionPath, fileName); })
-            .map(function (filePath) { return new File({
+        .then(fileNames => {
+        const files = fileNames
+            .map(fileName => path.join(extensionPath, fileName))
+            .map(filePath => new File({
             path: filePath,
             stat: fs.statSync(filePath),
             base: extensionPath,
             contents: fs.createReadStream(filePath)
-        }); });
+        }));
         es.readArray(files).pipe(result);
     })
-        .catch(function (err) { return result.emit('error', err); });
+        .catch(err => result.emit('error', err));
     return result.pipe(stats_1.createStatsStream(path.basename(extensionPath)));
 }
-var baseHeaders = {
+const baseHeaders = {
     'X-Market-Client-Id': 'VSCode Build',
     'User-Agent': 'VSCode Build',
     'X-Market-User-Id': '291C1CD0-051A-4123-9B4B-30D60EF52EE2',
 };
 function fromMarketplace(extensionName, version, metadata) {
-    var _a = extensionName.split('.'), publisher = _a[0], name = _a[1];
-    var url = "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/" + publisher + "/vsextensions/" + name + "/" + version + "/vspackage";
-    util.log('Downloading extension:', util.colors.yellow(extensionName + "@" + version), '...');
-    var options = {
+    const [publisher, name] = extensionName.split('.');
+    const url = `https://marketplace.visualstudio.com/_apis/public/gallery/publishers/${publisher}/vsextensions/${name}/${version}/vspackage`;
+    util.log('Downloading extension:', util.colors.yellow(`${extensionName}@${version}`), '...');
+    const options = {
         base: url,
         requestOptions: {
             gzip: true,
             headers: baseHeaders
         }
     };
-    var packageJsonFilter = filter('package.json', { restore: true });
+    const packageJsonFilter = filter('package.json', { restore: true });
     return remote('', options)
         .pipe(vzip.src())
         .pipe(filter('extension/**'))
-        .pipe(rename(function (p) { return p.dirname = p.dirname.replace(/^extension\/?/, ''); }))
+        .pipe(rename(p => p.dirname = p.dirname.replace(/^extension\/?/, '')))
         .pipe(packageJsonFilter)
         .pipe(buffer())
         .pipe(json({ __metadata: metadata }))
         .pipe(packageJsonFilter.restore);
 }
 exports.fromMarketplace = fromMarketplace;
-var excludedExtensions = [
+const excludedExtensions = [
     'vscode-api-tests',
     'vscode-colorize-tests',
     'ms-vscode.node-debug',
     'ms-vscode.node-debug2',
 ];
-var builtInExtensions = require('../builtInExtensions.json');
+const builtInExtensions = require('../builtInExtensions.json');
 /**
  * We're doing way too much stuff at once, with webpack et al. So much stuff
  * that while downloading extensions from the marketplace, node js doesn't get enough
@@ -191,13 +190,13 @@ var builtInExtensions = require('../builtInExtensions.json');
  * marketplace server cuts off the http request. So, we sequentialize the extensino tasks.
  */
 function sequence(streamProviders) {
-    var result = es.through();
+    const result = es.through();
     function pop() {
         if (streamProviders.length === 0) {
             result.emit('end');
         }
         else {
-            var fn = streamProviders.shift();
+            const fn = streamProviders.shift();
             fn()
                 .on('end', function () { setTimeout(pop, 0); })
                 .pipe(result, { end: false });
@@ -207,39 +206,27 @@ function sequence(streamProviders) {
     return result;
 }
 function packageExtensionsStream(optsIn) {
-    var opts = optsIn || {};
-    var localExtensionDescriptions = glob.sync('extensions/*/package.json')
-        .map(function (manifestPath) {
-        var extensionPath = path.dirname(path.join(root, manifestPath));
-        var extensionName = path.basename(extensionPath);
+    const opts = optsIn || {};
+    const localExtensionDescriptions = glob.sync('extensions/*/package.json')
+        .map(manifestPath => {
+        const extensionPath = path.dirname(path.join(root, manifestPath));
+        const extensionName = path.basename(extensionPath);
         return { name: extensionName, path: extensionPath };
     })
-        .filter(function (_a) {
-        var name = _a.name;
-        return excludedExtensions.indexOf(name) === -1;
-    })
-        .filter(function (_a) {
-        var name = _a.name;
-        return opts.desiredExtensions ? opts.desiredExtensions.indexOf(name) >= 0 : true;
-    })
-        .filter(function (_a) {
-        var name = _a.name;
-        return builtInExtensions.every(function (b) { return b.name !== name; });
-    });
-    var localExtensions = function () { return es.merge.apply(es, localExtensionDescriptions.map(function (extension) {
-        return fromLocal(extension.path, opts.sourceMappingURLBase)
-            .pipe(rename(function (p) { return p.dirname = "extensions/" + extension.name + "/" + p.dirname; }));
-    })); };
-    var localExtensionDependencies = function () { return gulp.src('extensions/node_modules/**', { base: '.' }); };
-    var marketplaceExtensions = function () { return es.merge.apply(es, builtInExtensions
-        .filter(function (_a) {
-        var name = _a.name;
-        return opts.desiredExtensions ? opts.desiredExtensions.indexOf(name) >= 0 : true;
-    })
-        .map(function (extension) {
+        .filter(({ name }) => excludedExtensions.indexOf(name) === -1)
+        .filter(({ name }) => opts.desiredExtensions ? opts.desiredExtensions.indexOf(name) >= 0 : true)
+        .filter(({ name }) => builtInExtensions.every(b => b.name !== name));
+    const localExtensions = () => sequence([...localExtensionDescriptions.map(extension => () => {
+            return fromLocal(extension.path, opts.sourceMappingURLBase)
+                .pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
+        })]);
+    const localExtensionDependencies = () => gulp.src('extensions/node_modules/**', { base: '.' });
+    const marketplaceExtensions = () => es.merge(...builtInExtensions
+        .filter(({ name }) => opts.desiredExtensions ? opts.desiredExtensions.indexOf(name) >= 0 : true)
+        .map(extension => {
         return fromMarketplace(extension.name, extension.version, extension.metadata)
-            .pipe(rename(function (p) { return p.dirname = "extensions/" + extension.name + "/" + p.dirname; }));
-    })); };
+            .pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
+    }));
     return sequence([localExtensions, localExtensionDependencies, marketplaceExtensions])
         .pipe(util2.setExecutableBit(['**/*.sh']))
         .pipe(filter(['**', '!**/*.js.map']));

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./tree';
-import * as WinJS from 'vs/base/common/winjs.base';
 import * as TreeDefaults from 'vs/base/parts/tree/browser/treeDefaults';
 import * as Model from 'vs/base/parts/tree/browser/treeModel';
 import * as View from './treeView';
@@ -150,7 +149,7 @@ export class Tree implements _.ITree {
 		this.view.onHidden();
 	}
 
-	public setInput(element: any): WinJS.Promise {
+	public setInput(element: any): Promise<any> {
 		return this.model.setInput(element);
 	}
 
@@ -158,7 +157,7 @@ export class Tree implements _.ITree {
 		return this.model.getInput();
 	}
 
-	public refresh(element: any = null, recursive = true): WinJS.Promise {
+	public refresh(element: any = null, recursive = true): Promise<any> {
 		return this.model.refresh(element, recursive);
 	}
 
@@ -167,27 +166,27 @@ export class Tree implements _.ITree {
 		return this.view.updateWidth(item);
 	}
 
-	public expand(element: any): WinJS.Promise {
+	public expand(element: any): Promise<any> {
 		return this.model.expand(element);
 	}
 
-	public expandAll(elements: any[]): WinJS.Promise {
+	public expandAll(elements: any[]): Promise<any> {
 		return this.model.expandAll(elements);
 	}
 
-	public collapse(element: any, recursive: boolean = false): WinJS.Promise {
+	public collapse(element: any, recursive: boolean = false): Promise<any> {
 		return this.model.collapse(element, recursive);
 	}
 
-	public collapseAll(elements: any[] = null, recursive: boolean = false): WinJS.Promise {
+	public collapseAll(elements: any[] | null = null, recursive: boolean = false): Promise<any> {
 		return this.model.collapseAll(elements, recursive);
 	}
 
-	public toggleExpansion(element: any, recursive: boolean = false): WinJS.Promise {
+	public toggleExpansion(element: any, recursive: boolean = false): Promise<any> {
 		return this.model.toggleExpansion(element, recursive);
 	}
 
-	public toggleExpansionAll(elements: any[]): WinJS.Promise {
+	public toggleExpansionAll(elements: any[]): Promise<any> {
 		return this.model.toggleExpansionAll(elements);
 	}
 
@@ -199,7 +198,7 @@ export class Tree implements _.ITree {
 		return this.model.getExpandedElements();
 	}
 
-	public reveal(element: any, relativeTop: number = null): WinJS.Promise {
+	public reveal(element: any, relativeTop: number | null = null): Promise<any> {
 		return this.model.reveal(element, relativeTop);
 	}
 

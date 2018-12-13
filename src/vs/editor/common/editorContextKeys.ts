@@ -28,24 +28,25 @@ export namespace EditorContextKeys {
 	export const hasSingleSelection: ContextKeyExpr = hasMultipleSelections.toNegated();
 	export const tabMovesFocus = new RawContextKey<boolean>('editorTabMovesFocus', false);
 	export const tabDoesNotMoveFocus: ContextKeyExpr = tabMovesFocus.toNegated();
-	export const isInEmbeddedEditor = new RawContextKey<boolean>('isInEmbeddedEditor', undefined);
+	export const isInEmbeddedEditor = new RawContextKey<boolean>('isInEmbeddedEditor', false);
 	export const canUndo = new RawContextKey<boolean>('canUndo', false);
 	export const canRedo = new RawContextKey<boolean>('canRedo', false);
 
 	// -- mode context keys
-	export const languageId = new RawContextKey<string>('editorLangId', undefined);
-	export const hasCompletionItemProvider = new RawContextKey<boolean>('editorHasCompletionItemProvider', undefined);
-	export const hasCodeActionsProvider = new RawContextKey<boolean>('editorHasCodeActionsProvider', undefined);
-	export const hasCodeLensProvider = new RawContextKey<boolean>('editorHasCodeLensProvider', undefined);
-	export const hasDefinitionProvider = new RawContextKey<boolean>('editorHasDefinitionProvider', undefined);
-	export const hasImplementationProvider = new RawContextKey<boolean>('editorHasImplementationProvider', undefined);
-	export const hasTypeDefinitionProvider = new RawContextKey<boolean>('editorHasTypeDefinitionProvider', undefined);
-	export const hasHoverProvider = new RawContextKey<boolean>('editorHasHoverProvider', undefined);
-	export const hasDocumentHighlightProvider = new RawContextKey<boolean>('editorHasDocumentHighlightProvider', undefined);
-	export const hasDocumentSymbolProvider = new RawContextKey<boolean>('editorHasDocumentSymbolProvider', undefined);
-	export const hasReferenceProvider = new RawContextKey<boolean>('editorHasReferenceProvider', undefined);
-	export const hasRenameProvider = new RawContextKey<boolean>('editorHasRenameProvider', undefined);
-	export const hasDocumentFormattingProvider = new RawContextKey<boolean>('editorHasDocumentFormattingProvider', undefined);
-	export const hasDocumentSelectionFormattingProvider = new RawContextKey<boolean>('editorHasDocumentSelectionFormattingProvider', undefined);
-	export const hasSignatureHelpProvider = new RawContextKey<boolean>('editorHasSignatureHelpProvider', undefined);
+	export const languageId = new RawContextKey<string>('editorLangId', '');
+	export const hasCompletionItemProvider = new RawContextKey<boolean>('editorHasCompletionItemProvider', false);
+	export const hasCodeActionsProvider = new RawContextKey<boolean>('editorHasCodeActionsProvider', false);
+	export const hasCodeLensProvider = new RawContextKey<boolean>('editorHasCodeLensProvider', false);
+	export const hasDefinitionProvider = new RawContextKey<boolean>('editorHasDefinitionProvider', false);
+	export const hasDeclarationProvider = new RawContextKey<boolean>('editorHasDeclarationProvider', false);
+	export const hasImplementationProvider = new RawContextKey<boolean>('editorHasImplementationProvider', false);
+	export const hasTypeDefinitionProvider = new RawContextKey<boolean>('editorHasTypeDefinitionProvider', false);
+	export const hasHoverProvider = new RawContextKey<boolean>('editorHasHoverProvider', false);
+	export const hasDocumentHighlightProvider = new RawContextKey<boolean>('editorHasDocumentHighlightProvider', false);
+	export const hasDocumentSymbolProvider = new RawContextKey<boolean>('editorHasDocumentSymbolProvider', false);
+	export const hasReferenceProvider = new RawContextKey<boolean>('editorHasReferenceProvider', false);
+	export const hasRenameProvider = new RawContextKey<boolean>('editorHasRenameProvider', false);
+	export const hasDocumentFormattingProvider = new RawContextKey<boolean>('editorHasDocumentFormattingProvider', false);
+	export const hasDocumentSelectionFormattingProvider = new RawContextKey<boolean>('editorHasDocumentSelectionFormattingProvider', false);
+	export const hasSignatureHelpProvider = new RawContextKey<boolean>('editorHasSignatureHelpProvider', false);
 }

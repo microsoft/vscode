@@ -6,30 +6,30 @@
 import * as nls from 'vs/nls';
 import severity from 'vs/base/common/severity';
 import { IReplElement, IStackFrame, IExpression, IReplElementSource, IDebugSession } from 'vs/workbench/parts/debug/common/debug';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Expression, SimpleReplElement, RawObjectReplElement } from 'vs/workbench/parts/debug/common/debugModel';
 import { isUndefinedOrNull, isObject } from 'vs/base/common/types';
 import { basenameOrAuthority } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 
 const MAX_REPL_LENGTH = 10000;
+let topReplElementCounter = 0;
 
 export class ReplModel {
 	private replElements: IReplElement[] = [];
 
 	constructor(private session: IDebugSession) { }
 
-	public getReplElements(): ReadonlyArray<IReplElement> {
+	getReplElements(): IReplElement[] {
 		return this.replElements;
 	}
 
-	public addReplExpression(stackFrame: IStackFrame, name: string): TPromise<void> {
+	addReplExpression(stackFrame: IStackFrame, name: string): Promise<void> {
 		const expression = new Expression(name);
 		this.addReplElements([expression]);
 		return expression.evaluate(this.session, stackFrame, 'repl');
 	}
 
-	public appendToRepl(data: string | IExpression, sev: severity, source?: IReplElementSource): void {
+	appendToRepl(data: string | IExpression, sev: severity, source?: IReplElementSource): void {
 		const clearAnsiSequence = '\u001b[2J';
 		if (typeof data === 'string' && data.indexOf(clearAnsiSequence) >= 0) {
 			// [2J is the ansi escape sequence for clearing the display http://ascii-table.com/ansi-escape-sequences.php
@@ -41,7 +41,7 @@ export class ReplModel {
 		if (typeof data === 'string') {
 			const previousElement = this.replElements.length && (this.replElements[this.replElements.length - 1] as SimpleReplElement);
 
-			const toAdd = data.split('\n').map((line, index) => new SimpleReplElement(line, sev, index === 0 ? source : undefined));
+			const toAdd = data.split('\n').map((line, index) => new SimpleReplElement(`topReplElement:${topReplElementCounter++}`, line, sev, index === 0 ? source : undefined));
 			if (previousElement && previousElement.value === '') {
 				// remove potential empty lines between different repl types
 				this.replElements.pop();
@@ -64,7 +64,7 @@ export class ReplModel {
 		}
 	}
 
-	public logToRepl(sev: severity, args: any[], frame?: { uri: URI, line: number, column: number }) {
+	logToRepl(sev: severity, args: any[], frame?: { uri: URI, line: number, column: number }) {
 
 		let source: IReplElementSource;
 		if (frame) {
@@ -103,7 +103,7 @@ export class ReplModel {
 				}
 
 				// show object
-				this.appendToRepl(new RawObjectReplElement((<any>a).prototype, a, undefined, nls.localize('snapshotObj', "Only primitive values are shown for this object.")), sev, source);
+				this.appendToRepl(new RawObjectReplElement(`topReplElement:${topReplElementCounter++}`, (<any>a).prototype, a, undefined, nls.localize('snapshotObj', "Only primitive values are shown for this object.")), sev, source);
 			}
 
 			// string: watch out for % replacement directive
@@ -142,5 +142,4 @@ export class ReplModel {
 			this.replElements = [];
 		}
 	}
-
 }

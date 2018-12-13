@@ -51,10 +51,12 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 class RemoteFileSystemProvider implements IFileSystemProvider {
 
 	private readonly _onDidChange = new Emitter<IFileChange[]>();
-	private readonly _registrations: IDisposable[];
+	private readonly _registration: IDisposable;
 
 	readonly onDidChangeFile: Event<IFileChange[]> = this._onDidChange.event;
+
 	readonly capabilities: FileSystemProviderCapabilities;
+	readonly onDidChangeCapabilities: Event<void> = Event.None;
 
 	constructor(
 		fileService: IFileService,
@@ -64,11 +66,11 @@ class RemoteFileSystemProvider implements IFileSystemProvider {
 		private readonly _proxy: ExtHostFileSystemShape
 	) {
 		this.capabilities = capabilities;
-		this._registrations = [fileService.registerProvider(scheme, this)];
+		this._registration = fileService.registerProvider(scheme, this);
 	}
 
 	dispose(): void {
-		dispose(this._registrations);
+		this._registration.dispose();
 		this._onDidChange.dispose();
 	}
 
@@ -94,53 +96,53 @@ class RemoteFileSystemProvider implements IFileSystemProvider {
 		return Buffer.isBuffer(data) ? data : Buffer.from(data.buffer, data.byteOffset, data.byteLength);
 	}
 
-	stat(resource: URI): Thenable<IStat> {
+	stat(resource: URI): Promise<IStat> {
 		return this._proxy.$stat(this._handle, resource).then(undefined, err => {
 			throw err;
 		});
 	}
 
-	readFile(resource: URI): Thenable<Uint8Array> {
+	readFile(resource: URI): Promise<Uint8Array> {
 		return this._proxy.$readFile(this._handle, resource);
 	}
 
-	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Thenable<void> {
+	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
 		return this._proxy.$writeFile(this._handle, resource, RemoteFileSystemProvider._asBuffer(content), opts);
 	}
 
-	delete(resource: URI, opts: FileDeleteOptions): Thenable<void> {
+	delete(resource: URI, opts: FileDeleteOptions): Promise<void> {
 		return this._proxy.$delete(this._handle, resource, opts);
 	}
 
-	mkdir(resource: URI): Thenable<void> {
+	mkdir(resource: URI): Promise<void> {
 		return this._proxy.$mkdir(this._handle, resource);
 	}
 
-	readdir(resource: URI): Thenable<[string, FileType][]> {
+	readdir(resource: URI): Promise<[string, FileType][]> {
 		return this._proxy.$readdir(this._handle, resource);
 	}
 
-	rename(resource: URI, target: URI, opts: FileOverwriteOptions): Thenable<void> {
+	rename(resource: URI, target: URI, opts: FileOverwriteOptions): Promise<void> {
 		return this._proxy.$rename(this._handle, resource, target, opts);
 	}
 
-	copy(resource: URI, target: URI, opts: FileOverwriteOptions): Thenable<void> {
+	copy(resource: URI, target: URI, opts: FileOverwriteOptions): Promise<void> {
 		return this._proxy.$copy(this._handle, resource, target, opts);
 	}
 
-	open(resource: URI): Thenable<number> {
+	open(resource: URI): Promise<number> {
 		return this._proxy.$open(this._handle, resource);
 	}
 
-	close(fd: number): Thenable<void> {
+	close(fd: number): Promise<void> {
 		return this._proxy.$close(this._handle, fd);
 	}
 
-	read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Thenable<number> {
+	read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
 		return this._proxy.$read(this._handle, fd, pos, RemoteFileSystemProvider._asBuffer(data), offset, length);
 	}
 
-	write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Thenable<number> {
+	write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
 		return this._proxy.$write(this._handle, fd, pos, RemoteFileSystemProvider._asBuffer(data), offset, length);
 	}
 }

@@ -11,5 +11,5 @@ const appender = new AppInsightsAppender(process.argv[2], JSON.parse(process.arg
 process.once('exit', () => appender.dispose());
 
 const channel = new TelemetryAppenderChannel(appender);
-const server = new Server();
+const server = new Server('telemetry');
 server.registerChannel('telemetryAppender', channel);

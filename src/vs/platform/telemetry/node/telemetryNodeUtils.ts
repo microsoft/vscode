@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
+
 import { URI } from 'vs/base/common/uri';
 import product from 'vs/platform/node/product';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
-export function addGAParameters(telemetryService: ITelemetryService, environmentService: IEnvironmentService, uri: URI, origin: string, experiment = '1'): TPromise<URI> {
+export function addGAParameters(telemetryService: ITelemetryService, environmentService: IEnvironmentService, uri: URI, origin: string, experiment = '1'): Promise<URI> {
 	if (environmentService.isBuilt && !environmentService.isExtensionDevelopment && !environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
 		if (uri.scheme === 'https' && uri.authority === 'code.visualstudio.com') {
 			return telemetryService.getTelemetryInfo()
@@ -18,5 +18,5 @@ export function addGAParameters(telemetryService: ITelemetryService, environment
 				});
 		}
 	}
-	return TPromise.as(uri);
+	return Promise.resolve(uri);
 }

@@ -29,11 +29,11 @@ import { distinct } from 'vs/base/common/arrays';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 if (env.isWindows) {
-	registerSingleton(ITerminalService, WinTerminalService);
+	registerSingleton(ITerminalService, WinTerminalService, true);
 } else if (env.isMacintosh) {
-	registerSingleton(ITerminalService, MacTerminalService);
+	registerSingleton(ITerminalService, MacTerminalService, true);
 } else if (env.isLinux) {
-	registerSingleton(ITerminalService, LinuxTerminalService);
+	registerSingleton(ITerminalService, LinuxTerminalService, true);
 }
 
 getDefaultTerminalLinuxReady().then(defaultTerminalLinux => {

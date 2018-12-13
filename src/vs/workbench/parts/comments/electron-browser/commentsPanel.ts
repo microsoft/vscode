@@ -6,16 +6,15 @@
 import 'vs/css!./media/panel';
 import * as dom from 'vs/base/browser/dom';
 import { IAction } from 'vs/base/common/actions';
-import { debounceEvent } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { CollapseAllAction, DefaultAccessibilityProvider, DefaultController, DefaultDragAndDrop } from 'vs/base/parts/tree/browser/treeDefaults';
 import { isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { CommentThreadChangedEvent } from 'vs/editor/common/modes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TreeResourceNavigator, WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Panel } from 'vs/workbench/browser/panel';
-import { CommentNode, CommentsModel, ResourceWithCommentThreads } from 'vs/workbench/parts/comments/common/commentModel';
+import { CommentNode, CommentsModel, ResourceWithCommentThreads, ICommentThreadChangedEvent } from 'vs/workbench/parts/comments/common/commentModel';
 import { ReviewController } from 'vs/workbench/parts/comments/electron-browser/commentsEditorContribution';
 import { CommentsDataFilter, CommentsDataSource, CommentsModelRenderer } from 'vs/workbench/parts/comments/electron-browser/commentsTreeViewer';
 import { ICommentService, IWorkspaceCommentThreadsEvent } from 'vs/workbench/parts/comments/electron-browser/commentService';
@@ -23,6 +22,7 @@ import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { textLinkForeground, textLinkActiveForeground, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export const COMMENTS_PANEL_ID = 'workbench.panel.comments';
 export const COMMENTS_PANEL_TITLE = 'Comments';
@@ -42,12 +42,13 @@ export class CommentsPanel extends Panel {
 		@ICommandService private commandService: ICommandService,
 		@IOpenerService private openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IStorageService storageService: IStorageService
 	) {
-		super(COMMENTS_PANEL_ID, telemetryService, themeService);
+		super(COMMENTS_PANEL_ID, telemetryService, themeService, storageService);
 	}
 
-	public create(parent: HTMLElement): Promise<void> {
+	public create(parent: HTMLElement): void {
 		super.create(parent);
 
 		dom.addClass(parent, 'comments-panel');
@@ -68,7 +69,7 @@ export class CommentsPanel extends Panel {
 			this.applyStyles(styleElement);
 		});
 
-		return this.render();
+		this.render();
 	}
 
 	private applyStyles(styleElement: HTMLStyleElement) {
@@ -141,7 +142,7 @@ export class CommentsPanel extends Panel {
 			});
 
 		const commentsNavigator = this._register(new TreeResourceNavigator(this.tree, { openOnFocus: true }));
-		this._register(debounceEvent(commentsNavigator.openResource, (last, event) => event, 100, true)(options => {
+		this._register(Event.debounce(commentsNavigator.openResource, (last, event) => event, 100, true)(options => {
 			this.openFile(options.element, options.editorOptions.pinned, options.editorOptions.preserveFocus, options.sideBySide);
 		}));
 	}
@@ -165,29 +166,18 @@ export class CommentsPanel extends Panel {
 			const control = this.editorService.activeTextEditorWidget;
 			if (threadToReveal && isCodeEditor(control)) {
 				const controller = ReviewController.get(control);
-				controller.revealCommentThread(threadToReveal, commentToReveal);
+				controller.revealCommentThread(threadToReveal, commentToReveal, false);
 			}
 
 			return true;
 		}
 
 
-		let setCommentsForFile = new Promise((resolve, reject) => {
-			this.commentService.onDidSetResourceCommentInfos(e => {
-				if (e.resource.toString() === element.resource.toString()) {
-					resolve();
-				}
-			});
-		});
-
 		const threadToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].threadId : element.threadId;
 		const commentToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].comment : element.comment;
 
 		if (commentToReveal.command) {
-			Promise.all([
-				this.commandService.executeCommand(commentToReveal.command.id, ...commentToReveal.command.arguments),
-				setCommentsForFile
-			]).then(_ => {
+			this.commandService.executeCommand(commentToReveal.command.id, ...commentToReveal.command.arguments).then(_ => {
 				let activeWidget = this.editorService.activeTextEditorWidget;
 				if (isDiffEditor(activeWidget)) {
 					const originalEditorWidget = activeWidget.getOriginalEditor();
@@ -201,7 +191,7 @@ export class CommentsPanel extends Panel {
 					}
 
 					if (controller) {
-						controller.revealCommentThread(threadToReveal, commentToReveal.commentId);
+						controller.revealCommentThread(threadToReveal, commentToReveal.commentId, true);
 					}
 				} else {
 					let activeEditor = this.editorService.activeEditor;
@@ -210,7 +200,7 @@ export class CommentsPanel extends Panel {
 						const control = this.editorService.activeTextEditorWidget;
 						if (threadToReveal && isCodeEditor(control)) {
 							const controller = ReviewController.get(control);
-							controller.revealCommentThread(threadToReveal, commentToReveal.commentId);
+							controller.revealCommentThread(threadToReveal, commentToReveal.commentId, true);
 						}
 					}
 				}
@@ -218,38 +208,35 @@ export class CommentsPanel extends Panel {
 				return true;
 			});
 		} else {
-			Promise.all([this.editorService.openEditor({
+			this.editorService.openEditor({
 				resource: element.resource,
 				options: {
 					pinned: pinned,
 					preserveFocus: preserveFocus,
 					selection: range
 				}
-			}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP), setCommentsForFile]).then(vals => {
-				let editor = vals[0];
-				const control = editor.getControl();
-				if (threadToReveal && isCodeEditor(control)) {
-					const controller = ReviewController.get(control);
-					controller.revealCommentThread(threadToReveal, commentToReveal.commentId);
+			}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(editor => {
+				if (editor) {
+					const control = editor.getControl();
+					if (threadToReveal && isCodeEditor(control)) {
+						const controller = ReviewController.get(control);
+						controller.revealCommentThread(threadToReveal, commentToReveal.commentId, true);
+					}
 				}
-				setCommentsForFile = null;
 			});
 		}
-
 
 		return true;
 	}
 
-	public setVisible(visible: boolean): Promise<void> {
+	public setVisible(visible: boolean): void {
 		const wasVisible = this.isVisible();
-		return super.setVisible(visible)
-			.then(() => {
-				if (this.isVisible()) {
-					if (!wasVisible) {
-						this.refresh();
-					}
-				}
-			});
+		super.setVisible(visible);
+		if (this.isVisible()) {
+			if (!wasVisible) {
+				this.refresh();
+			}
+		}
 	}
 
 	private refresh(): void {
@@ -270,7 +257,7 @@ export class CommentsPanel extends Panel {
 		this.refresh();
 	}
 
-	private onCommentsUpdated(e: CommentThreadChangedEvent): void {
+	private onCommentsUpdated(e: ICommentThreadChangedEvent): void {
 		const didUpdate = this.commentsModel.updateCommentThreads(e);
 		if (didUpdate) {
 			this.refresh();

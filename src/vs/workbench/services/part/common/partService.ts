@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { MenuBarVisibility } from 'vs/platform/windows/common/windows';
@@ -57,9 +56,10 @@ export interface IPartService {
 	onEditorLayout: Event<IDimension>;
 
 	/**
-	 * Asks the part service to if all parts have been created.
+	 * Asks the part service if all parts have been fully restored. For editor part
+	 * this means that the contents of editors have loaded.
 	 */
-	isCreated(): boolean;
+	isRestored(): boolean;
 
 	/**
 	 * Returns whether the given part has the keyboard focus or not.
@@ -89,12 +89,12 @@ export interface IPartService {
 	/**
 	 * Set sidebar hidden or not
 	 */
-	setSideBarHidden(hidden: boolean): TPromise<void>;
+	setSideBarHidden(hidden: boolean): void;
 
 	/**
 	 * Set panel part hidden or not
 	 */
-	setPanelHidden(hidden: boolean): TPromise<void>;
+	setPanelHidden(hidden: boolean): void;
 
 	/**
 	 * Maximizes the panel height if the panel is not already maximized.
@@ -125,7 +125,7 @@ export interface IPartService {
 	/**
 	 * Sets the panel position.
 	 */
-	setPanelPosition(position: Position): TPromise<void>;
+	setPanelPosition(position: Position): void;
 
 	/**
 	 * Returns the element that contains the workbench.

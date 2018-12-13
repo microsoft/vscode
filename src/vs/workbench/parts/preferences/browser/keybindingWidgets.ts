@@ -6,7 +6,6 @@
 import 'vs/css!./media/keybindings';
 import * as nls from 'vs/nls';
 import { OS } from 'vs/base/common/platform';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable, dispose, toDisposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
@@ -27,6 +26,7 @@ import { SearchWidget, SearchOptions } from 'vs/workbench/parts/preferences/brow
 
 export interface KeybindingsSearchOptions extends SearchOptions {
 	recordEnter?: boolean;
+	quoteRecordedKeys?: boolean;
 }
 
 export class KeybindingsSearchWidget extends SearchWidget {
@@ -113,6 +113,7 @@ export class KeybindingsSearchWidget extends SearchWidget {
 	private printKeybinding(keyboardEvent: IKeyboardEvent): void {
 		const keybinding = this.keybindingService.resolveKeyboardEvent(keyboardEvent);
 		const info = `code: ${keyboardEvent.browserEvent.code}, keyCode: ${keyboardEvent.browserEvent.keyCode}, key: ${keyboardEvent.browserEvent.key} => UI: ${keybinding.getAriaLabel()}, user settings: ${keybinding.getUserSettingsLabel()}, dispatch: ${keybinding.getDispatchParts()[0]}`;
+		const options = this.options as KeybindingsSearchOptions;
 
 		const hasFirstPart = (this._firstPart && this._firstPart.getDispatchParts()[0] !== null);
 		const hasChordPart = (this._chordPart && this._chordPart.getDispatchParts()[0] !== null);
@@ -133,7 +134,7 @@ export class KeybindingsSearchWidget extends SearchWidget {
 		if (this._chordPart) {
 			value = value + ' ' + this._chordPart.getUserSettingsLabel();
 		}
-		this.setInputValue(value);
+		this.setInputValue(options.quoteRecordedKeys ? `"${value}"` : value);
 
 		this.inputBox.inputElement.title = info;
 		this._onKeybinding.fire([this._firstPart, this._chordPart]);
@@ -150,8 +151,8 @@ export class DefineKeybindingWidget extends Widget {
 	private _outputNode: HTMLElement;
 	private _showExistingKeybindingsNode: HTMLElement;
 
-	private _firstPart: ResolvedKeybinding = null;
-	private _chordPart: ResolvedKeybinding = null;
+	private _firstPart: ResolvedKeybinding | null = null;
+	private _chordPart: ResolvedKeybinding | null = null;
 	private _isVisible: boolean = false;
 
 	private _onHide = this._register(new Emitter<void>());
@@ -178,9 +179,9 @@ export class DefineKeybindingWidget extends Widget {
 		return this._domNode.domNode;
 	}
 
-	define(): TPromise<string> {
+	define(): Promise<string> {
 		this._keybindingInputWidget.clear();
-		return new TPromise<string>((c, e) => {
+		return new Promise<string>((c) => {
 			if (!this._isVisible) {
 				this._isVisible = true;
 				this._domNode.setDisplay('block');
@@ -329,7 +330,7 @@ export class DefineKeybindingOverlayWidget extends Disposable implements IOverla
 		super.dispose();
 	}
 
-	public start(): TPromise<string> {
+	public start(): Promise<string> {
 		this._editor.revealPositionInCenterIfOutsideViewport(this._editor.getPosition(), ScrollType.Smooth);
 		const layoutInfo = this._editor.getLayoutInfo();
 		this._widget.layout(new dom.Dimension(layoutInfo.width, layoutInfo.height));

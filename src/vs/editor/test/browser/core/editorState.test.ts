@@ -5,11 +5,11 @@
 
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import { ITextModel } from 'vs/editor/common/model';
-import { EditorState, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
-import { Selection } from 'vs/editor/common/core/selection';
-import { Position } from 'vs/editor/common/core/position';
+import { CodeEditorStateFlag, EditorState } from 'vs/editor/browser/core/editorState';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { Position } from 'vs/editor/common/core/position';
+import { Selection } from 'vs/editor/common/core/selection';
+import { ITextModel } from 'vs/editor/common/model';
 
 interface IStubEditorState {
 	model?: { uri?: URI, version?: number };
@@ -92,10 +92,10 @@ suite('Editor Core - Editor State', () => {
 
 		return {
 			getModel: (): ITextModel => <any>mappedModel,
-			getPosition: (): Position => position,
-			getSelection: (): Selection => selection,
-			getScrollLeft: (): number => scroll && scroll.left,
-			getScrollTop: (): number => scroll && scroll.top
+			getPosition: (): Position | undefined => position,
+			getSelection: (): Selection | undefined => selection,
+			getScrollLeft: (): number | undefined => scroll && scroll.left,
+			getScrollTop: (): number | undefined => scroll && scroll.top
 		} as ICodeEditor;
 	}
 

@@ -57,7 +57,7 @@ export const extraLanguages: Language[] = [
 ];
 
 // non built-in extensions also that are transifex and need to be part of the language packs
-const externalExtensionsWithTranslations = {
+export const externalExtensionsWithTranslations = {
 	'vscode-chrome-debug': 'msjsdiag.debugger-for-chrome',
 	'vscode-node-debug': 'ms-vscode.node-debug',
 	'vscode-node-debug2': 'ms-vscode.node-debug2'
@@ -325,11 +325,14 @@ export class XLF {
 								return; // No translation available
 							}
 
-							const val = unit.target.toString();
+							let val = unit.target[0];
+							if (typeof val !== 'string') {
+								val = val._;
+							}
 							if (key && val) {
 								messages[key] = decodeEntities(val);
 							} else {
-								reject(new Error(`XLF parsing error: XLIFF file does not contain full localization data. ID or target translation for one of the trans-unit nodes is not present.`));
+								reject(new Error(`XLF parsing error: XLIFF file ${originalFilePath} does not contain full localization data. ID or target translation for one of the trans-unit nodes is not present.`));
 							}
 						});
 						files.push({ messages: messages, originalFilePath: originalFilePath, language: language.toLowerCase() });
@@ -348,7 +351,7 @@ export interface ITask<T> {
 
 interface ILimitedTaskFactory<T> {
 	factory: ITask<Promise<T>>;
-	c: (value?: T | Thenable<T>) => void;
+	c: (value?: T | Promise<T>) => void;
 	e: (error?: any) => void;
 }
 
@@ -1181,9 +1184,10 @@ export function prepareI18nPackFiles(externalExtensions: Map<string>, resultingT
 	let parsePromises: Promise<ParsedXLF[]>[] = [];
 	let mainPack: I18nPack = { version: i18nPackVersion, contents: {} };
 	let extensionsPacks: Map<I18nPack> = {};
+	let errors: any[] = [];
 	return through(function (this: ThroughStream, xlf: File) {
-		let project = path.dirname(xlf.path);
-		let resource = path.basename(xlf.path, '.xlf');
+		let project = path.dirname(xlf.relative);
+		let resource = path.basename(xlf.relative, '.xlf');
 		let contents = xlf.contents.toString();
 		let parsePromise = pseudo ? XLF.parsePseudo(contents) : XLF.parse(contents);
 		parsePromises.push(parsePromise);
@@ -1210,10 +1214,15 @@ export function prepareI18nPackFiles(externalExtensions: Map<string>, resultingT
 					}
 				});
 			}
-		);
+		).catch(reason => {
+			errors.push(reason);
+		});
 	}, function () {
 		Promise.all(parsePromises)
 			.then(() => {
+				if (errors.length > 0) {
+					throw errors;
+				}
 				const translatedMainFile = createI18nFile('./main', mainPack);
 				resultingTranslationPaths.push({ id: 'vscode', resourceName: 'main.i18n.json' });
 
@@ -1232,7 +1241,9 @@ export function prepareI18nPackFiles(externalExtensions: Map<string>, resultingT
 				}
 				this.queue(null);
 			})
-			.catch(reason => { throw new Error(reason); });
+			.catch((reason) => {
+				this.emit('error', reason);
+			});
 	});
 }
 
@@ -1253,11 +1264,15 @@ export function prepareIslFiles(language: Language, innoSetupConfig: InnoSetup):
 					stream.queue(translatedFile);
 				});
 			}
-		);
+		).catch(reason => {
+			this.emit('error', reason);
+		});
 	}, function () {
 		Promise.all(parsePromises)
 			.then(() => { this.queue(null); })
-			.catch(reason => { throw new Error(reason); });
+			.catch(reason => {
+				this.emit('error', reason);
+			});
 	});
 }
 

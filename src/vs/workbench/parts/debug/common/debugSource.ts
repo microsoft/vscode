@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { URI as uri } from 'vs/base/common/uri';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
@@ -12,6 +11,7 @@ import { DEBUG_SCHEME } from 'vs/workbench/parts/debug/common/debug';
 import { IRange } from 'vs/editor/common/core/range';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { Schemas } from 'vs/base/common/network';
+import { isUri } from 'vs/workbench/parts/debug/common/debugUtils';
 
 const UNKNOWN_SOURCE_LABEL = nls.localize('unknownSource', "Unknown Source");
 
@@ -36,48 +36,54 @@ export class Source {
 
 	constructor(public raw: DebugProtocol.Source, sessionId: string) {
 		let path: string;
-		if (!raw) {
+		if (raw) {
+			path = this.raw.path || this.raw.name;
+			this.available = true;
+		} else {
 			this.raw = { name: UNKNOWN_SOURCE_LABEL };
 			this.available = false;
 			path = `${DEBUG_SCHEME}:${UNKNOWN_SOURCE_LABEL}`;
-		} else {
-			path = this.raw.path || this.raw.name;
-			this.available = true;
 		}
 
 		if (this.raw.sourceReference > 0) {
 			this.uri = uri.parse(`${DEBUG_SCHEME}:${encodeURIComponent(path)}?session=${encodeURIComponent(sessionId)}&ref=${this.raw.sourceReference}`);
 		} else {
-			if (paths.isAbsolute(path)) {
-				this.uri = uri.file(path);
-			} else {
-				// assume that path is a URI
+			if (isUri(path)) {	// path looks like a uri
 				this.uri = uri.parse(path);
+			} else {
+				// assume a filesystem path
+				if (paths.isAbsolute_posix(path) || paths.isAbsolute_win32(path)) {
+					this.uri = uri.file(path);
+				} else {
+					// path is relative: since VS Code cannot deal with this by itself
+					// create a debug url that will result in a DAP 'source' request when the url is resolved.
+					this.uri = uri.parse(`${DEBUG_SCHEME}:${encodeURIComponent(path)}?session=${encodeURIComponent(sessionId)}`);
+				}
 			}
 		}
 	}
 
-	public get name() {
+	get name() {
 		return this.raw.name || resources.basenameOrAuthority(this.uri);
 	}
 
-	public get origin() {
+	get origin() {
 		return this.raw.origin;
 	}
 
-	public get presentationHint() {
+	get presentationHint() {
 		return this.raw.presentationHint;
 	}
 
-	public get reference() {
+	get reference() {
 		return this.raw.sourceReference;
 	}
 
-	public get inMemory() {
+	get inMemory() {
 		return this.uri.scheme === DEBUG_SCHEME;
 	}
 
-	public openInEditor(editorService: IEditorService, selection: IRange, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
+	openInEditor(editorService: IEditorService, selection: IRange, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {
 		return !this.available ? Promise.resolve(null) : editorService.openEditor({
 			resource: this.uri,
 			description: this.origin,
@@ -91,7 +97,7 @@ export class Source {
 		}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 	}
 
-	public static getEncodedDebugData(modelUri: uri): { name: string, path: string, sessionId: string, sourceReference: number } {
+	static getEncodedDebugData(modelUri: uri): { name: string, path: string, sessionId: string, sourceReference: number } {
 		let path: string;
 		let sourceReference: number;
 		let sessionId: string;

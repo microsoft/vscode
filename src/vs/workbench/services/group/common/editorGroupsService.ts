@@ -7,7 +7,6 @@ import { Event } from 'vs/base/common/event';
 import { createDecorator, ServiceIdentifier, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorInput, IEditor, GroupIdentifier, IEditorInputWithOptions, CloseDirection } from 'vs/workbench/common/editor';
 import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export const IEditorGroupsService = createDecorator<IEditorGroupsService>('editorGroupsService');
@@ -377,18 +376,20 @@ export interface IEditorGroup {
 	/**
 	 * Open an editor in this group.
 	 *
-	 * @returns a promise that is resolved when the active editor (if any)
-	 * has finished loading
+	 * @returns a promise that resolves around an IEditor instance unless
+	 * the call failed, or the editor was not opened as active editor.
 	 */
-	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions): TPromise<void>;
+	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions): Promise<IEditor>;
 
 	/**
 	 * Opens editors in this group.
 	 *
-	 * @returns a promise that is resolved when the active editor (if any)
-	 * has finished loading
+	 * @returns a promise that resolves around an IEditor instance unless
+	 * the call failed, or the editor was not opened as active editor. Since
+	 * a group can only ever have one active editor, even if many editors are
+	 * opened, the result will only be one editor.
 	 */
-	openEditors(editors: IEditorInputWithOptions[]): TPromise<void>;
+	openEditors(editors: IEditorInputWithOptions[]): Promise<IEditor>;
 
 	/**
 	 * Find out if the provided editor is opened in the group.
@@ -428,7 +429,7 @@ export interface IEditorGroup {
 	 *
 	 * @returns a promise when the editor is closed.
 	 */
-	closeEditor(editor?: IEditorInput): TPromise<void>;
+	closeEditor(editor?: IEditorInput): Promise<void>;
 
 	/**
 	 * Closes specific editors in this group. This may trigger a confirmation dialog if
@@ -436,7 +437,7 @@ export interface IEditorGroup {
 	 *
 	 * @returns a promise when all editors are closed.
 	 */
-	closeEditors(editors: IEditorInput[] | ICloseEditorsFilter): TPromise<void>;
+	closeEditors(editors: IEditorInput[] | ICloseEditorsFilter): Promise<void>;
 
 	/**
 	 * Closes all editors from the group. This may trigger a confirmation dialog if
@@ -444,7 +445,7 @@ export interface IEditorGroup {
 	 *
 	 * @returns a promise when all editors are closed.
 	 */
-	closeAllEditors(): TPromise<void>;
+	closeAllEditors(): Promise<void>;
 
 	/**
 	 * Replaces editors in this group with the provided replacement.
@@ -454,7 +455,7 @@ export interface IEditorGroup {
 	 * @returns a promise that is resolved when the replaced active
 	 * editor (if any) has finished loading.
 	 */
-	replaceEditors(editors: IEditorReplacement[]): TPromise<void>;
+	replaceEditors(editors: IEditorReplacement[]): Promise<void>;
 
 	/**
 	 * Set an editor to be pinned. A pinned editor is not replaced

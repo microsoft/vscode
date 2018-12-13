@@ -2,21 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import * as assert from 'assert';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorCommand } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
+import { deserializePipePositions, serializePipePositions, testRepeatedActionAndExtractPositions } from 'vs/editor/contrib/wordOperations/test/wordTestUtils';
+import { CursorWordEndLeft, CursorWordEndLeftSelect, CursorWordEndRight, CursorWordEndRightSelect, CursorWordLeft, CursorWordLeftSelect, CursorWordRight, CursorWordRightSelect, CursorWordStartLeft, CursorWordStartLeftSelect, CursorWordStartRight, CursorWordStartRightSelect, DeleteWordEndLeft, DeleteWordEndRight, DeleteWordLeft, DeleteWordRight, DeleteWordStartLeft, DeleteWordStartRight } from 'vs/editor/contrib/wordOperations/wordOperations';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import {
-	CursorWordLeft, CursorWordLeftSelect, CursorWordStartLeft,
-	CursorWordEndLeft, CursorWordStartLeftSelect, CursorWordEndLeftSelect,
-	CursorWordStartRight, CursorWordEndRight, CursorWordRight,
-	CursorWordStartRightSelect, CursorWordEndRightSelect, CursorWordRightSelect,
-	DeleteWordLeft, DeleteWordStartLeft, DeleteWordEndLeft,
-	DeleteWordRight, DeleteWordStartRight, DeleteWordEndRight
-} from 'vs/editor/contrib/wordOperations/wordOperations';
-import { EditorCommand } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { deserializePipePositions, testRepeatedActionAndExtractPositions, serializePipePositions } from 'vs/editor/contrib/wordOperations/test/wordTestUtils';
 
 suite('WordOperations', () => {
 

@@ -66,7 +66,7 @@ export class NoTabsTitleControl extends TitleControl {
 		this._register(addDisposableListener(this.titleContainer, EventType.DBLCLICK, (e: MouseEvent) => this.onTitleDoubleClick(e)));
 
 		// Detect mouse click
-		this._register(addDisposableListener(this.titleContainer, EventType.CLICK, (e: MouseEvent) => this.onTitleClick(e)));
+		this._register(addDisposableListener(this.titleContainer, EventType.MOUSE_UP, (e: MouseEvent) => this.onTitleClick(e)));
 
 		// Detect touch
 		this._register(addDisposableListener(this.titleContainer, TouchEventType.Tap, (e: GestureEvent) => this.onTitleClick(e)));

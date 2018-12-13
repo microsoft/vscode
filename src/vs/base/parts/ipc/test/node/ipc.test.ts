@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IMessagePassingProtocol, IPCServer, ClientConnectionEvent, IPCClient, IChannel } from 'vs/base/parts/ipc/node/ipc';
-import { Emitter, toNativePromise, Event } from 'vs/base/common/event';
+import { IMessagePassingProtocol, IPCServer, ClientConnectionEvent, IPCClient, IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
+import { Emitter, Event } from 'vs/base/common/event';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
 import { timeout } from 'vs/base/common/async';
@@ -54,7 +54,7 @@ function createProtocolPair(): [IMessagePassingProtocol, IMessagePassingProtocol
 	return [one, other];
 }
 
-class TestIPCClient extends IPCClient {
+class TestIPCClient extends IPCClient<string> {
 
 	private _onDidDisconnect = new Emitter<void>();
 	readonly onDidDisconnect = this._onDidDisconnect.event;
@@ -69,7 +69,7 @@ class TestIPCClient extends IPCClient {
 	}
 }
 
-class TestIPCServer extends IPCServer {
+class TestIPCServer extends IPCServer<string> {
 
 	private onDidClientConnect: Emitter<ClientConnectionEvent>;
 
@@ -79,7 +79,7 @@ class TestIPCServer extends IPCServer {
 		this.onDidClientConnect = onDidClientConnect;
 	}
 
-	createConnection(id: string): IPCClient {
+	createConnection(id: string): IPCClient<string> {
 		const [pc, ps] = createProtocolPair();
 		const client = new TestIPCClient(pc, id);
 
@@ -95,10 +95,11 @@ class TestIPCServer extends IPCServer {
 const TestChannelId = 'testchannel';
 
 interface ITestService {
-	marco(): Thenable<string>;
-	error(message: string): Thenable<void>;
-	neverComplete(): Thenable<void>;
-	neverCompleteCT(cancellationToken: CancellationToken): Thenable<void>;
+	marco(): Promise<string>;
+	error(message: string): Promise<void>;
+	neverComplete(): Promise<void>;
+	neverCompleteCT(cancellationToken: CancellationToken): Promise<void>;
+	buffersLength(buffers: Buffer[]): Promise<number>;
 
 	pong: Event<string>;
 }
@@ -108,19 +109,19 @@ class TestService implements ITestService {
 	private _pong = new Emitter<string>();
 	readonly pong = this._pong.event;
 
-	marco(): Thenable<string> {
+	marco(): Promise<string> {
 		return Promise.resolve('polo');
 	}
 
-	error(message: string): Thenable<void> {
+	error(message: string): Promise<void> {
 		return Promise.reject(new Error(message));
 	}
 
-	neverComplete(): Thenable<void> {
+	neverComplete(): Promise<void> {
 		return new Promise(_ => { });
 	}
 
-	neverCompleteCT(cancellationToken: CancellationToken): Thenable<void> {
+	neverCompleteCT(cancellationToken: CancellationToken): Promise<void> {
 		if (cancellationToken.isCancellationRequested) {
 			return Promise.reject(canceled());
 		}
@@ -128,37 +129,31 @@ class TestService implements ITestService {
 		return new Promise((_, e) => cancellationToken.onCancellationRequested(() => e(canceled())));
 	}
 
+	buffersLength(buffers: Buffer[]): Promise<number> {
+		return Promise.resolve(buffers.reduce((r, b) => r + b.length, 0));
+	}
+
 	ping(msg: string): void {
 		this._pong.fire(msg);
 	}
 }
 
-interface ITestChannel extends IChannel {
-	call(command: 'marco'): Thenable<string>;
-	call(command: 'error'): Thenable<void>;
-	call(command: 'neverComplete'): Thenable<void>;
-	call(command: 'neverCompleteCT', arg: undefined, cancellationToken: CancellationToken): Thenable<void>;
-	call<T>(command: string, arg?: any, cancellationToken?: CancellationToken): Thenable<T>;
-
-	listen(event: 'pong'): Event<string>;
-	listen<T>(event: string, arg?: any): Event<T>;
-}
-
-class TestChannel implements ITestChannel {
+class TestChannel implements IServerChannel {
 
 	constructor(private service: ITestService) { }
 
-	call(command: string, arg?: any, cancellationToken?: CancellationToken): Thenable<any> {
+	call(_, command: string, arg: any, cancellationToken: CancellationToken): Promise<any> {
 		switch (command) {
 			case 'marco': return this.service.marco();
 			case 'error': return this.service.error(arg);
 			case 'neverComplete': return this.service.neverComplete();
 			case 'neverCompleteCT': return this.service.neverCompleteCT(cancellationToken);
+			case 'buffersLength': return this.service.buffersLength(arg);
 			default: return Promise.reject(new Error('not implemented'));
 		}
 	}
 
-	listen(event: string, arg?: any): Event<any> {
+	listen(_, event: string, arg?: any): Event<any> {
 		switch (event) {
 			case 'pong': return this.service.pong;
 			default: throw new Error('not implemented');
@@ -172,22 +167,26 @@ class TestChannelClient implements ITestService {
 		return this.channel.listen('pong');
 	}
 
-	constructor(private channel: ITestChannel) { }
+	constructor(private channel: IChannel) { }
 
-	marco(): Thenable<string> {
+	marco(): Promise<string> {
 		return this.channel.call('marco');
 	}
 
-	error(message: string): Thenable<void> {
+	error(message: string): Promise<void> {
 		return this.channel.call('error', message);
 	}
 
-	neverComplete(): Thenable<void> {
+	neverComplete(): Promise<void> {
 		return this.channel.call('neverComplete');
 	}
 
-	neverCompleteCT(cancellationToken: CancellationToken): Thenable<void> {
+	neverCompleteCT(cancellationToken: CancellationToken): Promise<void> {
 		return this.channel.call('neverCompleteCT', undefined, cancellationToken);
+	}
+
+	buffersLength(buffers: Buffer[]): Promise<number> {
+		return this.channel.call('buffersLength', buffers);
 	}
 }
 
@@ -202,8 +201,8 @@ suite('Base IPC', function () {
 		const b3 = Buffer.alloc(0);
 		serverProtocol.send(b3);
 
-		const b2 = await toNativePromise(serverProtocol.onMessage);
-		const b4 = await toNativePromise(clientProtocol.onMessage);
+		const b2 = await Event.toPromise(serverProtocol.onMessage);
+		const b4 = await Event.toPromise(clientProtocol.onMessage);
 
 		assert.strictEqual(b1, b2);
 		assert.strictEqual(b3, b4);
@@ -279,7 +278,7 @@ suite('Base IPC', function () {
 		});
 
 		test('listen to events', async function () {
-			const messages = [];
+			const messages: string[] = [];
 
 			ipcService.pong(msg => messages.push(msg));
 			await timeout(0);
@@ -293,6 +292,11 @@ suite('Base IPC', function () {
 			await timeout(0);
 
 			assert.deepEqual(messages, ['hello', 'world']);
+		});
+
+		test('buffers in arrays', async function () {
+			const r = await ipcService.buffersLength([Buffer.allocUnsafe(2), Buffer.allocUnsafe(3)]);
+			return assert.equal(r, 5);
 		});
 	});
 });

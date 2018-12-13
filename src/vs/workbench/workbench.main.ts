@@ -15,7 +15,6 @@ import 'vs/editor/editor.all';
 
 // Platform
 import 'vs/platform/widget/browser/contextScopedHistoryWidget';
-import 'vs/platform/label/electron-browser/label.contribution';
 
 // Menus/Actions
 import 'vs/workbench/services/actions/electron-browser/menusExtensionPoint';
@@ -56,16 +55,16 @@ import 'vs/workbench/parts/stats/node/stats.contribution';
 import 'vs/workbench/parts/splash/electron-browser/partsSplash.contribution';
 
 import 'vs/workbench/parts/search/electron-browser/search.contribution';
-import 'vs/workbench/parts/search/browser/searchView'; // can be packaged separately
-import 'vs/workbench/parts/search/browser/openAnythingHandler'; // can be packaged separately
+import 'vs/workbench/parts/search/browser/searchView';
+import 'vs/workbench/parts/search/browser/openAnythingHandler';
 
 import 'vs/workbench/parts/scm/electron-browser/scm.contribution';
-import 'vs/workbench/parts/scm/electron-browser/scmViewlet'; // can be packaged separately
+import 'vs/workbench/parts/scm/electron-browser/scmViewlet';
 
 import 'vs/workbench/parts/debug/electron-browser/debug.contribution';
 import 'vs/workbench/parts/debug/browser/debugQuickOpen';
 import 'vs/workbench/parts/debug/electron-browser/repl';
-import 'vs/workbench/parts/debug/browser/debugViewlet'; // can be packaged separately
+import 'vs/workbench/parts/debug/browser/debugViewlet';
 
 import 'vs/workbench/parts/markers/electron-browser/markers.contribution';
 import 'vs/workbench/parts/comments/electron-browser/comments.contribution';
@@ -79,16 +78,16 @@ import 'vs/workbench/parts/welcome/walkThrough/electron-browser/walkThrough.cont
 
 import 'vs/workbench/parts/extensions/electron-browser/extensions.contribution';
 import 'vs/workbench/parts/extensions/browser/extensionsQuickOpen';
-import 'vs/workbench/parts/extensions/electron-browser/extensionsViewlet'; // can be packaged separately
+import 'vs/workbench/parts/extensions/electron-browser/extensionsViewlet';
 
 import 'vs/workbench/parts/welcome/page/electron-browser/welcomePage.contribution';
 
 import 'vs/workbench/parts/output/electron-browser/output.contribution';
-import 'vs/workbench/parts/output/browser/outputPanel'; // can be packaged separately
+import 'vs/workbench/parts/output/browser/outputPanel';
 
 import 'vs/workbench/parts/terminal/electron-browser/terminal.contribution';
 import 'vs/workbench/parts/terminal/browser/terminalQuickOpen';
-import 'vs/workbench/parts/terminal/electron-browser/terminalPanel'; // can be packaged separately
+import 'vs/workbench/parts/terminal/electron-browser/terminalPanel';
 
 import 'vs/workbench/electron-browser/workbench';
 
@@ -99,7 +98,6 @@ import 'vs/workbench/parts/tasks/electron-browser/task.contribution';
 import 'vs/workbench/parts/emmet/browser/emmet.browser.contribution';
 import 'vs/workbench/parts/emmet/electron-browser/emmet.contribution';
 
-// Code Editor enhacements
 import 'vs/workbench/parts/codeEditor/codeEditor.contribution';
 
 import 'vs/workbench/parts/execution/electron-browser/execution.contribution';
@@ -138,8 +136,6 @@ import 'vs/workbench/parts/welcome/overlay/browser/welcomeOverlay';
 
 import 'vs/workbench/parts/outline/electron-browser/outline.contribution';
 
-import 'vs/workbench/parts/navigation/common/navigation.contribution';
-
-// services
 import 'vs/workbench/services/bulkEdit/electron-browser/bulkEditService';
+
 import 'vs/workbench/parts/experiments/electron-browser/experiments.contribution';

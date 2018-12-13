@@ -20,9 +20,9 @@ export class RequestService implements IRequestService {
 
 	_serviceBrand: any;
 
-	private proxyUrl: string;
+	private proxyUrl?: string;
 	private strictSSL: boolean;
-	private authorization: string;
+	private authorization?: string;
 	private disposables: IDisposable[] = [];
 
 	constructor(
@@ -35,7 +35,7 @@ export class RequestService implements IRequestService {
 
 	private configure(config: IHTTPConfiguration) {
 		this.proxyUrl = config.http && config.http.proxy;
-		this.strictSSL = config.http && config.http.proxyStrictSSL;
+		this.strictSSL = !!(config.http && config.http.proxyStrictSSL);
 		this.authorization = config.http && config.http.proxyAuthorization;
 	}
 
@@ -43,7 +43,7 @@ export class RequestService implements IRequestService {
 		this.logService.trace('RequestService#request', options.url);
 
 		const { proxyUrl, strictSSL } = this;
-		const agentPromise = options.agent ? Promise.resolve(options.agent) : Promise.resolve(getProxyAgent(options.url, { proxyUrl, strictSSL }));
+		const agentPromise = options.agent ? Promise.resolve(options.agent) : Promise.resolve(getProxyAgent(options.url || '', { proxyUrl, strictSSL }));
 
 		return agentPromise.then(agent => {
 			options.agent = agent;

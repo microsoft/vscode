@@ -8,11 +8,11 @@ import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
+import { SelectBox, ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 import { SelectActionItem, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDebugService } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IDebugSession } from 'vs/workbench/parts/debug/common/debug';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
@@ -169,8 +169,9 @@ export class StartDebugActionItem implements IActionItem {
 
 		if (this.options.length === 0) {
 			this.options.push({ label: nls.localize('noConfigurations', "No Configurations"), handler: () => false });
+		} else {
+			this.options.push({ label: StartDebugActionItem.SEPARATOR, handler: undefined });
 		}
-		this.options.push({ label: StartDebugActionItem.SEPARATOR, handler: undefined });
 
 		const disabledIdx = this.options.length - 1;
 		launches.filter(l => !l.hidden).forEach(l => {
@@ -183,14 +184,14 @@ export class StartDebugActionItem implements IActionItem {
 			});
 		});
 
-		this.selectBox.setOptions(this.options.map(data => data.label), this.selected, disabledIdx);
+		this.selectBox.setOptions(this.options.map((data, index) => <ISelectOptionItem>{ text: data.label, isDisabled: (index === disabledIdx ? true : undefined) }), this.selected);
 	}
 }
 
 export class FocusSessionActionItem extends SelectActionItem {
 	constructor(
 		action: IAction,
-		@IDebugService private debugService: IDebugService,
+		@IDebugService protected debugService: IDebugService,
 		@IThemeService themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService,
 	) {
@@ -201,7 +202,7 @@ export class FocusSessionActionItem extends SelectActionItem {
 		this.toDispose.push(this.debugService.getViewModel().onDidFocusSession(() => {
 			const session = this.debugService.getViewModel().focusedSession;
 			if (session) {
-				const index = this.debugService.getModel().getSessions().indexOf(session);
+				const index = this.getSessions().indexOf(session);
 				this.select(index);
 			}
 		}));
@@ -214,8 +215,12 @@ export class FocusSessionActionItem extends SelectActionItem {
 
 	private update() {
 		const session = this.debugService.getViewModel().focusedSession;
-		const sessions = this.debugService.getModel().getSessions();
+		const sessions = this.getSessions();
 		const names = sessions.map(s => s.getLabel());
-		this.setOptions(names, session ? sessions.indexOf(session) : undefined);
+		this.setOptions(names.map(data => <ISelectOptionItem>{ text: data }), session ? sessions.indexOf(session) : undefined);
+	}
+
+	protected getSessions(): ReadonlyArray<IDebugSession> {
+		return this.debugService.getModel().getSessions();
 	}
 }

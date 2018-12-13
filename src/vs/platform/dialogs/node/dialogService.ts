@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as readline from 'readline';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IDialogService, IConfirmation, IConfirmationResult } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
 import { localize } from 'vs/nls';
@@ -14,8 +13,8 @@ export class CommandLineDialogService implements IDialogService {
 
 	_serviceBrand: any;
 
-	show(severity: Severity, message: string, options: string[]): TPromise<number> {
-		const promise = new TPromise<number>((c, e) => {
+	show(severity: Severity, message: string, options: string[]): Promise<number> {
+		const promise = new Promise<number>((c, e) => {
 			const rl = readline.createInterface({
 				input: process.stdin,
 				output: process.stdout,
@@ -58,8 +57,8 @@ export class CommandLineDialogService implements IDialogService {
 		return -1;
 	}
 
-	confirm(confirmation: IConfirmation): TPromise<IConfirmationResult> {
-		return this.show(Severity.Info, confirmation.message, [confirmation.primaryButton, confirmation.secondaryButton || localize('cancel', "Cancel")]).then(index => {
+	confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
+		return this.show(Severity.Info, confirmation.message, [confirmation.primaryButton || localize('ok', "Ok"), confirmation.secondaryButton || localize('cancel', "Cancel")]).then(index => {
 			return {
 				confirmed: index === 0
 			} as IConfirmationResult;

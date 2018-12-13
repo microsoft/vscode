@@ -47,6 +47,17 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 				type: ['null', 'string'],
 				default: null,
 				description: localize('proxyAuthorization', "The value to send as the 'Proxy-Authorization' header for every network request.")
+			},
+			'http.proxySupport': {
+				type: 'string',
+				enum: ['off', 'on', 'override'],
+				enumDescriptions: [
+					localize('proxySupportOff', "Disable proxy support for extensions."),
+					localize('proxySupportOn', "Enable proxy support for extensions."),
+					localize('proxySupportOverride', "Enable proxy support for extensions, override request options."),
+				],
+				default: 'override',
+				description: localize('proxySupport', "Experimental setting: Use the proxy support for extensions.")
 			}
 		}
 	});

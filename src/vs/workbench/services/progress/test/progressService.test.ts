@@ -5,7 +5,6 @@
 
 import * as assert from 'assert';
 import { IAction, IActionItem } from 'vs/base/common/actions';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IEditorControl } from 'vs/workbench/common/editor';
 import { Viewlet, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { IPanel } from 'vs/workbench/common/panel';
@@ -66,14 +65,18 @@ class TestViewletService implements IViewletService {
 class TestPanelService implements IPanelService {
 	public _serviceBrand: any;
 
-	onDidPanelOpen = new Emitter<IPanel>().event;
+	onDidPanelOpen = new Emitter<{ panel: IPanel, focus: boolean }>().event;
 	onDidPanelClose = new Emitter<IPanel>().event;
 
-	public openPanel(id: string, focus?: boolean): TPromise {
-		return TPromise.as(null);
+	public openPanel(id: string, focus?: boolean): IPanel {
+		return null;
 	}
 
 	public getPanels(): any[] {
+		return [];
+	}
+
+	public getPinnedPanels(): any[] {
 		return [];
 	}
 
@@ -284,11 +287,11 @@ suite('Progress Service', () => {
 		assert.strictEqual(80, testProgressBar.fTotal);
 
 		// Acive: Show While
-		let p = TPromise.as(null);
+		let p = Promise.resolve(null);
 		await service.showWhile(p);
 		assert.strictEqual(true, testProgressBar.fDone);
 		viewletService.onDidViewletCloseEmitter.fire(testViewlet);
-		p = TPromise.as(null);
+		p = Promise.resolve(null);
 		await service.showWhile(p);
 		assert.strictEqual(true, testProgressBar.fDone);
 		viewletService.onDidViewletOpenEmitter.fire(testViewlet);

@@ -21,8 +21,8 @@ export interface IRangeHighlightDecoration {
 
 export class RangeHighlightDecorations extends Disposable {
 
-	private rangeHighlightDecorationId: string = null;
-	private editor: ICodeEditor = null;
+	private rangeHighlightDecorationId: string | null = null;
+	private editor: ICodeEditor | null = null;
 	private editorDisposables: IDisposable[] = [];
 
 	private readonly _onHighlightRemoved: Emitter<void> = this._register(new Emitter<void>());
@@ -58,7 +58,7 @@ export class RangeHighlightDecorations extends Disposable {
 		this.setEditor(editor);
 	}
 
-	private getEditor(resourceRange: IRangeHighlightDecoration): ICodeEditor {
+	private getEditor(resourceRange: IRangeHighlightDecoration): ICodeEditor | undefined {
 		const activeEditor = this.editorService.activeEditor;
 		const resource = activeEditor && activeEditor.getResource();
 		if (resource) {
@@ -67,7 +67,7 @@ export class RangeHighlightDecorations extends Disposable {
 			}
 		}
 
-		return null;
+		return undefined;
 	}
 
 	private setEditor(editor: ICodeEditor) {

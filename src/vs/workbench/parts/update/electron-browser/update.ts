@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 import severity from 'vs/base/common/severity';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction, Action } from 'vs/base/common/actions';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -47,12 +46,12 @@ export class OpenLatestReleaseNotesInBrowserAction extends Action {
 		super('update.openLatestReleaseNotes', nls.localize('releaseNotes', "Release Notes"), null, true);
 	}
 
-	run(): TPromise<any> {
+	run(): Promise<any> {
 		if (product.releaseNotesUrl) {
 			const uri = URI.parse(product.releaseNotesUrl);
 			return this.openerService.open(uri);
 		}
-		return TPromise.as(void 0);
+		return Promise.resolve(false);
 	}
 }
 
@@ -67,18 +66,18 @@ export abstract class AbstractShowReleaseNotesAction extends Action {
 		super(id, label, null, true);
 	}
 
-	run(): TPromise<boolean> {
+	run(): Promise<boolean> {
 		if (!this.enabled) {
-			return TPromise.as(false);
+			return Promise.resolve(false);
 		}
 
 		this.enabled = false;
 
-		return TPromise.wrap(showReleaseNotes(this.instantiationService, this.version)
-			.then(null, () => {
+		return showReleaseNotes(this.instantiationService, this.version)
+			.then(void 0, () => {
 				const action = this.instantiationService.createInstance(OpenLatestReleaseNotesInBrowserAction);
 				return action.run().then(() => false);
-			}));
+			});
 	}
 }
 
@@ -134,7 +133,8 @@ export class ProductContribution implements IWorkbenchContribution {
 								const uri = URI.parse(product.releaseNotesUrl);
 								openerService.open(uri);
 							}
-						}]
+						}],
+						{ sticky: true }
 					);
 				});
 		}
@@ -157,7 +157,9 @@ class NeverShowAgain {
 		// Hide notification
 		notification.close();
 
-		return TPromise.wrap(this.storageService.store(this.key, true, StorageScope.GLOBAL));
+		this.storageService.store(this.key, true, StorageScope.GLOBAL);
+
+		return Promise.resolve(true);
 	});
 
 	constructor(key: string, @IStorageService private storageService: IStorageService) {
@@ -204,7 +206,8 @@ export class Win3264BitContribution implements IWorkbenchContribution {
 					neverShowAgain.action.run(handle);
 					neverShowAgain.action.dispose();
 				}
-			}]
+			}],
+			{ sticky: true }
 		);
 	}
 }
@@ -357,7 +360,8 @@ export class UpdateContribution implements IGlobalActivity {
 					action.run();
 					action.dispose();
 				}
-			}]
+			}],
+			{ sticky: true }
 		);
 	}
 
@@ -383,7 +387,8 @@ export class UpdateContribution implements IGlobalActivity {
 					action.run();
 					action.dispose();
 				}
-			}]
+			}],
+			{ sticky: true }
 		);
 	}
 
@@ -420,24 +425,32 @@ export class UpdateContribution implements IGlobalActivity {
 			return;
 		}
 
-		// windows user fast updates and mac
-		this.notificationService.prompt(
-			severity.Info,
-			nls.localize('updateAvailableAfterRestart', "Restart {0} to apply the latest update.", product.nameLong),
-			[{
-				label: nls.localize('updateNow', "Update Now"),
-				run: () => this.updateService.quitAndInstall()
-			}, {
-				label: nls.localize('later', "Later"),
-				run: () => { }
-			}, {
+		const actions = [{
+			label: nls.localize('updateNow', "Update Now"),
+			run: () => this.updateService.quitAndInstall()
+		}, {
+			label: nls.localize('later', "Later"),
+			run: () => { }
+		}];
+
+		// TODO@joao check why snap updates send `update` as falsy
+		if (update.productVersion) {
+			actions.push({
 				label: nls.localize('releaseNotes', "Release Notes"),
 				run: () => {
 					const action = this.instantiationService.createInstance(ShowReleaseNotesAction, update.productVersion);
 					action.run();
 					action.dispose();
 				}
-			}]
+			});
+		}
+
+		// windows user fast updates and mac
+		this.notificationService.prompt(
+			severity.Info,
+			nls.localize('updateAvailableAfterRestart', "Restart {0} to apply the latest update.", product.nameLong),
+			actions,
+			{ sticky: true }
 		);
 	}
 

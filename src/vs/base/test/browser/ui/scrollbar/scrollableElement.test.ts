@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MouseWheelClassifier } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import * as assert from 'assert';
+import { MouseWheelClassifier } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 
 export type IMouseWheelEvent = [number, number, number];
 

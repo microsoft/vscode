@@ -11,16 +11,15 @@ import { ExplorerItem, OpenEditor } from 'vs/workbench/parts/files/common/explor
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ITextModel } from 'vs/editor/common/model';
-import { IMode } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { IModeService, ILanguageSelection } from 'vs/editor/common/services/modeService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { InputFocusedContextKey } from 'vs/platform/workbench/common/contextkeys';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainer } from 'vs/workbench/common/views';
+import { Schemas } from 'vs/base/common/network';
 
 /**
  * Explorer viewlet id.
@@ -36,7 +35,7 @@ export interface IExplorerViewlet extends IViewlet {
 }
 
 export interface IExplorerView {
-	select(resource: URI, reveal?: boolean): TPromise<void>;
+	select(resource: URI, reveal?: boolean): Promise<void>;
 }
 
 /**
@@ -111,7 +110,7 @@ export interface IFileResource {
 /**
  * Helper to get an explorer item from an object.
  */
-export function explorerItemToFileResource(obj: ExplorerItem | OpenEditor): IFileResource {
+export function explorerItemToFileResource(obj: ExplorerItem | OpenEditor): IFileResource | null {
 	if (obj instanceof ExplorerItem) {
 		const stat = obj as ExplorerItem;
 
@@ -155,8 +154,8 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 	) {
 	}
 
-	provideTextContent(resource: URI): TPromise<ITextModel> {
-		const fileOnDiskResource = URI.file(resource.fsPath);
+	provideTextContent(resource: URI): Promise<ITextModel> {
+		const fileOnDiskResource = resource.with({ scheme: Schemas.file });
 
 		// Make sure our file from disk is resolved up to date
 		return this.resolveEditorModel(resource).then(codeEditorModel => {
@@ -169,18 +168,22 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 					}
 				});
 
-				const disposeListener = codeEditorModel.onWillDispose(() => {
-					disposeListener.dispose();
-					this.fileWatcher = dispose(this.fileWatcher);
-				});
+				if (codeEditorModel) {
+					const disposeListener = codeEditorModel.onWillDispose(() => {
+						disposeListener.dispose();
+						this.fileWatcher = dispose(this.fileWatcher);
+					});
+				}
 			}
 
 			return codeEditorModel;
 		});
 	}
 
-	private resolveEditorModel(resource: URI, createAsNeeded = true): TPromise<ITextModel> {
-		const fileOnDiskResource = URI.file(resource.fsPath);
+	private resolveEditorModel(resource: URI, createAsNeeded?: true): Promise<ITextModel>;
+	private resolveEditorModel(resource: URI, createAsNeeded?: boolean): Promise<ITextModel | null>;
+	private resolveEditorModel(resource: URI, createAsNeeded: boolean = true): Promise<ITextModel | null> {
+		const fileOnDiskResource = resource.with({ scheme: Schemas.file });
 
 		return this.textFileService.resolveTextContent(fileOnDiskResource).then(content => {
 			let codeEditorModel = this.modelService.getModel(resource);
@@ -189,14 +192,14 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 			} else if (createAsNeeded) {
 				const fileOnDiskModel = this.modelService.getModel(fileOnDiskResource);
 
-				let mode: TPromise<IMode>;
+				let languageSelector: ILanguageSelection;
 				if (fileOnDiskModel) {
-					mode = this.modeService.getOrCreateMode(fileOnDiskModel.getModeId());
+					languageSelector = this.modeService.create(fileOnDiskModel.getModeId());
 				} else {
-					mode = this.modeService.getOrCreateModeByFilepathOrFirstLine(fileOnDiskResource.fsPath);
+					languageSelector = this.modeService.createByFilepathOrFirstLine(fileOnDiskResource.fsPath);
 				}
 
-				codeEditorModel = this.modelService.createModel(content.value, mode, resource);
+				codeEditorModel = this.modelService.createModel(content.value, languageSelector, resource);
 			}
 
 			return codeEditorModel;

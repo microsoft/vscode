@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ok } from 'vs/base/common/assert';
-import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
-import { MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
-import { URI } from 'vs/base/common/uri';
-import { Range, Position, EndOfLine } from 'vs/workbench/api/node/extHostTypes';
-import * as vscode from 'vscode';
-import { getWordAtText, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
-import { MainThreadDocumentsShape } from './extHost.protocol';
 import { Schemas } from 'vs/base/common/network';
+import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
+import { URI } from 'vs/base/common/uri';
+import { MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
+import { ensureValidWordDefinition, getWordAtText } from 'vs/editor/common/model/wordHelper';
+import { MainThreadDocumentsShape } from 'vs/workbench/api/node/extHost.protocol';
+import { EndOfLine, Position, Range } from 'vs/workbench/api/node/extHostTypes';
+import * as vscode from 'vscode';
 
 const _modeId2WordDefinition = new Map<string, RegExp>();
 export function setWordDefinitionFor(modeId: string, wordDefinition: RegExp): void {
@@ -97,7 +97,7 @@ export class ExtHostDocumentData extends MirrorTextModel {
 		this._isDirty = isDirty;
 	}
 
-	private _save(): Thenable<boolean> {
+	private _save(): Promise<boolean> {
 		if (this._isDisposed) {
 			return Promise.reject(new Error('Document has been closed'));
 		}

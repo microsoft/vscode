@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
-import { Range, IRange } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILink, LinkProvider, LinkProviderRegistry } from 'vs/editor/common/modes';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 export class Link implements ILink {
 
@@ -33,11 +33,11 @@ export class Link implements ILink {
 		return this._link.range;
 	}
 
-	get url(): string {
+	get url(): string | undefined {
 		return this._link.url;
 	}
 
-	resolve(token: CancellationToken): Thenable<URI> {
+	resolve(token: CancellationToken): Promise<URI> {
 		if (this._link.url) {
 			try {
 				return Promise.resolve(URI.parse(this._link.url));

@@ -13,7 +13,7 @@ export function createWidgetScopedContextKeyService(contextKeyService: IContextK
 	return contextKeyService.createScoped(widget.target);
 }
 
-export function getContextScopedWidget<T extends IContextScopedWidget>(contextKeyService: IContextKeyService, contextKey: string): T {
+export function getContextScopedWidget<T extends IContextScopedWidget>(contextKeyService: IContextKeyService, contextKey: string): T | undefined {
 	return contextKeyService.getContext(document.activeElement).getValue(contextKey);
 }
 

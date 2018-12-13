@@ -5,10 +5,10 @@
 
 import * as assert from 'assert';
 import { MainThreadMessageService } from 'vs/workbench/api/electron-browser/mainThreadMessageService';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService, INotification, NoOpNotification, INotificationHandle, Severity, IPromptChoice } from 'vs/platform/notification/common/notification';
+import { INotificationService, INotification, NoOpNotification, INotificationHandle, Severity, IPromptChoice, IPromptOptions } from 'vs/platform/notification/common/notification';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 
 const emptyDialogService = new class implements IDialogService {
 	_serviceBrand: 'dialogService';
@@ -43,7 +43,7 @@ const emptyNotificationService = new class implements INotificationService {
 	error(...args: any[]): never {
 		throw new Error('not implemented');
 	}
-	prompt(severity: Severity, message: string, choices: IPromptChoice[], onCancel?: () => void): INotificationHandle {
+	prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions): INotificationHandle {
 		throw new Error('not implemented');
 	}
 };
@@ -69,7 +69,7 @@ class EmptyNotificationService implements INotificationService {
 	error(message: any): void {
 		throw new Error('Method not implemented.');
 	}
-	prompt(severity: Severity, message: string, choices: IPromptChoice[], onCancel?: () => void): INotificationHandle {
+	prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions): INotificationHandle {
 		throw new Error('not implemented');
 	}
 }
@@ -89,13 +89,13 @@ suite('ExtHostMessageService', function () {
 
 	suite('modal', () => {
 		test('calls dialog service', async () => {
-			const service = new MainThreadMessageService(null, emptyNotificationService, emptyCommandService, {
+			const service = new MainThreadMessageService(null, emptyNotificationService, emptyCommandService, new class extends mock<IDialogService>() {
 				show(severity, message, buttons) {
 					assert.equal(severity, 1);
 					assert.equal(message, 'h');
 					assert.equal(buttons.length, 2);
 					assert.equal(buttons[1], 'Cancel');
-					return TPromise.as(0);
+					return Promise.resolve(0);
 				}
 			} as IDialogService);
 
@@ -104,9 +104,9 @@ suite('ExtHostMessageService', function () {
 		});
 
 		test('returns undefined when cancelled', async () => {
-			const service = new MainThreadMessageService(null, emptyNotificationService, emptyCommandService, {
+			const service = new MainThreadMessageService(null, emptyNotificationService, emptyCommandService, new class extends mock<IDialogService>() {
 				show(severity, message, buttons) {
-					return TPromise.as(1);
+					return Promise.resolve(1);
 				}
 			} as IDialogService);
 
@@ -115,10 +115,10 @@ suite('ExtHostMessageService', function () {
 		});
 
 		test('hides Cancel button when not needed', async () => {
-			const service = new MainThreadMessageService(null, emptyNotificationService, emptyCommandService, {
+			const service = new MainThreadMessageService(null, emptyNotificationService, emptyCommandService, new class extends mock<IDialogService>() {
 				show(severity, message, buttons) {
 					assert.equal(buttons.length, 1);
-					return TPromise.as(0);
+					return Promise.resolve(0);
 				}
 			} as IDialogService);
 

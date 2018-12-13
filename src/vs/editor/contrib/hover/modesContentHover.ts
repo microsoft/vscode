@@ -5,24 +5,26 @@
 
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { Position } from 'vs/editor/common/core/position';
-import { HoverProviderRegistry, Hover, IColor, DocumentColorProvider } from 'vs/editor/common/modes';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { getHover } from 'vs/editor/contrib/hover/getHover';
-import { HoverOperation, IHoverComputer, HoverStartMode } from './hoverOperation';
-import { ContentHoverWidget } from './hoverWidgets';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { Color, RGBA } from 'vs/base/common/color';
 import { IMarkdownString, MarkdownString, isEmptyMarkdownString, markedStringsEquals } from 'vs/base/common/htmlContent';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
+import { Disposable, IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { Position } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { DocumentColorProvider, Hover, HoverProviderRegistry, IColor } from 'vs/editor/common/modes';
+import { getColorPresentations } from 'vs/editor/contrib/colorPicker/color';
+import { ColorDetector } from 'vs/editor/contrib/colorPicker/colorDetector';
 import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/colorPickerModel';
 import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/colorPickerWidget';
-import { ColorDetector } from 'vs/editor/contrib/colorPicker/colorDetector';
-import { Color, RGBA } from 'vs/base/common/color';
-import { IDisposable, Disposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import { getColorPresentations } from 'vs/editor/contrib/colorPicker/color';
+import { getHover } from 'vs/editor/contrib/hover/getHover';
+import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/hoverOperation';
+import { ContentHoverWidget } from 'vs/editor/contrib/hover/hoverWidgets';
+import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { coalesce } from 'vs/base/common/arrays';
+
 const $ = dom.$;
 
 class ColorHover {
@@ -40,7 +42,7 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 
 	private _editor: ICodeEditor;
 	private _result: HoverPart[];
-	private _range: Range;
+	private _range: Range | null;
 
 	constructor(editor: ICodeEditor) {
 		this._editor = editor;
@@ -57,10 +59,14 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 	}
 
 	computeAsync(token: CancellationToken): Promise<HoverPart[]> {
+		if (!this._editor.hasModel() || !this._range) {
+			return Promise.resolve([]);
+		}
+
 		const model = this._editor.getModel();
 
 		if (!HoverProviderRegistry.has(model)) {
-			return Promise.resolve(null);
+			return Promise.resolve([]);
 		}
 
 		return getHover(model, new Position(
@@ -70,6 +76,10 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 	}
 
 	computeSync(): HoverPart[] {
+		if (!this._editor.hasModel() || !this._range) {
+			return [];
+		}
+
 		const lineNumber = this._range.startLineNumber;
 
 		if (lineNumber > this._editor.getModel().getLineCount()) {
@@ -82,15 +92,16 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 		const lineDecorations = this._editor.getLineDecorations(lineNumber);
 		let didFindColor = false;
 
-		const result = lineDecorations.map(d => {
+		const hoverRange = this._range;
+		const result = lineDecorations.map((d): HoverPart | null => {
 			const startColumn = (d.range.startLineNumber === lineNumber) ? d.range.startColumn : 1;
 			const endColumn = (d.range.endLineNumber === lineNumber) ? d.range.endColumn : maxColumn;
 
-			if (startColumn > this._range.startColumn || this._range.endColumn > endColumn) {
+			if (startColumn > hoverRange.startColumn || hoverRange.endColumn > endColumn) {
 				return null;
 			}
 
-			const range = new Range(this._range.startLineNumber, startColumn, this._range.startLineNumber, endColumn);
+			const range = new Range(hoverRange.startLineNumber, startColumn, hoverRange.startLineNumber, endColumn);
 			const colorData = colorDetector.getColorData(d.range.getStartPosition());
 
 			if (!didFindColor && colorData) {
@@ -103,7 +114,7 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 					return null;
 				}
 
-				let contents: IMarkdownString[];
+				let contents: IMarkdownString[] = [];
 
 				if (d.options.hoverMessage) {
 					if (Array.isArray(d.options.hoverMessage)) {
@@ -117,7 +128,7 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 			}
 		});
 
-		return result.filter(d => !!d);
+		return coalesce(result);
 	}
 
 	onResult(result: HoverPart[], isFromSynchronousComputation: boolean): void {
@@ -146,7 +157,7 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 
 	private _getLoadingMessage(): HoverPart {
 		return {
-			range: this._range,
+			range: this._range || undefined,
 			contents: [new MarkdownString().appendText(nls.localize('modesContentHover.loading', "Loading..."))]
 		};
 	}
@@ -157,14 +168,14 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 	static readonly ID = 'editor.contrib.modesContentHoverWidget';
 
 	private _messages: HoverPart[];
-	private _lastRange: Range;
+	private _lastRange: Range | null;
 	private _computer: ModesContentComputer;
 	private _hoverOperation: HoverOperation<HoverPart[]>;
 	private _highlightDecorations: string[];
 	private _isChangingDecorations: boolean;
 	private _markdownRenderer: MarkdownRenderer;
 	private _shouldFocus: boolean;
-	private _colorPicker: ColorPickerWidget;
+	private _colorPicker: ColorPickerWidget | null;
 
 	private renderDisposable: IDisposable = Disposable.None;
 
@@ -175,6 +186,8 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 	) {
 		super(ModesContentHoverWidget.ID, editor);
 
+		this._messages = [];
+		this._lastRange = null;
 		this._computer = new ModesContentComputer(this._editor);
 		this._highlightDecorations = [];
 		this._isChangingDecorations = false;
@@ -186,7 +199,8 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			this._computer,
 			result => this._withResult(result, true),
 			null,
-			result => this._withResult(result, false)
+			result => this._withResult(result, false),
+			this._editor.getConfiguration().contribInfo.hover.delay
 		);
 
 		this._register(dom.addStandardDisposableListener(this.getDomNode(), dom.EventType.FOCUS, () => {
@@ -237,14 +251,14 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			// The range might have changed, but the hover is visible
 			// Instead of hiding it completely, filter out messages that are still in the new range and
 			// kick off a new computation
-			if (this._showAtPosition.lineNumber !== range.startLineNumber) {
+			if (!this._showAtPosition || this._showAtPosition.lineNumber !== range.startLineNumber) {
 				this.hide();
 			} else {
 				let filteredMessages: HoverPart[] = [];
 				for (let i = 0, len = this._messages.length; i < len; i++) {
 					const msg = this._messages[i];
 					const rng = msg.range;
-					if (rng.startColumn <= range.startColumn && rng.endColumn >= range.endColumn) {
+					if (rng && rng.startColumn <= range.startColumn && rng.endColumn >= range.endColumn) {
 						filteredMessages.push(msg);
 					}
 				}
@@ -300,7 +314,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 		// update column from which to show
 		let renderColumn = Number.MAX_VALUE;
-		let highlightRange = Range.lift(messages[0].range);
+		let highlightRange: Range | null = messages[0].range ? Range.lift(messages[0].range) : null;
 		let fragment = document.createDocumentFragment();
 		let isEmptyHoverContent = true;
 
@@ -312,7 +326,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			}
 
 			renderColumn = Math.min(renderColumn, msg.range.startColumn);
-			highlightRange = Range.plusRange(highlightRange, msg.range);
+			highlightRange = highlightRange ? Range.plusRange(highlightRange, msg.range) : Range.lift(msg.range);
 
 			if (!(msg instanceof ColorHover)) {
 				msg.contents
@@ -320,7 +334,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 					.forEach(contents => {
 						const renderedContents = this._markdownRenderer.render(contents);
 						markdownDisposeable = renderedContents;
-						fragment.appendChild($('div.hover-row', null, renderedContents.element));
+						fragment.appendChild($('div.hover-row', undefined, renderedContents.element));
 						isEmptyHoverContent = false;
 					});
 			} else {
@@ -329,6 +343,10 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				const { red, green, blue, alpha } = msg.color;
 				const rgba = new RGBA(red * 255, green * 255, blue * 255, alpha);
 				const color = new Color(rgba);
+
+				if (!this._editor.hasModel()) {
+					return;
+				}
 
 				const editorModel = this._editor.getModel();
 				let range = new Range(msg.range.startLineNumber, msg.range.startColumn, msg.range.endLineNumber, msg.range.endColumn);
@@ -339,7 +357,11 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				const widget = new ColorPickerWidget(fragment, model, this._editor.getConfiguration().pixelRatio, this._themeService);
 
 				getColorPresentations(editorModel, colorInfo, msg.provider, CancellationToken.None).then(colorPresentations => {
-					model.colorPresentations = colorPresentations;
+					model.colorPresentations = colorPresentations || [];
+					if (!this._editor.hasModel()) {
+						// gone...
+						return;
+					}
 					const originalText = this._editor.getModel().getValueInRange(msg.range);
 					model.guessColorPresentation(color, originalText);
 
@@ -382,7 +404,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 								alpha: color.rgba.a
 							}
 						}, msg.provider, CancellationToken.None).then((colorPresentations) => {
-							model.colorPresentations = colorPresentations;
+							model.colorPresentations = colorPresentations || [];
 						});
 					};
 
@@ -409,10 +431,10 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		}
 
 		this._isChangingDecorations = true;
-		this._highlightDecorations = this._editor.deltaDecorations(this._highlightDecorations, [{
+		this._highlightDecorations = this._editor.deltaDecorations(this._highlightDecorations, highlightRange ? [{
 			range: highlightRange,
 			options: ModesContentHoverWidget._DECORATION_OPTIONS
-		}]);
+		}] : []);
 		this._isChangingDecorations = false;
 	}
 

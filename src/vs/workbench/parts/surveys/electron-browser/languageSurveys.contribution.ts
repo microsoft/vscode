@@ -8,7 +8,6 @@ import { language } from 'vs/base/common/platform';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import pkg from 'vs/platform/node/package';
@@ -21,7 +20,6 @@ class LanguageSurvey {
 
 	constructor(
 		data: ISurveyData,
-		instantiationService: IInstantiationService,
 		storageService: IStorageService,
 		notificationService: INotificationService,
 		telemetryService: ITelemetryService,
@@ -39,6 +37,7 @@ class LanguageSurvey {
 		if (skipVersion) {
 			return;
 		}
+
 		const date = new Date().toDateString();
 
 		if (storageService.getInteger(EDITED_LANGUAGE_COUNT_KEY, StorageScope.GLOBAL, 0) < data.editCount) {
@@ -68,6 +67,7 @@ class LanguageSurvey {
 		if (sessionCount < 9) {
 			return;
 		}
+
 		if (storageService.getInteger(EDITED_LANGUAGE_COUNT_KEY, StorageScope.GLOBAL, 0) < data.editCount) {
 			return;
 		}
@@ -112,7 +112,8 @@ class LanguageSurvey {
 					storageService.store(IS_CANDIDATE_KEY, false, StorageScope.GLOBAL);
 					storageService.store(SKIP_VERSION_KEY, pkg.version, StorageScope.GLOBAL);
 				}
-			}]
+			}],
+			{ sticky: true }
 		);
 	}
 }
@@ -120,19 +121,19 @@ class LanguageSurvey {
 class LanguageSurveysContribution implements IWorkbenchContribution {
 
 	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
 		@INotificationService notificationService: INotificationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IModelService modelService: IModelService,
 		@ITextFileService textFileService: ITextFileService
 	) {
-		product.surveys.filter(surveyData => surveyData.surveyId && surveyData.editCount && surveyData.languageId && surveyData.surveyUrl && surveyData.userProbability).map(surveyData =>
-			new LanguageSurvey(surveyData, instantiationService, storageService, notificationService, telemetryService, modelService, textFileService));
+		product.surveys
+			.filter(surveyData => surveyData.surveyId && surveyData.editCount && surveyData.languageId && surveyData.surveyUrl && surveyData.userProbability)
+			.map(surveyData => new LanguageSurvey(surveyData, storageService, notificationService, telemetryService, modelService, textFileService));
 	}
 }
 
 if (language === 'en' && product.surveys && product.surveys.length) {
 	const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-	workbenchRegistry.registerWorkbenchContribution(LanguageSurveysContribution, LifecyclePhase.Running);
+	workbenchRegistry.registerWorkbenchContribution(LanguageSurveysContribution, LifecyclePhase.Restored);
 }

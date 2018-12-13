@@ -384,12 +384,12 @@ suite('ExtHostTypes', function () {
 		const all = edit._allEntries();
 		assert.equal(all.length, 4);
 
-		function isFileChange(thing: [URI, types.TextEdit[]] | [URI, URI, { overwrite?: boolean }]): thing is [URI, URI, { overwrite?: boolean }] {
+		function isFileChange(thing: [URI, types.TextEdit[]] | [URI?, URI?, { overwrite?: boolean }?]): thing is [URI?, URI?, { overwrite?: boolean }?] {
 			const [f, s] = thing;
 			return URI.isUri(f) && URI.isUri(s);
 		}
 
-		function isTextChange(thing: [URI, types.TextEdit[]] | [URI, URI, { overwrite?: boolean }]): thing is [URI, types.TextEdit[]] {
+		function isTextChange(thing: [URI, types.TextEdit[]] | [URI?, URI?, { overwrite?: boolean }?]): thing is [URI, types.TextEdit[]] {
 			const [f, s] = thing;
 			return URI.isUri(f) && Array.isArray(s);
 		}

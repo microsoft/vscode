@@ -20,7 +20,10 @@
         },
         diff-editor: [],
         dropdown: [],
-        editor: [],
+        editor: {
+            assignees: [],
+            assignLabel: false
+        },
         editor-1000-limit: [],
         editor-autoclosing: [],
         editor-autoindent: [],
@@ -75,7 +78,7 @@
         formatting: [],
         git: [ joaomoreno ],
         grammar: [],
-        hot-exit: [ Tyriar ],
+        hot-exit: [],
         html: [ aeschli ],
         install-update: [],
         integrated-terminal: [ Tyriar ],
@@ -128,7 +131,7 @@
             assignLabel: false
         },
         suggest: [],
-        tasks: [ dbaeumer ],
+        tasks: [ alexr00 ],
         telemetry: [],
         themes: [],
         tokenization: [],

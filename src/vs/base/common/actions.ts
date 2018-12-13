@@ -16,15 +16,15 @@ export interface IAction extends IDisposable {
 	id: string;
 	label: string;
 	tooltip: string;
-	class: string;
+	class: string | undefined;
 	enabled: boolean;
 	checked: boolean;
 	radio: boolean;
-	run(event?: any): Thenable<any>;
+	run(event?: any): Promise<any>;
 }
 
 export interface IActionRunner extends IDisposable {
-	run(action: IAction, context?: any): Thenable<any>;
+	run(action: IAction, context?: any): Promise<any>;
 	onDidRun: Event<IRunEvent>;
 	onDidBeforeRun: Event<IRunEvent>;
 }
@@ -56,13 +56,13 @@ export class Action implements IAction {
 	protected _id: string;
 	protected _label: string;
 	protected _tooltip: string;
-	protected _cssClass: string;
+	protected _cssClass: string | undefined;
 	protected _enabled: boolean;
 	protected _checked: boolean;
 	protected _radio: boolean;
-	protected _actionCallback: (event?: any) => Thenable<any>;
+	protected _actionCallback?: (event?: any) => Promise<any>;
 
-	constructor(id: string, label: string = '', cssClass: string = '', enabled: boolean = true, actionCallback?: (event?: any) => Thenable<any>) {
+	constructor(id: string, label: string = '', cssClass: string = '', enabled: boolean = true, actionCallback?: (event?: any) => Promise<any>) {
 		this._id = id;
 		this._label = label;
 		this._cssClass = cssClass;
@@ -104,15 +104,15 @@ export class Action implements IAction {
 		}
 	}
 
-	get class(): string {
+	get class(): string | undefined {
 		return this._cssClass;
 	}
 
-	set class(value: string) {
+	set class(value: string | undefined) {
 		this._setClass(value);
 	}
 
-	protected _setClass(value: string): void {
+	protected _setClass(value: string | undefined): void {
 		if (this._cssClass !== value) {
 			this._cssClass = value;
 			this._onDidChange.fire({ class: value });
@@ -164,8 +164,8 @@ export class Action implements IAction {
 		}
 	}
 
-	run(event?: any, _data?: ITelemetryData): Thenable<any> {
-		if (this._actionCallback !== void 0) {
+	run(event?: any, _data?: ITelemetryData): Promise<any> {
+		if (this._actionCallback) {
 			return this._actionCallback(event);
 		}
 
@@ -191,7 +191,7 @@ export class ActionRunner extends Disposable implements IActionRunner {
 	private _onDidRun = this._register(new Emitter<IRunEvent>());
 	readonly onDidRun: Event<IRunEvent> = this._onDidRun.event;
 
-	run(action: IAction, context?: any): Thenable<any> {
+	run(action: IAction, context?: any): Promise<any> {
 		if (!action.enabled) {
 			return Promise.resolve(null);
 		}
@@ -205,7 +205,7 @@ export class ActionRunner extends Disposable implements IActionRunner {
 		});
 	}
 
-	protected runAction(action: IAction, context?: any): Thenable<any> {
+	protected runAction(action: IAction, context?: any): Promise<any> {
 		const res = context ? action.run(context) : action.run();
 		return Promise.resolve(res);
 	}

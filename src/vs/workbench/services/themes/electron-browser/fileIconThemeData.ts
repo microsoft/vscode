@@ -15,25 +15,24 @@ import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 export class FileIconThemeData implements IFileIconTheme {
 	id: string;
 	label: string;
-	settingsId: string;
+	settingsId?: string;
 	description?: string;
-	hasFileIcons?: boolean;
-	hasFolderIcons?: boolean;
-	hidesExplorerArrows?: boolean;
+	hasFileIcons: boolean;
+	hasFolderIcons: boolean;
+	hidesExplorerArrows: boolean;
 	isLoaded: boolean;
 	location?: URI;
-	extensionData: ExtensionData;
+	extensionData?: ExtensionData;
 
 	styleSheetContent?: string;
 
-	private constructor() {
-	}
+	private constructor() { }
 
-	public ensureLoaded(fileService: IFileService): Thenable<string> {
+	public ensureLoaded(fileService: IFileService): Promise<string> {
 		if (!this.isLoaded) {
 			if (this.location) {
 				return _loadIconThemeDocument(fileService, this.location).then(iconThemeDocument => {
-					let result = _processIconThemeDocument(this.id, this.location, iconThemeDocument);
+					let result = _processIconThemeDocument(this.id, this.location!, iconThemeDocument);
 					this.styleSheetContent = result.content;
 					this.hasFileIcons = result.hasFileIcons;
 					this.hasFolderIcons = result.hasFolderIcons;
@@ -58,7 +57,7 @@ export class FileIconThemeData implements IFileIconTheme {
 		return themeData;
 	}
 
-	private static _noIconTheme: FileIconThemeData = null;
+	private static _noIconTheme: FileIconThemeData | null = null;
 
 	static noIconTheme(): FileIconThemeData {
 		let themeData = FileIconThemeData._noIconTheme;
@@ -66,17 +65,17 @@ export class FileIconThemeData implements IFileIconTheme {
 			themeData = FileIconThemeData._noIconTheme = new FileIconThemeData();
 			themeData.id = '';
 			themeData.label = '';
-			themeData.settingsId = null;
+			themeData.settingsId = undefined;
 			themeData.hasFileIcons = false;
 			themeData.hasFolderIcons = false;
 			themeData.hidesExplorerArrows = false;
 			themeData.isLoaded = true;
-			themeData.extensionData = null;
+			themeData.extensionData = undefined;
 		}
 		return themeData;
 	}
 
-	static fromStorageData(input: string): FileIconThemeData {
+	static fromStorageData(input: string): FileIconThemeData | null {
 		try {
 			let data = JSON.parse(input);
 			let theme = new FileIconThemeData();
@@ -156,7 +155,7 @@ interface IconThemeDocument extends IconsAssociation {
 	hidesExplorerArrows?: boolean;
 }
 
-function _loadIconThemeDocument(fileService: IFileService, location: URI): Thenable<IconThemeDocument> {
+function _loadIconThemeDocument(fileService: IFileService, location: URI): Promise<IconThemeDocument> {
 	return fileService.resolveContent(location, { encoding: 'utf8' }).then((content) => {
 		let errors: Json.ParseError[] = [];
 		let contentValue = Json.parse(content.value.toString(), errors);
@@ -169,7 +168,7 @@ function _loadIconThemeDocument(fileService: IFileService, location: URI): Thena
 
 function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, iconThemeDocument: IconThemeDocument): { content: string; hasFileIcons: boolean; hasFolderIcons: boolean; hidesExplorerArrows: boolean; } {
 
-	let result = { content: '', hasFileIcons: false, hasFolderIcons: false, hidesExplorerArrows: iconThemeDocument.hidesExplorerArrows };
+	const result = { content: '', hasFileIcons: false, hasFolderIcons: false, hidesExplorerArrows: !!iconThemeDocument.hidesExplorerArrows };
 
 	if (!iconThemeDocument.iconDefinitions) {
 		return result;
@@ -178,10 +177,10 @@ function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, i
 
 	const iconThemeDocumentLocationDirname = resources.dirname(iconThemeDocumentLocation);
 	function resolvePath(path: string) {
-		return resources.joinPath(iconThemeDocumentLocationDirname, path);
+		return resources.joinPath(iconThemeDocumentLocationDirname!, path);
 	}
 
-	function collectSelectors(associations: IconsAssociation, baseThemeClassName?: string) {
+	function collectSelectors(associations: IconsAssociation | undefined, baseThemeClassName?: string) {
 		function addSelector(selector: string, defId: string) {
 			if (defId) {
 				let list = selectorByDefinitionId[defId];

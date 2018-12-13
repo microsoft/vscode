@@ -12,7 +12,7 @@ import { alert as ariaAlert } from 'vs/base/browser/ui/aria/aria';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
+import { SelectBox, ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { Action, IAction } from 'vs/base/common/actions';
 import * as arrays from 'vs/base/common/arrays';
@@ -23,7 +23,6 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { escapeRegExpCharacters, startsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IAccessibilityProvider, IDataSource, IFilter, IRenderer as ITreeRenderer, ITree, ITreeConfiguration } from 'vs/base/parts/tree/browser/tree';
 import { DefaultTreestyler } from 'vs/base/parts/tree/browser/treeDefaults';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
@@ -186,8 +185,8 @@ export class SettingsDataSource implements IDataSource {
 		return false;
 	}
 
-	getChildren(tree: ITree, element: SettingsTreeElement): TPromise<any> {
-		return TPromise.as(this._getChildren(element));
+	getChildren(tree: ITree, element: SettingsTreeElement): Promise<any> {
+		return Promise.resolve(this._getChildren(element));
 	}
 
 	private _getChildren(element: SettingsTreeElement): SettingsTreeElement[] {
@@ -199,8 +198,8 @@ export class SettingsDataSource implements IDataSource {
 		}
 	}
 
-	getParent(tree: ITree, element: SettingsTreeElement): TPromise<any> {
-		return TPromise.wrap(element && element.parent);
+	getParent(tree: ITree, element: SettingsTreeElement): Promise<any> {
+		return Promise.resolve(element && element.parent);
 	}
 
 	shouldAutoexpand(): boolean {
@@ -241,7 +240,7 @@ export class SimplePagedDataSource implements IDataSource {
 		return this.realDataSource.hasChildren(tree, element);
 	}
 
-	getChildren(tree: ITree, element: SettingsTreeGroupElement): TPromise<any> {
+	getChildren(tree: ITree, element: SettingsTreeGroupElement): Promise<any> {
 		return this.realDataSource.getChildren(tree, element).then(realChildren => {
 			return this._getChildren(realChildren);
 		});
@@ -258,7 +257,7 @@ export class SimplePagedDataSource implements IDataSource {
 		}
 	}
 
-	getParent(tree: ITree, element: any): TPromise<any> {
+	getParent(tree: ITree, element: any): Promise<any> {
 		return this.realDataSource.getParent(tree, element);
 	}
 
@@ -400,7 +399,7 @@ export class SettingsRenderer implements ITreeRenderer {
 					this._onDidChangeSetting.fire({ key: context.setting.key, value: undefined, type: context.setting.type as SettingValueType });
 				}
 
-				return TPromise.wrap(null);
+				return Promise.resolve(null);
 			}),
 			new Separator(),
 			this.instantiationService.createInstance(CopySettingIdAction),
@@ -413,7 +412,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		const toolbarElement: HTMLElement = settingDOMElement.querySelector('.toolbar-toggle-more');
 		if (toolbarElement) {
 			this.contextMenuService.showContextMenu({
-				getActions: () => TPromise.wrap(this.settingActions),
+				getActions: () => this.settingActions,
 				getAnchor: () => toolbarElement,
 				getActionsContext: () => element
 			});
@@ -598,7 +597,7 @@ export class SettingsRenderer implements ITreeRenderer {
 	private renderGroupTitleTemplate(container: HTMLElement): IGroupTitleTemplate {
 		DOM.addClass(container, 'group-title');
 
-		const toDispose = [];
+		const toDispose: IDisposable[] = [];
 		const template: IGroupTitleTemplate = {
 			parent: container,
 			toDispose
@@ -624,7 +623,7 @@ export class SettingsRenderer implements ITreeRenderer {
 
 		const deprecationWarningElement = DOM.append(container, $('.setting-item-deprecation-message'));
 
-		const toDispose = [];
+		const toDispose: IDisposable[] = [];
 
 		const toolbarContainer = DOM.append(container, $('.setting-toolbar-container'));
 		const toolbar = this.renderSettingToolbar(toolbarContainer);
@@ -643,10 +642,10 @@ export class SettingsRenderer implements ITreeRenderer {
 		};
 
 		// Prevent clicks from being handled by list
-		toDispose.push(DOM.addDisposableListener(controlElement, 'mousedown', (e: IMouseEvent) => e.stopPropagation()));
+		toDispose.push(DOM.addDisposableListener(controlElement, 'mousedown', e => e.stopPropagation()));
 
-		toDispose.push(DOM.addDisposableListener(titleElement, DOM.EventType.MOUSE_ENTER, (e: IMouseEvent) => container.classList.add('mouseover')));
-		toDispose.push(DOM.addDisposableListener(titleElement, DOM.EventType.MOUSE_LEAVE, (e: IMouseEvent) => container.classList.remove('mouseover')));
+		toDispose.push(DOM.addDisposableListener(titleElement, DOM.EventType.MOUSE_ENTER, e => container.classList.add('mouseover')));
+		toDispose.push(DOM.addDisposableListener(titleElement, DOM.EventType.MOUSE_LEAVE, e => container.classList.remove('mouseover')));
 
 		toDispose.push(DOM.addStandardDisposableListener(valueElement, 'keydown', (e: StandardKeyboardEvent) => {
 			if (e.keyCode === KeyCode.Escape) {
@@ -775,7 +774,7 @@ export class SettingsRenderer implements ITreeRenderer {
 
 		const deprecationWarningElement = DOM.append(container, $('.setting-item-deprecation-message'));
 
-		const toDispose = [];
+		const toDispose: IDisposable[] = [];
 		const checkbox = new Checkbox({ actionClassName: 'setting-value-checkbox', isChecked: true, title: '', inputActiveOptionBorder: null });
 		controlElement.appendChild(checkbox.domNode);
 		toDispose.push(checkbox);
@@ -823,7 +822,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		this.addSettingElementFocusHandler(template);
 
 		// Prevent clicks from being handled by list
-		toDispose.push(DOM.addDisposableListener(controlElement, 'mousedown', (e: IMouseEvent) => e.stopPropagation()));
+		toDispose.push(DOM.addDisposableListener(controlElement, 'mousedown', e => e.stopPropagation()));
 
 		toDispose.push(DOM.addStandardDisposableListener(controlElement, 'keydown', (e: StandardKeyboardEvent) => {
 			if (e.keyCode === KeyCode.Escape) {
@@ -842,9 +841,7 @@ export class SettingsRenderer implements ITreeRenderer {
 	private renderSettingEnumTemplate(tree: ITree, container: HTMLElement): ISettingEnumItemTemplate {
 		const common = this.renderCommonTemplate(tree, container, 'enum');
 
-		const selectBox = new SelectBox([], undefined, this.contextViewService, undefined, {
-			hasDetails: true
-		});
+		const selectBox = new SelectBox([], undefined, this.contextViewService, undefined, { useCustomDrawn: true });
 
 		common.toDispose.push(selectBox);
 		common.toDispose.push(attachSelectBoxStyler(selectBox, this.themeService, {
@@ -966,7 +963,7 @@ export class SettingsRenderer implements ITreeRenderer {
 	}
 
 	private renderNewExtensionsTemplate(container: HTMLElement): ISettingNewExtensionsTemplate {
-		const toDispose = [];
+		const toDispose: IDisposable[] = [];
 
 		container.classList.add('setting-item-new-extensions');
 
@@ -1053,7 +1050,6 @@ export class SettingsRenderer implements ITreeRenderer {
 		template.labelElement.textContent = element.displayLabel;
 		template.labelElement.title = titleTooltip;
 
-		this.renderValue(element, templateId, <ISettingItemTemplate>template);
 		template.descriptionElement.innerHTML = '';
 		if (element.setting.descriptionIsMarkdown) {
 			const renderedDescription = this.renderDescriptionMarkdown(element, element.description, template.toDispose);
@@ -1064,11 +1060,6 @@ export class SettingsRenderer implements ITreeRenderer {
 
 		const baseId = (element.displayCategory + '_' + element.displayLabel).replace(/ /g, '_').toLowerCase();
 		template.descriptionElement.id = baseId + '_setting_description';
-
-		if (templateId === SETTINGS_BOOL_TEMPLATE_ID) {
-			// Add checkbox target to description clickable and able to toggle checkbox
-			template.descriptionElement.setAttribute('checkbox_label_target_id', baseId + '_setting_item');
-		}
 
 		template.otherOverridesElement.innerHTML = '';
 
@@ -1097,7 +1088,10 @@ export class SettingsRenderer implements ITreeRenderer {
 					e.stopPropagation();
 				});
 			}
+
 		}
+
+		this.renderValue(element, templateId, <ISettingItemTemplate>template);
 
 		// Remove tree attributes - sometimes overridden by tree - should be managed there
 		template.containerElement.parentElement.removeAttribute('role');
@@ -1165,45 +1159,27 @@ export class SettingsRenderer implements ITreeRenderer {
 		template.onChange = onChange;
 
 		// Setup and add ARIA attributes
-		// Create id and label for control/input element - parent is wrapper div
-		const baseId = (dataElement.displayCategory + '_' + dataElement.displayLabel).replace(/ /g, '_').toLowerCase();
-		const modifiedText = dataElement.isConfigured ? 'Modified' : '';
-		const label = dataElement.displayCategory + ' ' + dataElement.displayLabel + ' ' + modifiedText;
-
-		// We use the parent control div for the aria-labelledby target
-		// Does not appear you can use the direct label on the element itself within a tree
-		template.checkbox.domNode.parentElement.id = baseId + '_setting_label';
-		template.checkbox.domNode.parentElement.setAttribute('aria-label', label);
-
-		// Labels will not be read on descendent input elements of the parent treeitem
-		// unless defined as role=treeitem and indirect aria-labelledby approach
-		template.checkbox.domNode.id = baseId + '_setting_item';
-		template.checkbox.domNode.setAttribute('role', 'checkbox');
-		template.checkbox.domNode.setAttribute('aria-labelledby', baseId + '_setting_label');
-		template.checkbox.domNode.setAttribute('aria-describedby', baseId + '_setting_description');
-
+		this.setElementAriaLabels(dataElement, SETTINGS_BOOL_TEMPLATE_ID, template);
 	}
 
 	private renderEnum(dataElement: SettingsTreeSettingElement, template: ISettingEnumItemTemplate, onChange: (value: string) => void): void {
-		const displayOptions = dataElement.setting.enum
-			.map(String)
-			.map(escapeInvisibleChars);
 
-		template.selectBox.setOptions(displayOptions);
 		const enumDescriptions = dataElement.setting.enumDescriptions;
 		const enumDescriptionsAreMarkdown = dataElement.setting.enumDescriptionsAreMarkdown;
-		template.selectBox.setDetailsProvider(index =>
-			({
-				details: enumDescriptions && enumDescriptions[index] && (enumDescriptionsAreMarkdown ? fixSettingLinks(enumDescriptions[index], false) : enumDescriptions[index]),
-				isMarkdown: enumDescriptionsAreMarkdown
-			}));
 
-		const modifiedText = dataElement.isConfigured ? 'Modified' : '';
+		let displayOptions = dataElement.setting.enum
+			.map(String)
+			.map(escapeInvisibleChars)
+			.map((data, index) => <ISelectOptionItem>{
+				text: data,
+				description: (enumDescriptions && enumDescriptions[index] && (enumDescriptionsAreMarkdown ? fixSettingLinks(enumDescriptions[index], false) : enumDescriptions[index])),
+				descriptionIsMarkdown: enumDescriptionsAreMarkdown,
+				decoratorRight: (data === dataElement.defaultValue ? localize('settings.Default', "{0}", 'default') : '')
+			});
 
-		// Use ',.' as reader pause
-		const label = dataElement.displayCategory + ' ' + dataElement.displayLabel + ',. ' + modifiedText;
-		const baseId = (dataElement.displayCategory + '_' + dataElement.displayLabel).replace(/ /g, '_').toLowerCase();
+		template.selectBox.setOptions(displayOptions);
 
+		const label = this.setElementAriaLabels(dataElement, SETTINGS_ENUM_TEMPLATE_ID, template);
 		template.selectBox.setAriaLabel(label);
 
 		const idx = dataElement.setting.enum.indexOf(dataElement.value);
@@ -1211,74 +1187,32 @@ export class SettingsRenderer implements ITreeRenderer {
 		template.selectBox.select(idx);
 		template.onChange = idx => onChange(dataElement.setting.enum[idx]);
 
-		if (template.controlElement.firstElementChild) {
-			// SelectBox needs to have treeitem changed to combobox to read correctly within tree
-			template.controlElement.firstElementChild.setAttribute('role', 'combobox');
-			template.controlElement.firstElementChild.setAttribute('aria-describedby', baseId + '_setting_description settings_aria_more_actions_shortcut_label');
-		}
-
 		template.enumDescriptionElement.innerHTML = '';
 	}
 
 	private renderText(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, onChange: (value: string) => void): void {
-		const modifiedText = dataElement.isConfigured ? 'Modified' : '';
 
-		// Use ',.' as reader pause
-		const label = dataElement.displayCategory + ' ' + dataElement.displayLabel + ',. ' + modifiedText;
+		const label = this.setElementAriaLabels(dataElement, SETTINGS_TEXT_TEMPLATE_ID, template);
+
 		template.onChange = null;
 		template.inputBox.value = dataElement.value;
 		template.onChange = value => { renderValidations(dataElement, template, false, label); onChange(value); };
 
-		// Setup and add ARIA attributes
-		// Create id and label for control/input element - parent is wrapper div
-		const baseId = (dataElement.displayCategory + '_' + dataElement.displayLabel).replace(/ /g, '_').toLowerCase();
-
-		// We use the parent control div for the aria-labelledby target
-		// Does not appear you can use the direct label on the element itself within a tree
-		template.inputBox.inputElement.parentElement.id = baseId + '_setting_label';
-		template.inputBox.inputElement.parentElement.setAttribute('aria-label', label);
-
-		// Labels will not be read on descendent input elements of the parent treeitem
-		// unless defined as role=treeitem and indirect aria-labelledby approach
-		template.inputBox.inputElement.id = baseId + '_setting_item';
-		template.inputBox.inputElement.setAttribute('role', 'textbox');
-		template.inputBox.inputElement.setAttribute('aria-labelledby', baseId + '_setting_label');
-		template.inputBox.inputElement.setAttribute('aria-describedby', baseId + '_setting_description settings_aria_more_actions_shortcut_label');
-
 		renderValidations(dataElement, template, true, label);
 	}
 
-
 	private renderNumber(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, onChange: (value: number) => void): void {
-		const modifiedText = dataElement.isConfigured ? 'Modified' : '';
-
-		// Use ',.' as reader pause
-		const label = dataElement.displayCategory + ' ' + dataElement.displayLabel + ' number,. ' + modifiedText;
 		const numParseFn = (dataElement.valueType === 'integer' || dataElement.valueType === 'nullable-integer')
 			? parseInt : parseFloat;
 
 		const nullNumParseFn = (dataElement.valueType === 'nullable-integer' || dataElement.valueType === 'nullable-number')
 			? (v => v === '' ? null : numParseFn(v)) : numParseFn;
 
+		const label = this.setElementAriaLabels(dataElement, SETTINGS_NUMBER_TEMPLATE_ID, template);
+
 		template.onChange = null;
 		template.inputBox.value = dataElement.value;
 		template.onChange = value => { renderValidations(dataElement, template, false, label); onChange(nullNumParseFn(value)); };
-
-		// Setup and add ARIA attributes
-		// Create id and label for control/input element - parent is wrapper div
-		const baseId = (dataElement.displayCategory + '_' + dataElement.displayLabel).replace(/ /g, '_').toLowerCase();
-
-		// We use the parent control div for the aria-labelledby target
-		// Does not appear you can use the direct label on the element itself within a tree
-		template.inputBox.inputElement.parentElement.id = baseId + '_setting_label';
-		template.inputBox.inputElement.parentElement.setAttribute('aria-label', label);
-
-		// Labels will not be read on descendent input elements of the parent treeitem
-		// unless defined as role=treeitem and indirect aria-labelledby approach
-		template.inputBox.inputElement.id = baseId + '_setting_item';
-		template.inputBox.inputElement.setAttribute('role', 'textbox');
-		template.inputBox.inputElement.setAttribute('aria-labelledby', baseId + '_setting_label');
-		template.inputBox.inputElement.setAttribute('aria-describedby', baseId + '_setting_description settings_aria_more_actions_shortcut_label');
 
 		renderValidations(dataElement, template, true, label);
 	}
@@ -1291,6 +1225,64 @@ export class SettingsRenderer implements ITreeRenderer {
 
 	private renderComplexSetting(dataElement: SettingsTreeSettingElement, template: ISettingComplexItemTemplate): void {
 		template.onChange = () => this._onDidOpenSettings.fire(dataElement.setting.key);
+	}
+
+
+	private setElementAriaLabels(dataElement: SettingsTreeSettingElement, templateId: string, template: ISettingItemTemplate): string {
+		// Create base Id for element references
+		const baseId = (dataElement.displayCategory + '_' + dataElement.displayLabel).replace(/ /g, '_').toLowerCase();
+
+		const modifiedText = template.otherOverridesElement.textContent ?
+			template.otherOverridesElement.textContent : (dataElement.isConfigured ? localize('settings.Modified', ' Modified. ') : '');
+
+		let itemElement = null;
+
+		// Use '.' as reader pause
+		let label = dataElement.displayCategory + ' ' + dataElement.displayLabel + '. ';
+
+		// Setup and add ARIA attributes
+		// Create id and label for control/input element - parent is wrapper div
+
+		if (templateId === SETTINGS_TEXT_TEMPLATE_ID) {
+			if (itemElement = (<ISettingTextItemTemplate>template).inputBox.inputElement) {
+				itemElement.setAttribute('role', 'textbox');
+				label += modifiedText;
+			}
+		} else if (templateId === SETTINGS_NUMBER_TEMPLATE_ID) {
+			if (itemElement = (<ISettingNumberItemTemplate>template).inputBox.inputElement) {
+				itemElement.setAttribute('role', 'textbox');
+				label += ' number. ' + modifiedText;
+			}
+		} else if (templateId === SETTINGS_BOOL_TEMPLATE_ID) {
+			if (itemElement = (<ISettingBoolItemTemplate>template).checkbox.domNode) {
+				itemElement.setAttribute('role', 'checkbox');
+				label += modifiedText;
+				// Add checkbox target to description clickable and able to toggle checkbox
+				template.descriptionElement.setAttribute('checkbox_label_target_id', baseId + '_setting_item');
+			}
+		} else if (templateId === SETTINGS_ENUM_TEMPLATE_ID) {
+			if (itemElement = template.controlElement.firstElementChild) {
+				itemElement.setAttribute('role', 'combobox');
+				label += modifiedText;
+			}
+		} else {
+			// Don't change attributes if we don't know what we areFunctions
+			return '';
+		}
+
+		// We don't have control element, return empty label
+		if (!itemElement) {
+			return '';
+		}
+
+		// Labels will not be read on descendent input elements of the parent treeitem
+		// unless defined as roles for input items
+		// voiceover does not seem to use labeledby correctly, set labels directly on input elements
+		itemElement.id = baseId + '_setting_item';
+		itemElement.setAttribute('aria-label', label);
+		itemElement.setAttribute('aria-describedby', baseId + '_setting_description settings_aria_more_actions_shortcut_label');
+
+		return label;
 	}
 
 	disposeTemplate(tree: ITree, templateId: string, template: IDisposableTemplate): void {
@@ -1429,6 +1421,9 @@ export class SettingsAccessibilityProvider implements IAccessibilityProvider {
 		}
 
 		if (element instanceof SettingsTreeSettingElement) {
+			if (element.valueType === 'boolean') {
+				return '';
+			}
 			return localize('settingRowAriaLabel', "{0} {1}, Setting", element.displayCategory, element.displayLabel);
 		}
 
@@ -1441,12 +1436,12 @@ export class SettingsAccessibilityProvider implements IAccessibilityProvider {
 }
 
 class NonExpandableOrSelectableTree extends Tree {
-	expand(): TPromise<any> {
-		return TPromise.wrap(null);
+	expand(): Promise<any> {
+		return Promise.resolve(null);
 	}
 
-	collapse(): TPromise<any> {
-		return TPromise.wrap(null);
+	collapse(): Promise<any> {
+		return Promise.resolve(null);
 	}
 
 	public setFocus(element?: any, eventPayload?: any): void {
@@ -1629,12 +1624,12 @@ class CopySettingIdAction extends Action {
 		super(CopySettingIdAction.ID, CopySettingIdAction.LABEL);
 	}
 
-	run(context: SettingsTreeSettingElement): TPromise<void> {
+	run(context: SettingsTreeSettingElement): Promise<void> {
 		if (context) {
 			this.clipboardService.writeText(context.setting.key);
 		}
 
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }
 
@@ -1648,12 +1643,12 @@ class CopySettingAsJSONAction extends Action {
 		super(CopySettingAsJSONAction.ID, CopySettingAsJSONAction.LABEL);
 	}
 
-	run(context: SettingsTreeSettingElement): TPromise<void> {
+	run(context: SettingsTreeSettingElement): Promise<void> {
 		if (context) {
 			const jsonResult = `"${context.setting.key}": ${JSON.stringify(context.value, undefined, '  ')}`;
 			this.clipboardService.writeText(jsonResult);
 		}
 
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }

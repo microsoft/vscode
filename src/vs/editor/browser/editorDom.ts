@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import * as dom from 'vs/base/browser/dom';
 import { GlobalMouseMoveMonitor } from 'vs/base/browser/globalMouseMoveMonitor';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 
 /**
  * Coordinates relative to the whole document (e.g. mouse event's pageX and pageY)
@@ -135,7 +135,7 @@ export class GlobalEditorMouseMoveMonitor extends Disposable {
 
 	private _editorViewDomNode: HTMLElement;
 	private _globalMouseMoveMonitor: GlobalMouseMoveMonitor<EditorMouseEvent>;
-	private _keydownListener: IDisposable;
+	private _keydownListener: IDisposable | null;
 
 	constructor(editorViewDomNode: HTMLElement) {
 		super();
@@ -162,7 +162,7 @@ export class GlobalEditorMouseMoveMonitor extends Disposable {
 		};
 
 		this._globalMouseMoveMonitor.startMonitoring(myMerger, mouseMoveCallback, () => {
-			this._keydownListener.dispose();
+			this._keydownListener!.dispose();
 			onStopCallback();
 		});
 	}

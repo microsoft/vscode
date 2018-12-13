@@ -60,7 +60,7 @@ export class TerminalLinkHandler {
 	private _hoverDisposables: IDisposable[] = [];
 	private _mouseMoveDisposable: IDisposable;
 	private _widgetManager: TerminalWidgetManager;
-	private _initialCwd: string;
+	private _processCwd: string;
 	private _localLinkPattern: RegExp;
 
 	constructor(
@@ -82,8 +82,8 @@ export class TerminalLinkHandler {
 		this._widgetManager = widgetManager;
 	}
 
-	public set initialCwd(initialCwd: string) {
-		this._initialCwd = initialCwd;
+	public set processCwd(processCwd: string) {
+		this._processCwd = processCwd;
 	}
 
 	public registerCustomLinkHandler(regex: RegExp, handler: (uri: string) => void, matchIndex?: number, validationCallback?: XtermLinkMatcherValidationCallback): number {
@@ -227,20 +227,20 @@ export class TerminalLinkHandler {
 
 			// Resolve relative paths (.\a, ..\a, ~\a, a\b)
 			if (!link.match('^' + winDrivePrefix)) {
-				if (!this._initialCwd) {
+				if (!this._processCwd) {
 					// Abort if no workspace is open
 					return null;
 				}
-				link = path.join(this._initialCwd, link);
+				link = path.join(this._processCwd, link);
 			}
 		}
 		// Resolve workspace path . | .. | <relative_path> -> <path>/. | <path>/.. | <path>/<relative_path>
 		else if (link.charAt(0) !== '/' && link.charAt(0) !== '~') {
-			if (!this._initialCwd) {
+			if (!this._processCwd) {
 				// Abort if no workspace is open
 				return null;
 			}
-			link = path.join(this._initialCwd, link);
+			link = path.join(this._processCwd, link);
 		}
 		return link;
 	}
@@ -256,7 +256,7 @@ export class TerminalLinkHandler {
 			return Promise.resolve(void 0);
 		}
 
-		// Open an editor if the path exists
+		// Ensure the file exists on disk, so an editor can be opened after clicking it
 		return pfs.fileExists(linkUrl).then(isFile => {
 			if (!isFile) {
 				return null;

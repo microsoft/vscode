@@ -7,7 +7,7 @@ import { ChildProcess, fork, ForkOptions } from 'child_process';
 import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Delayer, always, createCancelablePromise } from 'vs/base/common/async';
 import { deepClone, assign } from 'vs/base/common/objects';
-import { Emitter, fromNodeEventEmitter, Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { createQueuedSender } from 'vs/base/node/processes';
 import { ChannelServer as IPCServer, ChannelClient as IPCClient, IChannelClient, IChannel } from 'vs/base/parts/ipc/node/ipc';
 import { isRemoteConsoleLog, log } from 'vs/base/node/console';
@@ -19,12 +19,18 @@ import * as errors from 'vs/base/common/errors';
  * We should move all implementations to use named ipc.net, so we stop depending on cp.fork.
  */
 
-export class Server extends IPCServer {
-	constructor() {
+export class Server<TContext extends string> extends IPCServer<TContext> {
+	constructor(ctx: TContext) {
 		super({
-			send: r => { try { process.send(r.toString('base64')); } catch (e) { /* not much to do */ } },
-			onMessage: fromNodeEventEmitter(process, 'message', msg => Buffer.from(msg, 'base64'))
-		});
+			send: r => {
+				try {
+					if (process.send) {
+						process.send(r.toString('base64'));
+					}
+				} catch (e) { /* not much to do */ }
+			},
+			onMessage: Event.fromNodeEventEmitter(process, 'message', msg => Buffer.from(msg, 'base64'))
+		}, ctx);
 
 		process.once('disconnect', () => this.dispose());
 	}
@@ -81,8 +87,8 @@ export class Client implements IChannelClient, IDisposable {
 
 	private disposeDelayer: Delayer<void>;
 	private activeRequests = new Set<IDisposable>();
-	private child: ChildProcess;
-	private _client: IPCClient;
+	private child: ChildProcess | null;
+	private _client: IPCClient | null;
 	private channels = new Map<string, IChannel>();
 
 	private _onDidProcessExit = new Emitter<{ code: number, signal: string }>();
@@ -99,7 +105,7 @@ export class Client implements IChannelClient, IDisposable {
 		const that = this;
 
 		return {
-			call<T>(command: string, arg?: any, cancellationToken?: CancellationToken): Thenable<T> {
+			call<T>(command: string, arg?: any, cancellationToken?: CancellationToken): Promise<T> {
 				return that.requestPromise<T>(channelName, command, arg, cancellationToken);
 			},
 			listen(event: string, arg?: any) {
@@ -108,7 +114,7 @@ export class Client implements IChannelClient, IDisposable {
 		} as T;
 	}
 
-	protected requestPromise<T>(channelName: string, name: string, arg?: any, cancellationToken = CancellationToken.None): Thenable<T> {
+	protected requestPromise<T>(channelName: string, name: string, arg?: any, cancellationToken = CancellationToken.None): Promise<T> {
 		if (!this.disposeDelayer) {
 			return Promise.reject(new Error('disposed'));
 		}
@@ -193,14 +199,14 @@ export class Client implements IChannelClient, IDisposable {
 			this.child = fork(this.modulePath, args, forkOpts);
 
 			const onMessageEmitter = new Emitter<Buffer>();
-			const onRawMessage = fromNodeEventEmitter(this.child, 'message', msg => msg);
+			const onRawMessage = Event.fromNodeEventEmitter(this.child, 'message', msg => msg);
 
 			onRawMessage(msg => {
 
 				// Handle remote console logs specially
 				if (isRemoteConsoleLog(msg)) {
 					log(msg, `IPC Library: ${this.options.serverName}`);
-					return null;
+					return;
 				}
 
 				// Anything else goes to the outside
@@ -253,8 +259,10 @@ export class Client implements IChannelClient, IDisposable {
 
 	private disposeClient() {
 		if (this._client) {
-			this.child.kill();
-			this.child = null;
+			if (this.child) {
+				this.child.kill();
+				this.child = null;
+			}
 			this._client = null;
 			this.channels.clear();
 		}
@@ -263,7 +271,7 @@ export class Client implements IChannelClient, IDisposable {
 	dispose() {
 		this._onDidProcessExit.dispose();
 		this.disposeDelayer.cancel();
-		this.disposeDelayer = null;
+		this.disposeDelayer = null!; // StrictNullOverride: nulling out ok in dispose
 		this.disposeClient();
 		this.activeRequests.clear();
 	}

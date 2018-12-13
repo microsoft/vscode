@@ -6,7 +6,7 @@
 import {
 	createConnection, IConnection,
 	TextDocuments, TextDocument, InitializeParams, InitializeResult, NotificationType, RequestType,
-	DocumentRangeFormattingRequest, Disposable, ServerCapabilities
+	DocumentRangeFormattingRequest, Disposable, ServerCapabilities, Diagnostic
 } from 'vscode-languageserver';
 
 import { xhr, XHRResponse, configure as configureHttpRequests, getErrorStatusDescription } from 'request-light';
@@ -32,6 +32,10 @@ namespace VSCodeContentRequest {
 
 namespace SchemaContentChangeNotification {
 	export const type: NotificationType<string, any> = new NotificationType('json/schemaContent');
+}
+
+namespace ForceValidateRequest {
+	export const type: RequestType<string, Diagnostic[], any, any> = new RequestType('json/validate');
 }
 
 // Create a connection for the server
@@ -207,6 +211,21 @@ connection.onNotification(SchemaContentChangeNotification.type, uri => {
 	languageService.resetSchema(uri);
 });
 
+// Retry schema validation on all open documents
+connection.onRequest(ForceValidateRequest.type, uri => {
+	return new Promise<Diagnostic[]>(resolve => {
+		const document = documents.get(uri);
+		if (document) {
+			updateConfiguration();
+			validateTextDocument(document, diagnostics => {
+				resolve(diagnostics);
+			});
+		} else {
+			resolve([]);
+		}
+	});
+});
+
 function updateConfiguration() {
 	const languageSettings = {
 		validate: true,
@@ -271,10 +290,15 @@ function triggerValidation(textDocument: TextDocument): void {
 	}, validationDelayMs);
 }
 
-function validateTextDocument(textDocument: TextDocument): void {
+function validateTextDocument(textDocument: TextDocument, callback?: (diagnostics: Diagnostic[]) => void): void {
+	const respond = (diagnostics: Diagnostic[]) => {
+		connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
+		if (callback) {
+			callback(diagnostics);
+		}
+	};
 	if (textDocument.getText().length === 0) {
-		// ignore empty documents
-		connection.sendDiagnostics({ uri: textDocument.uri, diagnostics: [] });
+		respond([]); // ignore empty documents
 		return;
 	}
 	const jsonDocument = getJSONDocument(textDocument);
@@ -285,8 +309,7 @@ function validateTextDocument(textDocument: TextDocument): void {
 		setTimeout(() => {
 			const currDocument = documents.get(textDocument.uri);
 			if (currDocument && currDocument.version === version) {
-				// Send the computed diagnostics to VSCode.
-				connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
+				respond(diagnostics); // Send the computed diagnostics to VSCode.
 			}
 		}, 100);
 	}, error => {

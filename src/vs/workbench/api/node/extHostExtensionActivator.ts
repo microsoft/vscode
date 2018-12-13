@@ -6,16 +6,15 @@
 import * as nls from 'vs/nls';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
 
 const hasOwnProperty = Object.hasOwnProperty;
-const NO_OP_VOID_PROMISE = TPromise.wrap<void>(void 0);
+const NO_OP_VOID_PROMISE = Promise.resolve<void>(void 0);
 
 export interface IExtensionMemento {
 	get<T>(key: string, defaultValue: T): T;
-	update(key: string, value: any): Thenable<boolean>;
+	update(key: string, value: any): Promise<boolean>;
 }
 
 export interface IExtensionContext {
@@ -24,6 +23,7 @@ export interface IExtensionContext {
 	globalState: IExtensionMemento;
 	extensionPath: string;
 	storagePath: string;
+	globalStoragePath: string;
 	asAbsolutePath(relativePath: string): string;
 	readonly logPath: string;
 }
@@ -32,8 +32,8 @@ export interface IExtensionContext {
  * Represents the source code (module) of an extension.
  */
 export interface IExtensionModule {
-	activate(ctx: IExtensionContext): TPromise<IExtensionAPI>;
-	deactivate(): void;
+	activate?(ctx: IExtensionContext): Promise<IExtensionAPI>;
+	deactivate?(): void;
 }
 
 /**
@@ -43,6 +43,14 @@ export interface IExtensionAPI {
 	// _extensionAPIBrand: any;
 }
 
+/* __GDPR__FRAGMENT__
+	"ExtensionActivationTimes" : {
+		"startup": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"codeLoadingTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"activateCallTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"activateResolvedTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+	}
+*/
 export class ExtensionActivationTimes {
 
 	public static readonly NONE = new ExtensionActivationTimes(false, -1, -1, -1);
@@ -124,18 +132,18 @@ export class ExtensionActivationTimesBuilder {
 export class ActivatedExtension {
 
 	public readonly activationFailed: boolean;
-	public readonly activationFailedError: Error;
+	public readonly activationFailedError: Error | null;
 	public readonly activationTimes: ExtensionActivationTimes;
 	public readonly module: IExtensionModule;
-	public readonly exports: IExtensionAPI;
+	public readonly exports: IExtensionAPI | undefined;
 	public readonly subscriptions: IDisposable[];
 
 	constructor(
 		activationFailed: boolean,
-		activationFailedError: Error,
+		activationFailedError: Error | null,
 		activationTimes: ExtensionActivationTimes,
 		module: IExtensionModule,
-		exports: IExtensionAPI,
+		exports: IExtensionAPI | undefined,
 		subscriptions: IDisposable[]
 	) {
 		this.activationFailed = activationFailed;
@@ -162,7 +170,7 @@ export class FailedExtension extends ActivatedExtension {
 export interface IExtensionsActivatorHost {
 	showMessage(severity: Severity, message: string): void;
 
-	actualActivateExtension(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): TPromise<ActivatedExtension>;
+	actualActivateExtension(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): Promise<ActivatedExtension>;
 }
 
 export class ExtensionActivatedByEvent {
@@ -184,7 +192,7 @@ export class ExtensionsActivator {
 
 	private readonly _registry: ExtensionDescriptionRegistry;
 	private readonly _host: IExtensionsActivatorHost;
-	private readonly _activatingExtensions: { [extensionId: string]: TPromise<void>; };
+	private readonly _activatingExtensions: { [extensionId: string]: Promise<void>; };
 	private readonly _activatedExtensions: { [extensionId: string]: ActivatedExtension; };
 	/**
 	 * A map of already activated events to speed things up if the same activation event is triggered multiple times.
@@ -210,7 +218,7 @@ export class ExtensionsActivator {
 		return this._activatedExtensions[extensionId];
 	}
 
-	public activateByEvent(activationEvent: string, reason: ExtensionActivationReason): TPromise<void> {
+	public activateByEvent(activationEvent: string, reason: ExtensionActivationReason): Promise<void> {
 		if (this._alreadyActivatedEvents[activationEvent]) {
 			return NO_OP_VOID_PROMISE;
 		}
@@ -220,7 +228,7 @@ export class ExtensionsActivator {
 		});
 	}
 
-	public activateById(extensionId: string, reason: ExtensionActivationReason): TPromise<void> {
+	public activateById(extensionId: string, reason: ExtensionActivationReason): Promise<void> {
 		let desc = this._registry.getExtensionDescription(extensionId);
 		if (!desc) {
 			throw new Error('Extension `' + extensionId + '` is not known');
@@ -273,15 +281,15 @@ export class ExtensionsActivator {
 		}
 	}
 
-	private _activateExtensions(extensionDescriptions: IExtensionDescription[], reason: ExtensionActivationReason, recursionLevel: number): TPromise<void> {
+	private _activateExtensions(extensionDescriptions: IExtensionDescription[], reason: ExtensionActivationReason, recursionLevel: number): Promise<void> {
 		// console.log(recursionLevel, '_activateExtensions: ', extensionDescriptions.map(p => p.id));
 		if (extensionDescriptions.length === 0) {
-			return TPromise.as(void 0);
+			return Promise.resolve(void 0);
 		}
 
 		extensionDescriptions = extensionDescriptions.filter((p) => !hasOwnProperty.call(this._activatedExtensions, p.id));
 		if (extensionDescriptions.length === 0) {
-			return TPromise.as(void 0);
+			return Promise.resolve(void 0);
 		}
 
 		if (recursionLevel > 10) {
@@ -292,7 +300,7 @@ export class ExtensionsActivator {
 				const error = new Error('More than 10 levels of dependencies (most likely a dependency loop)');
 				this._activatedExtensions[extensionDescriptions[i].id] = new FailedExtension(error);
 			}
-			return TPromise.as(void 0);
+			return Promise.resolve(void 0);
 		}
 
 		let greenMap: { [id: string]: IExtensionDescription; } = Object.create(null),
@@ -316,7 +324,7 @@ export class ExtensionsActivator {
 
 		if (red.length === 0) {
 			// Finally reached only leafs!
-			return TPromise.join(green.map((p) => this._activateExtension(p, reason))).then(_ => void 0);
+			return Promise.all(green.map((p) => this._activateExtension(p, reason))).then(_ => void 0);
 		}
 
 		return this._activateExtensions(green, reason, recursionLevel + 1).then(_ => {
@@ -324,16 +332,16 @@ export class ExtensionsActivator {
 		});
 	}
 
-	private _activateExtension(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): TPromise<void> {
+	private _activateExtension(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): Promise<void> {
 		if (hasOwnProperty.call(this._activatedExtensions, extensionDescription.id)) {
-			return TPromise.as(void 0);
+			return Promise.resolve(void 0);
 		}
 
 		if (hasOwnProperty.call(this._activatingExtensions, extensionDescription.id)) {
 			return this._activatingExtensions[extensionDescription.id];
 		}
 
-		this._activatingExtensions[extensionDescription.id] = this._host.actualActivateExtension(extensionDescription, reason).then(null, (err) => {
+		this._activatingExtensions[extensionDescription.id] = this._host.actualActivateExtension(extensionDescription, reason).then(void 0, (err) => {
 			this._host.showMessage(Severity.Error, nls.localize('activationError', "Activating extension '{0}' failed: {1}.", extensionDescription.id, err.message));
 			console.error('Activating extension `' + extensionDescription.id + '` failed: ', err.message);
 			console.log('Here is the error stack: ', err.stack);

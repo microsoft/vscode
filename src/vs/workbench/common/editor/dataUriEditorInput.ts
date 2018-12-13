@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorInput } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
-import { DataUri } from 'vs/workbench/common/resources';
+import { DataUri } from 'vs/base/common/resources';
 
 /**
  * An editor input to present data URIs in a binary editor. Data URIs have the form of:
@@ -63,7 +62,7 @@ export class DataUriEditorInput extends EditorInput {
 		return this.description;
 	}
 
-	resolve(): TPromise<BinaryEditorModel> {
+	resolve(): Promise<BinaryEditorModel> {
 		return this.instantiationService.createInstance(BinaryEditorModel, this.resource, this.getName()).load().then(m => m as BinaryEditorModel);
 	}
 

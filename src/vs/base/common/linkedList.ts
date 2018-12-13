@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Iterator } from 'vs/base/common/iterator';
+import { Iterator, IteratorResult, FIN } from 'vs/base/common/iterator';
 
 class Node<E> {
 	element: E;
-	next: Node<E>;
-	prev: Node<E>;
+	next: Node<E> | undefined;
+	prev: Node<E> | undefined;
 
 	constructor(element: E) {
 		this.element = element;
@@ -17,8 +17,13 @@ class Node<E> {
 
 export class LinkedList<E> {
 
-	private _first: Node<E>;
-	private _last: Node<E>;
+	private _first: Node<E> | undefined;
+	private _last: Node<E> | undefined;
+	private _size: number = 0;
+
+	get size(): number {
+		return this._size;
+	}
 
 	isEmpty(): boolean {
 		return !this._first;
@@ -27,17 +32,18 @@ export class LinkedList<E> {
 	clear(): void {
 		this._first = undefined;
 		this._last = undefined;
+		this._size = 0;
 	}
 
-	unshift(element: E) {
-		return this.insert(element, false);
+	unshift(element: E): () => void {
+		return this._insert(element, false);
 	}
 
-	push(element: E) {
-		return this.insert(element, true);
+	push(element: E): () => void {
+		return this._insert(element, true);
 	}
 
-	private insert(element: E, atTheEnd: boolean) {
+	private _insert(element: E, atTheEnd: boolean): () => void {
 		const newNode = new Node(element);
 		if (!this._first) {
 			this._first = newNode;
@@ -45,7 +51,7 @@ export class LinkedList<E> {
 
 		} else if (atTheEnd) {
 			// push
-			const oldLast = this._last;
+			const oldLast = this._last!;
 			this._last = newNode;
 			newNode.prev = oldLast;
 			oldLast.next = newNode;
@@ -57,57 +63,81 @@ export class LinkedList<E> {
 			newNode.next = oldFirst;
 			oldFirst.prev = newNode;
 		}
+		this._size += 1;
+		return this._remove.bind(this, newNode);
+	}
 
-		return () => {
 
-			for (let candidate = this._first; candidate instanceof Node; candidate = candidate.next) {
-				if (candidate !== newNode) {
-					continue;
-				}
-				if (candidate.prev && candidate.next) {
-					// middle
-					let anchor = candidate.prev;
-					anchor.next = candidate.next;
-					candidate.next.prev = anchor;
+	shift(): E | undefined {
+		if (!this._first) {
+			return undefined;
+		} else {
+			const res = this._first.element;
+			this._remove(this._first);
+			return res;
+		}
+	}
 
-				} else if (!candidate.prev && !candidate.next) {
-					// only node
-					this._first = undefined;
-					this._last = undefined;
+	pop(): E | undefined {
+		if (!this._last) {
+			return undefined;
+		} else {
+			const res = this._last.element;
+			this._remove(this._last);
+			return res;
+		}
+	}
 
-				} else if (!candidate.next) {
-					// last
-					this._last = this._last.prev;
-					this._last.next = undefined;
-
-				} else if (!candidate.prev) {
-					// first
-					this._first = this._first.next;
-					this._first.prev = undefined;
-				}
-
-				// done
-				break;
+	private _remove(node: Node<E>): void {
+		let candidate: Node<E> | undefined = this._first;
+		while (candidate instanceof Node) {
+			if (candidate !== node) {
+				candidate = candidate.next;
+				continue;
 			}
-		};
+			if (candidate.prev && candidate.next) {
+				// middle
+				let anchor = candidate.prev;
+				anchor.next = candidate.next;
+				candidate.next.prev = anchor;
+
+			} else if (!candidate.prev && !candidate.next) {
+				// only node
+				this._first = undefined;
+				this._last = undefined;
+
+			} else if (!candidate.next) {
+				// last
+				this._last = this._last!.prev!;
+				this._last.next = undefined;
+
+			} else if (!candidate.prev) {
+				// first
+				this._first = this._first!.next!;
+				this._first.prev = undefined;
+			}
+
+			// done
+			this._size -= 1;
+			break;
+		}
 	}
 
 	iterator(): Iterator<E> {
-		let element = {
-			done: undefined,
-			value: undefined,
-		};
+		let element: { done: false; value: E; };
 		let node = this._first;
 		return {
-			next(): { done: boolean; value: E } {
+			next(): IteratorResult<E> {
 				if (!node) {
-					element.done = true;
-					element.value = undefined;
-				} else {
-					element.done = false;
-					element.value = node.element;
-					node = node.next;
+					return FIN;
 				}
+
+				if (!element) {
+					element = { done: false, value: node.element };
+				} else {
+					element.value = node.element;
+				}
+				node = node.next;
 				return element;
 			}
 		};

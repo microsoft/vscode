@@ -6,8 +6,8 @@
 import { Viewlet } from '../workbench/viewlet';
 import { Code } from '../../vscode/code';
 
-const VIEWLET = 'div[id="workbench.view.search"] .search-view';
-const INPUT = `${VIEWLET} .search-widget .search-container .monaco-inputbox input`;
+const VIEWLET = 'div[id="workbench.view.search"].search-view';
+const INPUT = `${VIEWLET} .search-widget .search-container .monaco-inputbox textarea`;
 const INCLUDE_INPUT = `${VIEWLET} .query-details .file-types.includes .monaco-inputbox input`;
 const FILE_MATCH = filename => `${VIEWLET} .results .filematch[data-resource$="${filename}"]`;
 
@@ -92,7 +92,7 @@ export class Search extends Viewlet {
 	}
 
 	async setReplaceText(text: string): Promise<void> {
-		await this.code.waitForSetValue(`${VIEWLET} .search-widget .replace-container .monaco-inputbox input[title="Replace"]`, text);
+		await this.code.waitForSetValue(`${VIEWLET} .search-widget .replace-container .monaco-inputbox textarea[title="Replace"]`, text);
 	}
 
 	async replaceFileMatch(filename: string): Promise<void> {

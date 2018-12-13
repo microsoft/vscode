@@ -26,6 +26,7 @@
 		"editorGroup.dropBackground": "#25375daa",
 		"peekViewResult.background": "#001c40",
 		"tab.inactiveBackground": "#001c40",
+		"tab.modifiedBorder": "#FFEEAD",
 		"debugToolBar.background": "#001c40",
 		"titleBar.activeBackground": "#001126",
 		"statusBar.background": "#001126",

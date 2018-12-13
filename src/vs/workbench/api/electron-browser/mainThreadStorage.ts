@@ -3,47 +3,68 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { MainThreadStorageShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
+import { MainThreadStorageShape, MainContext, IExtHostContext, ExtHostStorageShape, ExtHostContext } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 @extHostNamedCustomer(MainContext.MainThreadStorage)
 export class MainThreadStorage implements MainThreadStorageShape {
 
 	private _storageService: IStorageService;
+	private _proxy: ExtHostStorageShape;
+	private _storageListener: IDisposable;
+	private _sharedStorageKeysToWatch: Map<string, boolean> = new Map<string, boolean>();
 
 	constructor(
 		extHostContext: IExtHostContext,
 		@IStorageService storageService: IStorageService
 	) {
 		this._storageService = storageService;
+		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostStorage);
+
+		this._storageListener = this._storageService.onDidChangeStorage(e => {
+			let shared = e.scope === StorageScope.GLOBAL;
+			if (shared && this._sharedStorageKeysToWatch.has(e.key)) {
+				try {
+					this._proxy.$acceptValue(shared, e.key, this._getValue(shared, e.key));
+				} catch (error) {
+					// ignore parsing errors that can happen
+				}
+			}
+		});
 	}
 
 	dispose(): void {
+		this._storageListener.dispose();
 	}
 
-	$getValue<T>(shared: boolean, key: string): Thenable<T> {
+	$getValue<T>(shared: boolean, key: string): Promise<T> {
+		if (shared) {
+			this._sharedStorageKeysToWatch.set(key, true);
+		}
+		try {
+			return Promise.resolve(this._getValue<T>(shared, key));
+		} catch (error) {
+			return Promise.reject(error);
+		}
+	}
+
+	private _getValue<T>(shared: boolean, key: string): T {
 		let jsonValue = this._storageService.get(key, shared ? StorageScope.GLOBAL : StorageScope.WORKSPACE);
 		if (!jsonValue) {
-			return TPromise.as(undefined);
+			return undefined;
 		}
-		let value: T;
-		try {
-			value = JSON.parse(jsonValue);
-			return TPromise.as(value);
-		} catch (err) {
-			return TPromise.wrapError<T>(err);
-		}
+		return JSON.parse(jsonValue);
 	}
 
-	$setValue(shared: boolean, key: string, value: any): Thenable<void> {
-		let jsonValue: any;
+	$setValue(shared: boolean, key: string, value: object): Promise<void> {
+		let jsonValue: string;
 		try {
 			jsonValue = JSON.stringify(value);
 			this._storageService.store(key, jsonValue, shared ? StorageScope.GLOBAL : StorageScope.WORKSPACE);
 		} catch (err) {
-			return TPromise.wrapError(err);
+			return Promise.reject(err);
 		}
 		return undefined;
 	}

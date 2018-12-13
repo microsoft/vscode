@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { toggleClass } from 'vs/base/browser/dom';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { Widget } from 'vs/base/browser/ui/widget';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import * as editorBrowser from 'vs/editor/browser/editorBrowser';
+import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import * as editorBrowser from 'vs/editor/browser/editorBrowser';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 
 export class ContentHoverWidget extends Widget implements editorBrowser.IContentWidget {
 
@@ -21,8 +21,8 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 	private _isVisible: boolean;
 	private _containerDomNode: HTMLElement;
 	private _domNode: HTMLElement;
-	protected _showAtPosition: Position;
-	protected _showAtRange: Range;
+	protected _showAtPosition: Position | null;
+	protected _showAtRange: Range | null;
 	private _stoleFocus: boolean;
 	private scrollbar: DomScrollableElement;
 	private disposables: IDisposable[] = [];
@@ -84,7 +84,7 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 		return this._containerDomNode;
 	}
 
-	public showAt(position: Position, range: Range, focus: boolean): void {
+	public showAt(position: Position, range: Range | null, focus: boolean): void {
 		// Position has changed
 		this._showAtPosition = position;
 		this._showAtRange = range;
@@ -113,7 +113,7 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 		}
 	}
 
-	public getPosition(): editorBrowser.IContentWidgetPosition {
+	public getPosition(): editorBrowser.IContentWidgetPosition | null {
 		if (this.isVisible) {
 			return {
 				position: this._showAtPosition,
@@ -233,7 +233,7 @@ export class GlyphHoverWidget extends Widget implements editorBrowser.IOverlayWi
 		this.isVisible = false;
 	}
 
-	public getPosition(): editorBrowser.IOverlayWidgetPosition {
+	public getPosition(): editorBrowser.IOverlayWidgetPosition | null {
 		return null;
 	}
 

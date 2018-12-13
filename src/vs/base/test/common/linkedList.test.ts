@@ -9,10 +9,14 @@ import { LinkedList } from 'vs/base/common/linkedList';
 suite('LinkedList', function () {
 
 	function assertElements<E>(list: LinkedList<E>, ...elements: E[]) {
-		// first: assert toArray
+
+		// check size
+		assert.equal(list.size, elements.length);
+
+		// assert toArray
 		assert.deepEqual(list.toArray(), elements);
 
-		// second: assert iterator
+		// assert iterator
 		for (let iter = list.iterator(), element = iter.next(); !element.done; element = iter.next()) {
 			assert.equal(elements.shift(), element.value);
 		}
@@ -57,15 +61,7 @@ suite('LinkedList', function () {
 		list.push('far');
 		list.push('boo');
 
-		assert.deepEqual(
-			list.toArray(),
-			[
-				'foo',
-				'bar',
-				'far',
-				'boo',
-			]
-		);
+		assertElements(list, 'foo', 'bar', 'far', 'boo');
 	});
 
 	test('unshift/Iter', () => {
@@ -105,15 +101,26 @@ suite('LinkedList', function () {
 		list.unshift('bar');
 		list.unshift('far');
 		list.unshift('boo');
+		assertElements(list, 'boo', 'far', 'bar', 'foo');
+	});
 
-		assert.deepEqual(
-			list.toArray(),
-			[
-				'boo',
-				'far',
-				'bar',
-				'foo',
-			]
-		);
+	test('pop/unshift', function () {
+		let list = new LinkedList<string>();
+		list.push('a');
+		list.push('b');
+
+		assertElements(list, 'a', 'b');
+
+		let a = list.shift();
+		assert.equal(a, 'a');
+		assertElements(list, 'b');
+
+		list.unshift('a');
+		assertElements(list, 'a', 'b');
+
+		let b = list.pop();
+		assert.equal(b, 'b');
+		assertElements(list, 'a');
+
 	});
 });

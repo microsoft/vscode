@@ -15,6 +15,7 @@ import { LanguageConfigurationFileHandler } from 'vs/workbench/parts/codeEditor/
 
 // --- mainThread participants
 import 'vs/workbench/api/node/apiCommands';
+import './mainThreadClipboard';
 import './mainThreadCommands';
 import './mainThreadConfiguration';
 import './mainThreadDebugService';

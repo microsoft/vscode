@@ -16,8 +16,8 @@ suite('LanguageSelector', function () {
 
 	test('score, invalid selector', function () {
 		assert.equal(score({}, model.uri, model.language, true), 0);
-		assert.equal(score(undefined, model.uri, model.language, true), 0);
-		assert.equal(score(null, model.uri, model.language, true), 0);
+		assert.equal(score(undefined!, model.uri, model.language, true), 0);
+		assert.equal(score(null!, model.uri, model.language, true), 0);
 		assert.equal(score('', model.uri, model.language, true), 0);
 	});
 
@@ -93,5 +93,15 @@ suite('LanguageSelector', function () {
 
 		assert.equal(score({ language: 'javascript', scheme: 'file', hasAccessToAllModels: true }, doc.uri, doc.langId, false), 10);
 		assert.equal(score(['fooLang', '*', { language: '*', hasAccessToAllModels: true }], doc.uri, doc.langId, false), 5);
+	});
+
+	test('Document selector match - unexpected result value #60232', function () {
+		let selector = {
+			language: 'json',
+			scheme: 'file',
+			pattern: '**/*.interface.json'
+		};
+		let value = score(selector, URI.parse('file:///C:/Users/zlhe/Desktop/test.interface.json'), 'json', true);
+		assert.equal(value, 10);
 	});
 });

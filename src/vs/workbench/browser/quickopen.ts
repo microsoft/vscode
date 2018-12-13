@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as objects from 'vs/base/common/objects';
 import * as arrays from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
@@ -44,7 +43,7 @@ export class QuickOpenHandler {
 	 * As such, returning the same model instance across multiple searches will yield best
 	 * results in terms of performance when many items are shown.
 	 */
-	getResults(searchValue: string, token: CancellationToken): TPromise<IModel<any>> {
+	getResults(searchValue: string, token: CancellationToken): Promise<IModel<any>> {
 		return Promise.resolve(null);
 	}
 
@@ -326,7 +325,7 @@ export class QuickOpenAction extends Action {
 		this.enabled = !!this.quickOpenService;
 	}
 
-	run(context?: any): TPromise<void> {
+	run(context?: any): Promise<void> {
 
 		// Show with prefix
 		this.quickOpenService.show(this.prefix);

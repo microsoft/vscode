@@ -10,7 +10,7 @@
 		}
 	},
 	"files.associations": {
-		"OSSREADME.json": "jsonc"
+		"cglicenses.json": "jsonc"
 	},
 	"search.exclude": {
 		"**/node_modules": true,
@@ -21,9 +21,9 @@
 		"out-vscode/**": true,
 		"i18n/**": true,
 		"extensions/**/out/**": true,
-		"test/smoke/out/**": true
+		"test/smoke/out/**": true,
+		"src/vs/base/test/node/uri.test.data.txt": true
 	},
-	"tslint.enable": true,
 	"lcov.path": [
 		"./.build/coverage/lcov.info",
 		"./.build/coverage-single/lcov.info"
@@ -41,6 +41,12 @@
 	"npm.exclude": "**/extensions/**",
 	"emmet.excludeLanguages": [],
 	"typescript.preferences.importModuleSpecifier": "non-relative",
-	"typescript.preferences.quoteStyle": "single"
-
+	"typescript.preferences.quoteStyle": "single",
+	"json.schemas": [{
+		"fileMatch": [ "cgmanifest.json" ],
+		"url": "./.vscode/cgmanifest.schema.json"
+	}, {
+		"fileMatch": [ "cglicenses.json" ],
+		"url": "./.vscode/cglicenses.schema.json"
+	}]
 }
