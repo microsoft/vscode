@@ -10,7 +10,6 @@ import { assign } from 'vs/base/common/objects';
 import { toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { flatten } from 'vs/base/common/arrays';
 import { extract, ExtractError, zip, IFile } from 'vs/platform/node/zip';
-import { ValueCallback, ErrorCallback } from 'vs/base/common/winjs.base';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension,
 	IGalleryExtension, IExtensionManifest, IGalleryMetadata,
@@ -292,7 +291,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		if (!cancellablePromise) {
 
 			let operation: InstallOperation = InstallOperation.Install;
-			let cancellationToken: CancellationToken, successCallback: ValueCallback<void>, errorCallback: ErrorCallback;
+			let cancellationToken: CancellationToken, successCallback: (a?: any) => void, errorCallback: (e?: any) => any;
 			cancellablePromise = createCancelablePromise(token => { cancellationToken = token; return new Promise((c, e) => { successCallback = c; errorCallback = e; }); });
 			this.installingExtensions.set(key, cancellablePromise);
 
