@@ -99,48 +99,65 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		this._commentService.registerDataProvider(providerId, handler);
 	}
 
+	/**
+	 * If the comments panel has never been opened, the constructor for it has not yet run so it has
+	 * no listeners for comment threads being set or updated. Listen for the panel opening for the
+	 * first time and send it comments then.
+	 */
+	private registerOpenPanelListener(commentsPanelAlreadyConstructed: boolean) {
+		if (!commentsPanelAlreadyConstructed && !this._openPanelListener) {
+			this._openPanelListener = this._panelService.onDidPanelOpen(e => {
+				if (e.panel.getId() === COMMENTS_PANEL_ID) {
+					keys(this._workspaceProviders).forEach(handle => {
+						this._proxy.$provideWorkspaceComments(handle).then(commentThreads => {
+							if (commentThreads) {
+								const providerId = this._handlers.get(handle);
+								this._commentService.setWorkspaceComments(providerId, commentThreads);
+							}
+
+							this._openPanelListener.dispose();
+							this._openPanelListener = null;
+						});
+					});
+
+				}
+			});
+		}
+	}
+
 	$registerWorkspaceCommentProvider(handle: number, extensionId: string): void {
 		this._workspaceProviders.set(handle, undefined);
 
 		const providerId = generateUuid();
 		this._handlers.set(handle, providerId);
 
+		const commentsPanelAlreadyConstructed = this._panelService.getPanels().some(panel => panel.id === COMMENTS_PANEL_ID);
 		this._panelService.setPanelEnablement(COMMENTS_PANEL_ID, true);
 
 		const openPanel = this._configurationService.getValue<ICommentsConfiguration>('comments').openPanel;
 
 
-		if (openPanel === 'neverOpen' && this._workspaceProviders.size === 1) {
-			// Since the panel has just been enabled but never opened, it has never been constructed so can't
-			// listen for comment threads being set or updated.
-			// Don't even bother fetching workspace comments until after its opened for the first time.
-			this._openPanelListener = this._panelService.onDidPanelOpen(e => {
-				if (e.panel.getId() === COMMENTS_PANEL_ID) {
-					this._proxy.$provideWorkspaceComments(handle).then(commentThreads => {
-						if (commentThreads) {
-							this._commentService.setWorkspaceComments(providerId, commentThreads);
-						}
-
-						this._openPanelListener.dispose();
-						this._openPanelListener = null;
-					});
-				}
-			});
-		} else {
-			if (openPanel === 'openOnSessionStart') {
-				this._panelService.openPanel(COMMENTS_PANEL_ID);
-			}
-
-			this._proxy.$provideWorkspaceComments(handle).then(commentThreads => {
-				if (commentThreads) {
-					if (openPanel === 'openOnSessionStartWithComments' && commentThreads.length) {
-						this._panelService.openPanel(COMMENTS_PANEL_ID);
-					}
-
-					this._commentService.setWorkspaceComments(providerId, commentThreads);
-				}
-			});
+		if (openPanel === 'neverOpen') {
+			this.registerOpenPanelListener(commentsPanelAlreadyConstructed);
 		}
+
+		if (openPanel === 'openOnSessionStart') {
+			this._panelService.openPanel(COMMENTS_PANEL_ID);
+		}
+
+		this._proxy.$provideWorkspaceComments(handle).then(commentThreads => {
+			if (commentThreads) {
+				if (openPanel === 'openOnSessionStartWithComments' && commentThreads.length) {
+					if (commentThreads.length) {
+						this._panelService.openPanel(COMMENTS_PANEL_ID);
+					} else {
+						this.registerOpenPanelListener(commentsPanelAlreadyConstructed);
+					}
+				}
+
+				this._commentService.setWorkspaceComments(providerId, commentThreads);
+			}
+		});
 
 		/* __GDPR__
 			"comments:registerWorkspaceCommentProvider" : {
@@ -157,18 +174,19 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		const handlerId = this._handlers.get(handle);
 		this._commentService.unregisterDataProvider(handlerId);
 		this._handlers.delete(handle);
-
-		if (this._openPanelListener) {
-			this._openPanelListener.dispose();
-			this._openPanelListener = null;
-		}
 	}
 
 	$unregisterWorkspaceCommentProvider(handle: number): void {
 		this._workspaceProviders.delete(handle);
 		if (this._workspaceProviders.size === 0) {
 			this._panelService.setPanelEnablement(COMMENTS_PANEL_ID, false);
+
+			if (this._openPanelListener) {
+				this._openPanelListener.dispose();
+				this._openPanelListener = null;
+			}
 		}
+
 		const handlerId = this._handlers.get(handle);
 		this._commentService.removeWorkspaceComments(handlerId);
 		this._handlers.delete(handle);
