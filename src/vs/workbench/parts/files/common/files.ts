@@ -36,7 +36,7 @@ export interface IExplorerViewlet extends IViewlet {
 }
 
 export interface IExplorerView {
-	select(resource: URI, reveal?: boolean): TPromise<void>;
+	select(resource: URI, reveal?: boolean): void;
 }
 
 /**

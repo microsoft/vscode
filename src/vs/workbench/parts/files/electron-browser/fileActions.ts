@@ -26,10 +26,9 @@ import { ExplorerItem, Model, NewStatPlaceholder } from 'vs/workbench/parts/file
 import { ExplorerView } from 'vs/workbench/parts/files/electron-browser/views/explorerView';
 import { ExplorerViewlet } from 'vs/workbench/parts/files/electron-browser/explorerViewlet';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IInstantiationService, ServicesAccessor, IConstructorSignature2 } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor, IConstructorSignature3 } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModel } from 'vs/editor/common/model';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_COMMAND_ID, SAVE_ALL_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID } from 'vs/workbench/parts/files/electron-browser/fileCommands';
@@ -49,6 +48,8 @@ import { Constants } from 'vs/editor/common/core/uint';
 import { CLOSE_EDITORS_AND_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { coalesce } from 'vs/base/common/arrays';
+import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
+import { EditableExplorerItems } from 'vs/workbench/parts/files/electron-browser/views/explorerViewer';
 
 export interface IEditableData {
 	action: IAction;
@@ -307,16 +308,14 @@ class RenameFileAction extends BaseRenameAction {
 /* Base New File/Folder Action */
 export class BaseNewAction extends BaseFileAction {
 	private presetFolder: ExplorerItem;
-	private tree: ITree;
-	private isFile: boolean;
-	private renameAction: BaseRenameAction;
 
 	constructor(
 		id: string,
 		label: string,
-		tree: ITree,
-		isFile: boolean,
-		editableAction: BaseRenameAction,
+		private tree: AsyncDataTree<ExplorerItem>,
+		private viewletState: IFileViewletState,
+		private isFile: boolean,
+		private renameAction: BaseRenameAction,
 		element: ExplorerItem,
 		@IFileService fileService: IFileService,
 		@INotificationService notificationService: INotificationService,
@@ -327,30 +326,19 @@ export class BaseNewAction extends BaseFileAction {
 		if (element) {
 			this.presetFolder = element.isDirectory ? element : element.parent;
 		}
-
-		this.tree = tree;
-		this.isFile = isFile;
-		this.renameAction = editableAction;
 	}
 
 	public run(context?: any): TPromise<any> {
-		if (!context) {
-			return Promise.reject(new Error('No context provided to BaseNewAction.'));
-		}
-
-		const viewletState = <IFileViewletState>context.viewletState;
-		if (!viewletState) {
-			return Promise.reject(new Error('Invalid viewlet state provided to BaseNewAction.'));
-		}
 
 		let folder = this.presetFolder;
 		if (!folder) {
-			const focus = <ExplorerItem>this.tree.getFocus();
+			const focusedElements = this.tree.getFocus();
+			const focus = focusedElements.length ? focusedElements[0] : undefined;
+
 			if (focus) {
 				folder = focus.isDirectory ? focus : focus.parent;
 			} else {
-				const input: ExplorerItem | Model = this.tree.getInput();
-				folder = input instanceof Model ? input.roots[0] : input;
+				folder = this.tree.getNode(null).element;
 			}
 		}
 
@@ -365,44 +353,31 @@ export class BaseNewAction extends BaseFileAction {
 			return Promise.resolve(new Error('Parent folder is already in the process of creating a file'));
 		}
 
-		return this.tree.reveal(folder, 0.5).then(() => {
-			return this.tree.expand(folder).then(() => {
-				const stat = NewStatPlaceholder.addNewStatPlaceholder(folder, !this.isFile);
+		this.tree.reveal(folder, 0.5);
+		return this.tree.expand(folder).then(() => {
+			const stat = NewStatPlaceholder.addNewStatPlaceholder(folder, !this.isFile);
 
-				this.renameAction.element = stat;
+			this.renameAction.element = stat;
 
-				viewletState.setEditable(stat, {
-					action: this.renameAction,
-					validator: (value) => {
-						const message = this.renameAction.validateFileName(folder, value);
+			this.viewletState.setEditable(stat, {
+				action: this.renameAction,
+				validator: (value) => {
+					const message = this.renameAction.validateFileName(folder, value);
 
-						if (!message) {
-							return null;
-						}
-
-						return {
-							content: message,
-							formatContent: true,
-							type: MessageType.ERROR
-						};
+					if (!message) {
+						return null;
 					}
-				});
 
-				return this.tree.refresh(folder).then(() => {
-					return this.tree.expand(folder).then(() => {
-						return this.tree.reveal(stat, 0.5).then(() => {
-							this.tree.setHighlight(stat);
+					return {
+						content: message,
+						formatContent: true,
+						type: MessageType.ERROR
+					};
+				}
+			});
 
-							const unbind = this.tree.onDidChangeHighlight((e: IHighlightEvent) => {
-								if (!e.highlight) {
-									stat.destroy();
-									this.tree.refresh(folder);
-									unbind.dispose();
-								}
-							});
-						});
-					});
-				});
+			return this.tree.refresh(folder).then(() => {
+				return this.tree.expand(folder).then(() => this.tree.reveal(stat, 0.5));
 			});
 		});
 	}
@@ -412,14 +387,15 @@ export class BaseNewAction extends BaseFileAction {
 export class NewFileAction extends BaseNewAction {
 
 	constructor(
-		tree: ITree,
+		tree: AsyncDataTree<ExplorerItem>,
+		fileViewletState: EditableExplorerItems,
 		element: ExplorerItem,
 		@IFileService fileService: IFileService,
 		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super('explorer.newFile', NEW_FILE_LABEL, tree, true, instantiationService.createInstance(CreateFileAction, element), null, fileService, notificationService, textFileService);
+		super('explorer.newFile', NEW_FILE_LABEL, tree, fileViewletState, true, instantiationService.createInstance(CreateFileAction, element), null, fileService, notificationService, textFileService);
 
 		this.class = 'explorer-action new-file';
 		this._updateEnablement();
@@ -430,14 +406,15 @@ export class NewFileAction extends BaseNewAction {
 export class NewFolderAction extends BaseNewAction {
 
 	constructor(
-		tree: ITree,
+		tree: AsyncDataTree<ExplorerItem>,
+		fileViewletState: EditableExplorerItems,
 		element: ExplorerItem,
 		@IFileService fileService: IFileService,
 		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super('explorer.newFolder', NEW_FOLDER_LABEL, tree, false, instantiationService.createInstance(CreateFolderAction, element), null, fileService, notificationService, textFileService);
+		super('explorer.newFolder', NEW_FOLDER_LABEL, tree, fileViewletState, false, instantiationService.createInstance(CreateFolderAction, element), null, fileService, notificationService, textFileService);
 
 		this.class = 'explorer-action new-folder';
 		this._updateEnablement();
@@ -1315,7 +1292,7 @@ export class FocusFilesExplorer extends Action {
 			const view = viewlet.getExplorerView();
 			if (view) {
 				view.setExpanded(true);
-				view.getViewer().domFocus();
+				view.focus();
 			}
 		});
 	}
@@ -1365,12 +1342,7 @@ export class CollapseExplorerView extends Action {
 		return this.viewletService.openViewlet(VIEWLET_ID, true).then((viewlet: ExplorerViewlet) => {
 			const explorerView = viewlet.getExplorerView();
 			if (explorerView) {
-				const viewer = explorerView.getViewer();
-				if (viewer) {
-					const action = new CollapseAction(viewer, true, null);
-					action.run();
-					action.dispose();
-				}
+				explorerView.collapseAll();
 			}
 		});
 	}
@@ -1554,24 +1526,24 @@ class ClipboardContentProvider implements ITextModelContentProvider {
 }
 
 interface IExplorerContext {
-	viewletState: IFileViewletState;
 	stat: ExplorerItem;
 	selection: ExplorerItem[];
 }
 
-function getContext(listWidget: ListWidget, viewletService: IViewletService): IExplorerContext {
+function getContext(listWidget: ListWidget): IExplorerContext {
 	// These commands can only be triggered when explorer viewlet is visible so get it using the active viewlet
-	const tree = <ITree>listWidget;
-	const stat = tree.getFocus();
+	const tree = <AsyncDataTree<ExplorerItem>>listWidget;
+	const focus = tree.getFocus();
+	const stat = focus.length ? focus[0] : undefined;
 	const selection = tree.getSelection();
 
 	// Only respect the selection if user clicked inside it (focus belongs to it)
-	return { stat, selection: selection && selection.indexOf(stat) >= 0 ? selection : [], viewletState: (<ExplorerViewlet>viewletService.getActiveViewlet()).getViewletState() };
+	return { stat, selection: selection && selection.indexOf(stat) >= 0 ? selection : [] };
 }
 
 // TODO@isidor these commands are calling into actions due to the complex inheritance action structure.
 // It should be the other way around, that actions call into commands.
-function openExplorerAndRunAction(accessor: ServicesAccessor, constructor: IConstructorSignature2<ITree, ExplorerItem, Action>): TPromise<any> {
+function openExplorerAndRunAction(accessor: ServicesAccessor, constructor: IConstructorSignature3<AsyncDataTree<ExplorerItem>, EditableExplorerItems, ExplorerItem, Action>): TPromise<any> {
 	const instantationService = accessor.get(IInstantiationService);
 	const listService = accessor.get(IListService);
 	const viewletService = accessor.get(IViewletService);
@@ -1585,10 +1557,10 @@ function openExplorerAndRunAction(accessor: ServicesAccessor, constructor: ICons
 		const explorerView = explorer.getExplorerView();
 		if (explorerView && explorerView.isVisible() && explorerView.isExpanded()) {
 			explorerView.focus();
-			const explorerContext = getContext(listService.lastFocusedList, viewletService);
-			const action = instantationService.createInstance(constructor, listService.lastFocusedList, explorerContext.stat);
+			const { stat } = getContext(listService.lastFocusedList);
+			const action = instantationService.createInstance(constructor, listService.lastFocusedList, explorerView.editableExplorerItems, stat);
 
-			return action.run(explorerContext);
+			return action.run();
 		}
 
 		return undefined;
@@ -1612,7 +1584,7 @@ CommandsRegistry.registerCommand({
 export const renameHandler = (accessor: ServicesAccessor) => {
 	const instantationService = accessor.get(IInstantiationService);
 	const listService = accessor.get(IListService);
-	const explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
+	const explorerContext = getContext(listService.lastFocusedList);
 
 	const renameAction = instantationService.createInstance(TriggerRenameFileAction, listService.lastFocusedList, explorerContext.stat);
 	return renameAction.run(explorerContext);
@@ -1621,7 +1593,7 @@ export const renameHandler = (accessor: ServicesAccessor) => {
 export const moveFileToTrashHandler = (accessor: ServicesAccessor) => {
 	const instantationService = accessor.get(IInstantiationService);
 	const listService = accessor.get(IListService);
-	const explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
+	const explorerContext = getContext(listService.lastFocusedList);
 	const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
 
 	const moveFileToTrashAction = instantationService.createInstance(BaseDeleteFileAction, listService.lastFocusedList, stats, true);
@@ -1631,7 +1603,7 @@ export const moveFileToTrashHandler = (accessor: ServicesAccessor) => {
 export const deleteFileHandler = (accessor: ServicesAccessor) => {
 	const instantationService = accessor.get(IInstantiationService);
 	const listService = accessor.get(IListService);
-	const explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
+	const explorerContext = getContext(listService.lastFocusedList);
 	const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
 
 	const deleteFileAction = instantationService.createInstance(BaseDeleteFileAction, listService.lastFocusedList, stats, false);
@@ -1641,7 +1613,7 @@ export const deleteFileHandler = (accessor: ServicesAccessor) => {
 export const copyFileHandler = (accessor: ServicesAccessor) => {
 	const instantationService = accessor.get(IInstantiationService);
 	const listService = accessor.get(IListService);
-	const explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
+	const explorerContext = getContext(listService.lastFocusedList);
 	const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
 
 	const copyFileAction = instantationService.createInstance(CopyFileAction, listService.lastFocusedList, stats);
@@ -1652,7 +1624,7 @@ export const pasteFileHandler = (accessor: ServicesAccessor) => {
 	const instantationService = accessor.get(IInstantiationService);
 	const listService = accessor.get(IListService);
 	const clipboardService = accessor.get(IClipboardService);
-	const explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
+	const explorerContext = getContext(listService.lastFocusedList);
 
 	return Promise.all(resources.distinctParents(clipboardService.readResources(), r => r).map(toCopy => {
 		const pasteFileAction = instantationService.createInstance(PasteFileAction, listService.lastFocusedList, explorerContext.stat);
