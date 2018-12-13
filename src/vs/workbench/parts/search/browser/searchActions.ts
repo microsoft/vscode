@@ -217,17 +217,22 @@ export class RefreshAction extends Action {
 	static readonly ID: string = 'search.action.refreshSearchResults';
 	static LABEL: string = nls.localize('RefreshAction.label', "Refresh");
 
+	private searchView: SearchView;
+
 	constructor(id: string, label: string,
 		@IViewletService private viewletService: IViewletService,
 		@IPanelService private panelService: IPanelService
 	) {
 		super(id, label, 'search-action refresh');
-		this.update();
+		this.searchView = getSearchView(this.viewletService, this.panelService);
+	}
+
+	get enabled(): boolean {
+		return this.searchView.isSearchSubmitted();
 	}
 
 	update(): void {
-		const searchView = getSearchView(this.viewletService, this.panelService);
-		this.enabled = searchView && searchView.isSearchSubmitted();
+		this._setEnabled(this.enabled);
 	}
 
 	public run(): Promise<void> {

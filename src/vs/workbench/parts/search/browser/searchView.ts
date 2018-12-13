@@ -90,7 +90,10 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	private searchSubmitted: boolean;
 	private searching: boolean;
 
-	private actions: (RefreshAction | CollapseDeepestExpandedLevelAction | ClearSearchResultsAction | CancelSearchAction)[] = [];
+	private actions: (CollapseDeepestExpandedLevelAction | ClearSearchResultsAction)[] = [];
+	private cancelAction: CancelSearchAction;
+	private refreshAction: RefreshAction;
+
 	private tree: WorkbenchTree;
 	private viewletState: object;
 	private globalMemento: object;
@@ -264,10 +267,11 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this.createSearchResultsView(parent);
 
 		this.actions = [
-			this.instantiationService.createInstance(ClearSearchResultsAction, ClearSearchResultsAction.ID, ClearSearchResultsAction.LABEL),
-			this.instantiationService.createInstance(RefreshAction, RefreshAction.ID, RefreshAction.LABEL),
-			this.instantiationService.createInstance(CollapseDeepestExpandedLevelAction, CollapseDeepestExpandedLevelAction.ID, CollapseDeepestExpandedLevelAction.LABEL),
+			this._register(this.instantiationService.createInstance(ClearSearchResultsAction, ClearSearchResultsAction.ID, ClearSearchResultsAction.LABEL)),
+			this._register(this.instantiationService.createInstance(CollapseDeepestExpandedLevelAction, CollapseDeepestExpandedLevelAction.ID, CollapseDeepestExpandedLevelAction.LABEL))
 		];
+		this.refreshAction = this._register(this.instantiationService.createInstance(RefreshAction, RefreshAction.ID, RefreshAction.LABEL));
+		this.cancelAction = this._register(this.instantiationService.createInstance(CancelSearchAction, CancelSearchAction.ID, CancelSearchAction.LABEL));
 
 		if (filePatterns !== '' || patternExclusions !== '' || patternIncludes !== '' || queryDetailsExpanded !== '' || !useExcludesAndIgnoreFiles) {
 			this.toggleQueryDetails(true, true, true);
@@ -299,6 +303,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	private updateActions(): void {
 		for (const action of this.actions) {
 			action.update();
+			this.refreshAction.update();
+			this.cancelAction.update();
 		}
 	}
 
@@ -1160,14 +1166,14 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this.searching = true;
 		setTimeout(() => {
 			if (this.searching) {
-				this.changeActionAtPosition(0, this.instantiationService.createInstance(CancelSearchAction, CancelSearchAction.ID, CancelSearchAction.LABEL));
+				this.updateActions();
+				this.updateTitleArea();
 			}
 		}, 2000);
 		this.showEmptyStage();
 
 		let onComplete = (completed?: ISearchComplete) => {
 			this.searching = false;
-			this.changeActionAtPosition(0, this.instantiationService.createInstance(RefreshAction, RefreshAction.ID, RefreshAction.LABEL));
 
 			// Complete up to 100% as needed
 			if (completed && !query.useRipgrep) {
@@ -1195,6 +1201,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 			this.searchSubmitted = true;
 			this.updateActions();
+			this.updateTitleArea();
 
 			if (completed && completed.limitHit) {
 				this.searchWidget.searchInput.showMessage({
@@ -1273,7 +1280,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 				onComplete(null);
 			} else {
 				this.searching = false;
-				this.changeActionAtPosition(0, this.instantiationService.createInstance(RefreshAction, RefreshAction.ID, RefreshAction.LABEL));
+				this.updateActions();
+				this.updateTitleArea();
 				progressRunner.done();
 				this.searchWidget.searchInput.showMessage({ content: e.message, type: MessageType.ERROR });
 				this.viewModel.searchResult.clear();
@@ -1571,12 +1579,12 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	}
 
 	public getActions(): IAction[] {
-		return this.actions;
-	}
-
-	private changeActionAtPosition(index: number, newAction: ClearSearchResultsAction | CancelSearchAction | RefreshAction | CollapseDeepestExpandedLevelAction): void {
-		this.actions.splice(index, 1, newAction);
-		this.updateTitleArea();
+		return [
+			this.searching ?
+				this.cancelAction :
+				this.refreshAction,
+			...this.actions
+		];
 	}
 
 	private clearHistory(): void {
