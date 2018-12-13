@@ -82,7 +82,6 @@ export class AutoFetcher {
 		if (this.enabled) {
 			return;
 		}
-
 		this.enabled = true;
 		this.run();
 	}
@@ -108,6 +107,11 @@ export class AutoFetcher {
 			}
 
 			if (!this.enabled) {
+				return;
+			}
+
+			const gitConfig = workspace.getConfiguration('git');
+			if (gitConfig.get<boolean>('autorefresh') === false) {
 				return;
 			}
 
