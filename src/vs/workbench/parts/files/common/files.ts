@@ -110,7 +110,7 @@ export interface IFileResource {
 /**
  * Helper to get an explorer item from an object.
  */
-export function explorerItemToFileResource(obj: ExplorerItem | OpenEditor): IFileResource {
+export function explorerItemToFileResource(obj: ExplorerItem | OpenEditor): IFileResource | null {
 	if (obj instanceof ExplorerItem) {
 		const stat = obj as ExplorerItem;
 
@@ -168,17 +168,21 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 					}
 				});
 
-				const disposeListener = codeEditorModel.onWillDispose(() => {
-					disposeListener.dispose();
-					this.fileWatcher = dispose(this.fileWatcher);
-				});
+				if (codeEditorModel) {
+					const disposeListener = codeEditorModel.onWillDispose(() => {
+						disposeListener.dispose();
+						this.fileWatcher = dispose(this.fileWatcher);
+					});
+				}
 			}
 
 			return codeEditorModel;
 		});
 	}
 
-	private resolveEditorModel(resource: URI, createAsNeeded = true): Thenable<ITextModel> {
+	private resolveEditorModel(resource: URI, createAsNeeded?: true): Thenable<ITextModel>;
+	private resolveEditorModel(resource: URI, createAsNeeded?: boolean): Thenable<ITextModel | null>;
+	private resolveEditorModel(resource: URI, createAsNeeded: boolean = true): Thenable<ITextModel | null> {
 		const fileOnDiskResource = resource.with({ scheme: Schemas.file });
 
 		return this.textFileService.resolveTextContent(fileOnDiskResource).then(content => {

@@ -583,6 +583,8 @@
 		"./vs/workbench/parts/extensions/electron-browser/extensionsActivationProgress.ts",
 		"./vs/workbench/parts/extensions/electron-browser/extensionsUtils.ts",
 		"./vs/workbench/parts/extensions/test/common/extensionQuery.test.ts",
+		"./vs/workbench/parts/files/common/explorerModel.ts",
+		"./vs/workbench/parts/files/common/files.ts",
 		"./vs/workbench/parts/localizations/electron-browser/localizationsActions.ts",
 		"./vs/workbench/parts/logs/common/logConstants.ts",
 		"./vs/workbench/parts/logs/electron-browser/logs.contribution.ts",

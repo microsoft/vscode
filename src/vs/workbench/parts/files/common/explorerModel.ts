@@ -47,7 +47,7 @@ export class Model {
 	 * In case multiple FileStat are matching the resource (same folder opened multiple times) returns the FileStat that has the closest root.
 	 * Will return null in case the FileStat does not exist.
 	 */
-	public findClosest(resource: URI): ExplorerItem {
+	public findClosest(resource: URI): ExplorerItem | null {
 		const folder = this.contextService.getWorkspaceFolder(resource);
 		if (folder) {
 			const root = this.roots.filter(r => r.resource.toString() === folder.uri.toString()).pop();
@@ -67,18 +67,18 @@ export class Model {
 export class ExplorerItem {
 	public resource: URI;
 	private _name: string;
-	public mtime: number;
-	public etag: string;
+	public mtime?: number;
+	public etag?: string;
 	private _isDirectory: boolean;
 	private _isSymbolicLink: boolean;
 	private _isReadonly: boolean;
-	private children: Map<string, ExplorerItem>;
+	private children?: Map<string, ExplorerItem>;
 	private _isError: boolean;
 	public parent: ExplorerItem;
 
 	public isDirectoryResolved: boolean;
 
-	constructor(resource: URI, public root: ExplorerItem, isSymbolicLink?: boolean, isReadonly?: boolean, isDirectory?: boolean, name: string = resources.basenameOrAuthority(resource), mtime?: number, etag?: string, isError?: boolean) {
+	constructor(resource: URI, public root: ExplorerItem | undefined, isSymbolicLink?: boolean, isReadonly?: boolean, isDirectory?: boolean, name: string = resources.basenameOrAuthority(resource), mtime?: number, etag?: string, isError?: boolean) {
 		this.resource = resource;
 		this._name = name;
 		this.isDirectory = !!isDirectory;
@@ -213,21 +213,23 @@ export class ExplorerItem {
 			local.children = new Map<string, ExplorerItem>();
 
 			// Merge received children
-			disk.children.forEach(diskChild => {
-				const formerLocalChild = oldLocalChildren.get(diskChild.resource);
-				// Existing child: merge
-				if (formerLocalChild) {
-					ExplorerItem.mergeLocalWithDisk(diskChild, formerLocalChild);
-					formerLocalChild.parent = local;
-					local.addChild(formerLocalChild);
-				}
+			if (disk.children) {
+				disk.children.forEach(diskChild => {
+					const formerLocalChild = oldLocalChildren.get(diskChild.resource);
+					// Existing child: merge
+					if (formerLocalChild) {
+						ExplorerItem.mergeLocalWithDisk(diskChild, formerLocalChild);
+						formerLocalChild.parent = local;
+						local.addChild(formerLocalChild);
+					}
 
-				// New child: add
-				else {
-					diskChild.parent = local;
-					local.addChild(diskChild);
-				}
-			});
+					// New child: add
+					else {
+						diskChild.parent = local;
+						local.addChild(diskChild);
+					}
+				});
+			}
 		}
 	}
 
@@ -243,10 +245,12 @@ export class ExplorerItem {
 		child.parent = this;
 		child.updateResource(false);
 
-		this.children.set(this.getPlatformAwareName(child.name), child);
+		if (this.children) {
+			this.children.set(this.getPlatformAwareName(child.name), child);
+		}
 	}
 
-	public getChild(name: string): ExplorerItem {
+	public getChild(name: string): ExplorerItem | undefined {
 		if (!this.children) {
 			return undefined;
 		}
@@ -257,7 +261,7 @@ export class ExplorerItem {
 	/**
 	 * Only use this method if you need all the children since it converts a map to an array
 	 */
-	public getChildrenArray(): ExplorerItem[] {
+	public getChildrenArray(): ExplorerItem[] | undefined {
 		if (!this.children) {
 			return undefined;
 		}
@@ -282,7 +286,9 @@ export class ExplorerItem {
 	 * Removes a child element from this folder.
 	 */
 	public removeChild(child: ExplorerItem): void {
-		this.children.delete(this.getPlatformAwareName(child.name));
+		if (this.children) {
+			this.children.delete(this.getPlatformAwareName(child.name));
+		}
 	}
 
 	private getPlatformAwareName(name: string): string {
@@ -339,7 +345,7 @@ export class ExplorerItem {
 	 * Returns a child stat from this stat that matches with the provided path.
 	 * Will return "null" in case the child does not exist.
 	 */
-	public find(resource: URI): ExplorerItem {
+	public find(resource: URI): ExplorerItem | null {
 		// Return if path found
 		// For performance reasons try to do the comparison as fast as possible
 		if (resource && this.resource.scheme === resource.scheme && equalsIgnoreCase(this.resource.authority, resource.authority) &&
@@ -350,7 +356,7 @@ export class ExplorerItem {
 		return null; //Unable to find
 	}
 
-	private findByPath(path: string, index: number): ExplorerItem {
+	private findByPath(path: string, index: number): ExplorerItem | null {
 		if (paths.isEqual(rtrim(this.resource.path, paths.sep), path, !isLinux)) {
 			return this;
 		}
@@ -390,7 +396,7 @@ export class NewStatPlaceholder extends ExplorerItem {
 	private id: number;
 	private directoryPlaceholder: boolean;
 
-	constructor(isDirectory: boolean, root: ExplorerItem) {
+	constructor(isDirectory: boolean, root: ExplorerItem | undefined) {
 		super(URI.file(''), root, false, false, false, NewStatPlaceholder.NAME);
 
 		this.id = NewStatPlaceholder.ID++;
@@ -401,8 +407,8 @@ export class NewStatPlaceholder extends ExplorerItem {
 	public destroy(): void {
 		this.parent.removeChild(this);
 
-		this.isDirectoryResolved = void 0;
-		this.isDirectory = void 0;
+		this.isDirectoryResolved = false;
+		this.isDirectory = false;
 		this.mtime = void 0;
 	}
 
@@ -414,23 +420,23 @@ export class NewStatPlaceholder extends ExplorerItem {
 		return this.directoryPlaceholder;
 	}
 
-	public addChild(child: NewStatPlaceholder): void {
+	public addChild() {
 		throw new Error('Can\'t perform operations in NewStatPlaceholder.');
 	}
 
-	public removeChild(child: NewStatPlaceholder): void {
+	public removeChild() {
 		throw new Error('Can\'t perform operations in NewStatPlaceholder.');
 	}
 
-	public move(newParent: NewStatPlaceholder): void {
+	public move() {
 		throw new Error('Can\'t perform operations in NewStatPlaceholder.');
 	}
 
-	public rename(renamedStat: NewStatPlaceholder): void {
+	public rename() {
 		throw new Error('Can\'t perform operations in NewStatPlaceholder.');
 	}
 
-	public find(resource: URI): NewStatPlaceholder {
+	public find(resource: URI): ExplorerItem | null {
 		return null;
 	}
 
@@ -483,7 +489,7 @@ export class OpenEditor implements IEditorIdentifier {
 		return this.editor.isDirty();
 	}
 
-	public getResource(): URI {
+	public getResource(): URI | null {
 		return toResource(this.editor, { supportSideBySide: true });
 	}
 }
