@@ -51,7 +51,7 @@ export class DefinitionAction extends EditorAction {
 		this._configuration = configuration;
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): Thenable<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const notificationService = accessor.get(INotificationService);
 		const editorService = accessor.get(ICodeEditorService);
 		const progressService = accessor.get(IProgressService);
@@ -114,7 +114,7 @@ export class DefinitionAction extends EditorAction {
 		return definitionPromise;
 	}
 
-	protected _getTargetLocationForPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Thenable<DefinitionLink[]> {
+	protected _getTargetLocationForPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<DefinitionLink[]> {
 		return getDefinitionsAtPosition(model, position, token);
 	}
 
@@ -147,7 +147,7 @@ export class DefinitionAction extends EditorAction {
 		}
 	}
 
-	private _openReference(editor: ICodeEditor, editorService: ICodeEditorService, reference: Location, sideBySide: boolean): Thenable<ICodeEditor> {
+	private _openReference(editor: ICodeEditor, editorService: ICodeEditorService, reference: Location, sideBySide: boolean): Promise<ICodeEditor> {
 		return editorService.openCodeEditor({
 			resource: reference.uri,
 			options: {
@@ -258,7 +258,7 @@ export class PeekDefinitionAction extends DefinitionAction {
 
 export class DeclarationAction extends DefinitionAction {
 
-	protected _getTargetLocationForPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Thenable<DefinitionLink[]> {
+	protected _getTargetLocationForPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<DefinitionLink[]> {
 		return getDeclarationsAtPosition(model, position, token);
 	}
 
@@ -285,11 +285,6 @@ export class GoToDeclarationAction extends DeclarationAction {
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.hasDeclarationProvider,
 				EditorContextKeys.isInEmbeddedEditor.toNegated()),
-			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.F12,
-				weight: KeybindingWeight.EditorContrib
-			},
 			menuOpts: {
 				group: 'navigation',
 				order: 1.3
@@ -318,12 +313,6 @@ export class PeekDeclarationAction extends DeclarationAction {
 				EditorContextKeys.hasDeclarationProvider,
 				PeekContext.notInPeekEditor,
 				EditorContextKeys.isInEmbeddedEditor.toNegated()),
-			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F12,
-				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F10 },
-				weight: KeybindingWeight.EditorContrib
-			},
 			menuOpts: {
 				group: 'navigation',
 				order: 1.31
@@ -333,7 +322,7 @@ export class PeekDeclarationAction extends DeclarationAction {
 }
 
 export class ImplementationAction extends DefinitionAction {
-	protected _getTargetLocationForPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Thenable<DefinitionLink[]> {
+	protected _getTargetLocationForPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<DefinitionLink[]> {
 		return getImplementationsAtPosition(model, position, token);
 	}
 
@@ -391,7 +380,7 @@ export class PeekImplementationAction extends ImplementationAction {
 }
 
 export class TypeDefinitionAction extends DefinitionAction {
-	protected _getTargetLocationForPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Thenable<DefinitionLink[]> {
+	protected _getTargetLocationForPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<DefinitionLink[]> {
 		return getTypeDefinitionsAtPosition(model, position, token);
 	}
 

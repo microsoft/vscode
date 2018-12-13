@@ -44,7 +44,7 @@ export function appendKeyBindingLabel(label: string, keyBinding: number | Resolv
 	}
 }
 
-export function openSearchView(viewletService: IViewletService, panelService: IPanelService, focus?: boolean): Thenable<SearchView> {
+export function openSearchView(viewletService: IViewletService, panelService: IPanelService, focus?: boolean): Promise<SearchView> {
 	if (viewletService.getViewlets().filter(v => v.id === VIEW_ID).length) {
 		return viewletService.openViewlet(VIEW_ID, focus).then(viewlet => <SearchView>viewlet);
 	}
@@ -96,7 +96,7 @@ export class FocusNextInputAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Thenable<any> {
+	public run(): Promise<any> {
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		searchView.focusNextInputBox();
 		return Promise.resolve(null);
@@ -114,7 +114,7 @@ export class FocusPreviousInputAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Thenable<any> {
+	public run(): Promise<any> {
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		searchView.focusPreviousInputBox();
 		return Promise.resolve(null);
@@ -129,7 +129,7 @@ export abstract class FindOrReplaceInFilesAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Thenable<any> {
+	public run(): Promise<any> {
 		return openSearchView(this.viewletService, this.panelService, false).then(openedView => {
 			const searchAndReplaceWidget = openedView.searchAndReplaceWidget;
 			searchAndReplaceWidget.toggleReplace(this.expandSearchReplaceWidget);
@@ -164,7 +164,7 @@ export class OpenSearchViewletAction extends FindOrReplaceInFilesAction {
 		super(id, label, viewletService, panelService, /*expandSearchReplaceWidget=*/false);
 	}
 
-	public run(): Thenable<any> {
+	public run(): Promise<any> {
 
 		// Pass focus to viewlet if not open or focused
 		if (this.otherViewletShowing() || !isSearchViewFocused(this.viewletService, this.panelService)) {
@@ -204,7 +204,7 @@ export class CloseReplaceAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Thenable<any> {
+	public run(): Promise<any> {
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		searchView.searchAndReplaceWidget.toggleReplace(false);
 		searchView.searchAndReplaceWidget.focus();
@@ -217,20 +217,25 @@ export class RefreshAction extends Action {
 	static readonly ID: string = 'search.action.refreshSearchResults';
 	static LABEL: string = nls.localize('RefreshAction.label', "Refresh");
 
+	private searchView: SearchView;
+
 	constructor(id: string, label: string,
 		@IViewletService private viewletService: IViewletService,
 		@IPanelService private panelService: IPanelService
 	) {
 		super(id, label, 'search-action refresh');
-		this.update();
+		this.searchView = getSearchView(this.viewletService, this.panelService);
+	}
+
+	get enabled(): boolean {
+		return this.searchView.isSearchSubmitted();
 	}
 
 	update(): void {
-		const searchView = getSearchView(this.viewletService, this.panelService);
-		this.enabled = searchView && searchView.isSearchSubmitted();
+		this._setEnabled(this.enabled);
 	}
 
-	public run(): Thenable<void> {
+	public run(): Promise<void> {
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		if (searchView) {
 			searchView.onQueryChanged();
@@ -257,7 +262,7 @@ export class CollapseDeepestExpandedLevelAction extends Action {
 		this.enabled = searchView && searchView.hasSearchResults();
 	}
 
-	public run(): Thenable<void> {
+	public run(): Promise<void> {
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		if (searchView) {
 			const viewer = searchView.getControl();
@@ -317,10 +322,10 @@ export class ClearSearchResultsAction extends Action {
 
 	update(): void {
 		const searchView = getSearchView(this.viewletService, this.panelService);
-		this.enabled = searchView && searchView.isSearchSubmitted();
+		this.enabled = searchView && (!searchView.allSearchFieldsClear() || searchView.hasSearchResults());
 	}
 
-	public run(): Thenable<void> {
+	public run(): Promise<void> {
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		if (searchView) {
 			searchView.clearSearchResults();
@@ -347,7 +352,7 @@ export class CancelSearchAction extends Action {
 		this.enabled = searchView && searchView.isSearching();
 	}
 
-	public run(): Thenable<void> {
+	public run(): Promise<void> {
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		if (searchView) {
 			searchView.cancelSearch();
@@ -368,7 +373,7 @@ export class FocusNextSearchResultAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Thenable<any> {
+	public run(): Promise<any> {
 		return openSearchView(this.viewletService, this.panelService).then(searchView => {
 			searchView.selectNextMatch();
 		});
@@ -386,7 +391,7 @@ export class FocusPreviousSearchResultAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Thenable<any> {
+	public run(): Promise<any> {
 		return openSearchView(this.viewletService, this.panelService).then(searchView => {
 			searchView.selectPreviousMatch();
 		});
@@ -398,15 +403,13 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 	/**
 	 * Returns element to focus after removing the given element
 	 */
-	public getElementToFocusAfterRemoved(viewer: ITree, elementToBeRemoved: RenderableMatch): RenderableMatch {
-		let elementToFocus = this.getNextElementAfterRemoved(viewer, elementToBeRemoved);
-		if (!elementToFocus) {
-			elementToFocus = this.getPreviousElementAfterRemoved(viewer, elementToBeRemoved);
-		}
-		return elementToFocus;
+	public getElementToFocusAfterRemoved(viewer: ITree, elementToBeRemoved: RenderableMatch): Promise<RenderableMatch> {
+		return this.getNextElementAfterRemoved(viewer, elementToBeRemoved).then(elementToFocus => {
+			return elementToFocus || this.getPreviousElementAfterRemoved(viewer, elementToBeRemoved);
+		});
 	}
 
-	public getNextElementAfterRemoved(viewer: ITree, element: RenderableMatch): RenderableMatch {
+	public async getNextElementAfterRemoved(viewer: ITree, element: RenderableMatch): Promise<RenderableMatch> {
 		let navigator: INavigator<any> = this.getNavigatorAt(element, viewer);
 		if (element instanceof FolderMatch) {
 			// If file match is removed then next element is the next file match
@@ -416,13 +419,13 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 			while (!!navigator.next() && !(navigator.current() instanceof FileMatch)) { }
 		} else {
 			while (navigator.next() && !(navigator.current() instanceof Match)) {
-				viewer.expand(navigator.current());
+				await viewer.expand(navigator.current());
 			}
 		}
 		return navigator.current();
 	}
 
-	public getPreviousElementAfterRemoved(viewer: ITree, element: RenderableMatch): RenderableMatch {
+	public async getPreviousElementAfterRemoved(viewer: ITree, element: RenderableMatch): Promise<RenderableMatch> {
 		let navigator: INavigator<any> = this.getNavigatorAt(element, viewer);
 		let previousElement = navigator.previous();
 
@@ -441,13 +444,13 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 		// Spell out the two cases, would be too easy to create an infinite loop, like by adding another level...
 		if (element instanceof Match && previousElement && previousElement instanceof FolderMatch) {
 			navigator.next();
-			viewer.expand(previousElement);
+			await viewer.expand(previousElement);
 			previousElement = navigator.previous();
 		}
 
 		if (element instanceof Match && previousElement && previousElement instanceof FileMatch) {
 			navigator.next();
-			viewer.expand(previousElement);
+			await viewer.expand(previousElement);
 			previousElement = navigator.previous();
 		}
 
@@ -469,35 +472,37 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 		super('remove', RemoveAction.LABEL, 'action-remove');
 	}
 
-	public run(): Thenable<any> {
+	public run(): Promise<any> {
 		const currentFocusElement = this.viewer.getFocus();
-		const nextFocusElement = !currentFocusElement || currentFocusElement instanceof SearchResult || elementIsEqualOrParent(currentFocusElement, this.element) ?
+		const nextFocusElementP = !currentFocusElement || currentFocusElement instanceof SearchResult || elementIsEqualOrParent(currentFocusElement, this.element) ?
 			this.getElementToFocusAfterRemoved(this.viewer, this.element) :
-			null;
+			Promise.resolve(null);
 
-		if (nextFocusElement) {
-			this.viewer.reveal(nextFocusElement);
-			this.viewer.setFocus(nextFocusElement);
-		}
+		return nextFocusElementP.then(nextFocusElement => {
+			if (nextFocusElement) {
+				this.viewer.reveal(nextFocusElement);
+				this.viewer.setFocus(nextFocusElement);
+			}
 
-		let elementToRefresh: any;
-		const element = this.element;
-		if (element instanceof FolderMatch) {
-			let parent = element.parent();
-			parent.remove(element);
-			elementToRefresh = parent;
-		} else if (element instanceof FileMatch) {
-			let parent = element.parent();
-			parent.remove(element);
-			elementToRefresh = parent;
-		} else if (element instanceof Match) {
-			let parent = element.parent();
-			parent.remove(element);
-			elementToRefresh = parent.count() === 0 ? parent.parent() : parent;
-		}
+			let elementToRefresh: any;
+			const element = this.element;
+			if (element instanceof FolderMatch) {
+				let parent = element.parent();
+				parent.remove(element);
+				elementToRefresh = parent;
+			} else if (element instanceof FileMatch) {
+				let parent = element.parent();
+				parent.remove(element);
+				elementToRefresh = parent;
+			} else if (element instanceof Match) {
+				let parent = element.parent();
+				parent.remove(element);
+				elementToRefresh = parent.count() === 0 ? parent.parent() : parent;
+			}
 
-		this.viewer.domFocus();
-		return this.viewer.refresh(elementToRefresh);
+			this.viewer.domFocus();
+			return this.viewer.refresh(elementToRefresh);
+		});
 	}
 }
 
@@ -520,14 +525,15 @@ export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 		super(Constants.ReplaceAllInFileActionId, appendKeyBindingLabel(ReplaceAllAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceAllInFileActionId), keyBindingService), 'action-replace-all');
 	}
 
-	public run(): Thenable<any> {
-		let nextFocusElement = this.getElementToFocusAfterRemoved(this.viewer, this.fileMatch);
-		return this.fileMatch.parent().replace(this.fileMatch).then(() => {
-			if (nextFocusElement) {
-				this.viewer.setFocus(nextFocusElement);
-			}
-			this.viewer.domFocus();
-			this.viewlet.open(this.fileMatch, true);
+	public run(): Promise<any> {
+		return this.getElementToFocusAfterRemoved(this.viewer, this.fileMatch).then(nextFocusElement => {
+			return this.fileMatch.parent().replace(this.fileMatch).then(() => {
+				if (nextFocusElement) {
+					this.viewer.setFocus(nextFocusElement);
+				}
+				this.viewer.domFocus();
+				this.viewlet.open(this.fileMatch, true);
+			});
 		});
 	}
 }
@@ -542,15 +548,15 @@ export class ReplaceAllInFolderAction extends AbstractSearchAndReplaceAction {
 		super(Constants.ReplaceAllInFolderActionId, appendKeyBindingLabel(ReplaceAllInFolderAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceAllInFolderActionId), keyBindingService), 'action-replace-all');
 	}
 
-	public run(): Thenable<any> {
-		let nextFocusElement = this.getElementToFocusAfterRemoved(this.viewer, this.folderMatch);
-		return this.folderMatch.replaceAll()
-			.then(() => {
+	public run(): Promise<any> {
+		return this.getElementToFocusAfterRemoved(this.viewer, this.folderMatch).then(nextFocusElement => {
+			return this.folderMatch.replaceAll().then(() => {
 				if (nextFocusElement) {
 					this.viewer.setFocus(nextFocusElement);
 				}
 				this.viewer.domFocus();
 			});
+		});
 	}
 }
 
@@ -566,7 +572,7 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 		super(Constants.ReplaceActionId, appendKeyBindingLabel(ReplaceAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceActionId), keyBindingService), 'action-replace');
 	}
 
-	public run(): Thenable<any> {
+	public run(): Promise<any> {
 		this.enabled = false;
 
 		return this.element.parent().replace(this.element).then(() => {
@@ -574,7 +580,8 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 			if (elementToFocus) {
 				this.viewer.setFocus(elementToFocus);
 			}
-			let elementToShowReplacePreview = this.getElementToShowReplacePreview(elementToFocus);
+			return this.getElementToShowReplacePreview(elementToFocus);
+		}).then(elementToShowReplacePreview => {
 			this.viewer.domFocus();
 
 			const useReplacePreview = this.configurationService.getValue<ISearchConfiguration>().search.useReplacePreview;
@@ -613,11 +620,11 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 		return elementToFocus;
 	}
 
-	private getElementToShowReplacePreview(elementToFocus: FileMatchOrMatch): Match {
+	private async getElementToShowReplacePreview(elementToFocus: FileMatchOrMatch): Promise<Match> {
 		if (this.hasSameParent(elementToFocus)) {
 			return <Match>elementToFocus;
 		}
-		let previousElement = this.getPreviousElementAfterRemoved(this.viewer, this.element);
+		let previousElement = await this.getPreviousElementAfterRemoved(this.viewer, this.element);
 		if (this.hasSameParent(previousElement)) {
 			return <Match>previousElement;
 		}

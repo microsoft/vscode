@@ -43,7 +43,7 @@ export class QuickOpenHandler {
 	 * As such, returning the same model instance across multiple searches will yield best
 	 * results in terms of performance when many items are shown.
 	 */
-	getResults(searchValue: string, token: CancellationToken): Thenable<IModel<any>> {
+	getResults(searchValue: string, token: CancellationToken): Promise<IModel<any>> {
 		return Promise.resolve(null);
 	}
 

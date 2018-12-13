@@ -82,7 +82,11 @@ const viewsContribution: IJSONSchema = {
 };
 
 
-const viewsExtensionPoint: IExtensionPoint<{ [loc: string]: IUserFriendlyViewDescriptor[] }> = ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: IUserFriendlyViewDescriptor[] }>('views', [viewsContainersExtensionPoint], viewsContribution);
+const viewsExtensionPoint: IExtensionPoint<{ [loc: string]: IUserFriendlyViewDescriptor[] }> = ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: IUserFriendlyViewDescriptor[] }>({
+	extensionPoint: 'views',
+	deps: [viewsContainersExtensionPoint],
+	jsonSchema: viewsContribution
+});
 
 class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 

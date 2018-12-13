@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { UriComponents } from 'vs/base/common/uri';
+import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 
 export interface TaskDefinitionDTO {
 	type: string;
@@ -87,6 +88,11 @@ export interface TaskDTO {
 	problemMatchers: string[];
 	hasDefinedMatchers: boolean;
 	runOptions: RunOptionsDTO;
+}
+
+export interface TaskSetDTO {
+	tasks: TaskDTO[];
+	extension: IExtensionDescription;
 }
 
 export interface TaskExecutionDTO {

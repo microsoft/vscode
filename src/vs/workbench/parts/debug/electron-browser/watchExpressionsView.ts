@@ -67,8 +67,9 @@ export class WatchExpressionsView extends ViewletPanel {
 			new WatchExpressionsDataSource(this.debugService), {
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'watchAriaTreeLabel' }, "Debug Watch Expressions"),
 				accessibilityProvider: new WatchExpressionsAccessibilityProvider(),
-				identityProvider: { getId: element => element.getId() }
-			}, this.contextKeyService, this.listService, this.themeService, this.configurationService);
+				identityProvider: { getId: element => element.getId() },
+				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: e => e }
+			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
 
 		this.tree.refresh(null);
 
@@ -198,7 +199,7 @@ class WatchExpressionsDataSource implements IDataSource<IExpression> {
 		return element.hasChildren;
 	}
 
-	getChildren(element: IExpression | null): Thenable<(IExpression)[]> {
+	getChildren(element: IExpression | null): Promise<(IExpression)[]> {
 		if (element === null) {
 			const watchExpressions = this.debugService.getModel().getWatchExpressions();
 			const viewModel = this.debugService.getViewModel();

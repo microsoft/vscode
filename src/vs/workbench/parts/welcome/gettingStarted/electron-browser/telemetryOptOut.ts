@@ -70,7 +70,7 @@ export class TelemetryOptOut implements IWorkbenchContribution {
 				{ sticky: true }
 			);
 		})
-			.then(null, onUnexpectedError);
+			.then(void 0, onUnexpectedError);
 	}
 
 	private runExperiment(experimentId: string) {

@@ -42,20 +42,20 @@ suite('Resources', () => {
 
 	test('dirname', () => {
 		if (isWindows) {
-			assert.equal(dirname(URI.file('c:\\some\\file\\test.txt')).toString(), 'file:///c%3A/some/file');
-			assert.equal(dirname(URI.file('c:\\some\\file')).toString(), 'file:///c%3A/some');
-			assert.equal(dirname(URI.file('c:\\some\\file\\')).toString(), 'file:///c%3A/some');
-			assert.equal(dirname(URI.file('c:\\some')).toString(), 'file:///c%3A/');
-			assert.equal(dirname(URI.file('C:\\some')).toString(), 'file:///c%3A/');
+			assert.equal(dirname(URI.file('c:\\some\\file\\test.txt'))!.toString(), 'file:///c%3A/some/file');
+			assert.equal(dirname(URI.file('c:\\some\\file'))!.toString(), 'file:///c%3A/some');
+			assert.equal(dirname(URI.file('c:\\some\\file\\'))!.toString(), 'file:///c%3A/some');
+			assert.equal(dirname(URI.file('c:\\some'))!.toString(), 'file:///c%3A/');
+			assert.equal(dirname(URI.file('C:\\some'))!.toString(), 'file:///c%3A/');
 		} else {
-			assert.equal(dirname(URI.file('/some/file/test.txt')).toString(), 'file:///some/file');
-			assert.equal(dirname(URI.file('/some/file/')).toString(), 'file:///some');
-			assert.equal(dirname(URI.file('/some/file')).toString(), 'file:///some');
+			assert.equal(dirname(URI.file('/some/file/test.txt'))!.toString(), 'file:///some/file');
+			assert.equal(dirname(URI.file('/some/file/'))!.toString(), 'file:///some');
+			assert.equal(dirname(URI.file('/some/file'))!.toString(), 'file:///some');
 		}
-		assert.equal(dirname(URI.parse('foo://a/some/file/test.txt')).toString(), 'foo://a/some/file');
-		assert.equal(dirname(URI.parse('foo://a/some/file/')).toString(), 'foo://a/some');
-		assert.equal(dirname(URI.parse('foo://a/some/file')).toString(), 'foo://a/some');
-		assert.equal(dirname(URI.parse('foo://a/some')).toString(), 'foo://a/');
+		assert.equal(dirname(URI.parse('foo://a/some/file/test.txt'))!.toString(), 'foo://a/some/file');
+		assert.equal(dirname(URI.parse('foo://a/some/file/'))!.toString(), 'foo://a/some');
+		assert.equal(dirname(URI.parse('foo://a/some/file'))!.toString(), 'foo://a/some');
+		assert.equal(dirname(URI.parse('foo://a/some'))!.toString(), 'foo://a/');
 
 		// does not explode (https://github.com/Microsoft/vscode/issues/41987)
 		dirname(URI.from({ scheme: 'file', authority: '/users/someone/portal.h' }));
@@ -205,7 +205,7 @@ suite('Resources', () => {
 		assert.equal(isEqualOrParent(fileURI5, fileURI5, true), true, '16');
 	});
 
-	function assertMalformedFileUri(path: string, expected: string) {
+	function assertMalformedFileUri(path: string, expected: string | undefined) {
 		const old = setUriThrowOnMissingScheme(false);
 		const newURI = isMalformedFileUri(URI.parse(path));
 		assert.equal(newURI && newURI.toString(), expected);

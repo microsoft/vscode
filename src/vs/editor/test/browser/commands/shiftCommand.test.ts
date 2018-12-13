@@ -43,7 +43,7 @@ class DocBlockCommentMode extends MockMode {
 	}
 }
 
-function testShiftCommand(lines: string[], languageIdentifier: LanguageIdentifier, useTabStops: boolean, selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
+function testShiftCommand(lines: string[], languageIdentifier: LanguageIdentifier | null, useTabStops: boolean, selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
 	testCommand(lines, languageIdentifier, selection, (sel) => new ShiftCommand(sel, {
 		isUnshift: false,
 		tabSize: 4,
@@ -52,7 +52,7 @@ function testShiftCommand(lines: string[], languageIdentifier: LanguageIdentifie
 	}), expectedLines, expectedSelection);
 }
 
-function testUnshiftCommand(lines: string[], languageIdentifier: LanguageIdentifier, useTabStops: boolean, selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
+function testUnshiftCommand(lines: string[], languageIdentifier: LanguageIdentifier | null, useTabStops: boolean, selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
 	testCommand(lines, languageIdentifier, selection, (sel) => new ShiftCommand(sel, {
 		isUnshift: true,
 		tabSize: 4,

@@ -206,7 +206,7 @@ export class ResourcesDropHandler {
 		});
 	}
 
-	private doHandleDrop(untitledOrFileResources: (IDraggedResource | IDraggedEditor)[]): Thenable<boolean> {
+	private doHandleDrop(untitledOrFileResources: (IDraggedResource | IDraggedEditor)[]): Promise<boolean> {
 
 		// Check for dirty editors being dropped
 		const resourcesWithBackups: IDraggedEditor[] = untitledOrFileResources.filter(resource => !resource.isExternal && !!(resource as IDraggedEditor).backupResource);
@@ -225,7 +225,7 @@ export class ResourcesDropHandler {
 		return Promise.resolve(false);
 	}
 
-	private handleDirtyEditorDrop(droppedDirtyEditor: IDraggedEditor): Thenable<boolean> {
+	private handleDirtyEditorDrop(droppedDirtyEditor: IDraggedEditor): Promise<boolean> {
 
 		// Untitled: always ensure that we open a new untitled for each file we drop
 		if (droppedDirtyEditor.resource.scheme === Schemas.untitled) {
@@ -254,7 +254,7 @@ export class ResourcesDropHandler {
 		return DefaultEndOfLine.LF;
 	}
 
-	private handleWorkspaceFileDrop(fileOnDiskResources: URI[]): Thenable<boolean> {
+	private handleWorkspaceFileDrop(fileOnDiskResources: URI[]): Promise<boolean> {
 		const workspaceResources: { workspaces: URI[], folders: URI[] } = {
 			workspaces: [],
 			folders: []
@@ -286,7 +286,7 @@ export class ResourcesDropHandler {
 			// Pass focus to window
 			this.windowService.focusWindow();
 
-			let workspacesToOpen: Thenable<URI[]>;
+			let workspacesToOpen: Promise<URI[]>;
 
 			// Open in separate windows if we drop workspaces or just one folder
 			if (workspaces.length > 0 || folders.length === 1) {

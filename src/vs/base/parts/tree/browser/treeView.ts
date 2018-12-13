@@ -260,8 +260,11 @@ export class ViewItem implements IViewItem {
 		}
 
 		if (!skipUserRender && this.element) {
-			const style = window.getComputedStyle(this.element);
-			const paddingLeft = parseFloat(style.paddingLeft);
+			let paddingLeft: number | undefined;
+			if (this.context.horizontalScrolling) {
+				const style = window.getComputedStyle(this.element);
+				paddingLeft = parseFloat(style.paddingLeft);
+			}
 
 			if (this.context.horizontalScrolling) {
 				this.element.style.width = 'fit-content';

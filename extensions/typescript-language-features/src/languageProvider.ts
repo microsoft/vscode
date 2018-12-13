@@ -5,7 +5,7 @@
 
 import { basename } from 'path';
 import * as vscode from 'vscode';
-import { CachedResponse } from './features/baseCodeLensProvider';
+import { CachedResponse } from './tsServer/cachedResponse';
 import { DiagnosticKind } from './features/diagnostics';
 import FileConfigurationManager from './features/fileConfigurationManager';
 import TypeScriptServiceClient from './typescriptServiceClient';
@@ -59,7 +59,7 @@ export default class LanguageProvider extends Disposable {
 		this._register((await import('./features/definitions')).register(selector, this.client));
 		this._register((await import('./features/directiveCommentCompletions')).register(selector, this.client));
 		this._register((await import('./features/documentHighlight')).register(selector, this.client));
-		this._register((await import('./features/documentSymbol')).register(selector, this.client));
+		this._register((await import('./features/documentSymbol')).register(selector, this.client, cachedResponse));
 		this._register((await import('./features/folding')).register(selector, this.client));
 		this._register((await import('./features/formatting')).register(selector, this.description.id, this.client, this.fileConfigurationManager));
 		this._register((await import('./features/hover')).register(selector, this.client));

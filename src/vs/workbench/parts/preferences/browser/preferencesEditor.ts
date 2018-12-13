@@ -154,7 +154,7 @@ export class PreferencesEditor extends BaseEditor {
 		this.preferencesRenderers.editFocusedPreference();
 	}
 
-	public setInput(newInput: PreferencesEditorInput, options: SettingsEditorOptions, token: CancellationToken): Thenable<void> {
+	public setInput(newInput: PreferencesEditorInput, options: SettingsEditorOptions, token: CancellationToken): Promise<void> {
 		this.defaultSettingsEditorContextKey.set(true);
 		this.defaultSettingsJSONEditorContextKey.set(true);
 		if (options && options.query) {
@@ -254,7 +254,7 @@ export class PreferencesEditor extends BaseEditor {
 		if (this.editorService.activeControl !== this) {
 			this.focus();
 		}
-		const promise: Thenable<boolean> = this.input && this.input.isDirty() ? this.input.save() : Promise.resolve(true);
+		const promise: Promise<boolean> = this.input && this.input.isDirty() ? this.input.save() : Promise.resolve(true);
 		promise.then(() => {
 			if (target === ConfigurationTarget.USER) {
 				this.preferencesService.switchSettings(ConfigurationTarget.USER, this.preferencesService.userSettingsResource, true);
@@ -933,7 +933,7 @@ class SideBySidePreferencesWidget extends Widget {
 		return editor;
 	}
 
-	private updateInput(editor: BaseEditor, input: EditorInput, editorContributionId: string, associatedPreferencesModelUri: URI, options: EditorOptions, token: CancellationToken): Thenable<IPreferencesRenderer<ISetting>> {
+	private updateInput(editor: BaseEditor, input: EditorInput, editorContributionId: string, associatedPreferencesModelUri: URI, options: EditorOptions, token: CancellationToken): Promise<IPreferencesRenderer<ISetting>> {
 		return editor.setInput(input, options, token)
 			.then(() => {
 				if (token.isCancellationRequested) {
@@ -1041,7 +1041,7 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		return options;
 	}
 
-	setInput(input: DefaultPreferencesEditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+	setInput(input: DefaultPreferencesEditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 		return super.setInput(input, options, token)
 			.then(() => this.input.resolve()
 				.then(editorModel => {
@@ -1079,13 +1079,13 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 
 interface ISettingsEditorContribution extends editorCommon.IEditorContribution {
 
-	updatePreferencesRenderer(associatedPreferencesModelUri: URI): Thenable<IPreferencesRenderer<ISetting>>;
+	updatePreferencesRenderer(associatedPreferencesModelUri: URI): Promise<IPreferencesRenderer<ISetting>>;
 
 }
 
 abstract class AbstractSettingsEditorContribution extends Disposable implements ISettingsEditorContribution {
 
-	private preferencesRendererCreationPromise: Thenable<IPreferencesRenderer<ISetting>>;
+	private preferencesRendererCreationPromise: Promise<IPreferencesRenderer<ISetting>>;
 
 	constructor(protected editor: ICodeEditor,
 		@IInstantiationService protected instantiationService: IInstantiationService,
@@ -1096,7 +1096,7 @@ abstract class AbstractSettingsEditorContribution extends Disposable implements 
 		this._register(this.editor.onDidChangeModel(() => this._onModelChanged()));
 	}
 
-	updatePreferencesRenderer(associatedPreferencesModelUri: URI): Thenable<IPreferencesRenderer<ISetting>> {
+	updatePreferencesRenderer(associatedPreferencesModelUri: URI): Promise<IPreferencesRenderer<ISetting>> {
 		if (!this.preferencesRendererCreationPromise) {
 			this.preferencesRendererCreationPromise = this._createPreferencesRenderer();
 		}
@@ -1117,13 +1117,13 @@ abstract class AbstractSettingsEditorContribution extends Disposable implements 
 		}
 	}
 
-	private _hasAssociatedPreferencesModelChanged(associatedPreferencesModelUri: URI): Thenable<boolean> {
+	private _hasAssociatedPreferencesModelChanged(associatedPreferencesModelUri: URI): Promise<boolean> {
 		return this.preferencesRendererCreationPromise.then(preferencesRenderer => {
 			return !(preferencesRenderer && preferencesRenderer.getAssociatedPreferencesModel() && preferencesRenderer.getAssociatedPreferencesModel().uri.toString() === associatedPreferencesModelUri.toString());
 		});
 	}
 
-	private _updatePreferencesRenderer(associatedPreferencesModelUri: URI): Thenable<IPreferencesRenderer<ISetting>> {
+	private _updatePreferencesRenderer(associatedPreferencesModelUri: URI): Promise<IPreferencesRenderer<ISetting>> {
 		return this.preferencesService.createPreferencesEditorModel<ISetting>(associatedPreferencesModelUri)
 			.then(associatedPreferencesEditorModel => {
 				return this.preferencesRendererCreationPromise.then(preferencesRenderer => {
@@ -1160,7 +1160,7 @@ abstract class AbstractSettingsEditorContribution extends Disposable implements 
 		super.dispose();
 	}
 
-	protected abstract _createPreferencesRenderer(): Thenable<IPreferencesRenderer<ISetting>>;
+	protected abstract _createPreferencesRenderer(): Promise<IPreferencesRenderer<ISetting>>;
 	abstract getId(): string;
 }
 
@@ -1172,7 +1172,7 @@ class DefaultSettingsEditorContribution extends AbstractSettingsEditorContributi
 		return DefaultSettingsEditorContribution.ID;
 	}
 
-	protected _createPreferencesRenderer(): Thenable<IPreferencesRenderer<ISetting>> {
+	protected _createPreferencesRenderer(): Promise<IPreferencesRenderer<ISetting>> {
 		return this.preferencesService.createPreferencesEditorModel(this.editor.getModel().uri)
 			.then(editorModel => {
 				if (editorModel instanceof DefaultSettingsEditorModel && this.editor.getModel()) {
@@ -1202,7 +1202,7 @@ class SettingsEditorContribution extends AbstractSettingsEditorContribution impl
 		return SettingsEditorContribution.ID;
 	}
 
-	protected _createPreferencesRenderer(): Thenable<IPreferencesRenderer<ISetting>> {
+	protected _createPreferencesRenderer(): Promise<IPreferencesRenderer<ISetting>> {
 		if (this.isSettingsModel()) {
 			return this.preferencesService.createPreferencesEditorModel(this.editor.getModel().uri)
 				.then(settingsModel => {

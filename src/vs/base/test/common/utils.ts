@@ -7,7 +7,7 @@ import * as paths from 'vs/base/common/paths';
 import { URI } from 'vs/base/common/uri';
 import { canceled } from 'vs/base/common/errors';
 
-export type ValueCallback<T = any> = (value: T | Thenable<T>) => void;
+export type ValueCallback<T = any> = (value: T | Promise<T>) => void;
 
 export class DeferredPromise<T> {
 

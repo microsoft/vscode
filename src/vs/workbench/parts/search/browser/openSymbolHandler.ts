@@ -27,7 +27,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 class SymbolEntry extends EditorQuickOpenEntry {
-	private bearingResolve: Thenable<this>;
+	private bearingResolve: Promise<this>;
 
 	constructor(
 		private bearing: IWorkspaceSymbol,
@@ -156,10 +156,10 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 		return true;
 	}
 
-	getResults(searchValue: string, token: CancellationToken): Thenable<QuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 
-		let promise: Thenable<QuickOpenEntry[]>;
+		let promise: Promise<QuickOpenEntry[]>;
 		if (!this.options.skipDelay) {
 			promise = this.delayer.trigger(() => {
 				if (token.isCancellationRequested) {
@@ -175,7 +175,7 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 		return promise.then(e => new QuickOpenModel(e));
 	}
 
-	private doGetResults(searchValue: string, token: CancellationToken): Thenable<SymbolEntry[]> {
+	private doGetResults(searchValue: string, token: CancellationToken): Promise<SymbolEntry[]> {
 		return getWorkspaceSymbols(searchValue, token).then(tuples => {
 			if (token.isCancellationRequested) {
 				return [];

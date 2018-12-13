@@ -12,7 +12,7 @@ import * as modes from 'vs/editor/common/modes';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { createCancelablePromise, CancelablePromise, Delayer } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Event, Emitter, chain } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { domEvent, stop } from 'vs/base/browser/event';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Context, provideSignatureHelp } from 'vs/editor/contrib/parameterHints/provideSignatureHelp';
@@ -29,7 +29,7 @@ import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 const $ = dom.$;
 
 export interface TriggerContext {
-	readonly triggerReason: modes.SignatureHelpTriggerReason;
+	readonly triggerKind: modes.SignatureHelpTriggerKind;
 	readonly triggerCharacter?: string;
 }
 
@@ -107,7 +107,7 @@ export class ParameterHintsModel extends Disposable {
 
 		this.throttledDelayer.trigger(
 			() => this.doTrigger({
-				triggerReason: context.triggerReason,
+				triggerKind: context.triggerKind,
 				triggerCharacter: context.triggerCharacter,
 				isRetrigger: this.isTriggered,
 			}), delay).then(undefined, onUnexpectedError);
@@ -193,7 +193,7 @@ export class ParameterHintsModel extends Disposable {
 
 		if (this.triggerChars.has(triggerCharCode) || this.isTriggered && this.retriggerChars.has(triggerCharCode)) {
 			this.trigger({
-				triggerReason: modes.SignatureHelpTriggerReason.TriggerCharacter,
+				triggerKind: modes.SignatureHelpTriggerKind.TriggerCharacter,
 				triggerCharacter: text.charAt(lastCharIndex),
 			});
 		}
@@ -203,13 +203,13 @@ export class ParameterHintsModel extends Disposable {
 		if (e.source === 'mouse') {
 			this.cancel();
 		} else if (this.isTriggered) {
-			this.trigger({ triggerReason: modes.SignatureHelpTriggerReason.ContentChange });
+			this.trigger({ triggerKind: modes.SignatureHelpTriggerKind.ContentChange });
 		}
 	}
 
 	private onModelContentChange(): void {
 		if (this.isTriggered) {
-			this.trigger({ triggerReason: modes.SignatureHelpTriggerReason.ContentChange });
+			this.trigger({ triggerKind: modes.SignatureHelpTriggerKind.ContentChange });
 		}
 	}
 
@@ -321,7 +321,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 		updateFont();
 
-		chain<IConfigurationChangedEvent>(this.editor.onDidChangeConfiguration.bind(this.editor))
+		Event.chain<IConfigurationChangedEvent>(this.editor.onDidChangeConfiguration.bind(this.editor))
 			.filter(e => e.fontInfo)
 			.on(updateFont, null, this.disposables);
 

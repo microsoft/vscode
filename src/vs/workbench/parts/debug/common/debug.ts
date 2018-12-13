@@ -112,7 +112,7 @@ export interface IExpression extends IReplElement, IExpressionContainer {
 export interface IDebugger {
 	createDebugAdapter(session: IDebugSession, outputService: IOutputService): Promise<IDebugAdapter>;
 	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined>;
-	getCustomTelemetryService(): Thenable<TelemetryService>;
+	getCustomTelemetryService(): Promise<TelemetryService>;
 }
 
 export const enum State {
@@ -186,7 +186,7 @@ export interface IDebugSession extends ITreeElement {
 
 	// DAP request
 
-	initialize(dbgr: IDebugger): Thenable<void>;
+	initialize(dbgr: IDebugger): Promise<void>;
 	launchOrAttach(config: IConfig): Promise<void>;
 	restart(): Promise<void>;
 	terminate(restart?: boolean /* false */): Promise<void>;
@@ -291,7 +291,7 @@ export interface IStackFrame extends ITreeElement {
 	getSpecificSourceName(): string;
 	restart(): Promise<any>;
 	toString(): string;
-	openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean): Thenable<any>;
+	openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean): Promise<any>;
 }
 
 export interface IEnablement extends ITreeElement {
@@ -594,7 +594,7 @@ export interface IConfigurationManager {
 	 */
 	onDidSelectConfiguration: Event<void>;
 
-	activateDebuggers(activationEvent: string, debugType?: string): Thenable<void>;
+	activateDebuggers(activationEvent: string, debugType?: string): Promise<void>;
 
 	needsToRunInExtHost(debugType: string): boolean;
 	hasDebugConfigurationProvider(debugType: string): boolean;
@@ -608,7 +608,7 @@ export interface IConfigurationManager {
 	registerDebugAdapterTrackerFactory(debugAdapterTrackerFactory: IDebugAdapterTrackerFactory): IDisposable;
 	unregisterDebugAdapterTrackerFactory(debugAdapterTrackerFactory: IDebugAdapterTrackerFactory): void;
 
-	resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: any): Thenable<any>;
+	resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: any): Promise<any>;
 	provideDebugAdapter(session: IDebugSession): Promise<IAdapterDescriptor | undefined>;
 
 	registerDebugAdapterFactory(debugTypes: string[], debugAdapterFactory: IDebugAdapterFactory): IDisposable;
@@ -661,7 +661,7 @@ export interface ILaunch {
 	/**
 	 * Opens the launch.json file. Creates if it does not exist.
 	 */
-	openConfigFile(sideBySide: boolean, preserveFocus: boolean, type?: string): Thenable<{ editor: IEditor, created: boolean }>;
+	openConfigFile(sideBySide: boolean, preserveFocus: boolean, type?: string): Promise<{ editor: IEditor, created: boolean }>;
 }
 
 // Debug service interfaces
@@ -785,12 +785,12 @@ export interface IDebugService {
 	 * Returns true if the start debugging was successfull. For compound launches, all configurations have to start successfuly for it to return success.
 	 * On errors the startDebugging will throw an error, however some error and cancelations are handled and in that case will simply return false.
 	 */
-	startDebugging(launch: ILaunch, configOrName?: IConfig | string, noDebug?: boolean): Thenable<boolean>;
+	startDebugging(launch: ILaunch, configOrName?: IConfig | string, noDebug?: boolean): Promise<boolean>;
 
 	/**
 	 * Restarts a session or creates a new one if there is no active session.
 	 */
-	restartSession(session: IDebugSession, restartData?: any): Thenable<any>;
+	restartSession(session: IDebugSession, restartData?: any): Promise<any>;
 
 	/**
 	 * Stops the session. If the session does not exist then stops all sessions.

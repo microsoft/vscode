@@ -11,7 +11,7 @@ import { MinimapCharRendererFactory } from 'vs/editor/test/common/view/minimapCh
 
 suite('MinimapCharRenderer', () => {
 
-	let sampleData: Uint8ClampedArray = null;
+	let sampleData: Uint8ClampedArray | null = null;
 
 	suiteSetup(() => {
 		sampleData = new Uint8ClampedArray(Constants.SAMPLED_CHAR_HEIGHT * Constants.SAMPLED_CHAR_WIDTH * Constants.RGBA_CHANNELS_CNT * Constants.CHAR_COUNT);
@@ -22,10 +22,9 @@ suite('MinimapCharRenderer', () => {
 	});
 
 	setup(() => {
-		for (let i = 0; i < sampleData.length; i++) {
-			sampleData[i] = 0;
+		for (let i = 0; i < sampleData!.length; i++) {
+			sampleData![i] = 0;
 		}
-
 	});
 
 	const sampleD = [
@@ -57,7 +56,7 @@ suite('MinimapCharRenderer', () => {
 			let outputOffset = globalOutputOffset;
 			for (let j = 0; j < Constants.SAMPLED_CHAR_WIDTH; j++) {
 				for (let channel = 0; channel < Constants.RGBA_CHANNELS_CNT; channel++) {
-					sampleData[outputOffset] = data[inputOffset];
+					sampleData![outputOffset] = data[inputOffset];
 					inputOffset++;
 					outputOffset++;
 				}
@@ -76,7 +75,7 @@ suite('MinimapCharRenderer', () => {
 
 	test('letter d @ 2x', () => {
 		setSampleData('d'.charCodeAt(0), sampleD);
-		let renderer = MinimapCharRendererFactory.create(sampleData);
+		let renderer = MinimapCharRendererFactory.create(sampleData!);
 
 		let background = new RGBA8(0, 0, 0, 255);
 		let color = new RGBA8(255, 255, 255, 255);
@@ -132,7 +131,7 @@ suite('MinimapCharRenderer', () => {
 
 	test('letter d @ 1x', () => {
 		setSampleData('d'.charCodeAt(0), sampleD);
-		let renderer = MinimapCharRendererFactory.create(sampleData);
+		let renderer = MinimapCharRendererFactory.create(sampleData!);
 
 		let background = new RGBA8(0, 0, 0, 255);
 		let color = new RGBA8(255, 255, 255, 255);

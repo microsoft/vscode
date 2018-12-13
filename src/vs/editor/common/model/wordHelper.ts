@@ -41,6 +41,9 @@ export function ensureValidWordDefinition(wordDefinition?: RegExp | null): RegEx
 			if (wordDefinition.multiline) {
 				flags += 'm';
 			}
+			if ((wordDefinition as any).unicode) {
+				flags += 'u';
+			}
 			result = new RegExp(wordDefinition.source, flags);
 		} else {
 			result = wordDefinition;

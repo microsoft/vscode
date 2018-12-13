@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter, filterEvent, debounceEvent } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MenuId, MenuRegistry, MenuItemAction, IMenu, IMenuItem, IMenuActionOptions, ISubmenuItem, SubmenuItemAction, isIMenuItem } from 'vs/platform/actions/common/actions';
@@ -28,15 +28,15 @@ export class Menu implements IMenu {
 
 		// rebuild this menu whenever the menu registry reports an
 		// event for this MenuId
-		debounceEvent(
-			filterEvent(MenuRegistry.onDidChangeMenu, menuId => menuId === this._id),
+		Event.debounce(
+			Event.filter(MenuRegistry.onDidChangeMenu, menuId => menuId === this._id),
 			() => { },
 			50
 		)(this._build, this, this._disposables);
 
 		// when context keys change we need to check if the menu also
 		// has changed
-		debounceEvent(
+		Event.debounce(
 			this._contextKeyService.onDidChangeContext,
 			(last, event) => last || event.affectsSome(this._contextKeys),
 			50

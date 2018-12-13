@@ -14,7 +14,6 @@ import { localize } from 'vs/nls';
 import { URI as uri } from 'vs/base/common/uri';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { TPromise } from 'vs/base/common/winjs.base';
 
 export interface IVariableResolveContext {
 	getFolderUri(folderName: string): uri | undefined;
@@ -51,7 +50,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 		return this.recursiveResolve(root ? root.uri : undefined, value);
 	}
 
-	public resolveAny(workspaceFolder: IWorkspaceFolder, config: any, commandValueMapping?: IStringDictionary<string>): any {
+	public resolveAnyBase(workspaceFolder: IWorkspaceFolder, config: any, commandValueMapping?: IStringDictionary<string>, resolvedVariables?: Map<string, string>): any {
 
 		const result = objects.deepClone(config) as any;
 
@@ -70,35 +69,58 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 		delete result.linux;
 
 		// substitute all variables recursively in string values
-		return this.recursiveResolve(workspaceFolder ? workspaceFolder.uri : undefined, result, commandValueMapping);
+		return this.recursiveResolve(workspaceFolder ? workspaceFolder.uri : undefined, result, commandValueMapping, resolvedVariables);
 	}
 
-	public resolveWithCommands(folder: IWorkspaceFolder, config: any): TPromise<any> {
-		throw new Error('resolveWithCommands not implemented.');
+	public resolveAny(workspaceFolder: IWorkspaceFolder, config: any, commandValueMapping?: IStringDictionary<string>): any {
+		return this.resolveAnyBase(workspaceFolder, config, commandValueMapping);
 	}
 
-	private recursiveResolve(folderUri: uri, value: any, commandValueMapping?: IStringDictionary<string>): any {
+	public resolveAnyMap(workspaceFolder: IWorkspaceFolder, config: any, commandValueMapping?: IStringDictionary<string>): { newConfig: any, resolvedVariables: Map<string, string> } {
+		const resolvedVariables = new Map<string, string>();
+		const newConfig = this.resolveAnyBase(workspaceFolder, config, commandValueMapping, resolvedVariables);
+		return { newConfig, resolvedVariables };
+	}
+
+	public resolveWithInteractionReplace(folder: IWorkspaceFolder, config: any): Promise<any> {
+		throw new Error('resolveWithInteractionReplace not implemented.');
+	}
+
+	public resolveWithInteraction(folder: IWorkspaceFolder, config: any): Promise<any> {
+		throw new Error('resolveWithInteraction not implemented.');
+	}
+
+	private recursiveResolve(folderUri: uri, value: any, commandValueMapping?: IStringDictionary<string>, resolvedVariables?: Map<string, string>): any {
 		if (types.isString(value)) {
-			return this.resolveString(folderUri, value, commandValueMapping);
+			const resolved = this.resolveString(folderUri, value, commandValueMapping);
+			if (resolvedVariables) {
+				resolvedVariables.set(resolved.variableName, resolved.resolvedValue);
+			}
+			return resolved.replaced;
 		} else if (types.isArray(value)) {
-			return value.map(s => this.recursiveResolve(folderUri, s, commandValueMapping));
+			return value.map(s => this.recursiveResolve(folderUri, s, commandValueMapping, resolvedVariables));
 		} else if (types.isObject(value)) {
 			let result: IStringDictionary<string | IStringDictionary<string> | string[]> = Object.create(null);
 			Object.keys(value).forEach(key => {
 				const resolvedKey = this.resolveString(folderUri, key, commandValueMapping);
-				result[resolvedKey] = this.recursiveResolve(folderUri, value[key], commandValueMapping);
+				if (resolvedVariables) {
+					resolvedVariables.set(resolvedKey.variableName, resolvedKey.resolvedValue);
+				}
+				result[resolvedKey.replaced] = this.recursiveResolve(folderUri, value[key], commandValueMapping, resolvedVariables);
 			});
 			return result;
 		}
 		return value;
 	}
 
-	private resolveString(folderUri: uri, value: string, commandValueMapping: IStringDictionary<string>): string {
+	private resolveString(folderUri: uri, value: string, commandValueMapping: IStringDictionary<string>): { replaced: string, variableName: string, resolvedValue: string } {
 
 		const filePath = this._context.getFilePath();
+		let variableName: string;
+		let resolvedValue: string;
+		const replaced = value.replace(AbstractVariableResolverService.VARIABLE_REGEXP, (match: string, variable: string) => {
 
-		return value.replace(AbstractVariableResolverService.VARIABLE_REGEXP, (match: string, variable: string) => {
-
+			variableName = variable;
 			let argument: string;
 			const parts = variable.split(':');
 			if (parts && parts.length > 1) {
@@ -115,10 +137,10 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 						}
 						const env = this._envVariables[argument];
 						if (types.isString(env)) {
-							return env;
+							return resolvedValue = env;
 						}
 						// For `env` we should do the same as a normal shell does - evaluates missing envs to an empty string #46436
-						return '';
+						return resolvedValue = '';
 					}
 					throw new Error(localize('missingEnvVarName', "'{0}' can not be resolved because no environment variable name is given.", match));
 
@@ -131,19 +153,14 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 						if (types.isObject(config)) {
 							throw new Error(localize('configNoString', "'{0}' can not be resolved because '{1}' is a structured value.", match, argument));
 						}
-						return config;
+						return resolvedValue = config;
 					}
 					throw new Error(localize('missingConfigName', "'{0}' can not be resolved because no settings name is given.", match));
 
 				case 'command':
-					if (argument && commandValueMapping) {
-						const v = commandValueMapping[argument];
-						if (typeof v === 'string') {
-							return v;
-						}
-						throw new Error(localize('noValueForCommand', "'{0}' can not be resolved because the command has no value.", match));
-					}
-					return match;
+					return resolvedValue = this.resolveFromMap(match, argument, commandValueMapping, 'command');
+				case 'input':
+					return resolvedValue = this.resolveFromMap(match, argument, commandValueMapping, 'input');
 
 				default: {
 
@@ -192,63 +209,75 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 					switch (variable) {
 						case 'workspaceRoot':
 						case 'workspaceFolder':
-							return normalizeDriveLetter(folderUri.fsPath);
+							return resolvedValue = normalizeDriveLetter(folderUri.fsPath);
 
 						case 'cwd':
-							return folderUri ? normalizeDriveLetter(folderUri.fsPath) : process.cwd();
+							return resolvedValue = (folderUri ? normalizeDriveLetter(folderUri.fsPath) : process.cwd());
 
 						case 'workspaceRootFolderName':
 						case 'workspaceFolderBasename':
-							return paths.basename(folderUri.fsPath);
+							return resolvedValue = paths.basename(folderUri.fsPath);
 
 						case 'lineNumber':
 							const lineNumber = this._context.getLineNumber();
 							if (lineNumber) {
-								return lineNumber;
+								return resolvedValue = lineNumber;
 							}
 							throw new Error(localize('canNotResolveLineNumber', "'{0}' can not be resolved. Make sure to have a line selected in the active editor.", match));
 
 						case 'selectedText':
 							const selectedText = this._context.getSelectedText();
 							if (selectedText) {
-								return selectedText;
+								return resolvedValue = selectedText;
 							}
 							throw new Error(localize('canNotResolveSelectedText', "'{0}' can not be resolved. Make sure to have some text selected in the active editor.", match));
 
 						case 'file':
-							return filePath;
+							return resolvedValue = filePath;
 
 						case 'relativeFile':
 							if (folderUri) {
-								return paths.normalize(relative(folderUri.fsPath, filePath));
+								return resolvedValue = paths.normalize(relative(folderUri.fsPath, filePath));
 							}
-							return filePath;
+							return resolvedValue = filePath;
 
 						case 'fileDirname':
-							return paths.dirname(filePath);
+							return resolvedValue = paths.dirname(filePath);
 
 						case 'fileExtname':
-							return paths.extname(filePath);
+							return resolvedValue = paths.extname(filePath);
 
 						case 'fileBasename':
-							return paths.basename(filePath);
+							return resolvedValue = paths.basename(filePath);
 
 						case 'fileBasenameNoExtension':
 							const basename = paths.basename(filePath);
-							return basename.slice(0, basename.length - paths.extname(basename).length);
+							return resolvedValue = (basename.slice(0, basename.length - paths.extname(basename).length));
 
 						case 'execPath':
 							const ep = this._context.getExecPath();
 							if (ep) {
-								return ep;
+								return resolvedValue = ep;
 							}
-							return match;
+							return resolvedValue = match;
 
 						default:
-							return match;
+							return resolvedValue = match;
 					}
 				}
 			}
 		});
+		return { replaced, variableName, resolvedValue };
+	}
+
+	private resolveFromMap(match: string, argument: string, commandValueMapping: IStringDictionary<string>, prefix: string): string {
+		if (argument && commandValueMapping) {
+			const v = commandValueMapping[prefix + ':' + argument];
+			if (typeof v === 'string') {
+				return v;
+			}
+			throw new Error(localize('noValueForCommand', "'{0}' can not be resolved because the command has no value.", match));
+		}
+		return match;
 	}
 }

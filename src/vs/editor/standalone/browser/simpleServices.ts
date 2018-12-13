@@ -57,7 +57,7 @@ export class SimpleModel implements ITextEditorModel {
 		return this._onDispose.event;
 	}
 
-	public load(): Thenable<SimpleModel> {
+	public load(): Promise<SimpleModel> {
 		return Promise.resolve(this);
 	}
 
@@ -141,7 +141,7 @@ export class SimpleProgressService implements IProgressService {
 		return SimpleProgressService.NULL_PROGRESS_RUNNER;
 	}
 
-	showWhile(promise: Thenable<any>, delay?: number): Thenable<void> {
+	showWhile(promise: Promise<any>, delay?: number): Promise<void> {
 		return Promise.resolve(void 0);
 	}
 }
@@ -150,7 +150,7 @@ export class SimpleDialogService implements IDialogService {
 
 	public _serviceBrand: any;
 
-	public confirm(confirmation: IConfirmation): Thenable<IConfirmationResult> {
+	public confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
 		return this.doConfirm(confirmation).then(confirmed => {
 			return {
 				confirmed,
@@ -159,7 +159,7 @@ export class SimpleDialogService implements IDialogService {
 		});
 	}
 
-	private doConfirm(confirmation: IConfirmation): Thenable<boolean> {
+	private doConfirm(confirmation: IConfirmation): Promise<boolean> {
 		let messageText = confirmation.message;
 		if (confirmation.detail) {
 			messageText = messageText + '\n\n' + confirmation.detail;
@@ -168,7 +168,7 @@ export class SimpleDialogService implements IDialogService {
 		return Promise.resolve(window.confirm(messageText));
 	}
 
-	public show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Thenable<number> {
+	public show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<number> {
 		return Promise.resolve(0);
 	}
 }
@@ -242,7 +242,7 @@ export class StandaloneCommandService implements ICommandService {
 
 		try {
 			this._onWillExecuteCommand.fire({ commandId: id });
-			const result = this._instantiationService.invokeFunction.apply(this._instantiationService, [command.handler].concat(args));
+			const result = this._instantiationService.invokeFunction.apply(this._instantiationService, [command.handler, ...args]) as T;
 			return Promise.resolve(result);
 		} catch (err) {
 			return Promise.reject(err);

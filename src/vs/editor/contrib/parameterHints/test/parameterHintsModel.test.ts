@@ -44,7 +44,7 @@ suite('ParameterHintsModel', () => {
 			model: textModel,
 			serviceCollection: new ServiceCollection(
 				[ITelemetryService, NullTelemetryService],
-				[IStorageService, InMemoryStorageService]
+				[IStorageService, new InMemoryStorageService()]
 			)
 		});
 		disposables.push(textModel);
@@ -62,8 +62,8 @@ suite('ParameterHintsModel', () => {
 			signatureHelpTriggerCharacters = [triggerChar];
 			signatureHelpRetriggerCharacters = [];
 
-			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelp | Thenable<modes.SignatureHelp> {
-				assert.strictEqual(context.triggerReason, modes.SignatureHelpTriggerReason.TriggerCharacter);
+			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext) {
+				assert.strictEqual(context.triggerKind, modes.SignatureHelpTriggerKind.TriggerCharacter);
 				assert.strictEqual(context.triggerCharacter, triggerChar);
 				done();
 				return undefined;
@@ -84,16 +84,16 @@ suite('ParameterHintsModel', () => {
 			signatureHelpTriggerCharacters = [triggerChar];
 			signatureHelpRetriggerCharacters = [];
 
-			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelp | Thenable<modes.SignatureHelp> {
+			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelp | Promise<modes.SignatureHelp> {
 				++invokeCount;
 				if (invokeCount === 1) {
-					assert.strictEqual(context.triggerReason, modes.SignatureHelpTriggerReason.TriggerCharacter);
+					assert.strictEqual(context.triggerKind, modes.SignatureHelpTriggerKind.TriggerCharacter);
 					assert.strictEqual(context.triggerCharacter, triggerChar);
 					// Retrigger
 					editor.trigger('keyboard', Handler.Type, { text: triggerChar });
 				} else {
 					assert.strictEqual(invokeCount, 2);
-					assert.strictEqual(context.triggerReason, modes.SignatureHelpTriggerReason.TriggerCharacter);
+					assert.strictEqual(context.triggerKind, modes.SignatureHelpTriggerKind.TriggerCharacter);
 					assert.ok(context.isRetrigger);
 					assert.strictEqual(context.triggerCharacter, triggerChar);
 					done();
@@ -117,10 +117,10 @@ suite('ParameterHintsModel', () => {
 			signatureHelpTriggerCharacters = [triggerChar];
 			signatureHelpRetriggerCharacters = [];
 
-			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelp | Thenable<modes.SignatureHelp> {
+			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelp | Promise<modes.SignatureHelp> {
 				++invokeCount;
 				if (invokeCount === 1) {
-					assert.strictEqual(context.triggerReason, modes.SignatureHelpTriggerReason.TriggerCharacter);
+					assert.strictEqual(context.triggerKind, modes.SignatureHelpTriggerKind.TriggerCharacter);
 					assert.strictEqual(context.triggerCharacter, triggerChar);
 
 					// Cancel and retrigger
@@ -128,7 +128,7 @@ suite('ParameterHintsModel', () => {
 					editor.trigger('keyboard', Handler.Type, { text: triggerChar });
 				} else {
 					assert.strictEqual(invokeCount, 2);
-					assert.strictEqual(context.triggerReason, modes.SignatureHelpTriggerReason.TriggerCharacter);
+					assert.strictEqual(context.triggerKind, modes.SignatureHelpTriggerKind.TriggerCharacter);
 					assert.strictEqual(context.triggerCharacter, triggerChar);
 					done();
 				}
@@ -148,10 +148,10 @@ suite('ParameterHintsModel', () => {
 			signatureHelpTriggerCharacters = ['a', 'b', 'c'];
 			signatureHelpRetriggerCharacters = [];
 
-			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelp | Thenable<modes.SignatureHelp> {
+			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext) {
 				++invokeCount;
 
-				assert.strictEqual(context.triggerReason, modes.SignatureHelpTriggerReason.TriggerCharacter);
+				assert.strictEqual(context.triggerKind, modes.SignatureHelpTriggerKind.TriggerCharacter);
 				assert.strictEqual(context.isRetrigger, false);
 				assert.strictEqual(context.triggerCharacter, 'c');
 
@@ -179,16 +179,16 @@ suite('ParameterHintsModel', () => {
 			signatureHelpTriggerCharacters = ['a', 'b'];
 			signatureHelpRetriggerCharacters = [];
 
-			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelp | Thenable<modes.SignatureHelp> {
+			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelp | Promise<modes.SignatureHelp> {
 				++invokeCount;
 				if (invokeCount === 1) {
-					assert.strictEqual(context.triggerReason, modes.SignatureHelpTriggerReason.TriggerCharacter);
+					assert.strictEqual(context.triggerKind, modes.SignatureHelpTriggerKind.TriggerCharacter);
 					assert.strictEqual(context.triggerCharacter, 'a');
 
 					// retrigger after delay for widget to show up
 					setTimeout(() => editor.trigger('keyboard', Handler.Type, { text: 'b' }), 50);
 				} else if (invokeCount === 2) {
-					assert.strictEqual(context.triggerReason, modes.SignatureHelpTriggerReason.TriggerCharacter);
+					assert.strictEqual(context.triggerKind, modes.SignatureHelpTriggerKind.TriggerCharacter);
 					assert.ok(context.isRetrigger);
 					assert.strictEqual(context.triggerCharacter, 'b');
 					done();
@@ -214,13 +214,13 @@ suite('ParameterHintsModel', () => {
 			signatureHelpRetriggerCharacters = [];
 
 
-			provideSignatureHelp(_model: ITextModel, _position: Position, token: CancellationToken): modes.SignatureHelp | Thenable<modes.SignatureHelp> {
+			provideSignatureHelp(_model: ITextModel, _position: Position, token: CancellationToken): modes.SignatureHelp | Promise<modes.SignatureHelp> {
 				const count = invokeCount++;
 				token.onCancellationRequested(() => { didRequestCancellationOf = count; });
 
 				// retrigger on first request
 				if (count === 0) {
-					hintsModel.trigger({ triggerReason: modes.SignatureHelpTriggerReason.Invoke }, 0);
+					hintsModel.trigger({ triggerKind: modes.SignatureHelpTriggerKind.Invoke }, 0);
 				}
 
 				return new Promise<modes.SignatureHelp>(resolve => {
@@ -240,7 +240,7 @@ suite('ParameterHintsModel', () => {
 
 		disposables.push(modes.SignatureHelpProviderRegistry.register(mockFileSelector, longRunningProvider));
 
-		hintsModel.trigger({ triggerReason: modes.SignatureHelpTriggerReason.Invoke }, 0);
+		hintsModel.trigger({ triggerKind: modes.SignatureHelpTriggerKind.Invoke }, 0);
 		assert.strictEqual(-1, didRequestCancellationOf);
 
 		return new Promise((resolve, reject) =>
@@ -267,16 +267,16 @@ suite('ParameterHintsModel', () => {
 			signatureHelpTriggerCharacters = [triggerChar];
 			signatureHelpRetriggerCharacters = [retriggerChar];
 
-			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelp | Thenable<modes.SignatureHelp> {
+			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelp | Promise<modes.SignatureHelp> {
 				++invokeCount;
 				if (invokeCount === 1) {
-					assert.strictEqual(context.triggerReason, modes.SignatureHelpTriggerReason.TriggerCharacter);
+					assert.strictEqual(context.triggerKind, modes.SignatureHelpTriggerKind.TriggerCharacter);
 					assert.strictEqual(context.triggerCharacter, triggerChar);
 
 					// retrigger after delay for widget to show up
 					setTimeout(() => editor.trigger('keyboard', Handler.Type, { text: retriggerChar }), 50);
 				} else if (invokeCount === 2) {
-					assert.strictEqual(context.triggerReason, modes.SignatureHelpTriggerReason.TriggerCharacter);
+					assert.strictEqual(context.triggerKind, modes.SignatureHelpTriggerKind.TriggerCharacter);
 					assert.ok(context.isRetrigger);
 					assert.strictEqual(context.triggerCharacter, retriggerChar);
 					done();

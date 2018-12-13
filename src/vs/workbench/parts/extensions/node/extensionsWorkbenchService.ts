@@ -157,7 +157,7 @@ class Extension implements IExtension {
 	}
 
 	get repository(): string {
-		return this.gallery && this.gallery.assets.repository.uri;
+		return this.gallery && this.gallery.assets.repository && this.gallery.assets.repository.uri;
 	}
 
 	get licenseUrl(): string {
@@ -461,7 +461,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 
 				return this.galleryService.query(options)
 					.then(result => mapPager(result, gallery => this.fromGallery(gallery, maliciousSet)))
-					.then(null, err => {
+					.then(void 0, err => {
 						if (/No extension gallery service configured/.test(err.message)) {
 							return Promise.resolve(singlePagePager([]));
 						}
@@ -616,7 +616,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		const delay = immediate ? 0 : ExtensionsWorkbenchService.SyncPeriod;
 
 		this.syncDelayer.trigger(loop, delay)
-			.then(null, err => null);
+			.then(void 0, err => null);
 	}
 
 	private syncWithGallery(): Promise<void> {
@@ -644,7 +644,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 
 	private eventuallyAutoUpdateExtensions(): void {
 		this.autoUpdateDelayer.trigger(() => this.autoUpdateExtensions())
-			.then(null, err => null);
+			.then(void 0, err => null);
 	}
 
 	private autoUpdateExtensions(): Promise<any> {
@@ -1075,14 +1075,14 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 
 
 	private _ignoredAutoUpdateExtensions: string[];
-	get ignoredAutoUpdateExtensions(): string[] {
+	private get ignoredAutoUpdateExtensions(): string[] {
 		if (!this._ignoredAutoUpdateExtensions) {
 			this._ignoredAutoUpdateExtensions = JSON.parse(this.storageService.get('extensions.ignoredAutoUpdateExtension', StorageScope.GLOBAL, '[]') || '[]');
 		}
 		return this._ignoredAutoUpdateExtensions;
 	}
 
-	set ignoredAutoUpdateExtensions(extensionIds: string[]) {
+	private set ignoredAutoUpdateExtensions(extensionIds: string[]) {
 		this._ignoredAutoUpdateExtensions = distinct(extensionIds.map(id => id.toLowerCase()));
 		this.storageService.store('extensions.ignoredAutoUpdateExtension', JSON.stringify(this._ignoredAutoUpdateExtensions), StorageScope.GLOBAL);
 	}

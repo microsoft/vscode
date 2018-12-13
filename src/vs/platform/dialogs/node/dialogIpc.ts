@@ -16,7 +16,7 @@ export class DialogChannel implements IServerChannel {
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(_, command: string, args?: any[]): Thenable<any> {
+	call(_, command: string, args?: any[]): Promise<any> {
 		switch (command) {
 			case 'show': return this.dialogService.show(args![0], args![1], args![2]);
 			case 'confirm': return this.dialogService.confirm(args![0]);
@@ -31,11 +31,11 @@ export class DialogChannelClient implements IDialogService {
 
 	constructor(private channel: IChannel) { }
 
-	show(severity: Severity, message: string, options: string[]): Thenable<number> {
+	show(severity: Severity, message: string, options: string[]): Promise<number> {
 		return this.channel.call('show', [severity, message, options]);
 	}
 
-	confirm(confirmation: IConfirmation): Thenable<IConfirmationResult> {
+	confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
 		return this.channel.call('confirm', [confirmation]);
 	}
 }

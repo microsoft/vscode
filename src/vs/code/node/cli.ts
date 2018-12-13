@@ -29,7 +29,7 @@ function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
 }
 
 interface IMainCli {
-	main: (argv: ParsedArgs) => Thenable<void>;
+	main: (argv: ParsedArgs) => Promise<void>;
 }
 
 export async function main(argv: string[]): Promise<any> {
@@ -121,7 +121,7 @@ export async function main(argv: string[]): Promise<any> {
 
 		delete env['ELECTRON_RUN_AS_NODE'];
 
-		const processCallbacks: ((child: ChildProcess) => Thenable<any>)[] = [];
+		const processCallbacks: ((child: ChildProcess) => Promise<any>)[] = [];
 
 		const verbose = args.verbose || args.status || typeof args['upload-logs'] !== 'undefined';
 		if (verbose) {

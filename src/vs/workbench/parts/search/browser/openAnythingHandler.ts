@@ -83,7 +83,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		});
 	}
 
-	getResults(searchValue: string, token: CancellationToken): Thenable<QuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel> {
 		this.isClosed = false; // Treat this call as the handler being in use
 
 		// Find a suitable range from the pattern looking for ":" and "#"
@@ -100,7 +100,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 		// The throttler needs a factory for its promises
 		const resultsPromise = () => {
-			const resultPromises: Thenable<QuickOpenModel | FileQuickOpenModel>[] = [];
+			const resultPromises: Promise<QuickOpenModel | FileQuickOpenModel>[] = [];
 
 			// File Results
 			const filePromise = this.openFileHandler.getResults(query.original, token, OpenAnythingHandler.MAX_DISPLAYED_RESULTS);

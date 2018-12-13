@@ -5,7 +5,7 @@
   "version": "1.0.0",
   "publisher": "vscode",
   "engines": {
-    "vscode": "0.10.x"
+    "vscode": "^1.29.0"
   },
   "icon": "icons/css.png",
   "activationEvents": [

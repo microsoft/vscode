@@ -9,6 +9,7 @@
 	height: 100%;
 	box-sizing: border-box;
 	overflow: hidden;
+	cursor: text;
 }
 
 .monaco-workbench .repl .surveyor {
@@ -36,6 +37,11 @@
 	word-break: break-all;
 }
 
+.monaco-workbench.mac .repl .repl-tree .monaco-list-row .monaco-tl-twistie.collapsible + .monaco-tl-contents,
+.monaco-workbench.mac .repl .repl-tree .monaco-list-row .monaco-tl-twistie {
+	cursor: pointer;
+}
+
 .monaco-workbench.mac .repl .repl-tree .monaco-list-row .input.expression,
 .monaco-workbench.mac .repl .repl-tree .monaco-list-row .output.expression {
 	font-size: 12px;
@@ -44,7 +50,6 @@
 .monaco-workbench .repl .repl-tree .monaco-list-row .output.expression.value-and-source {
 	display: flex;
 }
-
 
 .monaco-workbench .repl .repl-tree .monaco-list-row .output.expression.value-and-source .value {
 	flex: 1;
@@ -94,9 +99,6 @@
 .monaco-workbench .repl .repl-input-wrapper:before {
 	left: 8px;
 	position: absolute;
-}
-
-.monaco-workbench .repl .repl-input-wrapper:before {
 	content: '\276f';
 	line-height: 18px;
 }

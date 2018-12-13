@@ -28,7 +28,7 @@ export interface ISearchService {
 	textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete>;
 	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete>;
 	extendQuery(query: ITextQuery | IFileQuery): void;
-	clearCache(cacheKey: string): Thenable<void>;
+	clearCache(cacheKey: string): Promise<void>;
 	registerSearchResultProvider(scheme: string, type: SearchProviderType, provider: ISearchResultProvider): IDisposable;
 }
 
@@ -59,7 +59,7 @@ export const enum SearchProviderType {
 export interface ISearchResultProvider {
 	textSearch(query: ITextQuery, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): Promise<ISearchComplete>;
 	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete>;
-	clearCache(cacheKey: string): Thenable<void>;
+	clearCache(cacheKey: string): Promise<void>;
 }
 
 export interface IFolderQuery<U extends UriComponents=URI> {

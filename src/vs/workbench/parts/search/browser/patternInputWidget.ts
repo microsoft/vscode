@@ -36,7 +36,7 @@ export class PatternInputWidget extends Widget {
 	private ariaLabel: string;
 
 	private domNode: HTMLElement;
-	protected inputBox: HistoryInputBox;
+	public inputBox: HistoryInputBox;
 
 	private _onSubmit = this._register(new Emitter<boolean>());
 	public onSubmit: CommonEvent<boolean> = this._onSubmit.event;
@@ -52,9 +52,6 @@ export class PatternInputWidget extends Widget {
 		this.width = options.width || 100;
 		this.placeholder = options.placeholder || '';
 		this.ariaLabel = options.ariaLabel || nls.localize('defaultLabel', "input");
-
-		this.domNode = null;
-		this.inputBox = null;
 
 		this.render(options);
 
@@ -135,7 +132,7 @@ export class PatternInputWidget extends Widget {
 			placeholder: this.placeholder || '',
 			ariaLabel: this.ariaLabel || '',
 			validationOptions: {
-				validation: null
+				validation: undefined
 			},
 			history: options.history || []
 		}, this.contextKeyService);

@@ -22,7 +22,7 @@ class TypeScriptFormattingProvider implements vscode.DocumentRangeFormattingEdit
 		options: vscode.FormattingOptions,
 		token: vscode.CancellationToken
 	): Promise<vscode.TextEdit[] | undefined> {
-		const file = this.client.toPath(document.uri);
+		const file = this.client.toOpenedFilePath(document);
 		if (!file) {
 			return undefined;
 		}
@@ -45,7 +45,7 @@ class TypeScriptFormattingProvider implements vscode.DocumentRangeFormattingEdit
 		options: vscode.FormattingOptions,
 		token: vscode.CancellationToken
 	): Promise<vscode.TextEdit[]> {
-		const file = this.client.toPath(document.uri);
+		const file = this.client.toOpenedFilePath(document);
 		if (!file) {
 			return [];
 		}

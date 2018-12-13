@@ -27,6 +27,7 @@ import { isString, isNumber } from 'vs/base/common/types';
 import * as marked from 'vs/base/common/marked/marked';
 import { parse } from 'vs/base/common/marshalling';
 import { cloneAndChange } from 'vs/base/common/objects';
+import { LogLevel as _MainLogLevel } from 'vs/platform/log/common/log';
 
 export interface PositionLike {
 	line: number;
@@ -965,5 +966,53 @@ export namespace LanguageSelector {
 				exclusive: selector.exclusive
 			};
 		}
+	}
+}
+
+export namespace LogLevel {
+	export function from(extLevel: types.LogLevel): _MainLogLevel {
+		switch (extLevel) {
+			case types.LogLevel.Trace:
+				return _MainLogLevel.Trace;
+			case types.LogLevel.Debug:
+				return _MainLogLevel.Debug;
+			case types.LogLevel.Info:
+				return _MainLogLevel.Info;
+			case types.LogLevel.Warning:
+				return _MainLogLevel.Warning;
+			case types.LogLevel.Error:
+				return _MainLogLevel.Error;
+			case types.LogLevel.Critical:
+				return _MainLogLevel.Critical;
+			case types.LogLevel.Critical:
+				return _MainLogLevel.Critical;
+			case types.LogLevel.Off:
+				return _MainLogLevel.Off;
+		}
+
+		return _MainLogLevel.Info;
+	}
+
+	export function to(mainLevel: _MainLogLevel): types.LogLevel {
+		switch (mainLevel) {
+			case _MainLogLevel.Trace:
+				return types.LogLevel.Trace;
+			case _MainLogLevel.Debug:
+				return types.LogLevel.Debug;
+			case _MainLogLevel.Info:
+				return types.LogLevel.Info;
+			case _MainLogLevel.Warning:
+				return types.LogLevel.Warning;
+			case _MainLogLevel.Error:
+				return types.LogLevel.Error;
+			case _MainLogLevel.Critical:
+				return types.LogLevel.Critical;
+			case _MainLogLevel.Critical:
+				return types.LogLevel.Critical;
+			case _MainLogLevel.Off:
+				return types.LogLevel.Off;
+		}
+
+		return types.LogLevel.Info;
 	}
 }

@@ -115,7 +115,7 @@ export class ExtHostSearch implements ExtHostSearchShape {
 		});
 	}
 
-	$provideFileSearchResults(handle: number, session: number, rawQuery: IRawFileQuery, token: CancellationToken): Thenable<ISearchCompleteStats> {
+	$provideFileSearchResults(handle: number, session: number, rawQuery: IRawFileQuery, token: CancellationToken): Promise<ISearchCompleteStats> {
 		const query = reviveQuery(rawQuery);
 		if (handle === this._internalFileSearchHandle) {
 			return this.doInternalFileSearch(handle, session, query, token);
@@ -134,7 +134,7 @@ export class ExtHostSearch implements ExtHostSearchShape {
 		}
 	}
 
-	private doInternalFileSearch(handle: number, session: number, rawQuery: IFileQuery, token: CancellationToken): Thenable<ISearchCompleteStats> {
+	private doInternalFileSearch(handle: number, session: number, rawQuery: IFileQuery, token: CancellationToken): Promise<ISearchCompleteStats> {
 		const onResult = (ev) => {
 			if (isSerializedFileMatch(ev)) {
 				ev = [ev];
@@ -153,17 +153,18 @@ export class ExtHostSearch implements ExtHostSearchShape {
 		return this._internalFileSearchProvider.doFileSearch(rawQuery, onResult, token);
 	}
 
-	$clearCache(cacheKey: string): Thenable<void> {
+	$clearCache(cacheKey: string): Promise<void> {
 		if (this._internalFileSearchProvider) {
 			this._internalFileSearchProvider.clearCache(cacheKey);
 		}
 
-		// Actually called once per provider.
-		// Only relevant to file index search.
-		return this._fileIndexSearchManager.clearCache(cacheKey);
+		this._fileSearchManager.clearCache(cacheKey);
+		this._fileIndexSearchManager.clearCache(cacheKey);
+
+		return Promise.resolve(undefined);
 	}
 
-	$provideTextSearchResults(handle: number, session: number, rawQuery: IRawTextQuery, token: CancellationToken): Thenable<ISearchCompleteStats> {
+	$provideTextSearchResults(handle: number, session: number, rawQuery: IRawTextQuery, token: CancellationToken): Promise<ISearchCompleteStats> {
 		const provider = this._textSearchProvider.get(handle);
 		if (!provider.provideTextSearchResults) {
 			return Promise.resolve(undefined);

@@ -90,7 +90,7 @@ export abstract class BaseEditorPicker extends QuickOpenHandler {
 		this.scorerCache = Object.create(null);
 	}
 
-	getResults(searchValue: string, token: CancellationToken): Thenable<QuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel> {
 		const editorEntries = this.getEditorEntries();
 		if (!editorEntries.length) {
 			return Promise.resolve(null);

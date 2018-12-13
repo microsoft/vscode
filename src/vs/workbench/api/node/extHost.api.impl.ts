@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { TernarySearchTree } from 'vs/base/common/map';
 import * as paths from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
@@ -72,7 +72,7 @@ function proposedApiFunction<T>(extension: IExtensionDescription, fn: T): T {
 	if (extension.enableProposedApi) {
 		return fn;
 	} else {
-		return throwProposedApiError.bind(null, extension);
+		return throwProposedApiError.bind(null, extension) as any as T;
 	}
 }
 
@@ -246,11 +246,11 @@ export function createApiFactory(
 			get appRoot() { return initData.environment.appRoot.fsPath; },
 			get logLevel() {
 				checkProposedApiEnabled(extension);
-				return extHostLogService.getLevel();
+				return typeConverters.LogLevel.to(extHostLogService.getLevel());
 			},
 			get onDidChangeLogLevel() {
 				checkProposedApiEnabled(extension);
-				return extHostLogService.onDidChangeLogLevel;
+				return Event.map(extHostLogService.onDidChangeLogLevel, l => typeConverters.LogLevel.to(l));
 			},
 			get clipboard(): vscode.Clipboard {
 				return extHostClipboard;
@@ -353,6 +353,9 @@ export function createApiFactory(
 			},
 			registerFoldingRangeProvider(selector: vscode.DocumentSelector, provider: vscode.FoldingRangeProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerFoldingRangeProvider(extension, checkSelector(selector), provider);
+			},
+			registerSelectionRangeProvider(selector: vscode.DocumentSelector, provider: vscode.SelectionRangeProvider): vscode.Disposable {
+				return extHostLanguageFeatures.registerSelectionRangeProvider(extension, selector, provider);
 			},
 			setLanguageConfiguration: (language: string, configuration: vscode.LanguageConfiguration): vscode.Disposable => {
 				return extHostLanguageFeatures.setLanguageConfiguration(language, configuration);
@@ -481,10 +484,6 @@ export function createApiFactory(
 			registerWebviewPanelSerializer: (viewType: string, serializer: vscode.WebviewPanelSerializer) => {
 				return extHostWebviews.registerWebviewPanelSerializer(viewType, serializer);
 			},
-			// proposed API
-			sampleFunction: proposedApiFunction(extension, () => {
-				return extHostMessageService.showMessage(extension, Severity.Info, 'Hello Proposed Api!', {}, []);
-			}),
 			registerDecorationProvider: proposedApiFunction(extension, (provider: vscode.DecorationProvider) => {
 				return extHostDecorations.registerDecorationProvider(provider, extension.id);
 			}),
@@ -787,7 +786,7 @@ export function createApiFactory(
 			Selection: extHostTypes.Selection,
 			ShellExecution: extHostTypes.ShellExecution,
 			ShellQuoting: extHostTypes.ShellQuoting,
-			SignatureHelpTriggerReason: extHostTypes.SignatureHelpTriggerReason,
+			SignatureHelpTriggerKind: extHostTypes.SignatureHelpTriggerKind,
 			SignatureHelp: extHostTypes.SignatureHelp,
 			SignatureInformation: extHostTypes.SignatureInformation,
 			SnippetString: extHostTypes.SnippetString,

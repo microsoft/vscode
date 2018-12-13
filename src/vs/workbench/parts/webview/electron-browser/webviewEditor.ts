@@ -6,7 +6,7 @@
 import * as DOM from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -31,11 +31,13 @@ export class WebviewEditor extends BaseWebviewEditor {
 	private _content: HTMLElement;
 	private _webviewContent: HTMLElement | undefined;
 
-	private _webviewFocusTracker?: DOM.IFocusTracker;
-	private _webviewFocusListenerDisposable?: IDisposable;
+	private _webviewFocusTrackerDisposables: IDisposable[] = [];
 	private _onFocusWindowHandler?: IDisposable;
 
-	private readonly _onDidFocusWebview = new Emitter<void>();
+	private readonly _onDidFocusWebview = this._register(new Emitter<void>());
+	public get onDidFocus(): Event<any> { return this._onDidFocusWebview.event; }
+
+	private pendingMessages: any[] = [];
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -93,6 +95,8 @@ export class WebviewEditor extends BaseWebviewEditor {
 	}
 
 	public dispose(): void {
+		this.pendingMessages = [];
+
 		// Let the editor input dispose of the webview.
 		this._webview = undefined;
 		this._webviewContent = undefined;
@@ -102,17 +106,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 			this._content = undefined;
 		}
 
-		this._onDidFocusWebview.dispose();
-
-		if (this._webviewFocusTracker) {
-			this._webviewFocusTracker.dispose();
-			this._webviewFocusTracker = undefined;
-		}
-
-		if (this._webviewFocusListenerDisposable) {
-			this._webviewFocusListenerDisposable.dispose();
-			this._webviewFocusListenerDisposable = undefined;
-		}
+		this._webviewFocusTrackerDisposables = dispose(this._webviewFocusTrackerDisposables);
 
 		if (this._onFocusWindowHandler) {
 			this._onFocusWindowHandler.dispose();
@@ -124,11 +118,9 @@ export class WebviewEditor extends BaseWebviewEditor {
 	public sendMessage(data: any): void {
 		if (this._webview) {
 			this._webview.sendMessage(data);
+		} else {
+			this.pendingMessages.push(data);
 		}
-	}
-
-	public get onDidFocus(): Event<any> {
-		return this._onDidFocusWebview.event;
 	}
 
 	protected setEditorVisible(visible: boolean, group: IEditorGroup): void {
@@ -161,26 +153,20 @@ export class WebviewEditor extends BaseWebviewEditor {
 
 		this._webview = undefined;
 		this._webviewContent = undefined;
+		this.pendingMessages = [];
 
 		super.clearInput();
 	}
 
-	setInput(input: WebviewEditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+	setInput(input: WebviewEditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 		if (this.input) {
 			(this.input as WebviewEditorInput).releaseWebview(this);
 			this._webview = undefined;
 			this._webviewContent = undefined;
 		}
-
-		// TODO@matt restore following line but check for test failures
-		// in integration tests due to the async nature of native promises
-		// return super.setInput(input, options).then()
-
-		// TODO@matt remove the following 2 lines when super.setInput() is back
-		this._input = input;
-		this._options = options;
-
-		return input.resolve()
+		this.pendingMessages = [];
+		return super.setInput(input, options, token)
+			.then(() => input.resolve())
 			.then(() => {
 				if (token.isCancellationRequested) {
 					return;
@@ -225,53 +211,54 @@ export class WebviewEditor extends BaseWebviewEditor {
 
 		this._webviewContent = input.container;
 
+		if (input.webview) {
+			this._webview = input.webview;
+		} else {
+			if (input.options.enableFindWidget) {
+				this._contextKeyService = this._register(this._contextKeyService.createScoped(this._webviewContent));
+				this.findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(this._contextKeyService);
+			}
+
+			this._webview = this._instantiationService.createInstance(WebviewElement,
+				this._partService.getContainer(Parts.EDITOR_PART),
+				{
+					enableWrappedPostMessage: true,
+					useSameOriginForRoot: false,
+					extensionLocation: input.extensionLocation
+				});
+			this._webview.mountTo(this._webviewContent);
+			input.webview = this._webview;
+
+			if (input.options.tryRestoreScrollPosition) {
+				this._webview.initialScrollProgress = input.scrollYPercentage;
+			}
+
+			this._webview.state = input.webviewState;
+
+			this._content.setAttribute('aria-flowto', this._webviewContent.id);
+
+			this.doUpdateContainer();
+		}
+
+		for (const message of this.pendingMessages) {
+			this._webview.sendMessage(message);
+		}
+		this.pendingMessages = [];
+
 		this.trackFocus();
 
-		const existing = input.webview;
-		if (existing) {
-			this._webview = existing;
-			return existing;
-		}
-
-		if (input.options.enableFindWidget) {
-			this._contextKeyService = this._register(this._contextKeyService.createScoped(this._webviewContent));
-			this.findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(this._contextKeyService);
-		}
-
-		this._webview = this._instantiationService.createInstance(WebviewElement,
-			this._partService.getContainer(Parts.EDITOR_PART),
-			{
-				enableWrappedPostMessage: true,
-				useSameOriginForRoot: false,
-				extensionLocation: input.extensionLocation
-			});
-		this._webview.mountTo(this._webviewContent);
-		input.webview = this._webview;
-
-		if (input.options.tryRestoreScrollPosition) {
-			this._webview.initialScrollProgress = input.scrollYPercentage;
-		}
-
-		this._webview.state = input.webviewState;
-
-		this._content.setAttribute('aria-flowto', this._webviewContent.id);
-
-		this.doUpdateContainer();
 		return this._webview;
 	}
 
 	private trackFocus() {
-		if (this._webviewFocusTracker) {
-			this._webviewFocusTracker.dispose();
-		}
-		if (this._webviewFocusListenerDisposable) {
-			this._webviewFocusListenerDisposable.dispose();
-		}
+		this._webviewFocusTrackerDisposables = dispose(this._webviewFocusTrackerDisposables);
 
-		this._webviewFocusTracker = DOM.trackFocus(this._webviewContent);
-		this._webviewFocusListenerDisposable = this._webviewFocusTracker.onDidFocus(() => {
-			this._onDidFocusWebview.fire();
-		});
+		// Track focus in webview content
+		const webviewContentFocusTracker = DOM.trackFocus(this._webviewContent);
+		this._webviewFocusTrackerDisposables.push(webviewContentFocusTracker);
+		this._webviewFocusTrackerDisposables.push(webviewContentFocusTracker.onDidFocus(() => this._onDidFocusWebview.fire()));
+
+		// Track focus in webview element
+		this._webviewFocusTrackerDisposables.push(this._webview.onDidFocus(() => this._onDidFocusWebview.fire()));
 	}
 }
-

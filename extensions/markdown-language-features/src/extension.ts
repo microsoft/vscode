@@ -40,6 +40,9 @@ export function activate(context: vscode.ExtensionContext) {
 	const previewManager = new MarkdownPreviewManager(contentProvider, logger, contributions);
 	context.subscriptions.push(previewManager);
 
+	context.subscriptions.push(vscode.languages.setLanguageConfiguration('markdown', {
+		wordPattern: new RegExp('(\\p{Alphabetic}|\\p{Number})+', 'ug'),
+	}));
 	context.subscriptions.push(vscode.languages.registerDocumentSymbolProvider(selector, symbolProvider));
 	context.subscriptions.push(vscode.languages.registerDocumentLinkProvider(selector, new LinkProvider()));
 	context.subscriptions.push(vscode.languages.registerFoldingRangeProvider(selector, new MarkdownFoldingProvider(engine)));

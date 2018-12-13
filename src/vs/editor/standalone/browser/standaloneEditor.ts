@@ -100,7 +100,7 @@ export function onDidCreateEditor(listener: (codeEditor: ICodeEditor) => void): 
  * The editor will read the size of `domElement`.
  */
 export function createDiffEditor(domElement: HTMLElement, options?: IDiffEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneDiffEditor {
-	return withAllStandaloneServices(domElement, override, (services) => {
+	return withAllStandaloneServices(domElement, override || {}, (services) => {
 		return new StandaloneDiffEditor(
 			domElement,
 			options,

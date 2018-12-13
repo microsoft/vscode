@@ -13,7 +13,7 @@ import { IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator } from '
 import { IMatch } from 'vs/base/common/filters';
 import { matchesFuzzyOcticonAware, parseOcticons } from 'vs/base/common/octicon';
 import { compareAnything } from 'vs/base/common/comparers';
-import { Emitter, Event, mapEvent } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { assign } from 'vs/base/common/objects';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -279,6 +279,12 @@ export class QuickInputList {
 					break;
 			}
 		}));
+		this.disposables.push(this.list.onMouseDown(e => {
+			if (e.browserEvent.button !== 2) {
+				// Works around / fixes #64350.
+				e.browserEvent.preventDefault();
+			}
+		}));
 		this.disposables.push(dom.addDisposableListener(this.container, dom.EventType.CLICK, e => {
 			if (e.x || e.y) { // Avoid 'click' triggered by 'space' on checkbox.
 				this._onLeave.fire();
@@ -288,12 +294,12 @@ export class QuickInputList {
 
 	@memoize
 	get onDidChangeFocus() {
-		return mapEvent(this.list.onFocusChange, e => e.elements.map(e => e.item));
+		return Event.map(this.list.onFocusChange, e => e.elements.map(e => e.item));
 	}
 
 	@memoize
 	get onDidChangeSelection() {
-		return mapEvent(this.list.onSelectionChange, e => e.elements.map(e => e.item));
+		return Event.map(this.list.onSelectionChange, e => e.elements.map(e => e.item));
 	}
 
 	getAllVisibleChecked() {

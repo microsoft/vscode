@@ -39,6 +39,8 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 
 	private phaseWhen = new Map<LifecyclePhase, Barrier>();
 
+	private shutdownReason: ShutdownReason;
+
 	constructor(
 		@INotificationService private notificationService: INotificationService,
 		@IWindowService private windowService: IWindowService,
@@ -77,17 +79,16 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 		ipc.on('vscode:onBeforeUnload', (event, reply: { okChannel: string, cancelChannel: string, reason: ShutdownReason }) => {
 			this.logService.trace(`lifecycle: onBeforeUnload (reason: ${reply.reason})`);
 
-			// store shutdown reason to retrieve next startup
-			this.storageService.store(LifecycleService.LAST_SHUTDOWN_REASON_KEY, JSON.stringify(reply.reason), StorageScope.WORKSPACE);
-
 			// trigger onBeforeShutdown events and veto collecting
 			this.handleBeforeShutdown(reply.reason).then(veto => {
 				if (veto) {
 					this.logService.trace('lifecycle: onBeforeUnload prevented via veto');
-					this.storageService.remove(LifecycleService.LAST_SHUTDOWN_REASON_KEY, StorageScope.WORKSPACE);
+
 					ipc.send(reply.cancelChannel, windowId);
 				} else {
 					this.logService.trace('lifecycle: onBeforeUnload continues without veto');
+
+					this.shutdownReason = reply.reason;
 					ipc.send(reply.okChannel, windowId);
 				}
 			});
@@ -107,10 +108,15 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 				ipc.send(reply.replyChannel, windowId);
 			});
 		});
+
+		// Save shutdown reason to retrieve on next startup
+		this.storageService.onWillSaveState(() => {
+			this.storageService.store(LifecycleService.LAST_SHUTDOWN_REASON_KEY, this.shutdownReason, StorageScope.WORKSPACE);
+		});
 	}
 
 	private handleBeforeShutdown(reason: ShutdownReason): Promise<boolean> {
-		const vetos: (boolean | Thenable<boolean>)[] = [];
+		const vetos: (boolean | Promise<boolean>)[] = [];
 
 		this._onBeforeShutdown.fire({
 			veto(value) {
@@ -125,8 +131,8 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 		});
 	}
 
-	private handleWillShutdown(reason: ShutdownReason): Thenable<void> {
-		const joiners: Thenable<void>[] = [];
+	private handleWillShutdown(reason: ShutdownReason): Promise<void> {
+		const joiners: Promise<void>[] = [];
 
 		this._onWillShutdown.fire({
 			join(promise) {
@@ -163,7 +169,7 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 		}
 	}
 
-	when(phase: LifecyclePhase): Thenable<any> {
+	when(phase: LifecyclePhase): Promise<any> {
 		if (phase <= this._phase) {
 			return Promise.resolve();
 		}

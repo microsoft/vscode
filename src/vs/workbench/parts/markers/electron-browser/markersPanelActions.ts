@@ -68,7 +68,7 @@ export class ShowProblemsPanelAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Thenable<any> {
+	public run(): Promise<any> {
 		this.panelService.openPanel(Constants.MARKERS_PANEL_ID, true);
 		return Promise.resolve(null);
 	}
@@ -189,7 +189,7 @@ export class MarkersFilterActionItem extends BaseActionItem {
 				this.filterInputBox.value = this.action.filterText;
 			}
 		}));
-		this._register(DOM.addStandardDisposableListener(this.filterInputBox.inputElement, DOM.EventType.KEY_DOWN, e => this.onInputKeyDown(e, this.filterInputBox)));
+		this._register(DOM.addStandardDisposableListener(this.filterInputBox.inputElement, DOM.EventType.KEY_DOWN, (e: any) => this.onInputKeyDown(e, this.filterInputBox)));
 		this._register(DOM.addStandardDisposableListener(container, DOM.EventType.KEY_DOWN, this.handleKeyboardEvent));
 		this._register(DOM.addStandardDisposableListener(container, DOM.EventType.KEY_UP, this.handleKeyboardEvent));
 
@@ -346,7 +346,7 @@ export class QuickFixAction extends Action {
 			}));
 	}
 
-	public openFileAtMarker(element: Marker): Thenable<void> {
+	public openFileAtMarker(element: Marker): Promise<void> {
 		const { resource, selection } = { resource: element.resource, selection: element.range };
 		return this.editorService.openEditor({
 			resource,

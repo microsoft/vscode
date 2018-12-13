@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Socket, Server as NetServer, createConnection, createServer } from 'net';
-import { Event, Emitter, once, mapEvent, fromNodeEventEmitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IMessagePassingProtocol, ClientConnectionEvent, IPCServer, IPCClient } from 'vs/base/parts/ipc/node/ipc';
 import { join } from 'path';
 import { tmpdir } from 'os';
@@ -207,11 +207,11 @@ export class Protocol implements IDisposable, IMessagePassingProtocol {
 export class Server extends IPCServer {
 
 	private static toClientConnectionEvent(server: NetServer): Event<ClientConnectionEvent> {
-		const onConnection = fromNodeEventEmitter<Socket>(server, 'connection');
+		const onConnection = Event.fromNodeEventEmitter<Socket>(server, 'connection');
 
-		return mapEvent(onConnection, socket => ({
+		return Event.map(onConnection, socket => ({
 			protocol: new Protocol(socket),
-			onDidClientDisconnect: once(fromNodeEventEmitter<void>(socket, 'close'))
+			onDidClientDisconnect: Event.once(Event.fromNodeEventEmitter<void>(socket, 'close'))
 		}));
 	}
 
@@ -249,9 +249,9 @@ export class Client<TContext = string> extends IPCClient<TContext> {
 	}
 }
 
-export function serve(port: number): Thenable<Server>;
-export function serve(namedPipe: string): Thenable<Server>;
-export function serve(hook: any): Thenable<Server> {
+export function serve(port: number): Promise<Server>;
+export function serve(namedPipe: string): Promise<Server>;
+export function serve(hook: any): Promise<Server> {
 	return new Promise<Server>((c, e) => {
 		const server = createServer();
 
@@ -263,10 +263,10 @@ export function serve(hook: any): Thenable<Server> {
 	});
 }
 
-export function connect(options: { host: string, port: number }, clientId: string): Thenable<Client>;
-export function connect(port: number, clientId: string): Thenable<Client>;
-export function connect(namedPipe: string, clientId: string): Thenable<Client>;
-export function connect(hook: any, clientId: string): Thenable<Client> {
+export function connect(options: { host: string, port: number }, clientId: string): Promise<Client>;
+export function connect(port: number, clientId: string): Promise<Client>;
+export function connect(namedPipe: string, clientId: string): Promise<Client>;
+export function connect(hook: any, clientId: string): Promise<Client> {
 	return new Promise<Client>((c, e) => {
 		const socket = createConnection(hook, () => {
 			socket.removeListener('error', e);

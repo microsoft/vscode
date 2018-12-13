@@ -392,7 +392,7 @@ export class ElectronWindow extends Themable {
 		}
 
 		if (inputs.length) {
-			this.openResources(inputs, diffMode).then(null, errors.onUnexpectedError);
+			this.openResources(inputs, diffMode);
 		}
 
 		if (request.filesToWait && inputs.length) {
@@ -410,8 +410,8 @@ export class ElectronWindow extends Themable {
 		}
 	}
 
-	private openResources(resources: (IResourceInput | IUntitledResourceInput)[], diffMode: boolean): Thenable<any> {
-		return this.lifecycleService.when(LifecyclePhase.Restored).then(() => {
+	private openResources(resources: (IResourceInput | IUntitledResourceInput)[], diffMode: boolean): void {
+		this.lifecycleService.when(LifecyclePhase.Ready).then((): Promise<any> => {
 
 			// In diffMode we open 2 resources as diff
 			if (diffMode && resources.length === 2) {

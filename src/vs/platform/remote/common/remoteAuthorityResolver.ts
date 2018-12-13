@@ -18,7 +18,7 @@ export interface IRemoteAuthorityResolverService {
 
 	_serviceBrand: any;
 
-	resolveAuthority(authority: string): Thenable<ResolvedAuthority>;
+	resolveAuthority(authority: string): Promise<ResolvedAuthority>;
 
 	setResolvedAuthority(resolvedAuthority: ResolvedAuthority): void;
 }

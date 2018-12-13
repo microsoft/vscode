@@ -48,7 +48,7 @@ export class InitializingRangeProvider implements RangeProvider {
 		}
 	}
 
-	compute(cancelationToken: CancellationToken): Thenable<FoldingRegions> {
+	compute(cancelationToken: CancellationToken): Promise<FoldingRegions> {
 		let foldingRangeData: IFoldingRangeData[] = [];
 		if (this.decorationIds) {
 			for (let id of this.decorationIds) {

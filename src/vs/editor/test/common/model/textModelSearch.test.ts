@@ -17,7 +17,7 @@ suite('TextModelSearch', () => {
 
 	const usualWordSeparators = getMapForWordSeparators(USUAL_WORD_SEPARATORS);
 
-	function assertFindMatch(actual: FindMatch, expectedRange: Range, expectedMatches: string[] | null = null): void {
+	function assertFindMatch(actual: FindMatch | null, expectedRange: Range, expectedMatches: string[] | null = null): void {
 		assert.deepEqual(actual, new FindMatch(expectedRange, expectedMatches));
 	}
 
@@ -46,7 +46,7 @@ suite('TextModelSearch', () => {
 		}
 	}
 
-	function assertFindMatches(text: string, searchString: string, isRegex: boolean, matchCase: boolean, wordSeparators: string, _expected: [number, number, number, number][]): void {
+	function assertFindMatches(text: string, searchString: string, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, _expected: [number, number, number, number][]): void {
 		let expectedRanges = _expected.map(entry => new Range(entry[0], entry[1], entry[2], entry[3]));
 		let expectedMatches = expectedRanges.map(entry => new FindMatch(entry, null));
 		let searchParams = new SearchParams(searchString, isRegex, matchCase, wordSeparators);
@@ -387,16 +387,16 @@ suite('TextModelSearch', () => {
 		let actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 1), false);
 		assertFindMatch(actual, new Range(1, 1, 1, 5));
 
-		actual = TextModelSearch.findNextMatch(model, searchParams, actual.range.getEndPosition(), false);
+		actual = TextModelSearch.findNextMatch(model, searchParams, actual!.range.getEndPosition(), false);
 		assertFindMatch(actual, new Range(1, 6, 1, 10));
 
 		actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 3), false);
 		assertFindMatch(actual, new Range(1, 6, 1, 10));
 
-		actual = TextModelSearch.findNextMatch(model, searchParams, actual.range.getEndPosition(), false);
+		actual = TextModelSearch.findNextMatch(model, searchParams, actual!.range.getEndPosition(), false);
 		assertFindMatch(actual, new Range(2, 1, 2, 5));
 
-		actual = TextModelSearch.findNextMatch(model, searchParams, actual.range.getEndPosition(), false);
+		actual = TextModelSearch.findNextMatch(model, searchParams, actual!.range.getEndPosition(), false);
 		assertFindMatch(actual, new Range(1, 1, 1, 5));
 
 		model.dispose();
@@ -410,13 +410,13 @@ suite('TextModelSearch', () => {
 		let actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 1), false);
 		assertFindMatch(actual, new Range(1, 1, 1, 5));
 
-		actual = TextModelSearch.findNextMatch(model, searchParams, actual.range.getEndPosition(), false);
+		actual = TextModelSearch.findNextMatch(model, searchParams, actual!.range.getEndPosition(), false);
 		assertFindMatch(actual, new Range(2, 1, 2, 5));
 
 		actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 3), false);
 		assertFindMatch(actual, new Range(2, 1, 2, 5));
 
-		actual = TextModelSearch.findNextMatch(model, searchParams, actual.range.getEndPosition(), false);
+		actual = TextModelSearch.findNextMatch(model, searchParams, actual!.range.getEndPosition(), false);
 		assertFindMatch(actual, new Range(1, 1, 1, 5));
 
 		model.dispose();
@@ -430,13 +430,13 @@ suite('TextModelSearch', () => {
 		let actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 1), false);
 		assertFindMatch(actual, new Range(1, 1, 1, 5));
 
-		actual = TextModelSearch.findNextMatch(model, searchParams, actual.range.getEndPosition(), false);
+		actual = TextModelSearch.findNextMatch(model, searchParams, actual!.range.getEndPosition(), false);
 		assertFindMatch(actual, new Range(2, 1, 2, 5));
 
 		actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 3), false);
 		assertFindMatch(actual, new Range(2, 1, 2, 5));
 
-		actual = TextModelSearch.findNextMatch(model, searchParams, actual.range.getEndPosition(), false);
+		actual = TextModelSearch.findNextMatch(model, searchParams, actual!.range.getEndPosition(), false);
 		assertFindMatch(actual, new Range(1, 1, 1, 5));
 
 		model.dispose();
@@ -450,7 +450,7 @@ suite('TextModelSearch', () => {
 		let actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 1), false);
 		assertFindMatch(actual, new Range(1, 1, 2, 5));
 
-		actual = TextModelSearch.findNextMatch(model, searchParams, actual.range.getEndPosition(), false);
+		actual = TextModelSearch.findNextMatch(model, searchParams, actual!.range.getEndPosition(), false);
 		assertFindMatch(actual, new Range(3, 1, 4, 5));
 
 		actual = TextModelSearch.findNextMatch(model, searchParams, new Position(2, 1), false);
@@ -470,10 +470,10 @@ suite('TextModelSearch', () => {
 		actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 4), false);
 		assertFindMatch(actual, new Range(1, 10, 1, 14));
 
-		actual = TextModelSearch.findNextMatch(model, searchParams, actual.range.getEndPosition(), false);
+		actual = TextModelSearch.findNextMatch(model, searchParams, actual!.range.getEndPosition(), false);
 		assertFindMatch(actual, new Range(2, 5, 2, 9));
 
-		actual = TextModelSearch.findNextMatch(model, searchParams, actual.range.getEndPosition(), false);
+		actual = TextModelSearch.findNextMatch(model, searchParams, actual!.range.getEndPosition(), false);
 		assertFindMatch(actual, new Range(1, 10, 1, 14));
 
 		model.dispose();
@@ -588,26 +588,25 @@ suite('TextModelSearch', () => {
 		model.dispose();
 	});
 
-	function assertParseSearchResult(searchString: string, isRegex: boolean, matchCase: boolean, wordSeparators: string, expected: SearchData): void {
+	function assertParseSearchResult(searchString: string, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, expected: SearchData | null): void {
 		let searchParams = new SearchParams(searchString, isRegex, matchCase, wordSeparators);
 		let actual = searchParams.parseSearchRequest();
 
 		if (expected === null) {
 			assert.ok(actual === null);
 		} else {
-			assert.deepEqual(actual.regex, expected.regex);
-			assert.deepEqual(actual.simpleSearch, expected.simpleSearch);
+			assert.deepEqual(actual!.regex, expected.regex);
+			assert.deepEqual(actual!.simpleSearch, expected.simpleSearch);
 			if (wordSeparators) {
-				assert.ok(actual.wordSeparators !== null);
+				assert.ok(actual!.wordSeparators !== null);
 			} else {
-				assert.ok(actual.wordSeparators === null);
+				assert.ok(actual!.wordSeparators === null);
 			}
 		}
 	}
 
 	test('parseSearchRequest invalid', () => {
 		assertParseSearchResult('', true, true, USUAL_WORD_SEPARATORS, null);
-		assertParseSearchResult(null, true, true, USUAL_WORD_SEPARATORS, null);
 		assertParseSearchResult('(', true, false, null, null);
 	});
 

@@ -1086,14 +1086,17 @@ export namespace Schemas {
 	};
 }
 
-let problemPatternExtPoint = ExtensionsRegistry.registerExtensionPoint<Config.NamedProblemPatterns>('problemPatterns', [], {
-	description: localize('ProblemPatternExtPoint', 'Contributes problem patterns'),
-	type: 'array',
-	items: {
-		anyOf: [
-			Schemas.NamedProblemPattern,
-			Schemas.NamedMultiLineProblemPattern
-		]
+const problemPatternExtPoint = ExtensionsRegistry.registerExtensionPoint<Config.NamedProblemPatterns>({
+	extensionPoint: 'problemPatterns',
+	jsonSchema: {
+		description: localize('ProblemPatternExtPoint', 'Contributes problem patterns'),
+		type: 'array',
+		items: {
+			anyOf: [
+				Schemas.NamedProblemPattern,
+				Schemas.NamedMultiLineProblemPattern
+			]
+		}
 	}
 });
 
@@ -1659,10 +1662,14 @@ export namespace Schemas {
 	};
 }
 
-let problemMatchersExtPoint = ExtensionsRegistry.registerExtensionPoint<Config.NamedProblemMatcher[]>('problemMatchers', [problemPatternExtPoint], {
-	description: localize('ProblemMatcherExtPoint', 'Contributes problem matchers'),
-	type: 'array',
-	items: Schemas.NamedProblemMatcher
+const problemMatchersExtPoint = ExtensionsRegistry.registerExtensionPoint<Config.NamedProblemMatcher[]>({
+	extensionPoint: 'problemMatchers',
+	deps: [problemPatternExtPoint],
+	jsonSchema: {
+		description: localize('ProblemMatcherExtPoint', 'Contributes problem matchers'),
+		type: 'array',
+		items: Schemas.NamedProblemMatcher
+	}
 });
 
 export interface IProblemMatcherRegistry {
