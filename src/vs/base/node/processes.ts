@@ -17,7 +17,7 @@ import { CommandOptions, ForkOptions, SuccessData, Source, TerminateResponse, Te
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 export { CommandOptions, ForkOptions, SuccessData, Source, TerminateResponse, TerminateResponseCode };
 
-export type ValueCallback<T> = (value?: T | Thenable<T>) => void;
+export type ValueCallback<T> = (value?: T | Promise<T>) => void;
 export type ErrorCallback = (error?: any) => void;
 export type ProgressCallback<T> = (progress: T) => void;
 

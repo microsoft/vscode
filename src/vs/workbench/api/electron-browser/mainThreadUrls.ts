@@ -41,7 +41,7 @@ export class MainThreadUrls implements MainThreadUrlsShape {
 		this.proxy = context.getProxy(ExtHostContext.ExtHostUrls);
 	}
 
-	$registerUriHandler(handle: number, extensionId: string): Thenable<void> {
+	$registerUriHandler(handle: number, extensionId: string): Promise<void> {
 		const handler = new ExtensionUrlHandler(this.proxy, handle, extensionId);
 		const disposable = this.urlService.registerHandler(handler);
 
@@ -51,7 +51,7 @@ export class MainThreadUrls implements MainThreadUrlsShape {
 		return Promise.resolve(null);
 	}
 
-	$unregisterUriHandler(handle: number): Thenable<void> {
+	$unregisterUriHandler(handle: number): Promise<void> {
 		const tuple = this.handlers.get(handle);
 
 		if (!tuple) {

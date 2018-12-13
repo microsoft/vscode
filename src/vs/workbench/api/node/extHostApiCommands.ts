@@ -287,7 +287,7 @@ export class ExtHostApiCommands {
 	 * @param query Search string to match query symbol names
 	 * @return A promise that resolves to an array of symbol information.
 	 */
-	private _executeWorkspaceSymbolProvider(query: string): Thenable<types.SymbolInformation[]> {
+	private _executeWorkspaceSymbolProvider(query: string): Promise<types.SymbolInformation[]> {
 		return this._commands.executeCommand<[search.IWorkspaceSymbolProvider, search.IWorkspaceSymbol[]][]>('_executeWorkspaceSymbolProvider', { query }).then(value => {
 			const result: types.SymbolInformation[] = [];
 			if (Array.isArray(value)) {
@@ -299,7 +299,7 @@ export class ExtHostApiCommands {
 		});
 	}
 
-	private _executeDefinitionProvider(resource: URI, position: types.Position): Thenable<types.Location[]> {
+	private _executeDefinitionProvider(resource: URI, position: types.Position): Promise<types.Location[]> {
 		const args = {
 			resource,
 			position: position && typeConverters.Position.from(position)
@@ -308,7 +308,7 @@ export class ExtHostApiCommands {
 			.then(tryMapWith(typeConverters.location.to));
 	}
 
-	private _executeDeclaraionProvider(resource: URI, position: types.Position): Thenable<types.Location[]> {
+	private _executeDeclaraionProvider(resource: URI, position: types.Position): Promise<types.Location[]> {
 		const args = {
 			resource,
 			position: position && typeConverters.Position.from(position)
@@ -317,7 +317,7 @@ export class ExtHostApiCommands {
 			.then(tryMapWith(typeConverters.location.to));
 	}
 
-	private _executeTypeDefinitionProvider(resource: URI, position: types.Position): Thenable<types.Location[]> {
+	private _executeTypeDefinitionProvider(resource: URI, position: types.Position): Promise<types.Location[]> {
 		const args = {
 			resource,
 			position: position && typeConverters.Position.from(position)
@@ -326,7 +326,7 @@ export class ExtHostApiCommands {
 			.then(tryMapWith(typeConverters.location.to));
 	}
 
-	private _executeImplementationProvider(resource: URI, position: types.Position): Thenable<types.Location[]> {
+	private _executeImplementationProvider(resource: URI, position: types.Position): Promise<types.Location[]> {
 		const args = {
 			resource,
 			position: position && typeConverters.Position.from(position)
@@ -335,7 +335,7 @@ export class ExtHostApiCommands {
 			.then(tryMapWith(typeConverters.location.to));
 	}
 
-	private _executeHoverProvider(resource: URI, position: types.Position): Thenable<types.Hover[]> {
+	private _executeHoverProvider(resource: URI, position: types.Position): Promise<types.Hover[]> {
 		const args = {
 			resource,
 			position: position && typeConverters.Position.from(position)
@@ -344,7 +344,7 @@ export class ExtHostApiCommands {
 			.then(tryMapWith(typeConverters.Hover.to));
 	}
 
-	private _executeDocumentHighlights(resource: URI, position: types.Position): Thenable<types.DocumentHighlight[]> {
+	private _executeDocumentHighlights(resource: URI, position: types.Position): Promise<types.DocumentHighlight[]> {
 		const args = {
 			resource,
 			position: position && typeConverters.Position.from(position)
@@ -353,7 +353,7 @@ export class ExtHostApiCommands {
 			.then(tryMapWith(typeConverters.DocumentHighlight.to));
 	}
 
-	private _executeReferenceProvider(resource: URI, position: types.Position): Thenable<types.Location[]> {
+	private _executeReferenceProvider(resource: URI, position: types.Position): Promise<types.Location[]> {
 		const args = {
 			resource,
 			position: position && typeConverters.Position.from(position)
@@ -362,7 +362,7 @@ export class ExtHostApiCommands {
 			.then(tryMapWith(typeConverters.location.to));
 	}
 
-	private _executeDocumentRenameProvider(resource: URI, position: types.Position, newName: string): Thenable<types.WorkspaceEdit> {
+	private _executeDocumentRenameProvider(resource: URI, position: types.Position, newName: string): Promise<types.WorkspaceEdit> {
 		const args = {
 			resource,
 			position: position && typeConverters.Position.from(position),
@@ -379,7 +379,7 @@ export class ExtHostApiCommands {
 		});
 	}
 
-	private _executeSignatureHelpProvider(resource: URI, position: types.Position, triggerCharacter: string): Thenable<types.SignatureHelp> {
+	private _executeSignatureHelpProvider(resource: URI, position: types.Position, triggerCharacter: string): Promise<types.SignatureHelp> {
 		const args = {
 			resource,
 			position: position && typeConverters.Position.from(position),
@@ -393,7 +393,7 @@ export class ExtHostApiCommands {
 		});
 	}
 
-	private _executeCompletionItemProvider(resource: URI, position: types.Position, triggerCharacter: string, maxItemsToResolve: number): Thenable<types.CompletionList> {
+	private _executeCompletionItemProvider(resource: URI, position: types.Position, triggerCharacter: string, maxItemsToResolve: number): Promise<types.CompletionList> {
 		const args = {
 			resource,
 			position: position && typeConverters.Position.from(position),
@@ -409,7 +409,7 @@ export class ExtHostApiCommands {
 		});
 	}
 
-	private _executeDocumentColorProvider(resource: URI): Thenable<types.ColorInformation[]> {
+	private _executeDocumentColorProvider(resource: URI): Promise<types.ColorInformation[]> {
 		const args = {
 			resource
 		};
@@ -421,7 +421,7 @@ export class ExtHostApiCommands {
 		});
 	}
 
-	private _executeSelectionRangeProvider(resource: URI, position: types.Position): Thenable<types.Range[]> {
+	private _executeSelectionRangeProvider(resource: URI, position: types.Position): Promise<types.Range[]> {
 		const args = {
 			resource,
 			position: position && typeConverters.Position.from(position)
@@ -434,7 +434,7 @@ export class ExtHostApiCommands {
 		});
 	}
 
-	private _executeColorPresentationProvider(color: types.Color, context: { uri: URI, range: types.Range }): Thenable<types.ColorPresentation[]> {
+	private _executeColorPresentationProvider(color: types.Color, context: { uri: URI, range: types.Range }): Promise<types.ColorPresentation[]> {
 		const args = {
 			resource: context.uri,
 			color: typeConverters.Color.from(color),
@@ -448,7 +448,7 @@ export class ExtHostApiCommands {
 		});
 	}
 
-	private _executeDocumentSymbolProvider(resource: URI): Thenable<vscode.SymbolInformation[]> {
+	private _executeDocumentSymbolProvider(resource: URI): Promise<vscode.SymbolInformation[]> {
 		const args = {
 			resource
 		};
@@ -480,7 +480,7 @@ export class ExtHostApiCommands {
 		});
 	}
 
-	private _executeCodeActionProvider(resource: URI, range: types.Range): Thenable<(vscode.CodeAction | vscode.Command)[]> {
+	private _executeCodeActionProvider(resource: URI, range: types.Range): Promise<(vscode.CodeAction | vscode.Command)[]> {
 		const args = {
 			resource,
 			range: typeConverters.Range.from(range)
@@ -505,7 +505,7 @@ export class ExtHostApiCommands {
 			}));
 	}
 
-	private _executeCodeLensProvider(resource: URI, itemResolveCount: number): Thenable<vscode.CodeLens[]> {
+	private _executeCodeLensProvider(resource: URI, itemResolveCount: number): Promise<vscode.CodeLens[]> {
 		const args = { resource, itemResolveCount };
 		return this._commands.executeCommand<modes.ICodeLensSymbol[]>('_executeCodeLensProvider', args)
 			.then(tryMapWith(item => {
@@ -516,7 +516,7 @@ export class ExtHostApiCommands {
 
 	}
 
-	private _executeFormatDocumentProvider(resource: URI, options: vscode.FormattingOptions): Thenable<vscode.TextEdit[]> {
+	private _executeFormatDocumentProvider(resource: URI, options: vscode.FormattingOptions): Promise<vscode.TextEdit[]> {
 		const args = {
 			resource,
 			options
@@ -525,7 +525,7 @@ export class ExtHostApiCommands {
 			.then(tryMapWith(edit => new types.TextEdit(typeConverters.Range.to(edit.range), edit.text)));
 	}
 
-	private _executeFormatRangeProvider(resource: URI, range: types.Range, options: vscode.FormattingOptions): Thenable<vscode.TextEdit[]> {
+	private _executeFormatRangeProvider(resource: URI, range: types.Range, options: vscode.FormattingOptions): Promise<vscode.TextEdit[]> {
 		const args = {
 			resource,
 			range: typeConverters.Range.from(range),
@@ -535,7 +535,7 @@ export class ExtHostApiCommands {
 			.then(tryMapWith(edit => new types.TextEdit(typeConverters.Range.to(edit.range), edit.text)));
 	}
 
-	private _executeFormatOnTypeProvider(resource: URI, position: types.Position, ch: string, options: vscode.FormattingOptions): Thenable<vscode.TextEdit[]> {
+	private _executeFormatOnTypeProvider(resource: URI, position: types.Position, ch: string, options: vscode.FormattingOptions): Promise<vscode.TextEdit[]> {
 		const args = {
 			resource,
 			position: typeConverters.Position.from(position),
@@ -546,7 +546,7 @@ export class ExtHostApiCommands {
 			.then(tryMapWith(edit => new types.TextEdit(typeConverters.Range.to(edit.range), edit.text)));
 	}
 
-	private _executeDocumentLinkProvider(resource: URI): Thenable<vscode.DocumentLink[]> {
+	private _executeDocumentLinkProvider(resource: URI): Promise<vscode.DocumentLink[]> {
 		return this._commands.executeCommand<modes.ILink[]>('_executeLinkProvider', resource)
 			.then(tryMapWith(typeConverters.DocumentLink.to));
 	}

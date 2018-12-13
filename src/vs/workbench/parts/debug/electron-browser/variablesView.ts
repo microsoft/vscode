@@ -80,7 +80,7 @@ export class VariablesView extends ViewletPanel {
 				ariaLabel: nls.localize('variablesAriaTreeLabel', "Debug Variables"),
 				accessibilityProvider: new VariablesAccessibilityProvider(),
 				identityProvider: { getId: element => element.getId() },
-				typeLabelProvider: { getTypeLabel: e => e }
+				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: e => e }
 			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
 
 		CONTEXT_VARIABLES_FOCUSED.bindTo(this.contextKeyService.createScoped(treeContainer));
@@ -162,7 +162,7 @@ export class VariablesDataSource implements IDataSource<IExpression | IScope> {
 		return element.hasChildren;
 	}
 
-	getChildren(element: IExpression | IScope | null): Thenable<(IExpression | IScope)[]> {
+	getChildren(element: IExpression | IScope | null): Promise<(IExpression | IScope)[]> {
 		if (element === null) {
 			const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 			return stackFrame ? stackFrame.getScopes() : Promise.resolve([]);

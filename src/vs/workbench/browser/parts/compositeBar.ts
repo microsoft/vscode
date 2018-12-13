@@ -39,7 +39,7 @@ export interface ICompositeBarOptions {
 	getCompositePinnedAction: (compositeId: string) => Action;
 	getOnCompositeClickAction: (compositeId: string) => Action;
 	getContextMenuActions: () => Action[];
-	openComposite: (compositeId: string) => Thenable<any>;
+	openComposite: (compositeId: string) => Promise<any>;
 	getDefaultCompositeId: () => string;
 	hidePart: () => void;
 }

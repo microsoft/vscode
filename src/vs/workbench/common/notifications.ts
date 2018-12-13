@@ -595,7 +595,7 @@ export class ChoiceAction extends Action {
 			// Emit Event
 			this._onDidRun.fire();
 
-			return Promise.resolve(void 0);
+			return Promise.resolve();
 		});
 
 		this._keepOpen = !!choice.keepOpen;

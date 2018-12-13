@@ -253,7 +253,7 @@ export class Workbench extends Disposable implements IPartService {
 			(configuration.filesToDiff && configuration.filesToDiff.length > 0);
 	}
 
-	startup(): Thenable<IWorkbenchStartedInfo> {
+	startup(): Promise<IWorkbenchStartedInfo> {
 		this.workbenchStarted = true;
 
 		// Create Workbench Container
@@ -700,8 +700,8 @@ export class Workbench extends Disposable implements IPartService {
 		updateSplitEditorsVerticallyContext();
 	}
 
-	private restoreParts(): Thenable<IWorkbenchStartedInfo> {
-		const restorePromises: Thenable<any>[] = [];
+	private restoreParts(): Promise<IWorkbenchStartedInfo> {
+		const restorePromises: Promise<any>[] = [];
 
 		// Restore Editorpart
 		perf.mark('willRestoreEditors');
@@ -804,7 +804,7 @@ export class Workbench extends Disposable implements IPartService {
 		return this.lifecycleService.startupKind === StartupKind.ReloadedWindow;
 	}
 
-	private resolveEditorsToOpen(): Thenable<IResourceEditor[]> | IResourceEditor[] {
+	private resolveEditorsToOpen(): Promise<IResourceEditor[]> | IResourceEditor[] {
 		const config = this.workbenchParams.configuration;
 
 		// Files to open, diff or create

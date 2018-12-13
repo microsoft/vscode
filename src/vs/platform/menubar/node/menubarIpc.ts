@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IMenubarService, IMenubarData } from 'vs/platform/menubar/common/menubar';
 import { Event } from 'vs/base/common/event';
 
@@ -15,7 +14,7 @@ export class MenubarChannel implements IServerChannel {
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(_, command: string, arg?: any): TPromise<any> {
+	call(_, command: string, arg?: any): Promise<any> {
 		switch (command) {
 			case 'updateMenubar': return this.service.updateMenubar(arg[0], arg[1]);
 		}
@@ -30,7 +29,7 @@ export class MenubarChannelClient implements IMenubarService {
 
 	constructor(private channel: IChannel) { }
 
-	updateMenubar(windowId: number, menuData: IMenubarData): TPromise<void> {
+	updateMenubar(windowId: number, menuData: IMenubarData): Promise<void> {
 		return this.channel.call('updateMenubar', [windowId, menuData]);
 	}
 }

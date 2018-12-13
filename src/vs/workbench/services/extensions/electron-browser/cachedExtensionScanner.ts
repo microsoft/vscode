@@ -272,7 +272,7 @@ export class CachedExtensionScanner {
 				const user = extensionDescriptions[1];
 				const development = extensionDescriptions[2];
 				return { system, user, development };
-			}).then(null, err => {
+			}).then(void 0, err => {
 				log.error('', err);
 				return { system: [], user: [], development: [] };
 			});

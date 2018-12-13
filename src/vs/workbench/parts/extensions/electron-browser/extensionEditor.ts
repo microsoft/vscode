@@ -270,7 +270,7 @@ export class ExtensionEditor extends BaseEditor {
 		this.content = append(body, $('.content'));
 	}
 
-	setInput(input: ExtensionsInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+	setInput(input: ExtensionsInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 		return this.extensionService.getExtensions()
 			.then(runningExtensions => {
 				this.activeElement = null;
@@ -538,7 +538,7 @@ export class ExtensionEditor extends BaseEditor {
 				this.contentDisposables.push(wbeviewElement);
 				return wbeviewElement;
 			})
-			.then(null, () => {
+			.then(void 0, () => {
 				const p = append(this.content, $('p.nocontent'));
 				p.textContent = noContentCopy;
 				return p;

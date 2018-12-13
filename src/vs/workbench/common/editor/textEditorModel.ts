@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ITextModel, ITextBufferFactory } from 'vs/editor/common/model';
 import { EditorModel } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
@@ -69,11 +68,11 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	/**
 	 * Creates the text editor model with the provided value, modeId (can be comma separated for multiple values) and optional resource URL.
 	 */
-	protected createTextEditorModel(value: ITextBufferFactory, resource?: URI, modeId?: string): TPromise<EditorModel> {
+	protected createTextEditorModel(value: ITextBufferFactory, resource?: URI, modeId?: string): EditorModel {
 		const firstLineText = this.getFirstLineText(value);
 		const languageSelection = this.getOrCreateMode(this.modeService, modeId, firstLineText);
 
-		return TPromise.as(this.doCreateTextEditorModel(value, languageSelection, resource));
+		return this.doCreateTextEditorModel(value, languageSelection, resource);
 	}
 
 	private doCreateTextEditorModel(value: ITextBufferFactory, languageSelection: ILanguageSelection, resource: URI): EditorModel {

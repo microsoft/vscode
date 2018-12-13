@@ -62,7 +62,7 @@ export class ExtHostWebview implements vscode.Webview {
 		this._options = newOptions;
 	}
 
-	public postMessage(message: any): Thenable<boolean> {
+	public postMessage(message: any): Promise<boolean> {
 		this.assertNotDisposed();
 		return this._proxy.$postMessage(this._handle, message);
 	}
@@ -201,7 +201,7 @@ export class ExtHostWebviewPanel implements vscode.WebviewPanel {
 		this._visible = value;
 	}
 
-	public postMessage(message: any): Thenable<boolean> {
+	public postMessage(message: any): Promise<boolean> {
 		this.assertNotDisposed();
 		return this._proxy.$postMessage(this._handle, message);
 	}
@@ -305,7 +305,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		}
 	}
 
-	$onDidDisposeWebviewPanel(handle: WebviewPanelHandle): Thenable<void> {
+	$onDidDisposeWebviewPanel(handle: WebviewPanelHandle): Promise<void> {
 		const panel = this.getWebviewPanel(handle);
 		if (panel) {
 			panel.dispose();
@@ -321,7 +321,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		state: any,
 		position: EditorViewColumn,
 		options: vscode.WebviewOptions & vscode.WebviewPanelOptions
-	): Thenable<void> {
+	): Promise<void> {
 		const serializer = this._serializers.get(viewType);
 		if (!serializer) {
 			return Promise.reject(new Error(`No serializer found for '${viewType}'`));
@@ -330,7 +330,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		const webview = new ExtHostWebview(webviewHandle, this._proxy, options);
 		const revivedPanel = new ExtHostWebviewPanel(webviewHandle, this._proxy, viewType, title, typeConverters.ViewColumn.to(position), options, webview);
 		this._webviewPanels.set(webviewHandle, revivedPanel);
-		return serializer.deserializeWebviewPanel(revivedPanel, state);
+		return Promise.resolve(serializer.deserializeWebviewPanel(revivedPanel, state));
 	}
 
 	private getWebviewPanel(handle: WebviewPanelHandle): ExtHostWebviewPanel | undefined {

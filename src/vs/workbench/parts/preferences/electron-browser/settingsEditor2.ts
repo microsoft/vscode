@@ -190,7 +190,7 @@ export class SettingsEditor2 extends BaseEditor {
 		this.updateStyles();
 	}
 
-	setInput(input: SettingsEditor2Input, options: SettingsEditorOptions, token: CancellationToken): Thenable<void> {
+	setInput(input: SettingsEditor2Input, options: SettingsEditorOptions, token: CancellationToken): Promise<void> {
 		this.inSettingsEditorContextKey.set(true);
 		return super.setInput(input, options, token)
 			.then(() => new Promise(process.nextTick)) // Force setInput to be async
@@ -444,12 +444,12 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 	}
 
-	public switchToSettingsFile(): Thenable<IEditor> {
+	public switchToSettingsFile(): Promise<IEditor> {
 		const query = parseQuery(this.searchWidget.getValue());
 		return this.openSettingsFile(query.query);
 	}
 
-	private openSettingsFile(query?: string): Thenable<IEditor> {
+	private openSettingsFile(query?: string): Promise<IEditor> {
 		const currentSettingsTarget = this.settingsTargetsWidget.settingsTarget;
 
 		const options: ISettingsEditorOptions = { query };
@@ -570,7 +570,7 @@ export class SettingsEditor2 extends BaseEditor {
 			}
 
 			if (element && (!e.payload || !e.payload.fromScroll)) {
-				let refreshP: Thenable<void> = Promise.resolve(null);
+				let refreshP: Promise<void> = Promise.resolve(null);
 				if (this.settingsTreeDataSource.pageTo(element.index, true)) {
 					refreshP = this.renderTree();
 				}
@@ -702,7 +702,7 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 	}
 
-	private updateChangedSetting(key: string, value: any): Thenable<void> {
+	private updateChangedSetting(key: string, value: any): Promise<void> {
 		// ConfigurationService displays the error if this fails.
 		// Force a render afterwards because onDidConfigurationUpdate doesn't fire if the update doesn't result in an effective setting value change
 		const settingsTarget = this.settingsTargetsWidget.settingsTarget;
@@ -793,7 +793,7 @@ export class SettingsEditor2 extends BaseEditor {
 		this.telemetryService.publicLog('settingsEditor.settingModified', data);
 	}
 
-	private render(token: CancellationToken): Thenable<any> {
+	private render(token: CancellationToken): Promise<any> {
 		if (this.input) {
 			return this.input.resolve()
 				.then((model: Settings2EditorModel) => {
@@ -841,7 +841,7 @@ export class SettingsEditor2 extends BaseEditor {
 		});
 	}
 
-	private onConfigUpdate(keys?: string[], forceRefresh = false): Thenable<void> {
+	private onConfigUpdate(keys?: string[], forceRefresh = false): Promise<void> {
 		if (keys && this.settingsTreeModel) {
 			return this.updateElementsByKey(keys);
 		}
@@ -897,7 +897,7 @@ export class SettingsEditor2 extends BaseEditor {
 		return Promise.resolve(null);
 	}
 
-	private updateElementsByKey(keys: string[]): Thenable<void> {
+	private updateElementsByKey(keys: string[]): Promise<void> {
 		if (keys.length) {
 			if (this.searchResultModel) {
 				keys.forEach(key => this.searchResultModel.updateElementsByName(key));
@@ -921,7 +921,7 @@ export class SettingsEditor2 extends BaseEditor {
 			null;
 	}
 
-	private renderTree(key?: string, force = false): Thenable<void> {
+	private renderTree(key?: string, force = false): Promise<void> {
 		if (!force && key && this.scheduledRefreshes.has(key)) {
 			this.updateModifiedLabelForKey(key);
 			return Promise.resolve(null);
@@ -946,7 +946,7 @@ export class SettingsEditor2 extends BaseEditor {
 			}
 		}
 
-		let refreshP: Thenable<any>;
+		let refreshP: Promise<any>;
 		if (key) {
 			const elements = this.currentSettingsModel.getElementsByName(key);
 			if (elements && elements.length) {
@@ -991,7 +991,7 @@ export class SettingsEditor2 extends BaseEditor {
 		return match && match[1];
 	}
 
-	private triggerSearch(query: string): Thenable<void> {
+	private triggerSearch(query: string): Promise<void> {
 		this.viewState.tagFilters = new Set<string>();
 		if (query) {
 			const parsedQuery = parseQuery(query);
@@ -1098,7 +1098,7 @@ export class SettingsEditor2 extends BaseEditor {
 		this.telemetryService.publicLog('settingsEditor.filter', data);
 	}
 
-	private triggerFilterPreferences(query: string): Thenable<void> {
+	private triggerFilterPreferences(query: string): Promise<void> {
 		if (this.searchInProgress) {
 			this.searchInProgress.cancel();
 			this.searchInProgress = null;
@@ -1123,12 +1123,12 @@ export class SettingsEditor2 extends BaseEditor {
 		});
 	}
 
-	private localFilterPreferences(query: string, token?: CancellationToken): Thenable<ISearchResult> {
+	private localFilterPreferences(query: string, token?: CancellationToken): Promise<ISearchResult> {
 		const localSearchProvider = this.preferencesSearchService.getLocalSearchProvider(query);
 		return this.filterOrSearchPreferences(query, SearchResultIdx.Local, localSearchProvider, token);
 	}
 
-	private remoteSearchPreferences(query: string, token?: CancellationToken): Thenable<void> {
+	private remoteSearchPreferences(query: string, token?: CancellationToken): Promise<void> {
 		const remoteSearchProvider = this.preferencesSearchService.getRemoteSearchProvider(query);
 		const newExtSearchProvider = this.preferencesSearchService.getRemoteSearchProvider(query, true);
 
@@ -1140,7 +1140,7 @@ export class SettingsEditor2 extends BaseEditor {
 		});
 	}
 
-	private filterOrSearchPreferences(query: string, type: SearchResultIdx, searchProvider: ISearchProvider, token?: CancellationToken): Thenable<ISearchResult> {
+	private filterOrSearchPreferences(query: string, type: SearchResultIdx, searchProvider: ISearchProvider, token?: CancellationToken): Promise<ISearchResult> {
 		return this._filterOrSearchPreferencesModel(query, this.defaultSettingsEditorModel, searchProvider, token).then(result => {
 			if (token && token.isCancellationRequested) {
 				// Handle cancellation like this because cancellation is lost inside the search provider due to async/await
@@ -1187,7 +1187,7 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 	}
 
-	private _filterOrSearchPreferencesModel(filter: string, model: ISettingsEditorModel, provider: ISearchProvider, token?: CancellationToken): Thenable<ISearchResult> {
+	private _filterOrSearchPreferencesModel(filter: string, model: ISettingsEditorModel, provider: ISearchProvider, token?: CancellationToken): Promise<ISearchResult> {
 		const searchP = provider ? provider.searchModel(model, token) : Promise.resolve(null);
 		return searchP
 			.then<ISearchResult>(null, err => {

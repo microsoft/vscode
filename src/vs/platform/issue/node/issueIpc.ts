@@ -15,7 +15,7 @@ export class IssueChannel implements IServerChannel {
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(_, command: string, arg?: any): Thenable<any> {
+	call(_, command: string, arg?: any): Promise<any> {
 		switch (command) {
 			case 'openIssueReporter':
 				return this.service.openReporter(arg);
@@ -33,11 +33,11 @@ export class IssueChannelClient implements IIssueService {
 
 	constructor(private channel: IChannel) { }
 
-	openReporter(data: IssueReporterData): Thenable<void> {
+	openReporter(data: IssueReporterData): Promise<void> {
 		return this.channel.call('openIssueReporter', data);
 	}
 
-	openProcessExplorer(data: ProcessExplorerData): Thenable<void> {
+	openProcessExplorer(data: ProcessExplorerData): Promise<void> {
 		return this.channel.call('openProcessExplorer', data);
 	}
 }

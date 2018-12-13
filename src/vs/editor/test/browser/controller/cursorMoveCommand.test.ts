@@ -31,8 +31,8 @@ suite('Cursor move command test', () => {
 		].join('\n');
 
 		thisModel = TextModel.createFromString(text);
-		thisConfiguration = new TestConfiguration(null);
-		thisViewModel = new ViewModel(0, thisConfiguration, thisModel, null);
+		thisConfiguration = new TestConfiguration({});
+		thisViewModel = new ViewModel(0, thisConfiguration, thisModel, null!);
 		thisCursor = new Cursor(thisConfiguration, thisModel, thisViewModel);
 	});
 

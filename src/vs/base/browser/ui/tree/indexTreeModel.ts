@@ -120,7 +120,8 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 	}
 
 	getListIndex(location: number[]): number {
-		return this.getTreeNodeWithListIndex(location).listIndex;
+		const { node, listIndex } = this.getTreeNodeWithListIndex(location);
+		return node ? listIndex : -1;
 	}
 
 	setCollapsed(location: number[], collapsed: boolean): boolean {

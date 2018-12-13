@@ -40,7 +40,7 @@ export class ExtHostUrls implements ExtHostUrlsShape {
 		});
 	}
 
-	$handleExternalUri(handle: number, uri: UriComponents): Thenable<void> {
+	$handleExternalUri(handle: number, uri: UriComponents): Promise<void> {
 		const handler = this.handlers.get(handle);
 
 		if (!handler) {

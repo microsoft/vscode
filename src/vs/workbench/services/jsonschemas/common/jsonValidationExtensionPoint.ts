@@ -13,21 +13,24 @@ interface IJSONValidationExtensionPoint {
 	url: string;
 }
 
-let configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IJSONValidationExtensionPoint[]>('jsonValidation', [], {
-	description: nls.localize('contributes.jsonValidation', 'Contributes json schema configuration.'),
-	type: 'array',
-	defaultSnippets: [{ body: [{ fileMatch: '${1:file.json}', url: '${2:url}' }] }],
-	items: {
-		type: 'object',
-		defaultSnippets: [{ body: { fileMatch: '${1:file.json}', url: '${2:url}' } }],
-		properties: {
-			fileMatch: {
-				type: 'string',
-				description: nls.localize('contributes.jsonValidation.fileMatch', 'The file pattern to match, for example "package.json" or "*.launch".'),
-			},
-			url: {
-				description: nls.localize('contributes.jsonValidation.url', 'A schema URL (\'http:\', \'https:\') or relative path to the extension folder (\'./\').'),
-				type: 'string'
+const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IJSONValidationExtensionPoint[]>({
+	extensionPoint: 'jsonValidation',
+	jsonSchema: {
+		description: nls.localize('contributes.jsonValidation', 'Contributes json schema configuration.'),
+		type: 'array',
+		defaultSnippets: [{ body: [{ fileMatch: '${1:file.json}', url: '${2:url}' }] }],
+		items: {
+			type: 'object',
+			defaultSnippets: [{ body: { fileMatch: '${1:file.json}', url: '${2:url}' } }],
+			properties: {
+				fileMatch: {
+					type: 'string',
+					description: nls.localize('contributes.jsonValidation.fileMatch', 'The file pattern to match, for example "package.json" or "*.launch".'),
+				},
+				url: {
+					description: nls.localize('contributes.jsonValidation.url', 'A schema URL (\'http:\', \'https:\') or relative path to the extension folder (\'./\').'),
+					type: 'string'
+				}
 			}
 		}
 	}

@@ -405,6 +405,9 @@ export class LoadedScriptsView extends ViewletPanel {
 				identityProvider: {
 					getId: element => element.getId()
 				},
+				keyboardNavigationLabelProvider: {
+					getKeyboardNavigationLabel: element => element.getLabel()
+				},
 				filter: this.filter,
 				accessibilityProvider: new LoadedSciptsAccessibilityProvider(),
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'loadedScriptsAriaLabel' }, "Debug Loaded Scripts"),
@@ -542,7 +545,7 @@ class LoadedScriptsDataSource implements IDataSource<LoadedScriptsItem> {
 		return element === null || element.hasChildren();
 	}
 
-	getChildren(element: LoadedScriptsItem | null): Thenable<LoadedScriptsItem[]> {
+	getChildren(element: LoadedScriptsItem | null): Promise<LoadedScriptsItem[]> {
 		if (element === null) {
 			element = this.root;
 		}

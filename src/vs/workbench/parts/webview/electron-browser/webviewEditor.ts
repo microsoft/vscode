@@ -37,6 +37,8 @@ export class WebviewEditor extends BaseWebviewEditor {
 	private readonly _onDidFocusWebview = this._register(new Emitter<void>());
 	public get onDidFocus(): Event<any> { return this._onDidFocusWebview.event; }
 
+	private pendingMessages: any[] = [];
+
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
@@ -93,6 +95,8 @@ export class WebviewEditor extends BaseWebviewEditor {
 	}
 
 	public dispose(): void {
+		this.pendingMessages = [];
+
 		// Let the editor input dispose of the webview.
 		this._webview = undefined;
 		this._webviewContent = undefined;
@@ -114,6 +118,8 @@ export class WebviewEditor extends BaseWebviewEditor {
 	public sendMessage(data: any): void {
 		if (this._webview) {
 			this._webview.sendMessage(data);
+		} else {
+			this.pendingMessages.push(data);
 		}
 	}
 
@@ -147,26 +153,20 @@ export class WebviewEditor extends BaseWebviewEditor {
 
 		this._webview = undefined;
 		this._webviewContent = undefined;
+		this.pendingMessages = [];
 
 		super.clearInput();
 	}
 
-	setInput(input: WebviewEditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+	setInput(input: WebviewEditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 		if (this.input) {
 			(this.input as WebviewEditorInput).releaseWebview(this);
 			this._webview = undefined;
 			this._webviewContent = undefined;
 		}
-
-		// TODO@matt restore following line but check for test failures
-		// in integration tests due to the async nature of native promises
-		// return super.setInput(input, options).then()
-
-		// TODO@matt remove the following 2 lines when super.setInput() is back
-		this._input = input;
-		this._options = options;
-
-		return input.resolve()
+		this.pendingMessages = [];
+		return super.setInput(input, options, token)
+			.then(() => input.resolve())
 			.then(() => {
 				if (token.isCancellationRequested) {
 					return;
@@ -239,6 +239,11 @@ export class WebviewEditor extends BaseWebviewEditor {
 
 			this.doUpdateContainer();
 		}
+
+		for (const message of this.pendingMessages) {
+			this._webview.sendMessage(message);
+		}
+		this.pendingMessages = [];
 
 		this.trackFocus();
 

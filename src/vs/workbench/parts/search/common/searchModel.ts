@@ -305,7 +305,7 @@ export class FileMatch extends Disposable {
 		this._onChange.fire(false);
 	}
 
-	public replace(toReplace: Match): Thenable<void> {
+	public replace(toReplace: Match): Promise<void> {
 		return this.replaceService.replace(toReplace)
 			.then(() => this.updatesMatchesForLineAfterReplace(toReplace.range().startLineNumber, false));
 	}
@@ -476,13 +476,13 @@ export class FolderMatch extends Disposable {
 		this.doRemove(match);
 	}
 
-	public replace(match: FileMatch): Thenable<any> {
+	public replace(match: FileMatch): Promise<any> {
 		return this.replaceService.replace([match]).then(() => {
 			this.doRemove(match, false, true);
 		});
 	}
 
-	public replaceAll(): Thenable<any> {
+	public replaceAll(): Promise<any> {
 		const matches = this.matches();
 		return this.replaceService.replace(matches).then(() => {
 			matches.forEach(match => this.doRemove(match, false, true));
@@ -682,11 +682,11 @@ export class SearchResult extends Disposable {
 		}
 	}
 
-	public replace(match: FileMatch): Thenable<any> {
+	public replace(match: FileMatch): Promise<any> {
 		return this.getFolderMatch(match.resource()).replace(match);
 	}
 
-	public replaceAll(progressRunner: IProgressRunner): Thenable<any> {
+	public replaceAll(progressRunner: IProgressRunner): Promise<any> {
 		this.replacingAll = true;
 
 		const promise = this.replaceService.replace(this.matches(), progressRunner);
@@ -838,7 +838,7 @@ export class SearchModel extends Disposable {
 		return this._searchResult;
 	}
 
-	public search(query: ITextQuery, onProgress?: (result: ISearchProgressItem) => void): Thenable<ISearchComplete> {
+	public search(query: ITextQuery, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
 		this.cancelSearch();
 
 		this._searchQuery = query;

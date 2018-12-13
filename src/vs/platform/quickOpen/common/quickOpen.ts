@@ -26,7 +26,7 @@ export interface IQuickOpenService {
 	 *
 	 * The returned promise completes when quick open is closing.
 	 */
-	show(prefix?: string, options?: IShowOptions): Thenable<void>;
+	show(prefix?: string, options?: IShowOptions): Promise<void>;
 
 	/**
 	 * Allows to navigate from the outside in an opened picker.

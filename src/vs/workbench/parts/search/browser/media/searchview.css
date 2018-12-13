@@ -81,15 +81,6 @@
 	height: 25px;
 }
 
-.search-view .query-clear {
-	width: 20px;
-	height: 20px;
-	position: absolute;
-	top: 3px;
-	right: 3px;
-	cursor: pointer;
-}
-
 .search-view .query-details {
 	min-height: 1em;
 	position: relative;
@@ -246,10 +237,6 @@
 
 .search-view .linematch.changedOrRemoved {
 	font-style: italic;
-}
-
-.search-view .query-clear {
-	background: url("action-query-clear.svg") center center no-repeat;
 }
 
 .search-view.wide .monaco-tree .monaco-tree-row .foldermatch .actionBarContainer,
@@ -431,10 +418,6 @@
 
 .vs .search-view .search-widget .toggle-replace-button.expand {
 	background-image: url('expando-expanded.svg');
-}
-
-.vs-dark .search-view .query-clear {
-	background: url("action-query-clear-dark.svg") center center no-repeat;
 }
 
 .vs-dark .search-view .action-remove,

@@ -408,7 +408,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 		this._providers.clear();
 	}
 
-	public $registerTaskProvider(handle: number): Thenable<void> {
+	public $registerTaskProvider(handle: number): Promise<void> {
 		let provider: ITaskProvider = {
 			provideTasks: (validTypes: IStringDictionary<boolean>) => {
 				return Promise.resolve(this._proxy.$provideTasks(handle, validTypes)).then((value) => {
@@ -439,12 +439,12 @@ export class MainThreadTask implements MainThreadTaskShape {
 		return Promise.resolve(undefined);
 	}
 
-	public $unregisterTaskProvider(handle: number): Thenable<void> {
+	public $unregisterTaskProvider(handle: number): Promise<void> {
 		this._providers.delete(handle);
 		return Promise.resolve(undefined);
 	}
 
-	public $fetchTasks(filter?: TaskFilterDTO): Thenable<TaskDTO[]> {
+	public $fetchTasks(filter?: TaskFilterDTO): Promise<TaskDTO[]> {
 		return this._taskService.tasks(TaskFilterDTO.to(filter)).then((tasks) => {
 			let result: TaskDTO[] = [];
 			for (let task of tasks) {
@@ -457,7 +457,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 		});
 	}
 
-	public $executeTask(value: TaskHandleDTO | TaskDTO): Thenable<TaskExecutionDTO> {
+	public $executeTask(value: TaskHandleDTO | TaskDTO): Promise<TaskExecutionDTO> {
 		return new Promise<TaskExecutionDTO>((resolve, reject) => {
 			if (TaskHandleDTO.is(value)) {
 				let workspaceFolder = this._workspaceContextServer.getWorkspaceFolder(URI.revive(value.workspaceFolder));
@@ -487,7 +487,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 		});
 	}
 
-	public $terminateTask(id: string): Thenable<void> {
+	public $terminateTask(id: string): Promise<void> {
 		return new Promise<void>((resolve, reject) => {
 			this._taskService.getActiveTasks().then((tasks) => {
 				for (let task of tasks) {

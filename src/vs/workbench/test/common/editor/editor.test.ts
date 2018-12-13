@@ -32,7 +32,7 @@ class FileEditorInput extends EditorInput {
 		return this.resource;
 	}
 
-	resolve(): Thenable<IEditorModel> {
+	resolve(): Promise<IEditorModel> {
 		return Promise.resolve(null);
 	}
 }

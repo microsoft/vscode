@@ -5,7 +5,6 @@
 
 import { URI } from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { TerminateResponse } from 'vs/base/common/processes';
 import { Event } from 'vs/base/common/event';
 import { Platform } from 'vs/base/common/platform';
@@ -82,7 +81,7 @@ export const enum TaskExecuteKind {
 
 export interface ITaskExecuteResult {
 	kind: TaskExecuteKind;
-	promise: TPromise<ITaskSummary>;
+	promise: Promise<ITaskSummary>;
 	task: Task;
 	started?: {
 		restartOnFileChanges?: string;
@@ -130,11 +129,11 @@ export interface ITaskSystem {
 	onDidStateChange: Event<TaskEvent>;
 	run(task: Task, resolver: ITaskResolver): ITaskExecuteResult;
 	rerun(): ITaskExecuteResult | undefined;
-	isActive(): TPromise<boolean>;
+	isActive(): Promise<boolean>;
 	isActiveSync(): boolean;
 	getActiveTasks(): Task[];
 	canAutoTerminate(): boolean;
-	terminate(task: Task): TPromise<TaskTerminateResponse>;
-	terminateAll(): TPromise<TaskTerminateResponse[]>;
+	terminate(task: Task): Promise<TaskTerminateResponse>;
+	terminateAll(): Promise<TaskTerminateResponse[]>;
 	revealTask(task: Task): boolean;
 }

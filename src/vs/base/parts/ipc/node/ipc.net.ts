@@ -249,9 +249,9 @@ export class Client<TContext = string> extends IPCClient<TContext> {
 	}
 }
 
-export function serve(port: number): Thenable<Server>;
-export function serve(namedPipe: string): Thenable<Server>;
-export function serve(hook: any): Thenable<Server> {
+export function serve(port: number): Promise<Server>;
+export function serve(namedPipe: string): Promise<Server>;
+export function serve(hook: any): Promise<Server> {
 	return new Promise<Server>((c, e) => {
 		const server = createServer();
 
@@ -263,10 +263,10 @@ export function serve(hook: any): Thenable<Server> {
 	});
 }
 
-export function connect(options: { host: string, port: number }, clientId: string): Thenable<Client>;
-export function connect(port: number, clientId: string): Thenable<Client>;
-export function connect(namedPipe: string, clientId: string): Thenable<Client>;
-export function connect(hook: any, clientId: string): Thenable<Client> {
+export function connect(options: { host: string, port: number }, clientId: string): Promise<Client>;
+export function connect(port: number, clientId: string): Promise<Client>;
+export function connect(namedPipe: string, clientId: string): Promise<Client>;
+export function connect(hook: any, clientId: string): Promise<Client> {
 	return new Promise<Client>((c, e) => {
 		const socket = createConnection(hook, () => {
 			socket.removeListener('error', e);

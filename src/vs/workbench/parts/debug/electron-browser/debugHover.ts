@@ -207,7 +207,7 @@ export class DebugHoverWidget implements IContentWidget {
 			.then(expressions => (expressions.length > 0 && expressions.every(e => e.value === expressions[0].value)) ? expressions[0] : null);
 	}
 
-	private doShow(position: Position, expression: IExpression, focus: boolean, forceValueHover = false): Thenable<void> {
+	private doShow(position: Position, expression: IExpression, focus: boolean, forceValueHover = false): Promise<void> {
 		if (!this.domNode) {
 			this.create();
 		}
@@ -298,7 +298,7 @@ class DebugHoverDataSource implements IDataSource<IExpression> {
 		return element === null || element.hasChildren;
 	}
 
-	getChildren(element: IExpression | null): Thenable<IExpression[]> {
+	getChildren(element: IExpression | null): Promise<IExpression[]> {
 		if (element === null) {
 			element = this.expression;
 		}

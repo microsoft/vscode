@@ -80,15 +80,18 @@ const configurationEntrySchema: IJSONSchema = {
 let registeredDefaultConfigurations: IDefaultConfigurationExtension[] = [];
 
 // BEGIN VSCode extension point `configurationDefaults`
-const defaultConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigurationNode>('configurationDefaults', [], {
-	description: nls.localize('vscode.extension.contributes.defaultConfiguration', 'Contributes default editor configuration settings by language.'),
-	type: 'object',
-	defaultSnippets: [{ body: {} }],
-	patternProperties: {
-		'\\[.*\\]$': {
-			type: 'object',
-			default: {},
-			$ref: editorConfigurationSchemaId,
+const defaultConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigurationNode>({
+	extensionPoint: 'configurationDefaults',
+	jsonSchema: {
+		description: nls.localize('vscode.extension.contributes.defaultConfiguration', 'Contributes default editor configuration settings by language.'),
+		type: 'object',
+		defaultSnippets: [{ body: {} }],
+		patternProperties: {
+			'\\[.*\\]$': {
+				type: 'object',
+				default: {},
+				$ref: editorConfigurationSchemaId,
+			}
 		}
 	}
 });
@@ -106,15 +109,19 @@ defaultConfigurationExtPoint.setHandler(extensions => {
 
 
 // BEGIN VSCode extension point `configuration`
-const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigurationNode>('configuration', [defaultConfigurationExtPoint], {
-	description: nls.localize('vscode.extension.contributes.configuration', 'Contributes configuration settings.'),
-	oneOf: [
-		configurationEntrySchema,
-		{
-			type: 'array',
-			items: configurationEntrySchema
-		}
-	]
+const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigurationNode>({
+	extensionPoint: 'configuration',
+	deps: [defaultConfigurationExtPoint],
+	jsonSchema: {
+		description: nls.localize('vscode.extension.contributes.configuration', 'Contributes configuration settings.'),
+		oneOf: [
+			configurationEntrySchema,
+			{
+				type: 'array',
+				items: configurationEntrySchema
+			}
+		]
+	}
 });
 configurationExtPoint.setHandler(extensions => {
 	const configurations: IConfigurationNode[] = [];

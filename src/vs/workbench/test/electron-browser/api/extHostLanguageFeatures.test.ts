@@ -927,7 +927,7 @@ suite('ExtHostLanguageFeatures', function () {
 		return rpcProtocol.sync().then(() => {
 			return provideSuggestionItems(model, new EditorPosition(1, 1), 'none').then(value => {
 				assert.equal(value.length, 1);
-				assert.equal(value[0].suggestion.insertText, 'testing2');
+				assert.equal(value[0].completion.insertText, 'testing2');
 			});
 		});
 	});
@@ -949,7 +949,7 @@ suite('ExtHostLanguageFeatures', function () {
 		return rpcProtocol.sync().then(() => {
 			return provideSuggestionItems(model, new EditorPosition(1, 1), 'none').then(value => {
 				assert.equal(value.length, 1);
-				assert.equal(value[0].suggestion.insertText, 'weak-selector');
+				assert.equal(value[0].completion.insertText, 'weak-selector');
 			});
 		});
 	});
@@ -971,8 +971,8 @@ suite('ExtHostLanguageFeatures', function () {
 		return rpcProtocol.sync().then(() => {
 			return provideSuggestionItems(model, new EditorPosition(1, 1), 'none').then(value => {
 				assert.equal(value.length, 2);
-				assert.equal(value[0].suggestion.insertText, 'strong-1'); // sort by label
-				assert.equal(value[1].suggestion.insertText, 'strong-2');
+				assert.equal(value[0].completion.insertText, 'strong-1'); // sort by label
+				assert.equal(value[1].completion.insertText, 'strong-2');
 			});
 		});
 	});

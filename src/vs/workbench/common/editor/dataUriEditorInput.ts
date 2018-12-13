@@ -62,7 +62,7 @@ export class DataUriEditorInput extends EditorInput {
 		return this.description;
 	}
 
-	resolve(): Thenable<BinaryEditorModel> {
+	resolve(): Promise<BinaryEditorModel> {
 		return this.instantiationService.createInstance(BinaryEditorModel, this.resource, this.getName()).load().then(m => m as BinaryEditorModel);
 	}
 

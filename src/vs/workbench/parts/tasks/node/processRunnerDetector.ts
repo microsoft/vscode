@@ -264,7 +264,7 @@ export class ProcessRunnerDetector {
 		});
 	}
 
-	private runDetection(process: LineProcess, command: string, isShellCommand: boolean, matcher: TaskDetectorMatcher, problemMatchers: string[], list: boolean): Thenable<DetectorResult> {
+	private runDetection(process: LineProcess, command: string, isShellCommand: boolean, matcher: TaskDetectorMatcher, problemMatchers: string[], list: boolean): Promise<DetectorResult> {
 		let tasks: string[] = [];
 		matcher.init();
 

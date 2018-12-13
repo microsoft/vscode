@@ -128,6 +128,15 @@ export interface ITreeContextMenuEvent<T> {
 	anchor: HTMLElement | { x: number; y: number; } | undefined;
 }
 
+export interface ITreeNavigator<T> {
+	current(): T | null;
+	previous(): T | null;
+	parent(): T | null;
+	first(): T | null;
+	last(): T | null;
+	next(): T | null;
+}
+
 /**
  * Use this renderer when you want to re-render elements on account of
  * an event firing.

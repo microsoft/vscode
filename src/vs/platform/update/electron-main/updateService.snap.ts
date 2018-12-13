@@ -50,7 +50,7 @@ abstract class AbstractUpdateService2 implements IUpdateService {
 		this.scheduleCheckForUpdates(30 * 1000).then(undefined, err => this.logService.error(err));
 	}
 
-	private scheduleCheckForUpdates(delay = 60 * 60 * 1000): Thenable<void> {
+	private scheduleCheckForUpdates(delay = 60 * 60 * 1000): Promise<void> {
 		return timeout(delay)
 			.then(() => this.checkForUpdates(null))
 			.then(() => {
@@ -93,11 +93,11 @@ abstract class AbstractUpdateService2 implements IUpdateService {
 		await this.doApplyUpdate();
 	}
 
-	protected doApplyUpdate(): Thenable<void> {
+	protected doApplyUpdate(): Promise<void> {
 		return Promise.resolve(void 0);
 	}
 
-	quitAndInstall(): Thenable<void> {
+	quitAndInstall(): Promise<void> {
 		this.logService.trace('update#quitAndInstall, state = ', this.state.type);
 
 		if (this.state.type !== StateType.Ready) {
@@ -128,7 +128,7 @@ abstract class AbstractUpdateService2 implements IUpdateService {
 		// noop
 	}
 
-	abstract isLatestVersion(): Thenable<boolean | undefined>;
+	abstract isLatestVersion(): Promise<boolean | undefined>;
 	protected abstract doCheckForUpdates(context: any): void;
 }
 
@@ -202,7 +202,7 @@ export class SnapUpdateService extends AbstractUpdateService2 {
 		});
 	}
 
-	private isUpdateAvailable(): Thenable<boolean> {
+	private isUpdateAvailable(): Promise<boolean> {
 		return new Promise((c, e) => {
 			realpath(`/snap/${product.applicationName}/current`, (err, resolvedCurrentSnapPath) => {
 				if (err) { return e(err); }
@@ -213,7 +213,7 @@ export class SnapUpdateService extends AbstractUpdateService2 {
 		});
 	}
 
-	isLatestVersion(): Thenable<boolean | undefined> {
+	isLatestVersion(): Promise<boolean | undefined> {
 		return this.isUpdateAvailable().then(undefined, err => {
 			this.logService.error('update#checkForSnapUpdate(): Could not get realpath of application.');
 			return undefined;

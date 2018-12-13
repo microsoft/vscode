@@ -113,7 +113,7 @@ function fillInActions(groups: [string, (MenuItemAction | SubmenuItemAction)[]][
 }
 
 
-export function createActionItem(action: IAction, keybindingService: IKeybindingService, notificationService: INotificationService, contextMenuService: IContextMenuService): ActionItem {
+export function createActionItem(action: IAction, keybindingService: IKeybindingService, notificationService: INotificationService, contextMenuService: IContextMenuService): ActionItem | undefined {
 	if (action instanceof MenuItemAction) {
 		return new MenuItemActionItem(action, keybindingService, notificationService, contextMenuService);
 	}
@@ -127,7 +127,7 @@ export class MenuItemActionItem extends ActionItem {
 	static readonly ICON_PATH_TO_CSS_RULES: Map<string /* path*/, string /* CSS rule */> = new Map<string, string>();
 
 	private _wantsAltCommand: boolean;
-	private _itemClassDispose: IDisposable;
+	private _itemClassDispose?: IDisposable;
 	private readonly _altKey: AlternativeKeyEmitter;
 
 	constructor(
@@ -212,7 +212,9 @@ export class MenuItemActionItem extends ActionItem {
 	updateClass(): void {
 		if (this.options.icon) {
 			if (this._commandAction !== this._action) {
-				this._updateItemClass(this._action.alt.item);
+				if (this._action.alt) {
+					this._updateItemClass(this._action.alt.item);
+				}
 			} else if ((<MenuItemAction>this._action).alt) {
 				this._updateItemClass(this._action.item);
 			}

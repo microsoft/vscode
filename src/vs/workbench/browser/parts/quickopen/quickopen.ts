@@ -50,7 +50,7 @@ export class BaseQuickOpenNavigateAction extends Action {
 		super(id, label);
 	}
 
-	run(event?: any): Thenable<any> {
+	run(event?: any): Promise<any> {
 		const keys = this.keybindingService.lookupKeybindings(this.id);
 		const quickNavigate = this.quickNavigate ? { keybindings: keys } : void 0;
 

@@ -134,7 +134,7 @@ export class ColorThemeData implements IColorTheme {
 		}
 	}
 
-	public ensureLoaded(fileService: IFileService): Thenable<void> {
+	public ensureLoaded(fileService: IFileService): Promise<void> {
 		if (!this.isLoaded) {
 			if (this.location) {
 				return _loadColorTheme(fileService, this.location, this.themeTokenColors, this.colorMap).then(_ => {
@@ -271,7 +271,7 @@ function toCSSSelector(str: string) {
 	return str;
 }
 
-function _loadColorTheme(fileService: IFileService, themeLocation: URI, resultRules: ITokenColorizationRule[], resultColors: IColorMap): Thenable<any> {
+function _loadColorTheme(fileService: IFileService, themeLocation: URI, resultRules: ITokenColorizationRule[], resultColors: IColorMap): Promise<any> {
 	if (Paths.extname(themeLocation.path) === '.json') {
 		return fileService.resolveContent(themeLocation, { encoding: 'utf8' }).then(content => {
 			let errors: Json.ParseError[] = [];
@@ -279,7 +279,7 @@ function _loadColorTheme(fileService: IFileService, themeLocation: URI, resultRu
 			if (errors.length > 0) {
 				return Promise.reject(new Error(nls.localize('error.cannotparsejson', "Problems parsing JSON theme file: {0}", errors.map(e => getParseErrorMessage(e.error)).join(', '))));
 			}
-			let includeCompletes: Thenable<any> = Promise.resolve(null);
+			let includeCompletes: Promise<any> = Promise.resolve(null);
 			if (contentValue.include) {
 				includeCompletes = _loadColorTheme(fileService, resources.joinPath(resources.dirname(themeLocation), contentValue.include), resultRules, resultColors);
 			}
@@ -320,12 +320,12 @@ function _loadColorTheme(fileService: IFileService, themeLocation: URI, resultRu
 	}
 }
 
-let pListParser: Thenable<{ parse(content: string) }>;
+let pListParser: Promise<{ parse(content: string) }>;
 function getPListParser() {
 	return pListParser || import('fast-plist');
 }
 
-function _loadSyntaxTokens(fileService: IFileService, themeLocation: URI, resultRules: ITokenColorizationRule[], resultColors: IColorMap): Thenable<any> {
+function _loadSyntaxTokens(fileService: IFileService, themeLocation: URI, resultRules: ITokenColorizationRule[], resultColors: IColorMap): Promise<any> {
 	return fileService.resolveContent(themeLocation, { encoding: 'utf8' }).then(content => {
 		return getPListParser().then(parser => {
 			try {

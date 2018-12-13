@@ -472,7 +472,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		return Promise.resolve(null);
 	}
 
-	expand(itemOrItems: ITreeItem | ITreeItem[]): Thenable<void> {
+	expand(itemOrItems: ITreeItem | ITreeItem[]): Promise<void> {
 		if (this.tree) {
 			itemOrItems = Array.isArray(itemOrItems) ? itemOrItems : [itemOrItems];
 			return this.tree.expandAll(itemOrItems);
@@ -493,7 +493,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		}
 	}
 
-	reveal(item: ITreeItem): Thenable<void> {
+	reveal(item: ITreeItem): Promise<void> {
 		if (this.tree) {
 			return this.tree.reveal(item);
 		}
@@ -827,7 +827,7 @@ class MultipleSelectionActionRunner extends ActionRunner {
 		super();
 	}
 
-	runAction(action: IAction, context: any): Thenable<any> {
+	runAction(action: IAction, context: any): Promise<any> {
 		if (action instanceof MenuItemAction) {
 			const selection = this.getSelectedResources();
 			const filteredSelection = selection.filter(s => s !== context);

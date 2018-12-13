@@ -563,13 +563,13 @@ suite('Editor ViewLayout - LinesLayout', () => {
 		assert.equal(whitespace, null);
 
 		whitespace = linesLayout.getWhitespaceAtVerticalOffset(60);
-		assert.equal(whitespace.id, a);
+		assert.equal(whitespace!.id, a);
 
 		whitespace = linesLayout.getWhitespaceAtVerticalOffset(61);
-		assert.equal(whitespace.id, a);
+		assert.equal(whitespace!.id, a);
 
 		whitespace = linesLayout.getWhitespaceAtVerticalOffset(159);
-		assert.equal(whitespace.id, a);
+		assert.equal(whitespace!.id, a);
 
 		whitespace = linesLayout.getWhitespaceAtVerticalOffset(160);
 		assert.equal(whitespace, null);
@@ -581,13 +581,13 @@ suite('Editor ViewLayout - LinesLayout', () => {
 		assert.equal(whitespace, null);
 
 		whitespace = linesLayout.getWhitespaceAtVerticalOffset(170);
-		assert.equal(whitespace.id, b);
+		assert.equal(whitespace!.id, b);
 
 		whitespace = linesLayout.getWhitespaceAtVerticalOffset(171);
-		assert.equal(whitespace.id, b);
+		assert.equal(whitespace!.id, b);
 
 		whitespace = linesLayout.getWhitespaceAtVerticalOffset(219);
-		assert.equal(whitespace.id, b);
+		assert.equal(whitespace!.id, b);
 
 		whitespace = linesLayout.getWhitespaceAtVerticalOffset(220);
 		assert.equal(whitespace, null);

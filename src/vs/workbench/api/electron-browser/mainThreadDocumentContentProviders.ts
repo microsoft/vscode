@@ -41,7 +41,7 @@ export class MainThreadDocumentContentProviders implements MainThreadDocumentCon
 
 	$registerTextContentProvider(handle: number, scheme: string): void {
 		const registration = this._textModelResolverService.registerTextModelContentProvider(scheme, {
-			provideTextContent: (uri: URI): Thenable<ITextModel> => {
+			provideTextContent: (uri: URI): Promise<ITextModel> => {
 				return this._proxy.$provideTextDocumentContent(handle, uri).then(value => {
 					if (typeof value === 'string') {
 						const firstLineText = value.substr(0, 1 + value.search(/\r?\n/));
