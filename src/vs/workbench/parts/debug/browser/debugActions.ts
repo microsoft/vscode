@@ -136,7 +136,7 @@ export class StartAction extends AbstractDebugAction {
 	// Note: When this action is executed from the process explorer, a config is passed. For all
 	// other cases it is run with no arguments.
 	public run(config?: IConfig): Thenable<any> {
-		if (config) {
+		if (config && 'type' in config && 'request' in config) {
 			return this.debugService.startDebugging(undefined, config, this.isNoDebug());
 		}
 
