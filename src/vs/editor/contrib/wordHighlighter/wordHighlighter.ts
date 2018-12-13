@@ -106,7 +106,7 @@ abstract class OccurenceAtPositionRequest implements IOccurenceAtPositionRequest
 
 class SemanticOccurenceAtPositionRequest extends OccurenceAtPositionRequest {
 	protected _compute(model: ITextModel, selection: Selection, wordSeparators: string, token: CancellationToken): Promise<DocumentHighlight[]> {
-		return getOccurrencesAtPosition(model, selection.getPosition(), token);
+		return getOccurrencesAtPosition(model, selection.getPosition(), token).then(value => value || []);
 	}
 }
 

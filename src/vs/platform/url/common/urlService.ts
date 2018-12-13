@@ -20,7 +20,7 @@ export class URLService implements IURLService {
 
 	open(uri: URI): Promise<boolean> {
 		const handlers = Array.from(this.handlers);
-		return first(handlers.map(h => () => h.handleURL(uri)), undefined, false);
+		return first(handlers.map(h => () => h.handleURL(uri)), undefined, false).then(val => val || false);
 	}
 
 	registerHandler(handler: IURLHandler): IDisposable {
