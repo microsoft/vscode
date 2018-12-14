@@ -9,14 +9,14 @@ import * as platform from 'vs/base/common/platform';
 import pkg from 'vs/platform/node/package';
 import { URI as Uri } from 'vs/base/common/uri';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalEnvironment } from 'vs/workbench/parts/terminal/common/terminal';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 
 /**
  * This module contains utility functions related to the environment, cwd and paths.
  */
 
-export function mergeEnvironments(parent: platform.IProcessEnvironment, other: platform.IProcessEnvironment): void {
+export function mergeEnvironments(parent: platform.IProcessEnvironment, other: ITerminalEnvironment): void {
 	if (!other) {
 		return;
 	}
@@ -43,7 +43,7 @@ export function mergeEnvironments(parent: platform.IProcessEnvironment, other: p
 	}
 }
 
-function _mergeEnvironmentValue(env: platform.IProcessEnvironment, key: string, value: string | null): void {
+function _mergeEnvironmentValue(env: ITerminalEnvironment, key: string, value: string | null): void {
 	if (typeof value === 'string') {
 		env[key] = value;
 	} else {
@@ -51,7 +51,7 @@ function _mergeEnvironmentValue(env: platform.IProcessEnvironment, key: string, 
 	}
 }
 
-export function sanitizeEnvironment(env: platform.IProcessEnvironment): void {
+export function sanitizeEnvironment(env: ITerminalEnvironment): void {
 	// Remove keys based on strings
 	const keysToRemove = [
 		'ELECTRON_ENABLE_STACK_DUMPING',
@@ -76,16 +76,17 @@ export function sanitizeEnvironment(env: platform.IProcessEnvironment): void {
 	});
 }
 
-export function addTerminalEnvironmentKeys(env: platform.IProcessEnvironment, locale: string | undefined): void {
+export function addTerminalEnvironmentKeys(env: ITerminalEnvironment, locale: string | undefined): void {
 	env['TERM_PROGRAM'] = 'vscode';
 	env['TERM_PROGRAM_VERSION'] = pkg.version;
 	env['LANG'] = _getLangEnvVariable(locale);
 }
 
-export function resolveConfigurationVariables(configurationResolverService: IConfigurationResolverService, env: platform.IProcessEnvironment, lastActiveWorkspaceRoot: IWorkspaceFolder): platform.IProcessEnvironment {
+export function resolveConfigurationVariables(configurationResolverService: IConfigurationResolverService, env: ITerminalEnvironment, lastActiveWorkspaceRoot: IWorkspaceFolder | null): ITerminalEnvironment {
 	Object.keys(env).forEach((key) => {
-		if (typeof env[key] === 'string') {
-			env[key] = configurationResolverService.resolve(lastActiveWorkspaceRoot, env[key]);
+		const value = env[key];
+		if (typeof value === 'string' && lastActiveWorkspaceRoot !== null) {
+			env[key] = configurationResolverService.resolve(lastActiveWorkspaceRoot, value);
 		}
 	});
 	return env;

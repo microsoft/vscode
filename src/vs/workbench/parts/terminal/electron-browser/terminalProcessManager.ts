@@ -37,7 +37,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	public shellProcessId: number;
 	public initialCwd: string;
 
-	private _process: ITerminalChildProcess;
+	private _process: ITerminalChildProcess | null = null;
 	private _preLaunchInputQueue: string[] = [];
 	private _disposables: IDisposable[] = [];
 
@@ -68,7 +68,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		});
 	}
 
-	public dispose(immediate?: boolean): void {
+	public dispose(immediate: boolean = false): void {
 		if (this._process) {
 			// If the process was still connected this dispose came from
 			// within VS Code, not the process, so mark the process as
@@ -108,8 +108,10 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 			const envFromShell = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...shellLaunchConfig.env }, lastActiveWorkspaceRoot);
 			shellLaunchConfig.env = envFromShell;
 
+			// Compell type system as process.env should not have any undefined entries
+			const env: platform.IProcessEnvironment = { ...process.env } as any;
+
 			// Merge process env with the env from config and from shellLaunchConfig
-			const env = { ...process.env };
 			terminalEnvironment.mergeEnvironments(env, envFromConfig);
 			terminalEnvironment.mergeEnvironments(env, shellLaunchConfig.env);
 
@@ -126,23 +128,26 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		}
 		this.processState = ProcessState.LAUNCHING;
 
-		this._process.onProcessData(data => {
+		// The process is non-null, but TS isn't clever enough to know
+		const p = this._process!;
+
+		p.onProcessData(data => {
 			this._onProcessData.fire(data);
 		});
 
-		this._process.onProcessIdReady(pid => {
+		p.onProcessIdReady(pid => {
 			this.shellProcessId = pid;
 			this._onProcessReady.fire();
 
 			// Send any queued data that's waiting
 			if (this._preLaunchInputQueue.length > 0) {
-				this._process.input(this._preLaunchInputQueue.join(''));
+				p.input(this._preLaunchInputQueue.join(''));
 				this._preLaunchInputQueue.length = 0;
 			}
 		});
 
-		this._process.onProcessTitleChanged(title => this._onProcessTitle.fire(title));
-		this._process.onProcessExit(exitCode => this._onExit(exitCode));
+		p.onProcessTitleChanged(title => this._onProcessTitle.fire(title));
+		p.onProcessExit(exitCode => this._onExit(exitCode));
 
 		setTimeout(() => {
 			if (this.processState === ProcessState.LAUNCHING) {

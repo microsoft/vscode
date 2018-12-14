@@ -124,6 +124,10 @@ export interface ITerminalFont {
 	charHeight?: number;
 }
 
+export interface ITerminalEnvironment {
+	[key: string]: string | null;
+}
+
 export interface IShellLaunchConfig {
 	/**
 	 * The name of the terminal, if this is not set the name of the process will be used.
@@ -152,7 +156,7 @@ export interface IShellLaunchConfig {
 	 * A custom environment for the terminal, if this is not set the environment will be inherited
 	 * from the VS Code process.
 	 */
-	env?: { [key: string]: string };
+	env?: ITerminalEnvironment;
 
 	/**
 	 * Whether to ignore a custom cwd from the `terminal.integrated.cwd` settings key (eg. if the
