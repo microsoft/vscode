@@ -49,7 +49,7 @@ export abstract class TreeElement {
 		return id;
 	}
 
-	static getElementById(id: string, element: TreeElement): TreeElement {
+	static getElementById(id: string, element: TreeElement): TreeElement | undefined {
 		if (!id) {
 			return undefined;
 		}
