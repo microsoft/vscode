@@ -466,6 +466,16 @@ function isWhitespaceAtPos(value: string, index: number): boolean {
 	}
 }
 
+function isPatternInWord(patternLow: string, patternPos: number, patternLen: number, wordLow: string, wordPos: number, wordLen: number): boolean {
+	while (patternPos < patternLen && wordPos < wordLen) {
+		if (patternLow[patternPos] === wordLow[wordPos]) {
+			patternPos += 1;
+		}
+		wordPos += 1;
+	}
+	return patternPos === patternLen; // pattern must be exhausted
+}
+
 const enum Arrow { Top = 0b1, Diag = 0b10, Left = 0b100 }
 
 export type FuzzyScore = [number, number[]];
@@ -474,7 +484,7 @@ export interface FuzzyScorer {
 	(pattern: string, lowPattern: string, patternPos: number, word: string, lowWord: string, wordPos: number, firstMatchCanBeWeak: boolean): FuzzyScore | undefined;
 }
 
-export function fuzzyScore(pattern: string, lowPattern: string, patternPos: number, word: string, lowWord: string, wordPos: number, firstMatchCanBeWeak: boolean): FuzzyScore | undefined {
+export function fuzzyScore(pattern: string, patternLow: string, patternPos: number, word: string, wordLow: string, wordPos: number, firstMatchCanBeWeak: boolean): FuzzyScore | undefined {
 
 	const patternLen = pattern.length > _maxLen ? _maxLen : pattern.length;
 	const wordLen = word.length > _maxLen ? _maxLen : word.length;
@@ -486,20 +496,11 @@ export function fuzzyScore(pattern: string, lowPattern: string, patternPos: numb
 	// Run a simple check if the characters of pattern occur
 	// (in order) at all in word. If that isn't the case we
 	// stop because no match will be possible
-	const patternStartPos = patternPos;
-	const wordStartPos = wordPos;
-	while (patternPos < patternLen && wordPos < wordLen) {
-		if (lowPattern[patternPos] === lowWord[wordPos]) {
-			patternPos += 1;
-		}
-		wordPos += 1;
-	}
-	if (patternPos !== patternLen) {
+	if (!isPatternInWord(patternLow, patternPos, patternLen, wordLow, wordPos, wordLen)) {
 		return undefined;
 	}
 
-	patternPos = patternStartPos;
-	wordPos = wordStartPos;
+	const patternStartPos = patternPos;
 
 	// There will be a mach, fill in tables
 	for (patternPos = patternStartPos + 1; patternPos <= patternLen; patternPos++) {
@@ -507,8 +508,8 @@ export function fuzzyScore(pattern: string, lowPattern: string, patternPos: numb
 		for (wordPos = 1; wordPos <= wordLen; wordPos++) {
 
 			let score = -1;
-			let lowWordChar = lowWord[wordPos - 1];
-			if (lowPattern[patternPos - 1] === lowWordChar) {
+			let lowWordChar = wordLow[wordPos - 1];
+			if (patternLow[patternPos - 1] === lowWordChar) {
 
 				if (wordPos === (patternPos - patternStartPos)) {
 					// common prefix: `foobar <-> foobaz`
@@ -517,14 +518,14 @@ export function fuzzyScore(pattern: string, lowPattern: string, patternPos: numb
 					} else {
 						score = 5;
 					}
-				} else if (lowWordChar !== word[wordPos - 1] && (wordPos === 1 || lowWord[wordPos - 2] === word[wordPos - 2])) {
+				} else if (lowWordChar !== word[wordPos - 1] && (wordPos === 1 || wordLow[wordPos - 2] === word[wordPos - 2])) {
 					// hitting upper-case: `foo <-> forOthers`
 					if (pattern[patternPos - 1] === word[wordPos - 1]) {
 						score = 7;
 					} else {
 						score = 5;
 					}
-				} else if (isSeparatorAtPos(lowWord, wordPos - 2) || isWhitespaceAtPos(lowWord, wordPos - 2)) {
+				} else if (isSeparatorAtPos(wordLow, wordPos - 2) || isWhitespaceAtPos(wordLow, wordPos - 2)) {
 					// post separator: `foo <-> bar_foo`
 					score = 5;
 
