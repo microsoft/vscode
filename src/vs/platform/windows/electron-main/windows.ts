@@ -29,22 +29,22 @@ export const enum WindowMode {
 }
 
 export interface ICodeWindow {
-	id: number;
-	win: Electron.BrowserWindow;
-	config: IWindowConfiguration;
+	readonly id: number;
+	readonly win: Electron.BrowserWindow;
+	readonly config: IWindowConfiguration;
 
-	openedFolderUri: URI;
-	openedWorkspace: IWorkspaceIdentifier;
-	backupPath: string;
+	readonly openedFolderUri: URI;
+	readonly openedWorkspace: IWorkspaceIdentifier;
+	readonly backupPath: string;
 
-	remoteAuthority: string;
+	readonly remoteAuthority: string;
 
-	isExtensionDevelopmentHost: boolean;
-	isExtensionTestHost: boolean;
+	readonly isExtensionDevelopmentHost: boolean;
+	readonly isExtensionTestHost: boolean;
 
-	lastFocusTime: number;
+	readonly lastFocusTime: number;
 
-	isReady: boolean;
+	readonly isReady: boolean;
 	ready(): Promise<ICodeWindow>;
 
 	addTabbedWindow(window: ICodeWindow): void;
@@ -79,19 +79,19 @@ export interface ICodeWindow {
 export const IWindowsMainService = createDecorator<IWindowsMainService>('windowsMainService');
 
 export interface IWindowsCountChangedEvent {
-	oldCount: number;
-	newCount: number;
+	readonly oldCount: number;
+	readonly newCount: number;
 }
 
 export interface IWindowsMainService {
 	_serviceBrand: any;
 
 	// events
-	onWindowReady: Event<ICodeWindow>;
-	onActiveWindowChanged: Event<ICodeWindow>;
-	onWindowsCountChanged: Event<IWindowsCountChangedEvent>;
-	onWindowClose: Event<number>;
-	onWindowReload: Event<number>;
+	readonly onWindowReady: Event<ICodeWindow>;
+	readonly onActiveWindowChanged: Event<ICodeWindow>;
+	readonly onWindowsCountChanged: Event<IWindowsCountChangedEvent>;
+	readonly onWindowClose: Event<number>;
+	readonly onWindowReload: Event<number>;
 
 	// methods
 	ready(initialUserEnv: IProcessEnvironment): void;
@@ -124,20 +124,20 @@ export interface IWindowsMainService {
 }
 
 export interface IOpenConfiguration {
-	context: OpenContext;
-	contextWindowId?: number;
-	cli: ParsedArgs;
-	userEnv?: IProcessEnvironment;
-	urisToOpen?: URI[];
-	preferNewWindow?: boolean;
-	forceNewWindow?: boolean;
-	forceNewTabbedWindow?: boolean;
-	forceReuseWindow?: boolean;
-	forceEmpty?: boolean;
-	diffMode?: boolean;
+	readonly context: OpenContext;
+	readonly contextWindowId?: number;
+	readonly cli: ParsedArgs;
+	readonly userEnv?: IProcessEnvironment;
+	readonly urisToOpen?: URI[];
+	readonly preferNewWindow?: boolean;
+	readonly forceNewWindow?: boolean;
+	readonly forceNewTabbedWindow?: boolean;
+	readonly forceReuseWindow?: boolean;
+	readonly forceEmpty?: boolean;
+	readonly diffMode?: boolean;
 	addMode?: boolean;
-	forceOpenWorkspaceAsFile?: boolean;
-	initialStartup?: boolean;
+	readonly forceOpenWorkspaceAsFile?: boolean;
+	readonly initialStartup?: boolean;
 }
 
 export interface ISharedProcess {
