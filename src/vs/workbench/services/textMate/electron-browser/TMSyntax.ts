@@ -25,6 +25,7 @@ import { IEmbeddedLanguagesMap, ITMSyntaxExtensionPoint, TokenTypesContribution,
 import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
 import { ITokenColorizationRule, IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IEmbeddedLanguagesMap as IEmbeddedLanguagesMap2, IGrammar, ITokenTypeMap, Registry, StackElement, StandardTokenType } from 'vscode-textmate';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 export class TMScopeRegistry {
 
@@ -132,46 +133,37 @@ interface ICreateGrammarResult {
 	containsEmbeddedLanguages: boolean;
 }
 
-export class TextMateService implements ITextMateService {
+export class TextMateService extends Disposable implements ITextMateService {
 	public _serviceBrand: any;
 
+	private readonly _onDidEncounterLanguage: Emitter<LanguageId> = this._register(new Emitter<LanguageId>());
+	public readonly onDidEncounterLanguage: Event<LanguageId> = this._onDidEncounterLanguage.event;
+
+	private readonly _styleElement: HTMLStyleElement;
+
 	private _grammarRegistry: Promise<[Registry, StackElement]> | null;
-	private _modeService: IModeService;
-	private _themeService: IWorkbenchThemeService;
-	private _fileService: IFileService;
-	private _logService: ILogService;
 	private _scopeRegistry: TMScopeRegistry;
 	private _injections: { [scopeName: string]: string[]; };
 	private _injectedEmbeddedLanguages: { [scopeName: string]: IEmbeddedLanguagesMap[]; };
-	private _notificationService: INotificationService;
-
 	private _languageToScope: Map<string, string>;
-	private _styleElement: HTMLStyleElement;
-
 	private _currentTokenColors: ITokenColorizationRule[];
 
-	public readonly onDidEncounterLanguage: Event<LanguageId>;
-
 	constructor(
-		@IModeService modeService: IModeService,
-		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
-		@IFileService fileService: IFileService,
-		@INotificationService notificationService: INotificationService,
-		@ILogService logService: ILogService,
-		@IExtensionService extensionService: IExtensionService
+		@IModeService private readonly _modeService: IModeService,
+		@IWorkbenchThemeService private readonly _themeService: IWorkbenchThemeService,
+		@IFileService private readonly _fileService: IFileService,
+		@INotificationService private readonly _notificationService: INotificationService,
+		@ILogService private readonly _logService: ILogService,
+		@IExtensionService private readonly _extensionService: IExtensionService
 	) {
+		super();
 		this._styleElement = dom.createStyleSheet();
 		this._styleElement.className = 'vscode-tokens-styles';
-		this._modeService = modeService;
-		this._themeService = themeService;
-		this._fileService = fileService;
-		this._logService = logService;
 		this._scopeRegistry = new TMScopeRegistry();
-		this.onDidEncounterLanguage = this._scopeRegistry.onDidEncounterLanguage;
+		this._scopeRegistry.onDidEncounterLanguage((language) => this._onDidEncounterLanguage.fire(language));
 		this._injections = {};
 		this._injectedEmbeddedLanguages = {};
 		this._languageToScope = new Map<string, string>();
-		this._notificationService = notificationService;
 
 		this._grammarRegistry = null;
 
@@ -204,7 +196,7 @@ export class TextMateService implements ITextMateService {
 		this._modeService.onDidCreateMode((mode) => {
 			let modeId = mode.getId();
 			// Modes can be instantiated before the extension points have finished registering
-			extensionService.whenInstalledExtensionsRegistered().then(() => {
+			this._extensionService.whenInstalledExtensionsRegistered().then(() => {
 				if (this._languageToScope.has(modeId)) {
 					this.registerDefinition(modeId);
 				}
