@@ -48,8 +48,4 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 		this.contextMenuHandler.showContextMenu(delegate);
 		this._onDidContextMenu.fire();
 	}
-
-	hideContextMenu(): void {
-		this.contextMenuHandler.hideContextMenu();
-	}
 }
