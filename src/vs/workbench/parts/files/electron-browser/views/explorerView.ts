@@ -230,7 +230,7 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 		}));
 	}
 
-	@memoize getActions(): IAction[] {
+	getActions(): IAction[] {
 		const actions: Action[] = [];
 
 		actions.push(this.instantiationService.createInstance(NewFileAction, this.tree, this._editableExplorerItems, null));
