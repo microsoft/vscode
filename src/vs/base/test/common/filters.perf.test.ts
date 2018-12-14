@@ -7,7 +7,7 @@ import { data } from './filters.perf.data';
 
 const patterns = ['cci', 'ida', 'pos', 'CCI', 'enbled', 'callback', 'gGame', 'cons'];
 
-const _enablePerf = false;
+const _enablePerf = true;
 
 function perfSuite(name: string, callback: (this: Mocha.ISuiteCallbackContext) => void) {
 	if (_enablePerf) {
@@ -43,3 +43,28 @@ perfSuite('Performance - fuzzyMatch', function () {
 	perfTest('fuzzyScoreGracefulAggressive', filters.fuzzyScoreGracefulAggressive);
 });
 
+
+perfSuite('Performance - IFilter', function () {
+
+	function perfTest(name: string, match: filters.IFilter) {
+		test(name, () => {
+
+			const t1 = Date.now();
+			let count = 0;
+			for (const pattern of patterns) {
+				for (const item of data) {
+					count += 1;
+					match(item, pattern);
+				}
+			}
+			const d = Date.now() - t1;
+			console.log(name, `${d}ms, ${Math.round(count / d) * 15}ops/15ms`);
+		});
+	}
+
+	perfTest('matchesFuzzy', filters.matchesFuzzy);
+	perfTest('matchesFuzzy2', filters.matchesFuzzy2);
+	perfTest('matchesPrefix', filters.matchesPrefix);
+	perfTest('matchesContiguousSubString', filters.matchesContiguousSubString);
+	perfTest('matchesCamelCase', filters.matchesCamelCase);
+});

@@ -343,14 +343,20 @@ export function matchesFuzzy(word: string, wordToMatchAgainst: string, enableSep
 	return enableSeparateSubstringMatching ? fuzzySeparateFilter(word, wordToMatchAgainst) : fuzzyContiguousFilter(word, wordToMatchAgainst);
 }
 
-export function anyScore(pattern: string, word: string, patternMaxWhitespaceIgnore?: number): FuzzyScore {
-	pattern = pattern.toLowerCase();
-	word = word.toLowerCase();
+export function matchesFuzzy2(word: string, wordToMatchAgainst: string): IMatch[] | null {
+	let score = fuzzyScore(word, word.toLowerCase(), 0, wordToMatchAgainst, wordToMatchAgainst.toLowerCase(), 0, false);
+	return score ? createMatches(score) : null;
+}
 
+export function anyScore(pattern: string, lowPattern: string, _patternPos: number, word: string, lowWord: string, _wordPos: number): FuzzyScore {
+	const result = fuzzyScore(pattern, lowPattern, 0, word, lowWord, 0, true);
+	if (result) {
+		return result;
+	}
 	const matches: number[] = [];
 	let idx = 0;
-	for (let pos = 0; pos < pattern.length; ++pos) {
-		const thisIdx = word.indexOf(pattern.charAt(pos), idx);
+	for (let pos = 0; pos < lowPattern.length; ++pos) {
+		const thisIdx = lowWord.indexOf(lowPattern.charAt(pos), idx);
 		if (thisIdx >= 0) {
 			matches.push(thisIdx);
 			idx = thisIdx + 1;
@@ -361,7 +367,7 @@ export function anyScore(pattern: string, word: string, patternMaxWhitespaceIgno
 
 //#region --- fuzzyScore ---
 
-export function createMatches(offsetOrScore: number[] | FuzzyScore): IMatch[] {
+export function createMatches(offsetOrScore: undefined | number[] | FuzzyScore): IMatch[] {
 	let ret: IMatch[] = [];
 	if (!offsetOrScore) {
 		return ret;

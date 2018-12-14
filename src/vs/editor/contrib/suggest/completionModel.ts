@@ -218,7 +218,7 @@ export class CompletionModel {
 						continue; // NO match
 					}
 					item.score = match[0];
-					item.matches = (fuzzyScore(word, wordLow, 0, item.completion.label, item.labelLow, 0, true) || anyScore(word, item.completion.label))[1];
+					item.matches = anyScore(word, wordLow, 0, item.completion.label, item.labelLow, 0)[1];
 
 				} else {
 					// by default match `word` against the `label`
