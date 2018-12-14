@@ -52,11 +52,19 @@ export function activate(context: ExtensionContext) {
 	let tagPaths: string[] = workspace.getConfiguration('html').get('experimental.custom.tags', []);
 	let attributePaths: string[] = workspace.getConfiguration('html').get('experimental.custom.attributes', []);
 
-	if (tagPaths) {
-		const workspaceRoot = workspace.workspaceFolders![0].uri.fsPath;
-		tagPaths = tagPaths.map(d => {
-			return path.resolve(workspaceRoot, d);
-		});
+	if (tagPaths && tagPaths.length > 0) {
+		if (!workspace.workspaceFolders) {
+			tagPaths = [];
+		} else {
+			try {
+				const workspaceRoot = workspace.workspaceFolders[0].uri.fsPath;
+				tagPaths = tagPaths.map(d => {
+					return path.resolve(workspaceRoot, d);
+				});
+			} catch (err) {
+				tagPaths = [];
+			}
+		}
 	}
 
 	// Options to control the language client
