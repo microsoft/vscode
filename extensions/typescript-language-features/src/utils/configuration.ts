@@ -5,6 +5,7 @@
 import * as vscode from 'vscode';
 import * as arrays from './arrays';
 import * as os from 'os';
+import * as path from 'path';
 
 export enum TsServerLogLevel {
 	Off,
@@ -85,11 +86,10 @@ export class TypeScriptServiceConfiguration {
 	}
 
 	private static fixPathPrefixes(inspectValue: string): string {
-		const pathPrefixes = ['~/'];
+		const pathPrefixes = ['~' + path.sep];
 		for (const pathPrefix of pathPrefixes) {
 			if (inspectValue.startsWith(pathPrefix)) {
-				const homedir = os.homedir().concat('/');
-				return inspectValue.replace(pathPrefix, homedir);
+				return path.join(os.homedir(), inspectValue.slice(pathPrefix.length));
 			}
 		}
 		return inspectValue;
