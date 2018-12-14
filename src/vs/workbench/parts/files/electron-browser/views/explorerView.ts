@@ -377,12 +377,6 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 	}
 
 	private createTree(container: HTMLElement): void {
-		// TODO@isidor missing features
-		// const controller = this.instantiationService.createInstance(FileController);
-		// this.disposables.push(controller);
-		// const sorter = this.instantiationService.createInstance(FileSorter);
-		// this.disposables.push(sorter);
-		// const dnd = this.instantiationService.createInstance(FileDragAndDrop);
 		this.filter = this.instantiationService.createInstance(FilesFilter);
 		this.disposables.push(this.filter);
 		const filesRenderer = this.instantiationService.createInstance(FilesRenderer, this._editableExplorerItems);
@@ -402,7 +396,6 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
 
 		this.disposables.push(this.tree);
-		filesRenderer.acquireTree(this.tree);
 		// Bind context keys
 		FilesExplorerFocusedContext.bindTo(this.tree.contextKeyService);
 		ExplorerFocusedContext.bindTo(this.tree.contextKeyService);

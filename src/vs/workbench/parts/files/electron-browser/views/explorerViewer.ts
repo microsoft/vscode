@@ -32,7 +32,6 @@ import { once } from 'vs/base/common/functional';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { normalize, join, nativeSep } from 'vs/base/common/paths';
 import { rtrim } from 'vs/base/common/strings';
-import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { equals, deepClone } from 'vs/base/common/objects';
 import * as path from 'path';
 
@@ -147,7 +146,6 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, void, IFileTem
 	private state: EditableExplorerItems;
 	private config: IFilesConfiguration;
 	private configListener: IDisposable;
-	private tree: WorkbenchAsyncDataTree<ExplorerItem>;
 
 	constructor(
 		state: EditableExplorerItems,
@@ -169,10 +167,6 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, void, IFileTem
 
 	get templateId(): string {
 		return FilesRenderer.ID;
-	}
-
-	acquireTree(tree: WorkbenchAsyncDataTree<ExplorerItem>): void {
-		this.tree = tree;
 	}
 
 	renderTemplate(container: HTMLElement): IFileTemplateData {
@@ -244,18 +238,18 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, void, IFileTem
 		inputBox.select({ start: 0, end: lastDot > 0 && !stat.isDirectory ? lastDot : value.length });
 		inputBox.focus();
 
-		const done = once((commit: boolean, blur: boolean) => {
+		const done = once(async (commit: boolean, blur: boolean) => {
 			label.element.style.display = 'none';
 			if (stat instanceof NewStatPlaceholder) {
 				stat.destroy();
 			}
 
 			if (commit && inputBox.value) {
-				editableData.action.run({ value: inputBox.value });
+				await editableData.action.run({ value: inputBox.value });
 			}
 			dispose(toDispose);
 			container.removeChild(label.element);
-			this.tree.refresh(stat.parent).then(() => this.tree.domFocus());
+			// todo@isidor need to unset editable data
 		});
 
 		const toDispose = [
