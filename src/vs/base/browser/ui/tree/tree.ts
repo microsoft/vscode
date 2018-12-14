@@ -89,9 +89,14 @@ export interface ITreeNode<T, TFilterData = void> {
 	readonly filterData: TFilterData | undefined;
 }
 
+export interface ICollapseStateChangeEvent<T, TFilterData> {
+	node: ITreeNode<T, TFilterData>;
+	deep: boolean;
+}
+
 export interface ITreeModel<T, TFilterData, TRef> {
 	readonly rootRef: TRef;
-	readonly onDidChangeCollapseState: Event<ITreeNode<T, TFilterData>>;
+	readonly onDidChangeCollapseState: Event<ICollapseStateChangeEvent<T, TFilterData>>;
 	readonly onDidChangeRenderNodeCount: Event<ITreeNode<T, TFilterData>>;
 
 	getListIndex(location: TRef): number;

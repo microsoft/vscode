@@ -6,7 +6,7 @@
 import { ComposedTreeDelegate, IAbstractTreeOptions } from 'vs/base/browser/ui/tree/abstractTree';
 import { ObjectTree, IObjectTreeOptions } from 'vs/base/browser/ui/tree/objectTree';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { ITreeElement, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
+import { ITreeElement, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeSorter, ICollapseStateChangeEvent } from 'vs/base/browser/ui/tree/tree';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { timeout, always } from 'vs/base/common/async';
@@ -193,7 +193,6 @@ export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> imple
 	get onDidChangeFocus(): Event<ITreeEvent<T>> { return Event.map(this.tree.onDidChangeFocus, asTreeEvent); }
 	get onDidChangeSelection(): Event<ITreeEvent<T>> { return Event.map(this.tree.onDidChangeSelection, asTreeEvent); }
 	get onDidOpen(): Event<ITreeEvent<T>> { return Event.map(this.tree.onDidOpen, asTreeEvent); }
-	get onDidChangeCollapseState(): Event<T> { return Event.map(this.tree.onDidChangeCollapseState, e => e.element!.element!); }
 
 	private readonly _onDidResolveChildren = new Emitter<IChildrenResolutionEvent<T>>();
 	readonly onDidResolveChildren: Event<IChildrenResolutionEvent<T>> = this._onDidResolveChildren.event;
@@ -496,9 +495,13 @@ export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> imple
 		}
 	}
 
-	private _onDidChangeCollapseState(treeNode: ITreeNode<IAsyncDataTreeNode<T>, any>): void {
-		if (!treeNode.collapsed && treeNode.element.state === AsyncDataTreeNodeState.Uninitialized) {
-			this.refreshNode(treeNode.element, false, ChildrenResolutionReason.Expand);
+	private _onDidChangeCollapseState({ node, deep }: ICollapseStateChangeEvent<IAsyncDataTreeNode<T>, any>): void {
+		if (!node.collapsed && node.element.state === AsyncDataTreeNodeState.Uninitialized) {
+			if (deep) {
+				this.collapse(node.element.element!);
+			} else {
+				this.refreshNode(node.element, false, ChildrenResolutionReason.Expand);
+			}
 		}
 	}
 

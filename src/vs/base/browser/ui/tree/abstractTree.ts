@@ -11,7 +11,7 @@ import { append, $, toggleClass } from 'vs/base/browser/dom';
 import { Event, Relay } from 'vs/base/common/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { ITreeModel, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeFilter, ITreeNavigator } from 'vs/base/browser/ui/tree/tree';
+import { ITreeModel, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeFilter, ITreeNavigator, ICollapseStateChangeEvent } from 'vs/base/browser/ui/tree/tree';
 import { ISpliceable } from 'vs/base/common/sequence';
 
 function asListOptions<T, TFilterData>(options?: IAbstractTreeOptions<T, TFilterData>): IListOptions<ITreeNode<T, TFilterData>> | undefined {
@@ -74,11 +74,11 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 
 	constructor(
 		private renderer: ITreeRenderer<T, TFilterData, TTemplateData>,
-		onDidChangeCollapseState: Event<ITreeNode<T, TFilterData>>
+		onDidChangeCollapseState: Event<ICollapseStateChangeEvent<T, TFilterData>>
 	) {
 		this.templateId = renderer.templateId;
 
-		onDidChangeCollapseState(this.onDidChangeNodeTwistieState, this, this.disposables);
+		Event.map(onDidChangeCollapseState, e => e.node)(this.onDidChangeNodeTwistieState, this, this.disposables);
 
 		if (renderer.onDidChangeTwistieState) {
 			renderer.onDidChangeTwistieState(this.onDidChangeTwistieState, this, this.disposables);
@@ -204,7 +204,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	get onDidFocus(): Event<void> { return this.view.onDidFocus; }
 	get onDidBlur(): Event<void> { return this.view.onDidBlur; }
 
-	get onDidChangeCollapseState(): Event<ITreeNode<T, TFilterData>> { return this.model.onDidChangeCollapseState; }
+	get onDidChangeCollapseState(): Event<ICollapseStateChangeEvent<T, TFilterData>> { return this.model.onDidChangeCollapseState; }
 	get onDidChangeRenderNodeCount(): Event<ITreeNode<T, TFilterData>> { return this.model.onDidChangeRenderNodeCount; }
 
 	get onDidDispose(): Event<void> { return this.view.onDidDispose; }
@@ -217,7 +217,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	) {
 		const treeDelegate = new ComposedTreeDelegate<T, ITreeNode<T, TFilterData>>(delegate);
 
-		const onDidChangeCollapseStateRelay = new Relay<ITreeNode<T, TFilterData>>();
+		const onDidChangeCollapseStateRelay = new Relay<ICollapseStateChangeEvent<T, TFilterData>>();
 		const treeRenderers = renderers.map(r => new TreeRenderer<T, TFilterData, any>(r, onDidChangeCollapseStateRelay.event));
 		this.disposables.push(...treeRenderers);
 

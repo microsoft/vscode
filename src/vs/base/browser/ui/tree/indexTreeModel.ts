@@ -7,7 +7,7 @@ import { ISpliceable } from 'vs/base/common/sequence';
 import { Iterator, ISequence } from 'vs/base/common/iterator';
 import { Emitter, Event, EventBufferer } from 'vs/base/common/event';
 import { tail2 } from 'vs/base/common/arrays';
-import { ITreeFilterDataResult, TreeVisibility, ITreeFilter, ITreeModel, ITreeNode, ITreeElement } from 'vs/base/browser/ui/tree/tree';
+import { ITreeFilterDataResult, TreeVisibility, ITreeFilter, ITreeModel, ITreeNode, ITreeElement, ICollapseStateChangeEvent } from 'vs/base/browser/ui/tree/tree';
 
 interface IMutableTreeNode<T, TFilterData> extends ITreeNode<T, TFilterData> {
 	readonly parent: IMutableTreeNode<T, TFilterData> | undefined;
@@ -48,10 +48,10 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 	readonly rootRef = [];
 
 	private root: IMutableTreeNode<T, TFilterData>;
-	private eventBufferer = new EventBufferer(); // TODO@joao is this really necessary
+	private eventBufferer = new EventBufferer();
 
-	private _onDidChangeCollapseState = new Emitter<ITreeNode<T, TFilterData>>();
-	readonly onDidChangeCollapseState: Event<ITreeNode<T, TFilterData>> = this.eventBufferer.wrapEvent(this._onDidChangeCollapseState.event);
+	private _onDidChangeCollapseState = new Emitter<ICollapseStateChangeEvent<T, TFilterData>>();
+	readonly onDidChangeCollapseState: Event<ICollapseStateChangeEvent<T, TFilterData>> = this.eventBufferer.wrapEvent(this._onDidChangeCollapseState.event);
 
 	private _onDidChangeRenderNodeCount = new Emitter<ITreeNode<T, TFilterData>>();
 	readonly onDidChangeRenderNodeCount: Event<ITreeNode<T, TFilterData>> = this.eventBufferer.wrapEvent(this._onDidChangeRenderNodeCount.event);
@@ -62,6 +62,8 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 	constructor(private list: ISpliceable<ITreeNode<T, TFilterData>>, rootElement: T, options: IIndexTreeModelOptions<T, TFilterData> = {}) {
 		this.collapseByDefault = typeof options.collapseByDefault === 'undefined' ? false : options.collapseByDefault;
 		this.filter = options.filter;
+
+		// this.onDidChangeCollapseState(node => console.log(node.collapsed, node));
 
 		this.root = {
 			parent: undefined,
@@ -140,11 +142,13 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 			collapsed = !node.collapsed;
 		}
 
-		return this._setCollapsed(node, listIndex, revealed, collapsed, recursive || false);
+		return this.eventBufferer.bufferEvents(() => {
+			return this._setCollapsed(node, listIndex, revealed, collapsed!, recursive || false);
+		});
 	}
 
 	private _setCollapsed(node: IMutableTreeNode<T, TFilterData>, listIndex: number, revealed: boolean, collapsed: boolean, recursive: boolean): boolean {
-		const result = this._setNodeCollapsed(node, collapsed, recursive);
+		const result = this._setNodeCollapsed(node, collapsed, recursive, false);
 
 		if (!revealed || !node.visible) {
 			return result;
@@ -152,25 +156,26 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 
 		const previousRenderNodeCount = node.renderNodeCount;
 		const toInsert = this.updateNodeAfterCollapseChange(node);
-
 		const deleteCount = previousRenderNodeCount - (listIndex === -1 ? 0 : 1);
-
 		this.list.splice(listIndex + 1, deleteCount, toInsert.slice(1));
-		this._onDidChangeCollapseState.fire(node);
 
 		return result;
 	}
 
-	private _setNodeCollapsed(node: IMutableTreeNode<T, TFilterData>, collapsed: boolean, recursive: boolean): boolean {
+	private _setNodeCollapsed(node: IMutableTreeNode<T, TFilterData>, collapsed: boolean, recursive: boolean, deep: boolean): boolean {
 		let result = node.collapsible && node.collapsed !== collapsed;
 
 		if (node.collapsible) {
 			node.collapsed = collapsed;
+
+			if (result) {
+				this._onDidChangeCollapseState.fire({ node, deep });
+			}
 		}
 
 		if (recursive) {
 			for (const child of node.children) {
-				result = this._setNodeCollapsed(child, collapsed, true) || result;
+				result = this._setNodeCollapsed(child, collapsed, true, true) || result;
 			}
 		}
 
