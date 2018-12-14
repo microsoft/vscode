@@ -38,7 +38,7 @@ import { WorkbenchAsyncDataTree, IListService } from 'vs/platform/list/browser/l
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { Schemas } from 'vs/base/common/network';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IViewletPanelOptions, ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ExplorerDelegate, ExplorerAccessibilityProvider, ExplorerDataSource, FilesRenderer, EditableExplorerItems as EditableExplorerItems, FilesFilter } from 'vs/workbench/parts/files/electron-browser/views/explorerViewer';
@@ -183,8 +183,7 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 		return FileCopiedContext.bindTo(this.contextKeyService);
 	}
 
-	@memoize
-	private get model(): Model {
+	@memoize private get model(): Model {
 		const model = this.instantiationService.createInstance(Model);
 		this.disposables.push(model);
 
@@ -424,12 +423,18 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 		// Open when selecting via keyboard
 		this.disposables.push(this.tree.onDidChangeSelection(e => {
 			const selection = e.elements;
-			if (selection && selection.length) {
-				// TODO@Isidor check this, and add side by side, focus passing
-				const stat = selection[0];
+			// Do not react if the user is expanding selection
+			if (selection && selection.length === 1) {
+				let isDoubleClick = false;
+				let sideBySide = false;
+				if (e.browserEvent instanceof MouseEvent) {
+					isDoubleClick = e.browserEvent.detail === 2;
+					sideBySide = this.tree.useAltAsMultipleSelectionModifier ? (e.browserEvent.ctrlKey || e.browserEvent.metaKey) : e.browserEvent.altKey;
+				}
 
-				if (!stat.isDirectory) {
-					this.editorService.openEditor({ resource: stat.resource });
+				if (!selection[0].isDirectory) {
+					// Pass focus for keyboard events and for double click
+					this.editorService.openEditor({ resource: selection[0].resource, options: { preserveFocus: !isDoubleClick, pinned: isDoubleClick } }, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 				}
 			}
 		}));
