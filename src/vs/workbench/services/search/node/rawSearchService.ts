@@ -394,6 +394,9 @@ export class SearchService implements IRawSearchService {
 			catch(reject?) {
 				return this.then(undefined, reject);
 			}
+			finally(onFinally) {
+				return promise.finally(onFinally);
+			}
 		};
 	}
 }
