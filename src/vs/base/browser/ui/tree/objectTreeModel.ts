@@ -118,9 +118,9 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 		return this.model.isCollapsed(location);
 	}
 
-	setCollapsed(element: T, collapsed: boolean): boolean {
+	setCollapsed(element: T, collapsed?: boolean, recursive?: boolean): boolean {
 		const location = this.getElementLocation(element);
-		return this.model.setCollapsed(location, collapsed);
+		return this.model.setCollapsed(location, collapsed, recursive);
 	}
 
 	refilter(): void {

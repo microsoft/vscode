@@ -133,7 +133,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		return this.getTreeNode(location).collapsed;
 	}
 
-	setCollapsed(location: number[], collapsed?: boolean, recursive = false): boolean {
+	setCollapsed(location: number[], collapsed?: boolean, recursive?: boolean): boolean {
 		const { node, listIndex, revealed } = this.getTreeNodeWithListIndex(location);
 
 		if (typeof collapsed === 'undefined') {
