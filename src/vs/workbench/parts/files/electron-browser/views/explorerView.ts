@@ -48,6 +48,7 @@ import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export interface IExplorerViewOptions extends IViewletViewOptions {
 	fileViewletState: EditableExplorerItems;
@@ -103,7 +104,8 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 		@IThemeService private themeService: IWorkbenchThemeService,
 		@IListService private listService: IListService,
 		@IMenuService private menuService: IMenuService,
-		@IClipboardService private clipboardService: IClipboardService
+		@IClipboardService private clipboardService: IClipboardService,
+		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		super({ ...(options as IViewletPanelOptions), id: ExplorerView.ID, ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService);
 
@@ -434,6 +436,12 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 
 				if (!selection[0].isDirectory) {
 					// Pass focus for keyboard events and for double click
+					/* __GDPR__
+					"workbenchActionExecuted" : {
+						"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}*/
+					this.telemetryService.publicLog('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'explorer' });
 					this.editorService.openEditor({ resource: selection[0].resource, options: { preserveFocus: !isDoubleClick, pinned: isDoubleClick } }, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 				}
 			}
@@ -541,7 +549,7 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 				const modelElements = this.model.findAll(oldResource);
 				modelElements.forEach(modelElement => {
 					//Check if element is expanded
-					isExpanded = this.tree.isExpanded(modelElement);
+					isExpanded = !this.tree.isCollapsed(modelElement);
 					// Rename File (Model)
 					modelElement.rename(newElement);
 
