@@ -1405,7 +1405,7 @@ export interface ITokenizationRegistry {
 	/**
 	 * Register a promise for a tokenization support.
 	 */
-	registerPromise(language: string, promise: Thenable<ITokenizationSupport>): Thenable<IDisposable>;
+	registerPromise(language: string, promise: Thenable<ITokenizationSupport>): IDisposable;
 
 	/**
 	 * Get the tokenization support for a language.

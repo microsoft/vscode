@@ -19,13 +19,12 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { IEmbeddedLanguagesMap, ITMSyntaxExtensionPoint, TokenTypesContribution, grammarsExtPoint } from 'vs/workbench/services/textMate/electron-browser/TMGrammars';
 import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
 import { ITokenColorizationRule, IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IEmbeddedLanguagesMap as IEmbeddedLanguagesMap2, IGrammar, ITokenTypeMap, Registry, StackElement, StandardTokenType } from 'vscode-textmate';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export class TMScopeRegistry {
 
@@ -36,6 +35,10 @@ export class TMScopeRegistry {
 	public readonly onDidEncounterLanguage: Event<LanguageId> = this._onDidEncounterLanguage.event;
 
 	constructor() {
+		this.reset();
+	}
+
+	public reset(): void {
 		this._scopeNameToLanguageRegistration = Object.create(null);
 		this._encounteredLanguages = [];
 	}
@@ -140,40 +143,54 @@ export class TextMateService extends Disposable implements ITextMateService {
 	public readonly onDidEncounterLanguage: Event<LanguageId> = this._onDidEncounterLanguage.event;
 
 	private readonly _styleElement: HTMLStyleElement;
+	private readonly _createdModes: string[];
 
 	private _scopeRegistry: TMScopeRegistry;
 	private _injections: { [scopeName: string]: string[]; };
 	private _injectedEmbeddedLanguages: { [scopeName: string]: IEmbeddedLanguagesMap[]; };
 	private _languageToScope: Map<string, string>;
 	private _grammarRegistry: Promise<[Registry, StackElement]> | null;
+	private _tokenizersRegistrations: IDisposable[];
 
-	private _currentTokenColors: ITokenColorizationRule[];
+	private _currentTokenColors: ITokenColorizationRule[] | null;
 
 	constructor(
 		@IModeService private readonly _modeService: IModeService,
 		@IWorkbenchThemeService private readonly _themeService: IWorkbenchThemeService,
 		@IFileService private readonly _fileService: IFileService,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@ILogService private readonly _logService: ILogService,
-		@IExtensionService private readonly _extensionService: IExtensionService
+		@ILogService private readonly _logService: ILogService
 	) {
 		super();
 		this._styleElement = dom.createStyleSheet();
 		this._styleElement.className = 'vscode-tokens-styles';
+		this._createdModes = [];
 		this._scopeRegistry = new TMScopeRegistry();
 		this._scopeRegistry.onDidEncounterLanguage((language) => this._onDidEncounterLanguage.fire(language));
 		this._injections = {};
 		this._injectedEmbeddedLanguages = {};
 		this._languageToScope = new Map<string, string>();
 		this._grammarRegistry = null;
+		this._tokenizersRegistrations = [];
 		this._currentTokenColors = null;
 
 		grammarsExtPoint.setHandler((extensions) => {
+			this._scopeRegistry.reset();
+			this._injections = {};
+			this._injectedEmbeddedLanguages = {};
+			this._languageToScope = new Map<string, string>();
+			this._grammarRegistry = null;
+			this._tokenizersRegistrations = dispose(this._tokenizersRegistrations);
+
 			for (let i = 0; i < extensions.length; i++) {
 				let grammars = extensions[i].value;
 				for (let j = 0; j < grammars.length; j++) {
 					this._handleGrammarExtensionPointUser(extensions[i].description.extensionLocation, grammars[j], extensions[i].collector);
 				}
+			}
+
+			for (let i = 0; i < this._createdModes.length; i++) {
+				this._registerDefinitionIfAvailable(this._createdModes[i]);
 			}
 		});
 
@@ -196,11 +213,21 @@ export class TextMateService extends Disposable implements ITextMateService {
 
 		this._modeService.onDidCreateMode((mode) => {
 			let modeId = mode.getId();
-			// Modes can be instantiated before the extension points have finished registering
-			this._extensionService.whenInstalledExtensionsRegistered().then(() => {
-				this._registerDefinitionIfAvailable(modeId);
-			});
+			this._createdModes.push(modeId);
+			this._registerDefinitionIfAvailable(modeId);
 		});
+	}
+
+	private _registerDefinitionIfAvailable(modeId: string): void {
+		if (this._languageToScope.has(modeId)) {
+			const promise = this._createGrammar(modeId).then((r) => {
+				return new TMTokenization(this._scopeRegistry, r.languageId, r.grammar, r.initialState, r.containsEmbeddedLanguages, this._notificationService);
+			}, e => {
+				onUnexpectedError(e);
+				return null;
+			});
+			this._tokenizersRegistrations.push(TokenizationRegistry.registerPromise(modeId, promise));
+		}
 	}
 
 	private _getOrCreateGrammarRegistry(): Promise<[Registry, StackElement]> {
@@ -283,7 +310,6 @@ export class TextMateService extends Disposable implements ITextMateService {
 		}
 		return false;
 	}
-
 
 	private _handleGrammarExtensionPointUser(extensionLocation: URI, syntax: ITMSyntaxExtensionPoint, collector: ExtensionMessageCollector): void {
 		if (syntax.language && ((typeof syntax.language !== 'string') || !this._modeService.isRegisteredMode(syntax.language))) {
@@ -394,18 +420,6 @@ export class TextMateService extends Disposable implements ITextMateService {
 				};
 			});
 		});
-	}
-
-	private _registerDefinitionIfAvailable(modeId: string): void {
-		if (this._languageToScope.has(modeId)) {
-			const promise = this._createGrammar(modeId).then((r) => {
-				return new TMTokenization(this._scopeRegistry, r.languageId, r.grammar, r.initialState, r.containsEmbeddedLanguages, this._notificationService);
-			}, e => {
-				onUnexpectedError(e);
-				return null;
-			});
-			TokenizationRegistry.registerPromise(modeId, promise);
-		}
 	}
 }
 
