@@ -55,11 +55,9 @@ export interface IExplorerViewOptions extends IViewletViewOptions {
 
 export class ExplorerView extends ViewletPanel implements IExplorerView {
 
-	public static readonly ID: string = 'workbench.explorer.fileView';
+	static readonly ID: string = 'workbench.explorer.fileView';
 	private static readonly EXPLORER_FILE_CHANGES_REACT_DELAY = 500; // delay in ms to react to file changes to give our internal events a chance to react first
 	private static readonly EXPLORER_FILE_CHANGES_REFRESH_DELAY = 100; // delay in ms to refresh the explorer from disk file changes
-
-	public readonly id: string = ExplorerView.ID;
 
 	private tree: WorkbenchAsyncDataTree<ExplorerItem>;
 	private filter: FilesFilter;
@@ -73,14 +71,12 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 	private readonlyContext: IContextKey<boolean>;
 	private rootContext: IContextKey<boolean>;
 
-	private fileEventsFilter: ResourceGlobMatcher;
-
 	private shouldRefresh: boolean;
-	private autoReveal: boolean;
 	private sortOrder: SortOrder;
 	private dragHandler: DelayedDragHandler;
 	private decorationProvider: ExplorerDecorationsProvider;
-	private isDisposed: boolean;
+	private autoReveal = false;
+	private isDisposed = false;
 
 	constructor(
 		options: IExplorerViewOptions,
@@ -102,11 +98,9 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 		@IMenuService private menuService: IMenuService,
 		@IClipboardService private clipboardService: IClipboardService
 	) {
-		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService);
+		super({ ...(options as IViewletPanelOptions), id: ExplorerView.ID, ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService);
 
 		this._editableExplorerItems = new EditableExplorerItems();
-		this.autoReveal = true;
-
 		this.explorerRefreshDelayer = new ThrottledDelayer<void>(ExplorerView.EXPLORER_FILE_CHANGES_REFRESH_DELAY);
 
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
@@ -114,12 +108,6 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 		this.folderContext = ExplorerFolderContext.bindTo(contextKeyService);
 		this.readonlyContext = ExplorerResourceReadonlyContext.bindTo(contextKeyService);
 		this.rootContext = ExplorerRootContext.bindTo(contextKeyService);
-
-		this.fileEventsFilter = instantiationService.createInstance(
-			ResourceGlobMatcher,
-			(root: URI) => this.getFileEventsExcludes(root),
-			(event: IConfigurationChangeEvent) => event.affectsConfiguration(FILES_EXCLUDE_CONFIG)
-		);
 
 		this.decorationProvider = new ExplorerDecorationsProvider(this.model, contextService);
 		decorationService.registerDecorationsProvider(this.decorationProvider);
@@ -172,6 +160,38 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 	get editableExplorerItems(): EditableExplorerItems {
 		return this._editableExplorerItems;
 	}
+
+	// Memoized locals
+	@memoize private get fileEventsFilter(): ResourceGlobMatcher {
+		const fileEventsFilter = this.instantiationService.createInstance(
+			ResourceGlobMatcher,
+			(root: URI) => this.getFileEventsExcludes(root),
+			(event: IConfigurationChangeEvent) => event.affectsConfiguration(FILES_EXCLUDE_CONFIG)
+		);
+		this.disposables.push(fileEventsFilter);
+
+		return fileEventsFilter;
+	}
+
+	@memoize private get contributedContextMenu(): IMenu {
+		const contributedContextMenu = this.menuService.createMenu(MenuId.ExplorerContext, this.tree.contextKeyService);
+		this.disposables.push(contributedContextMenu);
+		return contributedContextMenu;
+	}
+
+	@memoize private get fileCopiedContextKey(): IContextKey<boolean> {
+		return FileCopiedContext.bindTo(this.contextKeyService);
+	}
+
+	@memoize
+	private get model(): Model {
+		const model = this.instantiationService.createInstance(Model);
+		this.disposables.push(model);
+
+		return model;
+	}
+
+	// Split view methods
 
 	render(): void {
 		super.render();
@@ -260,36 +280,6 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 		}
 	}
 
-	private onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): void {
-		if (this.isDisposed) {
-			return; // guard against possible race condition when config change causes recreate of views
-		}
-
-		this.autoReveal = configuration && configuration.explorer && configuration.explorer.autoReveal;
-
-		// Push down config updates to components of viewer
-		let needsRefresh = false;
-		if (this.filter) {
-			needsRefresh = this.filter.updateConfiguration();
-		}
-
-		const configSortOrder = configuration && configuration.explorer && configuration.explorer.sortOrder || 'default';
-		if (this.sortOrder !== configSortOrder) {
-			this.sortOrder = configSortOrder;
-			needsRefresh = true;
-		}
-
-		if (event && !needsRefresh) {
-			needsRefresh = event.affectsConfiguration('explorer.decorations.colors')
-				|| event.affectsConfiguration('explorer.decorations.badges');
-		}
-
-		// Refresh viewer as needed if this originates from a config event
-		if (event && needsRefresh) {
-			this.doRefresh();
-		}
-	}
-
 	focus(): void {
 		super.focus();
 
@@ -365,10 +355,6 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 		}
 	}
 
-	collapseAll(): void {
-		this.tree.collapseAll();
-	}
-
 	private openFocusedElement(preserveFocus?: boolean): void {
 		const focusedElements = this.tree.getFocus();
 		const stat = focusedElements && focusedElements.length ? focusedElements[0] : undefined;
@@ -387,14 +373,6 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 
 		// check for files
 		return toResource(input, { supportSideBySide: true });
-	}
-
-	@memoize
-	private get model(): Model {
-		const model = this.instantiationService.createInstance(Model);
-		this.disposables.push(model);
-
-		return model;
 	}
 
 	private createTree(container: HTMLElement): void {
@@ -422,6 +400,7 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 				filter: this.filter
 			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
 
+		this.disposables.push(this.tree);
 		filesRenderer.acquireTree(this.tree);
 		// Bind context keys
 		FilesExplorerFocusedContext.bindTo(this.tree.contextKeyService);
@@ -463,6 +442,38 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 		const childNodes = ([] as HTMLElement[]).slice.call(parentNode.querySelectorAll('.explorer-item .label-name')); // select all file labels
 
 		return DOM.getLargestChildWidth(parentNode, childNodes);
+	}
+
+	// React on events
+
+	private onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): void {
+		if (this.isDisposed) {
+			return; // guard against possible race condition when config change causes recreate of views
+		}
+
+		this.autoReveal = configuration && configuration.explorer && configuration.explorer.autoReveal;
+
+		// Push down config updates to components of viewer
+		let needsRefresh = false;
+		if (this.filter) {
+			needsRefresh = this.filter.updateConfiguration();
+		}
+
+		const configSortOrder = configuration && configuration.explorer && configuration.explorer.sortOrder || 'default';
+		if (this.sortOrder !== configSortOrder) {
+			this.sortOrder = configSortOrder;
+			needsRefresh = true;
+		}
+
+		if (event && !needsRefresh) {
+			needsRefresh = event.affectsConfiguration('explorer.decorations.colors')
+				|| event.affectsConfiguration('explorer.decorations.badges');
+		}
+
+		// Refresh viewer as needed if this originates from a config event
+		if (event && needsRefresh) {
+			this.doRefresh();
+		}
 	}
 
 	private onFileOperation(e: FileOperationEvent): void {
@@ -703,6 +714,36 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 		}
 	}
 
+	private onContextMenu(e: ITreeContextMenuEvent<ExplorerItem>): void {
+		const stat = e.element;
+		if (stat instanceof NewStatPlaceholder) {
+			return;
+		}
+
+		// update dynamic contexts
+		this.fileCopiedContextKey.set(this.clipboardService.hasResources());
+
+		const selection = this.tree.getSelection();
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => e.anchor,
+			getActions: () => {
+				const actions: IAction[] = [];
+				fillInContextMenuActions(this.contributedContextMenu, { arg: stat instanceof ExplorerItem ? stat.resource : {}, shouldForwardArgs: true }, actions, this.contextMenuService);
+				return actions;
+			},
+			onHide: (wasCancelled?: boolean) => {
+				if (wasCancelled) {
+					this.tree.domFocus();
+				}
+			},
+			getActionsContext: () => selection && selection.indexOf(stat) >= 0
+				? selection.map((fs: ExplorerItem) => fs.resource)
+				: stat instanceof ExplorerItem ? [stat.resource] : []
+		});
+	}
+
+	// General methods
+
 	/**
 	 * Refresh the contents of the explorer to get up to date data from the disk about the file structure.
 	 */
@@ -932,42 +973,8 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 		}
 	}
 
-	private onContextMenu(e: ITreeContextMenuEvent<ExplorerItem>): void {
-		const stat = e.element;
-		if (stat instanceof NewStatPlaceholder) {
-			return;
-		}
-
-		// update dynamic contexts
-		this.fileCopiedContextKey.set(this.clipboardService.hasResources());
-
-		const selection = this.tree.getSelection();
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => e.anchor,
-			getActions: () => {
-				const actions: IAction[] = [];
-				fillInContextMenuActions(this.contributedContextMenu, { arg: stat instanceof ExplorerItem ? stat.resource : {}, shouldForwardArgs: true }, actions, this.contextMenuService);
-				return actions;
-			},
-			onHide: (wasCancelled?: boolean) => {
-				if (wasCancelled) {
-					this.tree.domFocus();
-				}
-			},
-			getActionsContext: () => selection && selection.indexOf(stat) >= 0
-				? selection.map((fs: ExplorerItem) => fs.resource)
-				: stat instanceof ExplorerItem ? [stat.resource] : []
-		});
-	}
-
-	@memoize private get contributedContextMenu(): IMenu {
-		const contributedContextMenu = this.menuService.createMenu(MenuId.ExplorerContext, this.tree.contextKeyService);
-		this.disposables.push(contributedContextMenu);
-		return contributedContextMenu;
-	}
-
-	@memoize private get fileCopiedContextKey(): IContextKey<boolean> {
-		return FileCopiedContext.bindTo(this.contextKeyService);
+	collapseAll(): void {
+		this.tree.collapseAll();
 	}
 
 	dispose(): void {
