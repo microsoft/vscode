@@ -173,7 +173,6 @@ export class DiagnosticsManager {
 		kind: DiagnosticKind,
 		diagnostics: vscode.Diagnostic[]
 	): void {
-
 		let didUpdate = false;
 		const entry = this._diagnostics.get(file);
 		if (entry) {
@@ -224,7 +223,7 @@ export class DiagnosticsManager {
 
 	private rebuild(): void {
 		this._currentDiagnostics.clear();
-		for (const fileDiagnostic of Array.from(this._diagnostics.values)) {
+		for (const fileDiagnostic of this._diagnostics.values) {
 			this._currentDiagnostics.set(fileDiagnostic.file, fileDiagnostic.getDiagnostics(this._settings));
 		}
 	}
