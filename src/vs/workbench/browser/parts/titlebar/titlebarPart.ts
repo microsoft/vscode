@@ -107,6 +107,12 @@ export class TitlebarPart extends Part implements ITitleService {
 		if (event.affectsConfiguration('window.title')) {
 			this.doUpdateTitle();
 		}
+
+		if (event.affectsConfiguration('window.doubleClickIconToClose')) {
+			if (this.appIcon) {
+				this.onUpdateAppIconDragBehavior();
+			}
+		}
 	}
 
 	private onMenubarVisibilityChanged(visible: boolean) {
@@ -285,6 +291,11 @@ export class TitlebarPart extends Part implements ITitleService {
 		// App Icon (Windows/Linux)
 		if (!isMacintosh) {
 			this.appIcon = append(this.titleContainer, $('div.window-appicon'));
+			this.onUpdateAppIconDragBehavior();
+
+			this._register(addDisposableListener(this.appIcon, EventType.DBLCLICK, (e => {
+				this.windowService.closeWindow();
+			})));
 		}
 
 		// Menubar: the menubar part which is responsible for populating both the custom and native menubars
@@ -442,6 +453,16 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	private onTitleDoubleclick(): void {
 		this.windowService.onWindowTitleDoubleClick();
+	}
+
+	private onUpdateAppIconDragBehavior() {
+		const setting = this.configurationService.getValue('window.doubleClickIconToClose');
+		if (setting) {
+			this.appIcon.style['-webkit-app-region'] = 'no-drag';
+		}
+		else {
+			this.appIcon.style['-webkit-app-region'] = 'drag';
+		}
 	}
 
 	private onContextMenu(e: MouseEvent): void {
