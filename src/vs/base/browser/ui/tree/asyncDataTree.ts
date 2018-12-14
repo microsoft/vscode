@@ -311,8 +311,8 @@ export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> imple
 		return true;
 	}
 
-	toggleCollapsed(element: T, recursive: boolean = false): void {
-		this.tree.toggleCollapsed(this.getDataNode(element), recursive);
+	toggleCollapsed(element: T, recursive: boolean = false): boolean {
+		return this.tree.toggleCollapsed(this.getDataNode(element), recursive);
 	}
 
 	expandAll(): void {

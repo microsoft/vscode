@@ -316,8 +316,8 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		return this.model.setCollapsed(location, false, recursive);
 	}
 
-	toggleCollapsed(location: TRef, recursive: boolean = false): void {
-		this.model.setCollapsed(location, undefined, recursive);
+	toggleCollapsed(location: TRef, recursive: boolean = false): boolean {
+		return this.model.setCollapsed(location, undefined, recursive);
 	}
 
 	expandAll(): void {
