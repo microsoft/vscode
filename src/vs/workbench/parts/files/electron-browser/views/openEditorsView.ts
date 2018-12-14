@@ -256,7 +256,7 @@ export class OpenEditorsView extends ViewletPanel {
 				e.element.group.closeEditor(e.element.editor);
 			}
 		}));
-		this.disposables.push(this.list.onOpen(e => {
+		this.disposables.push(this.list.onDidOpen(e => {
 			const browserEvent = e.browserEvent;
 
 			let openToSide = false;

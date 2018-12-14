@@ -190,6 +190,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	get onDidChangeFocus(): Event<ITreeEvent<T>> { return Event.map(this.view.onFocusChange, asTreeEvent); }
 	get onDidChangeSelection(): Event<ITreeEvent<T>> { return Event.map(this.view.onSelectionChange, asTreeEvent); }
+	get onDidOpen(): Event<ITreeEvent<T>> { return Event.map(this.view.onDidOpen, asTreeEvent); }
 
 	get onMouseClick(): Event<ITreeMouseEvent<T>> { return Event.map(this.view.onMouseClick, asTreeMouseEvent); }
 	get onMouseDblClick(): Event<ITreeMouseEvent<T>> { return Event.map(this.view.onMouseDblClick, asTreeMouseEvent); }

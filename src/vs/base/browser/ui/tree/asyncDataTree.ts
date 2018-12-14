@@ -186,6 +186,7 @@ export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> imple
 
 	get onDidChangeFocus(): Event<ITreeEvent<T>> { return Event.map(this.tree.onDidChangeFocus, asTreeEvent); }
 	get onDidChangeSelection(): Event<ITreeEvent<T>> { return Event.map(this.tree.onDidChangeSelection, asTreeEvent); }
+	get onDidOpen(): Event<ITreeEvent<T>> { return Event.map(this.tree.onDidOpen, asTreeEvent); }
 	get onDidChangeCollapseState(): Event<T> { return Event.map(this.tree.onDidChangeCollapseState, e => e.element!.element!); }
 
 	private readonly _onDidResolveChildren = new Emitter<IChildrenResolutionEvent<T>>();
