@@ -120,8 +120,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 			terminalEnvironment.sanitizeEnvironment(env);
 
 			// Adding other env keys necessary to create the process
-			const locale = this._configHelper.config.setLocaleVariables ? platform.locale : undefined;
-			terminalEnvironment.addTerminalEnvironmentKeys(env, locale);
+			terminalEnvironment.addTerminalEnvironmentKeys(env, platform.locale, this._configHelper.config.setLocaleVariables);
 
 			this._logService.debug(`Terminal process launching`, shellLaunchConfig, this.initialCwd, cols, rows, env);
 			this._process = new TerminalProcess(shellLaunchConfig, this.initialCwd, cols, rows, env);

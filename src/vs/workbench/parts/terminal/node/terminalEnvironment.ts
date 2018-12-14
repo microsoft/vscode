@@ -76,10 +76,12 @@ export function sanitizeEnvironment(env: ITerminalEnvironment): void {
 	});
 }
 
-export function addTerminalEnvironmentKeys(env: ITerminalEnvironment, locale: string | undefined): void {
+export function addTerminalEnvironmentKeys(env: ITerminalEnvironment, locale: string | undefined, setLocaleVariables: boolean): void {
 	env['TERM_PROGRAM'] = 'vscode';
 	env['TERM_PROGRAM_VERSION'] = pkg.version;
-	env['LANG'] = _getLangEnvVariable(locale);
+	if (setLocaleVariables) {
+		env['LANG'] = _getLangEnvVariable(locale);
+	}
 }
 
 export function resolveConfigurationVariables(configurationResolverService: IConfigurationResolverService, env: ITerminalEnvironment, lastActiveWorkspaceRoot: IWorkspaceFolder | null): ITerminalEnvironment {
