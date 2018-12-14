@@ -584,7 +584,7 @@ export interface ITerminalInstance {
 	 *
 	 * @param shell The new launch configuration.
 	 */
-	reuseTerminal(shell?: IShellLaunchConfig): void;
+	reuseTerminal(shell: IShellLaunchConfig): void;
 
 	/**
 	 * Sets the title of the terminal instance.
