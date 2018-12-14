@@ -343,8 +343,12 @@ export function matchesFuzzy(word: string, wordToMatchAgainst: string, enableSep
 	return enableSeparateSubstringMatching ? fuzzySeparateFilter(word, wordToMatchAgainst) : fuzzyContiguousFilter(word, wordToMatchAgainst);
 }
 
-export function matchesFuzzy2(word: string, wordToMatchAgainst: string): IMatch[] | null {
-	let score = fuzzyScore(word, word.toLowerCase(), 0, wordToMatchAgainst, wordToMatchAgainst.toLowerCase(), 0, false);
+/**
+ * Match pattern againt word in a fuzzy way. As in IntelliSense and faster and more
+ * powerfull than `matchesFuzzy`
+ */
+export function matchesFuzzy2(pattern: string, word: string): IMatch[] | null {
+	let score = fuzzyScore(pattern, pattern.toLowerCase(), 0, word, word.toLowerCase(), 0, false);
 	return score ? createMatches(score) : null;
 }
 
