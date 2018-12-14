@@ -236,7 +236,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 		// del removed elements
 		for (let i = commentElementsToDel.length - 1; i >= 0; i--) {
-			this._commentElements.splice(commentElementsToDelIndex[i]);
+			this._commentElements.splice(commentElementsToDelIndex[i], 1);
 			this._commentsElement.removeChild(commentElementsToDel[i].domNode);
 		}
 
