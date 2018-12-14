@@ -13,6 +13,8 @@ export interface IObjectTreeModelOptions<T, TFilterData> extends IIndexTreeModel
 
 export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends NonNullable<any> = void> implements ITreeModel<T | null, TFilterData, T | null> {
 
+	readonly rootRef = null;
+
 	private model: IndexTreeModel<T | null, TFilterData>;
 	private nodes = new Map<T | null, ITreeNode<T, TFilterData>>();
 
@@ -106,19 +108,6 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 		return this.model.getListIndex(location);
 	}
 
-	setCollapsed(element: T, collapsed: boolean): boolean {
-		const location = this.getElementLocation(element);
-		return this.model.setCollapsed(location, collapsed);
-	}
-
-	expandAll(): void {
-		this.model.expandAll();
-	}
-
-	collapseAll(): void {
-		this.model.collapseAll();
-	}
-
 	isCollapsible(element: T): boolean {
 		const location = this.getElementLocation(element);
 		return this.model.isCollapsible(location);
@@ -127,6 +116,11 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 	isCollapsed(element: T): boolean {
 		const location = this.getElementLocation(element);
 		return this.model.isCollapsed(location);
+	}
+
+	setCollapsed(element: T, collapsed: boolean): boolean {
+		const location = this.getElementLocation(element);
+		return this.model.setCollapsed(location, collapsed);
 	}
 
 	refilter(): void {

@@ -321,11 +321,11 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	}
 
 	expandAll(): void {
-		this.model.expandAll();
+		this.model.setCollapsed(this.model.rootRef, false, true);
 	}
 
 	collapseAll(): void {
-		this.model.collapseAll();
+		this.model.setCollapsed(this.model.rootRef, true, true);
 	}
 
 	isCollapsible(location: TRef): boolean {

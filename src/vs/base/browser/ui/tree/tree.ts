@@ -86,6 +86,7 @@ export interface ITreeNode<T, TFilterData = void> {
 }
 
 export interface ITreeModel<T, TFilterData, TRef> {
+	readonly rootRef: TRef;
 	readonly onDidChangeCollapseState: Event<ITreeNode<T, TFilterData>>;
 	readonly onDidChangeRenderNodeCount: Event<ITreeNode<T, TFilterData>>;
 
@@ -101,8 +102,6 @@ export interface ITreeModel<T, TFilterData, TRef> {
 	isCollapsible(location: TRef): boolean;
 	isCollapsed(location: TRef): boolean;
 	setCollapsed(location: TRef, collapsed?: boolean, recursive?: boolean): boolean;
-	expandAll(): void;
-	collapseAll(): void;
 
 	refilter(): void;
 }

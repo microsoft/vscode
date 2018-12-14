@@ -45,6 +45,8 @@ export interface IIndexTreeModelOptions<T, TFilterData> {
 
 export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = void> implements ITreeModel<T, TFilterData, number[]> {
 
+	readonly rootRef = [];
+
 	private root: IMutableTreeNode<T, TFilterData>;
 	private eventBufferer = new EventBufferer(); // TODO@joao is this really necessary
 
@@ -123,6 +125,14 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		return this.getTreeNodeWithListIndex(location).listIndex;
 	}
 
+	isCollapsible(location: number[]): boolean {
+		return this.getTreeNode(location).collapsible;
+	}
+
+	isCollapsed(location: number[]): boolean {
+		return this.getTreeNode(location).collapsed;
+	}
+
 	setCollapsed(location: number[], collapsed?: boolean, recursive = false): boolean {
 		const { node, listIndex, revealed } = this.getTreeNodeWithListIndex(location);
 
@@ -165,22 +175,6 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		}
 
 		return result;
-	}
-
-	expandAll(): void {
-		this.setCollapsed([], false, true);
-	}
-
-	collapseAll(): void {
-		this.setCollapsed([], true, true);
-	}
-
-	isCollapsible(location: number[]): boolean {
-		return this.getTreeNode(location).collapsible;
-	}
-
-	isCollapsed(location: number[]): boolean {
-		return this.getTreeNode(location).collapsed;
 	}
 
 	refilter(): void {
