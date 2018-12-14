@@ -20,12 +20,14 @@ export abstract class TreeElement {
 
 	abstract id: string;
 	abstract children: { [id: string]: TreeElement };
-	abstract parent: TreeElement;
+	abstract parent: TreeElement | undefined;
 
 	abstract adopt(newParent: TreeElement): TreeElement;
 
 	remove(): void {
-		delete this.parent.children[this.id];
+		if (this.parent) {
+			delete this.parent.children[this.id];
+		}
 	}
 
 	static findId(candidate: DocumentSymbol | string, container: TreeElement): string {
@@ -93,13 +95,13 @@ export class OutlineElement extends TreeElement {
 
 	constructor(
 		readonly id: string,
-		public parent: OutlineModel | OutlineGroup | OutlineElement,
+		public parent: TreeElement | undefined,
 		readonly symbol: DocumentSymbol
 	) {
 		super();
 	}
 
-	adopt(parent: OutlineModel | OutlineGroup | OutlineElement): OutlineElement {
+	adopt(parent: TreeElement): OutlineElement {
 		let res = new OutlineElement(this.id, parent, this.symbol);
 		forEach(this.children, entry => res.children[entry.key] = entry.value.adopt(res));
 		return res;
@@ -112,14 +114,14 @@ export class OutlineGroup extends TreeElement {
 
 	constructor(
 		readonly id: string,
-		public parent: OutlineModel,
+		public parent: TreeElement | undefined,
 		readonly provider: DocumentSymbolProvider,
 		readonly providerIndex: number,
 	) {
 		super();
 	}
 
-	adopt(parent: OutlineModel): OutlineGroup {
+	adopt(parent: TreeElement): OutlineGroup {
 		let res = new OutlineGroup(this.id, parent, this.provider, this.providerIndex);
 		forEach(this.children, entry => res.children[entry.key] = entry.value.adopt(res));
 		return res;
@@ -332,7 +334,7 @@ export class OutlineModel extends TreeElement {
 		container.children[res.id] = res;
 	}
 
-	static get(element: TreeElement): OutlineModel | undefined {
+	static get(element: TreeElement | undefined): OutlineModel | undefined {
 		while (element) {
 			if (element instanceof OutlineModel) {
 				return element;
@@ -391,7 +393,7 @@ export class OutlineModel extends TreeElement {
 		return true;
 	}
 
-	private _matches: [string, OutlineElement];
+	private _matches: [string, OutlineElement | undefined];
 
 	updateMatches(pattern: string): OutlineElement | undefined {
 		if (this._matches && this._matches[0] === pattern) {
@@ -429,7 +431,7 @@ export class OutlineModel extends TreeElement {
 		return result;
 	}
 
-	getItemById(id: string): TreeElement {
+	getItemById(id: string): TreeElement | undefined {
 		return TreeElement.getElementById(id, this);
 	}
 
