@@ -26,6 +26,7 @@
 
 <body>
 	<input type="text" id="filter" />
+	<button id="expandall">Expand All</button>
 	<button id="collapseall">Collapse All</button>
 	<button id="renderwidth">Render Width</button>
 	<button id="refresh">Refresh</button>
@@ -137,6 +138,16 @@
 					}
 				};
 
+				const sorter = new class {
+					compare(a, b) {
+						if (a.collapsible === b.collapsible) {
+							return a.name < b.name ? -1 : 1;
+						}
+
+						return a.collapsible ? -1 : 1;
+					}
+				};
+
 				const dataSource = new class {
 					hasChildren(element) {
 						return element === null || element.element.type === 'dir';
@@ -153,11 +164,7 @@
 										collapsible: element.type === 'dir'
 									}));
 
-									if (element) {
-										setTimeout(() => c(els), 2500);
-									} else {
-										c(els);
-									}
+									c(els);
 								}
 							};
 						});
@@ -170,7 +177,7 @@
 					}
 				};
 
-				const tree = new AsyncDataTree(container, delegate, [renderer], dataSource, { filter: treeFilter, identityProvider });
+				const tree = new AsyncDataTree(container, delegate, [renderer], dataSource, { filter: treeFilter, sorter, identityProvider });
 
 				return { tree, treeFilter };
 			}
@@ -179,6 +186,7 @@
 				case '?problems': {
 					const { tree, treeFilter } = createIndexTree();
 
+					expandall.onclick = () => perf('expand all', () => tree.expandAll());
 					collapseall.onclick = () => perf('collapse all', () => tree.collapseAll());
 					renderwidth.onclick = () => perf('renderwidth', () => tree.layoutWidth(Math.random()));
 
@@ -199,6 +207,7 @@
 				case '?data': {
 					const { tree, treeFilter } = createAsyncDataTree();
 
+					expandall.onclick = () => perf('expand all', () => tree.expandAll());
 					collapseall.onclick = () => perf('collapse all', () => tree.collapseAll());
 					renderwidth.onclick = () => perf('renderwidth', () => tree.layoutWidth(Math.random()));
 					refresh.onclick = () => perf('refresh', () => tree.refresh(null, true));
@@ -210,6 +219,7 @@
 				case '?height': {
 					const { tree, treeFilter } = createIndexTree({ supportDynamicHeights: true });
 
+					expandall.onclick = () => perf('expand all', () => tree.expandAll());
 					collapseall.onclick = () => perf('collapse all', () => tree.collapseAll());
 					renderwidth.onclick = () => perf('renderwidth', () => tree.layoutWidth(Math.random()));
 
@@ -227,6 +237,7 @@
 				default: {
 					const { tree, treeFilter } = createIndexTree();
 
+					expandall.onclick = () => perf('expand all', () => tree.expandAll());
 					collapseall.onclick = () => perf('collapse all', () => tree.collapseAll());
 					renderwidth.onclick = () => perf('renderwidth', () => tree.layoutWidth(Math.random()));
 

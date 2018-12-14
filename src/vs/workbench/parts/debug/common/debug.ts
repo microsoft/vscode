@@ -609,7 +609,7 @@ export interface IConfigurationManager {
 	unregisterDebugAdapterTrackerFactory(debugAdapterTrackerFactory: IDebugAdapterTrackerFactory): void;
 
 	resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: any): Promise<any>;
-	provideDebugAdapter(session: IDebugSession): Promise<IAdapterDescriptor | undefined>;
+	getDebugAdapterDescriptor(session: IDebugSession): Promise<IAdapterDescriptor | undefined>;
 
 	registerDebugAdapterFactory(debugTypes: string[], debugAdapterFactory: IDebugAdapterFactory): IDisposable;
 	createDebugAdapter(session: IDebugSession): IDebugAdapter;

@@ -488,7 +488,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	private revealMarkersForCurrentActiveEditor(focus: boolean = false): void {
 		let currentActiveResource = this.getResourceForCurrentActiveResource();
 		if (currentActiveResource) {
-			if (this.tree.isExpanded(currentActiveResource) && this.hasSelectedMarkerFor(currentActiveResource)) {
+			if (!this.tree.isCollapsed(currentActiveResource) && this.hasSelectedMarkerFor(currentActiveResource)) {
 				this.tree.reveal(this.tree.getSelection()[0], this.lastSelectedRelativeTop);
 				if (focus) {
 					this.tree.setFocus(this.tree.getSelection());

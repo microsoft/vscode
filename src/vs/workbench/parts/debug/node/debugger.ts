@@ -85,11 +85,10 @@ export class Debugger implements IDebugger {
 			});
 		}
 
-		// try the proposed and the deprecated "provideDebugAdapter" API
-		return this.configurationManager.provideDebugAdapter(session).then(adapter => {
+		// try the new "createDebugAdapterDescriptor" and the deprecated "provideDebugAdapter" API
+		return this.configurationManager.getDebugAdapterDescriptor(session).then(adapter => {
 
 			if (adapter) {
-				console.info('DebugConfigurationProvider.debugAdapterExecutable is deprecated and will be removed soon; please use DebugAdapterDescriptorFactory.createDebugAdapterDescriptor instead.');
 				return adapter;
 			}
 

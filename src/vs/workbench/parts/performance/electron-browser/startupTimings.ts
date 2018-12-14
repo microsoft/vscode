@@ -82,11 +82,13 @@ class StartupTimings implements IWorkbenchContribution {
 				: Promise.resolve<void>();
 		};
 
+		const { sessionId } = await this._telemetryService.getTelemetryInfo();
+
 		Promise.all([
 			this._timerService.startupMetrics,
 			waitWhenNoCachedData(),
 		]).then(([startupMetrics]) => {
-			return nfcall(appendFile, appendTo, `${startupMetrics.ellapsed}\t${product.nameLong}\t${product.commit || '0000000'}\t${isStandardStartup ? 'standard_start' : 'NOT_standard_start'}\n`);
+			return nfcall(appendFile, appendTo, `${startupMetrics.ellapsed}\t${product.nameShort}\t${product.commit.slice(0, 10) || '0000000000'}\t${sessionId}\n${isStandardStartup ? 'standard_start' : 'NO_standard_start'}\n`);
 		}).then(() => {
 			this._windowsService.quit();
 		}).catch(err => {

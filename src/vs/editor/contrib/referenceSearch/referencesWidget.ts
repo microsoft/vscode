@@ -31,6 +31,9 @@ import { activeContrastBorder, contrastBorder, registerColor } from 'vs/platform
 import { ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { PeekViewWidget } from './peekViewWidget';
 import { FileReferences, OneReference, ReferencesModel } from './referencesModel';
+import { ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
+import { IAsyncDataTreeOptions, IDataSource } from 'vs/base/browser/ui/tree/asyncDataTree';
+import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 
 class DecorationsManager implements IDisposable {
 
@@ -343,7 +346,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		// tree
 		this._treeContainer = dom.append(containerElement, dom.$('div.ref-tree.inline'));
 
-		const renderer = [
+		const renderers = [
 			this._instantiationService.createInstance(FileReferencesRenderer),
 			this._instantiationService.createInstance(OneReferenceRenderer),
 		];
@@ -356,12 +359,14 @@ export class ReferenceWidget extends PeekViewWidget {
 
 		this._treeDataSource = this._instantiationService.createInstance(DataSource);
 
-		this._tree = this._instantiationService.createInstance(
-			WorkbenchAsyncDataTree, this._treeContainer, new Delegate(),
-			renderer as any,
+		this._tree = this._instantiationService.createInstance<HTMLElement, IListVirtualDelegate<TreeElement>, ITreeRenderer<any, void, any>[], IDataSource<TreeElement>, IAsyncDataTreeOptions<TreeElement, void>, WorkbenchAsyncDataTree<TreeElement, void>>(
+			WorkbenchAsyncDataTree,
+			this._treeContainer,
+			new Delegate(),
+			renderers,
 			this._treeDataSource,
 			treeOptions
-		) as any as WorkbenchAsyncDataTree<TreeElement>;
+		);
 
 		ctxReferenceWidgetSearchTreeFocused.bindTo(this._tree.contextKeyService);
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { compareAnything } from 'vs/base/common/comparers';
-import { matchesPrefix, IMatch, createMatches, matchesCamelCase, isUpper } from 'vs/base/common/filters';
+import { matchesPrefix, IMatch, matchesCamelCase, isUpper } from 'vs/base/common/filters';
 import { nativeSep } from 'vs/base/common/paths';
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import { stripWildcards, equalsIgnoreCase } from 'vs/base/common/strings';
@@ -347,6 +347,23 @@ export function scoreItem<T>(item: T, query: IPreparedQuery, fuzzy: boolean, acc
 	cache[cacheHash] = itemScore;
 
 	return itemScore;
+}
+
+function createMatches(offsets: undefined | number[]): IMatch[] {
+	let ret: IMatch[] = [];
+	if (!offsets) {
+		return ret;
+	}
+	let last: IMatch | undefined;
+	for (const pos of offsets) {
+		if (last && last.end === pos) {
+			last.end += 1;
+		} else {
+			last = { start: pos, end: pos + 1 };
+			ret.push(last);
+		}
+	}
+	return ret;
 }
 
 function doScoreItem(label: string, description: string, path: string, query: IPreparedQuery, fuzzy: boolean): IItemScore {

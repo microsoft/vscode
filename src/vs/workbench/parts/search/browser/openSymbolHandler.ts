@@ -206,7 +206,7 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 			}
 
 			const entry = this.instantiationService.createInstance(SymbolEntry, element, provider);
-			entry.setHighlights(filters.matchesFuzzy(searchValue, entry.getLabel()));
+			entry.setHighlights(filters.matchesFuzzy2(searchValue, entry.getLabel()));
 			bucket.push(entry);
 		}
 	}
