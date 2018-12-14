@@ -215,7 +215,7 @@ export class QuickInputList {
 	readonly id: string;
 	private container: HTMLElement;
 	private list: WorkbenchList<ListElement>;
-	private inputElements: (IQuickPickItem | IQuickPickSeparator)[];
+	private inputElements: Array<IQuickPickItem | IQuickPickSeparator>;
 	private elements: ListElement[] = [];
 	private elementsToIndexes = new Map<IQuickPickItem, number>();
 	matchOnDescription = false;
@@ -356,7 +356,7 @@ export class QuickInputList {
 		}
 	}
 
-	setElements(inputElements: (IQuickPickItem | IQuickPickSeparator)[]): void {
+	setElements(inputElements: Array<IQuickPickItem | IQuickPickSeparator>): void {
 		this.elementDisposables = dispose(this.elementDisposables);
 		const fireButtonTriggered = (event: IQuickPickItemButtonEvent<IQuickPickItem>) => this.fireButtonTriggered(event);
 		this.inputElements = inputElements;

@@ -708,7 +708,7 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 	 */
 	refresh(): Promise<void> {
 		if (!this.tree) {
-			return Promise.resolve(null);
+			return Promise.resolve(void 0);
 		}
 
 		// Focus
@@ -731,7 +731,7 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 				return this.select(resourceToFocus, true);
 			}
 
-			return Promise.resolve(null);
+			return Promise.resolve(void 0);
 		});
 	}
 

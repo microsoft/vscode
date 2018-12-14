@@ -219,7 +219,7 @@ suite('ExtHostTreeView', function () {
 					label: { label: 'b' },
 					collapsibleState: TreeItemCollapsibleState.Collapsed
 				});
-				c(null);
+				c(void 0);
 			});
 			onDidChangeTreeNode.fire(getNode('b'));
 		});

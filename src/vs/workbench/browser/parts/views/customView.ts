@@ -469,7 +469,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 				this.elementsToRefresh.push(...elements);
 			}
 		}
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 
 	expand(itemOrItems: ITreeItem | ITreeItem[]): Promise<void> {
@@ -477,7 +477,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 			itemOrItems = Array.isArray(itemOrItems) ? itemOrItems : [itemOrItems];
 			return this.tree.expandAll(itemOrItems);
 		}
-		return Promise.arguments(null);
+		return Promise.resolve(void 0);
 	}
 
 	setSelection(items: ITreeItem[]): void {
@@ -497,7 +497,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		if (this.tree) {
 			return this.tree.reveal(item);
 		}
-		return Promise.arguments(null);
+		return Promise.resolve(null);
 	}
 
 	private activate() {
@@ -525,7 +525,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 					}
 				});
 		}
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 
 	private updateContentAreas(): void {

@@ -283,7 +283,7 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 		const command = this._resourceStatesCommandsMap.get(handle);
 
 		if (!command) {
-			return Promise.resolve(null);
+			return Promise.resolve(void 0);
 		}
 
 		return asPromise(() => this._commands.executeCommand(command.command, ...command.arguments));
@@ -608,7 +608,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		return inputBox;
 	}
 
-	$provideOriginalResource(sourceControlHandle: number, uriComponents: UriComponents, token: CancellationToken): Promise<UriComponents> {
+	$provideOriginalResource(sourceControlHandle: number, uriComponents: UriComponents, token: CancellationToken): Promise<UriComponents | null> {
 		const uri = URI.revive(uriComponents);
 		this.logService.trace('ExtHostSCM#$provideOriginalResource', sourceControlHandle, uri.toString());
 
@@ -627,11 +627,11 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		const sourceControl = this._sourceControls.get(sourceControlHandle);
 
 		if (!sourceControl) {
-			return Promise.resolve(null);
+			return Promise.resolve(void 0);
 		}
 
 		sourceControl.inputBox.$onInputBoxValueChange(value);
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 
 	$executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number): Promise<void> {
@@ -640,13 +640,13 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		const sourceControl = this._sourceControls.get(sourceControlHandle);
 
 		if (!sourceControl) {
-			return Promise.resolve(null);
+			return Promise.resolve(void 0);
 		}
 
 		const group = sourceControl.getResourceGroup(groupHandle);
 
 		if (!group) {
-			return Promise.resolve(null);
+			return Promise.resolve(void 0);
 		}
 
 		return group.$executeResourceCommand(handle);
@@ -708,6 +708,6 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		});
 
 		this._selectedSourceControlHandles = set;
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 }

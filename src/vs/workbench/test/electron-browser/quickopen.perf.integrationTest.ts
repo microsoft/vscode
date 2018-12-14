@@ -166,7 +166,7 @@ class TestTelemetryService implements ITelemetryService {
 
 	public publicLog(eventName: string, data?: any): Promise<void> {
 		this.events.push({ name: eventName, data: data });
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 
 	public getTelemetryInfo(): Promise<ITelemetryInfo> {

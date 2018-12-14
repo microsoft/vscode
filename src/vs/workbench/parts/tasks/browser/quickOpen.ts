@@ -67,7 +67,7 @@ export class TaskGroupEntry extends Model.QuickOpenEntryGroup {
 
 export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 
-	private tasks: Promise<(CustomTask | ContributedTask)[]>;
+	private tasks: Promise<Array<CustomTask | ContributedTask>>;
 
 	constructor(
 		protected quickOpenService: IQuickOpenService,
@@ -94,7 +94,7 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 				return new Model.QuickOpenModel(entries);
 			}
 			let recentlyUsedTasks = this.taskService.getRecentlyUsedTasks();
-			let recent: (CustomTask | ContributedTask)[] = [];
+			let recent: Array<CustomTask | ContributedTask> = [];
 			let configured: CustomTask[] = [];
 			let detected: ContributedTask[] = [];
 			let taskMap: IStringDictionary<CustomTask | ContributedTask> = Object.create(null);
@@ -132,7 +132,7 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 		});
 	}
 
-	private fillEntries(entries: Model.QuickOpenEntry[], input: string, tasks: (CustomTask | ContributedTask)[], groupLabel: string, withBorder: boolean = false) {
+	private fillEntries(entries: Model.QuickOpenEntry[], input: string, tasks: Array<CustomTask | ContributedTask>, groupLabel: string, withBorder: boolean = false) {
 		let first = true;
 		for (let task of tasks) {
 			let highlights = Filters.matchesFuzzy(input, task._label);
@@ -148,7 +148,7 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 		}
 	}
 
-	protected abstract getTasks(): Promise<(CustomTask | ContributedTask)[]>;
+	protected abstract getTasks(): Promise<Array<CustomTask | ContributedTask>>;
 
 	protected abstract createEntry(task: CustomTask | ContributedTask, highlights: Model.IHighlight[]): TaskEntry;
 

@@ -592,7 +592,7 @@ class MessageBuffer {
 		return buff;
 	}
 
-	public static sizeMixedArray(arr: (string | Buffer)[], arrLengths: number[]): number {
+	public static sizeMixedArray(arr: Array<string | Buffer>, arrLengths: number[]): number {
 		let size = 0;
 		size += 1; // arr length
 		for (let i = 0, len = arr.length; i < len; i++) {
@@ -608,7 +608,7 @@ class MessageBuffer {
 		return size;
 	}
 
-	public writeMixedArray(arr: (string | Buffer)[], arrLengths: number[]): void {
+	public writeMixedArray(arr: Array<string | Buffer>, arrLengths: number[]): void {
 		this._buff.writeUInt8(arr.length, this._offset, true); this._offset += 1;
 		for (let i = 0, len = arr.length; i < len; i++) {
 			const el = arr[i];
@@ -623,9 +623,9 @@ class MessageBuffer {
 		}
 	}
 
-	public readMixedArray(): (string | Buffer)[] {
+	public readMixedArray(): Array<string | Buffer> {
 		const arrLen = this._buff.readUInt8(this._offset, true); this._offset += 1;
-		let arr: (string | Buffer)[] = new Array(arrLen);
+		let arr: Array<string | Buffer> = new Array(arrLen);
 		for (let i = 0; i < arrLen; i++) {
 			const argType = <ArgType>this.readUInt8();
 			if (argType === ArgType.String) {
@@ -651,7 +651,7 @@ class MessageIO {
 
 	public static serializeRequest(req: number, rpcId: number, method: string, args: any[], usesCancellationToken: boolean, replacer: JSONStringifyReplacer | null): Buffer {
 		if (this._arrayContainsBuffer(args)) {
-			let massagedArgs: (string | Buffer)[] = new Array(args.length);
+			let massagedArgs: Array<string | Buffer> = new Array(args.length);
 			let argsLengths: number[] = new Array(args.length);
 			for (let i = 0, len = args.length; i < len; i++) {
 				const arg = args[i];
@@ -695,7 +695,7 @@ class MessageIO {
 		};
 	}
 
-	private static _requestMixedArgs(req: number, rpcId: number, method: string, args: (string | Buffer)[], argsLengths: number[], usesCancellationToken: boolean): Buffer {
+	private static _requestMixedArgs(req: number, rpcId: number, method: string, args: Array<string | Buffer>, argsLengths: number[], usesCancellationToken: boolean): Buffer {
 		const methodByteLength = Buffer.byteLength(method, 'utf8');
 
 		let len = 0;

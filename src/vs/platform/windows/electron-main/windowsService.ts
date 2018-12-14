@@ -174,7 +174,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		this.historyService.addRecentlyOpened(void 0, files);
 	}
 
-	async removeFromRecentlyOpened(paths: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | string)[]): Promise<void> {
+	async removeFromRecentlyOpened(paths: Array<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | string>): Promise<void> {
 		this.logService.trace('windowsService#removeFromRecentlyOpened');
 
 		this.historyService.removeFromRecentlyOpened(paths);

@@ -529,7 +529,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 				const model = new QuickOpenModel([new PlaceholderQuickOpenEntry(placeHolderLabel)], this.actionProvider);
 				this.showModel(model, resolvedHandler.getAutoFocus(value, { model, quickNavigateConfiguration: this.quickOpenWidget.getQuickNavigateConfiguration() }), resolvedHandler.getAriaLabel());
 
-				return Promise.resolve(null);
+				return Promise.resolve(void 0);
 			}
 
 			// Support extra class from handler

@@ -597,7 +597,7 @@ configurationRegistry.registerConfiguration({
 		'workbench.settings.openDefaultSettings': {
 			'type': 'boolean',
 			'description': nls.localize('openDefaultSettings', "Controls whether opening settings also opens an editor showing all default settings."),
-			'default': true
+			'default': false
 		},
 		'workbench.settings.openDefaultKeybindings': {
 			'type': 'boolean',

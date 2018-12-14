@@ -33,8 +33,8 @@ interface IIndentationRules {
 interface ILanguageConfiguration {
 	comments?: CommentRule;
 	brackets?: CharacterPair[];
-	autoClosingPairs?: (CharacterPair | IAutoClosingPairConditional)[];
-	surroundingPairs?: (CharacterPair | IAutoClosingPair)[];
+	autoClosingPairs?: Array<CharacterPair | IAutoClosingPairConditional>;
+	surroundingPairs?: Array<CharacterPair | IAutoClosingPair>;
 	wordPattern?: string | IRegExp;
 	indentationRules?: IIndentationRules;
 	folding?: FoldingRules;
@@ -249,7 +249,7 @@ export class LanguageConfigurationFileHandler {
 		return result;
 	}
 
-	// private _mapCharacterPairs(pairs: (CharacterPair | IAutoClosingPairConditional)[]): IAutoClosingPairConditional[] {
+	// private _mapCharacterPairs(pairs: Array<CharacterPair | IAutoClosingPairConditional>): IAutoClosingPairConditional[] {
 	// 	return pairs.map(pair => {
 	// 		if (Array.isArray(pair)) {
 	// 			return { open: pair[0], close: pair[1] };

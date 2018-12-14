@@ -61,7 +61,7 @@ export interface ShellQuotedStringDTO {
 export interface ShellExecutionDTO {
 	commandLine?: string;
 	command?: string | ShellQuotedStringDTO;
-	args?: (string | ShellQuotedStringDTO)[];
+	args?: Array<string | ShellQuotedStringDTO>;
 	options?: ShellExecutionOptionsDTO;
 }
 

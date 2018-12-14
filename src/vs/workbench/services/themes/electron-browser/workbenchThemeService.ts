@@ -271,7 +271,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return this.getColorTheme();
 	}
 
-	public setColorTheme(themeId: string, settingsTarget: ConfigurationTarget): Promise<IColorTheme> {
+	public setColorTheme(themeId: string, settingsTarget: ConfigurationTarget): Promise<IColorTheme | null> {
 		if (!themeId) {
 			return Promise.resolve(null);
 		}
@@ -329,7 +329,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		_applyRules(cssRules.join('\n'), colorThemeRulesClassName);
 	}
 
-	private applyTheme(newTheme: ColorThemeData, settingsTarget: ConfigurationTarget, silent = false): Promise<IColorTheme> {
+	private applyTheme(newTheme: ColorThemeData, settingsTarget: ConfigurationTarget, silent = false): Promise<IColorTheme | null> {
 		if (this.container) {
 			if (this.currentColorTheme) {
 				removeClasses(this.container, this.currentColorTheme.id);
@@ -500,16 +500,16 @@ class ConfigurationWriter {
 		let settings = this.configurationService.inspect(key);
 		if (settingsTarget === ConfigurationTarget.USER) {
 			if (value === settings.user) {
-				return Promise.resolve(null); // nothing to do
+				return Promise.resolve(void 0); // nothing to do
 			} else if (value === settings.default) {
 				if (types.isUndefined(settings.user)) {
-					return Promise.resolve(null); // nothing to do
+					return Promise.resolve(void 0); // nothing to do
 				}
 				value = void 0; // remove configuration from user settings
 			}
 		} else if (settingsTarget === ConfigurationTarget.WORKSPACE) {
 			if (value === settings.value) {
-				return Promise.resolve(null); // nothing to do
+				return Promise.resolve(void 0); // nothing to do
 			}
 		}
 		return this.configurationService.updateValue(key, value, settingsTarget);

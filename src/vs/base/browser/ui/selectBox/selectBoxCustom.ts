@@ -777,12 +777,17 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 
 		dom.EventHelper.stop(e);
 
-		// Check our mouse event is on an option (not scrollbar)
-		if (!!e.toElement.classList.contains('slider')) {
+		const target = <Element>e.target;
+		if (!target) {
 			return;
 		}
 
-		const listRowElement = e.toElement.closest('.monaco-list-row');
+		// Check our mouse event is on an option (not scrollbar)
+		if (!!target.classList.contains('slider')) {
+			return;
+		}
+
+		const listRowElement = target.closest('.monaco-list-row');
 
 		if (!listRowElement) {
 			return;

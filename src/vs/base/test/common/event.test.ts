@@ -448,7 +448,7 @@ suite('Event utils', () => {
 						e(err);
 					}
 
-					c(null);
+					c(void 0);
 				});
 
 				setTimeout(() => emitter.fire(), 10);

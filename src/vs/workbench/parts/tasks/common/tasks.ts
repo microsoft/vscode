@@ -428,7 +428,7 @@ export interface ConfigurationProperties {
 	/**
 	 * The problem watchers to use for this task
 	 */
-	problemMatchers?: (string | ProblemMatcher)[];
+	problemMatchers?: Array<string | ProblemMatcher>;
 }
 
 export enum RunOnOptions {

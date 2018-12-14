@@ -294,7 +294,7 @@ export class DebugSession implements IDebugSession {
 			if (this.raw.readyForBreakpoints) {
 				return this.raw.setExceptionBreakpoints({ filters: exbpts.map(exb => exb.filter) }).then(() => undefined);
 			}
-			return Promise.resolve(null);
+			return Promise.resolve(void 0);
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}

@@ -69,8 +69,8 @@ export const CodeDataTransfers = {
 	FILES: 'CodeFiles'
 };
 
-export function extractResources(e: DragEvent, externalOnly?: boolean): (IDraggedResource | IDraggedEditor)[] {
-	const resources: (IDraggedResource | IDraggedEditor)[] = [];
+export function extractResources(e: DragEvent, externalOnly?: boolean): Array<IDraggedResource | IDraggedEditor> {
+	const resources: Array<IDraggedResource | IDraggedEditor> = [];
 	if (e.dataTransfer.types.length > 0) {
 
 		// Check for window-to-window DND
@@ -206,7 +206,7 @@ export class ResourcesDropHandler {
 		});
 	}
 
-	private doHandleDrop(untitledOrFileResources: (IDraggedResource | IDraggedEditor)[]): Promise<boolean> {
+	private doHandleDrop(untitledOrFileResources: Array<IDraggedResource | IDraggedEditor>): Promise<boolean> {
 
 		// Check for dirty editors being dropped
 		const resourcesWithBackups: IDraggedEditor[] = untitledOrFileResources.filter(resource => !resource.isExternal && !!(resource as IDraggedEditor).backupResource);

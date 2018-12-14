@@ -491,8 +491,8 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	protected abstract createModel(view: ISpliceable<ITreeNode<T, TFilterData>>, options: IAbstractTreeOptions<T, TFilterData>): ITreeModel<T, TFilterData, TRef>;
 
-	navigate(): ITreeNavigator<T> {
-		return new TreeNavigator(this.view, this.model);
+	navigate(start?: TRef): ITreeNavigator<T> {
+		return new TreeNavigator(this.view, this.model, start);
 	}
 
 	dispose(): void {
@@ -508,9 +508,15 @@ interface ITreeNavigatorView<T extends NonNullable<any>, TFilterData> {
 
 class TreeNavigator<T extends NonNullable<any>, TFilterData, TRef> implements ITreeNavigator<T> {
 
-	private index: number = -1;
+	private index: number;
 
-	constructor(private view: ITreeNavigatorView<T, TFilterData>, private model: ITreeModel<T, TFilterData, TRef>) { }
+	constructor(private view: ITreeNavigatorView<T, TFilterData>, private model: ITreeModel<T, TFilterData, TRef>, start?: TRef) {
+		if (start) {
+			this.index = this.model.getListIndex(start);
+		} else {
+			this.index = -1;
+		}
+	}
 
 	current(): T | null {
 		if (this.index < 0 || this.index >= this.view.length) {

@@ -217,17 +217,22 @@ export class RefreshAction extends Action {
 	static readonly ID: string = 'search.action.refreshSearchResults';
 	static LABEL: string = nls.localize('RefreshAction.label', "Refresh");
 
+	private searchView: SearchView;
+
 	constructor(id: string, label: string,
 		@IViewletService private viewletService: IViewletService,
 		@IPanelService private panelService: IPanelService
 	) {
 		super(id, label, 'search-action refresh');
-		this.update();
+		this.searchView = getSearchView(this.viewletService, this.panelService);
+	}
+
+	get enabled(): boolean {
+		return this.searchView.isSearchSubmitted();
 	}
 
 	update(): void {
-		const searchView = getSearchView(this.viewletService, this.panelService);
-		this.enabled = searchView && searchView.isSearchSubmitted();
+		this._setEnabled(this.enabled);
 	}
 
 	public run(): Promise<void> {
@@ -262,7 +267,7 @@ export class CollapseDeepestExpandedLevelAction extends Action {
 		if (searchView) {
 			const viewer = searchView.getControl();
 			if (viewer.getHighlight()) {
-				return Promise.resolve(null); // Global action disabled if user is in edit mode from another action
+				return Promise.resolve(void 0); // Global action disabled if user is in edit mode from another action
 			}
 
 			/**
@@ -298,7 +303,7 @@ export class CollapseDeepestExpandedLevelAction extends Action {
 			viewer.domFocus();
 			viewer.focusFirst();
 		}
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -353,7 +358,7 @@ export class CancelSearchAction extends Action {
 			searchView.cancelSearch();
 		}
 
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 }
 

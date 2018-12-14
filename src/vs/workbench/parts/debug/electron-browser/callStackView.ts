@@ -603,7 +603,7 @@ class CallStackDataSource implements IDataSource<CallStackItem> {
 		return this.getThreadChildren(<Thread>element);
 	}
 
-	private getThreadChildren(thread: Thread): Promise<(IStackFrame | string | ThreadAndSessionIds)[]> {
+	private getThreadChildren(thread: Thread): Promise<Array<IStackFrame | string | ThreadAndSessionIds>> {
 		return this.getThreadCallstack(thread).then(children => {
 			// Check if some stack frames should be hidden under a parent element since they are deemphasized
 			const result = [];
@@ -633,7 +633,7 @@ class CallStackDataSource implements IDataSource<CallStackItem> {
 		});
 	}
 
-	private getThreadCallstack(thread: Thread): Promise<(IStackFrame | string | ThreadAndSessionIds)[]> {
+	private getThreadCallstack(thread: Thread): Promise<Array<IStackFrame | string | ThreadAndSessionIds>> {
 		let callStack: any[] = thread.getCallStack();
 		let callStackPromise: Promise<any> = Promise.resolve(null);
 		if (!callStack || !callStack.length) {

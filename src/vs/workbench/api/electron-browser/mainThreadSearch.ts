@@ -140,7 +140,7 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 		return Promise.resolve(this._proxy.$clearCache(cacheKey));
 	}
 
-	handleFindMatch(session: number, dataOrUri: (UriComponents | IRawFileMatch2)[]): void {
+	handleFindMatch(session: number, dataOrUri: Array<UriComponents | IRawFileMatch2>): void {
 		if (!this._searches.has(session)) {
 			// ignore...
 			return;

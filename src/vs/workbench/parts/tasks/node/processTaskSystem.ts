@@ -416,7 +416,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 		return value.map(s => this.resolveVariable(task, s));
 	}
 
-	private resolveMatchers(task: CustomTask, values: (string | ProblemMatcher)[]): ProblemMatcher[] {
+	private resolveMatchers(task: CustomTask, values: Array<string | ProblemMatcher>): ProblemMatcher[] {
 		if (values === void 0 || values === null || values.length === 0) {
 			return [];
 		}

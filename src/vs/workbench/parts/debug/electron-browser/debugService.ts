@@ -606,7 +606,7 @@ export class DebugService implements IDebugService {
 
 								this.launchOrAttachToSession(session, shouldFocus).then(() => {
 									this._onDidNewSession.fire(session);
-									c(null);
+									c(void 0);
 								}, err => e(err));
 							});
 						});
@@ -695,7 +695,7 @@ export class DebugService implements IDebugService {
 		});
 	}
 
-	private runTask(root: IWorkspaceFolder, taskId: string | TaskIdentifier): Promise<ITaskSummary> {
+	private runTask(root: IWorkspaceFolder, taskId: string | TaskIdentifier): Promise<ITaskSummary | null> {
 		if (!taskId) {
 			return Promise.resolve(null);
 		}
@@ -727,7 +727,7 @@ export class DebugService implements IDebugService {
 				if (task.isBackground) {
 					return new Promise((c, e) => once(e => e.kind === TaskEventKind.Inactive && e.taskId === task._id, this.taskService.onDidStateChange)(() => {
 						taskStarted = true;
-						c(null);
+						c(void 0);
 					}));
 				}
 
