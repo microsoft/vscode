@@ -9,7 +9,8 @@
 }
 
 /* --- Explorer viewlet --- */
-.explorer-viewlet {
+.explorer-viewlet,
+.explorer-folders-view {
 	height: 100%;
 }
 
