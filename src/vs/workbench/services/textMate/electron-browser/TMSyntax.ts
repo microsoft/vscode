@@ -141,11 +141,12 @@ export class TextMateService extends Disposable implements ITextMateService {
 
 	private readonly _styleElement: HTMLStyleElement;
 
-	private _grammarRegistry: Promise<[Registry, StackElement]> | null;
 	private _scopeRegistry: TMScopeRegistry;
 	private _injections: { [scopeName: string]: string[]; };
 	private _injectedEmbeddedLanguages: { [scopeName: string]: IEmbeddedLanguagesMap[]; };
 	private _languageToScope: Map<string, string>;
+	private _grammarRegistry: Promise<[Registry, StackElement]> | null;
+
 	private _currentTokenColors: ITokenColorizationRule[];
 
 	constructor(
@@ -164,8 +165,8 @@ export class TextMateService extends Disposable implements ITextMateService {
 		this._injections = {};
 		this._injectedEmbeddedLanguages = {};
 		this._languageToScope = new Map<string, string>();
-
 		this._grammarRegistry = null;
+		this._currentTokenColors = null;
 
 		grammarsExtPoint.setHandler((extensions) => {
 			for (let i = 0; i < extensions.length; i++) {
@@ -197,9 +198,7 @@ export class TextMateService extends Disposable implements ITextMateService {
 			let modeId = mode.getId();
 			// Modes can be instantiated before the extension points have finished registering
 			this._extensionService.whenInstalledExtensionsRegistered().then(() => {
-				if (this._languageToScope.has(modeId)) {
-					this.registerDefinition(modeId);
-				}
+				this._registerDefinitionIfAvailable(modeId);
 			});
 		});
 	}
@@ -397,14 +396,16 @@ export class TextMateService extends Disposable implements ITextMateService {
 		});
 	}
 
-	private registerDefinition(modeId: string): void {
-		const promise = this._createGrammar(modeId).then((r) => {
-			return new TMTokenization(this._scopeRegistry, r.languageId, r.grammar, r.initialState, r.containsEmbeddedLanguages, this._notificationService);
-		}, e => {
-			onUnexpectedError(e);
-			return null;
-		});
-		TokenizationRegistry.registerPromise(modeId, promise);
+	private _registerDefinitionIfAvailable(modeId: string): void {
+		if (this._languageToScope.has(modeId)) {
+			const promise = this._createGrammar(modeId).then((r) => {
+				return new TMTokenization(this._scopeRegistry, r.languageId, r.grammar, r.initialState, r.containsEmbeddedLanguages, this._notificationService);
+			}, e => {
+				onUnexpectedError(e);
+				return null;
+			});
+			TokenizationRegistry.registerPromise(modeId, promise);
+		}
 	}
 }
 
