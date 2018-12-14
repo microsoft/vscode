@@ -196,6 +196,7 @@
 		"./vs/editor/contrib/comment/test/blockCommentCommand.test.ts",
 		"./vs/editor/contrib/contextmenu/contextmenu.ts",
 		"./vs/editor/contrib/cursorUndo/cursorUndo.ts",
+		"./vs/editor/contrib/documentSymbols/outlineModel.ts",
 		"./vs/editor/contrib/dnd/dnd.ts",
 		"./vs/editor/contrib/dnd/dragAndDropCommand.ts",
 		"./vs/editor/contrib/find/findController.ts",
