@@ -100,8 +100,8 @@ export interface ITreeModel<T, TFilterData, TRef> {
 
 	isCollapsible(location: TRef): boolean;
 	isCollapsed(location: TRef): boolean;
-	setCollapsed(location: TRef, collapsed: boolean): boolean;
-	toggleCollapsed(location: TRef): void;
+	setCollapsed(location: TRef, collapsed?: boolean, recursive?: boolean): boolean;
+	expandAll(): void;
 	collapseAll(): void;
 
 	refilter(): void;

@@ -111,9 +111,8 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 		return this.model.setCollapsed(location, collapsed);
 	}
 
-	toggleCollapsed(element: T): void {
-		const location = this.getElementLocation(element);
-		this.model.toggleCollapsed(location);
+	expandAll(): void {
+		this.model.expandAll();
 	}
 
 	collapseAll(): void {

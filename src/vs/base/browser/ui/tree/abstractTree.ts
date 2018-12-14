@@ -316,8 +316,12 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		return this.model.setCollapsed(location, false);
 	}
 
-	toggleCollapsed(location: TRef): void {
-		this.model.toggleCollapsed(location);
+	toggleCollapsed(location: TRef, recursive: boolean = false): void {
+		this.model.setCollapsed(location, undefined, recursive);
+	}
+
+	expandAll(): void {
+		this.model.expandAll();
 	}
 
 	collapseAll(): void {
@@ -417,7 +421,9 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		}
 
 		const location = this.model.getNodeLocation(node);
-		this.model.toggleCollapsed(location);
+		const recursive = e.browserEvent.altKey;
+
+		this.model.setCollapsed(location, undefined, recursive);
 	}
 
 	private onLeftArrow(e: StandardKeyboardEvent): void {
@@ -487,7 +493,9 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 		const node = nodes[0];
 		const location = this.model.getNodeLocation(node);
-		this.model.toggleCollapsed(location);
+		const recursive = e.browserEvent.altKey;
+
+		this.model.setCollapsed(location, undefined, recursive);
 	}
 
 	protected abstract createModel(view: ISpliceable<ITreeNode<T, TFilterData>>, options: IAbstractTreeOptions<T, TFilterData>): ITreeModel<T, TFilterData, TRef>;

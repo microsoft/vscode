@@ -315,6 +315,10 @@ export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> imple
 		this.tree.toggleCollapsed(this.getDataNode(element));
 	}
 
+	expandAll(): void {
+		this.tree.expandAll();
+	}
+
 	collapseAll(): void {
 		this.tree.collapseAll();
 	}
