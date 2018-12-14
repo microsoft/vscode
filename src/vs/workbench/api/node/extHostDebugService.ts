@@ -248,10 +248,6 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 			console.error('DebugConfigurationProvider.debugAdapterExecutable is deprecated and will be removed soon; please use DebugAdapterDescriptorFactory.createDebugAdapterDescriptor instead.');
 		}
 
-		if (provider.provideDebugAdapterTracker) {
-			// console.error('DebugConfigurationProvider.provideDebugAdapterTracker is deprecated and will be removed soon; please use DebugAdapterTrackerFactory.createDebugAdapterTracker instead.');
-		}
-
 		let handle = this._configProviderHandleCounter++;
 		this._configProviders.push({ type, handle, provider });
 
@@ -259,7 +255,6 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 			!!provider.provideDebugConfigurations,
 			!!provider.resolveDebugConfiguration,
 			!!provider.debugAdapterExecutable,		// TODO@AW: deprecated
-			!!provider.provideDebugAdapterTracker,	// TODO@AW: deprecated
 			handle);
 
 		return new Disposable(() => {
@@ -694,15 +689,9 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		const config = session.configuration;
 		const type = config.type;
 
-		const promises1 = this._configProviders
-			.filter(tuple => tuple.provider.provideDebugAdapterTracker && (tuple.type === type || tuple.type === '*'))
-			.map(tuple => asPromise(() => tuple.provider.provideDebugAdapterTracker(session, session.workspaceFolder, session.configuration, CancellationToken.None)).then(p => p).catch(err => null));
-
-		const promises2 = this._trackerFactories
+		const promises = this._trackerFactories
 			.filter(tuple => tuple.type === type || tuple.type === '*')
 			.map(tuple => asPromise(() => tuple.factory.createDebugAdapterTracker(session)).then(p => p).catch(err => null));
-
-		const promises = promises1.concat(promises2);
 
 		return Promise.race([
 			Promise.all(promises).then(trackers => {
@@ -934,27 +923,27 @@ class MultiTracker implements vscode.DebugAdapterTracker {
 	}
 
 	onWillStartSession(): void {
-		this.trackers.forEach(t => t.onWillStartSession ? t.onWillStartSession() : (t.startDebugAdapter ? t.startDebugAdapter() : undefined));
+		this.trackers.forEach(t => t.onWillStartSession ? t.onWillStartSession() : undefined);
 	}
 
 	onWillReceiveMessage(message: any): void {
-		this.trackers.forEach(t => t.onWillReceiveMessage ? t.onWillReceiveMessage(message) : (t.toDebugAdapter ? t.toDebugAdapter(message) : undefined));
+		this.trackers.forEach(t => t.onWillReceiveMessage ? t.onWillReceiveMessage(message) : undefined);
 	}
 
 	onDidSendMessage(message: any): void {
-		this.trackers.forEach(t => t.onDidSendMessage ? t.onDidSendMessage(message) : (t.fromDebugAdapter ? t.fromDebugAdapter(message) : undefined));
+		this.trackers.forEach(t => t.onDidSendMessage ? t.onDidSendMessage(message) : undefined);
 	}
 
 	onWillStopSession(): void {
-		this.trackers.forEach(t => t.onWillStopSession ? t.onWillStopSession() : (t.stopDebugAdapter ? t.stopDebugAdapter() : undefined));
+		this.trackers.forEach(t => t.onWillStopSession ? t.onWillStopSession() : undefined);
 	}
 
 	onError(error: Error): void {
-		this.trackers.forEach(t => t.onError ? t.onError(error) : (t.debugAdapterError ? t.debugAdapterError(error) : undefined));
+		this.trackers.forEach(t => t.onError ? t.onError(error) : undefined);
 	}
 
 	onExit(code: number, signal: string): void {
-		this.trackers.forEach(t => t.onExit ? t.onExit(code, signal) : (t.debugAdapterExit ? t.debugAdapterExit(code, signal) : undefined));
+		this.trackers.forEach(t => t.onExit ? t.onExit(code, signal) : undefined);
 	}
 }
 

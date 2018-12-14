@@ -207,14 +207,7 @@ export class ConfigurationManager implements IConfigurationManager {
 
 		// if the given debugType matches any registered tracker factory we need to run the DA in the EH
 		const providers = this.adapterTrackerFactories.filter(p => p.type === debugType || p.type === '*');
-		if (providers.length > 0) {
-			return true;
-		}
-
-		// TODO@AW deprecated
-		// if the given debugType matches any registered provider that has a provideTracker method, we need to run the DA in the EH
-		const providers2 = this.configProviders.filter(p => p.hasTracker && (p.type === debugType || p.type === '*'));
-		return providers2.length > 0;
+		return providers.length > 0;
 	}
 
 	public resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: IConfig): Promise<IConfig> {
