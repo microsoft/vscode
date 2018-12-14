@@ -291,18 +291,18 @@ export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> imple
 		return new AsyncDataTreeNodeWrapper<T | null, TFilterData>(node);
 	}
 
-	collapse(element: T): boolean {
-		return this.tree.collapse(this.getDataNode(element));
+	collapse(element: T, recursive: boolean = false): boolean {
+		return this.tree.collapse(this.getDataNode(element), recursive);
 	}
 
-	async expand(element: T): Promise<boolean> {
+	async expand(element: T, recursive: boolean = false): Promise<boolean> {
 		const node = this.getDataNode(element);
 
 		if (!this.tree.isCollapsed(node)) {
 			return false;
 		}
 
-		this.tree.expand(node);
+		this.tree.expand(node, recursive);
 
 		if (node.state !== AsyncDataTreeNodeState.Loaded) {
 			await this.refreshNode(node, false, ChildrenResolutionReason.Expand);
@@ -311,8 +311,8 @@ export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> imple
 		return true;
 	}
 
-	toggleCollapsed(element: T): void {
-		this.tree.toggleCollapsed(this.getDataNode(element));
+	toggleCollapsed(element: T, recursive: boolean = false): void {
+		this.tree.toggleCollapsed(this.getDataNode(element), recursive);
 	}
 
 	expandAll(): void {
