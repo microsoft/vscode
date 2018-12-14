@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import * as perf from 'vs/base/common/performance';
-import { ThrottledDelayer } from 'vs/base/common/async';
+import { ThrottledDelayer, sequence, ignoreErrors } from 'vs/base/common/async';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
 import * as glob from 'vs/base/common/glob';
@@ -906,7 +906,6 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 			return;
 		}
 
-		// First try to get the stat object from the input to avoid a roundtrip
 		if (!this.isCreated) {
 			return;
 		}
@@ -942,29 +941,30 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 			: undefined;
 	}
 
-	private doSelect(fileStat: ExplorerItem, reveal: boolean): void {
+	private doSelect(fileStat: ExplorerItem, reveal: boolean): Promise<void> {
 		if (!fileStat) {
-			return;
+			return Promise.resolve(void 0);
 		}
 
-		// // Special case: we are asked to reveal and select an element that is not visible
-		// // In this case we take the parent element so that we are at least close to it.
-		// if (!this.tree.isVisible(fileStat)) {
-		// 	fileStat = fileStat.parent;
-		// 	if (!fileStat) {
-		// 		return;
-		// 	}
-		// }
-
-		if (reveal) {
-			this.tree.reveal(fileStat, 0.5);
+		// Expand all stats in the parent chain
+		const toExpand: ExplorerItem[] = [];
+		let parent = fileStat.parent;
+		while (parent) {
+			toExpand.push(parent);
+			parent = parent.parent;
 		}
 
-		if (!fileStat.isDirectory) {
-			this.tree.setSelection([fileStat]); // Since folders can not be opened, only select files
-		}
+		return sequence(toExpand.reverse().map(s => () => ignoreErrors(this.tree.expand(s)))).then(() => {
+			if (reveal) {
+				this.tree.reveal(fileStat, 0.5);
+			}
 
-		this.tree.setFocus([fileStat]);
+			if (!fileStat.isDirectory) {
+				this.tree.setSelection([fileStat]); // Since folders can not be opened, only select files
+			}
+
+			this.tree.setFocus([fileStat]);
+		});
 	}
 
 	collapseAll(): void {
