@@ -90,10 +90,18 @@ export abstract class BreadcrumbsConfig<T> {
 					readonly name = name;
 					readonly onDidChange = onDidChange.event;
 					getValue(overrides?: IConfigurationOverrides): T {
-						return service.getValue(name, overrides);
+						if (overrides) {
+							return service.getValue(name, overrides);
+						} else {
+							return service.getValue(name);
+						}
 					}
 					updateValue(newValue: T, overrides?: IConfigurationOverrides): Promise<void> {
-						return service.updateValue(name, newValue, overrides);
+						if (overrides) {
+							return service.updateValue(name, newValue, overrides);
+						} else {
+							return service.updateValue(name, newValue);
+						}
 					}
 					dispose(): void {
 						listener.dispose();
