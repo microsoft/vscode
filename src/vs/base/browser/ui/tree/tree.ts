@@ -67,6 +67,10 @@ export interface ITreeFilter<T, TFilterData = void> {
 	filter(element: T, parentVisibility: TreeVisibility): TreeFilterResult<TFilterData>;
 }
 
+export interface ITreeSorter<T> {
+	compare(element: T, otherElement: T): number;
+}
+
 export interface ITreeElement<T> {
 	readonly element: T;
 	readonly children?: Iterator<ITreeElement<T>> | ITreeElement<T>[];

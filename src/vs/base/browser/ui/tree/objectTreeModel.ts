@@ -7,9 +7,11 @@ import { ISpliceable } from 'vs/base/common/sequence';
 import { Iterator, ISequence, getSequenceIterator } from 'vs/base/common/iterator';
 import { IndexTreeModel, IIndexTreeModelOptions } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { Event } from 'vs/base/common/event';
-import { ITreeModel, ITreeNode, ITreeElement } from 'vs/base/browser/ui/tree/tree';
+import { ITreeModel, ITreeNode, ITreeElement, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
 
-export interface IObjectTreeModelOptions<T, TFilterData> extends IIndexTreeModelOptions<T, TFilterData> { }
+export interface IObjectTreeModelOptions<T, TFilterData> extends IIndexTreeModelOptions<T, TFilterData> {
+	sorter?: ITreeSorter<T>;
+}
 
 export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends NonNullable<any> = void> implements ITreeModel<T | null, TFilterData, T | null> {
 
@@ -17,6 +19,7 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 
 	private model: IndexTreeModel<T | null, TFilterData>;
 	private nodes = new Map<T | null, ITreeNode<T, TFilterData>>();
+	private sorter?: ITreeSorter<ITreeElement<T>>;
 
 	readonly onDidChangeCollapseState: Event<ITreeNode<T, TFilterData>>;
 	readonly onDidChangeRenderNodeCount: Event<ITreeNode<T, TFilterData>>;
@@ -27,6 +30,14 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 		this.model = new IndexTreeModel(list, null, options);
 		this.onDidChangeCollapseState = this.model.onDidChangeCollapseState as Event<ITreeNode<T, TFilterData>>;
 		this.onDidChangeRenderNodeCount = this.model.onDidChangeRenderNodeCount as Event<ITreeNode<T, TFilterData>>;
+
+		if (options.sorter) {
+			this.sorter = {
+				compare(a, b) {
+					return options.sorter!.compare(a.element, b.element);
+				}
+			};
+		}
 	}
 
 	setChildren(
@@ -67,7 +78,11 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 	}
 
 	private preserveCollapseState(elements: ISequence<ITreeElement<T | null>> | undefined): ISequence<ITreeElement<T | null>> {
-		const iterator = elements ? getSequenceIterator(elements) : Iterator.empty<ITreeElement<T>>();
+		let iterator = elements ? getSequenceIterator(elements) : Iterator.empty<ITreeElement<T>>();
+
+		if (this.sorter) {
+			iterator = Iterator.fromArray(Iterator.collect(iterator).sort(this.sorter.compare.bind(this.sorter)));
+		}
 
 		return Iterator.map(iterator, treeElement => {
 			const node = this.nodes.get(treeElement.element);

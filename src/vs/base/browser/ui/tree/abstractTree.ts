@@ -179,6 +179,7 @@ function asTreeContextMenuEvent<T>(event: IListContextMenuEvent<ITreeNode<T, any
 }
 
 export interface IAbstractTreeOptions<T, TFilterData = void> extends IListOptions<T> {
+	collapseByDefault?: boolean; // defaults to false
 	filter?: ITreeFilter<T, TFilterData>;
 }
 

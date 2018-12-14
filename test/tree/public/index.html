@@ -138,6 +138,16 @@
 					}
 				};
 
+				const sorter = new class {
+					compare(a, b) {
+						if (a.collapsible === b.collapsible) {
+							return a.name < b.name ? -1 : 1;
+						}
+
+						return a.collapsible ? -1 : 1;
+					}
+				};
+
 				const dataSource = new class {
 					hasChildren(element) {
 						return element === null || element.element.type === 'dir';
@@ -154,11 +164,7 @@
 										collapsible: element.type === 'dir'
 									}));
 
-									if (element) {
-										setTimeout(() => c(els), 2500);
-									} else {
-										c(els);
-									}
+									c(els);
 								}
 							};
 						});
@@ -171,7 +177,7 @@
 					}
 				};
 
-				const tree = new AsyncDataTree(container, delegate, [renderer], dataSource, { filter: treeFilter, identityProvider });
+				const tree = new AsyncDataTree(container, delegate, [renderer], dataSource, { filter: treeFilter, sorter, identityProvider });
 
 				return { tree, treeFilter };
 			}

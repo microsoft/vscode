@@ -6,7 +6,7 @@
 import { ComposedTreeDelegate, IAbstractTreeOptions } from 'vs/base/browser/ui/tree/abstractTree';
 import { ObjectTree, IObjectTreeOptions } from 'vs/base/browser/ui/tree/objectTree';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { ITreeElement, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
+import { ITreeElement, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { timeout, always } from 'vs/base/common/async';
@@ -157,6 +157,11 @@ function asObjectTreeOptions<T, TFilterData>(options?: IAsyncDataTreeOptions<T, 
 			getKeyboardNavigationLabel(e) {
 				return options.keyboardNavigationLabelProvider!.getKeyboardNavigationLabel(e.element!);
 			}
+		},
+		sorter: options.sorter && {
+			compare(a, b) {
+				return options.sorter!.compare(a.element!, b.element!);
+			}
 		}
 	};
 }
@@ -170,6 +175,7 @@ function asTreeElement<T>(node: IAsyncDataTreeNode<T>): ITreeElement<IAsyncDataT
 
 export interface IAsyncDataTreeOptions<T, TFilterData = void> extends IAbstractTreeOptions<T, TFilterData> {
 	identityProvider?: IIdentityProvider<T>;
+	sorter?: ITreeSorter<T>;
 }
 
 export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> implements IDisposable {
