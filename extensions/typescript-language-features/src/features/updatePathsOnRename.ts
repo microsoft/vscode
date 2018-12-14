@@ -38,7 +38,12 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 		super();
 
 		this._register(vscode.workspace.onDidRenameFile(e => {
-			this.doRename(e.oldUri, e.newUri);
+			vscode.window.withProgress({
+				location: vscode.ProgressLocation.Window,
+				title: localize('renameProgress.title', "Checking for update of JS/TS imports")
+			}, () => {
+				return this.doRename(e.oldUri, e.newUri);
+			});
 		}));
 	}
 
