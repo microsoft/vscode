@@ -230,21 +230,19 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 		document: vscode.TextDocument,
 		oldFile: string,
 		newFile: string,
-	) {
+	): Promise<vscode.WorkspaceEdit | undefined> {
 		const isDirectoryRename = fs.lstatSync(newFile).isDirectory();
-		await this.fileConfigurationManager.setGlobalConfigurationFromDocument(document, nulToken);
 
-		const args: Proto.GetEditsForFileRenameRequestArgs & { file: string } = {
-			file: targetResource,
-			oldFilePath: oldFile,
-			newFilePath: newFile,
-		};
-		const response = await this.client.execute('getEditsForFileRename', args, nulToken);
-		if (response.type !== 'response') {
-			return;
-		}
-
-		if (!response.body) {
+		const response = await this.client.interuptGetErr(() => {
+			this.fileConfigurationManager.setGlobalConfigurationFromDocument(document, nulToken);
+			const args: Proto.GetEditsForFileRenameRequestArgs & { file: string } = {
+				file: targetResource,
+				oldFilePath: oldFile,
+				newFilePath: newFile,
+			};
+			return this.client.execute('getEditsForFileRename', args, nulToken);
+		});
+		if (response.type !== 'response' || !response.body) {
 			return;
 		}
 
