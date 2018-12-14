@@ -467,14 +467,16 @@ export abstract class CommonTask {
 
 	_source: BaseTaskSource;
 
-	protected constructor(init?: Partial<CommonTask>) {
-		this._id = init._id;
-		this._label = init._label;
-		if (init.type) {
-			this.type = init.type;
+	protected constructor(id: string, label: string, type, runOptions: RunOptions,
+		configurationProperties: ConfigurationProperties, source: BaseTaskSource) {
+		this._id = id;
+		this._label = label;
+		if (type) {
+			this.type = type;
 		}
-		this.runOptions = init.runOptions;
-		this.configurationProperties = init.configurationProperties;
+		this.runOptions = runOptions;
+		this.configurationProperties = configurationProperties;
+		this._source = source;
 	}
 
 	public getDefinition(useSource?: boolean): KeyedTaskIdentifier | undefined {
@@ -546,11 +548,12 @@ export class CustomTask extends CommonTask {
 	 */
 	command: CommandConfiguration;
 
-	public constructor(init?: Partial<CustomTask>) {
-		super(init);
-		this._source = init._source;
-		this.hasDefinedMatchers = init.hasDefinedMatchers;
-		this.command = init.command;
+	public constructor(id: string, source: WorkspaceTaskSource, label: string, type, command: CommandConfiguration,
+		hasDefinedMatchers: boolean, runOptions: RunOptions, configurationProperties: ConfigurationProperties) {
+		super(id, label, undefined, runOptions, configurationProperties, source);
+		this._source = source;
+		this.hasDefinedMatchers = hasDefinedMatchers;
+		this.command = command;
 	}
 
 	public customizes(): KeyedTaskIdentifier | undefined {
@@ -598,7 +601,7 @@ export class CustomTask extends CommonTask {
 		if (!workspaceFolder) {
 			return undefined;
 		}
-		let key: CustomKey = { type: CUSTOMIZED_TASK_TYPE, folder: workspaceFolder.uri.toString(), id: this.configurationProperties.identifier };
+		let key: CustomKey = { type: CUSTOMIZED_TASK_TYPE, folder: workspaceFolder.uri.toString(), id: this.configurationProperties.identifier! };
 		return JSON.stringify(key);
 	}
 
@@ -624,10 +627,11 @@ export class ConfiguringTask extends CommonTask {
 
 	configures: KeyedTaskIdentifier;
 
-	public constructor(init?: Partial<ConfiguringTask>) {
-		super(init);
-		this._source = init._source;
-		this.configures = init.configures;
+	public constructor(id: string, source: WorkspaceTaskSource, label: string, type,
+		configures: KeyedTaskIdentifier, runOptions: RunOptions, configurationProperties: ConfigurationProperties) {
+		super(id, label, type, runOptions, configurationProperties, source);
+		this._source = source;
+		this.configures = configures;
 	}
 
 	public static is(value: any): value is ConfiguringTask {
@@ -651,12 +655,13 @@ export class ContributedTask extends CommonTask {
 	 */
 	command: CommandConfiguration;
 
-	public constructor(init?: Partial<ContributedTask>) {
-		super(init);
-		this._source = init._source;
-		this.defines = init.defines;
-		this.hasDefinedMatchers = init.hasDefinedMatchers;
-		this.command = init.command;
+	public constructor(id: string, source: ExtensionTaskSource, label: string, type, defines: KeyedTaskIdentifier,
+		command: CommandConfiguration, hasDefinedMatchers: boolean, runOptions: RunOptions,
+		configurationProperties: ConfigurationProperties) {
+		super(id, label, type, runOptions, configurationProperties, source);
+		this.defines = defines;
+		this.hasDefinedMatchers = hasDefinedMatchers;
+		this.command = command;
 	}
 
 	public getDefinition(): KeyedTaskIdentifier {
@@ -706,9 +711,10 @@ export class InMemoryTask extends CommonTask {
 
 	type: 'inMemory';
 
-	public constructor(init?: Partial<InMemoryTask>) {
-		super(init);
-		this._source = init._source;
+	public constructor(id: string, source: InMemoryTaskSource, label: string, type,
+		runOptions: RunOptions, configurationProperties: ConfigurationProperties) {
+		super(id, label, type, runOptions, configurationProperties, source);
+		this._source = source;
 	}
 
 	public static is(value: any): value is InMemoryTask {

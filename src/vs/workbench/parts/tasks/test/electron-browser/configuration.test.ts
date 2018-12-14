@@ -181,22 +181,22 @@ class CustomTaskBuilder {
 
 	constructor(public parent: ConfiguationBuilder, name: string, command: string) {
 		this.commandBuilder = new CommandConfigurationBuilder(this, command);
-		this.result = new Tasks.CustomTask({
-			_id: name,
-			_source: { kind: Tasks.TaskSourceKind.Workspace, label: 'workspace', config: { workspaceFolder: workspaceFolder, element: undefined, index: -1, file: '.vscode/tasks.json' } },
-			_label: name,
-			type: Tasks.CUSTOMIZED_TASK_TYPE,
-			command: this.commandBuilder.result,
-			hasDefinedMatchers: false,
-			runOptions: { reevaluateOnRerun: true },
-			configurationProperties: {
+		this.result = new Tasks.CustomTask(
+			name,
+			{ kind: Tasks.TaskSourceKind.Workspace, label: 'workspace', config: { workspaceFolder: workspaceFolder, element: undefined, index: -1, file: '.vscode/tasks.json' } },
+			name,
+			Tasks.CUSTOMIZED_TASK_TYPE,
+			this.commandBuilder.result,
+			false,
+			{ reevaluateOnRerun: true },
+			{
 				identifier: name,
 				name: name,
 				isBackground: false,
 				promptOnClose: true,
 				problemMatchers: [],
 			}
-		});
+		);
 	}
 
 	public identifier(value: string): CustomTaskBuilder {

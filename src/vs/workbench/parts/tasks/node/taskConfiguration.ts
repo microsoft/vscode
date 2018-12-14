@@ -1320,15 +1320,15 @@ namespace ConfiguringTask {
 			index,
 			element: external
 		};
-		let result: Tasks.ConfiguringTask = new Tasks.ConfiguringTask({
-			type: type,
-			configures: taskIdentifier,
-			_id: `${typeDeclaration.extensionId}.${taskIdentifier._key}`,
-			_source: Objects.assign({} as Tasks.WorkspaceTaskSource, source, { config: configElement }),
-			_label: undefined,
-			runOptions: RunOptions.fromConfiguration(external.runOptions),
-			configurationProperties: {}
-		});
+		let result: Tasks.ConfiguringTask = new Tasks.ConfiguringTask(
+			`${typeDeclaration.extensionId}.${taskIdentifier._key}`,
+			Objects.assign({} as Tasks.WorkspaceTaskSource, source, { config: configElement }),
+			undefined,
+			type,
+			taskIdentifier,
+			RunOptions.fromConfiguration(external.runOptions),
+			{}
+		);
 		let configuration = ConfigurationProperties.from(external, context, true);
 		if (configuration) {
 			result = Objects.assign(result, configuration);
@@ -1378,19 +1378,19 @@ namespace CustomTask {
 			return undefined;
 		}
 
-		let result: Tasks.CustomTask = new Tasks.CustomTask({
-			type: Tasks.CUSTOMIZED_TASK_TYPE,
-			_id: context.uuidMap.getUUID(taskName),
-			_source: Objects.assign({} as Tasks.WorkspaceTaskSource, source, { config: { index, element: external, file: '.vscode\\tasks.json', workspaceFolder: context.workspaceFolder } }),
-			_label: taskName,
-			hasDefinedMatchers: false,
-			command: undefined,
-			runOptions: RunOptions.fromConfiguration(external.runOptions),
-			configurationProperties: {
+		let result: Tasks.CustomTask = new Tasks.CustomTask(
+			context.uuidMap.getUUID(taskName),
+			Objects.assign({} as Tasks.WorkspaceTaskSource, source, { config: { index, element: external, file: '.vscode\\tasks.json', workspaceFolder: context.workspaceFolder } }),
+			taskName,
+			Tasks.CUSTOMIZED_TASK_TYPE,
+			undefined,
+			false,
+			RunOptions.fromConfiguration(external.runOptions),
+			{
 				name: taskName,
 				identifier: taskName,
 			}
-		});
+		);
 		let configuration = ConfigurationProperties.from(external, context, false);
 		if (configuration) {
 			result = Objects.assign(result, configuration);
@@ -1454,19 +1454,19 @@ namespace CustomTask {
 	}
 
 	export function createCustomTask(contributedTask: Tasks.ContributedTask, configuredProps: Tasks.ConfigurationProperties & { _id: string, _source: Tasks.WorkspaceTaskSource }): Tasks.CustomTask {
-		let result: Tasks.CustomTask = new Tasks.CustomTask({
-			_id: configuredProps._id,
-			_source: Objects.assign({}, configuredProps._source, { customizes: contributedTask.defines }),
-			_label: configuredProps.name || contributedTask._label,
-			type: Tasks.CUSTOMIZED_TASK_TYPE,
-			command: contributedTask.command,
-			hasDefinedMatchers: false,
-			runOptions: contributedTask.runOptions,
-			configurationProperties: {
+		let result: Tasks.CustomTask = new Tasks.CustomTask(
+			configuredProps._id,
+			Objects.assign({}, configuredProps._source, { customizes: contributedTask.defines }),
+			configuredProps.name || contributedTask._label,
+			Tasks.CUSTOMIZED_TASK_TYPE,
+			contributedTask.command,
+			false,
+			contributedTask.runOptions,
+			{
 				name: configuredProps.name || contributedTask.configurationProperties.name,
 				identifier: configuredProps.identifier || contributedTask.configurationProperties.identifier,
 			}
-		});
+		);
 		let resultConfigProps: Tasks.ConfigurationProperties = result.configurationProperties;
 
 		assignProperty(resultConfigProps, configuredProps, 'group');
@@ -1883,27 +1883,27 @@ class ConfigurationParser {
 			let matchers: ProblemMatcher[] = ProblemMatcherConverter.from(fileConfig.problemMatcher, context);
 			let isBackground = fileConfig.isBackground ? !!fileConfig.isBackground : fileConfig.isWatching ? !!fileConfig.isWatching : undefined;
 			let name = Tasks.CommandString.value(globals.command.name);
-			let task: Tasks.CustomTask = new Tasks.CustomTask({
-				_id: context.uuidMap.getUUID(name),
-				_source: Objects.assign({} as Tasks.WorkspaceTaskSource, source, { config: { index: -1, element: fileConfig, workspaceFolder: context.workspaceFolder } }),
-				_label: name,
-				type: Tasks.CUSTOMIZED_TASK_TYPE,
-				command: {
+			let task: Tasks.CustomTask = new Tasks.CustomTask(
+				context.uuidMap.getUUID(name),
+				Objects.assign({} as Tasks.WorkspaceTaskSource, source, { config: { index: -1, element: fileConfig, workspaceFolder: context.workspaceFolder } }),
+				name,
+				Tasks.CUSTOMIZED_TASK_TYPE,
+				{
 					name: undefined,
 					runtime: undefined,
 					presentation: undefined,
 					suppressTaskName: true
 				},
-				hasDefinedMatchers: false,
-				runOptions: { reevaluateOnRerun: true },
-				configurationProperties: {
+				false,
+				{ reevaluateOnRerun: true },
+				{
 					name: name,
 					identifier: name,
 					group: Tasks.TaskGroup.Build,
 					isBackground: isBackground,
 					problemMatchers: matchers,
 				}
-			});
+			);
 			let value = GroupKind.from(fileConfig.group);
 			if (value) {
 				task.configurationProperties.group = value[0];

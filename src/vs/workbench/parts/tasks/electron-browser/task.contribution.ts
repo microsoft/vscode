@@ -1176,18 +1176,18 @@ class TaskService extends Disposable implements ITaskService {
 			return { task: extensionTasks[0], resolver };
 		} else {
 			let id: string = UUID.generateUuid();
-			let task: InMemoryTask = new InMemoryTask({
-				_id: id,
-				_source: { kind: TaskSourceKind.InMemory, label: 'inMemory' },
-				_label: id,
-				type: 'inMemory',
-				runOptions: { reevaluateOnRerun: true },
-				configurationProperties: {
+			let task: InMemoryTask = new InMemoryTask(
+				id,
+				{ kind: TaskSourceKind.InMemory, label: 'inMemory' },
+				id,
+				'inMemory',
+				{ reevaluateOnRerun: true },
+				{
 					identifier: id,
 					dependsOn: extensionTasks.map((task) => { return { workspaceFolder: task.getWorkspaceFolder(), task: task._id }; }),
 					name: id,
 				}
-			});
+			);
 			return { task, resolver };
 		}
 	}

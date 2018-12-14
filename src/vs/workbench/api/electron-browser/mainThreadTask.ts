@@ -327,7 +327,7 @@ namespace TaskDTO {
 		return result;
 	}
 
-	export function to(task: TaskDTO, workspace: IWorkspaceContextService, executeOnly: boolean): Task {
+	export function to(task: TaskDTO, workspace: IWorkspaceContextService, executeOnly: boolean): ContributedTask {
 		if (typeof task.name !== 'string') {
 			return undefined;
 		}
@@ -346,23 +346,23 @@ namespace TaskDTO {
 		let label = nls.localize('task.label', '{0}: {1}', source.label, task.name);
 		let definition = TaskDefinitionDTO.to(task.definition, executeOnly);
 		let id = `${task.source.extensionId}.${definition._key}`;
-		let result: ContributedTask = new ContributedTask({
-			_id: id, // uuidMap.getUUID(identifier)
-			_source: source,
-			_label: label,
-			type: definition.type,
-			defines: definition,
-			command: command,
-			hasDefinedMatchers: task.hasDefinedMatchers,
-			runOptions: RunOptionsDTO.to(task.runOptions),
-			configurationProperties: {
+		let result: ContributedTask = new ContributedTask(
+			id, // uuidMap.getUUID(identifier)
+			source,
+			label,
+			definition.type,
+			definition,
+			command,
+			task.hasDefinedMatchers,
+			RunOptionsDTO.to(task.runOptions),
+			{
 				name: task.name,
 				identifier: label,
 				group: task.group,
 				isBackground: !!task.isBackground,
 				problemMatchers: task.problemMatchers.slice(),
 			}
-		});
+		);
 		return result;
 	}
 }
@@ -420,7 +420,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 					for (let dto of value.tasks) {
 						let task = TaskDTO.to(dto, this._workspaceContextServer, true);
 						if (task) {
-							tasks.push(new ContributedTask(<ContributedTask>task));
+							tasks.push(task);
 						} else {
 							console.error(`Task System: can not convert task: ${JSON.stringify(dto.definition, undefined, 0)}. Task will be dropped`);
 						}
