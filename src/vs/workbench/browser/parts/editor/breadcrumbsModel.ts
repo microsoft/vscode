@@ -31,7 +31,7 @@ export class FileElement {
 
 export type BreadcrumbElement = FileElement | OutlineModel | OutlineGroup | OutlineElement;
 
-type FileInfo = { path: FileElement[], folder: IWorkspaceFolder };
+type FileInfo = { path: FileElement[], folder?: IWorkspaceFolder };
 
 export class EditorBreadcrumbsModel {
 
@@ -105,16 +105,17 @@ export class EditorBreadcrumbsModel {
 		}
 
 		let info: FileInfo = {
-			folder: workspaceService.getWorkspaceFolder(uri),
+			folder: workspaceService.getWorkspaceFolder(uri) || undefined,
 			path: []
 		};
 
-		while (uri.path !== '/') {
-			if (info.folder && isEqual(info.folder.uri, uri)) {
+		let uriPrefix: URI | null = uri;
+		while (uriPrefix && uriPrefix.path !== '/') {
+			if (info.folder && isEqual(info.folder.uri, uriPrefix)) {
 				break;
 			}
-			info.path.unshift(new FileElement(uri, info.path.length === 0 ? FileKind.FILE : FileKind.FOLDER));
-			uri = dirname(uri);
+			info.path.unshift(new FileElement(uriPrefix, info.path.length === 0 ? FileKind.FILE : FileKind.FOLDER));
+			uriPrefix = dirname(uriPrefix);
 		}
 
 		if (info.folder && workspaceService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
@@ -145,7 +146,12 @@ export class EditorBreadcrumbsModel {
 			this._updateOutlineElements([]);
 		}
 
-		const buffer = this._editor.getModel();
+		const editor = this._editor;
+		if (!editor) {
+			return;
+		}
+
+		const buffer = editor.getModel();
 		if (!buffer || !DocumentSymbolProviderRegistry.has(buffer) || !isEqual(buffer.uri, this._uri)) {
 			return;
 		}
@@ -171,11 +177,11 @@ export class EditorBreadcrumbsModel {
 				// copy the model
 				model = model.adopt();
 
-				this._updateOutlineElements(this._getOutlineElements(model, this._editor.getPosition()));
-				this._outlineDisposables.push(this._editor.onDidChangeCursorPosition(_ => {
+				this._updateOutlineElements(this._getOutlineElements(model, editor.getPosition()));
+				this._outlineDisposables.push(editor.onDidChangeCursorPosition(_ => {
 					timeout.cancelAndSet(() => {
-						if (!buffer.isDisposed() && versionIdThen === buffer.getVersionId() && this._editor.getModel()) {
-							this._updateOutlineElements(this._getOutlineElements(model, this._editor.getPosition()));
+						if (!buffer.isDisposed() && versionIdThen === buffer.getVersionId() && editor.getModel()) {
+							this._updateOutlineElements(this._getOutlineElements(model, editor.getPosition()));
 						}
 					}, 150);
 				}));
@@ -186,11 +192,11 @@ export class EditorBreadcrumbsModel {
 		});
 	}
 
-	private _getOutlineElements(model: OutlineModel, position: IPosition): Array<OutlineModel | OutlineGroup | OutlineElement> {
-		if (!model) {
+	private _getOutlineElements(model: OutlineModel, position: IPosition | null): Array<OutlineModel | OutlineGroup | OutlineElement> {
+		if (!model || !position) {
 			return [];
 		}
-		let item: OutlineGroup | OutlineElement = model.getItemEnclosingPosition(position);
+		let item: OutlineGroup | OutlineElement | undefined = model.getItemEnclosingPosition(position);
 		if (!item) {
 			return [model];
 		}
@@ -201,7 +207,7 @@ export class EditorBreadcrumbsModel {
 			if (parent instanceof OutlineModel) {
 				break;
 			}
-			if (parent instanceof OutlineGroup && size(parent.parent.children) === 1) {
+			if (parent instanceof OutlineGroup && parent.parent && size(parent.parent.children) === 1) {
 				break;
 			}
 			item = parent;
