@@ -53,6 +53,13 @@ export interface IExplorerViewOptions extends IViewletViewOptions {
 	fileViewletState: EditableExplorerItems;
 }
 
+function getFileEventsExcludes(configurationService: IConfigurationService, root?: URI): glob.IExpression {
+	const scope = root ? { resource: root } : void 0;
+	const configuration = configurationService.getValue<IFilesConfiguration>(scope);
+
+	return (configuration && configuration.files && configuration.files.exclude) || Object.create(null);
+}
+
 export class ExplorerView extends ViewletPanel implements IExplorerView {
 
 	static readonly ID: string = 'workbench.explorer.fileView';
@@ -115,13 +122,6 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 		this.disposables.push(this.resourceContext);
 	}
 
-	private getFileEventsExcludes(root?: URI): glob.IExpression {
-		const scope = root ? { resource: root } : void 0;
-		const configuration = this.configurationService.getValue<IFilesConfiguration>(scope);
-
-		return (configuration && configuration.files && configuration.files.exclude) || Object.create(null);
-	}
-
 	protected renderHeader(container: HTMLElement): void {
 		super.renderHeader(container);
 
@@ -165,7 +165,7 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 	@memoize private get fileEventsFilter(): ResourceGlobMatcher {
 		const fileEventsFilter = this.instantiationService.createInstance(
 			ResourceGlobMatcher,
-			(root: URI) => this.getFileEventsExcludes(root),
+			(root: URI) => getFileEventsExcludes(this.configurationService, root),
 			(event: IConfigurationChangeEvent) => event.affectsConfiguration(FILES_EXCLUDE_CONFIG)
 		);
 		this.disposables.push(fileEventsFilter);
@@ -230,7 +230,7 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 		}));
 	}
 
-	getActions(): IAction[] {
+	@memoize getActions(): IAction[] {
 		const actions: Action[] = [];
 
 		actions.push(this.instantiationService.createInstance(NewFileAction, this.tree, this._editableExplorerItems, null));
@@ -290,7 +290,7 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 			if (this.autoReveal) {
 				const selection = this.tree.getSelection();
 				if (selection.length > 0) {
-					this.reveal(selection[0], 0.5);
+					this.tree.reveal(selection[0], 0.5);
 				}
 			}
 
@@ -506,7 +506,7 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 						// Refresh the Parent (View)
 						this.tree.refresh(p).then(() => {
 							// Reveal and focus new element
-							this.reveal(childElement, 0.5);
+							this.tree.reveal(childElement, 0.5);
 							this.tree.setFocus([childElement]);
 						});
 					});
@@ -703,7 +703,7 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 			this.explorerRefreshDelayer.trigger(() => {
 				return this.doRefresh().then(() => {
 					if (newRoots.length === 1) {
-						return this.reveal(this.model.findClosest(newRoots[0].uri), 0.5);
+						return this.tree.reveal(this.model.findClosest(newRoots[0].uri), 0.5);
 					}
 
 					return undefined;
@@ -900,7 +900,7 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 		const selection = this.hasSingleSelection(resource);
 		if (selection) {
 			if (reveal) {
-				this.reveal(selection, 0.5);
+				this.tree.reveal(selection, 0.5);
 			}
 
 			return;
@@ -957,7 +957,7 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 		// }
 
 		if (reveal) {
-			this.reveal(fileStat, 0.5);
+			this.tree.reveal(fileStat, 0.5);
 		}
 
 		if (!fileStat.isDirectory) {
@@ -965,12 +965,6 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 		}
 
 		this.tree.setFocus([fileStat]);
-	}
-
-	private reveal(element: any, relativeTop?: number): void {
-		if (this.tree) {
-			this.tree.reveal(element, relativeTop);
-		}
 	}
 
 	collapseAll(): void {
