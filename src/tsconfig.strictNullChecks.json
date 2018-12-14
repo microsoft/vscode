@@ -648,6 +648,7 @@
 		"./vs/workbench/parts/terminal/common/terminalMenu.ts",
 		"./vs/workbench/parts/terminal/common/terminalService.ts",
 		"./vs/workbench/parts/terminal/electron-browser/terminalConfigHelper.ts",
+		"./vs/workbench/parts/terminal/electron-browser/terminalLinkHandler.ts",
 		"./vs/workbench/parts/terminal/electron-browser/terminalProcessManager.ts",
 		"./vs/workbench/parts/terminal/node/terminal.ts",
 		"./vs/workbench/parts/terminal/node/terminalCommandTracker.ts",
