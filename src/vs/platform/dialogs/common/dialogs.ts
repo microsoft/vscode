@@ -152,19 +152,19 @@ export interface IFileDialogService {
 	 * The default path for a new file based on previously used files.
 	 * @param schemeFilter The scheme of the file path.
 	 */
-	defaultFilePath(schemeFilter: string): URI;
+	defaultFilePath(schemeFilter: string): URI | undefined;
 
 	/**
 	 * The default path for a new folder based on previously used folders.
 	 * @param schemeFilter The scheme of the folder path.
 	 */
-	defaultFolderPath(schemeFilter: string): URI;
+	defaultFolderPath(schemeFilter: string): URI | undefined;
 
 	/**
 	 * The default path for a new workspace based on previously used workspaces.
 	 * @param schemeFilter The scheme of the workspace path.
 	 */
-	defaultWorkspacePath(schemeFilter: string): URI;
+	defaultWorkspacePath(schemeFilter: string): URI | undefined;
 
 	/**
 	 * Shows a file-folder selection dialog and opens the selected entry.
@@ -189,7 +189,7 @@ export interface IFileDialogService {
 	/**
 	 * Shows a save file dialog and returns the chosen file URI.
 	 */
-	showSaveDialog(options: ISaveDialogOptions): Promise<URI>;
+	showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined>;
 
 	/**
 	 * Shows a open file dialog and returns the chosen file URI.

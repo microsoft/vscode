@@ -683,6 +683,7 @@
 		"./vs/workbench/services/crashReporter/electron-browser/crashReporterService.ts",
 		"./vs/workbench/services/decorations/browser/decorations.ts",
 		"./vs/workbench/services/decorations/browser/decorationsService.ts",
+		"./vs/workbench/services/dialogs/electron-browser/dialogService.ts",
 		"./vs/workbench/services/editor/common/editorService.ts",
 		"./vs/workbench/services/extensions/common/extensions.ts",
 		"./vs/workbench/services/extensions/common/extensionsRegistry.ts",
