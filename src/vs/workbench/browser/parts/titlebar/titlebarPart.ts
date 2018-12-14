@@ -25,7 +25,7 @@ import { isMacintosh, isWindows, isLinux } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { Color } from 'vs/base/common/color';
 import { trim } from 'vs/base/common/strings';
-import { EventType, EventHelper, Dimension, isAncestor, hide, show, removeClass, addClass, append, $, addDisposableListener } from 'vs/base/browser/dom';
+import { EventType, EventHelper, Dimension, isAncestor, hide, show, removeClass, addClass, append, $, addDisposableListener, runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { MenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { template, getBaseLabel } from 'vs/base/common/labels';
@@ -491,20 +491,17 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	private adjustTitleMarginToCenter(): void {
-		setTimeout(() => {
-			// Cannot center
-			if (!isMacintosh &&
-				(this.appIcon.clientWidth + this.menubar.clientWidth + 10 > (this.titleContainer.clientWidth - this.title.clientWidth) / 2 ||
-					this.titleContainer.clientWidth - this.windowControls.clientWidth - 10 < (this.titleContainer.clientWidth + this.title.clientWidth) / 2)) {
-				this.title.style.position = null;
-				this.title.style.left = null;
-				this.title.style.transform = null;
-			} else {
-				this.title.style.position = 'absolute';
-				this.title.style.left = '50%';
-				this.title.style.transform = 'translate(-50%, 0)';
-			}
-		}, 0); // delay so that we can get accurate information about widths
+		if (!isMacintosh &&
+			(this.appIcon.clientWidth + this.menubar.clientWidth + 10 > (this.titleContainer.clientWidth - this.title.clientWidth) / 2 ||
+				this.titleContainer.clientWidth - this.windowControls.clientWidth - 10 < (this.titleContainer.clientWidth + this.title.clientWidth) / 2)) {
+			this.title.style.position = null;
+			this.title.style.left = null;
+			this.title.style.transform = null;
+		} else {
+			this.title.style.position = 'absolute';
+			this.title.style.left = '50%';
+			this.title.style.transform = 'translate(-50%, 0)';
+		}
 	}
 
 	layout(dimension: Dimension): Dimension[] {
@@ -524,7 +521,7 @@ export class TitlebarPart extends Part implements ITitleService {
 				}
 			}
 
-			this.adjustTitleMarginToCenter();
+			runAtThisOrScheduleAtNextAnimationFrame(() => this.adjustTitleMarginToCenter());
 
 			if (this.menubarPart) {
 				const menubarDimension = new Dimension(undefined, dimension.height);

@@ -520,6 +520,8 @@ export class MenuBar extends Disposable {
 		if (this.container.style.display !== 'flex') {
 			this.container.style.display = 'flex';
 			this._onVisibilityChange.fire(true);
+
+			this.updateOverflowAction();
 		}
 	}
 
@@ -859,12 +861,6 @@ export class MenuBar extends Disposable {
 
 		this._register(menuWidget.onDidCancel(() => {
 			this.focusState = MenubarState.FOCUSED;
-		}));
-
-		this._register(menuWidget.onDidBlur(() => {
-			setTimeout(() => {
-				this.cleanupCustomMenu();
-			}, 100);
 		}));
 
 		if (actualMenuIndex !== menuIndex) {
