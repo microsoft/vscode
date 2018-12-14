@@ -73,7 +73,7 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 		}
 	}
 
-	private createMenu(delegate: IContextMenuDelegate, entries: (IAction | ContextSubMenu)[], onHide: () => void): IContextMenuItem[] {
+	private createMenu(delegate: IContextMenuDelegate, entries: Array<IAction | ContextSubMenu>, onHide: () => void): IContextMenuItem[] {
 		const actionRunner = delegate.actionRunner || new ActionRunner();
 
 		return entries.map(entry => this.createMenuItem(delegate, entry, actionRunner, onHide));

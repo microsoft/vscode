@@ -178,7 +178,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		this.fireBreakpointChanges(breakpoints, [], []);
 
 		// convert added breakpoints to DTOs
-		const dtos: (ISourceMultiBreakpointDto | IFunctionBreakpointDto)[] = [];
+		const dtos: Array<ISourceMultiBreakpointDto | IFunctionBreakpointDto> = [];
 		const map = new Map<string, ISourceMultiBreakpointDto>();
 		for (const bp of breakpoints) {
 			if (bp instanceof SourceBreakpoint) {

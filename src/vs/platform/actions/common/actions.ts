@@ -105,7 +105,7 @@ export interface IMenuActionOptions {
 
 export interface IMenu extends IDisposable {
 	onDidChange: Event<IMenu>;
-	getActions(options?: IMenuActionOptions): [string, (MenuItemAction | SubmenuItemAction)[]][];
+	getActions(options?: IMenuActionOptions): [string, Array<MenuItemAction | SubmenuItemAction>][];
 }
 
 export const IMenuService = createDecorator<IMenuService>('menuService');
@@ -122,7 +122,7 @@ export interface IMenuRegistry {
 	getCommand(id: string): ICommandAction;
 	getCommands(): ICommandsMap;
 	appendMenuItem(menu: MenuId, item: IMenuItem | ISubmenuItem): IDisposable;
-	getMenuItems(loc: MenuId): (IMenuItem | ISubmenuItem)[];
+	getMenuItems(loc: MenuId): Array<IMenuItem | ISubmenuItem>;
 	onDidChangeMenu: Event<MenuId>;
 }
 
@@ -133,7 +133,7 @@ export interface ICommandsMap {
 export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 
 	private readonly _commands: { [id: string]: ICommandAction } = Object.create(null);
-	private readonly _menuItems: { [loc: string]: (IMenuItem | ISubmenuItem)[] } = Object.create(null);
+	private readonly _menuItems: { [loc: string]: Array<IMenuItem | ISubmenuItem> } = Object.create(null);
 	private readonly _onDidChangeMenu = new Emitter<MenuId>();
 
 	readonly onDidChangeMenu: Event<MenuId> = this._onDidChangeMenu.event;
@@ -175,7 +175,7 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 		};
 	}
 
-	getMenuItems(id: MenuId): (IMenuItem | ISubmenuItem)[] {
+	getMenuItems(id: MenuId): Array<IMenuItem | ISubmenuItem> {
 		const result = this._menuItems[id] || [];
 
 		if (id === MenuId.CommandPalette) {
@@ -186,7 +186,7 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 		return result;
 	}
 
-	private _appendImplicitItems(result: (IMenuItem | ISubmenuItem)[]) {
+	private _appendImplicitItems(result: Array<IMenuItem | ISubmenuItem>) {
 		const set = new Set<string>();
 
 		const temp = result.filter(item => { return isIMenuItem(item); }) as IMenuItem[];

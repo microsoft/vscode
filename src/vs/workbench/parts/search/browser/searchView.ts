@@ -90,7 +90,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	private searchSubmitted: boolean;
 	private searching: boolean;
 
-	private actions: (CollapseDeepestExpandedLevelAction | ClearSearchResultsAction)[] = [];
+	private actions: Array<CollapseDeepestExpandedLevelAction | ClearSearchResultsAction> = [];
 	private cancelAction: CancelSearchAction;
 	private refreshAction: RefreshAction;
 

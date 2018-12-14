@@ -615,7 +615,7 @@ export interface MainThreadDebugServiceShape extends IDisposable {
 	$customDebugAdapterRequest(id: DebugSessionUUID, command: string, args: any): Promise<any>;
 	$appendDebugConsole(value: string): void;
 	$startBreakpointEvents(): void;
-	$registerBreakpoints(breakpoints: (ISourceMultiBreakpointDto | IFunctionBreakpointDto)[]): Promise<void>;
+	$registerBreakpoints(breakpoints: Array<ISourceMultiBreakpointDto | IFunctionBreakpointDto>): Promise<void>;
 	$unregisterBreakpoints(breakpointIds: string[], functionBreakpointIds: string[]): Promise<void>;
 }
 
@@ -829,7 +829,7 @@ export interface ResourceTextEditDto {
 }
 
 export interface WorkspaceEditDto {
-	edits: (ResourceFileEditDto | ResourceTextEditDto)[];
+	edits: Array<ResourceFileEditDto | ResourceTextEditDto>;
 
 	// todo@joh reject should go into rename
 	rejectReason?: string;
@@ -962,9 +962,9 @@ export interface ISourceBreakpointDto extends IBreakpointDto {
 }
 
 export interface IBreakpointsDeltaDto {
-	added?: (ISourceBreakpointDto | IFunctionBreakpointDto)[];
+	added?: Array<ISourceBreakpointDto | IFunctionBreakpointDto>;
 	removed?: string[];
-	changed?: (ISourceBreakpointDto | IFunctionBreakpointDto)[];
+	changed?: Array<ISourceBreakpointDto | IFunctionBreakpointDto>;
 }
 
 export interface ISourceMultiBreakpointDto {

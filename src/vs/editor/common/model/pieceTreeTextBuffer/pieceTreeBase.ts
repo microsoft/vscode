@@ -242,7 +242,7 @@ class PieceTreeSearchCache {
 
 	public valdiate(offset: number) {
 		let hasInvalidVal = false;
-		let tmp: (CacheEntry | null)[] = this._cache;
+		let tmp: Array<CacheEntry | null> = this._cache;
 		for (let i = 0; i < tmp.length; i++) {
 			let nodePos = tmp[i]!;
 			if (nodePos.node.parent === null || nodePos.nodeStartOffset >= offset) {

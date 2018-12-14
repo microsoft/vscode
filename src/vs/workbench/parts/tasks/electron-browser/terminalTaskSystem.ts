@@ -1034,7 +1034,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 	}
 
-	private collectMatcherVariables(variables: Set<string>, values: (string | ProblemMatcher)[]): void {
+	private collectMatcherVariables(variables: Set<string>, values: Array<string | ProblemMatcher>): void {
 		if (values === void 0 || values === null || values.length === 0) {
 			return;
 		}
@@ -1081,7 +1081,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		return value.map(s => this.resolveVariable(resolver, s));
 	}
 
-	private resolveMatchers(resolver: VariableResolver, values: (string | ProblemMatcher)[]): ProblemMatcher[] {
+	private resolveMatchers(resolver: VariableResolver, values: Array<string | ProblemMatcher>): ProblemMatcher[] {
 		if (values === void 0 || values === null || values.length === 0) {
 			return [];
 		}

@@ -365,7 +365,7 @@ export class TestHistoryService implements IHistoryService {
 	public clearRecentlyOpened(): void {
 	}
 
-	public getHistory(): (IEditorInput | IResourceInput)[] {
+	public getHistory(): Array<IEditorInput | IResourceInput> {
 		return [];
 	}
 

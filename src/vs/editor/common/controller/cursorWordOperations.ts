@@ -613,6 +613,6 @@ export class WordPartOperations extends WordOperations {
 	}
 }
 
-function enforceDefined<T>(arr: (T | undefined | null)[]): T[] {
+function enforceDefined<T>(arr: Array<T | undefined | null>): T[] {
 	return <T[]>arr.filter(el => Boolean(el));
 }

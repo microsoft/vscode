@@ -73,7 +73,7 @@ export class RangesCollector {
 	private _endIndexes: number[];
 	private _nestingLevels: number[];
 	private _nestingLevelCounts: number[];
-	private _types: (string | undefined)[];
+	private _types: Array<string | undefined>;
 	private _length: number;
 	private _foldingRangesLimit: number;
 
@@ -127,7 +127,7 @@ export class RangesCollector {
 
 			let startIndexes = new Uint32Array(this._foldingRangesLimit);
 			let endIndexes = new Uint32Array(this._foldingRangesLimit);
-			let types: (string | undefined)[] = [];
+			let types: Array<string | undefined> = [];
 			for (let i = 0, k = 0; i < this._length; i++) {
 				let level = this._nestingLevels[i];
 				if (level < maxLevel || (level === maxLevel && entries++ < this._foldingRangesLimit)) {

@@ -333,8 +333,8 @@ export class OpenEditorsView extends ViewletPanel {
 		return this.editorGroupService.groups.length > 1;
 	}
 
-	private get elements(): (IEditorGroup | OpenEditor)[] {
-		const result: (IEditorGroup | OpenEditor)[] = [];
+	private get elements(): Array<IEditorGroup | OpenEditor> {
+		const result: Array<IEditorGroup | OpenEditor> = [];
 		this.editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE).forEach(g => {
 			if (this.showGroups) {
 				result.push(g);
@@ -619,7 +619,7 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 	private transfer = LocalSelectionTransfer.getInstance<OpenEditor>();
 
 	constructor(
-		private getSelectedElements: () => (OpenEditor | IEditorGroup)[],
+		private getSelectedElements: () => Array<OpenEditor | IEditorGroup>,
 		private instantiationService: IInstantiationService,
 		private keybindingService: IKeybindingService,
 		private configurationService: IConfigurationService,

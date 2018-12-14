@@ -11,7 +11,7 @@ export interface ITOCEntry {
 	label: string;
 
 	children?: ITOCEntry[];
-	settings?: (string | ISetting)[];
+	settings?: Array<string | ISetting>;
 }
 
 export const commonlyUsedData: ITOCEntry = {

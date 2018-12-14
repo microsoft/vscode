@@ -658,7 +658,7 @@ function parseExpressionPattern(pattern: string, value: any, options: IGlobOptio
 	return parsedPattern;
 }
 
-function aggregateBasenameMatches(parsedPatterns: (ParsedStringPattern | ParsedExpressionPattern)[], result?: string): (ParsedStringPattern | ParsedExpressionPattern)[] {
+function aggregateBasenameMatches(parsedPatterns: Array<ParsedStringPattern | ParsedExpressionPattern>, result?: string): Array<ParsedStringPattern | ParsedExpressionPattern> {
 	const basenamePatterns = parsedPatterns.filter(parsedPattern => !!(<ParsedStringPattern>parsedPattern).basenames);
 	if (basenamePatterns.length < 2) {
 		return parsedPatterns;

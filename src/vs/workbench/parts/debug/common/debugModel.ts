@@ -964,7 +964,7 @@ export class DebugModel implements IDebugModel {
 
 	setEnablement(element: IEnablement, enable: boolean): void {
 		if (element instanceof Breakpoint || element instanceof FunctionBreakpoint || element instanceof ExceptionBreakpoint) {
-			const changed: (IBreakpoint | IFunctionBreakpoint)[] = [];
+			const changed: Array<IBreakpoint | IFunctionBreakpoint> = [];
 			if (element.enabled !== enable && (element instanceof Breakpoint || element instanceof FunctionBreakpoint)) {
 				changed.push(element);
 			}
@@ -976,7 +976,7 @@ export class DebugModel implements IDebugModel {
 	}
 
 	enableOrDisableAllBreakpoints(enable: boolean): void {
-		const changed: (IBreakpoint | IFunctionBreakpoint)[] = [];
+		const changed: Array<IBreakpoint | IFunctionBreakpoint> = [];
 
 		this.breakpoints.forEach(bp => {
 			if (bp.enabled !== enable) {

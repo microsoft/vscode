@@ -17,14 +17,14 @@ export interface IContextMenuEvent {
 }
 
 export class ContextSubMenu extends SubmenuAction {
-	constructor(label: string, public entries: (ContextSubMenu | IAction)[]) {
+	constructor(label: string, public entries: Array<ContextSubMenu | IAction>) {
 		super(label, entries, 'contextsubmenu');
 	}
 }
 
 export interface IContextMenuDelegate {
 	getAnchor(): HTMLElement | { x: number; y: number; width?: number; height?: number; };
-	getActions(): (IAction | ContextSubMenu)[];
+	getActions(): Array<IAction | ContextSubMenu>;
 	getActionItem?(action: IAction): IActionItem | null;
 	getActionsContext?(event?: IContextMenuEvent): any;
 	getKeyBinding?(action: IAction): ResolvedKeybinding | null;

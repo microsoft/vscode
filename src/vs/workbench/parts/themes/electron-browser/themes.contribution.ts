@@ -169,7 +169,7 @@ function openExtensionViewlet(viewletService: IViewletService, query: string) {
 	});
 }
 
-function toEntries(themes: (IColorTheme | IFileIconTheme)[], label?: string) {
+function toEntries(themes: Array<IColorTheme | IFileIconTheme>, label?: string) {
 	const toEntry = theme => <IQuickPickItem>{ id: theme.id, label: theme.label, description: theme.description };
 	const sorter = (t1: IQuickPickItem, t2: IQuickPickItem) => t1.label.localeCompare(t2.label);
 	let entries: QuickPickInput[] = themes.map(toEntry).sort(sorter);

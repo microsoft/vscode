@@ -792,7 +792,7 @@ export namespace Config {
 		background?: BackgroundMonitor;
 	}
 
-	export type ProblemMatcherType = string | ProblemMatcher | (string | ProblemMatcher)[];
+	export type ProblemMatcherType = string | ProblemMatcher | Array<string | ProblemMatcher>;
 
 	export interface NamedProblemMatcher extends ProblemMatcher {
 		/**

@@ -315,7 +315,7 @@ export class ElectronWindow extends Themable {
 			this.touchBarDisposables.push(this.touchBarMenu.onDidChange(() => this.touchBarUpdater.schedule()));
 		}
 
-		const actions: (MenuItemAction | Separator)[] = [];
+		const actions: Array<MenuItemAction | Separator> = [];
 
 		// Fill actions into groups respecting order
 		fillInActionBarActions(this.touchBarMenu, void 0, actions);
@@ -410,7 +410,7 @@ export class ElectronWindow extends Themable {
 		}
 	}
 
-	private openResources(resources: (IResourceInput | IUntitledResourceInput)[], diffMode: boolean): void {
+	private openResources(resources: Array<IResourceInput | IUntitledResourceInput>, diffMode: boolean): void {
 		this.lifecycleService.when(LifecyclePhase.Ready).then((): Promise<any> => {
 
 			// In diffMode we open 2 resources as diff

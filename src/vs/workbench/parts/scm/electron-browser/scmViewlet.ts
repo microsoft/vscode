@@ -615,7 +615,7 @@ class ResourceGroupSplicer {
 		}
 
 		const itemsToInsert: IGroupItem[] = [];
-		const absoluteToInsert: (ISCMResourceGroup | ISCMResource)[] = [];
+		const absoluteToInsert: Array<ISCMResourceGroup | ISCMResource> = [];
 
 		for (const group of toInsert) {
 			const visible = isGroupVisible(group);

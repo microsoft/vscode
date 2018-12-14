@@ -586,7 +586,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		return this.galleryService.query({ names: [name], pageSize: 1 }).then(galleryResult => galleryResult.firstPage[0]);
 	}
 
-	private joinErrors(errorOrErrors: (Error | string) | ((Error | string)[])): Error {
+	private joinErrors(errorOrErrors: (Error | string) | (Array<Error | string>)): Error {
 		const errors = Array.isArray(errorOrErrors) ? errorOrErrors : [errorOrErrors];
 		if (errors.length === 1) {
 			return errors[0] instanceof Error ? <Error>errors[0] : new Error(<string>errors[0]);

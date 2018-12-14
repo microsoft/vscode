@@ -169,7 +169,7 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 			}
 			// flatten all WorkspaceEdits collected via waitUntil-call
 			// and apply them in one go.
-			let allEdits = new Array<(ResourceFileEditDto | ResourceTextEditDto)[]>();
+			let allEdits = new Array<Array<ResourceFileEditDto | ResourceTextEditDto>>();
 			for (let edit of edits) {
 				if (edit) { // sparse array
 					let { edits } = typeConverter.WorkspaceEdit.from(edit, this._extHostDocumentsAndEditors);

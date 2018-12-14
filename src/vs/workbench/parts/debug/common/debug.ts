@@ -401,9 +401,9 @@ export interface IDebugModel extends ITreeElement {
  * An event describing a change to the set of [breakpoints](#debug.Breakpoint).
  */
 export interface IBreakpointsChangeEvent {
-	added?: (IBreakpoint | IFunctionBreakpoint)[];
-	removed?: (IBreakpoint | IFunctionBreakpoint)[];
-	changed?: (IBreakpoint | IFunctionBreakpoint)[];
+	added?: Array<IBreakpoint | IFunctionBreakpoint>;
+	removed?: Array<IBreakpoint | IFunctionBreakpoint>;
+	changed?: Array<IBreakpoint | IFunctionBreakpoint>;
 	sessionOnly?: boolean;
 }
 
