@@ -10,13 +10,14 @@ import * as nls from 'vscode-nls';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
+import { nulToken } from '../utils/cancellation';
+import { VersionDependentRegistration } from '../utils/dependentRegistration';
+import { Disposable } from '../utils/dispose';
 import * as fileSchemes from '../utils/fileSchemes';
 import { isTypeScriptDocument } from '../utils/languageModeIds';
 import { escapeRegExp } from '../utils/regexp';
 import * as typeConverters from '../utils/typeConverters';
 import FileConfigurationManager from './fileConfigurationManager';
-import { VersionDependentRegistration } from '../utils/dependentRegistration';
-import { nulToken } from '../utils/cancellation';
 
 const localize = nls.loadMessageBundle();
 
@@ -28,21 +29,17 @@ enum UpdateImportsOnFileMoveSetting {
 	Never = 'never',
 }
 
-class UpdateImportsOnFileRenameHandler {
-	private readonly _onDidRenameSub: vscode.Disposable;
-
+class UpdateImportsOnFileRenameHandler extends Disposable {
 	public constructor(
 		private readonly client: ITypeScriptServiceClient,
 		private readonly fileConfigurationManager: FileConfigurationManager,
 		private readonly _handles: (uri: vscode.Uri) => Promise<boolean>,
 	) {
-		this._onDidRenameSub = vscode.workspace.onDidRenameFile(e => {
-			this.doRename(e.oldUri, e.newUri);
-		});
-	}
+		super();
 
-	public dispose() {
-		this._onDidRenameSub.dispose();
+		this._register(vscode.workspace.onDidRenameFile(e => {
+			this.doRename(e.oldUri, e.newUri);
+		}));
 	}
 
 	private async doRename(
