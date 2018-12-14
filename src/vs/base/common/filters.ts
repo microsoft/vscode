@@ -353,44 +353,50 @@ export function anyScore(pattern: string, lowPattern: string, _patternPos: numbe
 	if (result) {
 		return result;
 	}
-	const matches: number[] = [];
-	let idx = 0;
-	for (let pos = 0; pos < lowPattern.length; ++pos) {
-		const thisIdx = lowWord.indexOf(lowPattern.charAt(pos), idx);
-		if (thisIdx >= 0) {
-			matches.push(thisIdx);
-			idx = thisIdx + 1;
+	let matches = 0;
+	let score = 0;
+	let idx = _wordPos;
+	for (let patternPos = 0; patternPos < lowPattern.length && patternPos < _maxLen; ++patternPos) {
+		const wordPos = lowWord.indexOf(lowPattern.charAt(patternPos), idx);
+		if (wordPos >= 0) {
+			score += 1;
+			matches += 2 ** wordPos;
+			idx = wordPos + 1;
 		}
 	}
-	return [matches.length, matches];
+	return [score, matches, _wordPos];
 }
 
 //#region --- fuzzyScore ---
 
-export function createMatches(offsetOrScore: undefined | number[] | FuzzyScore): IMatch[] {
-	let ret: IMatch[] = [];
-	if (!offsetOrScore) {
-		return ret;
+export function createMatches(score: undefined | FuzzyScore): IMatch[] {
+	if (typeof score === 'undefined') {
+		return [];
 	}
-	let offsets: number[];
-	if (Array.isArray(offsetOrScore[1])) {
-		offsets = (offsetOrScore as FuzzyScore)[1];
-	} else {
-		offsets = offsetOrScore as number[];
-	}
-	let last: IMatch | undefined;
-	for (const pos of offsets) {
-		if (last && last.end === pos) {
-			last.end += 1;
-		} else {
-			last = { start: pos, end: pos + 1 };
-			ret.push(last);
+
+	const [, matches, wordStart] = score;
+	const res: IMatch[] = [];
+
+	for (let pos = wordStart; pos < _masks.length; pos++) {
+		const mask = _masks[pos];
+		if (mask > matches) {
+			break;
+		} else if (matches & mask) {
+			res.push({ start: pos, end: pos + 1 });
 		}
 	}
-	return ret;
+	return res;
 }
 
-const _maxLen = 100;
+const _maxLen = 53;
+
+const _masks = (function () {
+	const result: number[] = [];
+	for (let pos = 0; pos < _maxLen; pos++) {
+		result.push(2 ** pos);
+	}
+	return result;
+}());
 
 function initTable() {
 	const table: number[][] = [];
@@ -478,7 +484,20 @@ function isPatternInWord(patternLow: string, patternPos: number, patternLen: num
 
 const enum Arrow { Top = 0b1, Diag = 0b10, Left = 0b100 }
 
-export type FuzzyScore = [number, number[]];
+/**
+ * A tuple of three values.
+ * 0. the score
+ * 1. the matches encoded as bitmask (2^53)
+ * 2. the offset at which matching started
+ */
+export type FuzzyScore = [number, number, number];
+
+export namespace FuzzyScore {
+	/**
+	 * No matches and value `-100`
+	 */
+	export const Default: [-100, 0, 0] = [-100, 0, 0];
+}
 
 export interface FuzzyScorer {
 	(pattern: string, lowPattern: string, patternPos: number, word: string, lowWord: string, wordPos: number, firstMatchCanBeWeak: boolean): FuzzyScore | undefined;
@@ -501,6 +520,7 @@ export function fuzzyScore(pattern: string, patternLow: string, patternPos: numb
 	}
 
 	const patternStartPos = patternPos;
+	const wordStartPos = wordPos;
 
 	// There will be a mach, fill in tables
 	for (patternPos = patternStartPos + 1; patternPos <= patternLen; patternPos++) {
@@ -574,29 +594,26 @@ export function fuzzyScore(pattern: string, patternLow: string, patternPos: numb
 		console.log(printTable(_scores, pattern, patternLen, word, wordLen));
 	}
 
-	// _bucket is an array of [PrefixArray] we use to keep
-	// track of scores and matches. After calling `_findAllMatches`
-	// the best match (if available) is the first item in the array
 	_matchesCount = 0;
 	_topScore = -100;
 	_patternStartPos = patternStartPos;
 	_firstMatchCanBeWeak = firstMatchCanBeWeak;
-	_findAllMatches(patternLen, wordLen, patternLen === wordLen ? 1 : 0, new LazyArray(), false);
-
+	_findAllMatches2(patternLen, wordLen, patternLen === wordLen ? 1 : 0, 0, false);
 	if (_matchesCount === 0) {
 		return undefined;
 	}
 
-	return [_topScore, _topMatch.toArray()];
+	return [_topScore, _topMatch2, wordStartPos];
 }
 
+
 let _matchesCount: number = 0;
-let _topMatch: LazyArray;
+let _topMatch2: number = 0;
 let _topScore: number = 0;
 let _patternStartPos: number = 0;
 let _firstMatchCanBeWeak: boolean = false;
 
-function _findAllMatches(patternPos: number, wordPos: number, total: number, matches: LazyArray, lastMatched: boolean): void {
+function _findAllMatches2(patternPos: number, wordPos: number, total: number, matches: number, lastMatched: boolean): void {
 
 	if (_matchesCount >= 10 || total < -25) {
 		// stop when having already 10 results, or
@@ -612,11 +629,11 @@ function _findAllMatches(patternPos: number, wordPos: number, total: number, mat
 		let arrow = _arrows[patternPos][wordPos];
 
 		if (arrow === Arrow.Left) {
-			// left
+			// left -> no match, skip a word character
 			wordPos -= 1;
 			if (lastMatched) {
 				total -= 5; // new gap penalty
-			} else if (!matches.isEmpty()) {
+			} else if (matches !== 0) {
 				total -= 1; // gap penalty after first match
 			}
 			lastMatched = false;
@@ -626,11 +643,11 @@ function _findAllMatches(patternPos: number, wordPos: number, total: number, mat
 
 			if (arrow & Arrow.Left) {
 				// left
-				_findAllMatches(
+				_findAllMatches2(
 					patternPos,
 					wordPos - 1,
-					!matches.isEmpty() ? total - 1 : total, // gap penalty after first match
-					matches.slice(),
+					matches !== 0 ? total - 1 : total, // gap penalty after first match
+					matches,
 					lastMatched
 				);
 			}
@@ -639,8 +656,10 @@ function _findAllMatches(patternPos: number, wordPos: number, total: number, mat
 			total += score;
 			patternPos -= 1;
 			wordPos -= 1;
-			matches.unshift(wordPos);
 			lastMatched = true;
+
+			// match -> set a 1 at the word pos
+			matches += 2 ** wordPos;
 
 			// count simple matches and boost a row of
 			// simple matches when they yield in a
@@ -672,47 +691,7 @@ function _findAllMatches(patternPos: number, wordPos: number, total: number, mat
 	_matchesCount += 1;
 	if (total > _topScore) {
 		_topScore = total;
-		_topMatch = matches;
-	}
-}
-
-class LazyArray {
-
-	private _parent: LazyArray;
-	private _parentLen: number;
-	private _data: number[];
-
-	isEmpty(): boolean {
-		return !this._data && (!this._parent || this._parent.isEmpty());
-	}
-
-	unshift(n: number) {
-		if (!this._data) {
-			this._data = [n];
-		} else {
-			this._data.unshift(n);
-		}
-	}
-
-	slice(): LazyArray {
-		const ret = new LazyArray();
-		ret._parent = this;
-		ret._parentLen = this._data ? this._data.length : 0; return ret;
-	}
-
-	toArray(): number[] {
-		if (!this._data) {
-			return this._parent.toArray();
-		}
-		const bucket: number[][] = [];
-		let element = <LazyArray>this;
-		while (element) {
-			if (element._parent && element._parent._data) {
-				bucket.push(element._parent._data.slice(element._parent._data.length - element._parentLen));
-			}
-			element = element._parent;
-		}
-		return Array.prototype.concat.apply(this._data, bucket);
+		_topMatch2 = matches;
 	}
 }
 

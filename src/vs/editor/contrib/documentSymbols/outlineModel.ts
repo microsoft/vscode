@@ -88,7 +88,7 @@ export abstract class TreeElement {
 export class OutlineElement extends TreeElement {
 
 	children: { [id: string]: OutlineElement; } = Object.create(null);
-	score: FuzzyScore = [0, []];
+	score: FuzzyScore = FuzzyScore.Default;
 	marker: { count: number, topSev: MarkerSeverity };
 
 	constructor(
@@ -136,7 +136,7 @@ export class OutlineGroup extends TreeElement {
 
 		item.score = pattern
 			? fuzzyScore(pattern, pattern.toLowerCase(), 0, item.symbol.name, item.symbol.name.toLowerCase(), 0, true)
-			: [-100, []];
+			: FuzzyScore.Default;
 
 		if (item.score && (!topMatch || item.score[0] > topMatch.score[0])) {
 			topMatch = item;
@@ -146,7 +146,7 @@ export class OutlineGroup extends TreeElement {
 			topMatch = this._updateMatches(pattern, child, topMatch);
 			if (!item.score && child.score) {
 				// don't filter parents with unfiltered children
-				item.score = [-100, []];
+				item.score = FuzzyScore.Default;
 			}
 		}
 		return topMatch;
