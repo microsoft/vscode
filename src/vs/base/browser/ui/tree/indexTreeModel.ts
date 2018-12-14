@@ -140,7 +140,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 			collapsed = !node.collapsed;
 		}
 
-		return this._setCollapsed(node, listIndex, revealed, collapsed, recursive);
+		return this._setCollapsed(node, listIndex, revealed, collapsed, recursive || false);
 	}
 
 	private _setCollapsed(node: IMutableTreeNode<T, TFilterData>, listIndex: number, revealed: boolean, collapsed: boolean, recursive: boolean): boolean {
