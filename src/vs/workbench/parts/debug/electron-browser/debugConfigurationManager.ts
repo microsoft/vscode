@@ -49,7 +49,7 @@ export class ConfigurationManager implements IConfigurationManager {
 	private toDispose: IDisposable[];
 	private _onDidSelectConfigurationName = new Emitter<void>();
 	private configProviders: IDebugConfigurationProvider[];
-	private adapterProviders: IDebugAdapterDescriptorFactory[];
+	private adapterDescriptorFactories: IDebugAdapterDescriptorFactory[];
 	private adapterTrackerFactories: IDebugAdapterTrackerFactory[];
 	private debugAdapterFactories: Map<string, IDebugAdapterFactory>;
 	private terminalLauncher: ITerminalLauncher;
@@ -68,7 +68,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		this.configProviders = [];
-		this.adapterProviders = [];
+		this.adapterDescriptorFactories = [];
 		this.adapterTrackerFactories = [];
 		this.debuggers = [];
 		this.toDispose = [];
@@ -124,7 +124,7 @@ export class ConfigurationManager implements IConfigurationManager {
 	// debug adapter
 
 	public registerDebugAdapterDescriptorFactory(debugAdapterProvider: IDebugAdapterDescriptorFactory): IDisposable {
-		this.adapterProviders.push(debugAdapterProvider);
+		this.adapterDescriptorFactories.push(debugAdapterProvider);
 		return {
 			dispose: () => {
 				this.unregisterDebugAdapterDescriptorFactory(debugAdapterProvider);
@@ -133,13 +133,13 @@ export class ConfigurationManager implements IConfigurationManager {
 	}
 
 	public unregisterDebugAdapterDescriptorFactory(debugAdapterProvider: IDebugAdapterDescriptorFactory): void {
-		const ix = this.adapterProviders.indexOf(debugAdapterProvider);
+		const ix = this.adapterDescriptorFactories.indexOf(debugAdapterProvider);
 		if (ix >= 0) {
-			this.configProviders.splice(ix, 1);
+			this.adapterDescriptorFactories.splice(ix, 1);
 		}
 	}
 
-	public provideDebugAdapter(session: IDebugSession): Promise<IAdapterDescriptor | undefined> {
+	public getDebugAdapterDescriptor(session: IDebugSession): Promise<IAdapterDescriptor | undefined> {
 
 		const config = session.configuration;
 
@@ -151,8 +151,8 @@ export class ConfigurationManager implements IConfigurationManager {
 			// TODO@AW handle n > 1 case
 		}
 
-		// try new proposed API
-		const providers = this.adapterProviders.filter(p => p.type === config.type && p.createDebugAdapterDescriptor);
+		// new API
+		const providers = this.adapterDescriptorFactories.filter(p => p.type === config.type && p.createDebugAdapterDescriptor);
 		if (providers.length === 1) {
 			return providers[0].createDebugAdapterDescriptor(session);
 		} else {
@@ -175,7 +175,7 @@ export class ConfigurationManager implements IConfigurationManager {
 	public unregisterDebugAdapterTrackerFactory(debugAdapterTrackerFactory: IDebugAdapterTrackerFactory): void {
 		const ix = this.adapterTrackerFactories.indexOf(debugAdapterTrackerFactory);
 		if (ix >= 0) {
-			this.configProviders.splice(ix, 1);
+			this.adapterTrackerFactories.splice(ix, 1);
 		}
 	}
 
