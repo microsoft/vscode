@@ -1505,6 +1505,11 @@ class TaskService extends Disposable implements ITaskService {
 			return this._workspaceTasksPromise;
 		}
 		this.updateWorkspaceTasks(runSource);
+		if (runSource === TaskRunSource.User) {
+			this._workspaceTasksPromise.then(workspaceFolderTasks => {
+				RunAutomaticTasks.promptForPermission(this, this.storageService, this.notificationService, workspaceFolderTasks);
+			});
+		}
 		return this._workspaceTasksPromise;
 	}
 
