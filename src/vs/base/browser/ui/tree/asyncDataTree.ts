@@ -331,10 +331,6 @@ export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> imple
 		return this.tree.isCollapsed(this.getDataNode(element));
 	}
 
-	isExpanded(element: T): boolean {
-		return this.tree.isExpanded(this.getDataNode(element));
-	}
-
 	refilter(): void {
 		this.tree.refilter();
 	}

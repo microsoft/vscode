@@ -336,10 +336,6 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		return this.model.isCollapsed(location);
 	}
 
-	isExpanded(location: TRef): boolean {
-		return !this.isCollapsed(location);
-	}
-
 	refilter(): void {
 		this.model.refilter();
 	}
