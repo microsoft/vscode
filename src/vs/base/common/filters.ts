@@ -317,7 +317,7 @@ function nextWord(word: string, start: number): number {
 
 // Fuzzy
 
-export const fuzzyContiguousFilter = or(matchesPrefix, matchesCamelCase, matchesContiguousSubString);
+const fuzzyContiguousFilter = or(matchesPrefix, matchesCamelCase, matchesContiguousSubString);
 const fuzzySeparateFilter = or(matchesPrefix, matchesCamelCase, matchesSubString);
 const fuzzyRegExpCache = new LRUCache<string, RegExp>(10000); // bounded to 10000 elements
 
@@ -390,13 +390,15 @@ export function createMatches(offsetOrScore: undefined | number[] | FuzzyScore):
 	return ret;
 }
 
+const _maxLen = 100;
+
 function initTable() {
 	const table: number[][] = [];
 	const row: number[] = [0];
-	for (let i = 1; i <= 100; i++) {
+	for (let i = 1; i <= _maxLen; i++) {
 		row.push(-i);
 	}
-	for (let i = 0; i <= 100; i++) {
+	for (let i = 0; i <= _maxLen; i++) {
 		let thisRow = row.slice(0);
 		thisRow[0] = -i;
 		table.push(thisRow);
@@ -474,8 +476,8 @@ export interface FuzzyScorer {
 
 export function fuzzyScore(pattern: string, lowPattern: string, patternPos: number, word: string, lowWord: string, wordPos: number, firstMatchCanBeWeak: boolean): FuzzyScore | undefined {
 
-	const patternLen = pattern.length > 100 ? 100 : pattern.length;
-	const wordLen = word.length > 100 ? 100 : word.length;
+	const patternLen = pattern.length > _maxLen ? _maxLen : pattern.length;
+	const wordLen = word.length > _maxLen ? _maxLen : word.length;
 
 	if (patternPos >= patternLen || wordPos >= wordLen || patternLen > wordLen) {
 		return undefined;
@@ -507,6 +509,7 @@ export function fuzzyScore(pattern: string, lowPattern: string, patternPos: numb
 			let score = -1;
 			let lowWordChar = lowWord[wordPos - 1];
 			if (lowPattern[patternPos - 1] === lowWordChar) {
+
 				if (wordPos === (patternPos - patternStartPos)) {
 					// common prefix: `foobar <-> foobaz`
 					if (pattern[patternPos - 1] === word[wordPos - 1]) {
