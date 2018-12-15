@@ -647,13 +647,15 @@ class SubmenuActionItem extends MenuActionItem {
 
 			const boundingRect = this.element.getBoundingClientRect();
 			const childBoundingRect = this.submenuContainer.getBoundingClientRect();
+			const computedStyles = getComputedStyle(this.parentData.parent.domNode);
+			const paddingTop = parseFloat(computedStyles.paddingTop) || 0;
 
 			if (window.innerWidth <= boundingRect.right + childBoundingRect.width) {
 				this.submenuContainer.style.left = '10px';
 				this.submenuContainer.style.top = `${this.element.offsetTop - this.parentData.parent.scrollOffset + boundingRect.height}px`;
 			} else {
 				this.submenuContainer.style.left = `${this.element.offsetWidth}px`;
-				this.submenuContainer.style.top = `${this.element.offsetTop - this.parentData.parent.scrollOffset}px`;
+				this.submenuContainer.style.top = `${this.element.offsetTop - this.parentData.parent.scrollOffset - paddingTop}px`;
 			}
 
 			this.submenuDisposables.push(addDisposableListener(this.submenuContainer, EventType.KEY_UP, e => {
