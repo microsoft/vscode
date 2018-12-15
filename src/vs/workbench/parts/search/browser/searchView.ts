@@ -116,6 +116,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 	private searchWithoutFolderMessageElement: HTMLElement;
 
+	private currentSearchQ = Promise.resolve<void>();
+
 	constructor(
 		@IPartService partService: IPartService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -1154,6 +1156,12 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 		this.viewModel.cancelSearch();
 
+		this.currentSearchQ = this.currentSearchQ
+			.then(() => this.doSearch(query, options, excludePatternText, includePatternText))
+			.then(() => { }, () => { });
+	}
+
+	private doSearch(query: ITextQuery, options: ITextQueryBuilderOptions, excludePatternText: string, includePatternText: string): Thenable<void> {
 		// Progress total is 100.0% for more progress bar granularity
 		let progressTotal = 1000;
 		let progressWorked = 0;
@@ -1184,7 +1192,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			}
 
 			// Do final render, then expand if just 1 file with less than 50 matches
-			this.onSearchResultsChanged().then(() => {
+			return this.onSearchResultsChanged().then(() => {
 				if (this.viewModel.searchResult.count() === 1) {
 					const onlyMatch = this.viewModel.searchResult.matches()[0];
 					if (onlyMatch.count() < 50) {
@@ -1193,91 +1201,90 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 				}
 
 				return null;
+			}).then(() => {
+				this.viewModel.replaceString = this.searchWidget.getReplaceValue();
+
+				this.searchSubmitted = true;
+				this.updateActions();
+				this.updateTitleArea();
+				let hasResults = !this.viewModel.searchResult.isEmpty();
+
+				if (completed && completed.limitHit) {
+					this.searchWidget.searchInput.showMessage({
+						content: nls.localize('searchMaxResultsWarning', "The result set only contains a subset of all matches. Please be more specific in your search to narrow down the results."),
+						type: MessageType.WARNING
+					});
+				}
+
+				if (!hasResults) {
+					let hasExcludes = !!excludePatternText;
+					let hasIncludes = !!includePatternText;
+					let message: string;
+
+					if (!completed) {
+						message = nls.localize('searchCanceled', "Search was canceled before any results could be found - ");
+					} else if (hasIncludes && hasExcludes) {
+						message = nls.localize('noResultsIncludesExcludes', "No results found in '{0}' excluding '{1}' - ", includePatternText, excludePatternText);
+					} else if (hasIncludes) {
+						message = nls.localize('noResultsIncludes', "No results found in '{0}' - ", includePatternText);
+					} else if (hasExcludes) {
+						message = nls.localize('noResultsExcludes', "No results found excluding '{0}' - ", excludePatternText);
+					} else {
+						message = nls.localize('noResultsFound', "No results found. Review your settings for configured exclusions and ignore files - ");
+					}
+
+					// Indicate as status to ARIA
+					aria.status(message);
+
+					this.tree.onHidden();
+					dom.hide(this.resultsElement);
+
+					const messageEl = this.clearMessage();
+					const p = dom.append(messageEl, $('p', undefined, message));
+
+					if (!completed) {
+						const searchAgainLink = dom.append(p, $('a.pointer.prominent', undefined, nls.localize('rerunSearch.message', "Search again")));
+						this.messageDisposables.push(dom.addDisposableListener(searchAgainLink, dom.EventType.CLICK, (e: MouseEvent) => {
+							dom.EventHelper.stop(e, false);
+							this.onQueryChanged();
+						}));
+					} else if (hasIncludes || hasExcludes) {
+						const searchAgainLink = dom.append(p, $('a.pointer.prominent', { tabindex: 0 }, nls.localize('rerunSearchInAll.message', "Search again in all files")));
+						this.messageDisposables.push(dom.addDisposableListener(searchAgainLink, dom.EventType.CLICK, (e: MouseEvent) => {
+							dom.EventHelper.stop(e, false);
+
+							this.inputPatternExcludes.setValue('');
+							this.inputPatternIncludes.setValue('');
+
+							this.onQueryChanged();
+						}));
+					} else {
+						const openSettingsLink = dom.append(p, $('a.pointer.prominent', { tabindex: 0 }, nls.localize('openSettings.message', "Open Settings")));
+						this.addClickEvents(openSettingsLink, this.onOpenSettings);
+					}
+
+					if (completed) {
+						dom.append(p, $('span', undefined, ' - '));
+
+						const learnMoreLink = dom.append(p, $('a.pointer.prominent', { tabindex: 0 }, nls.localize('openSettings.learnMore', "Learn More")));
+						this.addClickEvents(learnMoreLink, this.onLearnMore);
+					}
+
+					if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
+						this.showSearchWithoutFolderMessage();
+					}
+				} else {
+					this.viewModel.searchResult.toggleHighlights(this.isVisible()); // show highlights
+
+					// Indicate final search result count for ARIA
+					aria.status(nls.localize('ariaSearchResultsStatus', "Search returned {0} results in {1} files", this.viewModel.searchResult.count(), this.viewModel.searchResult.fileCount()));
+				}
 			});
-
-			this.viewModel.replaceString = this.searchWidget.getReplaceValue();
-
-			let hasResults = !this.viewModel.searchResult.isEmpty();
-
-			this.searchSubmitted = true;
-			this.updateActions();
-			this.updateTitleArea();
-
-			if (completed && completed.limitHit) {
-				this.searchWidget.searchInput.showMessage({
-					content: nls.localize('searchMaxResultsWarning', "The result set only contains a subset of all matches. Please be more specific in your search to narrow down the results."),
-					type: MessageType.WARNING
-				});
-			}
-
-			if (!hasResults) {
-				let hasExcludes = !!excludePatternText;
-				let hasIncludes = !!includePatternText;
-				let message: string;
-
-				if (!completed) {
-					message = nls.localize('searchCanceled', "Search was canceled before any results could be found - ");
-				} else if (hasIncludes && hasExcludes) {
-					message = nls.localize('noResultsIncludesExcludes', "No results found in '{0}' excluding '{1}' - ", includePatternText, excludePatternText);
-				} else if (hasIncludes) {
-					message = nls.localize('noResultsIncludes', "No results found in '{0}' - ", includePatternText);
-				} else if (hasExcludes) {
-					message = nls.localize('noResultsExcludes', "No results found excluding '{0}' - ", excludePatternText);
-				} else {
-					message = nls.localize('noResultsFound', "No results found. Review your settings for configured exclusions and ignore files - ");
-				}
-
-				// Indicate as status to ARIA
-				aria.status(message);
-
-				this.tree.onHidden();
-				dom.hide(this.resultsElement);
-
-				const messageEl = this.clearMessage();
-				const p = dom.append(messageEl, $('p', undefined, message));
-
-				if (!completed) {
-					const searchAgainLink = dom.append(p, $('a.pointer.prominent', undefined, nls.localize('rerunSearch.message', "Search again")));
-					this.messageDisposables.push(dom.addDisposableListener(searchAgainLink, dom.EventType.CLICK, (e: MouseEvent) => {
-						dom.EventHelper.stop(e, false);
-						this.onQueryChanged();
-					}));
-				} else if (hasIncludes || hasExcludes) {
-					const searchAgainLink = dom.append(p, $('a.pointer.prominent', { tabindex: 0 }, nls.localize('rerunSearchInAll.message', "Search again in all files")));
-					this.messageDisposables.push(dom.addDisposableListener(searchAgainLink, dom.EventType.CLICK, (e: MouseEvent) => {
-						dom.EventHelper.stop(e, false);
-
-						this.inputPatternExcludes.setValue('');
-						this.inputPatternIncludes.setValue('');
-
-						this.onQueryChanged();
-					}));
-				} else {
-					const openSettingsLink = dom.append(p, $('a.pointer.prominent', { tabindex: 0 }, nls.localize('openSettings.message', "Open Settings")));
-					this.addClickEvents(openSettingsLink, this.onOpenSettings);
-				}
-
-				if (completed) {
-					dom.append(p, $('span', undefined, ' - '));
-
-					const learnMoreLink = dom.append(p, $('a.pointer.prominent', { tabindex: 0 }, nls.localize('openSettings.learnMore', "Learn More")));
-					this.addClickEvents(learnMoreLink, this.onLearnMore);
-				}
-
-				if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-					this.showSearchWithoutFolderMessage();
-				}
-			} else {
-				this.viewModel.searchResult.toggleHighlights(this.isVisible()); // show highlights
-
-				// Indicate final search result count for ARIA
-				aria.status(nls.localize('ariaSearchResultsStatus', "Search returned {0} results in {1} files", this.viewModel.searchResult.count(), this.viewModel.searchResult.fileCount()));
-			}
 		};
 
 		let onError = (e: any) => {
 			if (errors.isPromiseCanceledError(e)) {
-				onComplete(null);
+				return onComplete(null);
 			} else {
 				this.searching = false;
 				this.updateActions();
@@ -1295,6 +1302,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 				} else if (e.code === SearchErrorCode.regexParseError && !this.configurationService.getValue('search.usePCRE2')) {
 					this.showPcre2Hint();
 				}
+
+				return Promise.resolve();
 			}
 		};
 
@@ -1357,7 +1366,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 		this.searchWidget.setReplaceAllActionState(false);
 
-		this.viewModel.search(query, onProgress).then(onComplete, onError);
+		return this.viewModel.search(query, onProgress)
+			.then(onComplete, onError);
 	}
 
 	private showPcre2Hint(): void {
