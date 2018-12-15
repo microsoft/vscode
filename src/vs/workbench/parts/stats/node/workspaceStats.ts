@@ -89,7 +89,7 @@ const PyModulesToLookFor = [
 	'azure-iothub-device-client'
 ];
 
-type Tags = { [index: string]: boolean | number | string };
+type Tags = { [index: string]: boolean | number | string | undefined };
 
 function stripLowLevelDomains(domain: string): string | null {
 	const match = domain.match(SecondLevelDomainMatcher);
@@ -143,7 +143,7 @@ function stripPort(authority: string): string | null {
 	return match ? match[2] : null;
 }
 
-function normalizeRemote(host: string, path: string, stripEndingDotGit: boolean): string | null {
+function normalizeRemote(host: string | null, path: string, stripEndingDotGit: boolean): string | null {
 	if (host && path) {
 		if (stripEndingDotGit && endsWith(path, '.git')) {
 			path = path.substr(0, path.length - 4);
@@ -231,7 +231,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		this.reportProxyStats();
 	}
 
-	private static searchArray(arr: string[], regEx: RegExp): boolean {
+	private static searchArray(arr: string[], regEx: RegExp): boolean | undefined {
 		return arr.some(v => v.search(regEx) > -1) || undefined;
 	}
 
@@ -316,7 +316,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		const state = this.contextService.getWorkbenchState();
 		const workspace = this.contextService.getWorkspace();
 
-		let workspaceId: string;
+		let workspaceId: string | undefined;
 		switch (state) {
 			case WorkbenchState.EMPTY:
 				workspaceId = void 0;
@@ -325,7 +325,9 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				workspaceId = crypto.createHash('sha1').update(workspace.folders[0].uri.scheme === Schemas.file ? workspace.folders[0].uri.fsPath : workspace.folders[0].uri.toString()).digest('hex');
 				break;
 			case WorkbenchState.WORKSPACE:
-				workspaceId = crypto.createHash('sha1').update(workspace.configuration.fsPath).digest('hex');
+				if (workspace.configuration) {
+					workspaceId = crypto.createHash('sha1').update(workspace.configuration.fsPath).digest('hex');
+				}
 		}
 
 		tags['workspace.id'] = workspaceId;
@@ -415,7 +417,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			}
 
 			function getFilePromises(filename, fileService, contentHandler): Promise<void>[] {
-				return !nameSet.has(filename) ? [] : folders.map(workspaceUri => {
+				return !nameSet.has(filename) ? [] : (folders as URI[]).map(workspaceUri => {
 					const uri = workspaceUri.with({ path: `${workspaceUri.path !== '/' ? workspaceUri.path : ''}/${filename}` });
 					return fileService.resolveFile(uri).then(() => {
 						return fileService.resolveContent(uri, { acceptTextOnly: true }).then(contentHandler);
@@ -565,7 +567,10 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		return undefined;
 	}
 
-	private parentURI(uri: URI): URI | undefined {
+	private parentURI(uri: URI | undefined): URI | undefined {
+		if (!uri) {
+			return undefined;
+		}
 		const path = uri.path;
 		const i = path.lastIndexOf('/');
 		return i !== -1 ? uri.with({ path: path.substr(0, i) }) : undefined;
