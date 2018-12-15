@@ -206,33 +206,28 @@ export class QuickFixAction extends EditorAction {
 
 
 class CodeActionCommandArgs {
-	public static fromUser(arg: any): CodeActionCommandArgs {
+	public static fromUser(arg: any, defaults: { kind: CodeActionKind, apply: CodeActionAutoApply }): CodeActionCommandArgs {
 		if (!arg || typeof arg !== 'object') {
-			return new CodeActionCommandArgs(CodeActionKind.Empty, CodeActionAutoApply.IfSingle);
+			return new CodeActionCommandArgs(defaults.kind, defaults.apply);
 		}
 		return new CodeActionCommandArgs(
-			CodeActionCommandArgs.getKindFromUser(arg),
-			CodeActionCommandArgs.getApplyFromUser(arg));
+			CodeActionCommandArgs.getKindFromUser(arg, defaults.kind),
+			CodeActionCommandArgs.getApplyFromUser(arg, defaults.apply));
 	}
 
-	private static getApplyFromUser(arg: any) {
+	private static getApplyFromUser(arg: any, defaultAutoApply: CodeActionAutoApply) {
 		switch (typeof arg.apply === 'string' ? arg.apply.toLowerCase() : '') {
-			case 'first':
-				return CodeActionAutoApply.First;
-
-			case 'never':
-				return CodeActionAutoApply.Never;
-
-			case 'ifsingle':
-			default:
-				return CodeActionAutoApply.IfSingle;
+			case 'first': return CodeActionAutoApply.First;
+			case 'never': return CodeActionAutoApply.Never;
+			case 'ifsingle': return CodeActionAutoApply.IfSingle;
+			default: return defaultAutoApply;
 		}
 	}
 
-	private static getKindFromUser(arg: any) {
+	private static getKindFromUser(arg: any, defaultKind: CodeActionKind) {
 		return typeof arg.kind === 'string'
 			? new CodeActionKind(arg.kind)
-			: CodeActionKind.Empty;
+			: defaultKind;
 	}
 
 	private constructor(
@@ -253,7 +248,10 @@ export class CodeActionCommand extends EditorCommand {
 	}
 
 	public runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, userArg: any) {
-		const args = CodeActionCommandArgs.fromUser(userArg);
+		const args = CodeActionCommandArgs.fromUser(userArg, {
+			kind: CodeActionKind.Empty,
+			apply: CodeActionAutoApply.IfSingle,
+		});
 		return showCodeActionsForEditorSelection(editor, nls.localize('editor.action.quickFix.noneMessage', "No code actions available"), { kind: args.kind, includeSourceActions: true }, args.apply);
 	}
 }
@@ -287,11 +285,15 @@ export class RefactorAction extends EditorAction {
 		});
 	}
 
-	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor, userArg: any): void {
+		const args = CodeActionCommandArgs.fromUser(userArg, {
+			kind: CodeActionKind.Refactor,
+			apply: CodeActionAutoApply.Never
+		});
 		return showCodeActionsForEditorSelection(editor,
 			nls.localize('editor.action.refactor.noneMessage', "No refactorings available"),
-			{ kind: CodeActionKind.Refactor },
-			CodeActionAutoApply.Never);
+			{ kind: CodeActionKind.Refactor.contains(args.kind.value) ? args.kind : CodeActionKind.Empty },
+			args.apply);
 	}
 }
 
@@ -316,11 +318,15 @@ export class SourceAction extends EditorAction {
 		});
 	}
 
-	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor, userArg: any): void {
+		const args = CodeActionCommandArgs.fromUser(userArg, {
+			kind: CodeActionKind.Source,
+			apply: CodeActionAutoApply.Never
+		});
 		return showCodeActionsForEditorSelection(editor,
 			nls.localize('editor.action.source.noneMessage', "No source actions available"),
-			{ kind: CodeActionKind.Source, includeSourceActions: true },
-			CodeActionAutoApply.Never);
+			{ kind: CodeActionKind.Source.contains(args.kind.value) ? args.kind : CodeActionKind.Empty, includeSourceActions: true },
+			args.apply);
 	}
 }
 
