@@ -667,6 +667,8 @@
 		"./vs/workbench/parts/welcome/gettingStarted/electron-browser/gettingStarted.ts",
 		"./vs/workbench/parts/welcome/gettingStarted/test/common/gettingStarted.test.ts",
 		"./vs/workbench/parts/welcome/page/electron-browser/vs_code_welcome_page.ts",
+		"./vs/workbench/parts/welcome/page/electron-browser/welcomePage.contribution.ts",
+		"./vs/workbench/parts/welcome/page/electron-browser/welcomePage.ts",
 		"./vs/workbench/parts/welcome/walkThrough/electron-browser/editor/editorWalkThrough.ts",
 		"./vs/workbench/parts/welcome/walkThrough/node/walkThroughContentProvider.ts",
 		"./vs/workbench/parts/welcome/walkThrough/node/walkThroughInput.ts",

@@ -24,7 +24,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { Schemas } from 'vs/base/common/network';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { getInstalledExtensions, IExtensionStatus, onExtensionChanged, isKeymapExtension } from 'vs/workbench/parts/extensions/electron-browser/extensionsUtils';
-import { IExtensionEnablementService, IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, EnablementState, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionEnablementService, IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, EnablementState, LocalExtensionType, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { used } from 'vs/workbench/parts/welcome/page/electron-browser/vs_code_welcome_page';
 import { ILifecycleService, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -309,6 +309,9 @@ class WelcomePage {
 				return;
 			}
 			const ul = container.querySelector('.recent ul');
+			if (!ul) {
+				return;
+			}
 			const before = ul.firstElementChild;
 			workspaces.slice(0, 5).forEach(workspace => {
 				let label: string;
@@ -328,7 +331,7 @@ class WelcomePage {
 
 				const a = document.createElement('a');
 				let name = label;
-				let parentFolderPath: string;
+				let parentFolderPath: string | undefined;
 
 				if (resource.scheme === Schemas.file) {
 					let parentFolder = path.dirname(resource.fsPath);
@@ -456,7 +459,7 @@ class WelcomePage {
 				return;
 			}
 			const foundAndInstalled = installedExtension ? Promise.resolve(installedExtension.local) : this.extensionGalleryService.query({ names: [extensionSuggestion.id], source: telemetryFrom })
-				.then(result => {
+				.then((result): null | Promise<ILocalExtension | null> => {
 					const [extension] = result.firstPage;
 					if (!extension) {
 						return null;
