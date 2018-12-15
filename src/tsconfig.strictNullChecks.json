@@ -163,6 +163,7 @@
 		"./vs/code/electron-browser/sharedProcess/contrib/languagePackCachedDataCleaner.ts",
 		"./vs/code/electron-browser/sharedProcess/contrib/nodeCachedDataCleaner.ts",
 		"./vs/code/electron-browser/sharedProcess/contrib/storageDataCleaner.ts",
+		"./vs/code/electron-browser/sharedProcess/sharedProcessMain.ts",
 		"./vs/code/electron-main/auth.ts",
 		"./vs/code/electron-main/keyboard.ts",
 		"./vs/code/electron-main/logUploader.ts",

@@ -8,14 +8,16 @@ import * as os from 'os';
 import * as uuid from 'vs/base/common/uuid';
 import { readFile } from 'vs/base/node/pfs';
 
-export function resolveCommonProperties(commit: string, version: string, machineId: string, installSourcePath: string): Promise<{ [name: string]: string; }> {
+export function resolveCommonProperties(commit: string | undefined, version: string, machineId: string, installSourcePath: string): Promise<{ [name: string]: string; }> {
 	const result: { [name: string]: string; } = Object.create(null);
 	// __GDPR__COMMON__ "common.machineId" : { "endPoint": "MacAddressHash", "classification": "EndUserPseudonymizedInformation", "purpose": "FeatureInsight" }
 	result['common.machineId'] = machineId;
 	// __GDPR__COMMON__ "sessionID" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	result['sessionID'] = uuid.generateUuid() + Date.now();
-	// __GDPR__COMMON__ "commitHash" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-	result['commitHash'] = commit;
+	if (typeof commit === 'string') {
+		// __GDPR__COMMON__ "commitHash" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+		result['commitHash'] = commit;
+	}
 	// __GDPR__COMMON__ "version" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	result['version'] = version;
 	// __GDPR__COMMON__ "common.platformVersion" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
