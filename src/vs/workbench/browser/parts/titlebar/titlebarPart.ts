@@ -190,7 +190,7 @@ export class TitlebarPart extends Part implements ITitleService {
 			this.pendingTitle = title;
 		}
 
-		if (isWindows || isLinux) {
+		if ((isWindows || isLinux) && this.title) {
 			this.adjustTitleMarginToCenter();
 		}
 	}
