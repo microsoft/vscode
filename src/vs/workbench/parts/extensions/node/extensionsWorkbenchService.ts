@@ -726,7 +726,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		}
 
 		if (!extension.gallery) {
-			return Promise.resolve();
+			return Promise.reject(new Error('Missing gallery'));
 		}
 
 		return this.galleryService.getExtension(extension.gallery.identifier, version)
@@ -736,7 +736,11 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 				}
 				return this.installWithProgress(
 					() => this.extensionService.installFromGallery(gallery)
-						.then(() => this.ignoreAutoUpdate(gallery.identifier.id, version))
+						.then(() => {
+							if (extension.latestVersion !== version) {
+								this.ignoreAutoUpdate(gallery.identifier.id, version);
+							}
+						})
 					, gallery.displayName);
 			});
 	}
@@ -918,8 +922,6 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		if (!extension) {
 			extension = new Extension(this.galleryService, this.stateProvider, [], gallery, this.telemetryService, this.logService);
 		}
-
-		extension.gallery = gallery;
 
 		this.installing.push(extension);
 
