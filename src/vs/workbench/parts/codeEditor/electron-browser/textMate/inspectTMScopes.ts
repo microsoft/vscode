@@ -19,7 +19,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { FontStyle, LanguageIdentifier, StandardTokenType, TokenMetadata, TokenizationRegistry } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
+import { editorHoverBackground, editorHoverBorder, editorHoverForeground } from 'vs/platform/theme/common/colorRegistry';
 import { HIGH_CONTRAST, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { findMatchingThemeRule } from 'vs/workbench/services/textMate/electron-browser/TMHelper';
 import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
@@ -383,5 +383,9 @@ registerThemingParticipant((theme, collector) => {
 	const background = theme.getColor(editorHoverBackground);
 	if (background) {
 		collector.addRule(`.monaco-editor .tm-inspect-widget { background-color: ${background}; }`);
+	}
+	const foreground = theme.getColor(editorHoverForeground);
+	if (foreground) {
+		collector.addRule(`.monaco-editor .tm-inspect-widget { color: ${foreground}; }`);
 	}
 });

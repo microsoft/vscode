@@ -21,7 +21,7 @@ import { VariablesRenderer } from 'vs/workbench/parts/debug/electron-browser/var
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
+import { editorHoverBackground, editorHoverBorder, editorHoverForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { getExactExpressionStartAndEnd } from 'vs/workbench/parts/debug/common/debugUtils';
 import { AsyncDataTree, IDataSource } from 'vs/base/browser/ui/tree/asyncDataTree';
@@ -96,7 +96,7 @@ export class DebugHoverWidget implements IContentWidget {
 
 		this.editor.applyFontInfo(this.domNode);
 
-		this.toDispose.push(attachStylerCallback(this.themeService, { editorHoverBackground, editorHoverBorder }, colors => {
+		this.toDispose.push(attachStylerCallback(this.themeService, { editorHoverBackground, editorHoverBorder, editorHoverForeground }, colors => {
 			if (colors.editorHoverBackground) {
 				this.domNode.style.backgroundColor = colors.editorHoverBackground.toString();
 			} else {
@@ -106,6 +106,11 @@ export class DebugHoverWidget implements IContentWidget {
 				this.domNode.style.border = `1px solid ${colors.editorHoverBorder}`;
 			} else {
 				this.domNode.style.border = null;
+			}
+			if (colors.editorHoverForeground) {
+				this.domNode.style.color = colors.editorHoverForeground.toString();
+			} else {
+				this.domNode.style.color = null;
 			}
 		}));
 		this.toDispose.push(this.tree.onDidChangeContentHeight(() => this.layoutTreeAndContainer()));
