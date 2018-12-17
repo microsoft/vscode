@@ -145,6 +145,10 @@ export interface ITreeNavigator<T> {
 	next(): T | null;
 }
 
+export interface IDataSource<TInput, T> {
+	getChildren(element: TInput | T): T[];
+}
+
 export interface IAsyncDataSource<T extends NonNullable<any>> {
 	hasChildren(element: T | null): boolean;
 	getChildren(element: T | null): T[] | Promise<T[]>;
