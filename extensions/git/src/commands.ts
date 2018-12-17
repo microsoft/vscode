@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Uri, commands, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn, ProgressLocation, TextEditor, MessageOptions, WorkspaceFolder } from 'vscode';
+import { Uri, commands, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn, ProgressLocation, TextEditor, MessageOptions, WorkspaceFolder, CancellationTokenSource, StatusBarAlignment } from 'vscode';
 import { Git, CommitOptions, Stash, ForcePushMode } from './git';
 import { Repository, Resource, ResourceGroupType } from './repository';
 import { Model } from './model';
@@ -163,7 +163,6 @@ enum PushType {
 interface PushOptions {
 	pushType: PushType;
 	forcePush?: boolean;
-	silent?: boolean;
 }
 
 export class CommandCenter {
@@ -194,20 +193,7 @@ export class CommandCenter {
 
 	@command('git.openResource')
 	async openResource(resource: Resource): Promise<void> {
-		const repository = this.model.getRepository(resource.resourceUri);
-
-		if (!repository) {
-			return;
-		}
-
-		const config = workspace.getConfiguration('git', Uri.file(repository.root));
-		const openDiffOnClick = config.get<boolean>('openDiffOnClick');
-
-		if (openDiffOnClick) {
-			await this._openResource(resource, undefined, true, false);
-		} else {
-			await this.openFile(resource);
-		}
+		await this._openResource(resource, undefined, true, false);
 	}
 
 	private async _openResource(resource: Resource, preview?: boolean, preserveFocus?: boolean, preserveSelection?: boolean): Promise<void> {
@@ -496,7 +482,6 @@ export class CommandCenter {
 	@command('git.init')
 	async init(): Promise<void> {
 		let repositoryPath: string | undefined = undefined;
-		let askToOpen = true;
 
 		if (workspace.workspaceFolders) {
 			const placeHolder = localize('init', "Pick workspace folder to initialize git repo in");
@@ -511,7 +496,6 @@ export class CommandCenter {
 				return;
 			} else if (item.folder) {
 				repositoryPath = item.folder.uri.fsPath;
-				askToOpen = false;
 			}
 		}
 
@@ -545,10 +529,6 @@ export class CommandCenter {
 			}
 
 			repositoryPath = uri.fsPath;
-
-			if (workspace.workspaceFolders && workspace.workspaceFolders.some(w => w.uri.toString() === uri.toString())) {
-				askToOpen = false;
-			}
 		}
 
 		await this.git.init(repositoryPath);
@@ -557,10 +537,6 @@ export class CommandCenter {
 		let message = localize('proposeopen init', "Would you like to open the initialized repository?");
 		const open = localize('openrepo', "Open Repository");
 		choices.push(open);
-
-		if (!askToOpen) {
-			return;
-		}
 
 		const addToWorkspace = localize('add', "Add to Workspace");
 		if (workspace.workspaceFolders) {
@@ -1249,17 +1225,6 @@ export class CommandCenter {
 
 		await repository.commit(message, opts);
 
-		const postCommitCommand = config.get<'none' | 'push' | 'sync'>('postCommitCommand');
-
-		switch (postCommitCommand) {
-			case 'push':
-				await this._push(repository, { pushType: PushType.Push, silent: true });
-				break;
-			case 'sync':
-				await this.sync(repository);
-				break;
-		}
-
 		return true;
 	}
 
@@ -1580,17 +1545,6 @@ export class CommandCenter {
 		await repository.fetchDefault();
 	}
 
-	@command('git.fetchPrune', { repository: true })
-	async fetchPrune(repository: Repository): Promise<void> {
-		if (repository.remotes.length === 0) {
-			window.showWarningMessage(localize('no remotes to fetch', "This repository has no remotes configured to fetch from."));
-			return;
-		}
-
-		await repository.fetchPrune();
-	}
-
-
 	@command('git.fetchAll', { repository: true })
 	async fetchAll(repository: Repository): Promise<void> {
 		if (repository.remotes.length === 0) {
@@ -1643,6 +1597,7 @@ export class CommandCenter {
 		}
 
 		await repository.pull(repository.HEAD);
+		console.log('\n\n\n\n\n\nZAAAAAAAAS\n\n\n\n');
 	}
 
 	@command('git.pullRebase', { repository: true })
@@ -1661,9 +1616,7 @@ export class CommandCenter {
 		const remotes = repository.remotes;
 
 		if (remotes.length === 0) {
-			if (!pushOptions.silent) {
-				window.showWarningMessage(localize('no remotes to push', "Your repository has no remotes configured to push to."));
-			}
+			window.showWarningMessage(localize('no remotes to push', "Your repository has no remotes configured to push to."));
 			return;
 		}
 
@@ -1700,9 +1653,7 @@ export class CommandCenter {
 		}
 
 		if (!repository.HEAD || !repository.HEAD.name) {
-			if (!pushOptions.silent) {
-				window.showWarningMessage(localize('nobranch', "Please check out a branch to push to a remote."));
-			}
+			window.showWarningMessage(localize('nobranch', "Please check out a branch to push to a remote."));
 			return;
 		}
 
@@ -1712,10 +1663,6 @@ export class CommandCenter {
 			} catch (err) {
 				if (err.gitErrorCode !== GitErrorCodes.NoUpstreamBranch) {
 					throw err;
-				}
-
-				if (pushOptions.silent) {
-					return;
 				}
 
 				const branchName = repository.HEAD.name;
