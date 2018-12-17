@@ -6835,9 +6835,9 @@ declare module 'vscode' {
 		shellArgs?: string[];
 
 		/**
-		 * A path for the current working directory to be used for the terminal.
+		 * A path or Uri for the current working directory to be used for the terminal.
 		 */
-		cwd?: string;
+		cwd?: string | Uri;
 
 		/**
 		 * Object with environment variables that will be added to the VS Code process.

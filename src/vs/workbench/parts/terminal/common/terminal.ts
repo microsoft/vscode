@@ -150,7 +150,7 @@ export interface IShellLaunchConfig {
 	 * The current working directory of the terminal, this overrides the `terminal.integrated.cwd`
 	 * settings key.
 	 */
-	cwd?: string;
+	cwd?: string | URI;
 
 	/**
 	 * A custom environment for the terminal, if this is not set the environment will be inherited
