@@ -26,7 +26,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { ResourceLabel, IResourceLabel, IResourceLabelOptions } from 'vs/workbench/browser/labels';
 import { FileKind } from 'vs/platform/files/common/files';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ITreeRenderer, ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, IDataSource } from 'vs/base/browser/ui/tree/tree';
+import { ITreeRenderer, ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { WorkbenchAsyncDataTree, IListService, TreeResourceNavigator2 } from 'vs/platform/list/browser/listService';
@@ -535,7 +535,7 @@ class LoadedScriptsDelegate implements IListVirtualDelegate<LoadedScriptsItem> {
 	}
 }
 
-class LoadedScriptsDataSource implements IDataSource<LoadedScriptsItem> {
+class LoadedScriptsDataSource implements IAsyncDataSource<LoadedScriptsItem> {
 
 	constructor(private root: LoadedScriptsItem) {
 	}

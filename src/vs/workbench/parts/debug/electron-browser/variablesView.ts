@@ -21,7 +21,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IViewletPanelOptions, ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ITreeRenderer, ITreeNode, ITreeMouseEvent, ITreeContextMenuEvent, IDataSource } from 'vs/base/browser/ui/tree/tree';
+import { ITreeRenderer, ITreeNode, ITreeMouseEvent, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter } from 'vs/base/common/event';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -149,7 +149,7 @@ export class VariablesView extends ViewletPanel {
 	}
 }
 
-export class VariablesDataSource implements IDataSource<IExpression | IScope> {
+export class VariablesDataSource implements IAsyncDataSource<IExpression | IScope> {
 
 	constructor(private debugService: IDebugService) { }
 

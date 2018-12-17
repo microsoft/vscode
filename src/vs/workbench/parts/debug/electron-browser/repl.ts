@@ -51,7 +51,7 @@ import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { Variable, Expression, SimpleReplElement, RawObjectReplElement } from 'vs/workbench/parts/debug/common/debugModel';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { VariablesRenderer } from 'vs/workbench/parts/debug/electron-browser/variablesView';
-import { ITreeRenderer, ITreeNode, ITreeContextMenuEvent, IDataSource } from 'vs/base/browser/ui/tree/tree';
+import { ITreeRenderer, ITreeNode, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { renderExpressionValue } from 'vs/workbench/parts/debug/browser/baseDebugView';
 import { handleANSIOutput } from 'vs/workbench/parts/debug/browser/debugANSIHandling';
@@ -751,7 +751,7 @@ class ReplDelegate implements IListVirtualDelegate<IReplElement> {
 }
 
 
-class ReplDataSource implements IDataSource<IReplElement> {
+class ReplDataSource implements IAsyncDataSource<IReplElement> {
 	input: IDebugSession;
 
 	hasChildren(element: IReplElement | null): boolean {

@@ -32,7 +32,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { coalesce } from 'vs/base/common/arrays';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IDataSource } from 'vs/base/browser/ui/tree/tree';
+import { IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 
 const $ = dom.$;
 const MAX_TREE_HEIGHT = 324;
@@ -291,7 +291,7 @@ class DebugHoverAccessibilityProvider implements IAccessibilityProvider<IExpress
 	}
 }
 
-class DebugHoverDataSource implements IDataSource<IExpression> {
+class DebugHoverDataSource implements IAsyncDataSource<IExpression> {
 
 	expression: IExpression;
 

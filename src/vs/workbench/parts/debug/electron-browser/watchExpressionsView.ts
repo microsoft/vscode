@@ -26,7 +26,7 @@ import { VariablesRenderer, variableSetEmitter } from 'vs/workbench/parts/debug/
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { WorkbenchAsyncDataTree, IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IDataSource, ITreeMouseEvent, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
+import { IAsyncDataSource, ITreeMouseEvent, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 
 const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
 
@@ -186,7 +186,7 @@ class WatchExpressionsDelegate implements IListVirtualDelegate<IExpression> {
 	}
 }
 
-class WatchExpressionsDataSource implements IDataSource<IExpression> {
+class WatchExpressionsDataSource implements IAsyncDataSource<IExpression> {
 
 	constructor(private debugService: IDebugService) { }
 

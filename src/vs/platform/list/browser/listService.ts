@@ -32,7 +32,7 @@ import { attachInputBoxStyler, attachListStyler, computeStyles, defaultListStyle
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { InputFocusedContextKey } from 'vs/platform/workbench/common/contextkeys';
 import { ObjectTree, IObjectTreeOptions } from 'vs/base/browser/ui/tree/objectTree';
-import { ITreeEvent, ITreeRenderer, IDataSource } from 'vs/base/browser/ui/tree/tree';
+import { ITreeEvent, ITreeRenderer, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { AsyncDataTree, IAsyncDataTreeOptions } from 'vs/base/browser/ui/tree/asyncDataTree';
 
 export type ListWidget = List<any> | PagedList<any> | ITree | ObjectTree<any, any> | AsyncDataTree<any, any>;
@@ -969,7 +969,7 @@ export class WorkbenchAsyncDataTree<T extends NonNullable<any>, TFilterData = vo
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
 		renderers: ITreeRenderer<any /* TODO@joao */, TFilterData, any>[],
-		dataSource: IDataSource<T>,
+		dataSource: IAsyncDataSource<T>,
 		options: IAsyncDataTreeOptions<T, TFilterData>,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
