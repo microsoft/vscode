@@ -266,17 +266,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		diagnostics: Proto.Diagnostic[],
 		source: string
 	): (vscode.Diagnostic & { reportUnnecessary: any })[] {
-		return diagnostics
-			.filter(tsDiag => {
-				// See https://github.com/Microsoft/TypeScript/issues/28702
-				// The infer type suggestions are being returned even when no code action is available.
-				// Hide these on broken versions of TS because showing them currently is very confusing.
-				if (tsDiag.code === 7044) {
-					return !(this.client.apiVersion.gte(API.v320) && this.client.apiVersion.lt(API.v330));
-				}
-				return true;
-			})
-			.map(tsDiag => this.tsDiagnosticToVsDiagnostic(tsDiag, source));
+		return diagnostics.map(tsDiag => this.tsDiagnosticToVsDiagnostic(tsDiag, source));
 	}
 
 	private tsDiagnosticToVsDiagnostic(diagnostic: Proto.Diagnostic, source: string): vscode.Diagnostic & { reportUnnecessary: any } {

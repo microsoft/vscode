@@ -14,29 +14,33 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { FileIconThemeData } from 'vs/workbench/services/themes/electron-browser/fileIconThemeData';
 import { URI } from 'vs/base/common/uri';
 
-let iconThemeExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>('iconThemes', [], {
-	description: nls.localize('vscode.extension.contributes.iconThemes', 'Contributes file icon themes.'),
-	type: 'array',
-	items: {
-		type: 'object',
-		defaultSnippets: [{ body: { id: '${1:id}', label: '${2:label}', path: './fileicons/${3:id}-icon-theme.json' } }],
-		properties: {
-			id: {
-				description: nls.localize('vscode.extension.contributes.iconThemes.id', 'Id of the icon theme as used in the user settings.'),
-				type: 'string'
+const iconThemeExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>({
+	extensionPoint: 'iconThemes',
+	jsonSchema: {
+		description: nls.localize('vscode.extension.contributes.iconThemes', 'Contributes file icon themes.'),
+		type: 'array',
+		items: {
+			type: 'object',
+			defaultSnippets: [{ body: { id: '${1:id}', label: '${2:label}', path: './fileicons/${3:id}-icon-theme.json' } }],
+			properties: {
+				id: {
+					description: nls.localize('vscode.extension.contributes.iconThemes.id', 'Id of the icon theme as used in the user settings.'),
+					type: 'string'
+				},
+				label: {
+					description: nls.localize('vscode.extension.contributes.iconThemes.label', 'Label of the icon theme as shown in the UI.'),
+					type: 'string'
+				},
+				path: {
+					description: nls.localize('vscode.extension.contributes.iconThemes.path', 'Path of the icon theme definition file. The path is relative to the extension folder and is typically \'./icons/awesome-icon-theme.json\'.'),
+					type: 'string'
+				}
 			},
-			label: {
-				description: nls.localize('vscode.extension.contributes.iconThemes.label', 'Label of the icon theme as shown in the UI.'),
-				type: 'string'
-			},
-			path: {
-				description: nls.localize('vscode.extension.contributes.iconThemes.path', 'Path of the icon theme definition file. The path is relative to the extension folder and is typically \'./icons/awesome-icon-theme.json\'.'),
-				type: 'string'
-			}
-		},
-		required: ['path', 'id']
+			required: ['path', 'id']
+		}
 	}
 });
+
 export class FileIconThemeStore {
 
 	private knownIconThemes: FileIconThemeData[];
@@ -105,7 +109,7 @@ export class FileIconThemeStore {
 
 	}
 
-	public findThemeData(iconTheme: string): Thenable<FileIconThemeData> {
+	public findThemeData(iconTheme: string): Promise<FileIconThemeData | null> {
 		return this.getFileIconThemes().then(allIconSets => {
 			for (let iconSet of allIconSets) {
 				if (iconSet.id === iconTheme) {
@@ -116,7 +120,7 @@ export class FileIconThemeStore {
 		});
 	}
 
-	public findThemeBySettingsId(settingsId: string): Thenable<FileIconThemeData> {
+	public findThemeBySettingsId(settingsId: string): Promise<FileIconThemeData | null> {
 		return this.getFileIconThemes().then(allIconSets => {
 			for (let iconSet of allIconSets) {
 				if (iconSet.settingsId === settingsId) {
@@ -127,7 +131,7 @@ export class FileIconThemeStore {
 		});
 	}
 
-	public getFileIconThemes(): Thenable<FileIconThemeData[]> {
+	public getFileIconThemes(): Promise<FileIconThemeData[]> {
 		return this.extensionService.whenInstalledExtensionsRegistered().then(isReady => {
 			return this.knownIconThemes;
 		});

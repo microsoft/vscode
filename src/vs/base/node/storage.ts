@@ -39,12 +39,12 @@ export interface IStorageDatabase {
 
 	readonly onDidChangeItemsExternal: Event<IStorageItemsChangeEvent>;
 
-	getItems(): Thenable<Map<string, string>>;
-	updateItems(request: IUpdateRequest): Thenable<void>;
+	getItems(): Promise<Map<string, string>>;
+	updateItems(request: IUpdateRequest): Promise<void>;
 
-	close(): Thenable<void>;
+	close(): Promise<void>;
 
-	checkIntegrity(full: boolean): Thenable<string>;
+	checkIntegrity(full: boolean): Promise<string>;
 }
 
 export interface IStorage extends IDisposable {
@@ -53,7 +53,7 @@ export interface IStorage extends IDisposable {
 	readonly size: number;
 	readonly onDidChangeStorage: Event<string>;
 
-	init(): Thenable<void>;
+	init(): Promise<void>;
 
 	get(key: string, fallbackValue: string): string;
 	get(key: string, fallbackValue?: string): string | undefined;
@@ -64,13 +64,12 @@ export interface IStorage extends IDisposable {
 	getInteger(key: string, fallbackValue: number): number;
 	getInteger(key: string, fallbackValue?: number): number | undefined;
 
-	set(key: string, value: any): Thenable<void>;
-	delete(key: string): Thenable<void>;
+	set(key: string, value: any): Promise<void>;
+	delete(key: string): Promise<void>;
 
-	beforeClose(): void;
-	close(): Thenable<void>;
+	close(): Promise<void>;
 
-	checkIntegrity(full: boolean): Thenable<string>;
+	checkIntegrity(full: boolean): Promise<string>;
 }
 
 enum StorageState {
@@ -92,7 +91,6 @@ export class Storage extends Disposable implements IStorage {
 	private cache: Map<string, string> = new Map<string, string>();
 
 	private flushDelayer: ThrottledDelayer<void>;
-	private flushDelay = Storage.DEFAULT_FLUSH_DELAY;
 
 	private pendingDeletes: Set<string> = new Set<string>();
 	private pendingInserts: Map<string, string> = new Map();
@@ -103,7 +101,7 @@ export class Storage extends Disposable implements IStorage {
 	) {
 		super();
 
-		this.flushDelayer = this._register(new ThrottledDelayer(this.flushDelay));
+		this.flushDelayer = this._register(new ThrottledDelayer(Storage.DEFAULT_FLUSH_DELAY));
 
 		this.registerListeners();
 	}
@@ -154,7 +152,7 @@ export class Storage extends Disposable implements IStorage {
 		return this.cache.size;
 	}
 
-	init(): Thenable<void> {
+	init(): Promise<void> {
 		if (this.state !== StorageState.None) {
 			return Promise.resolve(); // either closed or already initialized
 		}
@@ -209,7 +207,7 @@ export class Storage extends Disposable implements IStorage {
 		return parseInt(value, 10);
 	}
 
-	set(key: string, value: any): Thenable<void> {
+	set(key: string, value: any): Promise<void> {
 		if (this.state === StorageState.Closed) {
 			return Promise.resolve(); // Return early if we are already closed
 		}
@@ -237,10 +235,10 @@ export class Storage extends Disposable implements IStorage {
 		this._onDidChangeStorage.fire(key);
 
 		// Accumulate work by scheduling after timeout
-		return this.flushDelayer.trigger(() => this.flushPending(), this.flushDelay);
+		return this.flushDelayer.trigger(() => this.flushPending());
 	}
 
-	delete(key: string): Thenable<void> {
+	delete(key: string): Promise<void> {
 		if (this.state === StorageState.Closed) {
 			return Promise.resolve(); // Return early if we are already closed
 		}
@@ -261,14 +259,10 @@ export class Storage extends Disposable implements IStorage {
 		this._onDidChangeStorage.fire(key);
 
 		// Accumulate work by scheduling after timeout
-		return this.flushDelayer.trigger(() => this.flushPending(), this.flushDelay);
+		return this.flushDelayer.trigger(() => this.flushPending());
 	}
 
-	beforeClose(): void {
-		this.flushDelay = 0; // when we are about to close, reduce our flush delay to 0 to consume too much time
-	}
-
-	close(): Thenable<void> {
+	close(): Promise<void> {
 		if (this.state === StorageState.Closed) {
 			return Promise.resolve(); // return if already closed
 		}
@@ -283,7 +277,7 @@ export class Storage extends Disposable implements IStorage {
 		return this.flushDelayer.trigger(() => this.flushPending(), 0 /* as soon as possible */).then(onDone, onDone);
 	}
 
-	private flushPending(): Thenable<void> {
+	private flushPending(): Promise<void> {
 		if (this.pendingInserts.size === 0 && this.pendingDeletes.size === 0) {
 			return Promise.resolve(); // return early if nothing to do
 		}
@@ -299,7 +293,7 @@ export class Storage extends Disposable implements IStorage {
 		return this.database.updateItems(updateRequest);
 	}
 
-	checkIntegrity(full: boolean): Thenable<string> {
+	checkIntegrity(full: boolean): Promise<string> {
 		return this.database.checkIntegrity(full);
 	}
 }
@@ -675,11 +669,11 @@ export class InMemoryStorageDatabase implements IStorageDatabase {
 
 	private items = new Map<string, string>();
 
-	getItems(): Thenable<Map<string, string>> {
+	getItems(): Promise<Map<string, string>> {
 		return Promise.resolve(this.items);
 	}
 
-	updateItems(request: IUpdateRequest): Thenable<void> {
+	updateItems(request: IUpdateRequest): Promise<void> {
 		if (request.insert) {
 			request.insert.forEach((value, key) => this.items.set(key, value));
 		}
@@ -691,11 +685,11 @@ export class InMemoryStorageDatabase implements IStorageDatabase {
 		return Promise.resolve();
 	}
 
-	close(): Thenable<void> {
+	close(): Promise<void> {
 		return Promise.resolve();
 	}
 
-	checkIntegrity(full: boolean): Thenable<string> {
+	checkIntegrity(full: boolean): Promise<string> {
 		return Promise.resolve('ok');
 	}
 }

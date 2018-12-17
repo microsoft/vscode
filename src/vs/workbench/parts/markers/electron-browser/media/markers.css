@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-action-bar .markers-panel-action-filter-container {
+.monaco-action-bar .action-item.markers-panel-action-filter-container {
 	cursor: default;
 	margin-right: 10px;
 	min-width: 150px;

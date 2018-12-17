@@ -198,7 +198,7 @@ export interface ISuggestOptions {
 	/**
 	 * Enable using global storage for remembering suggestions.
 	 */
-	useGlobalStorageForSuggestions?: boolean;
+	shareSuggestSelections?: boolean;
 }
 
 /**
@@ -1884,7 +1884,7 @@ export class EditorOptionsValidator {
 			snippets: _stringSet<'top' | 'bottom' | 'inline' | 'none'>(opts.snippetSuggestions, defaults.snippets, ['top', 'bottom', 'inline', 'none']),
 			snippetsPreventQuickSuggestions: _boolean(suggestOpts.snippetsPreventQuickSuggestions, defaults.filterGraceful),
 			localityBonus: _boolean(suggestOpts.localityBonus, defaults.localityBonus),
-			shareSuggestSelections: _boolean(suggestOpts.useGlobalStorageForSuggestions, defaults.shareSuggestSelections)
+			shareSuggestSelections: _boolean(suggestOpts.shareSuggestSelections, defaults.shareSuggestSelections)
 		};
 	}
 

@@ -57,15 +57,7 @@ function showPartsSplash(configuration) {
 
 	let data;
 	try {
-		if (!process.env['VSCODE_TEST_STORAGE_MIGRATION']) {
-			// TODO@Ben remove me after a while
-			perf.mark('willReadLocalStorage');
-			let raw = window.localStorage.getItem('storage://global/parts-splash-data');
-			perf.mark('didReadLocalStorage');
-			data = JSON.parse(raw);
-		} else {
-			data = JSON.parse(configuration.partsSplashData);
-		}
+		data = JSON.parse(configuration.partsSplashData);
 	} catch (e) {
 		// ignore
 	}

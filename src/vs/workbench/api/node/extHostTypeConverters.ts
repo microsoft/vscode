@@ -835,6 +835,30 @@ export namespace Color {
 	}
 }
 
+export namespace SelectionRangeKind {
+
+	export function from(kind: vscode.SelectionRangeKind): string {
+		return kind.value;
+	}
+
+	export function to(value: string): vscode.SelectionRangeKind {
+		return new types.SelectionRangeKind(value);
+	}
+}
+
+export namespace SelectionRange {
+	export function from(obj: vscode.SelectionRange): modes.SelectionRange {
+		return {
+			kind: SelectionRangeKind.from(obj.kind),
+			range: Range.from(obj.range)
+		};
+	}
+
+	export function to(obj: modes.SelectionRange): vscode.SelectionRange {
+		return new types.SelectionRange(SelectionRangeKind.to(obj.kind), Range.to(obj.range));
+	}
+}
+
 export namespace TextDocumentSaveReason {
 
 	export function to(reason: SaveReason): vscode.TextDocumentSaveReason {
@@ -970,11 +994,49 @@ export namespace LanguageSelector {
 }
 
 export namespace LogLevel {
-	export function fromMainLogLevel(mainLevel: _MainLogLevel): types.LogLevel {
-		return mainLevel + 1;
+	export function from(extLevel: types.LogLevel): _MainLogLevel {
+		switch (extLevel) {
+			case types.LogLevel.Trace:
+				return _MainLogLevel.Trace;
+			case types.LogLevel.Debug:
+				return _MainLogLevel.Debug;
+			case types.LogLevel.Info:
+				return _MainLogLevel.Info;
+			case types.LogLevel.Warning:
+				return _MainLogLevel.Warning;
+			case types.LogLevel.Error:
+				return _MainLogLevel.Error;
+			case types.LogLevel.Critical:
+				return _MainLogLevel.Critical;
+			case types.LogLevel.Critical:
+				return _MainLogLevel.Critical;
+			case types.LogLevel.Off:
+				return _MainLogLevel.Off;
+		}
+
+		return _MainLogLevel.Info;
 	}
 
-	export function toMainLogLevel(extLevel: types.LogLevel): _MainLogLevel {
-		return extLevel - 1;
+	export function to(mainLevel: _MainLogLevel): types.LogLevel {
+		switch (mainLevel) {
+			case _MainLogLevel.Trace:
+				return types.LogLevel.Trace;
+			case _MainLogLevel.Debug:
+				return types.LogLevel.Debug;
+			case _MainLogLevel.Info:
+				return types.LogLevel.Info;
+			case _MainLogLevel.Warning:
+				return types.LogLevel.Warning;
+			case _MainLogLevel.Error:
+				return types.LogLevel.Error;
+			case _MainLogLevel.Critical:
+				return types.LogLevel.Critical;
+			case _MainLogLevel.Critical:
+				return types.LogLevel.Critical;
+			case _MainLogLevel.Off:
+				return types.LogLevel.Off;
+		}
+
+		return types.LogLevel.Info;
 	}
 }

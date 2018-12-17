@@ -221,8 +221,8 @@ export interface ICodeEditorViewState {
  * (Serializable) View state for the diff editor.
  */
 export interface IDiffEditorViewState {
-	original: ICodeEditorViewState;
-	modified: ICodeEditorViewState;
+	original: ICodeEditorViewState | null;
+	modified: ICodeEditorViewState | null;
 }
 /**
  * An editor view state.

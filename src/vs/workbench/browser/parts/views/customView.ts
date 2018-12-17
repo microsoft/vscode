@@ -404,6 +404,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		} else {
 			this.hideMessage();
 		}
+		this.updateContentAreas();
 	}
 
 	private showMessage(message: string | IMarkdownString): void {
@@ -450,7 +451,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	getOptimalWidth(): number {
 		if (this.tree) {
 			const parentNode = this.tree.getHTMLElement();
-			const childNodes = ([] as Element[]).slice.call(parentNode.querySelectorAll('.outline-item-label > a'));
+			const childNodes = ([] as HTMLElement[]).slice.call(parentNode.querySelectorAll('.outline-item-label > a'));
 			return DOM.getLargestChildWidth(parentNode, childNodes);
 		}
 		return 0;
@@ -468,15 +469,15 @@ export class CustomTreeView extends Disposable implements ITreeView {
 				this.elementsToRefresh.push(...elements);
 			}
 		}
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 
-	expand(itemOrItems: ITreeItem | ITreeItem[]): Thenable<void> {
+	expand(itemOrItems: ITreeItem | ITreeItem[]): Promise<void> {
 		if (this.tree) {
 			itemOrItems = Array.isArray(itemOrItems) ? itemOrItems : [itemOrItems];
 			return this.tree.expandAll(itemOrItems);
 		}
-		return Promise.arguments(null);
+		return Promise.resolve(void 0);
 	}
 
 	setSelection(items: ITreeItem[]): void {
@@ -492,11 +493,11 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		}
 	}
 
-	reveal(item: ITreeItem): Thenable<void> {
+	reveal(item: ITreeItem): Promise<void> {
 		if (this.tree) {
 			return this.tree.reveal(item);
 		}
-		return Promise.arguments(null);
+		return Promise.resolve(null);
 	}
 
 	private activate() {
@@ -511,27 +512,31 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		}
 	}
 
+	private refreshing: boolean = false;
 	private doRefresh(elements: ITreeItem[]): Promise<void> {
 		if (this.tree) {
-			DOM.removeClass(this.treeContainer, 'hasChildren');
+			this.refreshing = true;
 			return Promise.all(elements.map(e => this.tree.refresh(e)))
 				.then(() => {
+					this.refreshing = false;
 					this.updateContentAreas();
 					if (this.focused) {
 						this.focus();
 					}
 				});
 		}
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 
 	private updateContentAreas(): void {
-		if (this.root.children && this.root.children.length) {
-			DOM.addClass(this.treeContainer, 'hasChildren');
-			this.domNode.removeAttribute('tabindex');
-		} else {
-			DOM.removeClass(this.treeContainer, 'hasChildren');
+		const isTreeEmpty = !this.root.children || this.root.children.length === 0;
+		// Hide tree container only when there is a message and tree is empty and not refreshing
+		if (this._messageValue && isTreeEmpty && !this.refreshing) {
+			DOM.addClass(this.treeContainer, 'hide');
 			this.domNode.setAttribute('tabindex', '0');
+		} else {
+			DOM.removeClass(this.treeContainer, 'hide');
+			this.domNode.removeAttribute('tabindex');
 		}
 	}
 
@@ -822,7 +827,7 @@ class MultipleSelectionActionRunner extends ActionRunner {
 		super();
 	}
 
-	runAction(action: IAction, context: any): Thenable<any> {
+	runAction(action: IAction, context: any): Promise<any> {
 		if (action instanceof MenuItemAction) {
 			const selection = this.getSelectedResources();
 			const filteredSelection = selection.filter(s => s !== context);

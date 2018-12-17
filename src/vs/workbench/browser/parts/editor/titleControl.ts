@@ -80,7 +80,7 @@ export abstract class TitleControl extends Themable {
 	) {
 		super(themeService);
 
-		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
+		this.resourceContext = this._register(instantiationService.createInstance(ResourceContextKey));
 		this.contextMenu = this._register(this.menuService.createMenu(MenuId.EditorTitleContext, this.contextKeyService));
 
 		this.create(parent);
@@ -322,8 +322,6 @@ export abstract class TitleControl extends Themable {
 		return keybinding ? keybinding.getLabel() : void 0;
 	}
 
-	//#region ITitleAreaControl
-
 	abstract openEditor(editor: IEditorInput): void;
 
 	abstract closeEditor(editor: IEditorInput): void;
@@ -347,8 +345,6 @@ export abstract class TitleControl extends Themable {
 	abstract updateStyles(): void;
 
 	layout(dimension: Dimension): void {
-		// Optionally implemented in subclasses
-
 		if (this.breadcrumbsControl) {
 			this.breadcrumbsControl.layout(undefined);
 		}
@@ -364,8 +360,6 @@ export abstract class TitleControl extends Themable {
 
 		super.dispose();
 	}
-
-	//#endregion
 }
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {

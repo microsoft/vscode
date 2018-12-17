@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
-import { Emitter, mapEvent } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { TernarySearchTree } from 'vs/base/common/map';
 import * as paths from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
@@ -72,7 +72,7 @@ function proposedApiFunction<T>(extension: IExtensionDescription, fn: T): T {
 	if (extension.enableProposedApi) {
 		return fn;
 	} else {
-		return throwProposedApiError.bind(null, extension);
+		return throwProposedApiError.bind(null, extension) as any as T;
 	}
 }
 
@@ -246,11 +246,11 @@ export function createApiFactory(
 			get appRoot() { return initData.environment.appRoot.fsPath; },
 			get logLevel() {
 				checkProposedApiEnabled(extension);
-				return typeConverters.LogLevel.fromMainLogLevel(extHostLogService.getLevel());
+				return typeConverters.LogLevel.to(extHostLogService.getLevel());
 			},
 			get onDidChangeLogLevel() {
 				checkProposedApiEnabled(extension);
-				return mapEvent(extHostLogService.onDidChangeLogLevel, l => typeConverters.LogLevel.fromMainLogLevel(l));
+				return Event.map(extHostLogService.onDidChangeLogLevel, l => typeConverters.LogLevel.to(l));
 			},
 			get clipboard(): vscode.Clipboard {
 				return extHostClipboard;
@@ -784,6 +784,8 @@ export function createApiFactory(
 			Range: extHostTypes.Range,
 			RelativePattern: extHostTypes.RelativePattern,
 			Selection: extHostTypes.Selection,
+			SelectionRange: extHostTypes.SelectionRange,
+			SelectionRangeKind: extHostTypes.SelectionRangeKind,
 			ShellExecution: extHostTypes.ShellExecution,
 			ShellQuoting: extHostTypes.ShellQuoting,
 			SignatureHelpTriggerKind: extHostTypes.SignatureHelpTriggerKind,

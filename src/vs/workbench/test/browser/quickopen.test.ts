@@ -28,7 +28,7 @@ export class TestQuickOpenService implements IQuickOpenService {
 	close(): void {
 	}
 
-	show(prefix?: string, options?: any): Thenable<void> {
+	show(prefix?: string, options?: any): Promise<void> {
 		if (this.callback) {
 			this.callback(prefix);
 		}

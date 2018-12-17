@@ -18,7 +18,7 @@
 .monaco-workbench .simple-find-part {
 	z-index: 10;
 	position: relative;
-	top: -40px;
+	top: -45px;
 	display: flex;
 	padding: 4px;
 	align-items: center;

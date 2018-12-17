@@ -69,7 +69,7 @@ export class KeybindingsEditorInput extends EditorInput {
 		return nls.localize('keybindingsInputName', "Keyboard Shortcuts");
 	}
 
-	resolve(): Thenable<KeybindingsEditorModel> {
+	resolve(): Promise<KeybindingsEditorModel> {
 		return Promise.resolve(this.keybindingsModel);
 	}
 
@@ -107,7 +107,7 @@ export class SettingsEditor2Input extends EditorInput {
 		return nls.localize('settingsEditor2InputName', "Settings");
 	}
 
-	resolve(): Thenable<Settings2EditorModel> {
+	resolve(): Promise<Settings2EditorModel> {
 		return Promise.resolve(this._settingsModel);
 	}
 

@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter, filterEvent, debounceEvent } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MenuId, MenuRegistry, MenuItemAction, IMenu, IMenuItem, IMenuActionOptions, ISubmenuItem, SubmenuItemAction, isIMenuItem } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 
-type MenuItemGroup = [string, (IMenuItem | ISubmenuItem)[]];
+type MenuItemGroup = [string, Array<IMenuItem | ISubmenuItem>];
 
 export class Menu implements IMenu {
 
@@ -28,15 +28,15 @@ export class Menu implements IMenu {
 
 		// rebuild this menu whenever the menu registry reports an
 		// event for this MenuId
-		debounceEvent(
-			filterEvent(MenuRegistry.onDidChangeMenu, menuId => menuId === this._id),
+		Event.debounce(
+			Event.filter(MenuRegistry.onDidChangeMenu, menuId => menuId === this._id),
 			() => { },
 			50
 		)(this._build, this, this._disposables);
 
 		// when context keys change we need to check if the menu also
 		// has changed
-		debounceEvent(
+		Event.debounce(
 			this._contextKeyService.onDidChangeContext,
 			(last, event) => last || event.affectsSome(this._contextKeys),
 			50
@@ -88,11 +88,11 @@ export class Menu implements IMenu {
 		return this._onDidChange.event;
 	}
 
-	getActions(options: IMenuActionOptions): [string, (MenuItemAction | SubmenuItemAction)[]][] {
-		const result: [string, (MenuItemAction | SubmenuItemAction)[]][] = [];
+	getActions(options: IMenuActionOptions): [string, Array<MenuItemAction | SubmenuItemAction>][] {
+		const result: [string, Array<MenuItemAction | SubmenuItemAction>][] = [];
 		for (let group of this._menuGroups) {
 			const [id, items] = group;
-			const activeActions: (MenuItemAction | SubmenuItemAction)[] = [];
+			const activeActions: Array<MenuItemAction | SubmenuItemAction> = [];
 			for (const item of items) {
 				if (this._contextKeyService.contextMatchesRules(item.when || null)) {
 					const action = isIMenuItem(item) ? new MenuItemAction(item.command, item.alt, options, this._contextKeyService, this._commandService) : new SubmenuItemAction(item);

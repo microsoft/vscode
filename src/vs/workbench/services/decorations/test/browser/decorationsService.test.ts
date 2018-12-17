@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { FileDecorationsService } from 'vs/workbench/services/decorations/browser/decorationsService';
 import { IDecorationsProvider, IDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
 import { URI } from 'vs/base/common/uri';
-import { Event, toPromise, Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
@@ -46,7 +46,7 @@ suite('DecorationsService', function () {
 		assert.equal(callCounter, 1);
 
 		// event when result is computed
-		return toPromise(service.onDidChangeDecorations).then(e => {
+		return Event.toPromise(service.onDidChangeDecorations).then(e => {
 			assert.equal(e.affectsResource(uri), true);
 
 			// sync result

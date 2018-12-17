@@ -18,26 +18,28 @@ export const Extensions = {
 export class EditorModesRegistry {
 
 	private _languages: ILanguageExtensionPoint[];
+	private _dynamicLanguages: ILanguageExtensionPoint[];
 
-	private readonly _onDidAddLanguages: Emitter<ILanguageExtensionPoint[]> = new Emitter<ILanguageExtensionPoint[]>();
-	public readonly onDidAddLanguages: Event<ILanguageExtensionPoint[]> = this._onDidAddLanguages.event;
+	private readonly _onDidChangeLanguages: Emitter<void> = new Emitter<void>();
+	public readonly onDidChangeLanguages: Event<void> = this._onDidChangeLanguages.event;
 
 	constructor() {
 		this._languages = [];
+		this._dynamicLanguages = [];
 	}
 
 	// --- languages
 
 	public registerLanguage(def: ILanguageExtensionPoint): void {
 		this._languages.push(def);
-		this._onDidAddLanguages.fire([def]);
+		this._onDidChangeLanguages.fire(void 0);
 	}
-	public registerLanguages(def: ILanguageExtensionPoint[]): void {
-		this._languages = this._languages.concat(def);
-		this._onDidAddLanguages.fire(def);
+	public setDynamicLanguages(def: ILanguageExtensionPoint[]): void {
+		this._dynamicLanguages = def;
+		this._onDidChangeLanguages.fire(void 0);
 	}
 	public getLanguages(): ILanguageExtensionPoint[] {
-		return this._languages.slice(0);
+		return (<ILanguageExtensionPoint[]>[]).concat(this._languages).concat(this._dynamicLanguages);
 	}
 }
 

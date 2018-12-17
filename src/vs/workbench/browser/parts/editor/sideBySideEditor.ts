@@ -15,7 +15,7 @@ import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/br
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 import { SplitView, Sizing, Orientation } from 'vs/base/browser/ui/splitview/splitview';
-import { Event, Relay, anyEvent, mapEvent, Emitter } from 'vs/base/common/event';
+import { Event, Relay, Emitter } from 'vs/base/common/event';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export class SideBySideEditor extends BaseEditor {
@@ -54,7 +54,7 @@ export class SideBySideEditor extends BaseEditor {
 
 	private onDidCreateEditors = this._register(new Emitter<{ width: number; height: number; }>());
 	private _onDidSizeConstraintsChange = this._register(new Relay<{ width: number; height: number; }>());
-	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; }> = anyEvent(this.onDidCreateEditors.event, this._onDidSizeConstraintsChange.event);
+	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; }> = Event.any(this.onDidCreateEditors.event, this._onDidSizeConstraintsChange.event);
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -92,7 +92,7 @@ export class SideBySideEditor extends BaseEditor {
 		this.updateStyles();
 	}
 
-	setInput(newInput: SideBySideEditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+	setInput(newInput: SideBySideEditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 		const oldInput = <SideBySideEditorInput>this.input;
 		return super.setInput(newInput, options, token)
 			.then(() => this.updateInput(oldInput, newInput, options, token));
@@ -157,7 +157,7 @@ export class SideBySideEditor extends BaseEditor {
 		return this.detailsEditor;
 	}
 
-	private updateInput(oldInput: SideBySideEditorInput, newInput: SideBySideEditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+	private updateInput(oldInput: SideBySideEditorInput, newInput: SideBySideEditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 		if (!newInput.matches(oldInput)) {
 			if (oldInput) {
 				this.disposeEditors();
@@ -172,7 +172,7 @@ export class SideBySideEditor extends BaseEditor {
 		).then(() => void 0);
 	}
 
-	private setNewInput(newInput: SideBySideEditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+	private setNewInput(newInput: SideBySideEditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 		const detailsEditor = this._createEditor(<EditorInput>newInput.details, this.detailsEditorContainer);
 		const masterEditor = this._createEditor(<EditorInput>newInput.master, this.masterEditorContainer);
 
@@ -193,9 +193,9 @@ export class SideBySideEditor extends BaseEditor {
 		this.detailsEditor = details;
 		this.masterEditor = master;
 
-		this._onDidSizeConstraintsChange.input = anyEvent(
-			mapEvent(details.onDidSizeConstraintsChange, () => undefined),
-			mapEvent(master.onDidSizeConstraintsChange, () => undefined)
+		this._onDidSizeConstraintsChange.input = Event.any(
+			Event.map(details.onDidSizeConstraintsChange, () => undefined),
+			Event.map(master.onDidSizeConstraintsChange, () => undefined)
 		);
 
 		this.onDidCreateEditors.fire();

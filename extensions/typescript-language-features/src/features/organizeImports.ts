@@ -77,7 +77,7 @@ export class OrganizeImportsCodeActionProvider implements vscode.CodeActionProvi
 		context: vscode.CodeActionContext,
 		token: vscode.CancellationToken
 	): vscode.CodeAction[] {
-		const file = this.client.toPath(document.uri);
+		const file = this.client.toOpenedFilePath(document);
 		if (!file) {
 			return [];
 		}

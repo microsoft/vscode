@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { Iterator } from 'vs/base/common/iterator';
-import { IListRenderer } from 'vs/base/browser/ui/list/list';
+import { IListRenderer, AbstractListRenderer } from 'vs/base/browser/ui/list/list';
 
 export const enum TreeVisibility {
 
@@ -67,6 +67,10 @@ export interface ITreeFilter<T, TFilterData = void> {
 	filter(element: T, parentVisibility: TreeVisibility): TreeFilterResult<TFilterData>;
 }
 
+export interface ITreeSorter<T> {
+	compare(element: T, otherElement: T): number;
+}
+
 export interface ITreeElement<T> {
 	readonly element: T;
 	readonly children?: Iterator<ITreeElement<T>> | ITreeElement<T>[];
@@ -85,8 +89,14 @@ export interface ITreeNode<T, TFilterData = void> {
 	readonly filterData: TFilterData | undefined;
 }
 
+export interface ICollapseStateChangeEvent<T, TFilterData> {
+	node: ITreeNode<T, TFilterData>;
+	deep: boolean;
+}
+
 export interface ITreeModel<T, TFilterData, TRef> {
-	readonly onDidChangeCollapseState: Event<ITreeNode<T, TFilterData>>;
+	readonly rootRef: TRef;
+	readonly onDidChangeCollapseState: Event<ICollapseStateChangeEvent<T, TFilterData>>;
 	readonly onDidChangeRenderNodeCount: Event<ITreeNode<T, TFilterData>>;
 
 	getListIndex(location: TRef): number;
@@ -100,9 +110,7 @@ export interface ITreeModel<T, TFilterData, TRef> {
 
 	isCollapsible(location: TRef): boolean;
 	isCollapsed(location: TRef): boolean;
-	setCollapsed(location: TRef, collapsed: boolean): boolean;
-	toggleCollapsed(location: TRef): void;
-	collapseAll(): void;
+	setCollapsed(location: TRef, collapsed?: boolean, recursive?: boolean): boolean;
 
 	refilter(): void;
 }
@@ -126,4 +134,55 @@ export interface ITreeContextMenuEvent<T> {
 	browserEvent: UIEvent;
 	element: T | null;
 	anchor: HTMLElement | { x: number; y: number; } | undefined;
+}
+
+export interface ITreeNavigator<T> {
+	current(): T | null;
+	previous(): T | null;
+	parent(): T | null;
+	first(): T | null;
+	last(): T | null;
+	next(): T | null;
+}
+
+export interface IDataSource<TInput, T> {
+	getChildren(element: TInput | T): T[];
+}
+
+export interface IAsyncDataSource<TInput, T> {
+	hasChildren(element: TInput | T): boolean;
+	getChildren(element: TInput | T): T[] | Promise<T[]>;
+}
+
+/**
+ * Use this renderer when you want to re-render elements on account of
+ * an event firing.
+ */
+export abstract class AbstractTreeRenderer<T, TFilterData = void, TTemplateData = void>
+	extends AbstractListRenderer<ITreeNode<T, TFilterData>, TTemplateData>
+	implements ITreeRenderer<T, TFilterData, TTemplateData> {
+
+	private elementsToNodes = new Map<T, ITreeNode<T, TFilterData>>();
+
+	constructor(onDidChange: Event<T | T[] | undefined>) {
+		super(Event.map(onDidChange, e => {
+			if (typeof e === 'undefined') {
+				return undefined;
+			} else if (Array.isArray(e)) {
+				return e.map(e => this.elementsToNodes.get(e) || null).filter(e => e !== null);
+			} else {
+				return this.elementsToNodes.get(e) || null;
+			}
+		}));
+	}
+
+	renderElement(node: ITreeNode<T, TFilterData>, index: number, templateData: TTemplateData): void {
+		super.renderElement(node, index, templateData);
+		this.elementsToNodes.set(node.element, node);
+	}
+
+	disposeElement(node: ITreeNode<T, TFilterData>, index: number, templateData: TTemplateData): void {
+		this.elementsToNodes.set(node.element, node);
+		super.disposeElement(node, index, templateData);
+	}
 }

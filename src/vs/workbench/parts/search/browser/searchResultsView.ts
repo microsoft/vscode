@@ -79,7 +79,7 @@ export class SearchDataSource implements IDataSource {
 		return [];
 	}
 
-	public getChildren(tree: ITree, element: any): Thenable<any[]> {
+	public getChildren(tree: ITree, element: any): Promise<any[]> {
 		return Promise.resolve(this._getChildren(element));
 	}
 
@@ -87,7 +87,7 @@ export class SearchDataSource implements IDataSource {
 		return element instanceof FileMatch || element instanceof FolderMatch || element instanceof SearchResult;
 	}
 
-	public getParent(tree: ITree, element: any): Thenable<any> {
+	public getParent(tree: ITree, element: any): Promise<any> {
 		let value: any = null;
 
 		if (element instanceof Match) {
@@ -213,7 +213,8 @@ export class SearchRenderer extends Disposable implements IRenderer {
 		const label = this.instantiationService.createInstance(FileLabel, folderMatchElement, void 0);
 		const badge = new CountBadge(DOM.append(folderMatchElement, DOM.$('.badge')));
 		this._register(attachBadgeStyler(badge, this.themeService));
-		const actions = new ActionBar(folderMatchElement, { animated: false });
+		const actionBarContainer = DOM.append(folderMatchElement, DOM.$('.actionBarContainer'));
+		const actions = new ActionBar(actionBarContainer, { animated: false });
 		return { label, badge, actions };
 	}
 
@@ -222,7 +223,8 @@ export class SearchRenderer extends Disposable implements IRenderer {
 		const label = this.instantiationService.createInstance(FileLabel, fileMatchElement, void 0);
 		const badge = new CountBadge(DOM.append(fileMatchElement, DOM.$('.badge')));
 		this._register(attachBadgeStyler(badge, this.themeService));
-		const actions = new ActionBar(fileMatchElement, { animated: false });
+		const actionBarContainer = DOM.append(fileMatchElement, DOM.$('.actionBarContainer'));
+		const actions = new ActionBar(actionBarContainer, { animated: false });
 		return { el: fileMatchElement, label, badge, actions };
 	}
 
@@ -235,7 +237,7 @@ export class SearchRenderer extends Disposable implements IRenderer {
 		const replace = DOM.append(parent, DOM.$('span.replaceMatch'));
 		const after = DOM.append(parent, DOM.$('span'));
 		const lineNumber = DOM.append(container, DOM.$('span.matchLineNum'));
-		const actionBarContainer = DOM.append(container, DOM.$('span.actionBarContainer'));
+		const actionBarContainer = DOM.append(container, DOM.$('.actionBarContainer'));
 		const actions = new ActionBar(actionBarContainer, { animated: false });
 
 		return {

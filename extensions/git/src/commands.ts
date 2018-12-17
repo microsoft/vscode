@@ -496,6 +496,7 @@ export class CommandCenter {
 	@command('git.init')
 	async init(): Promise<void> {
 		let repositoryPath: string | undefined = undefined;
+		let askToOpen = true;
 
 		if (workspace.workspaceFolders) {
 			const placeHolder = localize('init', "Pick workspace folder to initialize git repo in");
@@ -510,6 +511,7 @@ export class CommandCenter {
 				return;
 			} else if (item.folder) {
 				repositoryPath = item.folder.uri.fsPath;
+				askToOpen = false;
 			}
 		}
 
@@ -543,6 +545,10 @@ export class CommandCenter {
 			}
 
 			repositoryPath = uri.fsPath;
+
+			if (workspace.workspaceFolders && workspace.workspaceFolders.some(w => w.uri.toString() === uri.toString())) {
+				askToOpen = false;
+			}
 		}
 
 		await this.git.init(repositoryPath);
@@ -551,6 +557,10 @@ export class CommandCenter {
 		let message = localize('proposeopen init', "Would you like to open the initialized repository?");
 		const open = localize('openrepo', "Open Repository");
 		choices.push(open);
+
+		if (!askToOpen) {
+			return;
+		}
 
 		const addToWorkspace = localize('add', "Add to Workspace");
 		if (workspace.workspaceFolders) {

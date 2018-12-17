@@ -252,10 +252,6 @@ export class MarkerRenderer implements ITreeRenderer<Marker, MarkerFilterData, I
 		templateData.lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(marker.startLineNumber, marker.startColumn);
 	}
 
-	disposeElement(): void {
-		// noop
-	}
-
 	disposeTemplate(templateData: IMarkerTemplateData): void {
 		templateData.description.dispose();
 		templateData.source.dispose();
@@ -312,10 +308,6 @@ export class RelatedInformationRenderer implements ITreeRenderer<RelatedInformat
 		templateData.lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(relatedInformation.startLineNumber, relatedInformation.startColumn);
 		templateData.description.set(relatedInformation.message, messageMatches);
 		templateData.description.element.title = relatedInformation.message;
-	}
-
-	disposeElement(): void {
-		// noop
 	}
 
 	disposeTemplate(templateData: IRelatedInformationTemplateData): void {
@@ -377,7 +369,7 @@ export class Filter implements ITreeFilter<TreeElement, FilterData> {
 			return true;
 		}
 
-		const messageMatches = FilterOptions._fuzzyFilter(this.options.textFilter, marker.marker.message);
+		const messageMatches = FilterOptions._messageFilter(this.options.textFilter, marker.marker.message);
 		const sourceMatches = marker.marker.source && FilterOptions._filter(this.options.textFilter, marker.marker.source);
 		const codeMatches = marker.marker.code && FilterOptions._filter(this.options.textFilter, marker.marker.code);
 
@@ -394,7 +386,7 @@ export class Filter implements ITreeFilter<TreeElement, FilterData> {
 		}
 
 		const uriMatches = FilterOptions._filter(this.options.textFilter, paths.basename(relatedInformation.raw.resource.fsPath));
-		const messageMatches = FilterOptions._filter(this.options.textFilter, paths.basename(relatedInformation.raw.message));
+		const messageMatches = FilterOptions._messageFilter(this.options.textFilter, paths.basename(relatedInformation.raw.message));
 
 		if (uriMatches || messageMatches) {
 			return { visibility: true, data: { type: FilterDataType.RelatedInformation, uriMatches: uriMatches || [], messageMatches: messageMatches || [] } };

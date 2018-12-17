@@ -20,7 +20,7 @@ export class TelemetryAppenderChannel implements IServerChannel {
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(_, command: string, { eventName, data }: ITelemetryLog): Thenable<any> {
+	call(_, command: string, { eventName, data }: ITelemetryLog): Promise<any> {
 		this.appender.log(eventName, data);
 		return Promise.resolve(null);
 	}

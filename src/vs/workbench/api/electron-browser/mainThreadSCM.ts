@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { Event, Emitter, debounceEvent } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { assign } from 'vs/base/common/objects';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, IInputValidation } from 'vs/workbench/services/scm/common/scm';
@@ -72,7 +71,7 @@ class MainThreadSCMResource implements ISCMResource {
 		public decorations: ISCMResourceDecorations
 	) { }
 
-	open(): Thenable<void> {
+	open(): Promise<void> {
 		return this.proxy.$executeResourceCommand(this.sourceControlHandle, this.groupHandle, this.handle);
 	}
 
@@ -242,13 +241,13 @@ class MainThreadSCMProvider implements ISCMProvider {
 		this.groups.splice(this.groups.elements.indexOf(group), 1);
 	}
 
-	getOriginalResource(uri: URI): TPromise<URI> {
+	async getOriginalResource(uri: URI): Promise<URI> {
 		if (!this.features.hasQuickDiffProvider) {
-			return TPromise.as(null);
+			return null;
 		}
 
-		return TPromise.wrap(this.proxy.$provideOriginalResource(this.handle, uri, CancellationToken.None))
-			.then(result => result && URI.revive(result));
+		const result = await this.proxy.$provideOriginalResource(this.handle, uri, CancellationToken.None);
+		return result && URI.revive(result);
 	}
 
 	toJSON(): any {
@@ -277,7 +276,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostSCM);
 
-		debounceEvent(scmService.onDidChangeSelectedRepositories, (_, e) => e, 100)
+		Event.debounce(scmService.onDidChangeSelectedRepositories, (_, e) => e, 100)
 			(this.onDidChangeSelectedRepositories, this, this._disposables);
 	}
 
@@ -420,20 +419,12 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		}
 
 		if (enabled) {
-			repository.input.validateInput = (value, pos): TPromise<IInputValidation | undefined> => {
-				return TPromise.wrap(this._proxy.$validateInput(sourceControlHandle, value, pos).then(result => {
-					if (!result) {
-						return undefined;
-					}
-
-					return {
-						message: result[0],
-						type: result[1]
-					};
-				}));
+			repository.input.validateInput = async (value, pos): Promise<IInputValidation | undefined> => {
+				const result = await this._proxy.$validateInput(sourceControlHandle, value, pos);
+				return result && { message: result[0], type: result[1] };
 			};
 		} else {
-			repository.input.validateInput = () => TPromise.as(undefined);
+			repository.input.validateInput = async () => undefined;
 		}
 	}
 

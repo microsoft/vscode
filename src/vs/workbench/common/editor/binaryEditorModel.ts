@@ -74,13 +74,15 @@ export class BinaryEditorModel extends EditorModel {
 		return this.etag;
 	}
 
-	load(): Thenable<EditorModel> {
+	load(): Promise<EditorModel> {
 
 		// Make sure to resolve up to date stat for file resources
 		if (this.fileService.canHandleResource(this.resource)) {
 			return this.fileService.resolveFile(this.resource).then(stat => {
 				this.etag = stat.etag;
-				this.size = stat.size;
+				if (typeof stat.size === 'number') {
+					this.size = stat.size;
+				}
 
 				return this;
 			});

@@ -20,14 +20,13 @@ import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { renderExpressionValue, renderViewTree, IInputBoxOptions, AbstractExpressionsRenderer, IExpressionTemplateData } from 'vs/workbench/parts/debug/browser/baseDebugView';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewletPanelOptions, ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
-import { IDataSource } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { VariablesRenderer, variableSetEmitter } from 'vs/workbench/parts/debug/electron-browser/variablesView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { WorkbenchAsyncDataTree, IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ITreeMouseEvent, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
+import { IAsyncDataSource, ITreeMouseEvent, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 
 const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
 
@@ -35,7 +34,7 @@ export class WatchExpressionsView extends ViewletPanel {
 
 	private onWatchExpressionsUpdatedScheduler: RunOnceScheduler;
 	private needsRefresh: boolean;
-	private tree: WorkbenchAsyncDataTree<IExpression>;
+	private tree: WorkbenchAsyncDataTree<IDebugService, IExpression>;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -52,7 +51,7 @@ export class WatchExpressionsView extends ViewletPanel {
 
 		this.onWatchExpressionsUpdatedScheduler = new RunOnceScheduler(() => {
 			this.needsRefresh = false;
-			this.tree.refresh(null);
+			this.tree.refresh();
 		}, 50);
 	}
 
@@ -64,13 +63,15 @@ export class WatchExpressionsView extends ViewletPanel {
 		const expressionsRenderer = this.instantiationService.createInstance(WatchExpressionsRenderer);
 		this.disposables.push(expressionsRenderer);
 		this.tree = new WorkbenchAsyncDataTree(treeContainer, new WatchExpressionsDelegate(), [expressionsRenderer, this.instantiationService.createInstance(VariablesRenderer)],
-			new WatchExpressionsDataSource(this.debugService), {
+			new WatchExpressionsDataSource(), {
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'watchAriaTreeLabel' }, "Debug Watch Expressions"),
 				accessibilityProvider: new WatchExpressionsAccessibilityProvider(),
-				identityProvider: { getId: element => element.getId() }
-			}, this.contextKeyService, this.listService, this.themeService, this.configurationService);
+				identityProvider: { getId: element => element.getId() },
+				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: e => e }
+			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
 
-		this.tree.refresh(null);
+		// TODO@isidor this is a promise
+		this.tree.setInput(this.debugService);
 
 		const addWatchExpressionAction = new AddWatchExpressionAction(AddWatchExpressionAction.ID, AddWatchExpressionAction.LABEL, this.debugService, this.keybindingService);
 		const collapseAction = new CollapseAction2(this.tree, true, 'explorer-action collapse-explorer');
@@ -83,7 +84,7 @@ export class WatchExpressionsView extends ViewletPanel {
 			if (!this.isExpanded() || !this.isVisible()) {
 				this.needsRefresh = true;
 			} else {
-				this.tree.refresh(null);
+				this.tree.refresh();
 			}
 		}));
 		this.disposables.push(this.debugService.getViewModel().onDidFocusStackFrame(() => {
@@ -96,7 +97,7 @@ export class WatchExpressionsView extends ViewletPanel {
 				this.onWatchExpressionsUpdatedScheduler.schedule();
 			}
 		}));
-		this.disposables.push(variableSetEmitter.event(() => this.tree.refresh(null)));
+		this.disposables.push(variableSetEmitter.event(() => this.tree.refresh()));
 	}
 
 	layoutBody(size: number): void {
@@ -186,22 +187,21 @@ class WatchExpressionsDelegate implements IListVirtualDelegate<IExpression> {
 	}
 }
 
-class WatchExpressionsDataSource implements IDataSource<IExpression> {
+function isDebugService(element: any): element is IDebugService {
+	return typeof element.getConfigurationManager === 'function';
+}
 
-	constructor(private debugService: IDebugService) { }
+class WatchExpressionsDataSource implements IAsyncDataSource<IDebugService, IExpression> {
 
 	hasChildren(element: IExpression | null): boolean {
-		if (element === null) {
-			return true;
-		}
-
-		return element.hasChildren;
+		return isDebugService(element) || element.hasChildren;
 	}
 
-	getChildren(element: IExpression | null): Thenable<(IExpression)[]> {
-		if (element === null) {
-			const watchExpressions = this.debugService.getModel().getWatchExpressions();
-			const viewModel = this.debugService.getViewModel();
+	getChildren(element: IDebugService | IExpression): Promise<Array<IExpression>> {
+		if (isDebugService(element)) {
+			const debugService = element as IDebugService;
+			const watchExpressions = debugService.getModel().getWatchExpressions();
+			const viewModel = debugService.getViewModel();
 			return Promise.all(watchExpressions.map(we => !!we.name
 				? we.evaluate(viewModel.focusedSession, viewModel.focusedStackFrame, 'watch').then(() => we)
 				: Promise.resolve(we)));

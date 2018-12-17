@@ -275,10 +275,6 @@ export class NotificationRenderer implements IListRenderer<INotificationViewItem
 		data.renderer.setInput(notification);
 	}
 
-	disposeElement(): void {
-		// noop
-	}
-
 	disposeTemplate(templateData: INotificationTemplateData): void {
 		templateData.toDispose = dispose(templateData.toDispose);
 	}
@@ -290,7 +286,7 @@ export class NotificationTemplateRenderer {
 	private static expandNotificationAction: ExpandNotificationAction;
 	private static collapseNotificationAction: CollapseNotificationAction;
 
-	private static readonly SEVERITIES: ('info' | 'warning' | 'error')[] = ['info', 'warning', 'error'];
+	private static readonly SEVERITIES: Array<'info' | 'warning' | 'error'> = ['info', 'warning', 'error'];
 
 	private inputDisposeables: IDisposable[] = [];
 

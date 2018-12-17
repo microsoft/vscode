@@ -117,7 +117,7 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 	}
 
 	private onModelChanged(): void {
-		if (!this.editor.getModel()) {
+		if (!this.editor.hasModel()) {
 			// model could have been disposed during the delay
 			return;
 		}

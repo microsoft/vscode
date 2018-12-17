@@ -85,11 +85,10 @@ export class Debugger implements IDebugger {
 			});
 		}
 
-		// try the proposed and the deprecated "provideDebugAdapter" API
-		return this.configurationManager.provideDebugAdapter(session).then(adapter => {
+		// try the new "createDebugAdapterDescriptor" and the deprecated "provideDebugAdapter" API
+		return this.configurationManager.getDebugAdapterDescriptor(session).then(adapter => {
 
 			if (adapter) {
-				console.info('DebugConfigurationProvider.debugAdapterExecutable is deprecated and will be removed soon; please use DebugAdapterDescriptorFactory.createDebugAdapterDescriptor instead.');
 				return adapter;
 			}
 
@@ -115,13 +114,13 @@ export class Debugger implements IDebugger {
 		});
 	}
 
-	substituteVariables(folder: IWorkspaceFolder, config: IConfig): Thenable<IConfig> {
+	substituteVariables(folder: IWorkspaceFolder, config: IConfig): Promise<IConfig> {
 		if (this.inExtHost()) {
 			return this.configurationManager.substituteVariables(this.type, folder, config).then(config => {
-				return this.configurationResolverService.resolveWithInteractionReplace(folder, config, undefined, this.variables);
+				return this.configurationResolverService.resolveWithInteractionReplace(folder, config, 'launch', this.variables);
 			});
 		} else {
-			return this.configurationResolverService.resolveWithInteractionReplace(folder, config, undefined, this.variables);
+			return this.configurationResolverService.resolveWithInteractionReplace(folder, config, 'launch', this.variables);
 		}
 	}
 
@@ -208,7 +207,7 @@ export class Debugger implements IDebugger {
 	}
 
 	@memoize
-	getCustomTelemetryService(): Thenable<TelemetryService> {
+	getCustomTelemetryService(): Promise<TelemetryService> {
 		if (!this.debuggerContribution.aiKey) {
 			return Promise.resolve(undefined);
 		}

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/fileactions';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import { isWindows, isLinux } from 'vs/base/common/platform';
@@ -48,6 +47,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { Constants } from 'vs/editor/common/core/uint';
 import { CLOSE_EDITORS_AND_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { IViewlet } from 'vs/workbench/common/viewlet';
+import { coalesce } from 'vs/base/common/arrays';
 
 export interface IEditableData {
 	action: IAction;
@@ -98,7 +98,7 @@ export class BaseErrorReportingAction extends Action {
 		this._notificationService.error(toErrorMessage(error, false));
 	}
 
-	protected onErrorWithRetry(error: any, retry: () => TPromise<any>): void {
+	protected onErrorWithRetry(error: any, retry: () => Promise<any>): void {
 		this._notificationService.prompt(Severity.Error, toErrorMessage(error, false),
 			[{
 				label: nls.localize('retry', "Retry"),
@@ -156,7 +156,7 @@ class TriggerRenameFileAction extends BaseFileAction {
 	}
 
 	public validateFileName(name: string): string {
-		const names: string[] = name.split(/[\\/]/).filter(part => !!part);
+		const names: string[] = coalesce(name.split(/[\\/]/));
 		if (names.length > 1) {	// error only occurs on multi-path
 			const comparer = isLinux ? strings.compare : strings.compareIgnoreCase;
 			if (comparer(names[0], this.element.name) === 0) {
@@ -167,7 +167,7 @@ class TriggerRenameFileAction extends BaseFileAction {
 		return this.renameAction.validateFileName(this.element.parent, name);
 	}
 
-	public run(context?: any): TPromise<any> {
+	public run(context?: any): Promise<any> {
 		if (!context) {
 			return Promise.reject(new Error('No context provided to BaseEnableFileRenameAction.'));
 		}
@@ -234,7 +234,7 @@ export abstract class BaseRenameAction extends BaseFileAction {
 		return super._isEnabled() && this.element && !this.element.isReadonly;
 	}
 
-	public run(context?: any): TPromise<any> {
+	public run(context?: any): Promise<any> {
 		if (!context) {
 			return Promise.reject(new Error('No context provided to BaseRenameFileAction.'));
 		}
@@ -254,7 +254,7 @@ export abstract class BaseRenameAction extends BaseFileAction {
 		}
 
 		// Call function and Emit Event through viewer
-		const promise = this.runAction(name).then(null, (error: any) => {
+		const promise = this.runAction(name).then(void 0, (error: any) => {
 			this.onError(error);
 		});
 
@@ -277,7 +277,7 @@ export abstract class BaseRenameAction extends BaseFileAction {
 		return validateFileName(parent, name);
 	}
 
-	public abstract runAction(newName: string): TPromise<any>;
+	public abstract runAction(newName: string): Promise<any>;
 }
 
 class RenameFileAction extends BaseRenameAction {
@@ -295,7 +295,7 @@ class RenameFileAction extends BaseRenameAction {
 		this._updateEnablement();
 	}
 
-	public runAction(newName: string): TPromise<any> {
+	public runAction(newName: string): Promise<any> {
 		const parentResource = this.element.parent.resource;
 		const targetResource = resources.joinPath(parentResource, newName);
 
@@ -332,7 +332,7 @@ export class BaseNewAction extends BaseFileAction {
 		this.renameAction = editableAction;
 	}
 
-	public run(context?: any): TPromise<any> {
+	public run(context?: any): Promise<any> {
 		if (!context) {
 			return Promise.reject(new Error('No context provided to BaseNewAction.'));
 		}
@@ -456,7 +456,7 @@ export class GlobalNewUntitledFileAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	public run(): Promise<any> {
 		return this.editorService.openEditor({ options: { pinned: true } } as IUntitledResourceInput); // untitled are always pinned
 	}
 }
@@ -491,7 +491,7 @@ class CreateFileAction extends BaseCreateAction {
 		this._updateEnablement();
 	}
 
-	public runAction(fileName: string): TPromise<any> {
+	public runAction(fileName: string): Promise<any> {
 		const resource = this.element.parent.resource;
 		return this.fileService.createFile(resources.joinPath(resource, fileName)).then(stat => {
 			return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
@@ -518,9 +518,9 @@ class CreateFolderAction extends BaseCreateAction {
 		this._updateEnablement();
 	}
 
-	public runAction(fileName: string): TPromise<any> {
+	public runAction(fileName: string): Promise<any> {
 		const resource = this.element.parent.resource;
-		return this.fileService.createFolder(resources.joinPath(resource, fileName)).then(null, (error) => {
+		return this.fileService.createFolder(resources.joinPath(resource, fileName)).then(void 0, (error) => {
 			this.onErrorWithRetry(error, () => this.runAction(fileName));
 		});
 	}
@@ -554,7 +554,7 @@ class BaseDeleteFileAction extends BaseFileAction {
 		return super._isEnabled() && this.elements && this.elements.every(e => !e.isReadonly);
 	}
 
-	public run(): TPromise<any> {
+	public run(): Promise<any> {
 
 		// Remove highlight
 		if (this.tree) {
@@ -571,7 +571,7 @@ class BaseDeleteFileAction extends BaseFileAction {
 		const distinctElements = resources.distinctParents(this.elements, e => e.resource);
 
 		// Handle dirty
-		let confirmDirtyPromise: TPromise<boolean> = Promise.resolve(true);
+		let confirmDirtyPromise: Promise<boolean> = Promise.resolve(true);
 		const dirty = this.textFileService.getDirty().filter(d => distinctElements.some(e => resources.isEqualOrParent(d, e.resource, !isLinux /* ignorecase */)));
 		if (dirty.length) {
 			let message: string;
@@ -608,7 +608,7 @@ class BaseDeleteFileAction extends BaseFileAction {
 				return null;
 			}
 
-			let confirmDeletePromise: TPromise<IConfirmationResult>;
+			let confirmDeletePromise: Promise<IConfirmationResult>;
 
 			// Check if we need to ask for confirmation at all
 			if (this.skipConfirm || (this.useTrash && this.configurationService.getValue<boolean>(BaseDeleteFileAction.CONFIRM_DELETE_SETTING_KEY) === false)) {
@@ -644,7 +644,7 @@ class BaseDeleteFileAction extends BaseFileAction {
 			return confirmDeletePromise.then(confirmation => {
 
 				// Check for confirmation checkbox
-				let updateConfirmSettingsPromise: TPromise<void> = Promise.resolve(void 0);
+				let updateConfirmSettingsPromise: Promise<void> = Promise.resolve(void 0);
 				if (confirmation.confirmed && confirmation.checkboxChecked === true) {
 					updateConfirmSettingsPromise = this.configurationService.updateValue(BaseDeleteFileAction.CONFIRM_DELETE_SETTING_KEY, false, ConfigurationTarget.USER);
 				}
@@ -781,7 +781,7 @@ export class AddFilesAction extends BaseFileAction {
 		this._updateEnablement();
 	}
 
-	public run(resourcesToAdd: URI[]): TPromise<any> {
+	public run(resourcesToAdd: URI[]): Promise<any> {
 		const addPromise = Promise.resolve(null).then(() => {
 			if (resourcesToAdd && resourcesToAdd.length > 0) {
 
@@ -807,7 +807,7 @@ export class AddFilesAction extends BaseFileAction {
 						targetNames.add(isLinux ? child.name : child.name.toLowerCase());
 					});
 
-					let overwritePromise: TPromise<IConfirmationResult> = Promise.resolve({ confirmed: true });
+					let overwritePromise: Promise<IConfirmationResult> = Promise.resolve({ confirmed: true });
 					if (resourcesToAdd.some(resource => {
 						return targetNames.has(!resources.hasToIgnoreCase(resource) ? resources.basename(resource) : resources.basename(resource).toLowerCase());
 					})) {
@@ -827,7 +827,7 @@ export class AddFilesAction extends BaseFileAction {
 						}
 
 						// Run add in sequence
-						const addPromisesFactory: ITask<TPromise<void>>[] = [];
+						const addPromisesFactory: ITask<Promise<void>>[] = [];
 						resourcesToAdd.forEach(resource => {
 							addPromisesFactory.push(() => {
 								const sourceFile = resource;
@@ -836,7 +836,7 @@ export class AddFilesAction extends BaseFileAction {
 								// if the target exists and is dirty, make sure to revert it. otherwise the dirty contents
 								// of the target file would replace the contents of the added file. since we already
 								// confirmed the overwrite before, this is OK.
-								let revertPromise: Thenable<ITextFileOperationResult> = Promise.resolve(null);
+								let revertPromise: Promise<ITextFileOperationResult> = Promise.resolve(null);
 								if (this.textFileService.isDirty(targetFile)) {
 									revertPromise = this.textFileService.revertAll([targetFile], { soft: true });
 								}
@@ -890,7 +890,7 @@ class CopyFileAction extends BaseFileAction {
 		this._updateEnablement();
 	}
 
-	public run(): TPromise<any> {
+	public run(): Promise<any> {
 
 		// Write to clipboard as file/folder to copy
 		this.clipboardService.writeResources(this.elements.map(e => e.resource));
@@ -932,7 +932,7 @@ class PasteFileAction extends BaseFileAction {
 		this._updateEnablement();
 	}
 
-	public run(fileToPaste: URI): TPromise<any> {
+	public run(fileToPaste: URI): Promise<any> {
 
 		// Check if target is ancestor of pasted folder
 		if (this.element.resource.toString() !== fileToPaste.toString() && resources.isEqualOrParent(this.element.resource, fileToPaste, !isLinux /* ignorecase */)) {
@@ -994,7 +994,7 @@ export class DuplicateFileAction extends BaseFileAction {
 		this._updateEnablement();
 	}
 
-	public run(): TPromise<any> {
+	public run(): Promise<any> {
 
 		// Remove highlight
 		if (this.tree) {
@@ -1113,13 +1113,13 @@ export class GlobalCompareResourcesAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	public run(): Promise<any> {
 		const activeInput = this.editorService.activeEditor;
 		const activeResource = activeInput ? activeInput.getResource() : void 0;
 		if (activeResource) {
 
 			// Compare with next editor that opens
-			const toDispose = this.editorService.overrideOpenEditor((editor, options, group) => {
+			const toDispose = this.editorService.overrideOpenEditor(editor => {
 
 				// Only once!
 				toDispose.dispose();
@@ -1170,7 +1170,7 @@ export class ToggleAutoSaveAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	public run(): Promise<any> {
 		const setting = this.configurationService.inspect('files.autoSave');
 		let userAutoSaveConfig = setting.user;
 		if (types.isUndefinedOrNull(userAutoSaveConfig)) {
@@ -1210,7 +1210,7 @@ export abstract class BaseSaveAllAction extends BaseErrorReportingAction {
 	}
 
 	protected abstract includeUntitled(): boolean;
-	protected abstract doRun(context: any): TPromise<any>;
+	protected abstract doRun(context: any): Promise<any>;
 
 	private registerListeners(): void {
 
@@ -1232,7 +1232,7 @@ export abstract class BaseSaveAllAction extends BaseErrorReportingAction {
 		}
 	}
 
-	public run(context?: any): TPromise<boolean> {
+	public run(context?: any): Promise<boolean> {
 		return this.doRun(context).then(() => true, error => {
 			this.onError(error);
 			return null;
@@ -1255,7 +1255,7 @@ export class SaveAllAction extends BaseSaveAllAction {
 		return 'explorer-action save-all';
 	}
 
-	protected doRun(context: any): TPromise<any> {
+	protected doRun(context: any): Promise<any> {
 		return this.commandService.executeCommand(SAVE_ALL_COMMAND_ID);
 	}
 
@@ -1273,7 +1273,7 @@ export class SaveAllInGroupAction extends BaseSaveAllAction {
 		return 'explorer-action save-all';
 	}
 
-	protected doRun(context: any): TPromise<any> {
+	protected doRun(context: any): Promise<any> {
 		return this.commandService.executeCommand(SAVE_ALL_IN_GROUP_COMMAND_ID, {}, context);
 	}
 
@@ -1291,7 +1291,7 @@ export class CloseGroupAction extends Action {
 		super(id, label, 'action-close-all-files');
 	}
 
-	public run(context?: any): TPromise<any> {
+	public run(context?: any): Promise<any> {
 		return this.commandService.executeCommand(CLOSE_EDITORS_AND_GROUP_COMMAND_ID, {}, context);
 	}
 }
@@ -1309,7 +1309,7 @@ export class FocusFilesExplorer extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	public run(): Promise<any> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true).then((viewlet: ExplorerViewlet) => {
 			const view = viewlet.getExplorerView();
 			if (view) {
@@ -1335,7 +1335,7 @@ export class ShowActiveFileInExplorer extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	public run(): Promise<any> {
 		const resource = toResource(this.editorService.activeEditor, { supportSideBySide: true });
 		if (resource) {
 			this.commandService.executeCommand(REVEAL_IN_EXPLORER_COMMAND_ID, resource);
@@ -1360,7 +1360,7 @@ export class CollapseExplorerView extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	public run(): Promise<any> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true).then((viewlet: ExplorerViewlet) => {
 			const explorerView = viewlet.getExplorerView();
 			if (explorerView) {
@@ -1388,7 +1388,7 @@ export class RefreshExplorerView extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	public run(): Promise<any> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true).then((viewlet: ExplorerViewlet) => {
 			const explorerView = viewlet.getExplorerView();
 			if (explorerView) {
@@ -1413,7 +1413,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	public run(): Promise<any> {
 		const fileResource = toResource(this.editorService.activeEditor, { supportSideBySide: true, filter: Schemas.file /* todo@remote */ });
 		if (fileResource) {
 			this.windowService.openWindow([fileResource], { forceNewWindow: true, forceOpenWorkspaceAsFile: true });
@@ -1440,7 +1440,7 @@ export function validateFileName(parent: ExplorerItem, name: string): string {
 		return nls.localize('fileNameStartsWithSlashError', "A file or folder name cannot start with a slash.");
 	}
 
-	const names: string[] = name.split(/[\\/]/).filter(part => !!part);
+	const names = coalesce(name.split(/[\\/]/));
 
 	// Do not allow to overwrite existing file
 	const childExists = !!parent.getChild(name);
@@ -1510,7 +1510,7 @@ export class CompareWithClipboardAction extends Action {
 		this.enabled = true;
 	}
 
-	public run(): TPromise<any> {
+	public run(): Promise<any> {
 		const resource: URI = toResource(this.editorService.activeEditor, { supportSideBySide: true });
 		if (resource && (this.fileService.canHandleResource(resource) || resource.scheme === Schemas.untitled)) {
 			if (!this.registrationDisposal) {
@@ -1545,7 +1545,7 @@ class ClipboardContentProvider implements ITextModelContentProvider {
 		@IModelService private modelService: IModelService
 	) { }
 
-	provideTextContent(resource: URI): TPromise<ITextModel> {
+	provideTextContent(resource: URI): Promise<ITextModel> {
 		const model = this.modelService.createModel(this.clipboardService.readText(), this.modeService.create('text/plain'), resource);
 
 		return Promise.resolve(model);
@@ -1570,12 +1570,12 @@ function getContext(listWidget: ListWidget, viewletService: IViewletService): IE
 
 // TODO@isidor these commands are calling into actions due to the complex inheritance action structure.
 // It should be the other way around, that actions call into commands.
-function openExplorerAndRunAction(accessor: ServicesAccessor, constructor: IConstructorSignature2<ITree, ExplorerItem, Action>): TPromise<any> {
+function openExplorerAndRunAction(accessor: ServicesAccessor, constructor: IConstructorSignature2<ITree, ExplorerItem, Action>): Promise<any> {
 	const instantationService = accessor.get(IInstantiationService);
 	const listService = accessor.get(IListService);
 	const viewletService = accessor.get(IViewletService);
 	const activeViewlet = viewletService.getActiveViewlet();
-	let explorerPromise: Thenable<IViewlet> = Promise.resolve(activeViewlet);
+	let explorerPromise: Promise<IViewlet> = Promise.resolve(activeViewlet);
 	if (!activeViewlet || activeViewlet.getId() !== VIEWLET_ID) {
 		explorerPromise = viewletService.openViewlet(VIEWLET_ID, true);
 	}

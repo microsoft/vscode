@@ -168,7 +168,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 				// file is really gone and not just a faulty file event.
 				// This only applies to external file events, so we need to check for the isExternal
 				// flag.
-				let checkExists: Thenable<boolean>;
+				let checkExists: Promise<boolean>;
 				if (isExternal) {
 					checkExists = timeout(100).then(() => this.fileService.existsFile(resource));
 				} else {

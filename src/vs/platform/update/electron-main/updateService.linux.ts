@@ -64,7 +64,7 @@ export class LinuxUpdateService extends AbstractUpdateService {
 						this.setState(State.AvailableForDownload(update));
 					}
 				})
-				.then(null, err => {
+				.then(void 0, err => {
 					this.logService.error(err);
 
 					/* __GDPR__

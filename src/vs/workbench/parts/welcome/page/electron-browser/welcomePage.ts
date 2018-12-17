@@ -15,7 +15,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { onUnexpectedError, isPromiseCanceledError } from 'vs/base/common/errors';
 import { IWindowService } from 'vs/platform/windows/common/windows';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
@@ -80,7 +79,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 									}
 									return undefined;
 								}, onUnexpectedError);
-						})).then(results => results.filter(result => !!result))
+						})).then(arrays.coalesce)
 							.then<any>(readmes => {
 								if (!editorService.activeEditor) {
 									if (readmes.length) {
@@ -101,7 +100,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 					}
 				}
 				return undefined;
-			}).then(null, onUnexpectedError);
+			}).then(void 0, onUnexpectedError);
 		}
 	}
 }
@@ -130,7 +129,7 @@ export class WelcomePageAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<void> {
+	public run(): Promise<void> {
 		return this.instantiationService.createInstance(WelcomePage)
 			.openEditor()
 			.then(() => undefined);
@@ -291,7 +290,7 @@ class WelcomePage {
 		return this.editorService.openEditor(this.editorInput, { pinned: false });
 	}
 
-	private onReady(container: HTMLElement, recentlyOpened: TPromise<{ files: URI[]; workspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[]; }>, installedExtensions: TPromise<IExtensionStatus[]>): void {
+	private onReady(container: HTMLElement, recentlyOpened: Promise<{ files: URI[]; workspaces: Array<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier>; }>, installedExtensions: Promise<IExtensionStatus[]>): void {
 		const enabled = isWelcomePageEnabled(this.configurationService, this.contextService);
 		const showOnStartup = <HTMLInputElement>container.querySelector('#showOnStartup');
 		if (enabled) {
@@ -374,7 +373,7 @@ class WelcomePage {
 
 				ul.insertBefore(li, before);
 			});
-		}).then(null, onUnexpectedError);
+		}).then(void 0, onUnexpectedError);
 
 		this.addExtensionList(container, '.extensionPackList', extensionPacks, extensionPackStrings);
 		this.addExtensionList(container, '.keymapList', keymapExtensions, keymapStrings);
@@ -481,7 +480,7 @@ class WelcomePage {
 						messageDelay.cancelAndSet(() => {
 							this.notificationService.info(strings.installing.replace('{0}', extensionSuggestion.name));
 						}, 300);
-						TPromise.join(extensionSuggestion.isKeymap ? extensions.filter(extension => isKeymapExtension(this.tipsService, extension) && extension.globallyEnabled)
+						Promise.all(extensionSuggestion.isKeymap ? extensions.filter(extension => isKeymapExtension(this.tipsService, extension) && extension.globallyEnabled)
 							.map(extension => {
 								return this.extensionEnablementService.setEnablement(extension.local, EnablementState.Disabled);
 							}) : []).then(() => {
@@ -521,7 +520,7 @@ class WelcomePage {
 										return undefined;
 									}
 								});
-							}).then(null, err => {
+							}).then(void 0, err => {
 								/* __GDPR__FRAGMENT__
 									"WelcomePageInstalled-4" : {
 										"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -554,11 +553,11 @@ class WelcomePage {
 						});
 						this.extensionsWorkbenchService.queryGallery({ names: [extensionSuggestion.id] })
 							.then(result => this.extensionsWorkbenchService.open(result.firstPage[0]))
-							.then(null, onUnexpectedError);
+							.then(void 0, onUnexpectedError);
 					}
 				}]
 			);
-		}).then(null, err => {
+		}).then(void 0, err => {
 			/* __GDPR__FRAGMENT__
 				"WelcomePageInstalled-6" : {
 					"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -577,7 +576,7 @@ class WelcomePage {
 		});
 	}
 
-	private updateInstalledExtensions(container: HTMLElement, installedExtensions: TPromise<IExtensionStatus[]>) {
+	private updateInstalledExtensions(container: HTMLElement, installedExtensions: Promise<IExtensionStatus[]>) {
 		installedExtensions.then(extensions => {
 			const elements = container.querySelectorAll('.installExtension, .enabledExtension');
 			for (let i = 0; i < elements.length; i++) {
@@ -595,7 +594,7 @@ class WelcomePage {
 						enabled[i].classList.add('installed');
 					}
 				});
-		}).then(null, onUnexpectedError);
+		}).then(void 0, onUnexpectedError);
 	}
 
 	dispose(): void {

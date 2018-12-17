@@ -78,7 +78,7 @@ export class ViewPickerHandler extends QuickOpenHandler {
 		super();
 	}
 
-	getResults(searchValue: string, token: CancellationToken): Thenable<QuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 		const normalizedSearchValueLowercase = stripWildcards(searchValue).toLowerCase();
 
@@ -224,7 +224,7 @@ export class QuickOpenViewPickerAction extends Action {
 		super(id, label);
 	}
 
-	run(): Thenable<boolean> {
+	run(): Promise<boolean> {
 		const keys = this.keybindingService.lookupKeybindings(this.id);
 
 		this.quickOpenService.show(VIEW_PICKER_PREFIX, { quickNavigateConfiguration: { keybindings: keys } });

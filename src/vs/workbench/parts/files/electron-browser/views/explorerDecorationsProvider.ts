@@ -36,7 +36,7 @@ export class ExplorerDecorationsProvider implements IDecorationsProvider {
 		this._onDidChange.fire(uris);
 	}
 
-	provideDecorations(resource: URI): IDecorationData {
+	provideDecorations(resource: URI): IDecorationData | undefined {
 		const fileStat = this.model.findClosest(resource);
 		if (fileStat && fileStat.isRoot && fileStat.isError) {
 			return {

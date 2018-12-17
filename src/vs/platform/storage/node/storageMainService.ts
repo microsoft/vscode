@@ -74,7 +74,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 	_serviceBrand: any;
 
-	private static STORAGE_NAME = 'temp.vscdb';
+	private static STORAGE_NAME = 'state.vscdb';
 
 	private _onDidChangeStorage: Emitter<IStorageChangeEvent> = this._register(new Emitter<IStorageChangeEvent>());
 	get onDidChangeStorage(): Event<IStorageChangeEvent> { return this._onDidChangeStorage.event; }
@@ -98,7 +98,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 	}
 
 	private get storagePath(): string {
-		if (!!this.environmentService.extensionTestsPath || !process.env['VSCODE_TEST_STORAGE_MIGRATION']) {
+		if (!!this.environmentService.extensionTestsPath) {
 			return SQLiteStorageDatabase.IN_MEMORY_PATH; // no storage during extension tests!
 		}
 
@@ -130,7 +130,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		} as ISQLiteStorageDatabaseLoggingOptions;
 	}
 
-	initialize(): Thenable<void> {
+	initialize(): Promise<void> {
 		const useInMemoryStorage = this.storagePath === SQLiteStorageDatabase.IN_MEMORY_PATH;
 
 		let globalStorageExists: Promise<boolean>;
@@ -158,7 +158,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 			}).then(() => {
 
 				// Migrate storage if this is the first start and we are not using in-memory
-				let migrationPromise: Thenable<void>;
+				let migrationPromise: Promise<void>;
 				if (!useInMemoryStorage && !exists) {
 					// TODO@Ben remove global storage migration and move Storage creation back to ctor
 					migrationPromise = this.migrateGlobalStorage().then(() => this.logService.info('[storage] migrated global storage'), error => this.logService.error(`[storage] migration error ${error}`));
@@ -171,10 +171,10 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		});
 	}
 
-	private migrateGlobalStorage(): Thenable<void> {
+	private migrateGlobalStorage(): Promise<void> {
 		this.logService.info('[storage] migrating global storage from localStorage into SQLite');
 
-		const localStorageDBBackup = join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage.vscmig');
+		const localStorageDBBackup = join(this.environmentService.userDataPath, 'Local Storage', 'file__0.vscmig');
 
 		return exists(localStorageDBBackup).then(exists => {
 			if (!exists) {
@@ -357,19 +357,16 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		return this.storage.getInteger(key, fallbackValue);
 	}
 
-	store(key: string, value: any): Thenable<void> {
+	store(key: string, value: any): Promise<void> {
 		return this.storage.set(key, value);
 	}
 
-	remove(key: string): Thenable<void> {
+	remove(key: string): Promise<void> {
 		return this.storage.delete(key);
 	}
 
-	close(): Thenable<void> {
+	close(): Promise<void> {
 		this.logService.trace('StorageMainService#close() - begin');
-
-		// Signal to storage that we are about to close
-		this.storage.beforeClose();
 
 		// Signal as event so that clients can still store data
 		this._onWillSaveState.fire();
@@ -383,7 +380,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		});
 	}
 
-	checkIntegrity(full: boolean): Thenable<string> {
+	checkIntegrity(full: boolean): Promise<string> {
 		return this.storage.checkIntegrity(full);
 	}
 }

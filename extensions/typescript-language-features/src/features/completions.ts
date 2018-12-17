@@ -169,6 +169,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 			case PConst.Kind.interface:
 				return vscode.CompletionItemKind.Interface;
 			case PConst.Kind.warning:
+				return vscode.CompletionItemKind.Text;
 			case PConst.Kind.script:
 				return vscode.CompletionItemKind.File;
 			case PConst.Kind.directory:
@@ -348,7 +349,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			});
 		}
 
-		const file = this.client.toPath(document.uri);
+		const file = this.client.toOpenedFilePath(document);
 		if (!file) {
 			return null;
 		}
@@ -435,7 +436,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			return undefined;
 		}
 
-		const filepath = this.client.toPath(item.document.uri);
+		const filepath = this.client.toOpenedFilePath(item.document);
 		if (!filepath) {
 			return undefined;
 		}

@@ -433,7 +433,7 @@ export interface CompletionItem {
 	 * *Note:* The range must be a [single line](#Range.isSingleLine) and it must
 	 * [contain](#Range.contains) the position at which completion has been [requested](#CompletionItemProvider.provideCompletionItems).
 	 */
-	range?: IRange;
+	range: IRange;
 	/**
 	 * An optional set of characters that when pressed while this completion is active will accept it first and
 	 * then type that character. *Note* that all commit characters should have `length=1` and that superfluous
@@ -450,13 +450,6 @@ export interface CompletionItem {
 	 * A command that should be run upon acceptance of this item.
 	 */
 	command?: Command;
-
-	/**@internal*/
-	_labelLow?: string;
-	/**@internal*/
-	_sortTextLow?: string;
-	/**@internal*/
-	_filterTextLow?: string;
 }
 
 export interface CompletionList {
@@ -1032,11 +1025,16 @@ export interface DocumentColorProvider {
 	provideColorPresentations(model: model.ITextModel, colorInfo: IColorInformation, token: CancellationToken): ProviderResult<IColorPresentation[]>;
 }
 
+export interface SelectionRange {
+	kind: string;
+	range: IRange;
+}
+
 export interface SelectionRangeProvider {
 	/**
 	 * Provide ranges that should be selected from the given position.
 	 */
-	provideSelectionRanges(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<IRange[]>;
+	provideSelectionRanges(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<SelectionRange[]>;
 }
 
 export interface FoldingContext {
@@ -1122,7 +1120,7 @@ export interface ResourceTextEdit {
 }
 
 export interface WorkspaceEdit {
-	edits?: Array<ResourceTextEdit | ResourceFileEdit>;
+	edits: Array<ResourceTextEdit | ResourceFileEdit>;
 }
 
 export interface Rejection {
@@ -1412,7 +1410,7 @@ export interface ITokenizationRegistry {
 	/**
 	 * Register a promise for a tokenization support.
 	 */
-	registerPromise(language: string, promise: Thenable<ITokenizationSupport>): Thenable<IDisposable>;
+	registerPromise(language: string, promise: Thenable<ITokenizationSupport>): IDisposable;
 
 	/**
 	 * Get the tokenization support for a language.

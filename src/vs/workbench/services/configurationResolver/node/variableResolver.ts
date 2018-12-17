@@ -14,7 +14,6 @@ import { localize } from 'vs/nls';
 import { URI as uri } from 'vs/base/common/uri';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { TPromise } from 'vs/base/common/winjs.base';
 
 export interface IVariableResolveContext {
 	getFolderUri(folderName: string): uri | undefined;
@@ -83,11 +82,11 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 		return { newConfig, resolvedVariables };
 	}
 
-	public resolveWithInteractionReplace(folder: IWorkspaceFolder, config: any): TPromise<any> {
+	public resolveWithInteractionReplace(folder: IWorkspaceFolder, config: any): Promise<any> {
 		throw new Error('resolveWithInteractionReplace not implemented.');
 	}
 
-	public resolveWithInteraction(folder: IWorkspaceFolder, config: any): TPromise<any> {
+	public resolveWithInteraction(folder: IWorkspaceFolder, config: any): Promise<any> {
 		throw new Error('resolveWithInteraction not implemented.');
 	}
 

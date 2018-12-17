@@ -67,10 +67,13 @@ namespace Configuration {
 }
 
 
-const taskDefinitionsExtPoint = ExtensionsRegistry.registerExtensionPoint<Configuration.TaskDefinition[]>('taskDefinitions', [], {
-	description: nls.localize('TaskDefinitionExtPoint', 'Contributes task kinds'),
-	type: 'array',
-	items: taskDefinitionSchema
+const taskDefinitionsExtPoint = ExtensionsRegistry.registerExtensionPoint<Configuration.TaskDefinition[]>({
+	extensionPoint: 'taskDefinitions',
+	jsonSchema: {
+		description: nls.localize('TaskDefinitionExtPoint', 'Contributes task kinds'),
+		type: 'array',
+		items: taskDefinitionSchema
+	}
 });
 
 export interface ITaskDefinitionRegistry {

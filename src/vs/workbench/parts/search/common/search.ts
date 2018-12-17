@@ -29,8 +29,8 @@ export namespace WorkspaceSymbolProviderRegistry {
 
 	const _supports: IWorkspaceSymbolProvider[] = [];
 
-	export function register(support: IWorkspaceSymbolProvider): IDisposable {
-
+	export function register(provider: IWorkspaceSymbolProvider): IDisposable {
+		let support: IWorkspaceSymbolProvider | undefined = provider;
 		if (support) {
 			_supports.push(support);
 		}

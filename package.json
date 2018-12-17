@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.30.0",
-  "distro": "573bd4fedabe1c0bcebeb1e683109079ae560312",
+  "version": "1.31.0",
+  "distro": "455b23e66edb0fb17a1d7f5764ff35eec7c1b2d1",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -27,7 +27,7 @@
     "strict-null-check-watch": "tsc -p src/tsconfig.strictNullChecks.json --watch"
   },
   "dependencies": {
-    "applicationinsights": "1.0.6",
+    "applicationinsights": "1.0.7",
     "fast-plist": "0.1.2",
     "gc-signals": "^0.0.1",
     "getmac": "1.4.1",
@@ -45,15 +45,15 @@
     "semver": "^5.5.0",
     "spdlog": "0.7.2",
     "sudo-prompt": "8.2.0",
-    "v8-inspect-profiler": "^0.0.13",
+    "v8-inspect-profiler": "^0.0.20",
     "vscode-chokidar": "1.6.5",
     "vscode-debugprotocol": "1.33.0",
     "vscode-nsfw": "1.1.1",
-    "vscode-proxy-agent": "0.1.1",
+    "vscode-proxy-agent": "0.2.0",
     "vscode-ripgrep": "^1.2.5",
     "vscode-sqlite3": "4.0.5",
     "vscode-textmate": "^4.0.1",
-    "vscode-xterm": "3.9.0-beta13",
+    "vscode-xterm": "3.10.0-beta1",
     "winreg": "^1.2.4",
     "yauzl": "^2.9.1",
     "yazl": "^2.4.3"
@@ -63,7 +63,7 @@
     "@types/keytar": "^4.0.1",
     "@types/minimist": "^1.2.0",
     "@types/mocha": "2.2.39",
-    "@types/node": "^8.9.1",
+    "@types/node": "^10.12.12",
     "@types/semver": "^5.5.0",
     "@types/sinon": "^1.16.36",
     "@types/webpack": "^4.4.10",
@@ -125,7 +125,7 @@
     "source-map": "^0.4.4",
     "ts-loader": "^4.4.2",
     "tslint": "^5.11.0",
-    "typescript": "3.1.4",
+    "typescript": "3.2.2",
     "typescript-formatter": "7.1.0",
     "typescript-tslint-plugin": "^0.0.7",
     "uglify-es": "^3.0.18",

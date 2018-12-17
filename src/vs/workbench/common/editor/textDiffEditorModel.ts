@@ -29,7 +29,7 @@ export class TextDiffEditorModel extends DiffEditorModel {
 		return this._modifiedModel as BaseTextEditorModel;
 	}
 
-	load(): Thenable<EditorModel> {
+	load(): Promise<EditorModel> {
 		return super.load().then(() => {
 			this.updateTextDiffEditorModel();
 

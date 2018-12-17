@@ -442,7 +442,7 @@ class ShowAllSymbolsAction extends Action {
 
 		this.quickOpenService.show(prefix, { inputSelection });
 
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 }
 

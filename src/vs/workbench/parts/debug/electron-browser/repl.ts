@@ -14,14 +14,13 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import severity from 'vs/base/common/severity';
-import { Context as SuggestContext } from 'vs/editor/contrib/suggest/suggest';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { ITextModel } from 'vs/editor/common/model';
 import { Position } from 'vs/editor/common/core/position';
-import { registerEditorAction, ServicesAccessor, EditorAction, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
+import { registerEditorAction, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IContextKeyService, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -47,12 +46,11 @@ import { FocusSessionActionItem } from 'vs/workbench/parts/debug/browser/debugAc
 import { CompletionContext, CompletionList, CompletionProviderRegistry } from 'vs/editor/common/modes';
 import { first } from 'vs/base/common/arrays';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IDataSource } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { Variable, Expression, SimpleReplElement, RawObjectReplElement } from 'vs/workbench/parts/debug/common/debugModel';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { VariablesRenderer } from 'vs/workbench/parts/debug/electron-browser/variablesView';
-import { ITreeRenderer, ITreeNode, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
+import { ITreeRenderer, ITreeNode, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { renderExpressionValue } from 'vs/workbench/parts/debug/browser/baseDebugView';
 import { handleANSIOutput } from 'vs/workbench/parts/debug/browser/debugANSIHandling';
@@ -67,6 +65,7 @@ import { WorkbenchAsyncDataTree, IListService } from 'vs/platform/list/browser/l
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 const $ = dom.$;
 
@@ -82,6 +81,10 @@ interface IPrivateReplService {
 	clearRepl(): void;
 }
 
+function revealLastElement(tree: WorkbenchAsyncDataTree<any, any>) {
+	tree.scrollTop = tree.scrollHeight - tree.renderHeight;
+}
+
 const sessionsToIgnore = new Set<IDebugSession>();
 export class Repl extends Panel implements IPrivateReplService, IHistoryNavigationWidget {
 	_serviceBrand: any;
@@ -92,7 +95,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	private static readonly REPL_INPUT_MAX_HEIGHT = 170;
 
 	private history: HistoryNavigator<string>;
-	private tree: WorkbenchAsyncDataTree<IReplElement>;
+	private tree: WorkbenchAsyncDataTree<null, IReplElement>;
 	private dataSource: ReplDataSource;
 	private replDelegate: ReplDelegate;
 	private container: HTMLElement;
@@ -118,7 +121,8 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IListService private listService: IListService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@ITextResourcePropertiesService private textResourcePropertiesService: ITextResourcePropertiesService
+		@ITextResourcePropertiesService private textResourcePropertiesService: ITextResourcePropertiesService,
+		@IKeybindingService private keybindingService: IKeybindingService
 	) {
 		super(REPL_ID, telemetryService, themeService, storageService);
 
@@ -209,7 +213,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 			if (this.tree && this.dataSource.input !== session) {
 				this.dataSource.input = session;
-				this.tree.refresh(null);
+				this.tree.refresh().then(() => revealLastElement(this.tree));
 			}
 		}
 
@@ -235,8 +239,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		const session: IDebugSession = this.dataSource.input;
 		if (session) {
 			session.addReplExpression(this.debugService.getViewModel().focusedStackFrame, this.replInput.getValue());
-			// Reveal last element when we add new expression
-			this.tree.scrollTop = this.tree.scrollHeight - this.tree.renderHeight;
+			revealLastElement(this.tree);
 			this.history.add(this.replInput.getValue());
 			this.replInput.setValue('');
 			const shouldRelayout = this.replInputHeight > Repl.REPL_INPUT_INITIAL_HEIGHT;
@@ -327,11 +330,11 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	@memoize
 	private get refreshScheduler(): RunOnceScheduler {
 		return new RunOnceScheduler(() => {
-			const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight === this.tree.scrollHeight;
-			this.tree.refresh(null).then(() => {
+			const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight;
+			this.tree.refresh().then(() => {
 				if (lastElementVisible) {
 					// Only scroll if we were scrolled all the way down before tree refreshed #10486
-					this.tree.scrollTop = this.tree.scrollHeight - this.tree.renderHeight;
+					revealLastElement(this.tree);
 				}
 			}, errors.onUnexpectedError);
 		}, Repl.REFRESH_DELAY);
@@ -356,8 +359,11 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 				ariaLabel: nls.localize('replAriaLabel', "Read Eval Print Loop Panel"),
 				accessibilityProvider: new ReplAccessibilityProvider(),
 				identityProvider: { getId: element => element.getId() },
-				mouseSupport: false
-			}, this.contextKeyService, this.listService, this.themeService, this.configurationService);
+				mouseSupport: false,
+				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: e => e }
+			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
+
+		this.tree.setInput(null);
 
 		this.toDispose.push(this.tree.onContextMenu(e => this.onContextMenu(e)));
 		// Make sure to select the session if debugging is already active
@@ -380,7 +386,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 		CompletionProviderRegistry.register({ scheme: DEBUG_SCHEME, pattern: '**/replinput', hasAccessToAllModels: true }, {
 			triggerCharacters: ['.'],
-			provideCompletionItems: (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken): Thenable<CompletionList> => {
+			provideCompletionItems: (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken): Promise<CompletionList> => {
 				// Disable history navigation because up and down are used to navigate through the suggest widget
 				this.historyNavigationEnablement.set(false);
 
@@ -554,10 +560,6 @@ class ReplExpressionsRenderer implements ITreeRenderer<Expression, void, IExpres
 		}
 	}
 
-	disposeElement(element: ITreeNode<Expression, void>, index: number, templateData: IExpressionTemplateData): void {
-		// noop
-	}
-
 	disposeTemplate(templateData: IExpressionTemplateData): void {
 		// noop
 	}
@@ -621,10 +623,6 @@ class ReplSimpleElementsRenderer implements ITreeRenderer<SimpleReplElement, voi
 		templateData.getReplElementSource = () => element.sourceData;
 	}
 
-	disposeElement(element: ITreeNode<SimpleReplElement, void>, index: number, templateData: ISimpleReplElementTemplateData): void {
-		// noop
-	}
-
 	disposeTemplate(templateData: ISimpleReplElementTemplateData): void {
 		dispose(templateData.toDispose);
 	}
@@ -674,10 +672,6 @@ class ReplRawObjectsRenderer implements ITreeRenderer<RawObjectReplElement, void
 		}
 	}
 
-	disposeElement(element: ITreeNode<RawObjectReplElement, void>, index: number, templateData: IRawObjectReplTemplateData): void {
-		// noop
-	}
-
 	disposeTemplate(templateData: IRawObjectReplTemplateData): void {
 		// noop
 	}
@@ -700,7 +694,7 @@ class ReplDelegate implements IListVirtualDelegate<IReplElement> {
 
 		let availableWidth = this.width;
 		if (element instanceof SimpleReplElement && element.sourceData) {
-			availableWidth -= `${element.sourceData.source.name}:${element.sourceData.lineNumber}`.length * this.characterWidth;
+			availableWidth -= Math.ceil(`${element.sourceData.source.name}:${element.sourceData.lineNumber}`.length * this.characterWidth + 12);
 		}
 
 		return this.getHeightForString((<any>element).value, availableWidth) + (element instanceof Expression ? this.getHeightForString(element.name, availableWidth) : 0);
@@ -758,14 +752,14 @@ class ReplDelegate implements IListVirtualDelegate<IReplElement> {
 }
 
 
-class ReplDataSource implements IDataSource<IReplElement> {
+class ReplDataSource implements IAsyncDataSource<null, IReplElement> {
 	input: IDebugSession;
 
 	hasChildren(element: IReplElement | null): boolean {
 		return element === null || !!(<IExpressionContainer>element).hasChildren;
 	}
 
-	getChildren(element: IReplElement | null): Thenable<IReplElement[]> {
+	getChildren(element: IReplElement | null): Promise<IReplElement[]> {
 		if (element === null) {
 			return Promise.resolve(this.input ? this.input.getReplElements() : []);
 		}
@@ -839,18 +833,6 @@ class ReplCopyAllAction extends EditorAction {
 
 registerEditorAction(AcceptReplInputAction);
 registerEditorAction(ReplCopyAllAction);
-
-const SuggestCommand = EditorCommand.bindToContribution<SuggestController>(SuggestController.get);
-registerEditorCommand(new SuggestCommand({
-	id: 'repl.action.acceptSuggestion',
-	precondition: ContextKeyExpr.and(CONTEXT_IN_DEBUG_REPL, SuggestContext.Visible),
-	handler: x => x.acceptSelectedSuggestion(),
-	kbOpts: {
-		weight: 50,
-		kbExpr: EditorContextKeys.textInputFocus,
-		primary: KeyCode.RightArrow
-	}
-}));
 
 class SelectReplActionItem extends FocusSessionActionItem {
 	protected getSessions(): ReadonlyArray<IDebugSession> {

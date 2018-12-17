@@ -50,7 +50,7 @@ let commands: ExtHostCommands;
 let disposables: vscode.Disposable[] = [];
 let originalErrorHandler: (e: any) => any;
 
-function assertRejects(fn: () => Thenable<any>, message: string = 'Expected rejection') {
+function assertRejects(fn: () => Promise<any>, message: string = 'Expected rejection') {
 	return fn().then(() => assert.ok(false, message), _err => assert.ok(true));
 }
 
@@ -772,7 +772,10 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		disposables.push(extHost.registerSelectionRangeProvider(nullExtensionDescription, defaultSelector, <vscode.SelectionRangeProvider>{
 			provideSelectionRanges() {
-				return [new types.Range(0, 10, 0, 18), new types.Range(0, 2, 0, 20)];
+				return [
+					new types.SelectionRange(types.SelectionRangeKind.Block, new types.Range(0, 10, 0, 18)),
+					new types.SelectionRange(types.SelectionRangeKind.Block, new types.Range(0, 2, 0, 20))
+				];
 			}
 		}));
 

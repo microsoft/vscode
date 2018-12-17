@@ -26,7 +26,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowsMainService, IOpenConfiguration, IWindowsCountChangedEvent, ICodeWindow, IWindowState as ISingleWindowState, WindowMode } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
 import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkspacesMainService, IWorkspaceIdentifier, WORKSPACE_FILTER, IWorkspaceFolderCreationData, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
@@ -493,7 +492,7 @@ export class WindowsManager implements IWindowsMainService {
 		// Remember in recent document list (unless this opens for extension development)
 		// Also do not add paths when files are opened for diffing, only if opened individually
 		if (!usedWindows.some(w => w.isExtensionDevelopmentHost) && !openConfig.cli.diff) {
-			const recentlyOpenedWorkspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[] = [];
+			const recentlyOpenedWorkspaces: Array<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier> = [];
 			const recentlyOpenedFiles: URI[] = [];
 
 			pathsToOpen.forEach(win => {
@@ -1489,15 +1488,15 @@ export class WindowsManager implements IWindowsMainService {
 		});
 	}
 
-	saveAndEnterWorkspace(win: ICodeWindow, path: string): TPromise<IEnterWorkspaceResult> {
+	saveAndEnterWorkspace(win: ICodeWindow, path: string): Promise<IEnterWorkspaceResult> {
 		return this.workspacesManager.saveAndEnterWorkspace(win, path).then(result => this.doEnterWorkspace(win, result));
 	}
 
-	enterWorkspace(win: ICodeWindow, path: string): TPromise<IEnterWorkspaceResult> {
+	enterWorkspace(win: ICodeWindow, path: string): Promise<IEnterWorkspaceResult> {
 		return this.workspacesManager.enterWorkspace(win, path).then(result => this.doEnterWorkspace(win, result));
 	}
 
-	createAndEnterWorkspace(win: ICodeWindow, folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult> {
+	createAndEnterWorkspace(win: ICodeWindow, folders?: IWorkspaceFolderCreationData[], path?: string): Promise<IEnterWorkspaceResult> {
 		return this.workspacesManager.createAndEnterWorkspace(win, folders, path).then(result => this.doEnterWorkspace(win, result));
 	}
 
@@ -1586,7 +1585,7 @@ export class WindowsManager implements IWindowsMainService {
 		return this.open({ context, cli: this.environmentService.args, forceNewTabbedWindow: true, forceEmpty: true });
 	}
 
-	waitForWindowCloseOrLoad(windowId: number): Thenable<void> {
+	waitForWindowCloseOrLoad(windowId: number): Promise<void> {
 		return new Promise<void>(resolve => {
 			function handler(id: number) {
 				if (id === windowId) {
@@ -1658,6 +1657,17 @@ export class WindowsManager implements IWindowsMainService {
 
 		// Unresponsive
 		if (error === WindowError.UNRESPONSIVE) {
+			if (window.isExtensionDevelopmentHost || window.isExtensionTestHost || (window.win && window.win.webContents && window.win.webContents.isDevToolsOpened())) {
+				// TODO@Ben Workaround for https://github.com/Microsoft/vscode/issues/56994
+				// In certain cases the window can report unresponsiveness because a breakpoint was hit
+				// and the process is stopped executing. The most typical cases are:
+				// - devtools are opened and debugging happens
+				// - window is an extensions development host that is being debugged
+				// - window is an extension test development host that is being debugged
+				return;
+			}
+
+			// Show Dialog
 			this.dialogs.showMessageBox({
 				title: product.nameLong,
 				type: 'warning',
@@ -1763,15 +1773,15 @@ export class WindowsManager implements IWindowsMainService {
 		this.dialogs.pickAndOpen(internalOptions);
 	}
 
-	showMessageBox(options: Electron.MessageBoxOptions, win?: ICodeWindow): Thenable<IMessageBoxResult> {
+	showMessageBox(options: Electron.MessageBoxOptions, win?: ICodeWindow): Promise<IMessageBoxResult> {
 		return this.dialogs.showMessageBox(options, win);
 	}
 
-	showSaveDialog(options: Electron.SaveDialogOptions, win?: ICodeWindow): Thenable<string> {
+	showSaveDialog(options: Electron.SaveDialogOptions, win?: ICodeWindow): Promise<string> {
 		return this.dialogs.showSaveDialog(options, win);
 	}
 
-	showOpenDialog(options: Electron.OpenDialogOptions, win?: ICodeWindow): Thenable<string[]> {
+	showOpenDialog(options: Electron.OpenDialogOptions, win?: ICodeWindow): Promise<string[]> {
 		return this.dialogs.showOpenDialog(options, win);
 	}
 
@@ -1842,7 +1852,7 @@ class Dialogs {
 		});
 	}
 
-	private getFileOrFolderUris(options: IInternalNativeOpenDialogOptions): TPromise<URI[]> {
+	private getFileOrFolderUris(options: IInternalNativeOpenDialogOptions): Promise<URI[]> {
 
 		// Ensure dialog options
 		if (!options.dialogOptions) {
@@ -1901,7 +1911,7 @@ class Dialogs {
 		return windowDialogQueue;
 	}
 
-	showMessageBox(options: Electron.MessageBoxOptions, window?: ICodeWindow): Thenable<IMessageBoxResult> {
+	showMessageBox(options: Electron.MessageBoxOptions, window?: ICodeWindow): Promise<IMessageBoxResult> {
 		return this.getDialogQueue(window).queue(() => {
 			return new Promise(resolve => {
 				dialog.showMessageBox(window ? window.win : void 0, options, (response: number, checkboxChecked: boolean) => {
@@ -1911,7 +1921,7 @@ class Dialogs {
 		});
 	}
 
-	showSaveDialog(options: Electron.SaveDialogOptions, window?: ICodeWindow): Thenable<string> {
+	showSaveDialog(options: Electron.SaveDialogOptions, window?: ICodeWindow): Promise<string> {
 
 		function normalizePath(path: string): string {
 			if (path && isMacintosh) {
@@ -1930,7 +1940,7 @@ class Dialogs {
 		});
 	}
 
-	showOpenDialog(options: Electron.OpenDialogOptions, window?: ICodeWindow): Thenable<string[]> {
+	showOpenDialog(options: Electron.OpenDialogOptions, window?: ICodeWindow): Promise<string[]> {
 
 		function normalizePaths(paths: string[]): string[] {
 			if (paths && paths.length > 0 && isMacintosh) {
@@ -1974,22 +1984,22 @@ class WorkspacesManager {
 	) {
 	}
 
-	saveAndEnterWorkspace(window: ICodeWindow, path: string): TPromise<IEnterWorkspaceResult> {
+	saveAndEnterWorkspace(window: ICodeWindow, path: string): Promise<IEnterWorkspaceResult | null> {
 		if (!window || !window.win || !window.isReady || !window.openedWorkspace || !path || !this.isValidTargetWorkspacePath(window, path)) {
-			return TPromise.as(null); // return early if the window is not ready or disposed or does not have a workspace
+			return Promise.resolve(null); // return early if the window is not ready or disposed or does not have a workspace
 		}
 
 		return this.doSaveAndOpenWorkspace(window, window.openedWorkspace, path);
 	}
 
-	enterWorkspace(window: ICodeWindow, path: string): TPromise<IEnterWorkspaceResult> {
+	enterWorkspace(window: ICodeWindow, path: string): Promise<IEnterWorkspaceResult | null> {
 		if (!window || !window.win || !window.isReady) {
-			return TPromise.as(null); // return early if the window is not ready or disposed
+			return Promise.resolve(null); // return early if the window is not ready or disposed
 		}
 
 		return this.isValidTargetWorkspacePath(window, path).then(isValid => {
 			if (!isValid) {
-				return TPromise.as<IEnterWorkspaceResult>(null); // return early if the workspace is not valid
+				return null; // return early if the workspace is not valid
 			}
 
 			return this.workspacesMainService.resolveWorkspace(path).then(workspace => {
@@ -1999,14 +2009,14 @@ class WorkspacesManager {
 
 	}
 
-	createAndEnterWorkspace(window: ICodeWindow, folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult> {
+	createAndEnterWorkspace(window: ICodeWindow, folders?: IWorkspaceFolderCreationData[], path?: string): Promise<IEnterWorkspaceResult | null> {
 		if (!window || !window.win || !window.isReady) {
-			return TPromise.as(null); // return early if the window is not ready or disposed
+			return Promise.resolve(null); // return early if the window is not ready or disposed
 		}
 
 		return this.isValidTargetWorkspacePath(window, path).then(isValid => {
 			if (!isValid) {
-				return TPromise.as(null); // return early if the workspace is not valid
+				return null; // return early if the workspace is not valid
 			}
 
 			return this.workspacesMainService.createWorkspace(folders).then(workspace => {
@@ -2016,13 +2026,13 @@ class WorkspacesManager {
 
 	}
 
-	private isValidTargetWorkspacePath(window: ICodeWindow, path?: string): TPromise<boolean> {
+	private isValidTargetWorkspacePath(window: ICodeWindow, path?: string): Promise<boolean> {
 		if (!path) {
-			return TPromise.wrap(true);
+			return Promise.resolve(true);
 		}
 
 		if (window.openedWorkspace && window.openedWorkspace.configPath === path) {
-			return TPromise.wrap(false); // window is already opened on a workspace with that path
+			return Promise.resolve(false); // window is already opened on a workspace with that path
 		}
 
 		// Prevent overwriting a workspace that is currently opened in another window
@@ -2039,15 +2049,15 @@ class WorkspacesManager {
 			return this.windowsMainService.showMessageBox(options, this.windowsMainService.getFocusedWindow()).then(() => false);
 		}
 
-		return TPromise.wrap(true); // OK
+		return Promise.resolve(true); // OK
 	}
 
-	private doSaveAndOpenWorkspace(window: ICodeWindow, workspace: IWorkspaceIdentifier, path?: string): TPromise<IEnterWorkspaceResult> {
-		let savePromise: TPromise<IWorkspaceIdentifier>;
+	private doSaveAndOpenWorkspace(window: ICodeWindow, workspace: IWorkspaceIdentifier, path?: string): Promise<IEnterWorkspaceResult> {
+		let savePromise: Promise<IWorkspaceIdentifier>;
 		if (path) {
 			savePromise = this.workspacesMainService.saveWorkspace(workspace, path);
 		} else {
-			savePromise = TPromise.as(workspace);
+			savePromise = Promise.resolve(workspace);
 		}
 
 		return savePromise.then(workspace => this.doOpenWorkspace(window, workspace));
@@ -2088,7 +2098,7 @@ class WorkspacesManager {
 		});
 	}
 
-	promptToSaveUntitledWorkspace(window: ICodeWindow, workspace: IWorkspaceIdentifier): TPromise<boolean> {
+	promptToSaveUntitledWorkspace(window: ICodeWindow, workspace: IWorkspaceIdentifier): Promise<boolean> {
 		enum ConfirmResult {
 			SAVE,
 			DONT_SAVE,

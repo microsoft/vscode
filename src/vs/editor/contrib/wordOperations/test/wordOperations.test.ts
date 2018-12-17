@@ -295,6 +295,21 @@ suite('WordOperations', () => {
 		assert.deepEqual(actual, EXPECTED);
 	});
 
+	test('issue #64810: cursorWordStartRight skips first word after newline', () => {
+		// This is the behaviour observed in Visual Studio, please do not touch test
+		const EXPECTED = ['Hello |World|', '|Hei |mailman|'].join('\n');
+		const [text,] = deserializePipePositions(EXPECTED);
+		const actualStops = testRepeatedActionAndExtractPositions(
+			text,
+			new Position(1, 1),
+			ed => moveWordStartRight(ed),
+			ed => ed.getPosition(),
+			ed => ed.getPosition().equals(new Position(2, 12))
+		);
+		const actual = serializePipePositions(text, actualStops);
+		assert.deepEqual(actual, EXPECTED);
+	});
+
 	test('deleteWordLeft for non-empty selection', () => {
 		withTestCodeEditor([
 			'    \tMy First Line\t ',

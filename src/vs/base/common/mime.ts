@@ -13,20 +13,20 @@ export const MIME_BINARY = 'application/octet-stream';
 export const MIME_UNKNOWN = 'application/unknown';
 
 export interface ITextMimeAssociation {
-	id: string;
-	mime: string;
-	filename?: string;
-	extension?: string;
-	filepattern?: string;
-	firstline?: RegExp;
-	userConfigured?: boolean;
+	readonly id: string;
+	readonly mime: string;
+	readonly filename?: string;
+	readonly extension?: string;
+	readonly filepattern?: string;
+	readonly firstline?: RegExp;
+	readonly userConfigured?: boolean;
 }
 
 interface ITextMimeAssociationItem extends ITextMimeAssociation {
-	filenameLowercase?: string;
-	extensionLowercase?: string;
-	filepatternLowercase?: string;
-	filepatternOnPath?: boolean;
+	readonly filenameLowercase?: string;
+	readonly extensionLowercase?: string;
+	readonly filepatternLowercase?: string;
+	readonly filepatternOnPath?: boolean;
 }
 
 let registeredAssociations: ITextMimeAssociationItem[] = [];
@@ -106,7 +106,7 @@ export function clearTextMimes(onlyUserConfigured?: boolean): void {
 /**
  * Given a file, return the best matching mime type for it
  */
-export function guessMimeTypes(path: string, firstLine?: string, skipUserAssociations: boolean = false): string[] {
+export function guessMimeTypes(path: string | null, firstLine?: string): string[] {
 	if (!path) {
 		return [MIME_UNKNOWN];
 	}
@@ -114,12 +114,10 @@ export function guessMimeTypes(path: string, firstLine?: string, skipUserAssocia
 	path = path.toLowerCase();
 	const filename = paths.basename(path);
 
-	if (!skipUserAssociations) {
-		// 1.) User configured mappings have highest priority
-		const configuredMime = guessMimeTypeByPath(path, filename, userRegisteredAssociations);
-		if (configuredMime) {
-			return [configuredMime, MIME_TEXT];
-		}
+	// 1.) User configured mappings have highest priority
+	const configuredMime = guessMimeTypeByPath(path, filename, userRegisteredAssociations);
+	if (configuredMime) {
+		return [configuredMime, MIME_TEXT];
 	}
 
 	// 2.) Registered mappings have middle priority

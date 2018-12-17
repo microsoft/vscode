@@ -568,7 +568,7 @@ class InlineImageView {
 		return context;
 	}
 
-	private static imageSrc(descriptor: IResourceDescriptor, fileService: IFileService): Thenable<string> {
+	private static imageSrc(descriptor: IResourceDescriptor, fileService: IFileService): Promise<string> {
 		if (descriptor.resource.scheme === Schemas.data) {
 			return Promise.resolve(descriptor.resource.toString(true /* skip encoding */));
 		}

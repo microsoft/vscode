@@ -6,7 +6,7 @@
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
-import { anyEvent, Emitter, Event, fromPromise, stopwatch } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { getBaseLabel } from 'vs/base/common/labels';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap, TernarySearchTree, values } from 'vs/base/common/map';
@@ -187,7 +187,6 @@ export class FileMatch extends Disposable {
 		this._updateScheduler = new RunOnceScheduler(this.updateMatchesForModel.bind(this), 250);
 
 		this.createMatches();
-		this.registerListeners();
 	}
 
 	private createMatches(): void {
@@ -205,15 +204,7 @@ export class FileMatch extends Disposable {
 		}
 	}
 
-	private registerListeners(): void {
-		this._register(this.modelService.onModelAdded((model: ITextModel) => {
-			if (model.uri.toString() === this._resource.toString()) {
-				this.bindModel(model);
-			}
-		}));
-	}
-
-	private bindModel(model: ITextModel): void {
+	public bindModel(model: ITextModel): void {
 		this._model = model;
 		this._modelListener = this._model.onDidChangeContent(() => {
 			this._updateScheduler.schedule();
@@ -314,7 +305,7 @@ export class FileMatch extends Disposable {
 		this._onChange.fire(false);
 	}
 
-	public replace(toReplace: Match): Thenable<void> {
+	public replace(toReplace: Match): Promise<void> {
 		return this.replaceService.replace(toReplace)
 			.then(() => this.updatesMatchesForLineAfterReplace(toReplace.range().startLineNumber, false));
 	}
@@ -394,8 +385,10 @@ export class FolderMatch extends Disposable {
 	private _unDisposedFileMatches: ResourceMap<FileMatch>;
 	private _replacingAll: boolean = false;
 
-	constructor(private _resource: URI | null, private _id: string, private _index: number, private _query: ITextQuery, private _parent: SearchResult, private _searchModel: SearchModel, @IReplaceService private replaceService: IReplaceService,
-		@IInstantiationService private instantiationService: IInstantiationService) {
+	constructor(private _resource: URI | null, private _id: string, private _index: number, private _query: ITextQuery, private _parent: SearchResult, private _searchModel: SearchModel,
+		@IReplaceService private replaceService: IReplaceService,
+		@IInstantiationService private instantiationService: IInstantiationService
+	) {
 		super();
 		this._fileMatches = new ResourceMap<FileMatch>();
 		this._unDisposedFileMatches = new ResourceMap<FileMatch>();
@@ -437,6 +430,13 @@ export class FolderMatch extends Disposable {
 		return !!this._resource;
 	}
 
+	public bindModel(model: ITextModel): void {
+		const fileMatch = this._fileMatches.get(model.uri);
+		if (fileMatch) {
+			fileMatch.bindModel(model);
+		}
+	}
+
 	public add(raw: IFileMatch[], silent: boolean): void {
 		const added: FileMatch[] = [];
 		const updated: FileMatch[] = [];
@@ -476,13 +476,13 @@ export class FolderMatch extends Disposable {
 		this.doRemove(match);
 	}
 
-	public replace(match: FileMatch): Thenable<any> {
+	public replace(match: FileMatch): Promise<any> {
 		return this.replaceService.replace([match]).then(() => {
 			this.doRemove(match, false, true);
 		});
 	}
 
-	public replaceAll(): Thenable<any> {
+	public replaceAll(): Promise<any> {
 		const matches = this.matches();
 		return this.replaceService.replace(matches).then(() => {
 			matches.forEach(match => this.doRemove(match, false, true));
@@ -589,10 +589,17 @@ export class SearchResult extends Disposable {
 
 	private _rangeHighlightDecorations: RangeHighlightDecorations;
 
-	constructor(private _searchModel: SearchModel, @IReplaceService private replaceService: IReplaceService, @ITelemetryService private telemetryService: ITelemetryService,
-		@IInstantiationService private instantiationService: IInstantiationService) {
+	constructor(
+		private _searchModel: SearchModel,
+		@IReplaceService private replaceService: IReplaceService,
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IModelService private readonly modelService: IModelService,
+	) {
 		super();
 		this._rangeHighlightDecorations = this.instantiationService.createInstance(RangeHighlightDecorations);
+
+		this._register(this.modelService.onModelAdded(model => this.onModelAdded(model)));
 	}
 
 	public get query(): ITextQuery {
@@ -609,6 +616,13 @@ export class SearchResult extends Disposable {
 
 		this._otherFilesMatch = this.createFolderMatch(null, 'otherFiles', this._folderMatches.length + 1, query);
 		this._query = query;
+	}
+
+	private onModelAdded(model: ITextModel): void {
+		const folderMatch = this._folderMatchesMap.findSubstr(model.uri.toString());
+		if (folderMatch) {
+			folderMatch.bindModel(model);
+		}
 	}
 
 	private createFolderMatch(resource: URI | null, id: string, index: number, query: ITextQuery): FolderMatch {
@@ -668,15 +682,15 @@ export class SearchResult extends Disposable {
 		}
 	}
 
-	public replace(match: FileMatch): Thenable<any> {
+	public replace(match: FileMatch): Promise<any> {
 		return this.getFolderMatch(match.resource()).replace(match);
 	}
 
-	public replaceAll(progressRunner: IProgressRunner): Thenable<any> {
+	public replaceAll(progressRunner: IProgressRunner): Promise<any> {
 		this.replacingAll = true;
 
 		const promise = this.replaceService.replace(this.matches(), progressRunner);
-		const onDone = stopwatch(fromPromise(promise));
+		const onDone = Event.stopwatch(Event.fromPromise(promise));
 		/* __GDPR__
 			"replaceAll.started" : {
 				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
@@ -824,7 +838,7 @@ export class SearchModel extends Disposable {
 		return this._searchResult;
 	}
 
-	public search(query: ITextQuery, onProgress?: (result: ISearchProgressItem) => void): Thenable<ISearchComplete> {
+	public search(query: ITextQuery, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
 		this.cancelSearch();
 
 		this._searchQuery = query;
@@ -847,9 +861,9 @@ export class SearchModel extends Disposable {
 		const dispose = () => tokenSource.dispose();
 		currentRequest.then(dispose, dispose);
 
-		const onDone = fromPromise(currentRequest);
-		const onFirstRender = anyEvent<any>(onDone, progressEmitter.event);
-		const onFirstRenderStopwatch = stopwatch(onFirstRender);
+		const onDone = Event.fromPromise(currentRequest);
+		const onFirstRender = Event.any<any>(onDone, progressEmitter.event);
+		const onFirstRenderStopwatch = Event.stopwatch(onFirstRender);
 		/* __GDPR__
 			"searchResultsFirstRender" : {
 				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
@@ -857,7 +871,7 @@ export class SearchModel extends Disposable {
 		*/
 		onFirstRenderStopwatch(duration => this.telemetryService.publicLog('searchResultsFirstRender', { duration }));
 
-		const onDoneStopwatch = stopwatch(onDone);
+		const onDoneStopwatch = Event.stopwatch(onDone);
 		const start = Date.now();
 
 		/* __GDPR__

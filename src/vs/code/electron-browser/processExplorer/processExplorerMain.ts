@@ -171,7 +171,9 @@ function applyStyles(styles: ProcessExplorerStyles): void {
 	if (document.head) {
 		document.head.appendChild(styleTag);
 	}
-	document.body.style.color = styles.color;
+	if (styles.color) {
+		document.body.style.color = styles.color;
+	}
 }
 
 function applyZoom(zoomLevel: number): void {

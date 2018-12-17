@@ -41,9 +41,9 @@ export interface IColorMap {
 export interface IFileIconTheme extends IIconTheme {
 	readonly id: string;
 	readonly label: string;
-	readonly settingsId: string;
+	readonly settingsId?: string;
 	readonly description?: string;
-	readonly extensionData: ExtensionData;
+	readonly extensionData?: ExtensionData;
 
 	readonly isLoaded: boolean;
 	readonly hasFileIcons: boolean;
@@ -53,15 +53,15 @@ export interface IFileIconTheme extends IIconTheme {
 
 export interface IWorkbenchThemeService extends IThemeService {
 	_serviceBrand: any;
-	setColorTheme(themeId: string, settingsTarget: ConfigurationTarget): Thenable<IColorTheme>;
+	setColorTheme(themeId: string, settingsTarget: ConfigurationTarget): Promise<IColorTheme>;
 	getColorTheme(): IColorTheme;
-	getColorThemes(): Thenable<IColorTheme[]>;
+	getColorThemes(): Promise<IColorTheme[]>;
 	onDidColorThemeChange: Event<IColorTheme>;
 	restoreColorTheme();
 
-	setFileIconTheme(iconThemeId: string, settingsTarget: ConfigurationTarget): Thenable<IFileIconTheme>;
+	setFileIconTheme(iconThemeId: string, settingsTarget: ConfigurationTarget): Promise<IFileIconTheme>;
 	getFileIconTheme(): IFileIconTheme;
-	getFileIconThemes(): Thenable<IFileIconTheme[]>;
+	getFileIconThemes(): Promise<IFileIconTheme[]>;
 	onDidFileIconThemeChange: Event<IFileIconTheme>;
 }
 

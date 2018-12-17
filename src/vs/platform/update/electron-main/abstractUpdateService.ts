@@ -80,7 +80,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		return quality === 'none' ? undefined : product.quality;
 	}
 
-	private scheduleCheckForUpdates(delay = 60 * 60 * 1000): Thenable<void> {
+	private scheduleCheckForUpdates(delay = 60 * 60 * 1000): Promise<void> {
 		return timeout(delay)
 			.then(() => this.checkForUpdates(null))
 			.then(() => {
@@ -127,7 +127,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		// noop
 	}
 
-	quitAndInstall(): Thenable<void> {
+	quitAndInstall(): Promise<void> {
 		this.logService.trace('update#quitAndInstall, state = ', this.state.type);
 
 		if (this.state.type !== StateType.Ready) {
@@ -149,7 +149,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		return Promise.resolve(void 0);
 	}
 
-	isLatestVersion(): Thenable<boolean | undefined> {
+	isLatestVersion(): Promise<boolean | undefined> {
 		if (!this.url) {
 			return Promise.resolve(undefined);
 		}

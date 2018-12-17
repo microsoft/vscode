@@ -70,9 +70,9 @@ class InstallAction extends Action {
 						return Promise.resolve(null);
 					} else {
 						return pfs.unlink(this.target)
-							.then(null, ignore('ENOENT', null))
+							.then(void 0, ignore('ENOENT', null))
 							.then(() => pfs.symlink(getSource(), this.target))
-							.then(null, err => {
+							.then(void 0, err => {
 								if (err.code === 'EACCES' || err.code === 'ENOENT') {
 									return this.createBinFolderAndSymlinkAsAdmin();
 								}
@@ -93,7 +93,7 @@ class InstallAction extends Action {
 			.then(stat => stat.isSymbolicLink())
 			.then(() => pfs.readlink(this.target))
 			.then(link => link === getSource())
-			.then(null, ignore('ENOENT', false));
+			.then(void 0, ignore('ENOENT', false));
 	}
 
 	private createBinFolderAndSymlinkAsAdmin(): Promise<void> {
@@ -106,7 +106,7 @@ class InstallAction extends Action {
 						const command = 'osascript -e "do shell script \\"mkdir -p /usr/local/bin && ln -sf \'' + getSource() + '\' \'' + this.target + '\'\\" with administrator privileges"';
 
 						nfcall(cp.exec, command, {})
-							.then(null, _ => Promise.reject(new Error(nls.localize('cantCreateBinFolder', "Unable to create '/usr/local/bin'."))))
+							.then(void 0, _ => Promise.reject(new Error(nls.localize('cantCreateBinFolder', "Unable to create '/usr/local/bin'."))))
 							.then(resolve, reject);
 						break;
 					case 1 /* Cancel */:
@@ -147,10 +147,10 @@ class UninstallAction extends Action {
 
 			const uninstall = () => {
 				return pfs.unlink(this.target)
-					.then(null, ignore('ENOENT', null));
+					.then(void 0, ignore('ENOENT', null));
 			};
 
-			return uninstall().then(null, err => {
+			return uninstall().then(void 0, err => {
 				if (err.code === 'EACCES') {
 					return this.deleteSymlinkAsAdmin();
 				}
@@ -173,7 +173,7 @@ class UninstallAction extends Action {
 						const command = 'osascript -e "do shell script \\"rm \'' + this.target + '\'\\" with administrator privileges"';
 
 						nfcall(cp.exec, command, {})
-							.then(null, _ => Promise.reject(new Error(nls.localize('cantUninstall', "Unable to uninstall the shell command '{0}'.", this.target))))
+							.then(void 0, _ => Promise.reject(new Error(nls.localize('cantUninstall', "Unable to uninstall the shell command '{0}'.", this.target))))
 							.then(resolve, reject);
 						break;
 					case 1 /* Cancel */:

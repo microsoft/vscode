@@ -41,7 +41,7 @@ export class ExtHostDecorations implements ExtHostDecorationsShape {
 		});
 	}
 
-	$provideDecorations(requests: DecorationRequest[], token: CancellationToken): Thenable<DecorationReply> {
+	$provideDecorations(requests: DecorationRequest[], token: CancellationToken): Promise<DecorationReply> {
 		const result: DecorationReply = Object.create(null);
 		return Promise.all(requests.map(request => {
 			const { handle, uri, id } = request;

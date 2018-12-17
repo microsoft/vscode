@@ -227,7 +227,7 @@ function patches(originals: typeof http | typeof https, agent: http.Agent, setti
 
 			const config = onRequest && ((<any>options)._vscodeProxySupport || /* LS */ (<any>options)._vscodeSystemProxy) || setting.config;
 			if (config === 'off') {
-				return original.apply(null, arguments);
+				return original.apply(null, arguments as unknown as any[]);
 			}
 
 			if (!options.socketPath && (config === 'override' || config === 'on' && !options.agent) && options.agent !== agent) {
@@ -247,7 +247,7 @@ function patches(originals: typeof http | typeof https, agent: http.Agent, setti
 				return original(options, callback);
 			}
 
-			return original.apply(null, arguments);
+			return original.apply(null, arguments as unknown as any[]);
 		}
 		return patched;
 	}

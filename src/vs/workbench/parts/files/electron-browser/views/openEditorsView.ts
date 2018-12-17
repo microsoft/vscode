@@ -256,7 +256,7 @@ export class OpenEditorsView extends ViewletPanel {
 				e.element.group.closeEditor(e.element.editor);
 			}
 		}));
-		this.disposables.push(this.list.onOpen(e => {
+		this.disposables.push(this.list.onDidOpen(e => {
 			const browserEvent = e.browserEvent;
 
 			let openToSide = false;
@@ -333,8 +333,8 @@ export class OpenEditorsView extends ViewletPanel {
 		return this.editorGroupService.groups.length > 1;
 	}
 
-	private get elements(): (IEditorGroup | OpenEditor)[] {
-		const result: (IEditorGroup | OpenEditor)[] = [];
+	private get elements(): Array<IEditorGroup | OpenEditor> {
+		const result: Array<IEditorGroup | OpenEditor> = [];
 		this.editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE).forEach(g => {
 			if (this.showGroups) {
 				result.push(g);
@@ -377,7 +377,7 @@ export class OpenEditorsView extends ViewletPanel {
 				this.editorGroupService.activateGroup(element.groupId); // needed for https://github.com/Microsoft/vscode/issues/6672
 			}
 			this.editorService.openEditor(element.editor, options, options.sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(editor => {
-				if (!preserveActivateGroup) {
+				if (editor && !preserveActivateGroup) {
 					this.editorGroupService.activateGroup(editor.group);
 				}
 			});
@@ -496,7 +496,7 @@ interface IEditorGroupTemplateData {
 class OpenEditorActionRunner extends ActionRunner {
 	public editor: OpenEditor;
 
-	run(action: IAction, context?: any): Thenable<void> {
+	run(action: IAction, context?: any): Promise<void> {
 		return super.run(action, { groupId: this.editor.groupId, editorIndex: this.editor.editorIndex });
 	}
 }
@@ -607,10 +607,6 @@ class EditorGroupRenderer implements IListRenderer<IEditorGroup, IEditorGroupTem
 		templateData.actionBar.context = { groupId: editorGroup.id };
 	}
 
-	disposeElement(): void {
-		// noop
-	}
-
 	disposeTemplate(templateData: IEditorGroupTemplateData): void {
 		templateData.actionBar.dispose();
 		dispose(templateData.toDispose);
@@ -623,7 +619,7 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 	private transfer = LocalSelectionTransfer.getInstance<OpenEditor>();
 
 	constructor(
-		private getSelectedElements: () => (OpenEditor | IEditorGroup)[],
+		private getSelectedElements: () => Array<OpenEditor | IEditorGroup>,
 		private instantiationService: IInstantiationService,
 		private keybindingService: IKeybindingService,
 		private configurationService: IConfigurationService,
@@ -705,10 +701,6 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 			extraClasses: ['open-editor'],
 			fileDecorations: this.configurationService.getValue<IFilesConfiguration>().explorer.decorations
 		});
-	}
-
-	disposeElement(): void {
-		// noop
 	}
 
 	disposeTemplate(templateData: IOpenEditorTemplateData): void {

@@ -97,6 +97,11 @@ function discoverAndReadFiles(options) {
             FILES[`${moduleId}.d.ts`] = dts_filecontents;
             continue;
         }
+        const js_filename = path.join(options.sourcesRoot, moduleId + '.js');
+        if (fs.existsSync(js_filename)) {
+            // This is an import for a .js file, so ignore it...
+            continue;
+        }
         let ts_filename;
         if (options.redirects[moduleId]) {
             ts_filename = path.join(options.sourcesRoot, options.redirects[moduleId] + '.ts');

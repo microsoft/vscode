@@ -10,7 +10,6 @@ import * as platform from 'vs/base/common/platform';
 import * as Objects from 'vs/base/common/objects';
 import * as Types from 'vs/base/common/types';
 import { Schemas } from 'vs/base/common/network';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { sequence } from 'vs/base/common/async';
 import { toResource } from 'vs/workbench/common/editor';
 import { IStringDictionary, forEach, fromMap } from 'vs/base/common/collections';
@@ -83,14 +82,16 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 		}, envVariables);
 	}
 
-	public resolveWithInteractionReplace(folder: IWorkspaceFolder, config: any, section?: string, variables?: IStringDictionary<string>): TPromise<any> {
+	public resolveWithInteractionReplace(folder: IWorkspaceFolder, config: any, section?: string, variables?: IStringDictionary<string>): Promise<any> {
 		// resolve any non-interactive variables
 		config = this.resolveAny(folder, config);
 
 		// resolve input variables in the order in which they are encountered
 		return this.resolveWithInteraction(folder, config, section, variables).then(mapping => {
 			// finally substitute evaluated command variables (if there are any)
-			if (mapping.size > 0) {
+			if (!mapping) {
+				return null;
+			} else if (mapping.size > 0) {
 				return this.resolveAny(folder, config, fromMap(mapping));
 			} else {
 				return config;
@@ -98,7 +99,7 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 		});
 	}
 
-	public resolveWithInteraction(folder: IWorkspaceFolder, config: any, section?: string, variables?: IStringDictionary<string>): TPromise<Map<string, string>> {
+	public resolveWithInteraction(folder: IWorkspaceFolder, config: any, section?: string, variables?: IStringDictionary<string>): Promise<Map<string, string>> {
 		// resolve any non-interactive variables
 		const resolved = this.resolveAnyMap(folder, config);
 		config = resolved.newConfig;
@@ -142,9 +143,9 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 	 * @param configuration
 	 * @param variableToCommandMap Aliases for commands
 	 */
-	private resolveWithCommands(configuration: any, variableToCommandMap: IStringDictionary<string>): TPromise<IStringDictionary<string>> {
+	private resolveWithCommands(configuration: any, variableToCommandMap: IStringDictionary<string>): Promise<IStringDictionary<string>> {
 		if (!configuration) {
-			return TPromise.as(undefined);
+			return Promise.resolve(undefined);
 		}
 
 		// use an array to preserve order of first appearance
@@ -154,7 +155,7 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 		let cancelled = false;
 		const commandValueMapping: IStringDictionary<string> = Object.create(null);
 
-		const factory: { (): TPromise<any> }[] = commands.map(commandVariable => {
+		const factory: { (): Promise<any> }[] = commands.map(commandVariable => {
 			return () => {
 				let commandId = variableToCommandMap ? variableToCommandMap[commandVariable] : undefined;
 				if (!commandId) {
@@ -264,7 +265,7 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 				});
 			}
 		}
-		return Promise.reject(nls.localize('undefinedInputVariable', "Undefined input variable {0} encountered. Remove or define {0} to continue.", commandVariable));
+		return Promise.reject(new Error(nls.localize('undefinedInputVariable', "Undefined input variable {0} encountered. Remove or define {0} to continue.", commandVariable)));
 	}
 
 	/**

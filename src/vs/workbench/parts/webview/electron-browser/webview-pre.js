@@ -287,7 +287,7 @@
 			styleBody(newDocument.body);
 
 			const frame = getActiveFrame();
-
+			const wasFirstLoad = firstLoad;
 			// keep current scrollY around and use later
 			var setInitialScrollPosition;
 			if (firstLoad) {
@@ -314,7 +314,9 @@
 				previousPendingFrame.setAttribute('id', '');
 				document.body.removeChild(previousPendingFrame);
 			}
-			pendingMessages = [];
+			if (!wasFirstLoad) {
+				pendingMessages = [];
+			}
 
 			const newFrame = document.createElement('iframe');
 			newFrame.setAttribute('id', 'pending-frame');
@@ -325,6 +327,20 @@
 
 			// write new content onto iframe
 			newFrame.contentDocument.open('text/html', 'replace');
+			newFrame.contentWindow.addEventListener('focus', function () { ipcRenderer.sendToHost('did-focus'); });
+			newFrame.contentWindow.addEventListener('blur', function () { ipcRenderer.sendToHost('did-blur'); });
+			newFrame.contentWindow.addEventListener('keydown', function (e) {
+				ipcRenderer.sendToHost('did-keydown', {
+					key: e.key,
+					keyCode: e.keyCode,
+					code: e.code,
+					shiftKey: e.shiftKey,
+					altKey: e.altKey,
+					ctrlKey: e.ctrlKey,
+					metaKey: e.metaKey,
+					repeat: e.repeat
+				});
+			});
 			newFrame.contentWindow.onbeforeunload = () => {
 				if (isInDevelopmentMode) { // Allow reloads while developing a webview
 					ipcRenderer.sendToHost('do-reload');
@@ -393,14 +409,14 @@
 		// Forward message to the embedded iframe
 		ipcRenderer.on('message', (_event, data) => {
 			const pending = getPendingFrame();
-			if (pending) {
-				pendingMessages.push(data);
-			} else {
+			if (!pending) {
 				const target = getActiveFrame();
 				if (target) {
 					target.contentWindow.postMessage(data, '*');
+					return;
 				}
 			}
+			pendingMessages.push(data);
 		});
 
 		ipcRenderer.on('initial-scroll-position', (_event, progress) => {

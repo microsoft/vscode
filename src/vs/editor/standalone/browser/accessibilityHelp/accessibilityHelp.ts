@@ -77,7 +77,7 @@ const nlsSingleSelection = nls.localize("singleSelection", "Line {0}, Column {1}
 const nlsMultiSelectionRange = nls.localize("multiSelectionRange", "{0} selections ({1} characters selected)");
 const nlsMultiSelection = nls.localize("multiSelection", "{0} selections");
 
-function getSelectionLabel(selections: Selection[] | null, charactersSelected: number): string | null {
+function getSelectionLabel(selections: Selection[] | null, charactersSelected: number): string {
 	if (!selections || selections.length === 0) {
 		return nlsNoSelection;
 	}
@@ -98,7 +98,7 @@ function getSelectionLabel(selections: Selection[] | null, charactersSelected: n
 		return strings.format(nlsMultiSelection, selections.length);
 	}
 
-	return null;
+	return '';
 }
 
 class AccessibilityHelpWidget extends Widget implements IOverlayWidget {

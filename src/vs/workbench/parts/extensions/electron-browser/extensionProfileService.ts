@@ -70,7 +70,7 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 		this._onDidChangeState.fire(void 0);
 	}
 
-	public startProfiling(): Thenable<any> {
+	public startProfiling(): Promise<any> {
 		if (this._state !== ProfileSessionState.None) {
 			return null;
 		}
