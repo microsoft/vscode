@@ -6,18 +6,13 @@
 import { ComposedTreeDelegate, IAbstractTreeOptions } from 'vs/base/browser/ui/tree/abstractTree';
 import { ObjectTree, IObjectTreeOptions } from 'vs/base/browser/ui/tree/objectTree';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { ITreeElement, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeSorter, ICollapseStateChangeEvent } from 'vs/base/browser/ui/tree/tree';
+import { ITreeElement, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeSorter, ICollapseStateChangeEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { timeout, always } from 'vs/base/common/async';
 import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { toggleClass } from 'vs/base/browser/dom';
 import { Iterator } from 'vs/base/common/iterator';
-
-export interface IDataSource<T extends NonNullable<any>> {
-	hasChildren(element: T | null): boolean;
-	getChildren(element: T | null): Promise<T[]>;
-}
 
 enum AsyncDataTreeNodeState {
 	Uninitialized,
@@ -209,7 +204,7 @@ export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> imple
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
 		renderers: ITreeRenderer<any /* TODO@joao */, TFilterData, any>[],
-		private dataSource: IDataSource<T>,
+		private dataSource: IAsyncDataSource<T>,
 		options?: IAsyncDataTreeOptions<T, TFilterData>
 	) {
 		this.identityProvider = options && options.identityProvider;
@@ -473,7 +468,7 @@ export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> imple
 				this._onDidChangeNodeState.fire(node);
 			}, _ => null);
 
-			return this.dataSource.getChildren(node.element)
+			return Promise.resolve(this.dataSource.getChildren(node.element))
 				.then(children => {
 					slowTimeout.cancel();
 					node.state = AsyncDataTreeNodeState.Loaded;

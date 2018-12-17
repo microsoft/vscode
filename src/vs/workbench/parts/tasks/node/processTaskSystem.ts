@@ -92,7 +92,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 
 	public run(task: Task): ITaskExecuteResult {
 		if (this.activeTask) {
-			return { kind: TaskExecuteKind.Active, task, active: { same: this.activeTask._id === task._id, background: this.activeTask.isBackground }, promise: this.activeTaskPromise };
+			return { kind: TaskExecuteKind.Active, task, active: { same: this.activeTask._id === task._id, background: this.activeTask.configurationProperties.isBackground }, promise: this.activeTaskPromise };
 		}
 		return this.executeTask(task);
 	}
@@ -109,7 +109,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 	public canAutoTerminate(): boolean {
 		if (this.childProcess) {
 			if (this.activeTask) {
-				return !this.activeTask.promptOnClose;
+				return !this.activeTask.configurationProperties.promptOnClose;
 			}
 			return false;
 		}
@@ -117,7 +117,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 	}
 
 	public terminate(task: Task): Promise<TaskTerminateResponse> {
-		if (!this.activeTask || Task.getMapKey(this.activeTask) !== Task.getMapKey(task)) {
+		if (!this.activeTask || this.activeTask.getMapKey() !== task.getMapKey()) {
 			return Promise.resolve<TaskTerminateResponse>({ success: false, task: undefined });
 		}
 		return this.terminateAll().then(values => values[0]);
@@ -142,7 +142,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 		let telemetryEvent: TelemetryEvent = {
 			trigger: trigger,
 			runner: 'output',
-			taskKind: Task.getTelemetryKind(task),
+			taskKind: task.getTelemetryKind(),
 			command: 'other',
 			success: true
 		};
@@ -225,7 +225,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 		telemetryEvent.command = this.childProcess.getSanitizedCommand();
 		// we have no problem matchers defined. So show the output log
 		let reveal = task.command.presentation.reveal;
-		if (reveal === RevealKind.Always || (reveal === RevealKind.Silent && task.problemMatchers.length === 0)) {
+		if (reveal === RevealKind.Always || (reveal === RevealKind.Silent && task.configurationProperties.problemMatchers.length === 0)) {
 			this.showOutput();
 		}
 
@@ -233,8 +233,8 @@ export class ProcessTaskSystem implements ITaskSystem {
 			let prompt: string = Platform.isWindows ? '>' : '$';
 			this.log(`running command${prompt} ${command} ${args.join(' ')}`);
 		}
-		if (task.isBackground) {
-			let watchingProblemMatcher = new WatchingProblemCollector(this.resolveMatchers(task, task.problemMatchers), this.markerService, this.modelService);
+		if (task.configurationProperties.isBackground) {
+			let watchingProblemMatcher = new WatchingProblemCollector(this.resolveMatchers(task, task.configurationProperties.problemMatchers), this.markerService, this.modelService);
 			let toDispose: IDisposable[] = [];
 			let eventCounter: number = 0;
 			toDispose.push(watchingProblemMatcher.onDidStateChange((event) => {
@@ -311,7 +311,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 		} else {
 			this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task));
 			this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
-			let startStopProblemMatcher = new StartStopProblemCollector(this.resolveMatchers(task, task.problemMatchers), this.markerService, this.modelService);
+			let startStopProblemMatcher = new StartStopProblemCollector(this.resolveMatchers(task, task.configurationProperties.problemMatchers), this.markerService, this.modelService);
 			this.activeTask = task;
 			const inactiveEvent = TaskEvent.create(TaskEventKind.Inactive, task);
 			let processStartedSignaled: boolean = false;
@@ -390,7 +390,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 
 	private checkTerminated(task: Task, data: SuccessData | ErrorData): boolean {
 		if (data.terminated) {
-			this.log(nls.localize('TaskRunnerSystem.cancelRequested', '\nThe task \'{0}\' was terminated per user request.', task.name));
+			this.log(nls.localize('TaskRunnerSystem.cancelRequested', '\nThe task \'{0}\' was terminated per user request.', task.configurationProperties.name));
 			return true;
 		}
 		return false;
@@ -448,7 +448,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 	}
 
 	private resolveVariable(task: CustomTask, value: string): string {
-		return this.configurationResolverService.resolve(Task.getWorkspaceFolder(task), value);
+		return this.configurationResolverService.resolve(task.getWorkspaceFolder(), value);
 	}
 
 	public log(value: string): void {

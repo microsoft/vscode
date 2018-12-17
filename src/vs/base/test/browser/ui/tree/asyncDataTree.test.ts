@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
-import { AsyncDataTree, IDataSource } from 'vs/base/browser/ui/tree/asyncDataTree';
+import { ITreeNode, ITreeRenderer, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
+import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { hasClass } from 'vs/base/browser/dom';
 
@@ -51,7 +51,7 @@ suite('AsyncDataTree', function () {
 			}
 		};
 
-		const dataSource = new class implements IDataSource<Element> {
+		const dataSource = new class implements IAsyncDataSource<Element> {
 			hasChildren(element: Element | null): boolean {
 				return !element || (element.children && element.children.length > 0);
 			}

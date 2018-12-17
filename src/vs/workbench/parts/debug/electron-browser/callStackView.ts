@@ -25,10 +25,9 @@ import { IViewletPanelOptions, ViewletPanel } from 'vs/workbench/browser/parts/v
 import { ILabelService } from 'vs/platform/label/common/label';
 import { DebugSession } from 'vs/workbench/parts/debug/electron-browser/debugSession';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { IDataSource } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ITreeRenderer, ITreeNode, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
+import { ITreeRenderer, ITreeNode, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { TreeResourceNavigator2, WorkbenchAsyncDataTree, IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
@@ -572,7 +571,7 @@ class CallStackDelegate implements IListVirtualDelegate<CallStackItem> {
 	}
 }
 
-class CallStackDataSource implements IDataSource<CallStackItem> {
+class CallStackDataSource implements IAsyncDataSource<CallStackItem> {
 	deemphasizedStackFramesToShow: IStackFrame[];
 
 	constructor(private debugService: IDebugService) { }

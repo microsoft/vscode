@@ -18,7 +18,6 @@ import { CustomCodeAction } from 'vs/workbench/api/node/extHostLanguageFeatures'
 import { ICommandsExecutor, PreviewHTMLAPICommand, OpenFolderAPICommand, DiffAPICommand, OpenAPICommand, RemoveFromRecentlyOpenedAPICommand, SetEditorLayoutAPICommand } from './apiCommands';
 import { EditorGroupLayout } from 'vs/workbench/services/group/common/editorGroupsService';
 import { isFalsyOrEmpty, isNonEmptyArray } from 'vs/base/common/arrays';
-import { IRange } from 'vs/editor/common/core/range';
 
 export class ExtHostApiCommands {
 
@@ -421,14 +420,14 @@ export class ExtHostApiCommands {
 		});
 	}
 
-	private _executeSelectionRangeProvider(resource: URI, position: types.Position): Promise<types.Range[]> {
+	private _executeSelectionRangeProvider(resource: URI, position: types.Position): Promise<vscode.SelectionRange[]> {
 		const args = {
 			resource,
 			position: position && typeConverters.Position.from(position)
 		};
-		return this._commands.executeCommand<IRange[]>('_executeSelectionRangeProvider', args).then(result => {
+		return this._commands.executeCommand<modes.SelectionRange[]>('_executeSelectionRangeProvider', args).then(result => {
 			if (isNonEmptyArray(result)) {
-				return result.map(typeConverters.Range.to);
+				return result.map(typeConverters.SelectionRange.to);
 			}
 			return [];
 		});

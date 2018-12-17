@@ -5,9 +5,8 @@
 
 
 import { ReferencesModel, FileReferences, OneReference } from './referencesModel';
-import { IDataSource } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
+import { ITreeRenderer, ITreeNode, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -27,7 +26,7 @@ import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 
 export type TreeElement = FileReferences | OneReference;
 
-export class DataSource implements IDataSource<TreeElement> {
+export class DataSource implements IAsyncDataSource<TreeElement> {
 
 	root: ReferencesModel | FileReferences;
 

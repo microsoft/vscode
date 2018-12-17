@@ -369,7 +369,7 @@ export class Filter implements ITreeFilter<TreeElement, FilterData> {
 			return true;
 		}
 
-		const messageMatches = FilterOptions._fuzzyFilter(this.options.textFilter, marker.marker.message);
+		const messageMatches = FilterOptions._messageFilter(this.options.textFilter, marker.marker.message);
 		const sourceMatches = marker.marker.source && FilterOptions._filter(this.options.textFilter, marker.marker.source);
 		const codeMatches = marker.marker.code && FilterOptions._filter(this.options.textFilter, marker.marker.code);
 
@@ -386,7 +386,7 @@ export class Filter implements ITreeFilter<TreeElement, FilterData> {
 		}
 
 		const uriMatches = FilterOptions._filter(this.options.textFilter, paths.basename(relatedInformation.raw.resource.fsPath));
-		const messageMatches = FilterOptions._filter(this.options.textFilter, paths.basename(relatedInformation.raw.message));
+		const messageMatches = FilterOptions._messageFilter(this.options.textFilter, paths.basename(relatedInformation.raw.message));
 
 		if (uriMatches || messageMatches) {
 			return { visibility: true, data: { type: FilterDataType.RelatedInformation, uriMatches: uriMatches || [], messageMatches: messageMatches || [] } };

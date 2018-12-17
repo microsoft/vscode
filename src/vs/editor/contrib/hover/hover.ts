@@ -8,7 +8,6 @@ import * as nls from 'vs/nls';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
 import { IEmptyContentData } from 'vs/editor/browser/controller/mouseTarget';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
@@ -146,18 +145,17 @@ export class ModesHoverController implements IEditorContribution {
 	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
 		// const this._editor.getConfiguration().contribInfo.hover.sticky;
 		let targetType = mouseEvent.target.type;
-		const hasStopKey = (platform.isMacintosh ? mouseEvent.event.metaKey : mouseEvent.event.ctrlKey);
 
 		if (this._isMouseDown && this._hoverClicked && this.contentWidget.isColorPickerVisible()) {
 			return;
 		}
 
-		if (this._isHoverSticky && targetType === MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail === ModesContentHoverWidget.ID && !hasStopKey) {
+		if (this._isHoverSticky && targetType === MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail === ModesContentHoverWidget.ID) {
 			// mouse moved on top of content hover widget
 			return;
 		}
 
-		if (this._isHoverSticky && targetType === MouseTargetType.OVERLAY_WIDGET && mouseEvent.target.detail === ModesGlyphHoverWidget.ID && !hasStopKey) {
+		if (this._isHoverSticky && targetType === MouseTargetType.OVERLAY_WIDGET && mouseEvent.target.detail === ModesGlyphHoverWidget.ID) {
 			// mouse moved on top of overlay hover widget
 			return;
 		}

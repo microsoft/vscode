@@ -35,7 +35,8 @@ interface ILegacySerializedRecentlyOpened {
 export class HistoryMainService implements IHistoryMainService {
 
 	private static readonly MAX_TOTAL_RECENT_ENTRIES = 100;
-	private static readonly MAX_MACOS_DOCK_RECENT_ENTRIES = 10;
+	private static readonly MAX_MACOS_DOCK_RECENT_FOLDERS = 10;
+	private static readonly MAX_MACOS_DOCK_RECENT_FILES = 5;
 
 	private static readonly recentlyOpenedStorageKey = 'openedPathsList';
 
@@ -184,29 +185,28 @@ export class HistoryMainService implements IHistoryMainService {
 
 		const mru = this.getRecentlyOpened();
 
-		let maxEntries = HistoryMainService.MAX_MACOS_DOCK_RECENT_ENTRIES;
-
-		// Take up to maxEntries/2 workspaces
-		let nEntries = 0;
-		for (let i = 0; i < mru.workspaces.length && nEntries < HistoryMainService.MAX_MACOS_DOCK_RECENT_ENTRIES / 2; i++) {
+		// Fill in workspaces
+		let entries = 0;
+		for (let i = 0; i < mru.workspaces.length && entries < HistoryMainService.MAX_MACOS_DOCK_RECENT_FOLDERS; i++) {
 			const workspace = mru.workspaces[i];
 			if (isSingleFolderWorkspaceIdentifier(workspace)) {
 				if (workspace.scheme === Schemas.file) {
 					app.addRecentDocument(workspace.fsPath);
-					nEntries++;
+					entries++;
 				}
 			} else {
 				app.addRecentDocument(workspace.configPath);
-				nEntries++;
+				entries++;
 			}
 		}
 
-		// Take up to maxEntries files
-		for (let i = 0; i < mru.files.length && nEntries < maxEntries; i++) {
+		// Fill in files
+		entries = 0;
+		for (let i = 0; i < mru.files.length && entries < HistoryMainService.MAX_MACOS_DOCK_RECENT_FILES; i++) {
 			const file = mru.files[i];
 			if (file.scheme === Schemas.file) {
 				app.addRecentDocument(file.fsPath);
-				nEntries++;
+				entries++;
 			}
 		}
 	}

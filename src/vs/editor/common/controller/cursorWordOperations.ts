@@ -252,8 +252,10 @@ export class WordOperations {
 		let lineNumber = position.lineNumber;
 		let column = position.column;
 
+		let movedDown = false;
 		if (column === model.getLineMaxColumn(lineNumber)) {
 			if (lineNumber < model.getLineCount()) {
+				movedDown = true;
 				lineNumber = lineNumber + 1;
 				column = 1;
 			}
@@ -274,7 +276,7 @@ export class WordOperations {
 				column = model.getLineMaxColumn(lineNumber);
 			}
 		} else {
-			if (nextWordOnLine && column >= nextWordOnLine.start + 1) {
+			if (nextWordOnLine && !movedDown && column >= nextWordOnLine.start + 1) {
 				nextWordOnLine = WordOperations._findNextWordOnLine(wordSeparators, model, new Position(lineNumber, nextWordOnLine.end + 1));
 			}
 			if (nextWordOnLine) {

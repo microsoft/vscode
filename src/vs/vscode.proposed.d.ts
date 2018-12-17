@@ -18,6 +18,26 @@ declare module 'vscode' {
 
 	//#region Joh - selection range provider
 
+	export class SelectionRangeKind {
+
+		static readonly Empty: SelectionRangeKind;
+		static readonly Statement: SelectionRangeKind;
+		static readonly Expression: SelectionRangeKind;
+		static readonly Block: SelectionRangeKind;
+
+		readonly value: string;
+
+		private constructor(value: string);
+
+		append(value: string): SelectionRangeKind;
+	}
+
+	export class SelectionRange {
+		kind: SelectionRangeKind;
+		range: Range;
+		constructor(kind: SelectionRangeKind, range: Range);
+	}
+
 	export interface SelectionRangeProvider {
 		/**
 		 * Provide selection ranges starting at a given position. The first range must [contain](#Range.contains)
@@ -26,7 +46,7 @@ declare module 'vscode' {
 		 * @param position
 		 * @param token
 		 */
-		provideSelectionRanges(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Range[]>;
+		provideSelectionRanges(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<SelectionRange[]>;
 	}
 
 	export namespace languages {
