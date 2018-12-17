@@ -5,13 +5,13 @@
 
 import { URI } from 'vs/base/common/uri';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
+import { IWorkbenchEditorConfiguration, IEditorIdentifier, IEditorInput, toResource } from 'vs/workbench/common/editor';
 import { IFilesConfiguration, FileChangeType, IFileService } from 'vs/platform/files/common/files';
-import { ExplorerItem, OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ITextModel } from 'vs/editor/common/model';
+import { Event } from 'vs/base/common/event';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService, ILanguageSelection } from 'vs/editor/common/services/modeService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -20,6 +20,9 @@ import { InputFocusedContextKey } from 'vs/platform/workbench/common/contextkeys
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainer } from 'vs/workbench/common/views';
 import { Schemas } from 'vs/base/common/network';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ExplorerItem } from 'vs/workbench/parts/files/common/explorerService';
+import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 
 /**
  * Explorer viewlet id.
@@ -37,6 +40,17 @@ export interface IExplorerViewlet extends IViewlet {
 export interface IExplorerView {
 	select(resource: URI, reveal?: boolean): void;
 }
+
+export interface IExplorerService {
+	_serviceBrand: any;
+	readonly roots: ExplorerItem[];
+	readonly onDidEditStat: Event<ExplorerItem>;
+
+	setEditable(stat: ExplorerItem, editable: boolean): void;
+	findClosest(resource: URI): ExplorerItem | null;
+	findAll(resource: URI): ExplorerItem[];
+}
+export const IExplorerService = createDecorator<IExplorerService>('explorerService');
 
 /**
  * Context Keys to use with keybindings for the Explorer and Open Editors view
@@ -105,32 +119,6 @@ export interface IFilesConfiguration extends IFilesConfiguration, IWorkbenchEdit
 export interface IFileResource {
 	resource: URI;
 	isDirectory?: boolean;
-}
-
-/**
- * Helper to get an explorer item from an object.
- */
-export function explorerItemToFileResource(obj: ExplorerItem | OpenEditor): IFileResource | null {
-	if (obj instanceof ExplorerItem) {
-		const stat = obj as ExplorerItem;
-
-		return {
-			resource: stat.resource,
-			isDirectory: stat.isDirectory
-		};
-	}
-
-	if (obj instanceof OpenEditor) {
-		const editor = obj as OpenEditor;
-		const resource = editor.getResource();
-		if (resource) {
-			return {
-				resource
-			};
-		}
-	}
-
-	return null;
 }
 
 export const SortOrderConfiguration = {
@@ -208,5 +196,48 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 
 	dispose(): void {
 		this.fileWatcher = dispose(this.fileWatcher);
+	}
+}
+
+export class OpenEditor implements IEditorIdentifier {
+
+	constructor(private _editor: IEditorInput, private _group: IEditorGroup) {
+		// noop
+	}
+
+	public get editor() {
+		return this._editor;
+	}
+
+	public get editorIndex() {
+		return this._group.getIndexOfEditor(this.editor);
+	}
+
+	public get group() {
+		return this._group;
+	}
+
+	public get groupId() {
+		return this._group.id;
+	}
+
+	public getId(): string {
+		return `openeditor:${this.groupId}:${this.editorIndex}:${this.editor.getName()}:${this.editor.getDescription()}`;
+	}
+
+	public isPreview(): boolean {
+		return this._group.previewEditor === this.editor;
+	}
+
+	public isUntitled(): boolean {
+		return !!toResource(this.editor, { supportSideBySide: true, filter: Schemas.untitled });
+	}
+
+	public isDirty(): boolean {
+		return this.editor.isDirty();
+	}
+
+	public getResource(): URI | null {
+		return toResource(this.editor, { supportSideBySide: true });
 	}
 }

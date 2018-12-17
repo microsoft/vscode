@@ -21,7 +21,6 @@ import { VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService, ITextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService, IFileStat, AutoSaveConfiguration } from 'vs/platform/files/common/files';
 import { toResource, IUntitledResourceInput } from 'vs/workbench/common/editor';
-import { ExplorerItem, Model, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerModel';
 import { ExplorerView } from 'vs/workbench/parts/files/electron-browser/views/explorerView';
 import { ExplorerViewlet } from 'vs/workbench/parts/files/electron-browser/explorerViewlet';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -49,6 +48,7 @@ import { IViewlet } from 'vs/workbench/common/viewlet';
 import { coalesce } from 'vs/base/common/arrays';
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { EditableExplorerItems } from 'vs/workbench/parts/files/electron-browser/views/explorerViewer';
+import { NewStatPlaceholder, ExplorerItem } from 'vs/workbench/parts/files/common/explorerService';
 
 export interface IEditableData {
 	action: IAction;
@@ -767,8 +767,9 @@ export class AddFilesAction extends BaseFileAction {
 				if (this.element) {
 					targetElement = this.element;
 				} else {
-					const input: ExplorerItem | Model = this.tree.getInput();
-					targetElement = this.tree.getFocus() || (input instanceof Model ? input.roots[0] : input);
+					// TODO@isidor
+					// const input: ExplorerItem | Model = this.tree.getInput();
+					// targetElement = this.tree.getFocus() || (input instanceof Model ? input.roots[0] : input);
 				}
 
 				if (!targetElement.isDirectory) {
@@ -903,8 +904,9 @@ class PasteFileAction extends BaseFileAction {
 		this.tree = tree;
 		this.element = element;
 		if (!this.element) {
-			const input: ExplorerItem | Model = this.tree.getInput();
-			this.element = input instanceof Model ? input.roots[0] : input;
+			// TODO@isidor
+			// const input: ExplorerItem | Model = this.tree.getInput();
+			// this.element = input instanceof Model ? input.roots[0] : input;
 		}
 		this._updateEnablement();
 	}

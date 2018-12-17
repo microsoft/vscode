@@ -6,7 +6,6 @@
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import * as DOM from 'vs/base/browser/dom';
 import * as glob from 'vs/base/common/glob';
-import { ExplorerItem, Model, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerModel';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -22,7 +21,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFilesConfiguration } from 'vs/workbench/parts/files/common/files';
+import { IFilesConfiguration, IExplorerService } from 'vs/workbench/parts/files/common/files';
 import { dirname, joinPath, basename } from 'vs/base/common/resources';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { localize } from 'vs/nls';
@@ -33,6 +32,7 @@ import { normalize, join, nativeSep } from 'vs/base/common/paths';
 import { rtrim } from 'vs/base/common/strings';
 import { equals, deepClone } from 'vs/base/common/objects';
 import * as path from 'path';
+import { ExplorerItem, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerService';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -50,7 +50,7 @@ export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 export class ExplorerDataSource implements IDataSource<ExplorerItem> {
 
 	constructor(
-		private model: Model,
+		@IExplorerService private explorerService: IExplorerService,
 		@IProgressService private progressService: IProgressService,
 		@INotificationService private notificationService: INotificationService,
 		@IFileService private fileService: IFileService,
@@ -64,11 +64,12 @@ export class ExplorerDataSource implements IDataSource<ExplorerItem> {
 
 	getChildren(element: ExplorerItem | null): Promise<ExplorerItem[]> {
 		if (element === null) {
-			if (this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER || this.model.roots[0].isError) {
+			const roots = this.explorerService.roots;
+			if (this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER || roots[0].isError) {
 				// Display roots only when multi folder workspace
-				return Promise.resolve(this.model.roots);
+				return Promise.resolve(roots);
 			}
-			element = this.model.roots[0];
+			element = roots[0];
 		}
 
 		// Return early if stat is already resolved

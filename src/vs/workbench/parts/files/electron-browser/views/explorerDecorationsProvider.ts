@@ -6,12 +6,12 @@
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
-import { Model } from 'vs/workbench/parts/files/common/explorerModel';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IDecorationsProvider, IDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
 import { listInvalidItemForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IDisposable } from 'vscode-xterm';
 import { dispose } from 'vs/base/common/lifecycle';
+import { IExplorerService } from 'vs/workbench/parts/files/common/files';
 
 export class ExplorerDecorationsProvider implements IDecorationsProvider {
 	readonly label: string = localize('label', "Explorer");
@@ -19,7 +19,7 @@ export class ExplorerDecorationsProvider implements IDecorationsProvider {
 	private toDispose: IDisposable[];
 
 	constructor(
-		private model: Model,
+		@IExplorerService private explorerService: IExplorerService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService
 	) {
 		this.toDispose = [];
@@ -37,7 +37,7 @@ export class ExplorerDecorationsProvider implements IDecorationsProvider {
 	}
 
 	provideDecorations(resource: URI): IDecorationData | undefined {
-		const fileStat = this.model.findClosest(resource);
+		const fileStat = this.explorerService.findClosest(resource);
 		if (fileStat && fileStat.isRoot && fileStat.isError) {
 			return {
 				tooltip: localize('canNotResolve', "Can not resolve workspace folder"),

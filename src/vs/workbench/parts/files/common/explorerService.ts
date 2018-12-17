@@ -4,20 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
+import { Event } from 'vs/base/common/event';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
 import { ResourceMap } from 'vs/base/common/map';
 import { isLinux } from 'vs/base/common/platform';
 import { IFileStat } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { toResource, IEditorIdentifier, IEditorInput } from 'vs/workbench/common/editor';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
 import { rtrim, startsWithIgnoreCase, startsWith, equalsIgnoreCase } from 'vs/base/common/strings';
-import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 import { coalesce } from 'vs/base/common/arrays';
+import { IExplorerService } from 'vs/workbench/parts/files/common/files';
 
-export class Model {
+export class ExplorerService implements IExplorerService {
+	_serviceBrand: any;
+
+	setEditable(stat: ExplorerItem, editable: boolean): void {
+		throw new Error('Method not implemented.');
+	}
+
+	onDidEditStat: Event<ExplorerItem>;
 
 	private _roots: ExplorerItem[];
 	private _listener: IDisposable;
@@ -448,48 +454,5 @@ export class NewStatPlaceholder extends ExplorerItem {
 		parent.addChild(child);
 
 		return child;
-	}
-}
-
-export class OpenEditor implements IEditorIdentifier {
-
-	constructor(private _editor: IEditorInput, private _group: IEditorGroup) {
-		// noop
-	}
-
-	public get editor() {
-		return this._editor;
-	}
-
-	public get editorIndex() {
-		return this._group.getIndexOfEditor(this.editor);
-	}
-
-	public get group() {
-		return this._group;
-	}
-
-	public get groupId() {
-		return this._group.id;
-	}
-
-	public getId(): string {
-		return `openeditor:${this.groupId}:${this.editorIndex}:${this.editor.getName()}:${this.editor.getDescription()}`;
-	}
-
-	public isPreview(): boolean {
-		return this._group.previewEditor === this.editor;
-	}
-
-	public isUntitled(): boolean {
-		return !!toResource(this.editor, { supportSideBySide: true, filter: Schemas.untitled });
-	}
-
-	public isDirty(): boolean {
-		return this.editor.isDirty();
-	}
-
-	public getResource(): URI | null {
-		return toResource(this.editor, { supportSideBySide: true });
 	}
 }

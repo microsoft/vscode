@@ -5,7 +5,8 @@
 
 import { URI } from 'vs/base/common/uri';
 import { IListService } from 'vs/platform/list/browser/listService';
-import { ExplorerItem, OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
+import { ExplorerItem } from 'vs/workbench/parts/files/common/explorerService';
+import { OpenEditor } from 'vs/workbench/parts/files/common/files';
 import { toResource } from 'vs/workbench/common/editor';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { List } from 'vs/base/browser/ui/list/listWidget';

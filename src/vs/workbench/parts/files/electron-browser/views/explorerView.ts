@@ -12,7 +12,7 @@ import * as resources from 'vs/base/common/resources';
 import * as glob from 'vs/base/common/glob';
 import { Action, IAction } from 'vs/base/common/actions';
 import { memoize } from 'vs/base/common/decorators';
-import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, SortOrderConfiguration, SortOrder, IExplorerView, ExplorerRootContext, ExplorerResourceReadonlyContext } from 'vs/workbench/parts/files/common/files';
+import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, SortOrderConfiguration, SortOrder, IExplorerView, ExplorerRootContext, ExplorerResourceReadonlyContext, IExplorerService } from 'vs/workbench/parts/files/common/files';
 import { FileOperation, FileOperationEvent, IResolveFileOptions, FileChangeType, FileChangesEvent, IFileService, FILES_EXCLUDE_CONFIG, IFileStat } from 'vs/platform/files/common/files';
 import { RefreshViewExplorerAction, NewFolderAction, NewFileAction, FileCopiedContext } from 'vs/workbench/parts/files/electron-browser/fileActions';
 import { toResource } from 'vs/workbench/common/editor';
@@ -20,7 +20,6 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import * as DOM from 'vs/base/browser/dom';
 import { CollapseAction2 } from 'vs/workbench/browser/viewlet';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { ExplorerItem, Model, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerModel';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { ExplorerDecorationsProvider } from 'vs/workbench/parts/files/electron-browser/views/explorerDecorationsProvider';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -49,6 +48,7 @@ import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions'
 import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ExplorerItem, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerService';
 
 export interface IExplorerViewOptions extends IViewletViewOptions {
 	fileViewletState: EditableExplorerItems;
@@ -105,7 +105,8 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 		@IListService private listService: IListService,
 		@IMenuService private menuService: IMenuService,
 		@IClipboardService private clipboardService: IClipboardService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IExplorerService private explorerService: IExplorerService
 	) {
 		super({ ...(options as IViewletPanelOptions), id: ExplorerView.ID, ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService);
 
@@ -118,7 +119,7 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 		this.readonlyContext = ExplorerResourceReadonlyContext.bindTo(contextKeyService);
 		this.rootContext = ExplorerRootContext.bindTo(contextKeyService);
 
-		this.decorationProvider = new ExplorerDecorationsProvider(this.model, contextService);
+		this.decorationProvider = new ExplorerDecorationsProvider(this.explorerService, contextService);
 		decorationService.registerDecorationsProvider(this.decorationProvider);
 		this.disposables.push(this.decorationProvider);
 		this.disposables.push(this.resourceContext);
@@ -183,13 +184,6 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 
 	@memoize private get fileCopiedContextKey(): IContextKey<boolean> {
 		return FileCopiedContext.bindTo(this.contextKeyService);
-	}
-
-	@memoize private get model(): Model {
-		const model = this.instantiationService.createInstance(Model);
-		this.disposables.push(model);
-
-		return model;
 	}
 
 	// Split view methods
@@ -383,7 +377,7 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 		this.disposables.push(filesRenderer);
 
 		this.tree = new WorkbenchAsyncDataTree(container, new ExplorerDelegate(), [filesRenderer],
-			this.instantiationService.createInstance(ExplorerDataSource, this.model), {
+			this.instantiationService.createInstance(ExplorerDataSource), {
 				accessibilityProvider: new ExplorerAccessibilityProvider(),
 				ariaLabel: nls.localize('treeAriaLabel', "Files Explorer"),
 				identityProvider: {
@@ -491,7 +485,7 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 		if (e.operation === FileOperation.CREATE || e.operation === FileOperation.COPY) {
 			const addedElement = e.target;
 			const parentResource = resources.dirname(addedElement.resource);
-			const parents = this.model.findAll(parentResource);
+			const parents = this.explorerService.findAll(parentResource);
 
 			if (parents.length) {
 
@@ -539,7 +533,7 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 			let isExpanded = false;
 			// Handle Rename
 			if (oldParentResource && newParentResource && oldParentResource.toString() === newParentResource.toString()) {
-				const modelElements = this.model.findAll(oldResource);
+				const modelElements = this.explorerService.findAll(oldResource);
 				modelElements.forEach(modelElement => {
 					//Check if element is expanded
 					isExpanded = !this.tree.isCollapsed(modelElement);
@@ -563,8 +557,8 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 
 			// Handle Move
 			else if (oldParentResource && newParentResource) {
-				const newParents = this.model.findAll(newParentResource);
-				const modelElements = this.model.findAll(oldResource);
+				const newParents = this.explorerService.findAll(newParentResource);
+				const modelElements = this.explorerService.findAll(oldResource);
 
 				if (newParents.length && modelElements.length) {
 
@@ -585,7 +579,7 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 
 		// Delete
 		else if (e.operation === FileOperation.DELETE) {
-			const modelElements = this.model.findAll(e.resource);
+			const modelElements = this.explorerService.findAll(e.resource);
 			modelElements.forEach(element => {
 				if (element.parent) {
 					const parent = element.parent;
@@ -643,8 +637,8 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 				}
 
 				// Compute if parent is visible and added file not yet part of it
-				const parentStat = this.model.findClosest(parent);
-				if (parentStat && parentStat.isDirectoryResolved && !this.model.findClosest(change.resource)) {
+				const parentStat = this.explorerService.findClosest(parent);
+				if (parentStat && parentStat.isDirectoryResolved && !this.explorerService.findClosest(change.resource)) {
 					return true;
 				}
 
@@ -663,7 +657,7 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 			for (let j = 0; j < deleted.length; j++) {
 				const del = deleted[j];
 
-				if (this.model.findClosest(del.resource)) {
+				if (this.explorerService.findClosest(del.resource)) {
 					return true;
 				}
 			}
@@ -677,7 +671,7 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 			for (let j = 0; j < updated.length; j++) {
 				const upd = updated[j];
 
-				if (this.model.findClosest(upd.resource)) {
+				if (this.explorerService.findClosest(upd.resource)) {
 					return true;
 				}
 			}
@@ -709,7 +703,7 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 			this.explorerRefreshDelayer.trigger(() => {
 				return this.doRefresh().then(() => {
 					if (newRoots.length === 1) {
-						return this.tree.reveal(this.model.findClosest(newRoots[0].uri), 0.5);
+						return this.tree.reveal(this.explorerService.findClosest(newRoots[0].uri), 0.5);
 					}
 
 					return undefined;
@@ -783,7 +777,7 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 	}
 
 	private doRefresh(): Promise<any> {
-		const targetsToResolve = this.model.roots.map(root => ({ root, resource: root.resource, options: { resolveTo: [] } }));
+		const targetsToResolve = this.explorerService.roots.map(root => ({ root, resource: root.resource, options: { resolveTo: [] } }));
 
 		// First time refresh: Receive target through active editor input or selection and also include settings from previous session
 		if (!this.isCreated) {
@@ -843,8 +837,8 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 				});
 				// Subsequent refresh: Merge stat into our local model and refresh tree
 				modelStats.forEach((modelStat, index) => {
-					if (index < this.model.roots.length) {
-						ExplorerItem.mergeLocalWithDisk(modelStat, this.model.roots[index]);
+					if (index < this.explorerService.roots.length) {
+						ExplorerItem.mergeLocalWithDisk(modelStat, this.explorerService.roots[index]);
 					}
 				});
 
@@ -857,8 +851,8 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 			.then(result => result.isDirectory ? ExplorerItem.create(result, target.root, target.options.resolveTo) : errorRoot(target.resource, target.root), () => errorRoot(target.resource, target.root))
 			.then(modelStat => {
 				// Subsequent refresh: Merge stat into our local model and refresh tree
-				if (index < this.model.roots.length) {
-					ExplorerItem.mergeLocalWithDisk(modelStat, this.model.roots[index]);
+				if (index < this.explorerService.roots.length) {
+					ExplorerItem.mergeLocalWithDisk(modelStat, this.explorerService.roots[index]);
 				}
 
 				return this.tree.refresh(null);
@@ -916,7 +910,7 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 			return;
 		}
 
-		const fileStat = this.model.findClosest(resource);
+		const fileStat = this.explorerService.findClosest(resource);
 		if (fileStat) {
 			this.doSelect(fileStat, reveal);
 			return;
@@ -925,11 +919,11 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 		// Stat needs to be resolved first and then revealed
 		const options: IResolveFileOptions = { resolveTo: [resource] };
 		const workspaceFolder = this.contextService.getWorkspaceFolder(resource);
-		const rootUri = workspaceFolder ? workspaceFolder.uri : this.model.roots[0].resource;
+		const rootUri = workspaceFolder ? workspaceFolder.uri : this.explorerService.roots[0].resource;
 		this.fileService.resolveFile(rootUri, options).then(stat => {
 
 			// Convert to model
-			const root = this.model.roots.filter(r => r.resource.toString() === rootUri.toString()).pop();
+			const root = this.explorerService.roots.filter(r => r.resource.toString() === rootUri.toString()).pop();
 			const modelStat = ExplorerItem.create(stat, root, options.resolveTo);
 			// Update Input with disk Stat
 			ExplorerItem.mergeLocalWithDisk(modelStat, root);
