@@ -468,7 +468,7 @@ export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> imple
 				this._onDidChangeNodeState.fire(node);
 			}, _ => null);
 
-			return this.dataSource.getChildren(node.element)
+			return Promise.resolve(this.dataSource.getChildren(node.element))
 				.then(children => {
 					slowTimeout.cancel();
 					node.state = AsyncDataTreeNodeState.Loaded;
