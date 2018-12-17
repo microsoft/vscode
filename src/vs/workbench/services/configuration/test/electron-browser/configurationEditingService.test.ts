@@ -129,9 +129,9 @@ suite('ConfigurationEditingService', () => {
 	function clearWorkspace(): Promise<void> {
 		return new Promise<void>((c, e) => {
 			if (parentDir) {
-				extfs.del(parentDir, os.tmpdir(), () => c(null), () => c(null));
+				extfs.del(parentDir, os.tmpdir(), () => c(void 0), () => c(void 0));
 			} else {
-				c(null);
+				c(void 0);
 			}
 		}).then(() => parentDir = null);
 	}

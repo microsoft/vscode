@@ -6,18 +6,13 @@
 import { ComposedTreeDelegate, IAbstractTreeOptions } from 'vs/base/browser/ui/tree/abstractTree';
 import { ObjectTree, IObjectTreeOptions } from 'vs/base/browser/ui/tree/objectTree';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { ITreeElement, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
+import { ITreeElement, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeSorter, ICollapseStateChangeEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { Emitter, Event, mapEvent } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { timeout, always } from 'vs/base/common/async';
 import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { toggleClass } from 'vs/base/browser/dom';
 import { Iterator } from 'vs/base/common/iterator';
-
-export interface IDataSource<T extends NonNullable<any>> {
-	hasChildren(element: T | null): boolean;
-	getChildren(element: T | null): Thenable<T[]>;
-}
 
 enum AsyncDataTreeNodeState {
 	Uninitialized,
@@ -80,7 +75,9 @@ class DataTreeRenderer<T, TFilterData, TTemplateData> implements ITreeRenderer<I
 	}
 
 	disposeElement(node: ITreeNode<IAsyncDataTreeNode<T>, TFilterData>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>): void {
-		this.renderer.disposeElement(new AsyncDataTreeNodeWrapper(node), index, templateData.templateData);
+		if (this.renderer.disposeElement) {
+			this.renderer.disposeElement(new AsyncDataTreeNodeWrapper(node), index, templateData.templateData);
+		}
 	}
 
 	disposeTemplate(templateData: IDataTreeListTemplateData<TTemplateData>): void {
@@ -147,8 +144,18 @@ function asObjectTreeOptions<T, TFilterData>(options?: IAsyncDataTreeOptions<T, 
 			}
 		},
 		filter: options.filter && {
-			filter(element, parentVisibility) {
-				return options.filter!.filter(element.element!, parentVisibility);
+			filter(e, parentVisibility) {
+				return options.filter!.filter(e.element!, parentVisibility);
+			}
+		},
+		keyboardNavigationLabelProvider: options.keyboardNavigationLabelProvider && {
+			getKeyboardNavigationLabel(e) {
+				return options.keyboardNavigationLabelProvider!.getKeyboardNavigationLabel(e.element!);
+			}
+		},
+		sorter: options.sorter && {
+			compare(a, b) {
+				return options.sorter!.compare(a.element!, b.element!);
 			}
 		}
 	};
@@ -163,6 +170,7 @@ function asTreeElement<T>(node: IAsyncDataTreeNode<T>): ITreeElement<IAsyncDataT
 
 export interface IAsyncDataTreeOptions<T, TFilterData = void> extends IAbstractTreeOptions<T, TFilterData> {
 	identityProvider?: IIdentityProvider<T>;
+	sorter?: ITreeSorter<T>;
 }
 
 export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> implements IDisposable {
@@ -170,23 +178,23 @@ export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> imple
 	private readonly tree: ObjectTree<IAsyncDataTreeNode<T>, TFilterData>;
 	private readonly root: IAsyncDataTreeNode<T>;
 	private readonly nodes = new Map<T | null, IAsyncDataTreeNode<T>>();
-	private readonly refreshPromises = new Map<IAsyncDataTreeNode<T>, Thenable<void>>();
+	private readonly refreshPromises = new Map<IAsyncDataTreeNode<T>, Promise<void>>();
 	private readonly identityProvider?: IIdentityProvider<T>;
 
 	private readonly _onDidChangeNodeState = new Emitter<IAsyncDataTreeNode<T>>();
 
 	protected readonly disposables: IDisposable[] = [];
 
-	get onDidChangeFocus(): Event<ITreeEvent<T>> { return mapEvent(this.tree.onDidChangeFocus, asTreeEvent); }
-	get onDidChangeSelection(): Event<ITreeEvent<T>> { return mapEvent(this.tree.onDidChangeSelection, asTreeEvent); }
-	get onDidChangeCollapseState(): Event<T> { return mapEvent(this.tree.onDidChangeCollapseState, e => e.element!.element!); }
+	get onDidChangeFocus(): Event<ITreeEvent<T>> { return Event.map(this.tree.onDidChangeFocus, asTreeEvent); }
+	get onDidChangeSelection(): Event<ITreeEvent<T>> { return Event.map(this.tree.onDidChangeSelection, asTreeEvent); }
+	get onDidOpen(): Event<ITreeEvent<T>> { return Event.map(this.tree.onDidOpen, asTreeEvent); }
 
 	private readonly _onDidResolveChildren = new Emitter<IChildrenResolutionEvent<T>>();
 	readonly onDidResolveChildren: Event<IChildrenResolutionEvent<T>> = this._onDidResolveChildren.event;
 
-	get onMouseClick(): Event<ITreeMouseEvent<T>> { return mapEvent(this.tree.onMouseClick, asTreeMouseEvent); }
-	get onMouseDblClick(): Event<ITreeMouseEvent<T>> { return mapEvent(this.tree.onMouseDblClick, asTreeMouseEvent); }
-	get onContextMenu(): Event<ITreeContextMenuEvent<T>> { return mapEvent(this.tree.onContextMenu, asTreeContextMenuEvent); }
+	get onMouseClick(): Event<ITreeMouseEvent<T>> { return Event.map(this.tree.onMouseClick, asTreeMouseEvent); }
+	get onMouseDblClick(): Event<ITreeMouseEvent<T>> { return Event.map(this.tree.onMouseDblClick, asTreeMouseEvent); }
+	get onContextMenu(): Event<ITreeContextMenuEvent<T>> { return Event.map(this.tree.onContextMenu, asTreeContextMenuEvent); }
 	get onDidFocus(): Event<void> { return this.tree.onDidFocus; }
 	get onDidBlur(): Event<void> { return this.tree.onDidBlur; }
 
@@ -196,7 +204,7 @@ export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> imple
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
 		renderers: ITreeRenderer<any /* TODO@joao */, TFilterData, any>[],
-		private dataSource: IDataSource<T>,
+		private dataSource: IAsyncDataSource<T>,
 		options?: IAsyncDataTreeOptions<T, TFilterData>
 	) {
 		this.identityProvider = options && options.identityProvider;
@@ -271,7 +279,7 @@ export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> imple
 
 	// Data Tree
 
-	refresh(element: T | null, recursive = true): Thenable<void> {
+	refresh(element: T | null, recursive = true): Promise<void> {
 		return this.refreshNode(this.getDataNode(element), recursive, ChildrenResolutionReason.Refresh);
 	}
 
@@ -283,18 +291,18 @@ export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> imple
 		return new AsyncDataTreeNodeWrapper<T | null, TFilterData>(node);
 	}
 
-	collapse(element: T): boolean {
-		return this.tree.collapse(this.getDataNode(element));
+	collapse(element: T, recursive: boolean = false): boolean {
+		return this.tree.collapse(this.getDataNode(element), recursive);
 	}
 
-	async expand(element: T): Promise<boolean> {
+	async expand(element: T, recursive: boolean = false): Promise<boolean> {
 		const node = this.getDataNode(element);
 
 		if (!this.tree.isCollapsed(node)) {
 			return false;
 		}
 
-		this.tree.expand(node);
+		this.tree.expand(node, recursive);
 
 		if (node.state !== AsyncDataTreeNodeState.Loaded) {
 			await this.refreshNode(node, false, ChildrenResolutionReason.Expand);
@@ -303,8 +311,12 @@ export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> imple
 		return true;
 	}
 
-	toggleCollapsed(element: T): void {
-		this.tree.toggleCollapsed(this.getDataNode(element));
+	toggleCollapsed(element: T, recursive: boolean = false): boolean {
+		return this.tree.toggleCollapsed(this.getDataNode(element), recursive);
+	}
+
+	expandAll(): void {
+		this.tree.expandAll();
 	}
 
 	collapseAll(): void {
@@ -317,10 +329,6 @@ export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> imple
 
 	isCollapsed(element: T): boolean {
 		return this.tree.isCollapsed(this.getDataNode(element));
-	}
-
-	isExpanded(element: T): boolean {
-		return this.tree.isExpanded(this.getDataNode(element));
 	}
 
 	refilter(): void {
@@ -429,7 +437,7 @@ export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> imple
 		}
 	}
 
-	private _refreshNode(node: IAsyncDataTreeNode<T>, recursive: boolean, reason: ChildrenResolutionReason): Thenable<void> {
+	private _refreshNode(node: IAsyncDataTreeNode<T>, recursive: boolean, reason: ChildrenResolutionReason): Promise<void> {
 		let result = this.refreshPromises.get(node);
 
 		if (result) {
@@ -441,7 +449,7 @@ export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> imple
 		return always(result, () => this.refreshPromises.delete(node));
 	}
 
-	private doRefresh(node: IAsyncDataTreeNode<T>, recursive: boolean, reason: ChildrenResolutionReason): Thenable<void> {
+	private doRefresh(node: IAsyncDataTreeNode<T>, recursive: boolean, reason: ChildrenResolutionReason): Promise<void> {
 		const hasChildren = !!this.dataSource.hasChildren(node.element);
 
 		if (!hasChildren) {
@@ -460,7 +468,7 @@ export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> imple
 				this._onDidChangeNodeState.fire(node);
 			}, _ => null);
 
-			return this.dataSource.getChildren(node.element)
+			return Promise.resolve(this.dataSource.getChildren(node.element))
 				.then(children => {
 					slowTimeout.cancel();
 					node.state = AsyncDataTreeNodeState.Loaded;
@@ -482,9 +490,13 @@ export class AsyncDataTree<T extends NonNullable<any>, TFilterData = void> imple
 		}
 	}
 
-	private _onDidChangeCollapseState(treeNode: ITreeNode<IAsyncDataTreeNode<T>, any>): void {
-		if (!treeNode.collapsed && treeNode.element.state === AsyncDataTreeNodeState.Uninitialized) {
-			this.refreshNode(treeNode.element, false, ChildrenResolutionReason.Expand);
+	private _onDidChangeCollapseState({ node, deep }: ICollapseStateChangeEvent<IAsyncDataTreeNode<T>, any>): void {
+		if (!node.collapsed && node.element.state === AsyncDataTreeNodeState.Uninitialized) {
+			if (deep) {
+				this.collapse(node.element.element!);
+			} else {
+				this.refreshNode(node.element, false, ChildrenResolutionReason.Expand);
+			}
 		}
 	}
 

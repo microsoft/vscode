@@ -31,6 +31,7 @@
 
 .monaco-editor .debug-hover-widget .debug-hover-tree {
 	line-height: 18px;
+	cursor: pointer;
 }
 
 .monaco-editor .debug-hover-widget .debug-hover-tree .monaco-list-row .monaco-tl-contents {

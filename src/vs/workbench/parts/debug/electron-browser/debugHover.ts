@@ -24,13 +24,15 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { getExactExpressionStartAndEnd } from 'vs/workbench/parts/debug/common/debugUtils';
-import { AsyncDataTree, IDataSource } from 'vs/base/browser/ui/tree/asyncDataTree';
+import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { WorkbenchAsyncDataTree, IListService } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { coalesce } from 'vs/base/common/arrays';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 
 const $ = dom.$;
 const MAX_TREE_HEIGHT = 324;
@@ -61,7 +63,8 @@ export class DebugHoverWidget implements IContentWidget {
 		@IThemeService private themeService: IThemeService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IListService private listService: IListService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IKeybindingService private keybindingService: IKeybindingService
 	) {
 		this.toDispose = [];
 
@@ -83,7 +86,7 @@ export class DebugHoverWidget implements IContentWidget {
 				ariaLabel: nls.localize('treeAriaLabel', "Debug Hover"),
 				accessibilityProvider: new DebugHoverAccessibilityProvider(),
 				mouseSupport: false
-			}, this.contextKeyService, this.listService, this.themeService, this.configurationService);
+			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
 
 		this.valueContainer = $('.value');
 		this.valueContainer.tabIndex = 0;
@@ -176,7 +179,7 @@ export class DebugHoverWidget implements IContentWidget {
 		className: 'hoverHighlight'
 	});
 
-	private doFindExpression(container: IExpressionContainer, namesToFind: string[]): Promise<IExpression> {
+	private doFindExpression(container: IExpressionContainer, namesToFind: string[]): Promise<IExpression | null> {
 		if (!container) {
 			return Promise.resolve(null);
 		}
@@ -205,7 +208,7 @@ export class DebugHoverWidget implements IContentWidget {
 			.then(expressions => (expressions.length > 0 && expressions.every(e => e.value === expressions[0].value)) ? expressions[0] : null);
 	}
 
-	private doShow(position: Position, expression: IExpression, focus: boolean, forceValueHover = false): Thenable<void> {
+	private doShow(position: Position, expression: IExpression, focus: boolean, forceValueHover = false): Promise<void> {
 		if (!this.domNode) {
 			this.create();
 		}
@@ -229,7 +232,7 @@ export class DebugHoverWidget implements IContentWidget {
 				this.valueContainer.focus();
 			}
 
-			return Promise.resolve(null);
+			return Promise.resolve(void 0);
 		}
 
 		this.valueContainer.hidden = true;
@@ -288,7 +291,7 @@ class DebugHoverAccessibilityProvider implements IAccessibilityProvider<IExpress
 	}
 }
 
-class DebugHoverDataSource implements IDataSource<IExpression> {
+class DebugHoverDataSource implements IAsyncDataSource<IExpression> {
 
 	expression: IExpression;
 
@@ -296,7 +299,7 @@ class DebugHoverDataSource implements IDataSource<IExpression> {
 		return element === null || element.hasChildren;
 	}
 
-	getChildren(element: IExpression | null): Thenable<IExpression[]> {
+	getChildren(element: IExpression | null): Promise<IExpression[]> {
 		if (element === null) {
 			element = this.expression;
 		}

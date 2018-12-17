@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event, mapEvent } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { keys } from 'vs/base/common/map';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -236,7 +236,7 @@ export abstract class AbstractContextKeyService implements IContextKeyService {
 
 	public get onDidChangeContext(): Event<IContextKeyChangeEvent> {
 		if (!this._onDidChangeContext) {
-			this._onDidChangeContext = mapEvent(this._onDidChangeContextKey.event, ((changedKeyOrKeys): IContextKeyChangeEvent => {
+			this._onDidChangeContext = Event.map(this._onDidChangeContextKey.event, ((changedKeyOrKeys): IContextKeyChangeEvent => {
 				return typeof changedKeyOrKeys === 'string'
 					? new SimpleContextKeyChangeEvent(changedKeyOrKeys)
 					: new ArrayContextKeyChangeEvent(changedKeyOrKeys);

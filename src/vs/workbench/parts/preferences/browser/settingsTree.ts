@@ -12,7 +12,7 @@ import { alert as ariaAlert } from 'vs/base/browser/ui/aria/aria';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
+import { SelectBox, ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { Action, IAction } from 'vs/base/common/actions';
 import * as arrays from 'vs/base/common/arrays';
@@ -240,7 +240,7 @@ export class SimplePagedDataSource implements IDataSource {
 		return this.realDataSource.hasChildren(tree, element);
 	}
 
-	getChildren(tree: ITree, element: SettingsTreeGroupElement): Thenable<any> {
+	getChildren(tree: ITree, element: SettingsTreeGroupElement): Promise<any> {
 		return this.realDataSource.getChildren(tree, element).then(realChildren => {
 			return this._getChildren(realChildren);
 		});
@@ -257,7 +257,7 @@ export class SimplePagedDataSource implements IDataSource {
 		}
 	}
 
-	getParent(tree: ITree, element: any): Thenable<any> {
+	getParent(tree: ITree, element: any): Promise<any> {
 		return this.realDataSource.getParent(tree, element);
 	}
 
@@ -787,7 +787,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		// Need to listen for mouse clicks on description and toggle checkbox - use target ID for safety
 		// Also have to ignore embedded links - too buried to stop propagation
 		toDispose.push(DOM.addDisposableListener(descriptionElement, DOM.EventType.MOUSE_DOWN, (e) => {
-			const targetElement = <HTMLElement>e.toElement;
+			const targetElement = <HTMLElement>e.target;
 			const targetId = descriptionElement.getAttribute('checkbox_label_target_id');
 
 			// Make sure we are not a link and the target ID matches
@@ -841,9 +841,7 @@ export class SettingsRenderer implements ITreeRenderer {
 	private renderSettingEnumTemplate(tree: ITree, container: HTMLElement): ISettingEnumItemTemplate {
 		const common = this.renderCommonTemplate(tree, container, 'enum');
 
-		const selectBox = new SelectBox([], undefined, this.contextViewService, undefined, {
-			hasDetails: true
-		});
+		const selectBox = new SelectBox([], undefined, this.contextViewService, undefined, { useCustomDrawn: true });
 
 		common.toDispose.push(selectBox);
 		common.toDispose.push(attachSelectBoxStyler(selectBox, this.themeService, {
@@ -1165,18 +1163,21 @@ export class SettingsRenderer implements ITreeRenderer {
 	}
 
 	private renderEnum(dataElement: SettingsTreeSettingElement, template: ISettingEnumItemTemplate, onChange: (value: string) => void): void {
-		const displayOptions = dataElement.setting.enum
-			.map(String)
-			.map(escapeInvisibleChars);
 
-		template.selectBox.setOptions(displayOptions);
 		const enumDescriptions = dataElement.setting.enumDescriptions;
 		const enumDescriptionsAreMarkdown = dataElement.setting.enumDescriptionsAreMarkdown;
-		template.selectBox.setDetailsProvider(index =>
-			({
-				details: enumDescriptions && enumDescriptions[index] && (enumDescriptionsAreMarkdown ? fixSettingLinks(enumDescriptions[index], false) : enumDescriptions[index]),
-				isMarkdown: enumDescriptionsAreMarkdown
-			}));
+
+		let displayOptions = dataElement.setting.enum
+			.map(String)
+			.map(escapeInvisibleChars)
+			.map((data, index) => <ISelectOptionItem>{
+				text: data,
+				description: (enumDescriptions && enumDescriptions[index] && (enumDescriptionsAreMarkdown ? fixSettingLinks(enumDescriptions[index], false) : enumDescriptions[index])),
+				descriptionIsMarkdown: enumDescriptionsAreMarkdown,
+				decoratorRight: (data === dataElement.defaultValue ? localize('settings.Default', "{0}", 'default') : '')
+			});
+
+		template.selectBox.setOptions(displayOptions);
 
 		const label = this.setElementAriaLabels(dataElement, SETTINGS_ENUM_TEMPLATE_ID, template);
 		template.selectBox.setAriaLabel(label);
@@ -1628,7 +1629,7 @@ class CopySettingIdAction extends Action {
 			this.clipboardService.writeText(context.setting.key);
 		}
 
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -1648,6 +1649,6 @@ class CopySettingAsJSONAction extends Action {
 			this.clipboardService.writeText(jsonResult);
 		}
 
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 }

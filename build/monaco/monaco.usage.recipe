@@ -11,7 +11,6 @@ import { SimpleWorkerClient, create as create1 } from './vs/base/common/worker/s
 import { create as create2 } from './vs/editor/common/services/editorSimpleWorker';
 import { QuickOpenWidget } from './vs/base/parts/quickopen/browser/quickOpenWidget';
 import { SyncDescriptor0, SyncDescriptor1, SyncDescriptor2, SyncDescriptor3, SyncDescriptor4, SyncDescriptor5, SyncDescriptor6, SyncDescriptor7, SyncDescriptor8 } from './vs/platform/instantiation/common/descriptors';
-import { PolyfillPromise } from './vs/base/common/winjs.polyfill.promise';
 import { DiffNavigator } from './vs/editor/browser/widget/diffNavigator';
 import * as editorAPI from './vs/editor/editor.api';
 
@@ -31,14 +30,6 @@ import * as editorAPI from './vs/editor/editor.api';
 	a = (<SimpleWorkerClient<any>>b).getProxyObject; // IWorkerClient
 	a = create1;
 	a = create2;
-
-	// promise polyfill
-	a = PolyfillPromise.all;
-	a = PolyfillPromise.race;
-	a = PolyfillPromise.resolve;
-	a = PolyfillPromise.reject;
-	a = (<PolyfillPromise>b).then;
-	a = (<PolyfillPromise>b).catch;
 
 	// injection madness
 	a = (<SyncDescriptor0<any>>b).ctor;
@@ -73,7 +64,6 @@ import * as editorAPI from './vs/editor/editor.api';
 	a = editorAPI.SelectionDirection;
 	a = editorAPI.MarkerSeverity;
 	a = editorAPI.MarkerTag;
-	a = editorAPI.Promise;
 	a = editorAPI.Uri;
 	a = editorAPI.Token;
 	a = editorAPI.editor;

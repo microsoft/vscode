@@ -181,7 +181,7 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 		this.webview.sendMessage(data);
 	}
 
-	public setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+	public setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 
 		if (this.input && this.input.matches(input) && this._hasValidModel() && this.input instanceof HtmlInput && input instanceof HtmlInput && areHtmlInputOptionsEqual(this.input.options, input.options)) {
 			return Promise.resolve(undefined);

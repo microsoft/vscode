@@ -32,6 +32,7 @@ import { ExtensionHostProcessManager } from 'vs/workbench/services/extensions/el
 
 const hasOwnProperty = Object.hasOwnProperty;
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(void 0);
+const DYNAMIC_EXTENSION_POINTS = false;
 
 schema.properties.engines.properties.vscode.default = `^${pkg.version}`;
 
@@ -61,6 +62,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 	// --- Members used per extension host process
 	private _extensionHostProcessManagers: ExtensionHostProcessManager[];
+	private _extensionHostActiveExtensions: { [id: string]: boolean; };
 	private _extensionHostProcessActivationTimes: { [id: string]: ActivationTimes; };
 	private _extensionHostExtensionRuntimeErrors: { [id: string]: Error[]; };
 
@@ -84,6 +86,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		this._extensionScanner = this._instantiationService.createInstance(CachedExtensionScanner);
 
 		this._extensionHostProcessManagers = [];
+		this._extensionHostActiveExtensions = Object.create(null);
 		this._extensionHostProcessActivationTimes = Object.create(null);
 		this._extensionHostExtensionRuntimeErrors = Object.create(null);
 
@@ -97,6 +100,71 @@ export class ExtensionService extends Disposable implements IExtensionService {
 				}
 			}]);
 		}
+
+		if (DYNAMIC_EXTENSION_POINTS) {
+			this._extensionEnablementService.onEnablementChanged((identifier) => {
+				const extension = this._registry.getExtensionDescription(identifier.id);
+				if (!extension) {
+					// cannot handle enablement yet
+					return;
+				}
+
+				// TODO@Alex: Assuming the extension becomes disabled
+				// until the enablement service gives better API
+				this._removeExtension(extension);
+			});
+		}
+	}
+
+	private _removeExtension(extension: IExtensionDescription): boolean {
+		if (!this._canRemoveExtension(extension)) {
+			return false;
+		}
+
+		this._registry.remove(extension.id);
+		// TODO@Alex: remove from the extension host
+
+		const affectedExtensionPoints: { [extPointName: string]: boolean; } = Object.create(null);
+		if (extension.contributes) {
+			for (let extPointName in extension.contributes) {
+				if (hasOwnProperty.call(extension.contributes, extPointName)) {
+					affectedExtensionPoints[extPointName] = true;
+				}
+			}
+		}
+
+		const messageHandler = (msg: IMessage) => this._handleExtensionPointMessage(msg);
+
+		const availableExtensions = this._registry.getAllExtensionDescriptions();
+		const extensionPoints = ExtensionsRegistry.getExtensionPoints();
+		for (let i = 0, len = extensionPoints.length; i < len; i++) {
+			if (affectedExtensionPoints[extensionPoints[i].name]) {
+				ExtensionService._handleExtensionPoint(extensionPoints[i], availableExtensions, messageHandler);
+			}
+		}
+
+		return true;
+	}
+
+	private _canRemoveExtension(extension: IExtensionDescription): boolean {
+		if (this._extensionHostActiveExtensions[extension.id]) {
+			// Extension is running, cannot remove it safely
+			return false;
+		}
+
+		const extensionPoints = ExtensionsRegistry.getExtensionPointsMap();
+		if (extension.contributes) {
+			for (let extPointName in extension.contributes) {
+				if (hasOwnProperty.call(extension.contributes, extPointName)) {
+					const extPoint = extensionPoints[extPointName];
+					if (extPoint && !extPoint.isDynamic) {
+						return false;
+					}
+				}
+			}
+		}
+
+		return true;
 	}
 
 	private _startDelayed(lifecycleService: ILifecycleService): void {
@@ -143,6 +211,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			this._extensionHostProcessManagers[i].dispose();
 		}
 		this._extensionHostProcessManagers = [];
+		this._extensionHostActiveExtensions = Object.create(null);
 		this._extensionHostProcessActivationTimes = Object.create(null);
 		this._extensionHostExtensionRuntimeErrors = Object.create(null);
 
@@ -518,7 +587,11 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		}
 	}
 
-	public _onExtensionActivated(extensionId: string, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationEvent: string): void {
+	public _onWillActivateExtension(extensionId: string): void {
+		this._extensionHostActiveExtensions[extensionId] = true;
+	}
+
+	public _onDidActivateExtension(extensionId: string, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationEvent: string): void {
 		this._extensionHostProcessActivationTimes[extensionId] = new ActivationTimes(startup, codeLoadingTime, activateCallTime, activateResolvedTime, activationEvent);
 		this._onDidChangeExtensionsStatus.fire([extensionId]);
 	}

@@ -106,8 +106,9 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 		env?: { [key: string]: string },
 		waitOnExit?: boolean
 	): void {
-		this._proxy.$createTerminal(this._name, shellPath, shellArgs, cwd, env, waitOnExit).then((id) => {
-			this._runQueuedRequests(id);
+		this._proxy.$createTerminal(this._name, shellPath, shellArgs, cwd, env, waitOnExit).then(terminal => {
+			this._name = terminal.name;
+			this._runQueuedRequests(terminal.id);
 		});
 	}
 
@@ -119,7 +120,7 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 		this._name = name;
 	}
 
-	public get processId(): Thenable<number> {
+	public get processId(): Promise<number> {
 		return this._pidPromise;
 	}
 
@@ -143,6 +144,13 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 		if (this._pidPromiseComplete) {
 			this._pidPromiseComplete(processId);
 			this._pidPromiseComplete = null;
+		} else {
+			// Recreate the promise if this is the nth processId set (eg. reused task terminals)
+			this._pidPromise.then(pid => {
+				if (pid !== processId) {
+					this._pidPromise = Promise.resolve(processId);
+				}
+			});
 		}
 	}
 
@@ -401,8 +409,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
 		// Continue env initialization, merging in the env from the launch
 		// config and adding keys that are needed to create the process
-		const locale = terminalConfig.get('setLocaleVariables') ? platform.locale : undefined;
-		terminalEnvironment.addTerminalEnvironmentKeys(env, locale);
+		terminalEnvironment.addTerminalEnvironmentKeys(env, platform.locale, terminalConfig.get('setLocaleVariables'));
 
 		// Fork the process and listen for messages
 		this._logService.debug(`Terminal process launching on ext host`, shellLaunchConfig, initialCwd, cols, rows, env);

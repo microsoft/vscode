@@ -13,7 +13,6 @@ import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IExtensionManagementService, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IRequestService } from 'vs/platform/request/node/request';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { language } from 'vs/base/common/platform';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { match } from 'vs/base/common/glob';
@@ -98,9 +97,9 @@ export interface IExperiment {
 
 export interface IExperimentService {
 	_serviceBrand: any;
-	getExperimentById(id: string): TPromise<IExperiment>;
-	getExperimentsByType(type: ExperimentActionType): TPromise<IExperiment[]>;
-	getCuratedExtensionsList(curatedExtensionsKey: string): TPromise<string[]>;
+	getExperimentById(id: string): Promise<IExperiment>;
+	getExperimentsByType(type: ExperimentActionType): Promise<IExperiment[]>;
+	getCuratedExtensionsList(curatedExtensionsKey: string): Promise<string[]>;
 	markAsCompleted(experimentId: string): void;
 
 	onExperimentEnabled: Event<IExperiment>;
@@ -111,7 +110,7 @@ export const IExperimentService = createDecorator<IExperimentService>('experimen
 export class ExperimentService extends Disposable implements IExperimentService {
 	_serviceBrand: any;
 	private _experiments: IExperiment[] = [];
-	private _loadExperimentsPromise: TPromise<void>;
+	private _loadExperimentsPromise: Promise<void>;
 	private _curatedMapping = Object.create(null);
 	private _disposables: IDisposable[] = [];
 
@@ -133,13 +132,13 @@ export class ExperimentService extends Disposable implements IExperimentService 
 		this._loadExperimentsPromise = Promise.resolve(this.lifecycleService.when(LifecyclePhase.Eventually)).then(() => this.loadExperiments());
 	}
 
-	public getExperimentById(id: string): TPromise<IExperiment> {
+	public getExperimentById(id: string): Promise<IExperiment> {
 		return this._loadExperimentsPromise.then(() => {
 			return this._experiments.filter(x => x.id === id)[0];
 		});
 	}
 
-	public getExperimentsByType(type: ExperimentActionType): TPromise<IExperiment[]> {
+	public getExperimentsByType(type: ExperimentActionType): Promise<IExperiment[]> {
 		return this._loadExperimentsPromise.then(() => {
 			if (type === ExperimentActionType.Custom) {
 				return this._experiments.filter(x => x.enabled && (!x.action || x.action.type === type));
@@ -148,7 +147,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 		});
 	}
 
-	public getCuratedExtensionsList(curatedExtensionsKey: string): TPromise<string[]> {
+	public getCuratedExtensionsList(curatedExtensionsKey: string): Promise<string[]> {
 		return this._loadExperimentsPromise.then(() => {
 			for (let i = 0; i < this._experiments.length; i++) {
 				if (this._experiments[i].enabled
@@ -169,7 +168,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 		this.storageService.store(storageKey, JSON.stringify(experimentState), StorageScope.GLOBAL);
 	}
 
-	protected getExperiments(): TPromise<IRawExperiment[]> {
+	protected getExperiments(): Promise<IRawExperiment[]> {
 		if (!product.experimentsUrl || this.configurationService.getValue('workbench.enableExperiments') === false) {
 			return Promise.resolve([]);
 		}
@@ -183,7 +182,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 		}, () => Promise.resolve(null));
 	}
 
-	private loadExperiments(): TPromise<any> {
+	private loadExperiments(): Promise<any> {
 		return this.getExperiments().then(rawExperiments => {
 			// Offline mode
 			if (!rawExperiments) {
@@ -314,7 +313,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 		return true;
 	}
 
-	private shouldRunExperiment(experiment: IRawExperiment, processedExperiment: IExperiment): TPromise<ExperimentState> {
+	private shouldRunExperiment(experiment: IRawExperiment, processedExperiment: IExperiment): Promise<ExperimentState> {
 		if (processedExperiment.state !== ExperimentState.Evaluating) {
 			return Promise.resolve(processedExperiment.state);
 		}

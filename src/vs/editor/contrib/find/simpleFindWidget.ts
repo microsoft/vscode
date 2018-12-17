@@ -26,7 +26,7 @@ const NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
 
 export abstract class SimpleFindWidget extends Widget {
 	private _findInput: FindInput;
-	private _domNode: HTMLElement;
+	private _domNode?: HTMLElement;
 	private _innerDomNode: HTMLElement;
 	private _isVisible: boolean = false;
 	private _focusTracker: dom.IFocusTracker;
@@ -186,7 +186,7 @@ export abstract class SimpleFindWidget extends Widget {
 		}
 	}
 
-	public getDomNode(): HTMLElement {
+	public getDomNode() {
 		return this._domNode;
 	}
 

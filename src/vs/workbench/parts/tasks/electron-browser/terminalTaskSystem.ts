@@ -719,14 +719,18 @@ export class TerminalTaskSystem implements ITaskSystem {
 				if (basename === 'cmd.exe' && ((options.cwd && TPath.isUNC(options.cwd)) || (!options.cwd && TPath.isUNC(process.cwd())))) {
 					return undefined;
 				}
-				if (basename === 'powershell.exe' || basename === 'pwsh.exe') {
+				if ((basename === 'powershell.exe') || (basename === 'pwsh.exe')) {
 					if (!shellSpecified) {
 						toAdd.push('-Command');
 					}
-				} else if (basename === 'bash.exe' || basename === 'zsh.exe') {
+				} else if ((basename === 'bash.exe') || (basename === 'zsh.exe')) {
 					windowsShellArgs = false;
 					if (!shellSpecified) {
 						toAdd.push('-c');
+					}
+				} else if (basename === 'wsl.exe') {
+					if (!shellSpecified) {
+						toAdd.push('-e');
 					}
 				} else {
 					if (!shellSpecified) {
@@ -1030,7 +1034,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 	}
 
-	private collectMatcherVariables(variables: Set<string>, values: (string | ProblemMatcher)[]): void {
+	private collectMatcherVariables(variables: Set<string>, values: Array<string | ProblemMatcher>): void {
 		if (values === void 0 || values === null || values.length === 0) {
 			return;
 		}
@@ -1054,7 +1058,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 	private collectVariables(variables: Set<string>, value: string | CommandString): void {
 		let string: string = Types.isString(value) ? value : value.value;
 		let r = /\$\{(.*?)\}/g;
-		let matches: RegExpExecArray;
+		let matches: RegExpExecArray | null;
 		do {
 			matches = r.exec(string);
 			if (matches) {
@@ -1077,7 +1081,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		return value.map(s => this.resolveVariable(resolver, s));
 	}
 
-	private resolveMatchers(resolver: VariableResolver, values: (string | ProblemMatcher)[]): ProblemMatcher[] {
+	private resolveMatchers(resolver: VariableResolver, values: Array<string | ProblemMatcher>): ProblemMatcher[] {
 		if (values === void 0 || values === null || values.length === 0) {
 			return [];
 		}

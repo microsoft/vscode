@@ -123,7 +123,7 @@ export class SearchService extends Disposable implements ISearchService {
 	private doSearch(query: ISearchQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void): Promise<ISearchComplete> {
 		const schemesInQuery = this.getSchemesInQuery(query);
 
-		const providerActivations: Thenable<any>[] = [Promise.resolve(null)];
+		const providerActivations: Promise<any>[] = [Promise.resolve(null)];
 		schemesInQuery.forEach(scheme => providerActivations.push(this.extensionService.activateByEvent(`onSearch:${scheme}`)));
 		providerActivations.push(this.extensionService.activateByEvent('onSearch:file'));
 
@@ -191,7 +191,7 @@ export class SearchService extends Disposable implements ISearchService {
 		const e2eSW = StopWatch.create(false);
 
 		const diskSearchQueries: IFolderQuery[] = [];
-		const searchPs: Thenable<ISearchComplete>[] = [];
+		const searchPs: Promise<ISearchComplete>[] = [];
 
 		const fqs = this.groupFolderQueriesByScheme(query);
 		keys(fqs).forEach(scheme => {
@@ -601,7 +601,7 @@ export class DiskSearch implements ISearchResultProvider {
 		return fileMatch;
 	}
 
-	public clearCache(cacheKey: string): Thenable<void> {
+	public clearCache(cacheKey: string): Promise<void> {
 		return this.raw.clearCache(cacheKey);
 	}
 }

@@ -29,7 +29,7 @@ class TestViewletService implements IViewletService {
 	onDidViewletClose = this.onDidViewletCloseEmitter.event;
 	onDidViewletEnablementChange = this.onDidViewletEnableEmitter.event;
 
-	public openViewlet(id: string, focus?: boolean): Promise<IViewlet> {
+	public openViewlet(id: string, focus?: boolean): Promise<IViewlet | null> {
 		return Promise.resolve(null);
 	}
 

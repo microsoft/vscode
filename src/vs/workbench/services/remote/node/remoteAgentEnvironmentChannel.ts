@@ -25,7 +25,7 @@ export class RemoteExtensionEnvironmentChannelClient {
 
 	constructor(private channel: IChannel) { }
 
-	getEnvironmentData(remoteAuthority: string, extensionDevelopmentPath?: URI): Thenable<IRemoteAgentEnvironment> {
+	getEnvironmentData(remoteAuthority: string, extensionDevelopmentPath?: URI): Promise<IRemoteAgentEnvironment> {
 		return this.channel.call<IRemoteAgentEnvironmentDTO>('getEnvironmentData', [remoteAuthority, extensionDevelopmentPath])
 			.then((data: IRemoteAgentEnvironmentDTO): IRemoteAgentEnvironment => {
 				return {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./gridview';
-import { Event, anyEvent, Emitter, mapEvent, Relay } from 'vs/base/common/event';
+import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
 import { SplitView, IView as ISplitView, Sizing, LayoutPriority, ISplitViewStyles } from 'vs/base/browser/ui/splitview/splitview';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -150,7 +150,7 @@ class BranchNode implements ISplitView, IDisposable {
 		this.splitview = new SplitView(this.element, { orientation, styles });
 		this.splitview.layout(size);
 
-		const onDidSashReset = mapEvent(this.splitview.onDidSashReset, i => [i]);
+		const onDidSashReset = Event.map(this.splitview.onDidSashReset, i => [i]);
 		this.splitviewSashResetDisposable = onDidSashReset(this._onDidSashReset.fire, this._onDidSashReset);
 	}
 
@@ -300,11 +300,11 @@ class BranchNode implements ISplitView, IDisposable {
 	}
 
 	private onDidChildrenChange(): void {
-		const onDidChildrenChange = anyEvent(...this.children.map(c => c.onDidChange));
+		const onDidChildrenChange = Event.any(...this.children.map(c => c.onDidChange));
 		this.childrenChangeDisposable.dispose();
 		this.childrenChangeDisposable = onDidChildrenChange(this._onDidChange.fire, this._onDidChange);
 
-		const onDidChildrenSashReset = anyEvent(...this.children.map((c, i) => mapEvent(c.onDidSashReset, location => [i, ...location])));
+		const onDidChildrenSashReset = Event.any(...this.children.map((c, i) => Event.map(c.onDidSashReset, location => [i, ...location])));
 		this.childrenSashResetDisposable.dispose();
 		this.childrenSashResetDisposable = onDidChildrenSashReset(this._onDidSashReset.fire, this._onDidSashReset);
 
@@ -414,8 +414,8 @@ class LeafNode implements ISplitView, IDisposable {
 	) {
 		this._orthogonalSize = orthogonalSize;
 
-		this._onDidViewChange = mapEvent(this.view.onDidChange, this.orientation === Orientation.HORIZONTAL ? e => e && e.width : e => e && e.height);
-		this.onDidChange = anyEvent(this._onDidViewChange, this._onDidSetLinkedNode.event, this._onDidLinkedWidthNodeChange.event, this._onDidLinkedHeightNodeChange.event);
+		this._onDidViewChange = Event.map(this.view.onDidChange, this.orientation === Orientation.HORIZONTAL ? e => e && e.width : e => e && e.height);
+		this.onDidChange = Event.any(this._onDidViewChange, this._onDidSetLinkedNode.event, this._onDidLinkedWidthNodeChange.event, this._onDidLinkedHeightNodeChange.event);
 	}
 
 	get width(): number {
@@ -547,7 +547,7 @@ export class GridView implements IDisposable {
 		this._root = root;
 		this.element.appendChild(root.element);
 		this.onDidSashResetRelay.input = root.onDidSashReset;
-		this._onDidChange.input = mapEvent(root.onDidChange, () => undefined); // TODO
+		this._onDidChange.input = Event.map(root.onDidChange, () => undefined); // TODO
 	}
 
 	get orientation(): Orientation {

@@ -436,7 +436,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		if (workbenchState === WorkbenchState.WORKSPACE) {
 			return this.workspaceConfiguration.reload().then(() => this.onWorkspaceConfigurationChanged());
 		}
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 
 	private reloadWorkspaceFolderConfiguration(folder: IWorkspaceFolder, key?: string): Promise<void> {
@@ -544,7 +544,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 				this.triggerConfigurationChange(workspaceConfigurationChangeEvent, ConfigurationTarget.WORKSPACE);
 			}
 		}
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 
 	private onWorkspaceFolderConfigurationChanged(folder: IWorkspaceFolder, key?: string): Promise<void> {
@@ -606,7 +606,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		if (target === ConfigurationTarget.MEMORY) {
 			this._configuration.updateValue(key, value, overrides);
 			this.triggerConfigurationChange(new ConfigurationChangeEvent().change(overrides.overrideIdentifier ? [keyFromOverrideIdentifier(overrides.overrideIdentifier)] : [key], overrides.resource), target);
-			return Promise.resolve(null);
+			return Promise.resolve(void 0);
 		}
 
 		return this.configurationEditingService.writeConfiguration(target, { key, value }, { scopes: overrides, donotNotifyError })

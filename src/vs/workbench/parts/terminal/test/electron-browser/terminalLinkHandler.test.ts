@@ -170,7 +170,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 	suite('preprocessPath', () => {
 		test('Windows', () => {
 			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Windows, null, null, null, null);
-			linkHandler.initialCwd = 'C:\\base';
+			linkHandler.processCwd = 'C:\\base';
 
 			let stub = sinon.stub(path, 'join', function (arg1: string, arg2: string) {
 				return arg1 + '\\' + arg2;
@@ -183,7 +183,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 		});
 		test('Windows - spaces', () => {
 			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Windows, null, null, null, null);
-			linkHandler.initialCwd = 'C:\\base dir';
+			linkHandler.processCwd = 'C:\\base dir';
 
 			let stub = sinon.stub(path, 'join', function (arg1: string, arg2: string) {
 				return arg1 + '\\' + arg2;
@@ -197,7 +197,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 
 		test('Linux', () => {
 			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Linux, null, null, null, null);
-			linkHandler.initialCwd = '/base';
+			linkHandler.processCwd = '/base';
 
 			let stub = sinon.stub(path, 'join', function (arg1: string, arg2: string) {
 				return arg1 + '/' + arg2;

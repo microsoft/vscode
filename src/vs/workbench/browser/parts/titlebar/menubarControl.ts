@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { IMenubarMenu, IMenubarMenuItemAction, IMenubarMenuItemSubmenu, IMenubarKeybinding, IMenubarService, IMenubarData } from 'vs/platform/menubar/common/menubar';
+import { IMenubarMenu, IMenubarMenuItemAction, IMenubarMenuItemSubmenu, IMenubarKeybinding, IMenubarService, IMenubarData, MenubarMenuItem } from 'vs/platform/menubar/common/menubar';
 import { IMenuService, MenuId, IMenu, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { registerThemingParticipant, ITheme, ICssStyleCollector, IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWindowService, MenuBarVisibility, IWindowsService, getTitleBarStyle } from 'vs/platform/windows/common/windows';
@@ -31,6 +31,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { MenuBar } from 'vs/base/browser/ui/menu/menubar';
 import { SubmenuAction } from 'vs/base/browser/ui/menu/menu';
 import { attachMenuStyler } from 'vs/platform/theme/common/styler';
+import { assign } from 'vs/base/common/objects';
 
 export class MenubarControl extends Disposable {
 
@@ -313,7 +314,7 @@ export class MenubarControl extends Disposable {
 		return label;
 	}
 
-	private createOpenRecentMenuAction(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI, commandId: string, isFile: boolean): IAction {
+	private createOpenRecentMenuAction(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI, commandId: string, isFile: boolean): IAction & { uri: URI } {
 
 		let label: string;
 		let uri: URI;
@@ -329,7 +330,7 @@ export class MenubarControl extends Disposable {
 			label = this.labelService.getUriLabel(uri);
 		}
 
-		return new Action(commandId, label, undefined, undefined, (event) => {
+		const ret: IAction = new Action(commandId, label, undefined, undefined, (event) => {
 			const openInNewWindow = event && ((!isMacintosh && (event.ctrlKey || event.shiftKey)) || (isMacintosh && (event.metaKey || event.altKey)));
 
 			return this.windowService.openWindow([uri], {
@@ -337,8 +338,11 @@ export class MenubarControl extends Disposable {
 				forceOpenWorkspaceAsFile: isFile
 			});
 		});
+
+		return assign(ret, { uri: uri });
 	}
 
+	/* Custom Menu takes actions */
 	private getOpenRecentActions(): IAction[] {
 		if (!this.recentlyOpened) {
 			return [];
@@ -365,6 +369,19 @@ export class MenubarControl extends Disposable {
 		}
 
 		return result;
+	}
+
+	private transformOpenRecentAction(action: Separator | (IAction & { uri: URI })): MenubarMenuItem {
+		if (action instanceof Separator) {
+			return { id: 'vscode.menubar.separator' };
+		}
+
+		return {
+			id: action.id,
+			uri: action.uri,
+			enabled: action.enabled,
+			label: action.label
+		};
 	}
 
 	private getUpdateAction(): IAction | null {
@@ -532,6 +549,11 @@ export class MenubarControl extends Disposable {
 					menuToPopulate.items.push(menubarSubmenuItem);
 					menuToDispose.dispose();
 				} else {
+					if (menuItem.id === 'workbench.action.openRecent') {
+						const actions = this.getOpenRecentActions().map(this.transformOpenRecentAction);
+						menuToPopulate.items.push(...actions);
+					}
+
 					let menubarMenuItem: IMenubarMenuItemAction = {
 						id: menuItem.id,
 						label: menuItem.label

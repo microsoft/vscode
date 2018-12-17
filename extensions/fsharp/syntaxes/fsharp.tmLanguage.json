@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/ionide/ionide-fsgrammar/commit/24c1588529af144d205f66fbcec6889500f9aaa9",
+	"version": "https://github.com/ionide/ionide-fsgrammar/commit/be0bdfd1e272b6633f5edf1429052fe9fa4df7c1",
 	"name": "fsharp",
 	"scopeName": "source.fsharp",
 	"patterns": [
@@ -118,6 +118,9 @@
 					}
 				},
 				{
+					"include": "#compiler_directives"
+				},
+				{
 					"include": "#constants"
 				},
 				{
@@ -131,6 +134,21 @@
 				},
 				{
 					"include": "#keywords"
+				},
+				{
+					"include": "#text"
+				},
+				{
+					"include": "#definition"
+				},
+				{
+					"include": "#attributes"
+				},
+				{
+					"include": "#keywords"
+				},
+				{
+					"include": "#cexprs"
 				},
 				{
 					"include": "#text"
@@ -808,7 +826,7 @@
 			"patterns": [
 				{
 					"name": "binding.fsharp",
-					"begin": "\\b(let mutable|let inline|let|member val|static member inline|static member|member|override|let!)(\\s+rec|mutable)?(\\s+\\[\\<.*\\>\\])?\\s*(private|internal|public)?\\s+(\\[[^-=]*\\]|[_[:alpha:]]([_[:alpha:]0-9,\\._]+)*|``[_[:alpha:]]([_[:alpha:]0-9,\\._`\\s]+|(?<=,)\\s)*)?",
+					"begin": "\\b(let mutable|static let mutable|let inline|let|member val|static member inline|static member|default|member|override|let!)(\\s+rec|mutable)?(\\s+\\[\\<.*\\>\\])?\\s*(private|internal|public)?\\s+(\\[[^-=]*\\]|[_[:alpha:]]([_[:alpha:]0-9,\\._]+)*|``[_[:alpha:]]([_[:alpha:]0-9,\\._`\\s]+|(?<=,)\\s)*)?",
 					"end": "\\s*(with\\b|=|\\n+=|(?<=\\=))",
 					"beginCaptures": {
 						"1": {

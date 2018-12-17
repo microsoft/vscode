@@ -7,7 +7,7 @@ import { ISpliceable } from 'vs/base/common/sequence';
 import { Iterator, ISequence } from 'vs/base/common/iterator';
 import { Emitter, Event, EventBufferer } from 'vs/base/common/event';
 import { tail2 } from 'vs/base/common/arrays';
-import { ITreeFilterDataResult, TreeVisibility, ITreeFilter, ITreeModel, ITreeNode, ITreeElement } from 'vs/base/browser/ui/tree/tree';
+import { ITreeFilterDataResult, TreeVisibility, ITreeFilter, ITreeModel, ITreeNode, ITreeElement, ICollapseStateChangeEvent } from 'vs/base/browser/ui/tree/tree';
 
 interface IMutableTreeNode<T, TFilterData> extends ITreeNode<T, TFilterData> {
 	readonly parent: IMutableTreeNode<T, TFilterData> | undefined;
@@ -45,11 +45,13 @@ export interface IIndexTreeModelOptions<T, TFilterData> {
 
 export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = void> implements ITreeModel<T, TFilterData, number[]> {
 
+	readonly rootRef = [];
+
 	private root: IMutableTreeNode<T, TFilterData>;
 	private eventBufferer = new EventBufferer();
 
-	private _onDidChangeCollapseState = new Emitter<ITreeNode<T, TFilterData>>();
-	readonly onDidChangeCollapseState: Event<ITreeNode<T, TFilterData>> = this.eventBufferer.wrapEvent(this._onDidChangeCollapseState.event);
+	private _onDidChangeCollapseState = new Emitter<ICollapseStateChangeEvent<T, TFilterData>>();
+	readonly onDidChangeCollapseState: Event<ICollapseStateChangeEvent<T, TFilterData>> = this.eventBufferer.wrapEvent(this._onDidChangeCollapseState.event);
 
 	private _onDidChangeRenderNodeCount = new Emitter<ITreeNode<T, TFilterData>>();
 	readonly onDidChangeRenderNodeCount: Event<ITreeNode<T, TFilterData>> = this.eventBufferer.wrapEvent(this._onDidChangeRenderNodeCount.event);
@@ -60,6 +62,8 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 	constructor(private list: ISpliceable<ITreeNode<T, TFilterData>>, rootElement: T, options: IIndexTreeModelOptions<T, TFilterData> = {}) {
 		this.collapseByDefault = typeof options.collapseByDefault === 'undefined' ? false : options.collapseByDefault;
 		this.filter = options.filter;
+
+		// this.onDidChangeCollapseState(node => console.log(node.collapsed, node));
 
 		this.root = {
 			parent: undefined,
@@ -123,32 +127,6 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		return this.getTreeNodeWithListIndex(location).listIndex;
 	}
 
-	setCollapsed(location: number[], collapsed: boolean): boolean {
-		const { node, listIndex, revealed } = this.getTreeNodeWithListIndex(location);
-		return this.eventBufferer.bufferEvents(() => this._setCollapsed(node, listIndex, revealed, collapsed));
-	}
-
-	toggleCollapsed(location: number[]): void {
-		const { node, listIndex, revealed } = this.getTreeNodeWithListIndex(location);
-		this.eventBufferer.bufferEvents(() => this._setCollapsed(node, listIndex, revealed));
-	}
-
-	collapseAll(): void {
-		const queue = [...this.root.children];
-		let listIndex = 0;
-
-		this.eventBufferer.bufferEvents(() => {
-			while (queue.length > 0) {
-				const node = queue.shift()!;
-				const revealed = listIndex < this.root.children.length;
-				this._setCollapsed(node, listIndex, revealed, true);
-
-				queue.push(...node.children);
-				listIndex++;
-			}
-		});
-	}
-
 	isCollapsible(location: number[]): boolean {
 		return this.getTreeNode(location).collapsible;
 	}
@@ -157,36 +135,57 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		return this.getTreeNode(location).collapsed;
 	}
 
-	refilter(): void {
-		const previousRenderNodeCount = this.root.renderNodeCount;
-		const toInsert = this.updateNodeAfterFilterChange(this.root);
-		this.list.splice(0, previousRenderNodeCount, toInsert);
-	}
-
-	private _setCollapsed(node: IMutableTreeNode<T, TFilterData>, listIndex: number, revealed: boolean, collapsed?: boolean | undefined): boolean {
-		if (!node.collapsible) {
-			return false;
-		}
+	setCollapsed(location: number[], collapsed?: boolean, recursive?: boolean): boolean {
+		const { node, listIndex, revealed } = this.getTreeNodeWithListIndex(location);
 
 		if (typeof collapsed === 'undefined') {
 			collapsed = !node.collapsed;
 		}
 
-		if (node.collapsed === collapsed) {
-			return false;
+		return this.eventBufferer.bufferEvents(() => {
+			return this._setCollapsed(node, listIndex, revealed, collapsed!, recursive || false);
+		});
+	}
+
+	private _setCollapsed(node: IMutableTreeNode<T, TFilterData>, listIndex: number, revealed: boolean, collapsed: boolean, recursive: boolean): boolean {
+		const result = this._setNodeCollapsed(node, collapsed, recursive, false);
+
+		if (!revealed || !node.visible) {
+			return result;
 		}
 
-		node.collapsed = collapsed;
+		const previousRenderNodeCount = node.renderNodeCount;
+		const toInsert = this.updateNodeAfterCollapseChange(node);
+		const deleteCount = previousRenderNodeCount - (listIndex === -1 ? 0 : 1);
+		this.list.splice(listIndex + 1, deleteCount, toInsert.slice(1));
 
-		if (revealed) {
-			const previousRenderNodeCount = node.renderNodeCount;
-			const toInsert = this.updateNodeAfterCollapseChange(node);
+		return result;
+	}
 
-			this.list.splice(listIndex + 1, previousRenderNodeCount - 1, toInsert.slice(1));
-			this._onDidChangeCollapseState.fire(node);
+	private _setNodeCollapsed(node: IMutableTreeNode<T, TFilterData>, collapsed: boolean, recursive: boolean, deep: boolean): boolean {
+		let result = node.collapsible && node.collapsed !== collapsed;
+
+		if (node.collapsible) {
+			node.collapsed = collapsed;
+
+			if (result) {
+				this._onDidChangeCollapseState.fire({ node, deep });
+			}
 		}
 
-		return true;
+		if (recursive) {
+			for (const child of node.children) {
+				result = this._setNodeCollapsed(child, collapsed, true, true) || result;
+			}
+		}
+
+		return result;
+	}
+
+	refilter(): void {
+		const previousRenderNodeCount = this.root.renderNodeCount;
+		const toInsert = this.updateNodeAfterFilterChange(this.root);
+		this.list.splice(0, previousRenderNodeCount, toInsert);
 	}
 
 	private createTreeNode(
@@ -374,6 +373,10 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 
 	// expensive
 	private getTreeNodeWithListIndex(location: number[]): { node: IMutableTreeNode<T, TFilterData>, listIndex: number, revealed: boolean } {
+		if (location.length === 0) {
+			return { node: this.root, listIndex: -1, revealed: true };
+		}
+
 		const { parentNode, listIndex, revealed } = this.getParentNodeWithListIndex(location);
 		const index = location[location.length - 1];
 

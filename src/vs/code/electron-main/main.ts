@@ -47,7 +47,6 @@ import { uploadLogs } from 'vs/code/electron-main/logUploader';
 import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { CommandLineDialogService } from 'vs/platform/dialogs/node/dialogService';
-import { ILabelService, LabelService } from 'vs/platform/label/common/label';
 import { createWaitMarkerFile } from 'vs/code/node/wait';
 
 function createServices(args: ParsedArgs, bufferLogService: BufferLogService): IInstantiationService {
@@ -60,7 +59,6 @@ function createServices(args: ParsedArgs, bufferLogService: BufferLogService): I
 	setTimeout(() => cleanupOlderLogs(environmentService).then(null, err => console.error(err)), 10000);
 
 	services.set(IEnvironmentService, environmentService);
-	services.set(ILabelService, new LabelService(environmentService, void 0, void 0));
 	services.set(ILogService, logService);
 	services.set(IWorkspacesMainService, new SyncDescriptor(WorkspacesMainService));
 	services.set(IHistoryMainService, new SyncDescriptor(HistoryMainService));
@@ -90,7 +88,7 @@ async function cleanupOlderLogs(environmentService: EnvironmentService): Promise
 	await Promise.all(toDelete.map(name => rimraf(path.join(logsRoot, name))));
 }
 
-function createPaths(environmentService: IEnvironmentService): Thenable<any> {
+function createPaths(environmentService: IEnvironmentService): Promise<any> {
 	const paths = [
 		environmentService.extensionsPath,
 		environmentService.nodeCachedDataDir,
@@ -106,14 +104,14 @@ class ExpectedError extends Error {
 	public readonly isExpected = true;
 }
 
-function setupIPC(accessor: ServicesAccessor): Thenable<Server> {
+function setupIPC(accessor: ServicesAccessor): Promise<Server> {
 	const logService = accessor.get(ILogService);
 	const environmentService = accessor.get(IEnvironmentService);
 	const requestService = accessor.get(IRequestService);
 	const diagnosticsService = accessor.get(IDiagnosticsService);
 
-	function allowSetForegroundWindow(service: LaunchChannelClient): Thenable<void> {
-		let promise: Thenable<void> = Promise.resolve();
+	function allowSetForegroundWindow(service: LaunchChannelClient): Promise<void> {
+		let promise: Promise<void> = Promise.resolve();
 		if (platform.isWindows) {
 			promise = service.getMainProcessId()
 				.then(processId => {
@@ -131,7 +129,7 @@ function setupIPC(accessor: ServicesAccessor): Thenable<Server> {
 		return promise;
 	}
 
-	function setup(retry: boolean): Thenable<Server> {
+	function setup(retry: boolean): Promise<Server> {
 		return serve(environmentService.mainIPCHandle).then(server => {
 
 			// Print --status usage info

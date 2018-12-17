@@ -11,7 +11,6 @@ import { ExplorerItem, OpenEditor } from 'vs/workbench/parts/files/common/explor
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService, ILanguageSelection } from 'vs/editor/common/services/modeService';
@@ -36,7 +35,7 @@ export interface IExplorerViewlet extends IViewlet {
 }
 
 export interface IExplorerView {
-	select(resource: URI, reveal?: boolean): TPromise<void>;
+	select(resource: URI, reveal?: boolean): Promise<void>;
 }
 
 /**
@@ -111,7 +110,7 @@ export interface IFileResource {
 /**
  * Helper to get an explorer item from an object.
  */
-export function explorerItemToFileResource(obj: ExplorerItem | OpenEditor): IFileResource {
+export function explorerItemToFileResource(obj: ExplorerItem | OpenEditor): IFileResource | null {
 	if (obj instanceof ExplorerItem) {
 		const stat = obj as ExplorerItem;
 
@@ -155,7 +154,7 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 	) {
 	}
 
-	provideTextContent(resource: URI): TPromise<ITextModel> {
+	provideTextContent(resource: URI): Promise<ITextModel> {
 		const fileOnDiskResource = resource.with({ scheme: Schemas.file });
 
 		// Make sure our file from disk is resolved up to date
@@ -169,17 +168,21 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 					}
 				});
 
-				const disposeListener = codeEditorModel.onWillDispose(() => {
-					disposeListener.dispose();
-					this.fileWatcher = dispose(this.fileWatcher);
-				});
+				if (codeEditorModel) {
+					const disposeListener = codeEditorModel.onWillDispose(() => {
+						disposeListener.dispose();
+						this.fileWatcher = dispose(this.fileWatcher);
+					});
+				}
 			}
 
 			return codeEditorModel;
 		});
 	}
 
-	private resolveEditorModel(resource: URI, createAsNeeded = true): TPromise<ITextModel> {
+	private resolveEditorModel(resource: URI, createAsNeeded?: true): Promise<ITextModel>;
+	private resolveEditorModel(resource: URI, createAsNeeded?: boolean): Promise<ITextModel | null>;
+	private resolveEditorModel(resource: URI, createAsNeeded: boolean = true): Promise<ITextModel | null> {
 		const fileOnDiskResource = resource.with({ scheme: Schemas.file });
 
 		return this.textFileService.resolveTextContent(fileOnDiskResource).then(content => {

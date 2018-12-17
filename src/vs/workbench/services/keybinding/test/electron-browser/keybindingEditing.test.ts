@@ -111,9 +111,9 @@ suite('KeybindingsEditing', () => {
 	teardown(() => {
 		return new Promise<void>((c, e) => {
 			if (testDir) {
-				extfs.del(testDir, os.tmpdir(), () => c(null), () => c(null));
+				extfs.del(testDir, os.tmpdir(), () => c(void 0), () => c(void 0));
 			} else {
-				c(null);
+				c(void 0);
 			}
 		}).then(() => testDir = null);
 	});

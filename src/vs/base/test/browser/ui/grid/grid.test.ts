@@ -18,10 +18,6 @@ suite('Grid', function () {
 		container.style.height = `${600}px`;
 	});
 
-	teardown(function () {
-		container = null;
-	});
-
 	test('getRelativeLocation', () => {
 		assert.deepEqual(getRelativeLocation(Orientation.VERTICAL, [0], Direction.Up), [0]);
 		assert.deepEqual(getRelativeLocation(Orientation.VERTICAL, [0], Direction.Down), [1]);
@@ -494,10 +490,6 @@ suite('SerializableGrid', function () {
 		container.style.position = 'absolute';
 		container.style.width = `${800}px`;
 		container.style.height = `${600}px`;
-	});
-
-	teardown(function () {
-		container = null;
 	});
 
 	test('serialize empty', function () {

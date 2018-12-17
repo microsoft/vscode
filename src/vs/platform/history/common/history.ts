@@ -12,7 +12,7 @@ import { URI } from 'vs/base/common/uri';
 export const IHistoryMainService = createDecorator<IHistoryMainService>('historyMainService');
 
 export interface IRecentlyOpened {
-	workspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[];
+	workspaces: Array<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier>;
 	files: URI[];
 }
 
@@ -21,9 +21,9 @@ export interface IHistoryMainService {
 
 	onRecentlyOpenedChange: CommonEvent<void>;
 
-	addRecentlyOpened(workspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[], files: URI[]): void;
+	addRecentlyOpened(workspaces: undefined | Array<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier>, files: URI[]): void;
 	getRecentlyOpened(currentWorkspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier, currentFiles?: IPath[]): IRecentlyOpened;
-	removeFromRecentlyOpened(paths: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | string)[]): void;
+	removeFromRecentlyOpened(paths: Array<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | string>): void;
 	clearRecentlyOpened(): void;
 
 	updateWindowsJumpList(): void;

@@ -44,7 +44,7 @@ export function appendKeyBindingLabel(label: string, keyBinding: number | Resolv
 	}
 }
 
-export function openSearchView(viewletService: IViewletService, panelService: IPanelService, focus?: boolean): Thenable<SearchView> {
+export function openSearchView(viewletService: IViewletService, panelService: IPanelService, focus?: boolean): Promise<SearchView> {
 	if (viewletService.getViewlets().filter(v => v.id === VIEW_ID).length) {
 		return viewletService.openViewlet(VIEW_ID, focus).then(viewlet => <SearchView>viewlet);
 	}
@@ -96,7 +96,7 @@ export class FocusNextInputAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Thenable<any> {
+	public run(): Promise<any> {
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		searchView.focusNextInputBox();
 		return Promise.resolve(null);
@@ -114,7 +114,7 @@ export class FocusPreviousInputAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Thenable<any> {
+	public run(): Promise<any> {
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		searchView.focusPreviousInputBox();
 		return Promise.resolve(null);
@@ -129,7 +129,7 @@ export abstract class FindOrReplaceInFilesAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Thenable<any> {
+	public run(): Promise<any> {
 		return openSearchView(this.viewletService, this.panelService, false).then(openedView => {
 			const searchAndReplaceWidget = openedView.searchAndReplaceWidget;
 			searchAndReplaceWidget.toggleReplace(this.expandSearchReplaceWidget);
@@ -164,7 +164,7 @@ export class OpenSearchViewletAction extends FindOrReplaceInFilesAction {
 		super(id, label, viewletService, panelService, /*expandSearchReplaceWidget=*/false);
 	}
 
-	public run(): Thenable<any> {
+	public run(): Promise<any> {
 
 		// Pass focus to viewlet if not open or focused
 		if (this.otherViewletShowing() || !isSearchViewFocused(this.viewletService, this.panelService)) {
@@ -204,7 +204,7 @@ export class CloseReplaceAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Thenable<any> {
+	public run(): Promise<any> {
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		searchView.searchAndReplaceWidget.toggleReplace(false);
 		searchView.searchAndReplaceWidget.focus();
@@ -217,20 +217,25 @@ export class RefreshAction extends Action {
 	static readonly ID: string = 'search.action.refreshSearchResults';
 	static LABEL: string = nls.localize('RefreshAction.label', "Refresh");
 
+	private searchView: SearchView;
+
 	constructor(id: string, label: string,
 		@IViewletService private viewletService: IViewletService,
 		@IPanelService private panelService: IPanelService
 	) {
 		super(id, label, 'search-action refresh');
-		this.update();
+		this.searchView = getSearchView(this.viewletService, this.panelService);
+	}
+
+	get enabled(): boolean {
+		return this.searchView.isSearchSubmitted();
 	}
 
 	update(): void {
-		const searchView = getSearchView(this.viewletService, this.panelService);
-		this.enabled = searchView && searchView.isSearchSubmitted();
+		this._setEnabled(this.enabled);
 	}
 
-	public run(): Thenable<void> {
+	public run(): Promise<void> {
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		if (searchView) {
 			searchView.onQueryChanged();
@@ -257,12 +262,12 @@ export class CollapseDeepestExpandedLevelAction extends Action {
 		this.enabled = searchView && searchView.hasSearchResults();
 	}
 
-	public run(): Thenable<void> {
+	public run(): Promise<void> {
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		if (searchView) {
 			const viewer = searchView.getControl();
 			if (viewer.getHighlight()) {
-				return Promise.resolve(null); // Global action disabled if user is in edit mode from another action
+				return Promise.resolve(void 0); // Global action disabled if user is in edit mode from another action
 			}
 
 			/**
@@ -298,7 +303,7 @@ export class CollapseDeepestExpandedLevelAction extends Action {
 			viewer.domFocus();
 			viewer.focusFirst();
 		}
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -317,10 +322,10 @@ export class ClearSearchResultsAction extends Action {
 
 	update(): void {
 		const searchView = getSearchView(this.viewletService, this.panelService);
-		this.enabled = searchView && searchView.isSearchSubmitted();
+		this.enabled = searchView && (!searchView.allSearchFieldsClear() || searchView.hasSearchResults());
 	}
 
-	public run(): Thenable<void> {
+	public run(): Promise<void> {
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		if (searchView) {
 			searchView.clearSearchResults();
@@ -347,13 +352,13 @@ export class CancelSearchAction extends Action {
 		this.enabled = searchView && searchView.isSearching();
 	}
 
-	public run(): Thenable<void> {
+	public run(): Promise<void> {
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		if (searchView) {
 			searchView.cancelSearch();
 		}
 
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -368,7 +373,7 @@ export class FocusNextSearchResultAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Thenable<any> {
+	public run(): Promise<any> {
 		return openSearchView(this.viewletService, this.panelService).then(searchView => {
 			searchView.selectNextMatch();
 		});
@@ -386,7 +391,7 @@ export class FocusPreviousSearchResultAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Thenable<any> {
+	public run(): Promise<any> {
 		return openSearchView(this.viewletService, this.panelService).then(searchView => {
 			searchView.selectPreviousMatch();
 		});
@@ -467,7 +472,7 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 		super('remove', RemoveAction.LABEL, 'action-remove');
 	}
 
-	public run(): Thenable<any> {
+	public run(): Promise<any> {
 		const currentFocusElement = this.viewer.getFocus();
 		const nextFocusElementP = !currentFocusElement || currentFocusElement instanceof SearchResult || elementIsEqualOrParent(currentFocusElement, this.element) ?
 			this.getElementToFocusAfterRemoved(this.viewer, this.element) :
@@ -520,7 +525,7 @@ export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 		super(Constants.ReplaceAllInFileActionId, appendKeyBindingLabel(ReplaceAllAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceAllInFileActionId), keyBindingService), 'action-replace-all');
 	}
 
-	public run(): Thenable<any> {
+	public run(): Promise<any> {
 		return this.getElementToFocusAfterRemoved(this.viewer, this.fileMatch).then(nextFocusElement => {
 			return this.fileMatch.parent().replace(this.fileMatch).then(() => {
 				if (nextFocusElement) {
@@ -543,7 +548,7 @@ export class ReplaceAllInFolderAction extends AbstractSearchAndReplaceAction {
 		super(Constants.ReplaceAllInFolderActionId, appendKeyBindingLabel(ReplaceAllInFolderAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceAllInFolderActionId), keyBindingService), 'action-replace-all');
 	}
 
-	public run(): Thenable<any> {
+	public run(): Promise<any> {
 		return this.getElementToFocusAfterRemoved(this.viewer, this.folderMatch).then(nextFocusElement => {
 			return this.folderMatch.replaceAll().then(() => {
 				if (nextFocusElement) {
@@ -567,7 +572,7 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 		super(Constants.ReplaceActionId, appendKeyBindingLabel(ReplaceAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceActionId), keyBindingService), 'action-replace');
 	}
 
-	public run(): Thenable<any> {
+	public run(): Promise<any> {
 		this.enabled = false;
 
 		return this.element.parent().replace(this.element).then(() => {

@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { IMessagePassingProtocol, IPCServer, ClientConnectionEvent, IPCClient, IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
-import { Emitter, toPromise, Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
 import { timeout } from 'vs/base/common/async';
@@ -95,11 +95,11 @@ class TestIPCServer extends IPCServer<string> {
 const TestChannelId = 'testchannel';
 
 interface ITestService {
-	marco(): Thenable<string>;
-	error(message: string): Thenable<void>;
-	neverComplete(): Thenable<void>;
-	neverCompleteCT(cancellationToken: CancellationToken): Thenable<void>;
-	buffersLength(buffers: Buffer[]): Thenable<number>;
+	marco(): Promise<string>;
+	error(message: string): Promise<void>;
+	neverComplete(): Promise<void>;
+	neverCompleteCT(cancellationToken: CancellationToken): Promise<void>;
+	buffersLength(buffers: Buffer[]): Promise<number>;
 
 	pong: Event<string>;
 }
@@ -109,19 +109,19 @@ class TestService implements ITestService {
 	private _pong = new Emitter<string>();
 	readonly pong = this._pong.event;
 
-	marco(): Thenable<string> {
+	marco(): Promise<string> {
 		return Promise.resolve('polo');
 	}
 
-	error(message: string): Thenable<void> {
+	error(message: string): Promise<void> {
 		return Promise.reject(new Error(message));
 	}
 
-	neverComplete(): Thenable<void> {
+	neverComplete(): Promise<void> {
 		return new Promise(_ => { });
 	}
 
-	neverCompleteCT(cancellationToken: CancellationToken): Thenable<void> {
+	neverCompleteCT(cancellationToken: CancellationToken): Promise<void> {
 		if (cancellationToken.isCancellationRequested) {
 			return Promise.reject(canceled());
 		}
@@ -129,7 +129,7 @@ class TestService implements ITestService {
 		return new Promise((_, e) => cancellationToken.onCancellationRequested(() => e(canceled())));
 	}
 
-	buffersLength(buffers: Buffer[]): Thenable<number> {
+	buffersLength(buffers: Buffer[]): Promise<number> {
 		return Promise.resolve(buffers.reduce((r, b) => r + b.length, 0));
 	}
 
@@ -142,7 +142,7 @@ class TestChannel implements IServerChannel {
 
 	constructor(private service: ITestService) { }
 
-	call(_, command: string, arg?: any, cancellationToken?: CancellationToken): Thenable<any> {
+	call(_, command: string, arg: any, cancellationToken: CancellationToken): Promise<any> {
 		switch (command) {
 			case 'marco': return this.service.marco();
 			case 'error': return this.service.error(arg);
@@ -169,23 +169,23 @@ class TestChannelClient implements ITestService {
 
 	constructor(private channel: IChannel) { }
 
-	marco(): Thenable<string> {
+	marco(): Promise<string> {
 		return this.channel.call('marco');
 	}
 
-	error(message: string): Thenable<void> {
+	error(message: string): Promise<void> {
 		return this.channel.call('error', message);
 	}
 
-	neverComplete(): Thenable<void> {
+	neverComplete(): Promise<void> {
 		return this.channel.call('neverComplete');
 	}
 
-	neverCompleteCT(cancellationToken: CancellationToken): Thenable<void> {
+	neverCompleteCT(cancellationToken: CancellationToken): Promise<void> {
 		return this.channel.call('neverCompleteCT', undefined, cancellationToken);
 	}
 
-	buffersLength(buffers: Buffer[]): Thenable<number> {
+	buffersLength(buffers: Buffer[]): Promise<number> {
 		return this.channel.call('buffersLength', buffers);
 	}
 }
@@ -201,8 +201,8 @@ suite('Base IPC', function () {
 		const b3 = Buffer.alloc(0);
 		serverProtocol.send(b3);
 
-		const b2 = await toPromise(serverProtocol.onMessage);
-		const b4 = await toPromise(clientProtocol.onMessage);
+		const b2 = await Event.toPromise(serverProtocol.onMessage);
+		const b4 = await Event.toPromise(clientProtocol.onMessage);
 
 		assert.strictEqual(b1, b2);
 		assert.strictEqual(b3, b4);

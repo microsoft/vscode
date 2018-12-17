@@ -313,7 +313,7 @@ function assertComputeEdits(lines1: string[], lines2: string[]): void {
 	// console.log(`took ${Date.now() - start} ms.`);
 
 	// apply edits
-	model.pushEditOperations(null, edits, null);
+	model.pushEditOperations([], edits, null);
 
 	assert.equal(model.getValue(), lines2.join('\n'));
 }

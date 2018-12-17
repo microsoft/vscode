@@ -17,7 +17,7 @@ export abstract class WordDistance {
 		distance() { return 0; }
 	};
 
-	static create(service: IEditorWorkerService, editor: ICodeEditor): Thenable<WordDistance> {
+	static create(service: IEditorWorkerService, editor: ICodeEditor): Promise<WordDistance> {
 
 		if (!editor.getConfiguration().contribInfo.suggest.localityBonus) {
 			return Promise.resolve(WordDistance.None);

@@ -302,7 +302,7 @@ export interface ConfigurationProperties {
 	/**
 	 * The other tasks the task depend on
 	 */
-	dependsOn?: string | TaskIdentifier | (string | TaskIdentifier)[];
+	dependsOn?: string | TaskIdentifier | Array<string | TaskIdentifier>;
 
 	/**
 	 * Controls the behavior of the used terminal
@@ -446,7 +446,7 @@ export interface BaseTaskRunnerConfiguration {
 	 * The configuration of the available tasks. A tasks.json file can either
 	 * contain a global problemMatcher property or a tasks property but not both.
 	 */
-	tasks?: (CustomTask | ConfiguringTask)[];
+	tasks?: Array<CustomTask | ConfiguringTask>;
 
 	/**
 	 * Problem matcher declarations
@@ -1090,7 +1090,7 @@ namespace ProblemMatcherConverter {
 		if (kind === ProblemMatcherKind.Unknown) {
 			context.problemReporter.warn(nls.localize(
 				'ConfigurationParser.unknownMatcherKind',
-				'Warning: the defined problem matcher is unknown. Supported types are string | ProblemMatcher | (string | ProblemMatcher)[].\n{0}\n',
+				'Warning: the defined problem matcher is unknown. Supported types are string | ProblemMatcher | Array<string | ProblemMatcher>.\n{0}\n',
 				JSON.stringify(config, null, 4)));
 			return result;
 		} else if (kind === ProblemMatcherKind.String || kind === ProblemMatcherKind.ProblemMatcher) {
@@ -1506,7 +1506,7 @@ namespace TaskParser {
 		return customize === void 0 && (type === void 0 || type === null || type === Tasks.CUSTOMIZED_TASK_TYPE || type === 'shell' || type === 'process');
 	}
 
-	export function from(this: void, externals: (CustomTask | ConfiguringTask)[], globals: Globals, context: ParseContext): TaskParseResult {
+	export function from(this: void, externals: Array<CustomTask | ConfiguringTask>, globals: Globals, context: ParseContext): TaskParseResult {
 		let result: TaskParseResult = { custom: [], configured: [] };
 		if (!externals) {
 			return result;
@@ -1843,7 +1843,7 @@ class ConfigurationParser {
 		}
 		context.namedProblemMatchers = ProblemMatcherConverter.namedFrom(fileConfig.declares, context);
 		let globalTasks: Tasks.CustomTask[];
-		let externalGlobalTasks: (ConfiguringTask | CustomTask)[];
+		let externalGlobalTasks: Array<ConfiguringTask | CustomTask>;
 		if (fileConfig.windows && context.platform === Platform.Windows) {
 			globalTasks = TaskParser.from(fileConfig.windows.tasks, globals, context).custom;
 			externalGlobalTasks = fileConfig.windows.tasks;

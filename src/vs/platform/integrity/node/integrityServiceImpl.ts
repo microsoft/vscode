@@ -57,7 +57,7 @@ export class IntegrityServiceImpl implements IIntegrityService {
 	_serviceBrand: any;
 
 	private _storage: IntegrityStorage;
-	private _isPurePromise: Thenable<IntegrityTestResult>;
+	private _isPurePromise: Promise<IntegrityTestResult>;
 
 	constructor(
 		@INotificationService private notificationService: INotificationService,
@@ -101,11 +101,11 @@ export class IntegrityServiceImpl implements IIntegrityService {
 		);
 	}
 
-	isPure(): Thenable<IntegrityTestResult> {
+	isPure(): Promise<IntegrityTestResult> {
 		return this._isPurePromise;
 	}
 
-	private _isPure(): Thenable<IntegrityTestResult> {
+	private _isPure(): Promise<IntegrityTestResult> {
 		const expectedChecksums = product.checksums || {};
 
 		return this.lifecycleService.when(LifecyclePhase.Eventually).then(() => {

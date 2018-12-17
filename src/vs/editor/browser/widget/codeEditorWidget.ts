@@ -396,7 +396,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._modelData.model;
 	}
 
-	public setModel(model: ITextModel | null = null): void {
+	public setModel(_model: ITextModel | editorCommon.IDiffEditorModel | null = null): void {
+		const model = <ITextModel | null>_model;
 		if (this._modelData === null && model === null) {
 			// Current model is the new model
 			return;
@@ -817,7 +818,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		};
 	}
 
-	public restoreViewState(s: editorCommon.ICodeEditorViewState): void {
+	public restoreViewState(s: editorCommon.ICodeEditorViewState | null): void {
 		if (!this._modelData || !this._modelData.hasRealView) {
 			return;
 		}
@@ -929,7 +930,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		const action = this.getAction(handlerId);
 		if (action) {
-			Promise.resolve(action.run()).then(null, onUnexpectedError);
+			Promise.resolve(action.run()).then(void 0, onUnexpectedError);
 			return;
 		}
 
@@ -950,7 +951,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			payload = payload || {};
 			payload.source = source;
 			this._instantiationService.invokeFunction((accessor) => {
-				Promise.resolve(command.runEditorCommand(accessor, this, payload)).then(null, onUnexpectedError);
+				Promise.resolve(command.runEditorCommand(accessor, this, payload)).then(void 0, onUnexpectedError);
 			});
 			return true;
 		}

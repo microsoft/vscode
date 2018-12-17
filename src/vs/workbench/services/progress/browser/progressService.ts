@@ -15,7 +15,7 @@ interface ProgressState {
 	total?: number;
 	worked?: number;
 	done?: boolean;
-	whilePromise?: Thenable<any>;
+	whilePromise?: Promise<any>;
 	whileStart?: number;
 	whileDelay?: number;
 }
@@ -205,7 +205,7 @@ export class ScopedProgressService extends ScopedService implements IProgressSer
 		};
 	}
 
-	showWhile(promise: Thenable<any>, delay?: number): Thenable<void> {
+	showWhile(promise: Promise<any>, delay?: number): Promise<void> {
 		let stack: boolean = !!this.progressState.whilePromise;
 
 		// Reset State
@@ -286,7 +286,7 @@ export class ProgressService implements IProgressService {
 		};
 	}
 
-	showWhile(promise: Thenable<any>, delay?: number): Thenable<void> {
+	showWhile(promise: Promise<any>, delay?: number): Promise<void> {
 		const stop = () => {
 			this.progressbar.stop().hide();
 		};

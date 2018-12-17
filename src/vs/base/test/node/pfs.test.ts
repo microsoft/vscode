@@ -73,11 +73,11 @@ suite('PFS', () => {
 			assert.ok(fs.existsSync(newDir));
 
 			return Promise.all([
-				pfs.writeFile(testFile, 'Hello World 1', null),
-				pfs.writeFile(testFile, 'Hello World 2', null),
-				timeout(10).then(() => pfs.writeFile(testFile, 'Hello World 3', null)),
-				pfs.writeFile(testFile, 'Hello World 4', null),
-				timeout(10).then(() => pfs.writeFile(testFile, 'Hello World 5', null))
+				pfs.writeFile(testFile, 'Hello World 1', void 0),
+				pfs.writeFile(testFile, 'Hello World 2', void 0),
+				timeout(10).then(() => pfs.writeFile(testFile, 'Hello World 3', void 0)),
+				pfs.writeFile(testFile, 'Hello World 4', void 0),
+				timeout(10).then(() => pfs.writeFile(testFile, 'Hello World 5', void 0))
 			]).then(() => {
 				assert.equal(fs.readFileSync(testFile), 'Hello World 5');
 

@@ -19,10 +19,9 @@ import { CopyValueAction, CopyEvaluatePathAction } from 'vs/workbench/parts/debu
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewletPanelOptions, ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
-import { IDataSource } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ITreeRenderer, ITreeNode, ITreeMouseEvent, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
+import { ITreeRenderer, ITreeNode, ITreeMouseEvent, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter } from 'vs/base/common/event';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -79,8 +78,9 @@ export class VariablesView extends ViewletPanel {
 			new VariablesDataSource(this.debugService), {
 				ariaLabel: nls.localize('variablesAriaTreeLabel', "Debug Variables"),
 				accessibilityProvider: new VariablesAccessibilityProvider(),
-				identityProvider: { getId: element => element.getId() }
-			}, this.contextKeyService, this.listService, this.themeService, this.configurationService);
+				identityProvider: { getId: element => element.getId() },
+				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: e => e }
+			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
 
 		CONTEXT_VARIABLES_FOCUSED.bindTo(this.contextKeyService.createScoped(treeContainer));
 
@@ -149,7 +149,7 @@ export class VariablesView extends ViewletPanel {
 	}
 }
 
-export class VariablesDataSource implements IDataSource<IExpression | IScope> {
+export class VariablesDataSource implements IAsyncDataSource<IExpression | IScope> {
 
 	constructor(private debugService: IDebugService) { }
 
@@ -161,7 +161,7 @@ export class VariablesDataSource implements IDataSource<IExpression | IScope> {
 		return element.hasChildren;
 	}
 
-	getChildren(element: IExpression | IScope | null): Thenable<(IExpression | IScope)[]> {
+	getChildren(element: IExpression | IScope | null): Promise<Array<IExpression | IScope>> {
 		if (element === null) {
 			const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 			return stackFrame ? stackFrame.getScopes() : Promise.resolve([]);
@@ -210,10 +210,6 @@ class ScopesRenderer implements ITreeRenderer<IScope, void, IScopeTemplateData> 
 
 	renderElement(element: ITreeNode<IScope, void>, index: number, templateData: IScopeTemplateData): void {
 		templateData.name.textContent = element.element.name;
-	}
-
-	disposeElement(element: ITreeNode<IScope, void>, index: number, templateData: IScopeTemplateData): void {
-		// noop
 	}
 
 	disposeTemplate(templateData: IScopeTemplateData): void {

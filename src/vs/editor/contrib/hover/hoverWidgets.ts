@@ -84,7 +84,7 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 		return this._containerDomNode;
 	}
 
-	public showAt(position: Position, range: Range, focus: boolean): void {
+	public showAt(position: Position, range: Range | null, focus: boolean): void {
 		// Position has changed
 		this._showAtPosition = position;
 		this._showAtRange = range;

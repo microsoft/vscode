@@ -20,10 +20,17 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class TestEditorControl extends BaseEditor {
 
 	constructor(@ITelemetryService telemetryService: ITelemetryService) { super('MyFileEditorForEditorGroupService', NullTelemetryService, new TestThemeService(), new TestStorageService()); }
+
+	setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
+		super.setInput(input, options, token);
+
+		return input.resolve().then(() => void 0);
+	}
 
 	getId(): string { return 'MyFileEditorForEditorGroupService'; }
 	layout(): void { }
@@ -35,7 +42,7 @@ export class TestEditorInput extends EditorInput implements IFileEditorInput {
 	constructor(private resource: URI) { super(); }
 
 	getTypeId() { return 'testEditorInputForEditorGroupService'; }
-	resolve(): Thenable<IEditorModel> { return Promise.resolve(); }
+	resolve(): Promise<IEditorModel> { return Promise.resolve(); }
 	matches(other: TestEditorInput): boolean { return other && this.resource.toString() === other.resource.toString() && other instanceof TestEditorInput; }
 	setEncoding(encoding: string) { }
 	getEncoding(): string { return null; }
@@ -445,6 +452,7 @@ suite('Editor groups service', () => {
 		assert.equal(activeEditorChangeCounter, 2);
 		assert.equal(group.activeEditor, inputInactive);
 
+		await group.openEditor(input);
 		await group.closeEditor(inputInactive);
 
 		assert.equal(activeEditorChangeCounter, 3);

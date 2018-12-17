@@ -36,7 +36,7 @@ export class PatternInputWidget extends Widget {
 	private ariaLabel: string;
 
 	private domNode: HTMLElement;
-	protected inputBox: HistoryInputBox;
+	public inputBox: HistoryInputBox;
 
 	private _onSubmit = this._register(new Emitter<boolean>());
 	public onSubmit: CommonEvent<boolean> = this._onSubmit.event;

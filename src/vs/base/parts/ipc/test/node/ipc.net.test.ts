@@ -47,7 +47,7 @@ suite('IPC, Socket Protocol', () => {
 			const sub = b.onMessage(data => {
 				sub.dispose();
 				assert.equal(data.toString(), 'foobarfarboo');
-				resolve(null);
+				resolve(void 0);
 			});
 			a.send(Buffer.from('foobarfarboo'));
 		});
@@ -55,7 +55,7 @@ suite('IPC, Socket Protocol', () => {
 			const sub_1 = b.onMessage(data => {
 				sub_1.dispose();
 				assert.equal(data.readInt8(0), 123);
-				resolve(null);
+				resolve(void 0);
 			});
 			const buffer = Buffer.allocUnsafe(1);
 			buffer.writeInt8(123, 0);
@@ -81,7 +81,7 @@ suite('IPC, Socket Protocol', () => {
 		return new Promise(resolve => {
 			b.onMessage(msg => {
 				assert.deepEqual(JSON.parse(msg.toString()), data);
-				resolve(null);
+				resolve(void 0);
 			});
 		});
 	});

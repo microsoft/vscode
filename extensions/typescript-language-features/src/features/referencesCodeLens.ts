@@ -38,13 +38,17 @@ class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLensProvide
 					location.range.start.isEqual(codeLens.range.start)));
 
 		codeLens.command = {
-			title: locations.length === 1
-				? localize('oneReferenceLabel', '1 reference')
-				: localize('manyReferenceLabel', '{0} references', locations.length),
+			title: this.getCodeLensLabel(locations),
 			command: locations.length ? 'editor.action.showReferences' : '',
 			arguments: [codeLens.document, codeLens.range.start, locations]
 		};
 		return codeLens;
+	}
+
+	private getCodeLensLabel(locations: ReadonlyArray<vscode.Location>): string {
+		return locations.length === 1
+			? localize('oneReferenceLabel', '1 reference')
+			: localize('manyReferenceLabel', '{0} references', locations.length);
 	}
 
 	protected extractSymbol(

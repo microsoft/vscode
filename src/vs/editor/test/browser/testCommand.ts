@@ -14,7 +14,7 @@ import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 
 export function testCommand(
 	lines: string[],
-	languageIdentifier: LanguageIdentifier,
+	languageIdentifier: LanguageIdentifier | null,
 	selection: Selection,
 	commandFactory: (selection: Selection) => editorCommon.ICommand,
 	expectedLines: string[],

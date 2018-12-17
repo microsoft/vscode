@@ -30,7 +30,7 @@ export function createAndBindHistoryNavigationWidgetScopedContextKeyService(cont
 
 export class ContextScopedHistoryInputBox extends HistoryInputBox {
 
-	constructor(container: HTMLElement, contextViewProvider: IContextViewProvider, options: IHistoryInputOptions,
+	constructor(container: HTMLElement, contextViewProvider: IContextViewProvider | undefined, options: IHistoryInputOptions,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(container, contextViewProvider, options);
@@ -41,7 +41,7 @@ export class ContextScopedHistoryInputBox extends HistoryInputBox {
 
 export class ContextScopedFindInput extends FindInput {
 
-	constructor(container: HTMLElement, contextViewProvider: IContextViewProvider, options: IFindInputOptions,
+	constructor(container: HTMLElement | null, contextViewProvider: IContextViewProvider, options: IFindInputOptions,
 		@IContextKeyService contextKeyService: IContextKeyService, showFindOptions: boolean = false
 	) {
 		super(container, contextViewProvider, showFindOptions, options);

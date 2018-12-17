@@ -1044,7 +1044,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 		let model = createEditableTextModelFromString('Hello\nWorld!');
 		assert.equal(model.getEOL(), '\n');
 
-		let mirrorModel2 = new MirrorTextModel(null, model.getLinesContent(), model.getEOL(), model.getVersionId());
+		let mirrorModel2 = new MirrorTextModel(null!, model.getLinesContent(), model.getEOL(), model.getVersionId());
 		let mirrorModel2PrevVersionId = model.getVersionId();
 
 		model.onDidChangeContent((e: IModelContentChangedEvent) => {

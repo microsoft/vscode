@@ -12,7 +12,7 @@ import { DocumentSymbol, DocumentSymbolProviderRegistry } from 'vs/editor/common
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
-export function getDocumentSymbols(model: ITextModel, flat: boolean, token: CancellationToken): Thenable<DocumentSymbol[]> {
+export function getDocumentSymbols(model: ITextModel, flat: boolean, token: CancellationToken): Promise<DocumentSymbol[]> {
 
 	let roots: DocumentSymbol[] = [];
 

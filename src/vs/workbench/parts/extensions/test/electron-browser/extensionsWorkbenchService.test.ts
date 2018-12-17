@@ -1219,7 +1219,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			let counter = 0;
 			event(() => {
 				if (++counter === count) {
-					c(null);
+					c(void 0);
 				}
 			});
 		});
