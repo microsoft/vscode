@@ -63,7 +63,10 @@ export class SettingsEditor2 extends BaseEditor {
 			// nullable integer/number or complex
 			return false;
 		}
-		return type === SettingValueType.Enum || type === SettingValueType.Complex;
+		return type === SettingValueType.Enum ||
+			type === SettingValueType.Complex ||
+			type === SettingValueType.Boolean ||
+			type === SettingValueType.Exclude;
 	}
 
 	private defaultSettingsEditorModel: Settings2EditorModel;

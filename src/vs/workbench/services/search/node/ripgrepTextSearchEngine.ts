@@ -383,6 +383,7 @@ function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOpti
 	} else if (query.isRegExp) {
 		let fixedRegexpQuery = fixRegexEndingPattern(query.pattern);
 		fixedRegexpQuery = fixRegexNewline(fixedRegexpQuery);
+		fixedRegexpQuery = fixNewline(fixedRegexpQuery);
 		fixedRegexpQuery = fixRegexCRMatchingNonWordClass(fixedRegexpQuery, !!query.isMultiline);
 		fixedRegexpQuery = fixRegexCRMatchingWhitespaceClass(fixedRegexpQuery, !!query.isMultiline);
 		args.push('--regexp', fixedRegexpQuery);
@@ -479,4 +480,8 @@ export function fixRegexCRMatchingNonWordClass(pattern: string, isMultiline: boo
 	return isMultiline ?
 		pattern.replace(/([^\\]|^)((?:\\\\)*)\\W/g, '$1$2(\\r?\\n|[^\\w\\r])') :
 		pattern.replace(/([^\\]|^)((?:\\\\)*)\\W/g, '$1$2[^\\w\\r]');
+}
+
+export function fixNewline(pattern: string): string {
+	return pattern.replace(/\n/g, '\\r?\\n');
 }

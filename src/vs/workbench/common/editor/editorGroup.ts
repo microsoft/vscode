@@ -44,7 +44,7 @@ export interface ISerializedEditorGroup {
 	id: number;
 	editors: ISerializedEditorInput[];
 	mru: number[];
-	preview: number;
+	preview?: number;
 }
 
 export function isSerializedEditorGroup(obj?: any): obj is ISerializedEditorGroup {
@@ -94,8 +94,8 @@ export class EditorGroup extends Disposable {
 	private mru: EditorInput[] = [];
 	private mapResourceToEditorCount: ResourceMap<number> = new ResourceMap<number>();
 
-	private preview: EditorInput; // editor in preview state
-	private active: EditorInput;  // editor in active state
+	private preview: EditorInput | null; // editor in preview state
+	private active: EditorInput | null;  // editor in active state
 
 	private editorOpenPositioning: 'left' | 'right' | 'first' | 'last';
 
@@ -136,9 +136,9 @@ export class EditorGroup extends Disposable {
 		return mru ? this.mru.slice(0) : this.editors.slice(0);
 	}
 
-	getEditor(index: number): EditorInput;
-	getEditor(resource: URI): EditorInput;
-	getEditor(arg1: any): EditorInput {
+	getEditor(index: number): EditorInput | null;
+	getEditor(resource: URI): EditorInput | null;
+	getEditor(arg1: any): EditorInput | null {
 		if (typeof arg1 === 'number') {
 			return this.editors[arg1];
 		}
@@ -159,7 +159,7 @@ export class EditorGroup extends Disposable {
 		return null;
 	}
 
-	get activeEditor(): EditorInput {
+	get activeEditor(): EditorInput | null {
 		return this.active;
 	}
 
@@ -167,7 +167,7 @@ export class EditorGroup extends Disposable {
 		return this.matches(this.active, editor);
 	}
 
-	get previewEditor(): EditorInput {
+	get previewEditor(): EditorInput | null {
 		return this.preview;
 	}
 
@@ -310,7 +310,7 @@ export class EditorGroup extends Disposable {
 		}
 	}
 
-	closeEditor(editor: EditorInput, openNext = true): number {
+	closeEditor(editor: EditorInput, openNext = true): number | undefined {
 		const event = this.doCloseEditor(editor, openNext, false);
 
 		if (event) {
@@ -322,7 +322,7 @@ export class EditorGroup extends Disposable {
 		return void 0;
 	}
 
-	private doCloseEditor(editor: EditorInput, openNext: boolean, replaced: boolean): EditorCloseEvent {
+	private doCloseEditor(editor: EditorInput, openNext: boolean, replaced: boolean): EditorCloseEvent | null {
 		const index = this.indexOf(editor);
 		if (index === -1) {
 			return null; // not found
@@ -384,7 +384,9 @@ export class EditorGroup extends Disposable {
 
 		// Optimize: close all non active editors first to produce less upstream work
 		this.mru.filter(e => !this.matches(e, this.active)).forEach(e => this.closeEditor(e));
-		this.closeEditor(this.active);
+		if (this.active) {
+			this.closeEditor(this.active);
+		}
 	}
 
 	moveEditor(editor: EditorInput, toIndex: number): void {
@@ -455,7 +457,9 @@ export class EditorGroup extends Disposable {
 		this._onDidEditorUnpin.fire(editor);
 
 		// Close old preview editor if any
-		this.closeEditor(oldPreview);
+		if (oldPreview) {
+			this.closeEditor(oldPreview);
+		}
 	}
 
 	isPinned(editor: EditorInput): boolean;
@@ -538,7 +542,7 @@ export class EditorGroup extends Disposable {
 		}
 	}
 
-	indexOf(candidate: EditorInput, editors = this.editors): number {
+	indexOf(candidate: EditorInput | null, editors = this.editors): number {
 		if (!candidate) {
 			return -1;
 		}
@@ -591,7 +595,7 @@ export class EditorGroup extends Disposable {
 		this.mru.unshift(editor);
 	}
 
-	private matches(editorA: EditorInput, editorB: EditorInput): boolean {
+	private matches(editorA: EditorInput | null, editorB: EditorInput | null): boolean {
 		return !!editorA && !!editorB && editorA.matches(editorB);
 	}
 
@@ -615,7 +619,7 @@ export class EditorGroup extends Disposable {
 		// from mru, active and preview if any.
 		let serializableEditors: EditorInput[] = [];
 		let serializedEditors: ISerializedEditorInput[] = [];
-		let serializablePreviewIndex: number;
+		let serializablePreviewIndex: number | undefined;
 		this.editors.forEach(e => {
 			let factory = registry.getEditorInputFactory(e.getTypeId());
 			if (factory) {
@@ -667,6 +671,8 @@ export class EditorGroup extends Disposable {
 		}));
 		this.mru = data.mru.map(i => this.editors[i]);
 		this.active = this.mru[0];
-		this.preview = this.editors[data.preview];
+		if (typeof data.preview === 'number') {
+			this.preview = this.editors[data.preview];
+		}
 	}
 }

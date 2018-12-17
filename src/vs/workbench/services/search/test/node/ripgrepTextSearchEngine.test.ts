@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/workbench/services/search/node/ripgrepSearchUtils';
-import { fixRegexCRMatchingNonWordClass, fixRegexCRMatchingWhitespaceClass, fixRegexEndingPattern, fixRegexNewline, IRgMatch, IRgMessage, RipgrepParser, unicodeEscapesToPCRE2 } from 'vs/workbench/services/search/node/ripgrepTextSearchEngine';
+import { fixRegexCRMatchingNonWordClass, fixRegexCRMatchingWhitespaceClass, fixRegexEndingPattern, fixRegexNewline, IRgMatch, IRgMessage, RipgrepParser, unicodeEscapesToPCRE2, fixNewline } from 'vs/workbench/services/search/node/ripgrepTextSearchEngine';
 import { TextSearchResult } from 'vscode';
 
 suite('RipgrepTextSearchEngine', () => {
@@ -108,6 +108,27 @@ suite('RipgrepTextSearchEngine', () => {
 			['foo\\n+abc', 'foo\r\nabc', true],
 			['foo\\n+abc', 'foo\n\n\nabc', true],
 		].forEach(testFixRegexNewline);
+	});
+
+	test('fixNewline', () => {
+		function testFixNewline([inputReg, testStr, shouldMatch = true]): void {
+			const fixed = fixNewline(inputReg);
+			const reg = new RegExp(fixed);
+			assert.equal(reg.test(testStr), shouldMatch, `${inputReg} => ${reg}, ${testStr}, ${shouldMatch}`);
+		}
+
+		[
+			['foo', 'foo'],
+
+			['foo\n', 'foo\r\n'],
+			['foo\n', 'foo\n'],
+			['foo\nabc', 'foo\r\nabc'],
+			['foo\nabc', 'foo\nabc'],
+			['foo\r\n', 'foo\r\n'],
+
+			['foo\nbarc', 'foobar', false],
+			['foobar', 'foo\nbar', false],
+		].forEach(testFixNewline);
 	});
 
 	suite('RipgrepParser', () => {
