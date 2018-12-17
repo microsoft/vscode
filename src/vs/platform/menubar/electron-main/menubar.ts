@@ -620,7 +620,7 @@ export class Menubar {
 				commandId = this.isOptionClick(event) ? arg2[1] : arg2[0]; // support alternative action if we got multiple action Ids and the option key was pressed while invoking
 			}
 
-			if (isMacintosh && userSettingsLabel && Menubar._menuItemIsTriggeredViaKeybinding(event, userSettingsLabel)) {
+			if (userSettingsLabel && Menubar._menuItemIsTriggeredViaKeybinding(event, userSettingsLabel)) {
 				this.runActionInRenderer({ type: 'keybinding', userSettingsLabel });
 			} else {
 				this.runActionInRenderer({ type: 'commandId', commandId });
