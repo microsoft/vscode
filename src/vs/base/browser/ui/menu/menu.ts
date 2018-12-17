@@ -648,7 +648,7 @@ class SubmenuActionItem extends MenuActionItem {
 			const boundingRect = this.element.getBoundingClientRect();
 			const childBoundingRect = this.submenuContainer.getBoundingClientRect();
 			const computedStyles = getComputedStyle(this.parentData.parent.domNode);
-			const paddingTop = typeof computedStyles.paddingTop === 'number' ? parseFloat(computedStyles.paddingTop) || 0 : 0;
+			const paddingTop = parseFloat(computedStyles.paddingTop || '0') || 0;
 
 			if (window.innerWidth <= boundingRect.right + childBoundingRect.width) {
 				this.submenuContainer.style.left = '10px';
