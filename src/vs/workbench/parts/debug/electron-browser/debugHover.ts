@@ -24,7 +24,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { getExactExpressionStartAndEnd } from 'vs/workbench/parts/debug/common/debugUtils';
-import { AsyncDataTree, IDataSource } from 'vs/base/browser/ui/tree/asyncDataTree';
+import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { WorkbenchAsyncDataTree, IListService } from 'vs/platform/list/browser/listService';
@@ -32,6 +32,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { coalesce } from 'vs/base/common/arrays';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IDataSource } from 'vs/base/browser/ui/tree/tree';
 
 const $ = dom.$;
 const MAX_TREE_HEIGHT = 324;

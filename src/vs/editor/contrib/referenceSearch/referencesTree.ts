@@ -5,9 +5,8 @@
 
 
 import { ReferencesModel, FileReferences, OneReference } from './referencesModel';
-import { IDataSource } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
+import { ITreeRenderer, ITreeNode, IDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { ILabelService } from 'vs/platform/label/common/label';

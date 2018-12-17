@@ -145,6 +145,11 @@ export interface ITreeNavigator<T> {
 	next(): T | null;
 }
 
+export interface IDataSource<T extends NonNullable<any>> {
+	hasChildren(element: T | null): boolean;
+	getChildren(element: T | null): Promise<T[]>;
+}
+
 /**
  * Use this renderer when you want to re-render elements on account of
  * an event firing.

@@ -31,8 +31,8 @@ import { activeContrastBorder, contrastBorder, registerColor } from 'vs/platform
 import { ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { PeekViewWidget } from './peekViewWidget';
 import { FileReferences, OneReference, ReferencesModel } from './referencesModel';
-import { ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
-import { IAsyncDataTreeOptions, IDataSource } from 'vs/base/browser/ui/tree/asyncDataTree';
+import { ITreeRenderer, IDataSource } from 'vs/base/browser/ui/tree/tree';
+import { IAsyncDataTreeOptions } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 
 class DecorationsManager implements IDisposable {
