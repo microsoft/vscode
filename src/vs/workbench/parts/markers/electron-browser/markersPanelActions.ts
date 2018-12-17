@@ -356,7 +356,7 @@ export class QuickFixAction extends Action {
 				pinned: false,
 				revealIfVisible: true
 			},
-		}, ACTIVE_GROUP).then(() => null);
+		}, ACTIVE_GROUP).then(() => void 0);
 	}
 
 	private getFixes(marker: Marker): Promise<CodeAction[]> {
@@ -408,6 +408,9 @@ export class QuickFixActionItem extends ActionItem {
 
 	public onClick(event: DOM.EventLike): void {
 		DOM.EventHelper.stop(event, true);
+		if (!this.element) {
+			return;
+		}
 		const elementPosition = DOM.getDomNodePagePosition(this.element);
 		(<QuickFixAction>this.getAction()).getQuickFixActions().then(actions => {
 			this.contextMenuService.showContextMenu({
