@@ -44,7 +44,7 @@ export interface IExplorerView {
 export interface IExplorerService {
 	_serviceBrand: any;
 	readonly roots: ExplorerItem[];
-	readonly onDidEditStat: Event<ExplorerItem>;
+	readonly onDidChangeEditable: Event<ExplorerItem>;
 
 	setEditable(stat: ExplorerItem, editable: boolean): void;
 	findClosest(resource: URI): ExplorerItem | null;

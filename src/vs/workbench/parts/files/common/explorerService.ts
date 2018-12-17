@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { Event } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
 import { ResourceMap } from 'vs/base/common/map';
@@ -19,13 +19,8 @@ import { IExplorerService } from 'vs/workbench/parts/files/common/files';
 export class ExplorerService implements IExplorerService {
 	_serviceBrand: any;
 
-	setEditable(stat: ExplorerItem, editable: boolean): void {
-		throw new Error('Method not implemented.');
-	}
-
-	onDidEditStat: Event<ExplorerItem>;
-
 	private _roots: ExplorerItem[];
+	private _onDidChangeEditable = new Emitter<ExplorerItem>();
 	private _listener: IDisposable;
 
 	constructor(@IWorkspaceContextService private contextService: IWorkspaceContextService) {
@@ -35,8 +30,17 @@ export class ExplorerService implements IExplorerService {
 		setRoots();
 	}
 
-	public get roots(): ExplorerItem[] {
+	get roots(): ExplorerItem[] {
 		return this._roots;
+	}
+
+	get onDidChangeEditable(): Event<ExplorerItem> {
+		return this._onDidChangeEditable.event;
+	}
+
+	setEditable(stat: ExplorerItem, editable: boolean): void {
+		this._onDidChangeEditable.fire(stat);
+		// TODO@isidor
 	}
 
 	/**
@@ -44,7 +48,7 @@ export class ExplorerService implements IExplorerService {
 	 * Starts matching from the first root.
 	 * Will return empty array in case the FileStat does not exist.
 	 */
-	public findAll(resource: URI): ExplorerItem[] {
+	findAll(resource: URI): ExplorerItem[] {
 		return coalesce(this.roots.map(root => root.find(resource)));
 	}
 
@@ -53,7 +57,7 @@ export class ExplorerService implements IExplorerService {
 	 * In case multiple FileStat are matching the resource (same folder opened multiple times) returns the FileStat that has the closest root.
 	 * Will return null in case the FileStat does not exist.
 	 */
-	public findClosest(resource: URI): ExplorerItem | null {
+	findClosest(resource: URI): ExplorerItem | null {
 		const folder = this.contextService.getWorkspaceFolder(resource);
 		if (folder) {
 			const root = this.roots.filter(r => r.resource.toString() === folder.uri.toString()).pop();
@@ -65,7 +69,7 @@ export class ExplorerService implements IExplorerService {
 		return null;
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this._listener = dispose(this._listener);
 	}
 }
@@ -101,23 +105,23 @@ export class ExplorerItem {
 		this.isDirectoryResolved = false;
 	}
 
-	public get isSymbolicLink(): boolean {
+	get isSymbolicLink(): boolean {
 		return this._isSymbolicLink;
 	}
 
-	public get isDirectory(): boolean {
+	get isDirectory(): boolean {
 		return this._isDirectory;
 	}
 
-	public get isReadonly(): boolean {
+	get isReadonly(): boolean {
 		return this._isReadonly;
 	}
 
-	public get isError(): boolean {
+	get isError(): boolean {
 		return this._isError;
 	}
 
-	public set isDirectory(value: boolean) {
+	set isDirectory(value: boolean) {
 		if (value !== this._isDirectory) {
 			this._isDirectory = value;
 			if (this._isDirectory) {
@@ -129,7 +133,7 @@ export class ExplorerItem {
 
 	}
 
-	public get name(): string {
+	get name(): string {
 		return this._name;
 	}
 
@@ -144,15 +148,15 @@ export class ExplorerItem {
 		}
 	}
 
-	public getId(): string {
+	getId(): string {
 		return this.resource.toString();
 	}
 
-	public get isRoot(): boolean {
+	get isRoot(): boolean {
 		return this === this.root;
 	}
 
-	public static create(raw: IFileStat, root: ExplorerItem, resolveTo?: URI[], isError = false): ExplorerItem {
+	static create(raw: IFileStat, root: ExplorerItem, resolveTo?: URI[], isError = false): ExplorerItem {
 		const stat = new ExplorerItem(raw.resource, root, raw.isSymbolicLink, raw.isReadonly, raw.isDirectory, raw.name, raw.mtime, raw.etag, isError);
 
 		// Recursively add children if present
@@ -183,7 +187,7 @@ export class ExplorerItem {
 	 * and children. The merge will only consider resolved stat elements to avoid overwriting data which
 	 * exists locally.
 	 */
-	public static mergeLocalWithDisk(disk: ExplorerItem, local: ExplorerItem): void {
+	static mergeLocalWithDisk(disk: ExplorerItem, local: ExplorerItem): void {
 		if (disk.resource.toString() !== local.resource.toString()) {
 			return; // Merging only supported for stats with the same resource
 		}
@@ -242,7 +246,7 @@ export class ExplorerItem {
 	/**
 	 * Adds a child element to this folder.
 	 */
-	public addChild(child: ExplorerItem): void {
+	addChild(child: ExplorerItem): void {
 		if (!this.children) {
 			this.isDirectory = true;
 		}
@@ -256,7 +260,7 @@ export class ExplorerItem {
 		}
 	}
 
-	public getChild(name: string): ExplorerItem | undefined {
+	getChild(name: string): ExplorerItem | undefined {
 		if (!this.children) {
 			return undefined;
 		}
@@ -267,7 +271,7 @@ export class ExplorerItem {
 	/**
 	 * Only use this method if you need all the children since it converts a map to an array
 	 */
-	public getChildrenArray(): ExplorerItem[] | undefined {
+	getChildrenArray(): ExplorerItem[] | undefined {
 		if (!this.children) {
 			return undefined;
 		}
@@ -280,7 +284,7 @@ export class ExplorerItem {
 		return items;
 	}
 
-	public getChildrenCount(): number {
+	getChildrenCount(): number {
 		if (!this.children) {
 			return 0;
 		}
@@ -291,7 +295,7 @@ export class ExplorerItem {
 	/**
 	 * Removes a child element from this folder.
 	 */
-	public removeChild(child: ExplorerItem): void {
+	removeChild(child: ExplorerItem): void {
 		if (this.children) {
 			this.children.delete(this.getPlatformAwareName(child.name));
 		}
@@ -304,7 +308,7 @@ export class ExplorerItem {
 	/**
 	 * Moves this element under a new parent element.
 	 */
-	public move(newParent: ExplorerItem, fnBetweenStates?: (callback: () => void) => void, fnDone?: () => void): void {
+	move(newParent: ExplorerItem, fnBetweenStates?: (callback: () => void) => void, fnDone?: () => void): void {
 		if (!fnBetweenStates) {
 			fnBetweenStates = (cb: () => void) => { cb(); };
 		}
@@ -337,7 +341,7 @@ export class ExplorerItem {
 	 * Tells this stat that it was renamed. This requires changes to all children of this stat (if any)
 	 * so that the path property can be updated properly.
 	 */
-	public rename(renamedStat: { name: string, mtime?: number }): void {
+	rename(renamedStat: { name: string, mtime?: number }): void {
 
 		// Merge a subset of Properties that can change on rename
 		this.updateName(renamedStat.name);
@@ -351,7 +355,7 @@ export class ExplorerItem {
 	 * Returns a child stat from this stat that matches with the provided path.
 	 * Will return "null" in case the child does not exist.
 	 */
-	public find(resource: URI): ExplorerItem | null {
+	find(resource: URI): ExplorerItem | null {
 		// Return if path found
 		// For performance reasons try to do the comparison as fast as possible
 		if (resource && this.resource.scheme === resource.scheme && equalsIgnoreCase(this.resource.authority, resource.authority) &&
@@ -396,7 +400,7 @@ export class ExplorerItem {
 /* A helper that can be used to show a placeholder when creating a new stat */
 export class NewStatPlaceholder extends ExplorerItem {
 
-	public static NAME = '';
+	static readonly NAME = '';
 	private static ID = 0;
 
 	private id: number;
@@ -410,7 +414,7 @@ export class NewStatPlaceholder extends ExplorerItem {
 		this.directoryPlaceholder = isDirectory;
 	}
 
-	public destroy(): void {
+	destroy(): void {
 		this.parent.removeChild(this);
 
 		this.isDirectoryResolved = false;
@@ -418,35 +422,35 @@ export class NewStatPlaceholder extends ExplorerItem {
 		this.mtime = void 0;
 	}
 
-	public getId(): string {
+	getId(): string {
 		return `new-stat-placeholder:${this.id}:${this.parent.resource.toString()}`;
 	}
 
-	public isDirectoryPlaceholder(): boolean {
+	isDirectoryPlaceholder(): boolean {
 		return this.directoryPlaceholder;
 	}
 
-	public addChild() {
+	addChild() {
 		throw new Error('Can\'t perform operations in NewStatPlaceholder.');
 	}
 
-	public removeChild() {
+	removeChild() {
 		throw new Error('Can\'t perform operations in NewStatPlaceholder.');
 	}
 
-	public move() {
+	move() {
 		throw new Error('Can\'t perform operations in NewStatPlaceholder.');
 	}
 
-	public rename() {
+	rename() {
 		throw new Error('Can\'t perform operations in NewStatPlaceholder.');
 	}
 
-	public find(resource: URI): ExplorerItem | null {
+	find(resource: URI): ExplorerItem | null {
 		return null;
 	}
 
-	public static addNewStatPlaceholder(parent: ExplorerItem, isDirectory: boolean): NewStatPlaceholder {
+	static addNewStatPlaceholder(parent: ExplorerItem, isDirectory: boolean): NewStatPlaceholder {
 		const child = new NewStatPlaceholder(isDirectory, parent.root);
 
 		// Inherit some parent properties to child
