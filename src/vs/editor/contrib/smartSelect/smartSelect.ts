@@ -85,7 +85,7 @@ class SmartSelectController implements IEditorContribution {
 		let promise: Promise<void> = Promise.resolve(void 0);
 
 		if (!this._state) {
-			promise = provideSelectionRanges(model, selection.getStartPosition(), CancellationToken.None).then(ranges => {
+			promise = provideSelectionRanges(model, selection.getPosition(), CancellationToken.None).then(ranges => {
 				if (!arrays.isNonEmptyArray(ranges)) {
 					// invalid result
 					return;
