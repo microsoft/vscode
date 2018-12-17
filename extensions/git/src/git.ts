@@ -1197,7 +1197,7 @@ export class Repository {
 		}
 	}
 
-	async pull(rebase?: boolean, remote?: string, branch?: string): Promise<void> {
+	async pull(rebase?: boolean, remote?: string, branch?: string, cancellationToken?: CancellationToken): Promise<void> {
 		const args = ['pull', '--tags'];
 
 		if (rebase) {
@@ -1210,7 +1210,7 @@ export class Repository {
 		}
 
 		try {
-			await this.run(args);
+			await this.run(args, { cancellationToken });
 		} catch (err) {
 			if (/^CONFLICT \([^)]+\): \b/m.test(err.stdout || '')) {
 				err.gitErrorCode = GitErrorCodes.Conflict;

@@ -1004,11 +1004,22 @@ export class Repository implements Disposable {
 		await this.run(Operation.Sync, async () => {
 			const config = workspace.getConfiguration('git', Uri.file(this.root));
 			const fetchOnPull = config.get<boolean>('fetchOnPull');
+			const opts = {
+				location: ProgressLocation.Notification,
+				title: localize('sync is unpredictable', "Syncing. Cancelling may cause serious damages to the repository"),
+				cancellable: true
+			};
 
 			if (fetchOnPull) {
-				await this.repository.pull(rebase);
+				await window.withProgress(
+					opts,
+					(_, token) => this.repository.pull(rebase, undefined, undefined, token)
+				);
 			} else {
-				await this.repository.pull(rebase, remoteName, pullBranch);
+				await window.withProgress(
+					opts,
+					(_, token) => this.repository.pull(rebase, remoteName, pullBranch, token)
+				);
 			}
 
 			const remote = this.remotes.find(r => r.name === remoteName);
