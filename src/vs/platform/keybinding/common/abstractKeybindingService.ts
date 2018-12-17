@@ -158,7 +158,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 
 	public dispatchByUserSettingsLabel(userSettingsLabel: string, target: IContextKeyServiceTarget): void {
 		const keybindings = this.resolveUserBinding(userSettingsLabel);
-		if (keybindings.length === 1) {
+		if (keybindings.length >= 1) {
 			this._doDispatch(keybindings[0], target);
 		}
 	}
