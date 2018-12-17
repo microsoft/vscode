@@ -3,29 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SelectionRangeProvider, StandardTokenType } from 'vs/editor/common/modes';
+import { SelectionRangeProvider, StandardTokenType, SelectionRange } from 'vs/editor/common/modes';
 import { ITextModel } from 'vs/editor/common/model';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 
 export class WordSelectionRangeProvider implements SelectionRangeProvider {
 
-	provideSelectionRanges(model: ITextModel, position: Position): Range[] {
-		let result: Range[] = [];
+	provideSelectionRanges(model: ITextModel, position: Position): SelectionRange[] {
+		let result: SelectionRange[] = [];
 		this._addWordRanges(result, model, position);
 		this._addTokenRange(result, model, position);
 		this._addLineRanges(result, model, position);
 		return result;
 	}
 
-	private _addWordRanges(bucket: Range[], model: ITextModel, pos: Position): void {
+	private _addWordRanges(bucket: SelectionRange[], model: ITextModel, pos: Position): void {
 		const word = model.getWordAtPosition(pos);
 		if (word) {
-			bucket.push(new Range(pos.lineNumber, word.startColumn, pos.lineNumber, word.endColumn));
+			bucket.push({ range: new Range(pos.lineNumber, word.startColumn, pos.lineNumber, word.endColumn), kind: 'simple.word' });
 		}
 	}
 
-	private _addTokenRange(bucket: Range[], model: ITextModel, pos: Position): void {
+	private _addTokenRange(bucket: SelectionRange[], model: ITextModel, pos: Position): void {
 		const tokens = model.getLineTokens(pos.lineNumber);
 		const index = tokens.findTokenIndexAtOffset(pos.column - 1);
 		const type = tokens.getStandardTokenType(index);
@@ -98,15 +98,15 @@ export class WordSelectionRangeProvider implements SelectionRangeProvider {
 
 		if (type === StandardTokenType.String) {
 			// just assume that quotation marks are length=1
-			bucket.push(Range.fromPositions(left.delta(0, 1), right.delta(0, -1)));
-			bucket.push(Range.fromPositions(left, right));
+			bucket.push({ range: Range.fromPositions(left.delta(0, 1), right.delta(0, -1)), kind: 'simple.string' });
+			bucket.push({ range: Range.fromPositions(left, right), kind: 'simple.string' });
 		} else {
-			bucket.push(Range.fromPositions(left, right));
+			bucket.push({ range: Range.fromPositions(left, right), kind: 'simple.comment' });
 		}
 	}
 
-	private _addLineRanges(bucket: Range[], model: ITextModel, pos: Position): void {
-		bucket.push(new Range(pos.lineNumber, model.getLineFirstNonWhitespaceColumn(pos.lineNumber), pos.lineNumber, model.getLineLastNonWhitespaceColumn(pos.lineNumber)));
-		bucket.push(new Range(pos.lineNumber, model.getLineMinColumn(pos.lineNumber), pos.lineNumber, model.getLineMaxColumn(pos.lineNumber)));
+	private _addLineRanges(bucket: SelectionRange[], model: ITextModel, pos: Position): void {
+		bucket.push({ range: new Range(pos.lineNumber, model.getLineFirstNonWhitespaceColumn(pos.lineNumber), pos.lineNumber, model.getLineLastNonWhitespaceColumn(pos.lineNumber)), kind: 'simple.line' });
+		bucket.push({ range: new Range(pos.lineNumber, model.getLineMinColumn(pos.lineNumber), pos.lineNumber, model.getLineMaxColumn(pos.lineNumber)), kind: 'simple.line' });
 	}
 }

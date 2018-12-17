@@ -221,11 +221,11 @@ export function provideSelectionRanges(model: ITextModel, position: Position, to
 	for (const group of provider) {
 		rank += 1;
 		for (const prov of group) {
-			work.push(Promise.resolve(prov.provideSelectionRanges(model, position, token)).then(res => {
-				if (arrays.isNonEmptyArray(res)) {
-					for (const range of res) {
-						if (Range.isIRange(range) && Range.containsPosition(range, position)) {
-							ranges.push({ range: Range.lift(range), rank });
+			work.push(Promise.resolve(prov.provideSelectionRanges(model, position, token)).then(selectionRanges => {
+				if (arrays.isNonEmptyArray(selectionRanges)) {
+					for (const sel of selectionRanges) {
+						if (Range.isIRange(sel.range) && Range.containsPosition(sel.range, position)) {
+							ranges.push({ range: Range.lift(sel.range), rank });
 						}
 					}
 				}

@@ -1025,11 +1025,16 @@ export interface DocumentColorProvider {
 	provideColorPresentations(model: model.ITextModel, colorInfo: IColorInformation, token: CancellationToken): ProviderResult<IColorPresentation[]>;
 }
 
+export interface SelectionRange {
+	kind: string;
+	range: IRange;
+}
+
 export interface SelectionRangeProvider {
 	/**
 	 * Provide ranges that should be selected from the given position.
 	 */
-	provideSelectionRanges(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<IRange[]>;
+	provideSelectionRanges(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<SelectionRange[]>;
 }
 
 export interface FoldingContext {
