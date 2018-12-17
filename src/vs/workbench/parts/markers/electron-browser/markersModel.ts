@@ -80,6 +80,14 @@ export class Marker {
 		readonly relatedInformation: RelatedInformation[] = []
 	) { }
 
+	private _lines: string[];
+	get lines(): string[] {
+		if (!this._lines) {
+			this._lines = this.marker.message.split(/\r\n|\r|\n/g);
+		}
+		return this._lines;
+	}
+
 	toString(): string {
 		return JSON.stringify({
 			...this.marker,

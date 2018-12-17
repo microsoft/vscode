@@ -15,7 +15,7 @@ import Messages from 'vs/workbench/parts/markers/electron-browser/messages';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ActionBar, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { QuickFixAction } from 'vs/workbench/parts/markers/electron-browser/markersPanelActions';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -26,6 +26,7 @@ import { FilterOptions } from 'vs/workbench/parts/markers/electron-browser/marke
 import { IMatch } from 'vs/base/common/filters';
 import { Event } from 'vs/base/common/event';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { isUndefinedOrNull } from 'vs/base/common/types';
 
 export type TreeElement = ResourceMarkers | Marker | RelatedInformation;
 
@@ -36,12 +37,7 @@ interface IResourceMarkersTemplateData {
 }
 
 interface IMarkerTemplateData {
-	icon: HTMLElement;
-	actionBar: ActionBar;
-	source: HighlightedLabel;
-	description: HighlightedLabel;
-	lnCol: HTMLElement;
-	code: HighlightedLabel;
+	markerWidget: MarkerWidget;
 }
 
 interface IRelatedInformationTemplateData {
@@ -78,7 +74,10 @@ const enum TemplateId {
 
 export class VirtualDelegate implements IListVirtualDelegate<TreeElement> {
 
-	getHeight(): number {
+	getHeight(element: TreeElement): number {
+		if (element instanceof Marker) {
+			return element.lines.length * 22;
+		}
 		return 22;
 	}
 
@@ -110,7 +109,7 @@ interface ResourceMarkersFilterData {
 
 interface MarkerFilterData {
 	type: FilterDataType.Marker;
-	messageMatches: IMatch[];
+	lineMatches: IMatch[][];
 	sourceMatches: IMatch[];
 	codeMatches: IMatch[];
 }
@@ -218,44 +217,91 @@ export class MarkerRenderer implements ITreeRenderer<Marker, MarkerFilterData, I
 
 	renderTemplate(container: HTMLElement): IMarkerTemplateData {
 		const data: IMarkerTemplateData = Object.create(null);
-		const actionsContainer = dom.append(container, dom.$('.actions'));
-		data.actionBar = new ActionBar(actionsContainer, { actionItemProvider: this.actionItemProvider });
-		data.icon = dom.append(container, dom.$('.icon'));
-		data.source = new HighlightedLabel(dom.append(container, dom.$('')), false);
-		data.description = new HighlightedLabel(dom.append(container, dom.$('.marker-description')), false);
-		data.code = new HighlightedLabel(dom.append(container, dom.$('')), false);
-		data.lnCol = dom.append(container, dom.$('span.marker-line'));
+		data.markerWidget = new MarkerWidget(container, this.actionItemProvider, this.instantiationService);
 		return data;
 	}
 
 	renderElement(node: ITreeNode<Marker, MarkerFilterData>, _: number, templateData: IMarkerTemplateData): void {
-		const marker = node.element.marker;
-		const sourceMatches = node.filterData && node.filterData.sourceMatches || [];
-		const messageMatches = node.filterData && node.filterData.messageMatches || [];
-		const codeMatches = node.filterData && node.filterData.codeMatches || [];
-
-		templateData.icon.className = 'icon ' + MarkerRenderer.iconClassNameFor(marker);
-
-		templateData.source.set(marker.source, sourceMatches);
-		dom.toggleClass(templateData.source.element, 'marker-source', !!marker.source);
-
-		templateData.actionBar.clear();
-		const quickFixAction = this.instantiationService.createInstance(QuickFixAction, node.element);
-		templateData.actionBar.push([quickFixAction], { icon: true, label: false });
-
-		templateData.description.set(marker.message, messageMatches);
-		templateData.description.element.title = marker.message;
-
-		dom.toggleClass(templateData.code.element, 'marker-code', !!marker.code);
-		templateData.code.set(marker.code, codeMatches);
-
-		templateData.lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(marker.startLineNumber, marker.startColumn);
+		templateData.markerWidget.render(node.element, node.filterData);
 	}
 
 	disposeTemplate(templateData: IMarkerTemplateData): void {
-		templateData.description.dispose();
-		templateData.source.dispose();
-		templateData.actionBar.dispose();
+		templateData.markerWidget.dispose();
+	}
+
+}
+
+class MarkerWidget extends Disposable {
+
+	private readonly actionBar: ActionBar;
+	private readonly icon: HTMLElement;
+	private readonly messageContainer: HTMLElement;
+	private disposables: IDisposable[] = [];
+
+	constructor(
+		parent: HTMLElement, actionItemProvider: IActionItemProvider,
+		private instantiationService: IInstantiationService
+	) {
+		super();
+		const actionsContainer = dom.append(parent, dom.$('.actions'));
+		this.actionBar = this._register(new ActionBar(actionsContainer, { actionItemProvider }));
+		this.icon = dom.append(parent, dom.$('.icon'));
+		this.messageContainer = dom.append(parent, dom.$('.marker-message'));
+		this._register(toDisposable(() => this.disposables = dispose(this.disposables)));
+	}
+
+	render(element: Marker, filterData: MarkerFilterData): void {
+		const { marker, lines } = element;
+		if (this.disposables.length) {
+			this.disposables = dispose(this.disposables);
+		}
+		dom.clearNode(this.messageContainer);
+
+		this.icon.className = 'icon ' + MarkerWidget.iconClassNameFor(marker);
+
+		this.actionBar.clear();
+		const quickFixAction = this.instantiationService.createInstance(QuickFixAction, element);
+		this.actionBar.push([quickFixAction], { icon: true, label: false });
+		this.onDidQuickFixesActionEnable(quickFixAction.enabled);
+		quickFixAction.onDidChange(({ enabled }) => {
+			if (!isUndefinedOrNull(enabled)) {
+				this.onDidQuickFixesActionEnable(enabled);
+			}
+		}, this, this.disposables);
+
+		const lineMatches = filterData && filterData.lineMatches || [];
+		let lastLineElement = this.messageContainer;
+		for (let index = 0; index < lines.length; index++) {
+			lastLineElement = dom.append(this.messageContainer, dom.$('.marker-message-line'));
+			const highlightedLabel = new HighlightedLabel(lastLineElement, false);
+			highlightedLabel.set(lines[index], lineMatches[index]);
+			this.disposables.push(highlightedLabel);
+		}
+
+		this.renderDetails(marker, filterData, lastLineElement);
+	}
+
+	private onDidQuickFixesActionEnable(enabled: boolean): void {
+		dom.toggleClass(this.icon, 'quickFix', enabled);
+	}
+
+	private renderDetails(marker: IMarker, filterData: MarkerFilterData, parent: HTMLElement): void {
+		dom.addClass(parent, 'details-container');
+		const sourceMatches = filterData && filterData.sourceMatches || [];
+		const codeMatches = filterData && filterData.codeMatches || [];
+
+		const source = new HighlightedLabel(dom.append(parent, dom.$('')), false);
+		source.set(marker.source, sourceMatches);
+		dom.toggleClass(source.element, 'marker-source', !!marker.source);
+
+		const code = new HighlightedLabel(dom.append(parent, dom.$('')), false);
+		code.set(marker.code, codeMatches);
+		dom.toggleClass(code.element, 'marker-code', !!marker.code);
+
+		const lnCol = dom.append(parent, dom.$('span.marker-line'));
+		lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(marker.startLineNumber, marker.startColumn);
+
+		this.disposables.push(...[source, code]);
 	}
 
 	private static iconClassNameFor(element: IMarker): string {
@@ -369,12 +415,15 @@ export class Filter implements ITreeFilter<TreeElement, FilterData> {
 			return true;
 		}
 
-		const messageMatches = FilterOptions._messageFilter(this.options.textFilter, marker.marker.message);
+		const lineMatches: IMatch[][] = [];
+		for (const line of marker.lines) {
+			lineMatches.push(FilterOptions._messageFilter(this.options.textFilter, line) || []);
+		}
 		const sourceMatches = marker.marker.source && FilterOptions._filter(this.options.textFilter, marker.marker.source);
 		const codeMatches = marker.marker.code && FilterOptions._filter(this.options.textFilter, marker.marker.code);
 
-		if (messageMatches || sourceMatches || codeMatches) {
-			return { visibility: true, data: { type: FilterDataType.Marker, messageMatches: messageMatches || [], sourceMatches: sourceMatches || [], codeMatches: codeMatches || [] } };
+		if (sourceMatches || codeMatches || lineMatches.some(lineMatch => lineMatch.length > 0)) {
+			return { visibility: true, data: { type: FilterDataType.Marker, lineMatches, sourceMatches: sourceMatches || [], codeMatches: codeMatches || [] } };
 		}
 
 		return parentVisibility;
