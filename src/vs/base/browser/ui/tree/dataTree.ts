@@ -17,17 +17,7 @@ export interface IDataTreeOptions<T, TFilterData = void> extends IAbstractTreeOp
 export class DataTree<TInput, T, TFilterData = void> extends AbstractTree<T | null, TFilterData, TInput | T> {
 
 	protected model: ObjectTreeModel<T | null, TFilterData>;
-
-	private _input: TInput | undefined;
-
-	get input(): TInput | undefined {
-		return this._input;
-	}
-
-	set input(input: TInput | undefined) {
-		this._input = input;
-		this.refresh(input);
-	}
+	private input: TInput | undefined;
 
 	constructor(
 		container: HTMLElement,
@@ -39,8 +29,22 @@ export class DataTree<TInput, T, TFilterData = void> extends AbstractTree<T | nu
 		super(container, delegate, renderers, options);
 	}
 
-	refresh(element: TInput | T): void {
-		if (!this._input) {
+	getInput(): TInput | undefined {
+		return this.input;
+	}
+
+	setInput(input: TInput | undefined): void {
+		this.input = input;
+
+		if (typeof input === 'undefined') {
+			return;
+		}
+
+		this.refresh(input);
+	}
+
+	refresh(element: TInput | T = this.input): void {
+		if (typeof this.input === 'undefined') {
 			throw new Error('Tree input not set');
 		}
 

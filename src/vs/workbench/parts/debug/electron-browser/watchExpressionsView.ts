@@ -34,7 +34,7 @@ export class WatchExpressionsView extends ViewletPanel {
 
 	private onWatchExpressionsUpdatedScheduler: RunOnceScheduler;
 	private needsRefresh: boolean;
-	private tree: WorkbenchAsyncDataTree<IExpression>;
+	private tree: WorkbenchAsyncDataTree<IDebugService, IExpression>;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -51,7 +51,7 @@ export class WatchExpressionsView extends ViewletPanel {
 
 		this.onWatchExpressionsUpdatedScheduler = new RunOnceScheduler(() => {
 			this.needsRefresh = false;
-			this.tree.refresh(null);
+			this.tree.refresh();
 		}, 50);
 	}
 
@@ -63,14 +63,15 @@ export class WatchExpressionsView extends ViewletPanel {
 		const expressionsRenderer = this.instantiationService.createInstance(WatchExpressionsRenderer);
 		this.disposables.push(expressionsRenderer);
 		this.tree = new WorkbenchAsyncDataTree(treeContainer, new WatchExpressionsDelegate(), [expressionsRenderer, this.instantiationService.createInstance(VariablesRenderer)],
-			new WatchExpressionsDataSource(this.debugService), {
+			new WatchExpressionsDataSource(), {
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'watchAriaTreeLabel' }, "Debug Watch Expressions"),
 				accessibilityProvider: new WatchExpressionsAccessibilityProvider(),
 				identityProvider: { getId: element => element.getId() },
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: e => e }
 			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
 
-		this.tree.refresh(null);
+		// TODO@isidor this is a promise
+		this.tree.setInput(this.debugService);
 
 		const addWatchExpressionAction = new AddWatchExpressionAction(AddWatchExpressionAction.ID, AddWatchExpressionAction.LABEL, this.debugService, this.keybindingService);
 		const collapseAction = new CollapseAction2(this.tree, true, 'explorer-action collapse-explorer');
@@ -83,7 +84,7 @@ export class WatchExpressionsView extends ViewletPanel {
 			if (!this.isExpanded() || !this.isVisible()) {
 				this.needsRefresh = true;
 			} else {
-				this.tree.refresh(null);
+				this.tree.refresh();
 			}
 		}));
 		this.disposables.push(this.debugService.getViewModel().onDidFocusStackFrame(() => {
@@ -96,7 +97,7 @@ export class WatchExpressionsView extends ViewletPanel {
 				this.onWatchExpressionsUpdatedScheduler.schedule();
 			}
 		}));
-		this.disposables.push(variableSetEmitter.event(() => this.tree.refresh(null)));
+		this.disposables.push(variableSetEmitter.event(() => this.tree.refresh()));
 	}
 
 	layoutBody(size: number): void {
@@ -186,22 +187,21 @@ class WatchExpressionsDelegate implements IListVirtualDelegate<IExpression> {
 	}
 }
 
-class WatchExpressionsDataSource implements IAsyncDataSource<IExpression> {
+function isDebugService(element: any): element is IDebugService {
+	return typeof element.getConfigurationManager === 'function';
+}
 
-	constructor(private debugService: IDebugService) { }
+class WatchExpressionsDataSource implements IAsyncDataSource<IDebugService, IExpression> {
 
 	hasChildren(element: IExpression | null): boolean {
-		if (element === null) {
-			return true;
-		}
-
-		return element.hasChildren;
+		return isDebugService(element) || element.hasChildren;
 	}
 
-	getChildren(element: IExpression | null): Promise<Array<IExpression>> {
-		if (element === null) {
-			const watchExpressions = this.debugService.getModel().getWatchExpressions();
-			const viewModel = this.debugService.getViewModel();
+	getChildren(element: IDebugService | IExpression): Promise<Array<IExpression>> {
+		if (isDebugService(element)) {
+			const debugService = element as IDebugService;
+			const watchExpressions = debugService.getModel().getWatchExpressions();
+			const viewModel = debugService.getViewModel();
 			return Promise.all(watchExpressions.map(we => !!we.name
 				? we.evaluate(viewModel.focusedSession, viewModel.focusedStackFrame, 'watch').then(() => we)
 				: Promise.resolve(we)));

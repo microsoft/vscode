@@ -35,7 +35,7 @@ import { ObjectTree, IObjectTreeOptions } from 'vs/base/browser/ui/tree/objectTr
 import { ITreeEvent, ITreeRenderer, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { AsyncDataTree, IAsyncDataTreeOptions } from 'vs/base/browser/ui/tree/asyncDataTree';
 
-export type ListWidget = List<any> | PagedList<any> | ITree | ObjectTree<any, any> | AsyncDataTree<any, any>;
+export type ListWidget = List<any> | PagedList<any> | ITree | ObjectTree<any, any> | AsyncDataTree<any, any, any>;
 
 export const IListService = createDecorator<IListService>('listService');
 
@@ -590,7 +590,7 @@ export class TreeResourceNavigator2<T, TFilterData> extends Disposable {
 	private readonly _openResource: Emitter<IOpenEvent<T>> = new Emitter<IOpenEvent<T>>();
 	readonly openResource: Event<IOpenEvent<T>> = this._openResource.event;
 
-	constructor(private tree: WorkbenchObjectTree<T, TFilterData> | WorkbenchAsyncDataTree<T, TFilterData>, private options?: IResourceResultsNavigationOptions) {
+	constructor(private tree: WorkbenchObjectTree<T, TFilterData> | WorkbenchAsyncDataTree<any, T, TFilterData>, private options?: IResourceResultsNavigationOptions) {
 		super();
 
 		this.registerListeners();
@@ -955,7 +955,7 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 	}
 }
 
-export class WorkbenchAsyncDataTree<T extends NonNullable<any>, TFilterData = void> extends AsyncDataTree<T, TFilterData> {
+export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends AsyncDataTree<TInput, T, TFilterData> {
 
 	readonly contextKeyService: IContextKeyService;
 
@@ -969,7 +969,7 @@ export class WorkbenchAsyncDataTree<T extends NonNullable<any>, TFilterData = vo
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
 		renderers: ITreeRenderer<any /* TODO@joao */, TFilterData, any>[],
-		dataSource: IAsyncDataSource<T>,
+		dataSource: IAsyncDataSource<TInput, T>,
 		options: IAsyncDataTreeOptions<T, TFilterData>,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,

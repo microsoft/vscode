@@ -45,7 +45,7 @@ export class DebugHoverWidget implements IContentWidget {
 
 	private _isVisible: boolean;
 	private domNode: HTMLElement;
-	private tree: AsyncDataTree<IExpression>;
+	private tree: AsyncDataTree<IExpression, IExpression>;
 	private showAtPosition: Position;
 	private highlightDecorations: string[];
 	private complexValueContainer: HTMLElement;
@@ -237,9 +237,8 @@ export class DebugHoverWidget implements IContentWidget {
 
 		this.valueContainer.hidden = true;
 		this.complexValueContainer.hidden = false;
-		this.dataSource.expression = expression;
 
-		return this.tree.refresh(null).then(() => {
+		return this.tree.setInput(expression).then(() => {
 			this.complexValueTitle.textContent = expression.value;
 			this.complexValueTitle.title = expression.value;
 			this.layoutTreeAndContainer();
@@ -291,19 +290,13 @@ class DebugHoverAccessibilityProvider implements IAccessibilityProvider<IExpress
 	}
 }
 
-class DebugHoverDataSource implements IAsyncDataSource<IExpression> {
+class DebugHoverDataSource implements IAsyncDataSource<IExpression, IExpression> {
 
-	expression: IExpression;
-
-	hasChildren(element: IExpression | null): boolean {
-		return element === null || element.hasChildren;
+	hasChildren(element: IExpression): boolean {
+		return element.hasChildren;
 	}
 
-	getChildren(element: IExpression | null): Promise<IExpression[]> {
-		if (element === null) {
-			element = this.expression;
-		}
-
+	getChildren(element: IExpression): Promise<IExpression[]> {
 		return element.getChildren();
 	}
 }
