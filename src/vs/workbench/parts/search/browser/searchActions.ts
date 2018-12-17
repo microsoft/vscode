@@ -28,6 +28,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { normalize } from 'vs/base/common/paths';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { repeat } from 'vs/base/common/strings';
 
 export function isSearchViewFocused(viewletService: IViewletService, panelService: IPanelService): boolean {
 	let searchView = getSearchView(viewletService, panelService);
@@ -656,8 +657,31 @@ export const copyPathCommand: ICommandHandler = (accessor, fileMatch: FileMatch 
 	clipboardService.writeText(text);
 };
 
-function matchToString(match: Match): string {
-	return `${match.range().startLineNumber},${match.range().startColumn}: ${match.text()}`;
+function matchToString(match: Match, indent = 0): string {
+	const getFirstLinePrefix = () => `${match.range().startLineNumber},${match.range().startColumn}`;
+	const getOtherLinePrefix = (i: number) => match.range().startLineNumber + i + '';
+
+	const fullMatchLines = match.fullMatchText().split(/\r?\n/g);
+	const largestPrefixSize = fullMatchLines.reduce((largest, _, i) => {
+		const thisSize = i === 0 ?
+			getFirstLinePrefix().length :
+			getOtherLinePrefix(i).length;
+
+		return Math.max(thisSize, largest);
+	}, 0);
+
+	const formattedLines = fullMatchLines
+		.map((line, i) => {
+			const prefix = i === 0 ?
+				getFirstLinePrefix() :
+				getOtherLinePrefix(i);
+
+			const paddingStr = repeat(' ', largestPrefixSize - prefix.length);
+			const indentStr = repeat(' ', indent);
+			return `${indentStr}${prefix}: ${paddingStr}${line}`;
+		});
+
+	return formattedLines.join('\n');
 }
 
 const lineDelimiter = isWindows ? '\r\n' : '\n';
@@ -665,8 +689,7 @@ function fileMatchToString(fileMatch: FileMatch, maxMatches: number): { text: st
 	const matchTextRows = fileMatch.matches()
 		.sort(searchMatchComparer)
 		.slice(0, maxMatches)
-		.map(matchToString)
-		.map(matchText => '  ' + matchText);
+		.map(match => matchToString(match, 2));
 	return {
 		text: `${uriToClipboardString(fileMatch.resource())}${lineDelimiter}${matchTextRows.join(lineDelimiter)}`,
 		count: matchTextRows.length
