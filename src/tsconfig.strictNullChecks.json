@@ -587,6 +587,7 @@
 		"./vs/workbench/parts/execution/electron-browser/terminal.ts",
 		"./vs/workbench/parts/execution/electron-browser/terminalService.ts",
 		"./vs/workbench/parts/execution/test/electron-browser/terminalService.test.ts",
+		"./vs/workbench/parts/experiments/node/experimentService.ts",
 		"./vs/workbench/parts/extensions/common/extensionQuery.ts",
 		"./vs/workbench/parts/extensions/common/extensions.ts",
 		"./vs/workbench/parts/extensions/common/extensionsFileTemplate.ts",
