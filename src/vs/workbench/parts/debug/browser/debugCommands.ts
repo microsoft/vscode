@@ -9,7 +9,7 @@ import { List } from 'vs/base/browser/ui/list/listWidget';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution, CONTEXT_IN_DEBUG_MODE, CONTEXT_EXPRESSION_SELECTED, CONTEXT_BREAKPOINT_SELECTED } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution, CONTEXT_IN_DEBUG_MODE, CONTEXT_EXPRESSION_SELECTED, CONTEXT_BREAKPOINT_SELECTED, IConfig } from 'vs/workbench/parts/debug/common/debug';
 import { Expression, Variable, Breakpoint, FunctionBreakpoint } from 'vs/workbench/parts/debug/common/debugModel';
 import { IExtensionsViewlet, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/parts/extensions/common/extensions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -23,11 +23,42 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { InputFocusedContext } from 'vs/platform/workbench/common/contextkeys';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { PanelFocusContext } from 'vs/workbench/browser/parts/panel/panelPart';
+import { StartAction } from 'vs/workbench/parts/debug/browser/debugActions';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
 
 export const ADD_CONFIGURATION_ID = 'debug.addConfiguration';
 export const TOGGLE_INLINE_BREAKPOINT_ID = 'editor.debug.action.toggleInlineBreakpoint';
 
 export function registerCommands(): void {
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: StartAction.ID,
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: CONTEXT_IN_DEBUG_MODE.toNegated(),
+		primary: KeyCode.F5,
+		handler: (accessor, config?: IConfig) => {
+			const notificationService = accessor.get(INotificationService);
+			const keybindingService = accessor.get(IKeybindingService);
+			const debugService = accessor.get(IDebugService);
+			const contextService = accessor.get(IWorkspaceContextService);
+			const historyService = accessor.get(IHistoryService);
+
+			const startAction = new StartAction(StartAction.ID, StartAction.LABEL, debugService, keybindingService, contextService, historyService);
+			if (!startAction.enabled) {
+				startAction.dispose();
+				return undefined;
+			}
+
+			startAction.run(config).then(_ => {
+				startAction.dispose();
+			}, err => {
+				startAction.dispose();
+				notificationService.error(err);
+			});
+		}
+	});
+
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'debug.toggleBreakpoint',
@@ -224,6 +255,12 @@ export function registerCommands(): void {
 		when: EditorContextKeys.editorTextFocus,
 		id: TOGGLE_INLINE_BREAKPOINT_ID,
 		handler: inlineBreakpointHandler
+	});
+
+	MenuRegistry.addCommand({
+		id: StartAction.ID,
+		title: StartAction.LABEL,
+		category: nls.localize('debug', "Debug")
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
