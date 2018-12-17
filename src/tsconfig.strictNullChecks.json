@@ -170,6 +170,7 @@
 		"./vs/code/electron-main/sharedProcess.ts",
 		"./vs/code/electron-main/theme.ts",
 		"./vs/code/node/cli.ts",
+		"./vs/code/node/cliProcessMain.ts",
 		"./vs/code/node/paths.ts",
 		"./vs/code/node/shellEnv.ts",
 		"./vs/code/node/wait.ts",
@@ -670,6 +671,7 @@
 		"./vs/workbench/parts/terminal/node/terminalProcess.ts",
 		"./vs/workbench/parts/terminal/node/terminalProcessExtHostProxy.ts",
 		"./vs/workbench/parts/terminal/node/windowsShellHelper.ts",
+		"./vs/workbench/parts/terminal/test/electron-browser/terminalColorRegistry.test.ts",
 		"./vs/workbench/parts/terminal/test/node/terminalCommandTracker.test.ts",
 		"./vs/workbench/parts/url/electron-browser/url.contribution.ts",
 		"./vs/workbench/parts/webview/electron-browser/webviewProtocols.ts",
@@ -792,8 +794,7 @@
 		"./vs/workbench/services/title/common/titleService.ts",
 		"./vs/workbench/services/workspace/common/workspaceEditing.ts",
 		"./vs/workbench/test/common/editor/editorOptions.test.ts",
-		"./vs/workbench/test/electron-browser/api/mock.ts",
-		"./vs/workbench/parts/terminal/test/electron-browser/terminalColorRegistry.test.ts"
+		"./vs/workbench/test/electron-browser/api/mock.ts"
 	],
 	"exclude": [
 		"./typings/require-monaco.d.ts"
