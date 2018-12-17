@@ -8,7 +8,6 @@ import * as DOM from 'vs/base/browser/dom';
 import * as glob from 'vs/base/common/glob';
 import { ExplorerItem, Model, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerModel';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IDataSource } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IFileService, FileKind } from 'vs/platform/files/common/files';
@@ -17,7 +16,7 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { FileLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
-import { ITreeRenderer, ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult } from 'vs/base/browser/ui/tree/tree';
+import { ITreeRenderer, ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, IDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IFileViewletState, IEditableData } from 'vs/workbench/parts/files/electron-browser/fileActions';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
