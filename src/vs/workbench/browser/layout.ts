@@ -501,7 +501,7 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 			}
 
 			// Take from Sidebar if Visible
-			if (!isSidebarHidden && outstandingMissingPreferredEditorWidth > 0) {
+			if (!isSidebarHidden && outstandingMissingPreferredEditorWidth > 0 && !options.toggleMaximizedPanel) {
 				const oldSidebarWidth = sidebarSize.width;
 				sidebarSize.width = Math.max(this.partLayoutInfo.sidebar.minWidth, sidebarSize.width - outstandingMissingPreferredEditorWidth);
 				outstandingMissingPreferredEditorWidth -= oldSidebarWidth - sidebarSize.width;
