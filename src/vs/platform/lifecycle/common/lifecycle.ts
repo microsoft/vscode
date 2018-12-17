@@ -24,7 +24,7 @@ export interface BeforeShutdownEvent {
 	 * Allows to veto the shutdown. The veto can be a long running operation but it
 	 * will block the application from closing.
 	 */
-	veto(value: boolean | Thenable<boolean>): void;
+	veto(value: boolean | Promise<boolean>): void;
 
 	/**
 	 * The reason why the application will be shutting down.
@@ -46,7 +46,7 @@ export interface WillShutdownEvent {
 	 * Allows to join the shutdown. The promise can be a long running operation but it
 	 * will block the application from closing.
 	 */
-	join(promise: Thenable<void>): void;
+	join(promise: Promise<void>): void;
 
 	/**
 	 * The reason why the application is shutting down.
@@ -162,7 +162,7 @@ export interface ILifecycleService {
 	 * Returns a promise that resolves when a certain lifecycle phase
 	 * has started.
 	 */
-	when(phase: LifecyclePhase): Thenable<void>;
+	when(phase: LifecyclePhase): Promise<void>;
 }
 
 export const NullLifecycleService: ILifecycleService = {
@@ -176,12 +176,12 @@ export const NullLifecycleService: ILifecycleService = {
 };
 
 // Shared veto handling across main and renderer
-export function handleVetos(vetos: (boolean | Thenable<boolean>)[], onError: (error: Error) => void): Promise<boolean /* veto */> {
+export function handleVetos(vetos: (boolean | Promise<boolean>)[], onError: (error: Error) => void): Promise<boolean /* veto */> {
 	if (vetos.length === 0) {
 		return Promise.resolve(false);
 	}
 
-	const promises: Thenable<void>[] = [];
+	const promises: Promise<void>[] = [];
 	let lazyValue = false;
 
 	for (let valueOrPromise of vetos) {

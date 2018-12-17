@@ -84,7 +84,7 @@ export interface IOutputService {
 	/**
 	 * Show the channel with the passed id.
 	 */
-	showChannel(id: string, preserveFocus?: boolean): Thenable<void>;
+	showChannel(id: string, preserveFocus?: boolean): Promise<void>;
 
 	/**
 	 * Allows to register on active output channel change.

@@ -38,7 +38,6 @@ import pkg from 'vs/platform/node/package';
 import { ProxyAuthHandler } from 'vs/code/electron-main/auth';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
 import { isUndefinedOrNull } from 'vs/base/common/types';
@@ -61,7 +60,6 @@ import { connectRemoteAgentManagement, RemoteAgentConnectionContext } from 'vs/p
 import { IMenubarService } from 'vs/platform/menubar/common/menubar';
 import { MenubarService } from 'vs/platform/menubar/electron-main/menubarService';
 import { MenubarChannel } from 'vs/platform/menubar/node/menubarIpc';
-import { ILabelService, RegisterFormatterEvent } from 'vs/platform/label/common/label';
 import { hasArgs } from 'vs/platform/environment/node/argv';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
@@ -86,7 +84,7 @@ export class CodeApplication extends Disposable {
 	private electronIpcServer: ElectronIPCServer;
 
 	private sharedProcess: SharedProcess;
-	private sharedProcessClient: TPromise<Client>;
+	private sharedProcessClient: Promise<Client>;
 
 	constructor(
 		private mainIpcServer: Server,
@@ -98,7 +96,6 @@ export class CodeApplication extends Disposable {
 		@IConfigurationService private configurationService: ConfigurationService,
 		@IStateService private stateService: IStateService,
 		@IHistoryMainService private historyMainService: IHistoryMainService,
-		@ILabelService private labelService: ILabelService
 	) {
 		super();
 
@@ -175,7 +172,7 @@ export class CodeApplication extends Disposable {
 
 		class ActiveConnection {
 			private _authority: string;
-			private _client: TPromise<Client<RemoteAgentConnectionContext>>;
+			private _client: Promise<Client<RemoteAgentConnectionContext>>;
 			private _disposeRunner: RunOnceScheduler;
 
 			constructor(authority: string, host: string, port: number) {
@@ -192,7 +189,7 @@ export class CodeApplication extends Disposable {
 				});
 			}
 
-			public getClient(): TPromise<Client<RemoteAgentConnectionContext>> {
+			public getClient(): Promise<Client<RemoteAgentConnectionContext>> {
 				this._disposeRunner.schedule();
 				return this._client;
 			}
@@ -318,10 +315,6 @@ export class CodeApplication extends Disposable {
 			}
 		});
 
-		ipc.on('vscode:labelRegisterFormatter', (event: any, data: RegisterFormatterEvent) => {
-			this.labelService.registerFormatter(data.selector, data.formatter);
-		});
-
 		ipc.on('vscode:toggleDevTools', (event: Event) => {
 			event.sender.toggleDevTools();
 		});
@@ -388,7 +381,7 @@ export class CodeApplication extends Disposable {
 		}
 	}
 
-	startup(): TPromise<void> {
+	startup(): Promise<void> {
 		this.logService.debug('Starting VS Code');
 		this.logService.debug(`from: ${this.environmentService.appRoot}`);
 		this.logService.debug('args:', this.environmentService.args);
@@ -418,9 +411,7 @@ export class CodeApplication extends Disposable {
 		// Create Electron IPC Server
 		this.electronIpcServer = new ElectronIPCServer();
 
-		// Resolve unique machine ID
-		this.logService.trace('Resolving machine identifier...');
-		return this.resolveMachineId().then(machineId => {
+		const startupWithMachineId = (machineId: string) => {
 			this.logService.trace(`Resolved machine identifier: ${machineId}`);
 
 			// Spawn shared process
@@ -453,6 +444,28 @@ export class CodeApplication extends Disposable {
 					this.stopTracingEventually(windows);
 				}
 			});
+		};
+
+		// Resolve unique machine ID
+		this.logService.trace('Resolving machine identifier...');
+		const resolvedMachineId = this.resolveMachineId();
+		if (typeof resolvedMachineId === 'string') {
+			return startupWithMachineId(resolvedMachineId);
+		} else {
+			return resolvedMachineId.then(machineId => startupWithMachineId(machineId));
+		}
+	}
+
+	private resolveMachineId(): string | Promise<string> {
+		const machineId = this.stateService.getItem<string>(CodeApplication.MACHINE_ID_KEY);
+		if (machineId) {
+			return machineId;
+		}
+
+		return getMachineId().then(machineId => {
+			this.stateService.setItem(CodeApplication.MACHINE_ID_KEY, machineId);
+
+			return machineId;
 		});
 	}
 
@@ -485,28 +498,13 @@ export class CodeApplication extends Disposable {
 		const timeoutHandle = setTimeout(() => stopRecording(true), 30000);
 
 		// Wait for all windows to get ready and stop tracing then
-		TPromise.join(windows.map(window => window.ready())).then(() => {
+		Promise.all(windows.map(window => window.ready())).then(() => {
 			clearTimeout(timeoutHandle);
 			stopRecording(false);
 		});
 	}
 
-	private resolveMachineId(): TPromise<string> {
-		const machineId = this.stateService.getItem<string>(CodeApplication.MACHINE_ID_KEY);
-		if (machineId) {
-			return TPromise.wrap(machineId);
-		}
-
-		return getMachineId().then(machineId => {
-
-			// Remember in global storage
-			this.stateService.setItem(CodeApplication.MACHINE_ID_KEY, machineId);
-
-			return machineId;
-		});
-	}
-
-	private initServices(machineId: string): Thenable<IInstantiationService> {
+	private initServices(machineId: string): Promise<IInstantiationService> {
 		const services = new ServiceCollection();
 
 		if (process.platform === 'win32') {
@@ -546,7 +544,7 @@ export class CodeApplication extends Disposable {
 		return appInstantiationService.invokeFunction(accessor => this.initStorageService(accessor)).then(() => appInstantiationService);
 	}
 
-	private initStorageService(accessor: ServicesAccessor): Thenable<void> {
+	private initStorageService(accessor: ServicesAccessor): Promise<void> {
 		const storageMainService = accessor.get(IStorageMainService) as StorageMainService;
 
 		// Ensure to close storage on shutdown
@@ -646,7 +644,7 @@ export class CodeApplication extends Disposable {
 			const environmentService = accessor.get(IEnvironmentService);
 
 			urlService.registerHandler({
-				handleURL(uri: URI): TPromise<boolean> {
+				handleURL(uri: URI): Promise<boolean> {
 					if (windowsMainService.getWindowCount() === 0) {
 						const cli = { ...environmentService.args, goto: true };
 						const [window] = windowsMainService.open({ context: OpenContext.API, cli, forceEmpty: true });
@@ -654,7 +652,7 @@ export class CodeApplication extends Disposable {
 						return window.ready().then(() => urlService.open(uri));
 					}
 
-					return TPromise.as(false);
+					return Promise.resolve(false);
 				}
 			});
 		}

@@ -10,10 +10,10 @@ import { mkdirp, del } from 'vs/base/node/pfs';
 
 export interface ITestFileResult {
 	testFile: string;
-	cleanUp: () => Thenable<void>;
+	cleanUp: () => Promise<void>;
 }
 
-export function testFile(folder: string, file: string): Thenable<ITestFileResult> {
+export function testFile(folder: string, file: string): Promise<ITestFileResult> {
 	const id = generateUuid();
 	const parentDir = join(tmpdir(), 'vsctests', id);
 	const newDir = join(parentDir, 'config', id);

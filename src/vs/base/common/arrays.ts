@@ -298,7 +298,7 @@ function topStep<T>(array: T[], compare: (a: T, b: T) => number, result: T[], i:
 /**
  * @returns a new array with all falsy values removed. The original array IS NOT modified.
  */
-export function coalesce<T>(array: (T | undefined | null)[]): T[] {
+export function coalesce<T>(array: Array<T | undefined | null>): T[] {
 	if (!array) {
 		return array;
 	}
@@ -308,7 +308,7 @@ export function coalesce<T>(array: (T | undefined | null)[]): T[] {
 /**
  * Remove all falsey values from `array`. The original array IS modified.
  */
-export function coalesceInPlace<T>(array: (T | undefined | null)[]): void {
+export function coalesceInPlace<T>(array: Array<T | undefined | null>): void {
 	if (!array) {
 		return;
 	}

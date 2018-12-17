@@ -187,7 +187,7 @@ class LinuxTerminalService extends TerminalLauncher {
 	public runInTerminal0(title: string, dir: string, args: string[], envVars: env.IProcessEnvironment, configuration: ITerminalSettings): Promise<number | undefined> {
 
 		const terminalConfig = configuration.external;
-		const execThenable: Thenable<string> = terminalConfig.linuxExec ? Promise.resolve(terminalConfig.linuxExec) : getDefaultTerminalLinuxReady();
+		const execThenable: Promise<string> = terminalConfig.linuxExec ? Promise.resolve(terminalConfig.linuxExec) : getDefaultTerminalLinuxReady();
 
 		return new Promise<number | undefined>((c, e) => {
 

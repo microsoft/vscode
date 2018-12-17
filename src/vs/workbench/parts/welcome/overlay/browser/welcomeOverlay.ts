@@ -121,7 +121,7 @@ export class WelcomeOverlayAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Thenable<void> {
+	public run(): Promise<void> {
 		if (!welcomeOverlay) {
 			welcomeOverlay = this.instantiationService.createInstance(WelcomeOverlay);
 		}
@@ -142,7 +142,7 @@ export class HideWelcomeOverlayAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Thenable<void> {
+	public run(): Promise<void> {
 		if (welcomeOverlay) {
 			welcomeOverlay.hide();
 		}

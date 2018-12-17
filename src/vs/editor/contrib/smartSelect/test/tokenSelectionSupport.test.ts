@@ -28,7 +28,7 @@ class TestTextResourcePropertiesService implements ITextResourcePropertiesServic
 	) {
 	}
 
-	getEOL(resource: URI): string {
+	getEOL(resource: URI | undefined): string {
 		const filesConfiguration = this.configurationService.getValue<{ eol: string }>('files');
 		if (filesConfiguration && filesConfiguration.eol) {
 			if (filesConfiguration.eol !== 'auto') {

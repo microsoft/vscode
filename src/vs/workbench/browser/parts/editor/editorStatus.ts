@@ -50,7 +50,7 @@ import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { timeout } from 'vs/base/common/async';
 import { INotificationHandle, INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { once } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private master: IEncodingSupport, private details: IEncodingSupport) { }
@@ -514,7 +514,7 @@ export class EditorStatus implements IStatusbarItem {
 				{ sticky: true }
 			);
 
-			once(this.screenReaderNotification.onDidClose)(() => {
+			Event.once(this.screenReaderNotification.onDidClose)(() => {
 				this.screenReaderNotification = null;
 			});
 		}
@@ -824,7 +824,7 @@ export class ShowLanguageExtensionsAction extends Action {
 		this.enabled = galleryService.isEnabled();
 	}
 
-	run(): Thenable<void> {
+	run(): Promise<void> {
 		return this.commandService.executeCommand('workbench.extensions.action.showExtensionsForLanguage', this.fileExtension).then(() => void 0);
 	}
 }
@@ -849,7 +849,7 @@ export class ChangeModeAction extends Action {
 		super(actionId, actionLabel);
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 		const activeTextEditorWidget = getCodeEditor(this.editorService.activeTextEditorWidget);
 		if (!activeTextEditorWidget) {
 			return this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
@@ -1056,7 +1056,7 @@ class ChangeIndentationAction extends Action {
 		super(actionId, actionLabel);
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 		const activeTextEditorWidget = getCodeEditor(this.editorService.activeTextEditorWidget);
 		if (!activeTextEditorWidget) {
 			return this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
@@ -1106,7 +1106,7 @@ export class ChangeEOLAction extends Action {
 		super(actionId, actionLabel);
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 		const activeTextEditorWidget = getCodeEditor(this.editorService.activeTextEditorWidget);
 		if (!activeTextEditorWidget) {
 			return this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
@@ -1153,7 +1153,7 @@ export class ChangeEncodingAction extends Action {
 		super(actionId, actionLabel);
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 		if (!getCodeEditor(this.editorService.activeTextEditorWidget)) {
 			return this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
 		}

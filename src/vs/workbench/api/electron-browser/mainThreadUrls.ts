@@ -41,21 +41,21 @@ export class MainThreadUrls implements MainThreadUrlsShape {
 		this.proxy = context.getProxy(ExtHostContext.ExtHostUrls);
 	}
 
-	$registerUriHandler(handle: number, extensionId: string): Thenable<void> {
+	$registerUriHandler(handle: number, extensionId: string): Promise<void> {
 		const handler = new ExtensionUrlHandler(this.proxy, handle, extensionId);
 		const disposable = this.urlService.registerHandler(handler);
 
 		this.handlers.set(handle, { extensionId, disposable });
 		this.inactiveExtensionUrlHandler.registerExtensionHandler(extensionId, handler);
 
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 
-	$unregisterUriHandler(handle: number): Thenable<void> {
+	$unregisterUriHandler(handle: number): Promise<void> {
 		const tuple = this.handlers.get(handle);
 
 		if (!tuple) {
-			return Promise.resolve(null);
+			return Promise.resolve(void 0);
 		}
 
 		const { extensionId, disposable } = tuple;
@@ -64,7 +64,7 @@ export class MainThreadUrls implements MainThreadUrlsShape {
 		this.handlers.delete(handle);
 		disposable.dispose();
 
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 
 	dispose(): void {

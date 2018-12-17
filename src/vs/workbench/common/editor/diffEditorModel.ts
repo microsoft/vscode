@@ -29,7 +29,7 @@ export class DiffEditorModel extends EditorModel {
 		return this._modifiedModel as EditorModel;
 	}
 
-	load(): Thenable<EditorModel> {
+	load(): Promise<EditorModel> {
 		return Promise.all([
 			this._originalModel.load(),
 			this._modifiedModel.load()

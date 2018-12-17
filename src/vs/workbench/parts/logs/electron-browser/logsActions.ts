@@ -23,7 +23,7 @@ export class OpenLogsFolderAction extends Action {
 		super(id, label);
 	}
 
-	run(): Thenable<void> {
+	run(): Promise<void> {
 		return this.windowsService.showItemInFolder(paths.join(this.environmentService.logsPath, 'main.log'));
 	}
 }
@@ -40,7 +40,7 @@ export class SetLogLevelAction extends Action {
 		super(id, label);
 	}
 
-	run(): Thenable<void> {
+	run(): Promise<void> {
 		const current = this.logService.getLevel();
 		const entries = [
 			{ label: nls.localize('trace', "Trace"), level: LogLevel.Trace, description: this.getDescription(LogLevel.Trace, current) },

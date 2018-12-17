@@ -23,6 +23,7 @@
 
 .monaco-tl-contents {
 	flex: 1;
+	overflow: hidden;
 }
 
 .monaco-tl-twistie.collapsible {

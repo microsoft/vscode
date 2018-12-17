@@ -167,7 +167,7 @@ function startDebugHandler(accessor, args): Promise<void> {
 
 			return Promise.reject(err);
 		}
-	})).then(null, err => notificationService.error(err));
+	})).then(void 0, err => notificationService.error(err));
 }
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({

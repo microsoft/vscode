@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import 'vs/css!./media/dirtydiffDecorator';
 import { ThrottledDelayer, always, first } from 'vs/base/common/async';
 import { IDisposable, dispose, toDisposable, Disposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import { Event, Emitter, anyEvent as anyEvent, filterEvent, once } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import * as ext from 'vs/workbench/common/contributions';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -67,7 +67,7 @@ class DiffMenuItemActionItem extends MenuItemActionItem {
 
 class DiffActionRunner extends ActionRunner {
 
-	runAction(action: IAction, context: any): Thenable<any> {
+	runAction(action: IAction, context: any): Promise<any> {
 		if (action instanceof MenuItemAction) {
 			return action.run(...context);
 		}
@@ -135,7 +135,7 @@ class UIEditorAction extends Action {
 		this.editor = editor;
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 		return Promise.resolve(this.instantiationService.invokeFunction(accessor => this.action.run(accessor, this.editor, null)));
 	}
 }
@@ -224,7 +224,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 			return;
 		}
 
-		const onFirstDiffUpdate = once(this.diffEditor.onDidUpdateDiff);
+		const onFirstDiffUpdate = Event.once(this.diffEditor.onDidUpdateDiff);
 
 		// TODO@joao TODO@alex need this setTimeout probably because the
 		// non-side-by-side diff still hasn't created the view zones
@@ -661,7 +661,7 @@ export class DirtyDiffController implements IEditorContribution {
 		this.isDirtyDiffVisible.set(true);
 
 		const disposables: IDisposable[] = [];
-		once(this.widget.onDidClose)(this.close, this, disposables);
+		Event.once(this.widget.onDidClose)(this.close, this, disposables);
 		model.onDidChange(this.onDidModelChange, this, disposables);
 
 		disposables.push(
@@ -937,7 +937,7 @@ export class DirtyDiffModel {
 	get modified(): ITextModel { return this._editorModel; }
 
 	private diffDelayer: ThrottledDelayer<IChange[]>;
-	private _originalURIPromise: Thenable<URI>;
+	private _originalURIPromise: Promise<URI>;
 	private repositoryDisposables = new Set<IDisposable[]>();
 	private originalModelDisposables: IDisposable[] = [];
 	private disposables: IDisposable[] = [];
@@ -971,16 +971,16 @@ export class DirtyDiffModel {
 		this.repositoryDisposables.add(disposables);
 		disposables.push(toDisposable(() => this.repositoryDisposables.delete(disposables)));
 
-		const onDidChange = anyEvent(repository.provider.onDidChange, repository.provider.onDidChangeResources);
+		const onDidChange = Event.any(repository.provider.onDidChange, repository.provider.onDidChangeResources);
 		onDidChange(this.triggerDiff, this, disposables);
 
-		const onDidRemoveThis = filterEvent(this.scmService.onDidRemoveRepository, r => r === repository);
+		const onDidRemoveThis = Event.filter(this.scmService.onDidRemoveRepository, r => r === repository);
 		onDidRemoveThis(() => dispose(disposables), null, disposables);
 
 		this.triggerDiff();
 	}
 
-	private triggerDiff(): Thenable<any> {
+	private triggerDiff(): Promise<any> {
 		if (!this.diffDelayer) {
 			return Promise.resolve(null);
 		}
@@ -1005,7 +1005,7 @@ export class DirtyDiffModel {
 			});
 	}
 
-	private diff(): Thenable<IChange[]> {
+	private diff(): Promise<IChange[]> {
 		return this.getOriginalURIPromise().then(originalURI => {
 			if (!this._editorModel || this._editorModel.isDisposed() || !originalURI) {
 				return Promise.resolve([]); // disposed
@@ -1019,7 +1019,7 @@ export class DirtyDiffModel {
 		});
 	}
 
-	private getOriginalURIPromise(): Thenable<URI> {
+	private getOriginalURIPromise(): Promise<URI> {
 		if (this._originalURIPromise) {
 			return this._originalURIPromise;
 		}
@@ -1061,7 +1061,7 @@ export class DirtyDiffModel {
 		});
 	}
 
-	private getOriginalResource(): Thenable<URI> {
+	private getOriginalResource(): Promise<URI | null> {
 		if (!this._editorModel) {
 			return Promise.resolve(null);
 		}
@@ -1150,11 +1150,11 @@ export class DirtyDiffWorkbenchController implements ext.IWorkbenchContribution,
 		this.stylesheet = createStyleSheet();
 		this.disposables.push(toDisposable(() => this.stylesheet.parentElement.removeChild(this.stylesheet)));
 
-		const onDidChangeConfiguration = filterEvent(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.diffDecorations'));
+		const onDidChangeConfiguration = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.diffDecorations'));
 		onDidChangeConfiguration(this.onDidChangeConfiguration, this, this.disposables);
 		this.onDidChangeConfiguration();
 
-		const onDidChangeDiffWidthConfiguration = filterEvent(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.diffDecorationsGutterWidth'));
+		const onDidChangeDiffWidthConfiguration = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.diffDecorationsGutterWidth'));
 		onDidChangeDiffWidthConfiguration(this.onDidChangeDiffWidthConfiguration, this);
 		this.onDidChangeDiffWidthConfiguration();
 	}

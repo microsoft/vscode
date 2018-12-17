@@ -77,7 +77,7 @@ class TestEditorInput extends EditorInput {
 		super();
 	}
 	getTypeId() { return 'testEditorInputForGroups'; }
-	resolve(): Thenable<IEditorModel> { return Promise.resolve(null); }
+	resolve(): Promise<IEditorModel> { return Promise.resolve(null); }
 
 	matches(other: TestEditorInput): boolean {
 		return other && this.id === other.id && other instanceof TestEditorInput;
@@ -97,7 +97,7 @@ class NonSerializableTestEditorInput extends EditorInput {
 		super();
 	}
 	getTypeId() { return 'testEditorInputForGroups-nonSerializable'; }
-	resolve(): Thenable<IEditorModel> { return Promise.resolve(null); }
+	resolve(): Promise<IEditorModel> { return Promise.resolve(null); }
 
 	matches(other: NonSerializableTestEditorInput): boolean {
 		return other && this.id === other.id && other instanceof NonSerializableTestEditorInput;
@@ -110,7 +110,7 @@ class TestFileEditorInput extends EditorInput implements IFileEditorInput {
 		super();
 	}
 	getTypeId() { return 'testFileEditorInputForGroups'; }
-	resolve(): Thenable<IEditorModel> { return Promise.resolve(null); }
+	resolve(): Promise<IEditorModel> { return Promise.resolve(null); }
 
 	matches(other: TestFileEditorInput): boolean {
 		return other && this.id === other.id && other instanceof TestFileEditorInput;

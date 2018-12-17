@@ -149,8 +149,8 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 	});
 }
 
-function setupIPC(hook: string): Thenable<Server> {
-	function setup(retry: boolean): Thenable<Server> {
+function setupIPC(hook: string): Promise<Server> {
+	function setup(retry: boolean): Promise<Server> {
 		return serve(hook).then(null, err => {
 			if (!retry || platform.isWindows || err.code !== 'EADDRINUSE') {
 				return Promise.reject(err);

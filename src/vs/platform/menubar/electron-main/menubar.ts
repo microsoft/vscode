@@ -14,13 +14,11 @@ import { IUpdateService, StateType } from 'vs/platform/update/common/update';
 import product from 'vs/platform/node/product';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { mnemonicMenuLabel as baseMnemonicLabel, unmnemonicLabel } from 'vs/base/common/labels';
+import { mnemonicMenuLabel as baseMnemonicLabel } from 'vs/base/common/labels';
 import { IWindowsMainService, IWindowsCountChangedEvent } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { IMenubarData, IMenubarKeybinding, MenubarMenuItem, isMenubarMenuItemSeparator, isMenubarMenuItemSubmenu, isMenubarMenuItemAction, IMenubarMenu } from 'vs/platform/menubar/common/menubar';
+import { IMenubarData, IMenubarKeybinding, MenubarMenuItem, isMenubarMenuItemSeparator, isMenubarMenuItemSubmenu, isMenubarMenuItemAction, IMenubarMenu, isMenubarMenuItemUriAction } from 'vs/platform/menubar/common/menubar';
 import { URI } from 'vs/base/common/uri';
-import { ILabelService } from 'vs/platform/label/common/label';
 import { IStateService } from 'vs/platform/state/common/state';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 
@@ -33,7 +31,6 @@ interface IMenuItemClickHandler {
 
 export class Menubar {
 
-	private static readonly MAX_MENU_RECENT_ENTRIES = 10;
 	private static readonly lastKnownMenubarStorageKey = 'lastKnownMenubarData';
 
 	private willShutdown: boolean;
@@ -61,7 +58,6 @@ export class Menubar {
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IHistoryMainService private historyMainService: IHistoryMainService,
-		@ILabelService private labelService: ILabelService,
 		@IStateService private stateService: IStateService,
 		@ILifecycleService private lifecycleService: ILifecycleService
 	) {
@@ -151,22 +147,11 @@ export class Menubar {
 	}
 
 	private registerListeners(): void {
-
 		// Keep flag when app quits
 		this.lifecycleService.onWillShutdown(() => this.willShutdown = true);
 
 		// // Listen to some events from window service to update menu
-		this.historyMainService.onRecentlyOpenedChange(() => this.scheduleUpdateMenu());
 		this.windowsMainService.onWindowsCountChanged(e => this.onWindowsCountChanged(e));
-		// this.windowsMainService.onActiveWindowChanged(() => this.updateWorkspaceMenuItems());
-		// this.windowsMainService.onWindowReady(() => this.updateWorkspaceMenuItems());
-		// this.windowsMainService.onWindowClose(() => this.updateWorkspaceMenuItems());
-
-		// Update when auto save config changes
-		// this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e));
-
-		// Listen to update service
-		// this.updateService.onStateChange(() => this.updateMenu());
 	}
 
 	private get currentEnableMenuBarMnemonics(): boolean {
@@ -433,10 +418,10 @@ export class Menubar {
 				const submenuItem = new MenuItem({ label: this.mnemonicLabel(item.label), submenu: submenu });
 				this.setMenu(submenu, item.submenu.items);
 				menu.append(submenuItem);
+			} else if (isMenubarMenuItemUriAction(item)) {
+				menu.append(this.createOpenRecentMenuItem(item.uri, item.label, item.id, item.id === 'openRecentFile'));
 			} else if (isMenubarMenuItemAction(item)) {
-				if (item.id === 'workbench.action.openRecent') {
-					this.insertRecentMenuItems(menu);
-				} else if (item.id === 'workbench.action.showAboutDialog') {
+				if (item.id === 'workbench.action.showAboutDialog') {
 					this.insertCheckForUpdatesItems(menu);
 				}
 
@@ -472,41 +457,8 @@ export class Menubar {
 		}
 	}
 
-	private insertRecentMenuItems(menu: Electron.Menu) {
-		const { workspaces, files } = this.historyMainService.getRecentlyOpened();
-
-		// Workspaces
-		if (workspaces.length > 0) {
-			for (let i = 0; i < Menubar.MAX_MENU_RECENT_ENTRIES && i < workspaces.length; i++) {
-				menu.append(this.createOpenRecentMenuItem(workspaces[i], 'openRecentWorkspace', false));
-			}
-
-			menu.append(__separator__());
-		}
-
-		// Files
-		if (files.length > 0) {
-			for (let i = 0; i < Menubar.MAX_MENU_RECENT_ENTRIES && i < files.length; i++) {
-				menu.append(this.createOpenRecentMenuItem(files[i], 'openRecentFile', true));
-			}
-
-			menu.append(__separator__());
-		}
-	}
-
-	private createOpenRecentMenuItem(workspaceOrFile: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI, commandId: string, isFile: boolean): Electron.MenuItem {
-		let label: string;
-		let uri: URI;
-		if (isSingleFolderWorkspaceIdentifier(workspaceOrFile) && !isFile) {
-			label = unmnemonicLabel(this.labelService.getWorkspaceLabel(workspaceOrFile, { verbose: true }));
-			uri = workspaceOrFile;
-		} else if (isWorkspaceIdentifier(workspaceOrFile)) {
-			label = this.labelService.getWorkspaceLabel(workspaceOrFile, { verbose: true });
-			uri = URI.file(workspaceOrFile.configPath);
-		} else {
-			label = unmnemonicLabel(this.labelService.getUriLabel(workspaceOrFile));
-			uri = workspaceOrFile;
-		}
+	private createOpenRecentMenuItem(uri: URI, label: string, commandId: string, isFile: boolean): Electron.MenuItem {
+		const revivedUri = URI.revive(uri);
 
 		return new MenuItem(this.likeAction(commandId, {
 			label,
@@ -515,13 +467,13 @@ export class Menubar {
 				const success = this.windowsMainService.open({
 					context: OpenContext.MENU,
 					cli: this.environmentService.args,
-					urisToOpen: [uri],
+					urisToOpen: [revivedUri],
 					forceNewWindow: openInNewWindow,
 					forceOpenWorkspaceAsFile: isFile
 				}).length > 0;
 
 				if (!success) {
-					this.historyMainService.removeFromRecentlyOpened([workspaceOrFile]);
+					this.historyMainService.removeFromRecentlyOpened([revivedUri]);
 				}
 			}
 		}, false));

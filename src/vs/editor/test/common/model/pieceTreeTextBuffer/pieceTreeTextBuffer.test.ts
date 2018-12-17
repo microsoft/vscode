@@ -106,7 +106,7 @@ function testLineStarts(str: string, pieceTable: PieceTreeBase) {
 	let prevMatchStartIndex = -1;
 	let prevMatchLength = 0;
 
-	let m: RegExpExecArray;
+	let m: RegExpExecArray | null;
 	do {
 		if (prevMatchStartIndex + prevMatchLength === str.length) {
 			// Reached the end of the line

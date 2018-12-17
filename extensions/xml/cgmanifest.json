@@ -11,7 +11,7 @@
 			},
 			"license": "MIT",
 			"description": "The files syntaxes/xml.json and syntaxes/xsl.json were derived from the Atom package https://github.com/atom/language-xml which were originally converted from the TextMate bundle https://github.com/textmate/xml.tmbundle.",
-			"version": "0.0.0"
+			"version": "0.35.2"
 		}
 	],
 	"version": 1

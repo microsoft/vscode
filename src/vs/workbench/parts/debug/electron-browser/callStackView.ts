@@ -25,10 +25,9 @@ import { IViewletPanelOptions, ViewletPanel } from 'vs/workbench/browser/parts/v
 import { ILabelService } from 'vs/platform/label/common/label';
 import { DebugSession } from 'vs/workbench/parts/debug/electron-browser/debugSession';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { IDataSource } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ITreeRenderer, ITreeNode, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
+import { ITreeRenderer, ITreeNode, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { TreeResourceNavigator2, WorkbenchAsyncDataTree, IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
@@ -124,8 +123,26 @@ export class CallStackView extends ViewletPanel {
 
 						return element.getId();
 					}
+				},
+				keyboardNavigationLabelProvider: {
+					getKeyboardNavigationLabel: e => {
+						if (e instanceof DebugSession) {
+							return e.getLabel();
+						}
+						if (e instanceof Thread) {
+							return e.name;
+						}
+						if (e instanceof StackFrame || typeof e === 'string') {
+							return e;
+						}
+						if (e instanceof ThreadAndSessionIds) {
+							return LoadMoreRenderer.LABEL;
+						}
+
+						return nls.localize('showMoreStackFrames2', "Show More Stack Frames");
+					}
 				}
-			}, this.contextKeyService, this.listService, this.themeService, this.configurationService);
+			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
 
 		const callstackNavigator = new TreeResourceNavigator2(this.tree);
 		this.disposables.push(callstackNavigator);
@@ -357,10 +374,6 @@ class SessionsRenderer implements ITreeRenderer<IDebugSession, void, ISessionTem
 			: nls.localize({ key: 'running', comment: ['indicates state'] }, "Running");
 	}
 
-	disposeElement(element: ITreeNode<IDebugSession, void>, index: number, templateData: ISessionTemplateData): void {
-		// noop
-	}
-
 	disposeTemplate(templateData: ISessionTemplateData): void {
 		// noop
 	}
@@ -394,10 +407,6 @@ class ThreadsRenderer implements ITreeRenderer<IThread, void, IThreadTemplateDat
 		} else {
 			data.stateLabel.textContent = nls.localize({ key: 'running', comment: ['indicates state'] }, "Running");
 		}
-	}
-
-	disposeElement(element: ITreeNode<IThread, void>, index: number, templateData: IThreadTemplateData): void {
-		// noop
 	}
 
 	disposeTemplate(templateData: IThreadTemplateData): void {
@@ -450,10 +459,6 @@ class StackFramesRenderer implements ITreeRenderer<IStackFrame, void, IStackFram
 		}
 	}
 
-	disposeElement(element: ITreeNode<IStackFrame, void>, index: number, templateData: IStackFrameTemplateData): void {
-		// noop
-	}
-
 	disposeTemplate(templateData: IStackFrameTemplateData): void {
 		// noop
 	}
@@ -479,10 +484,6 @@ class ErrorsRenderer implements ITreeRenderer<string, void, IErrorTemplateData> 
 		data.label.title = error;
 	}
 
-	disposeElement(element: ITreeNode<string, void>, index: number, templateData: IErrorTemplateData): void {
-		// noop
-	}
-
 	disposeTemplate(templateData: IErrorTemplateData): void {
 		// noop
 	}
@@ -490,6 +491,7 @@ class ErrorsRenderer implements ITreeRenderer<string, void, IErrorTemplateData> 
 
 class LoadMoreRenderer implements ITreeRenderer<ThreadAndSessionIds, void, ILabelTemplateData> {
 	static readonly ID = 'loadMore';
+	static readonly LABEL = nls.localize('loadMoreStackFrames', "Load More Stack Frames");
 
 	get templateId(): string {
 		return LoadMoreRenderer.ID;
@@ -503,11 +505,7 @@ class LoadMoreRenderer implements ITreeRenderer<ThreadAndSessionIds, void, ILabe
 	}
 
 	renderElement(element: ITreeNode<ThreadAndSessionIds, void>, index: number, data: ILabelTemplateData): void {
-		data.label.textContent = nls.localize('loadMoreStackFrames', "Load More Stack Frames");
-	}
-
-	disposeElement(element: ITreeNode<ThreadAndSessionIds, void>, index: number, templateData: ILabelTemplateData): void {
-		// noop
+		data.label.textContent = LoadMoreRenderer.LABEL;
 	}
 
 	disposeTemplate(templateData: ILabelTemplateData): void {
@@ -536,10 +534,6 @@ class ShowMoreRenderer implements ITreeRenderer<IStackFrame[], void, ILabelTempl
 		} else {
 			data.label.textContent = nls.localize('showMoreStackFrames', "Show {0} More Stack Frames", stackFrames.length);
 		}
-	}
-
-	disposeElement(element: ITreeNode<IStackFrame[], void>, index: number, templateData: ILabelTemplateData): void {
-		// noop
 	}
 
 	disposeTemplate(templateData: ILabelTemplateData): void {
@@ -577,7 +571,7 @@ class CallStackDelegate implements IListVirtualDelegate<CallStackItem> {
 	}
 }
 
-class CallStackDataSource implements IDataSource<CallStackItem> {
+class CallStackDataSource implements IAsyncDataSource<CallStackItem> {
 	deemphasizedStackFramesToShow: IStackFrame[];
 
 	constructor(private debugService: IDebugService) { }
@@ -586,7 +580,7 @@ class CallStackDataSource implements IDataSource<CallStackItem> {
 		return element === null || element instanceof DebugSession || (element instanceof Thread && element.stopped);
 	}
 
-	getChildren(element: CallStackItem | null): Thenable<CallStackItem[]> {
+	getChildren(element: CallStackItem | null): Promise<CallStackItem[]> {
 		if (element === null) {
 			const model = this.debugService.getModel();
 			const sessions = model.getSessions();
@@ -608,7 +602,7 @@ class CallStackDataSource implements IDataSource<CallStackItem> {
 		return this.getThreadChildren(<Thread>element);
 	}
 
-	private getThreadChildren(thread: Thread): Promise<(IStackFrame | string | ThreadAndSessionIds)[]> {
+	private getThreadChildren(thread: Thread): Promise<Array<IStackFrame | string | ThreadAndSessionIds>> {
 		return this.getThreadCallstack(thread).then(children => {
 			// Check if some stack frames should be hidden under a parent element since they are deemphasized
 			const result = [];
@@ -638,7 +632,7 @@ class CallStackDataSource implements IDataSource<CallStackItem> {
 		});
 	}
 
-	private getThreadCallstack(thread: Thread): Promise<(IStackFrame | string | ThreadAndSessionIds)[]> {
+	private getThreadCallstack(thread: Thread): Promise<Array<IStackFrame | string | ThreadAndSessionIds>> {
 		let callStack: any[] = thread.getCallStack();
 		let callStackPromise: Promise<any> = Promise.resolve(null);
 		if (!callStack || !callStack.length) {

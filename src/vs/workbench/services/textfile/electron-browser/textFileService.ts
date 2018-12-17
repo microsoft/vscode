@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as paths from 'vs/base/common/paths';
 import * as strings from 'vs/base/common/strings';
 import { isWindows } from 'vs/base/common/platform';
@@ -56,7 +55,7 @@ export class TextFileService extends AbstractTextFileService {
 		super(lifecycleService, contextService, configurationService, fileService, untitledEditorService, instantiationService, notificationService, environmentService, backupFileService, windowsService, windowService, historyService, contextKeyService, modelService);
 	}
 
-	resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent> {
+	resolveTextContent(resource: URI, options?: IResolveContentOptions): Promise<IRawTextContent> {
 		return this.fileService.resolveStreamContent(resource, options).then(streamContent => {
 			return createTextBufferFactoryFromStream(streamContent.value).then(res => {
 				const r: IRawTextContent = {
@@ -73,14 +72,14 @@ export class TextFileService extends AbstractTextFileService {
 		});
 	}
 
-	confirmSave(resources?: URI[]): TPromise<ConfirmResult> {
+	confirmSave(resources?: URI[]): Promise<ConfirmResult> {
 		if (this.environmentService.isExtensionDevelopment) {
-			return TPromise.wrap(ConfirmResult.DONT_SAVE); // no veto when we are in extension dev mode because we cannot assum we run interactive (e.g. tests)
+			return Promise.resolve(ConfirmResult.DONT_SAVE); // no veto when we are in extension dev mode because we cannot assum we run interactive (e.g. tests)
 		}
 
 		const resourcesToConfirm = this.getDirty(resources);
 		if (resourcesToConfirm.length === 0) {
-			return TPromise.wrap(ConfirmResult.DONT_SAVE);
+			return Promise.resolve(ConfirmResult.DONT_SAVE);
 		}
 
 		const message = resourcesToConfirm.length === 1 ? nls.localize('saveChangesMessage', "Do you want to save the changes you made to {0}?", paths.basename(resourcesToConfirm[0].fsPath))
@@ -104,7 +103,7 @@ export class TextFileService extends AbstractTextFileService {
 		});
 	}
 
-	promptForPath(resource: URI, defaultUri: URI): TPromise<URI> {
+	promptForPath(resource: URI, defaultUri: URI): Promise<URI> {
 
 		// Help user to find a name for the file by opening it first
 		return this.editorService.openEditor({ resource, options: { revealIfOpened: true, preserveFocus: true, } }).then(() => {

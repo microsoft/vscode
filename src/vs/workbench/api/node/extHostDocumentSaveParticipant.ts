@@ -48,7 +48,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 		};
 	}
 
-	$participateInSave(data: UriComponents, reason: SaveReason): Thenable<boolean[]> {
+	$participateInSave(data: UriComponents, reason: SaveReason): Promise<boolean[]> {
 		const resource = URI.revive(data);
 		const entries = this._callbacks.toArray();
 
@@ -109,7 +109,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 		const event = Object.freeze(<vscode.TextDocumentWillSaveEvent>{
 			document,
 			reason,
-			waitUntil(p: Thenable<any | vscode.TextEdit[]>) {
+			waitUntil(p: Promise<any | vscode.TextEdit[]>) {
 				if (Object.isFrozen(promises)) {
 					throw illegalState('waitUntil can not be called async');
 				}

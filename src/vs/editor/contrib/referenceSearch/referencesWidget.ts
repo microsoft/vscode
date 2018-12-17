@@ -31,6 +31,9 @@ import { activeContrastBorder, contrastBorder, registerColor } from 'vs/platform
 import { ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { PeekViewWidget } from './peekViewWidget';
 import { FileReferences, OneReference, ReferencesModel } from './referencesModel';
+import { ITreeRenderer, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
+import { IAsyncDataTreeOptions } from 'vs/base/browser/ui/tree/asyncDataTree';
+import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 
 class DecorationsManager implements IDisposable {
 
@@ -227,7 +230,7 @@ export const ctxReferenceWidgetSearchTreeFocused = new RawContextKey<boolean>('r
  */
 export class ReferenceWidget extends PeekViewWidget {
 
-	private _model: ReferencesModel;
+	private _model: ReferencesModel | undefined;
 	private _decorationsManager: DecorationsManager;
 
 	private _disposeOnNewModel: IDisposable[] = [];
@@ -272,7 +275,7 @@ export class ReferenceWidget extends PeekViewWidget {
 	}
 
 	public dispose(): void {
-		this.setModel(null);
+		this.setModel(undefined);
 		this._callOnDispose = dispose(this._callOnDispose);
 		dispose<IDisposable>(this._preview, this._previewNotAvailableMessage, this._tree, this._sash, this._previewModelReference);
 		super.dispose();
@@ -343,7 +346,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		// tree
 		this._treeContainer = dom.append(containerElement, dom.$('div.ref-tree.inline'));
 
-		const renderer = [
+		const renderers = [
 			this._instantiationService.createInstance(FileReferencesRenderer),
 			this._instantiationService.createInstance(OneReferenceRenderer),
 		];
@@ -356,12 +359,14 @@ export class ReferenceWidget extends PeekViewWidget {
 
 		this._treeDataSource = this._instantiationService.createInstance(DataSource);
 
-		this._tree = this._instantiationService.createInstance(
-			WorkbenchAsyncDataTree, this._treeContainer, new Delegate(),
-			renderer as any,
+		this._tree = this._instantiationService.createInstance<HTMLElement, IListVirtualDelegate<TreeElement>, ITreeRenderer<any, void, any>[], IAsyncDataSource<TreeElement>, IAsyncDataTreeOptions<TreeElement, void>, WorkbenchAsyncDataTree<TreeElement, void>>(
+			WorkbenchAsyncDataTree,
+			this._treeContainer,
+			new Delegate(),
+			renderers,
 			this._treeDataSource,
 			treeOptions
-		) as any as WorkbenchAsyncDataTree<TreeElement>;
+		);
 
 		ctxReferenceWidgetSearchTreeFocused.bindTo(this._tree.contextKeyService);
 
@@ -441,7 +446,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		});
 	}
 
-	public setModel(newModel: ReferencesModel): Thenable<any> {
+	public setModel(newModel: ReferencesModel | undefined): Promise<any> {
 		// clean up
 		this._disposeOnNewModel = dispose(this._disposeOnNewModel);
 		this._model = newModel;
@@ -451,7 +456,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		return undefined;
 	}
 
-	private _onNewModel(): Thenable<any> {
+	private _onNewModel(): Promise<any> {
 
 		if (this._model.empty) {
 			this.setTitle('');
@@ -509,13 +514,15 @@ export class ReferenceWidget extends PeekViewWidget {
 		return undefined;
 	}
 
+	private _revealedReference?: OneReference;
+
 	private async _revealReference(reference: OneReference, revealParent: boolean): Promise<void> {
 
 		// check if there is anything to do...
-		const currentSelection = this._tree.getSelection();
-		if (currentSelection.length === 1 && currentSelection[0] === reference) {
+		if (this._revealedReference === reference) {
 			return;
 		}
+		this._revealedReference = reference;
 
 		// Update widget header
 		if (reference.uri.scheme !== Schemas.inMemory) {
@@ -613,11 +620,11 @@ registerThemingParticipant((theme, collector) => {
 	}
 	const resultsSelectedBackground = theme.getColor(peekViewResultsSelectionBackground);
 	if (resultsSelectedBackground) {
-		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) { background-color: ${resultsSelectedBackground}; }`);
+		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .monaco-list:focus .monaco-list-rows > .monaco-list-row.selected:not(.highlighted) { background-color: ${resultsSelectedBackground}; }`);
 	}
 	const resultsSelectedForeground = theme.getColor(peekViewResultsSelectionForeground);
 	if (resultsSelectedForeground) {
-		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) { color: ${resultsSelectedForeground} !important; }`);
+		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .monaco-list:focus .monaco-list-rows > .monaco-list-row.selected:not(.highlighted) { color: ${resultsSelectedForeground} !important; }`);
 	}
 	const editorBackground = theme.getColor(peekViewEditorBackground);
 	if (editorBackground) {

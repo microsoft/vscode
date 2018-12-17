@@ -117,7 +117,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this._register(focusTracker.onDidBlur(() => this.keybindingsEditorContextKey.reset()));
 	}
 
-	setInput(input: KeybindingsEditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+	setInput(input: KeybindingsEditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 		return super.setInput(input, options, token)
 			.then(() => this.render(options && options.preserveFocus, token));
 	}
@@ -153,7 +153,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		return focusedElement && focusedElement.templateId === KEYBINDING_ENTRY_TEMPLATE_ID ? <IKeybindingItemEntry>focusedElement : null;
 	}
 
-	defineKeybinding(keybindingEntry: IKeybindingItemEntry): Thenable<any> {
+	defineKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<any> {
 		this.selectEntry(keybindingEntry);
 		this.showOverlayContainer();
 		return this.defineKeybindingWidget.define().then(key => {
@@ -181,7 +181,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		});
 	}
 
-	removeKeybinding(keybindingEntry: IKeybindingItemEntry): Thenable<any> {
+	removeKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<any> {
 		this.selectEntry(keybindingEntry);
 		if (keybindingEntry.keybindingItem.keybinding) { // This should be a pre-condition
 			this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_REMOVE, keybindingEntry.keybindingItem.command, keybindingEntry.keybindingItem.keybinding);
@@ -195,7 +195,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		return Promise.resolve(null);
 	}
 
-	resetKeybinding(keybindingEntry: IKeybindingItemEntry): Thenable<any> {
+	resetKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<any> {
 		this.selectEntry(keybindingEntry);
 		this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_RESET, keybindingEntry.keybindingItem.command, keybindingEntry.keybindingItem.keybinding);
 		return this.keybindingEditingService.resetKeybinding(keybindingEntry.keybindingItem.keybindingItem)
@@ -421,7 +421,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		}));
 	}
 
-	private render(preserveFocus: boolean, token: CancellationToken): Thenable<any> {
+	private render(preserveFocus: boolean, token: CancellationToken): Promise<any> {
 		if (this.input) {
 			return this.input.resolve()
 				.then((keybindingsModel: KeybindingsEditorModel) => {
@@ -731,9 +731,6 @@ class KeybindingHeaderRenderer implements IListRenderer<IListEntry, any> {
 	renderElement(entry: IListEntry, index: number, template: any): void {
 	}
 
-	disposeElement(): void {
-	}
-
 	disposeTemplate(template: any): void {
 	}
 }
@@ -770,8 +767,6 @@ class KeybindingItemRenderer implements IListRenderer<IKeybindingItemEntry, Keyb
 		template.source.render(keybindingEntry);
 		template.when.render(keybindingEntry);
 	}
-
-	disposeElement(): void { }
 
 	disposeTemplate(template: KeybindingItemTemplate): void {
 		template.actions.dispose();

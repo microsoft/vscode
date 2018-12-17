@@ -128,7 +128,7 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): Thenable<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 
 		let model = editor.getModel();
 

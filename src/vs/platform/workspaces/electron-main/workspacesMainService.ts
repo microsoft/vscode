@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkspacesMainService, IWorkspaceIdentifier, WORKSPACE_EXTENSION, IWorkspaceSavedEvent, UNTITLED_WORKSPACE_NAME, IResolvedWorkspace, IStoredWorkspaceFolder, isRawFileWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { isParent } from 'vs/platform/files/common/files';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { extname, join, dirname, isAbsolute, resolve } from 'path';
@@ -50,9 +49,9 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 		this.workspacesHome = environmentService.workspacesHome;
 	}
 
-	resolveWorkspace(path: string): TPromise<IResolvedWorkspace | null> {
+	resolveWorkspace(path: string): Promise<IResolvedWorkspace | null> {
 		if (!this.isWorkspacePath(path)) {
-			return TPromise.as(null); // does not look like a valid workspace config file
+			return Promise.resolve(null); // does not look like a valid workspace config file
 		}
 
 		return readFile(path, 'utf8').then(contents => this.doResolveWorkspace(path, contents));
@@ -115,7 +114,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 		return isParent(path, this.environmentService.workspacesHome, !isLinux /* ignore case */);
 	}
 
-	createWorkspace(folders?: IWorkspaceFolderCreationData[]): TPromise<IWorkspaceIdentifier> {
+	createWorkspace(folders?: IWorkspaceFolderCreationData[]): Promise<IWorkspaceIdentifier> {
 		const { workspace, configParent, storedWorkspace } = this.createUntitledWorkspace(folders);
 
 		return mkdirp(configParent).then(() => {
@@ -187,11 +186,11 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 		return this.isInsideWorkspacesHome(workspace.configPath);
 	}
 
-	saveWorkspace(workspace: IWorkspaceIdentifier, targetConfigPath: string): TPromise<IWorkspaceIdentifier> {
+	saveWorkspace(workspace: IWorkspaceIdentifier, targetConfigPath: string): Promise<IWorkspaceIdentifier> {
 
 		// Return early if target is same as source
 		if (isEqual(workspace.configPath, targetConfigPath, !isLinux)) {
-			return TPromise.as(workspace);
+			return Promise.resolve(workspace);
 		}
 
 		// Read the contents of the workspace file and resolve it
@@ -201,7 +200,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 			try {
 				storedWorkspace = this.doParseStoredWorkspace(workspace.configPath, rawWorkspaceContents);
 			} catch (error) {
-				return TPromise.wrapError(error);
+				return Promise.reject(error);
 			}
 
 			const sourceConfigFolder = dirname(workspace.configPath);

@@ -25,9 +25,8 @@ import { ltrim } from 'vs/base/common/strings';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { ResourceLabel, IResourceLabel, IResourceLabelOptions } from 'vs/workbench/browser/labels';
 import { FileKind } from 'vs/platform/files/common/files';
-import { IDataSource } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ITreeRenderer, ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult } from 'vs/base/browser/ui/tree/tree';
+import { ITreeRenderer, ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { WorkbenchAsyncDataTree, IListService, TreeResourceNavigator2 } from 'vs/platform/list/browser/listService';
@@ -405,11 +404,14 @@ export class LoadedScriptsView extends ViewletPanel {
 				identityProvider: {
 					getId: element => element.getId()
 				},
+				keyboardNavigationLabelProvider: {
+					getKeyboardNavigationLabel: element => element.getLabel()
+				},
 				filter: this.filter,
 				accessibilityProvider: new LoadedSciptsAccessibilityProvider(),
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'loadedScriptsAriaLabel' }, "Debug Loaded Scripts"),
 			},
-			this.contextKeyService, this.listService, this.themeService, this.configurationService
+			this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService
 		);
 
 		this.changeScheduler = new RunOnceScheduler(() => {
@@ -533,7 +535,7 @@ class LoadedScriptsDelegate implements IListVirtualDelegate<LoadedScriptsItem> {
 	}
 }
 
-class LoadedScriptsDataSource implements IDataSource<LoadedScriptsItem> {
+class LoadedScriptsDataSource implements IAsyncDataSource<LoadedScriptsItem> {
 
 	constructor(private root: LoadedScriptsItem) {
 	}
@@ -542,7 +544,7 @@ class LoadedScriptsDataSource implements IDataSource<LoadedScriptsItem> {
 		return element === null || element.hasChildren();
 	}
 
-	getChildren(element: LoadedScriptsItem | null): Thenable<LoadedScriptsItem[]> {
+	getChildren(element: LoadedScriptsItem | null): Promise<LoadedScriptsItem[]> {
 		if (element === null) {
 			element = this.root;
 		}
@@ -605,10 +607,6 @@ class LoadedScriptsRenderer implements ITreeRenderer<BaseTreeItem, void, ILoaded
 		}
 
 		data.label.setLabel(label, options);
-	}
-
-	disposeElement(element: ITreeNode<BaseTreeItem, void>, index: number, templateData: ILoadedScriptsItemTemplateData): void {
-		// noop
 	}
 
 	disposeTemplate(templateData: ILoadedScriptsItemTemplateData): void {

@@ -11,7 +11,7 @@ import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostC
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { once } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { dispose } from 'vs/base/common/lifecycle';
 
@@ -31,7 +31,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 		//
 	}
 
-	$showMessage(severity: Severity, message: string, options: MainThreadMessageOptions, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Thenable<number> {
+	$showMessage(severity: Severity, message: string, options: MainThreadMessageOptions, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Promise<number> {
 		if (options.modal) {
 			return this._showModalMessage(severity, message, commands);
 		} else {
@@ -39,7 +39,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 		}
 	}
 
-	private _showMessage(severity: Severity, message: string, commands: { title: string; isCloseAffordance: boolean; handle: number; }[], extension: IExtensionDescription): Thenable<number> {
+	private _showMessage(severity: Severity, message: string, commands: { title: string; isCloseAffordance: boolean; handle: number; }[], extension: IExtensionDescription): Promise<number> {
 
 		return new Promise<number>(resolve => {
 
@@ -89,14 +89,14 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 
 			// if promise has not been resolved yet, now is the time to ensure a return value
 			// otherwise if already resolved it means the user clicked one of the buttons
-			once(messageHandle.onDidClose)(() => {
+			Event.once(messageHandle.onDidClose)(() => {
 				dispose(...primaryActions, ...secondaryActions);
 				resolve(undefined);
 			});
 		});
 	}
 
-	private _showModalMessage(severity: Severity, message: string, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Thenable<number> {
+	private _showModalMessage(severity: Severity, message: string, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Promise<number> {
 		let cancelId: number | undefined = void 0;
 
 		const buttons = commands.map((command, index) => {

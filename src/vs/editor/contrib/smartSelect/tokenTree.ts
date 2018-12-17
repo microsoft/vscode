@@ -15,7 +15,7 @@ import { LanguageId, StandardTokenType, SelectionRangeProvider } from 'vs/editor
 export class TokenTreeSelectionRangeProvider implements SelectionRangeProvider {
 
 	provideSelectionRanges(model: ITextModel, position: Position): Range[] {
-		let tree = build(model);
+		let tree = new TokenTreeBuilder(model).build();
 		let node = find(tree, position);
 		let ranges: Range[] = [];
 		let lastRange: Range | undefined;
@@ -415,18 +415,7 @@ class TokenTreeBuilder {
 	}
 }
 
-/**
- * Parses this grammar:
- *	grammer = { line }
- *	line = { block | "token" }
- *	block = "open_bracket" { line } "close_bracket"
- */
-export function build(model: ITextModel): Node {
-	let node = new TokenTreeBuilder(model).build();
-	return node;
-}
-
-export function find(node: Node, position: Position): Node | null {
+function find(node: Node, position: Position): Node | null {
 	if (node instanceof NodeList && node.isEmpty) {
 		return null;
 	}

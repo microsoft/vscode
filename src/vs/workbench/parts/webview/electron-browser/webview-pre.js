@@ -287,7 +287,7 @@
 			styleBody(newDocument.body);
 
 			const frame = getActiveFrame();
-
+			const wasFirstLoad = firstLoad;
 			// keep current scrollY around and use later
 			var setInitialScrollPosition;
 			if (firstLoad) {
@@ -314,7 +314,9 @@
 				previousPendingFrame.setAttribute('id', '');
 				document.body.removeChild(previousPendingFrame);
 			}
-			pendingMessages = [];
+			if (!wasFirstLoad) {
+				pendingMessages = [];
+			}
 
 			const newFrame = document.createElement('iframe');
 			newFrame.setAttribute('id', 'pending-frame');
@@ -407,14 +409,14 @@
 		// Forward message to the embedded iframe
 		ipcRenderer.on('message', (_event, data) => {
 			const pending = getPendingFrame();
-			if (pending) {
-				pendingMessages.push(data);
-			} else {
+			if (!pending) {
 				const target = getActiveFrame();
 				if (target) {
 					target.contentWindow.postMessage(data, '*');
+					return;
 				}
 			}
+			pendingMessages.push(data);
 		});
 
 		ipcRenderer.on('initial-scroll-position', (_event, progress) => {

@@ -16,7 +16,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 
 export interface ITelemetryServiceConfig {
 	appender: ITelemetryAppender;
-	commonProperties?: Thenable<{ [name: string]: any }>;
+	commonProperties?: Promise<{ [name: string]: any }>;
 	piiPaths?: string[];
 }
 
@@ -28,7 +28,7 @@ export class TelemetryService implements ITelemetryService {
 	_serviceBrand: any;
 
 	private _appender: ITelemetryAppender;
-	private _commonProperties: Thenable<{ [name: string]: any; }>;
+	private _commonProperties: Promise<{ [name: string]: any; }>;
 	private _piiPaths: string[];
 	private _userOptIn: boolean;
 
@@ -72,7 +72,7 @@ export class TelemetryService implements ITelemetryService {
 		return this._userOptIn;
 	}
 
-	getTelemetryInfo(): Thenable<ITelemetryInfo> {
+	getTelemetryInfo(): Promise<ITelemetryInfo> {
 		return this._commonProperties.then(values => {
 			// well known properties
 			let sessionId = values['sessionID'];
@@ -87,7 +87,7 @@ export class TelemetryService implements ITelemetryService {
 		this._disposables = dispose(this._disposables);
 	}
 
-	publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): Thenable<any> {
+	publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): Promise<any> {
 		// don't send events when the user is optout
 		if (!this._userOptIn) {
 			return Promise.resolve(undefined);

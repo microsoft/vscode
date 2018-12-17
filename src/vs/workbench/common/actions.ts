@@ -87,13 +87,13 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 			const instantiationService = accessor.get(IInstantiationService);
 			const lifecycleService = accessor.get(ILifecycleService);
 
-			Promise.resolve(this.triggerAndDisposeAction(instantiationService, lifecycleService, descriptor, args)).then(null, err => {
+			Promise.resolve(this.triggerAndDisposeAction(instantiationService, lifecycleService, descriptor, args)).then(void 0, err => {
 				notificationService.error(err);
 			});
 		};
 	}
 
-	private triggerAndDisposeAction(instantiationService: IInstantiationService, lifecycleService: ILifecycleService, descriptor: SyncActionDescriptor, args: any): Thenable<void> {
+	private triggerAndDisposeAction(instantiationService: IInstantiationService, lifecycleService: ILifecycleService, descriptor: SyncActionDescriptor, args: any): Promise<void> {
 
 		// run action when workbench is created
 		return lifecycleService.when(LifecyclePhase.Ready).then(() => {

@@ -97,7 +97,7 @@ export class ExtHostDocumentData extends MirrorTextModel {
 		this._isDirty = isDirty;
 	}
 
-	private _save(): Thenable<boolean> {
+	private _save(): Promise<boolean> {
 		if (this._isDisposed) {
 			return Promise.reject(new Error('Document has been closed'));
 		}

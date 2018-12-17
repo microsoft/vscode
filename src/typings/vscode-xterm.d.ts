@@ -7,6 +7,8 @@
  * to be stable and consumed by external programs.
  */
 
+/// <reference lib="dom"/>
+
 declare module 'vscode-xterm' {
 	/**
 	 * A string representing text font weight.
@@ -38,6 +40,16 @@ declare module 'vscode-xterm' {
 		 * The type of the bell notification the terminal will use.
 		 */
 		bellStyle?: 'none' /*| 'visual'*/ | 'sound' /*| 'both'*/;
+
+		/**
+		 * When enabled the cursor will be set to the beginning of the next line
+		 * with every new line. This equivalent to sending '\r\n' for each '\n'.
+		 * Normally the termios settings of the underlying PTY deals with the
+		 * translation of '\n' to '\r\n' and this setting should not be used. If you
+		 * deal with data from a non-PTY related source, this settings might be
+		 * useful.
+		 */
+		convertEol?: boolean;
 
 		/**
 		 * The number of columns in the terminal.
@@ -96,9 +108,10 @@ declare module 'vscode-xterm' {
 		 * - 'TypedArray': The new experimental implementation based on TypedArrays that is expected to
 		 *   significantly boost performance and memory consumption. Use at your own risk.
 		 *
-		 * This option will be removed in the future.
+		 * @deprecated This option will be removed in the future.
 		 */
 		experimentalBufferLineImpl?: 'JsArray' | 'TypedArray';
+
 		/**
 		 * The font size used to render text.
 		 */
@@ -144,19 +157,12 @@ declare module 'vscode-xterm' {
 		macOptionClickForcesSelection?: boolean;
 
 		/**
-		 * (EXPERIMENTAL) The type of renderer to use, this allows using the
-		 * fallback DOM renderer when canvas is too slow for the environment. The
-		 * following features do not work when the DOM renderer is used:
+		 * The type of renderer to use, this allows using the fallback DOM renderer
+		 * when canvas is too slow for the environment. The following features do
+		 * not work when the DOM renderer is used:
 		 *
-		 * - Links
-		 * - Line height
 		 * - Letter spacing
 		 * - Cursor blink
-		 * - Cursor style
-		 *
-		 * This option is marked as experiemental because it will eventually be
-		 * moved to an addon. You can only set this option in the constructor (not
-		 * setOption).
 		 */
 		rendererType?: RendererType;
 
@@ -393,13 +399,13 @@ declare module 'vscode-xterm' {
 		 * @param type The type of the event.
 		 * @param listener The listener.
 		 */
-		on(type: 'refresh', listener: (data: {start: number, end: number}) => void): void;
+		on(type: 'refresh', listener: (data: { start: number, end: number }) => void): void;
 		/**
 		 * Registers an event listener.
 		 * @param type The type of the event.
 		 * @param listener The listener.
 		 */
-		on(type: 'resize', listener: (data: {cols: number, rows: number}) => void): void;
+		on(type: 'resize', listener: (data: { cols: number, rows: number }) => void): void;
 		/**
 		 * Registers an event listener.
 		 * @param type The type of the event.
@@ -426,8 +432,21 @@ declare module 'vscode-xterm' {
 		 */
 		off(type: 'blur' | 'focus' | 'linefeed' | 'selection' | 'data' | 'key' | 'keypress' | 'keydown' | 'refresh' | 'resize' | 'scroll' | 'title' | string, listener: (...args: any[]) => void): void;
 
+		/**
+		 * Emits an event on the terminal.
+		 * @param type The type of event
+		 * @param data data associated with the event.
+		 * @deprecated This is being removed from the API with no replacement, see
+		 * issue #1505.
+		 */
 		emit(type: string, data?: any): void;
 
+		/**
+		 * Adds an event listener to the Terminal, returning an IDisposable that can
+		 * be used to conveniently remove the event listener.
+		 * @param type The type of event.
+		 * @param handler The event handler.
+		 */
 		addDisposableListener(type: string, handler: (...args: any[]) => void): IDisposable;
 
 		/**
@@ -479,6 +498,44 @@ declare module 'vscode-xterm' {
 		 * @param matcherId The link matcher's ID (returned after register)
 		 */
 		deregisterLinkMatcher(matcherId: number): void;
+
+		/**
+		 * (EXPERIMENTAL) Registers a character joiner, allowing custom sequences of
+		 * characters to be rendered as a single unit. This is useful in particular
+		 * for rendering ligatures and graphemes, among other things.
+		 *
+		 * Each registered character joiner is called with a string of text
+		 * representing a portion of a line in the terminal that can be rendered as
+		 * a single unit. The joiner must return a sorted array, where each entry is
+		 * itself an array of length two, containing the start (inclusive) and end
+		 * (exclusive) index of a substring of the input that should be rendered as
+		 * a single unit. When multiple joiners are provided, the results of each
+		 * are collected. If there are any overlapping substrings between them, they
+		 * are combined into one larger unit that is drawn together.
+		 *
+		 * All character joiners that are registered get called every time a line is
+		 * rendered in the terminal, so it is essential for the handler function to
+		 * run as quickly as possible to avoid slowdowns when rendering. Similarly,
+		 * joiners should strive to return the smallest possible substrings to
+		 * render together, since they aren't drawn as optimally as individual
+		 * characters.
+		 *
+		 * NOTE: character joiners are only used by the canvas renderer.
+		 *
+		 * @param handler The function that determines character joins. It is called
+		 * with a string of text that is eligible for joining and returns an array
+		 * where each entry is an array containing the start (inclusive) and end
+		 * (exclusive) indexes of ranges that should be rendered as a single unit.
+		 * @return The ID of the new joiner, this can be used to deregister
+		 */
+		registerCharacterJoiner(handler: (text: string) => [number, number][]): number;
+
+		/**
+		 * (EXPERIMENTAL) Deregisters the character joiner if one was registered.
+		 * NOTE: character joiners are only used by the canvas renderer.
+		 * @param joinerId The character joiner's ID (returned after register)
+		 */
+		deregisterCharacterJoiner(joinerId: number): void;
 
 		/**
 		 * (EXPERIMENTAL) Adds a marker to the normal buffer and returns it. If the
@@ -687,6 +744,7 @@ declare module 'vscode-xterm' {
 	}
 }
 
+
 // Modifications to official .d.ts below
 declare module 'vscode-xterm' {
 	interface TerminalCore {
@@ -717,7 +775,7 @@ declare module 'vscode-xterm' {
 		};
 	}
 
-	interface ISearchOptions  {
+	interface ISearchOptions {
 		/**
 		 * Whether the find should be done as a regex.
 		 */

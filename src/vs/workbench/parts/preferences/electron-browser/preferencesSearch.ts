@@ -103,7 +103,7 @@ export class LocalSearchProvider implements ISearchProvider {
 			.trim();
 	}
 
-	searchModel(preferencesModel: ISettingsEditorModel, token?: CancellationToken): Promise<ISearchResult> {
+	searchModel(preferencesModel: ISettingsEditorModel, token?: CancellationToken): Promise<ISearchResult | null> {
 		if (!this._filter) {
 			return Promise.resolve(null);
 		}

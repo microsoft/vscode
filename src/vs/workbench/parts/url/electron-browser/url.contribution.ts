@@ -26,7 +26,7 @@ export class OpenUrlAction extends Action {
 		super(id, label);
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 		return this.quickInputService.input({ prompt: 'URL to open' }).then(input => {
 			const uri = URI.parse(input);
 			this.urlService.open(uri);

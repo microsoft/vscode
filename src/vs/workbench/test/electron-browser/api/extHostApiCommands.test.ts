@@ -50,7 +50,7 @@ let commands: ExtHostCommands;
 let disposables: vscode.Disposable[] = [];
 let originalErrorHandler: (e: any) => any;
 
-function assertRejects(fn: () => Thenable<any>, message: string = 'Expected rejection') {
+function assertRejects(fn: () => Promise<any>, message: string = 'Expected rejection') {
 	return fn().then(() => assert.ok(false, message), _err => assert.ok(true));
 }
 

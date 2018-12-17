@@ -62,7 +62,7 @@ export function getIdAndVersion(id: string): [string, string] {
 }
 
 
-type Task = { (): Thenable<void> };
+type Task = { (): Promise<void> };
 
 class Main {
 
@@ -205,7 +205,7 @@ class Main {
 		}
 	}
 
-	private uninstallExtension(extensions: string[]): Thenable<any> {
+	private uninstallExtension(extensions: string[]): Promise<any> {
 		async function getExtensionId(extensionDescription: string): Promise<string> {
 			if (!/\.vsix$/i.test(extensionDescription)) {
 				return extensionDescription;

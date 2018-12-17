@@ -28,7 +28,6 @@ suite('Editor Model - Model Edit Operation', () => {
 
 	teardown(() => {
 		model.dispose();
-		model = null;
 	});
 
 	function createSingleEditOp(text: string, positionLineNumber: number, positionColumn: number, selectionLineNumber: number = positionLineNumber, selectionColumn: number = positionColumn): IIdentifiedSingleEditOperation {

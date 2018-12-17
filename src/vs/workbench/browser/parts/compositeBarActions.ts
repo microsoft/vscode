@@ -207,7 +207,7 @@ export class ActivityActionItem extends BaseActionItem {
 		}));
 
 		// Label
-		this.label = dom.append(this.element, dom.$('a.action-label'));
+		this.label = dom.append(this.element, dom.$('a'));
 
 		// Badge
 		this.badge = dom.append(this.element, dom.$('.badge'));
@@ -301,8 +301,9 @@ export class ActivityActionItem extends BaseActionItem {
 	}
 
 	protected updateLabel(): void {
+		this.label.className = 'action-label';
 		if (this.activity.cssClass) {
-			dom.addClasses(this.label, this.activity.cssClass);
+			dom.addClass(this.label, this.activity.cssClass);
 		}
 		if (!this.options.icon) {
 			this.label.textContent = this.getAction().label;
@@ -434,7 +435,6 @@ export class CompositeActionItem extends ActivityActionItem {
 	private static manageExtensionAction: ManageExtensionAction;
 
 	private compositeActivity: IActivity;
-	private cssClass: string;
 	private compositeTransfer: LocalSelectionTransfer<DraggedCompositeIdentifier>;
 
 	constructor(
@@ -451,7 +451,6 @@ export class CompositeActionItem extends ActivityActionItem {
 	) {
 		super(compositeActivityAction, { draggable: true, colors, icon }, themeService);
 
-		this.cssClass = compositeActivityAction.class;
 		this.compositeTransfer = LocalSelectionTransfer.getInstance<DraggedCompositeIdentifier>();
 
 		if (!CompositeActionItem.manageExtensionAction) {
@@ -473,7 +472,7 @@ export class CompositeActionItem extends ActivityActionItem {
 
 			this.compositeActivity = {
 				id: this.compositeActivityAction.activity.id,
-				cssClass: this.cssClass,
+				cssClass: this.compositeActivityAction.activity.cssClass,
 				name: activityName
 			};
 		}
@@ -604,17 +603,6 @@ export class CompositeActionItem extends ActivityActionItem {
 
 	focus(): void {
 		this.container.focus();
-	}
-
-	protected updateClass(): void {
-		if (this.cssClass) {
-			dom.removeClasses(this.label, this.cssClass);
-		}
-
-		this.cssClass = this.getAction().class;
-		if (this.cssClass) {
-			dom.addClasses(this.label, this.cssClass);
-		}
 	}
 
 	protected updateChecked(): void {

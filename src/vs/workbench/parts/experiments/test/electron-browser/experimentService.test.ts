@@ -22,7 +22,6 @@ import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtil
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { assign } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -44,7 +43,7 @@ function aLocalExtension(name: string = 'someext', manifest: any = {}, propertie
 }
 
 export class TestExperimentService extends ExperimentService {
-	public getExperiments(): TPromise<any[]> {
+	public getExperiments(): Promise<any[]> {
 		return Promise.resolve(experimentData.experiments);
 	}
 }
@@ -123,7 +122,7 @@ suite('Experiment Service', () => {
 		};
 
 		testObject = instantiationService.createInstance(TestExperimentService);
-		const tests: TPromise<IExperiment>[] = [];
+		const tests: Promise<IExperiment>[] = [];
 		tests.push(testObject.getExperimentById('experiment1'));
 		tests.push(testObject.getExperimentById('experiment2'));
 		tests.push(testObject.getExperimentById('experiment3'));
@@ -635,7 +634,7 @@ suite('Experiment Service', () => {
 
 		testObject = instantiationService.createInstance(TestExperimentService);
 
-		const tests: TPromise<IExperiment>[] = [];
+		const tests: Promise<IExperiment>[] = [];
 		tests.push(testObject.getExperimentById('experiment1'));
 		tests.push(testObject.getExperimentById('experiment2'));
 		tests.push(testObject.getExperimentById('experiment3'));

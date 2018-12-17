@@ -20,7 +20,7 @@ import { IEditorOptions, RenderLineNumbersType } from 'vs/editor/common/config/e
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
-import { once } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const GOTO_LINE_PREFIX = ':';
@@ -60,7 +60,7 @@ export class GotoLineAction extends QuickOpenAction {
 		const result = super.run();
 
 		if (restoreOptions) {
-			once(this._quickOpenService.onHide)(() => {
+			Event.once(this._quickOpenService.onHide)(() => {
 				activeTextEditorWidget.updateOptions(restoreOptions);
 			});
 		}
@@ -216,7 +216,7 @@ export class GotoLineHandler extends QuickOpenHandler {
 		return nls.localize('gotoLineHandlerAriaLabel', "Type a line number to navigate to.");
 	}
 
-	getResults(searchValue: string, token: CancellationToken): Thenable<QuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 
 		// Remember view state to be able to restore on cancel

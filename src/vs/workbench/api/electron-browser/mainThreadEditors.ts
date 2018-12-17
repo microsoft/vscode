@@ -114,7 +114,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
 	// --- from extension host process
 
-	$tryShowTextDocument(resource: UriComponents, options: ITextDocumentShowOptions): Thenable<string> {
+	$tryShowTextDocument(resource: UriComponents, options: ITextDocumentShowOptions): Promise<string> {
 		const uri = URI.revive(resource);
 
 		const editorOptions: ITextEditorOptions = {
@@ -136,7 +136,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		});
 	}
 
-	$tryShowEditor(id: string, position?: EditorViewColumn): Thenable<void> {
+	$tryShowEditor(id: string, position?: EditorViewColumn): Promise<void> {
 		let mainThreadEditor = this._documentsAndEditors.getEditor(id);
 		if (mainThreadEditor) {
 			let model = mainThreadEditor.getModel();
@@ -148,7 +148,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		return undefined;
 	}
 
-	$tryHideEditor(id: string): Thenable<void> {
+	$tryHideEditor(id: string): Promise<void> {
 		let mainThreadEditor = this._documentsAndEditors.getEditor(id);
 		if (mainThreadEditor) {
 			let editors = this._editorService.visibleControls;
@@ -161,33 +161,33 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		return undefined;
 	}
 
-	$trySetSelections(id: string, selections: ISelection[]): Thenable<void> {
+	$trySetSelections(id: string, selections: ISelection[]): Promise<void> {
 		if (!this._documentsAndEditors.getEditor(id)) {
 			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
 		this._documentsAndEditors.getEditor(id).setSelections(selections);
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 
-	$trySetDecorations(id: string, key: string, ranges: IDecorationOptions[]): Thenable<void> {
+	$trySetDecorations(id: string, key: string, ranges: IDecorationOptions[]): Promise<void> {
 		key = `${this._instanceId}-${key}`;
 		if (!this._documentsAndEditors.getEditor(id)) {
 			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
 		this._documentsAndEditors.getEditor(id).setDecorations(key, ranges);
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 
-	$trySetDecorationsFast(id: string, key: string, ranges: number[]): Thenable<void> {
+	$trySetDecorationsFast(id: string, key: string, ranges: number[]): Promise<void> {
 		key = `${this._instanceId}-${key}`;
 		if (!this._documentsAndEditors.getEditor(id)) {
 			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
 		this._documentsAndEditors.getEditor(id).setDecorationsFast(key, ranges);
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 
-	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): Thenable<void> {
+	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): Promise<void> {
 		if (!this._documentsAndEditors.getEditor(id)) {
 			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
@@ -195,27 +195,27 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		return undefined;
 	}
 
-	$trySetOptions(id: string, options: ITextEditorConfigurationUpdate): Thenable<void> {
+	$trySetOptions(id: string, options: ITextEditorConfigurationUpdate): Promise<void> {
 		if (!this._documentsAndEditors.getEditor(id)) {
 			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
 		this._documentsAndEditors.getEditor(id).setConfiguration(options);
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 
-	$tryApplyEdits(id: string, modelVersionId: number, edits: ISingleEditOperation[], opts: IApplyEditsOptions): Thenable<boolean> {
+	$tryApplyEdits(id: string, modelVersionId: number, edits: ISingleEditOperation[], opts: IApplyEditsOptions): Promise<boolean> {
 		if (!this._documentsAndEditors.getEditor(id)) {
 			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
 		return Promise.resolve(this._documentsAndEditors.getEditor(id).applyEdits(modelVersionId, edits, opts));
 	}
 
-	$tryApplyWorkspaceEdit(dto: WorkspaceEditDto): Thenable<boolean> {
+	$tryApplyWorkspaceEdit(dto: WorkspaceEditDto): Promise<boolean> {
 		const { edits } = reviveWorkspaceEditDto(dto);
 		return this._bulkEditService.apply({ edits }, undefined).then(() => true, err => false);
 	}
 
-	$tryInsertSnippet(id: string, template: string, ranges: IRange[], opts: IUndoStopOptions): Thenable<boolean> {
+	$tryInsertSnippet(id: string, template: string, ranges: IRange[], opts: IUndoStopOptions): Promise<boolean> {
 		if (!this._documentsAndEditors.getEditor(id)) {
 			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
@@ -234,7 +234,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		this._codeEditorService.removeDecorationType(key);
 	}
 
-	$getDiffInformation(id: string): Thenable<ILineChange[]> {
+	$getDiffInformation(id: string): Promise<ILineChange[]> {
 		const editor = this._documentsAndEditors.getEditor(id);
 
 		if (!editor) {

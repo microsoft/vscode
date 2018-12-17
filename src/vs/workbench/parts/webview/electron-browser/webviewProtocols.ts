@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { extname } from 'path';
-import { getMediaMime, guessMimeTypes } from 'vs/base/common/mime';
+import { getMediaMime, MIME_UNKNOWN } from 'vs/base/common/mime';
 import { nativeSep } from 'vs/base/common/paths';
 import { startsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
@@ -67,10 +67,19 @@ export function registerFileProtocol(
 }
 
 const webviewMimeTypes = {
-	'.svg': 'image/svg+xml'
+	'.svg': 'image/svg+xml',
+	'.txt': 'text/plain',
+	'.css': 'text/css',
+	'.js': 'application/javascript',
+	'.json': 'application/json',
+	'.html': 'text/html',
+	'.htm': 'text/html',
+	'.xhtml': 'application/xhtml+xml',
+	'.oft': 'font/otf',
+	'.xml': 'application/xml',
 };
 
-function getMimeType(normalizedPath: URI) {
+function getMimeType(normalizedPath: URI): string {
 	const ext = extname(normalizedPath.fsPath).toLowerCase();
-	return webviewMimeTypes[ext] || getMediaMime(normalizedPath.fsPath) || guessMimeTypes(normalizedPath.fsPath, undefined, true)[0];
+	return webviewMimeTypes[ext] || getMediaMime(normalizedPath.fsPath) || MIME_UNKNOWN;
 }

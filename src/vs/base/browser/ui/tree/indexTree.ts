@@ -11,9 +11,7 @@ import { IndexTreeModel } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { ITreeElement, ITreeModel, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 
-export interface IIndexTreeOptions<T, TFilterData = void> extends IAbstractTreeOptions<T, TFilterData> {
-	collapseByDefault?: boolean; // defaults to false
-}
+export interface IIndexTreeOptions<T, TFilterData = void> extends IAbstractTreeOptions<T, TFilterData> { }
 
 export class IndexTree<T, TFilterData = void> extends AbstractTree<T, TFilterData, number[]> {
 
