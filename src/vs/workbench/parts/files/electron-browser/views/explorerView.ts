@@ -19,7 +19,6 @@ import { toResource } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import * as DOM from 'vs/base/browser/dom';
 import { CollapseAction2 } from 'vs/workbench/browser/viewlet';
-import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { ExplorerDecorationsProvider } from 'vs/workbench/parts/files/electron-browser/views/explorerDecorationsProvider';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -40,7 +39,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IViewletPanelOptions, ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { ExplorerDelegate, ExplorerAccessibilityProvider, ExplorerDataSource, FilesRenderer, EditableExplorerItems as EditableExplorerItems, FilesFilter } from 'vs/workbench/parts/files/electron-browser/views/explorerViewer';
+import { ExplorerDelegate, ExplorerAccessibilityProvider, ExplorerDataSource, FilesRenderer, FilesFilter } from 'vs/workbench/parts/files/electron-browser/views/explorerViewer';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
@@ -49,10 +48,6 @@ import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemAc
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ExplorerItem, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerService';
-
-export interface IExplorerViewOptions extends IViewletViewOptions {
-	fileViewletState: EditableExplorerItems;
-}
 
 function getFileEventsExcludes(configurationService: IConfigurationService, root?: URI): glob.IExpression {
 	const scope = root ? { resource: root } : void 0;
@@ -70,7 +65,6 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 	private tree: WorkbenchAsyncDataTree<ExplorerItem>;
 	private filter: FilesFilter;
 	private isCreated: boolean;
-	private _editableExplorerItems: EditableExplorerItems;
 
 	private explorerRefreshDelayer: ThrottledDelayer<void>;
 
@@ -87,7 +81,7 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 	private isDisposed = false;
 
 	constructor(
-		options: IExplorerViewOptions,
+		options: IViewletPanelOptions,
 		@INotificationService private notificationService: INotificationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -110,7 +104,6 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 	) {
 		super({ ...(options as IViewletPanelOptions), id: ExplorerView.ID, ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService);
 
-		this._editableExplorerItems = new EditableExplorerItems();
 		this.explorerRefreshDelayer = new ThrottledDelayer<void>(ExplorerView.EXPLORER_FILE_CHANGES_REFRESH_DELAY);
 
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
@@ -158,10 +151,6 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 
 	set title(value: string) {
 		// noop
-	}
-
-	get editableExplorerItems(): EditableExplorerItems {
-		return this._editableExplorerItems;
 	}
 
 	// Memoized locals
@@ -228,8 +217,8 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 	getActions(): IAction[] {
 		const actions: Action[] = [];
 
-		actions.push(this.instantiationService.createInstance(NewFileAction, this.tree, this._editableExplorerItems, null));
-		actions.push(this.instantiationService.createInstance(NewFolderAction, this.tree, this._editableExplorerItems, null));
+		actions.push(this.instantiationService.createInstance(NewFileAction, null));
+		actions.push(this.instantiationService.createInstance(NewFolderAction, null));
 		actions.push(this.instantiationService.createInstance(RefreshViewExplorerAction, this, 'explorer-action refresh-explorer'));
 		actions.push(this.instantiationService.createInstance(CollapseAction2, this.tree, true, 'explorer-action collapse-explorer'));
 
@@ -373,7 +362,7 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 	private createTree(container: HTMLElement): void {
 		this.filter = this.instantiationService.createInstance(FilesFilter);
 		this.disposables.push(this.filter);
-		const filesRenderer = this.instantiationService.createInstance(FilesRenderer, this._editableExplorerItems);
+		const filesRenderer = this.instantiationService.createInstance(FilesRenderer);
 		this.disposables.push(filesRenderer);
 
 		this.tree = new WorkbenchAsyncDataTree(container, new ExplorerDelegate(), [filesRenderer],

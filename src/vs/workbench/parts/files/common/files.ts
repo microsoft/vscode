@@ -23,6 +23,7 @@ import { Schemas } from 'vs/base/common/network';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ExplorerItem } from 'vs/workbench/parts/files/common/explorerService';
 import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IAction } from 'vs/base/common/actions';
 
 /**
  * Explorer viewlet id.
@@ -46,7 +47,8 @@ export interface IExplorerService {
 	readonly roots: ExplorerItem[];
 	readonly onDidChangeEditable: Event<ExplorerItem>;
 
-	setEditable(stat: ExplorerItem, editable: boolean): void;
+	setEditable(stat: ExplorerItem, data: { validationMessage: (value: string) => string, action: IAction }): void;
+	getEditableData(stat: ExplorerItem): { validationMessage: (value: string) => string, action: IAction } | undefined;
 	findClosest(resource: URI): ExplorerItem | null;
 	findAll(resource: URI): ExplorerItem[];
 }

@@ -15,6 +15,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { rtrim, startsWithIgnoreCase, startsWith, equalsIgnoreCase } from 'vs/base/common/strings';
 import { coalesce } from 'vs/base/common/arrays';
 import { IExplorerService } from 'vs/workbench/parts/files/common/files';
+import { IAction } from 'vs/base/common/actions';
 
 export class ExplorerService implements IExplorerService {
 	_serviceBrand: any;
@@ -22,6 +23,7 @@ export class ExplorerService implements IExplorerService {
 	private _roots: ExplorerItem[];
 	private _onDidChangeEditable = new Emitter<ExplorerItem>();
 	private _listener: IDisposable;
+	private editableStats = new Map<ExplorerItem, { validationMessage: (value: string) => string, action: IAction }>();
 
 	constructor(@IWorkspaceContextService private contextService: IWorkspaceContextService) {
 		const setRoots = () => this._roots = this.contextService.getWorkspace().folders
@@ -38,9 +40,13 @@ export class ExplorerService implements IExplorerService {
 		return this._onDidChangeEditable.event;
 	}
 
-	setEditable(stat: ExplorerItem, editable: boolean): void {
+	setEditable(stat: ExplorerItem, data: { validationMessage: (value: string) => string, action: IAction }): void {
+		this.editableStats.set(stat, data);
 		this._onDidChangeEditable.fire(stat);
-		// TODO@isidor
+	}
+
+	getEditableData(stat: ExplorerItem): { validationMessage: (value: string) => string, action: IAction } | undefined {
+		return this.editableStats.get(stat);
 	}
 
 	/**

@@ -16,7 +16,6 @@ import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { FileLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
 import { ITreeRenderer, ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, IDataSource } from 'vs/base/browser/ui/tree/tree';
-import { IFileViewletState, IEditableData } from 'vs/workbench/parts/files/electron-browser/fileActions';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -33,6 +32,7 @@ import { rtrim } from 'vs/base/common/strings';
 import { equals, deepClone } from 'vs/base/common/objects';
 import * as path from 'path';
 import { ExplorerItem, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerService';
+import { IAction } from 'vs/base/common/actions';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -118,45 +118,20 @@ export interface IFileTemplateData {
 	container: HTMLElement;
 }
 
-export class EditableExplorerItems implements IFileViewletState {
-	private editableStats: Map<ExplorerItem, IEditableData>;
-
-	constructor() {
-		this.editableStats = new Map<ExplorerItem, IEditableData>();
-	}
-
-	public getEditableData(stat: ExplorerItem): IEditableData {
-		return this.editableStats.get(stat);
-	}
-
-	public setEditable(stat: ExplorerItem, editableData: IEditableData): void {
-		if (editableData) {
-			this.editableStats.set(stat, editableData);
-		}
-	}
-
-	public clearEditable(stat: ExplorerItem): void {
-		this.editableStats.delete(stat);
-	}
-}
-
 export class FilesRenderer implements ITreeRenderer<ExplorerItem, void, IFileTemplateData>, IDisposable {
 	static readonly ID = 'file';
 
-	private state: EditableExplorerItems;
 	private config: IFilesConfiguration;
 	private configListener: IDisposable;
 
 	constructor(
-		state: EditableExplorerItems,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
-
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IExplorerService private explorerService: IExplorerService
 	) {
-		this.state = state;
 		this.config = this.configurationService.getValue<IFilesConfiguration>();
 		this.configListener = this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('explorer')) {
@@ -179,7 +154,7 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, void, IFileTem
 	renderElement(element: ITreeNode<ExplorerItem, void>, index: number, templateData: IFileTemplateData): void {
 		templateData.elementDisposable.dispose();
 		const stat = element.element;
-		const editableData: IEditableData = this.state.getEditableData(stat);
+		const editableData = this.explorerService.getEditableData(stat);
 
 		// File Label
 		if (!editableData) {
@@ -206,7 +181,7 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, void, IFileTem
 		}
 	}
 
-	private renderInputBox(container: HTMLElement, stat: ExplorerItem, editableData: IEditableData): void {
+	private renderInputBox(container: HTMLElement, stat: ExplorerItem, editableData: { validationMessage: (value: string) => string, action: IAction }): void {
 
 		// Use a file label only for the icon next to the input box
 		const label = this.instantiationService.createInstance(FileLabel, container, void 0);
@@ -222,7 +197,18 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, void, IFileTem
 		// Input field for name
 		const inputBox = new InputBox(label.element, this.contextViewService, {
 			validationOptions: {
-				validation: editableData.validator
+				validation: (value) => {
+					const content = editableData.validationMessage(value);
+					if (!content) {
+						return null;
+					}
+
+					return {
+						content,
+						formatContent: true,
+						type: MessageType.ERROR
+					};
+				}
 			},
 			ariaLabel: localize('fileInputAriaLabel', "Type file name. Press Enter to confirm or Escape to cancel.")
 		});
