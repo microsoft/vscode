@@ -160,6 +160,30 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			options.tabbingIdentifier = product.nameShort; // this opts in to sierra tabs
 		}
 
+		if (isMacintosh && windowConfig) {
+			switch (windowConfig.enableVibrancy) {
+				case ('light'):
+					options.transparent = true;
+					options.vibrancy = 'light';
+					break;
+
+				case ('medium-light'):
+					options.transparent = true;
+					options.vibrancy = 'medium-light';
+					break;
+
+				case ('dark'):
+					options.transparent = true;
+					options.vibrancy = 'dark';
+					break;
+
+				case ('ultra-dark'):
+					options.transparent = true;
+					options.vibrancy = 'ultra-dark';
+					break;
+			}
+		}
+
 		const useCustomTitleStyle = getTitleBarStyle(this.configurationService, this.environmentService, !!config.extensionDevelopmentPath) === 'custom';
 		if (useCustomTitleStyle) {
 			options.titleBarStyle = 'hidden';

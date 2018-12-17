@@ -826,6 +826,14 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('window.nativeTabs', "Enables macOS Sierra window tabs. Note that changes require a full restart to apply and that native tabs will disable a custom title bar style if configured."),
 			'included': isMacintosh && parseFloat(os.release()) >= 16 // Minimum: macOS Sierra (10.12.x = darwin 16.x)
 		},
+		'window.enableVibrancy': {
+			'type': 'string',
+			'enum': ['none', 'light', 'medium-light', 'dark', 'ultra-dark'],
+			'default': 'none',
+			'scope': ConfigurationScope.APPLICATION,
+			'description': nls.localize('window.enableVibrancy', "Enables macOS Mojave transparent window effects. Requires a theme that has transparent colors. Note that changes require a full restart to apply."),
+			'included': isMacintosh && parseFloat(os.release()) >= 18 // Minimum: macOS Mojave (10.14.x = darwin 18.x)
+		},
 		'window.nativeFullScreen': {
 			'type': 'boolean',
 			'default': true,
