@@ -283,13 +283,8 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		return this.root.element as TInput;
 	}
 
-	setInput(input: TInput | undefined): Promise<void> {
+	setInput(input: TInput): Promise<void> {
 		this.root.element = input!;
-
-		if (typeof input === 'undefined') {
-			return Promise.resolve();
-		}
-
 		return this.refresh(input);
 	}
 

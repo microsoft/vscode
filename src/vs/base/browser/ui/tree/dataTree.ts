@@ -33,13 +33,8 @@ export class DataTree<TInput, T, TFilterData = void> extends AbstractTree<T | nu
 		return this.input;
 	}
 
-	setInput(input: TInput | undefined): void {
+	setInput(input: TInput): void {
 		this.input = input;
-
-		if (typeof input === 'undefined') {
-			return;
-		}
-
 		this.refresh(input);
 	}
 
