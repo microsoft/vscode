@@ -1331,7 +1331,7 @@ namespace ConfiguringTask {
 		);
 		let configuration = ConfigurationProperties.from(external, context, true);
 		if (configuration) {
-			result = Objects.assign(result, configuration);
+			result.configurationProperties = Objects.assign(result, configuration);
 			if (result.configurationProperties.name) {
 				result._label = result.configurationProperties.name;
 			} else {
@@ -1393,7 +1393,7 @@ namespace CustomTask {
 		);
 		let configuration = ConfigurationProperties.from(external, context, false);
 		if (configuration) {
-			result = Objects.assign(result, configuration);
+			result.configurationProperties = Objects.assign(result, configuration);
 		}
 		let supportLegacy: boolean = true; //context.schemaVersion === Tasks.JsonSchemaVersion.V2_0_0;
 		if (supportLegacy) {
