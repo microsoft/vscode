@@ -71,19 +71,22 @@ export interface IExtensionPoint<T> {
 export class ExtensionPoint<T> implements IExtensionPoint<T> {
 
 	public readonly name: string;
-	private _handler: IExtensionPointHandler<T> | null;
-	private _users: IExtensionPointUser<T>[] | null;
-	private _done: boolean;
+	public readonly isDynamic: boolean;
 
-	constructor(name: string) {
+	private _handler: IExtensionPointHandler<T> | null;
+	private _handlerCalled: boolean;
+	private _users: IExtensionPointUser<T>[] | null;
+
+	constructor(name: string, isDynamic: boolean) {
 		this.name = name;
+		this.isDynamic = isDynamic;
 		this._handler = null;
+		this._handlerCalled = false;
 		this._users = null;
-		this._done = false;
 	}
 
 	setHandler(handler: IExtensionPointHandler<T>): void {
-		if (this._handler !== null || this._done) {
+		if (this._handler !== null) {
 			throw new Error('Handler already set!');
 		}
 		this._handler = handler;
@@ -91,9 +94,6 @@ export class ExtensionPoint<T> implements IExtensionPoint<T> {
 	}
 
 	acceptUsers(users: IExtensionPointUser<T>[]): void {
-		if (this._users !== null || this._done) {
-			throw new Error('Users already set!');
-		}
 		this._users = users;
 		this._handle();
 	}
@@ -102,16 +102,17 @@ export class ExtensionPoint<T> implements IExtensionPoint<T> {
 		if (this._handler === null || this._users === null) {
 			return;
 		}
-		this._done = true;
-
-		let handler = this._handler;
-		this._handler = null;
 
 		let users = this._users;
 		this._users = null;
 
+		if (this._handlerCalled && !this.isDynamic) {
+			throw new Error('The extension point is not dynamic!');
+		}
+
 		try {
-			handler(users);
+			this._handlerCalled = true;
+			this._handler(users);
 		} catch (err) {
 			onUnexpectedError(err);
 		}
@@ -350,7 +351,7 @@ export class ExtensionsRegistryImpl {
 		if (hasOwnProperty.call(this._extensionPoints, desc.extensionPoint)) {
 			throw new Error('Duplicate extension point: ' + desc.extensionPoint);
 		}
-		let result = new ExtensionPoint<T>(desc.extensionPoint);
+		let result = new ExtensionPoint<T>(desc.extensionPoint, desc.isDynamic || false);
 		this._extensionPoints[desc.extensionPoint] = result;
 
 		schema.properties['contributes'].properties[desc.extensionPoint] = desc.jsonSchema;
@@ -361,6 +362,10 @@ export class ExtensionsRegistryImpl {
 
 	public getExtensionPoints(): ExtensionPoint<any>[] {
 		return Object.keys(this._extensionPoints).map(point => this._extensionPoints[point]);
+	}
+
+	public getExtensionPointsMap(): { [extPoint: string]: ExtensionPoint<any>; } {
+		return this._extensionPoints;
 	}
 }
 

@@ -32,6 +32,7 @@ import { ExtensionHostProcessManager } from 'vs/workbench/services/extensions/el
 
 const hasOwnProperty = Object.hasOwnProperty;
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(void 0);
+const DYNAMIC_EXTENSION_POINTS = false;
 
 schema.properties.engines.properties.vscode.default = `^${pkg.version}`;
 
@@ -99,6 +100,71 @@ export class ExtensionService extends Disposable implements IExtensionService {
 				}
 			}]);
 		}
+
+		if (DYNAMIC_EXTENSION_POINTS) {
+			this._extensionEnablementService.onEnablementChanged((identifier) => {
+				const extension = this._registry.getExtensionDescription(identifier.id);
+				if (!extension) {
+					// cannot handle enablement yet
+					return;
+				}
+
+				// TODO@Alex: Assuming the extension becomes disabled
+				// until the enablement service gives better API
+				this._removeExtension(extension);
+			});
+		}
+	}
+
+	private _removeExtension(extension: IExtensionDescription): boolean {
+		if (!this._canRemoveExtension(extension)) {
+			return false;
+		}
+
+		this._registry.remove(extension.id);
+		// TODO@Alex: remove from the extension host
+
+		const affectedExtensionPoints: { [extPointName: string]: boolean; } = Object.create(null);
+		if (extension.contributes) {
+			for (let extPointName in extension.contributes) {
+				if (hasOwnProperty.call(extension.contributes, extPointName)) {
+					affectedExtensionPoints[extPointName] = true;
+				}
+			}
+		}
+
+		const messageHandler = (msg: IMessage) => this._handleExtensionPointMessage(msg);
+
+		const availableExtensions = this._registry.getAllExtensionDescriptions();
+		const extensionPoints = ExtensionsRegistry.getExtensionPoints();
+		for (let i = 0, len = extensionPoints.length; i < len; i++) {
+			if (affectedExtensionPoints[extensionPoints[i].name]) {
+				ExtensionService._handleExtensionPoint(extensionPoints[i], availableExtensions, messageHandler);
+			}
+		}
+
+		return true;
+	}
+
+	private _canRemoveExtension(extension: IExtensionDescription): boolean {
+		if (this._extensionHostActiveExtensions[extension.id]) {
+			// Extension is running, cannot remove it safely
+			return false;
+		}
+
+		const extensionPoints = ExtensionsRegistry.getExtensionPointsMap();
+		if (extension.contributes) {
+			for (let extPointName in extension.contributes) {
+				if (hasOwnProperty.call(extension.contributes, extPointName)) {
+					const extPoint = extensionPoints[extPointName];
+					if (extPoint && !extPoint.isDynamic) {
+						return false;
+					}
+				}
+			}
+		}
+
+		return true;
 	}
 
 	private _startDelayed(lifecycleService: ILifecycleService): void {
