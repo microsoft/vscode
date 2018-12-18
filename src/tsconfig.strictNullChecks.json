@@ -190,6 +190,8 @@
 		"./vs/editor/contrib/codeAction/codeActionTrigger.ts",
 		"./vs/editor/contrib/codeAction/codeActionWidget.ts",
 		"./vs/editor/contrib/codeAction/lightBulbWidget.ts",
+		"./vs/editor/contrib/codeAction/test/codeAction.test.ts",
+		"./vs/editor/contrib/codeAction/test/codeActionModel.test.ts",
 		"./vs/editor/contrib/codelens/codelens.ts",
 		"./vs/editor/contrib/codelens/codelensController.ts",
 		"./vs/editor/contrib/codelens/codelensWidget.ts",
