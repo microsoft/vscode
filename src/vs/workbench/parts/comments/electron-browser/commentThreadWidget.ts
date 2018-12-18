@@ -372,6 +372,12 @@ export class ReviewZoneWidget extends ZoneWidget {
 		}
 	}
 
+	private handleError(e: Error) {
+		this._error.textContent = e.message;
+		this._commentEditor.getDomNode().style.outline = `1px solid ${this.themeService.getTheme().getColor(inputValidationErrorBorder)}`;
+		dom.removeClass(this._error, 'hidden');
+	}
+
 	private createCommentWidgetActions(container: HTMLElement, model: ITextModel) {
 		const button = new Button(container);
 		attachButtonStyler(button, this.themeService);
@@ -405,7 +411,11 @@ export class ReviewZoneWidget extends ZoneWidget {
 					deletedraftButton.enabled = true;
 
 					deletedraftButton.onDidClick(async () => {
-						await this.commentService.deleteDraft(this._owner);
+						try {
+							await this.commentService.deleteDraft(this._owner);
+						} catch (e) {
+							this.handleError(e);
+						}
 					});
 				}
 
@@ -417,9 +427,13 @@ export class ReviewZoneWidget extends ZoneWidget {
 					submitdraftButton.enabled = true;
 
 					submitdraftButton.onDidClick(async () => {
-						let lineNumber = this._commentGlyph.getPosition().position.lineNumber;
-						await this.createComment(lineNumber);
-						await this.commentService.finishDraft(this._owner);
+						try {
+							let lineNumber = this._commentGlyph.getPosition().position.lineNumber;
+							await this.createComment(lineNumber);
+							await this.commentService.finishDraft(this._owner);
+						} catch (e) {
+							this.handleError(e);
+						}
 					});
 				}
 
@@ -441,9 +455,13 @@ export class ReviewZoneWidget extends ZoneWidget {
 					}));
 
 					draftButton.onDidClick(async () => {
-						await this.commentService.startDraft(this._owner);
-						let lineNumber = this._commentGlyph.getPosition().position.lineNumber;
-						await this.createComment(lineNumber);
+						try {
+							await this.commentService.startDraft(this._owner);
+							let lineNumber = this._commentGlyph.getPosition().position.lineNumber;
+							await this.createComment(lineNumber);
+						} catch (e) {
+							this.handleError(e);
+						}
 					});
 				}
 
