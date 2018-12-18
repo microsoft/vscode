@@ -13,13 +13,17 @@ import { isMacintosh } from 'vs/base/common/platform';
 // < --- Workbench (not customizable) --- >
 
 export function WORKBENCH_BACKGROUND(theme: ITheme): Color {
-	switch (theme.type) {
-		case 'dark':
-			return Color.fromHex(isMacintosh ? '#00000000' : '#252526');
-		case 'light':
-			return Color.fromHex(isMacintosh ? '#00000000' : '#F3F3F3');
-		default:
-			return Color.fromHex(isMacintosh ? '#00000000' : '#000000');
+	if (isMacintosh) {
+		return Color.fromHex('#00000000'); // enableVibrancy requires transparent bg
+	} else {
+		switch (theme.type) {
+			case 'dark':
+				return Color.fromHex('#252526');
+			case 'light':
+				return Color.fromHex('#F3F3F3');
+			default:
+				return Color.fromHex('#000000');
+		}
 	}
 }
 
