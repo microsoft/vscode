@@ -40,6 +40,47 @@ interface IKeydownEvent {
 	repeat: boolean;
 }
 
+class WebviewProtocolRegister extends Disposable {
+	constructor(
+		webview: Electron.WebviewTag,
+		private readonly _extensionLocation: URI,
+		private readonly _getLocalResourceRoots: () => ReadonlyArray<URI>,
+		private readonly _environmentService: IEnvironmentService,
+		private readonly _fileService: IFileService,
+	) {
+		super();
+
+		let loaded = false;
+		this._register(addDisposableListener(webview, 'did-start-loading', () => {
+			if (loaded) {
+				return;
+			}
+			loaded = true;
+
+			const contents = webview.getWebContents();
+			if (contents) {
+				this.registerFileProtocols(contents);
+			}
+		}));
+	}
+
+	private registerFileProtocols(contents: Electron.WebContents) {
+		if (contents.isDestroyed()) {
+			return;
+		}
+
+		const appRootUri = URI.file(this._environmentService.appRoot);
+
+		registerFileProtocol(contents, WebviewProtocol.CoreResource, this._fileService, null, () => [
+			appRootUri
+		]);
+
+		registerFileProtocol(contents, WebviewProtocol.VsCodeResource, this._fileService, this._extensionLocation, () =>
+			(this._getLocalResourceRoots())
+		);
+	}
+}
+
 export class WebviewElement extends Disposable {
 	private _webview: Electron.WebviewTag;
 	private _ready: Promise<void>;
@@ -57,8 +98,8 @@ export class WebviewElement extends Disposable {
 		private _options: WebviewOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
-		@IFileService private readonly _fileService: IFileService,
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IFileService fileService: IFileService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
 		super();
@@ -87,18 +128,12 @@ export class WebviewElement extends Disposable {
 			}));
 		});
 
-		if (!this._options.useSameOriginForRoot) {
-			let loaded = false;
-			this._register(addDisposableListener(this._webview, 'did-start-loading', () => {
-				if (loaded) {
-					return;
-				}
-				loaded = true;
-
-				const contents = this._webview.getWebContents();
-				this.registerFileProtocols(contents);
-			}));
-		}
+		this._register(new WebviewProtocolRegister(
+			this._webview,
+			this._options.extensionLocation,
+			() => this._options.localResourceRoots || [],
+			environmentService,
+			fileService));
 
 		if (!this._options.allowSvgs) {
 			let loaded = false;
@@ -395,22 +430,6 @@ export class WebviewElement extends Disposable {
 			return this._options.svgWhiteList.indexOf(uri.authority.toLowerCase()) >= 0;
 		}
 		return false;
-	}
-
-	private registerFileProtocols(contents: Electron.WebContents) {
-		if (!contents || contents.isDestroyed()) {
-			return;
-		}
-
-		const appRootUri = URI.file(this._environmentService.appRoot);
-
-		registerFileProtocol(contents, WebviewProtocol.CoreResource, this._fileService, null, () => [
-			appRootUri
-		]);
-
-		registerFileProtocol(contents, WebviewProtocol.VsCodeResource, this._fileService, this._options.extensionLocation, () =>
-			(this._options.localResourceRoots || [])
-		);
 	}
 
 	public startFind(value: string, options?: Electron.FindInPageOptions) {
