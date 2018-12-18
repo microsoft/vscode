@@ -78,6 +78,14 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 					return String(lineNumber);
 				}
 				return undefined;
+			},
+			getColumnNumber: (): string => {
+				const activeTextEditorWidget = editorService.activeTextEditorWidget;
+				if (isCodeEditor(activeTextEditorWidget)) {
+					const columnNumber = activeTextEditorWidget.getSelection().positionColumn;
+					return String(columnNumber);
+				}
+				return undefined;
 			}
 		}, envVariables);
 	}

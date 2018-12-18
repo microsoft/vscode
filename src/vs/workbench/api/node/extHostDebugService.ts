@@ -905,6 +905,13 @@ export class ExtHostVariableResolverService extends AbstractVariableResolverServ
 					return String(activeEditor.selection.end.line + 1);
 				}
 				return undefined;
+			},
+			getColumnNumber: (): string => {
+				const activeEditor = editorService.activeEditor();
+				if (activeEditor) {
+					return String(activeEditor.selection.end.character + 1);
+				}
+				return undefined;
 			}
 		});
 	}

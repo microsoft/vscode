@@ -23,6 +23,7 @@ export interface IVariableResolveContext {
 	getFilePath(): string | undefined;
 	getSelectedText(): string | undefined;
 	getLineNumber(): string;
+	getColumnNumber(): string;
 }
 
 export class AbstractVariableResolverService implements IConfigurationResolverService {
@@ -224,6 +225,13 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 								return resolvedValue = lineNumber;
 							}
 							throw new Error(localize('canNotResolveLineNumber', "'{0}' can not be resolved. Make sure to have a line selected in the active editor.", match));
+
+						case 'columnNumber':
+							const columnNumber = this._context.getColumnNumber();
+							if (columnNumber) {
+								return resolvedValue = columnNumber;
+							}
+							throw new Error(localize('canNotResolveColumnNumber', "'{0}' can not be resolved. Make sure to have a column selected in the active editor.", match));
 
 						case 'selectedText':
 							const selectedText = this._context.getSelectedText();
