@@ -119,7 +119,7 @@ export class MarkersWorkbenchService extends Disposable implements IMarkersWorkb
 				pinned: false,
 				revealIfVisible: true
 			},
-		}, ACTIVE_GROUP).then(() => null);
+		}, ACTIVE_GROUP).then(() => void 0);
 	}
 
 	private getFixes(marker: Marker): Promise<CodeAction[]> {
