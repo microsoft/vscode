@@ -44,8 +44,8 @@ export interface IQuickOpenOptions extends IQuickOpenStyles {
 }
 
 export interface IQuickOpenStyles extends IInputBoxStyles, ITreeStyles {
-	background?: Color;
-	foreground?: Color;
+	quickPickerBackground?: Color;
+	quickPickerForeground?: Color;
 	borderColor?: Color;
 	pickerGroupForeground?: Color;
 	pickerGroupBorder?: Color;
@@ -82,8 +82,8 @@ export const enum HideReason {
 }
 
 const defaultStyles = {
-	background: Color.fromHex('#1E1E1E'),
-	foreground: Color.fromHex('#CCCCCC'),
+	quickPickerBackground: Color.fromHex('#1E1E1E'),
+	quickPickerForeground: Color.fromHex('#CCCCCC'),
 	pickerGroupForeground: Color.fromHex('#0097FB'),
 	pickerGroupBorder: Color.fromHex('#3F3F46'),
 	widgetShadow: Color.fromHex('#000000'),
@@ -380,8 +380,8 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 
 	protected applyStyles(): void {
 		if (this.element) {
-			const foreground = this.styles.foreground ? this.styles.foreground.toString() : null;
-			const background = this.styles.background ? this.styles.background.toString() : null;
+			const foreground = this.styles.quickPickerForeground ? this.styles.quickPickerForeground.toString() : null;
+			const background = this.styles.quickPickerBackground ? this.styles.quickPickerBackground.toString() : null;
 			const borderColor = this.styles.borderColor ? this.styles.borderColor.toString() : null;
 			const widgetShadow = this.styles.widgetShadow ? this.styles.widgetShadow.toString() : null;
 
