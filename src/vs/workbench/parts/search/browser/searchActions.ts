@@ -463,7 +463,7 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 		super('remove', RemoveAction.LABEL, 'action-remove');
 	}
 
-	public run(): Thenable<any> {
+	public run(): Promise<any> {
 		const currentFocusElement = this.viewer.getFocus()[0];
 		const nextFocusElement = !currentFocusElement || currentFocusElement instanceof SearchResult || elementIsEqualOrParent(currentFocusElement, this.element) ?
 			this.getElementToFocusAfterRemoved(this.viewer, this.element) :
@@ -518,7 +518,7 @@ export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 		super(Constants.ReplaceAllInFileActionId, appendKeyBindingLabel(ReplaceAllAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceAllInFileActionId), keyBindingService), 'action-replace-all');
 	}
 
-	public run(): Thenable<any> {
+	public run(): Promise<any> {
 		const tree = this.viewlet.getControl();
 		const nextFocusElement = this.getElementToFocusAfterRemoved(tree, this.fileMatch);
 		return this.fileMatch.parent().replace(this.fileMatch).then(() => {
@@ -542,7 +542,7 @@ export class ReplaceAllInFolderAction extends AbstractSearchAndReplaceAction {
 		super(Constants.ReplaceAllInFolderActionId, appendKeyBindingLabel(ReplaceAllInFolderAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceAllInFolderActionId), keyBindingService), 'action-replace-all');
 	}
 
-	public run(): Thenable<any> {
+	public run(): Promise<any> {
 		const nextFocusElement = this.getElementToFocusAfterRemoved(this.viewer, this.folderMatch);
 		return this.folderMatch.replaceAll().then(() => {
 			if (nextFocusElement) {
@@ -605,7 +605,7 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 					break;
 				}
 			} else if (fileMatched) {
-				if (!this.viewer.isExpanded(elementToFocus)) {
+				if (this.viewer.isCollapsed(elementToFocus)) {
 					// Next file match (if collapsed)
 					break;
 				}
@@ -746,10 +746,10 @@ export const copyAllCommand: ICommandHandler = accessor => {
 	const clipboardService = accessor.get(IClipboardService);
 
 	const searchView = getSearchView(viewletService, panelService);
-	// const root: SearchResult = searchView.getControl().getNode(null).element;
+	const root = searchView.searchResult;
 
-	// const text = allFolderMatchesToString(root.folderMatches(), maxClipboardMatches);
-	// clipboardService.writeText(text);
+	const text = allFolderMatchesToString(root.folderMatches(), maxClipboardMatches);
+	clipboardService.writeText(text);
 };
 
 export const clearHistoryCommand: ICommandHandler = accessor => {
