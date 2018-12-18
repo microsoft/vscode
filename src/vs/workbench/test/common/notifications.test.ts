@@ -15,7 +15,7 @@ suite('Notifications', () => {
 
 		// Invalid
 		assert.ok(!NotificationViewItem.create({ severity: Severity.Error, message: '' }));
-		assert.ok(!NotificationViewItem.create({ severity: Severity.Error, message: (null as any as string) }));
+		assert.ok(!NotificationViewItem.create({ severity: Severity.Error, message: null! }));
 
 		// Duplicates
 		let item1 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message' })!;
