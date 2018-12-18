@@ -148,15 +148,13 @@
 			initData.styles = variables;
 			initData.activeTheme = activeTheme;
 
-			// webview
-			let target = getActiveFrame();
+			const target = getActiveFrame();
 			if (!target) {
 				return;
 			}
-			let body = target.contentDocument.getElementsByTagName('body');
-			styleBody(body[0]);
 
-			// iframe
+			styleBody(target.contentDocument.body);
+
 			Object.keys(variables).forEach((variable) => {
 				target.contentDocument.documentElement.style.setProperty(`--${variable}`, variables[variable]);
 			});
