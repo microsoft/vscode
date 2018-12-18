@@ -106,7 +106,7 @@ suite('SnippetParser', () => {
 		}
 		while (marker.length > 0) {
 			let m = marker.pop();
-			let ctor = ctors.pop();
+			let ctor = ctors.pop()!;
 			assert.ok(m instanceof ctor);
 		}
 		assert.equal(marker.length, ctors.length);
@@ -657,17 +657,17 @@ suite('SnippetParser', () => {
 		assert.equal(new FormatString(1, 'notKnown').resolve('input'), 'input');
 
 		// if
-		assert.equal(new FormatString(1, undefined, 'foo', undefined).resolve(undefined), '');
+		assert.equal(new FormatString(1, undefined, 'foo', undefined).resolve((undefined as any as string)), '');
 		assert.equal(new FormatString(1, undefined, 'foo', undefined).resolve(''), '');
 		assert.equal(new FormatString(1, undefined, 'foo', undefined).resolve('bar'), 'foo');
 
 		// else
-		assert.equal(new FormatString(1, undefined, undefined, 'foo').resolve(undefined), 'foo');
+		assert.equal(new FormatString(1, undefined, undefined, 'foo').resolve((undefined as any as string)), 'foo');
 		assert.equal(new FormatString(1, undefined, undefined, 'foo').resolve(''), 'foo');
 		assert.equal(new FormatString(1, undefined, undefined, 'foo').resolve('bar'), 'bar');
 
 		// if-else
-		assert.equal(new FormatString(1, undefined, 'bar', 'foo').resolve(undefined), 'foo');
+		assert.equal(new FormatString(1, undefined, 'bar', 'foo').resolve((undefined as any as string)), 'foo');
 		assert.equal(new FormatString(1, undefined, 'bar', 'foo').resolve(''), 'foo');
 		assert.equal(new FormatString(1, undefined, 'bar', 'foo').resolve('baz'), 'bar');
 	});
