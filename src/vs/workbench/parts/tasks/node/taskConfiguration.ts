@@ -664,7 +664,7 @@ export namespace RunOptions {
 	}
 }
 
-interface ParseContext {
+class ParseContext {
 	workspaceFolder: IWorkspaceFolder;
 	problemReporter: IProblemReporter;
 	namedProblemMatchers: IStringDictionary<NamedProblemMatcher>;
@@ -672,6 +672,7 @@ interface ParseContext {
 	engine: Tasks.ExecutionEngine;
 	schemaVersion: Tasks.JsonSchemaVersion;
 	platform: Platform;
+	taskLoadIssues: string[];
 }
 
 
@@ -737,7 +738,7 @@ namespace CommandOptions {
 			if (Types.isString(options.cwd)) {
 				result.cwd = options.cwd;
 			} else {
-				context.problemReporter.warn(nls.localize('ConfigurationParser.invalidCWD', 'Warning: options.cwd must be of type string. Ignoring value {0}\n', options.cwd));
+				context.taskLoadIssues.push(nls.localize('ConfigurationParser.invalidCWD', 'Warning: options.cwd must be of type string. Ignoring value {0}\n', options.cwd));
 			}
 		}
 		if (options.env !== void 0) {
@@ -938,7 +939,7 @@ namespace CommandConfiguration {
 				if (converted !== void 0) {
 					result.args.push(converted);
 				} else {
-					context.problemReporter.error(
+					context.taskLoadIssues.push(
 						nls.localize(
 							'ConfigurationParser.inValidArg',
 							'Error: command argument must either be a string or a quoted string. Provided value is:\n{0}',
@@ -952,7 +953,7 @@ namespace CommandConfiguration {
 			if (result.options && result.options.shell === void 0 && isShellConfiguration) {
 				result.options.shell = ShellConfiguration.from(config.isShellCommand as ShellConfiguration, context);
 				if (context.engine !== Tasks.ExecutionEngine.Terminal) {
-					context.problemReporter.warn(nls.localize('ConfigurationParser.noShell', 'Warning: shell configuration is only supported when executing tasks in the terminal.'));
+					context.taskLoadIssues.push(nls.localize('ConfigurationParser.noShell', 'Warning: shell configuration is only supported when executing tasks in the terminal.'));
 				}
 			}
 		}
@@ -1139,7 +1140,7 @@ namespace ProblemMatcherConverter {
 					return localProblemMatcher;
 				}
 			}
-			context.problemReporter.error(nls.localize('ConfigurationParser.invalidVaraibleReference', 'Error: Invalid problemMatcher reference: {0}\n', value));
+			context.taskLoadIssues.push(nls.localize('ConfigurationParser.invalidVaraibleReference', 'Error: Invalid problemMatcher reference: {0}\n', value));
 			return undefined;
 		} else {
 			let json = <ProblemMatcherConfig.ProblemMatcher>value;
@@ -1453,7 +1454,7 @@ namespace CustomTask {
 		}
 	}
 
-	export function createCustomTask(contributedTask: Tasks.ContributedTask, configuredProps: Tasks.ConfigurationProperties & { _id: string, _source: Tasks.WorkspaceTaskSource }): Tasks.CustomTask {
+	export function createCustomTask(contributedTask: Tasks.ContributedTask, configuredProps: Tasks.ConfigurationProperties & { _id: string, _source: Tasks.WorkspaceTaskSource, taskLoadMessages: string[] | undefined }): Tasks.CustomTask {
 		let result: Tasks.CustomTask = new Tasks.CustomTask(
 			configuredProps._id,
 			Objects.assign({}, configuredProps._source, { customizes: contributedTask.defines }),
@@ -1467,6 +1468,7 @@ namespace CustomTask {
 				identifier: configuredProps.identifier || contributedTask.configurationProperties.identifier,
 			}
 		);
+		result.addTaskLoadMessages(configuredProps.taskLoadMessages);
 		let resultConfigProps: Tasks.ConfigurationProperties = result.configurationProperties;
 
 		assignProperty(resultConfigProps, configuredProps, 'group');
@@ -1519,7 +1521,7 @@ namespace TaskParser {
 		let defaultBuildTask: { task: Tasks.Task; rank: number; } = { task: undefined, rank: -1 };
 		let defaultTestTask: { task: Tasks.Task; rank: number; } = { task: undefined, rank: -1 };
 		let schema2_0_0: boolean = context.schemaVersion === Tasks.JsonSchemaVersion.V2_0_0;
-
+		const baseLoadIssues = Objects.deepClone(context.taskLoadIssues);
 		for (let index = 0; index < externals.length; index++) {
 			let external = externals[index];
 			if (isCustomTask(external)) {
@@ -1557,14 +1559,17 @@ namespace TaskParser {
 						defaultTestTask.task = customTask;
 						defaultTestTask.rank = 1;
 					}
+					customTask.addTaskLoadMessages(context.taskLoadIssues);
 					result.custom.push(customTask);
 				}
 			} else {
 				let configuredTask = ConfiguringTask.from(external, context, index);
 				if (configuredTask) {
+					configuredTask.addTaskLoadMessages(context.taskLoadIssues);
 					result.configured.push(configuredTask);
 				}
 			}
+			context.taskLoadIssues = Objects.deepClone(baseLoadIssues);
 		}
 		if (defaultBuildTask.rank > -1 && defaultBuildTask.rank < 2) {
 			defaultBuildTask.task.configurationProperties.group = Tasks.TaskGroup.Build;
@@ -1830,7 +1835,8 @@ class ConfigurationParser {
 			namedProblemMatchers: undefined,
 			engine,
 			schemaVersion,
-			platform: this.platform
+			platform: this.platform,
+			taskLoadIssues: []
 		};
 		let taskParseResult = this.createTaskRunnerConfiguration(fileConfig, context);
 		return {
@@ -1936,7 +1942,7 @@ export function parse(workspaceFolder: IWorkspaceFolder, platform: Platform, con
 	}
 }
 
-export function createCustomTask(contributedTask: Tasks.ContributedTask, configuredProps: Tasks.ConfigurationProperties & { _id: string; _source: Tasks.WorkspaceTaskSource }): Tasks.CustomTask {
+export function createCustomTask(contributedTask: Tasks.ContributedTask, configuredProps: Tasks.ConfigurationProperties & { _id: string; _source: Tasks.WorkspaceTaskSource, taskLoadMessages: string[] | undefined }): Tasks.CustomTask {
 	return CustomTask.createCustomTask(contributedTask, configuredProps);
 }
 

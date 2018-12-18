@@ -671,7 +671,13 @@ class TaskService extends Disposable implements ITaskService {
 
 	private showOutput(runSource: TaskRunSource = TaskRunSource.User): void {
 		if (runSource === TaskRunSource.User) {
-			this.outputService.showChannel(this._outputChannel.id, true);
+			this.notificationService.prompt(Severity.Warning, nls.localize('taskServiceOutputPrompt', 'There are task errors. See the output for details.'),
+				[{
+					label: nls.localize('showOutput', "Show output"),
+					run: () => {
+						this.outputService.showChannel(this._outputChannel.id, true);
+					}
+				}]);
 		}
 	}
 
@@ -1241,6 +1247,13 @@ class TaskService extends Disposable implements ITaskService {
 	}
 
 	private handleExecuteResult(executeResult: ITaskExecuteResult): Promise<ITaskSummary> {
+		if (executeResult.task.taskLoadMessages && executeResult.task.taskLoadMessages.length > 0) {
+			executeResult.task.taskLoadMessages.forEach(loadMessage => {
+				this._outputChannel.append(loadMessage + '\n');
+			});
+			this.showOutput();
+		}
+
 		let key = executeResult.task.getRecentlyUsedKey();
 		if (key) {
 			this.getRecentlyUsedTasks().set(key, key, Touch.AsOld);
@@ -1356,10 +1369,10 @@ class TaskService extends Disposable implements ITaskService {
 							this._outputChannel.append('Error: ');
 							this._outputChannel.append(error.message);
 							this._outputChannel.append('\n');
-							this.outputService.showChannel(this._outputChannel.id, true);
+							this.showOutput();
 						} else {
 							this._outputChannel.append('Unknown error received while collecting tasks from providers.\n');
-							this.outputService.showChannel(this._outputChannel.id, true);
+							this.showOutput();
 						}
 					} finally {
 						if (--counter === 0) {
@@ -1703,7 +1716,7 @@ class TaskService extends Disposable implements ITaskService {
 				result = true;
 				this._outputChannel.append(line + '\n');
 			});
-			this.outputService.showChannel(this._outputChannel.id, true);
+			this.showOutput();
 		}
 		return result;
 	}
@@ -1818,7 +1831,7 @@ class TaskService extends Disposable implements ITaskService {
 			this.notificationService.error(nls.localize('TaskSystem.unknownError', 'An error has occurred while running a task. See task log for details.'));
 		}
 		if (showOutput) {
-			this.outputService.showChannel(this._outputChannel.id, true);
+			this.showOutput();
 		}
 	}
 
