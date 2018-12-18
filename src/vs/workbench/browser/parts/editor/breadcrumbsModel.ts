@@ -146,10 +146,7 @@ export class EditorBreadcrumbsModel {
 			this._updateOutlineElements([]);
 		}
 
-		const editor = this._editor;
-		if (!editor) {
-			return;
-		}
+		const editor = this._editor!;
 
 		const buffer = editor.getModel();
 		if (!buffer || !DocumentSymbolProviderRegistry.has(buffer) || !isEqual(buffer.uri, this._uri)) {

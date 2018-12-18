@@ -193,7 +193,7 @@ export class OutlineGroup extends TreeElement {
 		}
 
 		let myMarkers: IMarker[] = [];
-		let myTopSev: MarkerSeverity | undefined = undefined;
+		let myTopSev: MarkerSeverity | undefined;
 
 		for (; start < markers.length && Range.areIntersecting(item.symbol.range, markers[start]); start++) {
 			// remove markers intersecting with this outline element
@@ -370,16 +370,17 @@ export class OutlineModel extends TreeElement {
 				count += 1;
 			}
 		}
-		let group = first(this._groups);
-		if (group && count === 1) {
+		if (count !== 1) {
+			//
+			this.children = this._groups;
+		} else {
+			let group = first(this._groups);
 			// adopt all elements of the first group
-			for (let key in group.children) {
-				let child = group.children[key];
+			for (let key in group!.children) {
+				let child = group!.children[key];
 				child.parent = this;
 				this.children[child.id] = child;
 			}
-		} else {
-			this.children = this._groups;
 		}
 		return this;
 	}
