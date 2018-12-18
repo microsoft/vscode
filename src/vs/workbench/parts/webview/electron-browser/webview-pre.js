@@ -29,6 +29,30 @@
 		};
 	}());
 
+	/**
+	 * Use polling to track focus of main webview and iframes within the webview
+	 *
+	 * @param {Object} handlers
+	 * @param {() => void} handlers.onFocus
+	 * @param {() => void} handlers.onBlur
+	 */
+	const trackFocus = ({onFocus, onBlur}) => {
+		const interval = 50;
+		let isFocused = document.hasFocus();
+		setInterval(() => {
+			const isCurrentlyFocused = document.hasFocus();
+			if (isCurrentlyFocused === isFocused) {
+				return;
+			}
+			isFocused = isCurrentlyFocused;
+			if (isCurrentlyFocused) {
+				onFocus();
+			} else {
+				onBlur();
+			}
+		}, interval);
+	};
+
 	// state
 	let firstLoad = true;
 	let loadTimeout;
@@ -258,8 +282,6 @@
 
 			// write new content onto iframe
 			newFrame.contentDocument.open('text/html', 'replace');
-			newFrame.contentWindow.addEventListener('focus', () => { ipcRenderer.sendToHost('did-focus'); });
-			newFrame.contentWindow.addEventListener('blur', () => { ipcRenderer.sendToHost('did-blur'); });
 			newFrame.contentWindow.addEventListener('keydown', (e) => {
 				ipcRenderer.sendToHost('did-keydown', {
 					key: e.key,
@@ -356,6 +378,11 @@
 
 		ipcRenderer.on('devtools-opened', () => {
 			isInDevelopmentMode = true;
+		});
+
+		trackFocus({
+			onFocus: () => { ipcRenderer.sendToHost('did-focus'); },
+			onBlur: () => { ipcRenderer.sendToHost('did-blur'); }
 		});
 
 		// Forward messages from the embedded iframe
