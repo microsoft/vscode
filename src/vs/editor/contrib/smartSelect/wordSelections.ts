@@ -21,7 +21,7 @@ export class WordSelectionRangeProvider implements SelectionRangeProvider {
 	private _addWordRanges(bucket: SelectionRange[], model: ITextModel, pos: Position): void {
 		const word = model.getWordAtPosition(pos);
 		if (word) {
-			bucket.push({ range: new Range(pos.lineNumber, word.startColumn, pos.lineNumber, word.endColumn), kind: 'simple.word' });
+			bucket.push({ range: new Range(pos.lineNumber, word.startColumn, pos.lineNumber, word.endColumn), kind: 'statement.word' });
 		}
 	}
 
@@ -98,15 +98,15 @@ export class WordSelectionRangeProvider implements SelectionRangeProvider {
 
 		if (type === StandardTokenType.String) {
 			// just assume that quotation marks are length=1
-			bucket.push({ range: Range.fromPositions(left.delta(0, 1), right.delta(0, -1)), kind: 'simple.string' });
-			bucket.push({ range: Range.fromPositions(left, right), kind: 'simple.string' });
+			bucket.push({ range: Range.fromPositions(left.delta(0, 1), right.delta(0, -1)), kind: 'statement.string' });
+			bucket.push({ range: Range.fromPositions(left, right), kind: 'statement.string.full' });
 		} else {
-			bucket.push({ range: Range.fromPositions(left, right), kind: 'simple.comment' });
+			bucket.push({ range: Range.fromPositions(left, right), kind: 'statement.comment' });
 		}
 	}
 
 	private _addLineRanges(bucket: SelectionRange[], model: ITextModel, pos: Position): void {
-		bucket.push({ range: new Range(pos.lineNumber, model.getLineFirstNonWhitespaceColumn(pos.lineNumber), pos.lineNumber, model.getLineLastNonWhitespaceColumn(pos.lineNumber)), kind: 'simple.line' });
-		bucket.push({ range: new Range(pos.lineNumber, model.getLineMinColumn(pos.lineNumber), pos.lineNumber, model.getLineMaxColumn(pos.lineNumber)), kind: 'simple.line' });
+		bucket.push({ range: new Range(pos.lineNumber, model.getLineFirstNonWhitespaceColumn(pos.lineNumber), pos.lineNumber, model.getLineLastNonWhitespaceColumn(pos.lineNumber)), kind: 'statement.line' });
+		bucket.push({ range: new Range(pos.lineNumber, model.getLineMinColumn(pos.lineNumber), pos.lineNumber, model.getLineMaxColumn(pos.lineNumber)), kind: 'statement.line.full' });
 	}
 }

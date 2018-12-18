@@ -20,10 +20,22 @@ declare module 'vscode' {
 
 	export class SelectionRangeKind {
 
+		/**
+		 * Empty Kind.
+		 */
 		static readonly Empty: SelectionRangeKind;
+
+		/**
+		 * The statment kind, its value is `statement`, possible extensions can be
+		 * `statement.if` etc
+		 */
 		static readonly Statement: SelectionRangeKind;
-		static readonly Expression: SelectionRangeKind;
-		static readonly Block: SelectionRangeKind;
+
+		/**
+		 * The declaration kind, its value is `declaration`, possible extensions can be
+		 * `declaration.function`, `declaration.class` etc.
+		 */
+		static readonly Declaration: SelectionRangeKind;
 
 		readonly value: string;
 
