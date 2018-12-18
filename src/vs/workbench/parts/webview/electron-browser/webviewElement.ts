@@ -42,7 +42,7 @@ interface IKeydownEvent {
 
 export class WebviewElement extends Disposable {
 	private _webview: Electron.WebviewTag;
-	private _ready: Promise<this>;
+	private _ready: Promise<void>;
 
 	private _webviewFindWidget: WebviewFindWidget;
 	private _findStarted: boolean = false;
@@ -75,14 +75,14 @@ export class WebviewElement extends Disposable {
 		this._webview.preload = require.toUrl('./webview-pre.js');
 		this._webview.src = this._options.useSameOriginForRoot ? require.toUrl('./webview.html') : 'data:text/html;charset=utf-8,%3C%21DOCTYPE%20html%3E%0D%0A%3Chtml%20lang%3D%22en%22%20style%3D%22width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3Chead%3E%0D%0A%09%3Ctitle%3EVirtual%20Document%3C%2Ftitle%3E%0D%0A%3C%2Fhead%3E%0D%0A%3Cbody%20style%3D%22margin%3A%200%3B%20overflow%3A%20hidden%3B%20width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3C%2Fbody%3E%0D%0A%3C%2Fhtml%3E';
 
-		this._ready = new Promise<this>(resolve => {
+		this._ready = new Promise(resolve => {
 			const subscription = this._register(addDisposableListener(this._webview, 'ipc-message', (event) => {
 				if (event.channel === 'webview-ready') {
 					// console.info('[PID Webview] ' event.args[0]);
 					addClass(this._webview, 'ready'); // can be found by debug command
 
 					subscription.dispose();
-					resolve(this);
+					resolve();
 				}
 			}));
 		});
