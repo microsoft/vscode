@@ -868,9 +868,9 @@ declare module 'vscode' {
 		 */
 		deleteComment?(document: TextDocument, comment: Comment, token: CancellationToken): Promise<void>;
 
-		startDraft?(token: CancellationToken): Promise<void>;
-		deleteDraft?(token: CancellationToken): Promise<void>;
-		finishDraft?(token: CancellationToken): Promise<void>;
+		startDraft?(document: TextDocument, token: CancellationToken): Promise<void>;
+		deleteDraft?(document: TextDocument, token: CancellationToken): Promise<void>;
+		finishDraft?(document: TextDocument, token: CancellationToken): Promise<void>;
 
 		startDraftLabel?: string;
 		deleteDraftLabel?: string;

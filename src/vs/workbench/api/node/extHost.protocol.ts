@@ -1044,9 +1044,9 @@ export interface ExtHostCommentsShape {
 	$replyToCommentThread(handle: number, document: UriComponents, range: IRange, commentThread: modes.CommentThread, text: string): Promise<modes.CommentThread>;
 	$editComment(handle: number, document: UriComponents, comment: modes.Comment, text: string): Promise<void>;
 	$deleteComment(handle: number, document: UriComponents, comment: modes.Comment): Promise<void>;
-	$startDraft(handle: number): Promise<void>;
-	$deleteDraft(handle: number): Promise<void>;
-	$finishDraft(handle: number): Promise<void>;
+	$startDraft(handle: number, document: UriComponents): Promise<void>;
+	$deleteDraft(handle: number, document: UriComponents): Promise<void>;
+	$finishDraft(handle: number, document: UriComponents): Promise<void>;
 	$provideWorkspaceComments(handle: number): Promise<modes.CommentThread[]>;
 }
 
