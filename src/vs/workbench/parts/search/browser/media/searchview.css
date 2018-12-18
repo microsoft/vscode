@@ -277,10 +277,6 @@
 	display: inline-block;
 }
 
-/* .search-view:not(.wide) .monaco-list .monaco-list-row .linematch .actionBarContainer {
-	flex: 1;
-} */
-
 .search-view .monaco-list .monaco-list-row .monaco-action-bar .action-label {
 	margin-right: 0.2em;
 	margin-top: 4px;
