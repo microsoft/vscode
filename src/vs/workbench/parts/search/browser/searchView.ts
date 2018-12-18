@@ -50,7 +50,7 @@ import { IPanel } from 'vs/workbench/common/panel';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { ExcludePatternInputWidget, PatternInputWidget } from 'vs/workbench/parts/search/browser/patternInputWidget';
 import { CancelSearchAction, ClearSearchResultsAction, CollapseDeepestExpandedLevelAction, RefreshAction } from 'vs/workbench/parts/search/browser/searchActions';
-import { FileMatchRenderer, FolderMatchRenderer, MatchRenderer, SearchDelegate } from 'vs/workbench/parts/search/browser/searchResultsView';
+import { FileMatchRenderer, FolderMatchRenderer, MatchRenderer, SearchDelegate, SearchAccessibilityProvider } from 'vs/workbench/parts/search/browser/searchResultsView';
 import { ISearchWidgetOptions, SearchWidget } from 'vs/workbench/parts/search/browser/searchWidget';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
 import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/parts/search/common/queryBuilder';
@@ -587,7 +587,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 				this._register(this.instantiationService.createInstance(MatchRenderer, this.viewModel, this)),
 			],
 			{
-				identityProvider
+				identityProvider,
+				accessibilityProvider: this.instantiationService.createInstance(SearchAccessibilityProvider, this.viewModel)
 			});
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 

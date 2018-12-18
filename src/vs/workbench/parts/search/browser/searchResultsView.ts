@@ -7,12 +7,13 @@ import * as DOM from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { IAction } from 'vs/base/common/actions';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
-import { IAccessibilityProvider, IFilter, ISorter, ITree } from 'vs/base/parts/tree/browser/tree';
+import { IFilter, ISorter, ITree } from 'vs/base/parts/tree/browser/tree';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { FileKind } from 'vs/platform/files/common/files';
@@ -25,7 +26,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { FileLabel } from 'vs/workbench/browser/labels';
 import { RemoveAction, ReplaceAction, ReplaceAllAction, ReplaceAllInFolderAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { SearchView } from 'vs/workbench/parts/search/browser/searchView';
-import { FileMatch, FileMatchOrMatch, FolderMatch, Match, RenderableMatch, searchMatchComparer, SearchModel, SearchResult } from 'vs/workbench/parts/search/common/searchModel';
+import { FileMatch, FolderMatch, Match, RenderableMatch, searchMatchComparer, SearchModel } from 'vs/workbench/parts/search/common/searchModel';
 
 export class SearchSorter implements ISorter {
 	public compare(tree: ITree, elementA: RenderableMatch, elementB: RenderableMatch): number {
@@ -280,14 +281,15 @@ export class MatchRenderer extends Disposable implements ITreeRenderer<Match, vo
 	}
 }
 
-export class SearchAccessibilityProvider implements IAccessibilityProvider {
+export class SearchAccessibilityProvider implements IAccessibilityProvider<RenderableMatch> {
 
 	constructor(
+		private searchModel: SearchModel,
 		@ILabelService private labelService: ILabelService
 	) {
 	}
 
-	public getAriaLabel(tree: ITree, element: FileMatchOrMatch): string {
+	public getAriaLabel(element: RenderableMatch): string {
 		if (element instanceof FolderMatch) {
 			return element.hasResource() ?
 				nls.localize('folderMatchAriaLabel', "{0} matches in folder root {1}, Search result", element.count(), element.name()) :
@@ -302,7 +304,7 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider {
 
 		if (element instanceof Match) {
 			const match = <Match>element;
-			const searchModel: SearchModel = (<SearchResult>tree.getInput()).searchModel;
+			const searchModel: SearchModel = this.searchModel;
 			const replace = searchModel.isReplaceActive() && !!searchModel.replaceString;
 			const matchString = match.getMatchString();
 			const range = match.range();
