@@ -601,7 +601,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'workbench.settings.useSplitJSON': {
 			'type': 'boolean',
-			'markdownDescription': nls.localize('useSplitJSON', "Controls whether to use the split JSON editor for settings. Requires `#workbench.settings.editor#` set to `\"json\"`"),
+			'markdownDescription': nls.localize('useSplitJSON', "Controls whether to use the split JSON editor when editing settings as JSON."),
 			'default': false
 		},
 		'workbench.settings.openDefaultKeybindings': {
