@@ -17,6 +17,7 @@ import { areWebviewInputOptionsEqual } from './webviewEditorService';
 import { WebviewFindWidget } from './webviewFindWidget';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { endsWith } from 'vs/base/common/strings';
 
 export interface WebviewOptions {
 	readonly allowScripts?: boolean;
@@ -112,10 +113,10 @@ export class WebviewElement extends Disposable {
 					return;
 				}
 
-				(contents.session.webRequest as any).onBeforeRequest((details, callback) => {
+				contents.session.webRequest.onBeforeRequest((details, callback) => {
 					if (details.url.indexOf('.svg') > 0) {
 						const uri = URI.parse(details.url);
-						if (uri && !uri.scheme.match(/file/i) && (uri.path as any).endsWith('.svg') && !this.isAllowedSvg(uri)) {
+						if (uri && !uri.scheme.match(/file/i) && endsWith(uri.path, '.svg') && !this.isAllowedSvg(uri)) {
 							this.onDidBlockSvg();
 							return callback({ cancel: true });
 						}
@@ -123,8 +124,8 @@ export class WebviewElement extends Disposable {
 					return callback({});
 				});
 
-				(contents.session.webRequest as any).onHeadersReceived((details, callback) => {
-					const contentType: string[] = (details.responseHeaders['content-type'] || details.responseHeaders['Content-Type']) as any;
+				contents.session.webRequest.onHeadersReceived((details, callback) => {
+					const contentType: string[] = details.responseHeaders['content-type'] || details.responseHeaders['Content-Type'];
 					if (contentType && Array.isArray(contentType) && contentType.some(x => x.toLowerCase().indexOf('image/svg') >= 0)) {
 						const uri = URI.parse(details.url);
 						if (uri && !this.isAllowedSvg(uri)) {
@@ -369,11 +370,11 @@ export class WebviewElement extends Disposable {
 	}
 
 	public layout(): void {
-		const contents = (this._webview as any).getWebContents();
+		const contents = this._webview.getWebContents();
 		if (!contents || contents.isDestroyed()) {
 			return;
 		}
-		const window = contents.getOwnerBrowserWindow();
+		const window = (contents as any).getOwnerBrowserWindow();
 		if (!window || !window.webContents || window.webContents.isDestroyed()) {
 			return;
 		}
