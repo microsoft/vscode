@@ -28,6 +28,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IConfirmation, IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IEditorOptions as IEditorOpenOptions } from 'vs/platform/editor/common/editor';
 import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TreeResourceNavigator2, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
@@ -201,6 +202,10 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 		this.delayedRefresh = this._register(new Delayer<void>(250));
 
+	}
+
+	public get searchResult(): SearchResult {
+		return this.viewModel && this.viewModel.searchResult;
 	}
 
 	private onDidChangeWorkbenchState(): void {
@@ -578,16 +583,15 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 				}
 				this.currentSelectedFileMatch = selectedMatch.parent();
 				this.currentSelectedFileMatch.setSelectedMatch(selectedMatch);
-				// if (!(options.payload && options.payload.preventEditorOpen)) {
+
 				this.onFocus(selectedMatch, options.editorOptions.preserveFocus, options.sideBySide, options.editorOptions.pinned);
-				// }
 			}
 		}));
 
 		this._register(Event.any<any>(this.tree.onDidFocus, this.tree.onDidChangeFocus)(() => {
 			if (this.tree.isDOMFocused()) {
-				const focus = this.tree.getFocus();
-				// this.firstMatchFocused.set(this.tree.getNavigator().first() === focus);
+				const focus = this.tree.getFocus()[0];
+				this.firstMatchFocused.set(this.tree.navigate().first() === focus);
 				this.fileMatchOrMatchFocused.set(!!focus);
 				this.fileMatchFocused.set(focus instanceof FileMatch);
 				this.folderMatchFocused.set(focus instanceof FolderMatch);
@@ -608,8 +612,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 	public selectCurrentMatch(): void {
 		const focused = this.tree.getFocus()[0];
-		// const eventPayload = { focusEditor: true };
-		this.tree.setSelection([focused]);
+		const fakeKeyboardEvent = getKeyboardEventForEditorOpen({ preserveFocus: false });
+		this.tree.setSelection([focused], fakeKeyboardEvent);
 	}
 
 	public selectNextMatch(): void {
@@ -643,9 +647,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 		// Reveal the newly selected element
 		if (next) {
-			// const eventPayload = { preventEditorOpen: true };
 			this.tree.setFocus([next]);
-			this.tree.setSelection([next], <any>{});
+			this.tree.setSelection([next]);
 			this.tree.reveal(next);
 			this.selectCurrentMatchEmitter.fire();
 		}
@@ -685,9 +688,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 		// Reveal the newly selected element
 		if (prev) {
-			// const eventPayload = { preventEditorOpen: true };
 			this.tree.setFocus([prev]);
-			this.tree.setSelection([prev], <any>{});
+			this.tree.setSelection([prev]);
 			this.tree.reveal(prev);
 			this.selectCurrentMatchEmitter.fire();
 		}
@@ -1708,3 +1710,14 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		collector.addRule(`.monaco-workbench .search-view .monaco-tree.focused .monaco-tree-row.focused.selected:not(.highlighted) .action-label:focus { outline-color: ${outlineSelectionColor} }`);
 	}
 });
+
+
+function getKeyboardEventForEditorOpen(options: IEditorOpenOptions): KeyboardEvent {
+	const fakeKeyboardEvent = new KeyboardEvent('keydown');
+	if (options.preserveFocus) {
+		// fake double click
+		(<any>fakeKeyboardEvent).detail = 2;
+	}
+
+	return fakeKeyboardEvent;
+}
