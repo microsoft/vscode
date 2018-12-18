@@ -2,22 +2,22 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import * as assert from 'assert';
+import { Keybinding } from 'vs/base/common/keyCodes';
+import { OS } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { TestInstantiationService, stubFunction } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { Match, FileMatch, FileMatchOrMatch } from 'vs/workbench/parts/search/common/searchModel';
-import { ReplaceAction } from 'vs/workbench/parts/search/browser/searchActions';
-import { ArrayNavigator } from 'vs/base/common/iterator';
-import { IFileMatch } from 'vs/platform/search/common/search';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
-import { OS } from 'vs/base/common/platform';
-import { Keybinding } from 'vs/base/common/keyCodes';
+import { IFileMatch } from 'vs/platform/search/common/search';
+import { ReplaceAction } from 'vs/workbench/parts/search/browser/searchActions';
+import { FileMatch, FileMatchOrMatch, Match } from 'vs/workbench/parts/search/common/searchModel';
+import { MockObjectTree } from 'vs/workbench/parts/search/test/browser/mockSearchTree';
 
 suite('Search Actions', () => {
 
@@ -148,7 +148,7 @@ suite('Search Actions', () => {
 	}
 
 	function aTree(elements: FileMatchOrMatch[]): any {
-		return stubFunction(Tree, 'getNavigator', () => { return new ArrayNavigator(elements); });
+		return new MockObjectTree(elements);
 	}
 
 	function stubModelService(instantiationService: TestInstantiationService): IModelService {

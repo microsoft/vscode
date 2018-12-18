@@ -92,7 +92,7 @@ function createFileIterator(fileMatch: FileMatch): Iterator<ITreeElement<Rendera
 	return Iterator.map(matchesIt, r => (<ITreeElement<RenderableMatch>>{ element: r }));
 }
 
-function createIterator(match: FolderMatch | FileMatch | SearchResult, collapseResults: ISearchConfigurationProperties['collapseResults']): Iterator<ITreeElement<RenderableMatch>> {
+export function createIterator(match: FolderMatch | FileMatch | SearchResult, collapseResults: ISearchConfigurationProperties['collapseResults']): Iterator<ITreeElement<RenderableMatch>> {
 	return match instanceof SearchResult ? createResultIterator(match, collapseResults) :
 		match instanceof FolderMatch ? createFolderIterator(match, collapseResults) :
 			createFileIterator(match);
@@ -574,9 +574,9 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			this.resultsElement,
 			delegate,
 			[
-				this._register(this.instantiationService.createInstance(FolderMatchRenderer, this, this.viewModel)),
+				this._register(this.instantiationService.createInstance(FolderMatchRenderer, this.viewModel, this)),
 				this._register(this.instantiationService.createInstance(FileMatchRenderer, this.viewModel, this)),
-				this._register(this.instantiationService.createInstance(MatchRenderer, this.viewModel)),
+				this._register(this.instantiationService.createInstance(MatchRenderer, this.viewModel, this)),
 			],
 			{});
 

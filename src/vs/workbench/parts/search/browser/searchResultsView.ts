@@ -27,7 +27,7 @@ import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { FileLabel } from 'vs/workbench/browser/labels';
-import { RemoveAction, ReplaceAllAction, ReplaceAllInFolderAction } from 'vs/workbench/parts/search/browser/searchActions';
+import { RemoveAction, ReplaceAllAction, ReplaceAllInFolderAction, ReplaceAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { SearchView } from 'vs/workbench/parts/search/browser/searchView';
 import { FileMatch, FileMatchOrMatch, FolderMatch, Match, RenderableMatch, searchMatchComparer, SearchModel, SearchResult } from 'vs/workbench/parts/search/common/searchModel';
 
@@ -85,8 +85,8 @@ export class FolderMatchRenderer extends Disposable implements ITreeRenderer<Fol
 	readonly templateId = FolderMatchRenderer.TEMPLATE_ID;
 
 	constructor(
-		private searchView: SearchView,
 		private searchModel: SearchModel,
+		private searchView: SearchView,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService
@@ -200,6 +200,8 @@ export class MatchRenderer extends Disposable implements ITreeRenderer<Match, vo
 
 	constructor(
 		private searchModel: SearchModel,
+		private searchView: SearchView,
+		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService,
 	) {
@@ -252,11 +254,11 @@ export class MatchRenderer extends Disposable implements ITreeRenderer<Match, vo
 		templateData.lineNumber.setAttribute('title', this.getMatchTitle(match, showLineNumbers));
 
 		templateData.actions.clear();
-		// if (searchModel.isReplaceActive()) {
-		// 	templateData.actions.push([this.instantiationService.createInstance(ReplaceAction, tree, match, this.searchView), new RemoveAction(tree, match)], { icon: true, label: false });
-		// } else {
-		// 	templateData.actions.push([new RemoveAction(tree, match)], { icon: true, label: false });
-		// }
+		if (this.searchModel.isReplaceActive()) {
+			templateData.actions.push([this.instantiationService.createInstance(ReplaceAction, this.searchView.getControl(), match, this.searchView), new RemoveAction(this.searchView, this.searchView.getControl(), match)], { icon: true, label: false });
+		} else {
+			templateData.actions.push([new RemoveAction(this.searchView, this.searchView.getControl(), match)], { icon: true, label: false });
+		}
 	}
 
 	disposeElement(element: ITreeNode<Match, any>, index: number, templateData: IMatchTemplate): void {

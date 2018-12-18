@@ -266,9 +266,6 @@ export class CollapseDeepestExpandedLevelAction extends Action {
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		if (searchView) {
 			const viewer = searchView.getControl();
-			// if (viewer.getHighlight()) {
-			// 	return Promise.resolve(null); // Global action disabled if user is in edit mode from another action
-			// }
 
 			/**
 			 * one level to collapse so collapse everything. If FolderMatch, check if there are visible grandchildren,

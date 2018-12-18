@@ -13,8 +13,11 @@ import { IFileMatch, ITextSearchMatch, OneLineRange, QueryType } from 'vs/platfo
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { SearchSorter } from 'vs/workbench/parts/search/browser/searchResultsView';
-import { FileMatch, Match, SearchResult } from 'vs/workbench/parts/search/common/searchModel';
+import { FileMatch, Match, SearchResult, RenderableMatch } from 'vs/workbench/parts/search/common/searchModel';
 import { TestContextService } from 'vs/workbench/test/workbenchTestServices';
+import { createIterator } from 'vs/workbench/parts/search/browser/searchView';
+import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
+import { Iterator } from 'vs/base/common/iterator';
 
 suite('Search - Viewlet', () => {
 	let instantiation: TestInstantiationService;
@@ -25,50 +28,49 @@ suite('Search - Viewlet', () => {
 		instantiation.set(IWorkspaceContextService, new TestContextService(TestWorkspace));
 	});
 
-	// test('Data Source', function () {
-	// 	let ds = instantiation.createInstance(SearchDataSource);
-	// 	let result: SearchResult = instantiation.createInstance(SearchResult, null);
-	// 	result.query = {
-	// 		type: QueryType.Text,
-	// 		contentPattern: { pattern: 'foo' },
-	// 		folderQueries: [{
-	// 			folder: uri.parse('file://c:/')
-	// 		}]
-	// 	};
+	test('Data Source', function () {
+		let result: SearchResult = instantiation.createInstance(SearchResult, null);
+		result.query = {
+			type: QueryType.Text,
+			contentPattern: { pattern: 'foo' },
+			folderQueries: [{
+				folder: uri.parse('file://c:/')
+			}]
+		};
 
-	// 	result.add([{
-	// 		resource: uri.parse('file:///c:/foo'),
-	// 		results: [{
-	// 			preview: {
-	// 				text: 'bar',
-	// 				matches: {
-	// 					startLineNumber: 0,
-	// 					startColumn: 0,
-	// 					endLineNumber: 0,
-	// 					endColumn: 1
-	// 				}
-	// 			},
-	// 			ranges: {
-	// 				startLineNumber: 1,
-	// 				startColumn: 0,
-	// 				endLineNumber: 1,
-	// 				endColumn: 1
-	// 			}
-	// 		}]
-	// 	}]);
+		result.add([{
+			resource: uri.parse('file:///c:/foo'),
+			results: [{
+				preview: {
+					text: 'bar',
+					matches: {
+						startLineNumber: 0,
+						startColumn: 0,
+						endLineNumber: 0,
+						endColumn: 1
+					}
+				},
+				ranges: {
+					startLineNumber: 1,
+					startColumn: 0,
+					endLineNumber: 1,
+					endColumn: 1
+				}
+			}]
+		}]);
 
-	// 	let fileMatch = result.matches()[0];
-	// 	let lineMatch = fileMatch.matches()[0];
+		let fileMatch = result.matches()[0];
+		let lineMatch = fileMatch.matches()[0];
 
-	// 	assert.equal(ds.getId(null, result), 'root');
-	// 	assert.equal(ds.getId(null, fileMatch), 'file:///c%3A/foo');
-	// 	assert.equal(ds.getId(null, lineMatch), 'file:///c%3A/foo>[2,1 -> 2,2]b');
+		assert.equal(fileMatch.id(), 'file:///c%3A/foo');
+		assert.equal(lineMatch.id(), 'file:///c%3A/foo>[2,1 -> 2,2]b');
 
-	// 	assert(!ds.hasChildren(null, 'foo'));
-	// 	assert(ds.hasChildren(null, result));
-	// 	assert(ds.hasChildren(null, fileMatch));
-	// 	assert(!ds.hasChildren(null, lineMatch));
-	// });
+		const resultIterator = createIterator(result, 'auto');
+		const first = resultIterator.next();
+
+		assert(!!first.value.children);
+		assert.equal((<Iterator<ITreeElement<RenderableMatch>>>first.value.children).next().value.element.id(), 'file:///c%3A/foo>[2,1 -> 2,2]b');
+	});
 
 	test('Sorter', () => {
 		let fileMatch1 = aFileMatch('C:\\foo');
