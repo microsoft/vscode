@@ -405,6 +405,7 @@
 		"./vs/platform/extensions/node/extensionValidator.ts",
 		"./vs/platform/files/common/files.ts",
 		"./vs/platform/files/node/files.ts",
+		"./vs/platform/files/test/files.test.ts",
 		"./vs/platform/history/common/history.ts",
 		"./vs/platform/history/electron-main/historyMainService.ts",
 		"./vs/platform/instantiation/common/descriptors.ts",
