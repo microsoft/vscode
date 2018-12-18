@@ -689,11 +689,11 @@ export class TerminalInstance implements ITerminalInstance {
 					});
 					return;
 				} else if (hasSpace) {
-					if(exe.indexOf('powershell') == -1){
+					if(exe.indexOf('powershell') === -1){
 						c('"' + path + '"');
 					}
 					else{
-						c("& '" + path + "'");
+						c('& \'' + path + '\'');
 					}
 				} else {
 					c(path);
