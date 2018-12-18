@@ -452,6 +452,12 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			this.tree.setChildren(null, createResultIterator(this.viewModel.searchResult, collapseResults));
 		} else {
 			event.elements.forEach(element => {
+				if (element instanceof FolderMatch) {
+					// The folder may or may not be in the tree. Refresh the whole thing.
+					this.tree.setChildren(null, createResultIterator(this.viewModel.searchResult, collapseResults));
+					return;
+				}
+
 				const root = element instanceof SearchResult ? null : element;
 				this.tree.setChildren(root, createIterator(element, collapseResults));
 			});
