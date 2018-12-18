@@ -405,8 +405,11 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 			if (selection && selection.length === 1) {
 				let isDoubleClick = false;
 				let sideBySide = false;
+				let isMiddleClick = false;
+
 				if (e.browserEvent instanceof MouseEvent) {
 					isDoubleClick = e.browserEvent.detail === 2;
+					isMiddleClick = e.browserEvent.button === 1;
 					sideBySide = this.tree.useAltAsMultipleSelectionModifier ? (e.browserEvent.ctrlKey || e.browserEvent.metaKey) : e.browserEvent.altKey;
 				}
 
@@ -418,7 +421,7 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 						"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 					}*/
 					this.telemetryService.publicLog('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'explorer' });
-					this.editorService.openEditor({ resource: selection[0].resource, options: { preserveFocus: !isDoubleClick, pinned: isDoubleClick } }, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+					this.editorService.openEditor({ resource: selection[0].resource, options: { preserveFocus: !isDoubleClick, pinned: isDoubleClick || isMiddleClick } }, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 				}
 			}
 		}));
