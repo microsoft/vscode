@@ -29,15 +29,15 @@ const ResourceAccessor = new ResourceAccessorClass();
 class NullAccessorClass implements scorer.IItemAccessor<URI> {
 
 	getItemLabel(resource: URI): string {
-		return (void 0 as any as string);
+		return undefined!;
 	}
 
 	getItemDescription(resource: URI): string {
-		return (void 0 as any as string);
+		return undefined!;
 	}
 
 	getItemPath(resource: URI): string {
-		return (void 0 as any as string);
+		return undefined!;
 	}
 }
 
@@ -182,7 +182,7 @@ suite('Quick Open Scorer', () => {
 
 	test('scoreItem - invalid input', function () {
 
-		let res = scoreItem(null, (null as any as string), true, ResourceAccessor, cache);
+		let res = scoreItem(null, null!, true, ResourceAccessor, cache);
 		assert.equal(res.score, 0);
 
 		res = scoreItem(null, 'null', true, ResourceAccessor, cache);
