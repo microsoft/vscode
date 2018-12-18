@@ -1389,7 +1389,7 @@ interface IExplorerContext {
 
 function getContext(listWidget: ListWidget): IExplorerContext {
 	// These commands can only be triggered when explorer viewlet is visible so get it using the active viewlet
-	const tree = <AsyncDataTree<ExplorerItem>>listWidget;
+	const tree = <AsyncDataTree<null, ExplorerItem>>listWidget;
 	const focus = tree.getFocus();
 	const stat = focus.length ? focus[0] : undefined;
 	const selection = tree.getSelection();

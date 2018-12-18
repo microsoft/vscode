@@ -62,7 +62,7 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 	private static readonly EXPLORER_FILE_CHANGES_REACT_DELAY = 500; // delay in ms to react to file changes to give our internal events a chance to react first
 	private static readonly EXPLORER_FILE_CHANGES_REFRESH_DELAY = 100; // delay in ms to refresh the explorer from disk file changes
 
-	private tree: WorkbenchAsyncDataTree<ExplorerItem>;
+	private tree: WorkbenchAsyncDataTree<null, ExplorerItem>;
 	private filter: FilesFilter;
 	private isCreated: boolean;
 
@@ -831,7 +831,7 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 					}
 				});
 
-				return this.tree.refresh(null);
+				return this.tree.setInput(null);
 			});
 		}
 
@@ -844,7 +844,7 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 					ExplorerItem.mergeLocalWithDisk(modelStat, this.explorerService.roots[index]);
 				}
 
-				return this.tree.refresh(null);
+				return this.tree.setInput(null);
 			})));
 	}
 
