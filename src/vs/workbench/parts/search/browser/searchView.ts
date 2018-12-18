@@ -59,6 +59,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorG
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPreferencesService, ISettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
 
 const $ = dom.$;
 
@@ -442,12 +443,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 	public refreshTree(event?: IChangeEvent): void {
 		const collapseResults = this.configurationService.getValue<ISearchConfigurationProperties>('search').collapseResults;
-		if (!event) {
+		if (!event || event.added || event.removed) {
 			this.tree.setChildren(null, createResultIterator(this.viewModel.searchResult, collapseResults));
-		} else if (event.added || event.removed) {
-			event.elements.forEach(element => {
-				this.tree.setChildren(this.viewModel.searchResult.folderMatches[0], createIterator(element, collapseResults));
-			});
 		} else {
 			event.elements.forEach(element => {
 				const root = element instanceof SearchResult ? null : element;
@@ -570,6 +567,12 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this.resultsElement = dom.append(container, $('.results.show-file-icons'));
 		const delegate = this.instantiationService.createInstance(SearchDelegate);
 
+		const identityProvider: IIdentityProvider<RenderableMatch> = {
+			getId(element: RenderableMatch) {
+				return element.id();
+			}
+		};
+
 		this.tree = <WorkbenchObjectTree<RenderableMatch, any>>this.instantiationService.createInstance(WorkbenchObjectTree,
 			this.resultsElement,
 			delegate,
@@ -578,7 +581,9 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 				this._register(this.instantiationService.createInstance(FileMatchRenderer, this.viewModel, this)),
 				this._register(this.instantiationService.createInstance(MatchRenderer, this.viewModel, this)),
 			],
-			{});
+			{
+				identityProvider
+			});
 
 		const resourceNavigator = this._register(new TreeResourceNavigator2(this.tree, { openOnFocus: true }));
 		this._register(Event.debounce(resourceNavigator.openResource, (last, event) => event, 75, true)(options => {
