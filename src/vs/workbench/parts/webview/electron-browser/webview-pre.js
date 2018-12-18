@@ -216,68 +216,7 @@
 			// apply default styles
 			const defaultStyles = newDocument.createElement('style');
 			defaultStyles.id = '_defaultStyles';
-
-			const vars = Object.keys(initData.styles || {}).map(variable => {
-				return `--${variable}: ${initData.styles[variable].replace(/[^\#\"\'\,\. a-z0-9\-\(\)]/gi, '')};`;
-			});
-			defaultStyles.innerHTML = `
-			:root { ${vars.join('\n')} }
-
-			body {
-				background-color: var(--vscode-editor-background);
-				color: var(--vscode-editor-foreground);
-				font-family: var(--vscode-editor-font-family);
-				font-weight: var(--vscode-editor-font-weight);
-				font-size: var(--vscode-editor-font-size);
-				margin: 0;
-				padding: 0 20px;
-			}
-
-			img {
-				max-width: 100%;
-				max-height: 100%;
-			}
-
-			a {
-				color: var(--vscode-textLink-foreground);
-			}
-
-			a:hover {
-				color: var(--vscode-textLink-activeForeground);
-			}
-
-			a:focus,
-			input:focus,
-			select:focus,
-			textarea:focus {
-				outline: 1px solid -webkit-focus-ring-color;
-				outline-offset: -1px;
-			}
-
-			code {
-				color: var(--vscode-textPreformat-foreground);
-			}
-
-			blockquote {
-				background: var(--vscode-textBlockQuote-background);
-				border-color: var(--vscode-textBlockQuote-border);
-			}
-
-			::-webkit-scrollbar {
-				width: 10px;
-				height: 10px;
-			}
-
-			::-webkit-scrollbar-thumb {
-				background-color: var(--vscode-scrollbarSlider-background);
-			}
-			::-webkit-scrollbar-thumb:hover {
-				background-color: var(--vscode-scrollbarSlider-hoverBackground);
-			}
-			::-webkit-scrollbar-thumb:active {
-				background-color: var(--vscode-scrollbarSlider-activeBackground);
-			}
-			`;
+			defaultStyles.innerHTML = getDefaultCss(initData.styles);
 			if (newDocument.head.hasChildNodes()) {
 				newDocument.head.insertBefore(defaultStyles, newDocument.head.firstChild);
 			} else {
@@ -433,4 +372,73 @@
 		// signal ready
 		ipcRenderer.sendToHost('webview-ready', process.pid);
 	});
+
+	/**
+	 * @param {{ [variable: string]: string }} styles
+	 */
+	function getDefaultCss(styles) {
+		const vars = Object.keys(styles || {}).map(variable => {
+			return `--${variable}: ${styles[variable].replace(/[^\#\"\'\,\. a-z0-9\-\(\)]/gi, '')};`;
+		});
+		return `
+			:root { ${vars.join('\n')} }
+			${defaultCssRules}
+		`;
+	}
+
+	const defaultCssRules = `
+		body {
+			background-color: var(--vscode-editor-background);
+			color: var(--vscode-editor-foreground);
+			font-family: var(--vscode-editor-font-family);
+			font-weight: var(--vscode-editor-font-weight);
+			font-size: var(--vscode-editor-font-size);
+			margin: 0;
+			padding: 0 20px;
+		}
+
+		img {
+			max-width: 100%;
+			max-height: 100%;
+		}
+
+		a {
+			color: var(--vscode-textLink-foreground);
+		}
+
+		a:hover {
+			color: var(--vscode-textLink-activeForeground);
+		}
+
+		a:focus,
+		input:focus,
+		select:focus,
+		textarea:focus {
+			outline: 1px solid -webkit-focus-ring-color;
+			outline-offset: -1px;
+		}
+
+		code {
+			color: var(--vscode-textPreformat-foreground);
+		}
+
+		blockquote {
+			background: var(--vscode-textBlockQuote-background);
+			border-color: var(--vscode-textBlockQuote-border);
+		}
+
+		::-webkit-scrollbar {
+			width: 10px;
+			height: 10px;
+		}
+
+		::-webkit-scrollbar-thumb {
+			background-color: var(--vscode-scrollbarSlider-background);
+		}
+		::-webkit-scrollbar-thumb:hover {
+			background-color: var(--vscode-scrollbarSlider-hoverBackground);
+		}
+		::-webkit-scrollbar-thumb:active {
+			background-color: var(--vscode-scrollbarSlider-activeBackground);
+		}`;
 }());
