@@ -30,10 +30,10 @@
 	}());
 
 	// state
-	var firstLoad = true;
-	var loadTimeout;
-	var pendingMessages = [];
-	var enableWrappedPostMessage = false;
+	let firstLoad = true;
+	let loadTimeout;
+	let pendingMessages = [];
+	let enableWrappedPostMessage = false;
 	let isInDevelopmentMode = false;
 
 	const initData = {
@@ -67,15 +67,15 @@
 			return;
 		}
 
-		var baseElement = event.view.document.getElementsByTagName('base')[0];
+		let baseElement = event.view.document.getElementsByTagName('base')[0];
 		/** @type {any} */
-		var node = event.target;
+		let node = event.target;
 		while (node) {
 			if (node.tagName && node.tagName.toLowerCase() === 'a' && node.href) {
 				if (node.getAttribute('href') === '#') {
 					event.view.scrollTo(0, 0);
 				} else if (node.hash && (node.getAttribute('href') === node.hash || (baseElement && node.href.indexOf(baseElement.href) >= 0))) {
-					var scrollTarget = event.view.document.getElementById(node.hash.substr(1, node.hash.length - 1));
+					let scrollTarget = event.view.document.getElementById(node.hash.substr(1, node.hash.length - 1));
 					if (scrollTarget) {
 						scrollTarget.scrollIntoView();
 					}
@@ -93,7 +93,7 @@
 		ipcRenderer.sendToHost(message.data.command, message.data.data);
 	};
 
-	var isHandlingScroll = false;
+	let isHandlingScroll = false;
 	const handleInnerScroll = (event) => {
 		if (isHandlingScroll) {
 			return;
@@ -125,11 +125,11 @@
 			initData.activeTheme = activeTheme;
 
 			// webview
-			var target = getActiveFrame();
+			let target = getActiveFrame();
 			if (!target) {
 				return;
 			}
-			var body = target.contentDocument.getElementsByTagName('body');
+			let body = target.contentDocument.getElementsByTagName('body');
 			styleBody(body[0]);
 
 			// iframe
@@ -289,7 +289,7 @@
 			const frame = getActiveFrame();
 			const wasFirstLoad = firstLoad;
 			// keep current scrollY around and use later
-			var setInitialScrollPosition;
+			let setInitialScrollPosition;
 			if (firstLoad) {
 				firstLoad = false;
 				setInitialScrollPosition = (body, window) => {
@@ -327,9 +327,9 @@
 
 			// write new content onto iframe
 			newFrame.contentDocument.open('text/html', 'replace');
-			newFrame.contentWindow.addEventListener('focus', function () { ipcRenderer.sendToHost('did-focus'); });
-			newFrame.contentWindow.addEventListener('blur', function () { ipcRenderer.sendToHost('did-blur'); });
-			newFrame.contentWindow.addEventListener('keydown', function (e) {
+			newFrame.contentWindow.addEventListener('focus', () => { ipcRenderer.sendToHost('did-focus'); });
+			newFrame.contentWindow.addEventListener('blur', () => { ipcRenderer.sendToHost('did-blur'); });
+			newFrame.contentWindow.addEventListener('keydown', (e) => {
 				ipcRenderer.sendToHost('did-keydown', {
 					key: e.key,
 					keyCode: e.keyCode,
@@ -352,7 +352,7 @@
 				return false;
 			};
 
-			var onLoad = (contentDocument, contentWindow) => {
+			let onLoad = (contentDocument, contentWindow) => {
 				if (contentDocument.body) {
 					// Workaround for https://github.com/Microsoft/vscode/issues/12865
 					// check new scrollY and reset if neccessary
