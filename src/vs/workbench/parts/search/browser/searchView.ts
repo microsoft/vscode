@@ -8,7 +8,8 @@ import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
-import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
+import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
+import { ITreeContextMenuEvent, ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { IAction } from 'vs/base/common/actions';
 import { Delayer } from 'vs/base/common/async';
 import * as errors from 'vs/base/common/errors';
@@ -24,9 +25,11 @@ import 'vs/css!./media/searchview';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import * as nls from 'vs/nls';
+import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
+import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IConfirmation, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IEditorOptions as IEditorOpenOptions } from 'vs/platform/editor/common/editor';
 import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
@@ -59,7 +62,6 @@ import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorG
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPreferencesService, ISettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
 
 const $ = dom.$;
 
@@ -131,6 +133,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	private actions: Array<CollapseDeepestExpandedLevelAction | ClearSearchResultsAction> = [];
 	private cancelAction: CancelSearchAction;
 	private refreshAction: RefreshAction;
+	private contextMenu: IMenu;
 
 	private tree: WorkbenchObjectTree<RenderableMatch>;
 	private viewletState: object;
@@ -176,7 +179,9 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IThemeService protected themeService: IThemeService,
 		@ISearchHistoryService private searchHistoryService: ISearchHistoryService,
-		@IEditorGroupsService private editorGroupsService: IEditorGroupsService
+		@IEditorGroupsService private editorGroupsService: IEditorGroupsService,
+		@IContextMenuService private contextMenuService: IContextMenuService,
+		@IMenuService private menuService: IMenuService
 	) {
 		super(VIEW_ID, configurationService, partService, telemetryService, themeService, storageService);
 
@@ -584,6 +589,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			{
 				identityProvider
 			});
+		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 
 		const resourceNavigator = this._register(new TreeResourceNavigator2(this.tree, { openOnFocus: true }));
 		this._register(Event.debounce(resourceNavigator.openResource, (last, event) => event, 75, true)(options => {
@@ -619,6 +625,29 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			this.matchFocused.reset();
 			this.fileMatchOrFolderMatchFocus.reset();
 		}));
+	}
+
+	private onContextMenu(e: ITreeContextMenuEvent<RenderableMatch>): void {
+		if (!e.element) {
+			return;
+		}
+
+		if (!this.contextMenu) {
+			this.contextMenu = this._register(this.menuService.createMenu(MenuId.SearchContext, this.contextKeyService));
+		}
+
+		e.browserEvent.preventDefault();
+		e.browserEvent.stopPropagation();
+
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => e.anchor,
+			getActions: () => {
+				const actions: IAction[] = [];
+				fillInContextMenuActions(this.contextMenu, { shouldForwardArgs: true }, actions, this.contextMenuService);
+				return actions;
+			},
+			getActionsContext: () => e.element
+		});
 	}
 
 	public selectCurrentMatch(): void {

@@ -12,22 +12,18 @@ import { IAction } from 'vs/base/common/actions';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
-import { ContextMenuEvent, IAccessibilityProvider, IFilter, ISorter, ITree } from 'vs/base/parts/tree/browser/tree';
+import { IAccessibilityProvider, IFilter, ISorter, ITree } from 'vs/base/parts/tree/browser/tree';
 import * as nls from 'vs/nls';
-import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
-import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { FileKind } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { ISearchConfigurationProperties } from 'vs/platform/search/common/search';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { FileLabel } from 'vs/workbench/browser/labels';
-import { RemoveAction, ReplaceAllAction, ReplaceAllInFolderAction, ReplaceAction } from 'vs/workbench/parts/search/browser/searchActions';
+import { RemoveAction, ReplaceAction, ReplaceAllAction, ReplaceAllInFolderAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { SearchView } from 'vs/workbench/parts/search/browser/searchView';
 import { FileMatch, FileMatchOrMatch, FolderMatch, Match, RenderableMatch, searchMatchComparer, SearchModel, SearchResult } from 'vs/workbench/parts/search/common/searchModel';
 
@@ -325,41 +321,5 @@ export class SearchFilter implements IFilter {
 
 	public isVisible(tree: ITree, element: any): boolean {
 		return !(element instanceof FileMatch || element instanceof FolderMatch) || element.matches().length > 0;
-	}
-}
-
-export class SearchTreeController extends WorkbenchTreeController {
-	private contextMenu: IMenu;
-
-	constructor(
-		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IMenuService private menuService: IMenuService,
-		@IConfigurationService configurationService: IConfigurationService
-	) {
-		super({}, configurationService);
-	}
-
-	public onContextMenu(tree: WorkbenchTree, element: any, event: ContextMenuEvent): boolean {
-		if (!this.contextMenu) {
-			this.contextMenu = this.menuService.createMenu(MenuId.SearchContext, tree.contextKeyService);
-			this.disposables.push(this.contextMenu);
-		}
-
-		tree.setFocus(element, { preventOpenOnFocus: true });
-
-		const anchor = { x: event.posx, y: event.posy };
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => anchor,
-
-			getActions: () => {
-				const actions: IAction[] = [];
-				fillInContextMenuActions(this.contextMenu, { shouldForwardArgs: true }, actions, this.contextMenuService);
-				return actions;
-			},
-
-			getActionsContext: () => element
-		});
-
-		return true;
 	}
 }
