@@ -7,14 +7,43 @@ import { SelectionRangeProvider, SelectionRange } from 'vs/editor/common/modes';
 import { ITextModel } from 'vs/editor/common/model';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { CharCode } from 'vs/base/common/charCode';
+import { isUpperAsciiLetter, isLowerAsciiLetter } from 'vs/base/common/strings';
 
 export class WordSelectionRangeProvider implements SelectionRangeProvider {
 
 	provideSelectionRanges(model: ITextModel, position: Position): SelectionRange[] {
 		let result: SelectionRange[] = [];
+		this._addInWordRanges(result, model, position);
 		this._addWordRanges(result, model, position);
 		this._addLineRanges(result, model, position);
 		return result;
+	}
+
+	private _addInWordRanges(bucket: SelectionRange[], model: ITextModel, pos: Position): void {
+		const obj = model.getWordAtPosition(pos);
+		if (!obj) {
+			return;
+		}
+		let { word, startColumn } = obj;
+		let offset = pos.column - startColumn;
+		let lastCh: number = 0;
+		for (; offset < word.length; offset++) {
+			let ch = word.charCodeAt(offset);
+			if (isUpperAsciiLetter(ch) && isLowerAsciiLetter(lastCh)) {
+				// fooBar
+				// ^^^
+				// ^^^^^^
+				bucket.push({ range: new Range(pos.lineNumber, startColumn, pos.lineNumber, startColumn + offset), kind: 'statement.word.part' });
+			} else if (ch === CharCode.Underline && lastCh !== CharCode.Underline) {
+				// foo_bar
+				// ^^^
+				// ^^^^^^^
+				bucket.push({ range: new Range(pos.lineNumber, startColumn, pos.lineNumber, startColumn + offset), kind: 'statement.word.part' });
+				offset += 1;
+			}
+			lastCh = ch;
+		}
 	}
 
 	private _addWordRanges(bucket: SelectionRange[], model: ITextModel, pos: Position): void {
