@@ -206,22 +206,14 @@
 					delete window.frameElement;
 				`;
 
-				if (newDocument.head.hasChildNodes()) {
-					newDocument.head.insertBefore(defaultScript, newDocument.head.firstChild);
-				} else {
-					newDocument.head.appendChild(defaultScript);
-				}
+				newDocument.head.prepend(defaultScript, newDocument.head.firstChild);
 			}
 
 			// apply default styles
 			const defaultStyles = newDocument.createElement('style');
 			defaultStyles.id = '_defaultStyles';
 			defaultStyles.innerHTML = getDefaultCss(initData.styles);
-			if (newDocument.head.hasChildNodes()) {
-				newDocument.head.insertBefore(defaultStyles, newDocument.head.firstChild);
-			} else {
-				newDocument.head.appendChild(defaultStyles);
-			}
+			newDocument.head.prepend(defaultStyles);
 
 			styleBody(newDocument.body);
 
