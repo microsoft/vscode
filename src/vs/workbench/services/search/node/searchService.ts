@@ -203,7 +203,7 @@ export class SearchService extends Disposable implements ISearchService {
 			if (!provider && scheme === 'file') {
 				diskSearchQueries.push(...schemeFQs);
 			} else if (!provider) {
-				throw new Error('No search provider registered for scheme: ' + scheme);
+				console.warn('No search provider registered for scheme: ' + scheme);
 			} else {
 				const oneSchemeQuery: ISearchQuery = {
 					...query,

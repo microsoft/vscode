@@ -8,7 +8,7 @@ import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProper
 
 export const lastSessionDateStorageKey = 'telemetry.lastSessionDate';
 
-export function resolveWorkbenchCommonProperties(storageService: IStorageService, commit: string, version: string, machineId: string, installSourcePath: string): Promise<{ [name: string]: string }> {
+export function resolveWorkbenchCommonProperties(storageService: IStorageService, commit: string, version: string, machineId: string, installSourcePath: string): Promise<{ [name: string]: string | undefined }> {
 	return resolveCommonProperties(commit, version, machineId, installSourcePath).then(result => {
 		const instanceId = storageService.get('telemetry.instanceId', StorageScope.GLOBAL)!;
 		const firstSessionDate = storageService.get('telemetry.firstSessionDate', StorageScope.GLOBAL)!;

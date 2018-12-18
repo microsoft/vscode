@@ -371,6 +371,9 @@ export class ReviewController implements IEditorContribution {
 
 			commentInfo.forEach(info => info.draftMode = draftMode);
 			this._commentWidgets.filter(ZoneWidget => ZoneWidget.owner === e.owner).forEach(widget => widget.updateDraftMode(draftMode));
+			if (this._newCommentWidget && this._newCommentWidget.owner === e.owner) {
+				this._newCommentWidget.updateDraftMode(draftMode);
+			}
 
 			removed.forEach(thread => {
 				let matchedZones = this._commentWidgets.filter(zoneWidget => zoneWidget.owner === e.owner && zoneWidget.commentThread.threadId === thread.threadId);

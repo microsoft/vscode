@@ -14,14 +14,13 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import severity from 'vs/base/common/severity';
-import { Context as SuggestContext } from 'vs/editor/contrib/suggest/suggest';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { ITextModel } from 'vs/editor/common/model';
 import { Position } from 'vs/editor/common/core/position';
-import { registerEditorAction, ServicesAccessor, EditorAction, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
+import { registerEditorAction, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IContextKeyService, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -51,7 +50,7 @@ import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { Variable, Expression, SimpleReplElement, RawObjectReplElement } from 'vs/workbench/parts/debug/common/debugModel';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { VariablesRenderer } from 'vs/workbench/parts/debug/electron-browser/variablesView';
-import { ITreeRenderer, ITreeNode, ITreeContextMenuEvent, IDataSource } from 'vs/base/browser/ui/tree/tree';
+import { ITreeRenderer, ITreeNode, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { renderExpressionValue } from 'vs/workbench/parts/debug/browser/baseDebugView';
 import { handleANSIOutput } from 'vs/workbench/parts/debug/browser/debugANSIHandling';
@@ -82,7 +81,7 @@ interface IPrivateReplService {
 	clearRepl(): void;
 }
 
-function revealLastElement<T>(tree: WorkbenchAsyncDataTree<T>) {
+function revealLastElement(tree: WorkbenchAsyncDataTree<any, any>) {
 	tree.scrollTop = tree.scrollHeight - tree.renderHeight;
 }
 
@@ -96,8 +95,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	private static readonly REPL_INPUT_MAX_HEIGHT = 170;
 
 	private history: HistoryNavigator<string>;
-	private tree: WorkbenchAsyncDataTree<IReplElement>;
-	private dataSource: ReplDataSource;
+	private tree: WorkbenchAsyncDataTree<IDebugSession, IReplElement>;
 	private replDelegate: ReplDelegate;
 	private container: HTMLElement;
 	private treeContainer: HTMLElement;
@@ -140,7 +138,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		}));
 		this._register(this.debugService.onWillNewSession(() => {
 			// Need to listen to output events for sessions which are not yet fully initialised
-			const input: IDebugSession = this.dataSource.input;
+			const input = this.tree.getInput();
 			if (!input || input.state === State.Inactive) {
 				this.selectSession();
 			}
@@ -167,7 +165,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 	get isReadonly(): boolean {
 		// Do not allow to edit inactive sessions
-		const session: IDebugSession = this.dataSource.input;
+		const session = this.tree.getInput();
 		if (session && session.state !== State.Inactive) {
 			return false;
 		}
@@ -200,7 +198,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			// If there is a focusedSession focus on that one, otherwise just show any other not ignored session
 			if (focusedSession) {
 				session = focusedSession;
-			} else if (!this.dataSource.input || sessionsToIgnore.has(this.dataSource.input)) {
+			} else if (!this.tree.getInput() || sessionsToIgnore.has(this.tree.getInput())) {
 				session = first(this.debugService.getModel().getSessions(true), s => !sessionsToIgnore.has(s));
 			}
 		}
@@ -212,9 +210,8 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 				this.refreshReplElements(session.getReplElements().length === 0);
 			});
 
-			if (this.tree && this.dataSource.input !== session) {
-				this.dataSource.input = session;
-				this.tree.refresh(null).then(() => revealLastElement(this.tree));
+			if (this.tree && this.tree.getInput() !== session) {
+				this.tree.setInput(session).then(() => revealLastElement(this.tree)).then(undefined, errors.onUnexpectedError);
 			}
 		}
 
@@ -223,7 +220,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	}
 
 	clearRepl(): void {
-		const session: IDebugSession = this.dataSource.input;
+		const session = this.tree.getInput();
 		if (session) {
 			session.removeReplExpressions();
 			if (session.state === State.Inactive) {
@@ -237,7 +234,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	}
 
 	acceptReplInput(): void {
-		const session: IDebugSession = this.dataSource.input;
+		const session = this.tree.getInput();
 		if (session) {
 			session.addReplExpression(this.debugService.getViewModel().focusedStackFrame, this.replInput.getValue());
 			revealLastElement(this.tree);
@@ -331,8 +328,11 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	@memoize
 	private get refreshScheduler(): RunOnceScheduler {
 		return new RunOnceScheduler(() => {
+			if (!this.tree.getInput()) {
+				return;
+			}
 			const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight;
-			this.tree.refresh(null).then(() => {
+			this.tree.refresh().then(() => {
 				if (lastElementVisible) {
 					// Only scroll if we were scrolled all the way down before tree refreshed #10486
 					revealLastElement(this.tree);
@@ -349,14 +349,13 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		this.treeContainer = dom.append(this.container, $('.repl-tree'));
 		this.createReplInput(this.container);
 
-		this.dataSource = new ReplDataSource();
 		this.replDelegate = new ReplDelegate();
 		this.tree = new WorkbenchAsyncDataTree(this.treeContainer, this.replDelegate, [
 			this.instantiationService.createInstance(VariablesRenderer),
 			this.instantiationService.createInstance(ReplSimpleElementsRenderer),
 			new ReplExpressionsRenderer(),
 			new ReplRawObjectsRenderer()
-		], this.dataSource, {
+		], new ReplDataSource(), {
 				ariaLabel: nls.localize('replAriaLabel', "Read Eval Print Loop Panel"),
 				accessibilityProvider: new ReplAccessibilityProvider(),
 				identityProvider: { getId: element => element.getId() },
@@ -750,17 +749,23 @@ class ReplDelegate implements IListVirtualDelegate<IReplElement> {
 	}
 }
 
+function isDebugSession(obj: any): obj is IDebugSession {
+	return typeof obj.getReplElements === 'function';
+}
 
-class ReplDataSource implements IDataSource<IReplElement> {
-	input: IDebugSession;
+class ReplDataSource implements IAsyncDataSource<IDebugSession, IReplElement> {
 
-	hasChildren(element: IReplElement | null): boolean {
-		return element === null || !!(<IExpressionContainer>element).hasChildren;
+	hasChildren(element: IReplElement | IDebugSession): boolean {
+		if (isDebugSession(element)) {
+			return true;
+		}
+
+		return !!(<IExpressionContainer>element).hasChildren;
 	}
 
-	getChildren(element: IReplElement | null): Promise<IReplElement[]> {
-		if (element === null) {
-			return Promise.resolve(this.input ? this.input.getReplElements() : []);
+	getChildren(element: IReplElement | IDebugSession): Promise<IReplElement[]> {
+		if (isDebugSession(element)) {
+			return Promise.resolve(element.getReplElements());
 		}
 		if (element instanceof RawObjectReplElement) {
 			return element.getChildren();
@@ -832,18 +837,6 @@ class ReplCopyAllAction extends EditorAction {
 
 registerEditorAction(AcceptReplInputAction);
 registerEditorAction(ReplCopyAllAction);
-
-const SuggestCommand = EditorCommand.bindToContribution<SuggestController>(SuggestController.get);
-registerEditorCommand(new SuggestCommand({
-	id: 'repl.action.acceptSuggestion',
-	precondition: ContextKeyExpr.and(CONTEXT_IN_DEBUG_REPL, SuggestContext.Visible),
-	handler: x => x.acceptSelectedSuggestion(),
-	kbOpts: {
-		weight: 50,
-		kbExpr: EditorContextKeys.textInputFocus,
-		primary: KeyCode.RightArrow
-	}
-}));
 
 class SelectReplActionItem extends FocusSessionActionItem {
 	protected getSessions(): ReadonlyArray<IDebugSession> {

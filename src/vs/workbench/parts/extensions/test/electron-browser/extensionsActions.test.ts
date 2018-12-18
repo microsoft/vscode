@@ -231,8 +231,10 @@ suite('ExtensionsActions Test', () => {
 		return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
 			.then(extensions => {
 				const gallery = aGalleryExtension('a');
+				const extension = extensions[0];
+				extension.gallery = gallery;
 				installEvent.fire({ identifier: gallery.identifier, gallery });
-				testObject.extension = extensions[0];
+				testObject.extension = extension;
 				assert.ok(!testObject.enabled);
 			});
 	});
@@ -327,8 +329,10 @@ suite('ExtensionsActions Test', () => {
 
 		return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
 			.then(extensions => {
-				testObject.extension = extensions[0];
 				const gallery = aGalleryExtension('a');
+				const extension = extensions[0];
+				extension.gallery = gallery;
+				testObject.extension = extension;
 				installEvent.fire({ identifier: gallery.identifier, gallery });
 				assert.ok(!testObject.enabled);
 				assert.equal('Installing', testObject.label);

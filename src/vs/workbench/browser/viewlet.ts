@@ -186,7 +186,7 @@ export class CollapseAction extends Action {
 
 // Collapse All action for the new tree
 export class CollapseAction2 extends Action {
-	constructor(tree: AsyncDataTree<any>, enabled: boolean, clazz: string) {
+	constructor(tree: AsyncDataTree<any, any>, enabled: boolean, clazz: string) {
 		super('workbench.action.collapse', nls.localize('collapse', "Collapse All"), clazz, enabled, () => {
 			tree.collapseAll();
 			return Promise.resolve(undefined);

@@ -85,37 +85,41 @@ export class QuickFixController implements IEditorContribution {
 			this._activeRequest = undefined;
 		}
 
-		if (e && e.actions) {
+		const actions = e && e.actions;
+		if (actions) {
 			this._activeRequest = e.actions;
 		}
 
-		if (e && e.actions && e.trigger.filter && e.trigger.filter.kind) {
+		if (actions && e.trigger.filter && e.trigger.filter.kind) {
 			// Triggered for specific scope
 			// Apply if we only have one action or requested autoApply, otherwise show menu
-			e.actions.then(fixes => {
+			actions.then(fixes => {
 				if (fixes.length > 0 && e.trigger.autoApply === CodeActionAutoApply.First || (e.trigger.autoApply === CodeActionAutoApply.IfSingle && fixes.length === 1)) {
 					this._onApplyCodeAction(fixes[0]);
 				} else {
-					this._codeActionContextMenu.show(e.actions, e.position);
+					this._codeActionContextMenu.show(actions, e.position);
 				}
 			}).catch(onUnexpectedError);
 			return;
 		}
 
 		if (e && e.trigger.type === 'manual') {
-			this._codeActionContextMenu.show(e.actions, e.position);
-		} else if (e && e.actions) {
+			if (actions) {
+				this._codeActionContextMenu.show(actions, e.position);
+				return;
+			}
+		} else if (actions) {
 			// auto magically triggered
 			// * update an existing list of code actions
 			// * manage light bulb
 			if (this._codeActionContextMenu.isVisible) {
-				this._codeActionContextMenu.show(e.actions, e.position);
+				this._codeActionContextMenu.show(actions, e.position);
 			} else {
 				this._lightBulbWidget.model = e;
 			}
-		} else {
-			this._lightBulbWidget.hide();
+			return;
 		}
+		this._lightBulbWidget.hide();
 	}
 
 	public getId(): string {
@@ -158,7 +162,7 @@ export async function applyCodeAction(
 		await bulkEditService.apply(action.edit, { editor });
 	}
 	if (action.command) {
-		await commandService.executeCommand(action.command.id, ...action.command.arguments);
+		await commandService.executeCommand(action.command.id, ...(action.command.arguments || []));
 	}
 }
 
@@ -168,6 +172,10 @@ function showCodeActionsForEditorSelection(
 	filter?: CodeActionFilter,
 	autoApply?: CodeActionAutoApply
 ) {
+	if (!editor.hasModel()) {
+		return;
+	}
+
 	const controller = QuickFixController.get(editor);
 	if (!controller) {
 		return;

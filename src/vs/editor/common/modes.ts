@@ -1025,11 +1025,16 @@ export interface DocumentColorProvider {
 	provideColorPresentations(model: model.ITextModel, colorInfo: IColorInformation, token: CancellationToken): ProviderResult<IColorPresentation[]>;
 }
 
+export interface SelectionRange {
+	kind: string;
+	range: IRange;
+}
+
 export interface SelectionRangeProvider {
 	/**
 	 * Provide ranges that should be selected from the given position.
 	 */
-	provideSelectionRanges(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<IRange[]>;
+	provideSelectionRanges(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<SelectionRange[]>;
 }
 
 export interface FoldingContext {
@@ -1405,7 +1410,7 @@ export interface ITokenizationRegistry {
 	/**
 	 * Register a promise for a tokenization support.
 	 */
-	registerPromise(language: string, promise: Thenable<ITokenizationSupport>): Thenable<IDisposable>;
+	registerPromise(language: string, promise: Thenable<ITokenizationSupport>): IDisposable;
 
 	/**
 	 * Get the tokenization support for a language.

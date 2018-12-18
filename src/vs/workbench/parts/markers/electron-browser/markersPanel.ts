@@ -579,8 +579,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		const result: IAction[] = [];
 
 		if (element instanceof Marker) {
-			const quickFixAction = this.instantiationService.createInstance(QuickFixAction, element);
-			const quickFixActions = await quickFixAction.getQuickFixActions();
+			const quickFixActions = await this.markersWorkbenchService.getQuickFixActions(element);
 			if (quickFixActions.length) {
 				result.push(...quickFixActions);
 				result.push(new Separator());

@@ -95,12 +95,12 @@ export class Match {
 	public get replaceString(): string {
 		const searchModel = this.parent().parent().searchModel;
 
-		const fullMatchText = this.getFullMatchText();
+		const fullMatchText = this.fullMatchText();
 		let replaceString = searchModel.replacePattern.getReplaceString(fullMatchText);
 
 		// If match string is not matching then regex pattern has a lookahead expression
 		if (replaceString === null) {
-			const fullMatchTextWithTrailingContent = this.getFullMatchText(true);
+			const fullMatchTextWithTrailingContent = this.fullMatchText(true);
 			replaceString = searchModel.replacePattern.getReplaceString(fullMatchTextWithTrailingContent);
 
 			// Search/find normalize line endings - check whether \r prevents regex from matching
@@ -118,7 +118,7 @@ export class Match {
 		return replaceString;
 	}
 
-	private getFullMatchText(includeTrailing = false): string {
+	public fullMatchText(includeTrailing = false): string {
 		let thisMatchPreviewLines: string[];
 		if (includeTrailing) {
 			thisMatchPreviewLines = this._fullPreviewLines.slice(this._fullPreviewRange.startLineNumber);

@@ -25,7 +25,7 @@ export interface ISearchWorkerSearchResult {
 
 export interface ISearchWorker {
 	initialize(): Promise<void>;
-	search(args: ISearchWorkerSearchArgs): Promise<ISearchWorkerSearchResult>;
+	search(args: ISearchWorkerSearchArgs): Promise<ISearchWorkerSearchResult | null>;
 	cancel(): Promise<void>;
 }
 

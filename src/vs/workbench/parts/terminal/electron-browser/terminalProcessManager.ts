@@ -18,7 +18,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { Schemas } from 'vs/base/common/network';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
+import { REMOTE_HOST_SCHEME, getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -90,7 +90,17 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		cols: number,
 		rows: number
 	): void {
-		if (this._windowService.getConfiguration().remoteAuthority) {
+
+		let launchRemotely = false;
+
+		if (shellLaunchConfig.cwd && typeof shellLaunchConfig.cwd === 'object') {
+			launchRemotely = !!getRemoteAuthority(shellLaunchConfig.cwd);
+			shellLaunchConfig.cwd = shellLaunchConfig.cwd.path;
+		} else {
+			launchRemotely = !!this._windowService.getConfiguration().remoteAuthority;
+		}
+
+		if (launchRemotely) {
 			const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(REMOTE_HOST_SCHEME);
 			this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows);
 		} else {

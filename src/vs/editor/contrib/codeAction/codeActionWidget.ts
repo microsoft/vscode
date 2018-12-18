@@ -27,9 +27,8 @@ export class CodeActionContextMenu {
 		private readonly _onApplyCodeAction: (action: CodeAction) => Promise<any>
 	) { }
 
-	show(fixes: Promise<CodeAction[]>, at: { x: number; y: number } | Position) {
-
-		const actionsPromise = fixes ? fixes.then(value => {
+	show(fixes: Promise<CodeAction[]>, at?: { x: number; y: number } | Position) {
+		const actionsPromise = fixes.then(value => {
 			return value.map(action => {
 				return new Action(action.command ? action.command.id : action.title, action.title, undefined, true, () => {
 					return always(
@@ -43,7 +42,7 @@ export class CodeActionContextMenu {
 				return Promise.reject(canceled());
 			}
 			return actions;
-		}) : Promise.resolve([] as Action[]);
+		});
 
 		actionsPromise.then(actions => {
 			this._contextMenuService.showContextMenu({
@@ -51,7 +50,7 @@ export class CodeActionContextMenu {
 					if (Position.isIPosition(at)) {
 						at = this._toCoords(at);
 					}
-					return at;
+					return at || { x: 0, y: 0 };
 				},
 				getActions: () => actions,
 				onHide: () => {
@@ -68,7 +67,9 @@ export class CodeActionContextMenu {
 	}
 
 	private _toCoords(position: Position): { x: number, y: number } {
-
+		if (!this._editor.hasModel()) {
+			return { x: 0, y: 0 };
+		}
 		this._editor.revealPosition(position, ScrollType.Immediate);
 		this._editor.render();
 

@@ -106,7 +106,7 @@ suite('SnippetParser', () => {
 		}
 		while (marker.length > 0) {
 			let m = marker.pop();
-			let ctor = ctors.pop();
+			let ctor = ctors.pop()!;
 			assert.ok(m instanceof ctor);
 		}
 		assert.equal(marker.length, ctors.length);
