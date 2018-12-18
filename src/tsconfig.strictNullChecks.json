@@ -99,6 +99,7 @@
 		"./vs/base/parts/quickopen/common/quickOpen.ts",
 		"./vs/base/parts/quickopen/common/quickOpenScorer.ts",
 		"./vs/base/test/browser/browser.test.ts",
+		"./vs/base/test/browser/comparers.test.ts",
 		"./vs/base/test/browser/dom.test.ts",
 		"./vs/base/test/browser/highlightedLabel.test.ts",
 		"./vs/base/test/browser/progressBar.test.ts",
