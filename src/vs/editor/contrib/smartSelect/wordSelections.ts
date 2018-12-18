@@ -17,6 +17,7 @@ export class WordSelectionRangeProvider implements SelectionRangeProvider {
 		this._addInWordRanges(result, model, position);
 		this._addWordRanges(result, model, position);
 		this._addLineRanges(result, model, position);
+		result.push({ range: model.getFullModelRange(), kind: 'statement.all' });
 		return result;
 	}
 
@@ -54,7 +55,11 @@ export class WordSelectionRangeProvider implements SelectionRangeProvider {
 	}
 
 	private _addLineRanges(bucket: SelectionRange[], model: ITextModel, pos: Position): void {
-		bucket.push({ range: new Range(pos.lineNumber, model.getLineFirstNonWhitespaceColumn(pos.lineNumber), pos.lineNumber, model.getLineLastNonWhitespaceColumn(pos.lineNumber)), kind: 'statement.line' });
+
+		const nonWhitespaceColumn = model.getLineFirstNonWhitespaceColumn(pos.lineNumber);
+		if (nonWhitespaceColumn > 0) {
+			bucket.push({ range: new Range(pos.lineNumber, nonWhitespaceColumn, pos.lineNumber, model.getLineLastNonWhitespaceColumn(pos.lineNumber)), kind: 'statement.line' });
+		}
 		bucket.push({ range: new Range(pos.lineNumber, model.getLineMinColumn(pos.lineNumber), pos.lineNumber, model.getLineMaxColumn(pos.lineNumber)), kind: 'statement.line.full' });
 	}
 }
