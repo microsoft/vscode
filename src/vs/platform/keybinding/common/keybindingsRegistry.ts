@@ -47,6 +47,7 @@ export interface IKeybindingRule2 {
 	linux?: { primary: Keybinding | null; } | null;
 	mac?: { primary: Keybinding | null; } | null;
 	id: string;
+	args?: any;
 	weight: number;
 	when: ContextKeyExpr | null;
 }
@@ -134,7 +135,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		if (actualKb && actualKb.primary) {
 			const kk = createKeybinding(actualKb.primary, OS);
 			if (kk) {
-				this._registerDefaultKeybinding(kk, rule.id, rule.weight, 0, rule.when, source);
+				this._registerDefaultKeybinding(kk, rule.id, undefined, rule.weight, 0, rule.when, source);
 			}
 		}
 
@@ -143,7 +144,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 				const k = actualKb.secondary[i];
 				const kk = createKeybinding(k, OS);
 				if (kk) {
-					this._registerDefaultKeybinding(kk, rule.id, rule.weight, -i - 1, rule.when, source);
+					this._registerDefaultKeybinding(kk, rule.id, undefined, rule.weight, -i - 1, rule.when, source);
 				}
 			}
 		}
@@ -153,7 +154,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		let actualKb = KeybindingsRegistryImpl.bindToCurrentPlatform2(rule);
 
 		if (actualKb && actualKb.primary) {
-			this._registerDefaultKeybinding(actualKb.primary, rule.id, rule.weight, 0, rule.when, source);
+			this._registerDefaultKeybinding(actualKb.primary, rule.id, rule.args, rule.weight, 0, rule.when, source);
 		}
 	}
 
@@ -196,7 +197,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		}
 	}
 
-	private _registerDefaultKeybinding(keybinding: Keybinding, commandId: string, weight1: number, weight2: number, when: ContextKeyExpr | null | undefined, source: KeybindingRuleSource): void {
+	private _registerDefaultKeybinding(keybinding: Keybinding, commandId: string, commandArgs: any, weight1: number, weight2: number, when: ContextKeyExpr | null | undefined, source: KeybindingRuleSource): void {
 		if (source === KeybindingRuleSource.Core && OS === OperatingSystem.Windows) {
 			if (keybinding.type === KeybindingType.Chord) {
 				this._assertNoCtrlAlt(keybinding.firstPart, commandId);
@@ -207,7 +208,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		this._keybindings.push({
 			keybinding: keybinding,
 			command: commandId,
-			commandArgs: undefined,
+			commandArgs: commandArgs,
 			when: when,
 			weight1: weight1,
 			weight2: weight2
