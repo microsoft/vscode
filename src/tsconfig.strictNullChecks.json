@@ -619,6 +619,7 @@
 		"./vs/workbench/parts/markers/electron-browser/markersFilterOptions.ts",
 		"./vs/workbench/parts/markers/electron-browser/markersModel.ts",
 		"./vs/workbench/parts/markers/electron-browser/messages.ts",
+		"./vs/workbench/parts/markers/electron-browser/markersPanelActions.ts",
 		"./vs/workbench/parts/outline/electron-browser/outline.ts",
 		"./vs/workbench/parts/output/common/output.ts",
 		"./vs/workbench/parts/output/common/outputLinkComputer.ts",
