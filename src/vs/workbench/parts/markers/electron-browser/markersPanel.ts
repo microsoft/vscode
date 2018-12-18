@@ -33,7 +33,7 @@ import { IExpression, getEmptyExpression } from 'vs/base/common/glob';
 import { mixin, deepClone } from 'vs/base/common/objects';
 import { IWorkspaceFolder, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { isAbsolute, join } from 'vs/base/common/paths';
-import { FilterData, FileResourceMarkersRenderer, Filter, VirtualDelegate, ResourceMarkersRenderer, MarkerRenderer, RelatedInformationRenderer, TreeElement, MarkersTreeAccessibilityProvider } from 'vs/workbench/parts/markers/electron-browser/markersTreeViewer';
+import { FilterData, FileResourceMarkersRenderer, Filter, VirtualDelegate, ResourceMarkersRenderer, MarkerRenderer, RelatedInformationRenderer, TreeElement, MarkersTreeAccessibilityProvider, MarkersViewState } from 'vs/workbench/parts/markers/electron-browser/markersTreeViewer';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Separator, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
@@ -41,7 +41,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { domEvent } from 'vs/base/browser/event';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 function createModelIterator(model: MarkersModel): Iterator<ITreeElement<TreeElement>> {
 	const resourcesIt = Iterator.fromArray(model.resourceMarkers);
@@ -664,28 +664,5 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		this.tree.dispose();
 		this.markersViewState.dispose();
 		this.disposables = dispose(this.disposables);
-	}
-}
-
-export class MarkersViewState extends Disposable {
-
-	private readonly _onDidChangeViewState: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidChangeViewState: Event<void> = this._onDidChangeViewState.event;
-
-	constructor(multiline: boolean = true) {
-		super();
-		this._multiline = multiline;
-	}
-
-	private _multiline: boolean = true;
-	get multiline(): boolean {
-		return this._multiline;
-	}
-
-	set multiline(value: boolean) {
-		if (this._multiline !== value) {
-			this._multiline = value;
-			this._onDidChangeViewState.fire();
-		}
 	}
 }

@@ -32,7 +32,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { Event } from 'vs/base/common/event';
 import { FilterOptions } from 'vs/workbench/parts/markers/electron-browser/markersFilterOptions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { MarkersViewState } from 'vs/workbench/parts/markers/electron-browser/markersPanel';
+import { MarkersViewState } from 'vs/workbench/parts/markers/electron-browser/markersTreeViewer';
 
 export class ToggleMarkersPanelAction extends TogglePanelAction {
 

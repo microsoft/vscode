@@ -24,10 +24,9 @@ import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeFilter, TreeVisibility, TreeFilterResult, ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { FilterOptions } from 'vs/workbench/parts/markers/electron-browser/markersFilterOptions';
 import { IMatch } from 'vs/base/common/filters';
-import { Event } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { isUndefinedOrNull } from 'vs/base/common/types';
-import { MarkersViewState } from 'vs/workbench/parts/markers/electron-browser/markersPanel';
 
 export type TreeElement = ResourceMarkers | Marker | RelatedInformation;
 
@@ -449,5 +448,28 @@ export class Filter implements ITreeFilter<TreeElement, FilterData> {
 		}
 
 		return parentVisibility;
+	}
+}
+
+export class MarkersViewState extends Disposable {
+
+	private readonly _onDidChangeViewState: Emitter<void> = this._register(new Emitter<void>());
+	readonly onDidChangeViewState: Event<void> = this._onDidChangeViewState.event;
+
+	constructor(multiline: boolean = true) {
+		super();
+		this._multiline = multiline;
+	}
+
+	private _multiline: boolean = true;
+	get multiline(): boolean {
+		return this._multiline;
+	}
+
+	set multiline(value: boolean) {
+		if (this._multiline !== value) {
+			this._multiline = value;
+			this._onDidChangeViewState.fire();
+		}
 	}
 }
