@@ -106,7 +106,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		super(Constants.MARKERS_PANEL_ID, telemetryService, themeService, storageService);
 		this.panelFoucusContextKey = Constants.MarkerPanelFocusContextKey.bindTo(contextKeyService);
 		this.panelState = this.getMemento(StorageScope.WORKSPACE);
-		this.markersViewState = new MarkersViewState();
+		this.markersViewState = new MarkersViewState(this.panelState['multiline']);
 		this.markersViewState.onDidChangeViewState(this.refreshPanel, this, this.disposables);
 		this.setCurrentActiveEditor();
 	}
@@ -654,6 +654,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		this.panelState['filter'] = this.filterAction.filterText;
 		this.panelState['filterHistory'] = this.filterAction.filterHistory;
 		this.panelState['useFilesExclude'] = this.filterAction.useFilesExclude;
+		this.panelState['multiline'] = this.markersViewState.multiline;
 
 		super.saveState();
 	}
@@ -670,6 +671,11 @@ export class MarkersViewState extends Disposable {
 
 	private readonly _onDidChangeViewState: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeViewState: Event<void> = this._onDidChangeViewState.event;
+
+	constructor(multiline: boolean = true) {
+		super();
+		this._multiline = multiline;
+	}
 
 	private _multiline: boolean = true;
 	get multiline(): boolean {
