@@ -14,7 +14,7 @@ import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/
 import Constants from 'vs/workbench/parts/markers/electron-browser/constants';
 import { Marker, ResourceMarkers, RelatedInformation, MarkersModel } from 'vs/workbench/parts/markers/electron-browser/markersModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { MarkersFilterActionItem, MarkersFilterAction, QuickFixAction, QuickFixActionItem, IMarkersFilterActionChangeEvent, IMarkerFilterController } from 'vs/workbench/parts/markers/electron-browser/markersPanelActions';
+import { MarkersFilterActionItem, MarkersFilterAction, QuickFixAction, QuickFixActionItem, IMarkersFilterActionChangeEvent, IMarkerFilterController, ToggleLineModeAction } from 'vs/workbench/parts/markers/electron-browser/markersPanelActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import Messages from 'vs/workbench/parts/markers/electron-browser/messages';
 import { RangeHighlightDecorations } from 'vs/workbench/browser/parts/editor/rangeDecorations';
@@ -41,6 +41,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { domEvent } from 'vs/base/browser/event';
+import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 function createModelIterator(model: MarkersModel): Iterator<ITreeElement<TreeElement>> {
 	const resourcesIt = Iterator.fromArray(model.resourceMarkers);
@@ -85,6 +86,8 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	private cachedFilterStats: { total: number; filtered: number; } | undefined = undefined;
 
 	private currentResourceGotAddedToMarkersData: boolean = false;
+	private markersViewState: MarkersViewState;
+	private disposables: IDisposable[] = [];
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -103,6 +106,8 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		super(Constants.MARKERS_PANEL_ID, telemetryService, themeService, storageService);
 		this.panelFoucusContextKey = Constants.MarkerPanelFocusContextKey.bindTo(contextKeyService);
 		this.panelState = this.getMemento(StorageScope.WORKSPACE);
+		this.markersViewState = new MarkersViewState();
+		this.markersViewState.onDidChangeViewState(this.refreshPanel, this, this.disposables);
 		this.setCurrentActiveEditor();
 	}
 
@@ -278,11 +283,11 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 
 		const onDidChangeRenderNodeCount = new Relay<ITreeNode<any, any>>();
 
-		const virtualDelegate = new VirtualDelegate();
+		const virtualDelegate = new VirtualDelegate(this.markersViewState);
 		const renderers = [
 			this.instantiationService.createInstance(FileResourceMarkersRenderer, onDidChangeRenderNodeCount.event),
 			this.instantiationService.createInstance(ResourceMarkersRenderer, onDidChangeRenderNodeCount.event),
-			this.instantiationService.createInstance(MarkerRenderer, a => this.getActionItem(a)),
+			this.instantiationService.createInstance(MarkerRenderer, this.markersViewState, a => this.getActionItem(a)),
 			this.instantiationService.createInstance(RelatedInformationRenderer)
 		];
 		this.filter = new Filter();
@@ -350,7 +355,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		});
 
 		this.filterAction = this.instantiationService.createInstance(MarkersFilterAction, { filterText: this.panelState['filter'] || '', filterHistory: this.panelState['filterHistory'] || [], useFilesExclude: !!this.panelState['useFilesExclude'] });
-		this.actions = [this.filterAction, this.collapseAllAction];
+		this.actions = [this.filterAction, this.instantiationService.createInstance(ToggleLineModeAction, this.markersViewState), this.collapseAllAction];
 	}
 
 	private createListeners(): void {
@@ -656,5 +661,25 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	public dispose(): void {
 		super.dispose();
 		this.tree.dispose();
+		this.markersViewState.dispose();
+		this.disposables = dispose(this.disposables);
+	}
+}
+
+export class MarkersViewState extends Disposable {
+
+	private readonly _onDidChangeViewState: Emitter<void> = this._register(new Emitter<void>());
+	readonly onDidChangeViewState: Event<void> = this._onDidChangeViewState.event;
+
+	private _multiline: boolean = true;
+	get multiline(): boolean {
+		return this._multiline;
+	}
+
+	set multiline(value: boolean) {
+		if (this._multiline !== value) {
+			this._multiline = value;
+			this._onDidChangeViewState.fire();
+		}
 	}
 }

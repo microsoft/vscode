@@ -27,6 +27,7 @@ import { IMatch } from 'vs/base/common/filters';
 import { Event } from 'vs/base/common/event';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { isUndefinedOrNull } from 'vs/base/common/types';
+import { MarkersViewState } from 'vs/workbench/parts/markers/electron-browser/markersPanel';
 
 export type TreeElement = ResourceMarkers | Marker | RelatedInformation;
 
@@ -74,8 +75,10 @@ const enum TemplateId {
 
 export class VirtualDelegate implements IListVirtualDelegate<TreeElement> {
 
+	constructor(private readonly markersViewState: MarkersViewState) { }
+
 	getHeight(element: TreeElement): number {
-		if (element instanceof Marker) {
+		if (element instanceof Marker && this.markersViewState.multiline) {
 			return element.lines.length * 22;
 		}
 		return 22;
@@ -209,6 +212,7 @@ export class FileResourceMarkersRenderer extends ResourceMarkersRenderer {
 export class MarkerRenderer implements ITreeRenderer<Marker, MarkerFilterData, IMarkerTemplateData> {
 
 	constructor(
+		private readonly markersViewState: MarkersViewState,
 		private actionItemProvider: IActionItemProvider,
 		@IInstantiationService protected instantiationService: IInstantiationService
 	) { }
@@ -217,7 +221,7 @@ export class MarkerRenderer implements ITreeRenderer<Marker, MarkerFilterData, I
 
 	renderTemplate(container: HTMLElement): IMarkerTemplateData {
 		const data: IMarkerTemplateData = Object.create(null);
-		data.markerWidget = new MarkerWidget(container, this.actionItemProvider, this.instantiationService);
+		data.markerWidget = new MarkerWidget(container, this.markersViewState, this.actionItemProvider, this.instantiationService);
 		return data;
 	}
 
@@ -235,18 +239,19 @@ class MarkerWidget extends Disposable {
 
 	private readonly actionBar: ActionBar;
 	private readonly icon: HTMLElement;
-	private readonly messageContainer: HTMLElement;
+	private readonly messageAndDetailsContainer: HTMLElement;
 	private disposables: IDisposable[] = [];
 
 	constructor(
-		parent: HTMLElement, actionItemProvider: IActionItemProvider,
+		parent: HTMLElement,
+		private readonly markersViewState: MarkersViewState,
+		actionItemProvider: IActionItemProvider,
 		private instantiationService: IInstantiationService
 	) {
 		super();
-		const actionsContainer = dom.append(parent, dom.$('.actions'));
-		this.actionBar = this._register(new ActionBar(actionsContainer, { actionItemProvider }));
+		this.actionBar = this._register(new ActionBar(dom.append(parent, dom.$('.actions')), { actionItemProvider }));
 		this.icon = dom.append(parent, dom.$('.icon'));
-		this.messageContainer = dom.append(parent, dom.$('.marker-message'));
+		this.messageAndDetailsContainer = dom.append(parent, dom.$('.marker-message-details'));
 		this._register(toDisposable(() => this.disposables = dispose(this.disposables)));
 	}
 
@@ -255,9 +260,9 @@ class MarkerWidget extends Disposable {
 		if (this.disposables.length) {
 			this.disposables = dispose(this.disposables);
 		}
-		dom.clearNode(this.messageContainer);
+		dom.clearNode(this.messageAndDetailsContainer);
 
-		this.icon.className = 'icon ' + MarkerWidget.iconClassNameFor(marker);
+		this.icon.className = 'marker-icon ' + MarkerWidget.iconClassNameFor(marker);
 
 		this.actionBar.clear();
 		const quickFixAction = this.instantiationService.createInstance(QuickFixAction, element);
@@ -270,15 +275,17 @@ class MarkerWidget extends Disposable {
 		}, this, this.disposables);
 
 		const lineMatches = filterData && filterData.lineMatches || [];
-		let lastLineElement = this.messageContainer;
+		const messageContainer = dom.append(this.messageAndDetailsContainer, dom.$('.marker-message'));
+		dom.toggleClass(messageContainer, 'multiline', this.markersViewState.multiline);
+
+		let lastLineElement = messageContainer;
 		for (let index = 0; index < lines.length; index++) {
-			lastLineElement = dom.append(this.messageContainer, dom.$('.marker-message-line'));
+			lastLineElement = dom.append(messageContainer, dom.$('.marker-message-line'));
 			const highlightedLabel = new HighlightedLabel(lastLineElement, false);
 			highlightedLabel.set(lines[index], lineMatches[index]);
 			this.disposables.push(highlightedLabel);
 		}
-
-		this.renderDetails(marker, filterData, lastLineElement);
+		this.renderDetails(marker, filterData, this.markersViewState.multiline ? lastLineElement : this.messageAndDetailsContainer);
 	}
 
 	private onDidQuickFixesActionEnable(enabled: boolean): void {
