@@ -4,28 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { Event, Emitter } from 'vs/base/common/event';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
 import { ResourceMap } from 'vs/base/common/map';
 import { isLinux } from 'vs/base/common/platform';
 import { IFileStat } from 'vs/platform/files/common/files';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { rtrim, startsWithIgnoreCase, startsWith, equalsIgnoreCase } from 'vs/base/common/strings';
 import { coalesce } from 'vs/base/common/arrays';
-import { IExplorerService } from 'vs/workbench/parts/files/common/files';
-import { IAction } from 'vs/base/common/actions';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
-export class ExplorerService implements IExplorerService {
-	_serviceBrand: any;
+export class ExplorerModel implements IDisposable {
 
 	private _roots: ExplorerItem[];
-	private _onDidChangeEditable = new Emitter<ExplorerItem>();
 	private _listener: IDisposable;
-	private editableStats = new Map<ExplorerItem, { validationMessage: (value: string) => string, action: IAction }>();
 
-	constructor(@IWorkspaceContextService private contextService: IWorkspaceContextService) {
+	constructor(private contextService: IWorkspaceContextService) {
 		const setRoots = () => this._roots = this.contextService.getWorkspace().folders
 			.map(folder => new ExplorerItem(folder.uri, undefined, false, false, true, folder.name));
 		this._listener = this.contextService.onDidChangeWorkspaceFolders(() => setRoots());
@@ -34,19 +28,6 @@ export class ExplorerService implements IExplorerService {
 
 	get roots(): ExplorerItem[] {
 		return this._roots;
-	}
-
-	get onDidChangeEditable(): Event<ExplorerItem> {
-		return this._onDidChangeEditable.event;
-	}
-
-	setEditable(stat: ExplorerItem, data: { validationMessage: (value: string) => string, action: IAction }): void {
-		this.editableStats.set(stat, data);
-		this._onDidChangeEditable.fire(stat);
-	}
-
-	getEditableData(stat: ExplorerItem): { validationMessage: (value: string) => string, action: IAction } | undefined {
-		return this.editableStats.get(stat);
 	}
 
 	/**
@@ -314,21 +295,11 @@ export class ExplorerItem {
 	/**
 	 * Moves this element under a new parent element.
 	 */
-	move(newParent: ExplorerItem, fnBetweenStates?: (callback: () => void) => void, fnDone?: () => void): void {
-		if (!fnBetweenStates) {
-			fnBetweenStates = (cb: () => void) => { cb(); };
-		}
-
+	move(newParent: ExplorerItem): void {
 		this.parent.removeChild(this);
-
-		fnBetweenStates(() => {
-			newParent.removeChild(this); // make sure to remove any previous version of the file if any
-			newParent.addChild(this);
-			this.updateResource(true);
-			if (fnDone) {
-				fnDone();
-			}
-		});
+		newParent.removeChild(this); // make sure to remove any previous version of the file if any
+		newParent.addChild(this);
+		this.updateResource(true);
 	}
 
 	private updateResource(recursive: boolean): void {

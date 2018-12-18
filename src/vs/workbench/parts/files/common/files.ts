@@ -21,9 +21,9 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainer } from 'vs/workbench/common/views';
 import { Schemas } from 'vs/base/common/network';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ExplorerItem } from 'vs/workbench/parts/files/common/explorerService';
 import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IAction } from 'vs/base/common/actions';
+import { ExplorerItem } from 'vs/workbench/parts/files/common/explorerModel';
 
 /**
  * Explorer viewlet id.
@@ -42,15 +42,20 @@ export interface IExplorerView {
 	select(resource: URI, reveal?: boolean): void;
 }
 
+export interface IEditableData {
+	validationMessage: (value: string) => string;
+	action: IAction;
+}
+
 export interface IExplorerService {
 	_serviceBrand: any;
 	readonly roots: ExplorerItem[];
+	readonly onDidChangeItem: Event<ExplorerItem>;
 	readonly onDidChangeEditable: Event<ExplorerItem>;
 
-	setEditable(stat: ExplorerItem, data: { validationMessage: (value: string) => string, action: IAction }): void;
-	getEditableData(stat: ExplorerItem): { validationMessage: (value: string) => string, action: IAction } | undefined;
+	setEditable(stat: ExplorerItem, data: IEditableData): void;
+	getEditableData(stat: ExplorerItem): IEditableData | undefined;
 	findClosest(resource: URI): ExplorerItem | null;
-	findAll(resource: URI): ExplorerItem[];
 }
 export const IExplorerService = createDecorator<IExplorerService>('explorerService');
 

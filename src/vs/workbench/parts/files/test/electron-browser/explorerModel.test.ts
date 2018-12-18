@@ -9,7 +9,7 @@ import { isLinux, isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { join } from 'vs/base/common/paths';
 import { validateFileName } from 'vs/workbench/parts/files/electron-browser/fileActions';
-import { ExplorerItem } from 'vs/workbench/parts/files/common/explorerService';
+import { ExplorerItem } from 'vs/workbench/parts/files/common/explorerModel';
 
 function createStat(path: string, name: string, isFolder: boolean, hasChildren: boolean, size: number, mtime: number): ExplorerItem {
 	return new ExplorerItem(toResource(path), undefined, false, false, isFolder, name, mtime);

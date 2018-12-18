@@ -31,8 +31,8 @@ import { normalize, join, nativeSep } from 'vs/base/common/paths';
 import { rtrim } from 'vs/base/common/strings';
 import { equals, deepClone } from 'vs/base/common/objects';
 import * as path from 'path';
-import { ExplorerItem, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerService';
 import { IAction } from 'vs/base/common/actions';
+import { ExplorerItem, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerModel';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 

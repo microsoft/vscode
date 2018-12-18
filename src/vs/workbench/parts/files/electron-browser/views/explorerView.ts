@@ -9,11 +9,10 @@ import * as perf from 'vs/base/common/performance';
 import { ThrottledDelayer, sequence, ignoreErrors } from 'vs/base/common/async';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
-import * as glob from 'vs/base/common/glob';
 import { Action, IAction } from 'vs/base/common/actions';
 import { memoize } from 'vs/base/common/decorators';
-import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, SortOrderConfiguration, SortOrder, IExplorerView, ExplorerRootContext, ExplorerResourceReadonlyContext, IExplorerService } from 'vs/workbench/parts/files/common/files';
-import { FileOperation, FileOperationEvent, IResolveFileOptions, FileChangeType, FileChangesEvent, IFileService, FILES_EXCLUDE_CONFIG, IFileStat } from 'vs/platform/files/common/files';
+import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, IExplorerView, ExplorerRootContext, ExplorerResourceReadonlyContext, IExplorerService } from 'vs/workbench/parts/files/common/files';
+import { IResolveFileOptions, IFileService } from 'vs/platform/files/common/files';
 import { RefreshViewExplorerAction, NewFolderAction, NewFileAction, FileCopiedContext } from 'vs/workbench/parts/files/electron-browser/fileActions';
 import { toResource } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -29,7 +28,6 @@ import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
-import { ResourceGlobMatcher } from 'vs/workbench/electron-browser/resources';
 import { isLinux } from 'vs/base/common/platform';
 import { IDecorationsService } from 'vs/workbench/services/decorations/browser/decorations';
 import { WorkbenchAsyncDataTree, IListService } from 'vs/platform/list/browser/listService';
@@ -47,19 +45,11 @@ import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions'
 import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ExplorerItem, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerService';
-
-function getFileEventsExcludes(configurationService: IConfigurationService, root?: URI): glob.IExpression {
-	const scope = root ? { resource: root } : void 0;
-	const configuration = configurationService.getValue<IFilesConfiguration>(scope);
-
-	return (configuration && configuration.files && configuration.files.exclude) || Object.create(null);
-}
+import { ExplorerItem, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerModel';
 
 export class ExplorerView extends ViewletPanel implements IExplorerView {
 
 	static readonly ID: string = 'workbench.explorer.fileView';
-	private static readonly EXPLORER_FILE_CHANGES_REACT_DELAY = 500; // delay in ms to react to file changes to give our internal events a chance to react first
 	private static readonly EXPLORER_FILE_CHANGES_REFRESH_DELAY = 100; // delay in ms to refresh the explorer from disk file changes
 
 	private tree: WorkbenchAsyncDataTree<null, ExplorerItem>;
@@ -74,7 +64,6 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 	private rootContext: IContextKey<boolean>;
 
 	private shouldRefresh: boolean;
-	private sortOrder: SortOrder;
 	private dragHandler: DelayedDragHandler;
 	private decorationProvider: ExplorerDecorationsProvider;
 	private autoReveal = false;
@@ -154,17 +143,6 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 	}
 
 	// Memoized locals
-	@memoize private get fileEventsFilter(): ResourceGlobMatcher {
-		const fileEventsFilter = this.instantiationService.createInstance(
-			ResourceGlobMatcher,
-			(root: URI) => getFileEventsExcludes(this.configurationService, root),
-			(event: IConfigurationChangeEvent) => event.affectsConfiguration(FILES_EXCLUDE_CONFIG)
-		);
-		this.disposables.push(fileEventsFilter);
-
-		return fileEventsFilter;
-	}
-
 	@memoize private get contributedContextMenu(): IMenu {
 		const contributedContextMenu = this.menuService.createMenu(MenuId.ExplorerContext, this.tree.contextKeyService);
 		this.disposables.push(contributedContextMenu);
@@ -297,7 +275,7 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 		if (visible) {
 			DOM.show(this.tree.getHTMLElement());
 			// If a refresh was requested and we are now visible, run it
-			let refreshPromise: Promise<void> = Promise.resolve(null);
+			let refreshPromise = Promise.resolve(null);
 			if (this.shouldRefresh) {
 				refreshPromise = this.doRefresh();
 				this.shouldRefresh = false; // Reset flag
@@ -383,9 +361,6 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 		FilesExplorerFocusedContext.bindTo(this.tree.contextKeyService);
 		ExplorerFocusedContext.bindTo(this.tree.contextKeyService);
 
-		// Update Viewer based on File Change Events
-		this.disposables.push(this.fileService.onAfterOperation(e => this.onFileOperation(e)));
-		this.disposables.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
 
 		// Update resource context based on focused element
 		this.disposables.push(this.tree.onDidChangeFocus(e => {
@@ -451,12 +426,6 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 			needsRefresh = this.filter.updateConfiguration();
 		}
 
-		const configSortOrder = configuration && configuration.explorer && configuration.explorer.sortOrder || 'default';
-		if (this.sortOrder !== configSortOrder) {
-			this.sortOrder = configSortOrder;
-			needsRefresh = true;
-		}
-
 		if (event && !needsRefresh) {
 			needsRefresh = event.affectsConfiguration('explorer.decorations.colors')
 				|| event.affectsConfiguration('explorer.decorations.badges');
@@ -466,228 +435,6 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 		if (event && needsRefresh) {
 			this.doRefresh();
 		}
-	}
-
-	private onFileOperation(e: FileOperationEvent): void {
-		if (!this.isCreated) {
-			return; // ignore if not yet created
-		}
-
-		// Add
-		if (e.operation === FileOperation.CREATE || e.operation === FileOperation.COPY) {
-			const addedElement = e.target;
-			const parentResource = resources.dirname(addedElement.resource);
-			const parents = this.explorerService.findAll(parentResource);
-
-			if (parents.length) {
-
-				// Add the new file to its parent (Model)
-				parents.forEach(p => {
-					// We have to check if the parent is resolved #29177
-					const thenable: Promise<IFileStat> = p.isDirectoryResolved ? Promise.resolve(null) : this.fileService.resolveFile(p.resource);
-					thenable.then(stat => {
-						if (stat) {
-							const modelStat = ExplorerItem.create(stat, p.root);
-							ExplorerItem.mergeLocalWithDisk(modelStat, p);
-						}
-
-						const childElement = ExplorerItem.create(addedElement, p.root);
-						// Make sure to remove any previous version of the file if any
-						p.removeChild(childElement);
-						p.addChild(childElement);
-						// Refresh the Parent (View)
-						this.tree.refresh(p).then(() => {
-							// Reveal and focus new element
-							this.tree.reveal(childElement, 0.5);
-							this.tree.setFocus([childElement]);
-						});
-					});
-				});
-			}
-		}
-
-		// Move (including Rename)
-		else if (e.operation === FileOperation.MOVE) {
-			const oldResource = e.resource;
-			const newElement = e.target;
-
-			const oldParentResource = resources.dirname(oldResource);
-			const newParentResource = resources.dirname(newElement.resource);
-
-			// Only update focus if renamed/moved element is selected
-			let restoreFocus = false;
-			const focusedElements = this.tree.getFocus();
-			const focus = focusedElements && focusedElements.length ? focusedElements[0] : undefined;
-			if (focus && focus.resource && focus.resource.toString() === oldResource.toString()) {
-				restoreFocus = true;
-			}
-
-			let isExpanded = false;
-			// Handle Rename
-			if (oldParentResource && newParentResource && oldParentResource.toString() === newParentResource.toString()) {
-				const modelElements = this.explorerService.findAll(oldResource);
-				modelElements.forEach(modelElement => {
-					//Check if element is expanded
-					isExpanded = !this.tree.isCollapsed(modelElement);
-					// Rename File (Model)
-					modelElement.rename(newElement);
-
-					// Update Parent (View)
-					this.tree.refresh(modelElement.parent).then(() => {
-
-						// Select in Viewer if set
-						if (restoreFocus) {
-							this.tree.setFocus([modelElement]);
-						}
-						//Expand the element again
-						if (isExpanded) {
-							this.tree.expand(modelElement);
-						}
-					});
-				});
-			}
-
-			// Handle Move
-			else if (oldParentResource && newParentResource) {
-				const newParents = this.explorerService.findAll(newParentResource);
-				const modelElements = this.explorerService.findAll(oldResource);
-
-				if (newParents.length && modelElements.length) {
-
-					// Move in Model
-					modelElements.forEach((modelElement, index) => {
-						const oldParent = modelElement.parent;
-						modelElement.move(newParents[index], (callback: () => void) => {
-							// Update old parent
-							this.tree.refresh(oldParent).then(callback);
-						}, () => {
-							// Update new parent
-							this.tree.refresh(newParents[index], true).then(() => this.tree.expand(newParents[index]));
-						});
-					});
-				}
-			}
-		}
-
-		// Delete
-		else if (e.operation === FileOperation.DELETE) {
-			const modelElements = this.explorerService.findAll(e.resource);
-			modelElements.forEach(element => {
-				if (element.parent) {
-					const parent = element.parent;
-					// Remove Element from Parent (Model)
-					parent.removeChild(element);
-
-					// Refresh Parent (View)
-					const restoreFocus = document.activeElement === this.tree.getHTMLElement();
-					this.tree.refresh(parent).then(() => {
-
-						// Ensure viewer has keyboard focus if event originates from viewer
-						if (restoreFocus) {
-							this.tree.domFocus();
-						}
-					});
-				}
-			});
-		}
-	}
-
-	private onFileChanges(e: FileChangesEvent): void {
-		// Check if an explorer refresh is necessary (delayed to give internal events a chance to react first)
-		// Note: there is no guarantee when the internal events are fired vs real ones. Code has to deal with the fact that one might
-		// be fired first over the other or not at all.
-		setTimeout(() => {
-			if (!this.shouldRefresh && this.shouldRefreshFromEvent(e)) {
-				this.refreshFromEvent();
-			}
-		}, ExplorerView.EXPLORER_FILE_CHANGES_REACT_DELAY);
-	}
-
-	private shouldRefreshFromEvent(e: FileChangesEvent): boolean {
-		if (!this.isCreated) {
-			return false;
-		}
-
-		// Filter to the ones we care
-		e = this.filterToViewRelevantEvents(e);
-
-		// Handle added files/folders
-		const added = e.getAdded();
-		if (added.length) {
-
-			// Check added: Refresh if added file/folder is not part of resolved root and parent is part of it
-			const ignoredPaths: { [resource: string]: boolean } = <{ [resource: string]: boolean }>{};
-			for (let i = 0; i < added.length; i++) {
-				const change = added[i];
-
-				// Find parent
-				const parent = resources.dirname(change.resource);
-
-				// Continue if parent was already determined as to be ignored
-				if (ignoredPaths[parent.toString()]) {
-					continue;
-				}
-
-				// Compute if parent is visible and added file not yet part of it
-				const parentStat = this.explorerService.findClosest(parent);
-				if (parentStat && parentStat.isDirectoryResolved && !this.explorerService.findClosest(change.resource)) {
-					return true;
-				}
-
-				// Keep track of path that can be ignored for faster lookup
-				if (!parentStat || !parentStat.isDirectoryResolved) {
-					ignoredPaths[parent.toString()] = true;
-				}
-			}
-		}
-
-		// Handle deleted files/folders
-		const deleted = e.getDeleted();
-		if (deleted.length) {
-
-			// Check deleted: Refresh if deleted file/folder part of resolved root
-			for (let j = 0; j < deleted.length; j++) {
-				const del = deleted[j];
-
-				if (this.explorerService.findClosest(del.resource)) {
-					return true;
-				}
-			}
-		}
-
-		// Handle updated files/folders if we sort by modified
-		if (this.sortOrder === SortOrderConfiguration.MODIFIED) {
-			const updated = e.getUpdated();
-
-			// Check updated: Refresh if updated file/folder part of resolved root
-			for (let j = 0; j < updated.length; j++) {
-				const upd = updated[j];
-
-				if (this.explorerService.findClosest(upd.resource)) {
-					return true;
-				}
-			}
-		}
-
-		return false;
-	}
-
-	private filterToViewRelevantEvents(e: FileChangesEvent): FileChangesEvent {
-		return new FileChangesEvent(e.changes.filter(change => {
-			if (change.type === FileChangeType.UPDATED && this.sortOrder !== SortOrderConfiguration.MODIFIED) {
-				return false; // we only are about updated if we sort by modified time
-			}
-
-			if (!this.contextService.isInsideWorkspace(change.resource)) {
-				return false; // exclude changes for resources outside of workspace
-			}
-
-			if (this.fileEventsFilter.matches(change.resource)) {
-				return false; // excluded via files.exclude setting
-			}
-
-			return true;
-		}));
 	}
 
 	private refreshFromEvent(newRoots: IWorkspaceFolder[] = []): void {

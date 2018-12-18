@@ -36,7 +36,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { nativeSep } from 'vs/base/common/paths';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ExplorerService } from 'vs/workbench/parts/files/common/explorerService';
+import { ExplorerService } from 'vs/workbench/parts/files/electron-browser/explorerService';
 
 // Viewlet Action
 export class OpenExplorerViewletAction extends ShowViewletAction {

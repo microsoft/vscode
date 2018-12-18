@@ -46,7 +46,7 @@ import { CLOSE_EDITORS_AND_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/e
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { coalesce } from 'vs/base/common/arrays';
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { NewStatPlaceholder, ExplorerItem } from 'vs/workbench/parts/files/common/explorerService';
+import { ExplorerItem, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerModel';
 
 export interface IEditableData {
 	action: IAction;
