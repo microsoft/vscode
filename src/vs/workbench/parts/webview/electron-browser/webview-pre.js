@@ -113,6 +113,22 @@
 		}
 	};
 
+	/**
+	 * @param {KeyboardEvent} e
+	 */
+	const handleInnerKeydown = (e) => {
+		ipcRenderer.sendToHost('did-keydown', {
+			key: e.key,
+			keyCode: e.keyCode,
+			code: e.code,
+			shiftKey: e.shiftKey,
+			altKey: e.altKey,
+			ctrlKey: e.ctrlKey,
+			metaKey: e.metaKey,
+			repeat: e.repeat
+		});
+	};
+
 	const onMessage = (message) => {
 		ipcRenderer.sendToHost(message.data.command, message.data.data);
 	};
@@ -280,18 +296,7 @@
 
 			// write new content onto iframe
 			newFrame.contentDocument.open('text/html', 'replace');
-			newFrame.contentWindow.addEventListener('keydown', (e) => {
-				ipcRenderer.sendToHost('did-keydown', {
-					key: e.key,
-					keyCode: e.keyCode,
-					code: e.code,
-					shiftKey: e.shiftKey,
-					altKey: e.altKey,
-					ctrlKey: e.ctrlKey,
-					metaKey: e.metaKey,
-					repeat: e.repeat
-				});
-			});
+			newFrame.contentWindow.addEventListener('keydown', handleInnerKeydown);
 			newFrame.contentWindow.onbeforeunload = () => {
 				if (isInDevelopmentMode) { // Allow reloads while developing a webview
 					ipcRenderer.sendToHost('do-reload');
