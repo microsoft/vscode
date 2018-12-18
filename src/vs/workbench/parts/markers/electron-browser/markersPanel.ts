@@ -14,7 +14,7 @@ import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/
 import Constants from 'vs/workbench/parts/markers/electron-browser/constants';
 import { Marker, ResourceMarkers, RelatedInformation, MarkersModel } from 'vs/workbench/parts/markers/electron-browser/markersModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { MarkersFilterActionItem, MarkersFilterAction, QuickFixAction, QuickFixActionItem, IMarkersFilterActionChangeEvent, IMarkerFilterController, ToggleLineModeAction } from 'vs/workbench/parts/markers/electron-browser/markersPanelActions';
+import { MarkersFilterActionItem, MarkersFilterAction, QuickFixAction, QuickFixActionItem, IMarkersFilterActionChangeEvent, IMarkerFilterController } from 'vs/workbench/parts/markers/electron-browser/markersPanelActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import Messages from 'vs/workbench/parts/markers/electron-browser/messages';
 import { RangeHighlightDecorations } from 'vs/workbench/browser/parts/editor/rangeDecorations';
@@ -86,7 +86,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	private cachedFilterStats: { total: number; filtered: number; } | undefined = undefined;
 
 	private currentResourceGotAddedToMarkersData: boolean = false;
-	private markersViewState: MarkersViewState;
+	readonly markersViewState: MarkersViewState;
 	private disposables: IDisposable[] = [];
 
 	constructor(
@@ -107,7 +107,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		this.panelFoucusContextKey = Constants.MarkerPanelFocusContextKey.bindTo(contextKeyService);
 		this.panelState = this.getMemento(StorageScope.WORKSPACE);
 		this.markersViewState = new MarkersViewState(this.panelState['multiline']);
-		this.markersViewState.onDidChangeViewState(this.refreshPanel, this, this.disposables);
+		this.markersViewState.onDidChangeViewState(this.onDidChangeViewState, this, this.disposables);
 		this.setCurrentActiveEditor();
 	}
 
@@ -215,6 +215,10 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 			this.renderMessage();
 			this._onDidFilter.fire();
 		}
+	}
+
+	private onDidChangeViewState(marker?: Marker): void {
+		this.refreshPanel();
 	}
 
 	private updateFilter() {
@@ -355,7 +359,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		});
 
 		this.filterAction = this.instantiationService.createInstance(MarkersFilterAction, { filterText: this.panelState['filter'] || '', filterHistory: this.panelState['filterHistory'] || [], useFilesExclude: !!this.panelState['useFilesExclude'] });
-		this.actions = [this.filterAction, this.instantiationService.createInstance(ToggleLineModeAction, this.markersViewState), this.collapseAllAction];
+		this.actions = [this.filterAction, this.collapseAllAction];
 	}
 
 	private createListeners(): void {
@@ -373,6 +377,16 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	}
 
 	private onDidChangeModel(resources: URI[]) {
+		for (const resource of resources) {
+			const resourceMarkers = this.markersWorkbenchService.markersModel.getResourceMarkers(resource);
+			if (resourceMarkers) {
+				for (const marker of resourceMarkers.markers) {
+					this.markersViewState.add(marker);
+				}
+			} else {
+				this.markersViewState.remove(resource);
+			}
+		}
 		this.currentResourceGotAddedToMarkersData = this.currentResourceGotAddedToMarkersData || this.isCurrentResourceGotAddedToMarkersData(resources);
 		this.refreshPanel();
 		this.updateRangeHighlights();

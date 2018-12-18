@@ -32,7 +32,6 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { Event } from 'vs/base/common/event';
 import { FilterOptions } from 'vs/workbench/parts/markers/electron-browser/markersFilterOptions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { MarkersViewState } from 'vs/workbench/parts/markers/electron-browser/markersTreeViewer';
 
 export class ToggleMarkersPanelAction extends TogglePanelAction {
 
@@ -288,34 +287,6 @@ export class MarkersFilterActionItem extends BaseActionItem {
 		*/
 		this.telemetryService.publicLog('problems.filter', data);
 	}
-}
-
-export class ToggleLineModeAction extends Action {
-
-	public static readonly ID: string = 'workbench.actions.problems.toggleLineMode';
-
-	private disposables: IDisposable[] = [];
-
-	constructor(private readonly viewState: MarkersViewState) {
-		super(ToggleLineModeAction.ID);
-		this.update();
-		viewState.onDidChangeViewState(this.update, this, this.disposables);
-	}
-
-	private update(): void {
-		this.tooltip = this.viewState.multiline ? localize('singleline', "Show message in single line") : localize('multiline', "Show message in multiple lines");
-		this.class = this.viewState.multiline ? 'octicon octicon-fold' : 'octicon octicon-unfold';
-	}
-
-	run(): Promise<void> {
-		this.viewState.multiline = !this.viewState.multiline;
-		return Promise.resolve();
-	}
-
-	dispose(): void {
-		dispose(this.disposables);
-	}
-
 }
 
 export class QuickFixAction extends Action {
