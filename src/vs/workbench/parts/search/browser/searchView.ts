@@ -63,9 +63,12 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 const $ = dom.$;
 
 function createResultIterator(searchResult: SearchResult): Iterator<ITreeElement<RenderableMatch>> {
-	const foldersIt = Iterator.fromArray(
-		searchResult.folderMatches().filter(fm => fm.matches().length > 0));
+	const folderMatches = searchResult.folderMatches().filter(fm => !fm.isEmpty());
+	if (folderMatches.length === 1) {
+		return createFolderIterator(folderMatches[0]);
+	}
 
+	const foldersIt = Iterator.fromArray(folderMatches);
 	return Iterator.map(foldersIt, folderMatch => {
 		const children = createFolderIterator(folderMatch);
 		return { element: folderMatch, children };

@@ -21,92 +21,15 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { FileKind } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { WorkbenchObjectTree, WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
+import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { ISearchConfigurationProperties } from 'vs/platform/search/common/search';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { FileLabel } from 'vs/workbench/browser/labels';
+import { RemoveAction, ReplaceAllAction, ReplaceAllInFolderAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { SearchView } from 'vs/workbench/parts/search/browser/searchView';
 import { FileMatch, FileMatchOrMatch, FolderMatch, Match, RenderableMatch, searchMatchComparer, SearchModel, SearchResult } from 'vs/workbench/parts/search/common/searchModel';
-import { ReplaceAllInFolderAction, RemoveAction, ReplaceAllAction } from 'vs/workbench/parts/search/browser/searchActions';
-
-// export class SearchDataSource implements IDataSource<RenderableMatch> {
-
-// 	private static readonly AUTOEXPAND_CHILD_LIMIT = 10;
-
-// 	private includeFolderMatch: boolean;
-// 	private listener: IDisposable;
-
-// 	constructor(
-// 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-// 		@IConfigurationService private configurationService: IConfigurationService,
-// 	) {
-// 		this.updateIncludeFolderMatch();
-// 		this.listener = this.contextService.onDidChangeWorkbenchState(() => this.updateIncludeFolderMatch());
-// 	}
-
-// 	private updateIncludeFolderMatch(): void {
-// 		this.includeFolderMatch = (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE);
-// 	}
-
-// 	private _getChildren(element: any): RenderableMatch[] {
-// 		if (element instanceof FileMatch) {
-// 			return element.matches();
-// 		} else if (element instanceof FolderMatch) {
-// 			return element.matches();
-// 		} else if (element instanceof SearchResult) {
-// 			const folderMatches = element.folderMatches();
-// 			return folderMatches.length > 2 ? // "Other files" + workspace folder = 2
-// 				folderMatches.filter(fm => !fm.isEmpty()) :
-// 				element.matches();
-// 		}
-
-// 		return [];
-// 	}
-
-// 	public getChildren(element: RenderableMatch): Thenable<RenderableMatch[]> {
-// 		return Promise.resolve(this._getChildren(element));
-// 	}
-
-// 	public hasChildren(tree: ITree, element: any): boolean {
-// 		return element instanceof FileMatch || element instanceof FolderMatch || element instanceof SearchResult;
-// 	}
-
-// 	public getParent(tree: ITree, element: any): Thenable<any> {
-// 		let value: any = null;
-
-// 		if (element instanceof Match) {
-// 			value = element.parent();
-// 		} else if (element instanceof FileMatch) {
-// 			value = this.includeFolderMatch ? element.parent() : element.parent().parent();
-// 		} else if (element instanceof FolderMatch) {
-// 			value = element.parent();
-// 		}
-
-// 		return Promise.resolve(value);
-// 	}
-
-// 	public shouldAutoexpand(tree: ITree, element: any): boolean {
-// 		const numChildren = this._getChildren(element).length;
-// 		if (numChildren <= 0) {
-// 			return false;
-// 		}
-
-// 		const collapseOption = this.configurationService.getValue('search.collapseResults');
-// 		if (collapseOption === 'alwaysCollapse') {
-// 			return false;
-// 		} else if (collapseOption === 'alwaysExpand') {
-// 			return true;
-// 		}
-
-// 		return numChildren < SearchDataSource.AUTOEXPAND_CHILD_LIMIT || element instanceof FolderMatch;
-// 	}
-
-// 	public dispose(): void {
-// 		this.listener = dispose(this.listener);
-// 	}
-// }
 
 export class SearchSorter implements ISorter {
 	public compare(tree: ITree, elementA: RenderableMatch, elementB: RenderableMatch): number {
