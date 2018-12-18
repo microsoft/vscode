@@ -22,7 +22,7 @@ suite('Gridview', function () {
 	});
 
 	teardown(function () {
-		gridview = null;
+		gridview = null!;
 	});
 
 	test('empty gridview is empty', function () {
