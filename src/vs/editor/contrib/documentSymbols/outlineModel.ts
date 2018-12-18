@@ -361,14 +361,17 @@ export class OutlineModel extends TreeElement {
 	}
 
 	private _compact(): this {
+		let count = 0;
 		for (const key in this._groups) {
 			let group = this._groups[key];
 			if (first(group.children) === undefined) { // empty
 				delete this._groups[key];
+			} else {
+				count += 1;
 			}
 		}
 		let group = first(this._groups);
-		if (group) {
+		if (group && count === 1) {
 			// adopt all elements of the first group
 			for (let key in group.children) {
 				let child = group.children[key];
