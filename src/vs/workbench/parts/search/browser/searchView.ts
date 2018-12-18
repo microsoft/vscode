@@ -62,26 +62,28 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 
 const $ = dom.$;
 
-function createResultIterator(searchResult: SearchResult): Iterator<ITreeElement<RenderableMatch>> {
+function createResultIterator(searchResult: SearchResult, collapseResults: ISearchConfigurationProperties['collapseResults']): Iterator<ITreeElement<RenderableMatch>> {
 	const folderMatches = searchResult.folderMatches().filter(fm => !fm.isEmpty());
 	if (folderMatches.length === 1) {
-		return createFolderIterator(folderMatches[0]);
+		return createFolderIterator(folderMatches[0], collapseResults);
 	}
 
 	const foldersIt = Iterator.fromArray(folderMatches);
 	return Iterator.map(foldersIt, folderMatch => {
-		const children = createFolderIterator(folderMatch);
-		return { element: folderMatch, children };
+		const children = createFolderIterator(folderMatch, collapseResults);
+		return <ITreeElement<RenderableMatch>>{ element: folderMatch, children };
 	});
 }
 
-function createFolderIterator(folderMatch: FolderMatch): Iterator<ITreeElement<RenderableMatch>> {
+function createFolderIterator(folderMatch: FolderMatch, collapseResults: ISearchConfigurationProperties['collapseResults']): Iterator<ITreeElement<RenderableMatch>> {
 	const filesIt = Iterator.fromArray(folderMatch.matches());
 
 	return Iterator.map(filesIt, fileMatch => {
 		const children = createFileIterator(fileMatch);
 
-		return <ITreeElement<RenderableMatch>>{ element: fileMatch, children, collapsed: fileMatch.matches().length > 10 };
+		const collapsed = collapseResults === 'alwaysCollapse' || (fileMatch.matches().length > 10 && collapseResults !== 'alwaysExpand');
+
+		return <ITreeElement<RenderableMatch>>{ element: fileMatch, children, collapsed };
 	});
 }
 
@@ -90,9 +92,9 @@ function createFileIterator(fileMatch: FileMatch): Iterator<ITreeElement<Rendera
 	return Iterator.map(matchesIt, r => (<ITreeElement<RenderableMatch>>{ element: r }));
 }
 
-function createIterator(match: FolderMatch | FileMatch | SearchResult): Iterator<ITreeElement<RenderableMatch>> {
-	return match instanceof SearchResult ? createResultIterator(match) :
-		match instanceof FolderMatch ? createFolderIterator(match) :
+function createIterator(match: FolderMatch | FileMatch | SearchResult, collapseResults: ISearchConfigurationProperties['collapseResults']): Iterator<ITreeElement<RenderableMatch>> {
+	return match instanceof SearchResult ? createResultIterator(match, collapseResults) :
+		match instanceof FolderMatch ? createFolderIterator(match, collapseResults) :
 			createFileIterator(match);
 }
 
@@ -439,16 +441,17 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	}
 
 	public refreshTree(event?: IChangeEvent): void {
+		const collapseResults = this.configurationService.getValue<ISearchConfigurationProperties>('search').collapseResults;
 		if (!event) {
-			this.tree.setChildren(null, createResultIterator(this.viewModel.searchResult));
+			this.tree.setChildren(null, createResultIterator(this.viewModel.searchResult, collapseResults));
 		} else if (event.added || event.removed) {
 			event.elements.forEach(element => {
-				this.tree.setChildren(this.viewModel.searchResult.folderMatches[0], createIterator(element));
+				this.tree.setChildren(this.viewModel.searchResult.folderMatches[0], createIterator(element, collapseResults));
 			});
 		} else {
 			event.elements.forEach(element => {
 				const root = element instanceof SearchResult ? null : element;
-				this.tree.setChildren(root, createIterator(element));
+				this.tree.setChildren(root, createIterator(element, collapseResults));
 			});
 		}
 	}
