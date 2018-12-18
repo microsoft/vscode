@@ -675,7 +675,7 @@ export class TerminalInstance implements ITerminalInstance {
 					});
 					return;
 				} else if (hasSpace) {
-					c('"' + path + '"');
+					c("& '" + path + "'");
 				} else {
 					c(path);
 				}
