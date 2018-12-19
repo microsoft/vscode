@@ -114,6 +114,7 @@
 		"./vs/base/test/browser/ui/tree/indexTreeModel.test.ts",
 		"./vs/base/test/browser/ui/tree/objectTree.test.ts",
 		"./vs/base/test/browser/ui/tree/objectTreeModel.test.ts",
+		"./vs/base/test/common/arrays.test.ts",
 		"./vs/base/test/common/assert.test.ts",
 		"./vs/base/test/common/cache.test.ts",
 		"./vs/base/test/common/cancellation.test.ts",
