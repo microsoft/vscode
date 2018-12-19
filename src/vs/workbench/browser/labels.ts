@@ -100,7 +100,17 @@ export class ResourceLabels extends Disposable {
 		this._register(this.extensionService.onDidRegisterExtensions(() => this._widgets.forEach(widget => widget.notifyExtensionsRegistered())));
 
 		// notify when model mode changes
-		this._register(this.modelService.onModelModeChanged(e => this._widgets.forEach(widget => widget.notifyModelModeChanged(e))));
+		this._register(this.modelService.onModelModeChanged(e => {
+			if (!e.model.uri) {
+				return; // we need the resource to compare
+			}
+
+			if (e.model.uri.scheme === Schemas.file && e.oldModeId === PLAINTEXT_MODE_ID) { // todo@remote does this apply?
+				return; // ignore transitions in files from no mode to specific mode because this happens each time a model is created
+			}
+
+			this._widgets.forEach(widget => widget.notifyModelModeChanged(e));
+		}));
 
 		// notify when file decoration changes
 		this._register(this.decorationsService.onDidChangeDecorations(e => this._widgets.forEach(widget => widget.notifyFileDecorationsChanges(e))));
@@ -243,14 +253,6 @@ class ResourceLabelWidget extends IconLabel {
 	notifyModelModeChanged(e: { model: ITextModel; oldModeId: string; }): void {
 		if (!this.label || !this.label.resource) {
 			return; // only update if label exists
-		}
-
-		if (!e.model.uri) {
-			return; // we need the resource to compare
-		}
-
-		if (e.model.uri.scheme === Schemas.file && e.oldModeId === PLAINTEXT_MODE_ID) { // todo@remote does this apply?
-			return; // ignore transitions in files from no mode to specific mode because this happens each time a model is created
 		}
 
 		if (e.model.uri.toString() === this.label.resource.toString()) {
