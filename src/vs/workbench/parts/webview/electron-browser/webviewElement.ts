@@ -76,7 +76,7 @@ class WebviewProtocolRegister extends Disposable {
 		]);
 
 		registerFileProtocol(contents, WebviewProtocol.VsCodeResource, this._fileService, this._extensionLocation, () =>
-			(this._getLocalResourceRoots())
+			this._getLocalResourceRoots()
 		);
 	}
 }
@@ -128,12 +128,13 @@ export class WebviewElement extends Disposable {
 			}));
 		});
 
-		this._register(new WebviewProtocolRegister(
-			this._webview,
-			this._options.extensionLocation,
-			() => this._options.localResourceRoots || [],
-			environmentService,
-			fileService));
+		this._register(
+			new WebviewProtocolRegister(
+				this._webview,
+				this._options.extensionLocation,
+				() => (this._options.localResourceRoots || []),
+				environmentService,
+				fileService));
 
 		if (!this._options.allowSvgs) {
 			let loaded = false;
