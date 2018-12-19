@@ -7,7 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import * as network from 'vs/base/common/network';
 import * as paths from 'vs/base/common/paths';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { ResourceLabels, IResourceLabelHandle } from 'vs/workbench/browser/labels';
+import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { ResourceMarkers, Marker, RelatedInformation } from 'vs/workbench/parts/markers/electron-browser/markersModel';
@@ -34,7 +34,7 @@ import { localize } from 'vs/nls';
 export type TreeElement = ResourceMarkers | Marker | RelatedInformation;
 
 interface IResourceMarkersTemplateData {
-	resourceLabel: IResourceLabelHandle;
+	resourceLabel: IResourceLabel;
 	count: CountBadge;
 	styler: IDisposable;
 }
@@ -161,7 +161,7 @@ export class ResourceMarkersRenderer implements ITreeRenderer<ResourceMarkers, R
 		if (resourceMarkers.resource.scheme === network.Schemas.file || resourceMarkers.resource.scheme === network.Schemas.untitled) {
 			templateData.resourceLabel.setFile(resourceMarkers.resource, { matches: uriMatches });
 		} else {
-			templateData.resourceLabel.setLabel({ name: resourceMarkers.name, description: this.labelService.getUriLabel(dirname(resourceMarkers.resource), { relative: true }), resource: resourceMarkers.resource }, { matches: uriMatches });
+			templateData.resourceLabel.setResource({ name: resourceMarkers.name, description: this.labelService.getUriLabel(dirname(resourceMarkers.resource), { relative: true }), resource: resourceMarkers.resource }, { matches: uriMatches });
 		}
 
 		this.updateCount(node, templateData);

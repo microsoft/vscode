@@ -10,7 +10,7 @@ import { toResource, GroupIdentifier, IEditorInput, Verbosity, EditorCommandsCon
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { ResourceLabels, IResourceLabelHandle } from 'vs/workbench/browser/labels';
+import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -397,7 +397,7 @@ export class TabsTitleControl extends TitleControl {
 		this.redraw();
 	}
 
-	private withTab(editor: IEditorInput, fn: (tabContainer: HTMLElement, tabLabelWidget: IResourceLabelHandle, tabLabel: IEditorInputLabel) => void): void {
+	private withTab(editor: IEditorInput, fn: (tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel) => void): void {
 		const editorIndex = this.group.getIndexOfEditor(editor);
 
 		const tabContainer = this.tabsContainer.children[editorIndex] as HTMLElement;
@@ -807,7 +807,7 @@ export class TabsTitleControl extends TitleControl {
 		this.layout(this.dimension);
 	}
 
-	private forEachTab(fn: (editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabelHandle, tabLabel: IEditorInputLabel) => void): void {
+	private forEachTab(fn: (editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel) => void): void {
 		this.group.editors.forEach((editor, index) => {
 			const tabContainer = this.tabsContainer.children[index] as HTMLElement;
 			if (tabContainer) {
@@ -816,7 +816,7 @@ export class TabsTitleControl extends TitleControl {
 		});
 	}
 
-	private redrawTab(editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabelHandle, tabLabel: IEditorInputLabel): void {
+	private redrawTab(editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel): void {
 
 		// Label
 		this.redrawLabel(editor, tabContainer, tabLabelWidget, tabLabel);
@@ -849,7 +849,7 @@ export class TabsTitleControl extends TitleControl {
 		this.redrawEditorActiveAndDirty(this.accessor.activeGroup === this.group, editor, tabContainer, tabLabelWidget);
 	}
 
-	private redrawLabel(editor: IEditorInput, tabContainer: HTMLElement, tabLabelWidget: IResourceLabelHandle, tabLabel: IEditorInputLabel): void {
+	private redrawLabel(editor: IEditorInput, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel): void {
 		const name = tabLabel.name;
 		const description = tabLabel.description || '';
 		const title = tabLabel.title || '';
@@ -859,10 +859,10 @@ export class TabsTitleControl extends TitleControl {
 		tabContainer.title = title;
 
 		// Label
-		tabLabelWidget.setLabel({ name, description, resource: toResource(editor, { supportSideBySide: true }) }, { title, extraClasses: ['tab-label'], italic: !this.group.isPinned(editor) });
+		tabLabelWidget.setResource({ name, description, resource: toResource(editor, { supportSideBySide: true }) }, { title, extraClasses: ['tab-label'], italic: !this.group.isPinned(editor) });
 	}
 
-	private redrawEditorActiveAndDirty(isGroupActive: boolean, editor: IEditorInput, tabContainer: HTMLElement, tabLabelWidget: IResourceLabelHandle): void {
+	private redrawEditorActiveAndDirty(isGroupActive: boolean, editor: IEditorInput, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel): void {
 		const isTabActive = this.group.isActive(editor);
 
 		const hasModifiedBorderTop = this.doRedrawEditorDirty(isGroupActive, isTabActive, editor, tabContainer);
@@ -870,7 +870,7 @@ export class TabsTitleControl extends TitleControl {
 		this.doRedrawEditorActive(isGroupActive, !hasModifiedBorderTop, editor, tabContainer, tabLabelWidget);
 	}
 
-	private doRedrawEditorActive(isGroupActive: boolean, allowBorderTop: boolean, editor: IEditorInput, tabContainer: HTMLElement, tabLabelWidget: IResourceLabelHandle): void {
+	private doRedrawEditorActive(isGroupActive: boolean, allowBorderTop: boolean, editor: IEditorInput, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel): void {
 
 		// Tab is active
 		if (this.group.isActive(editor)) {

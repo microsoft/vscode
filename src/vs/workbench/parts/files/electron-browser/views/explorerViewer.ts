@@ -17,7 +17,7 @@ import * as comparers from 'vs/base/common/comparers';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import * as glob from 'vs/base/common/glob';
-import { ResourceLabels, IFileLabelOptions, IResourceLabelHandle } from 'vs/workbench/browser/labels';
+import { ResourceLabels, IFileLabelOptions, IResourceLabel } from 'vs/workbench/browser/labels';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IFilesConfiguration, SortOrder } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -180,7 +180,7 @@ export class ActionRunner extends BaseActionRunner implements IActionRunner {
 
 export interface IFileTemplateData {
 	elementDisposable: IDisposable;
-	label: IResourceLabelHandle;
+	label: IResourceLabel;
 	container: HTMLElement;
 }
 

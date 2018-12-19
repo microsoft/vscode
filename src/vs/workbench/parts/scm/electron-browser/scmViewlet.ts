@@ -15,7 +15,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListEvent, IKeyboardNavigationLabelProvider, IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { VIEWLET_ID, VIEW_CONTAINER } from 'vs/workbench/parts/scm/common/scm';
-import { ResourceLabels, IResourceLabelHandle } from 'vs/workbench/browser/labels';
+import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { ISCMService, ISCMRepository, ISCMResourceGroup, ISCMResource, InputValidationType } from 'vs/workbench/services/scm/common/scm';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -444,7 +444,7 @@ class ResourceGroupRenderer implements IListRenderer<ISCMResourceGroup, Resource
 interface ResourceTemplate {
 	element: HTMLElement;
 	name: HTMLElement;
-	fileLabel: IResourceLabelHandle;
+	fileLabel: IResourceLabel;
 	decorationIcon: HTMLElement;
 	actionBar: ActionBar;
 	elementDisposable: IDisposable;

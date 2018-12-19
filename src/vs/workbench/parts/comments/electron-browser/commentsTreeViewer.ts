@@ -11,7 +11,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IDataSource, IFilter, IRenderer as ITreeRenderer, ITree } from 'vs/base/parts/tree/browser/tree';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IResourceLabelHandle, ResourceLabels } from 'vs/workbench/browser/labels';
+import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { CommentNode, CommentsModel, ResourceWithCommentThreads } from 'vs/workbench/parts/comments/common/commentModel';
 
 export class CommentsDataSource implements IDataSource {
@@ -55,7 +55,7 @@ export class CommentsDataSource implements IDataSource {
 }
 
 interface IResourceTemplateData {
-	resourceLabel: IResourceLabelHandle;
+	resourceLabel: IResourceLabel;
 }
 
 interface ICommentThreadTemplateData {

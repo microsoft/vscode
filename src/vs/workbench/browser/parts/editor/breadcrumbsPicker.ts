@@ -25,7 +25,7 @@ import { IConstructorSignature1, IInstantiationService } from 'vs/platform/insta
 import { HighlightingWorkbenchTree, IHighlighter, IHighlightingTreeConfiguration, IHighlightingTreeOptions } from 'vs/platform/list/browser/listService';
 import { breadcrumbsPickerBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { ResourceLabels, IResourceLabelHandle } from 'vs/workbench/browser/labels';
+import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { BreadcrumbElement, FileElement } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
 import { IFileIconTheme, IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
@@ -345,7 +345,7 @@ export class FileRenderer implements IRenderer {
 		return this._labels.create(container, { supportHighlights: true });
 	}
 
-	renderElement(tree: ITree, element: IFileStat | IWorkspaceFolder, templateId: string, templateData: IResourceLabelHandle): void {
+	renderElement(tree: ITree, element: IFileStat | IWorkspaceFolder, templateId: string, templateData: IResourceLabel): void {
 		let fileDecorations = this._configService.getValue<{ colors: boolean, badges: boolean }>('explorer.decorations');
 		let resource: URI;
 		let fileKind: FileKind;
@@ -365,7 +365,7 @@ export class FileRenderer implements IRenderer {
 		});
 	}
 
-	disposeTemplate(tree: ITree, templateId: string, templateData: IResourceLabelHandle): void {
+	disposeTemplate(tree: ITree, templateId: string, templateData: IResourceLabel): void {
 		templateData.dispose();
 	}
 }

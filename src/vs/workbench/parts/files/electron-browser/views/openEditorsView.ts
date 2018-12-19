@@ -26,7 +26,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
-import { ResourceLabels, IResourceLabelHandle } from 'vs/workbench/browser/labels';
+import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
@@ -484,7 +484,7 @@ export class OpenEditorsView extends ViewletPanel {
 
 interface IOpenEditorTemplateData {
 	container: HTMLElement;
-	root: IResourceLabelHandle;
+	root: IResourceLabel;
 	actionBar: ActionBar;
 	actionRunner: OpenEditorActionRunner;
 	openEditor: OpenEditor;

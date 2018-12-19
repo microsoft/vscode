@@ -23,7 +23,7 @@ import { ISearchConfigurationProperties } from 'vs/platform/search/common/search
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IResourceLabelHandle, ResourceLabels } from 'vs/workbench/browser/labels';
+import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { RemoveAction, ReplaceAction, ReplaceAllAction, ReplaceAllInFolderAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { SearchView } from 'vs/workbench/parts/search/browser/searchView';
 import { FileMatch, FolderMatch, Match, RenderableMatch, searchMatchComparer, SearchModel } from 'vs/workbench/parts/search/common/searchModel';
@@ -35,14 +35,14 @@ export class SearchSorter implements ISorter {
 }
 
 interface IFolderMatchTemplate {
-	label: IResourceLabelHandle;
+	label: IResourceLabel;
 	badge: CountBadge;
 	actions: ActionBar;
 }
 
 interface IFileMatchTemplate {
 	el: HTMLElement;
-	label: IResourceLabelHandle;
+	label: IResourceLabel;
 	badge: CountBadge;
 	actions: ActionBar;
 }
@@ -113,7 +113,7 @@ export class FolderMatchRenderer extends Disposable implements ITreeRenderer<Fol
 				templateData.label.setFile(folderMatch.resource(), { fileKind: FileKind.FOLDER });
 			}
 		} else {
-			templateData.label.setValue(nls.localize('searchFolderMatch.other.label', "Other files"));
+			templateData.label.setLabel(nls.localize('searchFolderMatch.other.label', "Other files"));
 		}
 		let count = folderMatch.fileCount();
 		templateData.badge.setCount(count);

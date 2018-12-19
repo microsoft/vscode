@@ -23,7 +23,7 @@ import { isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { ltrim } from 'vs/base/common/strings';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { ResourceLabels, IResourceLabel, IResourceLabelOptions, IResourceLabelHandle } from 'vs/workbench/browser/labels';
+import { ResourceLabels, IResourceLabelProps, IResourceLabelOptions, IResourceLabel } from 'vs/workbench/browser/labels';
 import { FileKind } from 'vs/platform/files/common/files';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
@@ -552,7 +552,7 @@ class LoadedScriptsDataSource implements IAsyncDataSource<LoadedScriptsItem, Loa
 }
 
 interface ILoadedScriptsItemTemplateData {
-	label: IResourceLabelHandle;
+	label: IResourceLabel;
 }
 
 class LoadedScriptsRenderer implements ITreeRenderer<BaseTreeItem, void, ILoadedScriptsItemTemplateData> {
@@ -578,7 +578,7 @@ class LoadedScriptsRenderer implements ITreeRenderer<BaseTreeItem, void, ILoaded
 
 		const element = node.element;
 
-		const label: IResourceLabel = {
+		const label: IResourceLabelProps = {
 			name: element.getLabel()
 		};
 		const options: IResourceLabelOptions = {
@@ -605,7 +605,7 @@ class LoadedScriptsRenderer implements ITreeRenderer<BaseTreeItem, void, ILoaded
 			}
 		}
 
-		data.label.setLabel(label, options);
+		data.label.setResource(label, options);
 	}
 
 	disposeTemplate(templateData: ILoadedScriptsItemTemplateData): void {
