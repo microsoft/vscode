@@ -199,7 +199,8 @@ export class WebviewElement extends Disposable {
 				environmentService,
 				fileService));
 
-		this._register(new SvgBlocker(this._webview, this._options));
+		const svgBlocker = this._register(new SvgBlocker(this._webview, this._options));
+		svgBlocker.onDidBlockSvg(() => this.onDidBlockSvg());
 
 		this._register(addDisposableListener(this._webview, 'console-message', function (e: { level: number; message: string; line: number; sourceId: string; }) {
 			console.log(`[Embedded Page] ${e.message}`);
