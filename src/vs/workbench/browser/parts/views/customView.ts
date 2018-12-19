@@ -674,7 +674,6 @@ class TreeRenderer implements IRenderer {
 		const title = node.tooltip ? node.tooltip : resource ? void 0 : label;
 
 		// reset
-		templateData.resourceLabel.clear();
 		templateData.actionBar.clear();
 
 		if (resource || node.themeIcon) {
