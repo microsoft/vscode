@@ -28,7 +28,21 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 export interface IResourceLabelHandle extends IDisposable {
 	readonly element: HTMLElement;
 
+	/**
+	 * Most basic method to apply a label.
+	 */
 	setLabel(label: IResourceLabel, options?: IResourceLabelOptions): void;
+
+	/**
+	 * Convinient method to apply a label by passing an editor along.
+	 */
+	setEditor(editor: IEditorInput, options?: IResourceLabelOptions): void;
+
+	/**
+	 * Convinient method to render a file label based on a resource.
+	 */
+	setFile(resource: uri, options?: IFileLabelOptions): void;
+
 	clear(): void;
 
 	onClick(callback: (event: MouseEvent) => void): IDisposable;
@@ -88,6 +102,8 @@ export class ResourceLabels extends Disposable {
 		const label: IResourceLabelHandle = {
 			element: widget.element,
 			setLabel: (label: IResourceLabel, options?: IResourceLabelOptions) => widget.setLabel(label, options),
+			setEditor: (editor: IEditorInput, options?: IResourceLabelOptions) => widget.setEditor(editor, options),
+			setFile: (resource: uri, options?: IFileLabelOptions) => widget.setFile(resource, options),
 			clear: () => widget.clear(),
 			onClick: (callback: (event: MouseEvent) => void) => widget.onClick(callback),
 			dispose: () => this.disposeWidget(widget)
@@ -163,8 +179,10 @@ class ResourceLabelWidget extends IconLabel {
 		options: IIconLabelCreationOptions,
 		@IModeService private modeService: IModeService,
 		@IModelService private modelService: IModelService,
-		@IDecorationsService protected decorationsService: IDecorationsService,
-		@ILabelService protected labelService: ILabelService
+		@IDecorationsService private decorationsService: IDecorationsService,
+		@ILabelService private labelService: ILabelService,
+		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		super(container, options);
 	}
@@ -248,6 +266,39 @@ class ResourceLabelWidget extends IconLabel {
 		}
 
 		return true;
+	}
+
+	setEditor(editor: IEditorInput, options?: IResourceLabelOptions): void {
+		this.setLabel({
+			resource: toResource(editor, { supportSideBySide: true }),
+			name: editor.getName(),
+			description: editor.getDescription()
+		}, options);
+	}
+
+	setFile(resource: uri, options?: IFileLabelOptions): void {
+		const hideLabel = options && options.hideLabel;
+		let name: string;
+		if (!hideLabel) {
+			if (options && options.fileKind === FileKind.ROOT_FOLDER) {
+				const workspaceFolder = this.contextService.getWorkspaceFolder(resource);
+				if (workspaceFolder) {
+					name = workspaceFolder.name;
+				}
+			}
+
+			if (!name) {
+				name = resources.basenameOrAuthority(resource);
+			}
+		}
+
+		let description: string;
+		const hidePath = (options && options.hidePath) || (resource.scheme === Schemas.untitled && !this.untitledEditorService.hasAssociatedFilePath(resource));
+		if (!hidePath) {
+			description = this.labelService.getUriLabel(resources.dirname(resource), { relative: true });
+		}
+
+		this.setLabel({ resource, name, description }, options);
 	}
 
 	clear(): void {
