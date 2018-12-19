@@ -240,10 +240,6 @@
 	font-style: italic;
 }
 
-/* .search-view .query-clear {
-	background: url("action-query-clear.svg") center center no-repeat;
-} */
-
 .search-view.wide .monaco-list .monaco-list-row .foldermatch .actionBarContainer,
 .search-view.wide .monaco-list .monaco-list-row .filematch .actionBarContainer,
 .search-view .monaco-list .monaco-list-row .linematch .actionBarContainer {
