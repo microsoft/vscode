@@ -106,6 +106,7 @@
 		"./vs/base/test/browser/progressBar.test.ts",
 		"./vs/base/test/browser/ui/contextview/contextview.test.ts",
 		"./vs/base/test/browser/ui/grid/grid.test.ts",
+		"./vs/base/test/browser/ui/grid/gridview.test.ts",
 		"./vs/base/test/browser/ui/grid/util.ts",
 		"./vs/base/test/browser/ui/list/listView.test.ts",
 		"./vs/base/test/browser/ui/list/rangeMap.test.ts",
