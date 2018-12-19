@@ -33,7 +33,7 @@ import { IExpression, getEmptyExpression } from 'vs/base/common/glob';
 import { mixin, deepClone } from 'vs/base/common/objects';
 import { IWorkspaceFolder, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { isAbsolute, join } from 'vs/base/common/paths';
-import { FilterData, FileResourceMarkersRenderer, Filter, VirtualDelegate, ResourceMarkersRenderer, MarkerRenderer, RelatedInformationRenderer, TreeElement, MarkersTreeAccessibilityProvider, MarkersViewState } from 'vs/workbench/parts/markers/electron-browser/markersTreeViewer';
+import { FilterData, Filter, VirtualDelegate, ResourceMarkersRenderer, MarkerRenderer, RelatedInformationRenderer, TreeElement, MarkersTreeAccessibilityProvider, MarkersViewState } from 'vs/workbench/parts/markers/electron-browser/markersTreeViewer';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Separator, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
@@ -42,6 +42,7 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { domEvent } from 'vs/base/browser/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { ResourceLabels } from 'vs/workbench/browser/labels';
 
 function createModelIterator(model: MarkersModel): Iterator<ITreeElement<TreeElement>> {
 	const resourcesIt = Iterator.fromArray(model.resourceMarkers);
@@ -66,6 +67,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	private currentActiveResource: URI | null = null;
 
 	private tree: WorkbenchObjectTree<TreeElement, FilterData>;
+	private treeLabels: ResourceLabels;
 	private rangeHighlightDecorations: RangeHighlightDecorations;
 
 	private actions: IAction[];
@@ -169,6 +171,14 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 			}
 		} else {
 			this.rangeHighlightDecorations.removeHighlightRange();
+		}
+
+		if (this.treeLabels) {
+			if (visible) {
+				this.treeLabels.onVisible();
+			} else {
+				this.treeLabels.onHidden();
+			}
 		}
 	}
 
@@ -287,10 +297,11 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 
 		const onDidChangeRenderNodeCount = new Relay<ITreeNode<any, any>>();
 
+		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels));
+
 		const virtualDelegate = new VirtualDelegate(this.markersViewState);
 		const renderers = [
-			this.instantiationService.createInstance(FileResourceMarkersRenderer, onDidChangeRenderNodeCount.event),
-			this.instantiationService.createInstance(ResourceMarkersRenderer, onDidChangeRenderNodeCount.event),
+			this.instantiationService.createInstance(ResourceMarkersRenderer, this.treeLabels, onDidChangeRenderNodeCount.event),
 			this.instantiationService.createInstance(MarkerRenderer, this.markersViewState, a => this.getActionItem(a)),
 			this.instantiationService.createInstance(RelatedInformationRenderer)
 		];

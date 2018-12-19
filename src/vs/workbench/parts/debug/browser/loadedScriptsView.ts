@@ -23,7 +23,7 @@ import { isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { ltrim } from 'vs/base/common/strings';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { ResourceLabel, IResourceLabel, IResourceLabelOptions } from 'vs/workbench/browser/labels';
+import { ResourceLabels, IResourceLabelProps, IResourceLabelOptions, IResourceLabel } from 'vs/workbench/browser/labels';
 import { FileKind } from 'vs/platform/files/common/files';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
@@ -32,6 +32,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { WorkbenchAsyncDataTree, IListService, TreeResourceNavigator2 } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { DebugContentProvider } from 'vs/workbench/parts/debug/browser/debugContentProvider';
+import { dispose } from 'vs/base/common/lifecycle';
 
 const SMART = true;
 
@@ -363,6 +364,7 @@ export class LoadedScriptsView extends ViewletPanel {
 	private treeContainer: HTMLElement;
 	private loadedScriptsItemType: IContextKey<string>;
 	private tree: WorkbenchAsyncDataTree<LoadedScriptsItem, LoadedScriptsItem>;
+	private treeLabels: ResourceLabels;
 	private changeScheduler: RunOnceScheduler;
 	private treeNeedsRefreshOnVisible: boolean;
 	private filter: LoadedScriptsFilter;
@@ -395,10 +397,11 @@ export class LoadedScriptsView extends ViewletPanel {
 
 		const root = new RootTreeItem(this.debugService.getModel(), this.environmentService, this.contextService);
 
+		this.treeLabels = this.instantiationService.createInstance(ResourceLabels);
+		this.disposables.push(this.treeLabels);
+
 		this.tree = new WorkbenchAsyncDataTree(this.treeContainer, new LoadedScriptsDelegate(),
-			[
-				this.instantiationService.createInstance(LoadedScriptsRenderer)
-			],
+			[new LoadedScriptsRenderer(this.treeLabels)],
 			new LoadedScriptsDataSource(),
 			{
 				identityProvider: {
@@ -507,6 +510,13 @@ export class LoadedScriptsView extends ViewletPanel {
 		if (visible && this.treeNeedsRefreshOnVisible) {
 			this.changeScheduler.schedule();
 		}
+		if (this.treeLabels) {
+			if (visible) {
+				this.treeLabels.onVisible();
+			} else {
+				this.treeLabels.onHidden();
+			}
+		}
 	}
 
 	/*
@@ -518,7 +528,8 @@ export class LoadedScriptsView extends ViewletPanel {
 	*/
 
 	dispose(): void {
-		this.tree = undefined;
+		this.tree = dispose(this.tree);
+		this.treeLabels = dispose(this.treeLabels);
 		super.dispose();
 	}
 }
@@ -549,7 +560,7 @@ class LoadedScriptsDataSource implements IAsyncDataSource<LoadedScriptsItem, Loa
 }
 
 interface ILoadedScriptsItemTemplateData {
-	label: ResourceLabel;
+	label: IResourceLabel;
 }
 
 class LoadedScriptsRenderer implements ITreeRenderer<BaseTreeItem, void, ILoadedScriptsItemTemplateData> {
@@ -557,7 +568,7 @@ class LoadedScriptsRenderer implements ITreeRenderer<BaseTreeItem, void, ILoaded
 	static readonly ID = 'lsrenderer';
 
 	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService
+		private labels: ResourceLabels
 	) {
 	}
 
@@ -567,7 +578,7 @@ class LoadedScriptsRenderer implements ITreeRenderer<BaseTreeItem, void, ILoaded
 
 	renderTemplate(container: HTMLElement): ILoadedScriptsItemTemplateData {
 		let data: ILoadedScriptsItemTemplateData = Object.create(null);
-		data.label = this.instantiationService.createInstance(ResourceLabel, container, void 0);
+		data.label = this.labels.create(container);
 		return data;
 	}
 
@@ -575,7 +586,7 @@ class LoadedScriptsRenderer implements ITreeRenderer<BaseTreeItem, void, ILoaded
 
 		const element = node.element;
 
-		const label: IResourceLabel = {
+		const label: IResourceLabelProps = {
 			name: element.getLabel()
 		};
 		const options: IResourceLabelOptions = {
@@ -602,7 +613,7 @@ class LoadedScriptsRenderer implements ITreeRenderer<BaseTreeItem, void, ILoaded
 			}
 		}
 
-		data.label.setLabel(label, options);
+		data.label.setResource(label, options);
 	}
 
 	disposeTemplate(templateData: ILoadedScriptsItemTemplateData): void {

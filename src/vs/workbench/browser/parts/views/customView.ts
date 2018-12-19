@@ -23,7 +23,7 @@ import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/work
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import * as DOM from 'vs/base/browser/dom';
 import { IDataSource, ITree, IRenderer, ContextMenuEvent } from 'vs/base/parts/tree/browser/tree';
-import { ResourceLabel } from 'vs/workbench/browser/labels';
+import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { ActionBar, IActionItemProvider, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { URI } from 'vs/base/common/uri';
 import { basename } from 'vs/base/common/paths';
@@ -194,6 +194,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	private _messageValue: string | IMarkdownString | undefined;
 	private messageElement: HTMLDivElement;
 	private tree: FileIconThemableWorkbenchTree;
+	private treeLabels: ResourceLabels;
 	private root: ITreeItem;
 	private elementsToRefresh: ITreeItem[] = [];
 	private menus: TitleMenus;
@@ -349,6 +350,14 @@ export class CustomTreeView extends Disposable implements ITreeView {
 			}
 		}
 
+		if (this.treeLabels) {
+			if (this.isVisible) {
+				this.treeLabels.onVisible();
+			} else {
+				this.treeLabels.onHidden();
+			}
+		}
+
 		this._onDidChangeVisibility.fire(this.isVisible);
 	}
 
@@ -382,13 +391,13 @@ export class CustomTreeView extends Disposable implements ITreeView {
 
 	private createTree() {
 		const actionItemProvider = (action: IAction) => action instanceof MenuItemAction ? this.instantiationService.createInstance(ContextAwareMenuItemActionItem, action) : undefined;
-		const menus = this.instantiationService.createInstance(TreeMenus, this.id);
+		const menus = this._register(this.instantiationService.createInstance(TreeMenus, this.id));
+		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels));
 		const dataSource = this.instantiationService.createInstance(TreeDataSource, this, this.container);
-		const renderer = this.instantiationService.createInstance(TreeRenderer, this.id, menus, actionItemProvider);
+		const renderer = this.instantiationService.createInstance(TreeRenderer, this.id, menus, this.treeLabels, actionItemProvider);
 		const controller = this.instantiationService.createInstance(TreeController, this.id, menus);
-		this.tree = this.instantiationService.createInstance(FileIconThemableWorkbenchTree, this.treeContainer, { dataSource, renderer, controller }, {});
+		this.tree = this._register(this.instantiationService.createInstance(FileIconThemableWorkbenchTree, this.treeContainer, { dataSource, renderer, controller }, {}));
 		this.tree.contextKeyService.createKey<boolean>(this.id, true);
-		this._register(this.tree);
 		this._register(this.tree.onDidChangeSelection(e => this.onSelection(e)));
 		this._register(this.tree.onDidExpandItem(e => this._onDidExpandItem.fire(e.item.getElement())));
 		this._register(this.tree.onDidCollapseItem(e => this._onDidCollapseItem.fire(e.item.getElement())));
@@ -593,7 +602,7 @@ class TreeDataSource implements IDataSource {
 }
 
 interface ITreeExplorerTemplateData {
-	resourceLabel: ResourceLabel;
+	resourceLabel: IResourceLabel;
 	icon: HTMLElement;
 	actionBar: ActionBar;
 	aligner: Aligner;
@@ -632,8 +641,8 @@ class TreeRenderer implements IRenderer {
 	constructor(
 		private treeViewId: string,
 		private menus: TreeMenus,
+		private labels: ResourceLabels,
 		private actionItemProvider: IActionItemProvider,
-		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ILabelService private labelService: ILabelService
@@ -652,7 +661,7 @@ class TreeRenderer implements IRenderer {
 		DOM.addClass(container, 'custom-view-tree-node-item');
 
 		const icon = DOM.append(container, DOM.$('.custom-view-tree-node-item-icon'));
-		const resourceLabel = this.instantiationService.createInstance(ResourceLabel, container, { supportHighlights: true, donotSupportOcticons: true });
+		const resourceLabel = this.labels.create(container, { supportHighlights: true, donotSupportOcticons: true });
 		DOM.addClass(resourceLabel.element, 'custom-view-tree-node-item-resourceLabel');
 		const actionsContainer = DOM.append(resourceLabel.element, DOM.$('.actions'));
 		const actionBar = new ActionBar(actionsContainer, {
@@ -674,14 +683,13 @@ class TreeRenderer implements IRenderer {
 		const title = node.tooltip ? node.tooltip : resource ? void 0 : label;
 
 		// reset
-		templateData.resourceLabel.clear();
 		templateData.actionBar.clear();
 
 		if (resource || node.themeIcon) {
 			const fileDecorations = this.configurationService.getValue<{ colors: boolean, badges: boolean }>('explorer.decorations');
-			templateData.resourceLabel.setLabel({ name: label, description, resource: resource ? resource : URI.parse('missing:_icon_resource') }, { fileKind: this.getFileKind(node), title, hideIcon: !!iconUrl, fileDecorations, extraClasses: ['custom-view-tree-node-item-resourceLabel'], matches });
+			templateData.resourceLabel.setResource({ name: label, description, resource: resource ? resource : URI.parse('missing:_icon_resource') }, { fileKind: this.getFileKind(node), title, hideIcon: !!iconUrl, fileDecorations, extraClasses: ['custom-view-tree-node-item-resourceLabel'], matches });
 		} else {
-			templateData.resourceLabel.setLabel({ name: label, description }, { title, hideIcon: true, extraClasses: ['custom-view-tree-node-item-resourceLabel'], matches });
+			templateData.resourceLabel.setResource({ name: label, description }, { title, hideIcon: true, extraClasses: ['custom-view-tree-node-item-resourceLabel'], matches });
 		}
 
 		templateData.icon.style.backgroundImage = iconUrl ? `url('${iconUrl.toString(true)}')` : '';

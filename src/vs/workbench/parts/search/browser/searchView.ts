@@ -62,6 +62,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorG
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPreferencesService, ISettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { ResourceLabels } from 'vs/workbench/browser/labels';
 
 const $ = dom.$;
 
@@ -136,6 +137,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	private contextMenu: IMenu;
 
 	private tree: WorkbenchObjectTree<RenderableMatch>;
+	private treeLabels: ResourceLabels;
 	private viewletState: object;
 	private globalMemento: object;
 	private messagesElement: HTMLElement;
@@ -584,18 +586,19 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			}
 		};
 
-		this.tree = <WorkbenchObjectTree<RenderableMatch, any>>this.instantiationService.createInstance(WorkbenchObjectTree,
+		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels));
+		this.tree = this._register(<WorkbenchObjectTree<RenderableMatch, any>>this.instantiationService.createInstance(WorkbenchObjectTree,
 			this.resultsElement,
 			delegate,
 			[
-				this._register(this.instantiationService.createInstance(FolderMatchRenderer, this.viewModel, this)),
-				this._register(this.instantiationService.createInstance(FileMatchRenderer, this.viewModel, this)),
+				this._register(this.instantiationService.createInstance(FolderMatchRenderer, this.viewModel, this, this.treeLabels)),
+				this._register(this.instantiationService.createInstance(FileMatchRenderer, this.viewModel, this, this.treeLabels)),
 				this._register(this.instantiationService.createInstance(MatchRenderer, this.viewModel, this)),
 			],
 			{
 				identityProvider,
 				accessibilityProvider: this.instantiationService.createInstance(SearchAccessibilityProvider, this.viewModel)
-			});
+			}));
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 
 		const resourceNavigator = this._register(new TreeResourceNavigator2(this.tree, { openOnFocus: true }));
@@ -764,6 +767,14 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			let focus = this.tree.getFocus();
 			if (focus) {
 				this.onFocus(focus, true);
+			}
+		}
+
+		if (this.treeLabels) {
+			if (visible) {
+				this.treeLabels.onVisible();
+			} else {
+				this.treeLabels.onHidden();
 			}
 		}
 	}
