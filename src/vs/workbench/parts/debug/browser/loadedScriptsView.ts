@@ -23,7 +23,7 @@ import { isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { ltrim } from 'vs/base/common/strings';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { ResourceLabel, IResourceLabel, IResourceLabelOptions } from 'vs/workbench/browser/labels';
+import { ResourceLabels, IResourceLabel, IResourceLabelOptions, IResourceLabelHandle } from 'vs/workbench/browser/labels';
 import { FileKind } from 'vs/platform/files/common/files';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
@@ -32,6 +32,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { WorkbenchAsyncDataTree, IListService, TreeResourceNavigator2 } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { DebugContentProvider } from 'vs/workbench/parts/debug/browser/debugContentProvider';
+import { dispose } from 'vs/base/common/lifecycle';
 
 const SMART = true;
 
@@ -366,6 +367,7 @@ export class LoadedScriptsView extends ViewletPanel {
 	private changeScheduler: RunOnceScheduler;
 	private treeNeedsRefreshOnVisible: boolean;
 	private filter: LoadedScriptsFilter;
+	private labels: ResourceLabels;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -395,10 +397,10 @@ export class LoadedScriptsView extends ViewletPanel {
 
 		const root = new RootTreeItem(this.debugService.getModel(), this.environmentService, this.contextService);
 
+		this.labels = this.instantiationService.createInstance(ResourceLabels);
+
 		this.tree = new WorkbenchAsyncDataTree(this.treeContainer, new LoadedScriptsDelegate(),
-			[
-				this.instantiationService.createInstance(LoadedScriptsRenderer)
-			],
+			[new LoadedScriptsRenderer(this.labels)],
 			new LoadedScriptsDataSource(),
 			{
 				identityProvider: {
@@ -518,7 +520,8 @@ export class LoadedScriptsView extends ViewletPanel {
 	*/
 
 	dispose(): void {
-		this.tree = undefined;
+		this.tree = dispose(this.tree);
+		this.labels = dispose(this.labels);
 		super.dispose();
 	}
 }
@@ -549,7 +552,7 @@ class LoadedScriptsDataSource implements IAsyncDataSource<LoadedScriptsItem, Loa
 }
 
 interface ILoadedScriptsItemTemplateData {
-	label: ResourceLabel;
+	label: IResourceLabelHandle;
 }
 
 class LoadedScriptsRenderer implements ITreeRenderer<BaseTreeItem, void, ILoadedScriptsItemTemplateData> {
@@ -557,7 +560,7 @@ class LoadedScriptsRenderer implements ITreeRenderer<BaseTreeItem, void, ILoaded
 	static readonly ID = 'lsrenderer';
 
 	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService
+		private labels: ResourceLabels
 	) {
 	}
 
@@ -567,7 +570,7 @@ class LoadedScriptsRenderer implements ITreeRenderer<BaseTreeItem, void, ILoaded
 
 	renderTemplate(container: HTMLElement): ILoadedScriptsItemTemplateData {
 		let data: ILoadedScriptsItemTemplateData = Object.create(null);
-		data.label = this.instantiationService.createInstance(ResourceLabel, container, void 0);
+		data.label = this.labels.create(container);
 		return data;
 	}
 
