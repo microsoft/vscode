@@ -15,6 +15,7 @@ const util = require('./lib/util');
 const packageJson = require('../package.json');
 const product = require('../product.json');
 const rpmDependencies = require('../resources/linux/rpm/dependencies.json');
+const commit = util.getVersion(root);
 
 const linuxPackageRevision = Math.floor(new Date().getTime() / 1000);
 
@@ -197,7 +198,7 @@ function prepareSnapPackage(arch) {
 
 		const snapcraft = gulp.src('resources/linux/snap/snapcraft.yaml', { base: '.' })
 			.pipe(replace('@@NAME@@', product.applicationName))
-			.pipe(replace('@@VERSION@@', `${packageJson.version}-${linuxPackageRevision}`))
+			.pipe(replace('@@VERSION@@', commit))
 			.pipe(rename('snap/snapcraft.yaml'));
 
 		const snapUpdate = gulp.src('resources/linux/snap/snapUpdate.sh', { base: '.' })
