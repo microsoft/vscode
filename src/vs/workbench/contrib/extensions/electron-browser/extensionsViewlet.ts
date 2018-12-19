@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/extensionsViewlet';
 import { localize } from 'vs/nls';
-import { ThrottledDelayer, always, timeout, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
+import { ThrottledDelayer, timeout, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
