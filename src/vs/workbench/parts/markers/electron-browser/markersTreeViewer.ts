@@ -130,9 +130,8 @@ export class ResourceMarkersRenderer implements ITreeRenderer<ResourceMarkers, R
 	private disposables: IDisposable[] = [];
 
 	constructor(
-		protected labels: ResourceLabels,
+		private labels: ResourceLabels,
 		onDidChangeRenderNodeCount: Event<ITreeNode<ResourceMarkers, ResourceMarkersFilterData>>,
-		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService,
 		@ILabelService private labelService: ILabelService
 	) {
