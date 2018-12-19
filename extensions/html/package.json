@@ -80,6 +80,13 @@
         "language": "html",
         "path": "./snippets/html.snippets.json"
       }
-    ]
+    ],
+    "configurationDefaults": {
+			"[html]": {
+				"editor.insertSpaces": true,
+				"editor.tabSize": 2,
+				"editor.autoIndent": false
+			}
+		}
   }
 }
