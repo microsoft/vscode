@@ -23,11 +23,13 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { textLinkForeground, textLinkActiveForeground, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { ResourceLabels } from 'vs/workbench/browser/labels';
 
 export const COMMENTS_PANEL_ID = 'workbench.panel.comments';
 export const COMMENTS_PANEL_TITLE = 'Comments';
 
 export class CommentsPanel extends Panel {
+	private labels: ResourceLabels;
 	private tree: WorkbenchTree;
 	private treeContainer: HTMLElement;
 	private messageBoxContainer: HTMLElement;
@@ -129,9 +131,11 @@ export class CommentsPanel extends Panel {
 	}
 
 	private createTree(): void {
-		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
+		this.labels = this._register(this.instantiationService.createInstance(ResourceLabels));
+
+		this.tree = this._register(this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
 			dataSource: new CommentsDataSource(),
-			renderer: new CommentsModelRenderer(this.instantiationService, this.openerService),
+			renderer: new CommentsModelRenderer(this.labels, this.openerService),
 			accessibilityProvider: new DefaultAccessibilityProvider,
 			controller: new DefaultController(),
 			dnd: new DefaultDragAndDrop(),
@@ -139,7 +143,7 @@ export class CommentsPanel extends Panel {
 		}, {
 				twistiePixels: 20,
 				ariaLabel: COMMENTS_PANEL_TITLE
-			});
+			}));
 
 		const commentsNavigator = this._register(new TreeResourceNavigator(this.tree, { openOnFocus: true }));
 		this._register(Event.debounce(commentsNavigator.openResource, (last, event) => event, 100, true)(options => {
