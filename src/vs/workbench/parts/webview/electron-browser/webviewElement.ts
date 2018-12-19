@@ -40,7 +40,7 @@ interface IKeydownEvent {
 	repeat: boolean;
 }
 
-class WebviewProtocolRegister extends Disposable {
+class WebviewProtocolProvider extends Disposable {
 	constructor(
 		webview: Electron.WebviewTag,
 		private readonly _extensionLocation: URI,
@@ -78,6 +78,69 @@ class WebviewProtocolRegister extends Disposable {
 		registerFileProtocol(contents, WebviewProtocol.VsCodeResource, this._fileService, this._extensionLocation, () =>
 			this._getLocalResourceRoots()
 		);
+	}
+}
+
+class SvgBlocker extends Disposable {
+
+	private readonly _onDidBlockSvg = this._register(new Emitter<void>());
+	public readonly onDidBlockSvg = this._onDidBlockSvg.event;
+
+	constructor(
+		webview: Electron.WebviewTag,
+		private readonly _options: WebviewOptions,
+	) {
+		super();
+
+		if (this._options.allowSvgs) {
+			return;
+		}
+
+		let loaded = false;
+		this._register(addDisposableListener(webview, 'did-start-loading', () => {
+			if (loaded) {
+				return;
+			}
+			loaded = true;
+
+			const contents = webview.getWebContents();
+			if (!contents) {
+				return;
+			}
+
+			contents.session.webRequest.onBeforeRequest((details, callback) => {
+				if (details.url.indexOf('.svg') > 0) {
+					const uri = URI.parse(details.url);
+					if (uri && !uri.scheme.match(/file/i) && endsWith(uri.path, '.svg') && !this.isAllowedSvg(uri)) {
+						this._onDidBlockSvg.fire();
+						return callback({ cancel: true });
+					}
+				}
+				return callback({});
+			});
+
+			contents.session.webRequest.onHeadersReceived((details, callback) => {
+				const contentType: string[] = details.responseHeaders['content-type'] || details.responseHeaders['Content-Type'];
+				if (contentType && Array.isArray(contentType) && contentType.some(x => x.toLowerCase().indexOf('image/svg') >= 0)) {
+					const uri = URI.parse(details.url);
+					if (uri && !this.isAllowedSvg(uri)) {
+						this._onDidBlockSvg.fire();
+						return callback({ cancel: true });
+					}
+				}
+				return callback({ cancel: false, responseHeaders: details.responseHeaders });
+			});
+		}));
+	}
+
+	private isAllowedSvg(uri: URI): boolean {
+		if (this._options.allowSvgs) {
+			return true;
+		}
+		if (this._options.svgWhiteList) {
+			return this._options.svgWhiteList.indexOf(uri.authority.toLowerCase()) >= 0;
+		}
+		return false;
 	}
 }
 
@@ -129,50 +192,14 @@ export class WebviewElement extends Disposable {
 		});
 
 		this._register(
-			new WebviewProtocolRegister(
+			new WebviewProtocolProvider(
 				this._webview,
 				this._options.extensionLocation,
 				() => (this._options.localResourceRoots || []),
 				environmentService,
 				fileService));
 
-		if (!this._options.allowSvgs) {
-			let loaded = false;
-			this._register(addDisposableListener(this._webview, 'did-start-loading', () => {
-				if (loaded) {
-					return;
-				}
-				loaded = true;
-
-				const contents = this._webview.getWebContents();
-				if (!contents) {
-					return;
-				}
-
-				contents.session.webRequest.onBeforeRequest((details, callback) => {
-					if (details.url.indexOf('.svg') > 0) {
-						const uri = URI.parse(details.url);
-						if (uri && !uri.scheme.match(/file/i) && endsWith(uri.path, '.svg') && !this.isAllowedSvg(uri)) {
-							this.onDidBlockSvg();
-							return callback({ cancel: true });
-						}
-					}
-					return callback({});
-				});
-
-				contents.session.webRequest.onHeadersReceived((details, callback) => {
-					const contentType: string[] = details.responseHeaders['content-type'] || details.responseHeaders['Content-Type'];
-					if (contentType && Array.isArray(contentType) && contentType.some(x => x.toLowerCase().indexOf('image/svg') >= 0)) {
-						const uri = URI.parse(details.url);
-						if (uri && !this.isAllowedSvg(uri)) {
-							this.onDidBlockSvg();
-							return callback({ cancel: true });
-						}
-					}
-					return callback({ cancel: false, responseHeaders: details.responseHeaders });
-				});
-			}));
-		}
+		this._register(new SvgBlocker(this._webview, this._options));
 
 		this._register(addDisposableListener(this._webview, 'console-message', function (e: { level: number; message: string; line: number; sourceId: string; }) {
 			console.log(`[Embedded Page] ${e.message}`);
@@ -421,16 +448,6 @@ export class WebviewElement extends Disposable {
 
 			contents.setZoomFactor(factor);
 		});
-	}
-
-	private isAllowedSvg(uri: URI): boolean {
-		if (this._options.allowSvgs) {
-			return true;
-		}
-		if (this._options.svgWhiteList) {
-			return this._options.svgWhiteList.indexOf(uri.authority.toLowerCase()) >= 0;
-		}
-		return false;
 	}
 
 	public startFind(value: string, options?: Electron.FindInPageOptions) {
