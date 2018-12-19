@@ -497,37 +497,6 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		}
 	}
 
-	// private select(position: number): void {
-	// 	const signature = this.signatureViews[position];
-
-	// 	if (!signature) {
-	// 		return;
-	// 	}
-
-	// 	this.signatures.style.height = `${ signature.height }px`;
-	// 	this.signatures.scrollTop = signature.top;
-
-	// 	let overloads = '' + (position + 1);
-
-	// 	if (this.signatureViews.length < 10) {
-	// 		overloads += '/' + this.signatureViews.length;
-	// 	}
-
-	// 	this.overloads.textContent = overloads;
-
-	// 	if (this.hints && this.hints.signatures[position].parameters[this.hints.activeParameter]) {
-	// 		const labelToAnnounce = this.hints.signatures[position].parameters[this.hints.activeParameter].label;
-	// 		// Select method gets called on every user type while parameter hints are visible.
-	// 		// We do not want to spam the user with same announcements, so we only announce if the current parameter changed.
-	// 		if (this.announcedLabel !== labelToAnnounce) {
-	// 			aria.alert(nls.localize('hint', "{0}, hint", labelToAnnounce));
-	// 			this.announcedLabel = labelToAnnounce;
-	// 		}
-	// 	}
-
-	// 	this.editor.layoutContentWidget(this);
-	// }
-
 	next(): boolean {
 		if (!this.hints) {
 			return false;
