@@ -39,6 +39,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 // Commands
 
@@ -472,7 +473,7 @@ CommandsRegistry.registerCommand({
 				const explorerView = viewlet.getExplorerView();
 				if (explorerView) {
 					explorerView.setExpanded(true);
-					explorerService.select(uri, true);
+					explorerService.select(uri, true).then(undefined, onUnexpectedError);
 				}
 			} else {
 				const openEditorsView = viewlet.getOpenEditorsView();

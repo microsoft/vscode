@@ -7,13 +7,11 @@ import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import * as perf from 'vs/base/common/performance';
 import { ThrottledDelayer, sequence, ignoreErrors } from 'vs/base/common/async';
-import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
 import { Action, IAction } from 'vs/base/common/actions';
 import { memoize } from 'vs/base/common/decorators';
 import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, IExplorerService } from 'vs/workbench/parts/files/common/files';
-import { IFileService } from 'vs/platform/files/common/files';
-import { RefreshViewExplorerAction, NewFolderAction, NewFileAction, FileCopiedContext } from 'vs/workbench/parts/files/electron-browser/fileActions';
+import { NewFolderAction, NewFileAction, FileCopiedContext, RefreshExplorerView } from 'vs/workbench/parts/files/electron-browser/fileActions';
 import { toResource } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import * as DOM from 'vs/base/browser/dom';
@@ -45,14 +43,14 @@ import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemAc
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ExplorerItem, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerModel';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 export class ExplorerView extends ViewletPanel {
 	static readonly ID: string = 'workbench.explorer.fileView';
 	private static readonly EXPLORER_FILE_CHANGES_REFRESH_DELAY = 100; // delay in ms to refresh the explorer from disk file changes
 
-	private tree: WorkbenchAsyncDataTree<null, ExplorerItem>;
+	private tree: WorkbenchAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem>;
 	private filter: FilesFilter;
-	private isCreated: boolean;
 
 	private explorerRefreshDelayer: ThrottledDelayer<void>;
 
@@ -61,7 +59,8 @@ export class ExplorerView extends ViewletPanel {
 	private readonlyContext: IContextKey<boolean>;
 	private rootContext: IContextKey<boolean>;
 
-	private shouldRefresh: boolean;
+	// Refresh is needed on the initial explorer open
+	private shouldRefresh = true;
 	private dragHandler: DelayedDragHandler;
 	private decorationProvider: ExplorerDecorationsProvider;
 	private autoReveal = false;
@@ -74,7 +73,6 @@ export class ExplorerView extends ViewletPanel {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IProgressService private progressService: IProgressService,
 		@IEditorService private editorService: IEditorService,
-		@IFileService private fileService: IFileService,
 		@IPartService private partService: IPartService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
@@ -159,17 +157,11 @@ export class ExplorerView extends ViewletPanel {
 		const configuration = this.configurationService.getValue<IFilesConfiguration>();
 		this.onConfigurationUpdated(configuration);
 
-		// Load and Fill Viewer
-		this.doRefresh().then(() => {
+		// When the explorer viewer is loaded, listen to changes to the editor input
+		this.disposables.push(this.editorService.onDidActiveEditorChange(() => this.revealActiveFile()));
 
-			// When the explorer viewer is loaded, listen to changes to the editor input
-			this.disposables.push(this.editorService.onDidActiveEditorChange(() => this.revealActiveFile()));
-
-			// Also handle configuration updates
-			this.disposables.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IFilesConfiguration>(), e)));
-
-			this.revealActiveFile();
-		});
+		// Also handle configuration updates
+		this.disposables.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IFilesConfiguration>(), e)));
 	}
 
 	renderBody(container: HTMLElement): void {
@@ -180,16 +172,16 @@ export class ExplorerView extends ViewletPanel {
 			this.toolbar.setActions(this.getActions(), this.getSecondaryActions())();
 		}
 
-		this.disposables.push(this.contextService.onDidChangeWorkspaceFolders(e => this.refreshFromEvent(e.added)));
-		this.disposables.push(this.contextService.onDidChangeWorkbenchState(() => this.refreshFromEvent()));
-		this.disposables.push(this.fileService.onDidChangeFileSystemProviderRegistrations(() => this.refreshFromEvent()));
+		this.disposables.push(this.contextService.onDidChangeWorkspaceFolders(e => this.setTreeInput(e.added)));
+		this.disposables.push(this.contextService.onDidChangeWorkbenchState(() => this.setTreeInput()));
 		this.disposables.push(this.labelService.onDidRegisterFormatter(() => {
 			this._onDidChangeTitleArea.fire();
 			this.refreshFromEvent();
 		}));
 
+		this.disposables.push(this.explorerService.onDidChangeItem(e => this.refreshFromEvent(e)));
+		this.disposables.push(this.explorerService.onDidChangeEditable(e => this.refresh(e.parent)));
 		this.disposables.push(this.explorerService.onDidSelectItem(e => this.onSelectItem(e.item, e.reveal)));
-		// TODO@Isidor plug in other explorer service events
 	}
 
 	getActions(): IAction[] {
@@ -197,7 +189,7 @@ export class ExplorerView extends ViewletPanel {
 
 		actions.push(this.instantiationService.createInstance(NewFileAction, null));
 		actions.push(this.instantiationService.createInstance(NewFolderAction, null));
-		actions.push(this.instantiationService.createInstance(RefreshViewExplorerAction, this, 'explorer-action refresh-explorer'));
+		actions.push(this.instantiationService.createInstance(RefreshExplorerView, RefreshExplorerView.ID, RefreshExplorerView.LABEL));
 		actions.push(this.instantiationService.createInstance(CollapseAction2, this.tree, true, 'explorer-action collapse-explorer'));
 
 		return actions;
@@ -219,7 +211,7 @@ export class ExplorerView extends ViewletPanel {
 			if (this.isVisible() && !this.isDisposed && this.contextService.isInsideWorkspace(activeFile)) {
 				const selection = this.hasSingleSelection(activeFile);
 				if (!selection) {
-					this.explorerService.select(activeFile);
+					this.explorerService.select(activeFile).then(undefined, onUnexpectedError);
 				}
 
 				clearSelection = false;
@@ -270,50 +262,12 @@ export class ExplorerView extends ViewletPanel {
 
 	setVisible(visible: boolean): void {
 		super.setVisible(visible);
-
-		// Show
 		if (visible) {
-			DOM.show(this.tree.getHTMLElement());
 			// If a refresh was requested and we are now visible, run it
-			let refreshPromise = Promise.resolve(null);
 			if (this.shouldRefresh) {
-				refreshPromise = this.doRefresh();
-				this.shouldRefresh = false; // Reset flag
+				this.shouldRefresh = false;
+				this.setTreeInput().then(undefined, onUnexpectedError);
 			}
-
-			if (!this.autoReveal) {
-				return; // do not react to setVisible call if autoReveal === false
-			}
-
-			// Always select the current navigated file in explorer if input is file editor input
-			// unless autoReveal is set to false
-			const activeFile = this.getActiveFile();
-			if (activeFile) {
-				refreshPromise.then(() => {
-					this.explorerService.select(activeFile);
-				});
-				return;
-			}
-
-			// Return now if the workbench has not yet been restored - in this case the workbench takes care of restoring last used editors
-			if (!this.partService.isRestored()) {
-				return;
-			}
-
-			// Otherwise restore last used file: By lastActiveFileResource
-			const focusedElements = this.tree.getFocus();
-			if (focusedElements && focusedElements.length) {
-				this.editorService.openEditor({ resource: focusedElements[0].resource, options: { revealIfVisible: true } });
-				return;
-			}
-
-			// Otherwise restore last used file: By Explorer selection
-			refreshPromise.then(() => {
-				this.openFocusedElement();
-			});
-		} else {
-			// make sure the tree goes out of the tabindex world by hiding it
-			DOM.hide(this.tree.getHTMLElement());
 		}
 	}
 
@@ -360,7 +314,6 @@ export class ExplorerView extends ViewletPanel {
 		// Bind context keys
 		FilesExplorerFocusedContext.bindTo(this.tree.contextKeyService);
 		ExplorerFocusedContext.bindTo(this.tree.contextKeyService);
-
 
 		// Update resource context based on focused element
 		this.disposables.push(this.tree.onDidChangeFocus(e => {
@@ -433,20 +386,14 @@ export class ExplorerView extends ViewletPanel {
 
 		// Refresh viewer as needed if this originates from a config event
 		if (event && needsRefresh) {
-			this.doRefresh();
+			this.refresh();
 		}
 	}
 
-	private refreshFromEvent(newRoots: IWorkspaceFolder[] = []): void {
+	private refreshFromEvent(explorerItem?: ExplorerItem): void {
 		if (this.isVisible() && !this.isDisposed) {
 			this.explorerRefreshDelayer.trigger(() => {
-				return this.doRefresh().then(() => {
-					if (newRoots.length === 1) {
-						return this.tree.reveal(this.explorerService.findClosest(newRoots[0].uri), 0.5);
-					}
-
-					return undefined;
-				});
+				return this.refresh(explorerItem);
 			});
 		} else {
 			this.shouldRefresh = true;
@@ -486,116 +433,48 @@ export class ExplorerView extends ViewletPanel {
 	/**
 	 * Refresh the contents of the explorer to get up to date data from the disk about the file structure.
 	 */
-	refresh(): Promise<void> {
+	refresh(item?: ExplorerItem): Promise<void> {
 		if (!this.tree) {
 			return Promise.resolve(void 0);
 		}
+		const toRefresh = item || this.tree.getInput();
 
-		// Focus
-		this.tree.domFocus();
+		return this.tree.refresh(toRefresh, true);
+	}
 
-		// Find resource to focus from active editor input if set
-		let resourceToFocus: URI;
-		if (this.autoReveal) {
-			resourceToFocus = this.getActiveFile();
-			if (!resourceToFocus) {
-				const selection = this.tree.getSelection();
-				if (selection && selection.length === 1) {
-					resourceToFocus = selection[0].resource;
-				}
-			}
-		}
-
-		return this.doRefresh().then(() => {
-			if (resourceToFocus) {
-				return this.explorerService.select(resourceToFocus, true);
-			}
-
+	private setTreeInput(newRoots?: IWorkspaceFolder[]): Promise<void> {
+		if (!this.isVisible()) {
+			this.shouldRefresh = true;
 			return Promise.resolve(void 0);
-		});
-	}
+		}
 
-	private doRefresh(): Promise<any> {
-		const targetsToResolve = this.explorerService.roots.map(root => ({ root, resource: root.resource, options: { resolveTo: [] } }));
+		perf.mark('willResolveExplorer');
+		const roots = this.explorerService.roots;
+		let input: ExplorerItem | ExplorerItem[] = roots[0];
+		if (this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER || roots[0].isError) {
+			// Display roots only when multi folder workspace
+			input = roots;
+		}
 
-		// First time refresh: Receive target through active editor input or selection and also include settings from previous session
-		if (!this.isCreated) {
-			const activeFile = this.getActiveFile();
-			if (activeFile) {
-				const workspaceFolder = this.contextService.getWorkspaceFolder(activeFile);
-				if (workspaceFolder) {
-					const found = targetsToResolve.filter(t => t.root.resource.toString() === workspaceFolder.uri.toString()).pop();
-					found.options.resolveTo.push(activeFile);
+		const promise = this.tree.setInput(input).then(() => {
+			let expandPromise = Promise.resolve(void 0);
+			if (newRoots && newRoots.length) {
+				expandPromise = Promise.all(newRoots.map(workspaceFolder => this.tree.expand(this.explorerService.findClosest(workspaceFolder.uri))));
+			}
+
+			// Find resource to focus from active editor input if set
+			if (this.autoReveal) {
+				const resourceToFocus = this.getActiveFile();
+				if (resourceToFocus) {
+					return expandPromise.then(() => this.explorerService.select(resourceToFocus, true));
 				}
 			}
-		}
 
-		// Subsequent refresh: Receive targets through expanded folders in tree
-		else {
-			targetsToResolve.forEach(t => {
-				this.getResolvedDirectories(t.root, t.options.resolveTo);
-			});
-		}
+			return expandPromise;
+		}).then(() => perf.mark('didResolveExplorer'));
 
-		const promise = this.resolveRoots(targetsToResolve).then(result => {
-			this.isCreated = true;
-			this.decorationProvider.changed(targetsToResolve.map(t => t.root.resource));
-			return result;
-		});
 		this.progressService.showWhile(promise, this.partService.isRestored() ? 800 : 1200 /* less ugly initial startup */);
-
 		return promise;
-	}
-
-	private resolveRoots(targetsToResolve: { root: ExplorerItem, resource: URI, options: { resolveTo: any[] } }[]): Promise<any> {
-
-		if (!this.isCreated) {
-			perf.mark('willResolveExplorer');
-		}
-
-		const errorRoot = (resource: URI, root: ExplorerItem) => {
-			return ExplorerItem.create({
-				resource: resource,
-				name: paths.basename(resource.fsPath),
-				mtime: 0,
-				etag: undefined,
-				isDirectory: true
-			}, root, undefined, true);
-		};
-
-		if (targetsToResolve.every(t => t.root.resource.scheme === 'file')) {
-			// All the roots are local, resolve them in parallel
-			return this.fileService.resolveFiles(targetsToResolve).then(results => {
-				// Convert to model
-				const modelStats = results.map((result, index) => {
-					if (result.success && result.stat.isDirectory) {
-						return ExplorerItem.create(result.stat, targetsToResolve[index].root, targetsToResolve[index].options.resolveTo);
-					}
-
-					return errorRoot(targetsToResolve[index].resource, targetsToResolve[index].root);
-				});
-				// Subsequent refresh: Merge stat into our local model and refresh tree
-				modelStats.forEach((modelStat, index) => {
-					if (index < this.explorerService.roots.length) {
-						ExplorerItem.mergeLocalWithDisk(modelStat, this.explorerService.roots[index]);
-					}
-				});
-
-				return this.tree.setInput(null);
-			});
-		}
-
-		// There is a remote root, resolve the roots sequantally
-		return Promise.all(targetsToResolve.map((target, index) => this.fileService.resolveFile(target.resource, target.options)
-			.then(result => result.isDirectory ? ExplorerItem.create(result, target.root, target.options.resolveTo) : errorRoot(target.resource, target.root), () => errorRoot(target.resource, target.root))
-			.then(modelStat => {
-				// Subsequent refresh: Merge stat into our local model and refresh tree
-				if (index < this.explorerService.roots.length) {
-					ExplorerItem.mergeLocalWithDisk(modelStat, this.explorerService.roots[index]);
-				}
-
-				return this.tree.setInput(null);
-			})));
 	}
 
 	/**

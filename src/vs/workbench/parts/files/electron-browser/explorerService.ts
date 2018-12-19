@@ -30,7 +30,7 @@ export class ExplorerService implements IExplorerService {
 
 	private static readonly EXPLORER_FILE_CHANGES_REACT_DELAY = 500; // delay in ms to react to file changes to give our internal events a chance to react first
 
-	private _onDidChangeItem = new Emitter<ExplorerItem>();
+	private _onDidChangeItem = new Emitter<ExplorerItem | undefined>();
 	private _onDidChangeEditable = new Emitter<ExplorerItem>();
 	private _onDidSelectItem = new Emitter<{ item: ExplorerItem, reveal: boolean }>();
 	private disposables: IDisposable[] = [];
@@ -49,7 +49,7 @@ export class ExplorerService implements IExplorerService {
 		return this.model.roots;
 	}
 
-	get onDidChangeItem(): Event<ExplorerItem> {
+	get onDidChangeItem(): Event<ExplorerItem | undefined> {
 		return this._onDidChangeItem.event;
 	}
 
@@ -79,6 +79,7 @@ export class ExplorerService implements IExplorerService {
 		this.disposables.push(this.fileService.onAfterOperation(e => this.onFileOperation(e)));
 		this.disposables.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
 		this.disposables.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IFilesConfiguration>())));
+		this.disposables.push(this.fileService.onDidChangeFileSystemProviderRegistrations(() => this._onDidChangeItem.fire()));
 
 		return model;
 	}
@@ -96,18 +97,18 @@ export class ExplorerService implements IExplorerService {
 		return this.editableStats.get(stat);
 	}
 
-	select(resource: URI, reveal?: boolean): void {
+	select(resource: URI, reveal?: boolean): Promise<void> {
 		const fileStat = this.findClosest(resource);
 		if (fileStat) {
 			this._onDidSelectItem.fire({ item: fileStat, reveal });
-			return;
+			return Promise.resolve(void 0);
 		}
 
 		// Stat needs to be resolved first and then revealed
 		const options: IResolveFileOptions = { resolveTo: [resource] };
 		const workspaceFolder = this.contextService.getWorkspaceFolder(resource);
 		const rootUri = workspaceFolder ? workspaceFolder.uri : this.roots[0].resource;
-		this.fileService.resolveFile(rootUri, options).then(stat => {
+		return this.fileService.resolveFile(rootUri, options).then(stat => {
 
 			// Convert to model
 			const root = this.roots.filter(r => r.resource.toString() === rootUri.toString()).pop();
@@ -120,7 +121,6 @@ export class ExplorerService implements IExplorerService {
 		}, e => { this.notificationService.error(e); });
 	}
 
-
 	private onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): void {
 		const configSortOrder = configuration && configuration.explorer && configuration.explorer.sortOrder || 'default';
 		if (this.sortOrder !== configSortOrder) {
@@ -130,6 +130,7 @@ export class ExplorerService implements IExplorerService {
 	}
 
 	// File events
+
 	private onFileOperation(e: FileOperationEvent): void {
 		// Add
 		if (e.operation === FileOperation.CREATE || e.operation === FileOperation.COPY) {

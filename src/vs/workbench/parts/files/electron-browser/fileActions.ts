@@ -20,7 +20,6 @@ import { VIEWLET_ID, IExplorerService } from 'vs/workbench/parts/files/common/fi
 import { ITextFileService, ITextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService, IFileStat, AutoSaveConfiguration } from 'vs/platform/files/common/files';
 import { toResource, IUntitledResourceInput } from 'vs/workbench/common/editor';
-import { ExplorerView } from 'vs/workbench/parts/files/electron-browser/views/explorerView';
 import { ExplorerViewlet } from 'vs/workbench/parts/files/electron-browser/explorerViewlet';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
@@ -985,14 +984,6 @@ export class GlobalCompareResourcesAction extends Action {
 	}
 }
 
-// Refresh Explorer Viewer
-export class RefreshViewExplorerAction extends Action {
-
-	constructor(explorerView: ExplorerView, clazz: string) {
-		super('workbench.files.action.refreshFilesExplorer', nls.localize('refresh', "Refresh"), clazz, true, (context: any) => explorerView.refresh());
-	}
-}
-
 export class ToggleAutoSaveAction extends Action {
 	public static readonly ID = 'workbench.action.toggleAutoSave';
 	public static readonly LABEL = nls.localize('toggleAutoSave', "Toggle Auto Save");
@@ -1215,7 +1206,7 @@ export class RefreshExplorerView extends Action {
 		label: string,
 		@IViewletService private viewletService: IViewletService
 	) {
-		super(id, label);
+		super(id, label, 'explorer-action refresh-explorer');
 	}
 
 	public run(): Promise<any> {

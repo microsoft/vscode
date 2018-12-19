@@ -41,7 +41,7 @@ export interface IEditableData {
 export interface IExplorerService {
 	_serviceBrand: any;
 	readonly roots: ExplorerItem[];
-	readonly onDidChangeItem: Event<ExplorerItem>;
+	readonly onDidChangeItem: Event<ExplorerItem | undefined>;
 	readonly onDidChangeEditable: Event<ExplorerItem>;
 	readonly onDidSelectItem: Event<{ item: ExplorerItem, reveal: boolean }>;
 
@@ -53,7 +53,7 @@ export interface IExplorerService {
 	 * Selects and reveal the file element provided by the given resource if its found in the explorer. Will try to
 	 * resolve the path from the disk in case the explorer is not yet expanded to the file yet.
 	 */
-	select(resource: URI, reveal?: boolean): void;
+	select(resource: URI, reveal?: boolean): Promise<void>;
 }
 export const IExplorerService = createDecorator<IExplorerService>('explorerService');
 

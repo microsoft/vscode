@@ -47,29 +47,22 @@ export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 	}
 }
 
-export class ExplorerDataSource implements IAsyncDataSource<null, ExplorerItem> {
+export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | ExplorerItem[], ExplorerItem> {
 
 	constructor(
-		@IExplorerService private explorerService: IExplorerService,
 		@IProgressService private progressService: IProgressService,
 		@INotificationService private notificationService: INotificationService,
 		@IFileService private fileService: IFileService,
 		@IPartService private partService: IPartService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) { }
 
-	hasChildren(element: ExplorerItem | null): boolean {
-		return element === null || element.isDirectory;
+	hasChildren(element: ExplorerItem | ExplorerItem[]): boolean {
+		return Array.isArray(element) || element.isDirectory;
 	}
 
-	getChildren(element: ExplorerItem | null): Promise<ExplorerItem[]> {
-		if (element === null) {
-			const roots = this.explorerService.roots;
-			if (this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER || roots[0].isError) {
-				// Display roots only when multi folder workspace
-				return Promise.resolve(roots);
-			}
-			element = roots[0];
+	getChildren(element: ExplorerItem | ExplorerItem[]): Promise<ExplorerItem[]> {
+		if (Array.isArray(element)) {
+			return Promise.resolve(element);
 		}
 
 		// Return early if stat is already resolved
