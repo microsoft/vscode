@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import * as perf from 'vs/base/common/performance';
-import { ThrottledDelayer, sequence, ignoreErrors } from 'vs/base/common/async';
+import { sequence, ignoreErrors } from 'vs/base/common/async';
 import { Action, IAction } from 'vs/base/common/actions';
 import { memoize } from 'vs/base/common/decorators';
 import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, IExplorerService } from 'vs/workbench/parts/files/common/files';
@@ -44,12 +44,9 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 
 export class ExplorerView extends ViewletPanel {
 	static readonly ID: string = 'workbench.explorer.fileView';
-	private static readonly EXPLORER_FILE_CHANGES_REFRESH_DELAY = 100; // delay in ms to refresh the explorer from disk file changes
 
 	private tree: WorkbenchAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem>;
 	private filter: FilesFilter;
-
-	private explorerRefreshDelayer: ThrottledDelayer<void>;
 
 	private resourceContext: ResourceContextKey;
 	private folderContext: IContextKey<boolean>;
@@ -83,8 +80,6 @@ export class ExplorerView extends ViewletPanel {
 		@IExplorerService private explorerService: IExplorerService
 	) {
 		super({ ...(options as IViewletPanelOptions), id: ExplorerView.ID, ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService);
-
-		this.explorerRefreshDelayer = new ThrottledDelayer<void>(ExplorerView.EXPLORER_FILE_CHANGES_REFRESH_DELAY);
 
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
 		this.disposables.push(this.resourceContext);
@@ -158,10 +153,10 @@ export class ExplorerView extends ViewletPanel {
 		this.disposables.push(this.contextService.onDidChangeWorkbenchState(() => this.setTreeInput()));
 		this.disposables.push(this.labelService.onDidRegisterFormatter(() => {
 			this._onDidChangeTitleArea.fire();
-			this.refreshFromEvent();
+			this.refresh();
 		}));
 
-		this.disposables.push(this.explorerService.onDidChangeItem(e => this.refreshFromEvent(e)));
+		this.disposables.push(this.explorerService.onDidChangeItem(e => this.refresh(e)));
 		this.disposables.push(this.explorerService.onDidChangeEditable(e => this.refresh(e.parent)));
 		this.disposables.push(this.explorerService.onDidSelectItem(e => this.onSelectItem(e.item, e.reveal)));
 
@@ -303,16 +298,6 @@ export class ExplorerView extends ViewletPanel {
 		}
 	}
 
-	private refreshFromEvent(explorerItem?: ExplorerItem): void {
-		if (this.isVisible()) {
-			this.explorerRefreshDelayer.trigger(() => {
-				return this.refresh(explorerItem);
-			});
-		} else {
-			this.shouldRefresh = true;
-		}
-	}
-
 	private onContextMenu(e: ITreeContextMenuEvent<ExplorerItem>): void {
 		const stat = e.element;
 		if (stat instanceof NewStatPlaceholder) {
@@ -347,7 +332,8 @@ export class ExplorerView extends ViewletPanel {
 	 * Refresh the contents of the explorer to get up to date data from the disk about the file structure.
 	 */
 	refresh(item?: ExplorerItem): Promise<void> {
-		if (!this.tree) {
+		if (!this.tree || !this.isVisible()) {
+			this.shouldRefresh = true;
 			return Promise.resolve(void 0);
 		}
 		const toRefresh = item || this.tree.getInput();
