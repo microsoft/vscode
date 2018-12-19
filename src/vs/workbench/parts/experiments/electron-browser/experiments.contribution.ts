@@ -10,6 +10,6 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } fr
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { ExperimentalPrompts } from 'vs/workbench/parts/experiments/electron-browser/experimentalPrompt';
 
-registerSingleton(IExperimentService, ExperimentService);
+registerSingleton(IExperimentService, ExperimentService, true);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ExperimentalPrompts, LifecyclePhase.Eventually);

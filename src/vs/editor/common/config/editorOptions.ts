@@ -459,6 +459,11 @@ export interface IEditorOptions {
 	 */
 	mouseWheelScrollSensitivity?: number;
 	/**
+	 * FastScrolling mulitplier speed when pressing `Alt`
+	 * Defaults to 5.
+	 */
+	fastScrollSensitivity?: number;
+	/**
 	 * The modifier to be used to add multiple cursors with the mouse.
 	 * Defaults to 'alt'
 	 */
@@ -875,6 +880,7 @@ export interface InternalEditorScrollbarOptions {
 	readonly verticalScrollbarSize: number;
 	readonly verticalSliderSize: number;
 	readonly mouseWheelScrollSensitivity: number;
+	readonly fastScrollSensitivity: number;
 }
 
 export interface InternalEditorMinimapOptions {
@@ -1292,6 +1298,7 @@ export class InternalEditorOptions {
 			&& a.verticalScrollbarSize === b.verticalScrollbarSize
 			&& a.verticalSliderSize === b.verticalSliderSize
 			&& a.mouseWheelScrollSensitivity === b.mouseWheelScrollSensitivity
+			&& a.fastScrollSensitivity === b.fastScrollSensitivity
 		);
 	}
 
@@ -1795,7 +1802,7 @@ export class EditorOptionsValidator {
 		};
 	}
 
-	private static _sanitizeScrollbarOpts(opts: IEditorScrollbarOptions | undefined, defaults: InternalEditorScrollbarOptions, mouseWheelScrollSensitivity: number): InternalEditorScrollbarOptions {
+	private static _sanitizeScrollbarOpts(opts: IEditorScrollbarOptions | undefined, defaults: InternalEditorScrollbarOptions, mouseWheelScrollSensitivity: number, fastScrollSensitivity: number): InternalEditorScrollbarOptions {
 		if (typeof opts !== 'object') {
 			return defaults;
 		}
@@ -1818,7 +1825,8 @@ export class EditorOptionsValidator {
 			verticalSliderSize: _clampedInt(opts.verticalSliderSize, verticalScrollbarSize, 0, 1000),
 
 			handleMouseWheel: _boolean(opts.handleMouseWheel, defaults.handleMouseWheel),
-			mouseWheelScrollSensitivity: mouseWheelScrollSensitivity
+			mouseWheelScrollSensitivity: mouseWheelScrollSensitivity,
+			fastScrollSensitivity: fastScrollSensitivity,
 		};
 	}
 
@@ -1965,7 +1973,12 @@ export class EditorOptionsValidator {
 			// Disallow 0, as it would prevent/block scrolling
 			mouseWheelScrollSensitivity = 1;
 		}
-		const scrollbar = this._sanitizeScrollbarOpts(opts.scrollbar, defaults.scrollbar, mouseWheelScrollSensitivity);
+
+		let fastScrollSensitivity = _float(opts.fastScrollSensitivity, defaults.scrollbar.fastScrollSensitivity);
+		if (fastScrollSensitivity <= 0) {
+			fastScrollSensitivity = defaults.scrollbar.fastScrollSensitivity;
+		}
+		const scrollbar = this._sanitizeScrollbarOpts(opts.scrollbar, defaults.scrollbar, mouseWheelScrollSensitivity, fastScrollSensitivity);
 		const minimap = this._sanitizeMinimapOpts(opts.minimap, defaults.minimap);
 
 		return {
@@ -2592,6 +2605,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 			verticalSliderSize: 14,
 			handleMouseWheel: true,
 			mouseWheelScrollSensitivity: 1,
+			fastScrollSensitivity: 5,
 		},
 		minimap: {
 			enabled: true,
