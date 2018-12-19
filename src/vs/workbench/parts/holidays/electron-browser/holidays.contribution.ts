@@ -36,8 +36,8 @@ function animate(drawFn: () => void): IDisposable {
 }
 
 function makeItSnow(canvas: HTMLCanvasElement, dark: boolean): IDisposable {
-	const ctx = canvas.getContext('2d');
-	const flakes = [];
+	const ctx = canvas.getContext('2d')!;
+	const flakes: any[] = [];
 
 	function update() {
 		const spawnCount = Math.ceil(Math.max(200 - flakes.length, 10) * Math.random() * 0.0005);
