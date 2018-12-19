@@ -35,7 +35,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IListService, ListWidget } from 'vs/platform/list/browser/listService';
-import { RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Schemas } from 'vs/base/common/network';
 import { IDialogService, IConfirmationResult, IConfirmation, getConfirmMessage } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -100,49 +100,22 @@ export class BaseErrorReportingAction extends Action {
 	}
 }
 
-export class BaseFileAction extends BaseErrorReportingAction {
-	public element: ExplorerItem;
-
-	constructor(
-		id: string,
-		label: string,
-		@IFileService protected fileService: IFileService,
-		@INotificationService notificationService: INotificationService,
-		@ITextFileService protected textFileService: ITextFileService
-	) {
-		super(id, label, notificationService);
-
-		this.enabled = false;
-	}
-
-	_isEnabled(): boolean {
-		return true;
-	}
-
-	_updateEnablement(): void {
-		this.enabled = !!(this.fileService && this._isEnabled());
-	}
-}
-
-class TriggerRenameFileAction extends BaseFileAction {
+class TriggerRenameFileAction extends BaseErrorReportingAction {
 
 	public static readonly ID = 'renameFile';
 
 	private renameAction: BaseRenameAction;
 
 	constructor(
-		element: ExplorerItem,
-		@IFileService fileService: IFileService,
+		private element: ExplorerItem,
 		@INotificationService notificationService: INotificationService,
-		@ITextFileService textFileService: ITextFileService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IExplorerService private explorerService: IExplorerService
 	) {
-		super(TriggerRenameFileAction.ID, TRIGGER_RENAME_LABEL, fileService, notificationService, textFileService);
+		super(TriggerRenameFileAction.ID, TRIGGER_RENAME_LABEL, notificationService);
 
 		this.element = element;
 		this.renameAction = instantiationService.createInstance(RenameFileAction, element);
-		this._updateEnablement();
 	}
 
 	public validateFileName(name: string): string {
@@ -163,23 +136,16 @@ class TriggerRenameFileAction extends BaseFileAction {
 	}
 }
 
-export abstract class BaseRenameAction extends BaseFileAction {
+export abstract class BaseRenameAction extends BaseErrorReportingAction {
 
 	constructor(
 		id: string,
 		label: string,
-		element: ExplorerItem,
-		@IFileService fileService: IFileService,
+		public element: ExplorerItem,
 		@INotificationService notificationService: INotificationService,
-		@ITextFileService textFileService: ITextFileService
 	) {
-		super(id, label, fileService, notificationService, textFileService);
-
-		this.element = element;
-	}
-
-	_isEnabled(): boolean {
-		return super._isEnabled() && this.element && !this.element.isReadonly;
+		super(id, label, notificationService);
+		this.enabled = this.element && !this.element.isReadonly;
 	}
 
 	public run(context?: any): Promise<any> {
@@ -234,13 +200,10 @@ class RenameFileAction extends BaseRenameAction {
 
 	constructor(
 		element: ExplorerItem,
-		@IFileService fileService: IFileService,
 		@INotificationService notificationService: INotificationService,
-		@ITextFileService textFileService: ITextFileService
+		@ITextFileService private textFileService: ITextFileService
 	) {
-		super(RenameFileAction.ID, nls.localize('rename', "Rename"), element, fileService, notificationService, textFileService);
-
-		this._updateEnablement();
+		super(RenameFileAction.ID, nls.localize('rename', "Rename"), element, notificationService);
 	}
 
 	public runAction(newName: string): Promise<any> {
@@ -252,7 +215,7 @@ class RenameFileAction extends BaseRenameAction {
 }
 
 /* Base New File/Folder Action */
-export class BaseNewAction extends BaseFileAction {
+export class BaseNewAction extends BaseErrorReportingAction {
 	private presetFolder: ExplorerItem;
 
 	constructor(
@@ -261,12 +224,10 @@ export class BaseNewAction extends BaseFileAction {
 		private isFile: boolean,
 		private renameAction: BaseRenameAction,
 		element: ExplorerItem,
-		@IFileService fileService: IFileService,
 		@INotificationService notificationService: INotificationService,
-		@ITextFileService textFileService: ITextFileService,
 		@IExplorerService private explorerService: IExplorerService
 	) {
-		super(id, label, fileService, notificationService, textFileService);
+		super(id, label, notificationService);
 
 		if (element) {
 			this.presetFolder = element.isDirectory ? element : element.parent;
@@ -299,19 +260,14 @@ export class BaseNewAction extends BaseFileAction {
 
 /* New File */
 export class NewFileAction extends BaseNewAction {
-
 	constructor(
 		element: ExplorerItem,
-		@IFileService fileService: IFileService,
 		@INotificationService notificationService: INotificationService,
-		@ITextFileService textFileService: ITextFileService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IExplorerService explorerService: IExplorerService
 	) {
-		super('explorer.newFile', NEW_FILE_LABEL, true, instantiationService.createInstance(CreateFileAction, element), null, fileService, notificationService, textFileService, explorerService);
-
+		super('explorer.newFile', NEW_FILE_LABEL, true, instantiationService.createInstance(CreateFileAction, element), null, notificationService, explorerService);
 		this.class = 'explorer-action new-file';
-		this._updateEnablement();
 	}
 }
 
@@ -320,16 +276,12 @@ export class NewFolderAction extends BaseNewAction {
 
 	constructor(
 		element: ExplorerItem,
-		@IFileService fileService: IFileService,
 		@INotificationService notificationService: INotificationService,
-		@ITextFileService textFileService: ITextFileService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IExplorerService explorerService: IExplorerService
 	) {
-		super('explorer.newFolder', NEW_FOLDER_LABEL, false, instantiationService.createInstance(CreateFolderAction, element), null, fileService, notificationService, textFileService, explorerService);
-
+		super('explorer.newFolder', NEW_FOLDER_LABEL, false, instantiationService.createInstance(CreateFolderAction, element), null, notificationService, explorerService);
 		this.class = 'explorer-action new-folder';
-		this._updateEnablement();
 	}
 }
 
@@ -371,14 +323,11 @@ class CreateFileAction extends BaseCreateAction {
 
 	constructor(
 		element: ExplorerItem,
-		@IFileService fileService: IFileService,
 		@IEditorService private editorService: IEditorService,
+		@IFileService private fileService: IFileService,
 		@INotificationService notificationService: INotificationService,
-		@ITextFileService textFileService: ITextFileService
 	) {
-		super(CreateFileAction.ID, CreateFileAction.LABEL, element, fileService, notificationService, textFileService);
-
-		this._updateEnablement();
+		super(CreateFileAction.ID, CreateFileAction.LABEL, element, notificationService);
 	}
 
 	public runAction(fileName: string): Promise<any> {
@@ -399,13 +348,10 @@ class CreateFolderAction extends BaseCreateAction {
 
 	constructor(
 		element: ExplorerItem,
-		@IFileService fileService: IFileService,
+		@IFileService private fileService: IFileService,
 		@INotificationService notificationService: INotificationService,
-		@ITextFileService textFileService: ITextFileService
 	) {
-		super(CreateFolderAction.ID, CreateFolderAction.LABEL, null, fileService, notificationService, textFileService);
-
-		this._updateEnablement();
+		super(CreateFolderAction.ID, CreateFolderAction.LABEL, element, notificationService);
 	}
 
 	public runAction(fileName: string): Promise<any> {
@@ -416,7 +362,7 @@ class CreateFolderAction extends BaseCreateAction {
 	}
 }
 
-class BaseDeleteFileAction extends BaseFileAction {
+class BaseDeleteFileAction extends BaseErrorReportingAction {
 
 	private static readonly CONFIRM_DELETE_SETTING_KEY = 'explorer.confirmDelete';
 
@@ -425,21 +371,16 @@ class BaseDeleteFileAction extends BaseFileAction {
 	constructor(
 		private elements: ExplorerItem[],
 		private useTrash: boolean,
-		@IFileService fileService: IFileService,
+		@IFileService private fileService: IFileService,
 		@INotificationService notificationService: INotificationService,
 		@IDialogService private dialogService: IDialogService,
-		@ITextFileService textFileService: ITextFileService,
+		@ITextFileService private textFileService: ITextFileService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super('moveFileToTrash', MOVE_FILE_TO_TRASH_LABEL, fileService, notificationService, textFileService);
+		super('moveFileToTrash', MOVE_FILE_TO_TRASH_LABEL, notificationService);
 
 		this.useTrash = useTrash && elements.every(e => !paths.isUNC(e.resource.fsPath)); // on UNC shares there is no trash
-
-		this._updateEnablement();
-	}
-
-	_isEnabled(): boolean {
-		return super._isEnabled() && this.elements && this.elements.every(e => !e.isReadonly);
+		this.enabled = this.elements && this.elements.every(e => !e.isReadonly);
 	}
 
 	public run(): Promise<any> {
@@ -631,28 +572,24 @@ class BaseDeleteFileAction extends BaseFileAction {
 }
 
 /* Add File */
-export class AddFilesAction extends BaseFileAction {
+export class AddFilesAction extends BaseErrorReportingAction {
 
 
 	constructor(
-		element: ExplorerItem,
+		private element: ExplorerItem,
 		clazz: string,
-		@IFileService fileService: IFileService,
+		@IFileService private fileService: IFileService,
 		@IEditorService private editorService: IEditorService,
 		@IDialogService private dialogService: IDialogService,
 		@INotificationService notificationService: INotificationService,
-		@ITextFileService textFileService: ITextFileService,
+		@ITextFileService private textFileService: ITextFileService,
 		@IExplorerService private explorerService: IExplorerService
 	) {
-		super('workbench.files.action.addFile', nls.localize('addFiles', "Add Files"), fileService, notificationService, textFileService);
-
-		this.element = element;
+		super('workbench.files.action.addFile', nls.localize('addFiles', "Add Files"), notificationService);
 
 		if (clazz) {
 			this.class = clazz;
 		}
-
-		this._updateEnablement();
 	}
 
 	public run(resourcesToAdd: URI[]): Promise<any> {
@@ -736,19 +673,14 @@ export class AddFilesAction extends BaseFileAction {
 }
 
 // Copy File/Folder
-class CopyFileAction extends BaseFileAction {
+class CopyFileAction extends BaseErrorReportingAction {
 
 	constructor(
 		private elements: ExplorerItem[],
-		@IFileService fileService: IFileService,
 		@INotificationService notificationService: INotificationService,
-		@ITextFileService textFileService: ITextFileService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 		@IClipboardService private clipboardService: IClipboardService
 	) {
-		super('filesExplorer.copy', COPY_FILE_LABEL, fileService, notificationService, textFileService);
-
-		this._updateEnablement();
+		super('filesExplorer.copy', COPY_FILE_LABEL, notificationService);
 	}
 
 	public run(): Promise<any> {
@@ -761,25 +693,22 @@ class CopyFileAction extends BaseFileAction {
 }
 
 // Paste File/Folder
-class PasteFileAction extends BaseFileAction {
+class PasteFileAction extends BaseErrorReportingAction {
 
 	public static readonly ID = 'filesExplorer.paste';
 
 	constructor(
-		element: ExplorerItem,
-		@IFileService fileService: IFileService,
+		private element: ExplorerItem,
+		@IFileService private fileService: IFileService,
 		@INotificationService notificationService: INotificationService,
-		@ITextFileService textFileService: ITextFileService,
 		@IEditorService private editorService: IEditorService,
 		@IExplorerService private explorerService: IExplorerService
 	) {
-		super(PasteFileAction.ID, PASTE_FILE_LABEL, fileService, notificationService, textFileService);
+		super(PasteFileAction.ID, PASTE_FILE_LABEL, notificationService);
 
-		this.element = element;
 		if (!this.element) {
 			this.element = this.explorerService.roots[0];
 		}
-		this._updateEnablement();
 	}
 
 	public run(fileToPaste: URI): Promise<any> {
@@ -812,39 +741,6 @@ class PasteFileAction extends BaseFileAction {
 		}, error => {
 			this.onError(new Error(nls.localize('fileDeleted', "File to paste was deleted or moved meanwhile")));
 		});
-	}
-}
-
-// Duplicate File/Folder
-export class DuplicateFileAction extends BaseFileAction {
-	private target: ExplorerItem;
-
-	constructor(
-		fileToDuplicate: ExplorerItem,
-		target: ExplorerItem,
-		@IFileService fileService: IFileService,
-		@IEditorService private editorService: IEditorService,
-		@INotificationService notificationService: INotificationService,
-		@ITextFileService textFileService: ITextFileService
-	) {
-		super('workbench.files.action.duplicateFile', nls.localize('duplicateFile', "Duplicate"), fileService, notificationService, textFileService);
-
-		this.element = fileToDuplicate;
-		this.target = (target && target.isDirectory) ? target : fileToDuplicate.parent;
-		this._updateEnablement();
-	}
-
-	public run(): Promise<any> {
-		// Copy File
-		const result = this.fileService.copyFile(this.element.resource, findValidPasteFileTarget(this.target, { resource: this.element.resource, isDirectory: this.element.isDirectory })).then(stat => {
-			if (!stat.isDirectory) {
-				return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true, preserveFocus: true } });
-			}
-
-			return void 0;
-		}, error => this.onError(error));
-
-		return result;
 	}
 }
 
