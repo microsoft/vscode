@@ -29,6 +29,9 @@ export interface IResourceLabelHandle extends IDisposable {
 	readonly element: HTMLElement;
 
 	setLabel(label: IResourceLabel, options?: IResourceLabelOptions): void;
+	clear(): void;
+
+	onClick(callback: (event: MouseEvent) => void): IDisposable;
 }
 
 export class ResourceLabels extends Disposable {
@@ -40,9 +43,8 @@ export class ResourceLabels extends Disposable {
 		@IExtensionService private extensionService: IExtensionService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IModelService private modelService: IModelService,
-		@IDecorationsService protected decorationsService: IDecorationsService,
-		@IThemeService private themeService: IThemeService,
-		@ILabelService protected labelService: ILabelService
+		@IDecorationsService private decorationsService: IDecorationsService,
+		@IThemeService private themeService: IThemeService
 	) {
 		super();
 
@@ -86,6 +88,8 @@ export class ResourceLabels extends Disposable {
 		const label: IResourceLabelHandle = {
 			element: widget.element,
 			setLabel: (label: IResourceLabel, options?: IResourceLabelOptions) => widget.setLabel(label, options),
+			clear: () => widget.clear(),
+			onClick: (callback: (event: MouseEvent) => void) => widget.onClick(callback),
 			dispose: () => this.disposeWidget(widget)
 		};
 
@@ -115,6 +119,31 @@ export class ResourceLabels extends Disposable {
 		super.dispose();
 
 		this.clear();
+	}
+}
+
+export class SingleResourceLabel extends ResourceLabels {
+
+	private _label: IResourceLabelHandle;
+
+	constructor(
+		container: HTMLElement,
+		options: IIconLabelCreationOptions,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IExtensionService extensionService: IExtensionService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IModelService modelService: IModelService,
+		@IDecorationsService decorationsService: IDecorationsService,
+		@IThemeService themeService: IThemeService,
+		@ILabelService labelService: ILabelService
+	) {
+		super(instantiationService, extensionService, configurationService, modelService, decorationsService, themeService);
+
+		this._label = this._register(this.create(container, options));
+	}
+
+	get element(): IResourceLabelHandle {
+		return this._label;
 	}
 }
 
