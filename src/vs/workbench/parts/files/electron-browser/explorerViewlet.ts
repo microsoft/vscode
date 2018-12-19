@@ -6,7 +6,7 @@
 import 'vs/css!./media/explorerviewlet';
 import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
-import { VIEWLET_ID, ExplorerViewletVisibleContext, IFilesConfiguration, OpenEditorsVisibleContext, OpenEditorsVisibleCondition, IExplorerViewlet, VIEW_CONTAINER } from 'vs/workbench/parts/files/common/files';
+import { VIEWLET_ID, ExplorerViewletVisibleContext, IFilesConfiguration, OpenEditorsVisibleContext, OpenEditorsVisibleCondition, VIEW_CONTAINER } from 'vs/workbench/parts/files/common/files';
 import { ViewContainerViewlet, IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { ExplorerView } from 'vs/workbench/parts/files/electron-browser/views/explorerView';
@@ -144,7 +144,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 	}
 }
 
-export class ExplorerViewlet extends ViewContainerViewlet implements IExplorerViewlet {
+export class ExplorerViewlet extends ViewContainerViewlet {
 
 	private static readonly EXPLORER_VIEWS_STATE = 'workbench.explorer.views.state';
 
@@ -236,7 +236,7 @@ export class ExplorerViewlet extends ViewContainerViewlet implements IExplorerVi
 	}
 
 	focus(): void {
-		const explorerView = this.getExplorerView();
+		const explorerView = this.getView(ExplorerView.ID);
 		if (explorerView && explorerView.isExpanded()) {
 			explorerView.focus();
 		} else {

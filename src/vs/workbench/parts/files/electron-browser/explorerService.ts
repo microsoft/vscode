@@ -9,13 +9,14 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IExplorerService, IEditableData, IFilesConfiguration, SortOrder, SortOrderConfiguration } from 'vs/workbench/parts/files/common/files';
 import { ExplorerItem, ExplorerModel } from 'vs/workbench/parts/files/common/explorerModel';
 import { URI } from 'vs/base/common/uri';
-import { FileOperationEvent, FileOperation, IFileStat, IFileService, FileChangesEvent, FILES_EXCLUDE_CONFIG, FileChangeType } from 'vs/platform/files/common/files';
+import { FileOperationEvent, FileOperation, IFileStat, IFileService, FileChangesEvent, FILES_EXCLUDE_CONFIG, FileChangeType, IResolveFileOptions } from 'vs/platform/files/common/files';
 import { dirname } from 'vs/base/common/resources';
 import { memoize } from 'vs/base/common/decorators';
 import { ResourceGlobMatcher } from 'vs/workbench/electron-browser/resources';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IExpression } from 'vs/base/common/glob';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 function getFileEventsExcludes(configurationService: IConfigurationService, root?: URI): IExpression {
 	const scope = root ? { resource: root } : void 0;
@@ -31,6 +32,7 @@ export class ExplorerService implements IExplorerService {
 
 	private _onDidChangeItem = new Emitter<ExplorerItem>();
 	private _onDidChangeEditable = new Emitter<ExplorerItem>();
+	private _onDidSelectItem = new Emitter<{ item: ExplorerItem, reveal: boolean }>();
 	private disposables: IDisposable[] = [];
 	private editableStats = new Map<ExplorerItem, IEditableData>();
 	private sortOrder: SortOrder;
@@ -39,7 +41,8 @@ export class ExplorerService implements IExplorerService {
 		@IFileService private fileService: IFileService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@INotificationService private notificationService: INotificationService,
 	) { }
 
 	get roots(): ExplorerItem[] {
@@ -52,6 +55,10 @@ export class ExplorerService implements IExplorerService {
 
 	get onDidChangeEditable(): Event<ExplorerItem> {
 		return this._onDidChangeEditable.event;
+	}
+
+	get onDidSelectItem(): Event<{ item: ExplorerItem, reveal: boolean }> {
+		return this._onDidSelectItem.event;
 	}
 
 	// Memoized locals
@@ -88,6 +95,31 @@ export class ExplorerService implements IExplorerService {
 	getEditableData(stat: ExplorerItem): IEditableData | undefined {
 		return this.editableStats.get(stat);
 	}
+
+	select(resource: URI, reveal?: boolean): void {
+		const fileStat = this.findClosest(resource);
+		if (fileStat) {
+			this._onDidSelectItem.fire({ item: fileStat, reveal });
+			return;
+		}
+
+		// Stat needs to be resolved first and then revealed
+		const options: IResolveFileOptions = { resolveTo: [resource] };
+		const workspaceFolder = this.contextService.getWorkspaceFolder(resource);
+		const rootUri = workspaceFolder ? workspaceFolder.uri : this.roots[0].resource;
+		this.fileService.resolveFile(rootUri, options).then(stat => {
+
+			// Convert to model
+			const root = this.roots.filter(r => r.resource.toString() === rootUri.toString()).pop();
+			const modelStat = ExplorerItem.create(stat, root, options.resolveTo);
+			// Update Input with disk Stat
+			ExplorerItem.mergeLocalWithDisk(modelStat, root);
+
+			// Select and Reveal
+			this._onDidSelectItem.fire({ item: root.find(resource), reveal });
+		}, e => { this.notificationService.error(e); });
+	}
+
 
 	private onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): void {
 		const configSortOrder = configuration && configuration.explorer && configuration.explorer.sortOrder || 'default';

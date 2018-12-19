@@ -11,8 +11,8 @@ import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
 import { Action, IAction } from 'vs/base/common/actions';
 import { memoize } from 'vs/base/common/decorators';
-import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, IExplorerView, ExplorerRootContext, ExplorerResourceReadonlyContext, IExplorerService } from 'vs/workbench/parts/files/common/files';
-import { IResolveFileOptions, IFileService } from 'vs/platform/files/common/files';
+import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, IExplorerService } from 'vs/workbench/parts/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 import { RefreshViewExplorerAction, NewFolderAction, NewFileAction, FileCopiedContext } from 'vs/workbench/parts/files/electron-browser/fileActions';
 import { toResource } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -33,7 +33,6 @@ import { IDecorationsService } from 'vs/workbench/services/decorations/browser/d
 import { WorkbenchAsyncDataTree, IListService } from 'vs/platform/list/browser/listService';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { Schemas } from 'vs/base/common/network';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IViewletPanelOptions, ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -47,8 +46,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ExplorerItem, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerModel';
 
-export class ExplorerView extends ViewletPanel implements IExplorerView {
-
+export class ExplorerView extends ViewletPanel {
 	static readonly ID: string = 'workbench.explorer.fileView';
 	private static readonly EXPLORER_FILE_CHANGES_REFRESH_DELAY = 100; // delay in ms to refresh the explorer from disk file changes
 
@@ -71,7 +69,6 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 
 	constructor(
 		options: IViewletPanelOptions,
-		@INotificationService private notificationService: INotificationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
@@ -190,6 +187,9 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 			this._onDidChangeTitleArea.fire();
 			this.refreshFromEvent();
 		}));
+
+		this.disposables.push(this.explorerService.onDidSelectItem(e => this.onSelectItem(e.item, e.reveal)));
+		// TODO@Isidor plug in other explorer service events
 	}
 
 	getActions(): IAction[] {
@@ -219,7 +219,7 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 			if (this.isVisible() && !this.isDisposed && this.contextService.isInsideWorkspace(activeFile)) {
 				const selection = this.hasSingleSelection(activeFile);
 				if (!selection) {
-					this.select(activeFile);
+					this.explorerService.select(activeFile);
 				}
 
 				clearSelection = false;
@@ -290,7 +290,7 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 			const activeFile = this.getActiveFile();
 			if (activeFile) {
 				refreshPromise.then(() => {
-					this.select(activeFile);
+					this.explorerService.select(activeFile);
 				});
 				return;
 			}
@@ -508,7 +508,7 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 
 		return this.doRefresh().then(() => {
 			if (resourceToFocus) {
-				return this.select(resourceToFocus, true);
+				return this.explorerService.select(resourceToFocus, true);
 			}
 
 			return Promise.resolve(void 0);
@@ -624,55 +624,6 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 		}
 	}
 
-	/**
-	 * Selects and reveal the file element provided by the given resource if its found in the explorer. Will try to
-	 * resolve the path from the disk in case the explorer is not yet expanded to the file yet.
-	 */
-	select(resource: URI, reveal: boolean = this.autoReveal): void {
-
-		// Require valid path
-		if (!resource) {
-			return;
-		}
-
-		// If path already selected, just reveal and return
-		const selection = this.hasSingleSelection(resource);
-		if (selection) {
-			if (reveal) {
-				this.tree.reveal(selection, 0.5);
-			}
-
-			return;
-		}
-
-		if (!this.isCreated) {
-			return;
-		}
-
-		const fileStat = this.explorerService.findClosest(resource);
-		if (fileStat) {
-			this.doSelect(fileStat, reveal);
-			return;
-		}
-
-		// Stat needs to be resolved first and then revealed
-		const options: IResolveFileOptions = { resolveTo: [resource] };
-		const workspaceFolder = this.contextService.getWorkspaceFolder(resource);
-		const rootUri = workspaceFolder ? workspaceFolder.uri : this.explorerService.roots[0].resource;
-		this.fileService.resolveFile(rootUri, options).then(stat => {
-
-			// Convert to model
-			const root = this.explorerService.roots.filter(r => r.resource.toString() === rootUri.toString()).pop();
-			const modelStat = ExplorerItem.create(stat, root, options.resolveTo);
-			// Update Input with disk Stat
-			ExplorerItem.mergeLocalWithDisk(modelStat, root);
-
-			// Select and Reveal
-			return this.tree.refresh(root).then(() => this.doSelect(root.find(resource), reveal));
-
-		}, e => { this.notificationService.error(e); });
-	}
-
 	private hasSingleSelection(resource: URI): ExplorerItem {
 		const currentSelection: ExplorerItem[] = this.tree.getSelection();
 		return currentSelection.length === 1 && currentSelection[0].resource.toString() === resource.toString()
@@ -680,7 +631,7 @@ export class ExplorerView extends ViewletPanel implements IExplorerView {
 			: undefined;
 	}
 
-	private doSelect(fileStat: ExplorerItem, reveal: boolean): Promise<void> {
+	private onSelectItem(fileStat: ExplorerItem, reveal = this.autoReveal): Promise<void> {
 		if (!fileStat) {
 			return Promise.resolve(void 0);
 		}

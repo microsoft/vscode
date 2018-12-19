@@ -15,7 +15,6 @@ import { Event } from 'vs/base/common/event';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService, ILanguageSelection } from 'vs/editor/common/services/modeService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IViewlet } from 'vs/workbench/common/viewlet';
 import { InputFocusedContextKey } from 'vs/platform/workbench/common/contextkeys';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainer } from 'vs/workbench/common/views';
@@ -34,14 +33,6 @@ export const VIEWLET_ID = 'workbench.view.explorer';
  */
 export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(VIEWLET_ID);
 
-export interface IExplorerViewlet extends IViewlet {
-	getExplorerView(): IExplorerView;
-}
-
-export interface IExplorerView {
-	select(resource: URI, reveal?: boolean): void;
-}
-
 export interface IEditableData {
 	validationMessage: (value: string) => string;
 	action: IAction;
@@ -52,10 +43,17 @@ export interface IExplorerService {
 	readonly roots: ExplorerItem[];
 	readonly onDidChangeItem: Event<ExplorerItem>;
 	readonly onDidChangeEditable: Event<ExplorerItem>;
+	readonly onDidSelectItem: Event<{ item: ExplorerItem, reveal: boolean }>;
 
 	setEditable(stat: ExplorerItem, data: IEditableData): void;
 	getEditableData(stat: ExplorerItem): IEditableData | undefined;
 	findClosest(resource: URI): ExplorerItem | null;
+
+	/**
+	 * Selects and reveal the file element provided by the given resource if its found in the explorer. Will try to
+	 * resolve the path from the disk in case the explorer is not yet expanded to the file yet.
+	 */
+	select(resource: URI, reveal?: boolean): void;
 }
 export const IExplorerService = createDecorator<IExplorerService>('explorerService');
 

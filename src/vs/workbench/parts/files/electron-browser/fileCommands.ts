@@ -11,7 +11,7 @@ import { IWindowsService, IWindowService } from 'vs/platform/windows/common/wind
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ExplorerFocusCondition, FileOnDiskContentProvider, VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
+import { ExplorerFocusCondition, FileOnDiskContentProvider, VIEWLET_ID, IExplorerService } from 'vs/workbench/parts/files/common/files';
 import { ExplorerViewlet } from 'vs/workbench/parts/files/electron-browser/explorerViewlet';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ITextFileService, ISaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
@@ -463,6 +463,7 @@ CommandsRegistry.registerCommand({
 	handler: (accessor, resource: URI | object) => {
 		const viewletService = accessor.get(IViewletService);
 		const contextService = accessor.get(IWorkspaceContextService);
+		const explorerService = accessor.get(IExplorerService);
 		const uri = getResourceForCommand(resource, accessor.get(IListService), accessor.get(IEditorService));
 
 		viewletService.openViewlet(VIEWLET_ID, false).then((viewlet: ExplorerViewlet) => {
@@ -471,7 +472,7 @@ CommandsRegistry.registerCommand({
 				const explorerView = viewlet.getExplorerView();
 				if (explorerView) {
 					explorerView.setExpanded(true);
-					explorerView.select(uri, true);
+					explorerService.select(uri, true);
 				}
 			} else {
 				const openEditorsView = viewlet.getOpenEditorsView();
