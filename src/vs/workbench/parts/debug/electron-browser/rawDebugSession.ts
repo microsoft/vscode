@@ -480,10 +480,9 @@ export class RawDebugSession {
 			case 'runInTerminal':
 				dbgr.runInTerminal(request.arguments as DebugProtocol.RunInTerminalRequestArguments).then(shellProcessId => {
 					const resp = response as DebugProtocol.RunInTerminalResponse;
+					resp.body = {};
 					if (typeof shellProcessId === 'number') {
-						resp.body = {
-							shellProcessId: shellProcessId
-						};
+						resp.body.shellProcessId = shellProcessId;
 					}
 					safeSendResponse(resp);
 				}, err => {

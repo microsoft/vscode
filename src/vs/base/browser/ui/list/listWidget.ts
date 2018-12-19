@@ -949,8 +949,8 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		return Event.map(this.eventBufferer.wrapEvent(this.selection.onChange), e => this.toListEvent(e));
 	}
 
-	private _onOpen = new Emitter<IListEvent<T>>();
-	readonly onOpen: Event<IListEvent<T>> = this._onOpen.event;
+	private _onDidOpen = new Emitter<IListEvent<T>>();
+	readonly onDidOpen: Event<IListEvent<T>> = this._onDidOpen.event;
 
 	private _onPin = new Emitter<number[]>();
 	@memoize get onPin(): Event<IListEvent<T>> {
@@ -1315,7 +1315,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 			}
 		}
 
-		this._onOpen.fire({ indexes, elements: indexes.map(i => this.view.element(i)), browserEvent });
+		this._onDidOpen.fire({ indexes, elements: indexes.map(i => this.view.element(i)), browserEvent });
 	}
 
 	pin(indexes: number[]): void {
@@ -1361,7 +1361,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this._onDidDispose.fire();
 		this.disposables = dispose(this.disposables);
 
-		this._onOpen.dispose();
+		this._onDidOpen.dispose();
 		this._onPin.dispose();
 		this._onDidDispose.dispose();
 	}

@@ -89,7 +89,7 @@ class OutlineModel extends QuickOpenModel {
 
 			// Filter by search
 			if (normalizedSearchValue) {
-				const highlights = filters.matchesFuzzy(normalizedSearchValue, entry.getLabel());
+				const highlights = filters.matchesFuzzy2(normalizedSearchValue, entry.getLabel());
 				if (highlights) {
 					entry.setHighlights(highlights);
 					entry.setHidden(false);
@@ -490,7 +490,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		return this.cachedOutlineRequest;
 	}
 
-	private doGetActiveOutline(): Promise<OutlineModel> {
+	private doGetActiveOutline(): Promise<OutlineModel | null> {
 		const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
 		if (activeTextEditorWidget) {
 			let model = activeTextEditorWidget.getModel();

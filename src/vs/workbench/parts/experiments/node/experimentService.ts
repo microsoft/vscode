@@ -177,7 +177,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 				return Promise.resolve(null);
 			}
 			return asJson(context).then(result => {
-				return Array.isArray<IRawExperiment>(result['experiments']) ? result['experiments'] : [];
+				return result && Array.isArray(result['experiments']) ? result['experiments'] : [];
 			});
 		}, () => Promise.resolve(null));
 	}
@@ -296,15 +296,18 @@ export class ExperimentService extends Disposable implements IExperimentService 
 	}
 
 	private checkExperimentDependencies(experiment: IRawExperiment): boolean {
-		if (experiment.condition.experimentsPreviouslyRun) {
+		const experimentsPreviouslyRun = experiment.condition ? experiment.condition.experimentsPreviouslyRun : undefined;
+		if (experimentsPreviouslyRun) {
 			const runExperimentIdsFromStorage: string[] = safeParse(this.storageService.get('currentOrPreviouslyRunExperiments', StorageScope.GLOBAL), []);
 			let includeCheck = true;
 			let excludeCheck = true;
-			if (Array.isArray(experiment.condition.experimentsPreviouslyRun.includes)) {
-				includeCheck = runExperimentIdsFromStorage.some(x => experiment.condition.experimentsPreviouslyRun.includes.indexOf(x) > -1);
+			const includes = experimentsPreviouslyRun.includes;
+			if (Array.isArray(includes)) {
+				includeCheck = runExperimentIdsFromStorage.some(x => includes.indexOf(x) > -1);
 			}
-			if (includeCheck && Array.isArray(experiment.condition.experimentsPreviouslyRun.excludes)) {
-				excludeCheck = !runExperimentIdsFromStorage.some(x => experiment.condition.experimentsPreviouslyRun.excludes.indexOf(x) > -1);
+			const excludes = experimentsPreviouslyRun.excludes;
+			if (includeCheck && Array.isArray(excludes)) {
+				excludeCheck = !runExperimentIdsFromStorage.some(x => excludes.indexOf(x) > -1);
 			}
 			if (!includeCheck || !excludeCheck) {
 				return false;
@@ -322,7 +325,8 @@ export class ExperimentService extends Disposable implements IExperimentService 
 			return Promise.resolve(ExperimentState.NoRun);
 		}
 
-		if (!experiment.condition) {
+		const condition = experiment.condition;
+		if (!condition) {
 			return Promise.resolve(ExperimentState.Run);
 		}
 
@@ -330,19 +334,19 @@ export class ExperimentService extends Disposable implements IExperimentService 
 			return Promise.resolve(ExperimentState.NoRun);
 		}
 
-		if (this.environmentService.appQuality === 'stable' && experiment.condition.insidersOnly === true) {
+		if (this.environmentService.appQuality === 'stable' && condition.insidersOnly === true) {
 			return Promise.resolve(ExperimentState.NoRun);
 		}
 
 		const isNewUser = !this.storageService.get(lastSessionDateStorageKey, StorageScope.GLOBAL);
-		if ((experiment.condition.newUser === true && !isNewUser)
-			|| (experiment.condition.newUser === false && isNewUser)) {
+		if ((condition.newUser === true && !isNewUser)
+			|| (condition.newUser === false && isNewUser)) {
 			return Promise.resolve(ExperimentState.NoRun);
 		}
 
-		if (typeof experiment.condition.displayLanguage === 'string') {
-			let localeToCheck = experiment.condition.displayLanguage.toLowerCase();
-			let displayLanguage = language.toLowerCase();
+		if (typeof condition.displayLanguage === 'string') {
+			let localeToCheck = condition.displayLanguage.toLowerCase();
+			let displayLanguage = language!.toLowerCase();
 
 			if (localeToCheck !== displayLanguage) {
 				const a = displayLanguage.indexOf('-');
@@ -359,22 +363,23 @@ export class ExperimentService extends Disposable implements IExperimentService 
 			}
 		}
 
-		if (!experiment.condition.userProbability) {
-			experiment.condition.userProbability = 1;
+		if (!condition.userProbability) {
+			condition.userProbability = 1;
 		}
 
 		let extensionsCheckPromise = Promise.resolve(true);
-		if (experiment.condition.installedExtensions) {
+		const installedExtensions = condition.installedExtensions;
+		if (installedExtensions) {
 			extensionsCheckPromise = this.extensionManagementService.getInstalled(LocalExtensionType.User).then(locals => {
 				let includesCheck = true;
 				let excludesCheck = true;
 				const localExtensions = locals.map(local => `${local.manifest.publisher.toLowerCase()}.${local.manifest.name.toLowerCase()}`);
-				if (Array.isArray(experiment.condition.installedExtensions.includes) && experiment.condition.installedExtensions.includes.length) {
-					const extensionIncludes = experiment.condition.installedExtensions.includes.map(e => e.toLowerCase());
+				if (Array.isArray(installedExtensions.includes) && installedExtensions.includes.length) {
+					const extensionIncludes = installedExtensions.includes.map(e => e.toLowerCase());
 					includesCheck = localExtensions.some(e => extensionIncludes.indexOf(e) > -1);
 				}
-				if (Array.isArray(experiment.condition.installedExtensions.excludes) && experiment.condition.installedExtensions.excludes.length) {
-					const extensionExcludes = experiment.condition.installedExtensions.excludes.map(e => e.toLowerCase());
+				if (Array.isArray(installedExtensions.excludes) && installedExtensions.excludes.length) {
+					const extensionExcludes = installedExtensions.excludes.map(e => e.toLowerCase());
 					excludesCheck = !localExtensions.some(e => extensionExcludes.indexOf(e) > -1);
 				}
 				return includesCheck && excludesCheck;
@@ -385,13 +390,14 @@ export class ExperimentService extends Disposable implements IExperimentService 
 		const experimentState: IExperimentStorageState = safeParse(this.storageService.get(storageKey, StorageScope.GLOBAL), {});
 
 		return extensionsCheckPromise.then(success => {
-			if (!success || !experiment.condition.fileEdits || typeof experiment.condition.fileEdits.minEditCount !== 'number') {
-				const runExperiment = success && Math.random() < experiment.condition.userProbability;
+			const fileEdits = condition.fileEdits;
+			if (!success || !fileEdits || typeof fileEdits.minEditCount !== 'number') {
+				const runExperiment = success && typeof condition.userProbability === 'number' && Math.random() < condition.userProbability;
 				return runExperiment ? ExperimentState.Run : ExperimentState.NoRun;
 			}
 
 			experimentState.editCount = experimentState.editCount || 0;
-			if (experimentState.editCount >= experiment.condition.fileEdits.minEditCount) {
+			if (experimentState.editCount >= fileEdits.minEditCount) {
 				return ExperimentState.Run;
 			}
 
@@ -406,20 +412,21 @@ export class ExperimentService extends Disposable implements IExperimentService 
 					if (event.kind !== StateChange.SAVED
 						|| latestExperimentState.state !== ExperimentState.Evaluating
 						|| date === latestExperimentState.lastEditedDate
-						|| latestExperimentState.editCount >= experiment.condition.fileEdits.minEditCount) {
+						|| (typeof latestExperimentState.editCount === 'number' && latestExperimentState.editCount >= fileEdits.minEditCount)
+					) {
 						return;
 					}
 					let filePathCheck = true;
 					let workspaceCheck = true;
 
-					if (typeof experiment.condition.fileEdits.filePathPattern === 'string') {
-						filePathCheck = match(experiment.condition.fileEdits.filePathPattern, event.resource.fsPath);
+					if (typeof fileEdits.filePathPattern === 'string') {
+						filePathCheck = match(fileEdits.filePathPattern, event.resource.fsPath);
 					}
-					if (Array.isArray(experiment.condition.fileEdits.workspaceIncludes) && experiment.condition.fileEdits.workspaceIncludes.length) {
-						workspaceCheck = !!WorkspaceStats.TAGS && experiment.condition.fileEdits.workspaceIncludes.some(x => !!WorkspaceStats.TAGS[x]);
+					if (Array.isArray(fileEdits.workspaceIncludes) && fileEdits.workspaceIncludes.length) {
+						workspaceCheck = !!WorkspaceStats.TAGS && fileEdits.workspaceIncludes.some(x => !!WorkspaceStats.TAGS[x]);
 					}
-					if (workspaceCheck && Array.isArray(experiment.condition.fileEdits.workspaceExcludes) && experiment.condition.fileEdits.workspaceExcludes.length) {
-						workspaceCheck = !!WorkspaceStats.TAGS && !experiment.condition.fileEdits.workspaceExcludes.some(x => !!WorkspaceStats.TAGS[x]);
+					if (workspaceCheck && Array.isArray(fileEdits.workspaceExcludes) && fileEdits.workspaceExcludes.length) {
+						workspaceCheck = !!WorkspaceStats.TAGS && !fileEdits.workspaceExcludes.some(x => !!WorkspaceStats.TAGS[x]);
 					}
 					if (filePathCheck && workspaceCheck) {
 						latestExperimentState.editCount = (latestExperimentState.editCount || 0) + 1;
@@ -427,10 +434,10 @@ export class ExperimentService extends Disposable implements IExperimentService 
 						this.storageService.store(storageKey, JSON.stringify(latestExperimentState), StorageScope.GLOBAL);
 					}
 				});
-				if (latestExperimentState.editCount >= experiment.condition.fileEdits.minEditCount) {
-					processedExperiment.state = latestExperimentState.state = (Math.random() < experiment.condition.userProbability && this.checkExperimentDependencies(experiment)) ? ExperimentState.Run : ExperimentState.NoRun;
+				if (typeof latestExperimentState.editCount === 'number' && latestExperimentState.editCount >= fileEdits.minEditCount) {
+					processedExperiment.state = latestExperimentState.state = (typeof condition.userProbability === 'number' && Math.random() < condition.userProbability && this.checkExperimentDependencies(experiment)) ? ExperimentState.Run : ExperimentState.NoRun;
 					this.storageService.store(storageKey, JSON.stringify(latestExperimentState), StorageScope.GLOBAL);
-					if (latestExperimentState.state === ExperimentState.Run && ExperimentActionType[experiment.action.type] === ExperimentActionType.Prompt) {
+					if (latestExperimentState.state === ExperimentState.Run && experiment.action && ExperimentActionType[experiment.action.type] === ExperimentActionType.Prompt) {
 						this.fireRunExperiment(processedExperiment);
 					}
 				}
@@ -446,11 +453,10 @@ export class ExperimentService extends Disposable implements IExperimentService 
 }
 
 
-function safeParse(text: string, defaultObject: any) {
+function safeParse(text: string | undefined, defaultObject: any) {
 	try {
-		return JSON.parse(text) || defaultObject;
-	}
-	catch (e) {
+		return text ? JSON.parse(text) || defaultObject : defaultObject;
+	} catch (e) {
 		return defaultObject;
 	}
 }

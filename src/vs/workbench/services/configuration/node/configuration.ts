@@ -65,7 +65,7 @@ export class WorkspaceConfiguration extends Disposable {
 					parseErrors = [...this._workspaceConfigurationModelParser.errors];
 					this.consolidate();
 					return this._workspaceConfigurationModelParser;
-				}, initCallback: () => c(null)
+				}, initCallback: () => c(void 0)
 			});
 			this.listenToWatcher();
 		});
@@ -75,7 +75,7 @@ export class WorkspaceConfiguration extends Disposable {
 		this.stopListeningToWatcher();
 		return new Promise<void>(c => this._workspaceConfigurationWatcher.reload(() => {
 			this.listenToWatcher();
-			c(null);
+			c(void 0);
 		}));
 	}
 
@@ -225,13 +225,16 @@ export class NodeBasedFolderConfiguration extends AbstractFolderConfiguration {
 
 	protected loadFolderConfigurationContents(): Promise<{ resource: URI, value: string }[]> {
 		return this.resolveStat(this.folderConfigurationPath).then(stat => {
-			if (!stat.isDirectory) {
+			if (!stat.isDirectory || !stat.children) {
 				return Promise.resolve([]);
 			}
 			return this.resolveContents(stat.children.filter(stat => isFolderConfigurationFile(stat.resource))
 				.map(stat => stat.resource));
 		}, err => [] /* never fail this call */)
-			.then(void 0, errors.onUnexpectedError);
+			.then(void 0, e => {
+				errors.onUnexpectedError(e);
+				return [];
+			});
 	}
 
 	private resolveContents(resources: URI[]): Promise<{ resource: URI, value: string }[]> {
@@ -265,7 +268,7 @@ export class FileServiceBasedFolderConfiguration extends AbstractFolderConfigura
 
 	private reloadConfigurationScheduler: RunOnceScheduler;
 	private readonly folderConfigurationPath: URI;
-	private readonly loadConfigurationDelayer: Delayer<{ resource: URI, value: string }[]> = new Delayer<{ resource: URI, value: string }[]>(50);
+	private readonly loadConfigurationDelayer = new Delayer<Array<{ resource: URI, value: string }>>(50);
 
 	constructor(folder: URI, private configFolderRelativePath: string, workbenchState: WorkbenchState, private fileService: IFileService, from?: AbstractFolderConfiguration) {
 		super(folder, workbenchState, from);
@@ -274,18 +277,23 @@ export class FileServiceBasedFolderConfiguration extends AbstractFolderConfigura
 		this._register(fileService.onFileChanges(e => this.handleWorkspaceFileEvents(e)));
 	}
 
-	protected loadFolderConfigurationContents(): Promise<{ resource: URI, value: string }[]> {
+	protected loadFolderConfigurationContents(): Promise<Array<{ resource: URI, value: string }>> {
 		return Promise.resolve(this.loadConfigurationDelayer.trigger(() => this.doLoadFolderConfigurationContents()));
 	}
 
-	private doLoadFolderConfigurationContents(): Promise<{ resource: URI, value: string }[]> {
+	private doLoadFolderConfigurationContents(): Promise<Array<{ resource: URI, value: string }>> {
 		const workspaceFilePathToConfiguration: { [relativeWorkspacePath: string]: Promise<IContent> } = Object.create(null);
 		const bulkContentFetchromise = Promise.resolve(this.fileService.resolveFile(this.folderConfigurationPath))
 			.then(stat => {
 				if (stat.isDirectory && stat.children) {
 					stat.children
 						.filter(child => isFolderConfigurationFile(child.resource))
-						.forEach(child => workspaceFilePathToConfiguration[this.toFolderRelativePath(child.resource)] = Promise.resolve(this.fileService.resolveContent(child.resource)).then(void 0, errors.onUnexpectedError));
+						.forEach(child => {
+							const folderRelativePath = this.toFolderRelativePath(child.resource);
+							if (folderRelativePath) {
+								workspaceFilePathToConfiguration[folderRelativePath] = Promise.resolve(this.fileService.resolveContent(child.resource)).then(void 0, errors.onUnexpectedError);
+							}
+						});
 				}
 			}).then(void 0, err => [] /* never fail this call */);
 
@@ -336,7 +344,7 @@ export class FileServiceBasedFolderConfiguration extends AbstractFolderConfigura
 		}
 	}
 
-	private toFolderRelativePath(resource: URI): string {
+	private toFolderRelativePath(resource: URI): string | null {
 		if (resource.scheme === Schemas.file) {
 			if (paths.isEqualOrParent(resource.fsPath, this.folderConfigurationPath.fsPath, !isLinux /* ignorecase */)) {
 				return paths.normalize(relative(this.folderConfigurationPath.fsPath, resource.fsPath));
@@ -387,7 +395,7 @@ export class CachedFolderConfiguration extends Disposable implements IFolderConf
 			if (created) {
 				return configurationModel.keys.length ? pfs.writeFile(this.cachedConfigurationPath, raw) : pfs.rimraf(this.cachedFolderPath);
 			}
-			return null;
+			return void 0;
 		});
 	}
 
@@ -492,6 +500,6 @@ export class FolderConfiguration extends Disposable implements IFolderConfigurat
 			return this.folderConfiguration.loadConfiguration()
 				.then(configurationModel => this.cachedFolderConfiguration.updateConfiguration(configurationModel));
 		}
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 }

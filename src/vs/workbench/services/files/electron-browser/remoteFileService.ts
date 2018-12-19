@@ -297,7 +297,7 @@ export class RemoteFileService extends FileService {
 	resolveFiles(toResolve: { resource: URI; options?: IResolveFileOptions; }[]): Promise<IResolveFileResult[]> {
 
 		// soft-groupBy, keep order, don't rearrange/merge groups
-		let groups: (typeof toResolve)[] = [];
+		let groups: Array<typeof toResolve> = [];
 		let group: typeof toResolve;
 		for (const request of toResolve) {
 			if (!group || group[0].resource.scheme !== request.resource.scheme) {

@@ -306,7 +306,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private _placeholder;
 	private onDidChangeValueEmitter = new Emitter<string>();
 	private onDidAcceptEmitter = new Emitter<string>();
-	private _items: (T | IQuickPickSeparator)[] = [];
+	private _items: Array<T | IQuickPickSeparator> = [];
 	private itemsUpdated = false;
 	private _canSelectMany = false;
 	private _matchOnDescription = false;
@@ -360,7 +360,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		return this._items;
 	}
 
-	set items(items: (T | IQuickPickSeparator)[]) {
+	set items(items: Array<T | IQuickPickSeparator>) {
 		this._items = items;
 		this.itemsUpdated = true;
 		this.update();

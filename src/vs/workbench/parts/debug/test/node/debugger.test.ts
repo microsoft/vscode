@@ -117,7 +117,7 @@ suite('Debug - Debugger', () => {
 
 
 	const configurationManager = <IConfigurationManager>{
-		provideDebugAdapter(session: IDebugSession, config: IConfig): Promise<IDebugAdapterExecutable | undefined> {
+		getDebugAdapterDescriptor(session: IDebugSession, config: IConfig): Promise<IDebugAdapterExecutable | undefined> {
 			return Promise.resolve(undefined);
 		}
 	};

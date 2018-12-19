@@ -113,8 +113,11 @@ export class TypeScriptServerSpawner {
 			if (pluginManager.plugins.length) {
 				args.push('--globalPlugins', pluginManager.plugins.map(x => x.name).join(','));
 
-				if (currentVersion.path === this._versionProvider.defaultVersion.path) {
-					pluginPaths.push(...pluginManager.plugins.map(x => x.path));
+				const isUsingBundledTypeScriptVersion = currentVersion.path === this._versionProvider.defaultVersion.path;
+				for (const plugin of pluginManager.plugins) {
+					if (isUsingBundledTypeScriptVersion || plugin.enableForWorkspaceTypeScriptVersions) {
+						pluginPaths.push(plugin.path);
+					}
 				}
 			}
 

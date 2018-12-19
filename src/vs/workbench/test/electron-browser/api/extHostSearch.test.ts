@@ -28,7 +28,7 @@ let mockMainThreadSearch: MockMainThreadSearch;
 class MockMainThreadSearch implements MainThreadSearchShape {
 	lastHandle: number;
 
-	results: (UriComponents | IRawFileMatch2)[] = [];
+	results: Array<UriComponents | IRawFileMatch2> = [];
 
 	$registerFileSearchProvider(handle: number, scheme: string): void {
 		this.lastHandle = handle;

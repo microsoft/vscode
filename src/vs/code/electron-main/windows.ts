@@ -492,7 +492,7 @@ export class WindowsManager implements IWindowsMainService {
 		// Remember in recent document list (unless this opens for extension development)
 		// Also do not add paths when files are opened for diffing, only if opened individually
 		if (!usedWindows.some(w => w.isExtensionDevelopmentHost) && !openConfig.cli.diff) {
-			const recentlyOpenedWorkspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[] = [];
+			const recentlyOpenedWorkspaces: Array<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier> = [];
 			const recentlyOpenedFiles: URI[] = [];
 
 			pathsToOpen.forEach(win => {
@@ -1984,7 +1984,7 @@ class WorkspacesManager {
 	) {
 	}
 
-	saveAndEnterWorkspace(window: ICodeWindow, path: string): Promise<IEnterWorkspaceResult> {
+	saveAndEnterWorkspace(window: ICodeWindow, path: string): Promise<IEnterWorkspaceResult | null> {
 		if (!window || !window.win || !window.isReady || !window.openedWorkspace || !path || !this.isValidTargetWorkspacePath(window, path)) {
 			return Promise.resolve(null); // return early if the window is not ready or disposed or does not have a workspace
 		}
@@ -1992,7 +1992,7 @@ class WorkspacesManager {
 		return this.doSaveAndOpenWorkspace(window, window.openedWorkspace, path);
 	}
 
-	enterWorkspace(window: ICodeWindow, path: string): Promise<IEnterWorkspaceResult> {
+	enterWorkspace(window: ICodeWindow, path: string): Promise<IEnterWorkspaceResult | null> {
 		if (!window || !window.win || !window.isReady) {
 			return Promise.resolve(null); // return early if the window is not ready or disposed
 		}
@@ -2009,7 +2009,7 @@ class WorkspacesManager {
 
 	}
 
-	createAndEnterWorkspace(window: ICodeWindow, folders?: IWorkspaceFolderCreationData[], path?: string): Promise<IEnterWorkspaceResult> {
+	createAndEnterWorkspace(window: ICodeWindow, folders?: IWorkspaceFolderCreationData[], path?: string): Promise<IEnterWorkspaceResult | null> {
 		if (!window || !window.win || !window.isReady) {
 			return Promise.resolve(null); // return early if the window is not ready or disposed
 		}

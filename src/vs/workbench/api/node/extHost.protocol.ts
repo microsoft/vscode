@@ -31,11 +31,10 @@ import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { EndOfLine, IFileOperationOptions, TextEditorLineNumbersStyle } from 'vs/workbench/api/node/extHostTypes';
 import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
-import { TaskDTO, TaskExecutionDTO, TaskFilterDTO, TaskHandleDTO, TaskProcessEndedDTO, TaskProcessStartedDTO, TaskSystemInfoDTO } from 'vs/workbench/api/shared/tasks';
+import { TaskDTO, TaskExecutionDTO, TaskFilterDTO, TaskHandleDTO, TaskProcessEndedDTO, TaskProcessStartedDTO, TaskSystemInfoDTO, TaskSetDTO } from 'vs/workbench/api/shared/tasks';
 import { ITreeItem, IRevealOptions } from 'vs/workbench/common/views';
 import { IAdapterDescriptor, IConfig, ITerminalSettings } from 'vs/workbench/parts/debug/common/debug';
 import { ITextQueryBuilderOptions } from 'vs/workbench/parts/search/common/queryBuilder';
-import { TaskSet } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITerminalDimensions } from 'vs/workbench/parts/terminal/common/terminal';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IRPCProtocol, ProxyIdentifier, createExtHostContextProxyIdentifier as createExtId, createMainContextProxyIdentifier as createMainId } from 'vs/workbench/services/extensions/node/proxyIdentifier';
@@ -344,7 +343,7 @@ export interface MainThreadProgressShape extends IDisposable {
 }
 
 export interface MainThreadTerminalServiceShape extends IDisposable {
-	$createTerminal(name?: string, shellPath?: string, shellArgs?: string[], cwd?: string, env?: { [key: string]: string }, waitOnExit?: boolean): Promise<number>;
+	$createTerminal(name?: string, shellPath?: string, shellArgs?: string[], cwd?: string | URI, env?: { [key: string]: string }, waitOnExit?: boolean): Promise<{ id: number, name: string }>;
 	$createTerminalRenderer(name: string): Promise<number>;
 	$dispose(terminalId: number): void;
 	$hide(terminalId: number): void;
@@ -616,7 +615,7 @@ export interface MainThreadDebugServiceShape extends IDisposable {
 	$customDebugAdapterRequest(id: DebugSessionUUID, command: string, args: any): Promise<any>;
 	$appendDebugConsole(value: string): void;
 	$startBreakpointEvents(): void;
-	$registerBreakpoints(breakpoints: (ISourceMultiBreakpointDto | IFunctionBreakpointDto)[]): Promise<void>;
+	$registerBreakpoints(breakpoints: Array<ISourceMultiBreakpointDto | IFunctionBreakpointDto>): Promise<void>;
 	$unregisterBreakpoints(breakpointIds: string[], functionBreakpointIds: string[]): Promise<void>;
 }
 
@@ -830,7 +829,7 @@ export interface ResourceTextEditDto {
 }
 
 export interface WorkspaceEditDto {
-	edits: (ResourceFileEditDto | ResourceTextEditDto)[];
+	edits: Array<ResourceFileEditDto | ResourceTextEditDto>;
 
 	// todo@joh reject should go into rename
 	rejectReason?: string;
@@ -887,7 +886,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideDocumentColors(handle: number, resource: UriComponents, token: CancellationToken): Promise<IRawColorInfo[]>;
 	$provideColorPresentations(handle: number, resource: UriComponents, colorInfo: IRawColorInfo, token: CancellationToken): Promise<modes.IColorPresentation[]>;
 	$provideFoldingRanges(handle: number, resource: UriComponents, context: modes.FoldingContext, token: CancellationToken): Promise<modes.FoldingRange[]>;
-	$provideSelectionRanges(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<IRange[]>;
+	$provideSelectionRanges(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.SelectionRange[]>;
 }
 
 export interface ExtHostQuickOpenShape {
@@ -905,7 +904,7 @@ export interface ShellLaunchConfigDto {
 	name?: string;
 	executable?: string;
 	args?: string[] | string;
-	cwd?: string;
+	cwd?: string | URI;
 	env?: { [key: string]: string };
 }
 
@@ -933,7 +932,7 @@ export interface ExtHostSCMShape {
 }
 
 export interface ExtHostTaskShape {
-	$provideTasks(handle: number, validTypes: { [key: string]: boolean; }): Promise<TaskSet>;
+	$provideTasks(handle: number, validTypes: { [key: string]: boolean; }): Thenable<TaskSetDTO>;
 	$onDidStartTask(execution: TaskExecutionDTO): void;
 	$onDidStartTaskProcess(value: TaskProcessStartedDTO): void;
 	$onDidEndTaskProcess(value: TaskProcessEndedDTO): void;
@@ -963,9 +962,9 @@ export interface ISourceBreakpointDto extends IBreakpointDto {
 }
 
 export interface IBreakpointsDeltaDto {
-	added?: (ISourceBreakpointDto | IFunctionBreakpointDto)[];
+	added?: Array<ISourceBreakpointDto | IFunctionBreakpointDto>;
 	removed?: string[];
-	changed?: (ISourceBreakpointDto | IFunctionBreakpointDto)[];
+	changed?: Array<ISourceBreakpointDto | IFunctionBreakpointDto>;
 }
 
 export interface ISourceMultiBreakpointDto {
@@ -1045,9 +1044,9 @@ export interface ExtHostCommentsShape {
 	$replyToCommentThread(handle: number, document: UriComponents, range: IRange, commentThread: modes.CommentThread, text: string): Promise<modes.CommentThread>;
 	$editComment(handle: number, document: UriComponents, comment: modes.Comment, text: string): Promise<void>;
 	$deleteComment(handle: number, document: UriComponents, comment: modes.Comment): Promise<void>;
-	$startDraft(handle: number): Promise<void>;
-	$deleteDraft(handle: number): Promise<void>;
-	$finishDraft(handle: number): Promise<void>;
+	$startDraft(handle: number, document: UriComponents): Promise<void>;
+	$deleteDraft(handle: number, document: UriComponents): Promise<void>;
+	$finishDraft(handle: number, document: UriComponents): Promise<void>;
 	$provideWorkspaceComments(handle: number): Promise<modes.CommentThread[]>;
 }
 

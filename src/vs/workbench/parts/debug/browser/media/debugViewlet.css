@@ -110,9 +110,9 @@
 	line-height: 20px;
 }
 
-.debug-viewlet .monaco-list .monaco-list-row.selected .line-number,
-.debug-viewlet .monaco-list .monaco-list-row.selected .thread > .state > .label,
-.debug-viewlet .monaco-list .monaco-list-row.selected .session > .state > .label {
+.debug-viewlet .monaco-list-row.selected .line-number,
+.debug-viewlet .monaco-list-row.selected .thread > .state > .label,
+.debug-viewlet .monaco-list-row.selected .session > .state > .label {
 	background-color: #ffffff;
 	color: #666;
 }

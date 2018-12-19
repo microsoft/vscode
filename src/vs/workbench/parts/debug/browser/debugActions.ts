@@ -804,7 +804,7 @@ export class ReverseContinueAction extends AbstractDebugAction {
 }
 
 export class ReplCollapseAllAction extends CollapseAction2 {
-	constructor(tree: AsyncDataTree<any>, private toFocus: { focus(): void; }) {
+	constructor(tree: AsyncDataTree<any, any>, private toFocus: { focus(): void; }) {
 		super(tree, true, undefined);
 	}
 

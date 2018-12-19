@@ -53,7 +53,7 @@ function getId(manifest: IExtensionManifest, withVersion?: boolean): string {
 
 const EXTENSION_ID_REGEX = /^([^.]+\..+)@(\d+\.\d+\.\d+(-.*)?)$/;
 
-export function getIdAndVersion(id: string): [string, string] {
+export function getIdAndVersion(id: string): [string, string | undefined] {
 	const matches = EXTENSION_ID_REGEX.exec(id);
 	if (matches && matches[1]) {
 		return [adoptToGalleryExtensionId(matches[1]), matches[2]];
@@ -77,7 +77,7 @@ class Main {
 			await this.setInstallSource(argv['install-source']);
 
 		} else if (argv['list-extensions']) {
-			await this.listExtensions(argv['show-versions']);
+			await this.listExtensions(!!argv['show-versions']);
 
 		} else if (argv['install-extension']) {
 			const arg = argv['install-extension'];

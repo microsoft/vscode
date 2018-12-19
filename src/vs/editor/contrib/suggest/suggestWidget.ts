@@ -153,7 +153,7 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 
 		const labelOptions: IIconLabelValueOptions = {
 			labelEscapeNewLines: true,
-			matches: createMatches(element.matches)
+			matches: createMatches(element.score)
 		};
 
 		let color: string;

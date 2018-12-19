@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/21ec2c292fda00a06c6bf7ed8ba7c970c4a21df4",
+	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/5d44152e45a4953fc3b4a0a4e42ea4b97768efa1",
 	"name": "JavaScript (with React support)",
 	"scopeName": "source.js",
 	"patterns": [
@@ -3666,6 +3666,13 @@
 			},
 			"patterns": [
 				{
+					"include": "#type-parameters-body"
+				}
+			]
+		},
+		"type-parameters-body": {
+			"patterns": [
+				{
 					"include": "#comment"
 				},
 				{
@@ -3700,6 +3707,13 @@
 			},
 			"patterns": [
 				{
+					"include": "#type-arguments-body"
+				}
+			]
+		},
+		"type-arguments-body": {
+			"patterns": [
+				{
 					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(_)(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))",
 					"captures": {
 						"0": {
@@ -3712,6 +3726,33 @@
 				},
 				{
 					"include": "#punctuation-comma"
+				}
+			]
+		},
+		"type-parameters-or-type-arguments": {
+			"patterns": [
+				{
+					"name": "meta.type.parameters.js",
+					"begin": "(\\<)(?=\\s*([_$[:alpha:]]|(\\{([^\\{\\}]|(\\{[^\\{\\}]*\\}))*\\})|(\\(([^\\(\\)]|(\\([^\\(\\)]*\\)))*\\))|(\\[([^\\[\\]]|(\\[[^\\[\\]]*\\]))*\\]))([^=<>]|=[^<]|\\<\\s*([_$[:alpha:]]|(\\{([^\\{\\}]|(\\{[^\\{\\}]*\\}))*\\})|(\\(([^\\(\\)]|(\\([^\\(\\)]*\\)))*\\))|(\\[([^\\[\\]]|(\\[[^\\[\\]]*\\]))*\\]))([^=<>]|=[^<])*\\>)*\\>)",
+					"beginCaptures": {
+						"1": {
+							"name": "punctuation.definition.typeparameters.begin.js"
+						}
+					},
+					"end": "\\>",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.typeparameters.end.js"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#type-parameters-body"
+						}
+					]
+				},
+				{
+					"include": "#type-arguments"
 				}
 			]
 		},
@@ -3733,7 +3774,7 @@
 					"include": "#type-builtin-literals"
 				},
 				{
-					"include": "#type-arguments"
+					"include": "#type-parameters"
 				},
 				{
 					"include": "#type-tuple"
@@ -4108,6 +4149,58 @@
 		},
 		"type-name": {
 			"patterns": [
+				{
+					"begin": "([_$[:alpha:]][_$[:alnum:]]*)\\s*(?:(\\.)|(\\?\\.(?!\\s*[[:digit:]])))\\s*(<)",
+					"captures": {
+						"1": {
+							"name": "entity.name.type.module.js"
+						},
+						"2": {
+							"name": "punctuation.accessor.js"
+						},
+						"3": {
+							"name": "punctuation.accessor.optional.js"
+						},
+						"4": {
+							"name": "meta.type.parameters.js punctuation.definition.typeparameters.begin.js"
+						}
+					},
+					"end": "(>)",
+					"endCaptures": {
+						"1": {
+							"name": "meta.type.parameters.js punctuation.definition.typeparameters.end.js"
+						}
+					},
+					"contentName": "meta.type.parameters.js",
+					"patterns": [
+						{
+							"include": "#type-arguments-body"
+						}
+					]
+				},
+				{
+					"begin": "([_$[:alpha:]][_$[:alnum:]]*)\\s*(<)",
+					"beginCaptures": {
+						"1": {
+							"name": "entity.name.type.js"
+						},
+						"2": {
+							"name": "meta.type.parameters.js punctuation.definition.typeparameters.begin.js"
+						}
+					},
+					"end": "(>)",
+					"endCaptures": {
+						"1": {
+							"name": "meta.type.parameters.js punctuation.definition.typeparameters.end.js"
+						}
+					},
+					"contentName": "meta.type.parameters.js",
+					"patterns": [
+						{
+							"include": "#type-arguments-body"
+						}
+					]
+				},
 				{
 					"match": "([_$[:alpha:]][_$[:alnum:]]*)\\s*(?:(\\.)|(\\?\\.(?!\\s*[[:digit:]])))",
 					"captures": {

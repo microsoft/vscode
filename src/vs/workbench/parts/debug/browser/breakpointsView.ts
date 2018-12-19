@@ -83,7 +83,7 @@ export class BreakpointsView extends ViewletPanel {
 
 		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
 
-		this.disposables.push(this.list.onOpen(e => {
+		this.disposables.push(this.list.onDidOpen(e => {
 			let isSingleClick = false;
 			let isDoubleClick = false;
 			let isMiddleClick = false;

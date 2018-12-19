@@ -118,7 +118,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private lastEditLocation: IStackEntry;
 
-	private history: (IEditorInput | IResourceInput)[];
+	private history: Array<IEditorInput | IResourceInput>;
 	private recentlyClosedFiles: IRecentlyClosedFile[];
 	private loaded: boolean;
 	private resourceFilter: ResourceGlobMatcher;
@@ -793,7 +793,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		return resourceInput && resourceInput.resource.toString() === resource.toString();
 	}
 
-	getHistory(): (IEditorInput | IResourceInput)[] {
+	getHistory(): Array<IEditorInput | IResourceInput> {
 		this.ensureHistoryLoaded();
 
 		return this.history.slice(0);

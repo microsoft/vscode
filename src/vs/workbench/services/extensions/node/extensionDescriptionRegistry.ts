@@ -58,6 +58,11 @@ export class ExtensionDescriptionRegistry {
 		this._initialize();
 	}
 
+	public remove(extensionId: string): void {
+		this._extensionDescriptions = this._extensionDescriptions.filter(extension => extension.id !== extensionId);
+		this._initialize();
+	}
+
 	public containsActivationEvent(activationEvent: string): boolean {
 		return hasOwnProperty.call(this._activationMap, activationEvent);
 	}

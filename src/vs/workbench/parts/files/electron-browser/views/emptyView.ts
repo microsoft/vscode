@@ -124,7 +124,7 @@ export class EmptyView extends ViewletPanel {
 	}
 
 	public setVisible(visible: boolean): Promise<void> {
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 
 	public focusBody(): void {
@@ -134,7 +134,7 @@ export class EmptyView extends ViewletPanel {
 	}
 
 	protected reveal(element: any, relativeTop?: number): Promise<void> {
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 
 	public getActions(): IAction[] {

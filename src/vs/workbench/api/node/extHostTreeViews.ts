@@ -341,7 +341,7 @@ class ExtHostTreeView<T> extends Disposable {
 				return this.refreshHandles(handlesToRefresh);
 			}
 		}
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 
 	private getHandlesToRefresh(elements: T[]): TreeItemHandle[] {

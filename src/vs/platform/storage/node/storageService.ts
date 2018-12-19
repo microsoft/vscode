@@ -33,7 +33,7 @@ export class StorageService extends Disposable implements IStorageService {
 	private _hasErrors = false;
 	get hasErrors(): boolean { return this._hasErrors; }
 
-	private bufferedWorkspaceStorageErrors?: (string | Error)[] = [];
+	private bufferedWorkspaceStorageErrors?: Array<string | Error> = [];
 	private _onWorkspaceStorageError: Emitter<string | Error> = this._register(new Emitter<string | Error>());
 	get onWorkspaceStorageError(): Event<string | Error> {
 		if (Array.isArray(this.bufferedWorkspaceStorageErrors)) {

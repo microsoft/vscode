@@ -523,7 +523,7 @@ class PreferencesRenderersController extends Disposable {
 		if (!query) {
 			// Don't open the other settings targets when query is empty
 			this._onDidFilterResultsCountChange.fire({ target, count: 0 });
-			return Promise.resolve(null);
+			return Promise.resolve(void 0);
 		}
 
 		return this.getPreferencesEditorModel(target).then(model => {
@@ -585,7 +585,7 @@ class PreferencesRenderersController extends Disposable {
 		}
 	}
 
-	private _filterOrSearchPreferences(filter: string, preferencesRenderer: IPreferencesRenderer<ISetting>, provider: ISearchProvider, groupId: string, groupLabel: string, groupOrder: number, token?: CancellationToken): Promise<IFilterResult> {
+	private _filterOrSearchPreferences(filter: string, preferencesRenderer: IPreferencesRenderer<ISetting>, provider: ISearchProvider, groupId: string, groupLabel: string, groupOrder: number, token?: CancellationToken): Promise<IFilterResult | null> {
 		if (!preferencesRenderer) {
 			return Promise.resolve(null);
 		}
@@ -1096,7 +1096,7 @@ abstract class AbstractSettingsEditorContribution extends Disposable implements 
 		this._register(this.editor.onDidChangeModel(() => this._onModelChanged()));
 	}
 
-	updatePreferencesRenderer(associatedPreferencesModelUri: URI): Promise<IPreferencesRenderer<ISetting>> {
+	updatePreferencesRenderer(associatedPreferencesModelUri: URI): Promise<IPreferencesRenderer<ISetting> | null> {
 		if (!this.preferencesRendererCreationPromise) {
 			this.preferencesRendererCreationPromise = this._createPreferencesRenderer();
 		}

@@ -76,7 +76,7 @@ export const ResourceSelectedForCompareContext = new RawContextKey<boolean>('res
 export const REMOVE_ROOT_FOLDER_COMMAND_ID = 'removeRootFolder';
 export const REMOVE_ROOT_FOLDER_LABEL = nls.localize('removeFolderFromWorkspace', "Remove Folder from Workspace");
 
-export const openWindowCommand = (accessor: ServicesAccessor, paths: (string | URI)[], forceNewWindow: boolean) => {
+export const openWindowCommand = (accessor: ServicesAccessor, paths: Array<string | URI>, forceNewWindow: boolean) => {
 	const windowService = accessor.get(IWindowService);
 	windowService.openWindow(paths.map(p => typeof p === 'string' ? URI.file(p) : p), { forceNewWindow });
 };

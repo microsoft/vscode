@@ -246,9 +246,9 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 		this.startOffset = 0;
 		this.endOffset = 0;
 		if (this.model) {
-			return this.loadModel().then(() => null);
+			return this.loadModel().then(() => void 0);
 		}
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 
 	private loadFile(): Promise<string> {
@@ -487,7 +487,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 			if (this._outputPanel && !preserveFocus) {
 				this._outputPanel.focus();
 			}
-			return Promise.resolve(null);
+			return Promise.resolve(void 0);
 		}
 
 		this.activeChannel = channel;
@@ -530,7 +530,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 				return this.doShowChannel(this.activeChannel, preserveFocus);
 			}
 		}
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 
 	private onDidPanelClose(panel: IPanel): void {
@@ -616,7 +616,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 				// Activate smart scroll when switching back to the output panel
 				.then(() => this.setPrimaryCursorToLastLine());
 		}
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 
 	private isChannelShown(channel: IOutputChannel): boolean {

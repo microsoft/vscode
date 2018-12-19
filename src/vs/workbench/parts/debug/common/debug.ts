@@ -401,9 +401,9 @@ export interface IDebugModel extends ITreeElement {
  * An event describing a change to the set of [breakpoints](#debug.Breakpoint).
  */
 export interface IBreakpointsChangeEvent {
-	added?: (IBreakpoint | IFunctionBreakpoint)[];
-	removed?: (IBreakpoint | IFunctionBreakpoint)[];
-	changed?: (IBreakpoint | IFunctionBreakpoint)[];
+	added?: Array<IBreakpoint | IFunctionBreakpoint>;
+	removed?: Array<IBreakpoint | IFunctionBreakpoint>;
+	changed?: Array<IBreakpoint | IFunctionBreakpoint>;
 	sessionOnly?: boolean;
 }
 
@@ -609,7 +609,7 @@ export interface IConfigurationManager {
 	unregisterDebugAdapterTrackerFactory(debugAdapterTrackerFactory: IDebugAdapterTrackerFactory): void;
 
 	resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: any): Promise<any>;
-	provideDebugAdapter(session: IDebugSession): Promise<IAdapterDescriptor | undefined>;
+	getDebugAdapterDescriptor(session: IDebugSession): Promise<IAdapterDescriptor | undefined>;
 
 	registerDebugAdapterFactory(debugTypes: string[], debugAdapterFactory: IDebugAdapterFactory): IDisposable;
 	createDebugAdapter(session: IDebugSession): IDebugAdapter;

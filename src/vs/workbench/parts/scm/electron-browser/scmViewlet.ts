@@ -615,7 +615,7 @@ class ResourceGroupSplicer {
 		}
 
 		const itemsToInsert: IGroupItem[] = [];
-		const absoluteToInsert: (ISCMResourceGroup | ISCMResource)[] = [];
+		const absoluteToInsert: Array<ISCMResourceGroup | ISCMResource> = [];
 
 		for (const group of toInsert) {
 			const visible = isGroupVisible(group);
@@ -879,7 +879,7 @@ export class RepositoryPanel extends ViewletPanel {
 			keyboardNavigationLabelProvider: scmKeyboardNavigationLabelProvider
 		}) as WorkbenchList<ISCMResourceGroup | ISCMResource>;
 
-		Event.chain(this.list.onOpen)
+		Event.chain(this.list.onDidOpen)
 			.map(e => e.elements[0])
 			.filter(e => !!e && isSCMResource(e))
 			.on(this.open, this, this.disposables);

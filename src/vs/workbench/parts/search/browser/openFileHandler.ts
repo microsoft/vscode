@@ -189,7 +189,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 		});
 	}
 
-	private getAbsolutePathResult(query: IPreparedQuery): Promise<URI> {
+	private getAbsolutePathResult(query: IPreparedQuery): Promise<URI | null> {
 		if (paths.isAbsolute(query.original)) {
 			const resource = URI.file(query.original);
 

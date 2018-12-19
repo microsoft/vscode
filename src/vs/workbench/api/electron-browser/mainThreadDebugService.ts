@@ -121,7 +121,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		}
 	}
 
-	public $registerBreakpoints(DTOs: (ISourceMultiBreakpointDto | IFunctionBreakpointDto)[]): Promise<void> {
+	public $registerBreakpoints(DTOs: Array<ISourceMultiBreakpointDto | IFunctionBreakpointDto>): Promise<void> {
 
 		for (let dto of DTOs) {
 			if (dto.type === 'sourceMulti') {
@@ -168,6 +168,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			};
 		}
 		if (hasProvideDebugAdapter) {
+			console.info('DebugConfigurationProvider.debugAdapterExecutable is deprecated and will be removed soon; please use DebugAdapterDescriptorFactory.createDebugAdapterDescriptor instead.');
 			provider.debugAdapterExecutable = (folder) => {
 				return Promise.resolve(this._proxy.$legacyDebugAdapterExecutable(handle, folder));
 			};
@@ -292,7 +293,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		return undefined;
 	}
 
-	private convertToDto(bps: (ReadonlyArray<IBreakpoint | IFunctionBreakpoint>)): (ISourceBreakpointDto | IFunctionBreakpointDto)[] {
+	private convertToDto(bps: (ReadonlyArray<IBreakpoint | IFunctionBreakpoint>)): Array<ISourceBreakpointDto | IFunctionBreakpointDto> {
 		return bps.map(bp => {
 			if ('name' in bp) {
 				const fbp = <IFunctionBreakpoint>bp;

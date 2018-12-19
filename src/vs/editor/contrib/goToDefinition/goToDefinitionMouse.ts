@@ -281,7 +281,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 			DefinitionProviderRegistry.has(this.editor.getModel());
 	}
 
-	private findDefinition(target: IMouseTarget, token: CancellationToken): Promise<DefinitionLink[]> {
+	private findDefinition(target: IMouseTarget, token: CancellationToken): Promise<DefinitionLink[] | null> {
 		const model = this.editor.getModel();
 		if (!model) {
 			return Promise.resolve(null);

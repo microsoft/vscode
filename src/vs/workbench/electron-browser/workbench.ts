@@ -847,7 +847,7 @@ export class Workbench extends Disposable implements IPartService {
 		return [];
 	}
 
-	private toInputs(paths: IPath[], isNew: boolean): (IResourceInput | IUntitledResourceInput)[] {
+	private toInputs(paths: IPath[], isNew: boolean): Array<IResourceInput | IUntitledResourceInput> {
 		if (!paths || !paths.length) {
 			return [];
 		}

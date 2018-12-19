@@ -303,7 +303,7 @@ class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 					this.onSelectScale(scale);
 				}
 
-				return void 0;
+				return Promise.resolve(void 0);
 			}));
 	}
 
@@ -394,7 +394,7 @@ class InlineImageView {
 				DOM.removeClass(image, 'pixelated');
 				image.style.minWidth = 'auto';
 				image.style.width = 'auto';
-				InlineImageView.imageStateCache.set(cacheKey, null);
+				InlineImageView.imageStateCache.delete(cacheKey);
 			} else {
 				const oldWidth = image.width;
 				const oldHeight = image.height;
@@ -432,6 +432,10 @@ class InlineImageView {
 		}
 
 		function firstZoom() {
+			if (!image) {
+				return;
+			}
+
 			scale = image.clientWidth / image.naturalWidth;
 			updateScale(scale);
 		}
@@ -537,10 +541,13 @@ class InlineImageView {
 		DOM.clearNode(container);
 		DOM.addClasses(container, 'image', 'zoom-in');
 
-		image = DOM.append(container, DOM.$('img.scale-to-fit'));
+		image = DOM.append(container, DOM.$<HTMLImageElement>('img.scale-to-fit'));
 		image.style.visibility = 'hidden';
 
 		disposables.push(DOM.addDisposableListener(image, DOM.EventType.LOAD, e => {
+			if (!image) {
+				return;
+			}
 			if (typeof descriptor.size === 'number') {
 				metadataClb(nls.localize('imgMeta', '{0}x{1} {2}', image.naturalWidth, image.naturalHeight, BinarySize.formatSize(descriptor.size)));
 			} else {
@@ -582,7 +589,7 @@ class InlineImageView {
 }
 
 function getMime(descriptor: IResourceDescriptor) {
-	let mime = descriptor.mime;
+	let mime: string | undefined = descriptor.mime;
 	if (!mime && descriptor.resource.scheme !== Schemas.data) {
 		mime = mimes.getMediaMime(descriptor.resource.path);
 	}

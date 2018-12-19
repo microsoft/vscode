@@ -33,7 +33,7 @@ import { IWorkspaceConfigurationService } from 'vs/workbench/services/configurat
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { GroupDirection, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
-import { DEFAULT_SETTINGS_EDITOR_SETTING, FOLDER_SETTINGS_PATH, getSettingsTargetName, IPreferencesEditorModel, IPreferencesService, ISetting, ISettingsEditorOptions, SettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
+import { DEFAULT_SETTINGS_EDITOR_SETTING, FOLDER_SETTINGS_PATH, getSettingsTargetName, IPreferencesEditorModel, IPreferencesService, ISetting, ISettingsEditorOptions, SettingsEditorOptions, USE_SPLIT_JSON_SETTING } from 'vs/workbench/services/preferences/common/preferences';
 import { DefaultPreferencesEditorInput, KeybindingsEditorInput, PreferencesEditorInput, SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { defaultKeybindingsContents, DefaultKeybindingsEditorModel, DefaultSettings, DefaultSettingsEditorModel, Settings2EditorModel, SettingsEditorModel, WorkspaceConfigurationEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 
@@ -210,7 +210,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			this.openOrSwitchSettings2(ConfigurationTarget.USER, undefined, options, group);
 	}
 
-	openWorkspaceSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditor> {
+	openWorkspaceSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditor | null> {
 		jsonEditor = typeof jsonEditor === 'undefined' ?
 			this.configurationService.getValue('workbench.settings.editor') === 'json' :
 			jsonEditor;
@@ -313,6 +313,11 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	private doOpenSettings(configurationTarget: ConfigurationTarget, resource: URI, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditor> {
+		const openSplitJSON = !!this.configurationService.getValue(USE_SPLIT_JSON_SETTING);
+		if (openSplitJSON) {
+			return this.doOpenSplitJSON(configurationTarget, resource, options, group);
+		}
+
 		const openDefaultSettings = !!this.configurationService.getValue(DEFAULT_SETTINGS_EDITOR_SETTING);
 
 		return this.getOrCreateEditableSettingsEditorInput(configurationTarget, resource)
@@ -333,6 +338,22 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 				} else {
 					return this.editorService.openEditor(editableSettingsEditorInput, SettingsEditorOptions.create(options), group);
 				}
+			});
+	}
+
+	private doOpenSplitJSON(configurationTarget: ConfigurationTarget, resource: URI, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditor> {
+		return this.getOrCreateEditableSettingsEditorInput(configurationTarget, resource)
+			.then(editableSettingsEditorInput => {
+				if (!options) {
+					options = { pinned: true };
+				} else {
+					options = assign(options, { pinned: true });
+				}
+
+				const defaultPreferencesEditorInput = this.instantiationService.createInstance(DefaultPreferencesEditorInput, this.getDefaultSettingsResource(configurationTarget));
+				const preferencesEditorInput = new PreferencesEditorInput(this.getPreferencesEditorInputName(configurationTarget, resource), editableSettingsEditorInput.getDescription(), defaultPreferencesEditorInput, <EditorInput>editableSettingsEditorInput);
+				this.lastOpenedSettingsInput = preferencesEditorInput;
+				return this.editorService.openEditor(preferencesEditorInput, SettingsEditorOptions.create(options), group);
 			});
 	}
 
@@ -493,7 +514,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && target === ConfigurationTarget.WORKSPACE) {
 			const workspaceConfig = this.contextService.getWorkspace().configuration;
 			if (!workspaceConfig) {
-				return Promise.resolve(null);
+				return Promise.resolve(void 0);
 			}
 
 			return this.fileService.resolveContent(workspaceConfig)

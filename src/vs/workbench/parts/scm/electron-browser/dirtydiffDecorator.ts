@@ -1061,7 +1061,7 @@ export class DirtyDiffModel {
 		});
 	}
 
-	private getOriginalResource(): Promise<URI> {
+	private getOriginalResource(): Promise<URI | null> {
 		if (!this._editorModel) {
 			return Promise.resolve(null);
 		}

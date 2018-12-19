@@ -89,7 +89,7 @@ export function fillInActionBarActions(menu: IMenu, options: IMenuActionOptions,
 	fillInActions(groups, target, false, isPrimaryGroup);
 }
 
-function fillInActions(groups: [string, (MenuItemAction | SubmenuItemAction)[]][], target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, getAlternativeActions, isPrimaryGroup: (group: string) => boolean = group => group === 'navigation'): void {
+function fillInActions(groups: [string, Array<MenuItemAction | SubmenuItemAction>][], target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, getAlternativeActions, isPrimaryGroup: (group: string) => boolean = group => group === 'navigation'): void {
 	for (let tuple of groups) {
 		let [group, actions] = tuple;
 		if (getAlternativeActions) {

@@ -44,7 +44,7 @@ export class ExtHostUrls implements ExtHostUrlsShape {
 		const handler = this.handlers.get(handle);
 
 		if (!handler) {
-			return Promise.resolve(null);
+			return Promise.resolve(void 0);
 		}
 		try {
 			handler.handleUri(URI.revive(uri));
@@ -52,6 +52,6 @@ export class ExtHostUrls implements ExtHostUrlsShape {
 			onUnexpectedError(err);
 		}
 
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 }

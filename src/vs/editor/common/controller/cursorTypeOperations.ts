@@ -263,7 +263,7 @@ export class TypeOperations {
 	}
 
 	public static replacePreviousChar(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], txt: string, replaceCharCnt: number): EditOperationResult {
-		let commands: (ICommand | null)[] = [];
+		let commands: Array<ICommand | null> = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
 			if (!selection.isEmpty()) {
@@ -825,7 +825,7 @@ export class TypeOperations {
 		}
 
 		if (this._isAutoIndentType(config, model, selections)) {
-			let commands: (ICommand | null)[] = [];
+			let commands: Array<ICommand | null> = [];
 			let autoIndentFails = false;
 			for (let i = 0, len = selections.length; i < len; i++) {
 				commands[i] = this._runAutoIndentType(config, model, selections[i], ch);

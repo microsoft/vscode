@@ -67,7 +67,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		};
 	}
 
-	$createNewCommentThread(handle: number, uri: UriComponents, range: IRange, text: string): Promise<modes.CommentThread> {
+	$createNewCommentThread(handle: number, uri: UriComponents, range: IRange, text: string): Promise<modes.CommentThread | null> {
 		const data = this._documents.getDocumentData(URI.revive(uri));
 		const ran = <vscode.Range>extHostTypeConverter.Range.to(range);
 
@@ -81,7 +81,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		}).then(commentThread => commentThread ? convertToCommentThread(provider, commentThread, this._commandsConverter) : null);
 	}
 
-	$replyToCommentThread(handle: number, uri: UriComponents, range: IRange, thread: modes.CommentThread, text: string): Promise<modes.CommentThread> {
+	$replyToCommentThread(handle: number, uri: UriComponents, range: IRange, thread: modes.CommentThread, text: string): Promise<modes.CommentThread | null> {
 		const data = this._documents.getDocumentData(URI.revive(uri));
 		const ran = <vscode.Range>extHostTypeConverter.Range.to(range);
 
@@ -121,24 +121,42 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		});
 	}
 
-	$startDraft(handle: number): Promise<void> {
+	$startDraft(handle: number, uri: UriComponents): Promise<void> {
+		const data = this._documents.getDocumentData(URI.revive(uri));
+
+		if (!data || !data.document) {
+			throw new Error('Unable to retrieve document from URI');
+		}
+
 		const provider = this._documentProviders.get(handle);
 		return asPromise(() => {
-			return provider.startDraft(CancellationToken.None);
+			return provider.startDraft(data.document, CancellationToken.None);
 		});
 	}
 
-	$deleteDraft(handle: number): Promise<void> {
+	$deleteDraft(handle: number, uri: UriComponents): Promise<void> {
+		const data = this._documents.getDocumentData(URI.revive(uri));
+
+		if (!data || !data.document) {
+			throw new Error('Unable to retrieve document from URI');
+		}
+
 		const provider = this._documentProviders.get(handle);
 		return asPromise(() => {
-			return provider.deleteDraft(CancellationToken.None);
+			return provider.deleteDraft(data.document, CancellationToken.None);
 		});
 	}
 
-	$finishDraft(handle: number): Promise<void> {
+	$finishDraft(handle: number, uri: UriComponents): Promise<void> {
+		const data = this._documents.getDocumentData(URI.revive(uri));
+
+		if (!data || !data.document) {
+			throw new Error('Unable to retrieve document from URI');
+		}
+
 		const provider = this._documentProviders.get(handle);
 		return asPromise(() => {
-			return provider.finishDraft(CancellationToken.None);
+			return provider.finishDraft(data.document, CancellationToken.None);
 		});
 	}
 
@@ -154,7 +172,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		}).then(commentInfo => commentInfo ? convertCommentInfo(handle, provider, commentInfo, this._commandsConverter) : null);
 	}
 
-	$provideWorkspaceComments(handle: number): Promise<modes.CommentThread[]> {
+	$provideWorkspaceComments(handle: number): Promise<modes.CommentThread[] | null> {
 		const provider = this._workspaceProviders.get(handle);
 		if (!provider) {
 			return Promise.resolve(null);
