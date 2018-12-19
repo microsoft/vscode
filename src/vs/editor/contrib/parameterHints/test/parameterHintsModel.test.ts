@@ -17,7 +17,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { ParameterHintsModel } from '../parameterHintsWidget';
+import { ParameterHintsModel } from 'vs/editor/contrib/parameterHints/parameterHintsModel';
 
 const mockFile = URI.parse('test:somefile.ttt');
 const mockFileSelector = { scheme: 'test' };

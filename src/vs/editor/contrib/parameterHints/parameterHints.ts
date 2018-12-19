@@ -12,10 +12,11 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ParameterHintsWidget, TriggerContext } from './parameterHintsWidget';
+import { ParameterHintsWidget } from './parameterHintsWidget';
 import { Context } from 'vs/editor/contrib/parameterHints/provideSignatureHelp';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import * as modes from 'vs/editor/common/modes';
+import { TriggerContext } from 'vs/editor/contrib/parameterHints/ParameterHintsModel';
 
 class ParameterHintsController implements IEditorContribution {
 
