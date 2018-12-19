@@ -62,50 +62,49 @@ export class ExplorerModel implements IDisposable {
 }
 
 export class ExplorerItem {
-	public resource: URI;
-	private _name: string;
-	public mtime?: number;
-	public etag?: string;
-	private _isDirectory: boolean;
-	private _isSymbolicLink: boolean;
-	private _isReadonly: boolean;
 	private children?: Map<string, ExplorerItem>;
-	private _isError: boolean;
 	public parent: ExplorerItem;
-
 	public isDirectoryResolved: boolean;
 
-	constructor(resource: URI, public root: ExplorerItem | undefined, isSymbolicLink?: boolean, isReadonly?: boolean, isDirectory?: boolean, name: string = resources.basenameOrAuthority(resource), mtime?: number, etag?: string, isError?: boolean) {
-		this.resource = resource;
-		this._name = name;
-		this.isDirectory = !!isDirectory;
-		this._isSymbolicLink = !!isSymbolicLink;
-		this._isReadonly = !!isReadonly;
-		this.etag = etag;
-		this.mtime = mtime;
-		this._isError = !!isError;
-
+	constructor(
+		public resource: URI,
+		public root: ExplorerItem | undefined,
+		private _isSymbolicLink?: boolean,
+		private _isReadonly?: boolean,
+		private _isDirectory?: boolean,
+		private _name: string = resources.basenameOrAuthority(resource),
+		private _mtime?: number,
+		private _etag?: string,
+		private _isError?: boolean
+	) {
 		if (!this.root) {
 			this.root = this;
 		}
-
 		this.isDirectoryResolved = false;
 	}
 
 	get isSymbolicLink(): boolean {
-		return this._isSymbolicLink;
+		return !!this._isSymbolicLink;
 	}
 
 	get isDirectory(): boolean {
-		return this._isDirectory;
+		return !!this._isDirectory;
 	}
 
 	get isReadonly(): boolean {
-		return this._isReadonly;
+		return !!this._isReadonly;
+	}
+
+	get etag(): string {
+		return this._etag;
+	}
+
+	get mtime(): number {
+		return this._mtime;
 	}
 
 	get isError(): boolean {
-		return this._isError;
+		return !!this._isError;
 	}
 
 	set isDirectory(value: boolean) {
@@ -189,7 +188,7 @@ export class ExplorerItem {
 		local.resource = disk.resource;
 		local.updateName(disk.name);
 		local.isDirectory = disk.isDirectory;
-		local.mtime = disk.mtime;
+		local._mtime = disk.mtime;
 		local.isDirectoryResolved = disk.isDirectoryResolved;
 		local._isSymbolicLink = disk.isSymbolicLink;
 		local._isReadonly = disk.isReadonly;
@@ -322,7 +321,7 @@ export class ExplorerItem {
 
 		// Merge a subset of Properties that can change on rename
 		this.updateName(renamedStat.name);
-		this.mtime = renamedStat.mtime;
+		this._mtime = renamedStat.mtime;
 
 		// Update Paths including children
 		this.updateResource(true);
@@ -396,7 +395,6 @@ export class NewStatPlaceholder extends ExplorerItem {
 
 		this.isDirectoryResolved = false;
 		this.isDirectory = false;
-		this.mtime = void 0;
 	}
 
 	getId(): string {
