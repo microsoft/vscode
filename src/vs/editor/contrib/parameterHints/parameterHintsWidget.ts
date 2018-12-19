@@ -166,19 +166,15 @@ export class ParameterHintsModel extends Disposable {
 		}
 
 		for (const support of modes.SignatureHelpProviderRegistry.ordered(model)) {
-			if (Array.isArray(support.signatureHelpTriggerCharacters)) {
-				for (const ch of support.signatureHelpTriggerCharacters) {
-					this.triggerChars.add(ch.charCodeAt(0));
+			for (const ch of support.signatureHelpTriggerCharacters || []) {
+				this.triggerChars.add(ch.charCodeAt(0));
 
-					// All trigger characters are also considered retrigger characters
-					this.retriggerChars.add(ch.charCodeAt(0));
-
-				}
+				// All trigger characters are also considered retrigger characters
+				this.retriggerChars.add(ch.charCodeAt(0));
 			}
-			if (Array.isArray(support.signatureHelpRetriggerCharacters)) {
-				for (const ch of support.signatureHelpRetriggerCharacters) {
-					this.retriggerChars.add(ch.charCodeAt(0));
-				}
+
+			for (const ch of support.signatureHelpRetriggerCharacters || []) {
+				this.retriggerChars.add(ch.charCodeAt(0));
 			}
 		}
 	}
