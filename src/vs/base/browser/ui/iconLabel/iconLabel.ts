@@ -7,7 +7,7 @@ import 'vs/css!./iconlabel';
 import * as dom from 'vs/base/browser/dom';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IMatch } from 'vs/base/common/filters';
-import { IDisposable, combinedDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 export interface IIconLabelCreationOptions {
 	supportHighlights?: boolean;
@@ -114,12 +114,6 @@ export class IconLabel extends Disposable {
 
 	get element(): HTMLElement {
 		return this.domNode.element;
-	}
-
-	onClick(callback: (event: MouseEvent) => void): IDisposable {
-		return combinedDisposable([
-			dom.addDisposableListener(this.labelDescriptionContainer.element, dom.EventType.CLICK, (e: MouseEvent) => callback(e)),
-		]);
 	}
 
 	setLabel(label?: string, description?: string, options?: IIconLabelValueOptions): void {

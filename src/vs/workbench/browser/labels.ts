@@ -68,8 +68,6 @@ export interface IResourceLabel extends IDisposable {
 	setEditor(editor: IEditorInput, options?: IResourceLabelOptions): void;
 
 	clear(): void;
-
-	onClick(callback: (event: MouseEvent) => void): IDisposable;
 }
 
 export class ResourceLabels extends Disposable {
@@ -127,7 +125,6 @@ export class ResourceLabels extends Disposable {
 			setEditor: (editor: IEditorInput, options?: IResourceLabelOptions) => widget.setEditor(editor, options),
 			setFile: (resource: uri, options?: IFileLabelOptions) => widget.setFile(resource, options),
 			clear: () => widget.clear(),
-			onClick: (callback: (event: MouseEvent) => void) => widget.onClick(callback),
 			dispose: () => this.disposeWidget(widget)
 		};
 

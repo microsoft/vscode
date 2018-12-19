@@ -41,7 +41,7 @@ export class NoTabsTitleControl extends TitleControl {
 
 		// Editor Label
 		this.editorLabel = this._register(this.instantiationService.createInstance(ResourceLabel, labelContainer, void 0)).element;
-		this._register(this.editorLabel.onClick(e => this.onTitleLabelClick(e)));
+		this._register(addDisposableListener(this.editorLabel.element, EventType.CLICK, e => this.onTitleLabelClick(e)));
 
 		// Breadcrumbs
 		this.createBreadcrumbsControl(labelContainer, { showFileIcons: false, showSymbolIcons: true, showDecorationColors: false, breadcrumbsBackground: () => Color.transparent });
