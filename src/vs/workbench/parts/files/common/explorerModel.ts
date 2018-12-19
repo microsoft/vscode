@@ -13,6 +13,7 @@ import { rtrim, startsWithIgnoreCase, startsWith, equalsIgnoreCase } from 'vs/ba
 import { coalesce } from 'vs/base/common/arrays';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { memoize } from 'vs/base/common/decorators';
 
 export class ExplorerModel implements IDisposable {
 
@@ -62,7 +63,6 @@ export class ExplorerModel implements IDisposable {
 }
 
 export class ExplorerItem {
-	private children?: Map<string, ExplorerItem>;
 	public parent: ExplorerItem;
 	public isDirectoryResolved: boolean;
 
@@ -107,19 +107,12 @@ export class ExplorerItem {
 		return !!this._isError;
 	}
 
-	set isDirectory(value: boolean) {
-		if (value !== this._isDirectory) {
-			this._isDirectory = value;
-			if (this._isDirectory) {
-				this.children = new Map<string, ExplorerItem>();
-			} else {
-				this.children = undefined;
-			}
-		}
-	}
-
 	get name(): string {
 		return this._name;
+	}
+
+	@memoize get children(): Map<string, ExplorerItem> {
+		return new Map<string, ExplorerItem>();
 	}
 
 	private updateName(value: string): void {
@@ -186,7 +179,7 @@ export class ExplorerItem {
 		// Properties
 		local.resource = disk.resource;
 		local.updateName(disk.name);
-		local.isDirectory = disk.isDirectory;
+		local._isDirectory = disk.isDirectory;
 		local._mtime = disk.mtime;
 		local.isDirectoryResolved = disk.isDirectoryResolved;
 		local._isSymbolicLink = disk.isSymbolicLink;
@@ -198,33 +191,29 @@ export class ExplorerItem {
 
 			// Map resource => stat
 			const oldLocalChildren = new ResourceMap<ExplorerItem>();
-			if (local.children) {
-				local.children.forEach(child => {
-					oldLocalChildren.set(child.resource, child);
-				});
-			}
+			local.children.forEach(child => {
+				oldLocalChildren.set(child.resource, child);
+			});
 
 			// Clear current children
-			local.children = new Map<string, ExplorerItem>();
+			local.children.clear();
 
 			// Merge received children
-			if (disk.children) {
-				disk.children.forEach(diskChild => {
-					const formerLocalChild = oldLocalChildren.get(diskChild.resource);
-					// Existing child: merge
-					if (formerLocalChild) {
-						ExplorerItem.mergeLocalWithDisk(diskChild, formerLocalChild);
-						formerLocalChild.parent = local;
-						local.addChild(formerLocalChild);
-					}
+			disk.children.forEach(diskChild => {
+				const formerLocalChild = oldLocalChildren.get(diskChild.resource);
+				// Existing child: merge
+				if (formerLocalChild) {
+					ExplorerItem.mergeLocalWithDisk(diskChild, formerLocalChild);
+					formerLocalChild.parent = local;
+					local.addChild(formerLocalChild);
+				}
 
-					// New child: add
-					else {
-						diskChild.parent = local;
-						local.addChild(diskChild);
-					}
-				});
-			}
+				// New child: add
+				else {
+					diskChild.parent = local;
+					local.addChild(diskChild);
+				}
+			});
 		}
 	}
 
@@ -232,24 +221,13 @@ export class ExplorerItem {
 	 * Adds a child element to this folder.
 	 */
 	addChild(child: ExplorerItem): void {
-		if (!this.children) {
-			this.isDirectory = true;
-		}
-
 		// Inherit some parent properties to child
 		child.parent = this;
 		child.updateResource(false);
-
-		if (this.children) {
-			this.children.set(this.getPlatformAwareName(child.name), child);
-		}
+		this.children.set(this.getPlatformAwareName(child.name), child);
 	}
 
 	getChild(name: string): ExplorerItem | undefined {
-		if (!this.children) {
-			return undefined;
-		}
-
 		return this.children.get(this.getPlatformAwareName(name));
 	}
 
@@ -273,21 +251,11 @@ export class ExplorerItem {
 		});
 	}
 
-	getChildrenCount(): number {
-		if (!this.children) {
-			return 0;
-		}
-
-		return this.children.size;
-	}
-
 	/**
 	 * Removes a child element from this folder.
 	 */
 	removeChild(child: ExplorerItem): void {
-		if (this.children) {
-			this.children.delete(this.getPlatformAwareName(child.name));
-		}
+		this.children.delete(this.getPlatformAwareName(child.name));
 	}
 
 	private getPlatformAwareName(name: string): string {
@@ -308,7 +276,7 @@ export class ExplorerItem {
 		this.resource = resources.joinPath(this.parent.resource, this.name);
 
 		if (recursive) {
-			if (this.isDirectory && this.children) {
+			if (this.isDirectory) {
 				this.children.forEach(child => {
 					child.updateResource(true);
 				});
@@ -350,7 +318,7 @@ export class ExplorerItem {
 			return this;
 		}
 
-		if (this.children) {
+		if (this.isDirectory) {
 			// Ignore separtor to more easily deduct the next name to search
 			while (index < path.length && path[index] === paths.sep) {
 				index++;
@@ -397,7 +365,6 @@ export class NewStatPlaceholder extends ExplorerItem {
 		this.parent.removeChild(this);
 
 		this.isDirectoryResolved = false;
-		this.isDirectory = false;
 	}
 
 	getId(): string {

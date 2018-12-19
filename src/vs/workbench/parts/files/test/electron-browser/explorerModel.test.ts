@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { isUndefinedOrNull } from 'vs/base/common/types';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { join } from 'vs/base/common/paths';
@@ -35,10 +34,8 @@ suite('Files - View Model', () => {
 		assert.strictEqual(s.name, 'sName');
 		assert.strictEqual(s.isDirectory, true);
 		assert.strictEqual(s.mtime, new Date(d).getTime());
-		assert.strictEqual(s.getChildrenArray().length, 0);
 
 		s = createStat('/path/to/stat', 'sName', false, false, 8096, d);
-		assert(isUndefinedOrNull(s.getChildrenArray()));
 	});
 
 	test('Add and Remove Child, check for hasChild', function () {
@@ -50,14 +47,14 @@ suite('Files - View Model', () => {
 
 		s.addChild(child1);
 
-		assert(s.getChildrenArray().length === 1);
+		assert(!!s.getChild(child1.name));
 
 		s.removeChild(child1);
 		s.addChild(child1);
-		assert(s.getChildrenArray().length === 1);
+		assert(!!s.getChild(child1.name));
 
 		s.removeChild(child1);
-		assert(s.getChildrenArray().length === 0);
+		assert(!s.getChild(child1.name));
 
 		// Assert that adding a child updates its path properly
 		s.addChild(child4);
@@ -77,10 +74,6 @@ suite('Files - View Model', () => {
 		s3.addChild(s4);
 
 		s4.move(s1);
-
-		assert.strictEqual(s3.getChildrenArray().length, 0);
-
-		assert.strictEqual(s1.getChildrenArray().length, 2);
 
 		// Assert the new path of the moved element
 		assert.strictEqual(s4.resource.fsPath, toResource('/' + s4.name).fsPath);
@@ -159,7 +152,7 @@ suite('Files - View Model', () => {
 			assert.strictEqual(s1.find(s4Upper.resource), s4);
 		}
 
-		assert.strictEqual(s1.find(toResource('foobar')), null);
+		assert.strictEqual(s1.find(toResource('foobar')), undefined);
 
 		assert.strictEqual(s1.find(toResource('/')), s1);
 		assert.strictEqual(s1.find(toResource('')), s1);
@@ -277,7 +270,6 @@ suite('Files - View Model', () => {
 		// Merge Child when isDirectoryResolved=false is a no-op
 		merge2.addChild(new ExplorerItem(URI.file(join('C:\\', '/path/to/foo.html')), undefined, false, false, true, 'foo.html', Date.now(), d));
 		ExplorerItem.mergeLocalWithDisk(merge2, merge1);
-		assert.strictEqual(merge1.getChildrenArray().length, 0);
 
 		// Merge Child with isDirectoryResolved=true
 		const child = new ExplorerItem(URI.file(join('C:\\', '/path/to/foo.html')), undefined, false, false, true, 'foo.html', Date.now(), d);
@@ -285,7 +277,6 @@ suite('Files - View Model', () => {
 		merge2.addChild(child);
 		merge2.isDirectoryResolved = true;
 		ExplorerItem.mergeLocalWithDisk(merge2, merge1);
-		assert.strictEqual(merge1.getChildrenArray().length, 1);
 		assert.strictEqual(merge1.getChild('foo.html').name, 'foo.html');
 		assert.deepEqual(merge1.getChild('foo.html').parent, merge1, 'Check parent');
 
