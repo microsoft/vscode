@@ -53,7 +53,7 @@ suite('AsyncDataTree', function () {
 
 		const dataSource = new class implements IAsyncDataSource<Element, Element> {
 			hasChildren(element: Element): boolean {
-				return element.children && element.children.length > 0;
+				return !!element.children && element.children.length > 0;
 			}
 			getChildren(element: Element): Promise<Element[]> {
 				return Promise.resolve(element.children || []);
@@ -91,14 +91,14 @@ suite('AsyncDataTree', function () {
 			{ id: 'ac' }
 		];
 
-		await tree.refresh(null);
+		await tree.refresh(root);
 		assert.equal(container.querySelectorAll('.monaco-list-row').length, 1);
 
 		await tree.expand(_('a'));
 		assert.equal(container.querySelectorAll('.monaco-list-row').length, 4);
 
 		_('a').children = [];
-		await tree.refresh(null);
+		await tree.refresh(root);
 		assert.equal(container.querySelectorAll('.monaco-list-row').length, 1);
 	});
 });
