@@ -17,7 +17,7 @@ export class URLServiceChannel implements IServerChannel {
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(_, command: string, arg?: any): Thenable<any> {
+	call(_, command: string, arg?: any): Promise<any> {
 		switch (command) {
 			case 'open': return this.service.open(URI.revive(arg));
 		}
@@ -32,7 +32,7 @@ export class URLServiceChannelClient implements IURLService {
 
 	constructor(private channel: IChannel) { }
 
-	open(url: URI): Thenable<boolean> {
+	open(url: URI): Promise<boolean> {
 		return this.channel.call('open', url.toJSON());
 	}
 
@@ -49,7 +49,7 @@ export class URLHandlerChannel implements IServerChannel {
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(_, command: string, arg?: any): Thenable<any> {
+	call(_, command: string, arg?: any): Promise<any> {
 		switch (command) {
 			case 'handleURL': return this.handler.handleURL(URI.revive(arg));
 		}
@@ -62,7 +62,7 @@ export class URLHandlerChannelClient implements IURLHandler {
 
 	constructor(private channel: IChannel) { }
 
-	handleURL(uri: URI): Thenable<boolean> {
+	handleURL(uri: URI): Promise<boolean> {
 		return this.channel.call('handleURL', uri.toJSON());
 	}
 }

@@ -105,7 +105,7 @@ export class Client implements IChannelClient, IDisposable {
 		const that = this;
 
 		return {
-			call<T>(command: string, arg?: any, cancellationToken?: CancellationToken): Thenable<T> {
+			call<T>(command: string, arg?: any, cancellationToken?: CancellationToken): Promise<T> {
 				return that.requestPromise<T>(channelName, command, arg, cancellationToken);
 			},
 			listen(event: string, arg?: any) {
@@ -114,7 +114,7 @@ export class Client implements IChannelClient, IDisposable {
 		} as T;
 	}
 
-	protected requestPromise<T>(channelName: string, name: string, arg?: any, cancellationToken = CancellationToken.None): Thenable<T> {
+	protected requestPromise<T>(channelName: string, name: string, arg?: any, cancellationToken = CancellationToken.None): Promise<T> {
 		if (!this.disposeDelayer) {
 			return Promise.reject(new Error('disposed'));
 		}
@@ -195,6 +195,11 @@ export class Client implements IChannelClient, IDisposable {
 			if (this.options && typeof this.options.debugBrk === 'number') {
 				forkOpts.execArgv = ['--nolazy', '--inspect-brk=' + this.options.debugBrk];
 			}
+
+			if (!Array.isArray(forkOpts.execArgv)) {
+				forkOpts.execArgv = [];
+			}
+			forkOpts.execArgv.push('--no-untrusted-code-mitigations');
 
 			this.child = fork(this.modulePath, args, forkOpts);
 

@@ -118,7 +118,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private lastEditLocation: IStackEntry;
 
-	private history: (IEditorInput | IResourceInput)[];
+	private history: Array<IEditorInput | IResourceInput>;
 	private recentlyClosedFiles: IRecentlyClosedFile[];
 	private loaded: boolean;
 	private resourceFilter: ResourceGlobMatcher;
@@ -406,7 +406,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		always(this.doNavigate(this.stack[this.index], !acrossEditors), () => this.navigatingInStack = false);
 	}
 
-	private doNavigate(location: IStackEntry, withSelection: boolean): Thenable<IBaseEditor> {
+	private doNavigate(location: IStackEntry, withSelection: boolean): Promise<IBaseEditor> {
 		const options: ITextEditorOptions = {
 			revealIfOpened: true // support to navigate across editor groups
 		};
@@ -793,7 +793,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		return resourceInput && resourceInput.resource.toString() === resource.toString();
 	}
 
-	getHistory(): (IEditorInput | IResourceInput)[] {
+	getHistory(): Array<IEditorInput | IResourceInput> {
 		this.ensureHistoryLoaded();
 
 		return this.history.slice(0);

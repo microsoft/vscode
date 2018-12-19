@@ -314,7 +314,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 		// update column from which to show
 		let renderColumn = Number.MAX_VALUE;
-		let highlightRange = Range.lift(messages[0].range);
+		let highlightRange: Range | null = messages[0].range ? Range.lift(messages[0].range) : null;
 		let fragment = document.createDocumentFragment();
 		let isEmptyHoverContent = true;
 
@@ -326,7 +326,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			}
 
 			renderColumn = Math.min(renderColumn, msg.range.startColumn);
-			highlightRange = Range.plusRange(highlightRange, msg.range);
+			highlightRange = highlightRange ? Range.plusRange(highlightRange, msg.range) : Range.lift(msg.range);
 
 			if (!(msg instanceof ColorHover)) {
 				msg.contents
@@ -357,7 +357,11 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				const widget = new ColorPickerWidget(fragment, model, this._editor.getConfiguration().pixelRatio, this._themeService);
 
 				getColorPresentations(editorModel, colorInfo, msg.provider, CancellationToken.None).then(colorPresentations => {
-					model.colorPresentations = colorPresentations;
+					model.colorPresentations = colorPresentations || [];
+					if (!this._editor.hasModel()) {
+						// gone...
+						return;
+					}
 					const originalText = this._editor.getModel().getValueInRange(msg.range);
 					model.guessColorPresentation(color, originalText);
 
@@ -400,7 +404,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 								alpha: color.rgba.a
 							}
 						}, msg.provider, CancellationToken.None).then((colorPresentations) => {
-							model.colorPresentations = colorPresentations;
+							model.colorPresentations = colorPresentations || [];
 						});
 					};
 
@@ -427,10 +431,10 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		}
 
 		this._isChangingDecorations = true;
-		this._highlightDecorations = this._editor.deltaDecorations(this._highlightDecorations, [{
+		this._highlightDecorations = this._editor.deltaDecorations(this._highlightDecorations, highlightRange ? [{
 			range: highlightRange,
 			options: ModesContentHoverWidget._DECORATION_OPTIONS
-		}]);
+		}] : []);
 		this._isChangingDecorations = false;
 	}
 

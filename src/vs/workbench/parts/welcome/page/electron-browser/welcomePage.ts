@@ -24,7 +24,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { Schemas } from 'vs/base/common/network';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { getInstalledExtensions, IExtensionStatus, onExtensionChanged, isKeymapExtension } from 'vs/workbench/parts/extensions/electron-browser/extensionsUtils';
-import { IExtensionEnablementService, IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, EnablementState, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionEnablementService, IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, EnablementState, LocalExtensionType, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { used } from 'vs/workbench/parts/welcome/page/electron-browser/vs_code_welcome_page';
 import { ILifecycleService, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -100,7 +100,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 					}
 				}
 				return undefined;
-			}).then(null, onUnexpectedError);
+			}).then(void 0, onUnexpectedError);
 		}
 	}
 }
@@ -129,7 +129,7 @@ export class WelcomePageAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Thenable<void> {
+	public run(): Promise<void> {
 		return this.instantiationService.createInstance(WelcomePage)
 			.openEditor()
 			.then(() => undefined);
@@ -290,7 +290,7 @@ class WelcomePage {
 		return this.editorService.openEditor(this.editorInput, { pinned: false });
 	}
 
-	private onReady(container: HTMLElement, recentlyOpened: Thenable<{ files: URI[]; workspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[]; }>, installedExtensions: Promise<IExtensionStatus[]>): void {
+	private onReady(container: HTMLElement, recentlyOpened: Promise<{ files: URI[]; workspaces: Array<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier>; }>, installedExtensions: Promise<IExtensionStatus[]>): void {
 		const enabled = isWelcomePageEnabled(this.configurationService, this.contextService);
 		const showOnStartup = <HTMLInputElement>container.querySelector('#showOnStartup');
 		if (enabled) {
@@ -309,6 +309,9 @@ class WelcomePage {
 				return;
 			}
 			const ul = container.querySelector('.recent ul');
+			if (!ul) {
+				return;
+			}
 			const before = ul.firstElementChild;
 			workspaces.slice(0, 5).forEach(workspace => {
 				let label: string;
@@ -328,7 +331,7 @@ class WelcomePage {
 
 				const a = document.createElement('a');
 				let name = label;
-				let parentFolderPath: string;
+				let parentFolderPath: string | undefined;
 
 				if (resource.scheme === Schemas.file) {
 					let parentFolder = path.dirname(resource.fsPath);
@@ -373,7 +376,7 @@ class WelcomePage {
 
 				ul.insertBefore(li, before);
 			});
-		}).then(null, onUnexpectedError);
+		}).then(void 0, onUnexpectedError);
 
 		this.addExtensionList(container, '.extensionPackList', extensionPacks, extensionPackStrings);
 		this.addExtensionList(container, '.keymapList', keymapExtensions, keymapStrings);
@@ -456,7 +459,7 @@ class WelcomePage {
 				return;
 			}
 			const foundAndInstalled = installedExtension ? Promise.resolve(installedExtension.local) : this.extensionGalleryService.query({ names: [extensionSuggestion.id], source: telemetryFrom })
-				.then(result => {
+				.then((result): null | Promise<ILocalExtension | null> => {
 					const [extension] = result.firstPage;
 					if (!extension) {
 						return null;
@@ -520,7 +523,7 @@ class WelcomePage {
 										return undefined;
 									}
 								});
-							}).then(null, err => {
+							}).then(void 0, err => {
 								/* __GDPR__FRAGMENT__
 									"WelcomePageInstalled-4" : {
 										"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -553,11 +556,11 @@ class WelcomePage {
 						});
 						this.extensionsWorkbenchService.queryGallery({ names: [extensionSuggestion.id] })
 							.then(result => this.extensionsWorkbenchService.open(result.firstPage[0]))
-							.then(null, onUnexpectedError);
+							.then(void 0, onUnexpectedError);
 					}
 				}]
 			);
-		}).then(null, err => {
+		}).then(void 0, err => {
 			/* __GDPR__FRAGMENT__
 				"WelcomePageInstalled-6" : {
 					"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -594,7 +597,7 @@ class WelcomePage {
 						enabled[i].classList.add('installed');
 					}
 				});
-		}).then(null, onUnexpectedError);
+		}).then(void 0, onUnexpectedError);
 	}
 
 	dispose(): void {

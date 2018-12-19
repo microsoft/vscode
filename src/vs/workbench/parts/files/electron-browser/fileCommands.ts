@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 import * as paths from 'vs/base/common/paths';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { URI } from 'vs/base/common/uri';
 import { toResource, IEditorCommandsContext } from 'vs/workbench/common/editor';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
@@ -77,7 +76,7 @@ export const ResourceSelectedForCompareContext = new RawContextKey<boolean>('res
 export const REMOVE_ROOT_FOLDER_COMMAND_ID = 'removeRootFolder';
 export const REMOVE_ROOT_FOLDER_LABEL = nls.localize('removeFolderFromWorkspace', "Remove Folder from Workspace");
 
-export const openWindowCommand = (accessor: ServicesAccessor, paths: (string | URI)[], forceNewWindow: boolean) => {
+export const openWindowCommand = (accessor: ServicesAccessor, paths: Array<string | URI>, forceNewWindow: boolean) => {
 	const windowService = accessor.get(IWindowService);
 	windowService.openWindow(paths.map(p => typeof p === 'string' ? URI.file(p) : p), { forceNewWindow });
 };
@@ -91,7 +90,7 @@ function save(
 	untitledEditorService: IUntitledEditorService,
 	textFileService: ITextFileService,
 	editorGroupService: IEditorGroupsService
-): TPromise<any> {
+): Promise<any> {
 
 	function ensureForcedSave(options?: ISaveOptions): ISaveOptions {
 		if (!options) {
@@ -125,7 +124,7 @@ function save(
 			}
 
 			// Special case: an untitled file with associated path gets saved directly unless "saveAs" is true
-			let savePromise: TPromise<URI>;
+			let savePromise: Promise<URI>;
 			if (!isSaveAs && resource.scheme === Schemas.untitled && untitledEditorService.hasAssociatedFilePath(resource)) {
 				savePromise = textFileService.save(resource, options).then((result) => {
 					if (result) {
@@ -185,7 +184,7 @@ function save(
 }
 
 function saveAll(saveAllArguments: any, editorService: IEditorService, untitledEditorService: IUntitledEditorService,
-	textFileService: ITextFileService, editorGroupService: IEditorGroupsService): TPromise<any> {
+	textFileService: ITextFileService, editorGroupService: IEditorGroupsService): Promise<any> {
 
 	// Store some properties per untitled file to restore later after save is completed
 	const groupIdToUntitledResourceInput = new Map<number, IResourceInput[]>();
@@ -240,7 +239,7 @@ CommandsRegistry.registerCommand({
 			.filter(resource => resource.scheme !== Schemas.untitled);
 
 		if (resources.length) {
-			return textFileService.revertAll(resources, { force: true }).then(null, error => {
+			return textFileService.revertAll(resources, { force: true }).then(void 0, error => {
 				notificationService.error(nls.localize('genericRevertError', "Failed to revert '{0}': {1}", resources.map(r => paths.basename(r.fsPath)).join(', '), toErrorMessage(error, false)));
 			});
 		}

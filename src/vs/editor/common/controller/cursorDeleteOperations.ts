@@ -13,8 +13,8 @@ import { ICommand } from 'vs/editor/common/editorCommon';
 
 export class DeleteOperations {
 
-	public static deleteRight(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[]): [boolean, (ICommand | null)[]] {
-		let commands: (ICommand | null)[] = [];
+	public static deleteRight(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[]): [boolean, Array<ICommand | null>] {
+		let commands: Array<ICommand | null> = [];
 		let shouldPushStackElementBefore = (prevEditOperationType !== EditOperationType.DeletingRight);
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
@@ -103,13 +103,13 @@ export class DeleteOperations {
 		return [true, commands];
 	}
 
-	public static deleteLeft(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[]): [boolean, (ICommand | null)[]] {
+	public static deleteLeft(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[]): [boolean, Array<ICommand | null>] {
 
 		if (this._isAutoClosingPairDelete(config, model, selections)) {
 			return this._runAutoClosingPairDelete(config, model, selections);
 		}
 
-		let commands: (ICommand | null)[] = [];
+		let commands: Array<ICommand | null> = [];
 		let shouldPushStackElementBefore = (prevEditOperationType !== EditOperationType.DeletingLeft);
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
@@ -164,7 +164,7 @@ export class DeleteOperations {
 	}
 
 	public static cut(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[]): EditOperationResult {
-		let commands: (ICommand | null)[] = [];
+		let commands: Array<ICommand | null> = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
 

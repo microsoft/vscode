@@ -5,7 +5,6 @@
 
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { TPromise } from 'vs/base/common/winjs.base';
 
 export interface IUpdate {
 	version: string;
@@ -77,7 +76,7 @@ export const State = {
 export interface IAutoUpdater extends Event.NodeEventEmitter {
 	setFeedURL(url: string): void;
 	checkForUpdates(): void;
-	applyUpdate?(): TPromise<void>;
+	applyUpdate?(): Promise<void>;
 	quitAndInstall(): void;
 }
 
@@ -89,10 +88,10 @@ export interface IUpdateService {
 	readonly onStateChange: Event<State>;
 	readonly state: State;
 
-	checkForUpdates(context: any): TPromise<void>;
-	downloadUpdate(): TPromise<void>;
-	applyUpdate(): TPromise<void>;
-	quitAndInstall(): TPromise<void>;
+	checkForUpdates(context: any): Promise<void>;
+	downloadUpdate(): Promise<void>;
+	applyUpdate(): Promise<void>;
+	quitAndInstall(): Promise<void>;
 
-	isLatestVersion(): TPromise<boolean | undefined>;
+	isLatestVersion(): Promise<boolean | undefined>;
 }

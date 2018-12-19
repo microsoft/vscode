@@ -257,7 +257,7 @@ export class SuggestController implements IEditorContribution {
 
 		} else if (suggestion.command.id === TriggerSuggestAction.id) {
 			// retigger
-			this._model.trigger({ auto: true }, true);
+			this._model.trigger({ auto: true, shy: false }, true);
 
 		} else {
 			// exec command, done
@@ -289,7 +289,7 @@ export class SuggestController implements IEditorContribution {
 	}
 
 	triggerSuggest(onlyFrom?: CompletionItemProvider[]): void {
-		this._model.trigger({ auto: false }, false, onlyFrom);
+		this._model.trigger({ auto: false, shy: false }, false, onlyFrom);
 		this._editor.revealLine(this._editor.getPosition().lineNumber, ScrollType.Smooth);
 		this._editor.focus();
 	}

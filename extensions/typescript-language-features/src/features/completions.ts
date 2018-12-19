@@ -169,6 +169,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 			case PConst.Kind.interface:
 				return vscode.CompletionItemKind.Interface;
 			case PConst.Kind.warning:
+				return vscode.CompletionItemKind.Text;
 			case PConst.Kind.script:
 				return vscode.CompletionItemKind.File;
 			case PConst.Kind.directory:

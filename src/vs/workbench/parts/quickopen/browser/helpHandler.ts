@@ -65,7 +65,7 @@ export class HelpHandler extends QuickOpenHandler {
 		super();
 	}
 
-	getResults(searchValue: string, token: CancellationToken): Thenable<QuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 
 		const registry = (Registry.as<IQuickOpenRegistry>(Extensions.Quickopen));
@@ -79,7 +79,7 @@ export class HelpHandler extends QuickOpenHandler {
 		const workbenchScoped: HelpEntry[] = [];
 		const editorScoped: HelpEntry[] = [];
 
-		const matchingHandlers: (QuickOpenHandlerHelpEntry | QuickOpenHandlerDescriptor)[] = [];
+		const matchingHandlers: Array<QuickOpenHandlerHelpEntry | QuickOpenHandlerDescriptor> = [];
 		handlerDescriptors.sort((h1, h2) => h1.prefix.localeCompare(h2.prefix)).forEach(handlerDescriptor => {
 			if (handlerDescriptor.prefix !== HELP_PREFIX) {
 

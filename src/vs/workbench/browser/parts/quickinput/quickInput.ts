@@ -306,7 +306,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private _placeholder;
 	private onDidChangeValueEmitter = new Emitter<string>();
 	private onDidAcceptEmitter = new Emitter<string>();
-	private _items: (T | IQuickPickSeparator)[] = [];
+	private _items: Array<T | IQuickPickSeparator> = [];
 	private itemsUpdated = false;
 	private _canSelectMany = false;
 	private _matchOnDescription = false;
@@ -360,7 +360,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		return this._items;
 	}
 
-	set items(items: (T | IQuickPickSeparator)[]) {
+	set items(items: Array<T | IQuickPickSeparator>) {
 		this._items = items;
 		this.itemsUpdated = true;
 		this.update();
@@ -1129,7 +1129,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 					}
 				});
 			input.show();
-			Promise.resolve(picks).then(null, err => {
+			Promise.resolve(picks).then(void 0, err => {
 				reject(err);
 				input.hide();
 			});
@@ -1143,7 +1143,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 				return;
 			}
 			const input = this.createInputBox();
-			const validateInput = options.validateInput || (() => <Thenable<undefined>>Promise.resolve(undefined));
+			const validateInput = options.validateInput || (() => <Promise<undefined>>Promise.resolve(undefined));
 			const onDidValueChange = Event.debounce(input.onDidChangeValue, (last, cur) => cur, 100);
 			let validationValue = options.value || '';
 			let validation = Promise.resolve(validateInput(validationValue));

@@ -26,7 +26,7 @@ function testGuessIndentation(defaultInsertSpaces: boolean, defaultTabSize: numb
 	assert.equal(r.tabSize, expectedTabSize, msg);
 }
 
-function assertGuess(expectedInsertSpaces: boolean, expectedTabSize: number, text: string[], msg?: string): void {
+function assertGuess(expectedInsertSpaces: boolean | undefined, expectedTabSize: number | undefined, text: string[], msg?: string): void {
 	if (typeof expectedInsertSpaces === 'undefined') {
 		// cannot guess insertSpaces
 		if (typeof expectedTabSize === 'undefined') {

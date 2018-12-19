@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { asThenable } from 'vs/base/common/async';
+import { asPromise } from 'vs/base/common/async';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as modes from 'vs/editor/common/modes';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
@@ -67,7 +67,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		};
 	}
 
-	$createNewCommentThread(handle: number, uri: UriComponents, range: IRange, text: string): Thenable<modes.CommentThread> {
+	$createNewCommentThread(handle: number, uri: UriComponents, range: IRange, text: string): Promise<modes.CommentThread | null> {
 		const data = this._documents.getDocumentData(URI.revive(uri));
 		const ran = <vscode.Range>extHostTypeConverter.Range.to(range);
 
@@ -76,12 +76,12 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		}
 
 		const provider = this._documentProviders.get(handle);
-		return asThenable(() => {
+		return asPromise(() => {
 			return provider.createNewCommentThread(data.document, ran, text, CancellationToken.None);
 		}).then(commentThread => commentThread ? convertToCommentThread(provider, commentThread, this._commandsConverter) : null);
 	}
 
-	$replyToCommentThread(handle: number, uri: UriComponents, range: IRange, thread: modes.CommentThread, text: string): Thenable<modes.CommentThread> {
+	$replyToCommentThread(handle: number, uri: UriComponents, range: IRange, thread: modes.CommentThread, text: string): Promise<modes.CommentThread | null> {
 		const data = this._documents.getDocumentData(URI.revive(uri));
 		const ran = <vscode.Range>extHostTypeConverter.Range.to(range);
 
@@ -90,12 +90,12 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		}
 
 		const provider = this._documentProviders.get(handle);
-		return asThenable(() => {
+		return asPromise(() => {
 			return provider.replyToCommentThread(data.document, ran, convertFromCommentThread(thread), text, CancellationToken.None);
 		}).then(commentThread => commentThread ? convertToCommentThread(provider, commentThread, this._commandsConverter) : null);
 	}
 
-	$editComment(handle: number, uri: UriComponents, comment: modes.Comment, text: string): Thenable<void> {
+	$editComment(handle: number, uri: UriComponents, comment: modes.Comment, text: string): Promise<void> {
 		const data = this._documents.getDocumentData(URI.revive(uri));
 
 		if (!data || !data.document) {
@@ -103,12 +103,12 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		}
 
 		const provider = this._documentProviders.get(handle);
-		return asThenable(() => {
+		return asPromise(() => {
 			return provider.editComment(data.document, convertFromComment(comment), text, CancellationToken.None);
 		});
 	}
 
-	$deleteComment(handle: number, uri: UriComponents, comment: modes.Comment): Thenable<void> {
+	$deleteComment(handle: number, uri: UriComponents, comment: modes.Comment): Promise<void> {
 		const data = this._documents.getDocumentData(URI.revive(uri));
 
 		if (!data || !data.document) {
@@ -116,51 +116,69 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		}
 
 		const provider = this._documentProviders.get(handle);
-		return asThenable(() => {
+		return asPromise(() => {
 			return provider.deleteComment(data.document, convertFromComment(comment), CancellationToken.None);
 		});
 	}
 
-	$startDraft(handle: number): Thenable<void> {
+	$startDraft(handle: number, uri: UriComponents): Promise<void> {
+		const data = this._documents.getDocumentData(URI.revive(uri));
+
+		if (!data || !data.document) {
+			throw new Error('Unable to retrieve document from URI');
+		}
+
 		const provider = this._documentProviders.get(handle);
-		return asThenable(() => {
-			return provider.startDraft(CancellationToken.None);
+		return asPromise(() => {
+			return provider.startDraft(data.document, CancellationToken.None);
 		});
 	}
 
-	$deleteDraft(handle: number): Thenable<void> {
+	$deleteDraft(handle: number, uri: UriComponents): Promise<void> {
+		const data = this._documents.getDocumentData(URI.revive(uri));
+
+		if (!data || !data.document) {
+			throw new Error('Unable to retrieve document from URI');
+		}
+
 		const provider = this._documentProviders.get(handle);
-		return asThenable(() => {
-			return provider.deleteDraft(CancellationToken.None);
+		return asPromise(() => {
+			return provider.deleteDraft(data.document, CancellationToken.None);
 		});
 	}
 
-	$finishDraft(handle: number): Thenable<void> {
+	$finishDraft(handle: number, uri: UriComponents): Promise<void> {
+		const data = this._documents.getDocumentData(URI.revive(uri));
+
+		if (!data || !data.document) {
+			throw new Error('Unable to retrieve document from URI');
+		}
+
 		const provider = this._documentProviders.get(handle);
-		return asThenable(() => {
-			return provider.finishDraft(CancellationToken.None);
+		return asPromise(() => {
+			return provider.finishDraft(data.document, CancellationToken.None);
 		});
 	}
 
-	$provideDocumentComments(handle: number, uri: UriComponents): Thenable<modes.CommentInfo> {
+	$provideDocumentComments(handle: number, uri: UriComponents): Promise<modes.CommentInfo> {
 		const data = this._documents.getDocumentData(URI.revive(uri));
 		if (!data || !data.document) {
 			return Promise.resolve(null);
 		}
 
 		const provider = this._documentProviders.get(handle);
-		return asThenable(() => {
+		return asPromise(() => {
 			return provider.provideDocumentComments(data.document, CancellationToken.None);
 		}).then(commentInfo => commentInfo ? convertCommentInfo(handle, provider, commentInfo, this._commandsConverter) : null);
 	}
 
-	$provideWorkspaceComments(handle: number): Thenable<modes.CommentThread[]> {
+	$provideWorkspaceComments(handle: number): Promise<modes.CommentThread[] | null> {
 		const provider = this._workspaceProviders.get(handle);
 		if (!provider) {
 			return Promise.resolve(null);
 		}
 
-		return asThenable(() => {
+		return asPromise(() => {
 			return provider.provideWorkspaceComments(CancellationToken.None);
 		}).then(comments =>
 			comments.map(comment => convertToCommentThread(provider, comment, this._commandsConverter)

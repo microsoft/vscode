@@ -144,7 +144,7 @@ export class ShowAllCommandsAction extends Action {
 		super(id, label);
 	}
 
-	run(context?: any): Thenable<void> {
+	run(context?: any): Promise<void> {
 		const config = <IWorkbenchQuickOpenConfiguration>this.configurationService.getValue();
 		const restoreInput = config.workbench && config.workbench.commandPalette && config.workbench.commandPalette.preserveInput === true;
 
@@ -156,7 +156,7 @@ export class ShowAllCommandsAction extends Action {
 
 		this.quickOpenService.show(value, { inputSelection: lastCommandPaletteInput ? { start: 1 /* after prefix */, end: value.length } : void 0 });
 
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -173,14 +173,14 @@ export class ClearCommandHistoryAction extends Action {
 		super(id, label);
 	}
 
-	run(context?: any): Thenable<void> {
+	run(context?: any): Promise<void> {
 		const commandHistoryLength = resolveCommandHistory(this.configurationService);
 		if (commandHistoryLength > 0) {
 			commandHistory = new LRUCache<string, number>(commandHistoryLength);
 			commandCounter = 1;
 		}
 
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -199,13 +199,13 @@ class CommandPaletteEditorAction extends EditorAction {
 		});
 	}
 
-	run(accessor: ServicesAccessor, editor: ICodeEditor): Thenable<void> {
+	run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const quickOpenService = accessor.get(IQuickOpenService);
 
 		// Show with prefix
 		quickOpenService.show(ALL_COMMANDS_PREFIX);
 
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -397,7 +397,7 @@ export class CommandsHandler extends QuickOpenHandler {
 		this.commandHistoryEnabled = resolveCommandHistory(this.configurationService) > 0;
 	}
 
-	getResults(searchValue: string, token: CancellationToken): Thenable<QuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel> {
 
 		// wait for extensions being registered to cover all commands
 		// also from extensions

@@ -129,7 +129,7 @@ export const ExtensionHostLogFileName = 'exthost';
 
 export interface IWillActivateEvent {
 	readonly event: string;
-	readonly activation: Thenable<void>;
+	readonly activation: Promise<void>;
 }
 
 export interface IResponsiveStateChangeEvent {
@@ -170,7 +170,7 @@ export interface IExtensionService extends ICpuProfilerTarget {
 	/**
 	 * Send an activation event and activate interested extensions.
 	 */
-	activateByEvent(activationEvent: string): Thenable<void>;
+	activateByEvent(activationEvent: string): Promise<void>;
 
 	/**
 	 * An promise that resolves when the installed extensions are registered after

@@ -95,12 +95,12 @@ export class Match {
 	public get replaceString(): string {
 		const searchModel = this.parent().parent().searchModel;
 
-		const fullMatchText = this.getFullMatchText();
+		const fullMatchText = this.fullMatchText();
 		let replaceString = searchModel.replacePattern.getReplaceString(fullMatchText);
 
 		// If match string is not matching then regex pattern has a lookahead expression
 		if (replaceString === null) {
-			const fullMatchTextWithTrailingContent = this.getFullMatchText(true);
+			const fullMatchTextWithTrailingContent = this.fullMatchText(true);
 			replaceString = searchModel.replacePattern.getReplaceString(fullMatchTextWithTrailingContent);
 
 			// Search/find normalize line endings - check whether \r prevents regex from matching
@@ -118,7 +118,7 @@ export class Match {
 		return replaceString;
 	}
 
-	private getFullMatchText(includeTrailing = false): string {
+	public fullMatchText(includeTrailing = false): string {
 		let thisMatchPreviewLines: string[];
 		if (includeTrailing) {
 			thisMatchPreviewLines = this._fullPreviewLines.slice(this._fullPreviewRange.startLineNumber);
@@ -305,7 +305,7 @@ export class FileMatch extends Disposable {
 		this._onChange.fire(false);
 	}
 
-	public replace(toReplace: Match): Thenable<void> {
+	public replace(toReplace: Match): Promise<void> {
 		return this.replaceService.replace(toReplace)
 			.then(() => this.updatesMatchesForLineAfterReplace(toReplace.range().startLineNumber, false));
 	}
@@ -368,7 +368,7 @@ export class FileMatch extends Disposable {
 }
 
 export interface IChangeEvent {
-	elements: FileMatch[];
+	elements: (FileMatch | FolderMatch | SearchResult | null)[];
 	added?: boolean;
 	removed?: boolean;
 }
@@ -476,13 +476,13 @@ export class FolderMatch extends Disposable {
 		this.doRemove(match);
 	}
 
-	public replace(match: FileMatch): Thenable<any> {
+	public replace(match: FileMatch): Promise<any> {
 		return this.replaceService.replace([match]).then(() => {
 			this.doRemove(match, false, true);
 		});
 	}
 
-	public replaceAll(): Thenable<any> {
+	public replaceAll(): Promise<any> {
 		const matches = this.matches();
 		return this.replaceService.replace(matches).then(() => {
 			matches.forEach(match => this.doRemove(match, false, true));
@@ -682,11 +682,11 @@ export class SearchResult extends Disposable {
 		}
 	}
 
-	public replace(match: FileMatch): Thenable<any> {
+	public replace(match: FileMatch): Promise<any> {
 		return this.getFolderMatch(match.resource()).replace(match);
 	}
 
-	public replaceAll(progressRunner: IProgressRunner): Thenable<any> {
+	public replaceAll(progressRunner: IProgressRunner): Promise<any> {
 		this.replacingAll = true;
 
 		const promise = this.replaceService.replace(this.matches(), progressRunner);
@@ -838,7 +838,7 @@ export class SearchModel extends Disposable {
 		return this._searchResult;
 	}
 
-	public search(query: ITextQuery, onProgress?: (result: ISearchProgressItem) => void): Thenable<ISearchComplete> {
+	public search(query: ITextQuery, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
 		this.cancelSearch();
 
 		this._searchQuery = query;

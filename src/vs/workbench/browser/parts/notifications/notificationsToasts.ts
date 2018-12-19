@@ -90,7 +90,7 @@ export class NotificationsToasts extends Themable {
 		});
 	}
 
-	private onCanShowNotifications(): Thenable<void> {
+	private onCanShowNotifications(): Promise<void> {
 
 		// Wait for the running phase to ensure we can draw notifications properly
 		return this.lifecycleService.when(LifecyclePhase.Ready).then(() => {

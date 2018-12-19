@@ -18,6 +18,38 @@ declare module 'vscode' {
 
 	//#region Joh - selection range provider
 
+	export class SelectionRangeKind {
+
+		/**
+		 * Empty Kind.
+		 */
+		static readonly Empty: SelectionRangeKind;
+
+		/**
+		 * The statment kind, its value is `statement`, possible extensions can be
+		 * `statement.if` etc
+		 */
+		static readonly Statement: SelectionRangeKind;
+
+		/**
+		 * The declaration kind, its value is `declaration`, possible extensions can be
+		 * `declaration.function`, `declaration.class` etc.
+		 */
+		static readonly Declaration: SelectionRangeKind;
+
+		readonly value: string;
+
+		private constructor(value: string);
+
+		append(value: string): SelectionRangeKind;
+	}
+
+	export class SelectionRange {
+		kind: SelectionRangeKind;
+		range: Range;
+		constructor(kind: SelectionRangeKind, range: Range);
+	}
+
 	export interface SelectionRangeProvider {
 		/**
 		 * Provide selection ranges starting at a given position. The first range must [contain](#Range.contains)
@@ -26,7 +58,7 @@ declare module 'vscode' {
 		 * @param position
 		 * @param token
 		 */
-		provideSelectionRanges(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Range[]>;
+		provideSelectionRanges(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<SelectionRange[]>;
 	}
 
 	export namespace languages {
@@ -836,9 +868,9 @@ declare module 'vscode' {
 		 */
 		deleteComment?(document: TextDocument, comment: Comment, token: CancellationToken): Promise<void>;
 
-		startDraft?(token: CancellationToken): Promise<void>;
-		deleteDraft?(token: CancellationToken): Promise<void>;
-		finishDraft?(token: CancellationToken): Promise<void>;
+		startDraft?(document: TextDocument, token: CancellationToken): Promise<void>;
+		deleteDraft?(document: TextDocument, token: CancellationToken): Promise<void>;
+		finishDraft?(document: TextDocument, token: CancellationToken): Promise<void>;
 
 		startDraftLabel?: string;
 		deleteDraftLabel?: string;

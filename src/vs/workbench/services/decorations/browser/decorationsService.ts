@@ -222,7 +222,7 @@ class FileDecorationChangeEvent implements IResourceDecorationChangeEvent {
 class DecorationDataRequest {
 	constructor(
 		readonly source: CancellationTokenSource,
-		readonly thenable: Thenable<void>,
+		readonly thenable: Promise<void>,
 	) { }
 }
 

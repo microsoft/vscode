@@ -23,19 +23,20 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { getSimpleWorkspaceLabel } from 'vs/platform/label/common/label';
 
 interface ISerializedRecentlyOpened {
-	workspaces2: (IWorkspaceIdentifier | string)[]; // IWorkspaceIdentifier or URI.toString()
+	workspaces2: Array<IWorkspaceIdentifier | string>; // IWorkspaceIdentifier or URI.toString()
 	files2: string[]; // files as URI.toString()
 }
 
 interface ILegacySerializedRecentlyOpened {
-	workspaces: (IWorkspaceIdentifier | string | UriComponents)[]; // legacy (UriComponents was also supported for a few insider builds)
+	workspaces: Array<IWorkspaceIdentifier | string | UriComponents>; // legacy (UriComponents was also supported for a few insider builds)
 	files: string[]; // files as paths
 }
 
 export class HistoryMainService implements IHistoryMainService {
 
 	private static readonly MAX_TOTAL_RECENT_ENTRIES = 100;
-	private static readonly MAX_MACOS_DOCK_RECENT_ENTRIES = 10;
+	private static readonly MAX_MACOS_DOCK_RECENT_FOLDERS = 10;
+	private static readonly MAX_MACOS_DOCK_RECENT_FILES = 5;
 
 	private static readonly recentlyOpenedStorageKey = 'openedPathsList';
 
@@ -67,7 +68,7 @@ export class HistoryMainService implements IHistoryMainService {
 		this.addRecentlyOpened([e.workspace], []);
 	}
 
-	addRecentlyOpened(workspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[], files: URI[]): void {
+	addRecentlyOpened(workspaces: Array<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier>, files: URI[]): void {
 		if ((workspaces && workspaces.length > 0) || (files && files.length > 0)) {
 			const mru = this.getRecentlyOpened();
 
@@ -114,7 +115,7 @@ export class HistoryMainService implements IHistoryMainService {
 		}
 	}
 
-	removeFromRecentlyOpened(pathsToRemove: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | string)[]): void {
+	removeFromRecentlyOpened(pathsToRemove: Array<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | string>): void {
 		const mru = this.getRecentlyOpened();
 		let update = false;
 
@@ -184,29 +185,28 @@ export class HistoryMainService implements IHistoryMainService {
 
 		const mru = this.getRecentlyOpened();
 
-		let maxEntries = HistoryMainService.MAX_MACOS_DOCK_RECENT_ENTRIES;
-
-		// Take up to maxEntries/2 workspaces
-		let nEntries = 0;
-		for (let i = 0; i < mru.workspaces.length && nEntries < HistoryMainService.MAX_MACOS_DOCK_RECENT_ENTRIES / 2; i++) {
+		// Fill in workspaces
+		let entries = 0;
+		for (let i = 0; i < mru.workspaces.length && entries < HistoryMainService.MAX_MACOS_DOCK_RECENT_FOLDERS; i++) {
 			const workspace = mru.workspaces[i];
 			if (isSingleFolderWorkspaceIdentifier(workspace)) {
 				if (workspace.scheme === Schemas.file) {
 					app.addRecentDocument(workspace.fsPath);
-					nEntries++;
+					entries++;
 				}
 			} else {
 				app.addRecentDocument(workspace.configPath);
-				nEntries++;
+				entries++;
 			}
 		}
 
-		// Take up to maxEntries files
-		for (let i = 0; i < mru.files.length && nEntries < maxEntries; i++) {
+		// Fill in files
+		entries = 0;
+		for (let i = 0; i < mru.files.length && entries < HistoryMainService.MAX_MACOS_DOCK_RECENT_FILES; i++) {
 			const file = mru.files[i];
 			if (file.scheme === Schemas.file) {
 				app.addRecentDocument(file.fsPath);
-				nEntries++;
+				entries++;
 			}
 		}
 	}
@@ -220,7 +220,7 @@ export class HistoryMainService implements IHistoryMainService {
 	}
 
 	getRecentlyOpened(currentWorkspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier, currentFiles?: IPath[]): IRecentlyOpened {
-		let workspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[];
+		let workspaces: Array<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier>;
 		let files: URI[];
 
 		// Get from storage
@@ -348,7 +348,7 @@ export class HistoryMainService implements IHistoryMainService {
 			// so we need to update our list of recent paths with the choice of the user to not add them again
 			// Also: Windows will not show our custom category at all if there is any entry which was removed
 			// by the user! See https://github.com/Microsoft/vscode/issues/15052
-			let toRemove: (ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier)[] = [];
+			let toRemove: Array<ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier> = [];
 			for (let item of app.getJumpListSettings().removedItems) {
 				const args = item.args;
 				if (args) {

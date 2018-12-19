@@ -29,7 +29,7 @@ export interface ILocalizationsService {
 	_serviceBrand: any;
 
 	readonly onDidLanguagesChange: Event<void>;
-	getLanguageIds(type?: LanguageType): Thenable<string[]>;
+	getLanguageIds(type?: LanguageType): Promise<string[]>;
 }
 
 export function isValidLocalization(localization: ILocalization): boolean {

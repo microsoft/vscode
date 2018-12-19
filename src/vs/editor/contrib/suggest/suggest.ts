@@ -16,6 +16,7 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Range } from 'vs/editor/common/core/range';
+import { FuzzyScore } from 'vs/base/common/filters';
 
 export const Context = {
 	Visible: new RawContextKey<boolean>('suggestWidgetVisible', false),
@@ -28,7 +29,7 @@ export class CompletionItem {
 
 	_brand: 'ISuggestionItem';
 
-	readonly resolve: (token: CancellationToken) => Thenable<void>;
+	readonly resolve: (token: CancellationToken) => Promise<void>;
 
 	// perf
 	readonly labelLow: string;
@@ -36,9 +37,8 @@ export class CompletionItem {
 	readonly filterTextLow?: string;
 
 	// sorting, filtering
-	score: number = -100;
+	score: FuzzyScore = FuzzyScore.Default;
 	distance: number = 0;
-	matches?: number[];
 	idx?: number;
 	word?: string;
 
@@ -250,7 +250,7 @@ registerDefaultLanguageCommand('_executeCompletionItemProvider', (model, positio
 		suggestions: []
 	};
 
-	let resolving: Thenable<any>[] = [];
+	let resolving: Promise<any>[] = [];
 	let maxItemsToResolve = args['maxItemsToResolve'] || 0;
 
 	return provideSuggestionItems(model, position).then(items => {

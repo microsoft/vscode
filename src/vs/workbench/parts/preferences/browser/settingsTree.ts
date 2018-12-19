@@ -240,7 +240,7 @@ export class SimplePagedDataSource implements IDataSource {
 		return this.realDataSource.hasChildren(tree, element);
 	}
 
-	getChildren(tree: ITree, element: SettingsTreeGroupElement): Thenable<any> {
+	getChildren(tree: ITree, element: SettingsTreeGroupElement): Promise<any> {
 		return this.realDataSource.getChildren(tree, element).then(realChildren => {
 			return this._getChildren(realChildren);
 		});
@@ -257,7 +257,7 @@ export class SimplePagedDataSource implements IDataSource {
 		}
 	}
 
-	getParent(tree: ITree, element: any): Thenable<any> {
+	getParent(tree: ITree, element: any): Promise<any> {
 		return this.realDataSource.getParent(tree, element);
 	}
 
@@ -787,7 +787,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		// Need to listen for mouse clicks on description and toggle checkbox - use target ID for safety
 		// Also have to ignore embedded links - too buried to stop propagation
 		toDispose.push(DOM.addDisposableListener(descriptionElement, DOM.EventType.MOUSE_DOWN, (e) => {
-			const targetElement = <HTMLElement>e.toElement;
+			const targetElement = <HTMLElement>e.target;
 			const targetId = descriptionElement.getAttribute('checkbox_label_target_id');
 
 			// Make sure we are not a link and the target ID matches
@@ -1173,7 +1173,8 @@ export class SettingsRenderer implements ITreeRenderer {
 			.map((data, index) => <ISelectOptionItem>{
 				text: data,
 				description: (enumDescriptions && enumDescriptions[index] && (enumDescriptionsAreMarkdown ? fixSettingLinks(enumDescriptions[index], false) : enumDescriptions[index])),
-				descriptionIsMarkdown: enumDescriptionsAreMarkdown
+				descriptionIsMarkdown: enumDescriptionsAreMarkdown,
+				decoratorRight: (data === dataElement.defaultValue ? localize('settings.Default', "{0}", 'default') : '')
 			});
 
 		template.selectBox.setOptions(displayOptions);
@@ -1628,7 +1629,7 @@ class CopySettingIdAction extends Action {
 			this.clipboardService.writeText(context.setting.key);
 		}
 
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -1648,6 +1649,6 @@ class CopySettingAsJSONAction extends Action {
 			this.clipboardService.writeText(jsonResult);
 		}
 
-		return Promise.resolve(null);
+		return Promise.resolve(void 0);
 	}
 }

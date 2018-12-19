@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
 import { LinkedMap } from 'vs/base/common/map';
@@ -20,7 +19,7 @@ export { ITaskSummary, Task, TaskTerminateResponse };
 export const ITaskService = createDecorator<ITaskService>('taskService');
 
 export interface ITaskProvider {
-	provideTasks(validTypes: IStringDictionary<boolean>): TPromise<TaskSet>;
+	provideTasks(validTypes: IStringDictionary<boolean>): Promise<TaskSet>;
 }
 
 export interface ProblemMatcherRunOptions {
@@ -56,29 +55,29 @@ export interface ITaskService {
 	supportsMultipleTaskExecutions: boolean;
 
 	configureAction(): Action;
-	build(): TPromise<ITaskSummary>;
-	runTest(): TPromise<ITaskSummary>;
-	run(task: Task, options?: ProblemMatcherRunOptions): TPromise<ITaskSummary>;
+	build(): Promise<ITaskSummary>;
+	runTest(): Promise<ITaskSummary>;
+	run(task: Task, options?: ProblemMatcherRunOptions): Promise<ITaskSummary>;
 	inTerminal(): boolean;
-	isActive(): TPromise<boolean>;
-	getActiveTasks(): TPromise<Task[]>;
+	isActive(): Promise<boolean>;
+	getActiveTasks(): Promise<Task[]>;
 	restart(task: Task): void;
-	terminate(task: Task): TPromise<TaskTerminateResponse>;
-	terminateAll(): TPromise<TaskTerminateResponse[]>;
-	tasks(filter?: TaskFilter): TPromise<Task[]>;
-	getWorkspaceTasks(runSource?: TaskRunSource): TPromise<Map<string, WorkspaceFolderTaskResult>>;
+	terminate(task: Task): Promise<TaskTerminateResponse>;
+	terminateAll(): Promise<TaskTerminateResponse[]>;
+	tasks(filter?: TaskFilter): Promise<Task[]>;
+	getWorkspaceTasks(runSource?: TaskRunSource): Promise<Map<string, WorkspaceFolderTaskResult>>;
 	/**
 	 * @param alias The task's name, label or defined identifier.
 	 */
-	getTask(workspaceFolder: IWorkspaceFolder | string, alias: string | TaskIdentifier, compareId?: boolean): TPromise<Task>;
-	getTasksForGroup(group: string): TPromise<Task[]>;
+	getTask(workspaceFolder: IWorkspaceFolder | string, alias: string | TaskIdentifier, compareId?: boolean): Promise<Task>;
+	getTasksForGroup(group: string): Promise<Task[]>;
 	getRecentlyUsedTasks(): LinkedMap<string, string>;
 	createSorter(): TaskSorter;
 
 	needsFolderQualification();
 	canCustomize(task: ContributedTask | CustomTask): boolean;
-	customize(task: ContributedTask | CustomTask, properties?: {}, openConfig?: boolean): TPromise<void>;
-	openConfig(task: CustomTask | undefined): TPromise<void>;
+	customize(task: ContributedTask | CustomTask, properties?: {}, openConfig?: boolean): Promise<void>;
+	openConfig(task: CustomTask | undefined): Promise<void>;
 
 	registerTaskProvider(taskProvider: ITaskProvider): IDisposable;
 

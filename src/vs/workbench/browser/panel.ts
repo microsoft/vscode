@@ -75,7 +75,7 @@ export abstract class TogglePanelAction extends Action {
 		this.panelId = panelId;
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 		if (this.isPanelFocused()) {
 			this.partService.setPanelHidden(true);
 		} else {

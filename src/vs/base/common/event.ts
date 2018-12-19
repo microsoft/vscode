@@ -332,7 +332,7 @@ export namespace Event {
 		return result.event;
 	}
 
-	export function fromPromise<T =any>(promise: Thenable<T>): Event<T> {
+	export function fromPromise<T =any>(promise: Promise<T>): Event<T> {
 		const emitter = new Emitter<T>();
 		let shouldEmit = false;
 
@@ -350,7 +350,7 @@ export namespace Event {
 		return emitter.event;
 	}
 
-	export function toPromise<T>(event: Event<T>): Thenable<T> {
+	export function toPromise<T>(event: Event<T>): Promise<T> {
 		return new Promise(c => once(event)(c));
 	}
 }
@@ -585,14 +585,14 @@ export class Emitter<T> {
 }
 
 export interface IWaitUntil {
-	waitUntil(thenable: Thenable<any>): void;
+	waitUntil(thenable: Promise<any>): void;
 }
 
 export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
 
-	private _asyncDeliveryQueue: [Listener, T, Thenable<any>[]][];
+	private _asyncDeliveryQueue: [Listener, T, Promise<any>[]][];
 
-	async fireAsync(eventFn: (thenables: Thenable<any>[], listener: Function) => T): Promise<void> {
+	async fireAsync(eventFn: (thenables: Promise<any>[], listener: Function) => T): Promise<void> {
 		if (!this._listeners) {
 			return;
 		}
@@ -605,7 +605,7 @@ export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
 		}
 
 		for (let iter = this._listeners.iterator(), e = iter.next(); !e.done; e = iter.next()) {
-			let thenables: Thenable<void>[] = [];
+			let thenables: Promise<void>[] = [];
 			this._asyncDeliveryQueue.push([e.value, eventFn(thenables, typeof e.value === 'function' ? e.value : e.value[0]), thenables]);
 		}
 

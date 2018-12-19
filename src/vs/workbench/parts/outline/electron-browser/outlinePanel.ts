@@ -723,7 +723,7 @@ export class OutlinePanel extends ViewletPanel {
 		let navi = this._tree.getNavigator(this._tree.getFocus(), false);
 		let candidate: any;
 		while (candidate = up ? navi.previous() : navi.next()) {
-			if (candidate instanceof OutlineElement && candidate.score && candidate.score[1].length > 0) {
+			if (candidate instanceof OutlineElement && candidate.score && candidate.score[1] > 0) {
 				this._tree.setFocus(candidate, this);
 				this._tree.reveal(candidate).then(undefined, onUnexpectedError);
 				break;

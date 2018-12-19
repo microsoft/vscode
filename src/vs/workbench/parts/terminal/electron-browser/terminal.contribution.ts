@@ -198,9 +198,9 @@ configurationRegistry.registerConfiguration({
 			default: 1000
 		},
 		'terminal.integrated.setLocaleVariables': {
-			markdownDescription: nls.localize('terminal.integrated.setLocaleVariables', "Controls whether locale variables are set at startup of the terminal, this defaults to `true` on macOS, `false` on other platforms."),
+			markdownDescription: nls.localize('terminal.integrated.setLocaleVariables', "Controls whether locale variables are set at startup of the terminal."),
 			type: 'boolean',
-			default: platform.isMacintosh
+			default: true
 		},
 		'terminal.integrated.rendererType': {
 			type: 'string',

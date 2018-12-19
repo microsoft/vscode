@@ -70,7 +70,9 @@ export function getPathLabel(resource: URI | string, userHomeProvider?: IUserHom
 	return res;
 }
 
-export function getBaseLabel(resource: URI | string): string | undefined {
+export function getBaseLabel(resource: URI | string): string;
+export function getBaseLabel(resource: URI | string | undefined): string | undefined;
+export function getBaseLabel(resource: URI | string | undefined): string | undefined {
 	if (!resource) {
 		return undefined;
 	}

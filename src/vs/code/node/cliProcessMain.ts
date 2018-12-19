@@ -53,7 +53,7 @@ function getId(manifest: IExtensionManifest, withVersion?: boolean): string {
 
 const EXTENSION_ID_REGEX = /^([^.]+\..+)@(\d+\.\d+\.\d+(-.*)?)$/;
 
-export function getIdAndVersion(id: string): [string, string] {
+export function getIdAndVersion(id: string): [string, string | undefined] {
 	const matches = EXTENSION_ID_REGEX.exec(id);
 	if (matches && matches[1]) {
 		return [adoptToGalleryExtensionId(matches[1]), matches[2]];
@@ -62,7 +62,7 @@ export function getIdAndVersion(id: string): [string, string] {
 }
 
 
-type Task = { (): Thenable<void> };
+type Task = { (): Promise<void> };
 
 class Main {
 
@@ -77,7 +77,7 @@ class Main {
 			await this.setInstallSource(argv['install-source']);
 
 		} else if (argv['list-extensions']) {
-			await this.listExtensions(argv['show-versions']);
+			await this.listExtensions(!!argv['show-versions']);
 
 		} else if (argv['install-extension']) {
 			const arg = argv['install-extension'];
@@ -205,7 +205,7 @@ class Main {
 		}
 	}
 
-	private uninstallExtension(extensions: string[]): Thenable<any> {
+	private uninstallExtension(extensions: string[]): Promise<any> {
 		async function getExtensionId(extensionDescription: string): Promise<string> {
 			if (!/\.vsix$/i.test(extensionDescription)) {
 				return extensionDescription;

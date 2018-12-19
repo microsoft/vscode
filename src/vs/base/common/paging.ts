@@ -15,12 +15,12 @@ export interface IPager<T> {
 	firstPage: T[];
 	total: number;
 	pageSize: number;
-	getPage(pageIndex: number, cancellationToken: CancellationToken): Thenable<T[]>;
+	getPage(pageIndex: number, cancellationToken: CancellationToken): Promise<T[]>;
 }
 
 interface IPage<T> {
 	isResolved: boolean;
-	promise: Thenable<void> | null;
+	promise: Promise<void> | null;
 	cts: CancellationTokenSource | null;
 	promiseIndexes: Set<number>;
 	elements: T[];
@@ -43,7 +43,7 @@ export interface IPagedModel<T> {
 	length: number;
 	isResolved(index: number): boolean;
 	get(index: number): T;
-	resolve(index: number, cancellationToken: CancellationToken): Thenable<T>;
+	resolve(index: number, cancellationToken: CancellationToken): Promise<T>;
 }
 
 export function singlePagePager<T>(elements: T[]): IPager<T> {
@@ -51,7 +51,7 @@ export function singlePagePager<T>(elements: T[]): IPager<T> {
 		firstPage: elements,
 		total: elements.length,
 		pageSize: elements.length,
-		getPage: (pageIndex: number, cancellationToken: CancellationToken): Thenable<T[]> => {
+		getPage: (pageIndex: number, cancellationToken: CancellationToken): Promise<T[]> => {
 			return Promise.resolve(elements);
 		}
 	};
@@ -90,7 +90,7 @@ export class PagedModel<T> implements IPagedModel<T> {
 		return page.elements[indexInPage];
 	}
 
-	resolve(index: number, cancellationToken: CancellationToken): Thenable<T> {
+	resolve(index: number, cancellationToken: CancellationToken): Promise<T> {
 		if (cancellationToken.isCancellationRequested) {
 			return Promise.reject(canceled());
 		}
@@ -151,7 +151,7 @@ export class DelayedPagedModel<T> implements IPagedModel<T> {
 		return this.model.get(index);
 	}
 
-	resolve(index: number, cancellationToken: CancellationToken): Thenable<T> {
+	resolve(index: number, cancellationToken: CancellationToken): Promise<T> {
 		return new Promise((c, e) => {
 			if (cancellationToken.isCancellationRequested) {
 				return e(canceled());
@@ -196,7 +196,7 @@ export function mergePagers<T>(one: IPager<T>, other: IPager<T>): IPager<T> {
 		firstPage: [...one.firstPage, ...other.firstPage],
 		total: one.total + other.total,
 		pageSize: one.pageSize + other.pageSize,
-		getPage(pageIndex: number, token): Thenable<T[]> {
+		getPage(pageIndex: number, token): Promise<T[]> {
 			return Promise.all([one.getPage(pageIndex, token), other.getPage(pageIndex, token)])
 				.then(([onePage, otherPage]) => [...onePage, ...otherPage]);
 		}

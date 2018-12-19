@@ -23,37 +23,37 @@ export interface IStatusbarEntry {
 	 *
 	 * `My text ${icon name} contains icons like ${icon name} this one.`
 	 */
-	text: string;
+	readonly text: string;
 
 	/**
 	 * An optional tooltip text to show when you hover over the entry
 	 */
-	tooltip?: string;
+	readonly tooltip?: string;
 
 	/**
 	 * An optional color to use for the entry
 	 */
-	color?: string | ThemeColor;
+	readonly color?: string | ThemeColor;
 
 	/**
 	 * An optional id of a command that is known to the workbench to execute on click
 	 */
-	command?: string;
+	readonly command?: string;
 
 	/**
 	 * Optional arguments for the command.
 	 */
-	arguments?: any[];
+	readonly arguments?: any[];
 
 	/**
 	 * An optional extension ID if this entry is provided from an extension.
 	 */
-	extensionId?: string;
+	readonly extensionId?: string;
 
 	/**
 	 * Wether to show a beak above the status bar entry.
 	 */
-	showBeak?: boolean;
+	readonly showBeak?: boolean;
 }
 
 export interface IStatusbarService {

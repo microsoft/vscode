@@ -164,13 +164,24 @@ function configureCommandlineSwitches(cliArgs, nodeCachedDataDir) {
  * @returns {string}
  */
 function resolveJSFlags(cliArgs, ...jsFlags) {
+
+	// Add any existing JS flags we already got from the command line
 	if (cliArgs['js-flags']) {
 		jsFlags.push(cliArgs['js-flags']);
 	}
 
+	// Support max-memory flag
 	if (cliArgs['max-memory'] && !/max_old_space_size=(\d+)/g.exec(cliArgs['js-flags'])) {
 		jsFlags.push(`--max_old_space_size=${cliArgs['max-memory']}`);
 	}
+
+	// Since Electron 3 we use a V8 version that comes with untrusted code mitigations
+	// enabled by default (https://v8.dev/docs/untrusted-code-mitigations). This comes
+	// at a performance cost according to the blog. Since we do not execute untrusted
+	// code, we disable these mitigations.
+	// TODO@Ben revisit this for later Electron versions, search for more usages of
+	// --no-untrusted-code-mitigations
+	jsFlags.push('--no-untrusted-code-mitigations');
 
 	return jsFlags.length > 0 ? jsFlags.join(' ') : null;
 }

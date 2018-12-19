@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/editorgroupview';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorGroup, IEditorOpenOptions, EditorCloseEvent, ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorGroup';
 import { EditorInput, EditorOptions, GroupIdentifier, ConfirmResult, SideBySideEditorInput, CloseDirection, IEditorCloseEvent, EditorGroupActiveEditorDirtyContext, IEditor } from 'vs/workbench/common/editor';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
@@ -96,7 +95,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private active: boolean;
 	private dimension: Dimension;
 
-	private _whenRestored: Thenable<void>;
+	private _whenRestored: Promise<void>;
 	private isRestored: boolean;
 
 	private scopedInstantiationService: IInstantiationService;
@@ -112,7 +111,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private ignoreOpenEditorErrors: boolean;
 	private disposedEditorsWorker: RunOnceWorker<EditorInput>;
 
-	private mapEditorToPendingConfirmation: Map<EditorInput, TPromise<boolean>> = new Map<EditorInput, TPromise<boolean>>();
+	private mapEditorToPendingConfirmation: Map<EditorInput, Promise<boolean>> = new Map<EditorInput, Promise<boolean>>();
 
 	constructor(
 		private accessor: IEditorGroupsAccessor,
@@ -277,7 +276,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		});
 
 		// Toolbar actions
-		const removeGroupAction = this._register(new Action(CLOSE_EDITOR_GROUP_COMMAND_ID, localize('closeGroupAction', "Close"), 'close-editor-group', true, () => { this.accessor.removeGroup(this); return TPromise.as(true); }));
+		const removeGroupAction = this._register(new Action(CLOSE_EDITOR_GROUP_COMMAND_ID, localize('closeGroupAction', "Close"), 'close-editor-group', true, () => { this.accessor.removeGroup(this); return Promise.resolve(true); }));
 		const keybinding = this.keybindingService.lookupKeybinding(removeGroupAction.id);
 		containerToolbar.push(removeGroupAction, { icon: true, label: false, keybinding: keybinding ? keybinding.getLabel() : void 0 });
 	}
@@ -398,9 +397,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 	}
 
-	private restoreEditors(from: IEditorGroupView | ISerializedEditorGroup): Thenable<void> {
+	private restoreEditors(from: IEditorGroupView | ISerializedEditorGroup): Promise<void> {
 		if (this._group.count === 0) {
-			return Promise.resolve(void 0); // nothing to show
+			return Promise.resolve(); // nothing to show
 		}
 
 		// Determine editor options
@@ -603,7 +602,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this._disposed;
 	}
 
-	get whenRestored(): Thenable<void> {
+	get whenRestored(): Promise<void> {
 		return this._whenRestored;
 	}
 
@@ -725,11 +724,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region openEditor()
 
-	openEditor(editor: EditorInput, options?: EditorOptions): TPromise<IEditor> {
+	openEditor(editor: EditorInput, options?: EditorOptions): Promise<IEditor | null> {
 
 		// Guard against invalid inputs
 		if (!editor) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		// Editor opening event allows for prevention
@@ -744,7 +743,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this.doOpenEditor(editor, options);
 	}
 
-	private doOpenEditor(editor: EditorInput, options?: EditorOptions): TPromise<IEditor> {
+	private doOpenEditor(editor: EditorInput, options?: EditorOptions): Promise<IEditor> {
 
 		// Determine options
 		const openEditorOptions: IEditorOpenOptions = {
@@ -785,10 +784,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this.doShowEditor(editor, openEditorOptions.active, options);
 	}
 
-	private doShowEditor(editor: EditorInput, active: boolean, options?: EditorOptions): TPromise<IEditor> {
+	private doShowEditor(editor: EditorInput, active: boolean, options?: EditorOptions): Promise<IEditor> {
 
 		// Show in editor control if the active editor changed
-		let openEditorPromise: TPromise<IEditor>;
+		let openEditorPromise: Promise<IEditor>;
 		if (active) {
 			openEditorPromise = this.editorControl.openEditor(editor, options).then(result => {
 
@@ -806,7 +805,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				return null; // error: return NULL as result to signal this
 			});
 		} else {
-			openEditorPromise = TPromise.as(null); // inactive: return NULL as result to signal this
+			openEditorPromise = Promise.resolve(null); // inactive: return NULL as result to signal this
 		}
 
 		// Show in title control after editor control because some actions depend on it
@@ -848,9 +847,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region openEditors()
 
-	openEditors(editors: { editor: EditorInput, options?: EditorOptions }[]): TPromise<IEditor> {
+	openEditors(editors: { editor: EditorInput, options?: EditorOptions }[]): Promise<IEditor | null> {
 		if (!editors.length) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		// Do not modify original array
@@ -959,9 +958,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region closeEditor()
 
-	closeEditor(editor: EditorInput = this.activeEditor): TPromise<void> {
+	closeEditor(editor: EditorInput = this.activeEditor): Promise<void> {
 		if (!editor) {
-			return TPromise.as(void 0);
+			return Promise.resolve();
 		}
 
 		// Check for dirty and veto
@@ -1075,9 +1074,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this._group.closeEditor(editor);
 	}
 
-	private handleDirty(editors: EditorInput[]): TPromise<boolean /* veto */> {
+	private handleDirty(editors: EditorInput[]): Promise<boolean /* veto */> {
 		if (!editors.length) {
-			return TPromise.as(false); // no veto
+			return Promise.resolve(false); // no veto
 		}
 
 		const editor = editors.shift();
@@ -1105,13 +1104,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		});
 	}
 
-	private doHandleDirty(editor: EditorInput): TPromise<boolean /* veto */> {
+	private doHandleDirty(editor: EditorInput): Promise<boolean /* veto */> {
 		if (
 			!editor.isDirty() || // editor must be dirty
 			this.accessor.groups.some(groupView => groupView !== this && groupView.group.contains(editor, true /* support side by side */)) ||  // editor is opened in other group
 			editor instanceof SideBySideEditorInput && this.isOpened(editor.master) // side by side editor master is still opened
 		) {
-			return TPromise.as(false);
+			return Promise.resolve(false);
 		}
 
 		// Switch to editor that we want to handle and confirm to save/revert
@@ -1152,9 +1151,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region closeEditors()
 
-	closeEditors(args: EditorInput[] | ICloseEditorsFilter): TPromise<void> {
+	closeEditors(args: EditorInput[] | ICloseEditorsFilter): Promise<void> {
 		if (this.isEmpty()) {
-			return TPromise.as(void 0);
+			return Promise.resolve();
 		}
 
 		const editors = this.getEditorsToClose(args);
@@ -1225,7 +1224,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region closeAllEditors()
 
-	closeAllEditors(): TPromise<void> {
+	closeAllEditors(): Promise<void> {
 		if (this.isEmpty()) {
 
 			// If the group is empty and the request is to close all editors, we still close
@@ -1235,7 +1234,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				this.accessor.removeGroup(this);
 			}
 
-			return TPromise.as(void 0);
+			return Promise.resolve();
 		}
 
 		// Check for dirty and veto
@@ -1270,7 +1269,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region replaceEditors()
 
-	replaceEditors(editors: EditorReplacement[]): TPromise<void> {
+	replaceEditors(editors: EditorReplacement[]): Promise<void> {
 
 		// Extract active vs. inactive replacements
 		let activeReplacement: EditorReplacement;
@@ -1331,7 +1330,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			return openEditorResult.then(() => void 0);
 		}
 
-		return TPromise.as(void 0);
+		return Promise.resolve();
 	}
 
 	//#endregion
@@ -1420,7 +1419,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 }
 
 class EditorOpeningEvent implements IEditorOpeningEvent {
-	private override: () => TPromise<IEditor>;
+	private override: () => Promise<IEditor>;
 
 	constructor(
 		private _group: GroupIdentifier,
@@ -1441,11 +1440,11 @@ class EditorOpeningEvent implements IEditorOpeningEvent {
 		return this._options;
 	}
 
-	prevent(callback: () => TPromise<IEditor>): void {
+	prevent(callback: () => Promise<IEditor>): void {
 		this.override = callback;
 	}
 
-	isPrevented(): () => TPromise<IEditor> {
+	isPrevented(): () => Promise<IEditor> {
 		return this.override;
 	}
 }

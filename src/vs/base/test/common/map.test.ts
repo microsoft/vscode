@@ -420,25 +420,25 @@ suite('Map', () => {
 		let item: IteratorResult<number>;
 		let iter = map.findSuperstr('/user');
 
-		item = iter.next();
+		item = iter!.next();
 		assert.equal(item.value, 2);
 		assert.equal(item.done, false);
-		item = iter.next();
+		item = iter!.next();
 		assert.equal(item.value, 1);
 		assert.equal(item.done, false);
-		item = iter.next();
+		item = iter!.next();
 		assert.equal(item.value, 3);
 		assert.equal(item.done, false);
-		item = iter.next();
+		item = iter!.next();
 		assert.equal(item.value, undefined);
 		assert.equal(item.done, true);
 
 		iter = map.findSuperstr('/usr');
-		item = iter.next();
+		item = iter!.next();
 		assert.equal(item.value, 4);
 		assert.equal(item.done, false);
 
-		item = iter.next();
+		item = iter!.next();
 		assert.equal(item.value, undefined);
 		assert.equal(item.done, true);
 

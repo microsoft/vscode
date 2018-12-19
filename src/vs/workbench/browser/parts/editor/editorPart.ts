@@ -129,7 +129,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	private gridWidget: SerializableGrid<IEditorGroupView>;
 	private gridWidgetView: GridWidgetView<IEditorGroupView>;
 
-	private _whenRestored: Thenable<void>;
+	private _whenRestored: Promise<void>;
 	private whenRestoredResolve: () => void;
 
 	constructor(
@@ -222,7 +222,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		return this.gridWidget.orientation === Orientation.VERTICAL ? GroupOrientation.VERTICAL : GroupOrientation.HORIZONTAL;
 	}
 
-	get whenRestored(): Thenable<void> {
+	get whenRestored(): Promise<void> {
 		return this._whenRestored;
 	}
 

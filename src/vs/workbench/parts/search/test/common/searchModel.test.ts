@@ -81,7 +81,7 @@ suite('SearchModel', () => {
 
 	function searchServiceWithResults(results: IFileMatch[], complete: ISearchComplete | null = null): ISearchService {
 		return <ISearchService>{
-			textSearch(query: ISearchQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Thenable<ISearchComplete> {
+			textSearch(query: ISearchQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
 				return new Promise(resolve => {
 					process.nextTick(() => {
 						results.forEach(onProgress);
@@ -94,7 +94,7 @@ suite('SearchModel', () => {
 
 	function searchServiceWithError(error: Error): ISearchService {
 		return <ISearchService>{
-			textSearch(query: ISearchQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Thenable<ISearchComplete> {
+			textSearch(query: ISearchQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
 				return new Promise((resolve, reject) => {
 					reject(error);
 				});
@@ -104,7 +104,7 @@ suite('SearchModel', () => {
 
 	function canceleableSearchService(tokenSource: CancellationTokenSource): ISearchService {
 		return <ISearchService>{
-			textSearch(query: ISearchQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Thenable<ISearchComplete> {
+			textSearch(query: ISearchQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
 				if (token) {
 					token.onCancellationRequested(() => tokenSource.cancel());
 				}

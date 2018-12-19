@@ -14,6 +14,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { FileChangesEvent, FileChangeType, IFileService, snapshotToString } from 'vs/platform/files/common/files';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { timeout } from 'vs/base/common/async';
 
 function toResource(self: any, path: string) {
 	return URI.file(join('C:\\', Buffer.from(self.test.fullTitle()).toString('base64'), path));
@@ -53,9 +54,11 @@ suite('Files - FileEditorTracker', () => {
 				// change event (watcher)
 				accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.UPDATED }]));
 
-				assert.equal(snapshotToString(model.createSnapshot()), 'Hello Html');
+				return timeout(0).then(() => { // due to event updating model async
+					assert.equal(snapshotToString(model.createSnapshot()), 'Hello Html');
 
-				tracker.dispose();
+					tracker.dispose();
+				});
 			});
 		});
 	});

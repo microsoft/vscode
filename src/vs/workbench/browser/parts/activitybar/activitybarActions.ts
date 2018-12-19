@@ -43,7 +43,7 @@ export class ViewletActivityAction extends ActivityAction {
 		super(activity);
 	}
 
-	run(event: any): Thenable<any> {
+	run(event: any): Promise<any> {
 		if (event instanceof MouseEvent && event.button === 2) {
 			return Promise.resolve(false); // do not run on right click
 		}
@@ -90,7 +90,7 @@ export class ToggleViewletAction extends Action {
 		super(_viewlet.id, _viewlet.name);
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 		const sideBarVisible = this.partService.isVisible(Parts.SIDEBAR_PART);
 		const activeViewlet = this.viewletService.getActiveViewlet();
 
@@ -206,7 +206,7 @@ class SwitchSideBarViewAction extends Action {
 		super(id, name);
 	}
 
-	run(offset: number): Thenable<any> {
+	run(offset: number): Promise<any> {
 		const pinnedViewletIds = this.activityService.getPinnedViewletIds();
 
 		const activeViewlet = this.viewletService.getActiveViewlet();
@@ -238,7 +238,7 @@ export class PreviousSideBarViewAction extends SwitchSideBarViewAction {
 		super(id, name, viewletService, activityService);
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 		return super.run(-1);
 	}
 }
@@ -257,7 +257,7 @@ export class NextSideBarViewAction extends SwitchSideBarViewAction {
 		super(id, name, viewletService, activityService);
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 		return super.run(1);
 	}
 }

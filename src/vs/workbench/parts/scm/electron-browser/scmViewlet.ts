@@ -13,7 +13,7 @@ import { PanelViewlet, ViewletPanel, IViewletPanelOptions } from 'vs/workbench/b
 import { append, $, addClass, toggleClass, trackFocus, Dimension, addDisposableListener, removeClass } from 'vs/base/browser/dom';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
-import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListEvent, ITypeLabelProvider, IIdentityProvider } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListEvent, IKeyboardNavigationLabelProvider, IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { VIEWLET_ID, VIEW_CONTAINER } from 'vs/workbench/parts/scm/common/scm';
 import { FileLabel } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
@@ -88,7 +88,7 @@ class StatusBarAction extends Action {
 		this.tooltip = command.tooltip;
 	}
 
-	run(): Thenable<void> {
+	run(): Promise<void> {
 		return this.commandService.executeCommand(this.command.id, ...this.command.arguments);
 	}
 }
@@ -423,7 +423,7 @@ class ResourceGroupRenderer implements IListRenderer<ISCMResourceGroup, Resource
 		template.actionBar.context = group;
 
 		const disposables: IDisposable[] = [];
-		disposables.push(connectPrimaryMenuToInlineActionBar(this.menus.getMenu(group), template.actionBar));
+		disposables.push(connectPrimaryMenuToInlineActionBar(this.menus.getResourceGroupMenu(group), template.actionBar));
 
 		const updateCount = () => template.count.setCount(group.elements.length);
 		group.onDidSplice(updateCount, null, disposables);
@@ -457,7 +457,7 @@ class MultipleSelectionActionRunner extends ActionRunner {
 		super();
 	}
 
-	runAction(action: IAction, context: ISCMResource): Thenable<any> {
+	runAction(action: IAction, context: ISCMResource): Promise<any> {
 		if (action instanceof MenuItemAction) {
 			const selection = this.getSelectedResources();
 			const filteredSelection = selection.filter(s => s !== context);
@@ -516,7 +516,7 @@ class ResourceRenderer implements IListRenderer<ISCMResource, ResourceTemplate> 
 		template.actionBar.context = resource;
 
 		const disposables: IDisposable[] = [];
-		disposables.push(connectPrimaryMenuToInlineActionBar(this.menus.getMenu(resource.resourceGroup), template.actionBar));
+		disposables.push(connectPrimaryMenuToInlineActionBar(this.menus.getResourceMenu(resource.resourceGroup), template.actionBar));
 
 		toggleClass(template.name, 'strike-through', resource.decorations.strikeThrough);
 		toggleClass(template.element, 'faded', resource.decorations.faded);
@@ -566,8 +566,8 @@ const scmResourceIdentityProvider = new class implements IIdentityProvider<ISCMR
 	}
 };
 
-const scmTypeLabelProvider = new class implements ITypeLabelProvider<ISCMResourceGroup | ISCMResource> {
-	getTypeLabel(e: ISCMResourceGroup | ISCMResource) {
+const scmKeyboardNavigationLabelProvider = new class implements IKeyboardNavigationLabelProvider<ISCMResourceGroup | ISCMResource> {
+	getKeyboardNavigationLabel(e: ISCMResourceGroup | ISCMResource) {
 		if (isSCMResource(e)) {
 			return basename(e.sourceUri.fsPath);
 		} else {
@@ -615,7 +615,7 @@ class ResourceGroupSplicer {
 		}
 
 		const itemsToInsert: IGroupItem[] = [];
-		const absoluteToInsert: (ISCMResourceGroup | ISCMResource)[] = [];
+		const absoluteToInsert: Array<ISCMResourceGroup | ISCMResource> = [];
 
 		for (const group of toInsert) {
 			const visible = isGroupVisible(group);
@@ -876,10 +876,10 @@ export class RepositoryPanel extends ViewletPanel {
 
 		this.list = this.instantiationService.createInstance(WorkbenchList, this.listContainer, delegate, renderers, {
 			identityProvider: scmResourceIdentityProvider,
-			typeLabelProvider: scmTypeLabelProvider
+			keyboardNavigationLabelProvider: scmKeyboardNavigationLabelProvider
 		}) as WorkbenchList<ISCMResourceGroup | ISCMResource>;
 
-		Event.chain(this.list.onOpen)
+		Event.chain(this.list.onDidOpen)
 			.map(e => e.elements[0])
 			.filter(e => !!e && isSCMResource(e))
 			.on(this.open, this, this.disposables);

@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { RunOnceScheduler, ignoreErrors } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IDebugService, State, IStackFrame, IDebugSession, IThread, CONTEXT_CALLSTACK_ITEM_TYPE } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, State, IStackFrame, IDebugSession, IThread, CONTEXT_CALLSTACK_ITEM_TYPE, IDebugModel } from 'vs/workbench/parts/debug/common/debug';
 import { Thread, StackFrame, ThreadAndSessionIds } from 'vs/workbench/parts/debug/common/debugModel';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -25,12 +25,12 @@ import { IViewletPanelOptions, ViewletPanel } from 'vs/workbench/browser/parts/v
 import { ILabelService } from 'vs/platform/label/common/label';
 import { DebugSession } from 'vs/workbench/parts/debug/electron-browser/debugSession';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { IDataSource } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ITreeRenderer, ITreeNode, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
+import { ITreeRenderer, ITreeNode, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { TreeResourceNavigator2, WorkbenchAsyncDataTree, IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 const $ = dom.$;
 
@@ -46,7 +46,7 @@ export class CallStackView extends ViewletPanel {
 	private ignoreFocusStackFrameEvent: boolean;
 	private callStackItemType: IContextKey<string>;
 	private dataSource: CallStackDataSource;
-	private tree: WorkbenchAsyncDataTree<CallStackItem>;
+	private tree: WorkbenchAsyncDataTree<IDebugModel, CallStackItem>;
 	private contributedContextMenu: IMenu;
 
 	constructor(
@@ -85,7 +85,7 @@ export class CallStackView extends ViewletPanel {
 
 			this.needsRefresh = false;
 			this.dataSource.deemphasizedStackFramesToShow = [];
-			this.tree.refresh(null).then(() => this.updateTreeSelection());
+			this.tree.refresh().then(() => this.updateTreeSelection());
 		}, 50);
 	}
 
@@ -102,7 +102,7 @@ export class CallStackView extends ViewletPanel {
 		dom.addClass(container, 'debug-call-stack');
 		const treeContainer = renderViewTree(container);
 
-		this.dataSource = new CallStackDataSource(this.debugService);
+		this.dataSource = new CallStackDataSource();
 		this.tree = new WorkbenchAsyncDataTree(treeContainer, new CallStackDelegate(), [
 			new SessionsRenderer(),
 			new ThreadsRenderer(),
@@ -125,8 +125,8 @@ export class CallStackView extends ViewletPanel {
 						return element.getId();
 					}
 				},
-				typeLabelProvider: {
-					getTypeLabel: e => {
+				keyboardNavigationLabelProvider: {
+					getKeyboardNavigationLabel: e => {
 						if (e instanceof DebugSession) {
 							return e.getLabel();
 						}
@@ -144,6 +144,8 @@ export class CallStackView extends ViewletPanel {
 					}
 				}
 			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
+
+		this.tree.setInput(this.debugService.getModel()).then(undefined, onUnexpectedError);
 
 		const callstackNavigator = new TreeResourceNavigator2(this.tree);
 		this.disposables.push(callstackNavigator);
@@ -177,12 +179,12 @@ export class CallStackView extends ViewletPanel {
 				const thread = session && session.getThread(element.threadId);
 				if (thread) {
 					(<Thread>thread).fetchCallStack()
-						.then(() => this.tree.refresh(null));
+						.then(() => this.tree.refresh());
 				}
 			}
 			if (element instanceof Array) {
 				this.dataSource.deemphasizedStackFramesToShow.push(...element);
-				this.tree.refresh(null);
+				this.tree.refresh();
 			}
 		}));
 
@@ -572,19 +574,20 @@ class CallStackDelegate implements IListVirtualDelegate<CallStackItem> {
 	}
 }
 
-class CallStackDataSource implements IDataSource<CallStackItem> {
+function isDebugModel(obj: any): obj is IDebugModel {
+	return typeof obj.getSessions === 'function';
+}
+
+class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem> {
 	deemphasizedStackFramesToShow: IStackFrame[];
 
-	constructor(private debugService: IDebugService) { }
-
-	hasChildren(element: CallStackItem | null): boolean {
-		return element === null || element instanceof DebugSession || (element instanceof Thread && element.stopped);
+	hasChildren(element: IDebugModel | CallStackItem): boolean {
+		return isDebugModel(element) || element instanceof DebugSession || (element instanceof Thread && element.stopped);
 	}
 
-	getChildren(element: CallStackItem | null): Thenable<CallStackItem[]> {
-		if (element === null) {
-			const model = this.debugService.getModel();
-			const sessions = model.getSessions();
+	getChildren(element: IDebugModel | CallStackItem): Promise<CallStackItem[]> {
+		if (isDebugModel(element)) {
+			const sessions = element.getSessions();
 			if (sessions.length === 0) {
 				return Promise.resolve([]);
 			}
@@ -595,15 +598,14 @@ class CallStackDataSource implements IDataSource<CallStackItem> {
 			const threads = sessions[0].getAllThreads();
 			// Only show the threads in the call stack if there is more than 1 thread.
 			return threads.length === 1 ? this.getThreadChildren(<Thread>threads[0]) : Promise.resolve(threads);
-		}
-		if (element instanceof DebugSession) {
+		} else if (element instanceof DebugSession) {
 			return Promise.resolve(element.getAllThreads());
+		} else {
+			return this.getThreadChildren(<Thread>element);
 		}
-
-		return this.getThreadChildren(<Thread>element);
 	}
 
-	private getThreadChildren(thread: Thread): Promise<(IStackFrame | string | ThreadAndSessionIds)[]> {
+	private getThreadChildren(thread: Thread): Promise<Array<IStackFrame | string | ThreadAndSessionIds>> {
 		return this.getThreadCallstack(thread).then(children => {
 			// Check if some stack frames should be hidden under a parent element since they are deemphasized
 			const result = [];
@@ -633,7 +635,7 @@ class CallStackDataSource implements IDataSource<CallStackItem> {
 		});
 	}
 
-	private getThreadCallstack(thread: Thread): Promise<(IStackFrame | string | ThreadAndSessionIds)[]> {
+	private getThreadCallstack(thread: Thread): Promise<Array<IStackFrame | string | ThreadAndSessionIds>> {
 		let callStack: any[] = thread.getCallStack();
 		let callStackPromise: Promise<any> = Promise.resolve(null);
 		if (!callStack || !callStack.length) {

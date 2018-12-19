@@ -15,6 +15,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ILinkMatcherOptions } from 'vscode-xterm';
 
 const pathPrefix = '(\\.\\.?|\\~)';
 const pathSeparatorClause = '\\/';
@@ -87,9 +88,8 @@ export class TerminalLinkHandler {
 	}
 
 	public registerCustomLinkHandler(regex: RegExp, handler: (uri: string) => void, matchIndex?: number, validationCallback?: XtermLinkMatcherValidationCallback): number {
-		return this._xterm.registerLinkMatcher(regex, this._wrapLinkHandler(handler), {
+		const options: ILinkMatcherOptions = {
 			matchIndex,
-			validationCallback: (uri: string, callback: (isValid: boolean) => void) => validationCallback(uri, callback),
 			tooltipCallback: (e: MouseEvent) => {
 				if (this._terminalService && this._terminalService.configHelper.config.rendererType === 'dom') {
 					const target = (e.target as HTMLElement);
@@ -101,7 +101,11 @@ export class TerminalLinkHandler {
 			leaveCallback: () => this._widgetManager.closeMessage(),
 			willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e),
 			priority: CUSTOM_LINK_PRIORITY
-		});
+		};
+		if (validationCallback) {
+			options.validationCallback = (uri: string, callback: (isValid: boolean) => void) => validationCallback(uri, callback);
+		}
+		return this._xterm.registerLinkMatcher(regex, this._wrapLinkHandler(handler), options);
 	}
 
 	public registerWebLinkHandler(): void {
@@ -157,7 +161,7 @@ export class TerminalLinkHandler {
 			if (!this._isLinkActivationModifierDown(event)) {
 				// If the modifier is not pressed, the terminal should be
 				// focused if it's not already
-				this._terminalService.getActiveInstance().focus(true);
+				this._terminalService.getActiveInstance()!.focus(true);
 				return false;
 			}
 			return handler(uri);
@@ -170,8 +174,14 @@ export class TerminalLinkHandler {
 
 	private _handleLocalLink(link: string): PromiseLike<any> {
 		return this._resolvePath(link).then(resolvedLink => {
+			if (!resolvedLink) {
+				return Promise.resolve(null);
+			}
 			const normalizedPath = path.normalize(path.resolve(resolvedLink));
 			const normalizedUrl = this.extractLinkUrl(normalizedPath);
+			if (!normalizedUrl) {
+				return Promise.resolve(null);
+			}
 			const resource = Uri.file(normalizedUrl);
 			const lineColumnInfo: LineColumnInfo = this.extractLineColumnInfo(link);
 			const selection: ITextEditorSelection = {
@@ -215,7 +225,7 @@ export class TerminalLinkHandler {
 		return nls.localize('terminalLinkHandler.followLinkCtrl', 'Ctrl + click to follow link');
 	}
 
-	protected _preprocessPath(link: string): string {
+	protected _preprocessPath(link: string): string | null {
 		if (this._platform === platform.Platform.Windows) {
 			// Resolve ~ -> %HOMEDRIVE%\%HOMEPATH%
 			if (link.charAt(0) === '~') {
@@ -245,15 +255,15 @@ export class TerminalLinkHandler {
 		return link;
 	}
 
-	private _resolvePath(link: string): PromiseLike<string> {
-		link = this._preprocessPath(link);
-		if (!link) {
-			return Promise.resolve(void 0);
+	private _resolvePath(link: string): PromiseLike<string | null> {
+		const preprocessedLink = this._preprocessPath(link);
+		if (!preprocessedLink) {
+			return Promise.resolve(null);
 		}
 
-		const linkUrl = this.extractLinkUrl(link);
+		const linkUrl = this.extractLinkUrl(preprocessedLink);
 		if (!linkUrl) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(null);
 		}
 
 		// Ensure the file exists on disk, so an editor can be opened after clicking it
@@ -261,7 +271,7 @@ export class TerminalLinkHandler {
 			if (!isFile) {
 				return null;
 			}
-			return link;
+			return preprocessedLink;
 		});
 	}
 
@@ -271,13 +281,17 @@ export class TerminalLinkHandler {
 	 * @param link Url link which may contain line and column number.
 	 */
 	public extractLineColumnInfo(link: string): LineColumnInfo {
-		const matches: string[] = this._localLinkRegex.exec(link);
+		const matches: string[] | null = this._localLinkRegex.exec(link);
 		const lineColumnInfo: LineColumnInfo = {
 			lineNumber: 1,
 			columnNumber: 1
 		};
-		const lineAndColumnMatchIndex = this._platform === platform.Platform.Windows ? winLineAndColumnMatchIndex : unixLineAndColumnMatchIndex;
 
+		if (!matches) {
+			return lineColumnInfo;
+		}
+
+		const lineAndColumnMatchIndex = this._platform === platform.Platform.Windows ? winLineAndColumnMatchIndex : unixLineAndColumnMatchIndex;
 		for (let i = 0; i < lineAndColumnClause.length; i++) {
 			const lineMatchIndex = lineAndColumnMatchIndex + (lineAndColumnClauseGroupCount * i);
 			const rowNumber = matches[lineMatchIndex];
@@ -300,8 +314,8 @@ export class TerminalLinkHandler {
 	 *
 	 * @param link url link which may contain line and column number.
 	 */
-	public extractLinkUrl(link: string): string {
-		const matches: string[] = this._localLinkRegex.exec(link);
+	public extractLinkUrl(link: string): string | null {
+		const matches: string[] | null = this._localLinkRegex.exec(link);
 		if (!matches) {
 			return null;
 		}

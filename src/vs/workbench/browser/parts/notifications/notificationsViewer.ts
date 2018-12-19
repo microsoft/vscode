@@ -286,7 +286,7 @@ export class NotificationTemplateRenderer {
 	private static expandNotificationAction: ExpandNotificationAction;
 	private static collapseNotificationAction: CollapseNotificationAction;
 
-	private static readonly SEVERITIES: ('info' | 'warning' | 'error')[] = ['info', 'warning', 'error'];
+	private static readonly SEVERITIES: Array<'info' | 'warning' | 'error'> = ['info', 'warning', 'error'];
 
 	private inputDisposeables: IDisposable[] = [];
 

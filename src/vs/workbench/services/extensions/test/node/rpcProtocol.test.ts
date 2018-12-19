@@ -32,7 +32,7 @@ suite('RPCProtocol', () => {
 	let delegate: (a1: any, a2: any) => any;
 	let bProxy: BClass;
 	class BClass {
-		$m(a1: any, a2: any): Thenable<any> {
+		$m(a1: any, a2: any): Promise<any> {
 			return Promise.resolve(delegate.call(null, a1, a2));
 		}
 	}

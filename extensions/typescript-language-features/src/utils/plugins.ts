@@ -10,6 +10,7 @@ import { memoize } from './memoize';
 export interface TypeScriptServerPlugin {
 	readonly path: string;
 	readonly name: string;
+	readonly enableForWorkspaceTypeScriptVersions: boolean;
 	readonly languages: ReadonlyArray<string>;
 }
 
@@ -25,6 +26,7 @@ export class PluginManager extends Disposable {
 				for (const plugin of pack.contributes.typescriptServerPlugins) {
 					plugins.push({
 						name: plugin.name,
+						enableForWorkspaceTypeScriptVersions: !!plugin.enableForWorkspaceTypeScriptVersions,
 						path: extension.extensionPath,
 						languages: Array.isArray(plugin.languages) ? plugin.languages : [],
 					});

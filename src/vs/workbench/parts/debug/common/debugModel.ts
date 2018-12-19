@@ -219,7 +219,7 @@ export class Expression extends ExpressionContainer implements IExpression {
 			this.available = false;
 			this.reference = 0;
 
-			return Promise.resolve(null);
+			return Promise.resolve(void 0);
 		}
 
 		this.session = session;
@@ -380,7 +380,7 @@ export class StackFrame implements IStackFrame {
 		return `${this.name} (${this.source.inMemory ? this.source.name : this.source.uri.fsPath}:${this.range.startLineNumber})`;
 	}
 
-	openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Thenable<any> {
+	openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {
 		return !this.source.available ? Promise.resolve(null) :
 			this.source.openInEditor(editorService, this.range, preserveFocus, sideBySide, pinned);
 	}
@@ -427,7 +427,7 @@ export class Thread implements IThread {
 	 */
 	fetchCallStack(levels = 20): Promise<void> {
 		if (!this.stopped) {
-			return Promise.resolve(null);
+			return Promise.resolve(void 0);
 		}
 
 		const start = this.callStack.length;
@@ -472,7 +472,7 @@ export class Thread implements IThread {
 	/**
 	 * Returns exception info promise if the exception was thrown, otherwise null
 	 */
-	get exceptionInfo(): Promise<IExceptionInfo> {
+	get exceptionInfo(): Promise<IExceptionInfo | null> {
 		if (this.stoppedDetails && this.stoppedDetails.reason === 'exception') {
 			if (this.session.capabilities.supportsExceptionInfoRequest) {
 				return this.session.exceptionInfo(this.threadId);
@@ -964,7 +964,7 @@ export class DebugModel implements IDebugModel {
 
 	setEnablement(element: IEnablement, enable: boolean): void {
 		if (element instanceof Breakpoint || element instanceof FunctionBreakpoint || element instanceof ExceptionBreakpoint) {
-			const changed: (IBreakpoint | IFunctionBreakpoint)[] = [];
+			const changed: Array<IBreakpoint | IFunctionBreakpoint> = [];
 			if (element.enabled !== enable && (element instanceof Breakpoint || element instanceof FunctionBreakpoint)) {
 				changed.push(element);
 			}
@@ -976,7 +976,7 @@ export class DebugModel implements IDebugModel {
 	}
 
 	enableOrDisableAllBreakpoints(enable: boolean): void {
-		const changed: (IBreakpoint | IFunctionBreakpoint)[] = [];
+		const changed: Array<IBreakpoint | IFunctionBreakpoint> = [];
 
 		this.breakpoints.forEach(bp => {
 			if (bp.enabled !== enable) {

@@ -5,7 +5,6 @@
 
 import { URI as Uri } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IResolveContentOptions, IUpdateContentOptions, ITextSnapshot } from 'vs/platform/files/common/files';
 import { ITextBufferFactory } from 'vs/editor/common/model';
 
@@ -23,7 +22,7 @@ export interface IBackupFileService {
 	/**
 	 * Finds out if there are any backups stored.
 	 */
-	hasBackups(): TPromise<boolean>;
+	hasBackups(): Promise<boolean>;
 
 	/**
 	 * Loads the backup resource for a particular resource within the current workspace.
@@ -31,7 +30,7 @@ export interface IBackupFileService {
 	 * @param resource The resource that is backed up.
 	 * @return The backup resource if any.
 	 */
-	loadBackupResource(resource: Uri): TPromise<Uri | undefined>;
+	loadBackupResource(resource: Uri): Promise<Uri | undefined>;
 
 	/**
 	 * Given a resource, returns the associated backup resource.
@@ -48,14 +47,14 @@ export interface IBackupFileService {
 	 * @param content The content of the resource as snapshot.
 	 * @param versionId The version id of the resource to backup.
 	 */
-	backupResource(resource: Uri, content: ITextSnapshot, versionId?: number): TPromise<void>;
+	backupResource(resource: Uri, content: ITextSnapshot, versionId?: number): Promise<void>;
 
 	/**
 	 * Gets a list of file backups for the current workspace.
 	 *
 	 * @return The list of backups.
 	 */
-	getWorkspaceFileBackups(): TPromise<Uri[]>;
+	getWorkspaceFileBackups(): Promise<Uri[]>;
 
 	/**
 	 * Resolves the backup for the given resource.
@@ -63,18 +62,18 @@ export interface IBackupFileService {
 	 * @param value The contents from a backup resource as stream.
 	 * @return The backup file's backed up content as text buffer factory.
 	 */
-	resolveBackupContent(backup: Uri): TPromise<ITextBufferFactory | undefined>;
+	resolveBackupContent(backup: Uri): Promise<ITextBufferFactory | undefined>;
 
 	/**
 	 * Discards the backup associated with a resource if it exists..
 	 *
 	 * @param resource The resource whose backup is being discarded discard to back up.
 	 */
-	discardResourceBackup(resource: Uri): TPromise<void>;
+	discardResourceBackup(resource: Uri): Promise<void>;
 
 	/**
 	 * Discards all backups associated with the current workspace and prevents further backups from
 	 * being made.
 	 */
-	discardAllWorkspaceBackups(): TPromise<void>;
+	discardAllWorkspaceBackups(): Promise<void>;
 }

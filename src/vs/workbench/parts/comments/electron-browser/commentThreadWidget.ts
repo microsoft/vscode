@@ -306,7 +306,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._commentEditor = this.instantiationService.createInstance(SimpleCommentEditor, this._commentForm, SimpleCommentEditor.getEditorOptions());
 		const modeId = hasExistingComments ? this._commentThread.threadId : ++INMEM_MODEL_ID;
 		const resource = URI.parse(`${COMMENT_SCHEME}:commentinput-${modeId}.md`);
-		const model = this.modelService.createModel(this._pendingComment || '', this.modeService.createByFilepathOrFirstLine(resource.path), resource, true);
+		const model = this.modelService.createModel(this._pendingComment || '', this.modeService.createByFilepathOrFirstLine(resource.path), resource, false);
 		this._localToDispose.push(model);
 		this._commentEditor.setModel(model);
 		this._localToDispose.push(this._commentEditor);
@@ -372,6 +372,12 @@ export class ReviewZoneWidget extends ZoneWidget {
 		}
 	}
 
+	private handleError(e: Error) {
+		this._error.textContent = e.message;
+		this._commentEditor.getDomNode().style.outline = `1px solid ${this.themeService.getTheme().getColor(inputValidationErrorBorder)}`;
+		dom.removeClass(this._error, 'hidden');
+	}
+
 	private createCommentWidgetActions(container: HTMLElement, model: ITextModel) {
 		const button = new Button(container);
 		attachButtonStyler(button, this.themeService);
@@ -405,7 +411,11 @@ export class ReviewZoneWidget extends ZoneWidget {
 					deletedraftButton.enabled = true;
 
 					deletedraftButton.onDidClick(async () => {
-						await this.commentService.deleteDraft(this._owner);
+						try {
+							await this.commentService.deleteDraft(this._owner, this.editor.getModel().uri);
+						} catch (e) {
+							this.handleError(e);
+						}
 					});
 				}
 
@@ -417,9 +427,13 @@ export class ReviewZoneWidget extends ZoneWidget {
 					submitdraftButton.enabled = true;
 
 					submitdraftButton.onDidClick(async () => {
-						let lineNumber = this._commentGlyph.getPosition().position.lineNumber;
-						await this.createComment(lineNumber);
-						await this.commentService.finishDraft(this._owner);
+						try {
+							let lineNumber = this._commentGlyph.getPosition().position.lineNumber;
+							await this.createComment(lineNumber);
+							await this.commentService.finishDraft(this._owner, this.editor.getModel().uri);
+						} catch (e) {
+							this.handleError(e);
+						}
 					});
 				}
 
@@ -441,9 +455,13 @@ export class ReviewZoneWidget extends ZoneWidget {
 					}));
 
 					draftButton.onDidClick(async () => {
-						await this.commentService.startDraft(this._owner);
-						let lineNumber = this._commentGlyph.getPosition().position.lineNumber;
-						await this.createComment(lineNumber);
+						try {
+							await this.commentService.startDraft(this._owner, this.editor.getModel().uri);
+							let lineNumber = this._commentGlyph.getPosition().position.lineNumber;
+							await this.createComment(lineNumber);
+						} catch (e) {
+							this.handleError(e);
+						}
 					});
 				}
 

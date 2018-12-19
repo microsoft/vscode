@@ -401,8 +401,8 @@ export class ExtensionsListView extends ViewletPanel {
 
 	}
 
-	private _searchExperiments: Thenable<IExperiment[]>;
-	private getSearchExperiments(): Thenable<IExperiment[]> {
+	private _searchExperiments: Promise<IExperiment[]>;
+	private getSearchExperiments(): Promise<IExperiment[]> {
 		if (!this._searchExperiments) {
 			this._searchExperiments = this.experimentService.getExperimentsByType(ExperimentActionType.ExtensionSearchResults);
 		}
@@ -628,7 +628,7 @@ export class ExtensionsListView extends ViewletPanel {
 	}
 
 	private openExtension(extension: IExtension): void {
-		this.extensionsWorkbenchService.open(extension).then(null, err => this.onError(err));
+		this.extensionsWorkbenchService.open(extension).then(void 0, err => this.onError(err));
 	}
 
 	private pin(): void {

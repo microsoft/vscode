@@ -118,7 +118,7 @@ export class PagedList<T> implements IDisposable {
 	}
 
 	get onOpen(): Event<IListEvent<T>> {
-		return Event.map(this.list.onOpen, ({ elements, indexes, browserEvent }) => ({ elements: elements.map(e => this._model.get(e)), indexes, browserEvent }));
+		return Event.map(this.list.onDidOpen, ({ elements, indexes, browserEvent }) => ({ elements: elements.map(e => this._model.get(e)), indexes, browserEvent }));
 	}
 
 	get onSelectionChange(): Event<IListEvent<T>> {

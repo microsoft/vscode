@@ -7,7 +7,6 @@ import * as nls from 'vs/nls';
 import * as errors from 'vs/base/common/errors';
 import * as env from 'vs/base/common/platform';
 import * as DOM from 'vs/base/browser/dom';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction } from 'vs/base/common/actions';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -124,8 +123,8 @@ export class EmptyView extends ViewletPanel {
 		// no-op
 	}
 
-	public setVisible(visible: boolean): TPromise<void> {
-		return Promise.resolve(null);
+	public setVisible(visible: boolean): Promise<void> {
+		return Promise.resolve(void 0);
 	}
 
 	public focusBody(): void {
@@ -134,8 +133,8 @@ export class EmptyView extends ViewletPanel {
 		}
 	}
 
-	protected reveal(element: any, relativeTop?: number): TPromise<void> {
-		return Promise.resolve(null);
+	protected reveal(element: any, relativeTop?: number): Promise<void> {
+		return Promise.resolve(void 0);
 	}
 
 	public getActions(): IAction[] {

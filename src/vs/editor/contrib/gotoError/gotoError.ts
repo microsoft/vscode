@@ -320,7 +320,7 @@ class MarkerNavigationAction extends EditorAction {
 		this._multiFile = multiFile;
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): Thenable<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 
 		const markerService = accessor.get(IMarkerService);
 		const editorService = accessor.get(ICodeEditorService);

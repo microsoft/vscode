@@ -61,7 +61,6 @@ export function startup(configuration: IWindowConfiguration): Promise<void> {
 	// Configure emitter leak warning threshold
 	setGlobalLeakWarningThreshold(175);
 
-
 	// Browser config
 	browser.setZoomFactor(webFrame.getZoomFactor()); // Ensure others can listen to zoom level changes
 	browser.setZoomLevel(webFrame.getZoomLevel(), true /* isTrusted */); // Can be trusted because we are not setting it ourselves (https://github.com/Microsoft/vscode/issues/26151)
@@ -165,7 +164,7 @@ function createWorkspaceInitializationPayload(configuration: IWindowConfiguratio
 	}
 
 	// Single-folder workspace
-	let workspaceInitializationPayload: Promise<IWorkspaceInitializationPayload> = Promise.resolve(void 0);
+	let workspaceInitializationPayload: Promise<IWorkspaceInitializationPayload> = Promise.resolve();
 	if (configuration.folderUri) {
 		workspaceInitializationPayload = resolveSingleFolderWorkspaceInitializationPayload(configuration.folderUri);
 	}
@@ -238,7 +237,7 @@ function createWorkspaceService(payload: IWorkspaceInitializationPayload, enviro
 	});
 }
 
-function createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService, logService: ILogService, mainProcessClient: ElectronIPCClient): Thenable<StorageService> {
+function createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService, logService: ILogService, mainProcessClient: ElectronIPCClient): Promise<StorageService> {
 	const globalStorageDatabase = new GlobalStorageDatabaseChannelClient(mainProcessClient.getChannel('storage'));
 	const storageService = new StorageService(globalStorageDatabase, logService, environmentService);
 

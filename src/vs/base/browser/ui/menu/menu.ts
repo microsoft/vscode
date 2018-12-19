@@ -26,7 +26,7 @@ export interface IMenuOptions {
 	context?: any;
 	actionItemProvider?: IActionItemProvider;
 	actionRunner?: IActionRunner;
-	getKeyBinding?: (action: IAction) => ResolvedKeybinding;
+	getKeyBinding?: (action: IAction) => ResolvedKeybinding | null;
 	ariaLabel?: string;
 	enableMnemonics?: boolean;
 	anchorAlignment?: AnchorAlignment;
@@ -44,7 +44,7 @@ export interface IMenuStyles {
 }
 
 export class SubmenuAction extends Action {
-	constructor(label: string, public entries: (SubmenuAction | IAction)[], cssClass?: string) {
+	constructor(label: string, public entries: Array<SubmenuAction | IAction>, cssClass?: string) {
 		super(!!cssClass ? cssClass : 'submenu', label, '', true);
 	}
 }
@@ -124,6 +124,11 @@ export class Menu extends ActionBar {
 				this.updateFocus();
 				e.stopPropagation();
 			}
+		}));
+
+		this._register(addDisposableListener(this.domNode, EventType.MOUSE_UP, e => {
+			// Absorb clicks in menu dead space https://github.com/Microsoft/vscode/issues/63575
+			EventHelper.stop(e, true);
 		}));
 
 		this._register(addDisposableListener(this.actionsList, EventType.MOUSE_OVER, e => {
@@ -642,13 +647,15 @@ class SubmenuActionItem extends MenuActionItem {
 
 			const boundingRect = this.element.getBoundingClientRect();
 			const childBoundingRect = this.submenuContainer.getBoundingClientRect();
+			const computedStyles = getComputedStyle(this.parentData.parent.domNode);
+			const paddingTop = parseFloat(computedStyles.paddingTop || '0') || 0;
 
 			if (window.innerWidth <= boundingRect.right + childBoundingRect.width) {
 				this.submenuContainer.style.left = '10px';
 				this.submenuContainer.style.top = `${this.element.offsetTop - this.parentData.parent.scrollOffset + boundingRect.height}px`;
 			} else {
 				this.submenuContainer.style.left = `${this.element.offsetWidth}px`;
-				this.submenuContainer.style.top = `${this.element.offsetTop - this.parentData.parent.scrollOffset}px`;
+				this.submenuContainer.style.top = `${this.element.offsetTop - this.parentData.parent.scrollOffset - paddingTop}px`;
 			}
 
 			this.submenuDisposables.push(addDisposableListener(this.submenuContainer, EventType.KEY_UP, e => {

@@ -254,7 +254,7 @@ suite('AsyncEmitter', function () {
 		emitter.fireAsync(thenables => ({
 			foo: true,
 			bar: 1,
-			waitUntil(t: Thenable<void>) { thenables.push(t); }
+			waitUntil(t: Promise<void>) { thenables.push(t); }
 		}));
 		emitter.dispose();
 	});
@@ -448,7 +448,7 @@ suite('Event utils', () => {
 						e(err);
 					}
 
-					c(null);
+					c(void 0);
 				});
 
 				setTimeout(() => emitter.fire(), 10);

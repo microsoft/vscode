@@ -156,7 +156,7 @@ suite('CodeAction', () => {
 		const provider = new class implements CodeActionProvider {
 			provideCodeActions(_model: any, _range: Range, context: CodeActionContext, _token: any): CodeAction[] {
 				return [
-					{ title: context.only, kind: context.only }
+					{ title: context.only || '', kind: context.only }
 				];
 			}
 		};

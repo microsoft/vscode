@@ -14,7 +14,6 @@ suite('HighlightedLabel', () => {
 
 	teardown(() => {
 		label.dispose();
-		label = null;
 	});
 
 	test('empty label', function () {

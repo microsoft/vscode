@@ -27,6 +27,7 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ReleaseNotesManager } from './releaseNotesEditor';
 import { isWindows } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { HappyHolidaysAction } from 'vs/workbench/parts/holidays/electron-browser/holidays.contribution';
 
 let releaseNotesManager: ReleaseNotesManager | undefined = undefined;
 
@@ -46,7 +47,7 @@ export class OpenLatestReleaseNotesInBrowserAction extends Action {
 		super('update.openLatestReleaseNotes', nls.localize('releaseNotes', "Release Notes"), null, true);
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 		if (product.releaseNotesUrl) {
 			const uri = URI.parse(product.releaseNotesUrl);
 			return this.openerService.open(uri);
@@ -66,7 +67,7 @@ export abstract class AbstractShowReleaseNotesAction extends Action {
 		super(id, label, null, true);
 	}
 
-	run(): Thenable<boolean> {
+	run(): Promise<boolean> {
 		if (!this.enabled) {
 			return Promise.resolve(false);
 		}
@@ -74,7 +75,7 @@ export abstract class AbstractShowReleaseNotesAction extends Action {
 		this.enabled = false;
 
 		return showReleaseNotes(this.instantiationService, this.version)
-			.then(null, () => {
+			.then(void 0, () => {
 				const action = this.instantiationService.createInstance(OpenLatestReleaseNotesInBrowserAction);
 				return action.run().then(() => false);
 			});
@@ -490,6 +491,11 @@ export class UpdateContribution implements IGlobalActivity {
 		if (updateAction) {
 			result.push(new Separator(), updateAction);
 		}
+
+		result.push(
+			new Separator(),
+			this.instantiationService.createInstance(HappyHolidaysAction, HappyHolidaysAction.ID, HappyHolidaysAction.LABEL)
+		);
 
 		return result;
 	}

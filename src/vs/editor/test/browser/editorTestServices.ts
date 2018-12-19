@@ -15,7 +15,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 export class TestCodeEditorService extends AbstractCodeEditorService {
 	public lastInput: IResourceInput;
 	public getActiveCodeEditor(): ICodeEditor | null { return null; }
-	public openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Thenable<ICodeEditor | null> {
+	public openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
 		this.lastInput = input;
 		return Promise.resolve(null);
 	}

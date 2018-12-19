@@ -68,6 +68,10 @@ export abstract class TerminalService implements ITerminalService {
 		this._terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this._contextKeyService);
 		this._findWidgetVisible = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE.bindTo(this._contextKeyService);
 		this.onTabDisposed(tab => this._removeTab(tab));
+		this.onActiveTabChanged(() => {
+			const instance = this.getActiveInstance();
+			this._onActiveInstanceChanged.fire(instance ? instance : undefined);
+		});
 
 		this._handleContextKeys();
 	}
@@ -82,7 +86,7 @@ export abstract class TerminalService implements ITerminalService {
 		this.onInstancesChanged(() => updateTerminalContextKeys());
 	}
 
-	protected abstract _showTerminalCloseConfirmation(): PromiseLike<boolean>;
+	protected abstract _showTerminalCloseConfirmation(): Promise<boolean>;
 	protected abstract _showNotEnoughSpaceToast(): void;
 	public abstract createTerminal(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
 	public abstract createTerminalRenderer(name: string): ITerminalInstance;
@@ -92,7 +96,7 @@ export abstract class TerminalService implements ITerminalService {
 	public abstract setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 	public abstract requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI, cols: number, rows: number): void;
 
-	private _onBeforeShutdown(): boolean | PromiseLike<boolean> {
+	private _onBeforeShutdown(): boolean | Promise<boolean> {
 		if (this.terminalInstances.length === 0) {
 			// No terminal instances, don't veto
 			return false;

@@ -83,7 +83,7 @@ export class Source {
 		return this.uri.scheme === DEBUG_SCHEME;
 	}
 
-	openInEditor(editorService: IEditorService, selection: IRange, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Thenable<any> {
+	openInEditor(editorService: IEditorService, selection: IRange, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {
 		return !this.available ? Promise.resolve(null) : editorService.openEditor({
 			resource: this.uri,
 			description: this.origin,

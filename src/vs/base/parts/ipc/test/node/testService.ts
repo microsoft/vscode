@@ -13,9 +13,9 @@ export interface IMarcoPoloEvent {
 
 export interface ITestService {
 	onMarco: Event<IMarcoPoloEvent>;
-	marco(): Thenable<string>;
-	pong(ping: string): Thenable<{ incoming: string, outgoing: string }>;
-	cancelMe(): Thenable<boolean>;
+	marco(): Promise<string>;
+	pong(ping: string): Promise<{ incoming: string, outgoing: string }>;
+	cancelMe(): Promise<boolean>;
 }
 
 export class TestService implements ITestService {
@@ -23,16 +23,16 @@ export class TestService implements ITestService {
 	private _onMarco = new Emitter<IMarcoPoloEvent>();
 	onMarco: Event<IMarcoPoloEvent> = this._onMarco.event;
 
-	marco(): Thenable<string> {
+	marco(): Promise<string> {
 		this._onMarco.fire({ answer: 'polo' });
 		return Promise.resolve('polo');
 	}
 
-	pong(ping: string): Thenable<{ incoming: string, outgoing: string }> {
+	pong(ping: string): Promise<{ incoming: string, outgoing: string }> {
 		return Promise.resolve({ incoming: ping, outgoing: 'pong' });
 	}
 
-	cancelMe(): Thenable<boolean> {
+	cancelMe(): Promise<boolean> {
 		return Promise.resolve(timeout(100)).then(() => true);
 	}
 }
@@ -49,7 +49,7 @@ export class TestChannel implements IServerChannel {
 		throw new Error('Event not found');
 	}
 
-	call(_, command: string, ...args: any[]): Thenable<any> {
+	call(_, command: string, ...args: any[]): Promise<any> {
 		switch (command) {
 			case 'pong': return this.testService.pong(args[0]);
 			case 'cancelMe': return this.testService.cancelMe();
@@ -65,15 +65,15 @@ export class TestServiceClient implements ITestService {
 
 	constructor(private channel: IChannel) { }
 
-	marco(): Thenable<string> {
+	marco(): Promise<string> {
 		return this.channel.call('marco');
 	}
 
-	pong(ping: string): Thenable<{ incoming: string, outgoing: string }> {
+	pong(ping: string): Promise<{ incoming: string, outgoing: string }> {
 		return this.channel.call('pong', ping);
 	}
 
-	cancelMe(): Thenable<boolean> {
+	cancelMe(): Promise<boolean> {
 		return this.channel.call('cancelMe');
 	}
 }

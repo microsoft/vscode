@@ -77,7 +77,7 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	 * The provided cancellation token should be used to test if the operation
 	 * was cancelled.
 	 */
-	setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+	setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 		this._input = input;
 		this._options = options;
 

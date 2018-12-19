@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as sinon from 'sinon';
-import * as types from 'vs/base/common/types';
+import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 interface IServiceMock<T> {
 	id: ServiceIdentifier<T>;
@@ -120,13 +119,6 @@ export class TestInstantiationService extends InstantiationService {
 	private isServiceMock(arg1: any): boolean {
 		return typeof arg1 === 'object' && arg1.hasOwnProperty('id');
 	}
-}
-
-export function stubFunction<T>(ctor: any, fnProperty: string, value: any): T | sinon.SinonStub {
-	let stub = sinon.createStubInstance(ctor);
-	stub[fnProperty].restore();
-	sinon.stub(stub, fnProperty, types.isFunction(value) ? value : () => { return value; });
-	return stub;
 }
 
 interface SinonOptions {
