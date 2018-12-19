@@ -45,7 +45,14 @@ export interface IResourceLabelHandle extends IDisposable {
 	readonly element: HTMLElement;
 
 	/**
-	 * Most basic method to apply a label.
+	 * Most generic way to apply a label directly.
+	 */
+	setValue(label?: string, description?: string, options?: IIconLabelValueOptions): void;
+
+	/**
+	 * Convinient method to apply a label by passing a resource along.
+	 *
+	 * Note: for file resources consider to use the #setFile() method instead.
 	 */
 	setLabel(label: IResourceLabel, options?: IResourceLabelOptions): void;
 
@@ -117,6 +124,7 @@ export class ResourceLabels extends Disposable {
 		// Only expose a handle to the outside
 		const label: IResourceLabelHandle = {
 			element: widget.element,
+			setValue: (label?: string, description?: string, options?: IIconLabelValueOptions) => widget.setValue(label, description, options),
 			setLabel: (label: IResourceLabel, options?: IResourceLabelOptions) => widget.setLabel(label, options),
 			setEditor: (editor: IEditorInput, options?: IResourceLabelOptions) => widget.setEditor(editor, options),
 			setFile: (resource: uri, options?: IFileLabelOptions) => widget.setFile(resource, options),
