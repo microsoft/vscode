@@ -52,8 +52,8 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 	constructor(
 		@IProgressService private progressService: IProgressService,
 		@INotificationService private notificationService: INotificationService,
-		@IFileService private fileService: IFileService,
 		@IPartService private partService: IPartService,
+		@IFileService private fileService: IFileService
 	) { }
 
 	hasChildren(element: ExplorerItem | ExplorerItem[]): boolean {
@@ -65,43 +65,17 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 			return Promise.resolve(element);
 		}
 
-		// Return early if stat is already resolved
-		if (element.isDirectoryResolved) {
-			return Promise.resolve(element.getChildrenArray());
-		}
+		const promise = element.fetchChildren(this.fileService).then(undefined, e => {
+			// Do not show error for roots since we already use an explorer decoration to notify user
+			if (!(element instanceof ExplorerItem && element.isRoot)) {
+				this.notificationService.error(e);
+			}
 
-		// Resolve children and add to fileStat for future lookup
-		else {
-			// Resolve
-			const promise = this.fileService.resolveFile(element.resource, { resolveSingleChildDescendants: true }).then(dirStat => {
+			return []; // we could not resolve any children because of an error
+		});
 
-				// Convert to view model
-				const modelDirStat = ExplorerItem.create(dirStat, element.root);
-
-				// Add children to folder
-				const children = modelDirStat.getChildrenArray();
-				if (children) {
-					children.forEach(child => {
-						element.addChild(child);
-					});
-				}
-
-				element.isDirectoryResolved = true;
-
-				return element.getChildrenArray();
-			}, (e: any) => {
-				// Do not show error for roots since we already use an explorer decoration to notify user
-				if (!(element instanceof ExplorerItem && element.isRoot)) {
-					this.notificationService.error(e);
-				}
-
-				return []; // we could not resolve any children because of an error
-			});
-
-			this.progressService.showWhile(promise, this.partService.isRestored() ? 800 : 3200 /* less ugly initial startup */);
-
-			return promise;
-		}
+		this.progressService.showWhile(promise, this.partService.isRestored() ? 800 : 3200 /* less ugly initial startup */);
+		return promise;
 	}
 }
 

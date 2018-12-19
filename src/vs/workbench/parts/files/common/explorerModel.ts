@@ -8,7 +8,7 @@ import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
 import { ResourceMap } from 'vs/base/common/map';
 import { isLinux } from 'vs/base/common/platform';
-import { IFileStat } from 'vs/platform/files/common/files';
+import { IFileStat, IFileService } from 'vs/platform/files/common/files';
 import { rtrim, startsWithIgnoreCase, startsWith, equalsIgnoreCase } from 'vs/base/common/strings';
 import { coalesce } from 'vs/base/common/arrays';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -116,7 +116,6 @@ export class ExplorerItem {
 				this.children = undefined;
 			}
 		}
-
 	}
 
 	get name(): string {
@@ -254,20 +253,24 @@ export class ExplorerItem {
 		return this.children.get(this.getPlatformAwareName(name));
 	}
 
-	/**
-	 * Only use this method if you need all the children since it converts a map to an array
-	 */
-	getChildrenArray(): ExplorerItem[] | undefined {
-		if (!this.children) {
-			return undefined;
+	fetchChildren(fileService: IFileService): Promise<ExplorerItem[]> {
+		let promise = Promise.resolve(undefined);
+		if (!this.isDirectoryResolved) {
+			promise = fileService.resolveFile(this.resource, { resolveSingleChildDescendants: true }).then(stat => {
+				const resolved = ExplorerItem.create(stat, this.root);
+				ExplorerItem.mergeLocalWithDisk(resolved, this);
+				this.isDirectoryResolved = true;
+			});
 		}
 
-		const items: ExplorerItem[] = [];
-		this.children.forEach(child => {
-			items.push(child);
-		});
+		return promise.then(() => {
+			const items: ExplorerItem[] = [];
+			this.children.forEach(child => {
+				items.push(child);
+			});
 
-		return items;
+			return items;
+		});
 	}
 
 	getChildrenCount(): number {
