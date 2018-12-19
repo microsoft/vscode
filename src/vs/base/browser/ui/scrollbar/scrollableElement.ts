@@ -341,12 +341,10 @@ export abstract class AbstractScrollableElement extends Widget {
 				deltaY = 0;
 			}
 
-			if (e.browserEvent.shiftKey !== null) {
-				//fastScrolling
-				if (e.browserEvent.shiftKey) {
-					deltaX = deltaX * this._options.fastScrollSensitivity;
-					deltaY = deltaY * this._options.fastScrollSensitivity;
-				}
+			if (e.browserEvent && e.browserEvent.altKey) {
+				// fastScrolling
+				deltaX = deltaX * this._options.fastScrollSensitivity;
+				deltaY = deltaY * this._options.fastScrollSensitivity;
 			}
 
 			const futureScrollPosition = this._scrollable.getFutureScrollPosition();

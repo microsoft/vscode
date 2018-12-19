@@ -2788,8 +2788,8 @@ declare namespace monaco.editor {
 		 */
 		mouseWheelScrollSensitivity?: number;
 		/**
-		 * FastScrolling mulitplier speed when pressing `Shift`
-		 * Defaults to 10.
+		 * FastScrolling mulitplier speed when pressing `Alt`
+		 * Defaults to 5.
 		 */
 		fastScrollSensitivity?: number;
 		/**

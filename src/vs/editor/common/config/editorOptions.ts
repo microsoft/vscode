@@ -459,8 +459,8 @@ export interface IEditorOptions {
 	 */
 	mouseWheelScrollSensitivity?: number;
 	/**
-	 * FastScrolling mulitplier speed when pressing `Shift`
-	 * Defaults to 10.
+	 * FastScrolling mulitplier speed when pressing `Alt`
+	 * Defaults to 5.
 	 */
 	fastScrollSensitivity?: number;
 	/**
@@ -1976,7 +1976,7 @@ export class EditorOptionsValidator {
 
 		let fastScrollSensitivity = _float(opts.fastScrollSensitivity, defaults.scrollbar.fastScrollSensitivity);
 		if (fastScrollSensitivity <= 0) {
-			fastScrollSensitivity = 5;
+			fastScrollSensitivity = defaults.scrollbar.fastScrollSensitivity;
 		}
 		const scrollbar = this._sanitizeScrollbarOpts(opts.scrollbar, defaults.scrollbar, mouseWheelScrollSensitivity, fastScrollSensitivity);
 		const minimap = this._sanitizeMinimapOpts(opts.minimap, defaults.minimap);

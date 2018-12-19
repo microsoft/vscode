@@ -431,14 +431,8 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.fastScrollSensitivity': {
 			'type': 'number',
-			'enum': [1, 5, 10],
-			enumDescriptions: [
-				nls.localize('fastScrollSensitivity.1', "Fast Scrolling Off"),
-				nls.localize('fastScrollSensitivity.5', "Default Speed"),
-				nls.localize('fastScrollSensitivity.10', "Fast Speed"),
-			],
 			'default': EDITOR_DEFAULTS.viewInfo.scrollbar.fastScrollSensitivity,
-			'markdownDescription': nls.localize('fastScrollSensitivity', "Scrolling speed mulitiplier when pressing `Shift`")
+			'markdownDescription': nls.localize('fastScrollSensitivity', "Scrolling speed mulitiplier when pressing `Alt`")
 		},
 		'editor.multiCursorModifier': {
 			'type': 'string',
