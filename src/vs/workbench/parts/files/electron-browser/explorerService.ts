@@ -118,7 +118,7 @@ export class ExplorerService implements IExplorerService {
 
 			// Convert to model
 			const root = this.roots.filter(r => r.resource.toString() === rootUri.toString()).pop();
-			const modelStat = ExplorerItem.create(stat, root, options.resolveTo);
+			const modelStat = ExplorerItem.create(stat, null, options.resolveTo);
 			// Update Input with disk Stat
 			ExplorerItem.mergeLocalWithDisk(modelStat, root);
 
@@ -144,11 +144,11 @@ export class ExplorerService implements IExplorerService {
 					const thenable: Promise<IFileStat> = p.isDirectoryResolved ? Promise.resolve(undefined) : this.fileService.resolveFile(p.resource);
 					thenable.then(stat => {
 						if (stat) {
-							const modelStat = ExplorerItem.create(stat, p.root);
+							const modelStat = ExplorerItem.create(stat, p.parent);
 							ExplorerItem.mergeLocalWithDisk(modelStat, p);
 						}
 
-						const childElement = ExplorerItem.create(addedElement, p.root);
+						const childElement = ExplorerItem.create(addedElement, p.parent);
 						// Make sure to remove any previous version of the file if any
 						p.removeChild(childElement);
 						p.addChild(childElement);

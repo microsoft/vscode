@@ -39,7 +39,7 @@ import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions'
 import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ExplorerItem, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerModel';
+import { ExplorerItem } from 'vs/workbench/parts/files/common/explorerModel';
 import { onUnexpectedError } from 'vs/base/common/errors';
 
 export class ExplorerView extends ViewletPanel {
@@ -301,9 +301,6 @@ export class ExplorerView extends ViewletPanel {
 
 	private onContextMenu(e: ITreeContextMenuEvent<ExplorerItem>): void {
 		const stat = e.element;
-		if (stat instanceof NewStatPlaceholder) {
-			return;
-		}
 
 		// update dynamic contexts
 		this.fileCopiedContextKey.set(this.clipboardService.hasResources());

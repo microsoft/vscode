@@ -22,7 +22,7 @@ export class ExplorerModel implements IDisposable {
 
 	constructor(private contextService: IWorkspaceContextService) {
 		const setRoots = () => this._roots = this.contextService.getWorkspace().folders
-			.map(folder => new ExplorerItem(folder.uri, undefined, false, false, true, folder.name));
+			.map(folder => new ExplorerItem(folder.uri, undefined, true, false, false, folder.name));
 		this._listener = this.contextService.onDidChangeWorkspaceFolders(() => setRoots());
 		setRoots();
 	}
@@ -63,23 +63,19 @@ export class ExplorerModel implements IDisposable {
 }
 
 export class ExplorerItem {
-	public parent: ExplorerItem;
 	public isDirectoryResolved: boolean;
 
 	constructor(
 		public resource: URI,
-		public root?: ExplorerItem,
+		private _parent: ExplorerItem,
+		private _isDirectory?: boolean,
 		private _isSymbolicLink?: boolean,
 		private _isReadonly?: boolean,
-		private _isDirectory?: boolean,
 		private _name: string = resources.basenameOrAuthority(resource),
 		private _mtime?: number,
 		private _etag?: string,
 		private _isError?: boolean
 	) {
-		if (!this.root) {
-			this.root = this;
-		}
 		this.isDirectoryResolved = false;
 	}
 
@@ -111,6 +107,18 @@ export class ExplorerItem {
 		return this._name;
 	}
 
+	get parent(): ExplorerItem {
+		return this._parent;
+	}
+
+	get root(): ExplorerItem {
+		if (!this._parent) {
+			return this;
+		}
+
+		return this.parent.root;
+	}
+
 	@memoize get children(): Map<string, ExplorerItem> {
 		return new Map<string, ExplorerItem>();
 	}
@@ -134,8 +142,8 @@ export class ExplorerItem {
 		return this === this.root;
 	}
 
-	static create(raw: IFileStat, root: ExplorerItem, resolveTo?: URI[], isError = false): ExplorerItem {
-		const stat = new ExplorerItem(raw.resource, root, raw.isSymbolicLink, raw.isReadonly, raw.isDirectory, raw.name, raw.mtime, raw.etag, isError);
+	static create(raw: IFileStat, parent: ExplorerItem, resolveTo?: URI[], isError = false): ExplorerItem {
+		const stat = new ExplorerItem(raw.resource, parent, raw.isDirectory, raw.isSymbolicLink, raw.isReadonly, raw.name, raw.mtime, raw.etag, isError);
 
 		// Recursively add children if present
 		if (stat.isDirectory) {
@@ -150,8 +158,7 @@ export class ExplorerItem {
 			// Recurse into children
 			if (raw.children) {
 				for (let i = 0, len = raw.children.length; i < len; i++) {
-					const child = ExplorerItem.create(raw.children[i], root, resolveTo);
-					child.parent = stat;
+					const child = ExplorerItem.create(raw.children[i], stat, resolveTo);
 					stat.addChild(child);
 				}
 			}
@@ -204,13 +211,11 @@ export class ExplorerItem {
 				// Existing child: merge
 				if (formerLocalChild) {
 					ExplorerItem.mergeLocalWithDisk(diskChild, formerLocalChild);
-					formerLocalChild.parent = local;
 					local.addChild(formerLocalChild);
 				}
 
 				// New child: add
 				else {
-					diskChild.parent = local;
 					local.addChild(diskChild);
 				}
 			});
@@ -222,7 +227,7 @@ export class ExplorerItem {
 	 */
 	addChild(child: ExplorerItem): void {
 		// Inherit some parent properties to child
-		child.parent = this;
+		child._parent = this;
 		child.updateResource(false);
 		this.children.set(this.getPlatformAwareName(child.name), child);
 	}
@@ -235,7 +240,7 @@ export class ExplorerItem {
 		let promise = Promise.resolve(null);
 		if (!this.isDirectoryResolved) {
 			promise = fileService.resolveFile(this.resource, { resolveSingleChildDescendants: true }).then(stat => {
-				const resolved = ExplorerItem.create(stat, this.root);
+				const resolved = ExplorerItem.create(stat, this);
 				ExplorerItem.mergeLocalWithDisk(resolved, this);
 				this.isDirectoryResolved = true;
 			});
@@ -341,67 +346,5 @@ export class ExplorerItem {
 		}
 
 		return null;
-	}
-}
-
-/* A helper that can be used to show a placeholder when creating a new stat */
-export class NewStatPlaceholder extends ExplorerItem {
-
-	static readonly NAME = '';
-	private static ID = 0;
-
-	private id: number;
-	private directoryPlaceholder: boolean;
-
-	constructor(isDirectory: boolean, root: ExplorerItem) {
-		super(URI.file(''), root, false, false, false, NewStatPlaceholder.NAME);
-
-		this.id = NewStatPlaceholder.ID++;
-		this.isDirectoryResolved = isDirectory;
-		this.directoryPlaceholder = isDirectory;
-	}
-
-	destroy(): void {
-		this.parent.removeChild(this);
-
-		this.isDirectoryResolved = false;
-	}
-
-	getId(): string {
-		return `new-stat-placeholder:${this.id}:${this.parent.resource.toString()}`;
-	}
-
-	isDirectoryPlaceholder(): boolean {
-		return this.directoryPlaceholder;
-	}
-
-	addChild() {
-		throw new Error('Can\'t perform operations in NewStatPlaceholder.');
-	}
-
-	removeChild() {
-		throw new Error('Can\'t perform operations in NewStatPlaceholder.');
-	}
-
-	move() {
-		throw new Error('Can\'t perform operations in NewStatPlaceholder.');
-	}
-
-	rename() {
-		throw new Error('Can\'t perform operations in NewStatPlaceholder.');
-	}
-
-	find(resource: URI): ExplorerItem | null {
-		return null;
-	}
-
-	static addNewStatPlaceholder(parent: ExplorerItem, isDirectory: boolean): NewStatPlaceholder {
-		const child = new NewStatPlaceholder(isDirectory, parent.root);
-
-		// Inherit some parent properties to child
-		child.parent = parent;
-		parent.addChild(child);
-
-		return child;
 	}
 }

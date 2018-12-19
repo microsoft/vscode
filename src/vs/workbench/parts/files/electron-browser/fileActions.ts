@@ -45,7 +45,7 @@ import { CLOSE_EDITORS_AND_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/e
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { coalesce } from 'vs/base/common/arrays';
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { ExplorerItem, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerModel';
+import { ExplorerItem } from 'vs/workbench/parts/files/common/explorerModel';
 
 export interface IEditableData {
 	action: IAction;
@@ -217,6 +217,7 @@ class RenameFileAction extends BaseRenameAction {
 /* Base New File/Folder Action */
 export class BaseNewAction extends BaseErrorReportingAction {
 	private presetFolder: ExplorerItem;
+	static readonly PLACEHOLDER_URI = URI.file('');
 
 	constructor(
 		id: string,
@@ -244,13 +245,9 @@ export class BaseNewAction extends BaseErrorReportingAction {
 		if (folder.isReadonly) {
 			return Promise.reject(new Error('Parent folder is readonly.'));
 		}
-		if (!!folder.getChild(NewStatPlaceholder.NAME)) {
-			// Do not allow to creatae a new file/folder while in the process of creating a new file/folder #47606
-			return Promise.resolve(new Error('Parent folder is already in the process of creating a file'));
-		}
 
-		const stat = NewStatPlaceholder.addNewStatPlaceholder(folder, !this.isFile);
-
+		const stat = new ExplorerItem(BaseNewAction.PLACEHOLDER_URI, folder, !this.isFile);
+		folder.addChild(stat);
 		this.renameAction.element = stat;
 		this.explorerService.setEditable(stat, { action: this.renameAction, validationMessage: value => this.renameAction.validateFileName(folder, value) });
 
@@ -303,20 +300,8 @@ export class GlobalNewUntitledFileAction extends Action {
 	}
 }
 
-/* Create New File/Folder (only used internally by explorerViewer) */
-export abstract class BaseCreateAction extends BaseRenameAction {
-
-	public validateFileName(parent: ExplorerItem, name: string): string {
-		if (this.element instanceof NewStatPlaceholder) {
-			return validateFileName(parent, name);
-		}
-
-		return super.validateFileName(parent, name);
-	}
-}
-
 /* Create New File (only used internally by explorerViewer) */
-class CreateFileAction extends BaseCreateAction {
+class CreateFileAction extends BaseRenameAction {
 
 	public static readonly ID = 'workbench.files.action.createFileFromExplorer';
 	public static readonly LABEL = nls.localize('createNewFile', "New File");
@@ -332,6 +317,7 @@ class CreateFileAction extends BaseCreateAction {
 
 	public runAction(fileName: string): Promise<any> {
 		const resource = this.element.parent.resource;
+		this.element.parent.removeChild(this.element);
 		return this.fileService.createFile(resources.joinPath(resource, fileName)).then(stat => {
 			return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
 		}, (error) => {
@@ -341,7 +327,7 @@ class CreateFileAction extends BaseCreateAction {
 }
 
 /* Create New Folder (only used internally by explorerViewer) */
-class CreateFolderAction extends BaseCreateAction {
+class CreateFolderAction extends BaseRenameAction {
 
 	public static readonly ID = 'workbench.files.action.createFolderFromExplorer';
 	public static readonly LABEL = nls.localize('createNewFolder', "New Folder");
@@ -356,6 +342,7 @@ class CreateFolderAction extends BaseCreateAction {
 
 	public runAction(fileName: string): Promise<any> {
 		const resource = this.element.parent.resource;
+		this.element.parent.removeChild(this.element);
 		return this.fileService.createFolder(resources.joinPath(resource, fileName)).then(void 0, (error) => {
 			this.onErrorWithRetry(error, () => this.runAction(fileName));
 		});

@@ -32,7 +32,7 @@ import { rtrim } from 'vs/base/common/strings';
 import { equals, deepClone } from 'vs/base/common/objects';
 import * as path from 'path';
 import { IAction } from 'vs/base/common/actions';
-import { ExplorerItem, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerModel';
+import { ExplorerItem } from 'vs/workbench/parts/files/common/explorerModel';
 import { compareFileExtensions, compareFileNames } from 'vs/base/common/comparers';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
@@ -154,7 +154,7 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, void, IFileTem
 		// Use a file label only for the icon next to the input box
 		const label = this.instantiationService.createInstance(FileLabel, container, void 0);
 		const extraClasses = ['explorer-item', 'explorer-item-edited'];
-		const fileKind = stat.isRoot ? FileKind.ROOT_FOLDER : (stat.isDirectory || (stat instanceof NewStatPlaceholder && stat.isDirectoryPlaceholder())) ? FileKind.FOLDER : FileKind.FILE;
+		const fileKind = stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE;
 		const labelOptions: IFileLabelOptions = { hidePath: true, hideLabel: true, fileKind, extraClasses };
 
 		const parent = stat.name ? dirname(stat.resource) : stat.resource;
@@ -194,16 +194,16 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, void, IFileTem
 
 		const done = once(async (commit: boolean, blur: boolean) => {
 			label.element.style.display = 'none';
-			if (stat instanceof NewStatPlaceholder) {
-				stat.destroy();
-			}
 
+			if (!commit) {
+				stat.parent.removeChild(stat);
+			}
 			if (commit && inputBox.value) {
 				await editableData.action.run({ value: inputBox.value });
 			}
 			dispose(toDispose);
 			container.removeChild(label.element);
-			// todo@isidor need to unset editable data
+			this.explorerService.setEditable(stat, null);
 		});
 
 		const toDispose = [
@@ -305,7 +305,8 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, void> {
 
 	constructor(
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IExplorerService private explorerService: IExplorerService
 	) {
 		this.hiddenExpressionPerRoot = new Map<string, CachedParsedExpression>();
 		this.workspaceFolderChangeListener = this.contextService.onDidChangeWorkspaceFolders(() => this.updateConfiguration());
@@ -334,7 +335,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, void> {
 		if (parentVisibility === TreeVisibility.Hidden) {
 			return false;
 		}
-		if (stat instanceof NewStatPlaceholder || stat.isRoot) {
+		if (this.explorerService.getEditableData(stat) || stat.isRoot) {
 			return true; // always visible
 		}
 
@@ -420,11 +421,11 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 		}
 
 		// Sort "New File/Folder" placeholders
-		if (statA instanceof NewStatPlaceholder) {
+		if (this.explorerService.getEditableData(statA)) {
 			return -1;
 		}
 
-		if (statB instanceof NewStatPlaceholder) {
+		if (this.explorerService.getEditableData(statB)) {
 			return 1;
 		}
 
