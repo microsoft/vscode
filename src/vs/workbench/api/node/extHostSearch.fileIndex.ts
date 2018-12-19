@@ -109,7 +109,7 @@ export class FileIndexSearchEngine {
 					errs = [errs];
 				}
 
-				errs = errs.filter(e => !!e);
+				errs = arrays.coalesce(errs);
 				return Promise.reject(errs[0]);
 			});
 		});
@@ -552,9 +552,9 @@ export class FileIndexSearchManager {
 		});
 	}
 
-	public clearCache(cacheKey: string): Promise<void> {
+	public clearCache(cacheKey: string): void {
 		if (!this.folderCacheKeys.has(cacheKey)) {
-			return Promise.resolve(undefined);
+			return undefined;
 		}
 
 		const expandedKeys = this.folderCacheKeys.get(cacheKey);
@@ -562,7 +562,7 @@ export class FileIndexSearchManager {
 
 		this.folderCacheKeys.delete(cacheKey);
 
-		return Promise.resolve(undefined);
+		return undefined;
 	}
 
 	private preventCancellation<C>(promise: CancelablePromise<C>): CancelablePromise<C> {

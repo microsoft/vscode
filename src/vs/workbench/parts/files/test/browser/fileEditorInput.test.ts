@@ -14,6 +14,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { FileOperationResult, FileOperationError } from 'vs/platform/files/common/files';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { timeout } from 'vs/base/common/async';
 
 function toResource(self, path) {
 	return URI.file(join('C:\\', Buffer.from(self.test.fullTitle()).toString('base64'), path));
@@ -86,7 +87,9 @@ suite('Files - FileEditorInput', () => {
 
 							let stat = (resolved as TextFileEditorModel).getStat();
 							return inputToResolve.resolve().then(resolved => {
-								assert(stat !== (resolved as TextFileEditorModel).getStat()); // Different stat, because resolve always goes to the server for refresh
+								return timeout(0).then(() => { // due to file editor input using `reload: { async: true }`
+									assert(stat !== (resolved as TextFileEditorModel).getStat()); // Different stat, because resolve always goes to the server for refresh
+								});
 							});
 						});
 					});

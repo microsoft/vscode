@@ -102,7 +102,7 @@ export class TestRPCProtocol implements IExtHostContext {
 			const instance = this._locals[proxyId];
 			// pretend the args went over the wire... (invoke .toJSON on objects...)
 			const wireArgs = simulateWireTransfer(args);
-			let p: Thenable<any>;
+			let p: Promise<any>;
 			try {
 				let result = (<Function>instance[path]).apply(instance, wireArgs);
 				p = isThenable(result) ? result : Promise.resolve(result);

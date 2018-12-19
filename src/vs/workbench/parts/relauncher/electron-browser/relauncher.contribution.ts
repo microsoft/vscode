@@ -24,7 +24,7 @@ interface IConfiguration extends IWindowsConfiguration {
 	update: { channel: string; };
 	telemetry: { enableCrashReporter: boolean };
 	keyboard: { touchbar: { enabled: boolean } };
-	workbench: { tree: { horizontalScrolling: boolean }, enableLegacyStorage: boolean };
+	workbench: { tree: { horizontalScrolling: boolean } };
 	files: { useExperimentalFileWatcher: boolean, watcherExclude: object };
 }
 
@@ -41,7 +41,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private windowsSmoothScrollingWorkaround: boolean;
 	private experimentalFileWatcher: boolean;
 	private fileWatcherExclude: object;
-	private legacyStorage: boolean;
 
 	private firstFolderResource?: URI;
 	private extensionHostRestarter: RunOnceScheduler;
@@ -139,11 +138,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 			changed = true;
 		}
 
-		// Legacy Workspace Storage
-		if (config.workbench && typeof config.workbench.enableLegacyStorage === 'boolean' && config.workbench.enableLegacyStorage !== this.legacyStorage) {
-			this.legacyStorage = config.workbench.enableLegacyStorage;
-			changed = true;
-		}
 		// Windows: smooth scrolling workaround
 		if (isWindows && config.window && typeof config.window.smoothScrollingWorkaround === 'boolean' && config.window.smoothScrollingWorkaround !== this.windowsSmoothScrollingWorkaround) {
 			this.windowsSmoothScrollingWorkaround = config.window.smoothScrollingWorkaround;

@@ -64,7 +64,7 @@ export class LinuxUpdateService extends AbstractUpdateService {
 						this.setState(State.AvailableForDownload(update));
 					}
 				})
-				.then(null, err => {
+				.then(void 0, err => {
 					this.logService.error(err);
 
 					/* __GDPR__
@@ -73,7 +73,10 @@ export class LinuxUpdateService extends AbstractUpdateService {
 						}
 						*/
 					this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
-					this.setState(State.Idle(UpdateType.Archive, err.message || err));
+
+					// only show message when explicitly checking for updates
+					const message: string | undefined = !!context ? (err.message || err) : undefined;
+					this.setState(State.Idle(UpdateType.Archive, message));
 				});
 		}
 	}

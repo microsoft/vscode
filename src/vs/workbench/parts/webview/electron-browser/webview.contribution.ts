@@ -32,7 +32,7 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 	WebviewEditorInputFactory.ID,
 	WebviewEditorInputFactory);
 
-registerSingleton(IWebviewEditorService, WebviewEditorService);
+registerSingleton(IWebviewEditorService, WebviewEditorService, true);
 
 
 const webviewDeveloperCategory = localize('developer', "Developer");

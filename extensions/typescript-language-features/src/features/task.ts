@@ -158,7 +158,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 		return undefined;
 	}
 
-	private getActiveTypeScriptFile(): string | null {
+	private getActiveTypeScriptFile(): string | undefined {
 		const editor = vscode.window.activeTextEditor;
 		if (editor) {
 			const document = editor.document;
@@ -166,7 +166,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 				return this.client.value.toPath(document.uri);
 			}
 		}
-		return null;
+		return undefined;
 	}
 
 	private async getTasksForProject(project: TSConfig): Promise<vscode.Task[]> {

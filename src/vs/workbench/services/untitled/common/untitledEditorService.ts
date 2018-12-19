@@ -9,9 +9,8 @@ import * as arrays from 'vs/base/common/arrays';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Event, Emitter, once } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { ResourceMap } from 'vs/base/common/map';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
 import { Schemas } from 'vs/base/common/network';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -86,7 +85,7 @@ export interface IUntitledEditorService {
 	 * It is valid to pass in a file resource. In that case the path will be used as identifier.
 	 * The use case is to be able to create a new file with a specific path with VSCode.
 	 */
-	loadOrCreate(options: IModelLoadOrCreateOptions): TPromise<UntitledEditorModel>;
+	loadOrCreate(options: IModelLoadOrCreateOptions): Promise<UntitledEditorModel>;
 
 	/**
 	 * A check to find out if a untitled resource has a file path associated or not.
@@ -171,7 +170,7 @@ export class UntitledEditorService extends Disposable implements IUntitledEditor
 	getDirty(resources?: URI[]): URI[] {
 		let inputs: UntitledEditorInput[];
 		if (resources) {
-			inputs = resources.map(r => this.get(r)).filter(i => !!i);
+			inputs = arrays.coalesce(resources.map(r => this.get(r)));
 		} else {
 			inputs = this.mapResourceToInput.values();
 		}
@@ -181,7 +180,7 @@ export class UntitledEditorService extends Disposable implements IUntitledEditor
 			.map(i => i.getResource());
 	}
 
-	loadOrCreate(options: IModelLoadOrCreateOptions = Object.create(null)): Thenable<UntitledEditorModel> {
+	loadOrCreate(options: IModelLoadOrCreateOptions = Object.create(null)): Promise<UntitledEditorModel> {
 		return this.createOrGet(options.resource, options.modeId, options.initialValue, options.encoding, options.useResourcePath).resolve();
 	}
 
@@ -246,7 +245,7 @@ export class UntitledEditorService extends Disposable implements IUntitledEditor
 		});
 
 		// Remove from cache on dispose
-		const onceDispose = once(input.onDispose);
+		const onceDispose = Event.once(input.onDispose);
 		onceDispose(() => {
 			this.mapResourceToInput.delete(input.getResource());
 			this.mapResourceToAssociatedFilePath.delete(input.getResource());

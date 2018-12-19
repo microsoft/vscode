@@ -52,6 +52,11 @@ export class ResourceContextKey extends Disposable implements IContextKey<URI> {
 			this._isFileSystemResource.set(Boolean(resource && _fileService.canHandleResource(resource)));
 			this._isFileSystemResourceOrUntitled.set(this._isFileSystemResource.get() || this._schemeKey.get() === Schemas.untitled);
 		}));
+
+		this._register(_modeService.onDidCreateMode(() => {
+			const value = this._resourceKey.get();
+			this._langIdKey.set(value ? this._modeService.getModeIdByFilepathOrFirstLine(value.fsPath) : null);
+		}));
 	}
 
 	set(value: URI) {

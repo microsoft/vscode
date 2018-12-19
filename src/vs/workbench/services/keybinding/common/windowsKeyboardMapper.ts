@@ -303,7 +303,7 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 	public readonly isUSStandard: boolean;
 	private readonly _codeInfo: IScanCodeMapping[];
 	private readonly _scanCodeToKeyCode: KeyCode[];
-	private readonly _keyCodeToLabel: (string | null)[] = [];
+	private readonly _keyCodeToLabel: Array<string | null> = [];
 	private readonly _keyCodeExists: boolean[];
 
 	constructor(isUSStandard: boolean, rawMappings: IWindowsKeyboardMapping) {

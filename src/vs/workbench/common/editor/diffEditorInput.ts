@@ -34,7 +34,7 @@ export class DiffEditorInput extends SideBySideEditorInput {
 		return this.master;
 	}
 
-	resolve(): Thenable<EditorModel> {
+	resolve(): Promise<EditorModel> {
 
 		// Create Model - we never reuse our cached model if refresh is true because we cannot
 		// decide for the inputs within if the cached model can be reused or not. There may be
@@ -55,7 +55,7 @@ export class DiffEditorInput extends SideBySideEditorInput {
 		return this.forceOpenAsBinary ? BINARY_DIFF_EDITOR_ID : TEXT_DIFF_EDITOR_ID;
 	}
 
-	private createModel(): Thenable<DiffEditorModel> {
+	private createModel(): Promise<DiffEditorModel> {
 
 		// Join resolve call over two inputs and build diff editor model
 		return Promise.all([

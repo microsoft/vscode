@@ -7,10 +7,8 @@ import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
 import { resolveWorkbenchCommonProperties } from 'vs/platform/telemetry/node/workbenchCommonProperties';
-import { getRandomTestPath, TestEnvironmentService } from 'vs/workbench/test/workbenchTestServices';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { StorageService } from 'vs/platform/storage/node/storageService';
-import { NullLogService } from 'vs/platform/log/common/log';
+import { getRandomTestPath } from 'vs/workbench/test/workbenchTestServices';
+import { IStorageService, StorageScope, InMemoryStorageService } from 'vs/platform/storage/common/storage';
 import { del } from 'vs/base/node/extfs';
 import { mkdirp } from 'vs/base/node/pfs';
 import { timeout } from 'vs/base/common/async';
@@ -24,7 +22,7 @@ suite('Telemetry - common properties', function () {
 	let testStorageService: IStorageService;
 
 	setup(() => {
-		testStorageService = new StorageService({ storeInMemory: true }, new NullLogService(), TestEnvironmentService);
+		testStorageService = new InMemoryStorageService();
 	});
 
 	teardown(done => {

@@ -74,8 +74,8 @@ function registerTaskProvider(context: vscode.ExtensionContext): vscode.Disposab
 function registerExplorer(context: vscode.ExtensionContext): NpmScriptsTreeDataProvider | undefined {
 	if (vscode.workspace.workspaceFolders) {
 		let treeDataProvider = new NpmScriptsTreeDataProvider(context);
-		let disposable = vscode.window.registerTreeDataProvider('npm', treeDataProvider);
-		context.subscriptions.push(disposable);
+		const view = vscode.window.createTreeView('npm', { treeDataProvider: treeDataProvider, showCollapseAll: true });
+		context.subscriptions.push(view);
 		return treeDataProvider;
 	}
 	return undefined;

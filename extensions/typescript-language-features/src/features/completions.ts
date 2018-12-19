@@ -22,10 +22,17 @@ import { snippetForFunctionCall } from '../utils/snippetForFunctionCall';
 
 const localize = nls.loadMessageBundle();
 
-interface CommitCharactersSettings {
+interface DotAccessorContext {
+	readonly range: vscode.Range;
+	readonly text: string;
+}
+
+interface CompletionContext {
 	readonly isNewIdentifierLocation: boolean;
+	readonly isMemberCompletion: boolean;
 	readonly isInValidCommitCharacterContext: boolean;
 	readonly enableCallCompletions: boolean;
+	readonly dotAccessorContext?: DotAccessorContext;
 }
 
 class MyCompletionItem extends vscode.CompletionItem {
@@ -37,7 +44,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 		line: string,
 		public readonly tsEntry: Proto.CompletionEntry,
 		useCodeSnippetsOnMethodSuggest: boolean,
-		public readonly commitCharactersSettings: CommitCharactersSettings,
+		public readonly completionContext: CompletionContext,
 		public readonly metadata: any | undefined,
 	) {
 		super(tsEntry.name, MyCompletionItem.convertKind(tsEntry.kind));
@@ -57,23 +64,23 @@ class MyCompletionItem extends vscode.CompletionItem {
 
 		this.position = position;
 		this.useCodeSnippet = useCodeSnippetsOnMethodSuggest && (this.kind === vscode.CompletionItemKind.Function || this.kind === vscode.CompletionItemKind.Method);
+
 		if (tsEntry.replacementSpan) {
 			this.range = typeConverters.Range.fromTextSpan(tsEntry.replacementSpan);
+			// Make sure we only replace a single line at most
+			if (!this.range.isSingleLine) {
+				this.range = new vscode.Range(this.range.start.line, this.range.start.character, this.range.start.line, line.length);
+			}
 		}
 
-		if (tsEntry.insertText) {
-			this.insertText = tsEntry.insertText;
+		this.insertText = tsEntry.insertText;
+		this.filterText = tsEntry.insertText;
 
-			if (tsEntry.replacementSpan) {
-				this.range = typeConverters.Range.fromTextSpan(tsEntry.replacementSpan);
-				if (this.insertText[0] === '[') { // o.x -> o['x']
-					this.filterText = '.' + this.label;
-				}
-
-				// Make sure we only replace a single line at most
-				if (!this.range.isSingleLine) {
-					this.range = new vscode.Range(this.range.start.line, this.range.start.character, this.range.start.line, line.length);
-				}
+		if (completionContext.isMemberCompletion && completionContext.dotAccessorContext) {
+			this.filterText = completionContext.dotAccessorContext.text + (this.insertText || this.label);
+			if (!this.range) {
+				this.range = completionContext.dotAccessorContext.range;
+				this.insertText = this.filterText;
 			}
 		}
 
@@ -162,6 +169,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 			case PConst.Kind.interface:
 				return vscode.CompletionItemKind.Interface;
 			case PConst.Kind.warning:
+				return vscode.CompletionItemKind.Text;
 			case PConst.Kind.script:
 				return vscode.CompletionItemKind.File;
 			case PConst.Kind.directory:
@@ -174,7 +182,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 
 	@memoize
 	public get commitCharacters(): string[] | undefined {
-		if (this.commitCharactersSettings.isNewIdentifierLocation || !this.commitCharactersSettings.isInValidCommitCharacterContext) {
+		if (this.completionContext.isNewIdentifierLocation || !this.completionContext.isInValidCommitCharacterContext) {
 			return undefined;
 		}
 
@@ -204,7 +212,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 			case PConst.Kind.keyword:
 			case PConst.Kind.parameter:
 				commitCharacters.push('.', ',', ';');
-				if (this.commitCharactersSettings.enableCallCompletions) {
+				if (this.completionContext.enableCallCompletions) {
 					commitCharacters.push('(');
 				}
 				break;
@@ -341,7 +349,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			});
 		}
 
-		const file = this.client.toPath(document.uri);
+		const file = this.client.toOpenedFilePath(document);
 		if (!file) {
 			return null;
 		}
@@ -364,6 +372,8 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 
 		let isNewIdentifierLocation = true;
 		let isIncomplete = false;
+		let isMemberCompletion = false;
+		let dotAccessorContext: DotAccessorContext | undefined;
 		let entries: ReadonlyArray<Proto.CompletionEntry>;
 		let metadata: any | undefined;
 		if (this.client.apiVersion.gte(API.v300)) {
@@ -372,6 +382,15 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 				return null;
 			}
 			isNewIdentifierLocation = response.body.isNewIdentifierLocation;
+			isMemberCompletion = response.body.isMemberCompletion;
+			if (isMemberCompletion) {
+				const dotMatch = line.text.slice(0, position.character).match(/\.\s*$/) || undefined;
+				if (dotMatch) {
+					const range = new vscode.Range(position.translate({ characterDelta: -dotMatch[0].length }), position);
+					const text = document.getText(range);
+					dotAccessorContext = { range, text };
+				}
+			}
 			isIncomplete = (response as any).metadata && (response as any).metadata.isIncomplete;
 			entries = response.body.entries;
 			metadata = response.metadata;
@@ -390,6 +409,8 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			.filter(entry => !shouldExcludeCompletionEntry(entry, completionConfiguration))
 			.map(entry => new MyCompletionItem(position, document, line.text, entry, completionConfiguration.useCodeSnippetsOnMethodSuggest, {
 				isNewIdentifierLocation,
+				isMemberCompletion,
+				dotAccessorContext,
 				isInValidCommitCharacterContext,
 				enableCallCompletions: !completionConfiguration.useCodeSnippetsOnMethodSuggest
 			}, metadata));
@@ -415,7 +436,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			return undefined;
 		}
 
-		const filepath = this.client.toPath(item.document.uri);
+		const filepath = this.client.toOpenedFilePath(item.document);
 		if (!filepath) {
 			return undefined;
 		}
@@ -453,8 +474,11 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		if (detail && item.useCodeSnippet) {
 			const shouldCompleteFunction = await this.isValidFunctionCompletionContext(filepath, item.position, token);
 			if (shouldCompleteFunction) {
-				item.insertText = snippetForFunctionCall(item, detail.displayParts);
-				commands.push({ title: 'triggerParameterHints', command: 'editor.action.triggerParameterHints' });
+				const { snippet, parameterCount } = snippetForFunctionCall(item, detail.displayParts);
+				item.insertText = snippet;
+				if (parameterCount > 0) {
+					commands.push({ title: 'triggerParameterHints', command: 'editor.action.triggerParameterHints' });
+				}
 			}
 		}
 

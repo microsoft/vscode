@@ -45,7 +45,7 @@ suite('Files', () => {
 		assert.strictEqual(true, r1.gotDeleted());
 	});
 
-	function testIsEqual(testMethod: (pA: string, pB: string, ignoreCase: boolean) => boolean): void {
+	function testIsEqual(testMethod: (pA: string | null | undefined, pB: string, ignoreCase: boolean) => boolean): void {
 
 		// corner cases
 		assert(testMethod('', '', true));

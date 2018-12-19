@@ -11,12 +11,12 @@ export interface IEditorModel {
 	/**
 	 * Emitted when the model is disposed.
 	 */
-	onDispose: Event<void>;
+	readonly onDispose: Event<void>;
 
 	/**
 	 * Loads the model.
 	 */
-	load(): Thenable<IEditorModel>;
+	load(): Promise<IEditorModel>;
 
 	/**
 	 * Dispose associated resources
@@ -34,12 +34,12 @@ export interface IBaseResourceInput {
 	/**
 	 * Label to show for the diff editor
 	 */
-	label?: string;
+	readonly label?: string;
 
 	/**
 	 * Description to show for the diff editor
 	 */
-	description?: string;
+	readonly description?: string;
 
 	/**
 	 * Hint to indicate that this input should be treated as a file
@@ -48,7 +48,7 @@ export interface IBaseResourceInput {
 	 * Without this hint, the editor service will make a guess by
 	 * looking at the scheme of the resource(s).
 	 */
-	forceFile?: boolean;
+	readonly forceFile?: boolean;
 }
 
 export interface IResourceInput extends IBaseResourceInput {
@@ -61,7 +61,7 @@ export interface IResourceInput extends IBaseResourceInput {
 	/**
 	 * The encoding of the text input if known.
 	 */
-	encoding?: string;
+	readonly encoding?: string;
 }
 
 export interface IEditorOptions {
@@ -112,10 +112,10 @@ export interface IEditorOptions {
 }
 
 export interface ITextEditorSelection {
-	startLineNumber: number;
-	startColumn: number;
-	endLineNumber?: number;
-	endColumn?: number;
+	readonly startLineNumber: number;
+	readonly startColumn: number;
+	readonly endLineNumber?: number;
+	readonly endColumn?: number;
 }
 
 export interface ITextEditorOptions extends IEditorOptions {

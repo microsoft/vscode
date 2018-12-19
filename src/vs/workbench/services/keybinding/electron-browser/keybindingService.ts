@@ -37,6 +37,7 @@ import { CachedKeyboardMapper, IKeyboardMapper } from 'vs/workbench/services/key
 import { MacLinuxFallbackKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxFallbackKeyboardMapper';
 import { IMacLinuxKeyboardMapping, MacLinuxKeyboardMapper, macLinuxKeyboardMappingEquals } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
 import { IWindowsKeyboardMapping, WindowsKeyboardMapper, windowsKeyboardMappingEquals } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 
 export class KeyboardMapperFactory {
 	public static readonly INSTANCE = new KeyboardMapperFactory();
@@ -155,6 +156,7 @@ export class KeyboardMapperFactory {
 
 interface ContributedKeyBinding {
 	command: string;
+	args?: any;
 	key: string;
 	when?: string;
 	mac?: string;
@@ -206,6 +208,10 @@ let keybindingType: IJSONSchema = {
 			description: nls.localize('vscode.extension.contributes.keybindings.command', 'Identifier of the command to run when keybinding is triggered.'),
 			type: 'string'
 		},
+		args: {
+			'description': nls.localize('vscode.extension.contributes.keybindings.args', "Arguments to pass to the command to execute."),
+			type: 'any'
+		},
 		key: {
 			description: nls.localize('vscode.extension.contributes.keybindings.key', 'Key or key sequence (separate keys with plus-sign and sequences with space, e.g Ctrl+O and Ctrl+L L for a chord).'),
 			type: 'string'
@@ -225,19 +231,22 @@ let keybindingType: IJSONSchema = {
 		when: {
 			description: nls.localize('vscode.extension.contributes.keybindings.when', 'Condition when the key is active.'),
 			type: 'string'
-		}
+		},
 	}
 };
 
-let keybindingsExtPoint = ExtensionsRegistry.registerExtensionPoint<ContributedKeyBinding | ContributedKeyBinding[]>('keybindings', [], {
-	description: nls.localize('vscode.extension.contributes.keybindings', "Contributes keybindings."),
-	oneOf: [
-		keybindingType,
-		{
-			type: 'array',
-			items: keybindingType
-		}
-	]
+const keybindingsExtPoint = ExtensionsRegistry.registerExtensionPoint<ContributedKeyBinding | ContributedKeyBinding[]>({
+	extensionPoint: 'keybindings',
+	jsonSchema: {
+		description: nls.localize('vscode.extension.contributes.keybindings', "Contributes keybindings."),
+		oneOf: [
+			keybindingType,
+			{
+				type: 'array',
+				items: keybindingType
+			}
+		]
+	}
 });
 
 export const enum DispatchConfig {
@@ -266,7 +275,8 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		@INotificationService notificationService: INotificationService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IStatusbarService statusBarService: IStatusbarService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IWindowService private windowService: IWindowService
 	) {
 		super(contextKeyService, commandService, telemetryService, notificationService, statusBarService);
 
@@ -367,7 +377,10 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	}
 
 	protected _documentHasFocus(): boolean {
-		return document.hasFocus();
+		// it is possible that the document has lost focus, but the
+		// window is still focused, e.g. when a <webview> element
+		// has focus
+		return this.windowService.hasFocus;
 	}
 
 	private _resolveKeybindingItems(items: IKeybindingItem[], isDefault: boolean): ResolvedKeybindingItem[] {
@@ -481,7 +494,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 	private _asCommandRule(isBuiltin: boolean, idx: number, binding: ContributedKeyBinding): IKeybindingRule2 | undefined {
 
-		let { command, when, key, mac, linux, win } = binding;
+		let { command, args, when, key, mac, linux, win } = binding;
 
 		let weight: number;
 		if (isBuiltin) {
@@ -492,6 +505,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 		let desc: IKeybindingRule2 = {
 			id: command,
+			args,
 			when: ContextKeyExpr.deserialize(when),
 			weight: weight,
 			primary: KeybindingParser.parseKeybinding(key, OS),
@@ -578,6 +592,7 @@ let schema: IJSONSchema = {
 				'description': nls.localize('keybindings.json.key', "Key or key sequence (separated by space)"),
 			},
 			'command': {
+				'type': 'string',
 				'description': nls.localize('keybindings.json.command', "Name of the command to execute"),
 			},
 			'when': {

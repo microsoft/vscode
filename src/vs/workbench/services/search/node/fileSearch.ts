@@ -173,7 +173,7 @@ export class FileWalker {
 			});
 		}, (errors, result) => {
 			this.fileWalkSW.stop();
-			const err = errors ? errors.filter(e => !!e)[0] : null;
+			const err = errors ? arrays.coalesce(errors)[0] : null;
 			done(err, this.isLimitHit);
 		});
 	}

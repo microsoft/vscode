@@ -51,7 +51,7 @@ suite('CodeAction', () => {
 			assert.equal(e.trigger.type, 'auto');
 			assert.ok(e.actions);
 
-			e.actions.then(fixes => {
+			e.actions!.then(fixes => {
 				oracle.dispose();
 				assert.equal(fixes.length, 1);
 				done();
@@ -88,7 +88,7 @@ suite('CodeAction', () => {
 			const oracle = new CodeActionOracle(editor, markerService, e => {
 				assert.equal(e.trigger.type, 'auto');
 				assert.ok(e.actions);
-				e.actions.then(fixes => {
+				e.actions!.then(fixes => {
 					oracle.dispose();
 					assert.equal(fixes.length, 1);
 					resolve(undefined);
@@ -107,7 +107,7 @@ suite('CodeAction', () => {
 		});
 		disposables.push(reg);
 
-		editor.getModel().setValue('// @ts-check\n2\ncon\n');
+		editor.getModel()!.setValue('// @ts-check\n2\ncon\n');
 
 		markerService.changeOne('fake', uri, [{
 			startLineNumber: 3, startColumn: 1, endLineNumber: 3, endColumn: 4,
@@ -130,7 +130,7 @@ suite('CodeAction', () => {
 				assert.deepEqual(e.position, { lineNumber: 3, column: 1 });
 
 				oracle.dispose();
-				resolve(null);
+				resolve(void 0);
 			}, 5);
 
 			editor.setSelection({ startLineNumber: 1, startColumn: 1, endLineNumber: 4, endColumn: 1 });

@@ -17,6 +17,7 @@ import { IExtensionHostStarter } from 'vs/workbench/services/extensions/electron
 import { ExtensionHostProfiler } from 'vs/workbench/services/extensions/electron-browser/extensionHostProfiler';
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/node/proxyIdentifier';
 import { IRPCProtocolLogger, RPCProtocol, RequestInitiator, ResponsiveState } from 'vs/workbench/services/extensions/node/rpcProtocol';
+import { ResolvedAuthority } from 'vs/platform/remote/common/remoteAuthorityResolver';
 
 // Enable to see detailed message communication between window and extension host
 const LOG_EXTENSION_HOST_COMMUNICATION = false;
@@ -41,7 +42,7 @@ export class ExtensionHostProcessManager extends Disposable {
 	/**
 	 * winjs believes a proxy is a promise because it has a `then` method, so wrap the result in an object.
 	 */
-	private _extensionHostProcessProxy: Thenable<{ value: ExtHostExtensionServiceShape; }>;
+	private _extensionHostProcessProxy: Promise<{ value: ExtHostExtensionServiceShape; }>;
 
 	constructor(
 		extensionHostProcessWorker: IExtensionHostStarter,
@@ -136,7 +137,7 @@ export class ExtensionHostProcessManager extends Disposable {
 		return this._extensionHostProcessRPCProtocol.getProxy(ExtHostContext.ExtHostExtensionService);
 	}
 
-	public activateByEvent(activationEvent: string): Thenable<void> {
+	public activateByEvent(activationEvent: string): Promise<void> {
 		if (this._extensionHostProcessFinishedActivateEvents[activationEvent] || !this._extensionHostProcessProxy) {
 			return NO_OP_VOID_PROMISE;
 		}
@@ -170,6 +171,14 @@ export class ExtensionHostProcessManager extends Disposable {
 			}
 		}
 		return 0;
+	}
+
+	public resolveAuthority(remoteAuthority: string): Promise<ResolvedAuthority> {
+		return this._extensionHostProcessProxy.then(proxy => proxy.value.$resolveAuthority(remoteAuthority));
+	}
+
+	public start(enabledExtensionIds: string[]): Promise<void> {
+		return this._extensionHostProcessProxy.then(proxy => proxy.value.$startExtensionHost(enabledExtensionIds));
 	}
 }
 
@@ -215,7 +224,7 @@ class RPCLogger implements IRPCProtocolLogger {
 		} else {
 			args.push(data);
 		}
-		console.log.apply(console, args);
+		console.log.apply(console, args as [string, ...string[]]);
 	}
 
 	logIncoming(msgLength: number, req: number, initiator: RequestInitiator, str: string, data?: any): void {

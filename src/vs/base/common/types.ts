@@ -129,7 +129,7 @@ export function areFunctions(...objects: any[]): boolean {
 
 export type TypeConstraint = string | Function;
 
-export function validateConstraints(args: any[], constraints: (TypeConstraint | undefined)[]): void {
+export function validateConstraints(args: any[], constraints: Array<TypeConstraint | undefined>): void {
 	const len = Math.min(args.length, constraints.length);
 	for (let i = 0; i < len; i++) {
 		validateConstraint(args[i], constraints[i]);

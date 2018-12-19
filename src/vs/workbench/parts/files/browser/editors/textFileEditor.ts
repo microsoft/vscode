@@ -109,7 +109,7 @@ export class TextFileEditor extends BaseTextEditor {
 		}
 	}
 
-	setInput(input: FileEditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+	setInput(input: FileEditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 
 		// Update/clear view settings if input changes
 		this.doSaveOrClearTextEditorViewState(this.input);

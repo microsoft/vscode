@@ -112,7 +112,7 @@ export class CodeActionOracle {
 		return selection ? selection : undefined;
 	}
 
-	private _createEventAndSignalChange(trigger: CodeActionTrigger, selection: Selection | undefined): Thenable<CodeAction[] | undefined> {
+	private _createEventAndSignalChange(trigger: CodeActionTrigger, selection: Selection | undefined): Promise<CodeAction[] | undefined> {
 		if (!selection) {
 			// cancel
 			this._signalChange({
@@ -221,7 +221,7 @@ export class CodeActionModel {
 		}
 	}
 
-	trigger(trigger: CodeActionTrigger): Thenable<CodeAction[] | undefined> {
+	trigger(trigger: CodeActionTrigger): Promise<CodeAction[] | undefined> {
 		if (this._codeActionOracle) {
 			return this._codeActionOracle.trigger(trigger);
 		}

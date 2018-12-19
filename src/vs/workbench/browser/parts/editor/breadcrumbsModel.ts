@@ -8,7 +8,7 @@ import { TimeoutTimer } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { size } from 'vs/base/common/collections';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { debounceEvent, Emitter, Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { isEqual, dirname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
@@ -41,7 +41,7 @@ export class EditorBreadcrumbsModel {
 	private readonly _cfgFilePath: BreadcrumbsConfig<'on' | 'off' | 'last'>;
 	private readonly _cfgSymbolPath: BreadcrumbsConfig<'on' | 'off' | 'last'>;
 
-	private _outlineElements: (OutlineModel | OutlineGroup | OutlineElement)[] = [];
+	private _outlineElements: Array<OutlineModel | OutlineGroup | OutlineElement> = [];
 	private _outlineDisposables: IDisposable[] = [];
 
 	private _onDidUpdate = new Emitter<this>();
@@ -131,7 +131,7 @@ export class EditorBreadcrumbsModel {
 		this._disposables.push(DocumentSymbolProviderRegistry.onDidChange(_ => this._updateOutline()));
 		this._disposables.push(this._editor.onDidChangeModel(_ => this._updateOutline()));
 		this._disposables.push(this._editor.onDidChangeModelLanguage(_ => this._updateOutline()));
-		this._disposables.push(debounceEvent(this._editor.onDidChangeModelContent, _ => _, 350)(_ => this._updateOutline(true)));
+		this._disposables.push(Event.debounce(this._editor.onDidChangeModelContent, _ => _, 350)(_ => this._updateOutline(true)));
 		this._updateOutline();
 
 		// stop when editor dies
@@ -186,7 +186,7 @@ export class EditorBreadcrumbsModel {
 		});
 	}
 
-	private _getOutlineElements(model: OutlineModel, position: IPosition): (OutlineModel | OutlineGroup | OutlineElement)[] {
+	private _getOutlineElements(model: OutlineModel, position: IPosition): Array<OutlineModel | OutlineGroup | OutlineElement> {
 		if (!model) {
 			return [];
 		}
@@ -194,7 +194,7 @@ export class EditorBreadcrumbsModel {
 		if (!item) {
 			return [model];
 		}
-		let chain: (OutlineGroup | OutlineElement)[] = [];
+		let chain: Array<OutlineGroup | OutlineElement> = [];
 		while (item) {
 			chain.push(item);
 			let parent = item.parent;
@@ -209,7 +209,7 @@ export class EditorBreadcrumbsModel {
 		return chain.reverse();
 	}
 
-	private _updateOutlineElements(elements: (OutlineModel | OutlineGroup | OutlineElement)[]): void {
+	private _updateOutlineElements(elements: Array<OutlineModel | OutlineGroup | OutlineElement>): void {
 		if (!equals(elements, this._outlineElements, EditorBreadcrumbsModel._outlineElementEquals)) {
 			this._outlineElements = elements;
 			this._onDidUpdate.fire(this);

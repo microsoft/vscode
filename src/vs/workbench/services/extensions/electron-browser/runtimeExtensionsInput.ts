@@ -30,7 +30,7 @@ export class RuntimeExtensionsInput extends EditorInput {
 		return true;
 	}
 
-	resolve(): Thenable<any> {
+	resolve(): Promise<any> {
 		return Promise.resolve(null);
 	}
 

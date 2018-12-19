@@ -229,7 +229,7 @@ export const IViewsService = createDecorator<IViewsService>('viewsService');
 export interface IViewsService {
 	_serviceBrand: any;
 
-	openView(id: string, focus?: boolean): Thenable<IView>;
+	openView(id: string, focus?: boolean): Promise<IView>;
 
 	getViewDescriptors(container: ViewContainer): IViewDescriptorCollection;
 }
@@ -268,9 +268,9 @@ export interface ITreeView extends IDisposable {
 
 	getOptimalWidth(): number;
 
-	reveal(item: ITreeItem): Thenable<void>;
+	reveal(item: ITreeItem): Promise<void>;
 
-	expand(itemOrItems: ITreeItem | ITreeItem[]): Thenable<void>;
+	expand(itemOrItems: ITreeItem | ITreeItem[]): Promise<void>;
 
 	setSelection(items: ITreeItem[]): void;
 

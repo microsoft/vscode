@@ -260,7 +260,7 @@ class MonarchClassicTokensCollector implements IMonarchTokensCollector {
 		}
 		this._lastTokenType = type;
 		this._lastTokenLanguage = this._language;
-		this._tokens.push(new Token(startOffset, type, this._language));
+		this._tokens.push(new Token(startOffset, type, this._language!));
 	}
 
 	public nestedModeTokenize(embeddedModeLine: string, embeddedModeData: EmbeddedModeData, offsetDelta: number): modes.IState {
@@ -306,7 +306,7 @@ class MonarchModernTokensCollector implements IMonarchTokensCollector {
 	}
 
 	public enterMode(startOffset: number, modeId: string): void {
-		this._currentLanguageId = this._modeService.getLanguageIdentifier(modeId).id;
+		this._currentLanguageId = this._modeService.getLanguageIdentifier(modeId)!.id;
 	}
 
 	public emit(startOffset: number, type: string): void {
@@ -417,7 +417,7 @@ class MonarchTokenizer implements modes.ITokenizationSupport {
 	}
 
 	public getInitialState(): modes.IState {
-		let rootState = MonarchStackElementFactory.create(null, this._lexer.start);
+		let rootState = MonarchStackElementFactory.create(null, this._lexer.start!);
 		return MonarchLineStateFactory.create(rootState, null);
 	}
 
@@ -506,6 +506,13 @@ class MonarchTokenizer implements modes.ITokenizationSupport {
 		return this._myTokenize(restOfTheLine, lineState, offsetDelta + popOffset, tokensCollector);
 	}
 
+	private _safeRuleName(rule: monarchCommon.IRule | null): string {
+		if (rule) {
+			return rule.name;
+		}
+		return '(unknown)';
+	}
+
 	private _myTokenize(line: string, lineState: MonarchLineState, offsetDelta: number, tokensCollector: IMonarchTokensCollector): MonarchLineState {
 		tokensCollector.enterMode(offsetDelta, this._modeId);
 
@@ -519,7 +526,7 @@ class MonarchTokenizer implements modes.ITokenizationSupport {
 		// these never need cloning or equality since they are only used within a line match
 		interface GroupMatching {
 			matches: string[];
-			rule: monarchCommon.IRule;
+			rule: monarchCommon.IRule | null;
 			groups: { action: monarchCommon.FuzzyAction; matched: string; }[];
 		}
 		let groupMatching: GroupMatching | null = null;
@@ -599,6 +606,11 @@ class MonarchTokenizer implements modes.ITokenizationSupport {
 				action = this._lexer.defaultToken;
 			}
 
+			if (!matched) {
+				// should never happen, needed for strict null checking
+				break;
+			}
+
 			// advance stream
 			pos += matched.length;
 
@@ -647,7 +659,7 @@ class MonarchTokenizer implements modes.ITokenizationSupport {
 						nextState = nextState.substr(1); // peel off starting '@'
 					}
 					if (!monarchCommon.findRules(this._lexer, nextState)) {
-						throw monarchCommon.createError(this._lexer, 'trying to switch to a state \'' + nextState + '\' that is undefined in rule: ' + rule.name);
+						throw monarchCommon.createError(this._lexer, 'trying to switch to a state \'' + nextState + '\' that is undefined in rule: ' + this._safeRuleName(rule));
 					} else {
 						stack = stack.switchTo(nextState);
 					}
@@ -657,15 +669,15 @@ class MonarchTokenizer implements modes.ITokenizationSupport {
 					if (action.next === '@push') {
 						if (stack.depth >= this._lexer.maxStack) {
 							throw monarchCommon.createError(this._lexer, 'maximum tokenizer stack size reached: [' +
-								stack.state + ',' + stack.parent.state + ',...]');
+								stack.state + ',' + stack.parent!.state + ',...]');
 						} else {
 							stack = stack.push(state);
 						}
 					} else if (action.next === '@pop') {
 						if (stack.depth <= 1) {
-							throw monarchCommon.createError(this._lexer, 'trying to pop an empty stack in rule: ' + rule.name);
+							throw monarchCommon.createError(this._lexer, 'trying to pop an empty stack in rule: ' + this._safeRuleName(rule));
 						} else {
-							stack = stack.pop();
+							stack = stack.pop()!;
 						}
 					} else if (action.next === '@popall') {
 						stack = stack.popall();
@@ -676,7 +688,7 @@ class MonarchTokenizer implements modes.ITokenizationSupport {
 						}
 
 						if (!monarchCommon.findRules(this._lexer, nextState)) {
-							throw monarchCommon.createError(this._lexer, 'trying to set a next state \'' + nextState + '\' that is undefined in rule: ' + rule.name);
+							throw monarchCommon.createError(this._lexer, 'trying to set a next state \'' + nextState + '\' that is undefined in rule: ' + this._safeRuleName(rule));
 						} else {
 							stack = stack.push(nextState);
 						}
@@ -690,23 +702,23 @@ class MonarchTokenizer implements modes.ITokenizationSupport {
 
 			// check result
 			if (result === null) {
-				throw monarchCommon.createError(this._lexer, 'lexer rule has no well-defined action in rule: ' + rule.name);
+				throw monarchCommon.createError(this._lexer, 'lexer rule has no well-defined action in rule: ' + this._safeRuleName(rule));
 			}
 
 			// is the result a group match?
 			if (Array.isArray(result)) {
 				if (groupMatching && groupMatching.groups.length > 0) {
-					throw monarchCommon.createError(this._lexer, 'groups cannot be nested: ' + rule.name);
+					throw monarchCommon.createError(this._lexer, 'groups cannot be nested: ' + this._safeRuleName(rule));
 				}
 				if (matches.length !== result.length + 1) {
-					throw monarchCommon.createError(this._lexer, 'matched number of groups does not match the number of actions in rule: ' + rule.name);
+					throw monarchCommon.createError(this._lexer, 'matched number of groups does not match the number of actions in rule: ' + this._safeRuleName(rule));
 				}
 				let totalLen = 0;
 				for (let i = 1; i < matches.length; i++) {
 					totalLen += matches[i].length;
 				}
 				if (totalLen !== matched.length) {
-					throw monarchCommon.createError(this._lexer, 'with groups, all characters should be matched in consecutive groups in rule: ' + rule.name);
+					throw monarchCommon.createError(this._lexer, 'with groups, all characters should be matched in consecutive groups in rule: ' + this._safeRuleName(rule));
 				}
 
 				groupMatching = {
@@ -740,7 +752,7 @@ class MonarchTokenizer implements modes.ITokenizationSupport {
 					if (stackLen0 !== stack.depth || state !== stack.state || (!groupMatching ? 0 : groupMatching.groups.length) !== groupLen0) {
 						continue;
 					} else {
-						throw monarchCommon.createError(this._lexer, 'no progress in tokenizer in rule: ' + rule.name);
+						throw monarchCommon.createError(this._lexer, 'no progress in tokenizer in rule: ' + this._safeRuleName(rule));
 						pos = lineLength; // must make progress or editor loops
 					}
 				}

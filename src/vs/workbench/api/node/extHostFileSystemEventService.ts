@@ -131,15 +131,15 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 
 	getOnWillRenameFileEvent(extension: IExtensionDescription): Event<vscode.FileWillRenameEvent> {
 		return (listener, thisArg, disposables) => {
-			let wrappedListener = <WillRenameListener><any>function () {
-				listener.apply(thisArg, arguments);
-			};
+			const wrappedListener: WillRenameListener = <any>((e: vscode.FileWillRenameEvent) => {
+				listener.call(thisArg, e);
+			});
 			wrappedListener.extension = extension;
 			return this._onWillRenameFile.event(wrappedListener, undefined, disposables);
 		};
 	}
 
-	$onWillRename(oldUriDto: UriComponents, newUriDto: UriComponents): Thenable<any> {
+	$onWillRename(oldUriDto: UriComponents, newUriDto: UriComponents): Promise<any> {
 		const oldUri = URI.revive(oldUriDto);
 		const newUri = URI.revive(newUriDto);
 
@@ -148,7 +148,7 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 			return {
 				oldUri,
 				newUri,
-				waitUntil: (thenable: Thenable<vscode.WorkspaceEdit>): void => {
+				waitUntil: (thenable: Promise<vscode.WorkspaceEdit>): void => {
 					if (Object.isFrozen(bucket)) {
 						throw new TypeError('waitUntil cannot be called async');
 					}
@@ -169,7 +169,7 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 			}
 			// flatten all WorkspaceEdits collected via waitUntil-call
 			// and apply them in one go.
-			let allEdits = new Array<(ResourceFileEditDto | ResourceTextEditDto)[]>();
+			let allEdits = new Array<Array<ResourceFileEditDto | ResourceTextEditDto>>();
 			for (let edit of edits) {
 				if (edit) { // sparse array
 					let { edits } = typeConverter.WorkspaceEdit.from(edit, this._extHostDocumentsAndEditors);

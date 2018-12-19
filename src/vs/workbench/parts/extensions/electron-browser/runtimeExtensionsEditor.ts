@@ -23,7 +23,7 @@ import { ActionBar, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { clipboard } from 'electron';
-import { LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { LocalExtensionType, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { writeFile } from 'vs/base/node/pfs';
@@ -31,7 +31,6 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { memoize } from 'vs/base/common/decorators';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
-import { DisableForWorkspaceAction, DisableGloballyAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { RuntimeExtensionsInput } from 'vs/workbench/services/extensions/electron-browser/runtimeExtensionsInput';
 import { IDebugService } from 'vs/workbench/parts/debug/common/debug';
@@ -39,7 +38,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { randomPort } from 'vs/base/node/ports';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { ILabelService } from 'vs/platform/label/common/label';
 import { renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { join } from 'path';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -118,7 +117,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IExtensionHostProfileService private readonly _extensionHostProfileService: IExtensionHostProfileService,
 		@IStorageService storageService: IStorageService,
-		@IRemoteAuthorityResolverService private remoteAuthorityResolverService: IRemoteAuthorityResolverService
+		@ILabelService private readonly _labelService: ILabelService
 	) {
 		super(RuntimeExtensionsEditor.ID, telemetryService, themeService, storageService);
 
@@ -219,21 +218,17 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 			};
 		}
 
-		result = result.filter((element) => element.status.activationTimes);
+		result = result.filter(element => element.status.activationTimes);
 
-		if (this._profileInfo) {
-			// sort descending by time spent in the profiler
-			result = result.sort((a, b) => {
-				if (a.unresponsiveProfile === this._profileInfo && !b.unresponsiveProfile) {
-					return -1;
-				} else if (!a.unresponsiveProfile && b.unresponsiveProfile === this._profileInfo) {
-					return 1;
-				} else if (a.profileInfo.totalTime === b.profileInfo.totalTime) {
-					return a.originalIndex - b.originalIndex;
-				}
-				return b.profileInfo.totalTime - a.profileInfo.totalTime;
-			});
-		}
+		// bubble up extensions that have caused slowness
+		result = result.sort((a, b) => {
+			if (a.unresponsiveProfile === this._profileInfo && !b.unresponsiveProfile) {
+				return -1;
+			} else if (!a.unresponsiveProfile && b.unresponsiveProfile === this._profileInfo) {
+				return 1;
+			}
+			return a.originalIndex - b.originalIndex;
+		});
 
 		return result;
 	}
@@ -380,11 +375,11 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 					const el = $('span');
 					el.innerHTML = renderOcticons(`$(rss) ${element.description.extensionLocation.authority}`);
 					data.msgContainer.appendChild(el);
-					this.remoteAuthorityResolverService.getRemoteAuthorityResolver(element.description.extensionLocation.authority).then(resolver => {
-						if (resolver && resolver.label.length) {
-							el.innerHTML = renderOcticons(`$(rss) ${resolver.label}`);
-						}
-					});
+
+					const hostLabel = this._labelService.getHostLabel();
+					if (hostLabel) {
+						el.innerHTML = renderOcticons(`$(rss) ${hostLabel}`);
+					}
 				}
 
 				if (this._profileInfo) {
@@ -394,8 +389,6 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				}
 
 			},
-
-			disposeElement: () => null,
 
 			disposeTemplate: (data: IRuntimeExtensionTemplateData): void => {
 				data.disposables = dispose(data.disposables);
@@ -419,10 +412,9 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 			actions.push(new ReportExtensionIssueAction(e.element));
 			actions.push(new Separator());
 
-			if (e.element.marketplaceInfo && e.element.marketplaceInfo.type === LocalExtensionType.User) {
-				actions.push(this._instantiationService.createInstance(DisableForWorkspaceAction, DisableForWorkspaceAction.LABEL));
-				actions.push(this._instantiationService.createInstance(DisableGloballyAction, DisableGloballyAction.LABEL));
-				actions.forEach((a: DisableForWorkspaceAction | DisableGloballyAction) => a.extension = e.element.marketplaceInfo);
+			if (e.element.marketplaceInfo) {
+				actions.push(new Action('runtimeExtensionsEditor.action.disableWorkspace', nls.localize('disable workspace', "Disable (Workspace)"), null, true, () => this._extensionsWorkbenchService.setEnablement(e.element.marketplaceInfo, EnablementState.WorkspaceDisabled)));
+				actions.push(new Action('runtimeExtensionsEditor.action.disable', nls.localize('disable', "Disable"), null, true, () => this._extensionsWorkbenchService.setEnablement(e.element.marketplaceInfo, EnablementState.Disabled)));
 				actions.push(new Separator());
 			}
 			const state = this._extensionHostProfileService.state;
@@ -467,28 +459,45 @@ export class ShowRuntimeExtensionsAction extends Action {
 	}
 }
 
-class ReportExtensionIssueAction extends Action {
+export class ReportExtensionIssueAction extends Action {
 
 	private static readonly _id = 'workbench.extensions.action.reportExtensionIssue';
 	private static _label = nls.localize('reportExtensionIssue', "Report Issue");
 
 	private readonly _url: string;
+	private readonly _task: () => Promise<any>;
 
-	constructor(extension: IRuntimeExtension) {
+	constructor(extension: {
+		description: IExtensionDescription;
+		marketplaceInfo: IExtension;
+		status: IExtensionsStatus;
+		unresponsiveProfile?: IExtensionHostProfile
+	}) {
 		super(ReportExtensionIssueAction._id, ReportExtensionIssueAction._label, 'extension-action report-issue');
 		this.enabled = extension.marketplaceInfo
 			&& extension.marketplaceInfo.type === LocalExtensionType.User
 			&& Boolean(extension.description.repository) && Boolean(extension.description.repository.url);
 
-		this._url = ReportExtensionIssueAction._generateNewIssueUrl(extension);
+		const { url, task } = ReportExtensionIssueAction._generateNewIssueUrl(extension);
+		this._url = url;
+		this._task = task;
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<void> {
+		if (this._task) {
+			await this._task();
+		}
 		window.open(this._url);
-		return Promise.resolve(null);
 	}
 
-	private static _generateNewIssueUrl(extension: IRuntimeExtension): string {
+	private static _generateNewIssueUrl(extension: {
+		description: IExtensionDescription;
+		marketplaceInfo: IExtension;
+		status: IExtensionsStatus;
+		unresponsiveProfile?: IExtensionHostProfile
+	}): { url: string, task?: () => Promise<any> } {
+
+		let task: () => Promise<any>;
 		let baseUrl = extension.marketplaceInfo && extension.marketplaceInfo.type === LocalExtensionType.User && extension.description.repository ? extension.description.repository.url : undefined;
 		if (!!baseUrl) {
 			baseUrl = `${baseUrl.indexOf('.git') !== -1 ? baseUrl.substr(0, baseUrl.length - 4) : baseUrl}/issues/new/`;
@@ -496,20 +505,27 @@ class ReportExtensionIssueAction extends Action {
 			baseUrl = product.reportIssueUrl;
 		}
 
+		let title: string;
 		let message: string;
 		let reason: string;
 		if (extension.unresponsiveProfile) {
 			// unresponsive extension host caused
 			reason = 'Performance';
+			title = 'Extension causes high cpu load';
 			let path = join(os.homedir(), `${extension.description.id}-unresponsive.cpuprofile.txt`);
-			writeFile(path, JSON.stringify(extension.unresponsiveProfile.data)).catch(onUnexpectedError);
-			message = `:warning: Make sure to **attach** this file from your *home*-directory: \`${path}\` :warning:`;
+			task = async () => {
+				const profiler = await import('v8-inspect-profiler');
+				const data = profiler.rewriteAbsolutePaths({ profile: <any>extension.unresponsiveProfile.data }, 'pii_removed');
+				profiler.writeProfile(data, path).then(undefined, onUnexpectedError);
+			};
+			message = `:warning: Make sure to **attach** this file from your *home*-directory: \`${path}\` :warning:\n\nFind more details here: https://github.com/Microsoft/vscode/wiki/Explain:-extension-causes-high-cpu-load`;
 
 		} else {
 			// generic
-			clipboard.writeText('```json \n' + JSON.stringify(extension.status, null, '\t') + '\n```');
 			reason = 'Bug';
+			title = 'Extension issue';
 			message = ':warning: We have written the needed data into your clipboard. Please paste! :warning:';
+			clipboard.writeText('```json \n' + JSON.stringify(extension.status, null, '\t') + '\n```');
 		}
 
 		const osVersion = `${os.type()} ${os.arch()} ${os.release()}`;
@@ -522,7 +538,10 @@ class ReportExtensionIssueAction extends Action {
 - VSCode version: \`${pkg.version}\`\n\n${message}`
 		);
 
-		return `${baseUrl}${queryStringPrefix}body=${body}`;
+		return {
+			url: `${baseUrl}${queryStringPrefix}body=${body}&title=${encodeURIComponent(title)}`,
+			task
+		};
 	}
 }
 

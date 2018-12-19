@@ -55,7 +55,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		// when the extension host process goes down ?
 	}
 
-	public $createTerminal(name?: string, shellPath?: string, shellArgs?: string[], cwd?: string, env?: { [key: string]: string }, waitOnExit?: boolean): Thenable<number> {
+	public $createTerminal(name?: string, shellPath?: string, shellArgs?: string[], cwd?: string, env?: { [key: string]: string }, waitOnExit?: boolean): Promise<{ id: number, name: string }> {
 		const shellLaunchConfig: IShellLaunchConfig = {
 			name,
 			executable: shellPath,
@@ -65,10 +65,14 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			ignoreConfigurationCwd: true,
 			env
 		};
-		return Promise.resolve(this.terminalService.createTerminal(shellLaunchConfig).id);
+		const terminal = this.terminalService.createTerminal(shellLaunchConfig);
+		return Promise.resolve({
+			id: terminal.id,
+			name: terminal.title
+		});
 	}
 
-	public $createTerminalRenderer(name: string): Thenable<number> {
+	public $createTerminalRenderer(name: string): Promise<number> {
 		const instance = this.terminalService.createTerminalRenderer(name);
 		return Promise.resolve(instance.id);
 	}

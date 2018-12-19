@@ -29,7 +29,7 @@ export class OpenRawDefaultSettingsAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): Thenable<any> {
+	public run(event?: any): Promise<any> {
 		return this.preferencesService.openRawDefaultSettings();
 	}
 }
@@ -47,7 +47,7 @@ export class OpenSettings2Action extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): Thenable<any> {
+	public run(event?: any): Promise<any> {
 		return this.preferencesService.openSettings(false);
 	}
 }
@@ -65,7 +65,7 @@ export class OpenSettingsAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): Thenable<any> {
+	public run(event?: any): Promise<any> {
 		return this.preferencesService.openSettings();
 	}
 }
@@ -83,7 +83,7 @@ export class OpenSettingsJsonAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): Thenable<any> {
+	public run(event?: any): Promise<any> {
 		return this.preferencesService.openSettings(true);
 	}
 }
@@ -101,7 +101,7 @@ export class OpenGlobalSettingsAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): Thenable<any> {
+	public run(event?: any): Promise<any> {
 		return this.preferencesService.openGlobalSettings();
 	}
 }
@@ -119,7 +119,7 @@ export class OpenGlobalKeybindingsAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): Thenable<any> {
+	public run(event?: any): Promise<any> {
 		return this.preferencesService.openGlobalKeybindingSettings(false);
 	}
 }
@@ -127,7 +127,7 @@ export class OpenGlobalKeybindingsAction extends Action {
 export class OpenGlobalKeybindingsFileAction extends Action {
 
 	public static readonly ID = 'workbench.action.openGlobalKeybindingsFile';
-	public static readonly LABEL = nls.localize('openGlobalKeybindingsFile', "Open Keyboard Shortcuts File");
+	public static readonly LABEL = nls.localize('openGlobalKeybindingsFile', "Open Keyboard Shortcuts (JSON)");
 
 	constructor(
 		id: string,
@@ -137,7 +137,7 @@ export class OpenGlobalKeybindingsFileAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): Thenable<any> {
+	public run(event?: any): Promise<any> {
 		return this.preferencesService.openGlobalKeybindingSettings(true);
 	}
 }
@@ -145,7 +145,7 @@ export class OpenGlobalKeybindingsFileAction extends Action {
 export class OpenDefaultKeybindingsFileAction extends Action {
 
 	public static readonly ID = 'workbench.action.openDefaultKeybindingsFile';
-	public static readonly LABEL = nls.localize('openDefaultKeybindingsFile', "Open Default Keyboard Shortcuts File");
+	public static readonly LABEL = nls.localize('openDefaultKeybindingsFile', "Open Default Keyboard Shortcuts (JSON)");
 
 	constructor(
 		id: string,
@@ -155,7 +155,7 @@ export class OpenDefaultKeybindingsFileAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): Thenable<any> {
+	public run(event?: any): Promise<any> {
 		return this.preferencesService.openDefaultKeybindingsFile();
 	}
 }
@@ -182,7 +182,7 @@ export class OpenWorkspaceSettingsAction extends Action {
 		this.enabled = this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY;
 	}
 
-	public run(event?: any): Thenable<any> {
+	public run(event?: any): Promise<any> {
 		return this.preferencesService.openWorkspaceSettings();
 	}
 
@@ -219,7 +219,7 @@ export class OpenFolderSettingsAction extends Action {
 		this.enabled = this.workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE && this.workspaceContextService.getWorkspace().folders.length > 0;
 	}
 
-	public run(): Thenable<any> {
+	public run(): Promise<any> {
 		return this.commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID)
 			.then(workspaceFolder => {
 				if (workspaceFolder) {
@@ -252,7 +252,7 @@ export class ConfigureLanguageBasedSettingsAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Thenable<any> {
+	public run(): Promise<any> {
 		const languages = this.modeService.getRegisteredLanguageNames();
 		const picks: IQuickPickItem[] = languages.sort().map((lang, index) => {
 			let description: string = nls.localize('languageDescriptionConfigured', "({0})", this.modeService.getModeIdForLanguageName(lang.toLowerCase()));

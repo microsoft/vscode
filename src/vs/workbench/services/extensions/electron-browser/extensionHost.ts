@@ -11,7 +11,7 @@ import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { timeout } from 'vs/base/common/async';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event, anyEvent, debounceEvent, fromNodeEventEmitter, mapEvent } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import * as objects from 'vs/base/common/objects';
@@ -93,6 +93,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 	private _messageProtocol: Promise<IMessagePassingProtocol>;
 
 	constructor(
+		private readonly _autoStart: boolean,
 		private readonly _extensions: Promise<IExtensionDescription[]>,
 		private readonly _extensionHostLogsLocation: URI,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
@@ -124,7 +125,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
 		this._toDispose = [];
 		this._toDispose.push(this._onCrashed);
-		this._toDispose.push(this._lifecycleService.onWillShutdown((e) => this._onWillShutdown(e)));
+		this._toDispose.push(this._lifecycleService.onWillShutdown(e => this._onWillShutdown(e)));
 		this._toDispose.push(this._lifecycleService.onShutdown(reason => this.terminate()));
 		this._toDispose.push(this._broadcastService.onBroadcast(b => this._onBroadcast(b)));
 
@@ -211,15 +212,15 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 				type Output = { data: string, format: string[] };
 				this._extensionHostProcess.stdout.setEncoding('utf8');
 				this._extensionHostProcess.stderr.setEncoding('utf8');
-				const onStdout = fromNodeEventEmitter<string>(this._extensionHostProcess.stdout, 'data');
-				const onStderr = fromNodeEventEmitter<string>(this._extensionHostProcess.stderr, 'data');
-				const onOutput = anyEvent(
-					mapEvent(onStdout, o => ({ data: `%c${o}`, format: [''] })),
-					mapEvent(onStderr, o => ({ data: `%c${o}`, format: ['color: red'] }))
+				const onStdout = Event.fromNodeEventEmitter<string>(this._extensionHostProcess.stdout, 'data');
+				const onStderr = Event.fromNodeEventEmitter<string>(this._extensionHostProcess.stderr, 'data');
+				const onOutput = Event.any(
+					Event.map(onStdout, o => ({ data: `%c${o}`, format: [''] })),
+					Event.map(onStderr, o => ({ data: `%c${o}`, format: ['color: red'] }))
 				);
 
 				// Debounce all output, so we can render it in the Chrome console as a group
-				const onDebouncedOutput = debounceEvent<Output>(onOutput, (r, o) => {
+				const onDebouncedOutput = Event.debounce<Output>(onOutput, (r, o) => {
 					return r
 						? { data: r.data + o.data, format: [...r.format, ...o.format] }
 						: { data: o.data, format: o.format };
@@ -424,7 +425,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 						appRoot: this._environmentService.appRoot ? URI.file(this._environmentService.appRoot) : void 0,
 						appSettingsHome: this._environmentService.appSettingsHome ? URI.file(this._environmentService.appSettingsHome) : void 0,
 						extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
-						extensionTestsPath: this._environmentService.extensionTestsPath
+						extensionTestsPath: this._environmentService.extensionTestsPath,
+						globalStorageHome: URI.file(this._environmentService.globalStorageHome)
 					},
 					workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : {
 						configuration: workspace.configuration,
@@ -437,7 +439,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 					configuration: !this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment ? { ...configurationData, configurationScopes: getScopes() } : configurationData,
 					telemetryInfo,
 					logLevel: this._logService.getLevel(),
-					logsLocation: this._extensionHostLogsLocation
+					logsLocation: this._extensionHostLogsLocation,
+					autoStart: this._autoStart
 				};
 				return r;
 			});
@@ -562,7 +565,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 				}
 			});
 
-			event.veto(timeout(100 /* wait a bit for IPC to get delivered */).then(() => false));
+			event.join(timeout(100 /* wait a bit for IPC to get delivered */));
 		}
 	}
 }

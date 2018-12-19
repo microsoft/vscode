@@ -83,7 +83,7 @@ suite('markdown.DocumentSymbolProvider', () => {
 		assert.strictEqual(symbols[0].children[1].name, '## h3');
 	});
 
-	test.skip('Should handle line separator in file. Issue #63749', async () => {
+	test('Should handle line separator in file. Issue #63749', async () => {
 		const symbols = await getSymbolsForFile(`# A
 - foo 
 

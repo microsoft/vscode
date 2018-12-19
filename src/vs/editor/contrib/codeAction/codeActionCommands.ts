@@ -85,37 +85,41 @@ export class QuickFixController implements IEditorContribution {
 			this._activeRequest = undefined;
 		}
 
-		if (e && e.actions) {
+		const actions = e && e.actions;
+		if (actions) {
 			this._activeRequest = e.actions;
 		}
 
-		if (e && e.actions && e.trigger.filter && e.trigger.filter.kind) {
+		if (actions && e.trigger.filter && e.trigger.filter.kind) {
 			// Triggered for specific scope
 			// Apply if we only have one action or requested autoApply, otherwise show menu
-			e.actions.then(fixes => {
+			actions.then(fixes => {
 				if (fixes.length > 0 && e.trigger.autoApply === CodeActionAutoApply.First || (e.trigger.autoApply === CodeActionAutoApply.IfSingle && fixes.length === 1)) {
 					this._onApplyCodeAction(fixes[0]);
 				} else {
-					this._codeActionContextMenu.show(e.actions, e.position);
+					this._codeActionContextMenu.show(actions, e.position);
 				}
 			}).catch(onUnexpectedError);
 			return;
 		}
 
 		if (e && e.trigger.type === 'manual') {
-			this._codeActionContextMenu.show(e.actions, e.position);
-		} else if (e && e.actions) {
+			if (actions) {
+				this._codeActionContextMenu.show(actions, e.position);
+				return;
+			}
+		} else if (actions) {
 			// auto magically triggered
 			// * update an existing list of code actions
 			// * manage light bulb
 			if (this._codeActionContextMenu.isVisible) {
-				this._codeActionContextMenu.show(e.actions, e.position);
+				this._codeActionContextMenu.show(actions, e.position);
 			} else {
 				this._lightBulbWidget.model = e;
 			}
-		} else {
-			this._lightBulbWidget.hide();
+			return;
 		}
+		this._lightBulbWidget.hide();
 	}
 
 	public getId(): string {
@@ -128,7 +132,7 @@ export class QuickFixController implements IEditorContribution {
 		}
 	}
 
-	public triggerFromEditorSelection(filter?: CodeActionFilter, autoApply?: CodeActionAutoApply): Thenable<CodeAction[] | undefined> {
+	public triggerFromEditorSelection(filter?: CodeActionFilter, autoApply?: CodeActionAutoApply): Promise<CodeAction[] | undefined> {
 		return this._model.trigger({ type: 'manual', filter, autoApply });
 	}
 
@@ -158,7 +162,7 @@ export async function applyCodeAction(
 		await bulkEditService.apply(action.edit, { editor });
 	}
 	if (action.command) {
-		await commandService.executeCommand(action.command.id, ...action.command.arguments);
+		await commandService.executeCommand(action.command.id, ...(action.command.arguments || []));
 	}
 }
 
@@ -168,6 +172,10 @@ function showCodeActionsForEditorSelection(
 	filter?: CodeActionFilter,
 	autoApply?: CodeActionAutoApply
 ) {
+	if (!editor.hasModel()) {
+		return;
+	}
+
 	const controller = QuickFixController.get(editor);
 	if (!controller) {
 		return;
@@ -206,33 +214,28 @@ export class QuickFixAction extends EditorAction {
 
 
 class CodeActionCommandArgs {
-	public static fromUser(arg: any): CodeActionCommandArgs {
+	public static fromUser(arg: any, defaults: { kind: CodeActionKind, apply: CodeActionAutoApply }): CodeActionCommandArgs {
 		if (!arg || typeof arg !== 'object') {
-			return new CodeActionCommandArgs(CodeActionKind.Empty, CodeActionAutoApply.IfSingle);
+			return new CodeActionCommandArgs(defaults.kind, defaults.apply);
 		}
 		return new CodeActionCommandArgs(
-			CodeActionCommandArgs.getKindFromUser(arg),
-			CodeActionCommandArgs.getApplyFromUser(arg));
+			CodeActionCommandArgs.getKindFromUser(arg, defaults.kind),
+			CodeActionCommandArgs.getApplyFromUser(arg, defaults.apply));
 	}
 
-	private static getApplyFromUser(arg: any) {
+	private static getApplyFromUser(arg: any, defaultAutoApply: CodeActionAutoApply) {
 		switch (typeof arg.apply === 'string' ? arg.apply.toLowerCase() : '') {
-			case 'first':
-				return CodeActionAutoApply.First;
-
-			case 'never':
-				return CodeActionAutoApply.Never;
-
-			case 'ifsingle':
-			default:
-				return CodeActionAutoApply.IfSingle;
+			case 'first': return CodeActionAutoApply.First;
+			case 'never': return CodeActionAutoApply.Never;
+			case 'ifsingle': return CodeActionAutoApply.IfSingle;
+			default: return defaultAutoApply;
 		}
 	}
 
-	private static getKindFromUser(arg: any) {
+	private static getKindFromUser(arg: any, defaultKind: CodeActionKind) {
 		return typeof arg.kind === 'string'
 			? new CodeActionKind(arg.kind)
-			: CodeActionKind.Empty;
+			: defaultKind;
 	}
 
 	private constructor(
@@ -253,7 +256,10 @@ export class CodeActionCommand extends EditorCommand {
 	}
 
 	public runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, userArg: any) {
-		const args = CodeActionCommandArgs.fromUser(userArg);
+		const args = CodeActionCommandArgs.fromUser(userArg, {
+			kind: CodeActionKind.Empty,
+			apply: CodeActionAutoApply.IfSingle,
+		});
 		return showCodeActionsForEditorSelection(editor, nls.localize('editor.action.quickFix.noneMessage', "No code actions available"), { kind: args.kind, includeSourceActions: true }, args.apply);
 	}
 }
@@ -287,11 +293,15 @@ export class RefactorAction extends EditorAction {
 		});
 	}
 
-	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor, userArg: any): void {
+		const args = CodeActionCommandArgs.fromUser(userArg, {
+			kind: CodeActionKind.Refactor,
+			apply: CodeActionAutoApply.Never
+		});
 		return showCodeActionsForEditorSelection(editor,
 			nls.localize('editor.action.refactor.noneMessage', "No refactorings available"),
-			{ kind: CodeActionKind.Refactor },
-			CodeActionAutoApply.Never);
+			{ kind: CodeActionKind.Refactor.contains(args.kind.value) ? args.kind : CodeActionKind.Empty },
+			args.apply);
 	}
 }
 
@@ -316,11 +326,15 @@ export class SourceAction extends EditorAction {
 		});
 	}
 
-	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor, userArg: any): void {
+		const args = CodeActionCommandArgs.fromUser(userArg, {
+			kind: CodeActionKind.Source,
+			apply: CodeActionAutoApply.Never
+		});
 		return showCodeActionsForEditorSelection(editor,
 			nls.localize('editor.action.source.noneMessage', "No source actions available"),
-			{ kind: CodeActionKind.Source, includeSourceActions: true },
-			CodeActionAutoApply.Never);
+			{ kind: CodeActionKind.Source.contains(args.kind.value) ? args.kind : CodeActionKind.Empty, includeSourceActions: true },
+			args.apply);
 	}
 }
 

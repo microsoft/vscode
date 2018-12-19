@@ -259,7 +259,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	 */
 	private fetchWorkspaceRecommendations(): Promise<void> {
 
-		if (!this.isEnabled) { return Promise.resolve(null); }
+		if (!this.isEnabled) { return Promise.resolve(void 0); }
 
 		return this.fetchExtensionRecommendationContents()
 			.then(result => this.validateExtensions(result.map(({ contents }) => contents))
@@ -854,7 +854,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 			fetchPromise = new Promise((c, e) => {
 				setTimeout(() => {
-					Promise.all([this.fetchExecutableRecommendations(), this.fetchDynamicWorkspaceRecommendations()]).then(() => c(null));
+					Promise.all([this.fetchExecutableRecommendations(), this.fetchDynamicWorkspaceRecommendations()]).then(() => c(void 0));
 				}, calledDuringStartup ? 10000 : 0);
 			});
 
@@ -949,7 +949,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			|| !this.fileService.canHandleResource(this.contextService.getWorkspace().folders[0].uri)
 			|| this._dynamicWorkspaceRecommendations.length
 			|| !this._extensionsRecommendationsUrl) {
-			return Promise.resolve(null);
+			return Promise.resolve(void 0);
 		}
 
 		const storageKey = 'extensionsAssistant/dynamicWorkspaceRecommendations';

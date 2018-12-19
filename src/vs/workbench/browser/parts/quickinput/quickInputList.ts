@@ -13,7 +13,7 @@ import { IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator } from '
 import { IMatch } from 'vs/base/common/filters';
 import { matchesFuzzyOcticonAware, parseOcticons } from 'vs/base/common/octicon';
 import { compareAnything } from 'vs/base/common/comparers';
-import { Emitter, Event, mapEvent } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { assign } from 'vs/base/common/objects';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -27,6 +27,7 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
 import { getIconClass } from 'vs/workbench/browser/parts/quickinput/quickInputUtils';
+import { IListOptions } from 'vs/base/browser/ui/list/listWidget';
 
 const $ = dom.$;
 
@@ -214,7 +215,7 @@ export class QuickInputList {
 	readonly id: string;
 	private container: HTMLElement;
 	private list: WorkbenchList<ListElement>;
-	private inputElements: (IQuickPickItem | IQuickPickSeparator)[];
+	private inputElements: Array<IQuickPickItem | IQuickPickSeparator>;
 	private elements: ListElement[] = [];
 	private elementsToIndexes = new Map<IQuickPickItem, number>();
 	matchOnDescription = false;
@@ -244,11 +245,11 @@ export class QuickInputList {
 		this.container = dom.append(this.parent, $('.quick-input-list'));
 		const delegate = new ListElementDelegate();
 		this.list = this.instantiationService.createInstance(WorkbenchList, this.container, delegate, [new ListElementRenderer()], {
-			identityProvider: element => element.label,
+			identityProvider: { getId: element => element.saneLabel },
 			openController: { shouldOpen: () => false }, // Workaround #58124
 			setRowLineHeight: false,
 			multipleSelectionSupport: false
-		}) as WorkbenchList<ListElement>;
+		} as IListOptions<ListElement>) as WorkbenchList<ListElement>;
 		this.list.getHTMLElement().id = id;
 		this.disposables.push(this.list);
 		this.disposables.push(this.list.onKeyDown(e => {
@@ -278,6 +279,12 @@ export class QuickInputList {
 					break;
 			}
 		}));
+		this.disposables.push(this.list.onMouseDown(e => {
+			if (e.browserEvent.button !== 2) {
+				// Works around / fixes #64350.
+				e.browserEvent.preventDefault();
+			}
+		}));
 		this.disposables.push(dom.addDisposableListener(this.container, dom.EventType.CLICK, e => {
 			if (e.x || e.y) { // Avoid 'click' triggered by 'space' on checkbox.
 				this._onLeave.fire();
@@ -287,12 +294,12 @@ export class QuickInputList {
 
 	@memoize
 	get onDidChangeFocus() {
-		return mapEvent(this.list.onFocusChange, e => e.elements.map(e => e.item));
+		return Event.map(this.list.onFocusChange, e => e.elements.map(e => e.item));
 	}
 
 	@memoize
 	get onDidChangeSelection() {
-		return mapEvent(this.list.onSelectionChange, e => e.elements.map(e => e.item));
+		return Event.map(this.list.onSelectionChange, e => e.elements.map(e => e.item));
 	}
 
 	getAllVisibleChecked() {
@@ -349,7 +356,7 @@ export class QuickInputList {
 		}
 	}
 
-	setElements(inputElements: (IQuickPickItem | IQuickPickSeparator)[]): void {
+	setElements(inputElements: Array<IQuickPickItem | IQuickPickSeparator>): void {
 		this.elementDisposables = dispose(this.elementDisposables);
 		const fireButtonTriggered = (event: IQuickPickItemButtonEvent<IQuickPickItem>) => this.fireButtonTriggered(event);
 		this.inputElements = inputElements;

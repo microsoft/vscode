@@ -16,8 +16,8 @@ export class SuggestAlternatives {
 	private readonly _ckOtherSuggestions: IContextKey<boolean>;
 
 	private _index: number;
-	private _model: CompletionModel;
-	private _acceptNext: (selected: ISelectedSuggestion) => any;
+	private _model: CompletionModel | undefined;
+	private _acceptNext: ((selected: ISelectedSuggestion) => any) | undefined;
 	private _listener: IDisposable;
 	private _ignore: boolean;
 
@@ -73,7 +73,7 @@ export class SuggestAlternatives {
 			if (newIndex === index) {
 				break;
 			}
-			if (!model.items[newIndex].suggestion.additionalTextEdits) {
+			if (!model.items[newIndex].completion.additionalTextEdits) {
 				break;
 			}
 		}
@@ -96,7 +96,7 @@ export class SuggestAlternatives {
 		try {
 			this._ignore = true;
 			this._index = SuggestAlternatives._moveIndex(fwd, this._model, this._index);
-			this._acceptNext({ index: this._index, item: this._model.items[this._index], model: this._model });
+			this._acceptNext!({ index: this._index, item: this._model.items[this._index], model: this._model });
 		} finally {
 			this._ignore = false;
 		}

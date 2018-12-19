@@ -8,7 +8,6 @@ import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { Dimension, show, hide, addClass } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEditorRegistry, Extensions as EditorExtensions, IEditorDescriptor } from 'vs/workbench/browser/editor';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -57,17 +56,17 @@ export class EditorControl extends Disposable {
 		return this._activeControl;
 	}
 
-	openEditor(editor: EditorInput, options?: EditorOptions): TPromise<IOpenEditorResult> {
+	openEditor(editor: EditorInput, options?: EditorOptions): Promise<IOpenEditorResult> {
 
 		// Editor control
 		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(editor);
-		const control = this.doShowEditorControl(descriptor, options);
+		const control = this.doShowEditorControl(descriptor);
 
 		// Set input
 		return this.doSetInput(control, editor, options).then((editorChanged => (({ control, editorChanged } as IOpenEditorResult))));
 	}
 
-	private doShowEditorControl(descriptor: IEditorDescriptor, options: EditorOptions): BaseEditor {
+	private doShowEditorControl(descriptor: IEditorDescriptor): BaseEditor {
 
 		// Return early if the currently active editor control can handle the input
 		if (this._activeControl && descriptor.describes(this._activeControl)) {
@@ -146,7 +145,7 @@ export class EditorControl extends Disposable {
 		this._onDidSizeConstraintsChange.fire();
 	}
 
-	private doSetInput(control: BaseEditor, editor: EditorInput, options: EditorOptions): TPromise<boolean> {
+	private doSetInput(control: BaseEditor, editor: EditorInput, options: EditorOptions): Promise<boolean> {
 
 		// If the input did not change, return early and only apply the options
 		// unless the options instruct us to force open it even if it is the same
@@ -163,7 +162,7 @@ export class EditorControl extends Disposable {
 				control.focus();
 			}
 
-			return TPromise.as(false);
+			return Promise.resolve(false);
 		}
 
 		// Show progress while setting input after a certain timeout. If the workbench is opening
@@ -172,7 +171,7 @@ export class EditorControl extends Disposable {
 
 		// Call into editor control
 		const editorWillChange = !inputMatches;
-		return TPromise.wrap(control.setInput(editor, options, operation.token)).then(() => {
+		return control.setInput(editor, options, operation.token).then(() => {
 
 			// Focus (unless prevented or another operation is running)
 			if (operation.isCurrent()) {
@@ -191,7 +190,7 @@ export class EditorControl extends Disposable {
 			// Operation done
 			operation.stop();
 
-			return TPromise.wrapError(e);
+			return Promise.reject(e);
 		});
 	}
 

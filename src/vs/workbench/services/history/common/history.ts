@@ -63,7 +63,7 @@ export interface IHistoryService {
 	/**
 	 * Get the entire history of opened editors.
 	 */
-	getHistory(): (IEditorInput | IResourceInput)[];
+	getHistory(): Array<IEditorInput | IResourceInput>;
 
 	/**
 	 * Looking at the editor history, returns the workspace root of the last file that was

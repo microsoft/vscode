@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { addClass, addDisposableListener } from 'vs/base/browser/dom';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -15,6 +15,9 @@ import { DARK, ITheme, IThemeService, LIGHT } from 'vs/platform/theme/common/the
 import { registerFileProtocol, WebviewProtocol } from 'vs/workbench/parts/webview/electron-browser/webviewProtocols';
 import { areWebviewInputOptionsEqual } from './webviewEditorService';
 import { WebviewFindWidget } from './webviewFindWidget';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { endsWith } from 'vs/base/common/strings';
 
 export interface WebviewOptions {
 	readonly allowScripts?: boolean;
@@ -26,28 +29,146 @@ export interface WebviewOptions {
 	readonly extensionLocation?: URI;
 }
 
+interface IKeydownEvent {
+	key: string;
+	keyCode: number;
+	code: string;
+	shiftKey: boolean;
+	altKey: boolean;
+	ctrlKey: boolean;
+	metaKey: boolean;
+	repeat: boolean;
+}
+
+class WebviewProtocolProvider extends Disposable {
+	constructor(
+		webview: Electron.WebviewTag,
+		private readonly _extensionLocation: URI,
+		private readonly _getLocalResourceRoots: () => ReadonlyArray<URI>,
+		private readonly _environmentService: IEnvironmentService,
+		private readonly _fileService: IFileService,
+	) {
+		super();
+
+		let loaded = false;
+		this._register(addDisposableListener(webview, 'did-start-loading', () => {
+			if (loaded) {
+				return;
+			}
+			loaded = true;
+
+			const contents = webview.getWebContents();
+			if (contents) {
+				this.registerFileProtocols(contents);
+			}
+		}));
+	}
+
+	private registerFileProtocols(contents: Electron.WebContents) {
+		if (contents.isDestroyed()) {
+			return;
+		}
+
+		const appRootUri = URI.file(this._environmentService.appRoot);
+
+		registerFileProtocol(contents, WebviewProtocol.CoreResource, this._fileService, null, () => [
+			appRootUri
+		]);
+
+		registerFileProtocol(contents, WebviewProtocol.VsCodeResource, this._fileService, this._extensionLocation, () =>
+			this._getLocalResourceRoots()
+		);
+	}
+}
+
+class SvgBlocker extends Disposable {
+
+	private readonly _onDidBlockSvg = this._register(new Emitter<void>());
+	public readonly onDidBlockSvg = this._onDidBlockSvg.event;
+
+	constructor(
+		webview: Electron.WebviewTag,
+		private readonly _options: WebviewOptions,
+	) {
+		super();
+
+		if (this._options.allowSvgs) {
+			return;
+		}
+
+		let loaded = false;
+		this._register(addDisposableListener(webview, 'did-start-loading', () => {
+			if (loaded) {
+				return;
+			}
+			loaded = true;
+
+			const contents = webview.getWebContents();
+			if (!contents) {
+				return;
+			}
+
+			contents.session.webRequest.onBeforeRequest((details, callback) => {
+				if (details.url.indexOf('.svg') > 0) {
+					const uri = URI.parse(details.url);
+					if (uri && !uri.scheme.match(/file/i) && endsWith(uri.path, '.svg') && !this.isAllowedSvg(uri)) {
+						this._onDidBlockSvg.fire();
+						return callback({ cancel: true });
+					}
+				}
+				return callback({});
+			});
+
+			contents.session.webRequest.onHeadersReceived((details, callback) => {
+				const contentType: string[] = details.responseHeaders['content-type'] || details.responseHeaders['Content-Type'];
+				if (contentType && Array.isArray(contentType) && contentType.some(x => x.toLowerCase().indexOf('image/svg') >= 0)) {
+					const uri = URI.parse(details.url);
+					if (uri && !this.isAllowedSvg(uri)) {
+						this._onDidBlockSvg.fire();
+						return callback({ cancel: true });
+					}
+				}
+				return callback({ cancel: false, responseHeaders: details.responseHeaders });
+			});
+		}));
+	}
+
+	private isAllowedSvg(uri: URI): boolean {
+		if (this._options.allowSvgs) {
+			return true;
+		}
+		if (this._options.svgWhiteList) {
+			return this._options.svgWhiteList.indexOf(uri.authority.toLowerCase()) >= 0;
+		}
+		return false;
+	}
+}
+
 export class WebviewElement extends Disposable {
 	private _webview: Electron.WebviewTag;
-	private _ready: Promise<this>;
+	private _ready: Promise<void>;
 
 	private _webviewFindWidget: WebviewFindWidget;
 	private _findStarted: boolean = false;
 	private _contents: string = '';
 	private _state: string | undefined = undefined;
 
+	private readonly _onDidFocus = this._register(new Emitter<void>());
+	public get onDidFocus(): Event<void> { return this._onDidFocus.event; }
+
 	constructor(
 		private readonly _styleElement: Element,
 		private _options: WebviewOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
-		@IFileService private readonly _fileService: IFileService,
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IFileService fileService: IFileService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
 		super();
 		this._webview = document.createElement('webview');
 		this._webview.setAttribute('partition', this._options.allowSvgs ? 'webview' : `webview${Date.now()}`);
 
-		this._webview.setAttribute('disableguestresize', '');
 		this._webview.setAttribute('webpreferences', 'contextIsolation=yes');
 
 		this._webview.style.flex = '0 1';
@@ -58,68 +179,28 @@ export class WebviewElement extends Disposable {
 		this._webview.preload = require.toUrl('./webview-pre.js');
 		this._webview.src = this._options.useSameOriginForRoot ? require.toUrl('./webview.html') : 'data:text/html;charset=utf-8,%3C%21DOCTYPE%20html%3E%0D%0A%3Chtml%20lang%3D%22en%22%20style%3D%22width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3Chead%3E%0D%0A%09%3Ctitle%3EVirtual%20Document%3C%2Ftitle%3E%0D%0A%3C%2Fhead%3E%0D%0A%3Cbody%20style%3D%22margin%3A%200%3B%20overflow%3A%20hidden%3B%20width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3C%2Fbody%3E%0D%0A%3C%2Fhtml%3E';
 
-		this._ready = new Promise<this>(resolve => {
+		this._ready = new Promise(resolve => {
 			const subscription = this._register(addDisposableListener(this._webview, 'ipc-message', (event) => {
 				if (event.channel === 'webview-ready') {
 					// console.info('[PID Webview] ' event.args[0]);
 					addClass(this._webview, 'ready'); // can be found by debug command
 
 					subscription.dispose();
-					resolve(this);
+					resolve();
 				}
 			}));
 		});
 
-		if (!this._options.useSameOriginForRoot) {
-			let loaded = false;
-			this._register(addDisposableListener(this._webview, 'did-start-loading', () => {
-				if (loaded) {
-					return;
-				}
-				loaded = true;
+		this._register(
+			new WebviewProtocolProvider(
+				this._webview,
+				this._options.extensionLocation,
+				() => (this._options.localResourceRoots || []),
+				environmentService,
+				fileService));
 
-				const contents = this._webview.getWebContents();
-				this.registerFileProtocols(contents);
-			}));
-		}
-
-		if (!this._options.allowSvgs) {
-			let loaded = false;
-			this._register(addDisposableListener(this._webview, 'did-start-loading', () => {
-				if (loaded) {
-					return;
-				}
-				loaded = true;
-
-				const contents = this._webview.getWebContents();
-				if (!contents) {
-					return;
-				}
-
-				(contents.session.webRequest as any).onBeforeRequest((details, callback) => {
-					if (details.url.indexOf('.svg') > 0) {
-						const uri = URI.parse(details.url);
-						if (uri && !uri.scheme.match(/file/i) && (uri.path as any).endsWith('.svg') && !this.isAllowedSvg(uri)) {
-							this.onDidBlockSvg();
-							return callback({ cancel: true });
-						}
-					}
-					return callback({});
-				});
-
-				(contents.session.webRequest as any).onHeadersReceived((details, callback) => {
-					const contentType: string[] = (details.responseHeaders['content-type'] || details.responseHeaders['Content-Type']) as any;
-					if (contentType && Array.isArray(contentType) && contentType.some(x => x.toLowerCase().indexOf('image/svg') >= 0)) {
-						const uri = URI.parse(details.url);
-						if (uri && !this.isAllowedSvg(uri)) {
-							this.onDidBlockSvg();
-							return callback({ cancel: true });
-						}
-					}
-					return callback({ cancel: false, responseHeaders: details.responseHeaders });
-				});
-			}));
-		}
+		const svgBlocker = this._register(new SvgBlocker(this._webview, this._options));
+		svgBlocker.onDidBlockSvg(() => this.onDidBlockSvg());
 
 		this._register(addDisposableListener(this._webview, 'console-message', function (e: { level: number; message: string; line: number; sourceId: string; }) {
 			console.log(`[Embedded Page] ${e.message}`);
@@ -164,6 +245,21 @@ export class WebviewElement extends Disposable {
 					this._state = event.args[0];
 					this._onDidUpdateState.fire(this._state);
 					return;
+
+				case 'did-focus':
+					this.handleFocusChange(true);
+					return;
+
+				case 'did-blur':
+					this.handleFocusChange(false);
+					return;
+
+				case 'did-keydown':
+					// Electron: workaround for https://github.com/electron/electron/issues/14258
+					// We have to detect keyboard events in the <webview> and dispatch them to our
+					// keybinding service because these events do not bubble to the parent window anymore.
+					this.handleKeydown(event.args[0]);
+					return;
 			}
 		}));
 		this._register(addDisposableListener(this._webview, 'devtools-opened', () => {
@@ -183,8 +279,6 @@ export class WebviewElement extends Disposable {
 
 	dispose(): void {
 		if (this._webview) {
-			this._webview.guestinstance = 'none';
-
 			if (this._webview.parentElement) {
 				this._webview.parentElement.removeChild(this._webview);
 			}
@@ -263,6 +357,35 @@ export class WebviewElement extends Disposable {
 	public focus(): void {
 		this._webview.focus();
 		this._send('focus');
+
+		// Handle focus change programmatically (do not rely on event from <webview>)
+		this.handleFocusChange(true);
+	}
+
+	private handleFocusChange(isFocused: boolean): void {
+		if (isFocused) {
+			this._onDidFocus.fire();
+		}
+	}
+
+	private handleKeydown(event: IKeydownEvent): void {
+
+		// Create a fake KeyboardEvent from the data provided
+		const emulatedKeyboardEvent = new KeyboardEvent('keydown', {
+			code: event.code,
+			key: event.key,
+			keyCode: event.keyCode,
+			shiftKey: event.shiftKey,
+			altKey: event.altKey,
+			ctrlKey: event.ctrlKey,
+			metaKey: event.metaKey,
+			repeat: event.repeat
+		} as KeyboardEvent);
+
+		// Dispatch through our keybinding service
+		// Note: we set the <webview> as target of the event so that scoped context key
+		// services function properly to enable commands like select all and find.
+		this._keybindingService.dispatchEvent(new StandardKeyboardEvent(emulatedKeyboardEvent), this._webview);
 	}
 
 	public sendMessage(data: any): void {
@@ -311,11 +434,11 @@ export class WebviewElement extends Disposable {
 	}
 
 	public layout(): void {
-		const contents = (this._webview as any).getWebContents();
+		const contents = this._webview.getWebContents();
 		if (!contents || contents.isDestroyed()) {
 			return;
 		}
-		const window = contents.getOwnerBrowserWindow();
+		const window = (contents as any).getOwnerBrowserWindow();
 		if (!window || !window.webContents || window.webContents.isDestroyed()) {
 			return;
 		}
@@ -325,45 +448,7 @@ export class WebviewElement extends Disposable {
 			}
 
 			contents.setZoomFactor(factor);
-			if (!this._webview || !this._webview.parentElement) {
-				return;
-			}
-
-			const width = this._webview.parentElement.clientWidth;
-			const height = this._webview.parentElement.clientHeight;
-			contents.setSize({
-				normal: {
-					width: Math.floor(width * factor),
-					height: Math.floor(height * factor)
-				}
-			});
 		});
-	}
-
-	private isAllowedSvg(uri: URI): boolean {
-		if (this._options.allowSvgs) {
-			return true;
-		}
-		if (this._options.svgWhiteList) {
-			return this._options.svgWhiteList.indexOf(uri.authority.toLowerCase()) >= 0;
-		}
-		return false;
-	}
-
-	private registerFileProtocols(contents: Electron.WebContents) {
-		if (!contents || contents.isDestroyed()) {
-			return;
-		}
-
-		const appRootUri = URI.file(this._environmentService.appRoot);
-
-		registerFileProtocol(contents, WebviewProtocol.CoreResource, this._fileService, null, () => [
-			appRootUri
-		]);
-
-		registerFileProtocol(contents, WebviewProtocol.VsCodeResource, this._fileService, this._options.extensionLocation, () =>
-			(this._options.localResourceRoots || [])
-		);
 	}
 
 	public startFind(value: string, options?: Electron.FindInPageOptions) {

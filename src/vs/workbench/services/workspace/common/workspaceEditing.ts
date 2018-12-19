@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceIdentifier, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
@@ -18,49 +17,38 @@ export interface IWorkspaceEditingService {
 	 * Add folders to the existing workspace.
 	 * When `donotNotifyError` is `true`, error will be bubbled up otherwise, the service handles the error with proper message and action
 	 */
-	addFolders(folders: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): TPromise<void>;
+	addFolders(folders: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): Promise<void>;
 
 	/**
 	 * Remove folders from the existing workspace
 	 * When `donotNotifyError` is `true`, error will be bubbled up otherwise, the service handles the error with proper message and action
 	 */
-	removeFolders(folders: URI[], donotNotifyError?: boolean): TPromise<void>;
+	removeFolders(folders: URI[], donotNotifyError?: boolean): Promise<void>;
 
 	/**
 	 * Allows to add and remove folders to the existing workspace at once.
 	 * When `donotNotifyError` is `true`, error will be bubbled up otherwise, the service handles the error with proper message and action
 	 */
-	updateFolders(index: number, deleteCount?: number, foldersToAdd?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): TPromise<void>;
+	updateFolders(index: number, deleteCount?: number, foldersToAdd?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): Promise<void>;
 
 	/**
 	 * enters the workspace with the provided path.
 	 */
-	enterWorkspace(path: string): TPromise<void>;
+	enterWorkspace(path: string): Promise<void>;
 
 	/**
 	 * creates a new workspace with the provided folders and opens it. if path is provided
 	 * the workspace will be saved into that location.
 	 */
-	createAndEnterWorkspace(folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<void>;
+	createAndEnterWorkspace(folders?: IWorkspaceFolderCreationData[], path?: string): Promise<void>;
 
 	/**
 	 * saves the workspace to the provided path and opens it. requires a workspace to be opened.
 	 */
-	saveAndEnterWorkspace(path: string): TPromise<void>;
+	saveAndEnterWorkspace(path: string): Promise<void>;
 
 	/**
 	 * copies current workspace settings to the target workspace.
 	 */
-	copyWorkspaceSettings(toWorkspace: IWorkspaceIdentifier): TPromise<void>;
-}
-
-export const IWorkspaceMigrationService = createDecorator<IWorkspaceMigrationService>('workspaceMigrationService');
-
-export interface IWorkspaceMigrationService {
-
-	/**
-	 * Migrate current workspace to given workspace
-	 */
-	migrate(toWokspaceId: IWorkspaceIdentifier): TPromise<void>;
-
+	copyWorkspaceSettings(toWorkspace: IWorkspaceIdentifier): Promise<void>;
 }

@@ -49,12 +49,9 @@ function createProxyAgent(
 	let cacheRolls = 0;
 	let oldCache = new Map<string, string>();
 	let cache = new Map<string, string>();
-	function getCacheKey(url: string) {
+	function getCacheKey(url: nodeurl.UrlWithStringQuery) {
 		// Expecting proxies to usually be the same per scheme://host:port. Assuming that for performance.
-		const parsed = nodeurl.parse(url); // Coming from Node's URL, sticking with that.
-		delete parsed.pathname;
-		delete parsed.search;
-		return nodeurl.format(parsed);
+		return nodeurl.format({ ...url, ...{ pathname: undefined, search: undefined, hash: undefined } });
 	}
 	function getCachedProxy(key: string) {
 		let proxy = cache.get(key);
@@ -85,6 +82,7 @@ function createProxyAgent(
 	let cacheCount = 0;
 	let envCount = 0;
 	let settingsCount = 0;
+	let localhostCount = 0;
 	function logEvent() {
 		timeout = undefined;
 		/* __GDPR__
@@ -96,16 +94,27 @@ function createProxyAgent(
 				"cacheSize": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 				"cacheRolls": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 				"envCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-				"settingsCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+				"settingsCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+				"localhostCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
 			}
 		*/
-		mainThreadTelemetry.$publicLog('resolveProxy', { count, duration, errorCount, cacheCount, cacheSize: cache.size, cacheRolls, envCount, settingsCount });
-		count = duration = errorCount = cacheCount = envCount = settingsCount = 0;
+		mainThreadTelemetry.$publicLog('resolveProxy', { count, duration, errorCount, cacheCount, cacheSize: cache.size, cacheRolls, envCount, settingsCount, localhostCount });
+		count = duration = errorCount = cacheCount = envCount = settingsCount = localhostCount = 0;
 	}
 
 	function resolveProxy(url: string, callback: (proxy?: string) => void) {
 		if (!timeout) {
 			timeout = setTimeout(logEvent, 10 * 60 * 1000);
+		}
+
+		const parsedUrl = nodeurl.parse(url); // Coming from Node's URL, sticking with that.
+
+		const hostname = parsedUrl.hostname;
+		if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '::ffff:127.0.0.1') {
+			localhostCount++;
+			callback('DIRECT');
+			extHostLogService.trace('ProxyResolver#resolveProxy localhost', url, 'DIRECT');
+			return;
 		}
 
 		if (settingsProxy) {
@@ -122,7 +131,7 @@ function createProxyAgent(
 			return;
 		}
 
-		const key = getCacheKey(url);
+		const key = getCacheKey(parsedUrl);
 		const proxy = getCachedProxy(key);
 		if (proxy) {
 			cacheCount++;
@@ -171,25 +180,25 @@ function proxyFromConfigURL(configURL: string) {
 function createPatchedModules(extHostConfiguration: ExtHostConfiguration, agent: http.Agent) {
 	const setting = {
 		config: extHostConfiguration.getConfiguration('http')
-			.get<string>('systemProxy') || 'off'
+			.get<string>('proxySupport') || 'off'
 	};
 	extHostConfiguration.onDidChangeConfiguration(e => {
 		setting.config = extHostConfiguration.getConfiguration('http')
-			.get<string>('systemProxy') || 'off';
+			.get<string>('proxySupport') || 'off';
 	});
 
 	return {
 		http: {
 			off: assign({}, http, patches(http, agent, { config: 'off' }, true)),
 			on: assign({}, http, patches(http, agent, { config: 'on' }, true)),
-			force: assign({}, http, patches(http, agent, { config: 'force' }, true)),
+			override: assign({}, http, patches(http, agent, { config: 'override' }, true)),
 			onRequest: assign({}, http, patches(http, agent, setting, true)),
 			default: assign(http, patches(http, agent, setting, false)) // run last
 		},
 		https: {
 			off: assign({}, https, patches(https, agent, { config: 'off' }, true)),
 			on: assign({}, https, patches(https, agent, { config: 'on' }, true)),
-			force: assign({}, https, patches(https, agent, { config: 'force' }, true)),
+			override: assign({}, https, patches(https, agent, { config: 'override' }, true)),
 			onRequest: assign({}, https, patches(https, agent, setting, true)),
 			default: assign(https, patches(https, agent, setting, false)) // run last
 		}
@@ -216,12 +225,12 @@ function patches(originals: typeof http | typeof https, agent: http.Agent, setti
 			}
 			options = options || {};
 
-			const config = onRequest && (<any>options)._vscodeSystemProxy || setting.config;
+			const config = onRequest && ((<any>options)._vscodeProxySupport || /* LS */ (<any>options)._vscodeSystemProxy) || setting.config;
 			if (config === 'off') {
-				return original.apply(null, arguments);
+				return original.apply(null, arguments as unknown as any[]);
 			}
 
-			if (!options.socketPath && (config === 'force' || config === 'on' && !options.agent)) {
+			if (!options.socketPath && (config === 'override' || config === 'on' && !options.agent) && options.agent !== agent) {
 				if (url) {
 					const parsed = typeof url === 'string' ? nodeurl.parse(url) : url;
 					options = {
@@ -231,12 +240,14 @@ function patches(originals: typeof http | typeof https, agent: http.Agent, setti
 						path: parsed.pathname,
 						...options
 					};
+				} else {
+					options = { ...options };
 				}
 				options.agent = agent;
 				return original(options, callback);
 			}
 
-			return original.apply(null, arguments);
+			return original.apply(null, arguments as unknown as any[]);
 		}
 		return patched;
 	}
@@ -255,7 +266,7 @@ function configureModuleLoading(extensionService: ExtHostExtensionService, looku
 				const modules = lookup[request];
 				const ext = extensionPaths.findSubstr(URI.file(parent.filename).fsPath);
 				if (ext && ext.enableProposedApi) {
-					return modules[(<any>ext).systemProxy] || modules.onRequest;
+					return modules[(<any>ext).proxySupport] || modules.onRequest;
 				}
 				return modules.default;
 			};

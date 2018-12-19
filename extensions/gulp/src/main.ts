@@ -7,8 +7,8 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as cp from 'child_process';
 import * as vscode from 'vscode';
-
 import * as nls from 'vscode-nls';
+
 const localize = nls.loadMessageBundle();
 
 type AutoDetect = 'on' | 'off';
@@ -58,6 +58,13 @@ function getOutputChannel(): vscode.OutputChannel {
 		_channel = vscode.window.createOutputChannel('Gulp Auto Detection');
 	}
 	return _channel;
+}
+
+function showError() {
+	vscode.window.showWarningMessage(localize('gulpTaskDetectError', 'Problem finding gulp tasks. See the output for more information.'),
+		localize('gulpShowOutput', 'Go to output')).then(() => {
+			_channel.show(true);
+		});
 }
 
 interface GulpTaskDefinition extends vscode.TaskDefinition {
@@ -125,7 +132,7 @@ class FolderDetector {
 			let { stdout, stderr } = await exec(commandLine, { cwd: rootPath });
 			if (stderr && stderr.length > 0) {
 				getOutputChannel().appendLine(stderr);
-				getOutputChannel().show(true);
+				showError();
 			}
 			let result: vscode.Task[] = [];
 			if (stdout) {
@@ -159,7 +166,7 @@ class FolderDetector {
 				channel.appendLine(err.stdout);
 			}
 			channel.appendLine(localize('execFailed', 'Auto detecting gulp for folder {0} failed with error: {1}', this.workspaceFolder.name, err.error ? err.error.toString() : 'unknown'));
-			channel.show(true);
+			showError();
 			return emptyTasks;
 		}
 	}

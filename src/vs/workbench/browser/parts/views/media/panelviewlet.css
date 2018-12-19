@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.monaco-panel-view .split-view-view:first-of-type > .panel > .panel-header {
+	border-top: none !important; /* less clutter: do not show any border for first views in a panel */
+}
+
 .monaco-panel-view .panel > .panel-header h3.title {
 	white-space: nowrap;
 	text-overflow: ellipsis;

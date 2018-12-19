@@ -11,7 +11,6 @@ import { ILocalization } from 'vs/platform/localizations/common/localizations';
 import { URI } from 'vs/base/common/uri';
 import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IRemoteAuthorityResolver } from 'vs/platform/remote/common/remoteAuthorityResolver';
 
 export const EXTENSION_IDENTIFIER_PATTERN = '^([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*)$';
 export const EXTENSION_IDENTIFIER_REGEX = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
@@ -109,7 +108,6 @@ export interface IExtensionContributions {
 	views?: { [location: string]: IView[] };
 	colors?: IColor[];
 	localizations?: ILocalization[];
-	remoteAuthorityResolvers?: IRemoteAuthorityResolver[];
 }
 
 export type ExtensionKind = 'ui' | 'workspace';
@@ -151,13 +149,13 @@ export interface IGalleryExtensionAsset {
 }
 
 export interface IGalleryExtensionAssets {
-	manifest: IGalleryExtensionAsset;
-	readme: IGalleryExtensionAsset;
-	changelog: IGalleryExtensionAsset;
+	manifest: IGalleryExtensionAsset | null;
+	readme: IGalleryExtensionAsset | null;
+	changelog: IGalleryExtensionAsset | null;
+	license: IGalleryExtensionAsset | null;
+	repository: IGalleryExtensionAsset | null;
 	download: IGalleryExtensionAsset;
 	icon: IGalleryExtensionAsset;
-	license: IGalleryExtensionAsset;
-	repository: IGalleryExtensionAsset;
 	coreTranslations: { [languageId: string]: IGalleryExtensionAsset };
 }
 
@@ -179,6 +177,10 @@ export interface IExtensionIdentifier {
 	uuid?: string;
 }
 
+export interface IGalleryExtensionIdentifier extends IExtensionIdentifier {
+	uuid: string;
+}
+
 export interface IGalleryExtensionVersion {
 	version: string;
 	date: string;
@@ -186,7 +188,7 @@ export interface IGalleryExtensionVersion {
 
 export interface IGalleryExtension {
 	name: string;
-	identifier: IExtensionIdentifier;
+	identifier: IGalleryExtensionIdentifier;
 	version: string;
 	date: string;
 	displayName: string;
@@ -281,14 +283,14 @@ export interface IExtensionGalleryService {
 	download(extension: IGalleryExtension, operation: InstallOperation): Promise<string>;
 	reportStatistic(publisher: string, name: string, version: string, type: StatisticType): Promise<void>;
 	getReadme(extension: IGalleryExtension, token: CancellationToken): Promise<string>;
-	getManifest(extension: IGalleryExtension, token: CancellationToken): Promise<IExtensionManifest>;
+	getManifest(extension: IGalleryExtension, token: CancellationToken): Promise<IExtensionManifest | null>;
 	getChangelog(extension: IGalleryExtension, token: CancellationToken): Promise<string>;
-	getCoreTranslation(extension: IGalleryExtension, languageId: string): Promise<ITranslation>;
-	loadCompatibleVersion(extension: IGalleryExtension, fromVersion?: string): Promise<IGalleryExtension>;
+	getCoreTranslation(extension: IGalleryExtension, languageId: string): Promise<ITranslation | null>;
+	loadCompatibleVersion(extension: IGalleryExtension, fromVersion?: string): Promise<IGalleryExtension | null>;
 	getAllVersions(extension: IGalleryExtension, compatible: boolean): Promise<IGalleryExtensionVersion[]>;
 	loadAllDependencies(dependencies: IExtensionIdentifier[], token: CancellationToken): Promise<IGalleryExtension[]>;
 	getExtensionsReport(): Promise<IReportedExtension[]>;
-	getExtension(id: IExtensionIdentifier, version?: string): Promise<IGalleryExtension>;
+	getExtension(id: IExtensionIdentifier, version?: string): Promise<IGalleryExtension | null>;
 }
 
 export interface InstallExtensionEvent {
@@ -344,7 +346,7 @@ export interface IExtensionManagementServer {
 
 export interface IExtensionManagementServerService {
 	_serviceBrand: any;
-	readonly localExtensionManagementServer: IExtensionManagementServer | null;
+	readonly localExtensionManagementServer: IExtensionManagementServer;
 	readonly remoteExtensionManagementServer: IExtensionManagementServer | null;
 	getExtensionManagementServer(location: URI): IExtensionManagementServer | null;
 }
@@ -358,7 +360,6 @@ export const enum EnablementState {
 
 export const IExtensionEnablementService = createDecorator<IExtensionEnablementService>('extensionEnablementService');
 
-// TODO: @sandy: Merge this into IExtensionManagementService when we have a storage service available in Shared process
 export interface IExtensionEnablementService {
 	_serviceBrand: any;
 

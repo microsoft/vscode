@@ -46,6 +46,7 @@ export class CommentNode extends Disposable {
 	private _commentEditorModel: ITextModel;
 	private _updateCommentButton: Button;
 	private _errorEditingContainer: HTMLElement;
+	private _isPendingLabel: HTMLElement;
 
 	private _deleteAction: Action;
 	private _onDidDelete = new Emitter<CommentNode>();
@@ -99,6 +100,12 @@ export class CommentNode extends Disposable {
 		const author = dom.append(header, dom.$('strong.author'));
 		author.innerText = this.comment.userName;
 
+		this._isPendingLabel = dom.append(header, dom.$('span.isPending'));
+
+		if (this.comment.isDraft) {
+			this._isPendingLabel.innerText = 'Pending';
+		}
+
 		const actions: Action[] = [];
 		if (this.comment.canEdit) {
 			this._editAction = this.createEditAction(commentDetailsContainer);
@@ -124,7 +131,7 @@ export class CommentNode extends Disposable {
 		const container = dom.append(this._commentEditContainer, dom.$('.edit-textarea'));
 		this._commentEditor = this.instantiationService.createInstance(SimpleCommentEditor, container, SimpleCommentEditor.getEditorOptions());
 		const resource = URI.parse(`comment:commentinput-${this.comment.commentId}-${Date.now()}.md`);
-		this._commentEditorModel = this.modelService.createModel('', this.modeService.createByFilepathOrFirstLine(resource.path), resource, true);
+		this._commentEditorModel = this.modelService.createModel('', this.modeService.createByFilepathOrFirstLine(resource.path), resource, false);
 
 		this._commentEditor.setModel(this._commentEditorModel);
 		this._commentEditor.setValue(this.comment.body.value);
@@ -274,6 +281,12 @@ export class CommentNode extends Disposable {
 			this._body.removeChild(this._md);
 			this._md = this.markdownRenderer.render(newComment.body).element;
 			this._body.appendChild(this._md);
+		}
+
+		if (newComment.isDraft) {
+			this._isPendingLabel.innerText = 'Pending';
+		} else {
+			this._isPendingLabel.innerText = '';
 		}
 
 		this.comment = newComment;

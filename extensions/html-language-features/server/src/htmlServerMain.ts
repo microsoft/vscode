@@ -11,6 +11,7 @@ import {
 } from 'vscode-languageserver';
 import { TextDocument, Diagnostic, DocumentLink, SymbolInformation } from 'vscode-languageserver-types';
 import { getLanguageModes, LanguageModes, Settings } from './modes/languageModes';
+import * as fs from 'fs';
 
 import { format } from './modes/formatting';
 import { pushAll } from './utils/arrays';
@@ -19,6 +20,8 @@ import uri from 'vscode-uri';
 import { formatError, runSafe, runSafeAsync } from './utils/runner';
 
 import { getFoldingRanges } from './modes/htmlFolding';
+import { parseTagSet, parseAttributes } from './utils/tagDefinitions';
+import { ITagSet, IAttributeSet } from 'vscode-html-languageservice';
 
 namespace TagCloseRequest {
 	export const type: RequestType<TextDocumentPositionParams, string | null, any, any> = new RequestType('html/tag');
@@ -88,11 +91,47 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 		}
 	}
 
+	const tagPaths: string[] = params.initializationOptions.tagPaths;
+	const attributePaths: string[] = params.initializationOptions.attributePaths;
+	const htmlTags: ITagSet = {};
+	const htmlAttributes: IAttributeSet = {};
+
+	if (tagPaths) {
+		tagPaths.forEach(path => {
+			try {
+				if (fs.existsSync(path)) {
+					const tagSet = parseTagSet(fs.readFileSync(path, 'utf-8'));
+					for (let tag in tagSet) {
+						htmlTags[tag] = tagSet[tag];
+					}
+				}
+			} catch (err) {
+				console.log(`Failed to laod tag from ${path}`);
+			}
+		});
+	}
+	if (htmlAttributes) {
+		attributePaths.forEach(path => {
+			try {
+				if (fs.existsSync(path)) {
+					const attributeSet = parseAttributes(fs.readFileSync(path, 'utf-8'));
+					for (let ga in attributeSet) {
+						htmlAttributes[ga] = attributeSet[ga];
+					}
+				}
+			} catch (err) {
+				console.log(`Failed to load attributes from ${path}`);
+			}
+		});
+	}
+
 	const workspace = {
 		get settings() { return globalSettings; },
 		get folders() { return workspaceFolders; }
 	};
-	languageModes = getLanguageModes(initializationOptions ? initializationOptions.embeddedLanguages : { css: true, javascript: true }, workspace);
+
+	languageModes = getLanguageModes(initializationOptions ? initializationOptions.embeddedLanguages : { css: true, javascript: true }, workspace, htmlTags, htmlAttributes);
+
 	documents.onDidClose(e => {
 		languageModes.onDocumentRemoved(e.document);
 	});

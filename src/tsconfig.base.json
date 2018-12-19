@@ -9,6 +9,7 @@
 		"noUnusedLocals": true,
 		"noImplicitThis": true,
 		"alwaysStrict": true,
+		"strictBindCallApply": true,
 		"baseUrl": ".",
 		"paths": {
 			"vs/*": [

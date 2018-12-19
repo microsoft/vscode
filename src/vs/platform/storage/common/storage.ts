@@ -10,6 +10,15 @@ import { isUndefinedOrNull } from 'vs/base/common/types';
 
 export const IStorageService = createDecorator<IStorageService>('storageService');
 
+export enum WillSaveStateReason {
+	NONE = 0,
+	SHUTDOWN = 1
+}
+
+export interface IWillSaveStateEvent {
+	reason: WillSaveStateReason;
+}
+
 export interface IStorageService {
 	_serviceBrand: any;
 
@@ -22,8 +31,12 @@ export interface IStorageService {
 	 * Emitted when the storage is about to persist. This is the right time
 	 * to persist data to ensure it is stored before the application shuts
 	 * down.
+	 *
+	 * The will save state event allows to optionally ask for the reason of
+	 * saving the state, e.g. to find out if the state is saved due to a
+	 * shutdown.
 	 */
-	readonly onWillSaveState: Event<void>;
+	readonly onWillSaveState: Event<IWillSaveStateEvent>;
 
 	/**
 	 * Retrieve an element stored with the given key from storage. Use
@@ -93,7 +106,7 @@ export interface IWorkspaceStorageChangeEvent {
 	scope: StorageScope;
 }
 
-export const InMemoryStorageService: IStorageService = new class extends Disposable implements IStorageService {
+export class InMemoryStorageService extends Disposable implements IStorageService {
 	_serviceBrand = undefined;
 
 	private _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
@@ -177,4 +190,4 @@ export const InMemoryStorageService: IStorageService = new class extends Disposa
 
 		return Promise.resolve();
 	}
-};
+}

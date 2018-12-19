@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { dispose } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
-import { chain, Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { PagedModel, IPagedModel, IPager, DelayedPagedModel } from 'vs/base/common/paging';
 import { SortBy, SortOrder, IQueryOptions, LocalExtensionType, IExtensionTipsService, IExtensionRecommendation } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -27,7 +27,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { InstallWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, ManageExtensionAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { WorkbenchPagedList } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -41,6 +41,7 @@ import { IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list'
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { getKeywordsForExtension } from 'vs/workbench/parts/extensions/electron-browser/extensionsUtils';
+import { IAction } from 'vs/base/common/actions';
 
 export class ExtensionsListView extends ViewletPanel {
 
@@ -96,12 +97,12 @@ export class ExtensionsListView extends ViewletPanel {
 		this.list.onFocusChange(e => this.onFocusChange(e), this, this.disposables);
 		this.disposables.push(this.list);
 
-		chain(this.list.onOpen)
+		Event.chain(this.list.onOpen)
 			.map(e => e.elements[0])
 			.filter(e => !!e)
 			.on(this.openExtension, this, this.disposables);
 
-		chain(this.list.onPin)
+		Event.chain(this.list.onPin)
 			.map(e => e.elements[0])
 			.filter(e => !!e)
 			.on(this.pin, this, this.disposables);
@@ -162,14 +163,22 @@ export class ExtensionsListView extends ViewletPanel {
 
 	private onContextMenu(e: IListContextMenuEvent<IExtension>): void {
 		if (e.element) {
-			const manageExtensionAction = this.instantiationService.createInstance(ManageExtensionAction);
-			manageExtensionAction.extension = e.element;
-			if (manageExtensionAction.enabled) {
-				this.contextMenuService.showContextMenu({
-					getAnchor: () => e.anchor,
-					getActions: () => manageExtensionAction.createActionItem().getActions()
+			this.extensionService.getExtensions()
+				.then(runningExtensions => {
+					const manageExtensionAction = this.instantiationService.createInstance(ManageExtensionAction);
+					manageExtensionAction.extension = e.element;
+					const groups = manageExtensionAction.getActionGroups(runningExtensions);
+					let actions: IAction[] = [];
+					for (const menuActions of groups) {
+						actions = [...actions, ...menuActions, new Separator()];
+					}
+					if (manageExtensionAction.enabled) {
+						this.contextMenuService.showContextMenu({
+							getAnchor: () => e.anchor,
+							getActions: () => actions.slice(0, actions.length - 1)
+						});
+					}
 				});
-			}
 		}
 	}
 
@@ -392,8 +401,8 @@ export class ExtensionsListView extends ViewletPanel {
 
 	}
 
-	private _searchExperiments: Thenable<IExperiment[]>;
-	private getSearchExperiments(): Thenable<IExperiment[]> {
+	private _searchExperiments: Promise<IExperiment[]>;
+	private getSearchExperiments(): Promise<IExperiment[]> {
 		if (!this._searchExperiments) {
 			this._searchExperiments = this.experimentService.getExperimentsByType(ExperimentActionType.ExtensionSearchResults);
 		}
@@ -619,7 +628,7 @@ export class ExtensionsListView extends ViewletPanel {
 	}
 
 	private openExtension(extension: IExtension): void {
-		this.extensionsWorkbenchService.open(extension).then(null, err => this.onError(err));
+		this.extensionsWorkbenchService.open(extension).then(void 0, err => this.onError(err));
 	}
 
 	private pin(): void {

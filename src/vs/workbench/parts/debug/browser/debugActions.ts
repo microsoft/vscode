@@ -10,7 +10,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IDebugService, State, IDebugSession, IThread, IEnablement, IBreakpoint, IStackFrame, REPL_ID }
+import { IDebugService, State, IDebugSession, IThread, IEnablement, IBreakpoint, IStackFrame, REPL_ID, IConfig }
 	from 'vs/workbench/parts/debug/common/debug';
 import { Variable, Expression, Thread, Breakpoint } from 'vs/workbench/parts/debug/common/debugModel';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -19,11 +19,11 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { CollapseAction } from 'vs/workbench/browser/viewlet';
-import { ITree } from 'vs/base/parts/tree/browser/tree';
+import { CollapseAction2 } from 'vs/workbench/browser/viewlet';
 import { first } from 'vs/base/common/arrays';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { memoize } from 'vs/base/common/decorators';
+import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 
 export abstract class AbstractDebugAction extends Action {
 
@@ -43,7 +43,7 @@ export abstract class AbstractDebugAction extends Action {
 		this.updateEnablement();
 	}
 
-	public run(e?: any): Thenable<any> {
+	public run(e?: any): Promise<any> {
 		throw new Error('implement me');
 	}
 
@@ -99,7 +99,7 @@ export class ConfigureAction extends AbstractDebugAction {
 		this.class = this.debugService.getConfigurationManager().selectedConfiguration.name ? 'debug-action configure' : 'debug-action configure notification';
 	}
 
-	public run(event?: any): Thenable<any> {
+	public run(event?: any): Promise<any> {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			this.notificationService.info(nls.localize('noFolderDebugConfig', "Please first open a folder in order to do advanced debug configuration."));
 			return Promise.resolve(null);
@@ -133,7 +133,13 @@ export class StartAction extends AbstractDebugAction {
 		this.toDispose.push(this.contextService.onDidChangeWorkbenchState(() => this.updateEnablement()));
 	}
 
-	public run(): Thenable<any> {
+	// Note: When this action is executed from the process explorer, a config is passed. For all
+	// other cases it is run with no arguments.
+	public run(config?: IConfig): Promise<any> {
+		if (config && 'type' in config && 'request' in config) {
+			return this.debugService.startDebugging(undefined, config, this.isNoDebug());
+		}
+
 		const configurationManager = this.debugService.getConfigurationManager();
 		let launch = configurationManager.selectedConfiguration.launch;
 		if (!launch || launch.getConfigurationNames().length === 0) {
@@ -197,7 +203,7 @@ export class SelectAndStartAction extends AbstractDebugAction {
 		super(id, label, undefined, debugService, keybindingService);
 	}
 
-	public run(): Thenable<any> {
+	public run(): Promise<any> {
 		return this.quickOpenService.show('debug ');
 	}
 }
@@ -227,7 +233,7 @@ export class RestartAction extends AbstractDebugAction {
 		this.updateLabel(session && session.configuration.request === 'attach' ? RestartAction.RECONNECT_LABEL : RestartAction.LABEL);
 	}
 
-	public run(session: IDebugSession): Thenable<any> {
+	public run(session: IDebugSession): Promise<any> {
 		if (!session || !session.getId) {
 			session = this.debugService.getViewModel().focusedSession;
 		}
@@ -738,7 +744,7 @@ export class FocusSessionAction extends AbstractDebugAction {
 		super(id, label, null, debugService, keybindingService, 100);
 	}
 
-	public run(sessionName: string): Thenable<any> {
+	public run(sessionName: string): Promise<any> {
 		const session = this.debugService.getModel().getSessions().filter(p => p.getLabel() === sessionName).pop();
 		this.debugService.focusStackFrame(undefined, undefined, session, true);
 		const stackFrame = this.debugService.getViewModel().focusedStackFrame;
@@ -797,12 +803,12 @@ export class ReverseContinueAction extends AbstractDebugAction {
 	}
 }
 
-export class ReplCollapseAllAction extends CollapseAction {
-	constructor(viewer: ITree, private toFocus: { focus(): void; }) {
-		super(viewer, true, undefined);
+export class ReplCollapseAllAction extends CollapseAction2 {
+	constructor(tree: AsyncDataTree<any, any>, private toFocus: { focus(): void; }) {
+		super(tree, true, undefined);
 	}
 
-	public run(event?: any): Thenable<any> {
+	public run(event?: any): Promise<any> {
 		return super.run(event).then(() => {
 			this.toFocus.focus();
 		});
