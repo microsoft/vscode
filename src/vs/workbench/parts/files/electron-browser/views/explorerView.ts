@@ -179,8 +179,8 @@ export class ExplorerView extends ViewletPanel {
 	getActions(): IAction[] {
 		const actions: Action[] = [];
 
-		actions.push(this.instantiationService.createInstance(NewFileAction, null));
-		actions.push(this.instantiationService.createInstance(NewFolderAction, null));
+		actions.push(this.instantiationService.createInstance(NewFileAction, undefined));
+		actions.push(this.instantiationService.createInstance(NewFolderAction, undefined));
 		actions.push(this.instantiationService.createInstance(RefreshExplorerView, RefreshExplorerView.ID, RefreshExplorerView.LABEL));
 		actions.push(this.instantiationService.createInstance(CollapseAction2, this.tree, true, 'explorer-action collapse-explorer'));
 
@@ -203,7 +203,7 @@ export class ExplorerView extends ViewletPanel {
 
 		// ignore diff editor inputs (helps to get out of diffing when returning to explorer)
 		if (input instanceof DiffEditorInput) {
-			return null;
+			return undefined;
 		}
 
 		// check for files

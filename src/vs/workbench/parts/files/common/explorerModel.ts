@@ -42,9 +42,9 @@ export class ExplorerModel implements IDisposable {
 	/**
 	 * Returns a FileStat that matches the passed resource.
 	 * In case multiple FileStat are matching the resource (same folder opened multiple times) returns the FileStat that has the closest root.
-	 * Will return null in case the FileStat does not exist.
+	 * Will return undefined in case the FileStat does not exist.
 	 */
-	findClosest(resource: URI): ExplorerItem | null {
+	findClosest(resource: URI): ExplorerItem | undefined {
 		const folder = this.contextService.getWorkspaceFolder(resource);
 		if (folder) {
 			const root = this.roots.filter(r => r.resource.toString() === folder.uri.toString()).pop();
@@ -53,7 +53,7 @@ export class ExplorerModel implements IDisposable {
 			}
 		}
 
-		return null;
+		return undefined;
 	}
 
 	dispose(): void {
@@ -330,9 +330,9 @@ export class ExplorerItem {
 
 	/**
 	 * Returns a child stat from this stat that matches with the provided path.
-	 * Will return "null" in case the child does not exist.
+	 * Will return "undefined" in case the child does not exist.
 	 */
-	find(resource: URI): ExplorerItem | null {
+	find(resource: URI): ExplorerItem | undefined {
 		// Return if path found
 		// For performance reasons try to do the comparison as fast as possible
 		if (resource && this.resource.scheme === resource.scheme && equalsIgnoreCase(this.resource.authority, resource.authority) &&
@@ -340,10 +340,10 @@ export class ExplorerItem {
 			return this.findByPath(rtrim(resource.path, paths.sep), this.resource.path.length);
 		}
 
-		return null; //Unable to find
+		return undefined; //Unable to find
 	}
 
-	private findByPath(path: string, index: number): ExplorerItem | null {
+	private findByPath(path: string, index: number): ExplorerItem | undefined {
 		if (paths.isEqual(rtrim(this.resource.path, paths.sep), path, !isLinux)) {
 			return this;
 		}
@@ -370,7 +370,7 @@ export class ExplorerItem {
 			}
 		}
 
-		return null;
+		return undefined;
 	}
 }
 
@@ -423,8 +423,8 @@ export class NewStatPlaceholder extends ExplorerItem {
 		throw new Error('Can\'t perform operations in NewStatPlaceholder.');
 	}
 
-	find(resource: URI): ExplorerItem | null {
-		return null;
+	find(resource: URI): ExplorerItem | undefined {
+		return undefined;
 	}
 
 	static addNewStatPlaceholder(parent: ExplorerItem, isDirectory: boolean): NewStatPlaceholder {
