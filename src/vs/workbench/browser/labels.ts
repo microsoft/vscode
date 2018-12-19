@@ -22,6 +22,299 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { getIconClasses, getConfiguredLangId } from 'vs/editor/common/services/getIconClasses';
+import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+
+export interface IResourceLabelHandle extends IDisposable {
+	readonly element: HTMLElement;
+
+	setLabel(label: IResourceLabel, options?: IResourceLabelOptions): void;
+}
+
+export class ResourceLabels extends Disposable {
+	private _widgets: ResourceLabelWidget[] = [];
+	private _labels: IResourceLabelHandle[] = [];
+
+	constructor(
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IExtensionService private extensionService: IExtensionService,
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IModelService private modelService: IModelService,
+		@IDecorationsService protected decorationsService: IDecorationsService,
+		@IThemeService private themeService: IThemeService,
+		@ILabelService protected labelService: ILabelService
+	) {
+		super();
+
+		this.registerListeners();
+	}
+
+	get labels(): IResourceLabelHandle[] {
+		return this._labels;
+	}
+
+	get(index: number): IResourceLabelHandle {
+		return this._labels[index];
+	}
+
+	private registerListeners(): void {
+
+		// notify when extensions are registered with potentially new languages
+		this._register(this.extensionService.onDidRegisterExtensions(() => this._widgets.forEach(widget => widget.notifyExtensionsRegistered())));
+
+		// notify when model mode changes
+		this._register(this.modelService.onModelModeChanged(e => this._widgets.forEach(widget => widget.notifyModelModeChanged(e))));
+
+		// notify when file decoration changes
+		this._register(this.decorationsService.onDidChangeDecorations(e => this._widgets.forEach(widget => widget.notifyFileDecorationsChanges(e))));
+
+		// notify when theme changes
+		this._register(this.themeService.onThemeChange(() => () => this._widgets.forEach(widget => widget.notifyThemeChange())));
+
+		// notify when files.associations changes
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(FILES_ASSOCIATIONS_CONFIG)) {
+				this._widgets.forEach(widget => widget.notifyFileAssociationsChange());
+			}
+		}));
+	}
+
+	create(container: HTMLElement, options?: IIconLabelCreationOptions): IResourceLabelHandle {
+		const widget = this.instantiationService.createInstance(ResourceLabelWidget, container, options);
+
+		// Only expose a handle to the outside
+		const label: IResourceLabelHandle = {
+			element: widget.element,
+			setLabel: (label: IResourceLabel, options?: IResourceLabelOptions) => widget.setLabel(label, options),
+			dispose: () => this.disposeWidget(widget)
+		};
+
+		// Store
+		this._labels.push(label);
+		this._widgets.push(widget);
+
+		return label;
+	}
+
+	private disposeWidget(widget: ResourceLabelWidget): void {
+		const index = this._widgets.indexOf(widget);
+		if (index > -1) {
+			this._widgets.splice(index, 1);
+			this._labels.splice(index, 1);
+		}
+
+		dispose(widget);
+	}
+
+	clear(): void {
+		this._widgets = dispose(this._widgets);
+		this._labels = [];
+	}
+
+	dispose(): void {
+		super.dispose();
+
+		this.clear();
+	}
+}
+
+class ResourceLabelWidget extends IconLabel {
+
+	private _onDidRender = this._register(new Emitter<void>());
+	get onDidRender(): Event<void> { return this._onDidRender.event; }
+
+	private label: IResourceLabel;
+	private options: IResourceLabelOptions;
+	private computedIconClasses: string[];
+	private lastKnownConfiguredLangId: string;
+	private computedPathLabel: string;
+
+	constructor(
+		container: HTMLElement,
+		options: IIconLabelCreationOptions,
+		@IModeService private modeService: IModeService,
+		@IModelService private modelService: IModelService,
+		@IDecorationsService protected decorationsService: IDecorationsService,
+		@ILabelService protected labelService: ILabelService
+	) {
+		super(container, options);
+	}
+
+	notifyModelModeChanged(e: { model: ITextModel; oldModeId: string; }): void {
+		if (!this.label || !this.label.resource) {
+			return; // only update if label exists
+		}
+
+		if (!e.model.uri) {
+			return; // we need the resource to compare
+		}
+
+		if (e.model.uri.scheme === Schemas.file && e.oldModeId === PLAINTEXT_MODE_ID) { // todo@remote does this apply?
+			return; // ignore transitions in files from no mode to specific mode because this happens each time a model is created
+		}
+
+		if (e.model.uri.toString() === this.label.resource.toString()) {
+			if (this.lastKnownConfiguredLangId !== e.model.getLanguageIdentifier().language) {
+				this.render(true); // update if the language id of the model has changed from our last known state
+			}
+		}
+	}
+
+	notifyFileDecorationsChanges(e: IResourceDecorationChangeEvent): void {
+		if (!this.options || !this.label || !this.label.resource) {
+			return;
+		}
+
+		if (this.options.fileDecorations && e.affectsResource(this.label.resource)) {
+			this.render(false);
+		}
+	}
+
+	notifyExtensionsRegistered(): void {
+		this.render(true);
+	}
+
+	notifyThemeChange(): void {
+		this.render(false);
+	}
+
+	notifyFileAssociationsChange(): void {
+		this.render(true);
+	}
+
+	setLabel(label: IResourceLabel, options?: IResourceLabelOptions): void {
+		const hasResourceChanged = this.hasResourceChanged(label, options);
+
+		this.label = label;
+		this.options = options;
+
+		if (hasResourceChanged) {
+			this.computedPathLabel = void 0; // reset path label due to resource change
+		}
+
+		this.render(hasResourceChanged);
+	}
+
+	private hasResourceChanged(label: IResourceLabel, options: IResourceLabelOptions): boolean {
+		const newResource = label ? label.resource : void 0;
+		const oldResource = this.label ? this.label.resource : void 0;
+
+		const newFileKind = options ? options.fileKind : void 0;
+		const oldFileKind = this.options ? this.options.fileKind : void 0;
+
+		if (newFileKind !== oldFileKind) {
+			return true; // same resource but different kind (file, folder)
+		}
+
+		if (newResource && this.computedPathLabel !== this.labelService.getUriLabel(newResource)) {
+			return true;
+		}
+
+		if (newResource && oldResource) {
+			return newResource.toString() !== oldResource.toString();
+		}
+
+		if (!newResource && !oldResource) {
+			return false;
+		}
+
+		return true;
+	}
+
+	clear(): void {
+		this.label = void 0;
+		this.options = void 0;
+		this.lastKnownConfiguredLangId = void 0;
+		this.computedIconClasses = void 0;
+		this.computedPathLabel = void 0;
+
+		this.setValue();
+	}
+
+	private render(clearIconCache: boolean): void {
+		if (this.label) {
+			const configuredLangId = getConfiguredLangId(this.modelService, this.label.resource);
+			if (this.lastKnownConfiguredLangId !== configuredLangId) {
+				clearIconCache = true;
+				this.lastKnownConfiguredLangId = configuredLangId;
+			}
+		}
+
+		if (clearIconCache) {
+			this.computedIconClasses = void 0;
+		}
+
+		if (!this.label) {
+			return;
+		}
+
+		const iconLabelOptions: IIconLabelValueOptions = {
+			title: '',
+			italic: this.options && this.options.italic,
+			matches: this.options && this.options.matches,
+			extraClasses: []
+		};
+
+		const resource = this.label.resource;
+		const label = this.label.name;
+
+		if (this.options && typeof this.options.title === 'string') {
+			iconLabelOptions.title = this.options.title;
+		} else if (resource && resource.scheme !== Schemas.data /* do not accidentally inline Data URIs */) {
+			if (!this.computedPathLabel) {
+				this.computedPathLabel = this.labelService.getUriLabel(resource);
+			}
+
+			iconLabelOptions.title = this.computedPathLabel;
+		}
+
+		if (this.options && !this.options.hideIcon) {
+			if (!this.computedIconClasses) {
+				this.computedIconClasses = getIconClasses(this.modelService, this.modeService, resource, this.options && this.options.fileKind);
+			}
+			iconLabelOptions.extraClasses = this.computedIconClasses.slice(0);
+		}
+		if (this.options && this.options.extraClasses) {
+			iconLabelOptions.extraClasses.push(...this.options.extraClasses);
+		}
+
+		if (this.options && this.options.fileDecorations && resource) {
+			const deco = this.decorationsService.getDecoration(
+				resource,
+				this.options.fileKind !== FileKind.FILE,
+				this.options.fileDecorations.data
+			);
+
+			if (deco) {
+				if (deco.tooltip) {
+					iconLabelOptions.title = `${iconLabelOptions.title} • ${deco.tooltip}`;
+				}
+
+				if (this.options.fileDecorations.colors) {
+					iconLabelOptions.extraClasses.push(deco.labelClassName);
+				}
+
+				if (this.options.fileDecorations.badges) {
+					iconLabelOptions.extraClasses.push(deco.badgeClassName);
+				}
+			}
+		}
+
+		this.setValue(label, this.label.description, iconLabelOptions);
+
+		this._onDidRender.fire();
+	}
+
+	dispose(): void {
+		super.dispose();
+
+		this.label = void 0;
+		this.options = void 0;
+		this.lastKnownConfiguredLangId = void 0;
+		this.computedIconClasses = void 0;
+		this.computedPathLabel = void 0;
+	}
+}
 
 export interface IResourceLabel {
 	name: string;
