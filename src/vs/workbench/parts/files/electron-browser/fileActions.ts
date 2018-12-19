@@ -1136,13 +1136,7 @@ export class FocusFilesExplorer extends Action {
 	}
 
 	public run(): Promise<any> {
-		return this.viewletService.openViewlet(VIEWLET_ID, true).then((viewlet: ExplorerViewlet) => {
-			const view = viewlet.getExplorerView();
-			if (view) {
-				view.setExpanded(true);
-				view.focus();
-			}
-		});
+		return this.viewletService.openViewlet(VIEWLET_ID, true);
 	}
 }
 

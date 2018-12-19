@@ -170,7 +170,16 @@ export class ExplorerView extends ViewletPanel {
 		this.onConfigurationUpdated(configuration);
 
 		// When the explorer viewer is loaded, listen to changes to the editor input
-		this.disposables.push(this.editorService.onDidActiveEditorChange(() => this.explorerService.select(this.getActiveFile())));
+		this.disposables.push(this.editorService.onDidActiveEditorChange(() => {
+			if (this.autoReveal) {
+				const activeFile = this.getActiveFile();
+				if (activeFile) {
+					this.explorerService.select(this.getActiveFile());
+				} else {
+					this.tree.setSelection([]);
+				}
+			}
+		}));
 
 		// Also handle configuration updates
 		this.disposables.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IFilesConfiguration>(), e)));
@@ -185,6 +194,10 @@ export class ExplorerView extends ViewletPanel {
 		actions.push(this.instantiationService.createInstance(CollapseAction2, this.tree, true, 'explorer-action collapse-explorer'));
 
 		return actions;
+	}
+
+	focus(): void {
+		this.tree.domFocus();
 	}
 
 	setVisible(visible: boolean): void {
@@ -235,6 +248,10 @@ export class ExplorerView extends ViewletPanel {
 
 		// Open when selecting via keyboard
 		this.disposables.push(this.tree.onDidChangeSelection(e => {
+			if (!e.browserEvent) {
+				// Only react on selection change events caused by user interaction (ignore those which are caused by us doing tree.setSelection).
+				return;
+			}
 			const selection = e.elements;
 			// Do not react if the user is expanding selection
 			if (selection && selection.length === 1) {
@@ -256,7 +273,7 @@ export class ExplorerView extends ViewletPanel {
 						"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 					}*/
 					this.telemetryService.publicLog('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'explorer' });
-					this.editorService.openEditor({ resource: selection[0].resource, options: { preserveFocus: !isDoubleClick, pinned: isDoubleClick || isMiddleClick } }, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+					this.editorService.openEditor({ resource: selection[0].resource, options: { preserveFocus: (e.browserEvent instanceof MouseEvent) && !isDoubleClick, pinned: isDoubleClick || isMiddleClick } }, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 				}
 			}
 		}));

@@ -103,7 +103,7 @@ export class ExplorerService implements IExplorerService {
 		const fileStat = this.findClosest(resource);
 		if (fileStat) {
 			this._onDidSelectItem.fire({ item: fileStat, reveal });
-			return Promise.resolve(void 0);
+			return Promise.resolve(null);
 		}
 
 		// Stat needs to be resolved first and then revealed
