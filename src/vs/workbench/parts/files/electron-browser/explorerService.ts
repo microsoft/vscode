@@ -30,7 +30,7 @@ export class ExplorerService implements IExplorerService {
 
 	private static readonly EXPLORER_FILE_CHANGES_REACT_DELAY = 500; // delay in ms to react to file changes to give our internal events a chance to react first
 
-	private _onDidChangeItem = new Emitter<ExplorerItem | undefined>();
+	private _onDidChangeItem = new Emitter<ExplorerItem | null>();
 	private _onDidChangeEditable = new Emitter<ExplorerItem>();
 	private _onDidSelectItem = new Emitter<{ item: ExplorerItem, reveal: boolean }>();
 	private disposables: IDisposable[] = [];
@@ -49,7 +49,7 @@ export class ExplorerService implements IExplorerService {
 		return this.model.roots;
 	}
 
-	get onDidChangeItem(): Event<ExplorerItem | undefined> {
+	get onDidChangeItem(): Event<ExplorerItem | null> {
 		return this._onDidChangeItem.event;
 	}
 
@@ -79,7 +79,7 @@ export class ExplorerService implements IExplorerService {
 		this.disposables.push(this.fileService.onAfterOperation(e => this.onFileOperation(e)));
 		this.disposables.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
 		this.disposables.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IFilesConfiguration>())));
-		this.disposables.push(this.fileService.onDidChangeFileSystemProviderRegistrations(() => this._onDidChangeItem.fire()));
+		this.disposables.push(this.fileService.onDidChangeFileSystemProviderRegistrations(() => this._onDidChangeItem.fire(null)));
 
 		return model;
 	}

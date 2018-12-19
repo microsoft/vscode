@@ -11,7 +11,7 @@ import { validateFileName } from 'vs/workbench/parts/files/electron-browser/file
 import { ExplorerItem } from 'vs/workbench/parts/files/common/explorerModel';
 
 function createStat(path: string, name: string, isFolder: boolean, hasChildren: boolean, size: number, mtime: number): ExplorerItem {
-	return new ExplorerItem(toResource(path), undefined, false, false, isFolder, name, mtime);
+	return new ExplorerItem(toResource(path), null, false, false, isFolder, name, mtime);
 }
 
 function toResource(path) {
@@ -151,7 +151,7 @@ suite('Files - View Model', () => {
 			assert.strictEqual(s1.find(s4Upper.resource), s4);
 		}
 
-		assert.strictEqual(s1.find(toResource('foobar')), undefined);
+		assert.strictEqual(s1.find(toResource('foobar')), null);
 
 		assert.strictEqual(s1.find(toResource('/')), s1);
 		assert.strictEqual(s1.find(toResource('')), s1);
