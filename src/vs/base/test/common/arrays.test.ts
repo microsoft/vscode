@@ -298,7 +298,7 @@ suite('Arrays', () => {
 	});
 
 	test('coalesce - inplace', function () {
-		let a = [null, 1, null, 2, 3];
+		let a: Array<number | undefined | null> = [null, 1, null, 2, 3];
 		arrays.coalesceInPlace(a);
 		assert.equal(a.length, 3);
 		assert.equal(a[0], 1);
