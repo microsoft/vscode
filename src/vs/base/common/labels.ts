@@ -366,7 +366,7 @@ export function mnemonicMenuLabel(label: string, forceDisableMnemonics?: boolean
 
 /**
  * Handles mnemonics for buttons. Depending on OS:
- * - Windows: Supported via & character (replace && with &)
+ * - Windows: Supported via & character (replace && with & and & with && for escaping)
  * -   Linux: Supported via _ character (replace && with _)
  * -   macOS: Unsupported (replace && with empty string)
  */
@@ -375,7 +375,11 @@ export function mnemonicButtonLabel(label: string): string {
 		return label.replace(/\(&&\w\)|&&/g, '');
 	}
 
-	return label.replace(/&&/g, isWindows ? '&' : '_');
+	if (isWindows) {
+		return label.replace(/&&|&/g, m => m === '&' ? '&&' : '&');
+	}
+
+	return label.replace(/&&/g, '_');
 }
 
 export function unmnemonicLabel(label: string): string {

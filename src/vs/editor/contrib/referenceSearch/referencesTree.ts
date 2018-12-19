@@ -20,7 +20,10 @@ import { escape } from 'vs/base/common/strings';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, IKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/list/list';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { basename } from 'vs/base/common/paths';
 
 //#region data source
 
@@ -72,6 +75,21 @@ export class Delegate implements IListVirtualDelegate<TreeElement> {
 		} else {
 			return OneReferenceRenderer.id;
 		}
+	}
+}
+
+export class StringRepresentationProvider implements IKeyboardNavigationLabelProvider<TreeElement> {
+
+	constructor(@IKeybindingService private readonly _keybindingService: IKeybindingService) { }
+
+	getKeyboardNavigationLabel(element: TreeElement): { toString(): string; } {
+		// todo@joao `OneReference` elements are lazy and their "real" label
+		// isn't known yet
+		return basename(element.uri.path);
+	}
+
+	mightProducePrintableCharacter(event: IKeyboardEvent): boolean {
+		return this._keybindingService.mightProducePrintableCharacter(event);
 	}
 }
 

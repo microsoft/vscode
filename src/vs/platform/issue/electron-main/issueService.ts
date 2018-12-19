@@ -118,6 +118,7 @@ export class IssueService implements IIssueService {
 					const position = this.getWindowPosition(this._issueParentWindow, 700, 800);
 
 					this._issueWindow = new BrowserWindow({
+						fullscreen: false,
 						width: position.width,
 						height: position.height,
 						minWidth: 300,
@@ -163,6 +164,7 @@ export class IssueService implements IIssueService {
 					this._processExplorerWindow = new BrowserWindow({
 						skipTaskbar: true,
 						resizable: true,
+						fullscreen: false,
 						width: position.width,
 						height: position.height,
 						minWidth: 300,

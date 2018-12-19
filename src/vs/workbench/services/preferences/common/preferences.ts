@@ -232,3 +232,4 @@ export function getSettingsTargetName(target: ConfigurationTarget, resource: URI
 
 export const FOLDER_SETTINGS_PATH = join('.vscode', 'settings.json');
 export const DEFAULT_SETTINGS_EDITOR_SETTING = 'workbench.settings.openDefaultSettings';
+export const USE_SPLIT_JSON_SETTING = 'workbench.settings.useSplitJSON';

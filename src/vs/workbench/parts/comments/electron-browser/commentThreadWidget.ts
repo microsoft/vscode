@@ -412,7 +412,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 					deletedraftButton.onDidClick(async () => {
 						try {
-							await this.commentService.deleteDraft(this._owner);
+							await this.commentService.deleteDraft(this._owner, this.editor.getModel().uri);
 						} catch (e) {
 							this.handleError(e);
 						}
@@ -430,7 +430,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 						try {
 							let lineNumber = this._commentGlyph.getPosition().position.lineNumber;
 							await this.createComment(lineNumber);
-							await this.commentService.finishDraft(this._owner);
+							await this.commentService.finishDraft(this._owner, this.editor.getModel().uri);
 						} catch (e) {
 							this.handleError(e);
 						}
@@ -456,7 +456,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 					draftButton.onDidClick(async () => {
 						try {
-							await this.commentService.startDraft(this._owner);
+							await this.commentService.startDraft(this._owner, this.editor.getModel().uri);
 							let lineNumber = this._commentGlyph.getPosition().position.lineNumber;
 							await this.createComment(lineNumber);
 						} catch (e) {

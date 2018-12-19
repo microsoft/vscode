@@ -29,6 +29,30 @@
 		};
 	}());
 
+	/**
+	 * Use polling to track focus of main webview and iframes within the webview
+	 *
+	 * @param {Object} handlers
+	 * @param {() => void} handlers.onFocus
+	 * @param {() => void} handlers.onBlur
+	 */
+	const trackFocus = ({onFocus, onBlur}) => {
+		const interval = 50;
+		let isFocused = document.hasFocus();
+		setInterval(() => {
+			const isCurrentlyFocused = document.hasFocus();
+			if (isCurrentlyFocused === isFocused) {
+				return;
+			}
+			isFocused = isCurrentlyFocused;
+			if (isCurrentlyFocused) {
+				onFocus();
+			} else {
+				onBlur();
+			}
+		}, interval);
+	};
+
 	// state
 	let firstLoad = true;
 	let loadTimeout;
@@ -89,6 +113,22 @@
 		}
 	};
 
+	/**
+	 * @param {KeyboardEvent} e
+	 */
+	const handleInnerKeydown = (e) => {
+		ipcRenderer.sendToHost('did-keydown', {
+			key: e.key,
+			keyCode: e.keyCode,
+			code: e.code,
+			shiftKey: e.shiftKey,
+			altKey: e.altKey,
+			ctrlKey: e.ctrlKey,
+			metaKey: e.metaKey,
+			repeat: e.repeat
+		});
+	};
+
 	const onMessage = (message) => {
 		ipcRenderer.sendToHost(message.data.command, message.data.data);
 	};
@@ -124,15 +164,13 @@
 			initData.styles = variables;
 			initData.activeTheme = activeTheme;
 
-			// webview
-			let target = getActiveFrame();
+			const target = getActiveFrame();
 			if (!target) {
 				return;
 			}
-			let body = target.contentDocument.getElementsByTagName('body');
-			styleBody(body[0]);
 
-			// iframe
+			styleBody(target.contentDocument.body);
+
 			Object.keys(variables).forEach((variable) => {
 				target.contentDocument.documentElement.style.setProperty(`--${variable}`, variables[variable]);
 			});
@@ -258,20 +296,7 @@
 
 			// write new content onto iframe
 			newFrame.contentDocument.open('text/html', 'replace');
-			newFrame.contentWindow.addEventListener('focus', () => { ipcRenderer.sendToHost('did-focus'); });
-			newFrame.contentWindow.addEventListener('blur', () => { ipcRenderer.sendToHost('did-blur'); });
-			newFrame.contentWindow.addEventListener('keydown', (e) => {
-				ipcRenderer.sendToHost('did-keydown', {
-					key: e.key,
-					keyCode: e.keyCode,
-					code: e.code,
-					shiftKey: e.shiftKey,
-					altKey: e.altKey,
-					ctrlKey: e.ctrlKey,
-					metaKey: e.metaKey,
-					repeat: e.repeat
-				});
-			});
+			newFrame.contentWindow.addEventListener('keydown', handleInnerKeydown);
 			newFrame.contentWindow.onbeforeunload = () => {
 				if (isInDevelopmentMode) { // Allow reloads while developing a webview
 					ipcRenderer.sendToHost('do-reload');
@@ -356,6 +381,11 @@
 
 		ipcRenderer.on('devtools-opened', () => {
 			isInDevelopmentMode = true;
+		});
+
+		trackFocus({
+			onFocus: () => { ipcRenderer.sendToHost('did-focus'); },
+			onBlur: () => { ipcRenderer.sendToHost('did-blur'); }
 		});
 
 		// Forward messages from the embedded iframe

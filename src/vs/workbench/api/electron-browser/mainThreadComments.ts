@@ -54,14 +54,14 @@ export class MainThreadDocumentCommentProvider implements modes.DocumentCommentP
 		return this._proxy.$deleteComment(this._handle, uri, comment);
 	}
 
-	async startDraft(token): Promise<void> {
-		return this._proxy.$startDraft(this._handle);
+	async startDraft(uri, token): Promise<void> {
+		return this._proxy.$startDraft(this._handle, uri);
 	}
-	async deleteDraft(token): Promise<void> {
-		return this._proxy.$deleteDraft(this._handle);
+	async deleteDraft(uri, token): Promise<void> {
+		return this._proxy.$deleteDraft(this._handle, uri);
 	}
-	async finishDraft(token): Promise<void> {
-		return this._proxy.$finishDraft(this._handle);
+	async finishDraft(uri, token): Promise<void> {
+		return this._proxy.$finishDraft(this._handle, uri);
 	}
 
 	onDidChangeCommentThreads = null;
