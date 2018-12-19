@@ -126,7 +126,7 @@ export class ParameterHintsModel extends Disposable {
 		this.pending = true;
 
 		this.provideSignatureHelpRequest = createCancelablePromise(token =>
-			provideSignatureHelp(model!, position!, triggerContext, token));
+			provideSignatureHelp(model, position, triggerContext, token));
 
 		return this.provideSignatureHelpRequest.then(result => {
 			this.pending = false;
