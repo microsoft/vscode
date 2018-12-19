@@ -15,6 +15,8 @@ const util = require('./lib/util');
 const packageJson = require('../package.json');
 const product = require('../product.json');
 const rpmDependencies = require('../resources/linux/rpm/dependencies.json');
+const path = require('path');
+const root = path.dirname(__dirname);
 const commit = util.getVersion(root);
 
 const linuxPackageRevision = Math.floor(new Date().getTime() / 1000);
