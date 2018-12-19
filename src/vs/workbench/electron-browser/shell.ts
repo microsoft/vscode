@@ -394,7 +394,7 @@ export class WorkbenchShell extends Disposable {
 		serviceCollection.set(IWorkspaceContextService, this.contextService);
 		serviceCollection.set(IConfigurationService, this.configurationService);
 		serviceCollection.set(IEnvironmentService, this.environmentService);
-		serviceCollection.set(ILabelService, new SyncDescriptor(LabelService));
+		serviceCollection.set(ILabelService, new SyncDescriptor(LabelService, undefined, true));
 		serviceCollection.set(ILogService, this._register(this.logService));
 		serviceCollection.set(IStorageService, this.storageService);
 
@@ -420,7 +420,7 @@ export class WorkbenchShell extends Disposable {
 		});
 
 		// Hash
-		serviceCollection.set(IHashService, new SyncDescriptor(HashService));
+		serviceCollection.set(IHashService, new SyncDescriptor(HashService, undefined, true));
 
 		// Telemetry
 		if (!this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
@@ -454,9 +454,9 @@ export class WorkbenchShell extends Disposable {
 		serviceCollection.set(ILifecycleService, lifecycleService);
 		this.lifecycleService = lifecycleService;
 
-		serviceCollection.set(IRequestService, new SyncDescriptor(RequestService));
-		serviceCollection.set(IDownloadService, new SyncDescriptor(DownloadService));
-		serviceCollection.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
+		serviceCollection.set(IRequestService, new SyncDescriptor(RequestService, undefined, true));
+		serviceCollection.set(IDownloadService, new SyncDescriptor(DownloadService, undefined, true));
+		serviceCollection.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService, undefined, true));
 
 		const remoteAuthorityResolverService = new RemoteAuthorityResolverService();
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
@@ -484,9 +484,9 @@ export class WorkbenchShell extends Disposable {
 		this.themeService = instantiationService.createInstance(WorkbenchThemeService, document.body);
 		serviceCollection.set(IWorkbenchThemeService, this.themeService);
 
-		serviceCollection.set(ICommandService, new SyncDescriptor(CommandService));
+		serviceCollection.set(ICommandService, new SyncDescriptor(CommandService, undefined, true));
 
-		serviceCollection.set(IMarkerService, new SyncDescriptor(MarkerService));
+		serviceCollection.set(IMarkerService, new SyncDescriptor(MarkerService, undefined, true));
 
 		serviceCollection.set(IModeService, new SyncDescriptor(WorkbenchModeServiceImpl));
 
@@ -494,11 +494,11 @@ export class WorkbenchShell extends Disposable {
 
 		serviceCollection.set(ITextResourcePropertiesService, new SyncDescriptor(TextResourcePropertiesService));
 
-		serviceCollection.set(IModelService, new SyncDescriptor(ModelServiceImpl));
+		serviceCollection.set(IModelService, new SyncDescriptor(ModelServiceImpl, undefined, true));
 
 		serviceCollection.set(IEditorWorkerService, new SyncDescriptor(EditorWorkerServiceImpl));
 
-		serviceCollection.set(IUntitledEditorService, new SyncDescriptor(UntitledEditorService));
+		serviceCollection.set(IUntitledEditorService, new SyncDescriptor(UntitledEditorService, undefined, true));
 
 		serviceCollection.set(ITextMateService, new SyncDescriptor(TextMateService));
 
@@ -510,7 +510,7 @@ export class WorkbenchShell extends Disposable {
 
 		serviceCollection.set(ICodeEditorService, new SyncDescriptor(CodeEditorService));
 
-		serviceCollection.set(IOpenerService, new SyncDescriptor(OpenerService));
+		serviceCollection.set(IOpenerService, new SyncDescriptor(OpenerService, undefined, true));
 
 		serviceCollection.set(IIntegrityService, new SyncDescriptor(IntegrityServiceImpl));
 

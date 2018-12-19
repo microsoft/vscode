@@ -294,6 +294,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 
 		if (this._markerService) {
 			this._markerServiceSubscription = this._markerService.onMarkerChanged(this._handleMarkerChange, this);
+			this._handleMarkerChange(this._markerService.read().map(m => m.resource));
 		}
 
 		this._configurationServiceSubscription = this._configurationService.onDidChangeConfiguration(e => this._updateModelOptions());
