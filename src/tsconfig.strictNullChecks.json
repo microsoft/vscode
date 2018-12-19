@@ -110,6 +110,7 @@
 		"./vs/base/test/browser/ui/grid/util.ts",
 		"./vs/base/test/browser/ui/list/listView.test.ts",
 		"./vs/base/test/browser/ui/list/rangeMap.test.ts",
+		"./vs/base/test/browser/ui/splitview/splitview.test.ts",
 		"./vs/base/test/browser/ui/scrollbar/scrollableElement.test.ts",
 		"./vs/base/test/browser/ui/scrollbar/scrollbarState.test.ts",
 		"./vs/base/test/browser/ui/tree/asyncDataTree.test.ts",
