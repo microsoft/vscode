@@ -99,6 +99,7 @@
 		"./vs/base/parts/ipc/test/node/testService.ts",
 		"./vs/base/parts/quickopen/common/quickOpen.ts",
 		"./vs/base/parts/quickopen/common/quickOpenScorer.ts",
+		"./vs/base/parts/quickopen/test/common/quickOpenScorer.test.ts",
 		"./vs/base/test/browser/browser.test.ts",
 		"./vs/base/test/browser/comparers.test.ts",
 		"./vs/base/test/browser/dom.test.ts",
