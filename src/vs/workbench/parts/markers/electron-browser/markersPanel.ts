@@ -67,6 +67,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	private currentActiveResource: URI | null = null;
 
 	private tree: WorkbenchObjectTree<TreeElement, FilterData>;
+	private treeLabels: ResourceLabels;
 	private rangeHighlightDecorations: RangeHighlightDecorations;
 
 	private actions: IAction[];
@@ -170,6 +171,14 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 			}
 		} else {
 			this.rangeHighlightDecorations.removeHighlightRange();
+		}
+
+		if (this.treeLabels) {
+			if (visible) {
+				this.treeLabels.onVisible();
+			} else {
+				this.treeLabels.onHidden();
+			}
 		}
 	}
 
@@ -288,11 +297,11 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 
 		const onDidChangeRenderNodeCount = new Relay<ITreeNode<any, any>>();
 
-		const labels = this._register(this.instantiationService.createInstance(ResourceLabels));
+		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels));
 
 		const virtualDelegate = new VirtualDelegate(this.markersViewState);
 		const renderers = [
-			this.instantiationService.createInstance(ResourceMarkersRenderer, labels, onDidChangeRenderNodeCount.event),
+			this.instantiationService.createInstance(ResourceMarkersRenderer, this.treeLabels, onDidChangeRenderNodeCount.event),
 			this.instantiationService.createInstance(MarkerRenderer, this.markersViewState, a => this.getActionItem(a)),
 			this.instantiationService.createInstance(RelatedInformationRenderer)
 		];

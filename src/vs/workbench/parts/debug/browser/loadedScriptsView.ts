@@ -364,10 +364,10 @@ export class LoadedScriptsView extends ViewletPanel {
 	private treeContainer: HTMLElement;
 	private loadedScriptsItemType: IContextKey<string>;
 	private tree: WorkbenchAsyncDataTree<LoadedScriptsItem, LoadedScriptsItem>;
+	private treeLabels: ResourceLabels;
 	private changeScheduler: RunOnceScheduler;
 	private treeNeedsRefreshOnVisible: boolean;
 	private filter: LoadedScriptsFilter;
-	private labels: ResourceLabels;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -397,10 +397,11 @@ export class LoadedScriptsView extends ViewletPanel {
 
 		const root = new RootTreeItem(this.debugService.getModel(), this.environmentService, this.contextService);
 
-		this.labels = this.instantiationService.createInstance(ResourceLabels);
+		this.treeLabels = this.instantiationService.createInstance(ResourceLabels);
+		this.disposables.push(this.treeLabels);
 
 		this.tree = new WorkbenchAsyncDataTree(this.treeContainer, new LoadedScriptsDelegate(),
-			[new LoadedScriptsRenderer(this.labels)],
+			[new LoadedScriptsRenderer(this.treeLabels)],
 			new LoadedScriptsDataSource(),
 			{
 				identityProvider: {
@@ -509,6 +510,13 @@ export class LoadedScriptsView extends ViewletPanel {
 		if (visible && this.treeNeedsRefreshOnVisible) {
 			this.changeScheduler.schedule();
 		}
+		if (this.treeLabels) {
+			if (visible) {
+				this.treeLabels.onVisible();
+			} else {
+				this.treeLabels.onHidden();
+			}
+		}
 	}
 
 	/*
@@ -521,7 +529,7 @@ export class LoadedScriptsView extends ViewletPanel {
 
 	dispose(): void {
 		this.tree = dispose(this.tree);
-		this.labels = dispose(this.labels);
+		this.treeLabels = dispose(this.treeLabels);
 		super.dispose();
 	}
 }

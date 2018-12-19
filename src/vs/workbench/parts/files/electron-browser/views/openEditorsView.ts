@@ -51,7 +51,7 @@ export class OpenEditorsView extends ViewletPanel {
 	private listRefreshScheduler: RunOnceScheduler;
 	private structuralRefreshDelay: number;
 	private list: WorkbenchList<OpenEditor | IEditorGroup>;
-	private labels: ResourceLabels;
+	private listLabels: ResourceLabels;
 	private contributedContextMenu: IMenu;
 	private needsRefresh: boolean;
 	private resourceContext: ResourceContextKey;
@@ -214,19 +214,19 @@ export class OpenEditorsView extends ViewletPanel {
 		if (this.list) {
 			this.list.dispose();
 		}
-		if (this.labels) {
-			this.labels.clear();
+		if (this.listLabels) {
+			this.listLabels.clear();
 		}
-		this.labels = this.instantiationService.createInstance(ResourceLabels);
+		this.listLabels = this.instantiationService.createInstance(ResourceLabels);
 		this.list = this.instantiationService.createInstance(WorkbenchList, container, delegate, [
 			new EditorGroupRenderer(this.keybindingService, this.instantiationService, this.editorGroupService),
-			new OpenEditorRenderer(this.labels, getSelectedElements, this.instantiationService, this.keybindingService, this.configurationService, this.editorGroupService)
+			new OpenEditorRenderer(this.listLabels, getSelectedElements, this.instantiationService, this.keybindingService, this.configurationService, this.editorGroupService)
 		], {
 				identityProvider: { getId: (element: OpenEditor | IEditorGroup) => element instanceof OpenEditor ? element.getId() : element.id.toString() },
 				selectOnMouseDown: false /* disabled to better support DND */
 			}) as WorkbenchList<OpenEditor | IEditorGroup>;
 		this.disposables.push(this.list);
-		this.disposables.push(this.labels);
+		this.disposables.push(this.listLabels);
 
 		this.contributedContextMenu = this.menuService.createMenu(MenuId.OpenEditorsContext, this.list.contextKeyService);
 		this.disposables.push(this.contributedContextMenu);
@@ -331,6 +331,13 @@ export class OpenEditorsView extends ViewletPanel {
 				dom.show(this.list.getHTMLElement());
 			} else {
 				dom.hide(this.list.getHTMLElement()); // make sure the list goes out of the tabindex world by hiding it
+			}
+		}
+		if (this.listLabels) {
+			if (isVisible) {
+				this.listLabels.onVisible();
+			} else {
+				this.listLabels.onHidden();
 			}
 		}
 	}

@@ -67,6 +67,9 @@ export interface IResourceLabel extends IDisposable {
 	 */
 	setEditor(editor: IEditorInput, options?: IResourceLabelOptions): void;
 
+	/**
+	 * Resets the label to be empty.
+	 */
 	clear(): void;
 }
 
@@ -103,7 +106,7 @@ export class ResourceLabels extends Disposable {
 		this._register(this.decorationsService.onDidChangeDecorations(e => this._widgets.forEach(widget => widget.notifyFileDecorationsChanges(e))));
 
 		// notify when theme changes
-		this._register(this.themeService.onThemeChange(() => () => this._widgets.forEach(widget => widget.notifyThemeChange())));
+		this._register(this.themeService.onThemeChange(() => this._widgets.forEach(widget => widget.notifyThemeChange())));
 
 		// notify when files.associations changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -143,6 +146,14 @@ export class ResourceLabels extends Disposable {
 		}
 
 		dispose(widget);
+	}
+
+	onVisible(): void {
+		this._widgets.forEach(widget => widget.notifyVisibilityChanged(true));
+	}
+
+	onHidden(): void {
+		this._widgets.forEach(widget => widget.notifyVisibilityChanged(false));
 	}
 
 	clear(): void {
@@ -186,6 +197,11 @@ export class ResourceLabel extends ResourceLabels {
 	}
 }
 
+enum Redraw {
+	Basic = 1,
+	Full = 2
+}
+
 class ResourceLabelWidget extends IconLabel {
 
 	private _onDidRender = this._register(new Emitter<void>());
@@ -196,6 +212,9 @@ class ResourceLabelWidget extends IconLabel {
 	private computedIconClasses: string[];
 	private lastKnownConfiguredLangId: string;
 	private computedPathLabel: string;
+
+	private needsRedraw: Redraw;
+	private isHidden: boolean = false;
 
 	constructor(
 		container: HTMLElement,
@@ -208,6 +227,17 @@ class ResourceLabelWidget extends IconLabel {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		super(container, options);
+	}
+
+	notifyVisibilityChanged(visible: boolean): void {
+		if (visible === this.isHidden) {
+			this.isHidden = !visible;
+
+			if (visible && this.needsRedraw) {
+				this.render(this.needsRedraw === Redraw.Basic ? false : true);
+				this.needsRedraw = void 0;
+			}
+		}
 	}
 
 	notifyModelModeChanged(e: { model: ITextModel; oldModeId: string; }): void {
@@ -335,6 +365,18 @@ class ResourceLabelWidget extends IconLabel {
 	}
 
 	private render(clearIconCache: boolean): void {
+		if (this.isHidden) {
+			if (!this.needsRedraw) {
+				this.needsRedraw = clearIconCache ? Redraw.Full : Redraw.Basic;
+			}
+
+			if (this.needsRedraw === Redraw.Basic && clearIconCache) {
+				this.needsRedraw = Redraw.Full;
+			}
+
+			return;
+		}
+
 		if (this.label) {
 			const configuredLangId = getConfiguredLangId(this.modelService, this.label.resource);
 			if (this.lastKnownConfiguredLangId !== configuredLangId) {

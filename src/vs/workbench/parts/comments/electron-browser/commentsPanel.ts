@@ -29,7 +29,7 @@ export const COMMENTS_PANEL_ID = 'workbench.panel.comments';
 export const COMMENTS_PANEL_TITLE = 'Comments';
 
 export class CommentsPanel extends Panel {
-	private labels: ResourceLabels;
+	private treeLabels: ResourceLabels;
 	private tree: WorkbenchTree;
 	private treeContainer: HTMLElement;
 	private messageBoxContainer: HTMLElement;
@@ -131,11 +131,11 @@ export class CommentsPanel extends Panel {
 	}
 
 	private createTree(): void {
-		this.labels = this._register(this.instantiationService.createInstance(ResourceLabels));
+		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels));
 
 		this.tree = this._register(this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
 			dataSource: new CommentsDataSource(),
-			renderer: new CommentsModelRenderer(this.labels, this.openerService),
+			renderer: new CommentsModelRenderer(this.treeLabels, this.openerService),
 			accessibilityProvider: new DefaultAccessibilityProvider,
 			controller: new DefaultController(),
 			dnd: new DefaultDragAndDrop(),
@@ -175,7 +175,6 @@ export class CommentsPanel extends Panel {
 
 			return true;
 		}
-
 
 		const threadToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].threadId : element.threadId;
 		const commentToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].comment : element.comment;
@@ -239,6 +238,14 @@ export class CommentsPanel extends Panel {
 		if (this.isVisible()) {
 			if (!wasVisible) {
 				this.refresh();
+			}
+		}
+
+		if (this.treeLabels) {
+			if (visible) {
+				this.treeLabels.onVisible();
+			} else {
+				this.treeLabels.onHidden();
 			}
 		}
 	}

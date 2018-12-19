@@ -137,7 +137,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	private contextMenu: IMenu;
 
 	private tree: WorkbenchObjectTree<RenderableMatch>;
-	private labels: ResourceLabels;
+	private treeLabels: ResourceLabels;
 	private viewletState: object;
 	private globalMemento: object;
 	private messagesElement: HTMLElement;
@@ -586,13 +586,13 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			}
 		};
 
-		this.labels = this._register(this.instantiationService.createInstance(ResourceLabels));
+		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels));
 		this.tree = this._register(<WorkbenchObjectTree<RenderableMatch, any>>this.instantiationService.createInstance(WorkbenchObjectTree,
 			this.resultsElement,
 			delegate,
 			[
-				this._register(this.instantiationService.createInstance(FolderMatchRenderer, this.viewModel, this, this.labels)),
-				this._register(this.instantiationService.createInstance(FileMatchRenderer, this.viewModel, this, this.labels)),
+				this._register(this.instantiationService.createInstance(FolderMatchRenderer, this.viewModel, this, this.treeLabels)),
+				this._register(this.instantiationService.createInstance(FileMatchRenderer, this.viewModel, this, this.treeLabels)),
 				this._register(this.instantiationService.createInstance(MatchRenderer, this.viewModel, this)),
 			],
 			{
@@ -767,6 +767,14 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			let focus = this.tree.getFocus();
 			if (focus) {
 				this.onFocus(focus, true);
+			}
+		}
+
+		if (this.treeLabels) {
+			if (visible) {
+				this.treeLabels.onVisible();
+			} else {
+				this.treeLabels.onHidden();
 			}
 		}
 	}

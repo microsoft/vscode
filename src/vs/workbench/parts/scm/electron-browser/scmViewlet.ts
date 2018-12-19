@@ -728,7 +728,7 @@ export class RepositoryPanel extends ViewletPanel {
 	private inputBox: InputBox;
 	private listContainer: HTMLElement;
 	private list: List<ISCMResourceGroup | ISCMResource>;
-	private labels: ResourceLabels;
+	private listLabels: ResourceLabels;
 	private menus: SCMMenus;
 	private visibilityDisposables: IDisposable[] = [];
 	protected contextKeyService: IContextKeyService;
@@ -870,12 +870,12 @@ export class RepositoryPanel extends ViewletPanel {
 
 		const actionItemProvider = (action: IAction) => this.getActionItem(action);
 
-		this.labels = this.instantiationService.createInstance(ResourceLabels);
-		this.disposables.push(this.labels);
+		this.listLabels = this.instantiationService.createInstance(ResourceLabels);
+		this.disposables.push(this.listLabels);
 
 		const renderers = [
 			new ResourceGroupRenderer(actionItemProvider, this.themeService, this.menus),
-			new ResourceRenderer(this.labels, actionItemProvider, () => this.getSelectedResources(), this.themeService, this.menus)
+			new ResourceRenderer(this.listLabels, actionItemProvider, () => this.getSelectedResources(), this.themeService, this.menus)
 		];
 
 		this.list = this.instantiationService.createInstance(WorkbenchList, this.listContainer, delegate, renderers, {
@@ -909,6 +909,18 @@ export class RepositoryPanel extends ViewletPanel {
 		}
 
 		this.inputBox.setEnabled(this.isVisible() && this.isExpanded());
+	}
+
+	setVisible(visible: boolean): void {
+		super.setVisible(visible);
+
+		if (this.listLabels) {
+			if (visible) {
+				this.listLabels.onVisible();
+			} else {
+				this.listLabels.onHidden();
+			}
+		}
 	}
 
 	setExpanded(expanded: boolean): void {

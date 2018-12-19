@@ -373,6 +373,14 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 				this.openFocusedElement();
 			});
 		}
+
+		if (this.explorerLabels) {
+			if (visible) {
+				this.explorerLabels.onVisible();
+			} else {
+				this.explorerLabels.onHidden();
+			}
+		}
 	}
 
 	private openFocusedElement(preserveFocus?: boolean): void {
