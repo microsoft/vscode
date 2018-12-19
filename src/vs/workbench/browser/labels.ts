@@ -25,6 +25,22 @@ import { getIconClasses, getConfiguredLangId } from 'vs/editor/common/services/g
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
+export interface IResourceLabel {
+	name: string;
+	description?: string;
+	resource?: uri;
+}
+
+export interface IResourceLabelOptions extends IIconLabelValueOptions {
+	fileKind?: FileKind;
+	fileDecorations?: { colors: boolean, badges: boolean, data?: IDecorationData };
+}
+
+export interface IFileLabelOptions extends IResourceLabelOptions {
+	hideLabel?: boolean;
+	hidePath?: boolean;
+}
+
 export interface IResourceLabelHandle extends IDisposable {
 	readonly element: HTMLElement;
 
@@ -396,17 +412,6 @@ class ResourceLabelWidget extends IconLabel {
 	}
 }
 
-export interface IResourceLabel {
-	name: string;
-	description?: string;
-	resource?: uri;
-}
-
-export interface IResourceLabelOptions extends IIconLabelValueOptions {
-	fileKind?: FileKind;
-	fileDecorations?: { colors: boolean, badges: boolean, data?: IDecorationData };
-}
-
 export class ResourceLabel extends IconLabel {
 
 	private _onDidRender = this._register(new Emitter<void>());
@@ -618,22 +623,6 @@ export class ResourceLabel extends IconLabel {
 		this.computedIconClasses = void 0;
 		this.computedPathLabel = void 0;
 	}
-}
-
-export class EditorLabel extends ResourceLabel {
-
-	setEditor(editor: IEditorInput, options?: IResourceLabelOptions): void {
-		this.setLabel({
-			resource: toResource(editor, { supportSideBySide: true }),
-			name: editor.getName(),
-			description: editor.getDescription()
-		}, options);
-	}
-}
-
-export interface IFileLabelOptions extends IResourceLabelOptions {
-	hideLabel?: boolean;
-	hidePath?: boolean;
 }
 
 export class FileLabel extends ResourceLabel {
