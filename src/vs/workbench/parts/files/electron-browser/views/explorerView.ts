@@ -31,7 +31,7 @@ import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IViewletPanelOptions, ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { ExplorerDelegate, ExplorerAccessibilityProvider, ExplorerDataSource, FilesRenderer, FilesFilter } from 'vs/workbench/parts/files/electron-browser/views/explorerViewer';
+import { ExplorerDelegate, ExplorerAccessibilityProvider, ExplorerDataSource, FilesRenderer, FilesFilter, FileSorter } from 'vs/workbench/parts/files/electron-browser/views/explorerViewer';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
@@ -222,7 +222,8 @@ export class ExplorerView extends ViewletPanel {
 				keyboardNavigationLabelProvider: {
 					getKeyboardNavigationLabel: stat => stat.name
 				},
-				filter: this.filter
+				filter: this.filter,
+				sorter: this.instantiationService.createInstance(FileSorter)
 			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
 
 		this.disposables.push(this.tree);

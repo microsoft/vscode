@@ -35,7 +35,7 @@ export class ExplorerService implements IExplorerService {
 	private _onDidSelectItem = new Emitter<{ item: ExplorerItem, reveal: boolean }>();
 	private disposables: IDisposable[] = [];
 	private editableStats = new Map<ExplorerItem, IEditableData>();
-	private sortOrder: SortOrder;
+	private _sortOrder: SortOrder;
 
 	constructor(
 		@IFileService private fileService: IFileService,
@@ -59,6 +59,10 @@ export class ExplorerService implements IExplorerService {
 
 	get onDidSelectItem(): Event<{ item: ExplorerItem, reveal: boolean }> {
 		return this._onDidSelectItem.event;
+	}
+
+	get sortOrder(): SortOrder {
+		return this._sortOrder;
 	}
 
 	// Memoized locals
@@ -256,7 +260,7 @@ export class ExplorerService implements IExplorerService {
 			}
 
 			// Handle updated files/folders if we sort by modified
-			if (this.sortOrder === SortOrderConfiguration.MODIFIED) {
+			if (this._sortOrder === SortOrderConfiguration.MODIFIED) {
 				const updated = e.getUpdated();
 
 				// Check updated: Refresh if updated file/folder part of resolved root
@@ -275,7 +279,7 @@ export class ExplorerService implements IExplorerService {
 
 	private filterToViewRelevantEvents(e: FileChangesEvent): FileChangesEvent {
 		return new FileChangesEvent(e.changes.filter(change => {
-			if (change.type === FileChangeType.UPDATED && this.sortOrder !== SortOrderConfiguration.MODIFIED) {
+			if (change.type === FileChangeType.UPDATED && this._sortOrder !== SortOrderConfiguration.MODIFIED) {
 				return false; // we only are about updated if we sort by modified time
 			}
 
@@ -293,8 +297,8 @@ export class ExplorerService implements IExplorerService {
 
 	private onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): void {
 		const configSortOrder = configuration && configuration.explorer && configuration.explorer.sortOrder || 'default';
-		if (this.sortOrder !== configSortOrder) {
-			this.sortOrder = configSortOrder;
+		if (this._sortOrder !== configSortOrder) {
+			this._sortOrder = configSortOrder;
 			this.roots.forEach(r => this._onDidChangeItem.fire(r));
 		}
 	}

@@ -804,7 +804,7 @@ class PasteFileAction extends BaseFileAction {
 			// Copy File
 			return this.fileService.copyFile(fileToPaste, targetFile).then(stat => {
 				if (!stat.isDirectory) {
-					return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
+					return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true, preserveFocus: true } });
 				}
 
 				return void 0;
@@ -838,7 +838,7 @@ export class DuplicateFileAction extends BaseFileAction {
 		// Copy File
 		const result = this.fileService.copyFile(this.element.resource, findValidPasteFileTarget(this.target, { resource: this.element.resource, isDirectory: this.element.isDirectory })).then(stat => {
 			if (!stat.isDirectory) {
-				return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
+				return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true, preserveFocus: true } });
 			}
 
 			return void 0;

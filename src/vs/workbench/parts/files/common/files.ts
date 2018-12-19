@@ -41,6 +41,7 @@ export interface IEditableData {
 export interface IExplorerService {
 	_serviceBrand: any;
 	readonly roots: ExplorerItem[];
+	readonly sortOrder: SortOrder;
 	readonly onDidChangeItem: Event<ExplorerItem | undefined>;
 	readonly onDidChangeEditable: Event<ExplorerItem>;
 	readonly onDidSelectItem: Event<{ item: ExplorerItem, reveal: boolean }>;

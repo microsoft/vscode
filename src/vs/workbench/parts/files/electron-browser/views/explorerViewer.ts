@@ -15,7 +15,7 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { FileLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
-import { ITreeRenderer, ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
+import { ITreeRenderer, ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, IAsyncDataSource, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -33,6 +33,7 @@ import { equals, deepClone } from 'vs/base/common/objects';
 import * as path from 'path';
 import { IAction } from 'vs/base/common/actions';
 import { ExplorerItem, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerModel';
+import { compareFileExtensions, compareFileNames } from 'vs/base/common/comparers';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -352,117 +353,98 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, void> {
 }
 
 // // Explorer Sorter
-// export class FileSorter implements ISorter {
-// 	private toDispose: IDisposable[];
-// 	private sortOrder: SortOrder;
+export class FileSorter implements ITreeSorter<ExplorerItem> {
 
-// 	constructor(
-// 		@IConfigurationService private configurationService: IConfigurationService,
-// 		@IWorkspaceContextService private contextService: IWorkspaceContextService
-// 	) {
-// 		this.toDispose = [];
+	constructor(
+		@IExplorerService private explorerService: IExplorerService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
+	) { }
 
-// 		this.updateSortOrder();
+	public compare(statA: ExplorerItem, statB: ExplorerItem): number {
+		// Do not sort roots
+		if (statA.isRoot) {
+			if (statB.isRoot) {
+				return this.contextService.getWorkspaceFolder(statA.resource).index - this.contextService.getWorkspaceFolder(statB.resource).index;
+			}
 
-// 		this.registerListeners();
-// 	}
+			return -1;
+		}
 
-// 	private registerListeners(): void {
-// 		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => this.updateSortOrder()));
-// 	}
+		if (statB.isRoot) {
+			return 1;
+		}
 
-// 	private updateSortOrder(): void {
-// 		this.sortOrder = this.configurationService.getValue('explorer.sortOrder') || 'default';
-// 	}
+		const sortOrder = this.explorerService.sortOrder;
 
-// 	public compare(tree: ITree, statA: ExplorerItem, statB: ExplorerItem): number {
+		// Sort Directories
+		switch (sortOrder) {
+			case 'type':
+				if (statA.isDirectory && !statB.isDirectory) {
+					return -1;
+				}
 
-// 		// Do not sort roots
-// 		if (statA.isRoot) {
-// 			if (statB.isRoot) {
-// 				return this.contextService.getWorkspaceFolder(statA.resource).index - this.contextService.getWorkspaceFolder(statB.resource).index;
-// 			}
+				if (statB.isDirectory && !statA.isDirectory) {
+					return 1;
+				}
 
-// 			return -1;
-// 		}
+				if (statA.isDirectory && statB.isDirectory) {
+					return compareFileNames(statA.name, statB.name);
+				}
 
-// 		if (statB.isRoot) {
-// 			return 1;
-// 		}
+				break;
 
-// 		// Sort Directories
-// 		switch (this.sortOrder) {
-// 			case 'type':
-// 				if (statA.isDirectory && !statB.isDirectory) {
-// 					return -1;
-// 				}
+			case 'filesFirst':
+				if (statA.isDirectory && !statB.isDirectory) {
+					return 1;
+				}
 
-// 				if (statB.isDirectory && !statA.isDirectory) {
-// 					return 1;
-// 				}
+				if (statB.isDirectory && !statA.isDirectory) {
+					return -1;
+				}
 
-// 				if (statA.isDirectory && statB.isDirectory) {
-// 					return comparers.compareFileNames(statA.name, statB.name);
-// 				}
+				break;
 
-// 				break;
+			case 'mixed':
+				break; // not sorting when "mixed" is on
 
-// 			case 'filesFirst':
-// 				if (statA.isDirectory && !statB.isDirectory) {
-// 					return 1;
-// 				}
+			default: /* 'default', 'modified' */
+				if (statA.isDirectory && !statB.isDirectory) {
+					return -1;
+				}
 
-// 				if (statB.isDirectory && !statA.isDirectory) {
-// 					return -1;
-// 				}
+				if (statB.isDirectory && !statA.isDirectory) {
+					return 1;
+				}
 
-// 				break;
+				break;
+		}
 
-// 			case 'mixed':
-// 				break; // not sorting when "mixed" is on
+		// Sort "New File/Folder" placeholders
+		if (statA instanceof NewStatPlaceholder) {
+			return -1;
+		}
 
-// 			default: /* 'default', 'modified' */
-// 				if (statA.isDirectory && !statB.isDirectory) {
-// 					return -1;
-// 				}
+		if (statB instanceof NewStatPlaceholder) {
+			return 1;
+		}
 
-// 				if (statB.isDirectory && !statA.isDirectory) {
-// 					return 1;
-// 				}
+		// Sort Files
+		switch (sortOrder) {
+			case 'type':
+				return compareFileExtensions(statA.name, statB.name);
 
-// 				break;
-// 		}
+			case 'modified':
+				if (statA.mtime !== statB.mtime) {
+					return statA.mtime < statB.mtime ? 1 : -1;
+				}
 
-// 		// Sort "New File/Folder" placeholders
-// 		if (statA instanceof NewStatPlaceholder) {
-// 			return -1;
-// 		}
+				return compareFileNames(statA.name, statB.name);
 
-// 		if (statB instanceof NewStatPlaceholder) {
-// 			return 1;
-// 		}
-
-// 		// Sort Files
-// 		switch (this.sortOrder) {
-// 			case 'type':
-// 				return comparers.compareFileExtensions(statA.name, statB.name);
-
-// 			case 'modified':
-// 				if (statA.mtime !== statB.mtime) {
-// 					return statA.mtime < statB.mtime ? 1 : -1;
-// 				}
-
-// 				return comparers.compareFileNames(statA.name, statB.name);
-
-// 			default: /* 'default', 'mixed', 'filesFirst' */
-// 				return comparers.compareFileNames(statA.name, statB.name);
-// 		}
-// 	}
-
-// 	public dispose(): void {
-// 		this.toDispose = dispose(this.toDispose);
-// 	}
-// }
+			default: /* 'default', 'mixed', 'filesFirst' */
+				return compareFileNames(statA.name, statB.name);
+		}
+	}
+}
 
 // export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 
