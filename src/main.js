@@ -156,6 +156,11 @@ function configureCommandlineSwitches(cliArgs, nodeCachedDataDir) {
 	if (jsFlags) {
 		app.commandLine.appendSwitch('--js-flags', jsFlags);
 	}
+
+	// Disable smooth scrolling for Webviews
+	if (cliArgs['disable-smooth-scrolling']) {
+		app.commandLine.appendSwitch('disable-smooth-scrolling');
+	}
 }
 
 /**
