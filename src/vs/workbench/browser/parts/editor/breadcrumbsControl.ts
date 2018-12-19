@@ -35,7 +35,7 @@ import { ColorIdentifier, ColorFunction } from 'vs/platform/theme/common/colorRe
 import { attachBreadcrumbsStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { FileLabel } from 'vs/workbench/browser/labels';
+import { SingleResourceLabel } from 'vs/workbench/browser/labels';
 import { BreadcrumbsConfig, IBreadcrumbsService } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { BreadcrumbElement, EditorBreadcrumbsModel, FileElement } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
 import { BreadcrumbsPicker, createBreadcrumbsPicker } from 'vs/workbench/browser/parts/editor/breadcrumbsPicker';
@@ -78,8 +78,8 @@ class Item extends BreadcrumbsItem {
 	render(container: HTMLElement): void {
 		if (this.element instanceof FileElement) {
 			// file/folder
-			let label = this._instantiationService.createInstance(FileLabel, container, {});
-			label.setFile(this.element.uri, {
+			let label = this._instantiationService.createInstance(SingleResourceLabel, container, {});
+			label.element.setFile(this.element.uri, {
 				hidePath: true,
 				hideIcon: this.element.kind === FileKind.FOLDER || !this.options.showFileIcons,
 				fileKind: this.element.kind,
