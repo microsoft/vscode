@@ -20,7 +20,6 @@ function toResource(path) {
 	} else {
 		return URI.file(join('/home/john', path));
 	}
-
 }
 
 suite('Files - View Model', () => {

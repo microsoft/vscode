@@ -84,6 +84,8 @@ export class ExplorerService implements IExplorerService {
 		return model;
 	}
 
+	// IExplorerService methods
+
 	findClosest(resource: URI): ExplorerItem {
 		return this.model.findClosest(resource);
 	}
@@ -119,14 +121,6 @@ export class ExplorerService implements IExplorerService {
 			// Select and Reveal
 			this._onDidSelectItem.fire({ item: root.find(resource), reveal });
 		}, e => { this.notificationService.error(e); });
-	}
-
-	private onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): void {
-		const configSortOrder = configuration && configuration.explorer && configuration.explorer.sortOrder || 'default';
-		if (this.sortOrder !== configSortOrder) {
-			this.sortOrder = configSortOrder;
-			this.roots.forEach(r => this._onDidChangeItem.fire(r));
-		}
 	}
 
 	// File events
@@ -295,6 +289,14 @@ export class ExplorerService implements IExplorerService {
 
 			return true;
 		}));
+	}
+
+	private onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): void {
+		const configSortOrder = configuration && configuration.explorer && configuration.explorer.sortOrder || 'default';
+		if (this.sortOrder !== configSortOrder) {
+			this.sortOrder = configSortOrder;
+			this.roots.forEach(r => this._onDidChangeItem.fire(r));
+		}
 	}
 
 	dispose(): void {

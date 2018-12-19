@@ -198,18 +198,6 @@ export class ExplorerView extends ViewletPanel {
 		}
 	}
 
-	private getActiveFile(): URI {
-		const input = this.editorService.activeEditor;
-
-		// ignore diff editor inputs (helps to get out of diffing when returning to explorer)
-		if (input instanceof DiffEditorInput) {
-			return undefined;
-		}
-
-		// check for files
-		return toResource(input, { supportSideBySide: true });
-	}
-
 	private createTree(container: HTMLElement): void {
 		this.filter = this.instantiationService.createInstance(FilesFilter);
 		this.disposables.push(this.filter);
@@ -274,13 +262,6 @@ export class ExplorerView extends ViewletPanel {
 		}));
 
 		this.disposables.push(this.tree.onContextMenu(e => this.onContextMenu(e)));
-	}
-
-	getOptimalWidth(): number {
-		const parentNode = this.tree.getHTMLElement();
-		const childNodes = ([] as HTMLElement[]).slice.call(parentNode.querySelectorAll('.explorer-item .label-name')); // select all file labels
-
-		return DOM.getLargestChildWidth(parentNode, childNodes);
 	}
 
 	// React on events
@@ -357,6 +338,13 @@ export class ExplorerView extends ViewletPanel {
 		return this.tree.refresh(toRefresh, true);
 	}
 
+	getOptimalWidth(): number {
+		const parentNode = this.tree.getHTMLElement();
+		const childNodes = ([] as HTMLElement[]).slice.call(parentNode.querySelectorAll('.explorer-item .label-name')); // select all file labels
+
+		return DOM.getLargestChildWidth(parentNode, childNodes);
+	}
+
 	private setTreeInput(newRoots?: IWorkspaceFolder[]): Promise<void> {
 		if (!this.isVisible()) {
 			this.shouldRefresh = true;
@@ -390,6 +378,18 @@ export class ExplorerView extends ViewletPanel {
 
 		this.progressService.showWhile(promise, this.partService.isRestored() ? 800 : 1200 /* less ugly initial startup */);
 		return promise;
+	}
+
+	private getActiveFile(): URI {
+		const input = this.editorService.activeEditor;
+
+		// ignore diff editor inputs (helps to get out of diffing when returning to explorer)
+		if (input instanceof DiffEditorInput) {
+			return undefined;
+		}
+
+		// check for files
+		return toResource(input, { supportSideBySide: true });
 	}
 
 	private onSelectItem(fileStat: ExplorerItem, reveal = this.autoReveal): Promise<void> {
