@@ -46,7 +46,7 @@ export interface IResourceLabel extends IDisposable {
 	readonly onDidRender: Event<void>;
 
 	/**
-	 * Most generic way to apply a label directly.
+	 * Most generic way to apply a label with raw information.
 	 */
 	setLabel(label?: string, description?: string, options?: IIconLabelValueOptions): void;
 
@@ -58,14 +58,14 @@ export interface IResourceLabel extends IDisposable {
 	setResource(label: IResourceLabelProps, options?: IResourceLabelOptions): void;
 
 	/**
-	 * Convinient method to apply a label by passing an editor along.
-	 */
-	setEditor(editor: IEditorInput, options?: IResourceLabelOptions): void;
-
-	/**
 	 * Convinient method to render a file label based on a resource.
 	 */
 	setFile(resource: uri, options?: IFileLabelOptions): void;
+
+	/**
+	 * Convinient method to apply a label by passing an editor along.
+	 */
+	setEditor(editor: IEditorInput, options?: IResourceLabelOptions): void;
 
 	clear(): void;
 
@@ -87,10 +87,6 @@ export class ResourceLabels extends Disposable {
 		super();
 
 		this.registerListeners();
-	}
-
-	get labels(): IResourceLabel[] {
-		return this._labels;
 	}
 
 	get(index: number): IResourceLabel {
