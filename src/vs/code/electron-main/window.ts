@@ -856,6 +856,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			return true; // default
 		}
 
+		if (windowConfig.nativeTabs) {
+			return true; // https://github.com/electron/electron/issues/16142
+		}
+
 		return windowConfig.nativeFullScreen !== false;
 	}
 
