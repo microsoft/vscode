@@ -156,6 +156,7 @@ export class KeyboardMapperFactory {
 
 interface ContributedKeyBinding {
 	command: string;
+	args?: any;
 	key: string;
 	when?: string;
 	mac?: string;
@@ -207,6 +208,10 @@ let keybindingType: IJSONSchema = {
 			description: nls.localize('vscode.extension.contributes.keybindings.command', 'Identifier of the command to run when keybinding is triggered.'),
 			type: 'string'
 		},
+		args: {
+			'description': nls.localize('vscode.extension.contributes.keybindings.args', "Arguments to pass to the command to execute."),
+			type: 'any'
+		},
 		key: {
 			description: nls.localize('vscode.extension.contributes.keybindings.key', 'Key or key sequence (separate keys with plus-sign and sequences with space, e.g Ctrl+O and Ctrl+L L for a chord).'),
 			type: 'string'
@@ -226,7 +231,7 @@ let keybindingType: IJSONSchema = {
 		when: {
 			description: nls.localize('vscode.extension.contributes.keybindings.when', 'Condition when the key is active.'),
 			type: 'string'
-		}
+		},
 	}
 };
 
@@ -489,7 +494,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 	private _asCommandRule(isBuiltin: boolean, idx: number, binding: ContributedKeyBinding): IKeybindingRule2 | undefined {
 
-		let { command, when, key, mac, linux, win } = binding;
+		let { command, args, when, key, mac, linux, win } = binding;
 
 		let weight: number;
 		if (isBuiltin) {
@@ -500,6 +505,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 		let desc: IKeybindingRule2 = {
 			id: command,
+			args,
 			when: ContextKeyExpr.deserialize(when),
 			weight: weight,
 			primary: KeybindingParser.parseKeybinding(key, OS),

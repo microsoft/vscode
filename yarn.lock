@@ -9069,10 +9069,10 @@ v8-compile-cache@^2.0.0:
   resolved "https://registry.yarnpkg.com/v8-compile-cache/-/v8-compile-cache-2.0.2.tgz#a428b28bb26790734c4fc8bc9fa106fccebf6a6c"
   integrity sha512-1wFuMUIM16MDJRCrpbpuEPTUGmM5QMUg0cr3KFwra2XgOgFcPGDQHDh3CszSCD2Zewc/dh/pamNEW8CbfDebUw==
 
-v8-inspect-profiler@^0.0.19:
-  version "0.0.19"
-  resolved "https://registry.yarnpkg.com/v8-inspect-profiler/-/v8-inspect-profiler-0.0.19.tgz#0d2c407d8108e47bec4c8195acd39adac343da8a"
-  integrity sha512-yLk3Ja9sdTim4VmzLU4pK89QvknJD7m5gm8CrP74ESVmGCHivC9gR5mtodvmlQiCxhlET8aW5hIDzJB+kX6KjQ==
+v8-inspect-profiler@^0.0.20:
+  version "0.0.20"
+  resolved "https://registry.yarnpkg.com/v8-inspect-profiler/-/v8-inspect-profiler-0.0.20.tgz#f7ad0f8178dcea2f1504334e8844ef38181792ab"
+  integrity sha512-AFLVT7GLCvTcw0HszhwxD1GCBboIeZSxqlk0myNXVLIfjelLl8rybm8KmRjoYcWH7uXqMC0qwhKk7Vj4wppiFQ==
   dependencies:
     chrome-remote-interface "0.26.1"
 
@@ -9428,10 +9428,10 @@ vscode-uri@^1.0.6:
   resolved "https://registry.yarnpkg.com/vscode-uri/-/vscode-uri-1.0.6.tgz#6b8f141b0bbc44ad7b07e94f82f168ac7608ad4d"
   integrity sha512-sLI2L0uGov3wKVb9EB+vIQBl9tVP90nqRvxSoJ35vI3NjxE8jfsE5DSOhWgSunHSZmKS4OCi2jrtfxK7uyp2ww==
 
-vscode-xterm@3.10.0-beta1:
-  version "3.10.0-beta1"
-  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.10.0-beta1.tgz#99f8fc269ebe28b791801daaa211b77f36692d6d"
-  integrity sha512-lofgBHVpisbrCjlXEKB4XTtqpsyzSRJ2KbDwKNVJZ7/44k261rYCIUgK8n5U427txTLwlkFNUG9lkTMaPeGKpA==
+vscode-xterm@3.10.0-beta5:
+  version "3.10.0-beta5"
+  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.10.0-beta5.tgz#bc13711de6f75a574dc50295ffbfe06e7fb96579"
+  integrity sha512-o8DTuXKbN+vCK+aocZQYppsAgsYhmC9SGZGVfg81aibR37pldt59/ffX93fKKBKTOIAaQu+tFitQ6UYw4q3fEw==
 
 vso-node-api@6.1.2-preview:
   version "6.1.2-preview"

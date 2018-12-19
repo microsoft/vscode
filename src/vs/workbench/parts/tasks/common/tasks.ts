@@ -467,6 +467,8 @@ export abstract class CommonTask {
 
 	_source: BaseTaskSource;
 
+	private _taskLoadMessages: string[] | undefined;
+
 	protected constructor(id: string, label: string, type, runOptions: RunOptions,
 		configurationProperties: ConfigurationProperties, source: BaseTaskSource) {
 		this._id = id;
@@ -529,6 +531,19 @@ export abstract class CommonTask {
 			task: <any>this
 		};
 		return result;
+	}
+
+	public addTaskLoadMessages(messages: string[] | undefined) {
+		if (this._taskLoadMessages === void 0) {
+			this._taskLoadMessages = [];
+		}
+		if (messages) {
+			this._taskLoadMessages = this._taskLoadMessages.concat(messages);
+		}
+	}
+
+	get taskLoadMessages(): string[] | undefined {
+		return this._taskLoadMessages;
 	}
 }
 

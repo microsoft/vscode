@@ -1245,9 +1245,9 @@ export interface DocumentCommentProvider {
 	replyToCommentThread(resource: URI, range: Range, thread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
 	editComment(resource: URI, comment: Comment, text: string, token: CancellationToken): Promise<void>;
 	deleteComment(resource: URI, comment: Comment, token: CancellationToken): Promise<void>;
-	startDraft?(token: CancellationToken): Promise<void>;
-	deleteDraft?(token: CancellationToken): Promise<void>;
-	finishDraft?(token: CancellationToken): Promise<void>;
+	startDraft?(resource: URI, token: CancellationToken): Promise<void>;
+	deleteDraft?(resource: URI, token: CancellationToken): Promise<void>;
+	finishDraft?(resource: URI, token: CancellationToken): Promise<void>;
 
 	startDraftLabel?: string;
 	deleteDraftLabel?: string;

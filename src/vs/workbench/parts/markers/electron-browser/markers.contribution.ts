@@ -5,7 +5,7 @@
 
 import { clipboard } from 'electron';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
@@ -155,7 +155,38 @@ registerAction({
 		},
 	}
 });
-
+registerAction({
+	id: Constants.MARKERS_PANEL_SHOW_MULTILINE_MESSAGE,
+	handler(accessor) {
+		const panelService = accessor.get(IPanelService);
+		const panel = panelService.getActivePanel();
+		if (panel instanceof MarkersPanel) {
+			panel.markersViewState.multiline = true;
+		}
+	},
+	title: localize('show multiline', "Show message in multiple lines"),
+	category: localize('problems', "Problems"),
+	menu: {
+		menuId: MenuId.CommandPalette,
+		when: new RawContextKey<string>('activePanel', Constants.MARKERS_PANEL_ID)
+	}
+});
+registerAction({
+	id: Constants.MARKERS_PANEL_SHOW_SINGLELINE_MESSAGE,
+	handler(accessor) {
+		const panelService = accessor.get(IPanelService);
+		const panel = panelService.getActivePanel();
+		if (panel instanceof MarkersPanel) {
+			panel.markersViewState.multiline = false;
+		}
+	},
+	title: localize('show singleline', "Show message in single line"),
+	category: localize('problems', "Problems"),
+	menu: {
+		menuId: MenuId.CommandPalette,
+		when: new RawContextKey<string>('activePanel', Constants.MARKERS_PANEL_ID)
+	}
+});
 
 function copyMarker(panelService: IPanelService) {
 	const activePanel = panelService.getActivePanel();

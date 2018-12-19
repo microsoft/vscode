@@ -12,6 +12,7 @@ import { IExtensionPointUser, ExtensionMessageCollector, ExtensionsRegistry } fr
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { MenuId, MenuRegistry, ILocalizedString, IMenuItem } from 'vs/platform/actions/common/actions';
 import { URI } from 'vs/base/common/uri';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 namespace schema {
 
@@ -276,12 +277,15 @@ namespace schema {
 	};
 }
 
+let _commandRegistrations: IDisposable[] = [];
+
 ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.IUserFriendlyCommand[]>({
 	extensionPoint: 'commands',
-	jsonSchema: schema.commandsContribution
+	jsonSchema: schema.commandsContribution,
+	isDynamic: true
 }).setHandler(extensions => {
 
-	function handleCommand(userFriendlyCommand: schema.IUserFriendlyCommand, extension: IExtensionPointUser<any>) {
+	function handleCommand(userFriendlyCommand: schema.IUserFriendlyCommand, extension: IExtensionPointUser<any>, disposables: IDisposable[]) {
 
 		if (!schema.isValidCommand(userFriendlyCommand, extension.collector)) {
 			return;
@@ -301,28 +305,39 @@ ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.I
 			}
 		}
 
-		if (MenuRegistry.addCommand({ id: command, title, category, iconLocation: absoluteIcon })) {
+		if (MenuRegistry.getCommand(command)) {
 			extension.collector.info(localize('dup', "Command `{0}` appears multiple times in the `commands` section.", userFriendlyCommand.command));
 		}
+		const registration = MenuRegistry.addCommand({ id: command, title, category, iconLocation: absoluteIcon });
+		disposables.push(registration);
 	}
+
+	// remove all previous command registrations
+	_commandRegistrations = dispose(_commandRegistrations);
 
 	for (let extension of extensions) {
 		const { value } = extension;
 		if (Array.isArray<schema.IUserFriendlyCommand>(value)) {
 			for (let command of value) {
-				handleCommand(command, extension);
+				handleCommand(command, extension, _commandRegistrations);
 			}
 		} else {
-			handleCommand(value, extension);
+			handleCommand(value, extension, _commandRegistrations);
 		}
 	}
 });
 
+let _menuRegistrations: IDisposable[] = [];
 
 ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyMenuItem[] }>({
 	extensionPoint: 'menus',
-	jsonSchema: schema.menusContribtion
+	jsonSchema: schema.menusContribtion,
+	isDynamic: true
 }).setHandler(extensions => {
+
+	// remove all previous menu registrations
+	_menuRegistrations = dispose(_menuRegistrations);
+
 	for (let extension of extensions) {
 		const { value, collector } = extension;
 
@@ -364,13 +379,14 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyM
 					}
 				}
 
-				MenuRegistry.appendMenuItem(menu, {
+				const registration = MenuRegistry.appendMenuItem(menu, {
 					command,
 					alt,
 					group,
 					order,
 					when: ContextKeyExpr.deserialize(item.when)
 				} as IMenuItem);
+				_menuRegistrations.push(registration);
 			}
 		});
 	}

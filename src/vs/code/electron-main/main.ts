@@ -107,8 +107,7 @@ class ExpectedError extends Error {
 function setupIPC(accessor: ServicesAccessor): Promise<Server> {
 	const logService = accessor.get(ILogService);
 	const environmentService = accessor.get(IEnvironmentService);
-	const requestService = accessor.get(IRequestService);
-	const diagnosticsService = accessor.get(IDiagnosticsService);
+	const instantiationService = accessor.get(IInstantiationService);
 
 	function allowSetForegroundWindow(service: LaunchChannelClient): Promise<void> {
 		let promise: Promise<void> = Promise.resolve();
@@ -196,14 +195,18 @@ function setupIPC(accessor: ServicesAccessor): Promise<Server> {
 					// Process Info
 					if (environmentService.args.status) {
 						return service.getMainProcessInfo().then(info => {
-							return diagnosticsService.printDiagnostics(info).then(() => Promise.reject(new ExpectedError()));
+							return instantiationService.invokeFunction(accessor => {
+								return accessor.get(IDiagnosticsService).printDiagnostics(info).then(() => Promise.reject(new ExpectedError()));
+							});
 						});
 					}
 
 					// Log uploader
 					if (typeof environmentService.args['upload-logs'] !== 'undefined') {
-						return uploadLogs(service, requestService, environmentService)
-							.then(() => Promise.reject(new ExpectedError()));
+						return instantiationService.invokeFunction(accessor => {
+							return uploadLogs(service, accessor.get(IRequestService), environmentService)
+								.then(() => Promise.reject(new ExpectedError()));
+						});
 					}
 
 					logService.trace('Sending env to running instance...');

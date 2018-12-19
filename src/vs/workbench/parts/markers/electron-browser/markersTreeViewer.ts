@@ -24,9 +24,12 @@ import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeFilter, TreeVisibility, TreeFilterResult, ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { FilterOptions } from 'vs/workbench/parts/markers/electron-browser/markersFilterOptions';
 import { IMatch } from 'vs/base/common/filters';
-import { Event } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { isUndefinedOrNull } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
+import { Action } from 'vs/base/common/actions';
+import { localize } from 'vs/nls';
 
 export type TreeElement = ResourceMarkers | Marker | RelatedInformation;
 
@@ -74,9 +77,13 @@ const enum TemplateId {
 
 export class VirtualDelegate implements IListVirtualDelegate<TreeElement> {
 
+	constructor(private readonly markersViewState: MarkersViewState) { }
+
 	getHeight(element: TreeElement): number {
 		if (element instanceof Marker) {
-			return element.lines.length * 22;
+			const viewState = this.markersViewState.getViewState(element);
+			const noOfLines = !viewState || viewState.multiline ? element.lines.length : 1;
+			return noOfLines * 22;
 		}
 		return 22;
 	}
@@ -209,6 +216,7 @@ export class FileResourceMarkersRenderer extends ResourceMarkersRenderer {
 export class MarkerRenderer implements ITreeRenderer<Marker, MarkerFilterData, IMarkerTemplateData> {
 
 	constructor(
+		private readonly markersViewState: MarkersViewState,
 		private actionItemProvider: IActionItemProvider,
 		@IInstantiationService protected instantiationService: IInstantiationService
 	) { }
@@ -217,7 +225,7 @@ export class MarkerRenderer implements ITreeRenderer<Marker, MarkerFilterData, I
 
 	renderTemplate(container: HTMLElement): IMarkerTemplateData {
 		const data: IMarkerTemplateData = Object.create(null);
-		data.markerWidget = new MarkerWidget(container, this.actionItemProvider, this.instantiationService);
+		data.markerWidget = new MarkerWidget(container, this.markersViewState, this.actionItemProvider, this.instantiationService);
 		return data;
 	}
 
@@ -235,54 +243,77 @@ class MarkerWidget extends Disposable {
 
 	private readonly actionBar: ActionBar;
 	private readonly icon: HTMLElement;
-	private readonly messageContainer: HTMLElement;
+	private readonly multilineActionbar: ActionBar;
+	private readonly messageAndDetailsContainer: HTMLElement;
 	private disposables: IDisposable[] = [];
 
 	constructor(
-		parent: HTMLElement, actionItemProvider: IActionItemProvider,
+		parent: HTMLElement,
+		private readonly markersViewState: MarkersViewState,
+		actionItemProvider: IActionItemProvider,
 		private instantiationService: IInstantiationService
 	) {
 		super();
-		const actionsContainer = dom.append(parent, dom.$('.actions'));
-		this.actionBar = this._register(new ActionBar(actionsContainer, { actionItemProvider }));
+		this.actionBar = this._register(new ActionBar(dom.append(parent, dom.$('.actions')), { actionItemProvider }));
 		this.icon = dom.append(parent, dom.$('.icon'));
-		this.messageContainer = dom.append(parent, dom.$('.marker-message'));
+		this.multilineActionbar = this._register(new ActionBar(dom.append(parent, dom.$('.multiline-actions')), { actionItemProvider }));
+		this.messageAndDetailsContainer = dom.append(parent, dom.$('.marker-message-details'));
 		this._register(toDisposable(() => this.disposables = dispose(this.disposables)));
 	}
 
 	render(element: Marker, filterData: MarkerFilterData): void {
-		const { marker, lines } = element;
+		this.actionBar.clear();
+		this.multilineActionbar.clear();
 		if (this.disposables.length) {
 			this.disposables = dispose(this.disposables);
 		}
-		dom.clearNode(this.messageContainer);
+		dom.clearNode(this.messageAndDetailsContainer);
 
-		this.icon.className = 'icon ' + MarkerWidget.iconClassNameFor(marker);
+		this.renderQuickfixActionbar(element);
+		this.icon.className = 'marker-icon ' + MarkerWidget.iconClassNameFor(element.marker);
+		this.renderMultilineActionbar(element);
 
-		this.actionBar.clear();
-		const quickFixAction = this.instantiationService.createInstance(QuickFixAction, element);
+		this.renderMessageAndDetails(element, filterData);
+	}
+
+	private renderQuickfixActionbar(marker: Marker): void {
+		const quickFixAction = this.instantiationService.createInstance(QuickFixAction, marker);
 		this.actionBar.push([quickFixAction], { icon: true, label: false });
-		this.onDidQuickFixesActionEnable(quickFixAction.enabled);
+		dom.toggleClass(this.icon, 'quickFix', quickFixAction.enabled);
 		quickFixAction.onDidChange(({ enabled }) => {
 			if (!isUndefinedOrNull(enabled)) {
-				this.onDidQuickFixesActionEnable(enabled);
+				dom.toggleClass(this.icon, 'quickFix', enabled);
 			}
 		}, this, this.disposables);
+	}
 
+	private renderMultilineActionbar(marker: Marker): void {
+		const viewState = this.markersViewState.getViewState(marker);
+		const multiline = viewState && viewState.multiline;
+		const action = new Action('problems.action.toggleMultiline');
+		action.enabled = viewState && marker.lines.length > 1;
+		action.tooltip = multiline ? localize('single line', "Show message in single line") : localize('multi line', "Show message in multiple lines");
+		action.class = multiline ? 'octicon octicon-chevron-up' : 'octicon octicon-chevron-down';
+		action.run = () => { if (viewState) { viewState.multiline = !viewState.multiline; } return Promise.resolve(); };
+		this.multilineActionbar.push([action], { icon: true, label: false });
+	}
+
+	private renderMessageAndDetails(element: Marker, filterData: MarkerFilterData) {
+		const { marker, lines } = element;
+		const viewState = this.markersViewState.getViewState(element);
+		const multiline = !viewState || viewState.multiline;
 		const lineMatches = filterData && filterData.lineMatches || [];
-		let lastLineElement = this.messageContainer;
+		const messageContainer = dom.append(this.messageAndDetailsContainer, dom.$('.marker-message'));
+		dom.toggleClass(messageContainer, 'multiline', multiline);
+
+		let lastLineElement = messageContainer;
 		for (let index = 0; index < lines.length; index++) {
-			lastLineElement = dom.append(this.messageContainer, dom.$('.marker-message-line'));
+			lastLineElement = dom.append(messageContainer, dom.$('.marker-message-line'));
 			const highlightedLabel = new HighlightedLabel(lastLineElement, false);
 			highlightedLabel.set(lines[index], lineMatches[index]);
 			this.disposables.push(highlightedLabel);
 		}
-
-		this.renderDetails(marker, filterData, lastLineElement);
-	}
-
-	private onDidQuickFixesActionEnable(enabled: boolean): void {
-		dom.toggleClass(this.icon, 'quickFix', enabled);
+		this.renderDetails(marker, filterData, multiline ? lastLineElement : this.messageAndDetailsContainer);
 	}
 
 	private renderDetails(marker: IMarker, filterData: MarkerFilterData, parent: HTMLElement): void {
@@ -443,4 +474,105 @@ export class Filter implements ITreeFilter<TreeElement, FilterData> {
 
 		return parentVisibility;
 	}
+}
+
+export class MarkerViewState extends Disposable {
+
+	private readonly _onDidChangeViewState: Emitter<void> = this._register(new Emitter<void>());
+	readonly onDidChangeViewState: Event<void> = this._onDidChangeViewState.event;
+
+	private _multiline: boolean = true;
+	get multiline(): boolean {
+		return this._multiline;
+	}
+
+	set multiline(value: boolean) {
+		if (this._multiline !== value) {
+			this._multiline = value;
+			this._onDidChangeViewState.fire();
+		}
+	}
+}
+
+export class MarkersViewState extends Disposable {
+
+	private readonly _onDidChangeViewState: Emitter<Marker | undefined> = this._register(new Emitter<Marker | undefined>());
+	readonly onDidChangeViewState: Event<Marker | undefined> = this._onDidChangeViewState.event;
+
+	private readonly markersViewStates: Map<string, { viewState: MarkerViewState, disposables: IDisposable[] }> = new Map<string, { viewState: MarkerViewState, disposables: IDisposable[] }>();
+	private readonly markersPerResource: Map<string, Marker[]> = new Map<string, Marker[]>();
+
+	private bulkUpdate: boolean = false;
+
+	constructor(multiline: boolean = true) {
+		super();
+		this._multiline = multiline;
+	}
+
+	add(marker: Marker): void {
+		if (!this.markersViewStates.has(marker.hash)) {
+			const disposables: IDisposable[] = [];
+			const viewState = new MarkerViewState();
+			viewState.multiline = this.multiline;
+			viewState.onDidChangeViewState(() => {
+				if (!this.bulkUpdate) {
+					this._onDidChangeViewState.fire(marker);
+				}
+			}, this, disposables);
+			this.markersViewStates.set(marker.hash, { viewState, disposables });
+
+			const markers = this.markersPerResource.get(marker.resource.toString()) || [];
+			markers.push(marker);
+			this.markersPerResource.set(marker.resource.toString(), markers);
+		}
+	}
+
+	remove(resource: URI): void {
+		const markers = this.markersPerResource.get(resource.toString()) || [];
+		for (const marker of markers) {
+			const value = this.markersViewStates.get(marker.hash);
+			if (value) {
+				dispose(value.disposables);
+			}
+			this.markersViewStates.delete(marker.hash);
+		}
+		this.markersPerResource.delete(resource.toString());
+	}
+
+	getViewState(marker: Marker): MarkerViewState | null {
+		const value = this.markersViewStates.get(marker.hash);
+		return value ? value.viewState : null;
+	}
+
+	private _multiline: boolean = true;
+	get multiline(): boolean {
+		return this._multiline;
+	}
+
+	set multiline(value: boolean) {
+		let changed = false;
+		if (this._multiline !== value) {
+			this._multiline = value;
+			changed = true;
+		}
+		this.bulkUpdate = true;
+		this.markersViewStates.forEach(({ viewState }) => {
+			if (viewState.multiline !== value) {
+				viewState.multiline = value;
+				changed = true;
+			}
+		});
+		this.bulkUpdate = false;
+		if (changed) {
+			this._onDidChangeViewState.fire();
+		}
+	}
+
+	dispose(): void {
+		this.markersViewStates.forEach(({ disposables }) => dispose(disposables));
+		this.markersViewStates.clear();
+		this.markersPerResource.clear();
+		super.dispose();
+	}
+
 }

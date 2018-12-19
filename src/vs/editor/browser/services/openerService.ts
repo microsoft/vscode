@@ -10,10 +10,7 @@ import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 
 export class OpenerService implements IOpenerService {
 
@@ -22,21 +19,11 @@ export class OpenerService implements IOpenerService {
 	constructor(
 		@ICodeEditorService private readonly _editorService: ICodeEditorService,
 		@ICommandService private readonly _commandService: ICommandService,
-		@optional(ITelemetryService) private _telemetryService: ITelemetryService | null = NullTelemetryService
 	) {
 		//
 	}
 
 	open(resource: URI, options?: { openToSide?: boolean }): Promise<any> {
-
-		if (this._telemetryService) {
-			/* __GDPR__
-				"openerService" : {
-					"scheme" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				}
-			*/
-			this._telemetryService.publicLog('openerService', { scheme: resource.scheme });
-		}
 
 		const { scheme, path, query, fragment } = resource;
 		let promise: Promise<any> | undefined = undefined;

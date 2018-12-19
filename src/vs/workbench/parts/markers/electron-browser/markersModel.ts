@@ -6,7 +6,7 @@
 import * as paths from 'vs/base/common/paths';
 import { URI } from 'vs/base/common/uri';
 import { Range, IRange } from 'vs/editor/common/core/range';
-import { IMarker, MarkerSeverity, IRelatedInformation } from 'vs/platform/markers/common/markers';
+import { IMarker, MarkerSeverity, IRelatedInformation, IMarkerData } from 'vs/platform/markers/common/markers';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { values } from 'vs/base/common/map';
 import { memoize } from 'vs/base/common/decorators';
@@ -64,22 +64,6 @@ export class Marker {
 	get resource(): URI { return this.marker.resource; }
 	get range(): IRange { return this.marker; }
 
-	@memoize
-	get hash(): string {
-		const hasher = new Hasher();
-		hasher.hash(this.resource.toString());
-		hasher.hash(this.marker.startLineNumber);
-		hasher.hash(this.marker.startColumn);
-		hasher.hash(this.marker.endLineNumber);
-		hasher.hash(this.marker.endColumn);
-		return `${hasher.value}`;
-	}
-
-	constructor(
-		readonly marker: IMarker,
-		readonly relatedInformation: RelatedInformation[] = []
-	) { }
-
 	private _lines: string[];
 	get lines(): string[] {
 		if (!this._lines) {
@@ -87,6 +71,16 @@ export class Marker {
 		}
 		return this._lines;
 	}
+
+	@memoize
+	get hash(): string {
+		return IMarkerData.makeKey(this.marker);
+	}
+
+	constructor(
+		readonly marker: IMarker,
+		readonly relatedInformation: RelatedInformation[] = []
+	) { }
 
 	toString(): string {
 		return JSON.stringify({

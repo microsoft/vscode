@@ -61,7 +61,6 @@ export function startup(configuration: IWindowConfiguration): Promise<void> {
 	// Configure emitter leak warning threshold
 	setGlobalLeakWarningThreshold(175);
 
-
 	// Browser config
 	browser.setZoomFactor(webFrame.getZoomFactor()); // Ensure others can listen to zoom level changes
 	browser.setZoomLevel(webFrame.getZoomLevel(), true /* isTrusted */); // Can be trusted because we are not setting it ourselves (https://github.com/Microsoft/vscode/issues/26151)
