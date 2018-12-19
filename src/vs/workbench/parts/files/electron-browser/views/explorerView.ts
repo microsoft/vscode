@@ -7,7 +7,6 @@ import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import * as perf from 'vs/base/common/performance';
 import { ThrottledDelayer, sequence, ignoreErrors } from 'vs/base/common/async';
-import * as resources from 'vs/base/common/resources';
 import { Action, IAction } from 'vs/base/common/actions';
 import { memoize } from 'vs/base/common/decorators';
 import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, IExplorerService } from 'vs/workbench/parts/files/common/files';
@@ -26,11 +25,9 @@ import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
-import { isLinux } from 'vs/base/common/platform';
 import { IDecorationsService } from 'vs/workbench/services/decorations/browser/decorations';
 import { WorkbenchAsyncDataTree, IListService } from 'vs/platform/list/browser/listService';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
-import { Schemas } from 'vs/base/common/network';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IViewletPanelOptions, ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -64,7 +61,6 @@ export class ExplorerView extends ViewletPanel {
 	private dragHandler: DelayedDragHandler;
 	private decorationProvider: ExplorerDecorationsProvider;
 	private autoReveal = false;
-	private isDisposed = false;
 
 	constructor(
 		options: IViewletPanelOptions,
@@ -102,29 +98,6 @@ export class ExplorerView extends ViewletPanel {
 		this.disposables.push(this.resourceContext);
 	}
 
-	protected renderHeader(container: HTMLElement): void {
-		super.renderHeader(container);
-
-		// Expand on drag over
-		this.dragHandler = new DelayedDragHandler(container, () => this.setExpanded(true));
-
-		const titleElement = container.querySelector('.title') as HTMLElement;
-		const setHeader = () => {
-			const workspace = this.contextService.getWorkspace();
-			const title = workspace.folders.map(folder => folder.name).join();
-			titleElement.textContent = this.name;
-			titleElement.title = title;
-		};
-
-		this.disposables.push(this.contextService.onDidChangeWorkspaceName(setHeader));
-		this.disposables.push(this.labelService.onDidRegisterFormatter(setHeader));
-		setHeader();
-	}
-
-	protected layoutBody(size: number): void {
-		this.tree.layout(size);
-	}
-
 	get name(): string {
 		return this.labelService.getWorkspaceLabel(this.contextService.getWorkspace());
 	}
@@ -150,18 +123,27 @@ export class ExplorerView extends ViewletPanel {
 
 	// Split view methods
 
-	render(): void {
-		super.render();
+	protected renderHeader(container: HTMLElement): void {
+		super.renderHeader(container);
 
-		// Update configuration
-		const configuration = this.configurationService.getValue<IFilesConfiguration>();
-		this.onConfigurationUpdated(configuration);
+		// Expand on drag over
+		this.dragHandler = new DelayedDragHandler(container, () => this.setExpanded(true));
 
-		// When the explorer viewer is loaded, listen to changes to the editor input
-		this.disposables.push(this.editorService.onDidActiveEditorChange(() => this.revealActiveFile()));
+		const titleElement = container.querySelector('.title') as HTMLElement;
+		const setHeader = () => {
+			const workspace = this.contextService.getWorkspace();
+			const title = workspace.folders.map(folder => folder.name).join();
+			titleElement.textContent = this.name;
+			titleElement.title = title;
+		};
 
-		// Also handle configuration updates
-		this.disposables.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IFilesConfiguration>(), e)));
+		this.disposables.push(this.contextService.onDidChangeWorkspaceName(setHeader));
+		this.disposables.push(this.labelService.onDidRegisterFormatter(setHeader));
+		setHeader();
+	}
+
+	protected layoutBody(size: number): void {
+		this.tree.layout(size);
 	}
 
 	renderBody(container: HTMLElement): void {
@@ -182,6 +164,16 @@ export class ExplorerView extends ViewletPanel {
 		this.disposables.push(this.explorerService.onDidChangeItem(e => this.refreshFromEvent(e)));
 		this.disposables.push(this.explorerService.onDidChangeEditable(e => this.refresh(e.parent)));
 		this.disposables.push(this.explorerService.onDidSelectItem(e => this.onSelectItem(e.item, e.reveal)));
+
+		// Update configuration
+		const configuration = this.configurationService.getValue<IFilesConfiguration>();
+		this.onConfigurationUpdated(configuration);
+
+		// When the explorer viewer is loaded, listen to changes to the editor input
+		this.disposables.push(this.editorService.onDidActiveEditorChange(() => this.explorerService.select(this.getActiveFile())));
+
+		// Also handle configuration updates
+		this.disposables.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IFilesConfiguration>(), e)));
 	}
 
 	getActions(): IAction[] {
@@ -195,71 +187,6 @@ export class ExplorerView extends ViewletPanel {
 		return actions;
 	}
 
-	private revealActiveFile(): void {
-		if (!this.autoReveal) {
-			return; // do not touch selection or focus if autoReveal === false
-		}
-
-		let clearSelection = true;
-		let clearFocus = false;
-
-		// Handle files
-		const activeFile = this.getActiveFile();
-		if (activeFile) {
-
-			// Select file if input is inside workspace
-			if (this.isVisible() && !this.isDisposed && this.contextService.isInsideWorkspace(activeFile)) {
-				const selection = this.hasSingleSelection(activeFile);
-				if (!selection) {
-					this.explorerService.select(activeFile).then(undefined, onUnexpectedError);
-				}
-
-				clearSelection = false;
-			}
-		}
-
-		// Handle closed or untitled file (convince explorer to not reopen any file when getting visible)
-		const activeInput = this.editorService.activeEditor;
-		if (!activeInput || toResource(activeInput, { supportSideBySide: true, filter: Schemas.untitled })) {
-			clearFocus = true;
-		}
-
-		// Otherwise clear
-		if (clearSelection) {
-			this.tree.setSelection([]);
-		}
-
-		if (clearFocus) {
-			this.tree.setFocus([]);
-		}
-	}
-
-	focus(): void {
-		super.focus();
-
-		let keepFocus = false;
-
-		// Make sure the current selected element is revealed
-		if (this.tree) {
-			if (this.autoReveal) {
-				const selection = this.tree.getSelection();
-				if (selection.length > 0) {
-					this.tree.reveal(selection[0], 0.5);
-				}
-			}
-
-			// Pass Focus to Viewer
-			this.tree.domFocus();
-			keepFocus = true;
-		}
-
-		// Open the focused element in the editor if there is currently no file opened
-		const activeFile = this.getActiveFile();
-		if (!activeFile) {
-			this.openFocusedElement(keepFocus);
-		}
-	}
-
 	setVisible(visible: boolean): void {
 		super.setVisible(visible);
 		if (visible) {
@@ -268,14 +195,6 @@ export class ExplorerView extends ViewletPanel {
 				this.shouldRefresh = false;
 				this.setTreeInput().then(undefined, onUnexpectedError);
 			}
-		}
-	}
-
-	private openFocusedElement(preserveFocus?: boolean): void {
-		const focusedElements = this.tree.getFocus();
-		const stat = focusedElements && focusedElements.length ? focusedElements[0] : undefined;
-		if (stat && !stat.isDirectory) {
-			this.editorService.openEditor({ resource: stat.resource, options: { preserveFocus, revealIfVisible: true } });
 		}
 	}
 
@@ -367,10 +286,6 @@ export class ExplorerView extends ViewletPanel {
 	// React on events
 
 	private onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): void {
-		if (this.isDisposed) {
-			return; // guard against possible race condition when config change causes recreate of views
-		}
-
 		this.autoReveal = configuration && configuration.explorer && configuration.explorer.autoReveal;
 
 		// Push down config updates to components of viewer
@@ -391,7 +306,7 @@ export class ExplorerView extends ViewletPanel {
 	}
 
 	private refreshFromEvent(explorerItem?: ExplorerItem): void {
-		if (this.isVisible() && !this.isDisposed) {
+		if (this.isVisible()) {
 			this.explorerRefreshDelayer.trigger(() => {
 				return this.refresh(explorerItem);
 			});
@@ -477,41 +392,8 @@ export class ExplorerView extends ViewletPanel {
 		return promise;
 	}
 
-	/**
-	 * Given a stat, fills an array of path that make all folders below the stat that are resolved directories.
-	 */
-	private getResolvedDirectories(stat: ExplorerItem, resolvedDirectories: URI[]): void {
-		if (stat.isDirectoryResolved) {
-			if (!stat.isRoot) {
-
-				// Drop those path which are parents of the current one
-				for (let i = resolvedDirectories.length - 1; i >= 0; i--) {
-					const resource = resolvedDirectories[i];
-					if (resources.isEqualOrParent(stat.resource, resource, !isLinux /* ignorecase */)) {
-						resolvedDirectories.splice(i);
-					}
-				}
-
-				// Add to the list of path to resolve
-				resolvedDirectories.push(stat.resource);
-			}
-
-			// Recurse into children
-			stat.getChildrenArray().forEach(child => {
-				this.getResolvedDirectories(child, resolvedDirectories);
-			});
-		}
-	}
-
-	private hasSingleSelection(resource: URI): ExplorerItem {
-		const currentSelection: ExplorerItem[] = this.tree.getSelection();
-		return currentSelection.length === 1 && currentSelection[0].resource.toString() === resource.toString()
-			? currentSelection[0]
-			: undefined;
-	}
-
 	private onSelectItem(fileStat: ExplorerItem, reveal = this.autoReveal): Promise<void> {
-		if (!fileStat) {
+		if (!fileStat || !this.isVisible()) {
 			return Promise.resolve(void 0);
 		}
 
@@ -541,7 +423,6 @@ export class ExplorerView extends ViewletPanel {
 	}
 
 	dispose(): void {
-		this.isDisposed = true;
 		if (this.dragHandler) {
 			this.dragHandler.dispose();
 		}
