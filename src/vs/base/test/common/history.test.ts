@@ -113,8 +113,8 @@ suite('History Navigator', () => {
 		assert.equal(testObject.current(), undefined);
 	});
 
-	function toArray(historyNavigator: HistoryNavigator<string>): string[] {
-		let result: string[] = [];
+	function toArray(historyNavigator: HistoryNavigator<string>): Array<string | null> {
+		let result: Array<string | null> = [];
 		historyNavigator.first();
 		if (historyNavigator.current()) {
 			do {

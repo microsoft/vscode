@@ -133,6 +133,7 @@
 		"./vs/base/test/common/filters.perf.test.ts",
 		"./vs/base/test/common/filters.test.ts",
 		"./vs/base/test/common/hash.test.ts",
+		"./vs/base/test/common/history.test.ts",
 		"./vs/base/test/common/json.test.ts",
 		"./vs/base/test/common/jsonEdit.test.ts",
 		"./vs/base/test/common/jsonFormatter.test.ts",
