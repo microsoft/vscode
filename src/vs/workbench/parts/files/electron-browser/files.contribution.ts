@@ -81,7 +81,7 @@ Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new Vie
 	0
 ));
 
-registerSingleton(IExplorerService, ExplorerService);
+registerSingleton(IExplorerService, ExplorerService, true);
 
 Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).setDefaultViewletId(VIEWLET_ID);
 
