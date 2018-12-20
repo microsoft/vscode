@@ -240,14 +240,14 @@ class ResourceLabelWidget extends IconLabel {
 	}
 
 	notifyVisibilityChanged(visible: boolean): void {
-		// if (visible === this.isHidden) {
-		// 	this.isHidden = !visible;
+		if (visible === this.isHidden) {
+			this.isHidden = !visible;
 
-		// 	if (visible && this.needsRedraw) {
-		// 		this.render(this.needsRedraw === Redraw.Basic ? false : true);
-		// 		this.needsRedraw = void 0;
-		// 	}
-		// }
+			if (visible && this.needsRedraw) {
+				this.render(this.needsRedraw === Redraw.Basic ? false : true);
+				this.needsRedraw = void 0;
+			}
+		}
 	}
 
 	notifyModelModeChanged(e: { model: ITextModel; oldModeId: string; }): void {
