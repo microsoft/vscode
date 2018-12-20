@@ -62,11 +62,7 @@ export class CustomTreeViewPanel extends ViewletPanel {
 		this.treeView = treeView;
 		this.treeView.onDidChangeActions(() => this.updateActions(), this, this.disposables);
 		this.disposables.push(toDisposable(() => this.treeView.setVisibility(false)));
-		this.updateTreeVisibility();
-	}
-
-	setVisible(visible: boolean): void {
-		super.setVisible(visible);
+		this.onDidChangeBodyVisibility(() => this.updateTreeVisibility());
 		this.updateTreeVisibility();
 	}
 
@@ -77,11 +73,6 @@ export class CustomTreeViewPanel extends ViewletPanel {
 
 	renderBody(container: HTMLElement): void {
 		this.treeView.show(container);
-	}
-
-	setExpanded(expanded: boolean): boolean {
-		this.treeView.setVisibility(this.isVisible() && expanded);
-		return super.setExpanded(expanded);
 	}
 
 	layoutBody(size: number): void {
