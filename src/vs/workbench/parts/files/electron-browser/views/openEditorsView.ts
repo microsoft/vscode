@@ -103,7 +103,7 @@ export class OpenEditorsView extends ViewletPanel {
 
 	private registerUpdateEvents(): void {
 		const updateWholeList = () => {
-			if (!this.isVisible() || !this.list || !this.isExpanded()) {
+			if (!this.isBodyVisible() || !this.list) {
 				this.needsRefresh = true;
 				return;
 			}
@@ -117,7 +117,7 @@ export class OpenEditorsView extends ViewletPanel {
 				if (this.listRefreshScheduler.isScheduled()) {
 					return;
 				}
-				if (!this.isVisible() || !this.list || !this.isExpanded()) {
+				if (!this.isBodyVisible() || !this.list) {
 					this.needsRefresh = true;
 					return;
 				}

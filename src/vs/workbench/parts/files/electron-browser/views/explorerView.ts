@@ -55,7 +55,7 @@ export class ExplorerView extends ViewletPanel {
 	private rootContext: IContextKey<boolean>;
 
 	// Refresh is needed on the initial explorer open
-	private shouldRefresh;
+	private shouldRefresh = true;
 	private dragHandler: DelayedDragHandler;
 	private decorationProvider: ExplorerDecorationsProvider;
 	private autoReveal = false;
@@ -229,7 +229,6 @@ export class ExplorerView extends ViewletPanel {
 				sorter: this.instantiationService.createInstance(FileSorter)
 			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
 
-		this.setTreeInput();
 		this.disposables.push(this.tree);
 		// Bind context keys
 		FilesExplorerFocusedContext.bindTo(this.tree.contextKeyService);

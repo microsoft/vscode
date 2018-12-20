@@ -456,7 +456,7 @@ export class LoadedScriptsView extends ViewletPanel {
 					case 'changed':
 						sessionRoot = root.add(session);
 						sessionRoot.addPath(event.source);
-						if (this.isVisible) {
+						if (this.isBodyVisible()) {
 							this.changeScheduler.schedule();
 						} else {
 							this.treeNeedsRefreshOnVisible = true;
@@ -468,7 +468,7 @@ export class LoadedScriptsView extends ViewletPanel {
 					case 'removed':
 						sessionRoot = root.find(session);
 						if (sessionRoot && sessionRoot.removePath(event.source)) {
-							if (this.isVisible) {
+							if (this.isBodyVisible()) {
 								this.changeScheduler.schedule();
 							} else {
 								this.treeNeedsRefreshOnVisible = true;
