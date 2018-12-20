@@ -373,6 +373,7 @@
 		"./vs/platform/clipboard/common/clipboardService.ts",
 		"./vs/platform/clipboard/electron-browser/clipboardService.ts",
 		"./vs/platform/commands/common/commands.ts",
+		"./vs/platform/commands/test/commands.test.ts",
 		"./vs/platform/configuration/common/configuration.ts",
 		"./vs/platform/configuration/common/configurationModels.ts",
 		"./vs/platform/configuration/common/configurationRegistry.ts",

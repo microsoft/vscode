@@ -14,7 +14,7 @@ suite('Command Tests', function () {
 	test('register/dispose', () => {
 		const command = function () { };
 		const reg = CommandsRegistry.registerCommand('foo', command);
-		assert.ok(CommandsRegistry.getCommand('foo').handler === command);
+		assert.ok(CommandsRegistry.getCommand('foo')!.handler === command);
 		reg.dispose();
 		assert.ok(CommandsRegistry.getCommand('foo') === undefined);
 	});
@@ -25,23 +25,23 @@ suite('Command Tests', function () {
 
 		// dispose overriding command
 		let reg1 = CommandsRegistry.registerCommand('foo', command1);
-		assert.ok(CommandsRegistry.getCommand('foo').handler === command1);
+		assert.ok(CommandsRegistry.getCommand('foo')!.handler === command1);
 
 		let reg2 = CommandsRegistry.registerCommand('foo', command2);
-		assert.ok(CommandsRegistry.getCommand('foo').handler === command2);
+		assert.ok(CommandsRegistry.getCommand('foo')!.handler === command2);
 		reg2.dispose();
 
-		assert.ok(CommandsRegistry.getCommand('foo').handler === command1);
+		assert.ok(CommandsRegistry.getCommand('foo')!.handler === command1);
 		reg1.dispose();
 		assert.ok(CommandsRegistry.getCommand('foo') === void 0);
 
 		// dispose override command first
 		reg1 = CommandsRegistry.registerCommand('foo', command1);
 		reg2 = CommandsRegistry.registerCommand('foo', command2);
-		assert.ok(CommandsRegistry.getCommand('foo').handler === command2);
+		assert.ok(CommandsRegistry.getCommand('foo')!.handler === command2);
 
 		reg1.dispose();
-		assert.ok(CommandsRegistry.getCommand('foo').handler === command2);
+		assert.ok(CommandsRegistry.getCommand('foo')!.handler === command2);
 
 		reg2.dispose();
 		assert.ok(CommandsRegistry.getCommand('foo') === void 0);
@@ -68,6 +68,7 @@ suite('Command Tests', function () {
 			}
 		});
 
+		// TODO: Can a handler's accessor (first param) be undefined?
 		CommandsRegistry.getCommands()['test'].handler.apply(undefined, [undefined, 'string']);
 		CommandsRegistry.getCommands()['test2'].handler.apply(undefined, [undefined, 'string']);
 		assert.throws(() => CommandsRegistry.getCommands()['test3'].handler.apply(undefined, [undefined, 'string']));

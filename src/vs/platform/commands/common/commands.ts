@@ -43,7 +43,7 @@ export interface ICommandHandlerDescription {
 
 export interface ICommandRegistry {
 	onDidRegisterCommand: Event<string>;
-	registerCommand(id: string, command: ICommandHandler): IDisposable;
+	registerCommand(id: string, command?: ICommandHandler | null): IDisposable;
 	registerCommand(command: ICommand): IDisposable;
 	registerCommandAlias(oldId: string, newId: string): IDisposable;
 	getCommand(id: string): ICommand | undefined;
