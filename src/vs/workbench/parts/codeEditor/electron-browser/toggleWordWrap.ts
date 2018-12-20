@@ -41,7 +41,7 @@ interface IWordWrapState {
 /**
  * Store (in memory) the word wrap state for a particular model.
  */
-function writeTransientState(model: ITextModel, state: IWordWrapTransientState | null, codeEditorService: ICodeEditorService): void {
+export function writeTransientState(model: ITextModel, state: IWordWrapTransientState | null, codeEditorService: ICodeEditorService): void {
 	codeEditorService.setTransientModelProperty(model, transientWordWrapState, state);
 }
 

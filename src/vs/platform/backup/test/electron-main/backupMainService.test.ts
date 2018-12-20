@@ -109,12 +109,13 @@ suite('BackupMainService', () => {
 	let configService: TestConfigurationService;
 
 	setup(() => {
-		configService = new TestConfigurationService();
-		service = new TestBackupMainService(backupHome, backupWorkspacesPath, configService);
 
 		// Delete any existing backups completely and then re-create it.
 		return pfs.del(backupHome, os.tmpdir()).then(() => {
 			return pfs.mkdirp(backupHome);
+		}).then(() => {
+			configService = new TestConfigurationService();
+			service = new TestBackupMainService(backupHome, backupWorkspacesPath, configService);
 		});
 	});
 

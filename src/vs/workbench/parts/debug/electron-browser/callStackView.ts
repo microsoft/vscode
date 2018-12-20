@@ -189,7 +189,7 @@ export class CallStackView extends ViewletPanel {
 		}));
 
 		this.disposables.push(this.debugService.getModel().onDidChangeCallStack(() => {
-			if (!this.isVisible()) {
+			if (!this.isBodyVisible()) {
 				this.needsRefresh = true;
 				return;
 			}
@@ -202,7 +202,7 @@ export class CallStackView extends ViewletPanel {
 			if (this.ignoreFocusStackFrameEvent) {
 				return;
 			}
-			if (!this.isVisible) {
+			if (!this.isBodyVisible()) {
 				this.needsRefresh = true;
 				return;
 			}

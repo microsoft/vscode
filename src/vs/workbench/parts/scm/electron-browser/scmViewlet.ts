@@ -829,7 +829,7 @@ export class RepositoryPanel extends ViewletPanel {
 		const triggerValidation = () => validationDelayer.trigger(validate);
 
 		this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, { flexibleHeight: true });
-		this.inputBox.setEnabled(this.isVisible() && this.isExpanded());
+		this.inputBox.setEnabled(this.isBodyVisible());
 		this.disposables.push(attachInputBoxStyler(this.inputBox, this.themeService));
 		this.disposables.push(this.inputBox);
 
@@ -908,12 +908,12 @@ export class RepositoryPanel extends ViewletPanel {
 			this.visibilityDisposables = dispose(this.visibilityDisposables);
 		}
 
-		this.inputBox.setEnabled(this.isVisible() && this.isExpanded());
+		this.inputBox.setEnabled(this.isBodyVisible());
 	}
 
 	setExpanded(expanded: boolean): boolean {
 		const changed = super.setExpanded(expanded);
-		this.inputBox.setEnabled(this.isVisible() && this.isExpanded());
+		this.inputBox.setEnabled(this.isBodyVisible());
 
 		return changed;
 	}

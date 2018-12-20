@@ -327,7 +327,7 @@ suite('ExtensionsListView Tests', () => {
 			assert.equal(result.length, workspaceRecommendedExtensions.length);
 			for (let i = 0; i < workspaceRecommendedExtensions.length; i++) {
 				assert.equal(options.names[i], workspaceRecommendedExtensions[i].identifier.id);
-				assert.equal(result.get(i).id, workspaceRecommendedExtensions[i].identifier.id);
+				assert.equal(result.get(i).identifier.id, workspaceRecommendedExtensions[i].identifier.id);
 			}
 		});
 	});
@@ -348,7 +348,7 @@ suite('ExtensionsListView Tests', () => {
 			assert.equal(result.length, allRecommendedExtensions.length);
 			for (let i = 0; i < allRecommendedExtensions.length; i++) {
 				assert.equal(options.names[i], allRecommendedExtensions[i].identifier.id);
-				assert.equal(result.get(i).id, allRecommendedExtensions[i].identifier.id);
+				assert.equal(result.get(i).identifier.id, allRecommendedExtensions[i].identifier.id);
 			}
 		});
 	});
@@ -372,7 +372,7 @@ suite('ExtensionsListView Tests', () => {
 			assert.equal(result.length, allRecommendedExtensions.length);
 			for (let i = 0; i < allRecommendedExtensions.length; i++) {
 				assert.equal(options.names[i], allRecommendedExtensions[i].identifier.id);
-				assert.equal(result.get(i).id, allRecommendedExtensions[i].identifier.id);
+				assert.equal(result.get(i).identifier.id, allRecommendedExtensions[i].identifier.id);
 			}
 		});
 	});
@@ -395,7 +395,7 @@ suite('ExtensionsListView Tests', () => {
 			assert.equal(result.length, curatedList.length);
 			for (let i = 0; i < curatedList.length; i++) {
 				assert.equal(options.names[i], curatedList[i].identifier.id);
-				assert.equal(result.get(i).id, curatedList[i].identifier.id);
+				assert.equal(result.get(i).identifier.id, curatedList[i].identifier.id);
 			}
 			assert.equal(curatedKey, 'mykey');
 		});
@@ -417,7 +417,7 @@ suite('ExtensionsListView Tests', () => {
 			assert.equal(options.text, searchText);
 			assert.equal(result.length, results.length);
 			for (let i = 0; i < results.length; i++) {
-				assert.equal(result.get(i).id, results[i].identifier.id);
+				assert.equal(result.get(i).identifier.id, results[i].identifier.id);
 			}
 		});
 	});
@@ -466,7 +466,7 @@ suite('ExtensionsListView Tests', () => {
 			assert.equal(options.text, searchText);
 			assert.equal(result.length, expected.length);
 			for (let i = 0; i < expected.length; i++) {
-				assert.equal(result.get(i).id, expected[i].identifier.id);
+				assert.equal(result.get(i).identifier.id, expected[i].identifier.id);
 			}
 		});
 	});
@@ -492,7 +492,7 @@ suite('ExtensionsListView Tests', () => {
 			assert.equal(options.text, searchText);
 			assert.equal(result.length, realResults.length);
 			for (let i = 0; i < realResults.length; i++) {
-				assert.equal(result.get(i).id, realResults[i].identifier.id);
+				assert.equal(result.get(i).identifier.id, realResults[i].identifier.id);
 			}
 		});
 	});

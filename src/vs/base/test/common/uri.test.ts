@@ -91,9 +91,9 @@ suite('URI', () => {
 	test('with, identity', () => {
 		let uri = URI.parse('foo:bar/path');
 
-		let uri2 = uri.with(null);
+		let uri2 = uri.with(null!);
 		assert.ok(uri === uri2);
-		uri2 = uri.with(undefined);
+		uri2 = uri.with(undefined!);
 		assert.ok(uri === uri2);
 		uri2 = uri.with({});
 		assert.ok(uri === uri2);

@@ -20,6 +20,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { RuntimeExtensionsInput } from 'vs/workbench/services/extensions/electron-browser/runtimeExtensionsInput';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 
 export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchContribution {
 
@@ -162,7 +163,7 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 
 		// prompt: only when you can file an issue
 		const reportAction = new ReportExtensionIssueAction({
-			marketplaceInfo: this._anotherExtensionService.local.filter(value => value.id === extension.id)[0],
+			marketplaceInfo: this._anotherExtensionService.local.filter(value => areSameExtensions(value.identifier, extension))[0],
 			description: extension,
 			unresponsiveProfile: profile,
 			status: undefined,
