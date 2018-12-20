@@ -522,7 +522,7 @@ suite('Async', () => {
 		assert.ok(r2Queue);
 		assert.equal(r1Queue, queue.queueFor(URI.file('/some/path'))); // same queue returned
 
-		let syncPromiseFactory = () => Promise.resolve(null);
+		let syncPromiseFactory = () => Promise.resolve(undefined);
 
 		r1Queue.queue(syncPromiseFactory);
 
