@@ -157,7 +157,7 @@ class WebviewKeyboardHandler extends Disposable {
 				const contents = this.getWebContents();
 				if (contents) {
 					contents.on('before-input-event', (_event, input) => {
-						contents.setIgnoreMenuShortcuts(input.control || input.meta);
+						this.setIgnoreMenuShortcuts(input.control || input.meta);
 					});
 				}
 			}));
@@ -173,12 +173,7 @@ class WebviewKeyboardHandler extends Disposable {
 					return;
 
 				case 'did-blur':
-					if (this.shouldToggleMenuShortcutsEnablement) {
-						const contents = this.getWebContents();
-						if (contents) {
-							contents.setIgnoreMenuShortcuts(false);
-						}
-					}
+					this.setIgnoreMenuShortcuts(false);
 					return;
 			}
 		}));
@@ -186,6 +181,16 @@ class WebviewKeyboardHandler extends Disposable {
 
 	private get shouldToggleMenuShortcutsEnablement() {
 		return isMacintosh;
+	}
+
+	private setIgnoreMenuShortcuts(value: boolean) {
+		if (!this.shouldToggleMenuShortcutsEnablement) {
+			return;
+		}
+		const contents = this.getWebContents();
+		if (contents) {
+			contents.setIgnoreMenuShortcuts(value);
+		}
 	}
 
 	private getWebContents(): Electron.WebContents | undefined {
