@@ -130,8 +130,16 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 
 		this.updateFilter();
 
-		this.onDidFocus(() => this.panelFoucusContextKey.set(true));
-		this.onDidBlur(() => this.panelFoucusContextKey.set(false));
+		this._register(this.onDidFocus(() => this.panelFoucusContextKey.set(true)));
+		this._register(this.onDidBlur(() => this.panelFoucusContextKey.set(false)));
+
+		this._register(this.onDidChangeVisibility(visible => {
+			if (visible) {
+				this.refreshPanel();
+			} else {
+				this.rangeHighlightDecorations.removeHighlightRange();
+			}
+		}));
 
 		this.render();
 	}
@@ -159,18 +167,6 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	public focusFilter(): void {
 		if (this.filterInputActionItem) {
 			this.filterInputActionItem.focus();
-		}
-	}
-
-	public setVisible(visible: boolean): void {
-		const wasVisible = this.isVisible();
-		super.setVisible(visible);
-		if (this.isVisible()) {
-			if (!wasVisible) {
-				this.refreshPanel();
-			}
-		} else {
-			this.rangeHighlightDecorations.removeHighlightRange();
 		}
 	}
 

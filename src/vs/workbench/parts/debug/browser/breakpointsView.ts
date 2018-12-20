@@ -119,6 +119,12 @@ export class BreakpointsView extends ViewletPanel {
 		}));
 
 		this.list.splice(0, this.list.length, this.elements);
+
+		this.disposables.push(this.onDidChangeBodyVisibility(visible => {
+			if (visible && this.needsRefresh) {
+				this.onBreakpointsChange();
+			}
+		}));
 	}
 
 	public focus(): void {
@@ -189,22 +195,6 @@ export class BreakpointsView extends ViewletPanel {
 			new ToggleBreakpointsActivatedAction(ToggleBreakpointsActivatedAction.ID, ToggleBreakpointsActivatedAction.ACTIVATE_LABEL, this.debugService, this.keybindingService),
 			new RemoveAllBreakpointsAction(RemoveAllBreakpointsAction.ID, RemoveAllBreakpointsAction.LABEL, this.debugService, this.keybindingService)
 		];
-	}
-
-	public setExpanded(expanded: boolean): boolean {
-		const changed = super.setExpanded(expanded);
-		if (expanded && this.needsRefresh) {
-			this.onBreakpointsChange();
-		}
-
-		return changed;
-	}
-
-	public setVisible(visible: boolean): void {
-		super.setVisible(visible);
-		if (visible && this.needsRefresh) {
-			this.onBreakpointsChange();
-		}
 	}
 
 	private onBreakpointsChange(): void {

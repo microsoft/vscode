@@ -215,6 +215,12 @@ export class CallStackView extends ViewletPanel {
 		if (this.debugService.state === State.Stopped) {
 			this.onCallStackChangeScheduler.schedule(0);
 		}
+
+		this.disposables.push(this.onDidChangeBodyVisibility(visible => {
+			if (visible && this.needsRefresh) {
+				this.onCallStackChangeScheduler.schedule();
+			}
+		}));
 	}
 
 	layoutBody(size: number): void {
@@ -253,13 +259,6 @@ export class CallStackView extends ViewletPanel {
 			if (stackFrame) {
 				expansionsPromise.then(() => updateSelectionAndReveal(stackFrame));
 			}
-		}
-	}
-
-	setVisible(visible: boolean): void {
-		super.setVisible(visible);
-		if (visible && this.needsRefresh) {
-			this.onCallStackChangeScheduler.schedule();
 		}
 	}
 
