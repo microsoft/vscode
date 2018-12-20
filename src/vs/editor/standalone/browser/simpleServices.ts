@@ -116,6 +116,10 @@ export class SimpleEditorModelResolverService implements ITextModelService {
 		};
 	}
 
+	public hasTextModelContentProvider(scheme: string): boolean {
+		return false;
+	}
+
 	private findModel(editor: ICodeEditor, resource: URI): ITextModel | null {
 		let model = editor.getModel();
 		if (model && model.uri.toString() !== resource.toString()) {
