@@ -251,7 +251,7 @@ suite('ParameterHintsModel', () => {
 			hintsModel.onChangedHints(newParamterHints => {
 				try {
 					assert.strictEqual(0, didRequestCancellationOf);
-					assert.strictEqual('1', newParamterHints.signatures[0].label);
+					assert.strictEqual('1', newParamterHints!.signatures[0].label);
 					resolve();
 				} catch (e) {
 					reject(e);
