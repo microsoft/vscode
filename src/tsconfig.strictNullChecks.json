@@ -111,9 +111,9 @@
 		"./vs/base/test/browser/ui/grid/util.ts",
 		"./vs/base/test/browser/ui/list/listView.test.ts",
 		"./vs/base/test/browser/ui/list/rangeMap.test.ts",
-		"./vs/base/test/browser/ui/splitview/splitview.test.ts",
 		"./vs/base/test/browser/ui/scrollbar/scrollableElement.test.ts",
 		"./vs/base/test/browser/ui/scrollbar/scrollbarState.test.ts",
+		"./vs/base/test/browser/ui/splitview/splitview.test.ts",
 		"./vs/base/test/browser/ui/tree/asyncDataTree.test.ts",
 		"./vs/base/test/browser/ui/tree/indexTreeModel.test.ts",
 		"./vs/base/test/browser/ui/tree/objectTree.test.ts",
@@ -572,7 +572,6 @@
 		"./vs/workbench/common/extensionHostProtocol.ts",
 		"./vs/workbench/common/memento.ts",
 		"./vs/workbench/common/notifications.ts",
-		"./vs/workbench/test/common/notifications.test.ts",
 		"./vs/workbench/common/panel.ts",
 		"./vs/workbench/common/resources.ts",
 		"./vs/workbench/common/theme.ts",
@@ -771,6 +770,7 @@
 		"./vs/workbench/services/keybinding/common/windowsKeyboardMapper.ts",
 		"./vs/workbench/services/keybinding/electron-browser/keybindingService.ts",
 		"./vs/workbench/services/keybinding/test/keyboardMapperTestUtils.ts",
+		"./vs/workbench/services/keybinding/test/windowsKeyboardMapper.test.ts",
 		"./vs/workbench/services/mode/common/workbenchModeService.ts",
 		"./vs/workbench/services/notification/common/notificationService.ts",
 		"./vs/workbench/services/panel/common/panelService.ts",
@@ -815,8 +815,8 @@
 		"./vs/workbench/services/title/common/titleService.ts",
 		"./vs/workbench/services/workspace/common/workspaceEditing.ts",
 		"./vs/workbench/test/common/editor/editorOptions.test.ts",
-		"./vs/workbench/test/electron-browser/api/mock.ts",
-		"./vs/workbench/services/keybinding/test/windowsKeyboardMapper.test.ts"
+		"./vs/workbench/test/common/notifications.test.ts",
+		"./vs/workbench/test/electron-browser/api/mock.ts"
 	],
 	"exclude": [
 		"./typings/require-monaco.d.ts"
