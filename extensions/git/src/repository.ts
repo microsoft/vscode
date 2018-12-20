@@ -1212,9 +1212,27 @@ export class Repository implements Disposable {
 		}
 	}
 
+	private static KnownHugeFolderNames = ['node_modules'];
+
+	private async findKnownHugeFolderPathsToIgnore(): Promise<string[]> {
+		const folderPaths: string[] = [];
+
+		for (const folderName of Repository.KnownHugeFolderNames) {
+			const folderPath = path.join(this.repository.root, folderName);
+
+			if (await new Promise<boolean>(c => fs.exists(folderPath, c))) {
+				folderPaths.push(folderPath);
+			}
+		}
+
+		const ignored = await this.checkIgnore(folderPaths);
+
+		return folderPaths.filter(p => !ignored.has(p));
+	}
+
 	@throttle
 	private async updateModelState(): Promise<void> {
-		const { status, didHitLimit } = await this.repository.getStatus();
+		const { status, didHitLimit } = await this.repository.getStatus(100);
 		const config = workspace.getConfiguration('git');
 		const shouldIgnore = config.get<boolean>('ignoreLimitWarning') === true;
 		const useIcons = !config.get<boolean>('decorations.enabled', true);
@@ -1222,15 +1240,34 @@ export class Repository implements Disposable {
 		this.isRepositoryHuge = didHitLimit;
 
 		if (didHitLimit && !shouldIgnore && !this.didWarnAboutLimit) {
+			const knownHugeFolderPaths = await this.findKnownHugeFolderPathsToIgnore();
+			const gitWarn = localize('huge', "The git repository at '{0}' has too many active changes, only a subset of Git features will be enabled.", this.repository.root);
 			const neverAgain = { title: localize('neveragain', "Don't Show Again") };
 
-			window.showWarningMessage(localize('huge', "The git repository at '{0}' has too many active changes, only a subset of Git features will be enabled.", this.repository.root), neverAgain).then(result => {
+			if (knownHugeFolderPaths.length > 0) {
+				const folderPath = knownHugeFolderPaths[0];
+				const folderName = path.basename(folderPath);
+
+				const addKnown = localize('add known', "Would you like to add '{0}' to .gitignore?", folderName);
+				const yes = { title: localize('yes', "Yes") };
+
+				const result = await window.showWarningMessage(`${gitWarn} ${addKnown}`, yes, neverAgain);
+
+				if (result === neverAgain) {
+					config.update('ignoreLimitWarning', true, false);
+					this.didWarnAboutLimit = true;
+				} else if (result === yes) {
+					this.ignore([Uri.file(folderPath)]);
+				}
+			} else {
+				const result = await window.showWarningMessage(gitWarn, neverAgain);
+
 				if (result === neverAgain) {
 					config.update('ignoreLimitWarning', true, false);
 				}
-			});
 
-			this.didWarnAboutLimit = true;
+				this.didWarnAboutLimit = true;
+			}
 		}
 
 		let HEAD: Branch | undefined;
