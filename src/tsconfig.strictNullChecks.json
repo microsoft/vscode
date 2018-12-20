@@ -679,6 +679,8 @@
 		"./vs/workbench/parts/tasks/electron-browser/jsonSchema_v2.ts",
 		"./vs/workbench/parts/tasks/electron-browser/jsonSchemaCommon.ts",
 		"./vs/workbench/parts/tasks/electron-browser/runAutomaticTasks.ts",
+		"./vs/workbench/parts/tasks/electron-browser/terminalTaskSystem.ts",
+		"./vs/workbench/parts/tasks/node/processTaskSystem.ts",
 		"./vs/workbench/parts/tasks/node/taskConfiguration.ts",
 		"./vs/workbench/parts/tasks/node/tasks.ts",
 		"./vs/workbench/parts/tasks/test/common/problemMatcher.test.ts",

@@ -846,8 +846,7 @@ export const enum TaskRunSource {
 }
 
 export namespace TaskEvent {
-	export function create(kind: TaskEventKind.ProcessStarted, task: Task, processId: number): TaskEvent;
-	export function create(kind: TaskEventKind.ProcessEnded, task: Task, exitCode: number): TaskEvent;
+	export function create(kind: TaskEventKind.ProcessStarted | TaskEventKind.ProcessEnded, task: Task, processIdOrExitCode: number): TaskEvent;
 	export function create(kind: TaskEventKind.Start | TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.Terminated | TaskEventKind.End, task: Task): TaskEvent;
 	export function create(kind: TaskEventKind.Changed): TaskEvent;
 	export function create(kind: TaskEventKind, task?: Task, processIdOrExitCode?: number): TaskEvent {
