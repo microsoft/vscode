@@ -22,10 +22,17 @@ export interface IHintEvent {
 	readonly hints: modes.SignatureHelp;
 }
 
-type ParameterHintState =
-	{ readonly state: 'default' }
-	| { readonly state: 'pending' }
-	| { readonly state: 'active', readonly hints: modes.SignatureHelp; };
+const DefaultState = new class { readonly state = 'default'; };
+const PendingState = new class { readonly state = 'pending'; };
+
+class ActiveState {
+	readonly state = 'active';
+	constructor(
+		readonly hints: modes.SignatureHelp
+	) { }
+}
+
+type ParameterHintState = typeof DefaultState | typeof PendingState | ActiveState;
 
 export class ParameterHintsModel extends Disposable {
 
@@ -39,7 +46,7 @@ export class ParameterHintsModel extends Disposable {
 
 	private editor: ICodeEditor;
 	private enabled: boolean;
-	private state: ParameterHintState = { state: 'default' };
+	private state: ParameterHintState = DefaultState;
 	private triggerChars = new CharacterSet();
 	private retriggerChars = new CharacterSet();
 
@@ -70,7 +77,7 @@ export class ParameterHintsModel extends Disposable {
 	}
 
 	cancel(silent: boolean = false): void {
-		this.state = { state: 'default' };
+		this.state = DefaultState;
 
 		this.throttledDelayer.cancel();
 
@@ -159,24 +166,24 @@ export class ParameterHintsModel extends Disposable {
 		const model = this.editor.getModel();
 		const position = this.editor.getPosition();
 
-		this.state = { state: 'pending' };
+		this.state = PendingState;
 
 		this.provideSignatureHelpRequest = createCancelablePromise(token =>
 			provideSignatureHelp(model, position, triggerContext, token));
 
 		return this.provideSignatureHelpRequest.then(result => {
 			if (!result || !result.signatures || result.signatures.length === 0) {
-				this.state = { state: 'default' };
+				this.state = DefaultState;
 				this.cancel();
 				this._onCancel.fire(void 0);
 				return false;
 			} else {
-				this.state = { state: 'active', hints: result };
+				this.state = new ActiveState(result);
 				this._onHint.fire(this.state);
 				return true;
 			}
 		}).catch(error => {
-			this.state = { state: 'default' };
+			this.state = DefaultState;
 			onUnexpectedError(error);
 			return false;
 		});
