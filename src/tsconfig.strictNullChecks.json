@@ -129,6 +129,7 @@
 		"./vs/base/test/common/decorators.test.ts",
 		"./vs/base/test/common/diff/diff.test.ts",
 		"./vs/base/test/common/errors.test.ts",
+		"./vs/base/test/common/event.test.ts",
 		"./vs/base/test/common/filters.perf.test.ts",
 		"./vs/base/test/common/filters.test.ts",
 		"./vs/base/test/common/hash.test.ts",
