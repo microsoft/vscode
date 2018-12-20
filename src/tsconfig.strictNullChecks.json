@@ -140,6 +140,7 @@
 		"./vs/base/test/common/labels.test.ts",
 		"./vs/base/test/common/lifecycle.test.ts",
 		"./vs/base/test/common/linkedList.test.ts",
+		"./vs/base/test/common/map.test.ts",
 		"./vs/base/test/common/marshalling.test.ts",
 		"./vs/base/test/common/mime.test.ts",
 		"./vs/base/test/common/objects.test.ts",
