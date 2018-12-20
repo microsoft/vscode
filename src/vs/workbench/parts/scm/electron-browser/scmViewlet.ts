@@ -898,6 +898,7 @@ export class RepositoryPanel extends ViewletPanel {
 
 		this.viewModel.onDidChangeVisibility(this.onDidChangeVisibility, this, this.disposables);
 		this.onDidChangeVisibility(this.viewModel.isVisible());
+		this.onDidChangeBodyVisibility(visible => this.inputBox.setEnabled(visible));
 	}
 
 	private onDidChangeVisibility(visible: boolean): void {
@@ -907,15 +908,6 @@ export class RepositoryPanel extends ViewletPanel {
 		} else {
 			this.visibilityDisposables = dispose(this.visibilityDisposables);
 		}
-
-		this.inputBox.setEnabled(this.isBodyVisible());
-	}
-
-	setExpanded(expanded: boolean): boolean {
-		const changed = super.setExpanded(expanded);
-		this.inputBox.setEnabled(this.isBodyVisible());
-
-		return changed;
 	}
 
 	layoutBody(height: number = this.cachedHeight): void {
@@ -1214,6 +1206,8 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 			const panel = this.panels[start + i] as ViewletPanel;
 			panel.setVisible(visible);
 		}
+
+		this.repositoryPanels.forEach(panel => panel.setVisible(visible));
 	}
 
 	getOptimalWidth(): number {
@@ -1297,6 +1291,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 			.map((r, index) => {
 				const panel = this.instantiationService.createInstance(RepositoryPanel, `scm.repository.${r.provider.label}.${index}`, r, this);
 				panel.render();
+				panel.setVisible(true);
 				return panel;
 			});
 
