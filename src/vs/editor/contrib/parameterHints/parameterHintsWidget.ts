@@ -283,11 +283,15 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 	}
 
 	next(): void {
-		this.model.next();
+		if (this.model) {
+			this.model.next();
+		}
 	}
 
 	previous(): void {
-		this.model.previous();
+		if (this.model) {
+			this.model.previous();
+		}
 	}
 
 	cancel(): void {
