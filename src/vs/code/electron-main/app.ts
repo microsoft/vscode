@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing, protocol } from 'electron';
-import * as platform from 'vs/base/common/platform';
+import { IProcessEnvironment, isWindows, isMacintosh } from 'vs/base/common/platform';
 import { WindowsManager } from 'vs/code/electron-main/windows';
 import { IWindowsService, OpenContext, ActiveWindowManager } from 'vs/platform/windows/common/windows';
 import { WindowsChannel } from 'vs/platform/windows/node/windowsIpc';
@@ -88,7 +88,7 @@ export class CodeApplication extends Disposable {
 
 	constructor(
 		private mainIpcServer: Server,
-		private userEnv: platform.IProcessEnvironment,
+		private userEnv: IProcessEnvironment,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ILogService private logService: ILogService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
@@ -138,12 +138,27 @@ export class CodeApplication extends Disposable {
 		app.on('web-contents-created', (event: any, contents) => {
 			contents.on('will-attach-webview', (event: Electron.Event, webPreferences, params) => {
 
+				const isValidWebviewSource = (source: string): boolean => {
+					if (!source) {
+						return false;
+					}
+
+					if (source === 'data:text/html;charset=utf-8,%3C%21DOCTYPE%20html%3E%0D%0A%3Chtml%20lang%3D%22en%22%20style%3D%22width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3Chead%3E%0D%0A%09%3Ctitle%3EVirtual%20Document%3C%2Ftitle%3E%0D%0A%3C%2Fhead%3E%0D%0A%3Cbody%20style%3D%22margin%3A%200%3B%20overflow%3A%20hidden%3B%20width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3C%2Fbody%3E%0D%0A%3C%2Fhtml%3E') {
+						return true;
+					}
+
+					const srcUri: any = URI.parse(source).fsPath.toLowerCase();
+					const rootUri = URI.file(this.environmentService.appRoot).fsPath.toLowerCase();
+
+					return srcUri.startsWith(rootUri + nativeSep);
+				};
+
 				// Ensure defaults
 				delete webPreferences.preload;
 				webPreferences.nodeIntegration = false;
 
 				// Verify URLs being loaded
-				if (this.isValidWebviewSource(params.src) && this.isValidWebviewSource(webPreferences.preloadURL)) {
+				if (isValidWebviewSource(params.src) && isValidWebviewSource(webPreferences.preloadURL)) {
 					return;
 				}
 
@@ -166,85 +181,6 @@ export class CodeApplication extends Disposable {
 
 				shell.openExternal(url);
 			});
-		});
-
-		const connectionPool: Map<string, ActiveConnection> = new Map<string, ActiveConnection>();
-
-		class ActiveConnection {
-			private _authority: string;
-			private _client: Promise<Client<RemoteAgentConnectionContext>>;
-			private _disposeRunner: RunOnceScheduler;
-
-			constructor(authority: string, host: string, port: number) {
-				this._authority = authority;
-				this._client = connectRemoteAgentManagement(authority, host, port, `main`);
-				this._disposeRunner = new RunOnceScheduler(() => this._dispose(), 5000);
-			}
-
-			private _dispose(): void {
-				this._disposeRunner.dispose();
-				connectionPool.delete(this._authority);
-				this._client.then((connection) => {
-					connection.dispose();
-				});
-			}
-
-			public getClient(): Promise<Client<RemoteAgentConnectionContext>> {
-				this._disposeRunner.schedule();
-				return this._client;
-			}
-		}
-
-		const resolvedAuthorities = new Map<string, ResolvedAuthority>();
-		ipc.on('vscode:remoteAuthorityResolved', (event: any, data: ResolvedAuthority) => {
-			resolvedAuthorities.set(data.authority, data);
-		});
-		const resolveAuthority = (authority: string): ResolvedAuthority | null => {
-			if (authority.indexOf('+') >= 0) {
-				if (resolvedAuthorities.has(authority)) {
-					return resolvedAuthorities.get(authority);
-				}
-				return null;
-			} else {
-				const [host, strPort] = authority.split(':');
-				const port = parseInt(strPort, 10);
-				return { authority, host, port, syncExtensions: false };
-			}
-		};
-
-		protocol.registerBufferProtocol(REMOTE_HOST_SCHEME, async (request, callback) => {
-			if (request.method !== 'GET') {
-				return callback(null);
-			}
-			const uri = URI.parse(request.url);
-
-			let activeConnection: ActiveConnection = null;
-			if (connectionPool.has(uri.authority)) {
-				activeConnection = connectionPool.get(uri.authority);
-			} else {
-				let resolvedAuthority = resolveAuthority(uri.authority);
-				if (!resolvedAuthority) {
-					callback(null);
-					return;
-				}
-				activeConnection = new ActiveConnection(uri.authority, resolvedAuthority.host, resolvedAuthority.port);
-				connectionPool.set(uri.authority, activeConnection);
-			}
-			try {
-				const rawClient = await activeConnection.getClient();
-				if (connectionPool.has(uri.authority)) { // not disposed in the meantime
-					const channel = rawClient.getChannel(REMOTE_FILE_SYSTEM_CHANNEL_NAME);
-
-					// TODO@alex don't use call directly, wrap it around a `RemoteExtensionsFileSystemProvider`
-					const fileContents = await channel.call<Uint8Array>('readFile', [uri]);
-					callback(Buffer.from(fileContents));
-				} else {
-					callback(null);
-				}
-			} catch (err) {
-				errors.onUnexpectedError(err);
-				callback(null);
-			}
 		});
 
 		let macOpenFileURIs: URI[] = [];
@@ -315,39 +251,10 @@ export class CodeApplication extends Disposable {
 			}
 		});
 
-		ipc.on('vscode:toggleDevTools', (event: Event) => {
-			event.sender.toggleDevTools();
-		});
+		ipc.on('vscode:toggleDevTools', (event: Event) => event.sender.toggleDevTools());
+		ipc.on('vscode:openDevTools', (event: Event) => event.sender.openDevTools());
 
-		ipc.on('vscode:openDevTools', (event: Event) => {
-			event.sender.openDevTools();
-		});
-
-		ipc.on('vscode:reloadWindow', (event: Event) => {
-			event.sender.reload();
-		});
-
-		// Keyboard layout changes
-		KeyboardLayoutMonitor.INSTANCE.onDidChangeKeyboardLayout(() => {
-			if (this.windowsMainService) {
-				this.windowsMainService.sendToAll('vscode:keyboardLayoutChanged', false);
-			}
-		});
-	}
-
-	private isValidWebviewSource(source: string): boolean {
-		if (!source) {
-			return false;
-		}
-
-		if (source === 'data:text/html;charset=utf-8,%3C%21DOCTYPE%20html%3E%0D%0A%3Chtml%20lang%3D%22en%22%20style%3D%22width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3Chead%3E%0D%0A%09%3Ctitle%3EVirtual%20Document%3C%2Ftitle%3E%0D%0A%3C%2Fhead%3E%0D%0A%3Cbody%20style%3D%22margin%3A%200%3B%20overflow%3A%20hidden%3B%20width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3C%2Fbody%3E%0D%0A%3C%2Fhtml%3E') {
-			return true;
-		}
-
-		const srcUri: any = URI.parse(source).fsPath.toLowerCase();
-		const rootUri = URI.file(this.environmentService.appRoot).fsPath.toLowerCase();
-
-		return srcUri.startsWith(rootUri + nativeSep);
+		ipc.on('vscode:reloadWindow', (event: Event) => event.sender.reload());
 	}
 
 	private onUnexpectedError(err: Error): void {
@@ -391,7 +298,7 @@ export class CodeApplication extends Disposable {
 		// This will help Windows to associate the running program with
 		// any shortcut that is pinned to the taskbar and prevent showing
 		// two icons in the taskbar for the same app.
-		if (platform.isWindows && product.win32AppUserModelId) {
+		if (isWindows && product.win32AppUserModelId) {
 			app.setAppUserModelId(product.win32AppUserModelId);
 		}
 
@@ -402,7 +309,7 @@ export class CodeApplication extends Disposable {
 		// Explicitly opt out of the patch here before creating any windows.
 		// See: https://github.com/Microsoft/vscode/issues/35361#issuecomment-399794085
 		try {
-			if (platform.isMacintosh && this.configurationService.getValue<boolean>('window.nativeTabs') === true && !systemPreferences.getUserDefault('NSUseImprovedLayoutPass', 'boolean')) {
+			if (isMacintosh && this.configurationService.getValue<boolean>('window.nativeTabs') === true && !systemPreferences.getUserDefault('NSUseImprovedLayoutPass', 'boolean')) {
 				systemPreferences.setUserDefault('NSUseImprovedLayoutPass', 'boolean', true as any);
 			}
 		} catch (error) {
@@ -631,8 +538,6 @@ export class CodeApplication extends Disposable {
 		// Propagate to clients
 		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService); // TODO@Joao: unfold this
 
-		const args = this.environmentService.args;
-
 		// Create a URL handler which forwards to the last active window
 		const activeWindowManager = new ActiveWindowManager(windowsService);
 		const activeWindowRouter = new StaticRouter(ctx => activeWindowManager.getActiveClientId().then(id => ctx === id));
@@ -641,7 +546,7 @@ export class CodeApplication extends Disposable {
 
 		// On Mac, Code can be running without any open windows, so we must create a window to handle urls,
 		// if there is none
-		if (platform.isMacintosh) {
+		if (isMacintosh) {
 			const environmentService = accessor.get(IEnvironmentService);
 
 			urlService.registerHandler({
@@ -662,6 +567,7 @@ export class CodeApplication extends Disposable {
 		urlService.registerHandler(multiplexURLHandler);
 
 		// Watch Electron URLs and forward them to the UrlService
+		const args = this.environmentService.args;
 		const urls = args['open-url'] ? args._urls : [];
 		const urlListener = new ElectronURLListener(urls, urlService, this.windowsMainService);
 		this._register(urlListener);
@@ -690,7 +596,7 @@ export class CodeApplication extends Disposable {
 		const windowsMainService = accessor.get(IWindowsMainService);
 
 		let windowsMutex: Mutex | null = null;
-		if (platform.isWindows) {
+		if (isWindows) {
 
 			// Setup Windows mutex
 			try {
@@ -726,6 +632,14 @@ export class CodeApplication extends Disposable {
 			}
 		}
 
+		// Remote Authorities
+		this.handleRemoteAuthorities();
+
+		// Keyboard layout changes
+		KeyboardLayoutMonitor.INSTANCE.onDidChangeKeyboardLayout(() => {
+			this.windowsMainService.sendToAll('vscode:keyboardLayoutChanged', false);
+		});
+
 		// Jump List
 		this.historyMainService.updateWindowsJumpList();
 		this.historyMainService.onRecentlyOpenedChange(() => this.historyMainService.updateWindowsJumpList());
@@ -734,4 +648,87 @@ export class CodeApplication extends Disposable {
 		const sharedProcessSpawn = this._register(new RunOnceScheduler(() => getShellEnvironment().then(userEnv => this.sharedProcess.spawn(userEnv)), 3000));
 		sharedProcessSpawn.schedule();
 	}
+
+	private handleRemoteAuthorities(): void {
+		const connectionPool: Map<string, ActiveConnection> = new Map<string, ActiveConnection>();
+
+		class ActiveConnection {
+			private _authority: string;
+			private _client: Promise<Client<RemoteAgentConnectionContext>>;
+			private _disposeRunner: RunOnceScheduler;
+
+			constructor(authority: string, host: string, port: number) {
+				this._authority = authority;
+				this._client = connectRemoteAgentManagement(authority, host, port, `main`);
+				this._disposeRunner = new RunOnceScheduler(() => this._dispose(), 5000);
+			}
+
+			private _dispose(): void {
+				this._disposeRunner.dispose();
+				connectionPool.delete(this._authority);
+				this._client.then((connection) => {
+					connection.dispose();
+				});
+			}
+
+			public getClient(): Promise<Client<RemoteAgentConnectionContext>> {
+				this._disposeRunner.schedule();
+				return this._client;
+			}
+		}
+
+		const resolvedAuthorities = new Map<string, ResolvedAuthority>();
+		ipc.on('vscode:remoteAuthorityResolved', (event: any, data: ResolvedAuthority) => {
+			resolvedAuthorities.set(data.authority, data);
+		});
+
+		const resolveAuthority = (authority: string): ResolvedAuthority | null => {
+			if (authority.indexOf('+') >= 0) {
+				if (resolvedAuthorities.has(authority)) {
+					return resolvedAuthorities.get(authority);
+				}
+				return null;
+			} else {
+				const [host, strPort] = authority.split(':');
+				const port = parseInt(strPort, 10);
+				return { authority, host, port, syncExtensions: false };
+			}
+		};
+
+		protocol.registerBufferProtocol(REMOTE_HOST_SCHEME, async (request, callback) => {
+			if (request.method !== 'GET') {
+				return callback(null);
+			}
+			const uri = URI.parse(request.url);
+
+			let activeConnection: ActiveConnection = null;
+			if (connectionPool.has(uri.authority)) {
+				activeConnection = connectionPool.get(uri.authority);
+			} else {
+				let resolvedAuthority = resolveAuthority(uri.authority);
+				if (!resolvedAuthority) {
+					callback(null);
+					return;
+				}
+				activeConnection = new ActiveConnection(uri.authority, resolvedAuthority.host, resolvedAuthority.port);
+				connectionPool.set(uri.authority, activeConnection);
+			}
+			try {
+				const rawClient = await activeConnection.getClient();
+				if (connectionPool.has(uri.authority)) { // not disposed in the meantime
+					const channel = rawClient.getChannel(REMOTE_FILE_SYSTEM_CHANNEL_NAME);
+
+					// TODO@alex don't use call directly, wrap it around a `RemoteExtensionsFileSystemProvider`
+					const fileContents = await channel.call<Uint8Array>('readFile', [uri]);
+					callback(Buffer.from(fileContents));
+				} else {
+					callback(null);
+				}
+			} catch (err) {
+				errors.onUnexpectedError(err);
+				callback(null);
+			}
+		});
+	}
 }
+
