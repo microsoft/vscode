@@ -218,7 +218,7 @@ export interface PresentationOptions {
 
 export namespace PresentationOptions {
 	export const defaults: PresentationOptions = {
-		echo: true, reveal: RevealKind.Always, focus: false, panel: PanelKind.Shared, showReuseMessage: true, clear: false
+		echo: false, reveal: RevealKind.Always, focus: false, panel: PanelKind.Shared, showReuseMessage: true, clear: false
 	};
 }
 
@@ -262,12 +262,12 @@ export interface CommandConfiguration {
 	/**
 	 * The task type
 	 */
-	runtime: RuntimeType;
+	runtime?: RuntimeType;
 
 	/**
 	 * The command to execute
 	 */
-	name: CommandString;
+	name?: CommandString;
 
 	/**
 	 * Additional command options.
@@ -293,7 +293,7 @@ export interface CommandConfiguration {
 	/**
 	 * Describes how the task is presented in the UI.
 	 */
-	presentation: PresentationOptions;
+	presentation?: PresentationOptions;
 }
 
 export namespace TaskGroup {
@@ -372,7 +372,7 @@ export interface KeyedTaskIdentifier extends TaskIdentifier {
 
 export interface TaskDependency {
 	workspaceFolder: IWorkspaceFolder;
-	task: string | KeyedTaskIdentifier;
+	task: string | KeyedTaskIdentifier | undefined;
 }
 
 export const enum GroupType {
@@ -469,10 +469,12 @@ export abstract class CommonTask {
 
 	private _taskLoadMessages: string[] | undefined;
 
-	protected constructor(id: string, label: string, type, runOptions: RunOptions,
+	protected constructor(id: string, label: string | undefined, type, runOptions: RunOptions,
 		configurationProperties: ConfigurationProperties, source: BaseTaskSource) {
 		this._id = id;
-		this._label = label;
+		if (label) {
+			this._label = label;
+		}
 		if (type) {
 			this.type = type;
 		}
@@ -563,12 +565,14 @@ export class CustomTask extends CommonTask {
 	 */
 	command: CommandConfiguration;
 
-	public constructor(id: string, source: WorkspaceTaskSource, label: string, type, command: CommandConfiguration,
+	public constructor(id: string, source: WorkspaceTaskSource, label: string, type, command: CommandConfiguration | undefined,
 		hasDefinedMatchers: boolean, runOptions: RunOptions, configurationProperties: ConfigurationProperties) {
 		super(id, label, undefined, runOptions, configurationProperties, source);
 		this._source = source;
 		this.hasDefinedMatchers = hasDefinedMatchers;
-		this.command = command;
+		if (command) {
+			this.command = command;
+		}
 	}
 
 	public customizes(): KeyedTaskIdentifier | undefined {
@@ -642,7 +646,7 @@ export class ConfiguringTask extends CommonTask {
 
 	configures: KeyedTaskIdentifier;
 
-	public constructor(id: string, source: WorkspaceTaskSource, label: string, type,
+	public constructor(id: string, source: WorkspaceTaskSource, label: string | undefined, type,
 		configures: KeyedTaskIdentifier, runOptions: RunOptions, configurationProperties: ConfigurationProperties) {
 		super(id, label, type, runOptions, configurationProperties, source);
 		this._source = source;
