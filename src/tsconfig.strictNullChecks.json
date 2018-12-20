@@ -145,6 +145,7 @@
 		"./vs/base/test/common/paths.test.ts",
 		"./vs/base/test/common/resources.test.ts",
 		"./vs/base/test/common/scrollable.test.ts",
+		"./vs/base/test/common/strings.test.ts",
 		"./vs/base/test/common/types.test.ts",
 		"./vs/base/test/common/utils.ts",
 		"./vs/base/test/common/uuid.test.ts",
