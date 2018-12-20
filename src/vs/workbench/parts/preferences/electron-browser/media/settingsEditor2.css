@@ -80,21 +80,6 @@
 	padding-top: 3px;
 }
 
-.settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right {
-	margin-left: auto;
-	padding-top: 4px;
-	display: flex;
-}
-
-.settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .toolbar-toggle-more {
-	display: block;
-	width: 22px;
-	height: 22px;
-	background-position: center;
-	background-repeat: no-repeat;
-	background-size: 16px;
-}
-
 .settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item {
 	padding: 0px;
 	/* padding must be on action-label because it has the bottom-border, because that's where the .checked class is */
