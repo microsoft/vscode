@@ -659,6 +659,7 @@
 		"./vs/workbench/parts/snippets/test/electron-browser/snippetsRewrite.test.ts",
 		"./vs/workbench/parts/stats/node/stats.contribution.ts",
 		"./vs/workbench/parts/stats/node/workspaceStats.ts",
+		"./vs/workbench/parts/stats/test/workspaceStats.test.ts",
 		"./vs/workbench/parts/surveys/electron-browser/languageSurveys.contribution.ts",
 		"./vs/workbench/parts/surveys/electron-browser/nps.contribution.ts",
 		"./vs/workbench/parts/tasks/common/problemCollectors.ts",
