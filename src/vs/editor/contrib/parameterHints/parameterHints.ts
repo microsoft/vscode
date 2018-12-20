@@ -16,7 +16,7 @@ import { ParameterHintsWidget } from './parameterHintsWidget';
 import { Context } from 'vs/editor/contrib/parameterHints/provideSignatureHelp';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import * as modes from 'vs/editor/common/modes';
-import { TriggerContext } from 'vs/editor/contrib/parameterHints/ParameterHintsModel';
+import { TriggerContext } from 'vs/editor/contrib/parameterHints/parameterHintsModel';
 
 class ParameterHintsController implements IEditorContribution {
 
