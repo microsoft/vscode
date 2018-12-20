@@ -20,13 +20,12 @@ export interface TriggerContext {
 
 export interface IHintEvent {
 	readonly hints: modes.SignatureHelp;
-	readonly currentSignature: number;
 }
 
 type ParameterHintState =
 	{ readonly state: 'default' }
 	| { readonly state: 'pending' }
-	| { readonly state: 'active', readonly hints: modes.SignatureHelp; readonly currentSignature: number; };
+	| { readonly state: 'active', readonly hints: modes.SignatureHelp; };
 
 export class ParameterHintsModel extends Disposable {
 
@@ -106,9 +105,8 @@ export class ParameterHintsModel extends Disposable {
 		}
 
 		const length = this.state.hints.signatures.length;
-		let currentSignature = this.state.currentSignature;
-
-		const last = (currentSignature % length) === (length - 1);
+		const activeSignature = this.state.hints.activeSignature;
+		const last = (activeSignature % length) === (length - 1);
 		const cycle = this.editor.getConfiguration().contribInfo.parameterHints.cycle;
 
 		// If there is only one signature, or we're on last signature of list
@@ -117,14 +115,7 @@ export class ParameterHintsModel extends Disposable {
 			return;
 		}
 
-		if (last && cycle) {
-			currentSignature = 0;
-		} else {
-			currentSignature++;
-		}
-
-		this.state = { ...this.state, currentSignature };
-		this._onHint.fire(this.state);
+		this.updateActiveSignature(last && cycle ? 0 : activeSignature + 1);
 	}
 
 	public previous(): void {
@@ -133,9 +124,8 @@ export class ParameterHintsModel extends Disposable {
 		}
 
 		const length = this.state.hints.signatures.length;
-		let currentSignature = this.state.currentSignature;
-
-		const first = currentSignature === 0;
+		const activeSignature = this.state.hints.activeSignature;
+		const first = activeSignature === 0;
 		const cycle = this.editor.getConfiguration().contribInfo.parameterHints.cycle;
 
 		// If there is only one signature, or we're on first signature of list
@@ -144,13 +134,18 @@ export class ParameterHintsModel extends Disposable {
 			return;
 		}
 
-		if (first && cycle) {
-			currentSignature = length - 1;
-		} else {
-			currentSignature--;
+		this.updateActiveSignature(first && cycle ? length - 1 : activeSignature - 1);
+	}
+
+	private updateActiveSignature(activeSignature: number) {
+		if (this.state.state !== 'active') {
+			return;
 		}
 
-		this.state = { ...this.state, currentSignature };
+		this.state = {
+			state: 'active',
+			hints: { ...this.state.hints, activeSignature }
+		};
 		this._onHint.fire(this.state);
 	}
 
@@ -176,7 +171,7 @@ export class ParameterHintsModel extends Disposable {
 				this._onCancel.fire(void 0);
 				return false;
 			} else {
-				this.state = { state: 'active', hints: result, currentSignature: result.activeSignature };
+				this.state = { state: 'active', hints: result };
 				this._onHint.fire(this.state);
 				return true;
 			}

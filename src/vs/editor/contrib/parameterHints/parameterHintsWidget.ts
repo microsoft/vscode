@@ -61,7 +61,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 		this.disposables.push(this.model.onHint(e => {
 			this.show();
-			this.render(e.hints, e.currentSignature);
+			this.render(e.hints);
 		}));
 
 		this.disposables.push(this.model.onCancel(() => {
@@ -160,7 +160,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		return null;
 	}
 
-	private render(hints: modes.SignatureHelp, currentSignature: number): void {
+	private render(hints: modes.SignatureHelp): void {
 		const multiple = hints.signatures.length > 1;
 		dom.toggleClass(this.element, 'multiple', multiple);
 		this.keyMultipleSignatures.set(multiple);
@@ -168,7 +168,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		this.signature.innerHTML = '';
 		this.docs.innerHTML = '';
 
-		const signature = hints.signatures[currentSignature];
+		const signature = hints.signatures[hints.activeSignature];
 
 		if (!signature) {
 			return;
@@ -219,7 +219,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 			dom.append(this.docs, renderedContents.element);
 		}
 
-		let currentOverload = String(currentSignature + 1);
+		let currentOverload = String(hints.activeSignature + 1);
 
 		if (hints.signatures.length < 10) {
 			currentOverload += `/${hints.signatures.length}`;
