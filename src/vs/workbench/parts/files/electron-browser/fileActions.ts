@@ -336,6 +336,7 @@ class CreateFolderAction extends BaseRenameAction {
 		element: ExplorerItem,
 		@IFileService private fileService: IFileService,
 		@INotificationService notificationService: INotificationService,
+		@IExplorerService private explorerService: IExplorerService
 	) {
 		super(CreateFolderAction.ID, CreateFolderAction.LABEL, element, notificationService);
 	}
@@ -343,7 +344,8 @@ class CreateFolderAction extends BaseRenameAction {
 	public runAction(fileName: string): Promise<any> {
 		const resource = this.element.parent.resource;
 		this.element.parent.removeChild(this.element);
-		return this.fileService.createFolder(resources.joinPath(resource, fileName)).then(void 0, (error) => {
+		const newResource = resources.joinPath(resource, fileName);
+		return this.fileService.createFolder(newResource).then(() => this.explorerService.select(newResource, true), (error) => {
 			this.onErrorWithRetry(error, () => this.runAction(fileName));
 		});
 	}
