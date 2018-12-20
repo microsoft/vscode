@@ -45,7 +45,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	private lastOpenedSettingsInput: PreferencesEditorInput | null = null;
 
-	private readonly _onDispose: Emitter<void> = new Emitter<void>();
+	private readonly _onDispose = new Emitter<void>();
 
 	private _defaultUserSettingsUriCounter = 0;
 	private _defaultUserSettingsContentModel: DefaultSettings;

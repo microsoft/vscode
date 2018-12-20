@@ -350,19 +350,19 @@ export class SettingsRenderer implements ITreeRenderer {
 
 	public static readonly SETTING_KEY_ATTR = 'data-key';
 
-	private readonly _onDidClickOverrideElement: Emitter<ISettingOverrideClickEvent> = new Emitter<ISettingOverrideClickEvent>();
+	private readonly _onDidClickOverrideElement = new Emitter<ISettingOverrideClickEvent>();
 	public readonly onDidClickOverrideElement: Event<ISettingOverrideClickEvent> = this._onDidClickOverrideElement.event;
 
-	private readonly _onDidChangeSetting: Emitter<ISettingChangeEvent> = new Emitter<ISettingChangeEvent>();
+	private readonly _onDidChangeSetting = new Emitter<ISettingChangeEvent>();
 	public readonly onDidChangeSetting: Event<ISettingChangeEvent> = this._onDidChangeSetting.event;
 
-	private readonly _onDidOpenSettings: Emitter<string> = new Emitter<string>();
+	private readonly _onDidOpenSettings = new Emitter<string>();
 	public readonly onDidOpenSettings: Event<string> = this._onDidOpenSettings.event;
 
-	private readonly _onDidClickSettingLink: Emitter<ISettingLinkClickEvent> = new Emitter<ISettingLinkClickEvent>();
+	private readonly _onDidClickSettingLink = new Emitter<ISettingLinkClickEvent>();
 	public readonly onDidClickSettingLink: Event<ISettingLinkClickEvent> = this._onDidClickSettingLink.event;
 
-	private readonly _onDidFocusSetting: Emitter<SettingsTreeSettingElement> = new Emitter<SettingsTreeSettingElement>();
+	private readonly _onDidFocusSetting = new Emitter<SettingsTreeSettingElement>();
 	public readonly onDidFocusSetting: Event<SettingsTreeSettingElement> = this._onDidFocusSetting.event;
 
 	private descriptionMeasureContainer: HTMLElement;

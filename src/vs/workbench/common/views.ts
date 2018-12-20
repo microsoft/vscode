@@ -61,7 +61,7 @@ export class ViewContainer {
 
 class ViewContainersRegistryImpl implements IViewContainersRegistry {
 
-	private readonly _onDidRegister: Emitter<ViewContainer> = new Emitter<ViewContainer>();
+	private readonly _onDidRegister = new Emitter<ViewContainer>();
 	readonly onDidRegister: Event<ViewContainer> = this._onDidRegister.event;
 
 	private viewContainers: Map<string, ViewContainer> = new Map<string, ViewContainer>();

@@ -115,7 +115,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	private overrideIdentifiers: string[] = [];
 	private overridePropertyPattern: string;
 
-	private readonly _onDidSchemaChange: Emitter<void> = new Emitter<void>();
+	private readonly _onDidSchemaChange = new Emitter<void>();
 	readonly onDidSchemaChange: Event<void> = this._onDidSchemaChange.event;
 
 	private readonly _onDidRegisterConfiguration: Emitter<string[]> = new Emitter<string[]>();
