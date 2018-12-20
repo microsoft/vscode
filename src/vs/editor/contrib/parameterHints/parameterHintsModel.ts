@@ -173,9 +173,7 @@ export class ParameterHintsModel extends Disposable {
 
 		return this.provideSignatureHelpRequest.then(result => {
 			if (!result || !result.signatures || result.signatures.length === 0) {
-				this.state = DefaultState;
 				this.cancel();
-				this._onCancel.fire(void 0);
 				return false;
 			} else {
 				this.state = new ActiveState(result);
