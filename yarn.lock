@@ -9069,10 +9069,10 @@ v8-compile-cache@^2.0.0:
   resolved "https://registry.yarnpkg.com/v8-compile-cache/-/v8-compile-cache-2.0.2.tgz#a428b28bb26790734c4fc8bc9fa106fccebf6a6c"
   integrity sha512-1wFuMUIM16MDJRCrpbpuEPTUGmM5QMUg0cr3KFwra2XgOgFcPGDQHDh3CszSCD2Zewc/dh/pamNEW8CbfDebUw==
 
-v8-inspect-profiler@^0.0.18:
-  version "0.0.18"
-  resolved "https://registry.yarnpkg.com/v8-inspect-profiler/-/v8-inspect-profiler-0.0.18.tgz#fbf6b92ae8fc815f5ab63eaf83c8a22792efa151"
-  integrity sha512-x4p/FWW5mSyLgdV5ipQwDw3Q68CMo36lgwZ72/PacsU4FgljbRyYqvIanw0regp01rxoQmnYRY634BbWJ2Ub6w==
+v8-inspect-profiler@^0.0.19:
+  version "0.0.19"
+  resolved "https://registry.yarnpkg.com/v8-inspect-profiler/-/v8-inspect-profiler-0.0.19.tgz#0d2c407d8108e47bec4c8195acd39adac343da8a"
+  integrity sha512-yLk3Ja9sdTim4VmzLU4pK89QvknJD7m5gm8CrP74ESVmGCHivC9gR5mtodvmlQiCxhlET8aW5hIDzJB+kX6KjQ==
   dependencies:
     chrome-remote-interface "0.26.1"
 

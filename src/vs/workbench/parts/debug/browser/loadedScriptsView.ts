@@ -362,7 +362,7 @@ export class LoadedScriptsView extends ViewletPanel {
 
 	private treeContainer: HTMLElement;
 	private loadedScriptsItemType: IContextKey<string>;
-	private tree: WorkbenchAsyncDataTree<any>;
+	private tree: WorkbenchAsyncDataTree<LoadedScriptsItem, LoadedScriptsItem>;
 	private changeScheduler: RunOnceScheduler;
 	private treeNeedsRefreshOnVisible: boolean;
 	private filter: LoadedScriptsFilter;
@@ -399,7 +399,7 @@ export class LoadedScriptsView extends ViewletPanel {
 			[
 				this.instantiationService.createInstance(LoadedScriptsRenderer)
 			],
-			new LoadedScriptsDataSource(root),
+			new LoadedScriptsDataSource(),
 			{
 				identityProvider: {
 					getId: element => element.getId()
@@ -414,10 +414,12 @@ export class LoadedScriptsView extends ViewletPanel {
 			this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService
 		);
 
+		this.tree.setInput(root);
+
 		this.changeScheduler = new RunOnceScheduler(() => {
 			this.treeNeedsRefreshOnVisible = false;
 			if (this.tree) {
-				this.tree.refresh(null);
+				this.tree.refresh();
 			}
 		}, 300);
 		this.disposables.push(this.changeScheduler);
@@ -535,19 +537,13 @@ class LoadedScriptsDelegate implements IListVirtualDelegate<LoadedScriptsItem> {
 	}
 }
 
-class LoadedScriptsDataSource implements IAsyncDataSource<LoadedScriptsItem> {
+class LoadedScriptsDataSource implements IAsyncDataSource<LoadedScriptsItem, LoadedScriptsItem> {
 
-	constructor(private root: LoadedScriptsItem) {
+	hasChildren(element: LoadedScriptsItem): boolean {
+		return element.hasChildren();
 	}
 
-	hasChildren(element: LoadedScriptsItem | null): boolean {
-		return element === null || element.hasChildren();
-	}
-
-	getChildren(element: LoadedScriptsItem | null): Promise<LoadedScriptsItem[]> {
-		if (element === null) {
-			element = this.root;
-		}
+	getChildren(element: LoadedScriptsItem): Promise<LoadedScriptsItem[]> {
 		return element.getChildren();
 	}
 }

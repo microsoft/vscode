@@ -26,18 +26,12 @@ import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 
 export type TreeElement = FileReferences | OneReference;
 
-export class DataSource implements IAsyncDataSource<TreeElement> {
+export class DataSource implements IAsyncDataSource<ReferencesModel | FileReferences, TreeElement> {
 
-	root: ReferencesModel | FileReferences;
+	constructor(@ITextModelService private readonly _resolverService: ITextModelService) { }
 
-	constructor(
-		@ITextModelService private readonly _resolverService: ITextModelService,
-	) {
-		//
-	}
-
-	hasChildren(element: TreeElement): boolean {
-		if (!element) {
+	hasChildren(element: ReferencesModel | FileReferences | TreeElement): boolean {
+		if (element instanceof ReferencesModel) {
 			return true;
 		}
 		if (element instanceof FileReferences && !element.failure) {
@@ -46,10 +40,11 @@ export class DataSource implements IAsyncDataSource<TreeElement> {
 		return false;
 	}
 
-	getChildren(element: TreeElement): Promise<TreeElement[]> {
-		if (!element && this.root instanceof FileReferences) {
-			element = this.root;
+	getChildren(element: ReferencesModel | FileReferences | TreeElement): TreeElement[] | Promise<TreeElement[]> {
+		if (element instanceof ReferencesModel) {
+			return element.groups;
 		}
+
 		if (element instanceof FileReferences) {
 			return element.resolve(this._resolverService).then(val => {
 				// if (element.failure) {
@@ -60,9 +55,7 @@ export class DataSource implements IAsyncDataSource<TreeElement> {
 				return val.children;
 			});
 		}
-		if (this.root instanceof ReferencesModel) {
-			return Promise.resolve(this.root.groups);
-		}
+
 		throw new Error('bad tree');
 	}
 }

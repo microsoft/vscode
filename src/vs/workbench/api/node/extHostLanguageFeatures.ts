@@ -853,21 +853,21 @@ class SelectionRangeAdapter {
 		private readonly _provider: vscode.SelectionRangeProvider
 	) { }
 
-	provideSelectionRanges(resource: URI, position: IPosition, token: CancellationToken): Promise<IRange[]> {
+	provideSelectionRanges(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.SelectionRange[]> {
 		const { document } = this._documents.getDocumentData(resource);
 		const pos = typeConvert.Position.to(position);
-		return asPromise(() => this._provider.provideSelectionRanges(document, pos, token)).then(ranges => {
-			if (isFalsyOrEmpty(ranges)) {
+		return asPromise(() => this._provider.provideSelectionRanges(document, pos, token)).then(selectionRanges => {
+			if (isFalsyOrEmpty(selectionRanges)) {
 				return undefined;
 			}
-			let result: IRange[] = [];
+			let result: modes.SelectionRange[] = [];
 			let last: vscode.Position | vscode.Range = pos;
-			for (const range of ranges) {
-				if (!range.contains(last)) {
+			for (const sel of selectionRanges) {
+				if (!sel.range.contains(last)) {
 					throw new Error('INVALID selection range, must contain the previous range');
 				}
-				result.push(typeConvert.Range.from(range));
-				last = range;
+				result.push(typeConvert.SelectionRange.from(sel));
+				last = sel.range;
 			}
 			return result;
 		});
@@ -1280,7 +1280,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideSelectionRanges(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<IRange[]> {
+	$provideSelectionRanges(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.SelectionRange[]> {
 		return this._withAdapter(handle, SelectionRangeAdapter, adapter => adapter.provideSelectionRanges(URI.revive(resource), position, token));
 	}
 

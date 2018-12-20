@@ -237,8 +237,7 @@ export class ReferenceWidget extends PeekViewWidget {
 	private _callOnDispose: IDisposable[] = [];
 	private _onDidSelectReference = new Emitter<SelectionEvent>();
 
-	private _treeDataSource: DataSource;
-	private _tree: WorkbenchAsyncDataTree<TreeElement>;
+	private _tree: WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement>;
 	private _treeContainer: HTMLElement;
 	private _sash: VSash;
 	private _preview: ICodeEditor;
@@ -357,14 +356,14 @@ export class ReferenceWidget extends PeekViewWidget {
 			accessibilityProvider: new AriaProvider()
 		};
 
-		this._treeDataSource = this._instantiationService.createInstance(DataSource);
+		const treeDataSource = this._instantiationService.createInstance(DataSource);
 
-		this._tree = this._instantiationService.createInstance<HTMLElement, IListVirtualDelegate<TreeElement>, ITreeRenderer<any, void, any>[], IAsyncDataSource<TreeElement>, IAsyncDataTreeOptions<TreeElement, void>, WorkbenchAsyncDataTree<TreeElement, void>>(
+		this._tree = this._instantiationService.createInstance<HTMLElement, IListVirtualDelegate<TreeElement>, ITreeRenderer<any, void, any>[], IAsyncDataSource<ReferencesModel | FileReferences, TreeElement>, IAsyncDataTreeOptions<TreeElement, void>, WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement, void>>(
 			WorkbenchAsyncDataTree,
 			this._treeContainer,
 			new Delegate(),
 			renderers,
-			this._treeDataSource,
+			treeDataSource,
 			treeOptions
 		);
 
@@ -498,8 +497,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		this.focus();
 
 		// pick input and a reference to begin with
-		this._treeDataSource.root = this._model.groups.length === 1 ? this._model.groups[0] : this._model;
-		return this._tree.refresh(null);
+		return this._tree.setInput(this._model.groups.length === 1 ? this._model.groups[0] : this._model);
 	}
 
 	private _getFocusedReference(): OneReference {
@@ -533,7 +531,7 @@ export class ReferenceWidget extends PeekViewWidget {
 
 		const promise = this._textModelResolverService.createModelReference(reference.uri);
 
-		if (this._treeDataSource.root === reference.parent) {
+		if (this._tree.getInput() === reference.parent) {
 			this._tree.reveal(reference);
 		} else {
 			if (revealParent) {

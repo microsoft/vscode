@@ -51,15 +51,11 @@ suite('AsyncDataTree', function () {
 			}
 		};
 
-		const dataSource = new class implements IAsyncDataSource<Element> {
-			hasChildren(element: Element | null): boolean {
-				return !element || (element.children && element.children.length > 0);
+		const dataSource = new class implements IAsyncDataSource<Element, Element> {
+			hasChildren(element: Element): boolean {
+				return element.children && element.children.length > 0;
 			}
-			getChildren(element: Element | null): Promise<Element[]> {
-				if (!element) {
-					return Promise.resolve(root.children);
-				}
-
+			getChildren(element: Element): Promise<Element[]> {
 				return Promise.resolve(element.children || []);
 			}
 		};
@@ -79,11 +75,11 @@ suite('AsyncDataTree', function () {
 
 		const _: (id: string) => Element = find.bind(null, root.children);
 
-		const tree = new AsyncDataTree(container, delegate, [renderer], dataSource, { identityProvider });
+		const tree = new AsyncDataTree<Element, Element>(container, delegate, [renderer], dataSource, { identityProvider });
 		tree.layout(200);
 		assert.equal(container.querySelectorAll('.monaco-list-row').length, 0);
 
-		await tree.refresh(null);
+		await tree.setInput(root);
 		assert.equal(container.querySelectorAll('.monaco-list-row').length, 1);
 		let twistie = container.querySelector('.monaco-list-row:first-child .monaco-tl-twistie') as HTMLElement;
 		assert(!hasClass(twistie, 'collapsible'));

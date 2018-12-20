@@ -8,7 +8,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
 import { CollapseAction2 } from 'vs/workbench/browser/viewlet';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IDebugService, IExpression, IScope, CONTEXT_VARIABLES_FOCUSED } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IExpression, IScope, CONTEXT_VARIABLES_FOCUSED, IViewModel } from 'vs/workbench/parts/debug/common/debug';
 import { Variable, Scope } from 'vs/workbench/parts/debug/common/debugModel';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -37,7 +37,7 @@ export class VariablesView extends ViewletPanel {
 
 	private onFocusStackFrameScheduler: RunOnceScheduler;
 	private needsRefresh: boolean;
-	private tree: WorkbenchAsyncDataTree<IExpression | IScope>;
+	private tree: WorkbenchAsyncDataTree<IViewModel, IExpression | IScope>;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -55,7 +55,7 @@ export class VariablesView extends ViewletPanel {
 		// Use scheduler to prevent unnecessary flashing
 		this.onFocusStackFrameScheduler = new RunOnceScheduler(() => {
 			this.needsRefresh = false;
-			this.tree.refresh(null).then(() => {
+			this.tree.refresh().then(() => {
 				const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 				if (stackFrame) {
 					stackFrame.getScopes().then(scopes => {
@@ -75,18 +75,21 @@ export class VariablesView extends ViewletPanel {
 
 		this.tree = new WorkbenchAsyncDataTree(treeContainer, new VariablesDelegate(),
 			[this.instantiationService.createInstance(VariablesRenderer), new ScopesRenderer()],
-			new VariablesDataSource(this.debugService), {
+			new VariablesDataSource(), {
 				ariaLabel: nls.localize('variablesAriaTreeLabel', "Debug Variables"),
 				accessibilityProvider: new VariablesAccessibilityProvider(),
 				identityProvider: { getId: element => element.getId() },
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: e => e }
 			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
 
+		// TODO@isidor this is a promise
+		this.tree.setInput(this.debugService.getViewModel());
+
 		CONTEXT_VARIABLES_FOCUSED.bindTo(this.contextKeyService.createScoped(treeContainer));
 
 		const collapseAction = new CollapseAction2(this.tree, true, 'explorer-action collapse-explorer');
 		this.toolbar.setActions([collapseAction])();
-		this.tree.refresh(null);
+		this.tree.refresh();
 
 		this.disposables.push(this.debugService.getViewModel().onDidFocusStackFrame(sf => {
 			if (!this.isVisible() || !this.isExpanded()) {
@@ -99,7 +102,7 @@ export class VariablesView extends ViewletPanel {
 			const timeout = sf.explicit ? 0 : undefined;
 			this.onFocusStackFrameScheduler.schedule(timeout);
 		}));
-		this.disposables.push(variableSetEmitter.event(() => this.tree.refresh(null)));
+		this.disposables.push(variableSetEmitter.event(() => this.tree.refresh()));
 		this.disposables.push(this.tree.onMouseDblClick(e => this.onMouseDblClick(e)));
 		this.disposables.push(this.tree.onContextMenu(e => this.onContextMenu(e)));
 	}
@@ -149,21 +152,23 @@ export class VariablesView extends ViewletPanel {
 	}
 }
 
-export class VariablesDataSource implements IAsyncDataSource<IExpression | IScope> {
+function isViewModel(obj: any): obj is IViewModel {
+	return typeof obj.getSelectedExpression === 'function';
+}
 
-	constructor(private debugService: IDebugService) { }
+export class VariablesDataSource implements IAsyncDataSource<IViewModel, IExpression | IScope> {
 
-	hasChildren(element: IExpression | IScope | null): boolean {
-		if (element === null || element instanceof Scope) {
+	hasChildren(element: IViewModel | IExpression | IScope): boolean {
+		if (isViewModel(element) || element instanceof Scope) {
 			return true;
 		}
 
 		return element.hasChildren;
 	}
 
-	getChildren(element: IExpression | IScope | null): Promise<Array<IExpression | IScope>> {
-		if (element === null) {
-			const stackFrame = this.debugService.getViewModel().focusedStackFrame;
+	getChildren(element: IViewModel | IExpression | IScope): Promise<(IExpression | IScope)[]> {
+		if (isViewModel(element)) {
+			const stackFrame = element.focusedStackFrame;
 			return stackFrame ? stackFrame.getScopes() : Promise.resolve([]);
 		}
 

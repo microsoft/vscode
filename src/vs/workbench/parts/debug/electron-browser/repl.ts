@@ -81,7 +81,7 @@ interface IPrivateReplService {
 	clearRepl(): void;
 }
 
-function revealLastElement<T>(tree: WorkbenchAsyncDataTree<T>) {
+function revealLastElement(tree: WorkbenchAsyncDataTree<any, any>) {
 	tree.scrollTop = tree.scrollHeight - tree.renderHeight;
 }
 
@@ -95,7 +95,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	private static readonly REPL_INPUT_MAX_HEIGHT = 170;
 
 	private history: HistoryNavigator<string>;
-	private tree: WorkbenchAsyncDataTree<IReplElement>;
+	private tree: WorkbenchAsyncDataTree<null, IReplElement>;
 	private dataSource: ReplDataSource;
 	private replDelegate: ReplDelegate;
 	private container: HTMLElement;
@@ -213,7 +213,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 			if (this.tree && this.dataSource.input !== session) {
 				this.dataSource.input = session;
-				this.tree.refresh(null).then(() => revealLastElement(this.tree));
+				this.tree.refresh().then(() => revealLastElement(this.tree));
 			}
 		}
 
@@ -331,7 +331,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	private get refreshScheduler(): RunOnceScheduler {
 		return new RunOnceScheduler(() => {
 			const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight;
-			this.tree.refresh(null).then(() => {
+			this.tree.refresh().then(() => {
 				if (lastElementVisible) {
 					// Only scroll if we were scrolled all the way down before tree refreshed #10486
 					revealLastElement(this.tree);
@@ -362,6 +362,8 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 				mouseSupport: false,
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: e => e }
 			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
+
+		this.tree.setInput(null);
 
 		this.toDispose.push(this.tree.onContextMenu(e => this.onContextMenu(e)));
 		// Make sure to select the session if debugging is already active
@@ -750,7 +752,7 @@ class ReplDelegate implements IListVirtualDelegate<IReplElement> {
 }
 
 
-class ReplDataSource implements IAsyncDataSource<IReplElement> {
+class ReplDataSource implements IAsyncDataSource<null, IReplElement> {
 	input: IDebugSession;
 
 	hasChildren(element: IReplElement | null): boolean {

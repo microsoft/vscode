@@ -149,9 +149,9 @@ export interface IDataSource<TInput, T> {
 	getChildren(element: TInput | T): T[];
 }
 
-export interface IAsyncDataSource<T extends NonNullable<any>> {
-	hasChildren(element: T | null): boolean;
-	getChildren(element: T | null): T[] | Promise<T[]>;
+export interface IAsyncDataSource<TInput, T> {
+	hasChildren(element: TInput | T): boolean;
+	getChildren(element: TInput | T): T[] | Promise<T[]>;
 }
 
 /**

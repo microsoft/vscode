@@ -81,7 +81,7 @@ suite('SmartSelect', () => {
 		let actual = new TokenTreeSelectionRangeProvider().provideSelectionRanges(model, new Position(lineNumber, column));
 
 
-		let actualStr = actual.map(r => new Range(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn).toString());
+		let actualStr = actual.map(r => new Range(r.range.startLineNumber, r.range.startColumn, r.range.endLineNumber, r.range.endColumn).toString());
 		let desiredStr = ranges.reverse().map(r => String(r));
 
 		assert.deepEqual(actualStr, desiredStr);
@@ -199,7 +199,7 @@ suite('SmartSelect', () => {
 		assert.equal(expected.length, ranges.length);
 		for (const range of ranges) {
 			let exp = expected.shift() || null;
-			assert.ok(Range.equalsRange(range, exp), `A=${range} <> E=${exp}`);
+			assert.ok(Range.equalsRange(range.range, exp), `A=${range} <> E=${exp}`);
 		}
 	}
 
