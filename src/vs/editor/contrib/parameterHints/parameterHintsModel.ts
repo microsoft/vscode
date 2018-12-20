@@ -5,7 +5,7 @@
 
 import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
@@ -18,33 +18,34 @@ export interface TriggerContext {
 	readonly triggerCharacter?: string;
 }
 
-export interface IHintEvent {
-	readonly hints: modes.SignatureHelp;
+const DefaultState = new class { readonly state = 'default'; };
+const PendingState = new class { readonly state = 'pending'; };
+
+class ActiveState {
+	readonly state = 'active';
+	constructor(
+		readonly hints: modes.SignatureHelp
+	) { }
 }
 
-type ParameterHintState =
-	{ readonly state: 'default' }
-	| { readonly state: 'pending' }
-	| { readonly state: 'active', readonly hints: modes.SignatureHelp; };
+type ParameterHintState = typeof DefaultState | typeof PendingState | ActiveState;
 
 export class ParameterHintsModel extends Disposable {
 
 	private static readonly DEFAULT_DELAY = 120; // ms
 
-	private readonly _onHint = this._register(new Emitter<IHintEvent>());
-	public readonly onHint: Event<IHintEvent> = this._onHint.event;
-
-	private readonly _onCancel = this._register(new Emitter<void>());
-	public readonly onCancel: Event<void> = this._onCancel.event;
+	private readonly _onChangedHints = this._register(new Emitter<modes.SignatureHelp | undefined>());
+	public readonly onChangedHints = this._onChangedHints.event;
 
 	private editor: ICodeEditor;
 	private enabled: boolean;
-	private state: ParameterHintState = { state: 'default' };
+	private state: ParameterHintState = DefaultState;
 	private triggerChars = new CharacterSet();
 	private retriggerChars = new CharacterSet();
 
 	private throttledDelayer: Delayer<boolean>;
-	private provideSignatureHelpRequest?: CancelablePromise<modes.SignatureHelp | null | undefined>;
+	private provideSignatureHelpRequest?: CancelablePromise<any>;
+	private triggerId = 0;
 
 	constructor(
 		editor: ICodeEditor,
@@ -70,12 +71,12 @@ export class ParameterHintsModel extends Disposable {
 	}
 
 	cancel(silent: boolean = false): void {
-		this.state = { state: 'default' };
+		this.state = DefaultState;
 
 		this.throttledDelayer.cancel();
 
 		if (!silent) {
-			this._onCancel.fire(void 0);
+			this._onChangedHints.fire(undefined);
 		}
 
 		if (this.provideSignatureHelpRequest) {
@@ -85,18 +86,18 @@ export class ParameterHintsModel extends Disposable {
 	}
 
 	trigger(context: TriggerContext, delay?: number): void {
-
 		const model = this.editor.getModel();
 		if (model === null || !modes.SignatureHelpProviderRegistry.has(model)) {
 			return;
 		}
 
+		const triggerId = ++this.triggerId;
 		this.throttledDelayer.trigger(
 			() => this.doTrigger({
 				triggerKind: context.triggerKind,
 				triggerCharacter: context.triggerCharacter,
-				isRetrigger: this.isTriggered,
-			}), delay).then(undefined, onUnexpectedError);
+				isRetrigger: this.state.state === 'active' || this.state.state === 'pending',
+			}, triggerId), delay).then(undefined, onUnexpectedError);
 	}
 
 	public next(): void {
@@ -146,10 +147,10 @@ export class ParameterHintsModel extends Disposable {
 			state: 'active',
 			hints: { ...this.state.hints, activeSignature }
 		};
-		this._onHint.fire(this.state);
+		this._onChangedHints.fire(this.state.hints);
 	}
 
-	private doTrigger(triggerContext: modes.SignatureHelpContext): Promise<boolean> {
+	private doTrigger(triggerContext: modes.SignatureHelpContext, triggerId: number): Promise<boolean> {
 		this.cancel(true);
 
 		if (!this.editor.hasModel()) {
@@ -159,24 +160,27 @@ export class ParameterHintsModel extends Disposable {
 		const model = this.editor.getModel();
 		const position = this.editor.getPosition();
 
-		this.state = { state: 'pending' };
+		this.state = PendingState;
 
 		this.provideSignatureHelpRequest = createCancelablePromise(token =>
 			provideSignatureHelp(model, position, triggerContext, token));
 
 		return this.provideSignatureHelpRequest.then(result => {
+			// Check that we are still resolving the correct signature help
+			if (triggerId !== this.triggerId) {
+				return false;
+			}
+
 			if (!result || !result.signatures || result.signatures.length === 0) {
-				this.state = { state: 'default' };
 				this.cancel();
-				this._onCancel.fire(void 0);
 				return false;
 			} else {
-				this.state = { state: 'active', hints: result };
-				this._onHint.fire(this.state);
+				this.state = new ActiveState(result);
+				this._onChangedHints.fire(this.state.hints);
 				return true;
 			}
 		}).catch(error => {
-			this.state = { state: 'default' };
+			this.state = DefaultState;
 			onUnexpectedError(error);
 			return false;
 		});

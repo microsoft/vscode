@@ -130,8 +130,16 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 
 		this.updateFilter();
 
-		this.onDidFocus(() => this.panelFoucusContextKey.set(true));
-		this.onDidBlur(() => this.panelFoucusContextKey.set(false));
+		this._register(this.onDidFocus(() => this.panelFoucusContextKey.set(true)));
+		this._register(this.onDidBlur(() => this.panelFoucusContextKey.set(false)));
+
+		this._register(this.onDidChangeVisibility(visible => {
+			if (visible) {
+				this.refreshPanel();
+			} else {
+				this.rangeHighlightDecorations.removeHighlightRange();
+			}
+		}));
 
 		this.render();
 	}
@@ -159,26 +167,6 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	public focusFilter(): void {
 		if (this.filterInputActionItem) {
 			this.filterInputActionItem.focus();
-		}
-	}
-
-	public setVisible(visible: boolean): void {
-		const wasVisible = this.isVisible();
-		super.setVisible(visible);
-		if (this.isVisible()) {
-			if (!wasVisible) {
-				this.refreshPanel();
-			}
-		} else {
-			this.rangeHighlightDecorations.removeHighlightRange();
-		}
-
-		if (this.treeLabels) {
-			if (visible) {
-				this.treeLabels.onVisible();
-			} else {
-				this.treeLabels.onHidden();
-			}
 		}
 	}
 
@@ -297,7 +285,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 
 		const onDidChangeRenderNodeCount = new Relay<ITreeNode<any, any>>();
 
-		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels));
+		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, this));
 
 		const virtualDelegate = new VirtualDelegate(this.markersViewState);
 		const renderers = [

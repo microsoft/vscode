@@ -10,7 +10,7 @@ import { toResource, GroupIdentifier, IEditorInput, Verbosity, EditorCommandsCon
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
+import { ResourceLabels, IResourceLabel, DEFAULT_LABELS_CONTAINER } from 'vs/workbench/browser/labels';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -125,7 +125,7 @@ export class TabsTitleControl extends TitleControl {
 		this.createBreadcrumbsControl(breadcrumbsContainer, { showFileIcons: true, showSymbolIcons: true, showDecorationColors: false, breadcrumbsBackground: breadcrumbsBackground });
 
 		// Tab Labels
-		this.tabResourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels));
+		this.tabResourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
 	}
 
 	private createTabsScrollbar(scrollable: HTMLElement): ScrollableElement {

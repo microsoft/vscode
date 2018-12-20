@@ -390,7 +390,7 @@ export class OutlinePanel extends ViewletPanel {
 		super.setVisible(visible);
 	}
 
-	setExpanded(expanded: boolean): void {
+	setExpanded(expanded: boolean): boolean {
 		if (expanded) {
 			this._requestOracle = this._requestOracle || this._instantiationService.createInstance(RequestOracle, (editor, event) => this._doUpdate(editor, event).then(undefined, onUnexpectedError), DocumentSymbolProviderRegistry);
 		} else {

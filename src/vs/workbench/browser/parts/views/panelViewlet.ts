@@ -52,6 +52,9 @@ export abstract class ViewletPanel extends Panel implements IView {
 	private _onDidBlur = new Emitter<void>();
 	readonly onDidBlur: Event<void> = this._onDidBlur.event;
 
+	private _onDidChangeBodyVisibility = new Emitter<boolean>();
+	readonly onDidChangeBodyVisibility: Event<boolean> = this._onDidChangeBodyVisibility.event;
+
 	protected _onDidChangeTitleArea = new Emitter<void>();
 	readonly onDidChangeTitleArea: Event<void> = this._onDidChangeTitleArea.event;
 
@@ -74,16 +77,31 @@ export abstract class ViewletPanel extends Panel implements IView {
 		this.id = options.id;
 		this.title = options.title;
 		this.actionRunner = options.actionRunner;
+
+		this.disposables.push(this._onDidFocus, this._onDidBlur, this._onDidChangeBodyVisibility, this._onDidChangeTitleArea);
 	}
 
 	setVisible(visible: boolean): void {
 		if (this._isVisible !== visible) {
 			this._isVisible = visible;
+
+			if (this.isExpanded()) {
+				this._onDidChangeBodyVisibility.fire(visible);
+			}
 		}
 	}
 
 	isVisible(): boolean {
 		return this._isVisible;
+	}
+
+	setExpanded(expanded: boolean): boolean {
+		const changed = super.setExpanded(expanded);
+		if (changed) {
+			this._onDidChangeBodyVisibility.fire(expanded);
+		}
+
+		return changed;
 	}
 
 	render(): void {

@@ -25,7 +25,7 @@ import { IConstructorSignature1, IInstantiationService } from 'vs/platform/insta
 import { HighlightingWorkbenchTree, IHighlighter, IHighlightingTreeConfiguration, IHighlightingTreeOptions } from 'vs/platform/list/browser/listService';
 import { breadcrumbsPickerBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
+import { ResourceLabels, IResourceLabel, DEFAULT_LABELS_CONTAINER } from 'vs/workbench/browser/labels';
 import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { BreadcrumbElement, FileElement } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
 import { IFileIconTheme, IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
@@ -427,7 +427,7 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 		this._disposables.push(filter);
 
 		config.dataSource = this._instantiationService.createInstance(FileDataSource);
-		const labels = this._instantiationService.createInstance(ResourceLabels);
+		const labels = this._instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER /* TODO@Jo visibility propagation */);
 		this._disposables.push(labels);
 		config.renderer = this._instantiationService.createInstance(FileRenderer, labels);
 		config.sorter = new FileSorter();
