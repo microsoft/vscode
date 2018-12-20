@@ -146,13 +146,13 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		removeClass(data.element, 'loading');
 
 		data.extensionDisposables = dispose(data.extensionDisposables);
-		const installed = this.extensionsWorkbenchService.local.filter(e => e.id === extension.id)[0];
+		const installed = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, extension.identifier))[0];
 
 		this.extensionService.getExtensions().then(runningExtensions => {
 			if (installed && installed.local) {
 				const installedExtensionServer = this.extensionManagementServerService.getExtensionManagementServer(installed.local.location);
 				const isSameExtensionRunning = runningExtensions.some(e => {
-					if (!areSameExtensions(e, extension)) {
+					if (!areSameExtensions(e, extension.identifier)) {
 						return false;
 					}
 					const runningExtensionServer = this.extensionManagementServerService.getExtensionManagementServer(e.extensionLocation);
@@ -180,7 +180,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 		this.updateRecommendationStatus(extension, data);
 		data.extensionDisposables.push(this.extensionTipsService.onRecommendationChange(change => {
-			if (change.extensionId.toLowerCase() === extension.id.toLowerCase()) {
+			if (areSameExtensions({ id: change.extensionId }, extension.identifier)) {
 				this.updateRecommendationStatus(extension, data);
 			}
 		}));
@@ -197,13 +197,13 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		}
 
 		this.extensionViewState.onFocus(e => {
-			if (areSameExtensions(extension, e)) {
+			if (areSameExtensions(extension.identifier, e.identifier)) {
 				data.actionbar.items.forEach(item => (<ExtensionActionItem>item).setFocus(true));
 			}
 		}, this, data.extensionDisposables);
 
 		this.extensionViewState.onBlur(e => {
-			if (areSameExtensions(extension, e)) {
+			if (areSameExtensions(extension.identifier, e.identifier)) {
 				data.actionbar.items.forEach(item => (<ExtensionActionItem>item).setFocus(false));
 			}
 		}, this, data.extensionDisposables);
@@ -213,13 +213,13 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
 		let ariaLabel = extension.displayName + '. ';
 
-		if (!extRecommendations[extension.id.toLowerCase()]) {
+		if (!extRecommendations[extension.identifier.id.toLowerCase()]) {
 			removeClass(data.root, 'recommended');
 			data.root.title = '';
 		} else {
 			addClass(data.root, 'recommended');
-			ariaLabel += extRecommendations[extension.id.toLowerCase()].reasonText + ' ';
-			data.root.title = extRecommendations[extension.id.toLowerCase()].reasonText;
+			ariaLabel += extRecommendations[extension.identifier.id.toLowerCase()].reasonText + ' ';
+			data.root.title = extRecommendations[extension.identifier.id.toLowerCase()].reasonText;
 		}
 
 		ariaLabel += localize('viewExtensionDetailsAria', "Press enter for extension details.");

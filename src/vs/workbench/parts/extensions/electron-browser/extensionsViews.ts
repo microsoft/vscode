@@ -293,7 +293,7 @@ export class ExtensionsListView extends ViewletPanel {
 
 			const result = local
 				.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
-				.filter(e => runningExtensions.every(r => !areSameExtensions(r, e))
+				.filter(e => runningExtensions.every(r => !areSameExtensions(r, e.identifier))
 					&& (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1)
 					&& (!categories.length || categories.some(category => (e.local.manifest.categories || []).some(c => c.toLowerCase() === category))));
 
@@ -308,7 +308,7 @@ export class ExtensionsListView extends ViewletPanel {
 
 			const result = local
 				.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
-				.filter(e => runningExtensions.some(r => areSameExtensions(r, e))
+				.filter(e => runningExtensions.some(r => areSameExtensions(r, e.identifier))
 					&& (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1)
 					&& (!categories.length || categories.some(category => (e.local.manifest.categories || []).some(c => c.toLowerCase() === category))));
 
@@ -399,7 +399,7 @@ export class ExtensionsListView extends ViewletPanel {
 		let positionToUpdate = 0;
 		for (let i = 0; i < preferredResults.length; i++) {
 			for (let j = positionToUpdate; j < pager.firstPage.length; j++) {
-				if (pager.firstPage[j].id === preferredResults[i]) {
+				if (areSameExtensions(pager.firstPage[j].identifier, { id: preferredResults[i] })) {
 					if (positionToUpdate !== j) {
 						const preferredExtension = pager.firstPage.splice(j, 1)[0];
 						pager.firstPage.splice(positionToUpdate, 0, preferredExtension);
@@ -573,7 +573,7 @@ export class ExtensionsListView extends ViewletPanel {
 	}
 
 	private isRecommendationInstalled(recommendation: IExtensionRecommendation, installed: IExtension[]): boolean {
-		return installed.some(i => areSameExtensions({ id: i.id }, { id: recommendation.extensionId }));
+		return installed.some(i => areSameExtensions(i.identifier, { id: recommendation.extensionId }));
 	}
 
 	private getWorkspaceRecommendationsModel(query: Query, options: IQueryOptions): Promise<IPagedModel<IExtension>> {
@@ -614,7 +614,7 @@ export class ExtensionsListView extends ViewletPanel {
 	private sortFirstPage(pager: IPager<IExtension>, ids: string[]) {
 		ids = ids.map(x => x.toLowerCase());
 		pager.firstPage.sort((a, b) => {
-			return ids.indexOf(a.id.toLowerCase()) < ids.indexOf(b.id.toLowerCase()) ? -1 : 1;
+			return ids.indexOf(a.identifier.id.toLowerCase()) < ids.indexOf(b.identifier.id.toLowerCase()) ? -1 : 1;
 		});
 	}
 
@@ -869,6 +869,6 @@ export class WorkspaceRecommendedExtensionsView extends ExtensionsListView {
 
 	private getRecommendationsToInstall(): Promise<IExtensionRecommendation[]> {
 		return this.tipsService.getWorkspaceRecommendations()
-			.then(recommendations => recommendations.filter(({ extensionId }) => !this.extensionsWorkbenchService.local.some(i => areSameExtensions({ id: extensionId }, { id: i.id }))));
+			.then(recommendations => recommendations.filter(({ extensionId }) => !this.extensionsWorkbenchService.local.some(i => areSameExtensions({ id: extensionId }, i.identifier))));
 	}
 }
