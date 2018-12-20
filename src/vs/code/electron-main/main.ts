@@ -49,31 +49,6 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { CommandLineDialogService } from 'vs/platform/dialogs/node/dialogService';
 import { createWaitMarkerFile } from 'vs/code/node/wait';
 
-function createServices(args: ParsedArgs, bufferLogService: BufferLogService): IInstantiationService {
-	const services = new ServiceCollection();
-
-	const environmentService = new EnvironmentService(args, process.execPath);
-
-	const logService = new MultiplexLogService([new ConsoleLogMainService(getLogLevel(environmentService)), bufferLogService]);
-	process.once('exit', () => logService.dispose());
-	setTimeout(() => cleanupOlderLogs(environmentService).then(null, err => console.error(err)), 10000);
-
-	services.set(IEnvironmentService, environmentService);
-	services.set(ILogService, logService);
-	services.set(IWorkspacesMainService, new SyncDescriptor(WorkspacesMainService));
-	services.set(IHistoryMainService, new SyncDescriptor(HistoryMainService));
-	services.set(ILifecycleService, new SyncDescriptor(LifecycleService));
-	services.set(IStateService, new SyncDescriptor(StateService));
-	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
-	services.set(IRequestService, new SyncDescriptor(RequestService));
-	services.set(IURLService, new SyncDescriptor(URLService));
-	services.set(IBackupMainService, new SyncDescriptor(BackupMainService));
-	services.set(IDialogService, new SyncDescriptor(CommandLineDialogService));
-	services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService));
-
-	return new InstantiationService(services, true);
-}
-
 /**
  * Cleans up older logs, while keeping the 10 most recent ones.
 */
@@ -322,8 +297,7 @@ function startup(args: ParsedArgs): void {
 		const instanceEnvironment = patchEnvironment(environmentService);
 
 		// Startup
-		return instantiationService
-			.invokeFunction(a => createPaths(a.get(IEnvironmentService)))
+		return createPaths(environmentService)
 			.then(() => instantiationService.invokeFunction(setupIPC))
 			.then(mainIpcServer => {
 				bufferLogService.logger = createSpdLogService('main', bufferLogService.getLevel(), environmentService.logsPath);
@@ -331,6 +305,31 @@ function startup(args: ParsedArgs): void {
 				return instantiationService.createInstance(CodeApplication, mainIpcServer, instanceEnvironment).startup();
 			});
 	}).then(null, err => instantiationService.invokeFunction(quit, err));
+}
+
+function createServices(args: ParsedArgs, bufferLogService: BufferLogService): IInstantiationService {
+	const services = new ServiceCollection();
+
+	const environmentService = new EnvironmentService(args, process.execPath);
+
+	const logService = new MultiplexLogService([new ConsoleLogMainService(getLogLevel(environmentService)), bufferLogService]);
+	process.once('exit', () => logService.dispose());
+	setTimeout(() => cleanupOlderLogs(environmentService).then(null, err => console.error(err)), 10000);
+
+	services.set(IEnvironmentService, environmentService);
+	services.set(ILogService, logService);
+	services.set(IWorkspacesMainService, new SyncDescriptor(WorkspacesMainService));
+	services.set(IHistoryMainService, new SyncDescriptor(HistoryMainService));
+	services.set(ILifecycleService, new SyncDescriptor(LifecycleService));
+	services.set(IStateService, new SyncDescriptor(StateService));
+	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
+	services.set(IRequestService, new SyncDescriptor(RequestService));
+	services.set(IURLService, new SyncDescriptor(URLService));
+	services.set(IBackupMainService, new SyncDescriptor(BackupMainService));
+	services.set(IDialogService, new SyncDescriptor(CommandLineDialogService));
+	services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService));
+
+	return new InstantiationService(services, true);
 }
 
 function main(): void {
