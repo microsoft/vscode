@@ -179,6 +179,16 @@ export class ExplorerView extends ViewletPanel {
 
 		// Also handle configuration updates
 		this.disposables.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IFilesConfiguration>(), e)));
+
+		this.disposables.push(this.onDidChangeBodyVisibility(visible => {
+			if (visible) {
+				// If a refresh was requested and we are now visible, run it
+				if (this.shouldRefresh) {
+					this.shouldRefresh = false;
+					this.setTreeInput().then(undefined, onUnexpectedError);
+				}
+			}
+		}));
 	}
 
 	getActions(): IAction[] {
@@ -194,17 +204,6 @@ export class ExplorerView extends ViewletPanel {
 
 	focus(): void {
 		this.tree.domFocus();
-	}
-
-	setVisible(visible: boolean): void {
-		super.setVisible(visible);
-		if (visible) {
-			// If a refresh was requested and we are now visible, run it
-			if (this.shouldRefresh) {
-				this.shouldRefresh = false;
-				this.setTreeInput().then(undefined, onUnexpectedError);
-			}
-		}
 	}
 
 	private createTree(container: HTMLElement): void {
