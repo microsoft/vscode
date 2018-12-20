@@ -129,7 +129,15 @@ function setupIPC(accessor: ServicesAccessor): Promise<Server> {
 
 			return server;
 		}, err => {
+
+			// Handle unexpected errors (the only expected error is EADDRINUSE that
+			// indicates a second instance of Code is running)
 			if (err.code !== 'EADDRINUSE') {
+
+				// Show a dialog for errors that can be resolved by the user
+				handleStartupDataDirError(environmentService, err);
+
+				// Any other runtime error is just printed to the console
 				return Promise.reject<Server>(err);
 			}
 
@@ -241,6 +249,15 @@ function showStartupWarningDialog(message: string, detail: string): void {
 	});
 }
 
+function handleStartupDataDirError(environmentService: IEnvironmentService, error): void {
+	if (error.code === 'EACCES' || error.code === 'EPERM') {
+		showStartupWarningDialog(
+			localize('startupDataDirError', "Unable to write program user data."),
+			localize('startupDataDirErrorDetail', "Please make sure the directory {0} is writeable.", environmentService.userDataPath)
+		);
+	}
+}
+
 function quit(accessor: ServicesAccessor, reason?: ExpectedError | Error): void {
 	const logService = accessor.get(ILogService);
 	const lifecycleService = accessor.get(ILifecycleService);
@@ -298,7 +315,13 @@ function startup(args: ParsedArgs): void {
 
 		// Startup
 		return createPaths(environmentService)
-			.then(() => instantiationService.invokeFunction(setupIPC))
+			.then(() => instantiationService.invokeFunction(setupIPC), error => {
+
+				// Show a dialog for errors that can be resolved by the user
+				handleStartupDataDirError(environmentService, error);
+
+				return Promise.reject(error);
+			})
 			.then(mainIpcServer => {
 				bufferLogService.logger = createSpdLogService('main', bufferLogService.getLevel(), environmentService.logsPath);
 
