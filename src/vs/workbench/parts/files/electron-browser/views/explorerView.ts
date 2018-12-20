@@ -333,7 +333,7 @@ export class ExplorerView extends ViewletPanel {
 	 * Refresh the contents of the explorer to get up to date data from the disk about the file structure.
 	 */
 	refresh(item?: ExplorerItem): Promise<void> {
-		if (!this.tree || !this.isVisible()) {
+		if (!this.tree || !this.isBodyVisible()) {
 			this.shouldRefresh = true;
 			return Promise.resolve(void 0);
 		}
@@ -350,7 +350,7 @@ export class ExplorerView extends ViewletPanel {
 	}
 
 	private setTreeInput(): Promise<void> {
-		if (!this.isVisible()) {
+		if (!this.isBodyVisible()) {
 			this.shouldRefresh = true;
 			return Promise.resolve(void 0);
 		}
@@ -399,7 +399,7 @@ export class ExplorerView extends ViewletPanel {
 	}
 
 	private onSelectItem(fileStat: ExplorerItem, reveal = this.autoReveal): Promise<void> {
-		if (!fileStat || !this.isVisible()) {
+		if (!fileStat || !this.isBodyVisible()) {
 			return Promise.resolve(void 0);
 		}
 
