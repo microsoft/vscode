@@ -5,7 +5,7 @@
 
 import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
@@ -16,10 +16,6 @@ import { provideSignatureHelp } from 'vs/editor/contrib/parameterHints/provideSi
 export interface TriggerContext {
 	readonly triggerKind: modes.SignatureHelpTriggerKind;
 	readonly triggerCharacter?: string;
-}
-
-export interface IHintEvent {
-	readonly hints: modes.SignatureHelp;
 }
 
 const DefaultState = new class { readonly state = 'default'; };
@@ -38,11 +34,8 @@ export class ParameterHintsModel extends Disposable {
 
 	private static readonly DEFAULT_DELAY = 120; // ms
 
-	private readonly _onHint = this._register(new Emitter<IHintEvent>());
-	public readonly onHint: Event<IHintEvent> = this._onHint.event;
-
-	private readonly _onCancel = this._register(new Emitter<void>());
-	public readonly onCancel: Event<void> = this._onCancel.event;
+	private readonly _onChangedHints = this._register(new Emitter<modes.SignatureHelp | undefined>());
+	public readonly onChangedHints = this._onChangedHints.event;
 
 	private editor: ICodeEditor;
 	private enabled: boolean;
@@ -82,7 +75,7 @@ export class ParameterHintsModel extends Disposable {
 		this.throttledDelayer.cancel();
 
 		if (!silent) {
-			this._onCancel.fire(void 0);
+			this._onChangedHints.fire(undefined);
 		}
 
 		if (this.provideSignatureHelpRequest) {
@@ -153,7 +146,7 @@ export class ParameterHintsModel extends Disposable {
 			state: 'active',
 			hints: { ...this.state.hints, activeSignature }
 		};
-		this._onHint.fire(this.state);
+		this._onChangedHints.fire(this.state.hints);
 	}
 
 	private doTrigger(triggerContext: modes.SignatureHelpContext): Promise<boolean> {
@@ -177,7 +170,7 @@ export class ParameterHintsModel extends Disposable {
 				return false;
 			} else {
 				this.state = new ActiveState(result);
-				this._onHint.fire(this.state);
+				this._onChangedHints.fire(this.state.hints);
 				return true;
 			}
 		}).catch(error => {

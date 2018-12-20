@@ -59,13 +59,13 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		this.visible = false;
 		this.disposables = [];
 
-		this.disposables.push(this.model.onHint(e => {
-			this.show();
-			this.render(e.hints);
-		}));
-
-		this.disposables.push(this.model.onCancel(() => {
-			this.hide();
+		this.disposables.push(this.model.onChangedHints(newParameterHints => {
+			if (newParameterHints) {
+				this.show();
+				this.render(newParameterHints);
+			} else {
+				this.hide();
+			}
 		}));
 	}
 

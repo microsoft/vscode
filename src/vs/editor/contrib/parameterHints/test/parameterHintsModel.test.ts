@@ -244,10 +244,10 @@ suite('ParameterHintsModel', () => {
 		assert.strictEqual(-1, didRequestCancellationOf);
 
 		return new Promise((resolve, reject) =>
-			hintsModel.onHint(e => {
+			hintsModel.onChangedHints(newParamterHints => {
 				try {
 					assert.strictEqual(0, didRequestCancellationOf);
-					assert.strictEqual('1', e.hints.signatures[0].label);
+					assert.strictEqual('1', newParamterHints.signatures[0].label);
 					resolve();
 				} catch (e) {
 					reject(e);
