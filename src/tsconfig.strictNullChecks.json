@@ -158,6 +158,7 @@
 		"./vs/base/test/node/decoder.test.ts",
 		"./vs/base/test/node/encoding/encoding.test.ts",
 		"./vs/base/test/node/id.test.ts",
+		"./vs/base/test/node/glob.test.ts",
 		"./vs/base/test/node/port.test.ts",
 		"./vs/base/test/node/pfs.test.ts",
 		"./vs/base/test/node/processes/fixtures/fork.ts",
