@@ -628,7 +628,7 @@ export class ExtensionsListView extends ViewletPanel {
 			toggleClass(this.messageBox, 'hidden', count > 0);
 			this.badge.setCount(count);
 
-			if (count === 0 && this.isVisible()) {
+			if (count === 0 && this.isBodyVisible()) {
 				this.messageBox.textContent = isGalleryError ? localize('galleryError', "We cannot connect to the Extensions Marketplace at this time, please try again later.") : localize('no extensions found', "No extensions found.");
 				if (isGalleryError) {
 					alert(this.messageBox.textContent);

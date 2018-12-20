@@ -92,7 +92,7 @@ export class VariablesView extends ViewletPanel {
 		this.tree.refresh();
 
 		this.disposables.push(this.debugService.getViewModel().onDidFocusStackFrame(sf => {
-			if (!this.isVisible() || !this.isExpanded()) {
+			if (!this.isBodyVisible()) {
 				this.needsRefresh = true;
 				return;
 			}

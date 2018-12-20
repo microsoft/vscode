@@ -96,7 +96,7 @@ export class CustomTreeViewPanel extends ViewletPanel {
 	}
 
 	private updateTreeVisibility(): void {
-		this.treeView.setVisibility(this.isVisible() && this.isExpanded());
+		this.treeView.setVisibility(this.isBodyVisible());
 	}
 
 	dispose(): void {

@@ -81,14 +81,14 @@ export class WatchExpressionsView extends ViewletPanel {
 		this.disposables.push(this.tree.onContextMenu(e => this.onContextMenu(e)));
 		this.disposables.push(this.tree.onMouseDblClick(e => this.onMouseDblClick(e)));
 		this.disposables.push(this.debugService.getModel().onDidChangeWatchExpressions(we => {
-			if (!this.isExpanded() || !this.isVisible()) {
+			if (!this.isBodyVisible()) {
 				this.needsRefresh = true;
 			} else {
 				this.tree.refresh();
 			}
 		}));
 		this.disposables.push(this.debugService.getViewModel().onDidFocusStackFrame(() => {
-			if (!this.isExpanded() || !this.isVisible()) {
+			if (!this.isBodyVisible()) {
 				this.needsRefresh = true;
 				return;
 			}
