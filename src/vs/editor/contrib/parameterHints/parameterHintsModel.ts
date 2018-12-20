@@ -77,7 +77,7 @@ export class ParameterHintsModel extends Disposable {
 
 		this.throttledDelayer.cancel();
 
-		if (!silent && priorState.state === 'active') {
+		if (!silent && priorState.type === ActiveState.type) {
 			this._onChangedHints.fire(undefined);
 		}
 
