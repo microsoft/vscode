@@ -159,6 +159,7 @@
 		"./vs/base/test/node/encoding/encoding.test.ts",
 		"./vs/base/test/node/id.test.ts",
 		"./vs/base/test/node/port.test.ts",
+		"./vs/base/test/node/pfs.test.ts",
 		"./vs/base/test/node/processes/fixtures/fork.ts",
 		"./vs/base/test/node/processes/fixtures/fork_large.ts",
 		"./vs/base/test/node/processes/processes.test.ts",
