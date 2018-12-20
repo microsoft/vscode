@@ -19,13 +19,14 @@ export interface TriggerContext {
 }
 
 export interface IHintEvent {
-	hints: modes.SignatureHelp;
+	readonly hints: modes.SignatureHelp;
+	readonly currentSignature: number;
 }
 
 type ParameterHintState =
-	{ state: 'default' }
-	| { state: 'pending' }
-	| { state: 'active', hints: modes.SignatureHelp };
+	{ readonly state: 'default' }
+	| { readonly state: 'pending' }
+	| { readonly state: 'active', readonly hints: modes.SignatureHelp; readonly currentSignature: number; };
 
 export class ParameterHintsModel extends Disposable {
 
@@ -99,6 +100,60 @@ export class ParameterHintsModel extends Disposable {
 			}), delay).then(undefined, onUnexpectedError);
 	}
 
+	public next(): void {
+		if (this.state.state !== 'active') {
+			return;
+		}
+
+		const length = this.state.hints.signatures.length;
+		let currentSignature = this.state.currentSignature;
+
+		const last = (currentSignature % length) === (length - 1);
+		const cycle = this.editor.getConfiguration().contribInfo.parameterHints.cycle;
+
+		// If there is only one signature, or we're on last signature of list
+		if ((length < 2 || last) && !cycle) {
+			this.cancel();
+			return;
+		}
+
+		if (last && cycle) {
+			currentSignature = 0;
+		} else {
+			currentSignature++;
+		}
+
+		this.state = { ...this.state, currentSignature };
+		this._onHint.fire(this.state);
+	}
+
+	public previous(): void {
+		if (this.state.state !== 'active') {
+			return;
+		}
+
+		const length = this.state.hints.signatures.length;
+		let currentSignature = this.state.currentSignature;
+
+		const first = currentSignature === 0;
+		const cycle = this.editor.getConfiguration().contribInfo.parameterHints.cycle;
+
+		// If there is only one signature, or we're on first signature of list
+		if ((length < 2 || first) && !cycle) {
+			this.cancel();
+			return;
+		}
+
+		if (first && cycle) {
+			currentSignature = length - 1;
+		} else {
+			currentSignature--;
+		}
+
+		this.state = { ...this.state, currentSignature };
+		this._onHint.fire(this.state);
+	}
+
 	private doTrigger(triggerContext: modes.SignatureHelpContext): Promise<boolean> {
 		this.cancel(true);
 
@@ -121,9 +176,8 @@ export class ParameterHintsModel extends Disposable {
 				this._onCancel.fire(void 0);
 				return false;
 			} else {
-				this.state = { state: 'active', hints: result };
-				const event: IHintEvent = { hints: result };
-				this._onHint.fire(event);
+				this.state = { state: 'active', hints: result, currentSignature: result.activeSignature };
+				this._onHint.fire(this.state);
 				return true;
 			}
 		}).catch(error => {

@@ -38,9 +38,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 	private signature: HTMLElement;
 	private docs: HTMLElement;
 	private overloads: HTMLElement;
-	private currentSignature: number;
 	private visible: boolean;
-	private hints: modes.SignatureHelp | null;
 	private announcedLabel: string | null;
 	private scrollbar: DomScrollableElement;
 	private disposables: IDisposable[];
@@ -63,9 +61,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 		this.disposables.push(this.model.onHint(e => {
 			this.show();
-			this.hints = e.hints;
-			this.currentSignature = e.hints.activeSignature;
-			this.render();
+			this.render(e.hints, e.currentSignature);
 		}));
 
 		this.disposables.push(this.model.onCancel(() => {
@@ -97,8 +93,6 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		this.signature = dom.append(body, $('.signature'));
 
 		this.docs = dom.append(body, $('.docs'));
-
-		this.currentSignature = 0;
 
 		this.editor.addContentWidget(this);
 		this.hide();
@@ -151,7 +145,6 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 		this.keyVisible.reset();
 		this.visible = false;
-		this.hints = null;
 		this.announcedLabel = null;
 		dom.removeClass(this.element, 'visible');
 		this.editor.layoutContentWidget(this);
@@ -167,19 +160,15 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		return null;
 	}
 
-	private render(): void {
-		if (!this.hints) {
-			return;
-		}
-
-		const multiple = this.hints.signatures.length > 1;
+	private render(hints: modes.SignatureHelp, currentSignature: number): void {
+		const multiple = hints.signatures.length > 1;
 		dom.toggleClass(this.element, 'multiple', multiple);
 		this.keyMultipleSignatures.set(multiple);
 
 		this.signature.innerHTML = '';
 		this.docs.innerHTML = '';
 
-		const signature = this.hints.signatures[this.currentSignature];
+		const signature = hints.signatures[currentSignature];
 
 		if (!signature) {
 			return;
@@ -197,13 +186,13 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 			label.textContent = signature.label;
 
 		} else {
-			this.renderParameters(code, signature, this.hints.activeParameter);
+			this.renderParameters(code, signature, hints.activeParameter);
 		}
 
 		dispose(this.renderDisposeables);
 		this.renderDisposeables = [];
 
-		const activeParameter = signature.parameters[this.hints.activeParameter];
+		const activeParameter = signature.parameters[hints.activeParameter];
 
 		if (activeParameter && activeParameter.documentation) {
 			const documentation = $('span.documentation');
@@ -230,16 +219,16 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 			dom.append(this.docs, renderedContents.element);
 		}
 
-		let currentOverload = String(this.currentSignature + 1);
+		let currentOverload = String(currentSignature + 1);
 
-		if (this.hints.signatures.length < 10) {
-			currentOverload += `/${this.hints.signatures.length}`;
+		if (hints.signatures.length < 10) {
+			currentOverload += `/${hints.signatures.length}`;
 		}
 
 		this.overloads.textContent = currentOverload;
 
 		if (activeParameter) {
-			const labelToAnnounce = this.getParameterLabel(signature, this.hints.activeParameter);
+			const labelToAnnounce = this.getParameterLabel(signature, hints.activeParameter);
 			// Select method gets called on every user type while parameter hints are visible.
 			// We do not want to spam the user with same announcements, so we only announce if the current parameter changed.
 
@@ -293,54 +282,12 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		}
 	}
 
-	next(): boolean {
-		if (!this.hints) {
-			return false;
-		}
-
-		const length = this.hints.signatures.length;
-		const last = (this.currentSignature % length) === (length - 1);
-		const cycle = this.editor.getConfiguration().contribInfo.parameterHints.cycle;
-
-		// If there is only one signature, or we're on last signature of list
-		if ((length < 2 || last) && !cycle) {
-			this.cancel();
-			return false;
-		}
-
-		if (last && cycle) {
-			this.currentSignature = 0;
-		} else {
-			this.currentSignature++;
-		}
-
-		this.render();
-		return true;
+	next(): void {
+		this.model.next();
 	}
 
-	previous(): boolean {
-		if (!this.hints) {
-			return false;
-		}
-
-		const length = this.hints.signatures.length;
-		const first = this.currentSignature === 0;
-		const cycle = this.editor.getConfiguration().contribInfo.parameterHints.cycle;
-
-		// If there is only one signature, or we're on first signature of list
-		if ((length < 2 || first) && !cycle) {
-			this.cancel();
-			return false;
-		}
-
-		if (first && cycle) {
-			this.currentSignature = length - 1;
-		} else {
-			this.currentSignature--;
-		}
-
-		this.render();
-		return true;
+	previous(): void {
+		this.model.previous();
 	}
 
 	cancel(): void {
