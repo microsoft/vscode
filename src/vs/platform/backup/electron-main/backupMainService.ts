@@ -385,14 +385,15 @@ export class BackupMainService implements IBackupMainService {
 	}
 
 	protected getFolderHash(folderUri: URI): string {
-		let key;
+		let key: string;
+
 		if (folderUri.scheme === Schemas.file) {
 			// for backward compatibility, use the fspath as key
 			key = platform.isLinux ? folderUri.fsPath : folderUri.fsPath.toLowerCase();
-
 		} else {
 			key = hasToIgnoreCase(folderUri) ? folderUri.toString().toLowerCase() : folderUri.toString();
 		}
+
 		return crypto.createHash('md5').update(key).digest('hex');
 	}
 
