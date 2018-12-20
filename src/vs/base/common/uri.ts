@@ -208,7 +208,7 @@ export class URI implements UriComponents {
 
 	// ---- modify to new -------------------------
 
-	public with(change: { scheme?: string; authority?: string | null; path?: string | null; query?: string | null; fragment?: string | null }): URI {
+	public with(change?: { scheme?: string; authority?: string | null; path?: string | null; query?: string | null; fragment?: string | null } | null): URI {
 
 		if (!change) {
 			return this;
