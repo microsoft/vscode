@@ -1102,7 +1102,8 @@ export class Repository implements Disposable {
 			const text = lastLine.isEmptyOrWhitespace ? `${textToAppend}\n` : `\n${textToAppend}\n`;
 
 			edit.insert(document.uri, lastLine.range.end, text);
-			workspace.applyEdit(edit);
+			await workspace.applyEdit(edit);
+			await document.save();
 		});
 	}
 
