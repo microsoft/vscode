@@ -12,8 +12,7 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { IFileMatch, ITextSearchMatch, OneLineRange, QueryType } from 'vs/platform/search/common/search';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { SearchSorter } from 'vs/workbench/parts/search/browser/searchResultsView';
-import { FileMatch, Match, SearchResult, RenderableMatch } from 'vs/workbench/parts/search/common/searchModel';
+import { FileMatch, Match, SearchResult, RenderableMatch, searchMatchComparer } from 'vs/workbench/parts/search/common/searchModel';
 import { TestContextService } from 'vs/workbench/test/workbenchTestServices';
 import { createIterator } from 'vs/workbench/parts/search/browser/searchView';
 import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
@@ -72,7 +71,7 @@ suite('Search - Viewlet', () => {
 		assert.equal((<Iterator<ITreeElement<RenderableMatch>>>first.value.children).next().value.element.id(), 'file:///c%3A/foo>[2,1 -> 2,2]b');
 	});
 
-	test('Sorter', () => {
+	test('Comparer', () => {
 		let fileMatch1 = aFileMatch('C:\\foo');
 		let fileMatch2 = aFileMatch('C:\\with\\path');
 		let fileMatch3 = aFileMatch('C:\\with\\path\\foo');
@@ -80,16 +79,14 @@ suite('Search - Viewlet', () => {
 		let lineMatch2 = new Match(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(2, 1, 1));
 		let lineMatch3 = new Match(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(2, 1, 1));
 
-		let s = new SearchSorter();
+		assert(searchMatchComparer(fileMatch1, fileMatch2) < 0);
+		assert(searchMatchComparer(fileMatch2, fileMatch1) > 0);
+		assert(searchMatchComparer(fileMatch1, fileMatch1) === 0);
+		assert(searchMatchComparer(fileMatch2, fileMatch3) < 0);
 
-		assert(s.compare(null, fileMatch1, fileMatch2) < 0);
-		assert(s.compare(null, fileMatch2, fileMatch1) > 0);
-		assert(s.compare(null, fileMatch1, fileMatch1) === 0);
-		assert(s.compare(null, fileMatch2, fileMatch3) < 0);
-
-		assert(s.compare(null, lineMatch1, lineMatch2) < 0);
-		assert(s.compare(null, lineMatch2, lineMatch1) > 0);
-		assert(s.compare(null, lineMatch2, lineMatch3) === 0);
+		assert(searchMatchComparer(lineMatch1, lineMatch2) < 0);
+		assert(searchMatchComparer(lineMatch2, lineMatch1) > 0);
+		assert(searchMatchComparer(lineMatch2, lineMatch3) === 0);
 	});
 
 	function aFileMatch(path: string, searchResult?: SearchResult, ...lineMatches: ITextSearchMatch[]): FileMatch {
