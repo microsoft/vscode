@@ -15,7 +15,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListEvent, IKeyboardNavigationLabelProvider, IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { VIEWLET_ID, VIEW_CONTAINER } from 'vs/workbench/parts/scm/common/scm';
-import { FileLabel } from 'vs/workbench/browser/labels';
+import { ResourceLabels, IResourceLabel, IResourceLabelsContainer } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { ISCMService, ISCMRepository, ISCMResourceGroup, ISCMResource, InputValidationType } from 'vs/workbench/services/scm/common/scm';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -444,7 +444,7 @@ class ResourceGroupRenderer implements IListRenderer<ISCMResourceGroup, Resource
 interface ResourceTemplate {
 	element: HTMLElement;
 	name: HTMLElement;
-	fileLabel: FileLabel;
+	fileLabel: IResourceLabel;
 	decorationIcon: HTMLElement;
 	actionBar: ActionBar;
 	elementDisposable: IDisposable;
@@ -479,17 +479,17 @@ class ResourceRenderer implements IListRenderer<ISCMResource, ResourceTemplate> 
 	get templateId(): string { return ResourceRenderer.TEMPLATE_ID; }
 
 	constructor(
+		private labels: ResourceLabels,
 		private actionItemProvider: IActionItemProvider,
 		private getSelectedResources: () => ISCMResource[],
 		private themeService: IThemeService,
-		private instantiationService: IInstantiationService,
 		private menus: SCMMenus
 	) { }
 
 	renderTemplate(container: HTMLElement): ResourceTemplate {
 		const element = append(container, $('.resource'));
 		const name = append(element, $('.name'));
-		const fileLabel = this.instantiationService.createInstance(FileLabel, name, void 0);
+		const fileLabel = this.labels.create(name);
 		const actionsContainer = append(fileLabel.element, $('.actions'));
 		const actionBar = new ActionBar(actionsContainer, {
 			actionItemProvider: this.actionItemProvider,
@@ -728,6 +728,7 @@ export class RepositoryPanel extends ViewletPanel {
 	private inputBox: InputBox;
 	private listContainer: HTMLElement;
 	private list: List<ISCMResourceGroup | ISCMResource>;
+	private listLabels: ResourceLabels;
 	private menus: SCMMenus;
 	private visibilityDisposables: IDisposable[] = [];
 	protected contextKeyService: IContextKeyService;
@@ -869,9 +870,12 @@ export class RepositoryPanel extends ViewletPanel {
 
 		const actionItemProvider = (action: IAction) => this.getActionItem(action);
 
+		this.listLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility } as IResourceLabelsContainer);
+		this.disposables.push(this.listLabels);
+
 		const renderers = [
 			new ResourceGroupRenderer(actionItemProvider, this.themeService, this.menus),
-			new ResourceRenderer(actionItemProvider, () => this.getSelectedResources(), this.themeService, this.instantiationService, this.menus)
+			new ResourceRenderer(this.listLabels, actionItemProvider, () => this.getSelectedResources(), this.themeService, this.menus)
 		];
 
 		this.list = this.instantiationService.createInstance(WorkbenchList, this.listContainer, delegate, renderers, {
@@ -907,9 +911,11 @@ export class RepositoryPanel extends ViewletPanel {
 		this.inputBox.setEnabled(this.isVisible() && this.isExpanded());
 	}
 
-	setExpanded(expanded: boolean): void {
-		super.setExpanded(expanded);
+	setExpanded(expanded: boolean): boolean {
+		const changed = super.setExpanded(expanded);
 		this.inputBox.setEnabled(this.isVisible() && this.isExpanded());
+
+		return changed;
 	}
 
 	layoutBody(height: number = this.cachedHeight): void {
@@ -1054,9 +1060,6 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 
 	private _onDidSplice = new Emitter<ISpliceEvent<ISCMRepository>>();
 	readonly onDidSplice: Event<ISpliceEvent<ISCMRepository>> = this._onDidSplice.event;
-
-	private _onDidChangeVisibility = new Emitter<boolean>();
-	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
 
 	private _height: number | undefined = undefined;
 	get height(): number | undefined { return this._height; }
@@ -1204,8 +1207,6 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 		if (!visible) {
 			this.cachedMainPanelHeight = this.getPanelSize(this.mainPanel);
 		}
-
-		this._onDidChangeVisibility.fire(visible);
 
 		const start = this.getContributedViewsStartIndex();
 

@@ -128,8 +128,8 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 					const debuggers = <IDebuggerContribution[]>ed.contributes['debuggers'];
 					if (debuggers && debuggers.length > 0) {
 						for (const dbg of debuggers) {
-							// only debugger contributions with a "label" are considered a "defining" debugger contribution
-							if (dbg.type && dbg.label) {
+							// only debugger contributions with a label, program, or runtime attribute are considered a "defining" debugger contribution
+							if (dbg.type && (dbg.label || dbg.program || dbg.runtime)) {
 								debugTypes.push(dbg.type);
 								if (dbg.adapterExecutableCommand) {
 									this._aexCommands.set(dbg.type, dbg.adapterExecutableCommand);

@@ -23,7 +23,7 @@ import { ISearchConfigurationProperties } from 'vs/platform/search/common/search
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { FileLabel } from 'vs/workbench/browser/labels';
+import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { RemoveAction, ReplaceAction, ReplaceAllAction, ReplaceAllInFolderAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { SearchView } from 'vs/workbench/parts/search/browser/searchView';
 import { FileMatch, FolderMatch, Match, RenderableMatch, searchMatchComparer, SearchModel } from 'vs/workbench/parts/search/common/searchModel';
@@ -35,14 +35,14 @@ export class SearchSorter implements ISorter {
 }
 
 interface IFolderMatchTemplate {
-	label: FileLabel;
+	label: IResourceLabel;
 	badge: CountBadge;
 	actions: ActionBar;
 }
 
 interface IFileMatchTemplate {
 	el: HTMLElement;
-	label: FileLabel;
+	label: IResourceLabel;
 	badge: CountBadge;
 	actions: ActionBar;
 }
@@ -84,6 +84,7 @@ export class FolderMatchRenderer extends Disposable implements ITreeRenderer<Fol
 	constructor(
 		private searchModel: SearchModel,
 		private searchView: SearchView,
+		private labels: ResourceLabels,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService
@@ -93,7 +94,7 @@ export class FolderMatchRenderer extends Disposable implements ITreeRenderer<Fol
 
 	renderTemplate(container: HTMLElement): IFolderMatchTemplate {
 		let folderMatchElement = DOM.append(container, DOM.$('.foldermatch'));
-		const label = this.instantiationService.createInstance(FileLabel, folderMatchElement, void 0);
+		const label = this.labels.create(folderMatchElement);
 		const badge = new CountBadge(DOM.append(folderMatchElement, DOM.$('.badge')));
 		this._register(attachBadgeStyler(badge, this.themeService));
 		const actionBarContainer = DOM.append(folderMatchElement, DOM.$('.actionBarContainer'));
@@ -112,7 +113,7 @@ export class FolderMatchRenderer extends Disposable implements ITreeRenderer<Fol
 				templateData.label.setFile(folderMatch.resource(), { fileKind: FileKind.FOLDER });
 			}
 		} else {
-			templateData.label.setValue(nls.localize('searchFolderMatch.other.label', "Other files"));
+			templateData.label.setLabel(nls.localize('searchFolderMatch.other.label', "Other files"));
 		}
 		let count = folderMatch.fileCount();
 		templateData.badge.setCount(count);
@@ -146,6 +147,7 @@ export class FileMatchRenderer extends Disposable implements ITreeRenderer<FileM
 	constructor(
 		private searchModel: SearchModel,
 		private searchView: SearchView,
+		private labels: ResourceLabels,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService
@@ -155,7 +157,7 @@ export class FileMatchRenderer extends Disposable implements ITreeRenderer<FileM
 
 	renderTemplate(container: HTMLElement): IFileMatchTemplate {
 		let fileMatchElement = DOM.append(container, DOM.$('.filematch'));
-		const label = this.instantiationService.createInstance(FileLabel, fileMatchElement, void 0);
+		const label = this.labels.create(fileMatchElement);
 		const badge = new CountBadge(DOM.append(fileMatchElement, DOM.$('.badge')));
 		this._register(attachBadgeStyler(badge, this.themeService));
 		const actionBarContainer = DOM.append(fileMatchElement, DOM.$('.actionBarContainer'));

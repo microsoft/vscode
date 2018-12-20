@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { dispose } from 'vs/base/common/lifecycle';
+import { dispose, Disposable } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
@@ -15,8 +15,8 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { append, $, toggleClass } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Delegate, Renderer, IExtensionWithFocus as IExtension } from 'vs/workbench/parts/extensions/electron-browser/extensionsList';
-import { IExtension as IExtensionBase, IExtensionsWorkbenchService } from '../common/extensions';
+import { Delegate, Renderer, IExtensionsViewState } from 'vs/workbench/parts/extensions/electron-browser/extensionsList';
+import { IExtension, IExtensionsWorkbenchService } from '../common/extensions';
 import { Query } from '../common/extensionQuery';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -37,11 +37,28 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { distinct } from 'vs/base/common/arrays';
 import { IExperimentService, IExperiment, ExperimentActionType } from 'vs/workbench/parts/experiments/node/experimentService';
 import { alert } from 'vs/base/browser/ui/aria/aria';
-import { IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
+import { IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { getKeywordsForExtension } from 'vs/workbench/parts/extensions/electron-browser/extensionsUtils';
 import { IAction } from 'vs/base/common/actions';
+
+class ExtensionsViewState extends Disposable implements IExtensionsViewState {
+
+	private readonly _onFocus: Emitter<IExtension> = this._register(new Emitter<IExtension>());
+	readonly onFocus: Event<IExtension> = this._onFocus.event;
+
+	private readonly _onBlur: Emitter<IExtension> = this._register(new Emitter<IExtension>());
+	readonly onBlur: Event<IExtension> = this._onBlur.event;
+
+	private currentlyFocusedItems: IExtension[] = [];
+
+	onFocusChange(extensions: IExtension[]): void {
+		this.currentlyFocusedItems.forEach(extension => this._onBlur.fire(extension));
+		this.currentlyFocusedItems = extensions;
+		this.currentlyFocusedItems.forEach(extension => this._onFocus.fire(extension));
+	}
+}
 
 export class ExtensionsListView extends ViewletPanel {
 
@@ -87,15 +104,17 @@ export class ExtensionsListView extends ViewletPanel {
 		this.extensionsList = append(container, $('.extensions-list'));
 		this.messageBox = append(container, $('.message'));
 		const delegate = new Delegate();
-		const renderer = this.instantiationService.createInstance(Renderer);
+		const extensionsViewState = new ExtensionsViewState();
+		const renderer = this.instantiationService.createInstance(Renderer, extensionsViewState);
 		this.list = this.instantiationService.createInstance(WorkbenchPagedList, this.extensionsList, delegate, [renderer], {
 			ariaLabel: localize('extensions', "Extensions"),
 			multipleSelectionSupport: false,
 			setRowLineHeight: false
 		}) as WorkbenchPagedList<IExtension>;
 		this.list.onContextMenu(e => this.onContextMenu(e), this, this.disposables);
-		this.list.onFocusChange(e => this.onFocusChange(e), this, this.disposables);
+		this.list.onFocusChange(e => extensionsViewState.onFocusChange(e.elements), this, this.disposables);
 		this.disposables.push(this.list);
+		this.disposables.push(extensionsViewState);
 
 		Event.chain(this.list.onOpen)
 			.map(e => e.elements[0])
@@ -152,13 +171,6 @@ export class ExtensionsListView extends ViewletPanel {
 		const emptyModel = new PagedModel([]);
 		this.setModel(emptyModel);
 		return Promise.resolve(emptyModel);
-	}
-
-	private currentlyFocusedItems: IExtension[] = [];
-	private onFocusChange(e: IListEvent<IExtension>): void {
-		this.currentlyFocusedItems.forEach(item => item.onFocusChangeEventEmitter.fire(false));
-		this.currentlyFocusedItems = e.elements;
-		this.currentlyFocusedItems.forEach(item => item.onFocusChangeEventEmitter.fire(true));
 	}
 
 	private onContextMenu(e: IListContextMenuEvent<IExtension>): void {
@@ -660,28 +672,15 @@ export class ExtensionsListView extends ViewletPanel {
 		this.notificationService.error(err);
 	}
 
-	private getPagedModel(arg: IPager<IExtensionBase> | IExtensionBase[]): IPagedModel<IExtension> {
-		const convert = (ext: IExtension): IExtension => {
-			const eventEmitter = new Emitter<boolean>();
-			const extFocus: IExtension = ext;
-			extFocus.onFocusChangeEventEmitter = eventEmitter;
-			extFocus.onDidFocusChange = eventEmitter.event;
-			return extFocus;
-		};
-
+	private getPagedModel(arg: IPager<IExtension> | IExtension[]): IPagedModel<IExtension> {
 		if (Array.isArray(arg)) {
-			return new PagedModel(arg.map(ext => convert(ext)));
+			return new PagedModel(arg);
 		}
-
 		const pager = {
 			total: arg.total,
 			pageSize: arg.pageSize,
-			firstPage: arg.firstPage.map(ext => convert(ext)),
-			getPage: (pageIndex: number, cancellationToken: CancellationToken) => {
-				return arg.getPage(pageIndex, cancellationToken).then(extensions => {
-					return extensions.map(ext => convert(ext));
-				});
-			}
+			firstPage: arg.firstPage,
+			getPage: (pageIndex: number, cancellationToken: CancellationToken) => arg.getPage(pageIndex, cancellationToken)
 		};
 		return new PagedModel(pager);
 	}

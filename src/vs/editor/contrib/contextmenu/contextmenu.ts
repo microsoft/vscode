@@ -46,7 +46,7 @@ export class ContextMenuController implements IEditorContribution {
 
 		this._toDispose.push(this._editor.onContextMenu((e: IEditorMouseEvent) => this._onContextMenu(e)));
 		this._toDispose.push(this._editor.onDidScrollChange((e: IScrollEvent) => {
-			if (this._contextMenuIsBeingShownCount > 0) {
+			if (this._contextMenuIsBeingShownCount > 0 && e.scrollTopChanged) {
 				this._contextViewService.hideContextView();
 			}
 		}));

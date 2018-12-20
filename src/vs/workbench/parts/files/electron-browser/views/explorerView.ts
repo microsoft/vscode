@@ -41,6 +41,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ExplorerItem } from 'vs/workbench/parts/files/common/explorerModel';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { ResourceLabels, IResourceLabelsContainer } from 'vs/workbench/browser/labels';
 
 export class ExplorerView extends ViewletPanel {
 	static readonly ID: string = 'workbench.explorer.fileView';
@@ -209,7 +210,10 @@ export class ExplorerView extends ViewletPanel {
 	private createTree(container: HTMLElement): void {
 		this.filter = this.instantiationService.createInstance(FilesFilter);
 		this.disposables.push(this.filter);
-		const filesRenderer = this.instantiationService.createInstance(FilesRenderer);
+		const explorerLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility } as IResourceLabelsContainer);
+		this.disposables.push(explorerLabels);
+
+		const filesRenderer = this.instantiationService.createInstance(FilesRenderer, explorerLabels);
 		this.disposables.push(filesRenderer);
 
 		this.tree = new WorkbenchAsyncDataTree(container, new ExplorerDelegate(), [filesRenderer],

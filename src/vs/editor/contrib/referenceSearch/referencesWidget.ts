@@ -21,7 +21,7 @@ import { IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/
 import { ModelDecorationOptions, TextModel } from 'vs/editor/common/model/textModel';
 import { Location } from 'vs/editor/common/modes';
 import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { AriaProvider, DataSource, Delegate, FileReferencesRenderer, OneReferenceRenderer, TreeElement } from 'vs/editor/contrib/referenceSearch/referencesTree';
+import { AriaProvider, DataSource, Delegate, FileReferencesRenderer, OneReferenceRenderer, TreeElement, StringRepresentationProvider } from 'vs/editor/contrib/referenceSearch/referencesTree';
 import * as nls from 'vs/nls';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -353,7 +353,8 @@ export class ReferenceWidget extends PeekViewWidget {
 		const treeOptions = {
 			ariaLabel: nls.localize('treeAriaLabel', "References"),
 			keyboardSupport: this._defaultTreeKeyboardSupport,
-			accessibilityProvider: new AriaProvider()
+			accessibilityProvider: new AriaProvider(),
+			keyboardNavigationLabelProvider: this._instantiationService.createInstance(StringRepresentationProvider)
 		};
 
 		const treeDataSource = this._instantiationService.createInstance(DataSource);

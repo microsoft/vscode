@@ -196,11 +196,6 @@ export class Client implements IChannelClient, IDisposable {
 				forkOpts.execArgv = ['--nolazy', '--inspect-brk=' + this.options.debugBrk];
 			}
 
-			if (!Array.isArray(forkOpts.execArgv)) {
-				forkOpts.execArgv = [];
-			}
-			forkOpts.execArgv.push('--no-untrusted-code-mitigations');
-
 			this.child = fork(this.modulePath, args, forkOpts);
 
 			const onMessageEmitter = new Emitter<Buffer>();

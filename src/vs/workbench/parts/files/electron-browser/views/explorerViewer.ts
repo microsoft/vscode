@@ -14,10 +14,9 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { FileLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
+import { IFileLabelOptions, IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { ITreeRenderer, ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, IAsyncDataSource, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFilesConfiguration, IExplorerService } from 'vs/workbench/parts/files/common/files';
@@ -82,7 +81,7 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 
 export interface IFileTemplateData {
 	elementDisposable: IDisposable;
-	label: FileLabel;
+	label: IResourceLabel;
 	container: HTMLElement;
 }
 
@@ -93,8 +92,8 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, void, IFileTem
 	private configListener: IDisposable;
 
 	constructor(
+		private labels: ResourceLabels,
 		@IContextViewService private contextViewService: IContextViewService,
-		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
@@ -114,7 +113,7 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, void, IFileTem
 
 	renderTemplate(container: HTMLElement): IFileTemplateData {
 		const elementDisposable = Disposable.None;
-		const label = this.instantiationService.createInstance(FileLabel, container, void 0);
+		const label = this.labels.create(container);
 
 		return { elementDisposable, label, container };
 	}
@@ -152,7 +151,7 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, void, IFileTem
 	private renderInputBox(container: HTMLElement, stat: ExplorerItem, editableData: { validationMessage: (value: string) => string, action: IAction }): void {
 
 		// Use a file label only for the icon next to the input box
-		const label = this.instantiationService.createInstance(FileLabel, container, void 0);
+		const label = this.labels.create(container);
 		const extraClasses = ['explorer-item', 'explorer-item-edited'];
 		const fileKind = stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE;
 		const labelOptions: IFileLabelOptions = { hidePath: true, hideLabel: true, fileKind, extraClasses };

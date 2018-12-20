@@ -49,31 +49,6 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { CommandLineDialogService } from 'vs/platform/dialogs/node/dialogService';
 import { createWaitMarkerFile } from 'vs/code/node/wait';
 
-function createServices(args: ParsedArgs, bufferLogService: BufferLogService): IInstantiationService {
-	const services = new ServiceCollection();
-
-	const environmentService = new EnvironmentService(args, process.execPath);
-
-	const logService = new MultiplexLogService([new ConsoleLogMainService(getLogLevel(environmentService)), bufferLogService]);
-	process.once('exit', () => logService.dispose());
-	setTimeout(() => cleanupOlderLogs(environmentService).then(null, err => console.error(err)), 10000);
-
-	services.set(IEnvironmentService, environmentService);
-	services.set(ILogService, logService);
-	services.set(IWorkspacesMainService, new SyncDescriptor(WorkspacesMainService));
-	services.set(IHistoryMainService, new SyncDescriptor(HistoryMainService));
-	services.set(ILifecycleService, new SyncDescriptor(LifecycleService));
-	services.set(IStateService, new SyncDescriptor(StateService));
-	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
-	services.set(IRequestService, new SyncDescriptor(RequestService));
-	services.set(IURLService, new SyncDescriptor(URLService));
-	services.set(IBackupMainService, new SyncDescriptor(BackupMainService));
-	services.set(IDialogService, new SyncDescriptor(CommandLineDialogService));
-	services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService));
-
-	return new InstantiationService(services, true);
-}
-
 /**
  * Cleans up older logs, while keeping the 10 most recent ones.
 */
@@ -94,7 +69,8 @@ function createPaths(environmentService: IEnvironmentService): Promise<any> {
 		environmentService.nodeCachedDataDir,
 		environmentService.logsPath,
 		environmentService.globalStorageHome,
-		environmentService.workspaceStorageHome
+		environmentService.workspaceStorageHome,
+		environmentService.backupHome
 	];
 
 	return Promise.all(paths.map(path => path && mkdirp(path)));
@@ -154,7 +130,15 @@ function setupIPC(accessor: ServicesAccessor): Promise<Server> {
 
 			return server;
 		}, err => {
+
+			// Handle unexpected errors (the only expected error is EADDRINUSE that
+			// indicates a second instance of Code is running)
 			if (err.code !== 'EADDRINUSE') {
+
+				// Show a dialog for errors that can be resolved by the user
+				handleStartupDataDirError(environmentService, err);
+
+				// Any other runtime error is just printed to the console
 				return Promise.reject<Server>(err);
 			}
 
@@ -266,6 +250,15 @@ function showStartupWarningDialog(message: string, detail: string): void {
 	});
 }
 
+function handleStartupDataDirError(environmentService: IEnvironmentService, error): void {
+	if (error.code === 'EACCES' || error.code === 'EPERM') {
+		showStartupWarningDialog(
+			localize('startupDataDirError', "Unable to write program user data."),
+			localize('startupDataDirErrorDetail', "Please make sure the directory {0} is writeable.", environmentService.userDataPath)
+		);
+	}
+}
+
 function quit(accessor: ServicesAccessor, reason?: ExpectedError | Error): void {
 	const logService = accessor.get(ILogService);
 	const lifecycleService = accessor.get(ILifecycleService);
@@ -322,15 +315,45 @@ function startup(args: ParsedArgs): void {
 		const instanceEnvironment = patchEnvironment(environmentService);
 
 		// Startup
-		return instantiationService
-			.invokeFunction(a => createPaths(a.get(IEnvironmentService)))
-			.then(() => instantiationService.invokeFunction(setupIPC))
+		return createPaths(environmentService)
+			.then(() => instantiationService.invokeFunction(setupIPC), error => {
+
+				// Show a dialog for errors that can be resolved by the user
+				handleStartupDataDirError(environmentService, error);
+
+				return Promise.reject(error);
+			})
 			.then(mainIpcServer => {
 				bufferLogService.logger = createSpdLogService('main', bufferLogService.getLevel(), environmentService.logsPath);
 
 				return instantiationService.createInstance(CodeApplication, mainIpcServer, instanceEnvironment).startup();
 			});
 	}).then(null, err => instantiationService.invokeFunction(quit, err));
+}
+
+function createServices(args: ParsedArgs, bufferLogService: BufferLogService): IInstantiationService {
+	const services = new ServiceCollection();
+
+	const environmentService = new EnvironmentService(args, process.execPath);
+
+	const logService = new MultiplexLogService([new ConsoleLogMainService(getLogLevel(environmentService)), bufferLogService]);
+	process.once('exit', () => logService.dispose());
+	setTimeout(() => cleanupOlderLogs(environmentService).then(null, err => console.error(err)), 10000);
+
+	services.set(IEnvironmentService, environmentService);
+	services.set(ILogService, logService);
+	services.set(IWorkspacesMainService, new SyncDescriptor(WorkspacesMainService));
+	services.set(IHistoryMainService, new SyncDescriptor(HistoryMainService));
+	services.set(ILifecycleService, new SyncDescriptor(LifecycleService));
+	services.set(IStateService, new SyncDescriptor(StateService));
+	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
+	services.set(IRequestService, new SyncDescriptor(RequestService));
+	services.set(IURLService, new SyncDescriptor(URLService));
+	services.set(IBackupMainService, new SyncDescriptor(BackupMainService));
+	services.set(IDialogService, new SyncDescriptor(CommandLineDialogService));
+	services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService));
+
+	return new InstantiationService(services, true);
 }
 
 function main(): void {

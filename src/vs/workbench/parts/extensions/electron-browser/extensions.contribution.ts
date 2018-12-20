@@ -50,7 +50,7 @@ import { ExtensionsAutoProfiler } from 'vs/workbench/parts/extensions/electron-b
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
 registerSingleton(IExtensionTipsService, ExtensionTipsService);
-registerSingleton(IExtensionHostProfileService, ExtensionHostProfileService);
+registerSingleton(IExtensionHostProfileService, ExtensionHostProfileService, true);
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(StatusUpdater, LifecyclePhase.Restored);
