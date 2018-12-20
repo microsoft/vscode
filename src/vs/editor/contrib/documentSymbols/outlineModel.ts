@@ -374,8 +374,8 @@ export class OutlineModel extends TreeElement {
 			//
 			this.children = this._groups;
 		} else {
-			let group = first(this._groups);
 			// adopt all elements of the first group
+			let group = first(this._groups);
 			for (let key in group!.children) {
 				let child = group!.children[key];
 				child.parent = this;
