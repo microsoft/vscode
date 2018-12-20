@@ -164,6 +164,7 @@
 		"./vs/base/test/node/processes/fixtures/fork.ts",
 		"./vs/base/test/node/processes/fixtures/fork_large.ts",
 		"./vs/base/test/node/processes/processes.test.ts",
+		"./vs/base/test/node/storage/storage.test.ts",
 		"./vs/base/test/node/stream/stream.test.ts",
 		"./vs/base/test/node/uri.test.perf.ts",
 		"./vs/base/test/node/utils.ts",
