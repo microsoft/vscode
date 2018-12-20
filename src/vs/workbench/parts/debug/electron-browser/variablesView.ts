@@ -111,11 +111,13 @@ export class VariablesView extends ViewletPanel {
 		this.tree.layout(size);
 	}
 
-	setExpanded(expanded: boolean): void {
-		super.setExpanded(expanded);
+	setExpanded(expanded: boolean): boolean {
+		const changed = super.setExpanded(expanded);
 		if (expanded && this.needsRefresh) {
 			this.onFocusStackFrameScheduler.schedule();
 		}
+
+		return changed;
 	}
 
 	setVisible(visible: boolean): void {

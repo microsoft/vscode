@@ -122,14 +122,16 @@ export abstract class Panel implements IView {
 		return this._expanded;
 	}
 
-	setExpanded(expanded: boolean): void {
+	setExpanded(expanded: boolean): boolean {
 		if (this._expanded === !!expanded) {
-			return;
+			return false;
 		}
 
 		this._expanded = !!expanded;
 		this.updateHeader();
 		this._onDidChange.fire(expanded ? this.expandedSize : undefined);
+
+		return true;
 	}
 
 	get headerVisible(): boolean {

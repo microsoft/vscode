@@ -1231,6 +1231,7 @@
         },
         "git.openDiffOnClick": {
           "type": "boolean",
+          "scope": "resource",
           "default": true,
           "description": "%config.openDiffOnClick%"
         }

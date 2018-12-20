@@ -512,7 +512,7 @@ export class CodeApplication extends Disposable {
 			services.set(IUpdateService, new SyncDescriptor(Win32UpdateService));
 		} else if (process.platform === 'linux') {
 			if (process.env.SNAP && process.env.SNAP_REVISION) {
-				services.set(IUpdateService, new SyncDescriptor(SnapUpdateService));
+				services.set(IUpdateService, new SyncDescriptor(SnapUpdateService, [process.env.SNAP, process.env.SNAP_REVISION]));
 			} else {
 				services.set(IUpdateService, new SyncDescriptor(LinuxUpdateService));
 			}

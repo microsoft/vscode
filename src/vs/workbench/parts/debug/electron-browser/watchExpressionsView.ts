@@ -104,11 +104,13 @@ export class WatchExpressionsView extends ViewletPanel {
 		this.tree.layout(size);
 	}
 
-	setExpanded(expanded: boolean): void {
-		super.setExpanded(expanded);
+	setExpanded(expanded: boolean): boolean {
+		const changed = super.setExpanded(expanded);
 		if (expanded && this.needsRefresh) {
 			this.onWatchExpressionsUpdatedScheduler.schedule();
 		}
+
+		return changed;
 	}
 
 	setVisible(visible: boolean): void {

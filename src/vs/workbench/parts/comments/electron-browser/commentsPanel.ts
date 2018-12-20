@@ -131,7 +131,7 @@ export class CommentsPanel extends Panel {
 	}
 
 	private createTree(): void {
-		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels));
+		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, this));
 
 		this.tree = this._register(this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
 			dataSource: new CommentsDataSource(),
@@ -238,14 +238,6 @@ export class CommentsPanel extends Panel {
 		if (this.isVisible()) {
 			if (!wasVisible) {
 				this.refresh();
-			}
-		}
-
-		if (this.treeLabels) {
-			if (visible) {
-				this.treeLabels.onVisible();
-			} else {
-				this.treeLabels.onHidden();
 			}
 		}
 	}
