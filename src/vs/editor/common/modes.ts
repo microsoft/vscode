@@ -618,6 +618,7 @@ export interface SignatureHelpContext {
 	readonly triggerKind: SignatureHelpTriggerKind;
 	readonly triggerCharacter?: string;
 	readonly isRetrigger: boolean;
+	readonly activeSignatureHelp?: SignatureHelp;
 }
 
 /**

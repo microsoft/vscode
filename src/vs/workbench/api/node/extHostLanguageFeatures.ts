@@ -731,7 +731,7 @@ class SignatureHelpAdapter {
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.SignatureHelpProvider
+		private readonly _provider: vscode.SignatureHelpProvider,
 	) { }
 
 	provideSignatureHelp(resource: URI, position: IPosition, context: modes.SignatureHelpContext, token: CancellationToken): Promise<modes.SignatureHelp> {
@@ -739,7 +739,13 @@ class SignatureHelpAdapter {
 		const doc = this._documents.getDocumentData(resource).document;
 		const pos = typeConvert.Position.to(position);
 
-		return asPromise(() => this._provider.provideSignatureHelp(doc, pos, token, context)).then(value => {
+		// TODO: For `activeSignatureHelp`, we may need to save off the object returned from provideSignatureHelp and try to
+		// revive the same object from `context.activeSignatureHelp`
+		const vscodeContext = {
+			...context,
+			activeSignatureHelp: context.activeSignatureHelp ? typeConvert.SignatureHelp.to(context.activeSignatureHelp) : undefined
+		};
+		return asPromise(() => this._provider.provideSignatureHelp(doc, pos, token, vscodeContext)).then(value => {
 			if (value) {
 				return typeConvert.SignatureHelp.from(value);
 			}

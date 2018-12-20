@@ -90,13 +90,17 @@ suite('ParameterHintsModel', () => {
 					assert.strictEqual(context.triggerKind, modes.SignatureHelpTriggerKind.TriggerCharacter);
 					assert.strictEqual(context.triggerCharacter, triggerChar);
 					assert.strictEqual(context.isRetrigger, false);
+					assert.strictEqual(context.activeSignatureHelp, undefined);
+
 					// Retrigger
-					editor.trigger('keyboard', Handler.Type, { text: triggerChar });
+					setTimeout(() => editor.trigger('keyboard', Handler.Type, { text: triggerChar }), 50);
 				} else {
 					assert.strictEqual(invokeCount, 2);
 					assert.strictEqual(context.triggerKind, modes.SignatureHelpTriggerKind.TriggerCharacter);
 					assert.strictEqual(context.isRetrigger, true);
 					assert.strictEqual(context.triggerCharacter, triggerChar);
+					assert.strictEqual(context.activeSignatureHelp, emptySigHelpResult);
+
 					done();
 				}
 				return emptySigHelpResult;
@@ -124,6 +128,7 @@ suite('ParameterHintsModel', () => {
 					assert.strictEqual(context.triggerKind, modes.SignatureHelpTriggerKind.TriggerCharacter);
 					assert.strictEqual(context.triggerCharacter, triggerChar);
 					assert.strictEqual(context.isRetrigger, false);
+					assert.strictEqual(context.activeSignatureHelp, undefined);
 
 					// Cancel and retrigger
 					hintModel.cancel();
@@ -133,7 +138,7 @@ suite('ParameterHintsModel', () => {
 					assert.strictEqual(context.triggerKind, modes.SignatureHelpTriggerKind.TriggerCharacter);
 					assert.strictEqual(context.triggerCharacter, triggerChar);
 					assert.strictEqual(context.isRetrigger, false);
-
+					assert.strictEqual(context.activeSignatureHelp, undefined);
 					done();
 				}
 				return emptySigHelpResult;
