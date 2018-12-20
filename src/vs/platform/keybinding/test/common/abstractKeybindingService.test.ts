@@ -77,15 +77,15 @@ suite('AbstractKeybindingService', () => {
 				altKey: keybinding.altKey,
 				metaKey: keybinding.metaKey,
 				keyCode: keybinding.keyCode,
-				code: null
-			}, null);
+				code: null!
+			}, null!);
 		}
 	}
 
-	let createTestKeybindingService: (items: ResolvedKeybindingItem[], contextValue?: any) => TestKeybindingService = null;
+	let createTestKeybindingService: ((items: ResolvedKeybindingItem[], contextValue?: any) => TestKeybindingService) | null = null;
 	let currentContextValue: IContext | null = null;
-	let executeCommandCalls: { commandId: string; args: any[]; }[] = null;
-	let showMessageCalls: { sev: Severity, message: any; }[] = null;
+	let executeCommandCalls: { commandId: string; args: any[]; }[] | null = null;
+	let showMessageCalls: { sev: Severity, message: any; }[] | null = null;
 	let statusMessageCalls: string[] | null = null;
 	let statusMessageCallsDisposed: string[] | null = null;
 
@@ -99,12 +99,12 @@ suite('AbstractKeybindingService', () => {
 
 			let contextKeyService: IContextKeyService = {
 				_serviceBrand: undefined,
-				dispose: undefined,
-				onDidChangeContext: undefined,
-				createKey: undefined,
-				contextMatchesRules: undefined,
-				getContextKeyValue: undefined,
-				createScoped: undefined,
+				dispose: undefined!,
+				onDidChangeContext: undefined!,
+				createKey: undefined!,
+				contextMatchesRules: undefined!,
+				getContextKeyValue: undefined!,
+				createScoped: undefined!,
 				getContext: (target: IContextKeyServiceTarget): any => {
 					return currentContextValue;
 				}
@@ -114,7 +114,7 @@ suite('AbstractKeybindingService', () => {
 				_serviceBrand: undefined,
 				onWillExecuteCommand: () => ({ dispose: () => { } }),
 				executeCommand: (commandId: string, ...args: any[]): Promise<any> => {
-					executeCommandCalls.push({
+					executeCommandCalls!.push({
 						commandId: commandId,
 						args: args
 					});
@@ -125,19 +125,19 @@ suite('AbstractKeybindingService', () => {
 			let notificationService: INotificationService = {
 				_serviceBrand: undefined,
 				notify: (notification: INotification) => {
-					showMessageCalls.push({ sev: notification.severity, message: notification.message });
+					showMessageCalls!.push({ sev: notification.severity, message: notification.message });
 					return new NoOpNotification();
 				},
 				info: (message: any) => {
-					showMessageCalls.push({ sev: Severity.Info, message });
+					showMessageCalls!.push({ sev: Severity.Info, message });
 					return new NoOpNotification();
 				},
 				warn: (message: any) => {
-					showMessageCalls.push({ sev: Severity.Warning, message });
+					showMessageCalls!.push({ sev: Severity.Warning, message });
 					return new NoOpNotification();
 				},
 				error: (message: any) => {
-					showMessageCalls.push({ sev: Severity.Error, message });
+					showMessageCalls!.push({ sev: Severity.Error, message });
 					return new NoOpNotification();
 				},
 				prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions) {
@@ -147,12 +147,12 @@ suite('AbstractKeybindingService', () => {
 
 			let statusbarService: IStatusbarService = {
 				_serviceBrand: undefined,
-				addEntry: undefined,
+				addEntry: undefined!,
 				setStatusMessage: (message: string, autoDisposeAfter?: number, delayBy?: number): IDisposable => {
-					statusMessageCalls.push(message);
+					statusMessageCalls!.push(message);
 					return {
 						dispose: () => {
-							statusMessageCallsDisposed.push(message);
+							statusMessageCallsDisposed!.push(message);
 						}
 					};
 				}
@@ -174,7 +174,7 @@ suite('AbstractKeybindingService', () => {
 	});
 
 	function kbItem(keybinding: number, command: string, when: ContextKeyExpr | null = null): ResolvedKeybindingItem {
-		const resolvedKeybinding = (keybinding !== 0 ? new USLayoutResolvedKeybinding(createKeybinding(keybinding, OS), OS) : null);
+		const resolvedKeybinding = (keybinding !== 0 ? new USLayoutResolvedKeybinding(createKeybinding(keybinding, OS)!, OS) : null);
 		return new ResolvedKeybindingItem(
 			resolvedKeybinding,
 			command,
@@ -185,13 +185,13 @@ suite('AbstractKeybindingService', () => {
 	}
 
 	function toUsLabel(keybinding: number): string {
-		const usResolvedKeybinding = new USLayoutResolvedKeybinding(createKeybinding(keybinding, OS), OS);
-		return usResolvedKeybinding.getLabel();
+		const usResolvedKeybinding = new USLayoutResolvedKeybinding(createKeybinding(keybinding, OS)!, OS);
+		return usResolvedKeybinding.getLabel()!;
 	}
 
 	test('issue #16498: chord mode is quit for invalid chords', () => {
 
-		let kbService = createTestKeybindingService([
+		let kbService = createTestKeybindingService!([
 			kbItem(KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_X), 'chordCommand'),
 			kbItem(KeyCode.Backspace, 'simpleCommand'),
 		]);
@@ -246,7 +246,7 @@ suite('AbstractKeybindingService', () => {
 
 	test('issue #16833: Keybinding service should not testDispatch on modifier keys', () => {
 
-		let kbService = createTestKeybindingService([
+		let kbService = createTestKeybindingService!([
 			kbItem(KeyCode.Ctrl, 'nope'),
 			kbItem(KeyCode.Meta, 'nope'),
 			kbItem(KeyCode.Alt, 'nope'),
@@ -286,7 +286,7 @@ suite('AbstractKeybindingService', () => {
 
 	test('can trigger command that is sharing keybinding with chord', () => {
 
-		let kbService = createTestKeybindingService([
+		let kbService = createTestKeybindingService!([
 			kbItem(KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_X), 'chordCommand'),
 			kbItem(KeyMod.CtrlCmd | KeyCode.KEY_K, 'simpleCommand', ContextKeyExpr.has('key1')),
 		]);
@@ -348,7 +348,7 @@ suite('AbstractKeybindingService', () => {
 
 	test('cannot trigger chord if command is overwriting', () => {
 
-		let kbService = createTestKeybindingService([
+		let kbService = createTestKeybindingService!([
 			kbItem(KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_X), 'chordCommand', ContextKeyExpr.has('key1')),
 			kbItem(KeyMod.CtrlCmd | KeyCode.KEY_K, 'simpleCommand'),
 		]);
@@ -408,7 +408,7 @@ suite('AbstractKeybindingService', () => {
 
 	test('can have spying command', () => {
 
-		let kbService = createTestKeybindingService([
+		let kbService = createTestKeybindingService!([
 			kbItem(KeyMod.CtrlCmd | KeyCode.KEY_K, '^simpleCommand'),
 		]);
 

@@ -444,6 +444,7 @@
 		"./vs/platform/keybinding/common/keybindingsRegistry.ts",
 		"./vs/platform/keybinding/common/resolvedKeybindingItem.ts",
 		"./vs/platform/keybinding/common/usLayoutResolvedKeybinding.ts",
+		"./vs/platform/keybinding/test/common/abstractKeybindingService.test.ts",
 		"./vs/platform/keybinding/test/common/mockKeybindingService.ts",
 		"./vs/platform/label/common/label.ts",
 		"./vs/platform/launch/electron-main/launchService.ts",
