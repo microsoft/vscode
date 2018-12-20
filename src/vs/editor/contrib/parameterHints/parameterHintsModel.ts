@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { createCancelablePromise, CancelablePromise, Delayer } from 'vs/base/common/async';
+import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Event, Emitter } from 'vs/base/common/event';
-import { provideSignatureHelp } from 'vs/editor/contrib/parameterHints/provideSignatureHelp';
-import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
+import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
 import * as modes from 'vs/editor/common/modes';
+import { provideSignatureHelp } from 'vs/editor/contrib/parameterHints/provideSignatureHelp';
 
 export interface TriggerContext {
 	readonly triggerKind: modes.SignatureHelpTriggerKind;
@@ -40,7 +40,6 @@ export class ParameterHintsModel extends Disposable {
 
 	private editor: ICodeEditor;
 	private enabled: boolean;
-	private triggerCharactersListeners: IDisposable[];
 	private state = ParameterHintState.Default;
 	private triggerChars = new CharacterSet();
 	private retriggerChars = new CharacterSet();
@@ -56,7 +55,6 @@ export class ParameterHintsModel extends Disposable {
 
 		this.editor = editor;
 		this.enabled = false;
-		this.triggerCharactersListeners = [];
 
 		this.throttledDelayer = new Delayer(delay);
 
@@ -206,8 +204,6 @@ export class ParameterHintsModel extends Disposable {
 
 	dispose(): void {
 		this.cancel(true);
-		this.triggerCharactersListeners = dispose(this.triggerCharactersListeners);
-
 		super.dispose();
 	}
 }
