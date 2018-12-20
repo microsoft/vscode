@@ -69,7 +69,8 @@ function createPaths(environmentService: IEnvironmentService): Promise<any> {
 		environmentService.nodeCachedDataDir,
 		environmentService.logsPath,
 		environmentService.globalStorageHome,
-		environmentService.workspaceStorageHome
+		environmentService.workspaceStorageHome,
+		environmentService.backupHome
 	];
 
 	return Promise.all(paths.map(path => path && mkdirp(path)));

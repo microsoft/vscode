@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import * as platform from 'vs/base/common/platform';
-import * as extfs from 'vs/base/node/extfs';
+import { writeFileAndFlushSync, readdirSync, delSync } from 'vs/base/node/extfs';
 import * as arrays from 'vs/base/common/arrays';
 import { IBackupMainService, IBackupWorkspacesFormat, IEmptyWindowBackupInfo } from 'vs/platform/backup/common/backup';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -23,14 +23,14 @@ import { Schemas } from 'vs/base/common/network';
 
 export class BackupMainService implements IBackupMainService {
 
-	public _serviceBrand: any;
+	_serviceBrand: any;
 
 	protected backupHome: string;
 	protected workspacesJsonPath: string;
 
-	protected rootWorkspaces: IWorkspaceIdentifier[];
-	protected folderWorkspaces: URI[];
-	protected emptyWorkspaces: IEmptyWindowBackupInfo[];
+	private rootWorkspaces: IWorkspaceIdentifier[];
+	private folderWorkspaces: URI[];
+	private emptyWorkspaces: IEmptyWindowBackupInfo[];
 
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,
@@ -43,7 +43,7 @@ export class BackupMainService implements IBackupMainService {
 		this.loadSync();
 	}
 
-	public getWorkspaceBackups(): IWorkspaceIdentifier[] {
+	getWorkspaceBackups(): IWorkspaceIdentifier[] {
 		if (this.isHotExitOnExitAndWindowClose()) {
 			// Only non-folder windows are restored on main process launch when
 			// hot exit is configured as onExitAndWindowClose.
@@ -53,16 +53,17 @@ export class BackupMainService implements IBackupMainService {
 		return this.rootWorkspaces.slice(0); // return a copy
 	}
 
-	public getFolderBackupPaths(): URI[] {
+	getFolderBackupPaths(): URI[] {
 		if (this.isHotExitOnExitAndWindowClose()) {
 			// Only non-folder windows are restored on main process launch when
 			// hot exit is configured as onExitAndWindowClose.
 			return [];
 		}
+
 		return this.folderWorkspaces.slice(0); // return a copy
 	}
 
-	public isHotExitEnabled(): boolean {
+	isHotExitEnabled(): boolean {
 		return this.getHotExitConfig() !== HotExitConfiguration.OFF;
 	}
 
@@ -76,11 +77,11 @@ export class BackupMainService implements IBackupMainService {
 		return (config && config.files && config.files.hotExit) || HotExitConfiguration.ON_EXIT;
 	}
 
-	public getEmptyWindowBackupPaths(): IEmptyWindowBackupInfo[] {
+	getEmptyWindowBackupPaths(): IEmptyWindowBackupInfo[] {
 		return this.emptyWorkspaces.slice(0); // return a copy
 	}
 
-	public registerWorkspaceBackupSync(workspace: IWorkspaceIdentifier, migrateFrom?: string): string {
+	registerWorkspaceBackupSync(workspace: IWorkspaceIdentifier, migrateFrom?: string): string {
 		if (!this.rootWorkspaces.some(w => w.id === workspace.id)) {
 			this.rootWorkspaces.push(workspace);
 			this.saveSync();
@@ -112,7 +113,7 @@ export class BackupMainService implements IBackupMainService {
 		}
 	}
 
-	public unregisterWorkspaceBackupSync(workspace: IWorkspaceIdentifier): void {
+	unregisterWorkspaceBackupSync(workspace: IWorkspaceIdentifier): void {
 		let index = arrays.firstIndex(this.rootWorkspaces, w => w.id === workspace.id);
 		if (index !== -1) {
 			this.rootWorkspaces.splice(index, 1);
@@ -120,15 +121,16 @@ export class BackupMainService implements IBackupMainService {
 		}
 	}
 
-	public registerFolderBackupSync(folderUri: URI): string {
+	registerFolderBackupSync(folderUri: URI): string {
 		if (!this.folderWorkspaces.some(uri => areResourcesEquals(folderUri, uri))) {
 			this.folderWorkspaces.push(folderUri);
 			this.saveSync();
 		}
+
 		return this.getBackupPath(this.getFolderHash(folderUri));
 	}
 
-	public unregisterFolderBackupSync(folderUri: URI): void {
+	unregisterFolderBackupSync(folderUri: URI): void {
 		let index = arrays.firstIndex(this.folderWorkspaces, uri => areResourcesEquals(folderUri, uri));
 		if (index !== -1) {
 			this.folderWorkspaces.splice(index, 1);
@@ -136,22 +138,24 @@ export class BackupMainService implements IBackupMainService {
 		}
 	}
 
-	public registerEmptyWindowBackupSync(backupInfo: IEmptyWindowBackupInfo): string {
-
+	registerEmptyWindowBackupSync(backupInfo: IEmptyWindowBackupInfo): string {
 		let backupFolder = backupInfo.backupFolder;
 		let remoteAuthority = backupInfo.remoteAuthority;
+
 		// Generate a new folder if this is a new empty workspace
 		if (!backupFolder) {
 			backupFolder = this.getRandomEmptyWindowId();
 		}
+
 		if (!this.emptyWorkspaces.some(w => isEqual(w.backupFolder, backupFolder, !platform.isLinux))) {
 			this.emptyWorkspaces.push({ backupFolder, remoteAuthority });
 			this.saveSync();
 		}
+
 		return this.getBackupPath(backupFolder);
 	}
 
-	public unregisterEmptyWindowBackupSync(backupFolder: string): void {
+	unregisterEmptyWindowBackupSync(backupFolder: string): void {
 		let index = arrays.firstIndex(this.emptyWorkspaces, w => isEqual(w.backupFolder, backupFolder, !platform.isLinux));
 		if (index !== -1) {
 			this.emptyWorkspaces.splice(index, 1);
@@ -160,7 +164,6 @@ export class BackupMainService implements IBackupMainService {
 	}
 
 	protected loadSync(): void {
-
 		let backups: IBackupWorkspacesFormat;
 		try {
 			backups = JSON.parse(fs.readFileSync(this.workspacesJsonPath, 'utf8').toString()); // invalid JSON or permission issue can happen here
@@ -202,11 +205,11 @@ export class BackupMainService implements IBackupMainService {
 		} catch (e) {
 			// ignore URI parsing exceptions
 		}
+
 		this.folderWorkspaces = this.validateFolders(workspaceFolders);
 
 		// save again in case some workspaces or folders have been removed
 		this.saveSync();
-
 	}
 
 	private getBackupPath(oldFolderHash: string): string {
@@ -246,6 +249,7 @@ export class BackupMainService implements IBackupMainService {
 				}
 			}
 		}
+
 		return result;
 	}
 
@@ -256,7 +260,6 @@ export class BackupMainService implements IBackupMainService {
 
 		const result: URI[] = [];
 		const seen: { [id: string]: boolean } = Object.create(null);
-
 		for (let folderURI of folderWorkspaces) {
 			const key = getComparisonKey(folderURI);
 			if (!seen[key]) {
@@ -281,6 +284,7 @@ export class BackupMainService implements IBackupMainService {
 
 		return result;
 	}
+
 	private validateEmptyWorkspaces(emptyWorkspaces: IEmptyWindowBackupInfo[]): IEmptyWindowBackupInfo[] {
 		if (!Array.isArray(emptyWorkspaces)) {
 			return [];
@@ -314,7 +318,7 @@ export class BackupMainService implements IBackupMainService {
 	private deleteStaleBackup(backupPath: string) {
 		try {
 			if (fs.existsSync(backupPath)) {
-				extfs.delSync(backupPath);
+				delSync(backupPath);
 			}
 		} catch (ex) {
 			this.logService.error(`Backup: Could not delete stale backup: ${ex.toString()}`);
@@ -344,14 +348,14 @@ export class BackupMainService implements IBackupMainService {
 
 	private hasBackupsSync(backupPath: string): boolean {
 		try {
-			const backupSchemas = extfs.readdirSync(backupPath);
+			const backupSchemas = readdirSync(backupPath);
 			if (backupSchemas.length === 0) {
 				return false; // empty backups
 			}
 
 			return backupSchemas.some(backupSchema => {
 				try {
-					return extfs.readdirSync(path.join(backupPath, backupSchema)).length > 0;
+					return readdirSync(path.join(backupPath, backupSchema)).length > 0;
 				} catch (error) {
 					return false; // invalid folder
 				}
@@ -363,17 +367,14 @@ export class BackupMainService implements IBackupMainService {
 
 	private saveSync(): void {
 		try {
-			// The user data directory must exist so only the Backup directory needs to be checked.
-			if (!fs.existsSync(this.backupHome)) {
-				fs.mkdirSync(this.backupHome);
-			}
 			const backups: IBackupWorkspacesFormat = {
 				rootWorkspaces: this.rootWorkspaces,
 				folderURIWorkspaces: this.folderWorkspaces.map(f => f.toString()),
 				emptyWorkspaceInfos: this.emptyWorkspaces,
 				emptyWorkspaces: this.emptyWorkspaces.map(info => info.backupFolder)
 			};
-			extfs.writeFileAndFlushSync(this.workspacesJsonPath, JSON.stringify(backups));
+
+			writeFileAndFlushSync(this.workspacesJsonPath, JSON.stringify(backups));
 		} catch (ex) {
 			this.logService.error(`Backup: Could not save workspaces.json: ${ex.toString()}`);
 		}

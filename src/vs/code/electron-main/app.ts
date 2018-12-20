@@ -74,6 +74,7 @@ import { SnapUpdateService } from 'vs/platform/update/electron-main/updateServic
 import { IStorageMainService, StorageMainService } from 'vs/platform/storage/node/storageMainService';
 import { GlobalStorageDatabaseChannel } from 'vs/platform/storage/node/storageIpc';
 import { generateUuid } from 'vs/base/common/uuid';
+import { startsWith } from 'vs/base/common/strings';
 
 export class CodeApplication extends Disposable {
 
@@ -147,10 +148,10 @@ export class CodeApplication extends Disposable {
 						return true;
 					}
 
-					const srcUri: any = URI.parse(source).fsPath.toLowerCase();
+					const srcUri = URI.parse(source).fsPath.toLowerCase();
 					const rootUri = URI.file(this.environmentService.appRoot).fsPath.toLowerCase();
 
-					return srcUri.startsWith(rootUri + nativeSep);
+					return startsWith(srcUri, rootUri + nativeSep);
 				};
 
 				// Ensure defaults
@@ -618,7 +619,7 @@ export class CodeApplication extends Disposable {
 			// Ensure Windows foreground love module
 			try {
 				// tslint:disable-next-line:no-unused-expression
-				<any>require.__$__nodeRequire('windows-foreground-love');
+				require.__$__nodeRequire('windows-foreground-love');
 			} catch (e) {
 				if (!this.environmentService.isBuilt) {
 					windowsMainService.showMessageBox({
