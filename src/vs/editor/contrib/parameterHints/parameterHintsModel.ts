@@ -44,7 +44,8 @@ export class ParameterHintsModel extends Disposable {
 	private retriggerChars = new CharacterSet();
 
 	private throttledDelayer: Delayer<boolean>;
-	private provideSignatureHelpRequest?: CancelablePromise<modes.SignatureHelp | null | undefined>;
+	private provideSignatureHelpRequest?: CancelablePromise<any>;
+	private triggerId = 0;
 
 	constructor(
 		editor: ICodeEditor,
@@ -85,18 +86,18 @@ export class ParameterHintsModel extends Disposable {
 	}
 
 	trigger(context: TriggerContext, delay?: number): void {
-
 		const model = this.editor.getModel();
 		if (model === null || !modes.SignatureHelpProviderRegistry.has(model)) {
 			return;
 		}
 
+		const triggerId = ++this.triggerId;
 		this.throttledDelayer.trigger(
 			() => this.doTrigger({
 				triggerKind: context.triggerKind,
 				triggerCharacter: context.triggerCharacter,
-				isRetrigger: this.isTriggered,
-			}), delay).then(undefined, onUnexpectedError);
+				isRetrigger: this.state.state === 'active' || this.state.state === 'pending',
+			}, triggerId), delay).then(undefined, onUnexpectedError);
 	}
 
 	public next(): void {
@@ -149,7 +150,7 @@ export class ParameterHintsModel extends Disposable {
 		this._onChangedHints.fire(this.state.hints);
 	}
 
-	private doTrigger(triggerContext: modes.SignatureHelpContext): Promise<boolean> {
+	private doTrigger(triggerContext: modes.SignatureHelpContext, triggerId: number): Promise<boolean> {
 		this.cancel(true);
 
 		if (!this.editor.hasModel()) {
@@ -165,6 +166,11 @@ export class ParameterHintsModel extends Disposable {
 			provideSignatureHelp(model, position, triggerContext, token));
 
 		return this.provideSignatureHelpRequest.then(result => {
+			// Check that we are still resolving the correct signature help
+			if (triggerId !== this.triggerId) {
+				return false;
+			}
+
 			if (!result || !result.signatures || result.signatures.length === 0) {
 				this.cancel();
 				return false;
