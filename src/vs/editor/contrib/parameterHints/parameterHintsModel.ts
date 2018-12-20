@@ -22,6 +22,12 @@ export interface IHintEvent {
 	hints: modes.SignatureHelp;
 }
 
+enum ParameterHintState {
+	Default,
+	Pending,
+	Active,
+}
+
 export class ParameterHintsModel extends Disposable {
 
 	private static readonly DEFAULT_DELAY = 120; // ms
@@ -35,8 +41,7 @@ export class ParameterHintsModel extends Disposable {
 	private editor: ICodeEditor;
 	private enabled: boolean;
 	private triggerCharactersListeners: IDisposable[];
-	private active: boolean = false;
-	private pending: boolean = false;
+	private state = ParameterHintState.Default;
 	private triggerChars = new CharacterSet();
 	private retriggerChars = new CharacterSet();
 
@@ -68,8 +73,7 @@ export class ParameterHintsModel extends Disposable {
 	}
 
 	cancel(silent: boolean = false): void {
-		this.active = false;
-		this.pending = false;
+		this.state = ParameterHintState.Default;
 
 		this.throttledDelayer.cancel();
 
@@ -108,34 +112,32 @@ export class ParameterHintsModel extends Disposable {
 		const model = this.editor.getModel();
 		const position = this.editor.getPosition();
 
-		this.pending = true;
+		this.state = ParameterHintState.Pending;
 
 		this.provideSignatureHelpRequest = createCancelablePromise(token =>
 			provideSignatureHelp(model, position, triggerContext, token));
 
 		return this.provideSignatureHelpRequest.then(result => {
-			this.pending = false;
-
 			if (!result || !result.signatures || result.signatures.length === 0) {
+				this.state = ParameterHintState.Default;
 				this.cancel();
 				this._onCancel.fire(void 0);
 				return false;
+			} else {
+				this.state = ParameterHintState.Active;
+				const event: IHintEvent = { hints: result };
+				this._onHint.fire(event);
+				return true;
 			}
-
-			this.active = true;
-			const event: IHintEvent = { hints: result };
-			this._onHint.fire(event);
-			return true;
-
 		}).catch(error => {
-			this.pending = false;
+			this.state = ParameterHintState.Default;
 			onUnexpectedError(error);
 			return false;
 		});
 	}
 
 	private get isTriggered(): boolean {
-		return this.active || this.pending || this.throttledDelayer.isTriggered();
+		return this.state === ParameterHintState.Active || this.state === ParameterHintState.Pending || this.throttledDelayer.isTriggered();
 	}
 
 	private onModelChanged(): void {
