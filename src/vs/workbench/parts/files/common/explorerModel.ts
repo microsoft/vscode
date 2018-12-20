@@ -14,21 +14,31 @@ import { coalesce } from 'vs/base/common/arrays';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { memoize } from 'vs/base/common/decorators';
+import { Emitter, Event } from 'vs/base/common/event';
 
 export class ExplorerModel implements IDisposable {
 
 	private _roots: ExplorerItem[];
 	private _listener: IDisposable;
+	private _onDidChangeRoots = new Emitter<void>();
 
 	constructor(private contextService: IWorkspaceContextService) {
 		const setRoots = () => this._roots = this.contextService.getWorkspace().folders
 			.map(folder => new ExplorerItem(folder.uri, undefined, true, false, false, folder.name));
-		this._listener = this.contextService.onDidChangeWorkspaceFolders(() => setRoots());
 		setRoots();
+
+		this._listener = this.contextService.onDidChangeWorkspaceFolders(() => {
+			setRoots();
+			this._onDidChangeRoots.fire();
+		});
 	}
 
 	get roots(): ExplorerItem[] {
 		return this._roots;
+	}
+
+	get onDidChangeRoots(): Event<void> {
+		return this._onDidChangeRoots.event;
 	}
 
 	/**

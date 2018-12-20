@@ -17,7 +17,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { CollapseAction2 } from 'vs/workbench/browser/viewlet';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { ExplorerDecorationsProvider } from 'vs/workbench/parts/files/electron-browser/views/explorerDecorationsProvider';
-import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -150,13 +150,13 @@ export class ExplorerView extends ViewletPanel {
 			this.toolbar.setActions(this.getActions(), this.getSecondaryActions())();
 		}
 
-		this.disposables.push(this.contextService.onDidChangeWorkspaceFolders(e => this.setTreeInput(e.added)));
 		this.disposables.push(this.contextService.onDidChangeWorkbenchState(() => this.setTreeInput()));
 		this.disposables.push(this.labelService.onDidRegisterFormatter(() => {
 			this._onDidChangeTitleArea.fire();
 			this.refresh();
 		}));
 
+		this.disposables.push(this.explorerService.onDidChangeRoots(() => this.setTreeInput()));
 		this.disposables.push(this.explorerService.onDidChangeItem(e => this.refresh(e)));
 		this.disposables.push(this.explorerService.onDidChangeEditable(e => this.refresh(e.parent)));
 		this.disposables.push(this.explorerService.onDidSelectItem(e => this.onSelectItem(e.item, e.reveal)));
@@ -350,13 +350,16 @@ export class ExplorerView extends ViewletPanel {
 		return DOM.getLargestChildWidth(parentNode, childNodes);
 	}
 
-	private setTreeInput(newRoots?: IWorkspaceFolder[]): Promise<void> {
+	private setTreeInput(): Promise<void> {
 		if (!this.isVisible()) {
 			this.shouldRefresh = true;
 			return Promise.resolve(void 0);
 		}
 
-		perf.mark('willResolveExplorer');
+		const initialInputSetup = !this.tree.getInput();
+		if (initialInputSetup) {
+			perf.mark('willResolveExplorer');
+		}
 		const roots = this.explorerService.roots;
 		let input: ExplorerItem | ExplorerItem[] = roots[0];
 		if (this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER || roots[0].isError) {
@@ -365,21 +368,20 @@ export class ExplorerView extends ViewletPanel {
 		}
 
 		const promise = this.tree.setInput(input).then(() => {
-			let expandPromise = Promise.resolve(void 0);
-			if (newRoots && newRoots.length) {
-				expandPromise = Promise.all(newRoots.map(workspaceFolder => this.tree.expand(this.explorerService.findClosest(workspaceFolder.uri))));
-			}
-
 			// Find resource to focus from active editor input if set
-			if (this.autoReveal) {
+			if (this.autoReveal && initialInputSetup) {
 				const resourceToFocus = this.getActiveFile();
 				if (resourceToFocus) {
-					return expandPromise.then(() => this.explorerService.select(resourceToFocus, true));
+					return this.explorerService.select(resourceToFocus, true);
 				}
 			}
 
-			return expandPromise;
-		}).then(() => perf.mark('didResolveExplorer'));
+			return undefined;
+		}).then(() => {
+			if (initialInputSetup) {
+				perf.mark('didResolveExplorer');
+			}
+		});
 
 		this.progressService.showWhile(promise, this.partService.isRestored() ? 800 : 1200 /* less ugly initial startup */);
 		return promise;

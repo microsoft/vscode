@@ -30,6 +30,7 @@ export class ExplorerService implements IExplorerService {
 
 	private static readonly EXPLORER_FILE_CHANGES_REACT_DELAY = 500; // delay in ms to react to file changes to give our internal events a chance to react first
 
+	private _onDidChangeRoots = new Emitter<void>();
 	private _onDidChangeItem = new Emitter<ExplorerItem | null>();
 	private _onDidChangeEditable = new Emitter<ExplorerItem>();
 	private _onDidSelectItem = new Emitter<{ item: ExplorerItem, reveal: boolean }>();
@@ -47,6 +48,10 @@ export class ExplorerService implements IExplorerService {
 
 	get roots(): ExplorerItem[] {
 		return this.model.roots;
+	}
+
+	get onDidChangeRoots(): Event<void> {
+		return this._onDidChangeRoots.event;
 	}
 
 	get onDidChangeItem(): Event<ExplorerItem | null> {
@@ -84,6 +89,7 @@ export class ExplorerService implements IExplorerService {
 		this.disposables.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
 		this.disposables.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IFilesConfiguration>())));
 		this.disposables.push(this.fileService.onDidChangeFileSystemProviderRegistrations(() => this._onDidChangeItem.fire(null)));
+		this.disposables.push(model.onDidChangeRoots(() => this._onDidChangeRoots.fire()));
 
 		return model;
 	}
@@ -298,8 +304,11 @@ export class ExplorerService implements IExplorerService {
 	private onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): void {
 		const configSortOrder = configuration && configuration.explorer && configuration.explorer.sortOrder || 'default';
 		if (this._sortOrder !== configSortOrder) {
+			const shouldFire = this._sortOrder !== undefined;
 			this._sortOrder = configSortOrder;
-			this.roots.forEach(r => this._onDidChangeItem.fire(r));
+			if (shouldFire) {
+				this._onDidChangeRoots.fire();
+			}
 		}
 	}
 
