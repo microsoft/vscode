@@ -142,6 +142,7 @@
 		"./vs/base/test/common/marshalling.test.ts",
 		"./vs/base/test/common/mime.test.ts",
 		"./vs/base/test/common/objects.test.ts",
+		"./vs/base/test/common/octicon.test.ts",
 		"./vs/base/test/common/paging.test.ts",
 		"./vs/base/test/common/paths.test.ts",
 		"./vs/base/test/common/resources.test.ts",
