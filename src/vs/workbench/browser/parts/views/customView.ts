@@ -79,9 +79,9 @@ export class CustomTreeViewPanel extends ViewletPanel {
 		this.treeView.show(container);
 	}
 
-	setExpanded(expanded: boolean): void {
+	setExpanded(expanded: boolean): boolean {
 		this.treeView.setVisibility(this.isVisible() && expanded);
-		super.setExpanded(expanded);
+		return super.setExpanded(expanded);
 	}
 
 	layoutBody(size: number): void {
@@ -350,14 +350,6 @@ export class CustomTreeView extends Disposable implements ITreeView {
 			}
 		}
 
-		if (this.treeLabels) {
-			if (this.isVisible) {
-				this.treeLabels.onVisible();
-			} else {
-				this.treeLabels.onHidden();
-			}
-		}
-
 		this._onDidChangeVisibility.fire(this.isVisible);
 	}
 
@@ -392,7 +384,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	private createTree() {
 		const actionItemProvider = (action: IAction) => action instanceof MenuItemAction ? this.instantiationService.createInstance(ContextAwareMenuItemActionItem, action) : undefined;
 		const menus = this._register(this.instantiationService.createInstance(TreeMenus, this.id));
-		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels));
+		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, this));
 		const dataSource = this.instantiationService.createInstance(TreeDataSource, this, this.container);
 		const renderer = this.instantiationService.createInstance(TreeRenderer, this.id, menus, this.treeLabels, actionItemProvider);
 		const controller = this.instantiationService.createInstance(TreeController, this.id, menus);

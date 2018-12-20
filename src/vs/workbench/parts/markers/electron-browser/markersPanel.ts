@@ -172,14 +172,6 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		} else {
 			this.rangeHighlightDecorations.removeHighlightRange();
 		}
-
-		if (this.treeLabels) {
-			if (visible) {
-				this.treeLabels.onVisible();
-			} else {
-				this.treeLabels.onHidden();
-			}
-		}
 	}
 
 	public getActions(): IAction[] {
@@ -297,7 +289,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 
 		const onDidChangeRenderNodeCount = new Relay<ITreeNode<any, any>>();
 
-		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels));
+		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, this));
 
 		const virtualDelegate = new VirtualDelegate(this.markersViewState);
 		const renderers = [

@@ -73,11 +73,20 @@ export interface IResourceLabel extends IDisposable {
 	clear(): void;
 }
 
+export interface IResourceLabelsContainer {
+	readonly onDidChangeVisibility: Event<boolean>;
+}
+
+export const DEFAULT_LABELS_CONTAINER: IResourceLabelsContainer = {
+	onDidChangeVisibility: Event.None
+};
+
 export class ResourceLabels extends Disposable {
 	private _widgets: ResourceLabelWidget[] = [];
 	private _labels: IResourceLabel[] = [];
 
 	constructor(
+		container: IResourceLabelsContainer,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IExtensionService private extensionService: IExtensionService,
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -87,14 +96,15 @@ export class ResourceLabels extends Disposable {
 	) {
 		super();
 
-		this.registerListeners();
+		this.registerListeners(container);
 	}
 
-	get(index: number): IResourceLabel {
-		return this._labels[index];
-	}
+	private registerListeners(container: IResourceLabelsContainer): void {
 
-	private registerListeners(): void {
+		// notify when visibility changes
+		this._register(container.onDidChangeVisibility(visible => {
+			this._widgets.forEach(widget => widget.notifyVisibilityChanged(visible));
+		}));
 
 		// notify when extensions are registered with potentially new languages
 		this._register(this.extensionService.onDidRegisterExtensions(() => this._widgets.forEach(widget => widget.notifyExtensionsRegistered())));
@@ -124,6 +134,10 @@ export class ResourceLabels extends Disposable {
 				this._widgets.forEach(widget => widget.notifyFileAssociationsChange());
 			}
 		}));
+	}
+
+	get(index: number): IResourceLabel {
+		return this._labels[index];
 	}
 
 	create(container: HTMLElement, options?: IIconLabelCreationOptions): IResourceLabel {
@@ -158,14 +172,6 @@ export class ResourceLabels extends Disposable {
 		dispose(widget);
 	}
 
-	onVisible(): void {
-		this._widgets.forEach(widget => widget.notifyVisibilityChanged(true));
-	}
-
-	onHidden(): void {
-		this._widgets.forEach(widget => widget.notifyVisibilityChanged(false));
-	}
-
 	clear(): void {
 		this._widgets = dispose(this._widgets);
 		this._labels = [];
@@ -197,7 +203,7 @@ export class ResourceLabel extends ResourceLabels {
 		@IThemeService themeService: IThemeService,
 		@ILabelService labelService: ILabelService
 	) {
-		super(instantiationService, extensionService, configurationService, modelService, decorationsService, themeService);
+		super(DEFAULT_LABELS_CONTAINER, instantiationService, extensionService, configurationService, modelService, decorationsService, themeService);
 
 		this._label = this._register(this.create(container, options));
 	}

@@ -15,7 +15,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListEvent, IKeyboardNavigationLabelProvider, IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { VIEWLET_ID, VIEW_CONTAINER } from 'vs/workbench/parts/scm/common/scm';
-import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
+import { ResourceLabels, IResourceLabel, IResourceLabelsContainer } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { ISCMService, ISCMRepository, ISCMResourceGroup, ISCMResource, InputValidationType } from 'vs/workbench/services/scm/common/scm';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -870,7 +870,7 @@ export class RepositoryPanel extends ViewletPanel {
 
 		const actionItemProvider = (action: IAction) => this.getActionItem(action);
 
-		this.listLabels = this.instantiationService.createInstance(ResourceLabels);
+		this.listLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility } as IResourceLabelsContainer);
 		this.disposables.push(this.listLabels);
 
 		const renderers = [
@@ -911,21 +911,11 @@ export class RepositoryPanel extends ViewletPanel {
 		this.inputBox.setEnabled(this.isVisible() && this.isExpanded());
 	}
 
-	setVisible(visible: boolean): void {
-		super.setVisible(visible);
-
-		if (this.listLabels) {
-			if (visible) {
-				this.listLabels.onVisible();
-			} else {
-				this.listLabels.onHidden();
-			}
-		}
-	}
-
-	setExpanded(expanded: boolean): void {
-		super.setExpanded(expanded);
+	setExpanded(expanded: boolean): boolean {
+		const changed = super.setExpanded(expanded);
 		this.inputBox.setEnabled(this.isVisible() && this.isExpanded());
+
+		return changed;
 	}
 
 	layoutBody(height: number = this.cachedHeight): void {
@@ -1070,9 +1060,6 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 
 	private _onDidSplice = new Emitter<ISpliceEvent<ISCMRepository>>();
 	readonly onDidSplice: Event<ISpliceEvent<ISCMRepository>> = this._onDidSplice.event;
-
-	private _onDidChangeVisibility = new Emitter<boolean>();
-	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
 
 	private _height: number | undefined = undefined;
 	get height(): number | undefined { return this._height; }
@@ -1220,8 +1207,6 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 		if (!visible) {
 			this.cachedMainPanelHeight = this.getPanelSize(this.mainPanel);
 		}
-
-		this._onDidChangeVisibility.fire(visible);
 
 		const start = this.getContributedViewsStartIndex();
 

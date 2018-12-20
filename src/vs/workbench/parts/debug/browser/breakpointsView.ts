@@ -191,11 +191,13 @@ export class BreakpointsView extends ViewletPanel {
 		];
 	}
 
-	public setExpanded(expanded: boolean): void {
-		super.setExpanded(expanded);
+	public setExpanded(expanded: boolean): boolean {
+		const changed = super.setExpanded(expanded);
 		if (expanded && this.needsRefresh) {
 			this.onBreakpointsChange();
 		}
+
+		return changed;
 	}
 
 	public setVisible(visible: boolean): void {
