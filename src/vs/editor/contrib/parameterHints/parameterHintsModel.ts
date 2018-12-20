@@ -72,11 +72,12 @@ export class ParameterHintsModel extends Disposable {
 	}
 
 	cancel(silent: boolean = false): void {
+		const priorState = this.state;
 		this.state = DefaultState;
 
 		this.throttledDelayer.cancel();
 
-		if (!silent) {
+		if (!silent && priorState.state === 'active') {
 			this._onChangedHints.fire(undefined);
 		}
 
