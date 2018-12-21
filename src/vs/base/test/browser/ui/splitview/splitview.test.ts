@@ -72,13 +72,9 @@ suite('Splitview', () => {
 		container.style.height = `${200}px`;
 	});
 
-	teardown(() => {
-		container = null;
-	});
-
 	test('empty splitview has empty DOM', () => {
 		const splitview = new SplitView(container);
-		assert.equal(container.firstElementChild.firstElementChild.childElementCount, 0, 'split view should be empty');
+		assert.equal(container.firstElementChild!.firstElementChild!.childElementCount, 0, 'split view should be empty');
 		splitview.dispose();
 	});
 

@@ -21,13 +21,13 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 	private _isDisposed: boolean = false;
 	private _titleInterval: number = -1;
 
-	private readonly _onProcessData: Emitter<string> = new Emitter<string>();
+	private readonly _onProcessData = new Emitter<string>();
 	public get onProcessData(): Event<string> { return this._onProcessData.event; }
-	private readonly _onProcessExit: Emitter<number> = new Emitter<number>();
+	private readonly _onProcessExit = new Emitter<number>();
 	public get onProcessExit(): Event<number> { return this._onProcessExit.event; }
-	private readonly _onProcessIdReady: Emitter<number> = new Emitter<number>();
+	private readonly _onProcessIdReady = new Emitter<number>();
 	public get onProcessIdReady(): Event<number> { return this._onProcessIdReady.event; }
-	private readonly _onProcessTitleChanged: Emitter<string> = new Emitter<string>();
+	private readonly _onProcessTitleChanged = new Emitter<string>();
 	public get onProcessTitleChanged(): Event<string> { return this._onProcessTitleChanged.event; }
 
 	constructor(

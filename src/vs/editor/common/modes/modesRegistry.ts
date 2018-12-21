@@ -20,7 +20,7 @@ export class EditorModesRegistry {
 	private _languages: ILanguageExtensionPoint[];
 	private _dynamicLanguages: ILanguageExtensionPoint[];
 
-	private readonly _onDidChangeLanguages: Emitter<void> = new Emitter<void>();
+	private readonly _onDidChangeLanguages = new Emitter<void>();
 	public readonly onDidChangeLanguages: Event<void> = this._onDidChangeLanguages.event;
 
 	constructor() {

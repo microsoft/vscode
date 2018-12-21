@@ -120,7 +120,7 @@ export class MarkersModel {
 
 	private cachedSortedResources: ResourceMarkers[] | undefined = undefined;
 
-	private readonly _onDidChange: Emitter<URI> = new Emitter<URI>();
+	private readonly _onDidChange = new Emitter<URI>();
 	readonly onDidChange: Event<URI> = this._onDidChange.event;
 
 	get resourceMarkers(): ResourceMarkers[] {

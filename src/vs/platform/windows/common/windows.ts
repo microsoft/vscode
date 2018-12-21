@@ -409,6 +409,10 @@ export interface IRunActionInWindowRequest {
 	args?: any[];
 }
 
+export interface IRunKeybindingInWindowRequest {
+	userSettingsLabel: string;
+}
+
 export class ActiveWindowManager implements IDisposable {
 
 	private disposables: IDisposable[] = [];

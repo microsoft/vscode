@@ -42,6 +42,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { ResourceLabels, IResourceLabelsContainer } from 'vs/workbench/browser/labels';
 
 export interface IExplorerViewOptions extends IViewletViewOptions {
 	fileViewletState: FileViewletState;
@@ -59,6 +60,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 	public readonly id: string = ExplorerView.ID;
 
 	private explorerViewer: WorkbenchTree;
+	private explorerLabels: ResourceLabels;
 	private filter: FileFilter;
 	private fileViewletState: FileViewletState;
 
@@ -240,7 +242,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			this.viewState[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE] = activeFile.toString();
 
 			// Select file if input is inside workspace
-			if (this.isVisible() && !this.isDisposed && this.contextService.isInsideWorkspace(activeFile)) {
+			if (this.isBodyVisible() && !this.isDisposed && this.contextService.isInsideWorkspace(activeFile)) {
 				const selection = this.hasSingleSelection(activeFile);
 				if (!selection) {
 					this.select(activeFile);
@@ -406,7 +408,9 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 	private createViewer(container: HTMLElement): WorkbenchTree {
 		const dataSource = this.instantiationService.createInstance(FileDataSource);
-		const renderer = this.instantiationService.createInstance(FileRenderer, this.fileViewletState);
+		this.explorerLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility } as IResourceLabelsContainer);
+		this.disposables.push(this.explorerLabels);
+		const renderer = this.instantiationService.createInstance(FileRenderer, this.fileViewletState, this.explorerLabels);
 		const controller = this.instantiationService.createInstance(FileController);
 		this.disposables.push(controller);
 		const sorter = this.instantiationService.createInstance(FileSorter);
@@ -710,7 +714,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 	}
 
 	private refreshFromEvent(newRoots: IWorkspaceFolder[] = []): void {
-		if (this.isVisible() && !this.isDisposed) {
+		if (this.isBodyVisible() && !this.isDisposed) {
 			this.explorerRefreshDelayer.trigger(() => {
 				if (!this.explorerViewer.getHighlight()) {
 					return this.doRefresh(newRoots.map(r => r.uri)).then(() => {

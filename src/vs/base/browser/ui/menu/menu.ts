@@ -15,7 +15,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Color } from 'vs/base/common/color';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
 import { Event, Emitter } from 'vs/base/common/event';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 
@@ -59,6 +59,7 @@ export class Menu extends ActionBar {
 	private menuDisposables: IDisposable[];
 	private scrollableElement: DomScrollableElement;
 	private menuElement: HTMLElement;
+	private scrollTopHold: number;
 
 	private readonly _onScroll: Emitter<void>;
 
@@ -121,6 +122,7 @@ export class Menu extends ActionBar {
 			let relatedTarget = e.relatedTarget as HTMLElement;
 			if (!isAncestor(relatedTarget, this.domNode)) {
 				this.focusedItem = undefined;
+				this.scrollTopHold = this.menuElement.scrollTop;
 				this.updateFocus();
 				e.stopPropagation();
 			}
@@ -143,6 +145,7 @@ export class Menu extends ActionBar {
 
 			if (hasClass(target, 'action-item')) {
 				const lastFocusedItem = this.focusedItem;
+				this.scrollTopHold = this.menuElement.scrollTop;
 				this.setFocusedItem(target);
 
 				if (lastFocusedItem !== this.focusedItem) {
@@ -178,7 +181,11 @@ export class Menu extends ActionBar {
 			this._onScroll.fire();
 		}, this, this.menuDisposables);
 
-		this._register(addDisposableListener(this.menuElement, EventType.SCROLL, (e) => {
+		this._register(addDisposableListener(this.menuElement, EventType.SCROLL, (e: ScrollEvent) => {
+			if (this.scrollTopHold !== undefined) {
+				this.menuElement.scrollTop = this.scrollTopHold;
+				this.scrollTopHold = undefined;
+			}
 			this.scrollableElement.scanDomNode();
 		}));
 

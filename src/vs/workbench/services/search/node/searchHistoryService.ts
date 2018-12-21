@@ -13,7 +13,7 @@ export class SearchHistoryService implements ISearchHistoryService {
 
 	private static readonly SEARCH_HISTORY_KEY = 'workbench.search.history';
 
-	private readonly _onDidClearHistory: Emitter<void> = new Emitter<void>();
+	private readonly _onDidClearHistory = new Emitter<void>();
 	public readonly onDidClearHistory: Event<void> = this._onDidClearHistory.event;
 
 	constructor(

@@ -468,7 +468,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 			options.title = entry.getTooltip();
 			options.descriptionTitle = entry.getDescriptionTooltip() || entry.getDescription(); // tooltip over description because it could overflow
 			options.descriptionMatches = descriptionHighlights || [];
-			data.label.setValue(entry.getLabel(), entry.getDescription(), options);
+			data.label.setLabel(entry.getLabel(), entry.getDescription(), options);
 
 			// Meta
 			data.detail.set(entry.getDetail(), detailHighlights);

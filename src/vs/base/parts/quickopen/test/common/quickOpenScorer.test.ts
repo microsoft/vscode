@@ -29,15 +29,15 @@ const ResourceAccessor = new ResourceAccessorClass();
 class NullAccessorClass implements scorer.IItemAccessor<URI> {
 
 	getItemLabel(resource: URI): string {
-		return void 0;
+		return undefined!;
 	}
 
 	getItemDescription(resource: URI): string {
-		return void 0;
+		return undefined!;
 	}
 
 	getItemPath(resource: URI): string {
-		return void 0;
+		return undefined!;
 	}
 }
 
@@ -120,52 +120,52 @@ suite('Quick Open Scorer', () => {
 		// Path Identity
 		const identityRes = scoreItem(resource, ResourceAccessor.getItemPath(resource), true, ResourceAccessor, cache);
 		assert.ok(identityRes.score);
-		assert.equal(identityRes.descriptionMatch.length, 1);
-		assert.equal(identityRes.labelMatch.length, 1);
-		assert.equal(identityRes.descriptionMatch[0].start, 0);
-		assert.equal(identityRes.descriptionMatch[0].end, ResourceAccessor.getItemDescription(resource).length);
-		assert.equal(identityRes.labelMatch[0].start, 0);
-		assert.equal(identityRes.labelMatch[0].end, ResourceAccessor.getItemLabel(resource).length);
+		assert.equal(identityRes.descriptionMatch!.length, 1);
+		assert.equal(identityRes.labelMatch!.length, 1);
+		assert.equal(identityRes.descriptionMatch![0].start, 0);
+		assert.equal(identityRes.descriptionMatch![0].end, ResourceAccessor.getItemDescription(resource).length);
+		assert.equal(identityRes.labelMatch![0].start, 0);
+		assert.equal(identityRes.labelMatch![0].end, ResourceAccessor.getItemLabel(resource).length);
 
 		// Basename Prefix
 		const basenamePrefixRes = scoreItem(resource, 'som', true, ResourceAccessor, cache);
 		assert.ok(basenamePrefixRes.score);
 		assert.ok(!basenamePrefixRes.descriptionMatch);
-		assert.equal(basenamePrefixRes.labelMatch.length, 1);
-		assert.equal(basenamePrefixRes.labelMatch[0].start, 0);
-		assert.equal(basenamePrefixRes.labelMatch[0].end, 'som'.length);
+		assert.equal(basenamePrefixRes.labelMatch!.length, 1);
+		assert.equal(basenamePrefixRes.labelMatch![0].start, 0);
+		assert.equal(basenamePrefixRes.labelMatch![0].end, 'som'.length);
 
 		// Basename Camelcase
 		const basenameCamelcaseRes = scoreItem(resource, 'sF', true, ResourceAccessor, cache);
 		assert.ok(basenameCamelcaseRes.score);
 		assert.ok(!basenameCamelcaseRes.descriptionMatch);
-		assert.equal(basenameCamelcaseRes.labelMatch.length, 2);
-		assert.equal(basenameCamelcaseRes.labelMatch[0].start, 0);
-		assert.equal(basenameCamelcaseRes.labelMatch[0].end, 1);
-		assert.equal(basenameCamelcaseRes.labelMatch[1].start, 4);
-		assert.equal(basenameCamelcaseRes.labelMatch[1].end, 5);
+		assert.equal(basenameCamelcaseRes.labelMatch!.length, 2);
+		assert.equal(basenameCamelcaseRes.labelMatch![0].start, 0);
+		assert.equal(basenameCamelcaseRes.labelMatch![0].end, 1);
+		assert.equal(basenameCamelcaseRes.labelMatch![1].start, 4);
+		assert.equal(basenameCamelcaseRes.labelMatch![1].end, 5);
 
 		// Basename Match
 		const basenameRes = scoreItem(resource, 'of', true, ResourceAccessor, cache);
 		assert.ok(basenameRes.score);
 		assert.ok(!basenameRes.descriptionMatch);
-		assert.equal(basenameRes.labelMatch.length, 2);
-		assert.equal(basenameRes.labelMatch[0].start, 1);
-		assert.equal(basenameRes.labelMatch[0].end, 2);
-		assert.equal(basenameRes.labelMatch[1].start, 4);
-		assert.equal(basenameRes.labelMatch[1].end, 5);
+		assert.equal(basenameRes.labelMatch!.length, 2);
+		assert.equal(basenameRes.labelMatch![0].start, 1);
+		assert.equal(basenameRes.labelMatch![0].end, 2);
+		assert.equal(basenameRes.labelMatch![1].start, 4);
+		assert.equal(basenameRes.labelMatch![1].end, 5);
 
 		// Path Match
 		const pathRes = scoreItem(resource, 'xyz123', true, ResourceAccessor, cache);
 		assert.ok(pathRes.score);
 		assert.ok(pathRes.descriptionMatch);
 		assert.ok(pathRes.labelMatch);
-		assert.equal(pathRes.labelMatch.length, 1);
-		assert.equal(pathRes.labelMatch[0].start, 8);
-		assert.equal(pathRes.labelMatch[0].end, 11);
-		assert.equal(pathRes.descriptionMatch.length, 1);
-		assert.equal(pathRes.descriptionMatch[0].start, 1);
-		assert.equal(pathRes.descriptionMatch[0].end, 4);
+		assert.equal(pathRes.labelMatch!.length, 1);
+		assert.equal(pathRes.labelMatch![0].start, 8);
+		assert.equal(pathRes.labelMatch![0].end, 11);
+		assert.equal(pathRes.descriptionMatch!.length, 1);
+		assert.equal(pathRes.descriptionMatch![0].start, 1);
+		assert.equal(pathRes.descriptionMatch![0].end, 4);
 
 		// No Match
 		const noRes = scoreItem(resource, '987', true, ResourceAccessor, cache);
@@ -182,7 +182,7 @@ suite('Quick Open Scorer', () => {
 
 	test('scoreItem - invalid input', function () {
 
-		let res = scoreItem(null, null, true, ResourceAccessor, cache);
+		let res = scoreItem(null, null!, true, ResourceAccessor, cache);
 		assert.equal(res.score, 0);
 
 		res = scoreItem(null, 'null', true, ResourceAccessor, cache);
@@ -199,12 +199,12 @@ suite('Quick Open Scorer', () => {
 		assert.ok(pathRes.score);
 		assert.ok(pathRes.descriptionMatch);
 		assert.ok(pathRes.labelMatch);
-		assert.equal(pathRes.labelMatch.length, 1);
-		assert.equal(pathRes.labelMatch[0].start, 0);
-		assert.equal(pathRes.labelMatch[0].end, 7);
-		assert.equal(pathRes.descriptionMatch.length, 1);
-		assert.equal(pathRes.descriptionMatch[0].start, 23);
-		assert.equal(pathRes.descriptionMatch[0].end, 26);
+		assert.equal(pathRes.labelMatch!.length, 1);
+		assert.equal(pathRes.labelMatch![0].start, 0);
+		assert.equal(pathRes.labelMatch![0].end, 7);
+		assert.equal(pathRes.descriptionMatch!.length, 1);
+		assert.equal(pathRes.descriptionMatch![0].start, 23);
+		assert.equal(pathRes.descriptionMatch![0].end, 26);
 	});
 
 	test('scoreItem - avoid match scattering (bug #36119)', function () {
@@ -214,9 +214,9 @@ suite('Quick Open Scorer', () => {
 		assert.ok(pathRes.score);
 		assert.ok(pathRes.descriptionMatch);
 		assert.ok(pathRes.labelMatch);
-		assert.equal(pathRes.labelMatch.length, 1);
-		assert.equal(pathRes.labelMatch[0].start, 0);
-		assert.equal(pathRes.labelMatch[0].end, 9);
+		assert.equal(pathRes.labelMatch!.length, 1);
+		assert.equal(pathRes.labelMatch![0].start, 0);
+		assert.equal(pathRes.labelMatch![0].end, 9);
 	});
 
 	test('scoreItem - prefers more compact matches', function () {
@@ -227,12 +227,12 @@ suite('Quick Open Scorer', () => {
 		const res = scoreItem(resource, 'ad', true, ResourceAccessor, cache);
 		assert.ok(res.score);
 		assert.ok(res.descriptionMatch);
-		assert.ok(!res.labelMatch.length);
-		assert.equal(res.descriptionMatch.length, 2);
-		assert.equal(res.descriptionMatch[0].start, 11);
-		assert.equal(res.descriptionMatch[0].end, 12);
-		assert.equal(res.descriptionMatch[1].start, 13);
-		assert.equal(res.descriptionMatch[1].end, 14);
+		assert.ok(!res.labelMatch!.length);
+		assert.equal(res.descriptionMatch!.length, 2);
+		assert.equal(res.descriptionMatch![0].start, 11);
+		assert.equal(res.descriptionMatch![0].end, 12);
+		assert.equal(res.descriptionMatch![1].start, 13);
+		assert.equal(res.descriptionMatch![1].end, 14);
 	});
 
 	test('scoreItem - proper target offset', function () {
@@ -247,9 +247,9 @@ suite('Quick Open Scorer', () => {
 
 		const res = scoreItem(resource, 'de', true, ResourceAccessor, cache);
 
-		assert.equal(res.labelMatch.length, 1);
-		assert.equal(res.labelMatch[0].start, 1);
-		assert.equal(res.labelMatch[0].end, 3);
+		assert.equal(res.labelMatch!.length, 1);
+		assert.equal(res.labelMatch![0].start, 1);
+		assert.equal(res.labelMatch![0].end, 3);
 	});
 
 	test('scoreItem - proper target offset #3', function () {
@@ -257,19 +257,19 @@ suite('Quick Open Scorer', () => {
 
 		const res = scoreItem(resource, 'debug', true, ResourceAccessor, cache);
 
-		assert.equal(res.descriptionMatch.length, 3);
-		assert.equal(res.descriptionMatch[0].start, 9);
-		assert.equal(res.descriptionMatch[0].end, 10);
-		assert.equal(res.descriptionMatch[1].start, 36);
-		assert.equal(res.descriptionMatch[1].end, 37);
-		assert.equal(res.descriptionMatch[2].start, 40);
-		assert.equal(res.descriptionMatch[2].end, 41);
+		assert.equal(res.descriptionMatch!.length, 3);
+		assert.equal(res.descriptionMatch![0].start, 9);
+		assert.equal(res.descriptionMatch![0].end, 10);
+		assert.equal(res.descriptionMatch![1].start, 36);
+		assert.equal(res.descriptionMatch![1].end, 37);
+		assert.equal(res.descriptionMatch![2].start, 40);
+		assert.equal(res.descriptionMatch![2].end, 41);
 
-		assert.equal(res.labelMatch.length, 2);
-		assert.equal(res.labelMatch[0].start, 9);
-		assert.equal(res.labelMatch[0].end, 10);
-		assert.equal(res.labelMatch[1].start, 20);
-		assert.equal(res.labelMatch[1].end, 21);
+		assert.equal(res.labelMatch!.length, 2);
+		assert.equal(res.labelMatch![0].start, 9);
+		assert.equal(res.labelMatch![0].end, 10);
+		assert.equal(res.labelMatch![1].start, 20);
+		assert.equal(res.labelMatch![1].end, 21);
 	});
 
 	test('scoreItem - no match unless query contained in sequence', function () {

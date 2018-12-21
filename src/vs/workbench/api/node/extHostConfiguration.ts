@@ -16,6 +16,7 @@ import { WorkspaceConfigurationChangeEvent } from 'vs/workbench/services/configu
 import { ResourceMap } from 'vs/base/common/map';
 import { ConfigurationScope, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
 import { isObject } from 'vs/base/common/types';
+import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 function lookUp(tree: any, key: string) {
 	if (key) {
@@ -60,7 +61,7 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 		this._onDidChangeConfiguration.fire(this._toConfigurationChangeEvent(eventData));
 	}
 
-	getConfiguration(section?: string, resource?: URI, extensionId?: string): vscode.WorkspaceConfiguration {
+	getConfiguration(section?: string, resource?: URI, extensionId?: CanonicalExtensionIdentifier): vscode.WorkspaceConfiguration {
 		const config = this._toReadonlyValue(section
 			? lookUp(this._configuration.getValue(null, { resource }, this._extHostWorkspace.workspace), section)
 			: this._configuration.getValue(null, { resource }, this._extHostWorkspace.workspace));
@@ -187,9 +188,9 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 		return readonlyProxy(result);
 	}
 
-	private _validateConfigurationAccess(key: string, resource: URI, extensionId: string): void {
+	private _validateConfigurationAccess(key: string, resource: URI, extensionId: CanonicalExtensionIdentifier): void {
 		const scope = OVERRIDE_PROPERTY_PATTERN.test(key) ? ConfigurationScope.RESOURCE : this._configurationScopes[key];
-		const extensionIdText = extensionId ? `[${extensionId}] ` : '';
+		const extensionIdText = extensionId ? `[${extensionId.value}] ` : '';
 		if (ConfigurationScope.RESOURCE === scope) {
 			if (resource === void 0) {
 				console.warn(`${extensionIdText}Accessing a resource scoped configuration without providing a resource is not expected. To get the effective value for '${key}', provide the URI of a resource or 'null' for any resource.`);
