@@ -21,7 +21,6 @@ import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewCon
 import { Schemas } from 'vs/base/common/network';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
-import { IAction } from 'vs/base/common/actions';
 import { ExplorerItem } from 'vs/workbench/parts/files/common/explorerModel';
 
 /**
@@ -35,7 +34,7 @@ export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry
 
 export interface IEditableData {
 	validationMessage: (value: string) => string;
-	action: IAction;
+	onFinish: (value: string, success: boolean) => void;
 }
 
 export interface IExplorerService {

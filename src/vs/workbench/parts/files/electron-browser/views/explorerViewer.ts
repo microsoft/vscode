@@ -11,7 +11,7 @@ import { IProgressService } from 'vs/platform/progress/common/progress';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IFileService, FileKind } from 'vs/platform/files/common/files';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IFileLabelOptions, IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
@@ -19,18 +19,16 @@ import { ITreeRenderer, ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFilesConfiguration, IExplorerService } from 'vs/workbench/parts/files/common/files';
-import { dirname, joinPath, basename } from 'vs/base/common/resources';
+import { IFilesConfiguration, IExplorerService, IEditableData } from 'vs/workbench/parts/files/common/files';
+import { dirname, joinPath } from 'vs/base/common/resources';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { localize } from 'vs/nls';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { once } from 'vs/base/common/functional';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { normalize, join, nativeSep } from 'vs/base/common/paths';
-import { rtrim } from 'vs/base/common/strings';
+import { normalize } from 'vs/base/common/paths';
 import { equals, deepClone } from 'vs/base/common/objects';
 import * as path from 'path';
-import { IAction } from 'vs/base/common/actions';
 import { ExplorerItem } from 'vs/workbench/parts/files/common/explorerModel';
 import { compareFileExtensions, compareFileNames } from 'vs/base/common/comparers';
 
@@ -96,7 +94,6 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, void, IFileTem
 		@IContextViewService private contextViewService: IContextViewService,
 		@IThemeService private themeService: IThemeService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IExplorerService private explorerService: IExplorerService
 	) {
 		this.config = this.configurationService.getValue<IFilesConfiguration>();
@@ -148,7 +145,7 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, void, IFileTem
 		}
 	}
 
-	private renderInputBox(container: HTMLElement, stat: ExplorerItem, editableData: { validationMessage: (value: string) => string, action: IAction }): void {
+	private renderInputBox(container: HTMLElement, stat: ExplorerItem, editableData: IEditableData): void {
 
 		// Use a file label only for the icon next to the input box
 		const label = this.labels.create(container);
@@ -191,18 +188,12 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, void, IFileTem
 		inputBox.select({ start: 0, end: lastDot > 0 && !stat.isDirectory ? lastDot : value.length });
 		inputBox.focus();
 
-		const done = once(async (commit: boolean, blur: boolean) => {
+		const done = once(async (success: boolean, blur: boolean) => {
 			label.element.style.display = 'none';
-
-			if (!commit) {
-				stat.parent.removeChild(stat);
-			}
-			if (commit && inputBox.value) {
-				await editableData.action.run({ value: inputBox.value });
-			}
+			const value = inputBox.value;
 			dispose(toDispose);
 			container.removeChild(label.element);
-			this.explorerService.setEditable(stat, null);
+			editableData.onFinish(value, success);
 		});
 
 		const toDispose = [
@@ -216,61 +207,12 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, void, IFileTem
 					done(false, false);
 				}
 			}),
-			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_UP, (e: IKeyboardEvent) => {
-				const initialRelPath: string = path.relative(stat.root.resource.path, stat.parent.resource.path);
-				let projectFolderName: string = '';
-				if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
-					projectFolderName = basename(stat.root.resource);	// show root folder name in multi-folder project
-				}
-				this.showInputMessage(inputBox, initialRelPath, projectFolderName, editableData.action.id);
-			}),
 			DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, () => {
 				done(inputBox.isInputValid(), true);
 			}),
 			label,
 			styler
 		];
-	}
-
-	private showInputMessage(inputBox: InputBox, initialRelPath: string, projectFolderName: string = '', actionID: string) {
-		if (inputBox.validate()) {
-			const value = inputBox.value;
-			if (value && /.[\\/]./.test(value)) {	// only show if there's at least one slash enclosed in the string
-				let displayPath = normalize(join(projectFolderName, initialRelPath, value));
-				displayPath = rtrim(displayPath, nativeSep);
-
-				const indexLastSlash: number = displayPath.lastIndexOf(nativeSep);
-				const name: string = displayPath.substring(indexLastSlash + 1);
-				const leadingPathPart: string = displayPath.substring(0, indexLastSlash);
-
-				let msg: string;
-				switch (actionID) {
-					case 'workbench.files.action.createFileFromExplorer':
-						msg = localize('createFileFromExplorerInfoMessage', "Create file **{0}** in **{1}**", name, leadingPathPart);
-						break;
-					case 'workbench.files.action.renameFile':
-						msg = localize('renameFileFromExplorerInfoMessage', "Move and rename to **{0}**", displayPath);
-						break;
-					case 'workbench.files.action.createFolderFromExplorer':	// fallthrough
-					default:
-						msg = localize('createFolderFromExplorerInfoMessage', "Create folder **{0}** in **{1}**", name, leadingPathPart);
-				}
-
-				inputBox.showMessage({
-					type: MessageType.INFO,
-					content: msg,
-					formatContent: true
-				});
-			} else if (value && /^\s|\s$/.test(value)) {
-				inputBox.showMessage({
-					content: localize('whitespace', "Leading or trailing whitespace detected"),
-					formatContent: true,
-					type: MessageType.WARNING
-				});
-			} else {	// fixes #46744: inputbox hides again if all slashes are removed
-				inputBox.hideMessage();
-			}
-		}
 	}
 
 	disposeElement?(element: ITreeNode<ExplorerItem, void>, index: number, templateData: IFileTemplateData): void {
@@ -417,15 +359,6 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 				}
 
 				break;
-		}
-
-		// Sort "New File/Folder" placeholders
-		if (this.explorerService.getEditableData(statA)) {
-			return -1;
-		}
-
-		if (this.explorerService.getEditableData(statB)) {
-			return 1;
 		}
 
 		// Sort Files

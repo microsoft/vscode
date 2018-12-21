@@ -13,8 +13,7 @@ import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import * as strings from 'vs/base/common/strings';
-import { Action, IAction } from 'vs/base/common/actions';
-import { IInputValidator } from 'vs/base/browser/ui/inputbox/inputBox';
+import { Action } from 'vs/base/common/actions';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { VIEWLET_ID, IExplorerService } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService, ITextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
@@ -46,11 +45,7 @@ import { IViewlet } from 'vs/workbench/common/viewlet';
 import { coalesce } from 'vs/base/common/arrays';
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { ExplorerItem } from 'vs/workbench/parts/files/common/explorerModel';
-
-export interface IEditableData {
-	action: IAction;
-	validator: IInputValidator;
-}
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
@@ -100,145 +95,29 @@ export class BaseErrorReportingAction extends Action {
 	}
 }
 
-class TriggerRenameFileAction extends BaseErrorReportingAction {
+const PLACEHOLDER_URI = URI.file('');
 
-	public static readonly ID = 'renameFile';
-
-	private renameAction: BaseRenameAction;
+/* New File */
+export class NewFileAction extends BaseErrorReportingAction {
+	static readonly ID = 'workbench.files.action.createFileFromExplorer';
+	static readonly LABEL = nls.localize('createNewFile', "New File");
 
 	constructor(
 		private element: ExplorerItem,
 		@INotificationService notificationService: INotificationService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IExplorerService private explorerService: IExplorerService
+		@IExplorerService private explorerService: IExplorerService,
+		@IFileService private fileService: IFileService,
+		@IEditorService private editorService: IEditorService
 	) {
-		super(TriggerRenameFileAction.ID, TRIGGER_RENAME_LABEL, notificationService);
-
-		this.element = element;
-		this.renameAction = instantiationService.createInstance(RenameFileAction, element);
+		super('explorer.newFile', NEW_FILE_LABEL, notificationService);
+		this.class = 'explorer-action new-file';
 	}
 
-	public validateFileName(name: string): string {
-		const names: string[] = coalesce(name.split(/[\\/]/));
-		if (names.length > 1) {	// error only occurs on multi-path
-			const comparer = isLinux ? strings.compare : strings.compareIgnoreCase;
-			if (comparer(names[0], this.element.name) === 0) {
-				return nls.localize('renameWhenSourcePathIsParentOfTargetError', "Please use the 'New Folder' or 'New File' command to add children to an existing folder");
-			}
-		}
-
-		return this.renameAction.validateFileName(this.element.parent, name);
-	}
-
-	public run(): Promise<any> {
-		this.explorerService.setEditable(this.element, { validationMessage: this.validateFileName, action: this.renameAction });
-		return Promise.resolve(void 0);
-	}
-}
-
-export abstract class BaseRenameAction extends BaseErrorReportingAction {
-
-	constructor(
-		id: string,
-		label: string,
-		public element: ExplorerItem,
-		@INotificationService notificationService: INotificationService,
-	) {
-		super(id, label, notificationService);
-		this.enabled = this.element && !this.element.isReadonly;
-	}
-
-	public run(context?: any): Promise<any> {
-		if (!context) {
-			return Promise.reject(new Error('No context provided to BaseRenameFileAction.'));
-		}
-
-		let name = <string>context.value;
-		if (!name) {
-			return Promise.reject(new Error('No new name provided to BaseRenameFileAction.'));
-		}
-
-		// Automatically trim whitespaces and trailing dots to produce nice file names
-		name = getWellFormedFileName(name);
-		const existingName = getWellFormedFileName(this.element.name);
-
-		// Return early if name is invalid or didn't change
-		if (name === existingName || this.validateFileName(this.element.parent, name)) {
-			return Promise.resolve(null);
-		}
-
-		// Call function and Emit Event through viewer
-		const promise = this.runAction(name).then(void 0, (error: any) => {
-			this.onError(error);
-		});
-
-		return promise;
-	}
-
-	public validateFileName(parent: ExplorerItem, name: string): string {
-		let source = this.element.name;
-		let target = name;
-
-		if (!isLinux) { // allow rename of same file also when case differs (e.g. Game.js => game.js)
-			source = source.toLowerCase();
-			target = target.toLowerCase();
-		}
-
-		if (getWellFormedFileName(source) === getWellFormedFileName(target)) {
-			return null;
-		}
-
-		return validateFileName(parent, name);
-	}
-
-	public abstract runAction(newName: string): Promise<any>;
-}
-
-class RenameFileAction extends BaseRenameAction {
-
-	public static readonly ID = 'workbench.files.action.renameFile';
-
-	constructor(
-		element: ExplorerItem,
-		@INotificationService notificationService: INotificationService,
-		@ITextFileService private textFileService: ITextFileService
-	) {
-		super(RenameFileAction.ID, nls.localize('rename', "Rename"), element, notificationService);
-	}
-
-	public runAction(newName: string): Promise<any> {
-		const parentResource = this.element.parent.resource;
-		const targetResource = resources.joinPath(parentResource, newName);
-
-		return this.textFileService.move(this.element.resource, targetResource);
-	}
-}
-
-/* Base New File/Folder Action */
-export class BaseNewAction extends BaseErrorReportingAction {
-	private presetFolder: ExplorerItem;
-	static readonly PLACEHOLDER_URI = URI.file('');
-
-	constructor(
-		id: string,
-		label: string,
-		private isFile: boolean,
-		private renameAction: BaseRenameAction,
-		element: ExplorerItem,
-		@INotificationService notificationService: INotificationService,
-		@IExplorerService private explorerService: IExplorerService
-	) {
-		super(id, label, notificationService);
-
-		if (element) {
-			this.presetFolder = element.isDirectory ? element : element.parent;
-		}
-	}
-
-	public run(): Promise<any> {
-
-		let folder = this.presetFolder;
-		if (!folder) {
+	run(): Promise<any> {
+		let folder: ExplorerItem;
+		if (this.element) {
+			folder = this.element.isDirectory ? this.element : this.element.parent;
+		} else {
 			folder = this.explorerService.roots[0];
 		}
 
@@ -246,39 +125,82 @@ export class BaseNewAction extends BaseErrorReportingAction {
 			return Promise.reject(new Error('Parent folder is readonly.'));
 		}
 
-		const stat = new ExplorerItem(BaseNewAction.PLACEHOLDER_URI, folder, !this.isFile);
+		const stat = new ExplorerItem(PLACEHOLDER_URI, folder, false);
 		folder.addChild(stat);
-		this.renameAction.element = stat;
-		this.explorerService.setEditable(stat, { action: this.renameAction, validationMessage: value => this.renameAction.validateFileName(folder, value) });
 
-		return Promise.resolve(void 0);
-	}
-}
+		const onSuccess = value => {
+			return this.fileService.createFile(resources.joinPath(folder.resource, value)).then(stat => {
+				return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
+			}, (error) => {
+				this.onErrorWithRetry(error, () => onSuccess(value));
+			});
+		};
 
-/* New File */
-export class NewFileAction extends BaseNewAction {
-	constructor(
-		element: ExplorerItem,
-		@INotificationService notificationService: INotificationService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IExplorerService explorerService: IExplorerService
-	) {
-		super('explorer.newFile', NEW_FILE_LABEL, true, instantiationService.createInstance(CreateFileAction, element), null, notificationService, explorerService);
-		this.class = 'explorer-action new-file';
+		this.explorerService.setEditable(stat, {
+			validationMessage: value => validateFileName(stat, value),
+			onFinish: (value, success) => {
+				folder.removeChild(stat);
+				this.explorerService.setEditable(stat, null);
+				if (success) {
+					onSuccess(value);
+				}
+			}
+		});
+
+		return Promise.resolve(null);
 	}
 }
 
 /* New Folder */
-export class NewFolderAction extends BaseNewAction {
+export class NewFolderAction extends BaseErrorReportingAction {
+	static readonly ID = 'workbench.files.action.createFolderFromExplorer';
+	static readonly LABEL = nls.localize('createNewFolder', "New Folder");
 
 	constructor(
-		element: ExplorerItem,
+		private element: ExplorerItem,
 		@INotificationService notificationService: INotificationService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IExplorerService explorerService: IExplorerService
+		@IFileService private fileService: IFileService,
+		@IExplorerService private explorerService: IExplorerService
 	) {
-		super('explorer.newFolder', NEW_FOLDER_LABEL, false, instantiationService.createInstance(CreateFolderAction, element), null, notificationService, explorerService);
+		super('explorer.newFolder', NEW_FOLDER_LABEL, notificationService);
 		this.class = 'explorer-action new-folder';
+	}
+
+	run(): Promise<any> {
+		let folder: ExplorerItem;
+		if (this.element) {
+			folder = this.element.isDirectory ? this.element : this.element.parent;
+		} else {
+			folder = this.explorerService.roots[0];
+		}
+
+		if (folder.isReadonly) {
+			return Promise.reject(new Error('Parent folder is readonly.'));
+		}
+
+		const stat = new ExplorerItem(PLACEHOLDER_URI, folder, true);
+		folder.addChild(stat);
+
+		const onSuccess = value => {
+			return this.fileService.createFolder(resources.joinPath(folder.resource, value)).then(stat => {
+				return this.explorerService.select(stat.resource, true);
+			}, (error) => {
+				this.onErrorWithRetry(error, () => onSuccess(value));
+			});
+		};
+
+		this.explorerService.setEditable(stat, {
+			validationMessage: value => validateFileName(stat, value),
+			onFinish: (value, success) => {
+				folder.removeChild(stat);
+				this.explorerService.setEditable(stat, null);
+				if (success) {
+					onSuccess(value);
+				}
+			}
+		});
+
+		return Promise.resolve(null);
 	}
 }
 
@@ -297,57 +219,6 @@ export class GlobalNewUntitledFileAction extends Action {
 
 	public run(): Promise<any> {
 		return this.editorService.openEditor({ options: { pinned: true } } as IUntitledResourceInput); // untitled are always pinned
-	}
-}
-
-/* Create New File (only used internally by explorerViewer) */
-class CreateFileAction extends BaseRenameAction {
-
-	public static readonly ID = 'workbench.files.action.createFileFromExplorer';
-	public static readonly LABEL = nls.localize('createNewFile', "New File");
-
-	constructor(
-		element: ExplorerItem,
-		@IEditorService private editorService: IEditorService,
-		@IFileService private fileService: IFileService,
-		@INotificationService notificationService: INotificationService,
-	) {
-		super(CreateFileAction.ID, CreateFileAction.LABEL, element, notificationService);
-	}
-
-	public runAction(fileName: string): Promise<any> {
-		const resource = this.element.parent.resource;
-		this.element.parent.removeChild(this.element);
-		return this.fileService.createFile(resources.joinPath(resource, fileName)).then(stat => {
-			return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
-		}, (error) => {
-			this.onErrorWithRetry(error, () => this.runAction(fileName));
-		});
-	}
-}
-
-/* Create New Folder (only used internally by explorerViewer) */
-class CreateFolderAction extends BaseRenameAction {
-
-	public static readonly ID = 'workbench.files.action.createFolderFromExplorer';
-	public static readonly LABEL = nls.localize('createNewFolder', "New Folder");
-
-	constructor(
-		element: ExplorerItem,
-		@IFileService private fileService: IFileService,
-		@INotificationService notificationService: INotificationService,
-		@IExplorerService private explorerService: IExplorerService
-	) {
-		super(CreateFolderAction.ID, CreateFolderAction.LABEL, element, notificationService);
-	}
-
-	public runAction(fileName: string): Promise<any> {
-		const resource = this.element.parent.resource;
-		this.element.parent.removeChild(this.element);
-		const newResource = resources.joinPath(resource, fileName);
-		return this.fileService.createFolder(newResource).then(() => this.explorerService.select(newResource, true), (error) => {
-			this.onErrorWithRetry(error, () => this.runAction(fileName));
-		});
 	}
 }
 
@@ -562,7 +433,6 @@ class BaseDeleteFileAction extends BaseErrorReportingAction {
 
 /* Add File */
 export class AddFilesAction extends BaseErrorReportingAction {
-
 
 	constructor(
 		private element: ExplorerItem,
@@ -1125,8 +995,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 	}
 }
 
-export function validateFileName(parent: ExplorerItem, name: string): string {
-
+export function validateFileName(item: ExplorerItem, name: string): string {
 	// Produce a well formed file name
 	name = getWellFormedFileName(name);
 
@@ -1141,11 +1010,14 @@ export function validateFileName(parent: ExplorerItem, name: string): string {
 	}
 
 	const names = coalesce(name.split(/[\\/]/));
+	const parent = item.parent;
 
-	// Do not allow to overwrite existing file
-	const childExists = !!parent.getChild(name);
-	if (childExists) {
-		return nls.localize('fileNameExistsError', "A file or folder **{0}** already exists at this location. Please choose a different name.", name);
+	if (name !== item.name) {
+		// Do not allow to overwrite existing file
+		const childExists = !!parent.getChild(name);
+		if (childExists) {
+			return nls.localize('fileNameExistsError', "A file or folder **{0}** already exists at this location. Please choose a different name.", name);
+		}
 	}
 
 	// Invalid File name
@@ -1309,12 +1181,22 @@ CommandsRegistry.registerCommand({
 });
 
 export const renameHandler = (accessor: ServicesAccessor) => {
-	const instantationService = accessor.get(IInstantiationService);
 	const listService = accessor.get(IListService);
-	const explorerContext = getContext(listService.lastFocusedList);
+	const explorerService = accessor.get(IExplorerService);
+	const textFileService = accessor.get(ITextFileService);
+	const { stat } = getContext(listService.lastFocusedList);
 
-	const renameAction = instantationService.createInstance(TriggerRenameFileAction, explorerContext.stat);
-	return renameAction.run();
+	explorerService.setEditable(stat, {
+		validationMessage: value => validateFileName(stat, value),
+		onFinish: (value, success) => {
+			if (success) {
+				const parentResource = stat.parent.resource;
+				const targetResource = resources.joinPath(parentResource, value);
+				textFileService.move(stat.resource, targetResource).then(undefined, onUnexpectedError);
+			}
+			explorerService.setEditable(stat, null);
+		}
+	});
 };
 
 export const moveFileToTrashHandler = (accessor: ServicesAccessor) => {
