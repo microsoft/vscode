@@ -18,6 +18,8 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 	private _ptyProcess: pty.IPty;
 	private _currentTitle: string = '';
 	private _processStartupComplete: Promise<void>;
+	private _isDisposed: boolean = false;
+	private _titleInterval: number = -1;
 
 	private readonly _onProcessData = new Emitter<string>();
 	public get onProcessData(): Event<string> { return this._onProcessData.event; }
@@ -33,7 +35,8 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 		cwd: string,
 		cols: number,
 		rows: number,
-		env: platform.IProcessEnvironment
+		env: platform.IProcessEnvironment,
+		windowsEnableConpty: boolean
 	) {
 		let shellName: string;
 		if (os.platform() === 'win32') {
@@ -49,7 +52,8 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 			cwd,
 			env,
 			cols,
-			rows
+			rows,
+			experimentalUseConpty: windowsEnableConpty
 		};
 
 		try {
@@ -86,6 +90,9 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 	}
 
 	public dispose(): void {
+		this._isDisposed = true;
+		window.clearInterval(this._titleInterval);
+		this._titleInterval = -1;
 		this._onProcessData.dispose();
 		this._onProcessExit.dispose();
 		this._onProcessIdReady.dispose();
@@ -98,7 +105,7 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 			this._sendProcessTitle();
 		}, 0);
 		// Setup polling
-		setInterval(() => {
+		this._titleInterval = window.setInterval(() => {
 			if (this._currentTitle !== this._ptyProcess.process) {
 				this._sendProcessTitle();
 			}
@@ -118,6 +125,9 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 		// Wait to kill to process until the start up code has run. This prevents us from firing a process exit before a
 		// process start.
 		this._processStartupComplete.then(() => {
+			if (this._isDisposed) {
+				return;
+			}
 			// Attempt to kill the pty, it may have already been killed at this
 			// point but we want to make sure
 			try {
@@ -135,6 +145,9 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 	}
 
 	private _sendProcessTitle(): void {
+		if (this._isDisposed) {
+			return;
+		}
 		this._currentTitle = this._ptyProcess.process;
 		this._onProcessTitleChanged.fire(this._currentTitle);
 	}
@@ -148,10 +161,16 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 	}
 
 	public input(data: string): void {
+		if (this._isDisposed) {
+			return;
+		}
 		this._ptyProcess.write(data);
 	}
 
 	public resize(cols: number, rows: number): void {
+		if (this._isDisposed) {
+			return;
+		}
 		// Ensure that cols and rows are always >= 1, this prevents a native
 		// exception in winpty.
 		this._ptyProcess.resize(Math.max(cols, 1), Math.max(rows, 1));
