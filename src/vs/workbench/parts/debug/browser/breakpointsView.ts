@@ -119,6 +119,12 @@ export class BreakpointsView extends ViewletPanel {
 		}));
 
 		this.list.splice(0, this.list.length, this.elements);
+
+		this.disposables.push(this.onDidChangeBodyVisibility(visible => {
+			if (visible && this.needsRefresh) {
+				this.onBreakpointsChange();
+			}
+		}));
 	}
 
 	public focus(): void {
@@ -191,22 +197,8 @@ export class BreakpointsView extends ViewletPanel {
 		];
 	}
 
-	public setExpanded(expanded: boolean): void {
-		super.setExpanded(expanded);
-		if (expanded && this.needsRefresh) {
-			this.onBreakpointsChange();
-		}
-	}
-
-	public setVisible(visible: boolean): void {
-		super.setVisible(visible);
-		if (visible && this.needsRefresh) {
-			this.onBreakpointsChange();
-		}
-	}
-
 	private onBreakpointsChange(): void {
-		if (this.isExpanded() && this.isVisible()) {
+		if (this.isBodyVisible()) {
 			this.minimumBodySize = this.getExpandedBodySize();
 			if (this.maximumBodySize < Number.POSITIVE_INFINITY) {
 				this.maximumBodySize = this.minimumBodySize;

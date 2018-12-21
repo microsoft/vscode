@@ -370,18 +370,14 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 
 		this.searchBox.onShouldFocusResults(() => this.focusListView(), this, this.disposables);
 
-		this.extensionsBox = append(this.root, $('.extensions'));
-		super.create(this.extensionsBox);
-	}
-
-	setVisible(visible: boolean): void {
-		const isVisibilityChanged = this.isVisible() !== visible;
-		super.setVisible(visible);
-		if (isVisibilityChanged) {
+		this._register(this.onDidChangeVisibility(visible => {
 			if (visible) {
 				this.searchBox.focus();
 			}
-		}
+		}));
+
+		this.extensionsBox = append(this.root, $('.extensions'));
+		super.create(this.extensionsBox);
 	}
 
 	focus(): void {

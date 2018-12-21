@@ -26,7 +26,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
-import { EditorLabel } from 'vs/workbench/browser/labels';
+import { ResourceLabels, IResourceLabel, IResourceLabelsContainer } from 'vs/workbench/browser/labels';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
@@ -51,6 +51,7 @@ export class OpenEditorsView extends ViewletPanel {
 	private listRefreshScheduler: RunOnceScheduler;
 	private structuralRefreshDelay: number;
 	private list: WorkbenchList<OpenEditor | IEditorGroup>;
+	private listLabels: ResourceLabels;
 	private contributedContextMenu: IMenu;
 	private needsRefresh: boolean;
 	private resourceContext: ResourceContextKey;
@@ -103,7 +104,7 @@ export class OpenEditorsView extends ViewletPanel {
 
 	private registerUpdateEvents(): void {
 		const updateWholeList = () => {
-			if (!this.isVisible() || !this.list || !this.isExpanded()) {
+			if (!this.isBodyVisible() || !this.list) {
 				this.needsRefresh = true;
 				return;
 			}
@@ -117,7 +118,7 @@ export class OpenEditorsView extends ViewletPanel {
 				if (this.listRefreshScheduler.isScheduled()) {
 					return;
 				}
-				if (!this.isVisible() || !this.list || !this.isExpanded()) {
+				if (!this.isBodyVisible() || !this.list) {
 					this.needsRefresh = true;
 					return;
 				}
@@ -213,14 +214,19 @@ export class OpenEditorsView extends ViewletPanel {
 		if (this.list) {
 			this.list.dispose();
 		}
+		if (this.listLabels) {
+			this.listLabels.clear();
+		}
+		this.listLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility } as IResourceLabelsContainer);
 		this.list = this.instantiationService.createInstance(WorkbenchList, container, delegate, [
 			new EditorGroupRenderer(this.keybindingService, this.instantiationService, this.editorGroupService),
-			new OpenEditorRenderer(getSelectedElements, this.instantiationService, this.keybindingService, this.configurationService, this.editorGroupService)
+			new OpenEditorRenderer(this.listLabels, getSelectedElements, this.instantiationService, this.keybindingService, this.configurationService, this.editorGroupService)
 		], {
 				identityProvider: { getId: (element: OpenEditor | IEditorGroup) => element instanceof OpenEditor ? element.getId() : element.id.toString() },
 				selectOnMouseDown: false /* disabled to better support DND */
 			}) as WorkbenchList<OpenEditor | IEditorGroup>;
 		this.disposables.push(this.list);
+		this.disposables.push(this.listLabels);
 
 		this.contributedContextMenu = this.menuService.createMenu(MenuId.OpenEditorsContext, this.list.contextKeyService);
 		this.disposables.push(this.contributedContextMenu);
@@ -278,6 +284,13 @@ export class OpenEditorsView extends ViewletPanel {
 		}));
 
 		this.listRefreshScheduler.schedule(0);
+
+		this.disposables.push(this.onDidChangeBodyVisibility(visible => {
+			this.updateListVisibility(visible);
+			if (visible && this.needsRefresh) {
+				this.listRefreshScheduler.schedule(0);
+			}
+		}));
 	}
 
 	public getActions(): IAction[] {
@@ -286,22 +299,6 @@ export class OpenEditorsView extends ViewletPanel {
 			this.instantiationService.createInstance(SaveAllAction, SaveAllAction.ID, SaveAllAction.LABEL),
 			this.instantiationService.createInstance(CloseAllEditorsAction, CloseAllEditorsAction.ID, CloseAllEditorsAction.LABEL)
 		];
-	}
-
-	public setExpanded(expanded: boolean): void {
-		super.setExpanded(expanded);
-		this.updateListVisibility(expanded);
-		if (expanded && this.needsRefresh) {
-			this.listRefreshScheduler.schedule(0);
-		}
-	}
-
-	public setVisible(visible: boolean): void {
-		super.setVisible(visible);
-		this.updateListVisibility(visible && this.isExpanded());
-		if (visible && this.needsRefresh) {
-			this.listRefreshScheduler.schedule(0);
-		}
 	}
 
 	public focus(): void {
@@ -478,7 +475,7 @@ export class OpenEditorsView extends ViewletPanel {
 
 interface IOpenEditorTemplateData {
 	container: HTMLElement;
-	root: EditorLabel;
+	root: IResourceLabel;
 	actionBar: ActionBar;
 	actionRunner: OpenEditorActionRunner;
 	openEditor: OpenEditor;
@@ -619,6 +616,7 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 	private transfer = LocalSelectionTransfer.getInstance<OpenEditor>();
 
 	constructor(
+		private labels: ResourceLabels,
 		private getSelectedElements: () => Array<OpenEditor | IEditorGroup>,
 		private instantiationService: IInstantiationService,
 		private keybindingService: IKeybindingService,
@@ -643,7 +641,7 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 		const key = this.keybindingService.lookupKeybinding(closeEditorAction.id);
 		editorTemplate.actionBar.push(closeEditorAction, { icon: true, label: false, keybinding: key ? key.getLabel() : void 0 });
 
-		editorTemplate.root = this.instantiationService.createInstance(EditorLabel, container, void 0);
+		editorTemplate.root = this.labels.create(container);
 
 		editorTemplate.toDispose = [];
 

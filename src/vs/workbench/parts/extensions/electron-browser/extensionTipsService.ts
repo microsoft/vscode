@@ -85,7 +85,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	public loadWorkspaceConfigPromise: Promise<any>;
 	private proactiveRecommendationsFetched: boolean = false;
 
-	private readonly _onRecommendationChange: Emitter<RecommendationChangeNotification> = new Emitter<RecommendationChangeNotification>();
+	private readonly _onRecommendationChange = new Emitter<RecommendationChangeNotification>();
 	onRecommendationChange: Event<RecommendationChangeNotification> = this._onRecommendationChange.event;
 	private sessionSeed: number;
 
@@ -635,8 +635,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			recommendationsToSuggest = recommendationsToSuggest.filter(id => importantRecommendationsIgnoreList.indexOf(id) === -1 && this.isExtensionAllowedToBeRecommended(id));
 
 			const importantTipsPromise = recommendationsToSuggest.length === 0 ? Promise.resolve(null) : this.extensionWorkbenchService.queryLocal().then(local => {
-				const localExtensions = local.map(e => e.id);
-				recommendationsToSuggest = recommendationsToSuggest.filter(id => localExtensions.every(local => local !== id.toLowerCase()));
+				const localExtensions = local.map(e => e.identifier);
+				recommendationsToSuggest = recommendationsToSuggest.filter(id => localExtensions.every(local => !areSameExtensions(local, { id })));
 				if (!recommendationsToSuggest.length) {
 					return;
 				}

@@ -175,14 +175,6 @@ function resolveJSFlags(cliArgs, ...jsFlags) {
 		jsFlags.push(`--max_old_space_size=${cliArgs['max-memory']}`);
 	}
 
-	// Since Electron 3 we use a V8 version that comes with untrusted code mitigations
-	// enabled by default (https://v8.dev/docs/untrusted-code-mitigations). This comes
-	// at a performance cost according to the blog. Since we do not execute untrusted
-	// code, we disable these mitigations.
-	// TODO@Ben revisit this for later Electron versions, search for more usages of
-	// --no-untrusted-code-mitigations
-	jsFlags.push('--no-untrusted-code-mitigations');
-
 	return jsFlags.length > 0 ? jsFlags.join(' ') : null;
 }
 

@@ -41,13 +41,13 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	private _preLaunchInputQueue: string[] = [];
 	private _disposables: IDisposable[] = [];
 
-	private readonly _onProcessReady: Emitter<void> = new Emitter<void>();
+	private readonly _onProcessReady = new Emitter<void>();
 	public get onProcessReady(): Event<void> { return this._onProcessReady.event; }
-	private readonly _onProcessData: Emitter<string> = new Emitter<string>();
+	private readonly _onProcessData = new Emitter<string>();
 	public get onProcessData(): Event<string> { return this._onProcessData.event; }
-	private readonly _onProcessTitle: Emitter<string> = new Emitter<string>();
+	private readonly _onProcessTitle = new Emitter<string>();
 	public get onProcessTitle(): Event<string> { return this._onProcessTitle.event; }
-	private readonly _onProcessExit: Emitter<number> = new Emitter<number>();
+	private readonly _onProcessExit = new Emitter<number>();
 	public get onProcessExit(): Event<number> { return this._onProcessExit.event; }
 
 	constructor(

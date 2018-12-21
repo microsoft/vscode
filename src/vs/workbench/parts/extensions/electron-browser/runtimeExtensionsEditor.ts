@@ -163,7 +163,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 	private _resolveExtensions(): IRuntimeExtension[] {
 		let marketplaceMap: { [id: string]: IExtension; } = Object.create(null);
 		for (let extension of this._extensionsWorkbenchService.local) {
-			marketplaceMap[extension.id] = extension;
+			marketplaceMap[extension.identifier.id] = extension;
 		}
 
 		let statusMap = this._extensionService.getExtensionsStatus();

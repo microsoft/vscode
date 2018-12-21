@@ -243,7 +243,7 @@ class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 			}, timeout);
 
 			request.then(edits => this._editorWorkerService.computeMoreMinimalEdits(model.uri, edits)).then(resolve, err => {
-				if (!(err instanceof Error) || err.name !== NoProviderError.Name) {
+				if (!NoProviderError.is(err)) {
 					reject(err);
 				} else {
 					resolve();

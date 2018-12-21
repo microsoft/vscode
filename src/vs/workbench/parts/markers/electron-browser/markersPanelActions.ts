@@ -220,6 +220,7 @@ export class MarkersFilterActionItem extends BaseActionItem {
 		this._register(filesExcludeFilter.onChange(() => {
 			filesExcludeFilter.domNode.title = filesExcludeFilter.checked ? Messages.MARKERS_PANEL_ACTION_TOOLTIP_DO_NOT_USE_FILES_EXCLUDE : Messages.MARKERS_PANEL_ACTION_TOOLTIP_USE_FILES_EXCLUDE;
 			this.action.useFilesExclude = filesExcludeFilter.checked;
+			this.focus();
 		}));
 		this._register(this.action.onDidChange((event: IMarkersFilterActionChangeEvent) => {
 			if (event.useFilesExclude) {

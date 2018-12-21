@@ -71,7 +71,7 @@ suite('Event', function () {
 
 		// unhook listener
 		while (bucket.length) {
-			bucket.pop().dispose();
+			bucket.pop()!.dispose();
 		}
 
 		// noop

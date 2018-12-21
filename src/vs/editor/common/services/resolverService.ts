@@ -24,6 +24,11 @@ export interface ITextModelService {
 	 * Registers a specific `scheme` content provider.
 	 */
 	registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable;
+
+	/**
+	 * Check if a provider for the given `scheme` exists
+	 */
+	hasTextModelContentProvider(scheme: string): boolean;
 }
 
 export interface ITextModelContentProvider {

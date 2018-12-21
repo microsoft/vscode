@@ -48,7 +48,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	private _allRequestedActivateEvents: { [activationEvent: string]: boolean; };
 	private readonly _extensionScanner: CachedExtensionScanner;
 
-	private readonly _onDidRegisterExtensions: Emitter<void> = this._register(new Emitter<void>({ leakWarningThreshold: 500 }));
+	private readonly _onDidRegisterExtensions: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidRegisterExtensions = this._onDidRegisterExtensions.event;
 
 	private readonly _onDidChangeExtensionsStatus: Emitter<string[]> = this._register(new Emitter<string[]>());
@@ -441,7 +441,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 				}
 
 				const enableProposedApiForAll = !this._environmentService.isBuilt ||
-					(!!this._environmentService.extensionDevelopmentLocationURI && product.nameLong.indexOf('Insiders') >= 0) ||
+					(!!this._environmentService.extensionDevelopmentLocationURI && product.nameLong !== 'Visual Studio Code') ||
 					(enableProposedApiFor.length === 0 && 'enable-proposed-api' in this._environmentService.args);
 
 				for (const extension of allExtensions) {

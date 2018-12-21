@@ -7,7 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import * as network from 'vs/base/common/network';
 import * as paths from 'vs/base/common/paths';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { FileLabel, ResourceLabel } from 'vs/workbench/browser/labels';
+import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { ResourceMarkers, Marker, RelatedInformation } from 'vs/workbench/parts/markers/electron-browser/markersModel';
@@ -34,7 +34,7 @@ import { localize } from 'vs/nls';
 export type TreeElement = ResourceMarkers | Marker | RelatedInformation;
 
 interface IResourceMarkersTemplateData {
-	resourceLabel: ResourceLabel;
+	resourceLabel: IResourceLabel;
 	count: CountBadge;
 	styler: IDisposable;
 }
@@ -69,7 +69,6 @@ export class MarkersTreeAccessibilityProvider implements IAccessibilityProvider<
 }
 
 const enum TemplateId {
-	FileResourceMarkers = 'frm',
 	ResourceMarkers = 'rm',
 	Marker = 'm',
 	RelatedInformation = 'ri'
@@ -90,11 +89,7 @@ export class VirtualDelegate implements IListVirtualDelegate<TreeElement> {
 
 	getTemplateId(element: TreeElement): string {
 		if (element instanceof ResourceMarkers) {
-			if ((element).resource.scheme === network.Schemas.file || (<ResourceMarkers>element).resource.scheme === network.Schemas.untitled) {
-				return TemplateId.FileResourceMarkers;
-			} else {
-				return TemplateId.ResourceMarkers;
-			}
+			return TemplateId.ResourceMarkers;
 		} else if (element instanceof Marker) {
 			return TemplateId.Marker;
 		} else {
@@ -135,8 +130,8 @@ export class ResourceMarkersRenderer implements ITreeRenderer<ResourceMarkers, R
 	private disposables: IDisposable[] = [];
 
 	constructor(
+		private labels: ResourceLabels,
 		onDidChangeRenderNodeCount: Event<ITreeNode<ResourceMarkers, ResourceMarkersFilterData>>,
-		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService,
 		@ILabelService private labelService: ILabelService
 	) {
@@ -149,7 +144,7 @@ export class ResourceMarkersRenderer implements ITreeRenderer<ResourceMarkers, R
 		const data = <IResourceMarkersTemplateData>Object.create(null);
 
 		const resourceLabelContainer = dom.append(container, dom.$('.resource-label-container'));
-		data.resourceLabel = this.createResourceLabel(resourceLabelContainer);
+		data.resourceLabel = this.labels.create(resourceLabelContainer, { supportHighlights: true });
 
 		const badgeWrapper = dom.append(container, dom.$('.count-badge-wrapper'));
 		data.count = new CountBadge(badgeWrapper);
@@ -162,10 +157,10 @@ export class ResourceMarkersRenderer implements ITreeRenderer<ResourceMarkers, R
 		const resourceMarkers = node.element;
 		const uriMatches = node.filterData && node.filterData.uriMatches || [];
 
-		if (templateData.resourceLabel instanceof FileLabel) {
+		if (resourceMarkers.resource.scheme === network.Schemas.file || resourceMarkers.resource.scheme === network.Schemas.untitled) {
 			templateData.resourceLabel.setFile(resourceMarkers.resource, { matches: uriMatches });
 		} else {
-			templateData.resourceLabel.setLabel({ name: resourceMarkers.name, description: this.labelService.getUriLabel(dirname(resourceMarkers.resource), { relative: true }), resource: resourceMarkers.resource }, { matches: uriMatches });
+			templateData.resourceLabel.setResource({ name: resourceMarkers.name, description: this.labelService.getUriLabel(dirname(resourceMarkers.resource), { relative: true }), resource: resourceMarkers.resource }, { matches: uriMatches });
 		}
 
 		this.updateCount(node, templateData);
@@ -179,10 +174,6 @@ export class ResourceMarkersRenderer implements ITreeRenderer<ResourceMarkers, R
 	disposeTemplate(templateData: IResourceMarkersTemplateData): void {
 		templateData.resourceLabel.dispose();
 		templateData.styler.dispose();
-	}
-
-	protected createResourceLabel(container: HTMLElement): ResourceLabel {
-		return this.instantiationService.createInstance(ResourceLabel, container, { supportHighlights: true });
 	}
 
 	private onDidChangeRenderNodeCount(node: ITreeNode<ResourceMarkers, ResourceMarkersFilterData>): void {
@@ -205,12 +196,6 @@ export class ResourceMarkersRenderer implements ITreeRenderer<ResourceMarkers, R
 }
 
 export class FileResourceMarkersRenderer extends ResourceMarkersRenderer {
-
-	templateId = TemplateId.FileResourceMarkers;
-
-	protected createResourceLabel(container: HTMLElement): ResourceLabel {
-		return this.instantiationService.createInstance(FileLabel, container, { supportHighlights: true });
-	}
 }
 
 export class MarkerRenderer implements ITreeRenderer<Marker, MarkerFilterData, IMarkerTemplateData> {

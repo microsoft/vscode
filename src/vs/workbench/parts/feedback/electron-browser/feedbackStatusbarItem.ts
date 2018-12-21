@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { FeedbackDropdown, IFeedback, IFeedbackDelegate, FEEDBACK_VISIBLE_CONFIG, IFeedbackDropdownOptions } from 'vs/workbench/parts/feedback/electron-browser/feedback';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -52,7 +52,7 @@ class TwitterFeedbackService implements IFeedbackDelegate {
 }
 
 export class FeedbackStatusbarItem extends Themable implements IStatusbarItem {
-	private dropdown: FeedbackDropdown;
+	private dropdown: FeedbackDropdown | undefined;
 	private enabled: boolean;
 	private container: HTMLElement;
 	private hideAction: HideAction;
@@ -89,7 +89,7 @@ export class FeedbackStatusbarItem extends Themable implements IStatusbarItem {
 	protected updateStyles(): void {
 		super.updateStyles();
 
-		if (this.dropdown) {
+		if (this.dropdown && this.dropdown.label) {
 			this.dropdown.label.style.backgroundColor = (this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND));
 		}
 	}
@@ -148,7 +148,7 @@ export class FeedbackStatusbarItem extends Themable implements IStatusbarItem {
 			clearNode(this.container);
 		}
 
-		return null;
+		return Disposable.None;
 	}
 }
 

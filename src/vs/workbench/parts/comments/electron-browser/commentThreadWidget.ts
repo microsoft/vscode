@@ -429,7 +429,9 @@ export class ReviewZoneWidget extends ZoneWidget {
 					submitdraftButton.onDidClick(async () => {
 						try {
 							let lineNumber = this._commentGlyph.getPosition().position.lineNumber;
-							await this.createComment(lineNumber);
+							if (this._commentEditor.getValue()) {
+								await this.createComment(lineNumber);
+							}
 							await this.commentService.finishDraft(this._owner, this.editor.getModel().uri);
 						} catch (e) {
 							this.handleError(e);

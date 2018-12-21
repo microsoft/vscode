@@ -17,7 +17,7 @@ import * as comparers from 'vs/base/common/comparers';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import * as glob from 'vs/base/common/glob';
-import { FileLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
+import { ResourceLabels, IFileLabelOptions, IResourceLabel } from 'vs/workbench/browser/labels';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IFilesConfiguration, SortOrder } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -180,7 +180,7 @@ export class ActionRunner extends BaseActionRunner implements IActionRunner {
 
 export interface IFileTemplateData {
 	elementDisposable: IDisposable;
-	label: FileLabel;
+	label: IResourceLabel;
 	container: HTMLElement;
 }
 
@@ -190,20 +190,17 @@ export class FileRenderer implements IRenderer {
 	private static readonly ITEM_HEIGHT = 22;
 	private static readonly FILE_TEMPLATE_ID = 'file';
 
-	private state: FileViewletState;
 	private config: IFilesConfiguration;
 	private configListener: IDisposable;
 
 	constructor(
-		state: FileViewletState,
+		private state: FileViewletState,
+		private labels: ResourceLabels,
 		@IContextViewService private contextViewService: IContextViewService,
-		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
-
 	) {
-		this.state = state;
 		this.config = this.configurationService.getValue<IFilesConfiguration>();
 		this.configListener = this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('explorer')) {
@@ -231,7 +228,7 @@ export class FileRenderer implements IRenderer {
 
 	public renderTemplate(tree: ITree, templateId: string, container: HTMLElement): IFileTemplateData {
 		const elementDisposable = Disposable.None;
-		const label = this.instantiationService.createInstance(FileLabel, container, void 0);
+		const label = this.labels.create(container);
 
 		return { elementDisposable, label, container };
 	}
@@ -268,7 +265,7 @@ export class FileRenderer implements IRenderer {
 	private renderInputBox(container: HTMLElement, tree: ITree, stat: ExplorerItem, editableData: IEditableData): void {
 
 		// Use a file label only for the icon next to the input box
-		const label = this.instantiationService.createInstance(FileLabel, container, void 0);
+		const label = this.labels.create(container);
 		const extraClasses = ['explorer-item', 'explorer-item-edited'];
 		const fileKind = stat.isRoot ? FileKind.ROOT_FOLDER : (stat.isDirectory || (stat instanceof NewStatPlaceholder && stat.isDirectoryPlaceholder())) ? FileKind.FOLDER : FileKind.FILE;
 		const labelOptions: IFileLabelOptions = { hidePath: true, hideLabel: true, fileKind, extraClasses };
