@@ -16,7 +16,6 @@ import { ResourceGlobMatcher } from 'vs/workbench/electron-browser/resources';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IExpression } from 'vs/base/common/glob';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 
 function getFileEventsExcludes(configurationService: IConfigurationService, root?: URI): IExpression {
 	const scope = root ? { resource: root } : void 0;
@@ -42,8 +41,7 @@ export class ExplorerService implements IExplorerService {
 		@IFileService private fileService: IFileService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@INotificationService private notificationService: INotificationService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) { }
 
 	get roots(): ExplorerItem[] {
@@ -120,17 +118,20 @@ export class ExplorerService implements IExplorerService {
 		const options: IResolveFileOptions = { resolveTo: [resource] };
 		const workspaceFolder = this.contextService.getWorkspaceFolder(resource);
 		const rootUri = workspaceFolder ? workspaceFolder.uri : this.roots[0].resource;
+		const root = this.roots.filter(r => r.resource.toString() === rootUri.toString()).pop();
 		return this.fileService.resolveFile(rootUri, options).then(stat => {
 
 			// Convert to model
-			const root = this.roots.filter(r => r.resource.toString() === rootUri.toString()).pop();
 			const modelStat = ExplorerItem.create(stat, null, options.resolveTo);
 			// Update Input with disk Stat
 			ExplorerItem.mergeLocalWithDisk(modelStat, root);
 
 			// Select and Reveal
 			this._onDidSelectItem.fire({ item: root.find(resource), reveal });
-		}, e => { this.notificationService.error(e); });
+		}, () => {
+			root.isError = true;
+			this._onDidChangeItem.fire(root);
+		});
 	}
 
 	// File events

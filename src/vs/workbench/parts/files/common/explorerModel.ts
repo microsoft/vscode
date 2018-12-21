@@ -74,6 +74,7 @@ export class ExplorerModel implements IDisposable {
 
 export class ExplorerItem {
 	public isDirectoryResolved: boolean;
+	public isError: boolean;
 
 	constructor(
 		public resource: URI,
@@ -84,7 +85,6 @@ export class ExplorerItem {
 		private _name: string = resources.basenameOrAuthority(resource),
 		private _mtime?: number,
 		private _etag?: string,
-		private _isError?: boolean
 	) {
 		this.isDirectoryResolved = false;
 	}
@@ -107,10 +107,6 @@ export class ExplorerItem {
 
 	get mtime(): number {
 		return this._mtime;
-	}
-
-	get isError(): boolean {
-		return !!this._isError;
 	}
 
 	get name(): string {
@@ -152,8 +148,8 @@ export class ExplorerItem {
 		return this === this.root;
 	}
 
-	static create(raw: IFileStat, parent: ExplorerItem, resolveTo?: URI[], isError = false): ExplorerItem {
-		const stat = new ExplorerItem(raw.resource, parent, raw.isDirectory, raw.isSymbolicLink, raw.isReadonly, raw.name, raw.mtime, raw.etag, isError);
+	static create(raw: IFileStat, parent: ExplorerItem, resolveTo?: URI[]): ExplorerItem {
+		const stat = new ExplorerItem(raw.resource, parent, raw.isDirectory, raw.isSymbolicLink, raw.isReadonly, raw.name, raw.mtime, raw.etag);
 
 		// Recursively add children if present
 		if (stat.isDirectory) {
@@ -201,7 +197,7 @@ export class ExplorerItem {
 		local.isDirectoryResolved = disk.isDirectoryResolved;
 		local._isSymbolicLink = disk.isSymbolicLink;
 		local._isReadonly = disk.isReadonly;
-		local._isError = disk.isError;
+		local.isError = disk.isError;
 
 		// Merge Children if resolved
 		if (mergingDirectories && disk.isDirectoryResolved) {
