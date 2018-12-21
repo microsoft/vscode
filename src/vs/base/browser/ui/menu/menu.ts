@@ -59,7 +59,7 @@ export class Menu extends ActionBar {
 	private menuDisposables: IDisposable[];
 	private scrollableElement: DomScrollableElement;
 	private menuElement: HTMLElement;
-	private scrollTopHold: number;
+	private scrollTopHold: number | undefined;
 
 	private readonly _onScroll: Emitter<void>;
 
