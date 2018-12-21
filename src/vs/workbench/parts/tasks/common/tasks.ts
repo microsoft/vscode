@@ -496,8 +496,10 @@ export abstract class CommonTask {
 	}
 
 	public clone(): Task {
-		return Objects.assign({}, <any>this);
+		return this.fromObject(Objects.assign({}, <any>this));
 	}
+
+	protected abstract fromObject(object: any): Task;
 
 	public getWorkspaceFolder(): IWorkspaceFolder | undefined {
 		return undefined;
@@ -635,6 +637,10 @@ export class CustomTask extends CommonTask {
 			return 'workspace';
 		}
 	}
+
+	protected fromObject(object: CustomTask): CustomTask {
+		return new CustomTask(object._id, object._source, object._label, object.type, object.command, object.hasDefinedMatchers, object.runOptions, object.configurationProperties);
+	}
 }
 
 export class ConfiguringTask extends CommonTask {
@@ -656,6 +662,11 @@ export class ConfiguringTask extends CommonTask {
 	public static is(value: any): value is ConfiguringTask {
 		return value instanceof ConfiguringTask;
 	}
+
+	protected fromObject(object: any): Task {
+		return object;
+	}
+
 }
 
 export class ContributedTask extends CommonTask {
@@ -720,6 +731,10 @@ export class ContributedTask extends CommonTask {
 	public getTelemetryKind(): string {
 		return 'extension';
 	}
+
+	protected fromObject(object: ContributedTask): ContributedTask {
+		return new ContributedTask(object._id, object._source, object._label, object.type, object.defines, object.command, object.hasDefinedMatchers, object.runOptions, object.configurationProperties);
+	}
 }
 
 export class InMemoryTask extends CommonTask {
@@ -742,6 +757,10 @@ export class InMemoryTask extends CommonTask {
 
 	public getTelemetryKind(): string {
 		return 'composite';
+	}
+
+	protected fromObject(object: InMemoryTask): InMemoryTask {
+		return new InMemoryTask(object._id, object._source, object._label, object.type, object.runOptions, object.configurationProperties);
 	}
 }
 
