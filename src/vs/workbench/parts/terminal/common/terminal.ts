@@ -102,7 +102,7 @@ export interface ITerminalConfiguration {
 	showExitAlert: boolean;
 	experimentalBufferImpl: 'JsArray' | 'TypedArray';
 	splitCwd: 'workspaceRoot' | 'initial' | 'inherited';
-	experimentalUseConpty: boolean;
+	windowsEnableConpty: boolean;
 }
 
 export interface ITerminalConfigHelper {

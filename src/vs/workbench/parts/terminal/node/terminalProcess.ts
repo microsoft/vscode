@@ -36,7 +36,7 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 		cols: number,
 		rows: number,
 		env: platform.IProcessEnvironment,
-		useConpty: boolean
+		windowsEnableConpty: boolean
 	) {
 		let shellName: string;
 		if (os.platform() === 'win32') {
@@ -53,7 +53,7 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 			env,
 			cols,
 			rows,
-			experimentalUseConpty: useConpty
+			experimentalUseConpty: windowsEnableConpty
 		};
 
 		try {
