@@ -21,22 +21,14 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ILogService, ConsoleLogMainService, MultiplexLogService, getLogLevel } from 'vs/platform/log/common/log';
 import { StateService } from 'vs/platform/state/node/stateService';
 import { IStateService } from 'vs/platform/state/common/state';
-import { IBackupMainService } from 'vs/platform/backup/common/backup';
-import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainService';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { IRequestService } from 'vs/platform/request/node/request';
 import { RequestService } from 'vs/platform/request/electron-main/requestService';
-import { IURLService } from 'vs/platform/url/common/url';
-import { URLService } from 'vs/platform/url/common/urlService';
 import * as fs from 'fs';
 import { CodeApplication } from 'vs/code/electron-main/app';
-import { HistoryMainService } from 'vs/platform/history/electron-main/historyMainService';
-import { IHistoryMainService } from 'vs/platform/history/common/history';
-import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
-import { IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
 import { localize } from 'vs/nls';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
@@ -47,24 +39,6 @@ import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { CommandLineDialogService } from 'vs/platform/dialogs/node/dialogService';
 import { createWaitMarkerFile } from 'vs/code/node/wait';
-
-function initServices(environmentService: IEnvironmentService, stateService: StateService): Promise<any> {
-
-	// Ensure paths for environment service exist
-	const environmentServiceInitialization = Promise.all([
-		environmentService.extensionsPath,
-		environmentService.nodeCachedDataDir,
-		environmentService.logsPath,
-		environmentService.globalStorageHome,
-		environmentService.workspaceStorageHome,
-		environmentService.backupHome
-	].map(path => path && mkdirp(path)));
-
-	// State service
-	const stateServiceInitialization = stateService.init();
-
-	return Promise.all([environmentServiceInitialization, stateServiceInitialization]);
-}
 
 class ExpectedError extends Error {
 	readonly isExpected = true;
@@ -332,18 +306,32 @@ function createServices(args: ParsedArgs, bufferLogService: BufferLogService): I
 
 	services.set(IEnvironmentService, environmentService);
 	services.set(ILogService, logService);
-	services.set(IWorkspacesMainService, new SyncDescriptor(WorkspacesMainService));
-	services.set(IHistoryMainService, new SyncDescriptor(HistoryMainService));
 	services.set(ILifecycleService, new SyncDescriptor(LifecycleService));
 	services.set(IStateService, new SyncDescriptor(StateService));
 	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
 	services.set(IRequestService, new SyncDescriptor(RequestService));
-	services.set(IURLService, new SyncDescriptor(URLService));
-	services.set(IBackupMainService, new SyncDescriptor(BackupMainService));
 	services.set(IDialogService, new SyncDescriptor(CommandLineDialogService));
 	services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService));
 
 	return new InstantiationService(services, true);
+}
+
+function initServices(environmentService: IEnvironmentService, stateService: StateService): Promise<any> {
+
+	// Ensure paths for environment service exist
+	const environmentServiceInitialization = Promise.all([
+		environmentService.extensionsPath,
+		environmentService.nodeCachedDataDir,
+		environmentService.logsPath,
+		environmentService.globalStorageHome,
+		environmentService.workspaceStorageHome,
+		environmentService.backupHome
+	].map(path => path && mkdirp(path)));
+
+	// State service
+	const stateServiceInitialization = stateService.init();
+
+	return Promise.all([environmentServiceInitialization, stateServiceInitialization]);
 }
 
 function main(): void {
