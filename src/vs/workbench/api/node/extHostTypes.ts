@@ -18,8 +18,8 @@ import { generateUuid } from 'vs/base/common/uuid';
 
 export class Disposable {
 
-	static from(...inDisposables: { dispose(): any }[]): Disposable {
-		let disposables: ReadonlyArray<{ dispose(): any }> | undefined = inDisposables;
+	static from(...inDisposables: ({ dispose(): any } | undefined)[]): Disposable {
+		let disposables: ReadonlyArray<({ dispose(): any } | undefined)> | undefined = inDisposables;
 		return new Disposable(function () {
 			if (disposables) {
 				for (const disposable of disposables) {
@@ -34,7 +34,7 @@ export class Disposable {
 
 	private _callOnDispose?: Function;
 
-	constructor(callOnDispose: Function) {
+	constructor(callOnDispose?: Function) {
 		this._callOnDispose = callOnDispose;
 	}
 
@@ -162,9 +162,9 @@ export class Position {
 		}
 	}
 
-	translate(change: { lineDelta?: number; characterDelta?: number; }): Position;
-	translate(lineDelta?: number, characterDelta?: number): Position;
-	translate(lineDeltaOrChange: number | undefined | { lineDelta?: number; characterDelta?: number; }, characterDelta: number = 0): Position {
+	translate(change: { lineDelta?: number; characterDelta?: number; } | null): Position;
+	translate(lineDelta?: number | null, characterDelta?: number | null): Position;
+	translate(lineDeltaOrChange: number | undefined | null | { lineDelta?: number; characterDelta?: number; }, characterDelta: number | null = 0): Position {
 
 		if (lineDeltaOrChange === null || characterDelta === null) {
 			throw illegalArgument();
@@ -186,9 +186,9 @@ export class Position {
 		return new Position(this.line + lineDelta, this.character + characterDelta);
 	}
 
-	with(change: { line?: number; character?: number; }): Position;
-	with(line?: number, character?: number): Position;
-	with(lineOrChange: number | undefined | { line?: number; character?: number; }, character: number = this.character): Position {
+	with(change: { line?: number; character?: number; } | null): Position;
+	with(line?: number | null, character?: number): Position;
+	with(lineOrChange: number | undefined | null | { line?: number; character?: number; }, character: number = this.character): Position {
 
 		if (lineOrChange === null || character === null) {
 			throw illegalArgument();
@@ -241,9 +241,9 @@ export class Range {
 		return this._end;
 	}
 
-	constructor(start: Position, end: Position);
-	constructor(startLine: number, startColumn: number, endLine: number, endColumn: number);
-	constructor(startLineOrStart: number | Position, startColumnOrEnd: number | Position, endLine?: number, endColumn?: number) {
+	constructor(start?: Position | null, end?: Position | null);
+	constructor(startLine?: number | null, startColumn?: number | null, endLine?: number | null, endColumn?: number | null);
+	constructor(startLineOrStart?: number | Position | null, startColumnOrEnd?: number | Position | null, endLine?: number, endColumn?: number) {
 		let start: Position | undefined;
 		let end: Position | undefined;
 
@@ -289,9 +289,9 @@ export class Range {
 		return this._start.isEqual(other._start) && this._end.isEqual(other._end);
 	}
 
-	intersection(other: Range): Range | undefined {
-		let start = Position.Max(other.start, this._start);
-		let end = Position.Min(other.end, this._end);
+	intersection(other?: Range | null): Range | undefined {
+		let start = Position.Max(other!.start, this._start);
+		let end = Position.Min(other!.end, this._end);
 		if (start.isAfter(end)) {
 			// this happens when there is no overlap:
 			// |-----|
@@ -320,9 +320,9 @@ export class Range {
 		return this._start.line === this._end.line;
 	}
 
-	with(change: { start?: Position, end?: Position }): Range;
-	with(start?: Position, end?: Position): Range;
-	with(startOrChange: Position | undefined | { start?: Position, end?: Position }, end: Position = this.end): Range {
+	with(change?: { start?: Position, end?: Position } | null): Range;
+	with(start?: Position | null, end?: Position | null): Range;
+	with(startOrChange?: Position | undefined | null | { start?: Position, end?: Position }, end: Position | null = this.end): Range {
 
 		if (startOrChange === null || end === null) {
 			throw illegalArgument();
@@ -467,11 +467,14 @@ export class TextEdit {
 		this._range = value;
 	}
 
-	get newText(): string {
+	get newText(): string | null {
 		return this._newText || '';
 	}
 
-	set newText(value: string) {
+	set newText(value: string | null) {
+		if (value === null) {
+			value = '';
+		}
 		if (value && typeof value !== 'string') {
 			throw illegalArgument('newText');
 		}
@@ -489,7 +492,7 @@ export class TextEdit {
 		this._newEol = value;
 	}
 
-	constructor(range: Range, newText: string) {
+	constructor(range: Range, newText: string | null = '') {
 		this.range = range;
 		this.newText = newText;
 	}
@@ -561,7 +564,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 		return false;
 	}
 
-	set(uri: URI, edits: TextEdit[]): void {
+	set(uri: URI, edits?: TextEdit[]): void {
 		if (!edits) {
 			// remove all text edits for `uri`
 			for (let i = 0; i < this._edits.length; i++) {
@@ -1325,8 +1328,8 @@ export class DocumentLink {
 
 	target: URI;
 
-	constructor(range: Range, target: URI) {
-		if (target && !(target instanceof URI)) {
+	constructor(range: Range | null, target: URI | null) {
+		if (target === null || (target && !(target instanceof URI))) {
 			throw illegalArgument('target');
 		}
 		if (!Range.isRange(range) || range.isEmpty) {

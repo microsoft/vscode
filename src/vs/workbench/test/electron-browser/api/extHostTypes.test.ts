@@ -248,13 +248,13 @@ suite('ExtHostTypes', function () {
 
 	test('Range, intersection', function () {
 		let range = new types.Range(1, 1, 2, 11);
-		let res: types.Range;
+		let res: types.Range | undefined;
 
 		res = range.intersection(range);
-		assert.equal(res.start.line, 1);
-		assert.equal(res.start.character, 1);
-		assert.equal(res.end.line, 2);
-		assert.equal(res.end.character, 11);
+		assert.equal(res!.start.line, 1);
+		assert.equal(res!.start.character, 1);
+		assert.equal(res!.end.line, 2);
+		assert.equal(res!.end.character, 11);
 
 		res = range.intersection(new types.Range(2, 12, 4, 0));
 		assert.equal(res, undefined);
@@ -263,14 +263,14 @@ suite('ExtHostTypes', function () {
 		assert.equal(res, undefined);
 
 		res = range.intersection(new types.Range(0, 0, 1, 1));
-		assert.ok(res.isEmpty);
-		assert.equal(res.start.line, 1);
-		assert.equal(res.start.character, 1);
+		assert.ok(res!.isEmpty);
+		assert.equal(res!.start.line, 1);
+		assert.equal(res!.start.character, 1);
 
 		res = range.intersection(new types.Range(2, 11, 61, 1));
-		assert.ok(res.isEmpty);
-		assert.equal(res.start.line, 2);
-		assert.equal(res.start.character, 11);
+		assert.ok(res!.isEmpty);
+		assert.equal(res!.start.line, 2);
+		assert.equal(res!.start.character, 11);
 
 		assert.throws(() => range.intersection(null));
 		assert.throws(() => range.intersection(undefined));
@@ -395,17 +395,17 @@ suite('ExtHostTypes', function () {
 		}
 
 		const [first, second, third, fourth] = all;
-		assert.equal(first[0].toString(), 'foo:a');
+		assert.equal(first[0]!.toString(), 'foo:a');
 		assert.ok(!isFileChange(first));
 		assert.ok(isTextChange(first) && first[1].length === 1);
 
-		assert.equal(second[0].toString(), 'foo:a');
+		assert.equal(second[0]!.toString(), 'foo:a');
 		assert.ok(isFileChange(second));
 
-		assert.equal(third[0].toString(), 'foo:a');
+		assert.equal(third[0]!.toString(), 'foo:a');
 		assert.ok(isTextChange(third) && third[1].length === 1);
 
-		assert.equal(fourth[0].toString(), 'foo:b');
+		assert.equal(fourth[0]!.toString(), 'foo:b');
 		assert.ok(!isFileChange(fourth));
 		assert.ok(isTextChange(fourth) && fourth[1].length === 1);
 	});
