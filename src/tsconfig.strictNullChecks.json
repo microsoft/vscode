@@ -154,6 +154,7 @@
 		"./vs/base/test/common/uri.test.ts",
 		"./vs/base/test/common/utils.ts",
 		"./vs/base/test/common/uuid.test.ts",
+		"./vs/base/test/node/config.test.ts",
 		"./vs/base/test/node/console.test.ts",
 		"./vs/base/test/node/decoder.test.ts",
 		"./vs/base/test/node/encoding/encoding.test.ts",
