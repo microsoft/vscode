@@ -104,7 +104,7 @@ export class OpenEditorsView extends ViewletPanel {
 
 	private registerUpdateEvents(): void {
 		const updateWholeList = () => {
-			if (!this.isVisible() || !this.list || !this.isExpanded()) {
+			if (!this.isBodyVisible() || !this.list) {
 				this.needsRefresh = true;
 				return;
 			}
@@ -118,7 +118,7 @@ export class OpenEditorsView extends ViewletPanel {
 				if (this.listRefreshScheduler.isScheduled()) {
 					return;
 				}
-				if (!this.isVisible() || !this.list || !this.isExpanded()) {
+				if (!this.isBodyVisible() || !this.list) {
 					this.needsRefresh = true;
 					return;
 				}
@@ -284,6 +284,13 @@ export class OpenEditorsView extends ViewletPanel {
 		}));
 
 		this.listRefreshScheduler.schedule(0);
+
+		this.disposables.push(this.onDidChangeBodyVisibility(visible => {
+			this.updateListVisibility(visible);
+			if (visible && this.needsRefresh) {
+				this.listRefreshScheduler.schedule(0);
+			}
+		}));
 	}
 
 	public getActions(): IAction[] {
@@ -292,24 +299,6 @@ export class OpenEditorsView extends ViewletPanel {
 			this.instantiationService.createInstance(SaveAllAction, SaveAllAction.ID, SaveAllAction.LABEL),
 			this.instantiationService.createInstance(CloseAllEditorsAction, CloseAllEditorsAction.ID, CloseAllEditorsAction.LABEL)
 		];
-	}
-
-	public setExpanded(expanded: boolean): boolean {
-		const changed = super.setExpanded(expanded);
-		this.updateListVisibility(expanded);
-		if (expanded && this.needsRefresh) {
-			this.listRefreshScheduler.schedule(0);
-		}
-
-		return changed;
-	}
-
-	public setVisible(visible: boolean): void {
-		super.setVisible(visible);
-		this.updateListVisibility(visible && this.isExpanded());
-		if (visible && this.needsRefresh) {
-			this.listRefreshScheduler.schedule(0);
-		}
 	}
 
 	public focus(): void {

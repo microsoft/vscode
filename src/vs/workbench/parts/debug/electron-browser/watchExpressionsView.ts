@@ -81,14 +81,14 @@ export class WatchExpressionsView extends ViewletPanel {
 		this.disposables.push(this.tree.onContextMenu(e => this.onContextMenu(e)));
 		this.disposables.push(this.tree.onMouseDblClick(e => this.onMouseDblClick(e)));
 		this.disposables.push(this.debugService.getModel().onDidChangeWatchExpressions(we => {
-			if (!this.isExpanded() || !this.isVisible()) {
+			if (!this.isBodyVisible()) {
 				this.needsRefresh = true;
 			} else {
 				this.tree.refresh();
 			}
 		}));
 		this.disposables.push(this.debugService.getViewModel().onDidFocusStackFrame(() => {
-			if (!this.isExpanded() || !this.isVisible()) {
+			if (!this.isBodyVisible()) {
 				this.needsRefresh = true;
 				return;
 			}
@@ -98,26 +98,16 @@ export class WatchExpressionsView extends ViewletPanel {
 			}
 		}));
 		this.disposables.push(variableSetEmitter.event(() => this.tree.refresh()));
+
+		this.disposables.push(this.onDidChangeBodyVisibility(visible => {
+			if (visible && this.needsRefresh) {
+				this.onWatchExpressionsUpdatedScheduler.schedule();
+			}
+		}));
 	}
 
 	layoutBody(size: number): void {
 		this.tree.layout(size);
-	}
-
-	setExpanded(expanded: boolean): boolean {
-		const changed = super.setExpanded(expanded);
-		if (expanded && this.needsRefresh) {
-			this.onWatchExpressionsUpdatedScheduler.schedule();
-		}
-
-		return changed;
-	}
-
-	setVisible(visible: boolean): void {
-		super.setVisible(visible);
-		if (visible && this.needsRefresh) {
-			this.onWatchExpressionsUpdatedScheduler.schedule();
-		}
 	}
 
 	private onMouseDblClick(e: ITreeMouseEvent<IExpression>): void {

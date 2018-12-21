@@ -337,6 +337,32 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 		this._register(this.onDidFocus(() => this.viewletFocused.set(true)));
 		this._register(this.onDidBlur(() => this.viewletFocused.set(false)));
+
+		this._register(this.onDidChangeVisibility(visible => this.onVisibilityChanged(visible)));
+	}
+
+	private onVisibilityChanged(visible: boolean): void {
+		this.viewletVisible.set(visible);
+		if (visible) {
+			if (this.changedWhileHidden) {
+				// Render if results changed while viewlet was hidden - #37818
+				this.refreshAndUpdateCount();
+				this.changedWhileHidden = false;
+			}
+		}
+
+		// Enable highlights if there are searchresults
+		if (this.viewModel) {
+			this.viewModel.searchResult.toggleHighlights(visible);
+		}
+
+		// Open focused element from results in case the editor area is otherwise empty
+		if (visible && !this.editorService.activeEditor) {
+			let focus = this.tree.getFocus();
+			if (focus) {
+				this.onFocus(focus, true);
+			}
+		}
 	}
 
 	public get searchAndReplaceWidget(): SearchWidget {
@@ -742,32 +768,6 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			this.tree.setSelection([prev]);
 			this.tree.reveal(prev);
 			this.selectCurrentMatchEmitter.fire();
-		}
-	}
-
-	public setVisible(visible: boolean): void {
-		this.viewletVisible.set(visible);
-		if (visible) {
-			if (this.changedWhileHidden) {
-				// Render if results changed while viewlet was hidden - #37818
-				this.refreshAndUpdateCount();
-				this.changedWhileHidden = false;
-			}
-		}
-
-		super.setVisible(visible);
-
-		// Enable highlights if there are searchresults
-		if (this.viewModel) {
-			this.viewModel.searchResult.toggleHighlights(visible);
-		}
-
-		// Open focused element from results in case the editor area is otherwise empty
-		if (visible && !this.editorService.activeEditor) {
-			let focus = this.tree.getFocus();
-			if (focus) {
-				this.onFocus(focus, true);
-			}
 		}
 	}
 

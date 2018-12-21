@@ -58,7 +58,7 @@ export abstract class ViewletPanel extends Panel implements IView {
 	protected _onDidChangeTitleArea = new Emitter<void>();
 	readonly onDidChangeTitleArea: Event<void> = this._onDidChangeTitleArea.event;
 
-	private _isVisible: boolean = true;
+	private _isVisible: boolean = false;
 	readonly id: string;
 	readonly title: string;
 
@@ -93,6 +93,10 @@ export abstract class ViewletPanel extends Panel implements IView {
 
 	isVisible(): boolean {
 		return this._isVisible;
+	}
+
+	isBodyVisible(): boolean {
+		return this._isVisible && this.isExpanded();
 	}
 
 	setExpanded(expanded: boolean): boolean {

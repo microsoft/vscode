@@ -456,7 +456,7 @@ export class LoadedScriptsView extends ViewletPanel {
 					case 'changed':
 						sessionRoot = root.add(session);
 						sessionRoot.addPath(event.source);
-						if (this.isVisible) {
+						if (this.isBodyVisible()) {
 							this.changeScheduler.schedule();
 						} else {
 							this.treeNeedsRefreshOnVisible = true;
@@ -468,7 +468,7 @@ export class LoadedScriptsView extends ViewletPanel {
 					case 'removed':
 						sessionRoot = root.find(session);
 						if (sessionRoot && sessionRoot.removePath(event.source)) {
-							if (this.isVisible) {
+							if (this.isBodyVisible()) {
 								this.changeScheduler.schedule();
 							} else {
 								this.treeNeedsRefreshOnVisible = true;
@@ -492,35 +492,17 @@ export class LoadedScriptsView extends ViewletPanel {
 		}));
 
 		this.changeScheduler.schedule(0);
+
+		this.disposables.push(this.onDidChangeBodyVisibility(visible => {
+			if (visible && this.treeNeedsRefreshOnVisible) {
+				this.changeScheduler.schedule();
+			}
+		}));
 	}
 
 	layoutBody(size: number): void {
 		this.tree.layout(size);
 	}
-
-	setExpanded(expanded: boolean): boolean {
-		const changed = super.setExpanded(expanded);
-		if (expanded && this.treeNeedsRefreshOnVisible) {
-			this.changeScheduler.schedule();
-		}
-
-		return changed;
-	}
-
-	setVisible(visible: boolean): void {
-		super.setVisible(visible);
-		if (visible && this.treeNeedsRefreshOnVisible) {
-			this.changeScheduler.schedule();
-		}
-	}
-
-	/*
-	private tryToExpand(element: LoadedScriptsItem): void {
-		try {
-			this.tree.expand(element);
-		} catch (e) { }
-	}
-	*/
 
 	dispose(): void {
 		this.tree = dispose(this.tree);

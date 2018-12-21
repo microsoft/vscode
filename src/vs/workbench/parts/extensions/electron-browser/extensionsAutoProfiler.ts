@@ -163,7 +163,7 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 
 		// prompt: only when you can file an issue
 		const reportAction = new ReportExtensionIssueAction({
-			marketplaceInfo: this._anotherExtensionService.local.filter(value => CanonicalExtensionIdentifier.equals(value.id, extension.identifier))[0],
+			marketplaceInfo: this._anotherExtensionService.local.filter(value => CanonicalExtensionIdentifier.equals(value.identifier.id, extension.identifier))[0],
 			description: extension,
 			unresponsiveProfile: profile,
 			status: undefined,

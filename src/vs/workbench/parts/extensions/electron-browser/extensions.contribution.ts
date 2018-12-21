@@ -247,7 +247,7 @@ jsonRegistry.registerSchema(ExtensionsConfigurationSchemaId, ExtensionsConfigura
 // Register Commands
 CommandsRegistry.registerCommand('_extensions.manage', (accessor: ServicesAccessor, extensionId: string) => {
 	const extensionService = accessor.get(IExtensionsWorkbenchService);
-	const extension = extensionService.local.filter(e => areSameExtensions(e, { id: extensionId }));
+	const extension = extensionService.local.filter(e => areSameExtensions(e.identifier, { id: extensionId }));
 	if (extension.length === 1) {
 		extensionService.open(extension[0]);
 	}

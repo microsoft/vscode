@@ -1043,8 +1043,7 @@ class TaskService extends Disposable implements ITaskService {
 			};
 			let content = [
 				'{',
-				'\t// See https://go.microsoft.com/fwlink/?LinkId=733558',
-				'\t// for the documentation about the tasks.json format',
+				nls.localize('tasksJsonComment', '\t// See https://go.microsoft.com/fwlink/?LinkId=733558 \n\t// for the documentation about the tasks.json format'),
 			].join('\n') + JSON.stringify(value, null, '\t').substr(1);
 			let editorConfig = this.configurationService.getValue<any>();
 			if (editorConfig.editor.insertSpaces) {

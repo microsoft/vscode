@@ -62,14 +62,18 @@ export class CommentsPanel extends Panel {
 		this.createTree();
 		this.createMessageBox(container);
 
-		this.commentService.onDidSetAllCommentThreads(this.onAllCommentsChanged, this);
-		this.commentService.onDidUpdateCommentThreads(this.onCommentsUpdated, this);
+		this._register(this.commentService.onDidSetAllCommentThreads(this.onAllCommentsChanged, this));
+		this._register(this.commentService.onDidUpdateCommentThreads(this.onCommentsUpdated, this));
 
 		const styleElement = dom.createStyleSheet(parent);
 		this.applyStyles(styleElement);
-		this.themeService.onThemeChange(_ => {
-			this.applyStyles(styleElement);
-		});
+		this._register(this.themeService.onThemeChange(_ => this.applyStyles(styleElement)));
+
+		this._register(this.onDidChangeVisibility(visible => {
+			if (visible) {
+				this.refresh();
+			}
+		}));
 
 		this.render();
 	}
@@ -230,16 +234,6 @@ export class CommentsPanel extends Panel {
 		}
 
 		return true;
-	}
-
-	public setVisible(visible: boolean): void {
-		const wasVisible = this.isVisible();
-		super.setVisible(visible);
-		if (this.isVisible()) {
-			if (!wasVisible) {
-				this.refresh();
-			}
-		}
 	}
 
 	private refresh(): void {

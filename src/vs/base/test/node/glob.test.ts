@@ -738,24 +738,24 @@ suite('Glob', () => {
 	});
 
 	test('falsy expression/pattern', function () {
-		assert.strictEqual(glob.match(null, 'foo'), false);
+		assert.strictEqual(glob.match(null!, 'foo'), false);
 		assert.strictEqual(glob.match('', 'foo'), false);
-		assert.strictEqual(glob.parse(null)('foo'), false);
+		assert.strictEqual(glob.parse(null!)('foo'), false);
 		assert.strictEqual(glob.parse('')('foo'), false);
 	});
 
 	test('falsy path', function () {
-		assert.strictEqual(glob.parse('foo')(null), false);
+		assert.strictEqual(glob.parse('foo')(null!), false);
 		assert.strictEqual(glob.parse('foo')(''), false);
-		assert.strictEqual(glob.parse('**/*.j?')(null), false);
+		assert.strictEqual(glob.parse('**/*.j?')(null!), false);
 		assert.strictEqual(glob.parse('**/*.j?')(''), false);
-		assert.strictEqual(glob.parse('**/*.foo')(null), false);
+		assert.strictEqual(glob.parse('**/*.foo')(null!), false);
 		assert.strictEqual(glob.parse('**/*.foo')(''), false);
-		assert.strictEqual(glob.parse('**/foo')(null), false);
+		assert.strictEqual(glob.parse('**/foo')(null!), false);
 		assert.strictEqual(glob.parse('**/foo')(''), false);
-		assert.strictEqual(glob.parse('{**/baz,**/foo}')(null), false);
+		assert.strictEqual(glob.parse('{**/baz,**/foo}')(null!), false);
 		assert.strictEqual(glob.parse('{**/baz,**/foo}')(''), false);
-		assert.strictEqual(glob.parse('{**/*.baz,**/*.foo}')(null), false);
+		assert.strictEqual(glob.parse('{**/*.baz,**/*.foo}')(null!), false);
 		assert.strictEqual(glob.parse('{**/*.baz,**/*.foo}')(''), false);
 	});
 
@@ -808,7 +808,7 @@ suite('Glob', () => {
 		}, ['foo', 'bar', 'baz'], [
 				['bar/foo', '**/foo/**'],
 				['foo/bar', '{**/bar/**,**/baz/**}'],
-				['bar/nope', null]
+				['bar/nope', null!]
 			]);
 
 		const siblings = ['baz', 'baz.zip', 'nope'];
@@ -817,12 +817,12 @@ suite('Glob', () => {
 			'**/foo/**': { when: '$(basename).zip' },
 			'**/bar/**': true
 		}, ['bar'], [
-				['bar/foo', null],
-				['bar/foo/baz', null],
-				['bar/foo/nope', null],
+				['bar/foo', null!],
+				['bar/foo/baz', null!],
+				['bar/foo/nope', null!],
 				['foo/bar', '**/bar/**'],
 			], [
-				null,
+				null!,
 				hasSibling,
 				hasSibling
 			]);
@@ -832,7 +832,7 @@ suite('Glob', () => {
 		const parsed = glob.parse(<glob.IExpression>pattern, { trimForExclusions: true });
 		assert.deepStrictEqual(glob.getBasenameTerms(parsed), basenameTerms);
 		matches.forEach(([text, result], i) => {
-			assert.strictEqual(parsed(text, null, siblingsFns[i]), result);
+			assert.strictEqual(parsed(text, null!, siblingsFns[i]), result);
 		});
 	}
 
@@ -914,7 +914,7 @@ suite('Glob', () => {
 				[nativeSep('bar/foo/bar'), '**/foo/bar/**'],
 				// Not supported
 				// [nativeSep('foo/bar/bar'), '{**/bar/bar/**,**/baz/bar/**}'],
-				[nativeSep('/foo/bar/nope'), null]
+				[nativeSep('/foo/bar/nope'), null!]
 			]);
 
 		const siblings = ['baz', 'baz.zip', 'nope'];
@@ -923,12 +923,12 @@ suite('Glob', () => {
 			'**/foo/123/**': { when: '$(basename).zip' },
 			'**/bar/123/**': true
 		}, ['*/bar/123'], [
-				[nativeSep('bar/foo/123'), null],
-				[nativeSep('bar/foo/123/baz'), null],
-				[nativeSep('bar/foo/123/nope'), null],
+				[nativeSep('bar/foo/123'), null!],
+				[nativeSep('bar/foo/123/baz'), null!],
+				[nativeSep('bar/foo/123/nope'), null!],
 				[nativeSep('foo/bar/123'), '**/bar/123/**'],
 			], [
-				null,
+				null!,
 				hasSibling,
 				hasSibling
 			]);
@@ -938,7 +938,7 @@ suite('Glob', () => {
 		const parsed = glob.parse(<glob.IExpression>pattern, { trimForExclusions: true });
 		assert.deepStrictEqual(glob.getPathTerms(parsed), pathTerms);
 		matches.forEach(([text, result], i) => {
-			assert.strictEqual(parsed(text, null, siblingsFns[i]), result);
+			assert.strictEqual(parsed(text, null!, siblingsFns[i]), result);
 		});
 	}
 

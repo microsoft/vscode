@@ -180,7 +180,6 @@ export class HistoryMainService implements IHistoryMainService {
 		// out of sync quickly over time. the attempted fix is to always set the list fresh
 		// from our MRU history data. So we clear the documents first and then set the documents
 		// again.
-
 		app.clearRecentDocuments();
 
 		const mru = this.getRecentlyOpened();
@@ -257,6 +256,7 @@ export class HistoryMainService implements IHistoryMainService {
 		if (workspaceOrFile instanceof URI) {
 			return getComparisonKey(workspaceOrFile);
 		}
+
 		return workspaceOrFile.id;
 	}
 
@@ -286,6 +286,7 @@ export class HistoryMainService implements IHistoryMainService {
 					}
 				}
 			}
+
 			if (Array.isArray(storedRecents.files2)) {
 				for (const file of storedRecents.files2) {
 					if (typeof file === 'string') {
@@ -300,11 +301,13 @@ export class HistoryMainService implements IHistoryMainService {
 				}
 			}
 		}
+
 		return result;
 	}
 
 	private saveRecentlyOpened(recent: IRecentlyOpened): void {
 		const serialized: ISerializedRecentlyOpened = { workspaces2: [], files2: [] };
+
 		for (const workspace of recent.workspaces) {
 			if (isSingleFolderWorkspaceIdentifier(workspace)) {
 				serialized.workspaces2.push(workspace.toString());
@@ -312,9 +315,11 @@ export class HistoryMainService implements IHistoryMainService {
 				serialized.workspaces2.push(workspace);
 			}
 		}
+
 		for (const file of recent.files) {
 			serialized.files2.push(file.toString());
 		}
+
 		this.stateService.setItem(HistoryMainService.recentlyOpenedStorageKey, serialized);
 	}
 

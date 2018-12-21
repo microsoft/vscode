@@ -1470,32 +1470,32 @@ namespace CustomTask {
 		}
 	}
 
-	export function createCustomTask(contributedTask: Tasks.ContributedTask, configuredProps: Tasks.ConfigurationProperties & { _id: string, _source: Tasks.WorkspaceTaskSource, taskLoadMessages: string[] | undefined }): Tasks.CustomTask {
+	export function createCustomTask(contributedTask: Tasks.ContributedTask, configuredProps: Tasks.ConfiguringTask | Tasks.CustomTask): Tasks.CustomTask {
 		let result: Tasks.CustomTask = new Tasks.CustomTask(
 			configuredProps._id,
 			Objects.assign({}, configuredProps._source, { customizes: contributedTask.defines }),
-			configuredProps.name || contributedTask._label,
+			configuredProps.configurationProperties.name || contributedTask._label,
 			Tasks.CUSTOMIZED_TASK_TYPE,
 			contributedTask.command,
 			false,
 			contributedTask.runOptions,
 			{
-				name: configuredProps.name || contributedTask.configurationProperties.name,
-				identifier: configuredProps.identifier || contributedTask.configurationProperties.identifier,
+				name: configuredProps.configurationProperties.name || contributedTask.configurationProperties.name,
+				identifier: configuredProps.configurationProperties.identifier || contributedTask.configurationProperties.identifier,
 			}
 		);
 		result.addTaskLoadMessages(configuredProps.taskLoadMessages);
 		let resultConfigProps: Tasks.ConfigurationProperties = result.configurationProperties;
 
-		assignProperty(resultConfigProps, configuredProps, 'group');
-		assignProperty(resultConfigProps, configuredProps, 'groupType');
-		assignProperty(resultConfigProps, configuredProps, 'isBackground');
-		assignProperty(resultConfigProps, configuredProps, 'dependsOn');
-		assignProperty(resultConfigProps, configuredProps, 'problemMatchers');
-		assignProperty(resultConfigProps, configuredProps, 'promptOnClose');
+		assignProperty(resultConfigProps, configuredProps.configurationProperties, 'group');
+		assignProperty(resultConfigProps, configuredProps.configurationProperties, 'groupType');
+		assignProperty(resultConfigProps, configuredProps.configurationProperties, 'isBackground');
+		assignProperty(resultConfigProps, configuredProps.configurationProperties, 'dependsOn');
+		assignProperty(resultConfigProps, configuredProps.configurationProperties, 'problemMatchers');
+		assignProperty(resultConfigProps, configuredProps.configurationProperties, 'promptOnClose');
 		result.command.presentation = CommandConfiguration.PresentationOptions.assignProperties(
-			result.command.presentation!, configuredProps.presentation)!;
-		result.command.options = CommandOptions.assignProperties(result.command.options, configuredProps.options);
+			result.command.presentation!, configuredProps.configurationProperties.presentation)!;
+		result.command.options = CommandOptions.assignProperties(result.command.options, configuredProps.configurationProperties.options);
 
 		let contributedConfigProps: Tasks.ConfigurationProperties = contributedTask.configurationProperties;
 		fillProperty(resultConfigProps, contributedConfigProps, 'group');
@@ -1958,7 +1958,7 @@ export function parse(workspaceFolder: IWorkspaceFolder, platform: Platform, con
 	}
 }
 
-export function createCustomTask(contributedTask: Tasks.ContributedTask, configuredProps: Tasks.ConfigurationProperties & { _id: string; _source: Tasks.WorkspaceTaskSource, taskLoadMessages: string[] | undefined }): Tasks.CustomTask {
+export function createCustomTask(contributedTask: Tasks.ContributedTask, configuredProps: Tasks.ConfiguringTask | Tasks.CustomTask): Tasks.CustomTask {
 	return CustomTask.createCustomTask(contributedTask, configuredProps);
 }
 

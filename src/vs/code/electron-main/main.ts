@@ -63,20 +63,26 @@ async function cleanupOlderLogs(environmentService: EnvironmentService): Promise
 	await Promise.all(toDelete.map(name => rimraf(path.join(logsRoot, name))));
 }
 
-function createPaths(environmentService: IEnvironmentService): Promise<any> {
-	const paths = [
+function initServices(environmentService: IEnvironmentService, stateService: StateService): Promise<any> {
+
+	// Ensure paths for environment service exist
+	const environmentServiceInitialization = Promise.all([
 		environmentService.extensionsPath,
 		environmentService.nodeCachedDataDir,
 		environmentService.logsPath,
 		environmentService.globalStorageHome,
-		environmentService.workspaceStorageHome
-	];
+		environmentService.workspaceStorageHome,
+		environmentService.backupHome
+	].map(path => path && mkdirp(path)));
 
-	return Promise.all(paths.map(path => path && mkdirp(path)));
+	// State service
+	const stateServiceInitialization = stateService.init();
+
+	return Promise.all([environmentServiceInitialization, stateServiceInitialization]);
 }
 
 class ExpectedError extends Error {
-	public readonly isExpected = true;
+	readonly isExpected = true;
 }
 
 function setupIPC(accessor: ServicesAccessor): Promise<Server> {
@@ -129,7 +135,15 @@ function setupIPC(accessor: ServicesAccessor): Promise<Server> {
 
 			return server;
 		}, err => {
+
+			// Handle unexpected errors (the only expected error is EADDRINUSE that
+			// indicates a second instance of Code is running)
 			if (err.code !== 'EADDRINUSE') {
+
+				// Show a dialog for errors that can be resolved by the user
+				handleStartupDataDirError(environmentService, err);
+
+				// Any other runtime error is just printed to the console
 				return Promise.reject<Server>(err);
 			}
 
@@ -241,6 +255,15 @@ function showStartupWarningDialog(message: string, detail: string): void {
 	});
 }
 
+function handleStartupDataDirError(environmentService: IEnvironmentService, error): void {
+	if (error.code === 'EACCES' || error.code === 'EPERM') {
+		showStartupWarningDialog(
+			localize('startupDataDirError', "Unable to write program user data."),
+			localize('startupDataDirErrorDetail', "Please make sure the directory {0} is writeable.", environmentService.userDataPath)
+		);
+	}
+}
+
 function quit(accessor: ServicesAccessor, reason?: ExpectedError | Error): void {
 	const logService = accessor.get(ILogService);
 	const lifecycleService = accessor.get(ILifecycleService);
@@ -292,13 +315,20 @@ function startup(args: ParsedArgs): void {
 	const instantiationService = createServices(args, bufferLogService);
 	instantiationService.invokeFunction(accessor => {
 		const environmentService = accessor.get(IEnvironmentService);
+		const stateService = accessor.get(IStateService);
 
 		// Patch `process.env` with the instance's environment
 		const instanceEnvironment = patchEnvironment(environmentService);
 
 		// Startup
-		return createPaths(environmentService)
-			.then(() => instantiationService.invokeFunction(setupIPC))
+		return initServices(environmentService, stateService as StateService)
+			.then(() => instantiationService.invokeFunction(setupIPC), error => {
+
+				// Show a dialog for errors that can be resolved by the user
+				handleStartupDataDirError(environmentService, error);
+
+				return Promise.reject(error);
+			})
 			.then(mainIpcServer => {
 				bufferLogService.logger = createSpdLogService('main', bufferLogService.getLevel(), environmentService.logsPath);
 

@@ -14,7 +14,6 @@ import { IDisposable, toDisposable, dispose, Disposable } from 'vs/base/common/l
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 function animate(drawFn: () => void): IDisposable {
 	let disposed = false;
@@ -35,7 +34,7 @@ function animate(drawFn: () => void): IDisposable {
 	});
 }
 
-function makeItSnow(canvas: HTMLCanvasElement, dark: boolean): IDisposable {
+function makeItSnow(canvas: HTMLCanvasElement): IDisposable {
 	const ctx = canvas.getContext('2d')!;
 	const flakes: any[] = [];
 
@@ -51,7 +50,7 @@ function makeItSnow(canvas: HTMLCanvasElement, dark: boolean): IDisposable {
 				vx: (-(0.5 * distance)) * window.devicePixelRatio,
 				vy: (0.2 + 1.5 * distance) * window.devicePixelRatio,
 				size: (2 + 2 * distance) * window.devicePixelRatio,
-				color: dark ? (170 + distance * 50) : (200 - distance * 50)
+				color: 170 + distance * 50
 			});
 		}
 
@@ -90,8 +89,7 @@ export class HappyHolidaysAction extends Action {
 
 	constructor(
 		id: string,
-		label: string,
-		@IThemeService private themeService: IThemeService
+		label: string
 	) {
 		super(id, label, '', true);
 	}
@@ -111,7 +109,7 @@ export class HappyHolidaysAction extends Action {
 		canvas.height = document.body.clientHeight * window.devicePixelRatio;
 		canvas.style.width = `${document.body.clientWidth}px`;
 		canvas.style.height = `${document.body.clientHeight}px`;
-		disposables.push(makeItSnow(canvas, this.themeService.getTheme().type !== 'light'));
+		disposables.push(makeItSnow(canvas));
 
 		const text = append(el, $('.happy-holidays-text'));
 		text.innerText = `The VS Code team wishes you a great Holiday season!`;
