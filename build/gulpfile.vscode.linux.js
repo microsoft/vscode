@@ -204,7 +204,6 @@ function prepareSnapPackage(arch) {
 			.pipe(rename('snap/snapcraft.yaml'));
 
 		const snapUpdate = gulp.src('resources/linux/snap/snapUpdate.sh', { base: '.' })
-			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(rename(`usr/share/${product.applicationName}/snapUpdate.sh`));
 
 		const electronLaunch = gulp.src('resources/linux/snap/electron-launch', { base: '.' })

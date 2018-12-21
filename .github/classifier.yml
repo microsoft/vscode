@@ -12,7 +12,7 @@
         cli: [],
         color-palette: [],
         config: [],
-        css-less-scss: [ aeschli ],
+        css-less-scss: [],
         debug-console: [],
         debug: {
             assignees: [ isidorn ],
@@ -79,7 +79,7 @@
         git: [ joaomoreno ],
         grammar: [],
         hot-exit: [],
-        html: [ aeschli ],
+        html: [],
         install-update: [],
         integrated-terminal: [ Tyriar ],
         integration-test: [],

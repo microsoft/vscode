@@ -15,7 +15,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListEvent, IKeyboardNavigationLabelProvider, IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { VIEWLET_ID, VIEW_CONTAINER } from 'vs/workbench/parts/scm/common/scm';
-import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
+import { ResourceLabels, IResourceLabel, IResourceLabelsContainer } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { ISCMService, ISCMRepository, ISCMResourceGroup, ISCMResource, InputValidationType } from 'vs/workbench/services/scm/common/scm';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -829,7 +829,7 @@ export class RepositoryPanel extends ViewletPanel {
 		const triggerValidation = () => validationDelayer.trigger(validate);
 
 		this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, { flexibleHeight: true });
-		this.inputBox.setEnabled(this.isVisible() && this.isExpanded());
+		this.inputBox.setEnabled(this.isBodyVisible());
 		this.disposables.push(attachInputBoxStyler(this.inputBox, this.themeService));
 		this.disposables.push(this.inputBox);
 
@@ -870,7 +870,7 @@ export class RepositoryPanel extends ViewletPanel {
 
 		const actionItemProvider = (action: IAction) => this.getActionItem(action);
 
-		this.listLabels = this.instantiationService.createInstance(ResourceLabels);
+		this.listLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility } as IResourceLabelsContainer);
 		this.disposables.push(this.listLabels);
 
 		const renderers = [
@@ -898,6 +898,7 @@ export class RepositoryPanel extends ViewletPanel {
 
 		this.viewModel.onDidChangeVisibility(this.onDidChangeVisibility, this, this.disposables);
 		this.onDidChangeVisibility(this.viewModel.isVisible());
+		this.onDidChangeBodyVisibility(visible => this.inputBox.setEnabled(visible));
 	}
 
 	private onDidChangeVisibility(visible: boolean): void {
@@ -907,25 +908,6 @@ export class RepositoryPanel extends ViewletPanel {
 		} else {
 			this.visibilityDisposables = dispose(this.visibilityDisposables);
 		}
-
-		this.inputBox.setEnabled(this.isVisible() && this.isExpanded());
-	}
-
-	setVisible(visible: boolean): void {
-		super.setVisible(visible);
-
-		if (this.listLabels) {
-			if (visible) {
-				this.listLabels.onVisible();
-			} else {
-				this.listLabels.onHidden();
-			}
-		}
-	}
-
-	setExpanded(expanded: boolean): void {
-		super.setExpanded(expanded);
-		this.inputBox.setEnabled(this.isVisible() && this.isExpanded());
 	}
 
 	layoutBody(height: number = this.cachedHeight): void {
@@ -1070,9 +1052,6 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 
 	private _onDidSplice = new Emitter<ISpliceEvent<ISCMRepository>>();
 	readonly onDidSplice: Event<ISpliceEvent<ISCMRepository>> = this._onDidSplice.event;
-
-	private _onDidChangeVisibility = new Emitter<boolean>();
-	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
 
 	private _height: number | undefined = undefined;
 	get height(): number | undefined { return this._height; }
@@ -1221,14 +1200,14 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 			this.cachedMainPanelHeight = this.getPanelSize(this.mainPanel);
 		}
 
-		this._onDidChangeVisibility.fire(visible);
-
 		const start = this.getContributedViewsStartIndex();
 
 		for (let i = 0; i < this.contributedViews.visibleViewDescriptors.length; i++) {
 			const panel = this.panels[start + i] as ViewletPanel;
 			panel.setVisible(visible);
 		}
+
+		this.repositoryPanels.forEach(panel => panel.setVisible(visible));
 	}
 
 	getOptimalWidth(): number {
@@ -1312,6 +1291,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 			.map((r, index) => {
 				const panel = this.instantiationService.createInstance(RepositoryPanel, `scm.repository.${r.provider.label}.${index}`, r, this);
 				panel.render();
+				panel.setVisible(true);
 				return panel;
 			});
 

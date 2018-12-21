@@ -95,6 +95,9 @@ export class OneSnippet {
 	}
 
 	move(fwd: boolean | undefined): Selection[] {
+		if (!this._editor.hasModel()) {
+			return [];
+		}
 
 		this._initDecorations();
 
@@ -190,7 +193,7 @@ export class OneSnippet {
 	computePossibleSelections() {
 		const result = new Map<number, Range[]>();
 		for (const placeholdersWithEqualIndex of this._placeholderGroups) {
-			let ranges: Range[];
+			let ranges: Range[] | undefined;
 
 			for (const placeholder of placeholdersWithEqualIndex) {
 				if (placeholder.isFinalTabstop) {
@@ -278,7 +281,7 @@ export class OneSnippet {
 	}
 
 	public getEnclosingRange(): Range {
-		let result: Range;
+		let result: Range | undefined;
 		const model = this._editor.getModel();
 		this._placeholderDecorations.forEach((decorationId) => {
 			const placeholderRange = model.getDecorationRange(decorationId);
@@ -341,10 +344,13 @@ export class SnippetSession {
 	}
 
 	static createEditsAndSnippets(editor: ICodeEditor, template: string, overwriteBefore: number, overwriteAfter: number, enforceFinalTabstop: boolean, adjustWhitespace: boolean): { edits: IIdentifiedSingleEditOperation[], snippets: OneSnippet[] } {
-
-		const model = editor.getModel();
 		const edits: IIdentifiedSingleEditOperation[] = [];
 		const snippets: OneSnippet[] = [];
+
+		if (!editor.hasModel()) {
+			return { edits, snippets };
+		}
+		const model = editor.getModel();
 
 		const modelBasedVariableResolver = new ModelBasedVariableResolver(model);
 		const clipboardService = editor.invokeWithinContext(accessor => accessor.get(IClipboardService, optional));
@@ -444,6 +450,9 @@ export class SnippetSession {
 	}
 
 	insert(): void {
+		if (!this._editor.hasModel()) {
+			return;
+		}
 
 		const model = this._editor.getModel();
 
@@ -463,6 +472,9 @@ export class SnippetSession {
 	}
 
 	merge(template: string, overwriteBefore: number = 0, overwriteAfter: number = 0, adjustWhitespace: boolean = true): void {
+		if (!this._editor.hasModel()) {
+			return;
+		}
 		this._templateMerges.push([this._snippets[0]._nestingLevel, this._snippets[0]._placeholderGroupsIdx, template]);
 		const { edits, snippets } = SnippetSession.createEditsAndSnippets(this._editor, template, overwriteBefore, overwriteAfter, true, adjustWhitespace);
 
@@ -596,7 +608,7 @@ export class SnippetSession {
 	}
 
 	public getEnclosingRange(): Range {
-		let result: Range;
+		let result: Range | undefined;
 		for (const snippet of this._snippets) {
 			const snippetRange = snippet.getEnclosingRange();
 			if (!result) {

@@ -47,7 +47,7 @@ export class KeyboardMapperFactory {
 	private _keyboardMapper: IKeyboardMapper | null;
 	private _initialized: boolean;
 
-	private readonly _onDidChangeKeyboardMapper: Emitter<void> = new Emitter<void>();
+	private readonly _onDidChangeKeyboardMapper = new Emitter<void>();
 	public readonly onDidChangeKeyboardMapper: Event<void> = this._onDidChangeKeyboardMapper.event;
 
 	private constructor() {

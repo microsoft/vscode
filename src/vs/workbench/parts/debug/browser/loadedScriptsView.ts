@@ -23,7 +23,7 @@ import { isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { ltrim } from 'vs/base/common/strings';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { ResourceLabels, IResourceLabelProps, IResourceLabelOptions, IResourceLabel } from 'vs/workbench/browser/labels';
+import { ResourceLabels, IResourceLabelProps, IResourceLabelOptions, IResourceLabel, IResourceLabelsContainer } from 'vs/workbench/browser/labels';
 import { FileKind } from 'vs/platform/files/common/files';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
@@ -397,7 +397,7 @@ export class LoadedScriptsView extends ViewletPanel {
 
 		const root = new RootTreeItem(this.debugService.getModel(), this.environmentService, this.contextService);
 
-		this.treeLabels = this.instantiationService.createInstance(ResourceLabels);
+		this.treeLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility } as IResourceLabelsContainer);
 		this.disposables.push(this.treeLabels);
 
 		this.tree = new WorkbenchAsyncDataTree(this.treeContainer, new LoadedScriptsDelegate(),
@@ -456,7 +456,7 @@ export class LoadedScriptsView extends ViewletPanel {
 					case 'changed':
 						sessionRoot = root.add(session);
 						sessionRoot.addPath(event.source);
-						if (this.isVisible) {
+						if (this.isBodyVisible()) {
 							this.changeScheduler.schedule();
 						} else {
 							this.treeNeedsRefreshOnVisible = true;
@@ -468,7 +468,7 @@ export class LoadedScriptsView extends ViewletPanel {
 					case 'removed':
 						sessionRoot = root.find(session);
 						if (sessionRoot && sessionRoot.removePath(event.source)) {
-							if (this.isVisible) {
+							if (this.isBodyVisible()) {
 								this.changeScheduler.schedule();
 							} else {
 								this.treeNeedsRefreshOnVisible = true;
@@ -492,40 +492,17 @@ export class LoadedScriptsView extends ViewletPanel {
 		}));
 
 		this.changeScheduler.schedule(0);
+
+		this.disposables.push(this.onDidChangeBodyVisibility(visible => {
+			if (visible && this.treeNeedsRefreshOnVisible) {
+				this.changeScheduler.schedule();
+			}
+		}));
 	}
 
 	layoutBody(size: number): void {
 		this.tree.layout(size);
 	}
-
-	setExpanded(expanded: boolean): void {
-		super.setExpanded(expanded);
-		if (expanded && this.treeNeedsRefreshOnVisible) {
-			this.changeScheduler.schedule();
-		}
-	}
-
-	setVisible(visible: boolean): void {
-		super.setVisible(visible);
-		if (visible && this.treeNeedsRefreshOnVisible) {
-			this.changeScheduler.schedule();
-		}
-		if (this.treeLabels) {
-			if (visible) {
-				this.treeLabels.onVisible();
-			} else {
-				this.treeLabels.onHidden();
-			}
-		}
-	}
-
-	/*
-	private tryToExpand(element: LoadedScriptsItem): void {
-		try {
-			this.tree.expand(element);
-		} catch (e) { }
-	}
-	*/
 
 	dispose(): void {
 		this.tree = dispose(this.tree);
