@@ -17,6 +17,7 @@ export class MenubarChannel implements IServerChannel {
 	call(_, command: string, arg?: any): Promise<any> {
 		switch (command) {
 			case 'updateMenubar': return this.service.updateMenubar(arg[0], arg[1]);
+			case 'accessKeysAlwaysOn': return this.service.accessKeysAlwaysOn();
 		}
 
 		throw new Error(`Call not found: ${command}`);
@@ -31,5 +32,9 @@ export class MenubarChannelClient implements IMenubarService {
 
 	updateMenubar(windowId: number, menuData: IMenubarData): Promise<void> {
 		return this.channel.call('updateMenubar', [windowId, menuData]);
+	}
+
+	accessKeysAlwaysOn(): Promise<boolean> {
+		return this.channel.call('accessKeysAlwaysOn');
 	}
 }

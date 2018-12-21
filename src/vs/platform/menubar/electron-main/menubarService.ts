@@ -7,6 +7,8 @@ import { IMenubarService, IMenubarData } from 'vs/platform/menubar/common/menuba
 import { Menubar } from 'vs/platform/menubar/electron-main/menubar';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import * as Registry from 'winreg';
+import { isWindows } from 'vs/base/common/platform';
 
 export class MenubarService implements IMenubarService {
 	_serviceBrand: any;
@@ -29,5 +31,30 @@ export class MenubarService implements IMenubarService {
 		}
 
 		return Promise.resolve(void 0);
+	}
+
+	accessKeysAlwaysOn(): Promise<boolean> {
+		if (!isWindows) {
+			return Promise.resolve(false);
+		}
+
+		return new Promise<boolean>((resolve, reject) => {
+			const reg = new Registry({
+				hive: Registry.HKCU,
+				key: '\\Control Panel\\Accessibility\\Keyboard Preference'
+			});
+
+			reg.get('On', (err, res) => {
+				if (err) {
+					reject(err);
+				} else {
+					resolve(res.value === '1');
+				}
+			});
+
+			setTimeout(() => {
+				reject('Timed out accessing the registry key.');
+			}, 1000);
+		});
 	}
 }

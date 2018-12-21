@@ -12,6 +12,7 @@ export interface IMenubarService {
 	_serviceBrand: any;
 
 	updateMenubar(windowId: number, menuData: IMenubarData): Promise<void>;
+	accessKeysAlwaysOn(): Promise<boolean>;
 }
 
 export interface IMenubarData {

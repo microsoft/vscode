@@ -74,6 +74,7 @@ export class MenubarControl extends Disposable {
 	private menuUpdater: RunOnceScheduler;
 	private container: HTMLElement;
 	private recentlyOpened: IRecentlyOpened;
+	private accessKeysAlwaysOn?: boolean;
 
 	private _onVisibilityChange: Emitter<boolean>;
 	private _onFocusStateChange: Emitter<boolean>;
@@ -451,12 +452,24 @@ export class MenubarControl extends Disposable {
 				}
 			));
 
+			this.menubarService.accessKeysAlwaysOn().then(accessKeysEnabled => {
+				this.accessKeysAlwaysOn = accessKeysEnabled;
+				if (accessKeysEnabled) {
+					this.menubar.update({
+						enableMnemonics: this.currentEnableMenuBarMnemonics,
+						visibility: this.currentMenubarVisibility,
+						getKeybinding: (action) => this.keybindingService.lookupKeybinding(action.id),
+						alwaysDisplayMnemonics: this.accessKeysAlwaysOn
+					});
+				}
+			});
+
 			this._register(this.menubar.onFocusStateChange(e => this._onFocusStateChange.fire(e)));
 			this._register(this.menubar.onVisibilityChange(e => this._onVisibilityChange.fire(e)));
 
 			this._register(attachMenuStyler(this.menubar, this.themeService));
 		} else {
-			this.menubar.update({ enableMnemonics: this.currentEnableMenuBarMnemonics, visibility: this.currentMenubarVisibility, getKeybinding: (action) => this.keybindingService.lookupKeybinding(action.id) });
+			this.menubar.update({ enableMnemonics: this.currentEnableMenuBarMnemonics, visibility: this.currentMenubarVisibility, getKeybinding: (action) => this.keybindingService.lookupKeybinding(action.id), alwaysDisplayMnemonics: this.accessKeysAlwaysOn });
 		}
 
 		// Update the menu actions
@@ -624,7 +637,7 @@ export class MenubarControl extends Disposable {
 		}
 
 		if (this.menubar) {
-			this.menubar.update({ enableMnemonics: this.currentEnableMenuBarMnemonics, visibility: this.currentMenubarVisibility, getKeybinding: (action) => this.keybindingService.lookupKeybinding(action.id) });
+			this.menubar.update({ enableMnemonics: this.currentEnableMenuBarMnemonics, visibility: this.currentMenubarVisibility, getKeybinding: (action) => this.keybindingService.lookupKeybinding(action.id), alwaysDisplayMnemonics: this.accessKeysAlwaysOn });
 		}
 	}
 
