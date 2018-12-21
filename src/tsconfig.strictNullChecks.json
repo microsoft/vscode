@@ -137,7 +137,6 @@
 		"./vs/base/test/common/json.test.ts",
 		"./vs/base/test/common/jsonEdit.test.ts",
 		"./vs/base/test/common/jsonFormatter.test.ts",
-		
 		"./vs/base/test/common/labels.test.ts",
 		"./vs/base/test/common/lifecycle.test.ts",
 		"./vs/base/test/common/linkedList.test.ts",
