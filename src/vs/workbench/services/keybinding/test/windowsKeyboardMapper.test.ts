@@ -17,7 +17,7 @@ async function createKeyboardMapper(isUSStandard: boolean, file: string): Promis
 }
 
 function _assertResolveKeybinding(mapper: WindowsKeyboardMapper, k: number, expected: IResolvedKeybinding[]): void {
-	assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Windows), expected);
+	assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Windows)!, expected);
 }
 
 suite('keyboardMapper - WINDOWS de_ch', () => {
@@ -73,7 +73,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				altKey: false,
 				metaKey: false,
 				keyCode: KeyCode.KEY_Z,
-				code: null
+				code: null!
 			},
 			{
 				label: 'Ctrl+Z',
@@ -112,7 +112,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				altKey: false,
 				metaKey: false,
 				keyCode: KeyCode.US_CLOSE_SQUARE_BRACKET,
-				code: null
+				code: null!
 			},
 			{
 				label: 'Ctrl+^',
@@ -255,7 +255,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				altKey: false,
 				metaKey: false,
 				keyCode: KeyCode.Home,
-				code: null
+				code: null!
 			},
 			{
 				label: 'Ctrl+Home',
@@ -295,7 +295,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				altKey: false,
 				metaKey: false,
 				keyCode: KeyCode.Ctrl,
-				code: null
+				code: null!
 			},
 			{
 				label: 'Ctrl+',
@@ -359,7 +359,7 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 		assertResolveUserBinding(
 			mapper,
 			new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
-			null,
+			null!,
 			[{
 				label: 'Ctrl+,',
 				ariaLabel: 'Control+,',
@@ -381,7 +381,7 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 				altKey: false,
 				metaKey: false,
 				keyCode: KeyCode.Ctrl,
-				code: null
+				code: null!
 			},
 			{
 				label: 'Ctrl+',
@@ -417,7 +417,7 @@ suite('keyboardMapper - WINDOWS por_ptb', () => {
 				altKey: false,
 				metaKey: false,
 				keyCode: KeyCode.ABNT_C1,
-				code: null
+				code: null!
 			},
 			{
 				label: 'Ctrl+/',
@@ -440,7 +440,7 @@ suite('keyboardMapper - WINDOWS por_ptb', () => {
 				altKey: false,
 				metaKey: false,
 				keyCode: KeyCode.ABNT_C2,
-				code: null
+				code: null!
 			},
 			{
 				label: 'Ctrl+.',

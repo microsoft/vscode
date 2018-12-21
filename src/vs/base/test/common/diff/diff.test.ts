@@ -21,7 +21,7 @@ class StringDiffSequence implements ISequence {
 }
 
 function createArray<T>(length: number, value: T): T[] {
-	var r = [];
+	var r: T[] = [];
 	for (var i = 0; i < length; i++) {
 		r[i] = value;
 	}

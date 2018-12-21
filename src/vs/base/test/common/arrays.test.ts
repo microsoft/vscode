@@ -305,7 +305,7 @@ suite('Arrays', () => {
 		assert.equal(a[1], 2);
 		assert.equal(a[2], 3);
 
-		a = [null, 1, null, void 0, undefined, 2, 3];
+		a = [null, 1, null, undefined!, undefined!, 2, 3];
 		arrays.coalesceInPlace(a);
 		assert.equal(a.length, 3);
 		assert.equal(a[0], 1);

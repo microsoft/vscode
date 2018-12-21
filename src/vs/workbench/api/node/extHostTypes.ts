@@ -453,7 +453,7 @@ export class TextEdit {
 	}
 
 	protected _range: Range;
-	protected _newText: string;
+	protected _newText: string | null | undefined;
 	protected _newEol: EndOfLine;
 
 	get range(): Range {
@@ -489,9 +489,9 @@ export class TextEdit {
 		this._newEol = value;
 	}
 
-	constructor(range: Range, newText: string) {
+	constructor(range: Range, newText: string | null | undefined) {
 		this.range = range;
-		this.newText = newText;
+		this.newText = newText || '';
 	}
 
 	toJSON(): any {

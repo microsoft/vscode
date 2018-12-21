@@ -28,15 +28,15 @@ const ResourceAccessor = new ResourceAccessorClass();
 
 class NullAccessorClass implements scorer.IItemAccessor<URI> {
 
-	getItemLabel(resource: URI): string {
+	getItemLabel(resource: URI): string | undefined {
 		return void 0;
 	}
 
-	getItemDescription(resource: URI): string {
+	getItemDescription(resource: URI): string | undefined {
 		return void 0;
 	}
 
-	getItemPath(resource: URI): string {
+	getItemPath(resource: URI): string | undefined {
 		return void 0;
 	}
 }

@@ -950,7 +950,7 @@ suite('Editor Contrib - Line Comment in mixed modes', () => {
 
 			this._register(modes.TokenizationRegistry.register(this.getLanguageIdentifier().language, {
 				getInitialState: (): modes.IState => NULL_STATE,
-				tokenize: undefined,
+				tokenize: undefined!,
 				tokenize2: (line: string, state: modes.IState): TokenizationResult2 => {
 					let languageId = (/^  /.test(line) ? INNER_LANGUAGE_ID : OUTER_LANGUAGE_ID);
 

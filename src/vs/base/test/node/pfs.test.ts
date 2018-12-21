@@ -24,7 +24,7 @@ suite('PFS', () => {
 		return pfs.mkdirp(newDir, 493).then(() => {
 			assert.ok(fs.existsSync(newDir));
 
-			return pfs.writeFile(testFile, 'Hello World', null).then(() => {
+			return pfs.writeFile(testFile, 'Hello World', null!).then(() => {
 				assert.equal(fs.readFileSync(testFile), 'Hello World');
 
 				return pfs.del(parentDir, os.tmpdir());
@@ -46,11 +46,11 @@ suite('PFS', () => {
 			assert.ok(fs.existsSync(newDir));
 
 			return Promise.all([
-				pfs.writeFile(testFile1, 'Hello World 1', null),
-				pfs.writeFile(testFile2, 'Hello World 2', null),
-				pfs.writeFile(testFile3, 'Hello World 3', null),
-				pfs.writeFile(testFile4, 'Hello World 4', null),
-				pfs.writeFile(testFile5, 'Hello World 5', null)
+				pfs.writeFile(testFile1, 'Hello World 1', null!),
+				pfs.writeFile(testFile2, 'Hello World 2', null!),
+				pfs.writeFile(testFile3, 'Hello World 3', null!),
+				pfs.writeFile(testFile4, 'Hello World 4', null!),
+				pfs.writeFile(testFile5, 'Hello World 5', null!)
 			]).then(() => {
 				assert.equal(fs.readFileSync(testFile1), 'Hello World 1');
 				assert.equal(fs.readFileSync(testFile2), 'Hello World 2');
