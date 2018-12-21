@@ -19,6 +19,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommentsConfiguration } from 'vs/workbench/parts/comments/electron-browser/comments.contribution';
+import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export class MainThreadDocumentCommentProvider implements modes.DocumentCommentProvider {
 	private _proxy: ExtHostCommentsShape;
@@ -125,7 +126,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		}
 	}
 
-	$registerWorkspaceCommentProvider(handle: number, extensionId: string): void {
+	$registerWorkspaceCommentProvider(handle: number, extensionId: CanonicalExtensionIdentifier): void {
 		this._workspaceProviders.set(handle, undefined);
 
 		const providerId = generateUuid();
@@ -165,7 +166,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 			}
 		*/
 		this._telemetryService.publicLog('comments:registerWorkspaceCommentProvider', {
-			extensionId: extensionId
+			extensionId: extensionId.value
 		});
 	}
 

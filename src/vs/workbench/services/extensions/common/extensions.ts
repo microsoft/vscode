@@ -8,9 +8,10 @@ import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export interface IExtensionDescription {
-	readonly id: string;
+	readonly identifier: CanonicalExtensionIdentifier;
 	readonly name: string;
 	readonly uuid?: string;
 	readonly displayName?: string;
@@ -34,7 +35,7 @@ export interface IExtensionDescription {
 }
 
 export const nullExtensionDescription = Object.freeze(<IExtensionDescription>{
-	id: 'nullExtensionDescription',
+	identifier: new CanonicalExtensionIdentifier('nullExtensionDescription'),
 	name: 'Null Extension Description',
 	version: '0.0.0',
 	publisher: 'vscode',
@@ -49,7 +50,7 @@ export const IExtensionService = createDecorator<IExtensionService>('extensionSe
 export interface IMessage {
 	type: Severity;
 	message: string;
-	extensionId: string;
+	extensionId: CanonicalExtensionIdentifier;
 	extensionPointId: string;
 }
 
@@ -154,7 +155,7 @@ export interface IExtensionService extends ICpuProfilerTarget {
 	 * Fired when extensions status changes.
 	 * The event contains the ids of the extensions that have changed.
 	 */
-	onDidChangeExtensionsStatus: Event<string[]>;
+	onDidChangeExtensionsStatus: Event<CanonicalExtensionIdentifier[]>;
 
 	/**
 	 * An event that is fired when activation happens.
@@ -244,5 +245,5 @@ export function checkProposedApiEnabled(extension: IExtensionDescription): void 
 }
 
 export function throwProposedApiError(extension: IExtensionDescription): never {
-	throw new Error(`[${extension.id}]: Proposed API is only available when running out of dev or with the following command line switch: --enable-proposed-api ${extension.id}`);
+	throw new Error(`[${extension.identifier.value}]: Proposed API is only available when running out of dev or with the following command line switch: --enable-proposed-api ${extension.identifier.value}`);
 }
