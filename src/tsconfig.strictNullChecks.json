@@ -400,6 +400,7 @@
 		"./vs/platform/diagnostics/electron-main/diagnosticsService.ts",
 		"./vs/platform/dialogs/common/dialogs.ts",
 		"./vs/platform/dialogs/node/dialogIpc.ts",
+		"./vs/platform/dialogs/node/dialogService.ts",
 		"./vs/platform/download/common/download.ts",
 		"./vs/platform/download/node/downloadIpc.ts",
 		"./vs/platform/download/node/downloadService.ts",

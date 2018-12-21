@@ -36,6 +36,8 @@ import { IDiagnosticsService, DiagnosticsService } from 'vs/platform/diagnostics
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 import { uploadLogs } from 'vs/code/electron-main/logUploader';
 import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { CommandLineDialogService } from 'vs/platform/dialogs/node/dialogService';
 import { createWaitMarkerFile } from 'vs/code/node/wait';
 
 class ExpectedError extends Error {
@@ -308,6 +310,7 @@ function createServices(args: ParsedArgs, bufferLogService: BufferLogService): I
 	services.set(IStateService, new SyncDescriptor(StateService));
 	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
 	services.set(IRequestService, new SyncDescriptor(RequestService));
+	services.set(IDialogService, new SyncDescriptor(CommandLineDialogService));
 	services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService));
 
 	return new InstantiationService(services, true);
