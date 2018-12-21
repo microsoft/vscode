@@ -831,7 +831,7 @@
 		"./vs/workbench/services/workspace/common/workspaceEditing.ts",
 		"./vs/workbench/test/common/editor/editorOptions.test.ts",
 		"./vs/workbench/test/electron-browser/api/mock.ts",
-		"./vs/workbench/services/keybinding/test/macLinuxKeyboardMapper.test.ts"
+		"./vs/workbench/services/keybinding/test/macLinuxKeyboardMapper.test.ts",
 		"./vs/workbench/test/common/notifications.test.ts"
 	],
 	"exclude": [
