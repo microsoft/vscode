@@ -381,6 +381,7 @@ export class ReviewController implements IEditorContribution {
 					let matchedZone = matchedZones[0];
 					let index = this._commentWidgets.indexOf(matchedZone);
 					this._commentWidgets.splice(index, 1);
+					matchedZone.dispose();
 				}
 			});
 

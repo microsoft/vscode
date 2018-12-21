@@ -58,7 +58,7 @@ export class FileIconThemeStore {
 		iconThemeExtPoint.setHandler((extensions) => {
 			for (let ext of extensions) {
 				let extensionData = {
-					extensionId: ext.description.id,
+					extensionId: ext.description.identifier.value,
 					extensionPublisher: ext.description.publisher,
 					extensionName: ext.description.name,
 					extensionIsBuiltin: ext.description.isBuiltin

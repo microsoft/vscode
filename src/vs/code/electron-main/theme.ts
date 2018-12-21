@@ -7,12 +7,17 @@ import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { systemPreferences } from 'electron';
 import { IStateService } from 'vs/platform/state/common/state';
 
-export const DEFAULT_BG_LIGHT = '#FFFFFF';
-export const DEFAULT_BG_DARK = '#1E1E1E';
-export const DEFAULT_BG_HC_BLACK = '#000000';
+const DEFAULT_BG_LIGHT = '#FFFFFF';
+const DEFAULT_BG_DARK = '#1E1E1E';
+const DEFAULT_BG_HC_BLACK = '#000000';
 
-export const THEME_STORAGE_KEY = 'theme';
-export const THEME_BG_STORAGE_KEY = 'themeBackground';
+const THEME_STORAGE_KEY = 'theme';
+const THEME_BG_STORAGE_KEY = 'themeBackground';
+
+export function storeBackgroundColor(stateService: IStateService, data: { baseTheme: string, background: string }): void {
+	stateService.setItem(THEME_STORAGE_KEY, data.baseTheme);
+	stateService.setItem(THEME_BG_STORAGE_KEY, data.background);
+}
 
 export function getBackgroundColor(stateService: IStateService): string {
 	if (isWindows && systemPreferences.isInvertedColorScheme()) {

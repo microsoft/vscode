@@ -96,6 +96,10 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 		});
 	}
 
+	hasTextModelContentProvider(scheme: string): boolean {
+		return this.providers[scheme] !== undefined;
+	}
+
 	private resolveTextModelContent(key: string): Promise<ITextModel> {
 		const resource = URI.parse(key);
 		const providers = this.providers[resource.scheme] || [];
@@ -161,5 +165,9 @@ export class TextModelResolverService implements ITextModelService {
 
 	registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable {
 		return this.resourceModelCollection.registerTextModelContentProvider(scheme, provider);
+	}
+
+	hasTextModelContentProvider(scheme: string): boolean {
+		return this.resourceModelCollection.hasTextModelContentProvider(scheme);
 	}
 }

@@ -15,7 +15,7 @@ suite('RPCProtocol', () => {
 	class MessagePassingProtocol implements IMessagePassingProtocol {
 		private _pair: MessagePassingProtocol;
 
-		private readonly _onMessage: Emitter<Buffer> = new Emitter<Buffer>();
+		private readonly _onMessage = new Emitter<Buffer>();
 		public readonly onMessage: Event<Buffer> = this._onMessage.event;
 
 		public setPair(other: MessagePassingProtocol) {

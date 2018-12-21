@@ -20,10 +20,22 @@ declare module 'vscode' {
 
 	export class SelectionRangeKind {
 
+		/**
+		 * Empty Kind.
+		 */
 		static readonly Empty: SelectionRangeKind;
+
+		/**
+		 * The statment kind, its value is `statement`, possible extensions can be
+		 * `statement.if` etc
+		 */
 		static readonly Statement: SelectionRangeKind;
-		static readonly Expression: SelectionRangeKind;
-		static readonly Block: SelectionRangeKind;
+
+		/**
+		 * The declaration kind, its value is `declaration`, possible extensions can be
+		 * `declaration.function`, `declaration.class` etc.
+		 */
+		static readonly Declaration: SelectionRangeKind;
 
 		readonly value: string;
 
@@ -856,9 +868,9 @@ declare module 'vscode' {
 		 */
 		deleteComment?(document: TextDocument, comment: Comment, token: CancellationToken): Promise<void>;
 
-		startDraft?(token: CancellationToken): Promise<void>;
-		deleteDraft?(token: CancellationToken): Promise<void>;
-		finishDraft?(token: CancellationToken): Promise<void>;
+		startDraft?(document: TextDocument, token: CancellationToken): Promise<void>;
+		deleteDraft?(document: TextDocument, token: CancellationToken): Promise<void>;
+		finishDraft?(document: TextDocument, token: CancellationToken): Promise<void>;
 
 		startDraftLabel?: string;
 		deleteDraftLabel?: string;

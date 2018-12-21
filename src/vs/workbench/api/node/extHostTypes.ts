@@ -1042,8 +1042,7 @@ export class SelectionRangeKind {
 
 	static readonly Empty = new SelectionRangeKind('');
 	static readonly Statement = SelectionRangeKind.Empty.append('statement');
-	static readonly Expression = SelectionRangeKind.Empty.append('expression');
-	static readonly Block = SelectionRangeKind.Empty.append('block');
+	static readonly Declaration = SelectionRangeKind.Empty.append('declaration');
 
 	readonly value: string;
 

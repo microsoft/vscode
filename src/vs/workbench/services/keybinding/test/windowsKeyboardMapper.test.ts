@@ -17,7 +17,8 @@ async function createKeyboardMapper(isUSStandard: boolean, file: string): Promis
 }
 
 function _assertResolveKeybinding(mapper: WindowsKeyboardMapper, k: number, expected: IResolvedKeybinding[]): void {
-	assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Windows)!, expected);
+	const keyBinding = createKeybinding(k, OperatingSystem.Windows);
+	assertResolveKeybinding(mapper, keyBinding!, expected);
 }
 
 suite('keyboardMapper - WINDOWS de_ch', () => {

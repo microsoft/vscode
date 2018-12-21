@@ -30,6 +30,7 @@ import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { TreeResourceNavigator2, WorkbenchAsyncDataTree, IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 const $ = dom.$;
 
@@ -144,8 +145,7 @@ export class CallStackView extends ViewletPanel {
 				}
 			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
 
-		// TODO@isidor this is a promise
-		this.tree.setInput(this.debugService.getModel());
+		this.tree.setInput(this.debugService.getModel()).then(undefined, onUnexpectedError);
 
 		const callstackNavigator = new TreeResourceNavigator2(this.tree);
 		this.disposables.push(callstackNavigator);
@@ -189,7 +189,7 @@ export class CallStackView extends ViewletPanel {
 		}));
 
 		this.disposables.push(this.debugService.getModel().onDidChangeCallStack(() => {
-			if (!this.isVisible()) {
+			if (!this.isBodyVisible()) {
 				this.needsRefresh = true;
 				return;
 			}
@@ -202,7 +202,7 @@ export class CallStackView extends ViewletPanel {
 			if (this.ignoreFocusStackFrameEvent) {
 				return;
 			}
-			if (!this.isVisible) {
+			if (!this.isBodyVisible()) {
 				this.needsRefresh = true;
 				return;
 			}
@@ -215,6 +215,12 @@ export class CallStackView extends ViewletPanel {
 		if (this.debugService.state === State.Stopped) {
 			this.onCallStackChangeScheduler.schedule(0);
 		}
+
+		this.disposables.push(this.onDidChangeBodyVisibility(visible => {
+			if (visible && this.needsRefresh) {
+				this.onCallStackChangeScheduler.schedule();
+			}
+		}));
 	}
 
 	layoutBody(size: number): void {
@@ -253,13 +259,6 @@ export class CallStackView extends ViewletPanel {
 			if (stackFrame) {
 				expansionsPromise.then(() => updateSelectionAndReveal(stackFrame));
 			}
-		}
-	}
-
-	setVisible(visible: boolean): void {
-		super.setVisible(visible);
-		if (visible && this.needsRefresh) {
-			this.onCallStackChangeScheduler.schedule();
 		}
 	}
 

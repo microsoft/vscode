@@ -107,7 +107,7 @@ export class ExtensionHostMain {
 			const data = errors.transformErrorForSerialization(err);
 			const extension = extensionErrors.get(err);
 			if (extension) {
-				mainThreadExtensions.$onExtensionRuntimeError(extension.id, data);
+				mainThreadExtensions.$onExtensionRuntimeError(extension.identifier, data);
 			} else {
 				mainThreadErrors.$onUnexpectedError(data);
 			}

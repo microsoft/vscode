@@ -514,6 +514,16 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	}
 
 	private setChildren(node: IAsyncDataTreeNode<TInput, T>, childrenElements: T[], recursive: boolean): void {
+		let nodeChildren: Map<string, IAsyncDataTreeNode<TInput, T>> | undefined;
+
+		if (this.identityProvider) {
+			nodeChildren = new Map();
+
+			for (const child of node.children!) {
+				nodeChildren.set(child.id!, child);
+			}
+		}
+
 		const children = childrenElements.map<ITreeElement<IAsyncDataTreeNode<TInput, T>>>(element => {
 			if (!this.identityProvider) {
 				return {
@@ -527,14 +537,8 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 				};
 			}
 
-			const nodeChildren = new Map<string, IAsyncDataTreeNode<TInput, T>>();
-
-			for (const child of node.children!) {
-				nodeChildren.set(child.id!, child);
-			}
-
 			const id = this.identityProvider.getId(element).toString();
-			const asyncDataTreeNode = nodeChildren.get(id);
+			const asyncDataTreeNode = nodeChildren!.get(id);
 
 			if (!asyncDataTreeNode) {
 				return {

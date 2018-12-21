@@ -146,7 +146,7 @@ export interface NamedMultiLineProblemPattern {
 	patterns: MultiLineProblemPattern;
 }
 
-export function isNamedProblemMatcher(value: ProblemMatcher): value is NamedProblemMatcher {
+export function isNamedProblemMatcher(value: ProblemMatcher | undefined): value is NamedProblemMatcher {
 	return value && Types.isString((<NamedProblemMatcher>value).name) ? true : false;
 }
 
@@ -1286,10 +1286,10 @@ export class ProblemMatcherParser extends Parser {
 		super(logger);
 	}
 
-	public parse(json: Config.ProblemMatcher): ProblemMatcher | null {
+	public parse(json: Config.ProblemMatcher): ProblemMatcher | undefined {
 		let result = this.createProblemMatcher(json);
 		if (!this.checkProblemMatcherValid(json, result)) {
-			return null;
+			return undefined;
 		}
 		this.addWatchingMatcher(json, result);
 

@@ -114,7 +114,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 	private _curatedMapping = Object.create(null);
 	private _disposables: IDisposable[] = [];
 
-	private readonly _onExperimentEnabled: Emitter<IExperiment> = new Emitter<IExperiment>();
+	private readonly _onExperimentEnabled = new Emitter<IExperiment>();
 
 	onExperimentEnabled: Event<IExperiment> = this._onExperimentEnabled.event;
 	constructor(

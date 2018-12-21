@@ -49,7 +49,7 @@ export class ExtensionsInput extends EditorInput {
 	getResource(): URI {
 		return URI.from({
 			scheme: 'extension',
-			path: this.extension.id
+			path: this.extension.identifier.id
 		});
 	}
 }

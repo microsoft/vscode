@@ -550,7 +550,7 @@ suite('Extfs', () => {
 		const newDir = path.join(parentDir, 'extfs', id);
 
 		mkdirp(newDir, 493, error => {
-			let realpath: string;
+			let realpath!: string;
 			try {
 				realpath = extfs.realpathSync(newDir);
 			} catch (error) {

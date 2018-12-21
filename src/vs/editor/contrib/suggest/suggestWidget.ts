@@ -185,7 +185,7 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 			];
 		}
 
-		data.iconLabel.setValue(suggestion.label, undefined, labelOptions);
+		data.iconLabel.setLabel(suggestion.label, undefined, labelOptions);
 		data.typeLabel.textContent = (suggestion.detail || '').replace(/\n.*$/m, '');
 
 		if (canExpandCompletionItem(element)) {

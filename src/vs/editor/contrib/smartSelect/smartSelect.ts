@@ -18,7 +18,6 @@ import * as nls from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { TokenTreeSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/tokenTree';
 import { WordSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/wordSelections';
 import { BracketSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/bracketSelections';
 
@@ -203,7 +202,6 @@ registerEditorAction(ShrinkSelectionAction);
 
 modes.SelectionRangeRegistry.register('*', new WordSelectionRangeProvider());
 modes.SelectionRangeRegistry.register('*', new BracketSelectionRangeProvider());
-modes.SelectionRangeRegistry.register('*', new TokenTreeSelectionRangeProvider());
 
 export function provideSelectionRanges(model: ITextModel, position: Position, token: CancellationToken): Promise<Range[] | undefined | null> {
 
@@ -247,12 +245,10 @@ export function provideSelectionRanges(model: ITextModel, position: Position, to
 				return b.rank - a.rank;
 			}
 		});
-
-		// ranges.sort((a, b) => Range.compareRangesUsingStarts(b.range, a.range));
 		let result: Range[] = [];
 		let last: Range | undefined;
 		for (const { range } of ranges) {
-			if (!last || Range.containsRange(range, last)) {
+			if (!last || (Range.containsRange(range, last) && !Range.equalsRange(range, last))) {
 				result.push(range);
 				last = range;
 			}

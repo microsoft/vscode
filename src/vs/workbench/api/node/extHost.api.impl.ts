@@ -63,6 +63,7 @@ import { IExtensionDescription, throwProposedApiError, checkProposedApiEnabled, 
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/node/proxyIdentifier';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
 import * as vscode from 'vscode';
+import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription, registry: ExtensionDescriptionRegistry): typeof vscode;
@@ -152,7 +153,7 @@ export function createApiFactory(
 			let done = (!extension.isUnderDevelopment);
 			function informOnce(selector: vscode.DocumentSelector) {
 				if (!done) {
-					console.info(`Extension '${extension.id}' uses a document selector without scheme. Learn more about this: https://go.microsoft.com/fwlink/?linkid=872305`);
+					console.info(`Extension '${extension.identifier.value}' uses a document selector without scheme. Learn more about this: https://go.microsoft.com/fwlink/?linkid=872305`);
 					done = true;
 				}
 			}
@@ -180,7 +181,7 @@ export function createApiFactory(
 			const informOnce = () => {
 				if (!done) {
 					done = true;
-					console.warn(`Extension '${extension.id}' uses the 'vscode.previewHtml' command which is deprecated and will be removed. Please update your extension to use the Webview API: https://go.microsoft.com/fwlink/?linkid=2039309`);
+					console.warn(`Extension '${extension.identifier.value}' uses the 'vscode.previewHtml' command which is deprecated and will be removed. Please update your extension to use the Webview API: https://go.microsoft.com/fwlink/?linkid=2039309`);
 				}
 			};
 			return (commandId: string) => {
@@ -310,7 +311,7 @@ export function createApiFactory(
 				return extHostLanguageFeatures.registerTypeDefinitionProvider(extension, checkSelector(selector), provider);
 			},
 			registerHoverProvider(selector: vscode.DocumentSelector, provider: vscode.HoverProvider): vscode.Disposable {
-				return extHostLanguageFeatures.registerHoverProvider(extension, checkSelector(selector), provider, extension.id);
+				return extHostLanguageFeatures.registerHoverProvider(extension, checkSelector(selector), provider, extension.identifier);
 			},
 			registerDocumentHighlightProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentHighlightProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerDocumentHighlightProvider(extension, checkSelector(selector), provider);
@@ -448,7 +449,7 @@ export function createApiFactory(
 				return extHostDialogs.showSaveDialog(options);
 			},
 			createStatusBarItem(position?: vscode.StatusBarAlignment, priority?: number): vscode.StatusBarItem {
-				return extHostStatusBar.createStatusBarEntry(extension.id, <number>position, priority);
+				return extHostStatusBar.createStatusBarEntry(extension.identifier, <number>position, priority);
 			},
 			setStatusBarMessage(text: string, timeoutOrThenable?: number | Thenable<any>): vscode.Disposable {
 				return extHostStatusBar.setStatusBarMessage(text, timeoutOrThenable);
@@ -485,16 +486,16 @@ export function createApiFactory(
 				return extHostWebviews.registerWebviewPanelSerializer(viewType, serializer);
 			},
 			registerDecorationProvider: proposedApiFunction(extension, (provider: vscode.DecorationProvider) => {
-				return extHostDecorations.registerDecorationProvider(provider, extension.id);
+				return extHostDecorations.registerDecorationProvider(provider, extension.identifier);
 			}),
 			registerUriHandler(handler: vscode.UriHandler) {
-				return extHostUrls.registerUriHandler(extension.id, handler);
+				return extHostUrls.registerUriHandler(extension.identifier, handler);
 			},
 			createQuickPick<T extends vscode.QuickPickItem>(): vscode.QuickPick<T> {
-				return extHostQuickOpen.createQuickPick(extension.id, extension.enableProposedApi);
+				return extHostQuickOpen.createQuickPick(extension.identifier, extension.enableProposedApi);
 			},
 			createInputBox(): vscode.InputBox {
-				return extHostQuickOpen.createInputBox(extension.id);
+				return extHostQuickOpen.createInputBox(extension.identifier);
 			},
 		};
 
@@ -528,7 +529,7 @@ export function createApiFactory(
 				return extHostWorkspace.getRelativePath(pathOrUri, includeWorkspace);
 			},
 			findFiles: (include, exclude, maxResults?, token?) => {
-				return extHostWorkspace.findFiles(typeConverters.GlobPattern.from(include), typeConverters.GlobPattern.from(exclude), maxResults, extension.id, token);
+				return extHostWorkspace.findFiles(typeConverters.GlobPattern.from(include), typeConverters.GlobPattern.from(exclude), maxResults, extension.identifier, token);
 			},
 			findTextInFiles: (query: vscode.TextSearchQuery, optionsOrCallback, callbackOrToken?, token?: vscode.CancellationToken) => {
 				let options: vscode.FindTextInFilesOptions;
@@ -543,7 +544,7 @@ export function createApiFactory(
 					token = callbackOrToken;
 				}
 
-				return extHostWorkspace.findTextInFiles(query, options || {}, callback, extension.id, token);
+				return extHostWorkspace.findTextInFiles(query, options || {}, callback, extension.identifier, token);
 			},
 			saveAll: (includeUntitled?) => {
 				return extHostWorkspace.saveAll(includeUntitled);
@@ -601,7 +602,7 @@ export function createApiFactory(
 			},
 			getConfiguration(section?: string, resource?: vscode.Uri): vscode.WorkspaceConfiguration {
 				resource = arguments.length === 1 ? void 0 : resource;
-				return extHostConfiguration.getConfiguration(section, resource, extension.id);
+				return extHostConfiguration.getConfiguration(section, resource, extension.identifier);
 			},
 			registerTextDocumentContentProvider(scheme: string, provider: vscode.TextDocumentContentProvider) {
 				return extHostDocumentContentProviders.registerTextDocumentContentProvider(scheme, provider);
@@ -629,7 +630,7 @@ export function createApiFactory(
 				return exthostCommentProviders.registerDocumentCommentProvider(provider);
 			}),
 			registerWorkspaceCommentProvider: proposedApiFunction(extension, (provider: vscode.WorkspaceCommentProvider) => {
-				return exthostCommentProviders.registerWorkspaceCommentProvider(extension.id, provider);
+				return exthostCommentProviders.registerWorkspaceCommentProvider(extension.identifier, provider);
 			}),
 			onDidRenameFile: proposedApiFunction(extension, (listener, thisArg?, disposables?) => {
 				return extHostFileSystemEvent.onDidRenameFile(listener, thisArg, disposables);
@@ -837,6 +838,7 @@ export function originalFSPath(uri: URI): string {
 class Extension<T> implements vscode.Extension<T> {
 
 	private _extensionService: ExtHostExtensionService;
+	private _identifier: CanonicalExtensionIdentifier;
 
 	public id: string;
 	public extensionPath: string;
@@ -844,21 +846,22 @@ class Extension<T> implements vscode.Extension<T> {
 
 	constructor(extensionService: ExtHostExtensionService, description: IExtensionDescription) {
 		this._extensionService = extensionService;
-		this.id = description.id;
+		this._identifier = description.identifier;
+		this.id = description.identifier.value;
 		this.extensionPath = paths.normalize(originalFSPath(description.extensionLocation), true);
 		this.packageJSON = description;
 	}
 
 	get isActive(): boolean {
-		return this._extensionService.isActivated(this.id);
+		return this._extensionService.isActivated(this._identifier);
 	}
 
 	get exports(): T {
-		return <T>this._extensionService.getExtensionExports(this.id);
+		return <T>this._extensionService.getExtensionExports(this._identifier);
 	}
 
 	activate(): Thenable<T> {
-		return this._extensionService.activateByIdWithErrors(this.id, new ExtensionActivatedByAPI(false)).then(() => this.exports);
+		return this._extensionService.activateByIdWithErrors(this._identifier, new ExtensionActivatedByAPI(false)).then(() => this.exports);
 	}
 }
 
@@ -882,10 +885,10 @@ function defineAPI(factory: IExtensionApiFactory, extensionPaths: TernarySearchT
 		// get extension id from filename and api for extension
 		const ext = extensionPaths.findSubstr(URI.file(parent.filename).fsPath);
 		if (ext) {
-			let apiImpl = extApiImpl.get(ext.id);
+			let apiImpl = extApiImpl.get(CanonicalExtensionIdentifier.toKey(ext.identifier));
 			if (!apiImpl) {
 				apiImpl = factory(ext, extensionRegistry);
-				extApiImpl.set(ext.id, apiImpl);
+				extApiImpl.set(CanonicalExtensionIdentifier.toKey(ext.identifier), apiImpl);
 			}
 			return apiImpl;
 		}
@@ -893,7 +896,7 @@ function defineAPI(factory: IExtensionApiFactory, extensionPaths: TernarySearchT
 		// fall back to a default implementation
 		if (!defaultApiImpl) {
 			let extensionPathsPretty = '';
-			extensionPaths.forEach((value, index) => extensionPathsPretty += `\t${index} -> ${value.id}\n`);
+			extensionPaths.forEach((value, index) => extensionPathsPretty += `\t${index} -> ${value.identifier.value}\n`);
 			console.warn(`Could not identify extension for 'vscode' require call from ${parent.filename}. These are the extension path mappings: \n${extensionPathsPretty}`);
 			defaultApiImpl = factory(nullExtensionDescription, extensionRegistry);
 		}

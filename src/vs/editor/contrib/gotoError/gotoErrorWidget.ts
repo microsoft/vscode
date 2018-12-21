@@ -80,20 +80,40 @@ class MessageWidget {
 
 	update({ source, message, relatedInformation, code }: IMarker): void {
 
-		if (source) {
-			const lines = message.split(/\r\n|\r|\n/g);
-			this._lines = lines.length;
-			this._longestLineLength = 0;
-			for (const line of lines) {
-				this._longestLineLength = Math.max(line.length, this._longestLineLength);
+		const lines = message.split(/\r\n|\r|\n/g);
+		this._lines = lines.length;
+		this._longestLineLength = 0;
+		for (const line of lines) {
+			this._longestLineLength = Math.max(line.length, this._longestLineLength);
+		}
+
+		dom.clearNode(this._messageBlock);
+		let lastLineElement = this._messageBlock;
+		for (const line of lines) {
+			lastLineElement = document.createElement('div');
+			lastLineElement.innerText = line;
+			this._editor.applyFontInfo(lastLineElement);
+			this._messageBlock.appendChild(lastLineElement);
+		}
+		if (source || code) {
+			const detailsElement = document.createElement('span');
+			dom.addClass(detailsElement, 'details');
+			lastLineElement.appendChild(detailsElement);
+			if (source) {
+				const sourceElement = document.createElement('span');
+				sourceElement.innerText = source;
+				dom.addClass(sourceElement, 'source');
+				detailsElement.appendChild(sourceElement);
 			}
-		} else {
-			this._lines = 1;
-			this._longestLineLength = message.length;
+			if (code) {
+				const codeElement = document.createElement('span');
+				codeElement.innerText = `(${code})`;
+				dom.addClass(codeElement, 'code');
+				detailsElement.appendChild(codeElement);
+			}
 		}
 
 		dom.clearNode(this._relatedBlock);
-
 		if (isNonEmptyArray(relatedInformation)) {
 			this._relatedBlock.style.paddingTop = `${Math.floor(this._editor.getConfiguration().lineHeight * .66)}px`;
 			this._lines += 1;
@@ -118,26 +138,6 @@ class MessageWidget {
 				this._lines += 1;
 				this._relatedBlock.appendChild(container);
 			}
-		}
-
-		dom.clearNode(this._messageBlock);
-		if (source) {
-			const sourceElement = document.createElement('div');
-			sourceElement.innerText = `[${source}] `;
-			dom.addClass(sourceElement, 'source');
-			this._editor.applyFontInfo(sourceElement);
-			this._messageBlock.appendChild(sourceElement);
-		}
-		const messageElement = document.createElement('div');
-		messageElement.innerText = message;
-		this._editor.applyFontInfo(messageElement);
-		this._messageBlock.appendChild(messageElement);
-		if (code) {
-			const codeElement = document.createElement('div');
-			codeElement.innerText = ` [${code}]`;
-			dom.addClass(codeElement, 'code');
-			this._editor.applyFontInfo(codeElement);
-			this._messageBlock.appendChild(codeElement);
 		}
 
 		const fontInfo = this._editor.getConfiguration().fontInfo;
