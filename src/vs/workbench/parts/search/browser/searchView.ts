@@ -56,7 +56,7 @@ import * as Constants from 'vs/workbench/parts/search/common/constants';
 import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/parts/search/common/queryBuilder';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/parts/search/common/search';
-import { FileMatch, FileMatchOrMatch, FolderMatch, IChangeEvent, ISearchWorkbenchService, Match, RenderableMatch, SearchModel, SearchResult } from 'vs/workbench/parts/search/common/searchModel';
+import { FileMatch, FileMatchOrMatch, FolderMatch, IChangeEvent, ISearchWorkbenchService, Match, RenderableMatch, SearchModel, SearchResult, searchMatchComparer } from 'vs/workbench/parts/search/common/searchModel';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -67,7 +67,10 @@ import { ResourceLabels } from 'vs/workbench/browser/labels';
 const $ = dom.$;
 
 function createResultIterator(searchResult: SearchResult, collapseResults: ISearchConfigurationProperties['collapseResults']): Iterator<ITreeElement<RenderableMatch>> {
-	const folderMatches = searchResult.folderMatches().filter(fm => !fm.isEmpty());
+	const folderMatches = searchResult.folderMatches()
+		.filter(fm => !fm.isEmpty())
+		.sort(searchMatchComparer);
+
 	if (folderMatches.length === 1) {
 		return createFolderIterator(folderMatches[0], collapseResults);
 	}
@@ -80,7 +83,9 @@ function createResultIterator(searchResult: SearchResult, collapseResults: ISear
 }
 
 function createFolderIterator(folderMatch: FolderMatch, collapseResults: ISearchConfigurationProperties['collapseResults']): Iterator<ITreeElement<RenderableMatch>> {
-	const filesIt = Iterator.fromArray(folderMatch.matches());
+	const filesIt = Iterator.fromArray(
+		folderMatch.matches()
+			.sort(searchMatchComparer));
 
 	return Iterator.map(filesIt, fileMatch => {
 		const children = createFileIterator(fileMatch);
@@ -92,7 +97,9 @@ function createFolderIterator(folderMatch: FolderMatch, collapseResults: ISearch
 }
 
 function createFileIterator(fileMatch: FileMatch): Iterator<ITreeElement<RenderableMatch>> {
-	const matchesIt = Iterator.from(fileMatch.matches());
+	const matchesIt = Iterator.from(
+		fileMatch.matches()
+			.sort(searchMatchComparer));
 	return Iterator.map(matchesIt, r => (<ITreeElement<RenderableMatch>>{ element: r }));
 }
 
