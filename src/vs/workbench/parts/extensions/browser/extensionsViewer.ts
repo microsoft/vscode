@@ -42,7 +42,7 @@ export interface IExtensionData {
 export class DataSource implements IDataSource {
 
 	public getId(tree: ITree, { extension, parent }: IExtensionData): string {
-		return parent ? this.getId(tree, parent) + '/' + extension.id : extension.id;
+		return parent ? this.getId(tree, parent) + '/' + extension.identifier.id : extension.identifier.id;
 	}
 
 	public hasChildren(tree: ITree, { hasChildren }: IExtensionData): boolean {
@@ -144,13 +144,13 @@ export class Renderer implements IRenderer {
 		}
 
 		data.name.textContent = extension.displayName;
-		data.identifier.textContent = extension.id;
+		data.identifier.textContent = extension.identifier.id;
 		data.author.textContent = extension.publisherDisplayName;
 		data.extensionData = extensionData;
 	}
 
 	private renderUnknownExtension(tree: ITree, { extension }: IExtensionData, data: IUnknownExtensionTemplateData): void {
-		data.identifier.textContent = extension.id;
+		data.identifier.textContent = extension.identifier.id;
 	}
 
 	public disposeTemplate(tree: ITree, templateId: string, templateData: any): void {

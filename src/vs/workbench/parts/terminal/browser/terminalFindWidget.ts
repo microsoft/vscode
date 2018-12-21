@@ -49,6 +49,10 @@ export class TerminalFindWidget extends SimpleFindWidget {
 
 	protected onInputChanged() {
 		// Ignore input changes for now
+		const instance = this._terminalService.getActiveInstance();
+		if (instance !== null) {
+			instance.findNext(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue(), incremental: true });
+		}
 	}
 
 	protected onFocusTrackerFocus() {

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import * as arrays from 'vs/base/common/arrays';
 import { Delayer, ThrottledDelayer } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -18,7 +17,6 @@ import 'vs/css!./media/settingsEditor2';
 import { localize } from 'vs/nls';
 import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationOverrides, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
@@ -35,7 +33,7 @@ import { attachSuggestEnabledInputBoxStyler, SuggestEnabledInput } from 'vs/work
 import { SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { commonlyUsedData, tocData } from 'vs/workbench/parts/preferences/browser/settingsLayout';
 import { ISettingLinkClickEvent, ISettingOverrideClickEvent, resolveExtensionsSettings, resolveSettingsTree, SettingsDataSource, SettingsRenderer, SettingsTree, SimplePagedDataSource } from 'vs/workbench/parts/preferences/browser/settingsTree';
-import { parseQuery, ISettingsEditorViewState, SearchResultIdx, SearchResultModel, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
+import { ISettingsEditorViewState, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
 import { settingsTextInputBorder } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
 import { TOCRenderer, TOCTree, TOCTreeModel } from 'vs/workbench/parts/preferences/browser/tocTree';
 import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, IPreferencesSearchService, ISearchProvider, MODIFIED_SETTING_TAG, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/parts/preferences/common/preferences';
@@ -76,7 +74,6 @@ export class SettingsEditor2 extends BaseEditor {
 	private searchWidget: SuggestEnabledInput;
 	private countElement: HTMLElement;
 	private settingsTargetsWidget: SettingsTargetsWidget;
-	private toolbar: ToolBar;
 
 	private settingsTreeContainer: HTMLElement;
 	private settingsTree: Tree;
@@ -128,7 +125,6 @@ export class SettingsEditor2 extends BaseEditor {
 		@IPreferencesSearchService private preferencesSearchService: IPreferencesSearchService,
 		@ILogService private logService: ILogService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IStorageService private storageService: IStorageService,
 		@INotificationService private notificationService: INotificationService,
 		@IEditorGroupsService protected editorGroupService: IEditorGroupsService,
@@ -398,8 +394,6 @@ export class SettingsEditor2 extends BaseEditor {
 		this.settingsTargetsWidget = this._register(this.instantiationService.createInstance(SettingsTargetsWidget, targetWidgetContainer));
 		this.settingsTargetsWidget.settingsTarget = ConfigurationTarget.USER;
 		this.settingsTargetsWidget.onDidTargetChange(target => this.onDidSettingsTargetChange(target));
-
-		this.createHeaderControls(headerControlsContainer);
 	}
 
 	private onDidSettingsTargetChange(target: SettingsTarget): void {
@@ -407,17 +401,6 @@ export class SettingsEditor2 extends BaseEditor {
 
 		// TODO Instead of rebuilding the whole model, refresh and uncache the inspected setting value
 		this.onConfigUpdate(undefined, true);
-	}
-
-	private createHeaderControls(parent: HTMLElement): void {
-		const headerControlsContainerRight = DOM.append(parent, $('.settings-header-controls-right'));
-
-		this.toolbar = this._register(new ToolBar(headerControlsContainerRight, this.contextMenuService, {
-			ariaLabel: localize('settingsToolbarLabel', "Settings Editor Actions"),
-			actionRunner: this.actionRunner
-		}));
-
-		this.toolbar.context = <ISettingsToolbarContext>{ target: this.settingsTargetsWidget.settingsTarget };
 	}
 
 	private onDidClickSetting(evt: ISettingLinkClickEvent, recursed?: boolean): void {
@@ -1240,10 +1223,5 @@ export class SettingsEditor2 extends BaseEditor {
 
 interface ISettingsEditor2State {
 	searchQuery: string;
-	target: SettingsTarget;
-}
-
-
-interface ISettingsToolbarContext {
 	target: SettingsTarget;
 }

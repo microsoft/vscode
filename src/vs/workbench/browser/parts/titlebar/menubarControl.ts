@@ -516,13 +516,13 @@ export class MenubarControl extends Disposable {
 		// first try to resolve a native accelerator
 		const electronAccelerator = binding.getElectronAccelerator();
 		if (electronAccelerator) {
-			return { label: electronAccelerator };
+			return { label: electronAccelerator, userSettingsLabel: binding.getUserSettingsLabel() };
 		}
 
 		// we need this fallback to support keybindings that cannot show in electron menus (e.g. chords)
 		const acceleratorLabel = binding.getLabel();
 		if (acceleratorLabel) {
-			return { label: acceleratorLabel, isNative: false };
+			return { label: acceleratorLabel, isNative: false, userSettingsLabel: binding.getUserSettingsLabel() };
 		}
 
 		return null;

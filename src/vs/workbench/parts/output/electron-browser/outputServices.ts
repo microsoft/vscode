@@ -76,10 +76,10 @@ abstract class AbstractFileOutputChannel extends Disposable implements OutputCha
 
 	scrollLock: boolean = false;
 
-	protected _onDidAppendedContent: Emitter<void> = new Emitter<void>();
+	protected _onDidAppendedContent = new Emitter<void>();
 	readonly onDidAppendedContent: Event<void> = this._onDidAppendedContent.event;
 
-	protected _onDispose: Emitter<void> = new Emitter<void>();
+	protected _onDispose = new Emitter<void>();
 	readonly onDispose: Event<void> = this._onDispose.event;
 
 	private readonly mimeType: string;
@@ -281,7 +281,7 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 
 class OutputFileListener extends Disposable {
 
-	private readonly _onDidContentChange: Emitter<number> = new Emitter<number>();
+	private readonly _onDidContentChange = new Emitter<number>();
 	readonly onDidContentChange: Event<number> = this._onDidContentChange.event;
 
 	private watching: boolean = false;
@@ -427,7 +427,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 	private activeChannel: IOutputChannel;
 	private readonly outputDir: string;
 
-	private readonly _onActiveOutputChannel: Emitter<string> = new Emitter<string>();
+	private readonly _onActiveOutputChannel = new Emitter<string>();
 	readonly onActiveOutputChannel: Event<string> = this._onActiveOutputChannel.event;
 
 	private _outputPanel: OutputPanel;
@@ -683,10 +683,10 @@ class BufferredOutputChannel extends Disposable implements OutputChannel {
 	readonly file: URI | null = null;
 	scrollLock: boolean = false;
 
-	protected _onDidAppendedContent: Emitter<void> = new Emitter<void>();
+	protected _onDidAppendedContent = new Emitter<void>();
 	readonly onDidAppendedContent: Event<void> = this._onDidAppendedContent.event;
 
-	private readonly _onDispose: Emitter<void> = new Emitter<void>();
+	private readonly _onDispose = new Emitter<void>();
 	readonly onDispose: Event<void> = this._onDispose.event;
 
 	private modelUpdater: RunOnceScheduler;

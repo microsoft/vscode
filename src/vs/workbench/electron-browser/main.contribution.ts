@@ -599,6 +599,11 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('openDefaultSettings', "Controls whether opening settings also opens an editor showing all default settings."),
 			'default': false
 		},
+		'workbench.settings.useSplitJSON': {
+			'type': 'boolean',
+			'markdownDescription': nls.localize('useSplitJSON', "Controls whether to use the split JSON editor when editing settings as JSON."),
+			'default': false
+		},
 		'workbench.settings.openDefaultKeybindings': {
 			'type': 'boolean',
 			'description': nls.localize('openDefaultKeybindings', "Controls whether opening keybinding settings also opens an editor showing all default keybindings."),

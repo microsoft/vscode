@@ -21,7 +21,7 @@ import { IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/
 import { ModelDecorationOptions, TextModel } from 'vs/editor/common/model/textModel';
 import { Location } from 'vs/editor/common/modes';
 import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { AriaProvider, DataSource, Delegate, FileReferencesRenderer, OneReferenceRenderer, TreeElement } from 'vs/editor/contrib/referenceSearch/referencesTree';
+import { AriaProvider, DataSource, Delegate, FileReferencesRenderer, OneReferenceRenderer, TreeElement, StringRepresentationProvider } from 'vs/editor/contrib/referenceSearch/referencesTree';
 import * as nls from 'vs/nls';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -31,8 +31,8 @@ import { activeContrastBorder, contrastBorder, registerColor } from 'vs/platform
 import { ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { PeekViewWidget } from './peekViewWidget';
 import { FileReferences, OneReference, ReferencesModel } from './referencesModel';
-import { ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
-import { IAsyncDataTreeOptions, IDataSource } from 'vs/base/browser/ui/tree/asyncDataTree';
+import { ITreeRenderer, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
+import { IAsyncDataTreeOptions } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 
 class DecorationsManager implements IDisposable {
@@ -237,8 +237,7 @@ export class ReferenceWidget extends PeekViewWidget {
 	private _callOnDispose: IDisposable[] = [];
 	private _onDidSelectReference = new Emitter<SelectionEvent>();
 
-	private _treeDataSource: DataSource;
-	private _tree: WorkbenchAsyncDataTree<TreeElement>;
+	private _tree: WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement>;
 	private _treeContainer: HTMLElement;
 	private _sash: VSash;
 	private _preview: ICodeEditor;
@@ -354,17 +353,18 @@ export class ReferenceWidget extends PeekViewWidget {
 		const treeOptions = {
 			ariaLabel: nls.localize('treeAriaLabel', "References"),
 			keyboardSupport: this._defaultTreeKeyboardSupport,
-			accessibilityProvider: new AriaProvider()
+			accessibilityProvider: new AriaProvider(),
+			keyboardNavigationLabelProvider: this._instantiationService.createInstance(StringRepresentationProvider)
 		};
 
-		this._treeDataSource = this._instantiationService.createInstance(DataSource);
+		const treeDataSource = this._instantiationService.createInstance(DataSource);
 
-		this._tree = this._instantiationService.createInstance<HTMLElement, IListVirtualDelegate<TreeElement>, ITreeRenderer<any, void, any>[], IDataSource<TreeElement>, IAsyncDataTreeOptions<TreeElement, void>, WorkbenchAsyncDataTree<TreeElement, void>>(
+		this._tree = this._instantiationService.createInstance<HTMLElement, IListVirtualDelegate<TreeElement>, ITreeRenderer<any, void, any>[], IAsyncDataSource<ReferencesModel | FileReferences, TreeElement>, IAsyncDataTreeOptions<TreeElement, void>, WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement, void>>(
 			WorkbenchAsyncDataTree,
 			this._treeContainer,
 			new Delegate(),
 			renderers,
-			this._treeDataSource,
+			treeDataSource,
 			treeOptions
 		);
 
@@ -498,8 +498,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		this.focus();
 
 		// pick input and a reference to begin with
-		this._treeDataSource.root = this._model.groups.length === 1 ? this._model.groups[0] : this._model;
-		return this._tree.refresh(null);
+		return this._tree.setInput(this._model.groups.length === 1 ? this._model.groups[0] : this._model);
 	}
 
 	private _getFocusedReference(): OneReference {
@@ -533,7 +532,7 @@ export class ReferenceWidget extends PeekViewWidget {
 
 		const promise = this._textModelResolverService.createModelReference(reference.uri);
 
-		if (this._treeDataSource.root === reference.parent) {
+		if (this._tree.getInput() === reference.parent) {
 			this._tree.reveal(reference);
 		} else {
 			if (revealParent) {

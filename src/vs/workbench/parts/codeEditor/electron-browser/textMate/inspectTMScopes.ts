@@ -261,11 +261,16 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 
 		let metadata = this._decodeMetadata(data.tokens2[(token2Index << 1) + 1]);
 		result += `<table class="tm-metadata-table"><tbody>`;
-		result += `<tr><td class="tm-metadata-key">language</td><td class="tm-metadata-value">${escape(metadata.languageIdentifier.language)}</td>`;
-		result += `<tr><td class="tm-metadata-key">token type</td><td class="tm-metadata-value">${this._tokenTypeToString(metadata.tokenType)}</td>`;
-		result += `<tr><td class="tm-metadata-key">font style</td><td class="tm-metadata-value">${this._fontStyleToString(metadata.fontStyle)}</td>`;
-		result += `<tr><td class="tm-metadata-key">foreground</td><td class="tm-metadata-value">${Color.Format.CSS.formatHexA(metadata.foreground)}</td>`;
-		result += `<tr><td class="tm-metadata-key">background</td><td class="tm-metadata-value">${Color.Format.CSS.formatHexA(metadata.background)}</td>`;
+		result += `<tr><td class="tm-metadata-key">language</td><td class="tm-metadata-value">${escape(metadata.languageIdentifier.language)}</td></tr>`;
+		result += `<tr><td class="tm-metadata-key">token type</td><td class="tm-metadata-value">${this._tokenTypeToString(metadata.tokenType)}</td></tr>`;
+		result += `<tr><td class="tm-metadata-key">font style</td><td class="tm-metadata-value">${this._fontStyleToString(metadata.fontStyle)}</td></tr>`;
+		result += `<tr><td class="tm-metadata-key">foreground</td><td class="tm-metadata-value">${Color.Format.CSS.formatHexA(metadata.foreground)}</td></tr>`;
+		result += `<tr><td class="tm-metadata-key">background</td><td class="tm-metadata-value">${Color.Format.CSS.formatHexA(metadata.background)}</td></tr>`;
+		if (metadata.background.isOpaque() && metadata.foreground.isOpaque()) {
+			result += `<tr><td class="tm-metadata-key">contrast ratio</td><td class="tm-metadata-value">${metadata.background.getContrastRatio(metadata.foreground).toFixed(2)}</td></tr>`;
+		} else {
+			result += '<tr><td class="tm-metadata-key">Contrast ratio cannot be precise for colors that use transparency</td><td class="tm-metadata-value"></td></tr>';
+		}
 		result += `</tbody></table>`;
 
 		let theme = this._themeService.getColorTheme();

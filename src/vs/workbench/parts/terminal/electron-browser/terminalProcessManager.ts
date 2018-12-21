@@ -18,7 +18,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { Schemas } from 'vs/base/common/network';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
+import { REMOTE_HOST_SCHEME, getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -41,13 +41,13 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	private _preLaunchInputQueue: string[] = [];
 	private _disposables: IDisposable[] = [];
 
-	private readonly _onProcessReady: Emitter<void> = new Emitter<void>();
+	private readonly _onProcessReady = new Emitter<void>();
 	public get onProcessReady(): Event<void> { return this._onProcessReady.event; }
-	private readonly _onProcessData: Emitter<string> = new Emitter<string>();
+	private readonly _onProcessData = new Emitter<string>();
 	public get onProcessData(): Event<string> { return this._onProcessData.event; }
-	private readonly _onProcessTitle: Emitter<string> = new Emitter<string>();
+	private readonly _onProcessTitle = new Emitter<string>();
 	public get onProcessTitle(): Event<string> { return this._onProcessTitle.event; }
-	private readonly _onProcessExit: Emitter<number> = new Emitter<number>();
+	private readonly _onProcessExit = new Emitter<number>();
 	public get onProcessExit(): Event<number> { return this._onProcessExit.event; }
 
 	constructor(
@@ -90,7 +90,17 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		cols: number,
 		rows: number
 	): void {
-		if (this._windowService.getConfiguration().remoteAuthority) {
+
+		let launchRemotely = false;
+
+		if (shellLaunchConfig.cwd && typeof shellLaunchConfig.cwd === 'object') {
+			launchRemotely = !!getRemoteAuthority(shellLaunchConfig.cwd);
+			shellLaunchConfig.cwd = shellLaunchConfig.cwd.path;
+		} else {
+			launchRemotely = !!this._windowService.getConfiguration().remoteAuthority;
+		}
+
+		if (launchRemotely) {
 			const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(REMOTE_HOST_SCHEME);
 			this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows);
 		} else {
@@ -123,7 +133,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 			terminalEnvironment.addTerminalEnvironmentKeys(env, platform.locale, this._configHelper.config.setLocaleVariables);
 
 			this._logService.debug(`Terminal process launching`, shellLaunchConfig, this.initialCwd, cols, rows, env);
-			this._process = new TerminalProcess(shellLaunchConfig, this.initialCwd, cols, rows, env);
+			this._process = new TerminalProcess(shellLaunchConfig, this.initialCwd, cols, rows, env, this._configHelper.config.windowsEnableConpty);
 		}
 		this.processState = ProcessState.LAUNCHING;
 

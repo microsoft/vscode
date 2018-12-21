@@ -45,7 +45,7 @@ export class TelemetryOptOut implements IWorkbenchContribution {
 			experimentService.getExperimentById(experimentId)
 		]).then(([focused, count, experimentState]) => {
 			if (!focused && count > 1) {
-				return null;
+				return;
 			}
 			storageService.store(TelemetryOptOut.TELEMETRY_OPT_OUT_SHOWN, true, StorageScope.GLOBAL);
 
@@ -83,7 +83,7 @@ export class TelemetryOptOut implements IWorkbenchContribution {
 		let noLabel = localize('telemetryOptOut.OptOut', "No, thanks");
 
 		let queryPromise = Promise.resolve(undefined);
-		if ((locale !== language && locale !== 'en' && locale.indexOf('en-') === -1)) {
+		if (locale && locale !== language && locale !== 'en' && locale.indexOf('en-') === -1) {
 			queryPromise = this.galleryService.query({ text: `tag:lp-${locale}` }).then(tagResult => {
 				if (!tagResult || !tagResult.total) {
 					return undefined;
@@ -93,7 +93,7 @@ export class TelemetryOptOut implements IWorkbenchContribution {
 					return undefined;
 				}
 
-				return this.galleryService.getCoreTranslation(extensionToFetchTranslationsFrom, locale)
+				return this.galleryService.getCoreTranslation(extensionToFetchTranslationsFrom, locale!)
 					.then(translation => {
 						const translationsFromPack = translation && translation.contents ? translation.contents['vs/workbench/parts/welcome/gettingStarted/electron-browser/telemetryOptOut'] : {};
 						if (!!translationsFromPack[promptMessageKey] && !!translationsFromPack[yesLabelKey] && !!translationsFromPack[noLabelKey]) {

@@ -139,3 +139,5 @@ import 'vs/workbench/parts/outline/electron-browser/outline.contribution';
 import 'vs/workbench/services/bulkEdit/electron-browser/bulkEditService';
 
 import 'vs/workbench/parts/experiments/electron-browser/experiments.contribution';
+
+import 'vs/workbench/parts/holidays/electron-browser/holidays.contribution';

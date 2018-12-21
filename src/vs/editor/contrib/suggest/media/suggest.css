@@ -173,7 +173,7 @@
 	background-image: url('Misc_16x.svg');
 	background-repeat: no-repeat;
 	background-position: center;
-	background-size: contain;
+	background-size: 75%;
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.method::before,

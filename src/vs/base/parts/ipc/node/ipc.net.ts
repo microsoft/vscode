@@ -239,7 +239,7 @@ export class Client<TContext = string> extends IPCClient<TContext> {
 
 	get onClose(): Event<void> { return this.protocol.onClose; }
 
-	constructor(private protocol: Protocol, id: TContext) {
+	constructor(private protocol: Protocol | BufferedProtocol, id: TContext) {
 		super(protocol, id);
 	}
 
@@ -275,4 +275,69 @@ export function connect(hook: any, clientId: string): Promise<Client> {
 
 		socket.once('error', e);
 	});
+}
+
+/**
+ * Will ensure no messages are lost if there are no event listeners.
+ */
+function createBufferedEvent<T>(source: Event<T>): Event<T> {
+	let emitter: Emitter<T>;
+	let hasListeners = false;
+	let isDeliveringMessages = false;
+	let bufferedMessages: T[] = [];
+
+	const deliverMessages = () => {
+		if (isDeliveringMessages) {
+			return;
+		}
+		isDeliveringMessages = true;
+		while (hasListeners && bufferedMessages.length > 0) {
+			emitter.fire(bufferedMessages.shift());
+		}
+		isDeliveringMessages = false;
+	};
+
+	source((e: T) => {
+		bufferedMessages.push(e);
+		deliverMessages();
+	});
+
+	emitter = new Emitter<T>({
+		onFirstListenerAdd: () => {
+			hasListeners = true;
+			// it is important to deliver these messages after this call, but before
+			// other messages have a chance to be received (to guarantee in order delivery)
+			// that's why we're using here nextTick and not other types of timeouts
+			process.nextTick(deliverMessages);
+		},
+		onLastListenerRemove: () => {
+			hasListeners = false;
+		}
+	});
+
+	return emitter.event;
+}
+
+/**
+ * Will ensure no messages are lost if there are no event listeners.
+ */
+export class BufferedProtocol implements IMessagePassingProtocol {
+
+	private readonly _actual: Protocol;
+	public readonly onMessage: Event<Buffer>;
+	public readonly onClose: Event<void>;
+
+	constructor(actual: Protocol) {
+		this._actual = actual;
+		this.onMessage = createBufferedEvent(this._actual.onMessage);
+		this.onClose = createBufferedEvent(this._actual.onClose);
+	}
+
+	public send(buffer: Buffer): void {
+		this._actual.send(buffer);
+	}
+
+	public end(): void {
+		this._actual.end();
+	}
 }

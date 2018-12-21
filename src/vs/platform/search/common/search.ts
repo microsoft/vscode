@@ -333,6 +333,7 @@ export interface ISearchConfigurationProperties {
 	showLineNumbers: boolean;
 	usePCRE2: boolean;
 	actionsPosition: 'auto' | 'right';
+	collapseResults: 'auto' | 'alwaysCollapse' | 'alwaysExpand';
 }
 
 export interface ISearchConfiguration extends IFilesConfiguration {

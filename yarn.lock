@@ -5988,10 +5988,10 @@ node-pre-gyp@^0.10.0:
     semver "^5.3.0"
     tar "^4"
 
-node-pty@0.7.8:
-  version "0.7.8"
-  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.7.8.tgz#9ed2f01f84263acc96982876e734aa75490bf3d8"
-  integrity sha512-2c2tZtGnvIJUWw8fDipxO953Mytqc5/IdRZK+YF52NtFMNTuWCQ41QDLEx76W64MEZkfDMoZyah6KPmyW1LO7g==
+node-pty@0.8.0:
+  version "0.8.0"
+  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.8.0.tgz#08bccb633f49e2e3f7245eb56ea6b40f37ccd64f"
+  integrity sha512-g5ggk3gN4gLrDmAllee5ScFyX3YzpOC/U8VJafha4pE7do0TIE1voiIxEbHSRUOPD1xYqmY+uHhOKAd3avbxGQ==
   dependencies:
     nan "2.10.0"
 
@@ -9069,10 +9069,10 @@ v8-compile-cache@^2.0.0:
   resolved "https://registry.yarnpkg.com/v8-compile-cache/-/v8-compile-cache-2.0.2.tgz#a428b28bb26790734c4fc8bc9fa106fccebf6a6c"
   integrity sha512-1wFuMUIM16MDJRCrpbpuEPTUGmM5QMUg0cr3KFwra2XgOgFcPGDQHDh3CszSCD2Zewc/dh/pamNEW8CbfDebUw==
 
-v8-inspect-profiler@^0.0.18:
-  version "0.0.18"
-  resolved "https://registry.yarnpkg.com/v8-inspect-profiler/-/v8-inspect-profiler-0.0.18.tgz#fbf6b92ae8fc815f5ab63eaf83c8a22792efa151"
-  integrity sha512-x4p/FWW5mSyLgdV5ipQwDw3Q68CMo36lgwZ72/PacsU4FgljbRyYqvIanw0regp01rxoQmnYRY634BbWJ2Ub6w==
+v8-inspect-profiler@^0.0.20:
+  version "0.0.20"
+  resolved "https://registry.yarnpkg.com/v8-inspect-profiler/-/v8-inspect-profiler-0.0.20.tgz#f7ad0f8178dcea2f1504334e8844ef38181792ab"
+  integrity sha512-AFLVT7GLCvTcw0HszhwxD1GCBboIeZSxqlk0myNXVLIfjelLl8rybm8KmRjoYcWH7uXqMC0qwhKk7Vj4wppiFQ==
   dependencies:
     chrome-remote-interface "0.26.1"
 
@@ -9428,10 +9428,10 @@ vscode-uri@^1.0.6:
   resolved "https://registry.yarnpkg.com/vscode-uri/-/vscode-uri-1.0.6.tgz#6b8f141b0bbc44ad7b07e94f82f168ac7608ad4d"
   integrity sha512-sLI2L0uGov3wKVb9EB+vIQBl9tVP90nqRvxSoJ35vI3NjxE8jfsE5DSOhWgSunHSZmKS4OCi2jrtfxK7uyp2ww==
 
-vscode-xterm@3.10.0-beta1:
-  version "3.10.0-beta1"
-  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.10.0-beta1.tgz#99f8fc269ebe28b791801daaa211b77f36692d6d"
-  integrity sha512-lofgBHVpisbrCjlXEKB4XTtqpsyzSRJ2KbDwKNVJZ7/44k261rYCIUgK8n5U427txTLwlkFNUG9lkTMaPeGKpA==
+vscode-xterm@3.10.0-beta6:
+  version "3.10.0-beta6"
+  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.10.0-beta6.tgz#ed2c6fc9bf5eb5a2cb4d6a09941445e3296bacbc"
+  integrity sha512-BDXmdPpprqBwWwGuHj+Wg4LtCsi9cv7NXGnXNX25/f/mHfNzRW8GqjsaCD188jfDKwxfsWWBkt3upog1rEcDqg==
 
 vso-node-api@6.1.2-preview:
   version "6.1.2-preview"

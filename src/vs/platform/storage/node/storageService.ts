@@ -107,6 +107,11 @@ export class StorageService extends Disposable implements IStorageService {
 
 				return Promise.reject(error);
 			});
+		}).then(void 0, error => {
+			onUnexpectedError(error);
+
+			// Upon error, fallback to in-memory storage
+			return this.createWorkspaceStorage(SQLiteStorageDatabase.IN_MEMORY_PATH).init();
 		});
 	}
 

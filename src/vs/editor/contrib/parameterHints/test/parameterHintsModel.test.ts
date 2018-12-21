@@ -17,7 +17,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { ParameterHintsModel } from '../parameterHintsWidget';
+import { ParameterHintsModel } from 'vs/editor/contrib/parameterHints/parameterHintsModel';
 
 const mockFile = URI.parse('test:somefile.ttt');
 const mockFileSelector = { scheme: 'test' };
@@ -89,12 +89,13 @@ suite('ParameterHintsModel', () => {
 				if (invokeCount === 1) {
 					assert.strictEqual(context.triggerKind, modes.SignatureHelpTriggerKind.TriggerCharacter);
 					assert.strictEqual(context.triggerCharacter, triggerChar);
+					assert.strictEqual(context.isRetrigger, false);
 					// Retrigger
 					editor.trigger('keyboard', Handler.Type, { text: triggerChar });
 				} else {
 					assert.strictEqual(invokeCount, 2);
 					assert.strictEqual(context.triggerKind, modes.SignatureHelpTriggerKind.TriggerCharacter);
-					assert.ok(context.isRetrigger);
+					assert.strictEqual(context.isRetrigger, true);
 					assert.strictEqual(context.triggerCharacter, triggerChar);
 					done();
 				}
@@ -122,6 +123,7 @@ suite('ParameterHintsModel', () => {
 				if (invokeCount === 1) {
 					assert.strictEqual(context.triggerKind, modes.SignatureHelpTriggerKind.TriggerCharacter);
 					assert.strictEqual(context.triggerCharacter, triggerChar);
+					assert.strictEqual(context.isRetrigger, false);
 
 					// Cancel and retrigger
 					hintModel.cancel();
@@ -130,6 +132,8 @@ suite('ParameterHintsModel', () => {
 					assert.strictEqual(invokeCount, 2);
 					assert.strictEqual(context.triggerKind, modes.SignatureHelpTriggerKind.TriggerCharacter);
 					assert.strictEqual(context.triggerCharacter, triggerChar);
+					assert.strictEqual(context.isRetrigger, false);
+
 					done();
 				}
 				return emptySigHelpResult;
@@ -244,10 +248,10 @@ suite('ParameterHintsModel', () => {
 		assert.strictEqual(-1, didRequestCancellationOf);
 
 		return new Promise((resolve, reject) =>
-			hintsModel.onHint(e => {
+			hintsModel.onChangedHints(newParamterHints => {
 				try {
 					assert.strictEqual(0, didRequestCancellationOf);
-					assert.strictEqual('1', e.hints.signatures[0].label);
+					assert.strictEqual('1', newParamterHints!.signatures[0].label);
 					resolve();
 				} catch (e) {
 					reject(e);

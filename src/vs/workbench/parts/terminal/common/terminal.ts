@@ -102,6 +102,7 @@ export interface ITerminalConfiguration {
 	showExitAlert: boolean;
 	experimentalBufferImpl: 'JsArray' | 'TypedArray';
 	splitCwd: 'workspaceRoot' | 'initial' | 'inherited';
+	windowsEnableConpty: boolean;
 }
 
 export interface ITerminalConfigHelper {
@@ -150,7 +151,7 @@ export interface IShellLaunchConfig {
 	 * The current working directory of the terminal, this overrides the `terminal.integrated.cwd`
 	 * settings key.
 	 */
-	cwd?: string;
+	cwd?: string | URI;
 
 	/**
 	 * A custom environment for the terminal, if this is not set the environment will be inherited
@@ -296,6 +297,10 @@ interface ISearchOptions {
 	 * Whether find should pay attention to case.
 	 */
 	caseSensitive?: boolean;
+	/**
+	 * Whether the search should start at the current search position (not the next row)
+	 */
+	incremental?: boolean;
 }
 
 export interface ITerminalInstance {

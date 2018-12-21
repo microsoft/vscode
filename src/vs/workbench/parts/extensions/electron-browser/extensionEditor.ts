@@ -289,7 +289,7 @@ export class ExtensionEditor extends BaseEditor {
 				this.icon.src = extension.iconUrl;
 
 				this.name.textContent = extension.displayName;
-				this.identifier.textContent = extension.id;
+				this.identifier.textContent = extension.identifier.id;
 				this.preview.style.display = extension.preview ? 'inherit' : 'none';
 				this.builtin.style.display = extension.type === LocalExtensionType.System ? 'inherit' : 'none';
 
@@ -298,8 +298,8 @@ export class ExtensionEditor extends BaseEditor {
 
 				const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
 				let recommendationsData = {};
-				if (extRecommendations[extension.id.toLowerCase()]) {
-					recommendationsData = { recommendationReason: extRecommendations[extension.id.toLowerCase()].reasonId };
+				if (extRecommendations[extension.identifier.id.toLowerCase()]) {
+					recommendationsData = { recommendationReason: extRecommendations[extension.identifier.id.toLowerCase()].reasonId };
 				}
 
 				/* __GDPR__
@@ -418,11 +418,11 @@ export class ExtensionEditor extends BaseEditor {
 		this.transientDisposables.push(ignoreAction, undoIgnoreAction);
 
 		const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
-		if (extRecommendations[extension.id.toLowerCase()]) {
+		if (extRecommendations[extension.identifier.id.toLowerCase()]) {
 			ignoreAction.enabled = true;
-			this.subtext.textContent = extRecommendations[extension.id.toLowerCase()].reasonText;
+			this.subtext.textContent = extRecommendations[extension.identifier.id.toLowerCase()].reasonText;
 			show(this.subtextContainer);
-		} else if (this.extensionTipsService.getAllIgnoredRecommendations().global.indexOf(extension.id.toLowerCase()) !== -1) {
+		} else if (this.extensionTipsService.getAllIgnoredRecommendations().global.indexOf(extension.identifier.id.toLowerCase()) !== -1) {
 			undoIgnoreAction.enabled = true;
 			this.subtext.textContent = localize('recommendationHasBeenIgnored', "You have chosen not to receive recommendations for this extension.");
 			show(this.subtextContainer);
@@ -432,13 +432,13 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		this.extensionTipsService.onRecommendationChange(change => {
-			if (change.extensionId.toLowerCase() === extension.id.toLowerCase()) {
+			if (change.extensionId.toLowerCase() === extension.identifier.id.toLowerCase()) {
 				if (change.isRecommended) {
 					undoIgnoreAction.enabled = false;
 					const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
-					if (extRecommendations[extension.id.toLowerCase()]) {
+					if (extRecommendations[extension.identifier.id.toLowerCase()]) {
 						ignoreAction.enabled = true;
-						this.subtext.textContent = extRecommendations[extension.id.toLowerCase()].reasonText;
+						this.subtext.textContent = extRecommendations[extension.identifier.id.toLowerCase()].reasonText;
 					}
 				} else {
 					undoIgnoreAction.enabled = true;

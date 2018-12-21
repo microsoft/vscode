@@ -9,7 +9,6 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IFolderQuery, IPatternInfo, ISearchConfiguration, ISearchProgressItem, ISearchService, QueryType, IFileQuery } from 'vs/platform/search/common/search';
@@ -24,6 +23,7 @@ import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common
 import { ExtHostContext, ExtHostWorkspaceShape, IExtHostContext, MainContext, MainThreadWorkspaceShape } from '../node/extHost.protocol';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import { TextSearchComplete } from 'vscode';
+import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
@@ -246,7 +246,7 @@ CommandsRegistry.registerCommand('_workbench.enterWorkspace', async function (ac
 	if (disableExtensions && disableExtensions.length) {
 		const runningExtensions = await extensionService.getExtensions();
 		// If requested extension to disable is running, then reload window with given workspace
-		if (disableExtensions && runningExtensions.some(runningExtension => disableExtensions.some(id => areSameExtensions({ id }, { id: runningExtension.id })))) {
+		if (disableExtensions && runningExtensions.some(runningExtension => disableExtensions.some(id => CanonicalExtensionIdentifier.equals(runningExtension.identifier, id)))) {
 			return windowService.openWindow([URI.file(workspace.fsPath)], { args: { _: [], 'disable-extension': disableExtensions } });
 		}
 	}

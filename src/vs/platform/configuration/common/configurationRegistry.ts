@@ -10,6 +10,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import * as types from 'vs/base/common/types';
 import * as strings from 'vs/base/common/strings';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
+import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export const Extensions = {
 	Configuration: 'base.contributions.configuration'
@@ -93,7 +94,7 @@ export interface IConfigurationNode {
 }
 
 export interface IDefaultConfigurationExtension {
-	id: string;
+	id: CanonicalExtensionIdentifier;
 	name: string;
 	defaults: { [key: string]: {} };
 }
@@ -115,7 +116,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	private overrideIdentifiers: string[] = [];
 	private overridePropertyPattern: string;
 
-	private readonly _onDidSchemaChange: Emitter<void> = new Emitter<void>();
+	private readonly _onDidSchemaChange = new Emitter<void>();
 	readonly onDidSchemaChange: Event<void> = this._onDidSchemaChange.event;
 
 	private readonly _onDidRegisterConfiguration: Emitter<string[]> = new Emitter<string[]>();

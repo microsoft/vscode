@@ -9,25 +9,26 @@ import { INavigator } from 'vs/base/common/iterator';
 import { createKeybinding, ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
+import { normalize } from 'vs/base/common/paths';
 import { isWindows, OS } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { ITree } from 'vs/base/parts/tree/browser/tree';
 import * as nls from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ICommandHandler } from 'vs/platform/commands/common/commands';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ISearchHistoryService, VIEW_ID, ISearchConfiguration } from 'vs/platform/search/common/search';
+import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
+import { ISearchConfiguration, ISearchHistoryService, VIEW_ID } from 'vs/platform/search/common/search';
 import { SearchView } from 'vs/workbench/parts/search/browser/searchView';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import { FileMatch, FileMatchOrMatch, FolderMatch, Match, RenderableMatch, searchMatchComparer, SearchResult } from 'vs/workbench/parts/search/common/searchModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { normalize } from 'vs/base/common/paths';
-import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { repeat } from 'vs/base/common/strings';
 
 export function isSearchViewFocused(viewletService: IViewletService, panelService: IPanelService): boolean {
 	let searchView = getSearchView(viewletService, panelService);
@@ -266,16 +267,12 @@ export class CollapseDeepestExpandedLevelAction extends Action {
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		if (searchView) {
 			const viewer = searchView.getControl();
-			if (viewer.getHighlight()) {
-				return Promise.resolve(void 0); // Global action disabled if user is in edit mode from another action
-			}
 
 			/**
-			 * The hierarchy is FolderMatch, FileMatch, Match. If the top level is FileMatches, then there is only
 			 * one level to collapse so collapse everything. If FolderMatch, check if there are visible grandchildren,
 			 * i.e. if Matches are returned by the navigator, and if so, collapse to them, otherwise collapse all levels.
 			 */
-			const navigator = viewer.getNavigator();
+			const navigator = viewer.navigate();
 			let node = navigator.first();
 			let collapseFileMatchLevel = false;
 			if (node instanceof FolderMatch) {
@@ -298,8 +295,6 @@ export class CollapseDeepestExpandedLevelAction extends Action {
 				viewer.collapseAll();
 			}
 
-			viewer.clearSelection();
-			viewer.clearFocus();
 			viewer.domFocus();
 			viewer.focusFirst();
 		}
@@ -403,33 +398,29 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 	/**
 	 * Returns element to focus after removing the given element
 	 */
-	public getElementToFocusAfterRemoved(viewer: ITree, elementToBeRemoved: RenderableMatch): Promise<RenderableMatch> {
-		return this.getNextElementAfterRemoved(viewer, elementToBeRemoved).then(elementToFocus => {
-			return elementToFocus || this.getPreviousElementAfterRemoved(viewer, elementToBeRemoved);
-		});
+	public getElementToFocusAfterRemoved(viewer: WorkbenchObjectTree<RenderableMatch>, elementToBeRemoved: RenderableMatch): RenderableMatch {
+		const elementToFocus = this.getNextElementAfterRemoved(viewer, elementToBeRemoved);
+		return elementToFocus || this.getPreviousElementAfterRemoved(viewer, elementToBeRemoved);
 	}
 
-	public async getNextElementAfterRemoved(viewer: ITree, element: RenderableMatch): Promise<RenderableMatch> {
-		let navigator: INavigator<any> = this.getNavigatorAt(element, viewer);
+	public getNextElementAfterRemoved(viewer: WorkbenchObjectTree<RenderableMatch>, element: RenderableMatch): RenderableMatch {
+		let navigator: INavigator<any> = viewer.navigate(element);
 		if (element instanceof FolderMatch) {
-			// If file match is removed then next element is the next file match
 			while (!!navigator.next() && !(navigator.current() instanceof FolderMatch)) { }
 		} else if (element instanceof FileMatch) {
-			// If file match is removed then next element is the next file match
 			while (!!navigator.next() && !(navigator.current() instanceof FileMatch)) { }
 		} else {
 			while (navigator.next() && !(navigator.current() instanceof Match)) {
-				await viewer.expand(navigator.current());
+				viewer.expand(navigator.current());
 			}
 		}
 		return navigator.current();
 	}
 
-	public async getPreviousElementAfterRemoved(viewer: ITree, element: RenderableMatch): Promise<RenderableMatch> {
-		let navigator: INavigator<any> = this.getNavigatorAt(element, viewer);
+	public getPreviousElementAfterRemoved(viewer: WorkbenchObjectTree<RenderableMatch>, element: RenderableMatch): RenderableMatch {
+		let navigator: INavigator<any> = viewer.navigate(element);
 		let previousElement = navigator.previous();
 
-		// If this is the only match, then the file/folder match is also removed
 		// Hence take the previous element.
 		const parent = element.parent();
 		if (parent === previousElement) {
@@ -444,23 +435,17 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 		// Spell out the two cases, would be too easy to create an infinite loop, like by adding another level...
 		if (element instanceof Match && previousElement && previousElement instanceof FolderMatch) {
 			navigator.next();
-			await viewer.expand(previousElement);
+			viewer.expand(previousElement);
 			previousElement = navigator.previous();
 		}
 
 		if (element instanceof Match && previousElement && previousElement instanceof FileMatch) {
 			navigator.next();
-			await viewer.expand(previousElement);
+			viewer.expand(previousElement);
 			previousElement = navigator.previous();
 		}
 
 		return previousElement;
-	}
-
-	private getNavigatorAt(element: RenderableMatch, viewer: ITree): INavigator<any> {
-		let navigator: INavigator<any> = viewer.getNavigator();
-		while (navigator.current() !== element && !!navigator.next()) { }
-		return navigator;
 	}
 }
 
@@ -468,41 +453,44 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 
 	public static LABEL = nls.localize('RemoveAction.label', "Dismiss");
 
-	constructor(private viewer: ITree, private element: RenderableMatch) {
+	constructor(
+		private viewlet: SearchView,
+		private viewer: WorkbenchObjectTree<RenderableMatch>,
+		private element: RenderableMatch
+	) {
 		super('remove', RemoveAction.LABEL, 'action-remove');
 	}
 
 	public run(): Promise<any> {
-		const currentFocusElement = this.viewer.getFocus();
-		const nextFocusElementP = !currentFocusElement || currentFocusElement instanceof SearchResult || elementIsEqualOrParent(currentFocusElement, this.element) ?
+		const currentFocusElement = this.viewer.getFocus()[0];
+		const nextFocusElement = !currentFocusElement || currentFocusElement instanceof SearchResult || elementIsEqualOrParent(currentFocusElement, this.element) ?
 			this.getElementToFocusAfterRemoved(this.viewer, this.element) :
-			Promise.resolve(null);
+			null;
 
-		return nextFocusElementP.then(nextFocusElement => {
-			if (nextFocusElement) {
-				this.viewer.reveal(nextFocusElement);
-				this.viewer.setFocus(nextFocusElement);
-			}
+		if (nextFocusElement) {
+			this.viewer.reveal(nextFocusElement);
+			this.viewer.setFocus([nextFocusElement]);
+		}
 
-			let elementToRefresh: any;
-			const element = this.element;
-			if (element instanceof FolderMatch) {
-				let parent = element.parent();
-				parent.remove(element);
-				elementToRefresh = parent;
-			} else if (element instanceof FileMatch) {
-				let parent = element.parent();
-				parent.remove(element);
-				elementToRefresh = parent;
-			} else if (element instanceof Match) {
-				let parent = element.parent();
-				parent.remove(element);
-				elementToRefresh = parent.count() === 0 ? parent.parent() : parent;
-			}
+		let elementToRefresh: FolderMatch | FileMatch | SearchResult;
+		const element = this.element;
+		if (element instanceof FolderMatch) {
+			let parent = element.parent();
+			parent.remove(element);
+			elementToRefresh = parent;
+		} else if (element instanceof FileMatch) {
+			let parent = element.parent();
+			parent.remove(element);
+			elementToRefresh = parent;
+		} else if (element instanceof Match) {
+			let parent = element.parent();
+			parent.remove(element);
+			elementToRefresh = parent.count() === 0 ? parent.parent() : parent;
+		}
 
-			this.viewer.domFocus();
-			return this.viewer.refresh(elementToRefresh);
-		});
+		this.viewer.domFocus();
+		this.viewlet.refreshTree({ elements: [elementToRefresh] });
+		return Promise.resolve();
 	}
 }
 
@@ -520,20 +508,24 @@ export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 
 	public static readonly LABEL = nls.localize('file.replaceAll.label', "Replace All");
 
-	constructor(private viewer: ITree, private fileMatch: FileMatch, private viewlet: SearchView,
-		@IKeybindingService keyBindingService: IKeybindingService) {
+	constructor(
+		private viewlet: SearchView,
+		private fileMatch: FileMatch,
+		@IKeybindingService keyBindingService: IKeybindingService
+	) {
 		super(Constants.ReplaceAllInFileActionId, appendKeyBindingLabel(ReplaceAllAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceAllInFileActionId), keyBindingService), 'action-replace-all');
 	}
 
 	public run(): Promise<any> {
-		return this.getElementToFocusAfterRemoved(this.viewer, this.fileMatch).then(nextFocusElement => {
-			return this.fileMatch.parent().replace(this.fileMatch).then(() => {
-				if (nextFocusElement) {
-					this.viewer.setFocus(nextFocusElement);
-				}
-				this.viewer.domFocus();
-				this.viewlet.open(this.fileMatch, true);
-			});
+		const tree = this.viewlet.getControl();
+		const nextFocusElement = this.getElementToFocusAfterRemoved(tree, this.fileMatch);
+		return this.fileMatch.parent().replace(this.fileMatch).then(() => {
+			if (nextFocusElement) {
+				tree.setFocus([nextFocusElement]);
+			}
+
+			tree.domFocus();
+			this.viewlet.open(this.fileMatch, true);
 		});
 	}
 }
@@ -542,20 +534,19 @@ export class ReplaceAllInFolderAction extends AbstractSearchAndReplaceAction {
 
 	public static readonly LABEL = nls.localize('file.replaceAll.label', "Replace All");
 
-	constructor(private viewer: ITree, private folderMatch: FolderMatch,
+	constructor(private viewer: WorkbenchObjectTree<RenderableMatch>, private folderMatch: FolderMatch,
 		@IKeybindingService keyBindingService: IKeybindingService
 	) {
 		super(Constants.ReplaceAllInFolderActionId, appendKeyBindingLabel(ReplaceAllInFolderAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceAllInFolderActionId), keyBindingService), 'action-replace-all');
 	}
 
 	public run(): Promise<any> {
-		return this.getElementToFocusAfterRemoved(this.viewer, this.folderMatch).then(nextFocusElement => {
-			return this.folderMatch.replaceAll().then(() => {
-				if (nextFocusElement) {
-					this.viewer.setFocus(nextFocusElement);
-				}
-				this.viewer.domFocus();
-			});
+		const nextFocusElement = this.getElementToFocusAfterRemoved(this.viewer, this.folderMatch);
+		return this.folderMatch.replaceAll().then(() => {
+			if (nextFocusElement) {
+				this.viewer.setFocus([nextFocusElement]);
+			}
+			this.viewer.domFocus();
 		});
 	}
 }
@@ -564,7 +555,7 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 
 	public static readonly LABEL = nls.localize('match.replace.label', "Replace");
 
-	constructor(private viewer: ITree, private element: Match, private viewlet: SearchView,
+	constructor(private viewer: WorkbenchObjectTree<RenderableMatch>, private element: Match, private viewlet: SearchView,
 		@IReplaceService private replaceService: IReplaceService,
 		@IKeybindingService keyBindingService: IKeybindingService,
 		@IEditorService private editorService: IEditorService,
@@ -578,8 +569,9 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 		return this.element.parent().replace(this.element).then(() => {
 			let elementToFocus = this.getElementToFocusAfterReplace();
 			if (elementToFocus) {
-				this.viewer.setFocus(elementToFocus);
+				this.viewer.setFocus([elementToFocus]);
 			}
+
 			return this.getElementToShowReplacePreview(elementToFocus);
 		}).then(elementToShowReplacePreview => {
 			this.viewer.domFocus();
@@ -594,7 +586,7 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 	}
 
 	private getElementToFocusAfterReplace(): Match {
-		let navigator: INavigator<any> = this.viewer.getNavigator();
+		let navigator: INavigator<any> = this.viewer.navigate();
 		let fileMatched = false;
 		let elementToFocus = null;
 		do {
@@ -611,7 +603,7 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 					break;
 				}
 			} else if (fileMatched) {
-				if (!this.viewer.isExpanded(elementToFocus)) {
+				if (this.viewer.isCollapsed(elementToFocus)) {
 					// Next file match (if collapsed)
 					break;
 				}
@@ -656,8 +648,31 @@ export const copyPathCommand: ICommandHandler = (accessor, fileMatch: FileMatch 
 	clipboardService.writeText(text);
 };
 
-function matchToString(match: Match): string {
-	return `${match.range().startLineNumber},${match.range().startColumn}: ${match.text()}`;
+function matchToString(match: Match, indent = 0): string {
+	const getFirstLinePrefix = () => `${match.range().startLineNumber},${match.range().startColumn}`;
+	const getOtherLinePrefix = (i: number) => match.range().startLineNumber + i + '';
+
+	const fullMatchLines = match.fullMatchText().split(/\r?\n/g);
+	const largestPrefixSize = fullMatchLines.reduce((largest, _, i) => {
+		const thisSize = i === 0 ?
+			getFirstLinePrefix().length :
+			getOtherLinePrefix(i).length;
+
+		return Math.max(thisSize, largest);
+	}, 0);
+
+	const formattedLines = fullMatchLines
+		.map((line, i) => {
+			const prefix = i === 0 ?
+				getFirstLinePrefix() :
+				getOtherLinePrefix(i);
+
+			const paddingStr = repeat(' ', largestPrefixSize - prefix.length);
+			const indentStr = repeat(' ', indent);
+			return `${indentStr}${prefix}: ${paddingStr}${line}`;
+		});
+
+	return formattedLines.join('\n');
 }
 
 const lineDelimiter = isWindows ? '\r\n' : '\n';
@@ -665,8 +680,7 @@ function fileMatchToString(fileMatch: FileMatch, maxMatches: number): { text: st
 	const matchTextRows = fileMatch.matches()
 		.sort(searchMatchComparer)
 		.slice(0, maxMatches)
-		.map(matchToString)
-		.map(matchText => '  ' + matchText);
+		.map(match => matchToString(match, 2));
 	return {
 		text: `${uriToClipboardString(fileMatch.resource())}${lineDelimiter}${matchTextRows.join(lineDelimiter)}`,
 		count: matchTextRows.length
@@ -730,7 +744,7 @@ export const copyAllCommand: ICommandHandler = accessor => {
 	const clipboardService = accessor.get(IClipboardService);
 
 	const searchView = getSearchView(viewletService, panelService);
-	const root: SearchResult = searchView.getControl().getInput();
+	const root = searchView.searchResult;
 
 	const text = allFolderMatchesToString(root.folderMatches(), maxClipboardMatches);
 	clipboardService.writeText(text);

@@ -453,7 +453,7 @@ export class DefaultSettings extends Disposable {
 
 	getContent(forceUpdate = false): string {
 		if (!this._content || forceUpdate) {
-			this._content = this.toContent(true, this.getSettingsGroups(forceUpdate));
+			this.initialize();
 		}
 
 		return this._content;
@@ -461,10 +461,15 @@ export class DefaultSettings extends Disposable {
 
 	getSettingsGroups(forceUpdate = false): ISettingsGroup[] {
 		if (!this._allSettingsGroups || forceUpdate) {
-			this._allSettingsGroups = this.parse();
+			this.initialize();
 		}
 
 		return this._allSettingsGroups;
+	}
+
+	private initialize(): void {
+		this._allSettingsGroups = this.parse();
+		this._content = this.toContent(true, this._allSettingsGroups);
 	}
 
 	private parse(): ISettingsGroup[] {

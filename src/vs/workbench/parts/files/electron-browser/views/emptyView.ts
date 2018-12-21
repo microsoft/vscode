@@ -9,7 +9,6 @@ import * as env from 'vs/base/common/platform';
 import * as DOM from 'vs/base/browser/dom';
 import { IAction } from 'vs/base/common/actions';
 import { Button } from 'vs/base/browser/ui/button/button';
-import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { OpenFolderAction, OpenFileFolderAction, AddRootFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
@@ -26,8 +25,8 @@ import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 
 export class EmptyView extends ViewletPanel {
 
-	public static readonly ID: string = 'workbench.explorer.emptyView';
-	public static readonly NAME = nls.localize('noWorkspace', "No Folder Opened");
+	static readonly ID: string = 'workbench.explorer.emptyView';
+	static readonly NAME = nls.localize('noWorkspace', "No Folder Opened");
 
 	private button: Button;
 	private messageElement: HTMLElement;
@@ -46,7 +45,7 @@ export class EmptyView extends ViewletPanel {
 		this.contextService.onDidChangeWorkbenchState(() => this.setLabels());
 	}
 
-	public renderHeader(container: HTMLElement): void {
+	renderHeader(container: HTMLElement): void {
 		const titleContainer = document.createElement('div');
 		DOM.addClass(titleContainer, 'title');
 		container.appendChild(titleContainer);
@@ -123,29 +122,9 @@ export class EmptyView extends ViewletPanel {
 		// no-op
 	}
 
-	public setVisible(visible: boolean): Promise<void> {
-		return Promise.resolve(void 0);
-	}
-
-	public focusBody(): void {
+	focusBody(): void {
 		if (this.button) {
 			this.button.element.focus();
 		}
-	}
-
-	protected reveal(element: any, relativeTop?: number): Promise<void> {
-		return Promise.resolve(void 0);
-	}
-
-	public getActions(): IAction[] {
-		return [];
-	}
-
-	public getSecondaryActions(): IAction[] {
-		return [];
-	}
-
-	public getActionItem(action: IAction): IActionItem {
-		return null;
 	}
 }

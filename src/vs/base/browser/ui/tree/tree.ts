@@ -145,6 +145,15 @@ export interface ITreeNavigator<T> {
 	next(): T | null;
 }
 
+export interface IDataSource<TInput, T> {
+	getChildren(element: TInput | T): T[];
+}
+
+export interface IAsyncDataSource<TInput, T> {
+	hasChildren(element: TInput | T): boolean;
+	getChildren(element: TInput | T): T[] | Promise<T[]>;
+}
+
 /**
  * Use this renderer when you want to re-render elements on account of
  * an event firing.
