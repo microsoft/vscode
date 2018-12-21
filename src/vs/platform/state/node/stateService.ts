@@ -15,6 +15,7 @@ import { readFile } from 'vs/base/node/pfs';
 export class FileStorage {
 
 	private _database: object | null = null;
+	private lastFlushedSerializedDatabase: string | null = null;
 
 	constructor(private dbPath: string, private onError: (error: Error) => void) { }
 
@@ -29,7 +30,8 @@ export class FileStorage {
 	init(): Promise<void> {
 		return readFile(this.dbPath).then(contents => {
 			try {
-				this._database = JSON.parse(contents.toString());
+				this.lastFlushedSerializedDatabase = contents.toString();
+				this._database = JSON.parse(this.lastFlushedSerializedDatabase);
 			} catch (error) {
 				this._database = {};
 			}
@@ -44,7 +46,9 @@ export class FileStorage {
 
 	private loadSync(): object {
 		try {
-			return JSON.parse(fs.readFileSync(this.dbPath).toString());
+			this.lastFlushedSerializedDatabase = fs.readFileSync(this.dbPath).toString();
+
+			return JSON.parse(this.lastFlushedSerializedDatabase);
 		} catch (error) {
 			if (error.code !== 'ENOENT') {
 				this.onError(error);
@@ -93,8 +97,14 @@ export class FileStorage {
 	}
 
 	private saveSync(): void {
+		const serializedDatabase = JSON.stringify(this.database, null, 4);
+		if (serializedDatabase === this.lastFlushedSerializedDatabase) {
+			return; // return early if the database has not changed
+		}
+
 		try {
-			writeFileAndFlushSync(this.dbPath, JSON.stringify(this.database, null, 4)); // permission issue can happen here
+			writeFileAndFlushSync(this.dbPath, serializedDatabase); // permission issue can happen here
+			this.lastFlushedSerializedDatabase = serializedDatabase;
 		} catch (error) {
 			this.onError(error);
 		}
