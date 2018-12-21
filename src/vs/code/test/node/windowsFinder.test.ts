@@ -31,7 +31,7 @@ function options(custom?: Partial<IBestWindowOrFolderOptions<ISimpleWindow>>): I
 }
 
 const vscodeFolderWindow: ISimpleWindow = { lastFocusTime: 1, openedFolderUri: URI.file(path.join(fixturesFolder, 'vscode_folder')) };
-const lastActiveWindow: ISimpleWindow = { lastFocusTime: 3, openedFolderUri: null };
+const lastActiveWindow: ISimpleWindow = { lastFocusTime: 3, openedFolderUri: undefined };
 const noVscodeFolderWindow: ISimpleWindow = { lastFocusTime: 2, openedFolderUri: URI.file(path.join(fixturesFolder, 'no_vscode_folder')) };
 const windows: ISimpleWindow[] = [
 	vscodeFolderWindow,

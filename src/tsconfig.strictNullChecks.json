@@ -195,6 +195,7 @@
 		"./vs/code/node/wait.ts",
 		"./vs/code/node/windowsFinder.ts",
 		"./vs/code/test/node/argv.test.ts",
+		"./vs/code/test/node/windowsFinder.test.ts",
 		"./vs/editor/contrib/bracketMatching/bracketMatching.ts",
 		"./vs/editor/contrib/bracketMatching/test/bracketMatching.test.ts",
 		"./vs/editor/contrib/caretOperations/caretOperations.ts",
