@@ -63,7 +63,7 @@ import { MenubarChannel } from 'vs/platform/menubar/node/menubarIpc';
 import { hasArgs } from 'vs/platform/environment/node/argv';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
-import { THEME_STORAGE_KEY, THEME_BG_STORAGE_KEY } from 'vs/code/electron-main/theme';
+import { storeBackgroundColor } from 'vs/code/electron-main/theme';
 import { nativeSep, join } from 'vs/base/common/paths';
 import { homedir } from 'os';
 import { localize } from 'vs/nls';
@@ -283,10 +283,7 @@ export class CodeApplication extends Disposable {
 
 		// Theme changes
 		if (event === 'vscode:changeColorTheme' && typeof payload === 'string') {
-			let data = JSON.parse(payload);
-
-			this.stateService.setItem(THEME_STORAGE_KEY, data.baseTheme);
-			this.stateService.setItem(THEME_BG_STORAGE_KEY, data.background);
+			storeBackgroundColor(this.stateService, JSON.parse(payload));
 		}
 	}
 
