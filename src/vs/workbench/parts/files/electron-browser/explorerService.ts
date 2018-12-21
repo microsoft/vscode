@@ -220,6 +220,10 @@ export class ExplorerService implements IExplorerService {
 		setTimeout(() => {
 			// Filter to the ones we care
 			e = this.filterToViewRelevantEvents(e);
+			const explorerItemChanged = (item: ExplorerItem) => {
+				item.isDirectoryResolved = false;
+				this._onDidChangeItem.fire(item);
+			};
 
 			// Handle added files/folders
 			const added = e.getAdded();
@@ -241,7 +245,7 @@ export class ExplorerService implements IExplorerService {
 					// Compute if parent is visible and added file not yet part of it
 					const parentStat = this.model.findClosest(parent);
 					if (parentStat && parentStat.isDirectoryResolved && !this.model.findClosest(change.resource)) {
-						this._onDidChangeItem.fire(parentStat);
+						explorerItemChanged(parentStat);
 					}
 
 					// Keep track of path that can be ignored for faster lookup
@@ -260,7 +264,7 @@ export class ExplorerService implements IExplorerService {
 					const del = deleted[j];
 					const item = this.model.findClosest(del.resource);
 					if (item) {
-						this._onDidChangeItem.fire(item.parent);
+						explorerItemChanged(item.parent);
 					}
 				}
 			}
@@ -275,7 +279,7 @@ export class ExplorerService implements IExplorerService {
 					const item = this.model.findClosest(upd.resource);
 
 					if (item) {
-						this._onDidChangeItem.fire(item.parent);
+						explorerItemChanged(item.parent);
 					}
 				}
 			}
