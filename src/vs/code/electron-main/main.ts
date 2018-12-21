@@ -8,9 +8,8 @@ import { app, dialog } from 'electron';
 import { assign } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import product from 'vs/platform/node/product';
-import * as path from 'path';
 import { parseMainProcessArgv } from 'vs/platform/environment/node/argv';
-import { mkdirp, readdir, rimraf } from 'vs/base/node/pfs';
+import { mkdirp } from 'vs/base/node/pfs';
 import { validatePaths } from 'vs/code/node/paths';
 import { LifecycleService, ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { Server, serve, connect } from 'vs/base/parts/ipc/node/ipc.net';
@@ -48,20 +47,6 @@ import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { CommandLineDialogService } from 'vs/platform/dialogs/node/dialogService';
 import { createWaitMarkerFile } from 'vs/code/node/wait';
-
-/**
- * Cleans up older logs, while keeping the 10 most recent ones.
-*/
-async function cleanupOlderLogs(environmentService: EnvironmentService): Promise<void> {
-	const currentLog = path.basename(environmentService.logsPath);
-	const logsRoot = path.dirname(environmentService.logsPath);
-	const children = await readdir(logsRoot);
-	const allSessions = children.filter(name => /^\d{8}T\d{6}$/.test(name));
-	const oldSessions = allSessions.sort().filter((d, i) => d !== currentLog);
-	const toDelete = oldSessions.slice(0, Math.max(0, oldSessions.length - 9));
-
-	await Promise.all(toDelete.map(name => rimraf(path.join(logsRoot, name))));
-}
 
 function initServices(environmentService: IEnvironmentService, stateService: StateService): Promise<any> {
 
@@ -344,7 +329,6 @@ function createServices(args: ParsedArgs, bufferLogService: BufferLogService): I
 
 	const logService = new MultiplexLogService([new ConsoleLogMainService(getLogLevel(environmentService)), bufferLogService]);
 	process.once('exit', () => logService.dispose());
-	setTimeout(() => cleanupOlderLogs(environmentService).then(null, err => console.error(err)), 10000);
 
 	services.set(IEnvironmentService, environmentService);
 	services.set(ILogService, logService);
