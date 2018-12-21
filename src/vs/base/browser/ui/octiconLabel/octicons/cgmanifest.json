@@ -1,0 +1,17 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "octicons-font",
+					"repositoryUrl": "https://github.com/misolori/octicons-font",
+					"commitHash": "7ed3982f0834c0a9f7ec7a5de07db63f7026ccd4"
+				}
+			},
+			"license": "MIT",
+			"version": "1.0.0"
+		}
+	],
+	"version": 1
+}
