@@ -20,6 +20,7 @@ import * as vscode from 'vscode';
 import { extHostNamedCustomer } from './extHostCustomers';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 @extHostNamedCustomer(MainContext.MainThreadWebviews)
 export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviver {
@@ -69,7 +70,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		title: string,
 		showOptions: { viewColumn: EditorViewColumn | null, preserveFocus: boolean },
 		options: WebviewInputOptions,
-		extensionId: string,
+		extensionId: CanonicalExtensionIdentifier,
 		extensionLocation: UriComponents
 	): void {
 		const mainThreadShowOptions: ICreateWebViewShowOptions = Object.create(null);
@@ -92,7 +93,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 				"extensionId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
 		*/
-		this._telemetryService.publicLog('webviews:createWebviewPanel', { extensionId: extensionId });
+		this._telemetryService.publicLog('webviews:createWebviewPanel', { extensionId: extensionId.value });
 	}
 
 	public $disposeWebview(handle: WebviewPanelHandle): void {

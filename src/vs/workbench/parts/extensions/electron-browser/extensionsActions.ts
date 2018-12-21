@@ -18,7 +18,7 @@ import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IE
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/parts/extensions/common/extensionsFileTemplate';
 import { LocalExtensionType, IExtensionEnablementService, IExtensionTipsService, EnablementState, ExtensionsLabel, IExtensionRecommendation, IGalleryExtension, IExtensionsConfigContent, IExtensionManagementServerService, IExtensionGalleryService, INSTALL_ERROR_MALICIOUS, INSTALL_ERROR_INCOMPATIBLE, IGalleryExtensionVersion } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { isUIExtension } from 'vs/platform/extensions/common/extensions';
+import { isUIExtension, CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ShowViewletAction } from 'vs/workbench/browser/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -804,7 +804,7 @@ export class InstallInRemoteServerAction extends Action implements IExtensionAct
 				return !!server && server.authority === this.extensionManagementServerService.remoteExtensionManagementServer!.authority;
 			});
 			if (!installedInRemoteServer) {
-				this.enabled = !this.runningExtensions.some(e => areSameExtensions({ id: e.id }, this.extension.identifier));
+				this.enabled = !this.runningExtensions.some(e => areSameExtensions({ id: e.identifier.value }, this.extension.identifier));
 			}
 		}
 	}
@@ -906,7 +906,7 @@ export class DisableForWorkspaceAction extends Action implements IExtensionActio
 			return;
 		}
 		this.enabled = false;
-		if (this.extension && this.runningExtensions.some(e => areSameExtensions({ id: e.id }, this.extension.identifier) && this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY)) {
+		if (this.extension && this.runningExtensions.some(e => areSameExtensions({ id: e.identifier.value }, this.extension.identifier) && this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY)) {
 			this.enabled = this.extension.state === ExtensionState.Installed && (this.extension.enablementState === EnablementState.Enabled || this.extension.enablementState === EnablementState.WorkspaceEnabled) && !!this.extension.local && this.extensionEnablementService.canChangeEnablement(this.extension.local);
 		}
 	}
@@ -942,7 +942,7 @@ export class DisableGloballyAction extends Action implements IExtensionAction {
 			return;
 		}
 		this.enabled = false;
-		if (this.extension && this.runningExtensions.some(e => areSameExtensions({ id: e.id }, this.extension.identifier))) {
+		if (this.extension && this.runningExtensions.some(e => areSameExtensions({ id: e.identifier.value }, this.extension.identifier))) {
 			this.enabled = this.extension.state === ExtensionState.Installed && (this.extension.enablementState === EnablementState.Enabled || this.extension.enablementState === EnablementState.WorkspaceEnabled) && !!this.extension.local && this.extensionEnablementService.canChangeEnablement(this.extension.local);
 		}
 	}
@@ -1248,7 +1248,7 @@ export class ReloadAction extends Action {
 		const isUninstalled = this.extension.state === ExtensionState.Uninstalled;
 		const isDisabled = this.extension.local ? !this.extensionEnablementService.isEnabled(this.extension.local) : false;
 		const isEnabled = this.extension.local ? this.extensionEnablementService.isEnabled(this.extension.local) : false;
-		const runningExtension = runningExtensions.filter(e => areSameExtensions(e, this.extension.identifier))[0];
+		const runningExtension = runningExtensions.filter(e => areSameExtensions({ id: e.identifier.value }, this.extension.identifier))[0];
 
 		if (installed && installed.local) {
 			if (runningExtension) {
@@ -2392,7 +2392,7 @@ export class DisabledStatusLabelAction extends Action {
 		}
 		this.class = `${DisabledStatusLabelAction.Class} hide`;
 		this.tooltip = '';
-		if (this.extension && this.extension.local && !this.extension.isMalicious && !this.runningExtensions.some(e => areSameExtensions(e, this.extension.identifier))) {
+		if (this.extension && this.extension.local && !this.extension.isMalicious && !this.runningExtensions.some(e => CanonicalExtensionIdentifier.equals(e.identifier, this.extension.identifier.id))) {
 			if (this.extensionManagementServerService.remoteExtensionManagementServer && !isUIExtension(this.extension.local.manifest, this.configurationService) && this.extension.locals) {
 				const installedInRemoteServer = this.extension.locals.some(local => {
 					const server = this.extensionManagementServerService.getExtensionManagementServer(local.location);
