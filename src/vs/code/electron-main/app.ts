@@ -659,6 +659,8 @@ export class CodeApplication extends Disposable {
 	private handleRemoteAuthorities(): void {
 		const connectionPool: Map<string, ActiveConnection> = new Map<string, ActiveConnection>();
 
+		const isBuilt = this.environmentService.isBuilt;
+
 		class ActiveConnection {
 			private _authority: string;
 			private _client: Promise<Client<RemoteAgentConnectionContext>>;
@@ -666,7 +668,7 @@ export class CodeApplication extends Disposable {
 
 			constructor(authority: string, host: string, port: number) {
 				this._authority = authority;
-				this._client = connectRemoteAgentManagement(authority, host, port, `main`);
+				this._client = connectRemoteAgentManagement(authority, host, port, `main`, isBuilt);
 				this._disposeRunner = new RunOnceScheduler(() => this._dispose(), 5000);
 			}
 
