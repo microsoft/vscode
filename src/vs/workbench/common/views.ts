@@ -18,6 +18,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IAction } from 'vs/base/common/actions';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export const TEST_VIEW_CONTAINER_ID = 'workbench.view.extension.test';
 
@@ -44,7 +45,7 @@ export interface IViewContainersRegistry {
 	 *
 	 * @returns the registered ViewContainer.
 	 */
-	registerViewContainer(id: string, extensionId?: string): ViewContainer;
+	registerViewContainer(id: string, extensionId?: CanonicalExtensionIdentifier): ViewContainer;
 
 	/**
 	 * Returns the view container with given id.
@@ -56,7 +57,7 @@ export interface IViewContainersRegistry {
 }
 
 export class ViewContainer {
-	protected constructor(readonly id: string, readonly extensionId: string) { }
+	protected constructor(readonly id: string, readonly extensionId: CanonicalExtensionIdentifier) { }
 }
 
 class ViewContainersRegistryImpl implements IViewContainersRegistry {
@@ -70,7 +71,7 @@ class ViewContainersRegistryImpl implements IViewContainersRegistry {
 		return values(this.viewContainers);
 	}
 
-	registerViewContainer(id: string, extensionId: string): ViewContainer {
+	registerViewContainer(id: string, extensionId: CanonicalExtensionIdentifier): ViewContainer {
 		if (!this.viewContainers.has(id)) {
 			const viewContainer = new class extends ViewContainer {
 				constructor() {

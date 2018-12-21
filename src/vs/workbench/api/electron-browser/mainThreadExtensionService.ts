@@ -9,6 +9,7 @@ import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostC
 import { IExtHostContext, MainContext, MainThreadExtensionServiceShape } from 'vs/workbench/api/node/extHost.protocol';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionService } from 'vs/workbench/services/extensions/electron-browser/extensionService';
+import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 @extHostNamedCustomer(MainContext.MainThreadExtensionService)
 export class MainThreadExtensionService implements MainThreadExtensionServiceShape {
@@ -30,13 +31,13 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 	$localShowMessage(severity: Severity, msg: string): void {
 		this._extensionService._logOrShowMessage(severity, msg);
 	}
-	$onWillActivateExtension(extensionId: string): void {
+	$onWillActivateExtension(extensionId: CanonicalExtensionIdentifier): void {
 		this._extensionService._onWillActivateExtension(extensionId);
 	}
-	$onDidActivateExtension(extensionId: string, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationEvent: string): void {
+	$onDidActivateExtension(extensionId: CanonicalExtensionIdentifier, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationEvent: string): void {
 		this._extensionService._onDidActivateExtension(extensionId, startup, codeLoadingTime, activateCallTime, activateResolvedTime, activationEvent);
 	}
-	$onExtensionRuntimeError(extensionId: string, data: SerializedError): void {
+	$onExtensionRuntimeError(extensionId: CanonicalExtensionIdentifier, data: SerializedError): void {
 		const error = new Error();
 		error.name = data.name;
 		error.message = data.message;
@@ -45,9 +46,9 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 		console.error(`[${extensionId}]${error.message}`);
 		console.error(error.stack);
 	}
-	$onExtensionActivationFailed(extensionId: string): void {
+	$onExtensionActivationFailed(extensionId: CanonicalExtensionIdentifier): void {
 	}
-	$addMessage(extensionId: string, severity: Severity, message: string): void {
+	$addMessage(extensionId: CanonicalExtensionIdentifier, severity: Severity, message: string): void {
 		this._extensionService._addMessage(extensionId, severity, message);
 	}
 }

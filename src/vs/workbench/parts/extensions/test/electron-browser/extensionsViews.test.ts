@@ -38,6 +38,7 @@ import { IExperimentService, ExperimentService, ExperimentState, ExperimentActio
 import { IRemoteAgentService } from 'vs/workbench/services/remote/node/remoteAgentService';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
+import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 
 suite('ExtensionsListView Tests', () => {
@@ -123,11 +124,11 @@ suite('ExtensionsListView Tests', () => {
 		instantiationService.stub(IExtensionService, {
 			getExtensions: () => {
 				return Promise.resolve([
-					{ id: localEnabledTheme.galleryIdentifier.id },
-					{ id: localEnabledLanguage.galleryIdentifier.id },
-					{ id: localRandom.galleryIdentifier.id },
-					{ id: builtInTheme.galleryIdentifier.id },
-					{ id: builtInBasic.galleryIdentifier.id }
+					{ identifier: new CanonicalExtensionIdentifier(localEnabledTheme.galleryIdentifier.id) },
+					{ identifier: new CanonicalExtensionIdentifier(localEnabledLanguage.galleryIdentifier.id) },
+					{ identifier: new CanonicalExtensionIdentifier(localRandom.galleryIdentifier.id) },
+					{ identifier: new CanonicalExtensionIdentifier(builtInTheme.galleryIdentifier.id) },
+					{ identifier: new CanonicalExtensionIdentifier(builtInBasic.galleryIdentifier.id) }
 				]);
 			}
 		});
