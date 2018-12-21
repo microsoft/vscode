@@ -158,6 +158,7 @@
 		"./vs/base/test/node/console.test.ts",
 		"./vs/base/test/node/decoder.test.ts",
 		"./vs/base/test/node/encoding/encoding.test.ts",
+		"./vs/base/test/node/extfs/extfs.test.ts",
 		"./vs/base/test/node/id.test.ts",
 		"./vs/base/test/node/glob.test.ts",
 		"./vs/base/test/node/port.test.ts",
