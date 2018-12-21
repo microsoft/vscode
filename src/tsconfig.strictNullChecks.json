@@ -137,6 +137,7 @@
 		"./vs/base/test/common/json.test.ts",
 		"./vs/base/test/common/jsonEdit.test.ts",
 		"./vs/base/test/common/jsonFormatter.test.ts",
+		
 		"./vs/base/test/common/labels.test.ts",
 		"./vs/base/test/common/lifecycle.test.ts",
 		"./vs/base/test/common/linkedList.test.ts",
@@ -159,6 +160,7 @@
 		"./vs/base/test/node/decoder.test.ts",
 		"./vs/base/test/node/encoding/encoding.test.ts",
 		"./vs/base/test/node/extfs/extfs.test.ts",
+		"./vs/base/test/node/flow.test.ts",
 		"./vs/base/test/node/id.test.ts",
 		"./vs/base/test/node/glob.test.ts",
 		"./vs/base/test/node/port.test.ts",
