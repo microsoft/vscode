@@ -1,4 +1,4 @@
-// Type definitions for Electron 4.0.0-beta.8
+// Type definitions for Electron 4.0.0
 // Project: http://electronjs.org/
 // Definitions by: The Electron Team <https://github.com/electron/electron>
 // Definitions: https://github.com/electron/electron-typescript-definitions
@@ -4424,6 +4424,17 @@ declare namespace Electron {
 			 * used, `false` otherwise.
 			 */
 			invertedColorScheme: boolean) => void): this;
+		/**
+		 * Important: In order to properly leverage this API, you must set the
+		 * NSMicrophoneUsageDescription and NSCameraUsageDescription strings in your app's
+		 * Info.plist file. The values for these keys will be used to populate the
+		 * permission dialogs so that the user will be properly informed as to the purpose
+		 * of the permission request. See Electron Application Distribution for more
+		 * information about how to set these in the context of Electron. This user consent
+		 * was not required until macOS 10.14 Mojave, so this method will always return
+		 * true if your system is running 10.13 High Sierra or lower.
+		 */
+		askForMediaAccess(mediaType: 'microphone' | 'camera'): Promise<Boolean>;
 		getAccentColor(): string;
 		/**
 		 * Gets the macOS appearance setting that you have declared you want for your
@@ -4443,6 +4454,11 @@ declare namespace Electron {
 		 * packager option to true.  See the Electron Packager API for more details.
 		 */
 		getEffectiveAppearance(): ('dark' | 'light' | 'unknown');
+		/**
+		 * This user consent was not required until macOS 10.14 Mojave, so this method will
+		 * always return granted if your system is running 10.13 High Sierra or lower.
+		 */
+		getMediaAccessStatus(mediaType: string): ('not-determined' | 'granted' | 'denied' | 'restricted' | 'unknown');
 		/**
 		 * Some popular key and types are:
 		 */
@@ -9420,8 +9436,7 @@ declare namespace Electron {
 		 * content to ensure the loaded content cannot tamper with the preload script and
 		 * any Electron APIs being used. This option uses the same technique used by . You
 		 * can access this context in the dev tools by selecting the 'Electron Isolated
-		 * Context' entry in the combo box at the top of the Console tab. This option is
-		 * currently experimental and may change or be removed in future Electron releases.
+		 * Context' entry in the combo box at the top of the Console tab.
 		 */
 		contextIsolation?: boolean;
 		/**
