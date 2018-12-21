@@ -247,16 +247,10 @@ export class ExplorerItem {
 	}
 
 	fetchChildren(fileService: IFileService): Promise<ExplorerItem[]> {
-		let promise = Promise.resolve(null);
-		if (!this.isDirectoryResolved) {
-			promise = fileService.resolveFile(this.resource, { resolveSingleChildDescendants: true }).then(stat => {
-				const resolved = ExplorerItem.create(stat, this);
-				ExplorerItem.mergeLocalWithDisk(resolved, this);
-				this.isDirectoryResolved = true;
-			});
-		}
-
-		return promise.then(() => {
+		return fileService.resolveFile(this.resource, { resolveSingleChildDescendants: true }).then(stat => {
+			const resolved = ExplorerItem.create(stat, this);
+			ExplorerItem.mergeLocalWithDisk(resolved, this);
+			this.isDirectoryResolved = true;
 			const items: ExplorerItem[] = [];
 			this.children.forEach(child => {
 				items.push(child);
