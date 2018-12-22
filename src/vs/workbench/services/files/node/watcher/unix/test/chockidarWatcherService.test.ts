@@ -16,7 +16,7 @@ import { Delayer } from 'vs/base/common/async';
 import { IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
 import { FileChangeType } from 'vs/platform/files/common/files';
 
-function newRequest(basePath: string, ignored: string[] = []): IWatcherRequest {
+function newRequest(basePath: string, ignored = []): IWatcherRequest {
 	return { basePath, ignored };
 }
 
@@ -127,7 +127,7 @@ suite.skip('Chockidar watching', () => {
 
 	const service = new ChokidarWatcherService();
 	const result: IRawFileChange[] = [];
-	let error: string | null  = null;
+	let error = null;
 
 	suiteSetup(async () => {
 		await pfs.mkdirp(testDir);

@@ -138,7 +138,7 @@ suite('Storage Library', () => {
 		change.set('foo', void 0);
 		database.fireDidChangeItemsExternal({ items: change });
 		ok(changes.has('foo'));
-		equal(storage.get('foo', null!), null);
+		equal(storage.get('foo', null), null);
 		changes.clear();
 
 		// Nothing happens if changing to same value
@@ -272,7 +272,7 @@ suite('SQLite Storage Library', () => {
 			};
 		}
 
-		const storage = new SQLiteStorageDatabase(path, options!);
+		const storage = new SQLiteStorageDatabase(path, options);
 
 		const items = new Map<string, string>();
 		items.set('foo', 'bar');

@@ -19,7 +19,7 @@ suite('keyCodes', () => {
 			testBinaryEncoding(expected, k, OperatingSystem.Macintosh);
 		}
 
-		test(null!, 0);
+		test(null, 0);
 		test(new SimpleKeybinding(false, false, false, false, KeyCode.Enter), KeyCode.Enter);
 		test(new SimpleKeybinding(true, false, false, false, KeyCode.Enter), KeyMod.WinCtrl | KeyCode.Enter);
 		test(new SimpleKeybinding(false, false, true, false, KeyCode.Enter), KeyMod.Alt | KeyCode.Enter);
@@ -61,7 +61,7 @@ suite('keyCodes', () => {
 				testBinaryEncoding(expected, k, OS);
 			}
 
-			test(null!, 0);
+			test(null, 0);
 			test(new SimpleKeybinding(false, false, false, false, KeyCode.Enter), KeyCode.Enter);
 			test(new SimpleKeybinding(false, false, false, true, KeyCode.Enter), KeyMod.WinCtrl | KeyCode.Enter);
 			test(new SimpleKeybinding(false, false, true, false, KeyCode.Enter), KeyMod.Alt | KeyCode.Enter);
