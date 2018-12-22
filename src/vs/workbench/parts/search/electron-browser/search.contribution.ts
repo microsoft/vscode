@@ -376,11 +376,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 CommandsRegistry.registerCommand({
-	id: FIND_IN_FOLDER_ID,
-	handler: searchInFolderCommand
-});
-
-CommandsRegistry.registerCommand({
 	id: ClearSearchResultsAction.ID,
 	handler: (accessor, args: any) => {
 		accessor.get(IInstantiationService).createInstance(ClearSearchResultsAction, ClearSearchResultsAction.ID, '').run();
