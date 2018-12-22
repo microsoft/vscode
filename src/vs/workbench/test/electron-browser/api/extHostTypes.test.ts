@@ -332,11 +332,11 @@ suite('ExtHostTypes', function () {
 	test('TextEdit', () => {
 
 		let range = new types.Range(1, 1, 2, 11);
-		let edit = new types.TextEdit(range, undefined);
+		let edit = new types.TextEdit(range, undefined!);
 		assert.equal(edit.newText, '');
 		assertToJSON(edit, { range: [{ line: 1, character: 1 }, { line: 2, character: 11 }], newText: '' });
 
-		edit = new types.TextEdit(range, null);
+		edit = new types.TextEdit(range, null!);
 		assert.equal(edit.newText, '');
 
 		edit = new types.TextEdit(range, '');
