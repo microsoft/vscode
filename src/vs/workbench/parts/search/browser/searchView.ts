@@ -37,7 +37,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TreeResourceNavigator2, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IProgressService } from 'vs/platform/progress/common/progress';
-import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ISearchHistoryService, ISearchHistoryValues, ISearchProgressItem, ITextQuery, SearchErrorCode, VIEW_ID } from 'vs/platform/search/common/search';
+import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ISearchHistoryService, ISearchHistoryValues, ISearchProgressItem, ITextQuery, SearchErrorCode, VIEW_ID, IProgress } from 'vs/platform/search/common/search';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { diffInserted, diffInsertedOutline, diffRemoved, diffRemovedOutline, editorFindMatchHighlight, editorFindMatchHighlightBorder, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -1388,11 +1388,11 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		let visibleMatches = 0;
 		let onProgress = (p: ISearchProgressItem) => {
 			// Progress
-			if (p.total) {
-				total = p.total;
+			if ((<IProgress>p).total) {
+				total = (<IProgress>p).total;
 			}
-			if (p.worked) {
-				worked = p.worked;
+			if ((<IProgress>p).worked) {
+				worked = (<IProgress>p).worked;
 			}
 		};
 

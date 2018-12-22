@@ -137,7 +137,6 @@
 		"./vs/base/test/common/json.test.ts",
 		"./vs/base/test/common/jsonEdit.test.ts",
 		"./vs/base/test/common/jsonFormatter.test.ts",
-		
 		"./vs/base/test/common/labels.test.ts",
 		"./vs/base/test/common/lifecycle.test.ts",
 		"./vs/base/test/common/linkedList.test.ts",
@@ -664,6 +663,7 @@
 		"./vs/workbench/parts/search/common/constants.ts",
 		"./vs/workbench/parts/search/common/queryBuilder.ts",
 		"./vs/workbench/parts/search/common/search.ts",
+		"./vs/workbench/parts/search/common/searchModel.ts",
 		"./vs/workbench/parts/search/test/browser/mockSearchTree.ts",
 		"./vs/workbench/parts/snippets/electron-browser/configureSnippets.ts",
 		"./vs/workbench/parts/snippets/electron-browser/snippetCompletionProvider.ts",
