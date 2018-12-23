@@ -6,10 +6,11 @@
 import * as nls from 'vs/nls';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
-const idDescription = nls.localize('JsonSchema.input.id', "The input\'s id is used to specify inputs as ${input:id}.");
-const typeDescription = nls.localize('JsonSchema.input.type', 'The promptString type opens an input box to ask the user for input. The pickString type shows a selection list.');
-const descriptionDescription = nls.localize('JsonSchema.input.description', 'The description is shown when the user is prompted for input.');
-const defaultDescription = nls.localize('JsonSchema.input.default', 'The default value for the input.');
+const idDescription = nls.localize('JsonSchema.input.id', "The input's id is used to associate an input with a variable of the form ${input:id}.");
+const typeDescription = nls.localize('JsonSchema.input.type', "The type of user input prompt to use.");
+const descriptionDescription = nls.localize('JsonSchema.input.description', "The description is shown when the user is prompted for input.");
+const defaultDescription = nls.localize('JsonSchema.input.default', "The default value for the input.");
+
 
 export const inputsSchema: IJSONSchema = {
 	definitions: {
@@ -30,15 +31,18 @@ export const inputsSchema: IJSONSchema = {
 							type: {
 								type: 'string',
 								description: typeDescription,
-								enum: ['promptString']
+								enum: ['promptString'],
+								enumDescriptions: [
+									nls.localize('JsonSchema.input.type.promptString', "The 'promptString' type opens an input box to ask the user for input."),
+								]
 							},
 							description: {
 								type: 'string',
-								description: descriptionDescription,
+								description: descriptionDescription
 							},
 							default: {
 								type: 'string',
-								description: defaultDescription,
+								description: defaultDescription
 							},
 						}
 					},
@@ -54,15 +58,18 @@ export const inputsSchema: IJSONSchema = {
 							type: {
 								type: 'string',
 								description: typeDescription,
-								enum: ['pickString']
+								enum: ['pickString'],
+								enumDescriptions: [
+									nls.localize('JsonSchema.input.type.pickString', "The 'pickString' type shows a selection list."),
+								]
 							},
 							description: {
 								type: 'string',
-								description: descriptionDescription,
+								description: descriptionDescription
 							},
 							default: {
 								type: 'string',
-								description: defaultDescription,
+								description: defaultDescription
 							},
 							options: {
 								type: 'array',
@@ -70,6 +77,33 @@ export const inputsSchema: IJSONSchema = {
 								items: {
 									type: 'string'
 								}
+							}
+						}
+					},
+					{
+						type: 'object',
+						required: ['id', 'type', 'command'],
+						additionalProperties: false,
+						properties: {
+							id: {
+								type: 'string',
+								description: idDescription
+							},
+							type: {
+								type: 'string',
+								description: typeDescription,
+								enum: ['command'],
+								enumDescriptions: [
+									nls.localize('JsonSchema.input.type.command', "The 'command' type executes a command."),
+								]
+							},
+							command: {
+								type: 'string',
+								description: nls.localize('JsonSchema.input.command.command', "The command to execute for this input variable.")
+							},
+							args: {
+								type: 'object',
+								description: nls.localize('JsonSchema.input.command.args', "Optional arguments passed to the command.")
 							}
 						}
 					}
