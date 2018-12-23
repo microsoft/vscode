@@ -449,12 +449,12 @@ export interface BaseTaskRunnerConfiguration {
 	tasks?: Array<CustomTask | ConfiguringTask>;
 
 	/**
-	 * Problem matcher declarations.
+	 * Problem matcher declarations
 	 */
 	declares?: ProblemMatcherConfig.NamedProblemMatcher[];
 
 	/**
-	 * Optional user input variables.
+	 * Optional user input varaibles.
 	 */
 	inputs?: ConfiguredInput[];
 }
