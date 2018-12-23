@@ -662,6 +662,7 @@
 		"./vs/workbench/parts/search/browser/patternInputWidget.ts",
 		"./vs/workbench/parts/search/common/constants.ts",
 		"./vs/workbench/parts/search/common/queryBuilder.ts",
+		"./vs/workbench/parts/search/common/replace.ts",
 		"./vs/workbench/parts/search/common/search.ts",
 		"./vs/workbench/parts/search/common/searchModel.ts",
 		"./vs/workbench/parts/search/test/browser/mockSearchTree.ts",
