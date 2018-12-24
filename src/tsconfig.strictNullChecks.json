@@ -393,6 +393,7 @@
 		"./vs/platform/configuration/node/configurationService.ts",
 		"./vs/platform/configuration/test/common/configuration.test.ts",
 		"./vs/platform/configuration/test/common/testConfigurationService.ts",
+		"./vs/platform/configuration/test/common/configurationModels.test.ts",
 		"./vs/platform/configuration/test/node/configurationService.test.ts",
 		"./vs/platform/contextkey/browser/contextKeyService.ts",
 		"./vs/platform/contextkey/common/contextkey.ts",

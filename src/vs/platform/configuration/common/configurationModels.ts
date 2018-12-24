@@ -203,10 +203,12 @@ export class ConfigurationModelParser {
 		return this._parseErrors;
 	}
 
-	public parse(content: string): void {
-		const raw = this.parseContent(content);
-		const configurationModel = this.parseRaw(raw);
-		this._configurationModel = new ConfigurationModel(configurationModel.contents, configurationModel.keys, configurationModel.overrides);
+	public parse(content: string | null | undefined): void {
+		if (content) {
+			const raw = this.parseContent(content);
+			const configurationModel = this.parseRaw(raw);
+			this._configurationModel = new ConfigurationModel(configurationModel.contents, configurationModel.keys, configurationModel.overrides);
+		}
 	}
 
 	protected parseContent(content: string): any {
