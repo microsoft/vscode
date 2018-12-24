@@ -328,6 +328,7 @@
 		"./vs/editor/standalone/common/monarch/monarchTypes.ts",
 		"./vs/editor/standalone/common/standaloneThemeService.ts",
 		"./vs/editor/standalone/common/themes.ts",
+		"./vs/editor/standalone/test/browser/simpleServices.test.ts",
 		"./vs/editor/test/browser/controller/imeTester.ts",
 		"./vs/editor/test/browser/editorTestServices.ts",
 		"./vs/editor/test/browser/testCodeEditor.ts",
