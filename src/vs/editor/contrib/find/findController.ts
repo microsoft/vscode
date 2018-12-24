@@ -437,7 +437,7 @@ export class StartFindAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(accessor: ServicesAccessor | null, editor: ICodeEditor): void {
 		let controller = CommonFindController.get(editor);
 		if (controller) {
 			controller.start({
@@ -488,7 +488,7 @@ export class StartFindWithSelectionAction extends EditorAction {
 	}
 }
 export abstract class MatchFindAction extends EditorAction {
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(accessor: ServicesAccessor | null, editor: ICodeEditor): void {
 		let controller = CommonFindController.get(editor);
 		if (controller && !this._run(controller)) {
 			controller.start({
@@ -551,7 +551,7 @@ export class PreviousMatchFindAction extends MatchFindAction {
 }
 
 export abstract class SelectionMatchFindAction extends EditorAction {
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(accessor: ServicesAccessor | null, editor: ICodeEditor): void {
 		let controller = CommonFindController.get(editor);
 		if (!controller) {
 			return;
@@ -641,7 +641,7 @@ export class StartFindReplaceAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(accessor: ServicesAccessor | null, editor: ICodeEditor): void {
 		if (!editor.hasModel() || editor.getConfiguration().readOnly) {
 			return;
 		}

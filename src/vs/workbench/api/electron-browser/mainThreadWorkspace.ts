@@ -11,7 +11,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IFolderQuery, IPatternInfo, ISearchConfiguration, ISearchProgressItem, ISearchService, QueryType, IFileQuery } from 'vs/platform/search/common/search';
+import { IFolderQuery, IPatternInfo, ISearchConfiguration, ISearchProgressItem, ISearchService, QueryType, IFileQuery, IFileMatch } from 'vs/platform/search/common/search';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -183,8 +183,8 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		query._reason = 'startTextSearch';
 
 		const onProgress = (p: ISearchProgressItem) => {
-			if (p.results) {
-				this._proxy.$handleTextSearchResult(p, requestId);
+			if ((<IFileMatch>p).results) {
+				this._proxy.$handleTextSearchResult(<IFileMatch>p, requestId);
 			}
 		};
 

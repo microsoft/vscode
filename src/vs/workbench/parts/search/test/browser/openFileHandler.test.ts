@@ -180,7 +180,8 @@ suite('CacheState', () => {
 		private _awaitDisposal: (() => void)[][] = [];
 
 		public baseQuery: IFileQuery = {
-			type: QueryType.File
+			type: QueryType.File,
+			folderQueries: []
 		};
 
 		public query(cacheKey: string): IFileQuery {
