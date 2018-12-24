@@ -556,7 +556,7 @@ suite('Extfs', () => {
 			} catch (error) {
 				assert.ok(!error);
 			}
-			assert.ok(realpath);
+			assert.ok(realpath!);
 
 			extfs.del(parentDir, os.tmpdir(), done, ignore);
 		});

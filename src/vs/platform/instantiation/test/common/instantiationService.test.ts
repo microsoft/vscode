@@ -137,7 +137,7 @@ suite('Instantiation Service', () => {
 
 	test('service collection, cannot overwrite', function () {
 		let collection = new ServiceCollection();
-		let result = collection.set(IService1, null);
+		let result = collection.set(IService1, null!);
 		assert.equal(result, undefined);
 		result = collection.set(IService1, new Service1());
 		assert.equal(result, null);
@@ -145,10 +145,10 @@ suite('Instantiation Service', () => {
 
 	test('service collection, add/has', function () {
 		let collection = new ServiceCollection();
-		collection.set(IService1, null);
+		collection.set(IService1, null!);
 		assert.ok(collection.has(IService1));
 
-		collection.set(IService2, null);
+		collection.set(IService2, null!);
 		assert.ok(collection.has(IService1));
 		assert.ok(collection.has(IService2));
 	});

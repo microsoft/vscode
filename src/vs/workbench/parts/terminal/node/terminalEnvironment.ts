@@ -16,7 +16,7 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
  * This module contains utility functions related to the environment, cwd and paths.
  */
 
-export function mergeEnvironments(parent: platform.IProcessEnvironment, other: ITerminalEnvironment): void {
+export function mergeEnvironments(parent: platform.IProcessEnvironment, other?: ITerminalEnvironment): void {
 	if (!other) {
 		return;
 	}
@@ -127,7 +127,7 @@ function _getLangEnvVariable(locale?: string) {
 	return parts.join('_') + '.UTF-8';
 }
 
-export function getCwd(shell: IShellLaunchConfig, root: Uri, customCwd: string): string {
+export function getCwd(shell: IShellLaunchConfig, root?: Uri, customCwd?: string): string {
 	if (shell.cwd) {
 		return (typeof shell.cwd === 'object') ? shell.cwd.path : shell.cwd;
 	}

@@ -491,7 +491,7 @@ export class TextEdit {
 
 	constructor(range: Range, newText: string) {
 		this.range = range;
-		this.newText = newText;
+		this.newText = newText || '';
 	}
 
 	toJSON(): any {

@@ -72,7 +72,7 @@ class EventCounter {
 		this._count = 0;
 	}
 
-	public listen<T>(event: Event<T>, fn: (e: T) => void = null): () => void {
+	public listen<T>(event: Event<T>, fn: ((e: T) => void) | null = null): () => void {
 		let r = event(data => {
 			this._count++;
 			if (fn) {
