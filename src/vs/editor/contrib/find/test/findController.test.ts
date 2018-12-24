@@ -51,8 +51,8 @@ export class TestFindController extends CommonFindController {
 	}
 }
 
-function fromSelection(slc: Selection | null): number[] {
-	return [slc!.startLineNumber, slc!.startColumn, slc!.endLineNumber, slc!.endColumn];
+function fromSelection(slc: Selection): number[] {
+	return [slc.startLineNumber, slc.startColumn, slc.endLineNumber, slc.endColumn];
 }
 
 suite('FindController', () => {
@@ -122,7 +122,7 @@ suite('FindController', () => {
 			nextMatchFindAction.run(null, editor);
 			assert.equal(findState.searchString, 'ABC');
 
-			assert.deepEqual(fromSelection(editor.getSelection()), [1, 1, 1, 4]);
+			assert.deepEqual(fromSelection(editor.getSelection()!), [1, 1, 1, 4]);
 
 			findController.dispose();
 		});
@@ -175,14 +175,14 @@ suite('FindController', () => {
 			findState.change({ searchString: 'ABC' }, true);
 
 			// The first ABC is highlighted.
-			assert.deepEqual(fromSelection(editor.getSelection()), [1, 1, 1, 4]);
+			assert.deepEqual(fromSelection(editor.getSelection()!), [1, 1, 1, 4]);
 
 			// I hit Esc to exit the Find dialog.
 			findController.closeFindWidget();
 			findController.hasFocus = false;
 
 			// The cursor is now at end of the first line, with ABC on that line highlighted.
-			assert.deepEqual(fromSelection(editor.getSelection()), [1, 1, 1, 4]);
+			assert.deepEqual(fromSelection(editor.getSelection()!), [1, 1, 1, 4]);
 
 			// I hit delete to remove it and change the text to XYZ.
 			editor.pushUndoStop();
@@ -198,7 +198,7 @@ suite('FindController', () => {
 			assert.equal(editor.getModel()!.getLineContent(1), 'XYZ');
 
 			// The cursor is at end of the first line.
-			assert.deepEqual(fromSelection(editor.getSelection()), [1, 4, 1, 4]);
+			assert.deepEqual(fromSelection(editor.getSelection()!), [1, 4, 1, 4]);
 
 			// I hit F3 to "Find Next" to find the next occurrence of ABC, but instead it searches for XYZ.
 			nextMatchFindAction.run(null, editor);
@@ -224,10 +224,10 @@ suite('FindController', () => {
 			});
 
 			nextMatchFindAction.run(null, editor);
-			assert.deepEqual(fromSelection(editor.getSelection()), [1, 26, 1, 29]);
+			assert.deepEqual(fromSelection(editor.getSelection()!), [1, 26, 1, 29]);
 
 			nextMatchFindAction.run(null, editor);
-			assert.deepEqual(fromSelection(editor.getSelection()), [1, 8, 1, 11]);
+			assert.deepEqual(fromSelection(editor.getSelection()!), [1, 8, 1, 11]);
 
 			findController.dispose();
 		});
@@ -250,10 +250,10 @@ suite('FindController', () => {
 			startFindAction.run(null, editor);
 
 			nextMatchFindAction.run(null, editor);
-			assert.deepEqual(fromSelection(editor.getSelection()), [2, 9, 2, 13]);
+			assert.deepEqual(fromSelection(editor.getSelection()!), [2, 9, 2, 13]);
 
 			nextMatchFindAction.run(null, editor);
-			assert.deepEqual(fromSelection(editor.getSelection()), [1, 9, 1, 13]);
+			assert.deepEqual(fromSelection(editor.getSelection()!), [1, 9, 1, 13]);
 
 			findController.dispose();
 		});
@@ -464,7 +464,7 @@ suite('FindController query options persistence', () => {
 			// I type ABC.
 			findState.change({ searchString: 'ABC' }, true);
 			// The second ABC is highlighted as matchCase is true.
-			assert.deepEqual(fromSelection(editor.getSelection()), [2, 1, 2, 4]);
+			assert.deepEqual(fromSelection(editor.getSelection()!), [2, 1, 2, 4]);
 
 			findController.dispose();
 		});
@@ -491,7 +491,7 @@ suite('FindController query options persistence', () => {
 			// I type AB.
 			findState.change({ searchString: 'AB' }, true);
 			// The second AB is highlighted as wholeWord is true.
-			assert.deepEqual(fromSelection(editor.getSelection()), [2, 1, 2, 3]);
+			assert.deepEqual(fromSelection(editor.getSelection()!), [2, 1, 2, 3]);
 
 			findController.dispose();
 		});
