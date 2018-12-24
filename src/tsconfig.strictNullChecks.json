@@ -392,6 +392,7 @@
 		"./vs/platform/configuration/test/node/configurationService.test.ts",
 		"./vs/platform/contextkey/browser/contextKeyService.ts",
 		"./vs/platform/contextkey/common/contextkey.ts",
+		"./vs/platform/contextkey/test/common/contextkey.test.ts",
 		"./vs/platform/contextview/browser/contextMenuHandler.ts",
 		"./vs/platform/contextview/browser/contextMenuService.ts",
 		"./vs/platform/contextview/browser/contextView.ts",
