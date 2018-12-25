@@ -36,7 +36,7 @@ export class FakeRenderer {
 
 class TreeContext implements _.ITreeContext {
 
-	public tree: _.ITree = null;
+	public tree: _.ITree = null!;
 	public options: _.ITreeOptions = { autoExpandSingleChildren: true };
 	public dataSource: _.IDataSource;
 	public renderer: _.IRenderer;

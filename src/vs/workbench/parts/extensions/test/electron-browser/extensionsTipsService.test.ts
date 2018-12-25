@@ -139,18 +139,18 @@ const mockTestData = {
 };
 
 function aPage<T>(...objects: T[]): IPager<T> {
-	return { firstPage: objects, total: objects.length, pageSize: objects.length, getPage: () => null };
+	return { firstPage: objects, total: objects.length, pageSize: objects.length, getPage: () => null! };
 }
 
 const noAssets: IGalleryExtensionAssets = {
 	changelog: null,
-	download: null,
-	icon: null,
+	download: null!,
+	icon: null!,
 	license: null,
 	manifest: null,
 	readme: null,
 	repository: null,
-	coreTranslations: null
+	coreTranslations: null!
 };
 
 function aGalleryExtension(name: string, properties: any = {}, galleryExtensionProperties: any = {}, assets: IGalleryExtensionAssets = noAssets): IGalleryExtension {
@@ -235,7 +235,7 @@ suite('ExtensionsTipsService Test', () => {
 		class TestNotificationService2 extends TestNotificationService {
 			public prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions) {
 				prompted = true;
-				return null;
+				return null!;
 			}
 		}
 

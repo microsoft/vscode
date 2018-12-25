@@ -137,7 +137,7 @@ suite.skip('QuickOpen performance (integration)', () => {
 					let i = n;
 					return (function iterate(): Promise<Timer.ITimerEvent> {
 						if (!i--) {
-							return undefined;
+							return undefined!;
 						}
 						return measure()
 							.then(([uncachedEvent, cachedEvent]) => {

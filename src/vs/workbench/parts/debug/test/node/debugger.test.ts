@@ -37,7 +37,7 @@ suite('Debug - Debugger', () => {
 				}
 			}
 		},
-		variables: null,
+		variables: null!,
 		initialConfigurations: [
 			{
 				name: 'Mock-Debug',
@@ -57,7 +57,7 @@ suite('Debug - Debugger', () => {
 		extensionLocation: URI.file(extensionFolderPath),
 		isBuiltin: false,
 		isUnderDevelopment: false,
-		engines: null,
+		engines: null!,
 		contributes: {
 			'debuggers': [
 				debuggerContribution
@@ -74,7 +74,7 @@ suite('Debug - Debugger', () => {
 		extensionLocation: URI.file('/e1/b/c/'),
 		isBuiltin: false,
 		isUnderDevelopment: false,
-		engines: null,
+		engines: null!,
 		contributes: {
 			'debuggers': [
 				{
@@ -97,7 +97,7 @@ suite('Debug - Debugger', () => {
 		extensionLocation: URI.file('/e2/b/c/'),
 		isBuiltin: false,
 		isUnderDevelopment: false,
-		engines: null,
+		engines: null!,
 		contributes: {
 			'debuggers': [
 				{
@@ -130,11 +130,11 @@ suite('Debug - Debugger', () => {
 	const testResourcePropertiesService = new TestTextResourcePropertiesService(configurationService);
 
 	setup(() => {
-		_debugger = new Debugger(configurationManager, debuggerContribution, extensionDescriptor0, configurationService, testResourcePropertiesService, undefined, undefined, undefined);
+		_debugger = new Debugger(configurationManager, debuggerContribution, extensionDescriptor0, configurationService, testResourcePropertiesService, undefined!, undefined!, undefined!);
 	});
 
 	teardown(() => {
-		_debugger = null;
+		_debugger = null!;
 	});
 
 	test('attributes', () => {
@@ -143,8 +143,8 @@ suite('Debug - Debugger', () => {
 
 		const ae = ExecutableDebugAdapter.platformAdapterExecutable([extensionDescriptor0], 'mock');
 
-		assert.equal(ae.command, paths.join(extensionFolderPath, debuggerContribution.program));
-		assert.deepEqual(ae.args, debuggerContribution.args);
+		assert.equal(ae!.command, paths.join(extensionFolderPath, debuggerContribution.program));
+		assert.deepEqual(ae!.args, debuggerContribution.args);
 	});
 
 	test('schema attributes', () => {
@@ -155,14 +155,14 @@ suite('Debug - Debugger', () => {
 		});
 
 		assert.equal(schemaAttribute['additionalProperties'], false);
-		assert.equal(!!schemaAttribute['properties']['request'], true);
-		assert.equal(!!schemaAttribute['properties']['name'], true);
-		assert.equal(!!schemaAttribute['properties']['type'], true);
-		assert.equal(!!schemaAttribute['properties']['preLaunchTask'], true);
+		assert.equal(!!schemaAttribute['properties']!['request'], true);
+		assert.equal(!!schemaAttribute['properties']!['name'], true);
+		assert.equal(!!schemaAttribute['properties']!['type'], true);
+		assert.equal(!!schemaAttribute['properties']!['preLaunchTask'], true);
 	});
 
 	test('merge platform specific attributes', () => {
-		const ae = ExecutableDebugAdapter.platformAdapterExecutable([extensionDescriptor1, extensionDescriptor2], 'mock');
+		const ae = ExecutableDebugAdapter.platformAdapterExecutable([extensionDescriptor1, extensionDescriptor2], 'mock')!;
 		assert.equal(ae.command, platform.isLinux ? 'linuxRuntime' : (platform.isMacintosh ? 'osxRuntime' : 'winRuntime'));
 		const xprogram = platform.isLinux ? 'linuxProgram' : (platform.isMacintosh ? 'osxProgram' : 'winProgram');
 		assert.deepEqual(ae.args, ['rarg', '/e2/b/c/' + xprogram, 'parg']);
