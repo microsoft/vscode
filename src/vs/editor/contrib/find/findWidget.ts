@@ -110,7 +110,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 	private _findInputFocused: IContextKey<boolean>;
 	private _replaceFocusTracker: dom.IFocusTracker;
 	private _replaceInputFocused: IContextKey<boolean>;
-	private _viewZone: FindWidgetViewZone;
+	private _viewZone?: FindWidgetViewZone;
 	private _viewZoneId?: number;
 
 	private _resizeSash: Sash;
@@ -491,7 +491,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 				if (this._viewZoneId !== undefined) {
 					accessor.removeZone(this._viewZoneId);
 					this._viewZoneId = undefined;
-					this._codeEditor.setScrollTop(this._codeEditor.getScrollTop() - this._viewZone.heightInPx);
+					if (this._viewZone) {
+						this._codeEditor.setScrollTop(this._codeEditor.getScrollTop() - this._viewZone.heightInPx);
+					}
 				}
 			});
 		}
@@ -501,26 +503,27 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		if (!this._isVisible) {
 			return;
 		}
-
-		if (this._viewZoneId !== undefined || !this._viewZone) {
+		const viewZone = this._viewZone;
+		if (this._viewZoneId !== undefined || !viewZone) {
 			return;
 		}
 
 		this._codeEditor.changeViewZones((accessor) => {
 			if (this._state.isReplaceRevealed) {
-				this._viewZone.heightInPx = FIND_REPLACE_AREA_HEIGHT;
+				viewZone.heightInPx = FIND_REPLACE_AREA_HEIGHT;
 			} else {
-				this._viewZone.heightInPx = FIND_INPUT_AREA_HEIGHT;
+				viewZone.heightInPx = FIND_INPUT_AREA_HEIGHT;
 			}
 
-			this._viewZoneId = accessor.addZone(this._viewZone);
+			this._viewZoneId = accessor.addZone(viewZone);
 			// scroll top adjust to make sure the editor doesn't scroll when adding viewzone at the beginning.
-			this._codeEditor.setScrollTop(this._codeEditor.getScrollTop() + this._viewZone.heightInPx);
+			this._codeEditor.setScrollTop(this._codeEditor.getScrollTop() + viewZone.heightInPx);
 		});
 	}
 
 	private _showViewZone(adjustScroll: boolean = true) {
-		if (!this._isVisible || !this._viewZone) {
+		const viewZone = this._viewZone;
+		if (!this._isVisible || !viewZone) {
 			return;
 		}
 
@@ -529,17 +532,17 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 			if (this._viewZoneId !== undefined) {
 				if (this._state.isReplaceRevealed) {
-					this._viewZone.heightInPx = FIND_REPLACE_AREA_HEIGHT;
+					viewZone.heightInPx = FIND_REPLACE_AREA_HEIGHT;
 					scrollAdjustment = FIND_REPLACE_AREA_HEIGHT - FIND_INPUT_AREA_HEIGHT;
 				} else {
-					this._viewZone.heightInPx = FIND_INPUT_AREA_HEIGHT;
+					viewZone.heightInPx = FIND_INPUT_AREA_HEIGHT;
 					scrollAdjustment = FIND_INPUT_AREA_HEIGHT - FIND_REPLACE_AREA_HEIGHT;
 				}
 				accessor.removeZone(this._viewZoneId);
 			} else {
-				this._viewZone.heightInPx = FIND_INPUT_AREA_HEIGHT;
+				viewZone.heightInPx = FIND_INPUT_AREA_HEIGHT;
 			}
-			this._viewZoneId = accessor.addZone(this._viewZone);
+			this._viewZoneId = accessor.addZone(viewZone);
 
 			if (adjustScroll) {
 				this._codeEditor.setScrollTop(this._codeEditor.getScrollTop() + scrollAdjustment);
