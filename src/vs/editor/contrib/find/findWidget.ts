@@ -160,6 +160,23 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			if (e.accessibilitySupport) {
 				this.updateAccessibilitySupport();
 			}
+
+			if (e.contribInfo) {
+				const addExtraSpaceOnTop = this._codeEditor.getConfiguration().contribInfo.find.addExtraSpaceOnTop;
+				if (addExtraSpaceOnTop && !this._viewZone) {
+					this._viewZone = this._viewZone = new FindWidgetViewZone(0);
+					this._showViewZone();
+				}
+				if (!addExtraSpaceOnTop && this._viewZone) {
+					this._codeEditor.changeViewZones((accessor) => {
+						if (this._viewZoneId) {
+							accessor.removeZone(this._viewZoneId);
+						}
+						this._viewZoneId = undefined;
+						this._viewZone = undefined;
+					});
+				}
+			}
 		}));
 		this.updateAccessibilitySupport();
 		this._register(this._codeEditor.onDidChangeCursorSelection(() => {
@@ -197,7 +214,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		}));
 
 		this._codeEditor.addOverlayWidget(this);
-		this._viewZone = new FindWidgetViewZone(0); // Put it before the first line then users can scroll beyond the first line.
+		if (this._codeEditor.getConfiguration().contribInfo.find.addExtraSpaceOnTop) {
+			this._viewZone = new FindWidgetViewZone(0); // Put it before the first line then users can scroll beyond the first line.
+		}
 
 		this._applyTheme(themeService.getTheme());
 		this._register(themeService.onThemeChange(this._applyTheme.bind(this)));
@@ -434,7 +453,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 					const startLeft = editorCoords.left + (startCoords ? startCoords.left : 0);
 					const startTop = startCoords ? startCoords.top : 0;
 
-					if (startTop < this._viewZone.heightInPx) {
+					if (this._viewZone && startTop < this._viewZone.heightInPx) {
 						if (selection.endLineNumber > selection.startLineNumber) {
 							adjustEditorScrollTop = false;
 						}
@@ -483,7 +502,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			return;
 		}
 
-		if (this._viewZoneId !== undefined) {
+		if (this._viewZoneId !== undefined || !this._viewZone) {
 			return;
 		}
 
@@ -501,7 +520,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 	}
 
 	private _showViewZone(adjustScroll: boolean = true) {
-		if (!this._isVisible) {
+		if (!this._isVisible || !this._viewZone) {
 			return;
 		}
 

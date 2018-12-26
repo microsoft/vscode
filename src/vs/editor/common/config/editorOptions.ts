@@ -85,6 +85,10 @@ export interface IEditorFindOptions {
 	 * Controls if Find in Selection flag is turned on when multiple lines of text are selected in the editor.
 	 */
 	autoFindInSelection: boolean;
+	/*
+	 * Controls whether the Find Widget should add extra lines on top of the editor.
+	 */
+	addExtraSpaceOnTop?: boolean;
 	/**
 	 * @internal
 	 * Controls if the Find Widget should read or modify the shared find clipboard on macOS
@@ -894,6 +898,7 @@ export interface InternalEditorMinimapOptions {
 export interface InternalEditorFindOptions {
 	readonly seedSearchStringFromSelection: boolean;
 	readonly autoFindInSelection: boolean;
+	readonly addExtraSpaceOnTop: boolean;
 	/**
 	 * @internal
 	 */
@@ -1323,6 +1328,7 @@ export class InternalEditorOptions {
 			a.seedSearchStringFromSelection === b.seedSearchStringFromSelection
 			&& a.autoFindInSelection === b.autoFindInSelection
 			&& a.globalFindClipboard === b.globalFindClipboard
+			&& a.addExtraSpaceOnTop === b.addExtraSpaceOnTop
 		);
 	}
 
@@ -1851,7 +1857,8 @@ export class EditorOptionsValidator {
 		return {
 			seedSearchStringFromSelection: _boolean(opts.seedSearchStringFromSelection, defaults.seedSearchStringFromSelection),
 			autoFindInSelection: _boolean(opts.autoFindInSelection, defaults.autoFindInSelection),
-			globalFindClipboard: _boolean(opts.globalFindClipboard, defaults.globalFindClipboard)
+			globalFindClipboard: _boolean(opts.globalFindClipboard, defaults.globalFindClipboard),
+			addExtraSpaceOnTop: _boolean(opts.addExtraSpaceOnTop, defaults.addExtraSpaceOnTop)
 		};
 	}
 
@@ -2660,7 +2667,8 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		find: {
 			seedSearchStringFromSelection: true,
 			autoFindInSelection: false,
-			globalFindClipboard: false
+			globalFindClipboard: false,
+			addExtraSpaceOnTop: true
 		},
 		colorDecorators: true,
 		lightbulbEnabled: true,
