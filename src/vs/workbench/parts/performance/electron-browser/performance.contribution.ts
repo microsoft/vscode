@@ -42,7 +42,7 @@ CommandsRegistry.registerCommand('perfview.show', accessor => {
 });
 
 MenuRegistry.addCommand({
-	id: 'workbench.action.appPerf',
+	id: 'perfview.show',
 	category: localize('show.cat', "Developer"),
 	title: localize('show.label', "Startup Performance")
 });
