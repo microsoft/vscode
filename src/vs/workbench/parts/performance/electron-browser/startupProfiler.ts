@@ -12,14 +12,13 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import product from 'vs/platform/node/product';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { Extensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { PerfviewInput } from 'vs/workbench/parts/performance/electron-browser/perfviewEditor';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
-class StartupProfiler implements IWorkbenchContribution {
+export class StartupProfiler implements IWorkbenchContribution {
 
 	constructor(
 		@IWindowsService private readonly _windowsService: IWindowsService,
@@ -122,6 +121,3 @@ class StartupProfiler implements IWorkbenchContribution {
 		});
 	}
 }
-
-const registry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
-registry.registerWorkbenchContribution(StartupProfiler, LifecyclePhase.Restored);

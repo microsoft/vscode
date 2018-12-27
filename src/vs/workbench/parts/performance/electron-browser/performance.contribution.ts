@@ -13,8 +13,10 @@ import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common
 import { Extensions as Input, IEditorInputFactory, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { PerfviewContrib, PerfviewInput } from 'vs/workbench/parts/performance/electron-browser/perfviewEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import './startupProfiler';
-import './startupTimings';
+import { StartupProfiler } from './startupProfiler';
+import { StartupTimings } from './startupTimings';
+
+// -- startup performance view
 
 Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
 	PerfviewContrib,
@@ -44,3 +46,18 @@ MenuRegistry.addCommand({
 	category: localize('show.cat', "Developer"),
 	title: localize('show.label', "Startup Performance")
 });
+
+
+// -- startup profiler
+
+Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
+	StartupProfiler,
+	LifecyclePhase.Restored
+);
+
+// -- startup timings
+
+Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
+	StartupTimings,
+	LifecyclePhase.Eventually
+);
