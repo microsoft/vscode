@@ -10,7 +10,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IDebugService, State, IDebugSession, IThread, IEnablement, IBreakpoint, IStackFrame, REPL_ID, IConfig }
+import { IDebugService, State, IDebugSession, IThread, IEnablement, IBreakpoint, IStackFrame, REPL_ID }
 	from 'vs/workbench/parts/debug/common/debug';
 import { Variable, Expression, Thread, Breakpoint } from 'vs/workbench/parts/debug/common/debugModel';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -135,11 +135,7 @@ export class StartAction extends AbstractDebugAction {
 
 	// Note: When this action is executed from the process explorer, a config is passed. For all
 	// other cases it is run with no arguments.
-	public run(config?: IConfig): Promise<any> {
-		if (config && 'type' in config && 'request' in config) {
-			return this.debugService.startDebugging(undefined, config, this.isNoDebug());
-		}
-
+	public run(): Promise<any> {
 		const configurationManager = this.debugService.getConfigurationManager();
 		let launch = configurationManager.selectedConfiguration.launch;
 		if (!launch || launch.getConfigurationNames().length === 0) {
