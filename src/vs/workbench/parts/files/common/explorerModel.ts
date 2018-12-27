@@ -78,7 +78,7 @@ export class ExplorerItem {
 
 	constructor(
 		public resource: URI,
-		private _parent: ExplorerItem,
+		private _parent: ExplorerItem | undefined,
 		private _isDirectory?: boolean,
 		private _isSymbolicLink?: boolean,
 		private _isReadonly?: boolean,
@@ -101,11 +101,11 @@ export class ExplorerItem {
 		return !!this._isReadonly;
 	}
 
-	get etag(): string {
+	get etag(): string | undefined {
 		return this._etag;
 	}
 
-	get mtime(): number {
+	get mtime(): number | undefined {
 		return this._mtime;
 	}
 
@@ -113,7 +113,7 @@ export class ExplorerItem {
 		return this._name;
 	}
 
-	get parent(): ExplorerItem {
+	get parent(): ExplorerItem | undefined {
 		return this._parent;
 	}
 
@@ -122,7 +122,7 @@ export class ExplorerItem {
 			return this;
 		}
 
-		return this.parent.root;
+		return this._parent.root;
 	}
 
 	@memoize get children(): Map<string, ExplorerItem> {
@@ -131,12 +131,12 @@ export class ExplorerItem {
 
 	private updateName(value: string): void {
 		// Re-add to parent since the parent has a name map to children and the name might have changed
-		if (this.parent) {
-			this.parent.removeChild(this);
+		if (this._parent) {
+			this._parent.removeChild(this);
 		}
 		this._name = value;
-		if (this.parent) {
-			this.parent.addChild(this);
+		if (this._parent) {
+			this._parent.addChild(this);
 		}
 	}
 
@@ -243,7 +243,7 @@ export class ExplorerItem {
 	}
 
 	fetchChildren(fileService: IFileService): Promise<ExplorerItem[]> {
-		let promise = Promise.resolve(null);
+		let promise: Promise<any> = Promise.resolve(undefined);
 		if (!this.isDirectoryResolved) {
 			promise = fileService.resolveFile(this.resource, { resolveSingleChildDescendants: true }).then(stat => {
 				const resolved = ExplorerItem.create(stat, this);
@@ -277,14 +277,18 @@ export class ExplorerItem {
 	 * Moves this element under a new parent element.
 	 */
 	move(newParent: ExplorerItem): void {
-		this.parent.removeChild(this);
+		if (this._parent) {
+			this._parent.removeChild(this);
+		}
 		newParent.removeChild(this); // make sure to remove any previous version of the file if any
 		newParent.addChild(this);
 		this.updateResource(true);
 	}
 
 	private updateResource(recursive: boolean): void {
-		this.resource = resources.joinPath(this.parent.resource, this.name);
+		if (this._parent) {
+			this.resource = resources.joinPath(this._parent.resource, this.name);
+		}
 
 		if (recursive) {
 			if (this.isDirectory) {
