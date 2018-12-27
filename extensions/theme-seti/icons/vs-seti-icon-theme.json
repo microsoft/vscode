@@ -1470,7 +1470,7 @@
 		"procfile": "_heroku",
 		"todo": "_todo",
 		"npm-debug.log": "_npm_ignored",
-		"babel.config.js": "_babel",
+		"babel.config.js": "_babel"
 	},
 	"languageIds": {
 		"bat": "_windows",
@@ -1819,7 +1819,7 @@
 			"cmakelists.txt": "_makefile_3_light",
 			"procfile": "_heroku_light",
 			"npm-debug.log": "_npm_ignored_light",
-			"babel.config.js": "_babel_light",
+			"babel.config.js": "_babel_light"
 		}
 	},
 	"version": "https://github.com/jesseweed/seti-ui/commit/7714a720646300bb8f6d1690752cd71f50991414"
