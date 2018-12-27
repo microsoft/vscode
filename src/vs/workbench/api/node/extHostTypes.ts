@@ -1060,9 +1060,9 @@ export class SelectionRange {
 	kind: SelectionRangeKind;
 	range: Range;
 
-	constructor(kind: SelectionRangeKind, range: Range) {
-		this.kind = kind;
+	constructor(range: Range, kind: SelectionRangeKind, ) {
 		this.range = range;
+		this.kind = kind;
 	}
 }
 
