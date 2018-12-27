@@ -289,7 +289,7 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 					severity: this.getSeverity(data),
 					startLineNumber: location.startLineNumber,
 					startColumn: location.startCharacter,
-					endLineNumber: location.startLineNumber,
+					endLineNumber: location.endLineNumber,
 					endColumn: location.endCharacter,
 					message: data.message
 				};
