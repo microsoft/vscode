@@ -22,7 +22,7 @@ export interface IRawSearch {
 	filePattern?: string;
 	excludePattern?: glob.IExpression;
 	includePattern?: glob.IExpression;
-	contentPattern?: IPatternInfo;
+	contentPattern: IPatternInfo;
 	maxResults?: number;
 	exists?: boolean;
 	sortByScore?: boolean;

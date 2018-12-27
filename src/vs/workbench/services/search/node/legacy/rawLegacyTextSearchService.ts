@@ -52,7 +52,7 @@ export class LegacyTextSearchService {
 			// Use BatchedCollector to get new results to the frontend every 2s at least, until 50 results have been returned
 			const collector = new BatchedCollector<ISerializedFileMatch>(batchSize, progressCallback);
 			engine.search((matches) => {
-				const totalMatches = matches.reduce((acc, m) => acc + m.numMatches, 0);
+				const totalMatches = matches.reduce((acc, m) => acc + m.numMatches!, 0);
 				collector.addItems(matches, totalMatches);
 			}, (progress) => {
 				progressCallback(progress);
