@@ -688,6 +688,8 @@ export class TerminalInstance implements ITerminalInstance {
 						c(this._escapeNonWindowsPath(stdout.trim()));
 					});
 					return;
+				} else if (hasSpace && (exe.indexOf('powershell') !== -1)) {
+					c('& \'' + path + '\'');
 				} else if (hasSpace) {
 					c('"' + path + '"');
 				} else {
