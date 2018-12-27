@@ -65,9 +65,10 @@ export function sanitizeEnvironment(env: ITerminalEnvironment): void {
 		'VSCODE_IPC_HOOK',
 		'VSCODE_LOGS',
 		'VSCODE_NLS_CONFIG',
+		'VSCODE_NODE_CACHED_DATA_DIR',
 		'VSCODE_PORTABLE',
 		'VSCODE_PID',
-		'VSCODE_NODE_CACHED_DATA_DIR'
+		'VSCODE_PREVENT_FOREIGN_INSPECT'
 	];
 	keysToRemove.forEach((key) => {
 		if (env[key]) {
