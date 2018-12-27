@@ -80,7 +80,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 
 	provideTextContent(resource: URI): Promise<ITextModel> {
 
-		if (!this._model) {
+		if (!this._model || this._model.isDisposed()) {
 			dispose(this._modelDisposables);
 			const langId = this._modeService.create('markdown');
 			this._model = this._modelService.getModel(resource) || this._modelService.createModel('Loading...', langId, resource);
