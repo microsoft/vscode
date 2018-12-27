@@ -15,8 +15,6 @@ import { PerfviewContrib, PerfviewInput } from 'vs/workbench/parts/performance/e
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import './startupProfiler';
 import './startupTimings';
-import './stats';
-
 
 Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
 	PerfviewContrib,
@@ -36,7 +34,6 @@ Registry.as<IEditorInputFactoryRegistry>(Input.EditorInputFactories).registerEdi
 );
 
 CommandsRegistry.registerCommand('perfview.show', accessor => {
-
 	const editorService = accessor.get(IEditorService);
 	const instaService = accessor.get(IInstantiationService);
 	return editorService.openEditor(instaService.createInstance(PerfviewInput));
