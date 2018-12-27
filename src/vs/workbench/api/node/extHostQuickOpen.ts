@@ -14,6 +14,7 @@ import { ExtHostQuickOpenShape, IMainContext, MainContext, MainThreadQuickOpenSh
 import { URI } from 'vs/base/common/uri';
 import { ThemeIcon, QuickInputButtons } from 'vs/workbench/api/node/extHostTypes';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export type Item = string | QuickPickItem;
 
@@ -169,13 +170,13 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 
 	// ---- QuickInput
 
-	createQuickPick<T extends QuickPickItem>(extensionId: string, enableProposedApi: boolean): QuickPick<T> {
+	createQuickPick<T extends QuickPickItem>(extensionId: CanonicalExtensionIdentifier, enableProposedApi: boolean): QuickPick<T> {
 		const session = new ExtHostQuickPick(this._proxy, extensionId, enableProposedApi, () => this._sessions.delete(session._id));
 		this._sessions.set(session._id, session);
 		return session;
 	}
 
-	createInputBox(extensionId: string): InputBox {
+	createInputBox(extensionId: CanonicalExtensionIdentifier): InputBox {
 		const session = new ExtHostInputBox(this._proxy, extensionId, () => this._sessions.delete(session._id));
 		this._sessions.set(session._id, session);
 		return session;
@@ -256,7 +257,7 @@ class ExtHostQuickInput implements QuickInput {
 		this._onDidChangeValueEmitter
 	];
 
-	constructor(protected _proxy: MainThreadQuickOpenShape, protected _extensionId: string, private _onDidDispose: () => void) {
+	constructor(protected _proxy: MainThreadQuickOpenShape, protected _extensionId: CanonicalExtensionIdentifier, private _onDidDispose: () => void) {
 	}
 
 	get title() {
@@ -479,7 +480,7 @@ class ExtHostQuickPick<T extends QuickPickItem> extends ExtHostQuickInput implem
 	private _selectedItems: T[] = [];
 	private _onDidChangeSelectionEmitter = new Emitter<T[]>();
 
-	constructor(proxy: MainThreadQuickOpenShape, extensionId: string, enableProposedApi: boolean, onDispose: () => void) {
+	constructor(proxy: MainThreadQuickOpenShape, extensionId: CanonicalExtensionIdentifier, enableProposedApi: boolean, onDispose: () => void) {
 		super(proxy, extensionId, onDispose);
 		this._disposables.push(
 			this._onDidChangeActiveEmitter,
@@ -580,7 +581,7 @@ class ExtHostInputBox extends ExtHostQuickInput implements InputBox {
 	private _prompt: string;
 	private _validationMessage: string;
 
-	constructor(proxy: MainThreadQuickOpenShape, extensionId: string, onDispose: () => void) {
+	constructor(proxy: MainThreadQuickOpenShape, extensionId: CanonicalExtensionIdentifier, onDispose: () => void) {
 		super(proxy, extensionId, onDispose);
 		this.update({ type: 'inputBox' });
 	}

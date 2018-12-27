@@ -244,16 +244,16 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 	private renderParameters(parent: HTMLElement, signature: modes.SignatureInformation, currentParameter: number): void {
 
-		let [start, end] = this.getParameterLabelOffsets(signature, currentParameter);
+		const [start, end] = this.getParameterLabelOffsets(signature, currentParameter);
 
-		let beforeSpan = document.createElement('span');
+		const beforeSpan = document.createElement('span');
 		beforeSpan.textContent = signature.label.substring(0, start);
 
-		let paramSpan = document.createElement('span');
+		const paramSpan = document.createElement('span');
 		paramSpan.textContent = signature.label.substring(start, end);
 		paramSpan.className = 'parameter active';
 
-		let afterSpan = document.createElement('span');
+		const afterSpan = document.createElement('span');
 		afterSpan.textContent = signature.label.substring(end);
 
 		dom.append(parent, beforeSpan, paramSpan, afterSpan);
@@ -333,11 +333,10 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 registerThemingParticipant((theme, collector) => {
 	const border = theme.getColor(editorHoverBorder);
 	if (border) {
-		let borderWidth = theme.type === HIGH_CONTRAST ? 2 : 1;
+		const borderWidth = theme.type === HIGH_CONTRAST ? 2 : 1;
 		collector.addRule(`.monaco-editor .parameter-hints-widget { border: ${borderWidth}px solid ${border}; }`);
 		collector.addRule(`.monaco-editor .parameter-hints-widget.multiple .body { border-left: 1px solid ${border.transparent(0.5)}; }`);
 		collector.addRule(`.monaco-editor .parameter-hints-widget .signature.has-docs { border-bottom: 1px solid ${border.transparent(0.5)}; }`);
-
 	}
 	const background = theme.getColor(editorHoverBackground);
 	if (background) {

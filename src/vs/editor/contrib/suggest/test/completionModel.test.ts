@@ -28,7 +28,7 @@ export function createSuggestItem(label: string, overwriteBefore: number, kind =
 		}
 	};
 
-	return new CompletionItem(position, suggestion, container, provider, undefined);
+	return new CompletionItem(position, suggestion, container, provider, undefined!);
 }
 suite('CompletionModel', function () {
 

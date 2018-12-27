@@ -16,6 +16,7 @@ import { getGalleryExtensionId, getLocalExtensionId, groupByExtension } from 'vs
 import { getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { isValidExtensionVersion } from 'vs/platform/extensions/node/extensionValidator';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 const MANIFEST_FILE = 'package.json';
 
@@ -300,6 +301,8 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 // Relax the readonly properties here, it is the one place where we check and normalize values
 export interface IRelaxedExtensionDescription {
 	id: string;
+	uuid?: string;
+	identifier: CanonicalExtensionIdentifier;
 	name: string;
 	version: string;
 	publisher: string;
@@ -339,6 +342,7 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 
 		// id := `publisher.name`
 		extensionDescription.id = `${extensionDescription.publisher}.${extensionDescription.name}`;
+		extensionDescription.identifier = new CanonicalExtensionIdentifier(extensionDescription.id);
 
 		// main := absolutePath(`main`)
 		if (extensionDescription.main) {
@@ -577,7 +581,7 @@ export class ExtensionScanner {
 
 			if (!isBuiltin) {
 				// Filter out outdated extensions
-				const byExtension: IExtensionDescription[][] = groupByExtension(extensionDescriptions, e => ({ id: e.id, uuid: e.uuid }));
+				const byExtension: IExtensionDescription[][] = groupByExtension(extensionDescriptions, e => ({ id: e.identifier.value, uuid: e.uuid }));
 				extensionDescriptions = byExtension.map(p => p.sort((a, b) => semver.rcompare(a.version, b.version))[0]);
 			}
 
@@ -624,11 +628,11 @@ export class ExtensionScanner {
 		return Promise.all([builtinExtensions, extraBuiltinExtensions]).then(([builtinExtensions, extraBuiltinExtensions]) => {
 			let resultMap: { [id: string]: IExtensionDescription; } = Object.create(null);
 			for (let i = 0, len = builtinExtensions.length; i < len; i++) {
-				resultMap[builtinExtensions[i].id] = builtinExtensions[i];
+				resultMap[CanonicalExtensionIdentifier.toKey(builtinExtensions[i].identifier)] = builtinExtensions[i];
 			}
 			// Overwrite with extensions found in extra
 			for (let i = 0, len = extraBuiltinExtensions.length; i < len; i++) {
-				resultMap[extraBuiltinExtensions[i].id] = extraBuiltinExtensions[i];
+				resultMap[CanonicalExtensionIdentifier.toKey(extraBuiltinExtensions[i].identifier)] = extraBuiltinExtensions[i];
 			}
 
 			let resultArr = Object.keys(resultMap).map((id) => resultMap[id]);

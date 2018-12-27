@@ -20,8 +20,8 @@ suite('Comparers', () => {
 			};
 		}));
 
-		assert(compareFileNames(null!, null!) === 0, 'null should be equal');
-		assert(compareFileNames(null!, 'abc') < 0, 'null should be come before real values');
+		assert(compareFileNames(null, null) === 0, 'null should be equal');
+		assert(compareFileNames(null, 'abc') < 0, 'null should be come before real values');
 		assert(compareFileNames('', '') === 0, 'empty should be equal');
 		assert(compareFileNames('abc', 'abc') === 0, 'equal names should be equal');
 		assert(compareFileNames('.abc', '.abc') === 0, 'equal full names should be equal');
@@ -44,9 +44,9 @@ suite('Comparers', () => {
 			};
 		}));
 
-		assert(compareFileExtensions(null!, null!) === 0, 'null should be equal');
-		assert(compareFileExtensions(null!, '.abc') < 0, 'null should come before real files');
-		assert(compareFileExtensions(null!, 'abc') < 0, 'null should come before real files without extension');
+		assert(compareFileExtensions(null, null) === 0, 'null should be equal');
+		assert(compareFileExtensions(null, '.abc') < 0, 'null should come before real files');
+		assert(compareFileExtensions(null, 'abc') < 0, 'null should come before real files without extension');
 		assert(compareFileExtensions('', '') === 0, 'empty should be equal');
 		assert(compareFileExtensions('abc', 'abc') === 0, 'equal names should be equal');
 		assert(compareFileExtensions('.abc', '.abc') === 0, 'equal full names should be equal');

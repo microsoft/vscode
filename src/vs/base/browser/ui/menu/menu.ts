@@ -15,9 +15,10 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Color } from 'vs/base/common/color';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
 import { Event, Emitter } from 'vs/base/common/event';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
+import { isLinux } from 'vs/base/common/platform';
 
 export const MENU_MNEMONIC_REGEX: RegExp = /\(&{1,2}(.)\)|&{1,2}(.)/;
 export const MENU_ESCAPED_MNEMONIC_REGEX: RegExp = /(?:&amp;){1,2}(.)/;
@@ -59,6 +60,7 @@ export class Menu extends ActionBar {
 	private menuDisposables: IDisposable[];
 	private scrollableElement: DomScrollableElement;
 	private menuElement: HTMLElement;
+	private scrollTopHold: number | undefined;
 
 	private readonly _onScroll: Emitter<void>;
 
@@ -117,10 +119,27 @@ export class Menu extends ActionBar {
 			}));
 		}
 
+		if (isLinux) {
+			this._register(addDisposableListener(menuElement, EventType.KEY_DOWN, e => {
+				const event = new StandardKeyboardEvent(e);
+
+				if (event.equals(KeyCode.Home) || event.equals(KeyCode.PageUp)) {
+					this.focusedItem = this.items.length - 1;
+					this.focusNext();
+					EventHelper.stop(e, true);
+				} else if (event.equals(KeyCode.End) || event.equals(KeyCode.PageDown)) {
+					this.focusedItem = 0;
+					this.focusPrevious();
+					EventHelper.stop(e, true);
+				}
+			}));
+		}
+
 		this._register(addDisposableListener(this.domNode, EventType.MOUSE_OUT, e => {
 			let relatedTarget = e.relatedTarget as HTMLElement;
 			if (!isAncestor(relatedTarget, this.domNode)) {
 				this.focusedItem = undefined;
+				this.scrollTopHold = this.menuElement.scrollTop;
 				this.updateFocus();
 				e.stopPropagation();
 			}
@@ -143,6 +162,7 @@ export class Menu extends ActionBar {
 
 			if (hasClass(target, 'action-item')) {
 				const lastFocusedItem = this.focusedItem;
+				this.scrollTopHold = this.menuElement.scrollTop;
 				this.setFocusedItem(target);
 
 				if (lastFocusedItem !== this.focusedItem) {
@@ -178,7 +198,11 @@ export class Menu extends ActionBar {
 			this._onScroll.fire();
 		}, this, this.menuDisposables);
 
-		this._register(addDisposableListener(this.menuElement, EventType.SCROLL, (e) => {
+		this._register(addDisposableListener(this.menuElement, EventType.SCROLL, (e: ScrollEvent) => {
+			if (this.scrollTopHold !== undefined) {
+				this.menuElement.scrollTop = this.scrollTopHold;
+				this.scrollTopHold = undefined;
+			}
 			this.scrollableElement.scanDomNode();
 		}));
 

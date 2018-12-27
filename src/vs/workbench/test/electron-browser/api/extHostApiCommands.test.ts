@@ -564,6 +564,35 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		assert.equal(b.commitCharacters, undefined);
 	});
 
+	// --- signatureHelp
+
+	test('Parameter Hints, back and forth', async () => {
+		disposables.push(extHost.registerSignatureHelpProvider(nullExtensionDescription, defaultSelector, new class implements vscode.SignatureHelpProvider {
+			provideSignatureHelp(_document, _position, _token, context: vscode.SignatureHelpContext): vscode.SignatureHelp {
+				return {
+					activeSignature: 0,
+					activeParameter: 1,
+					signatures: [
+						{
+							label: 'abc',
+							documentation: `${context.triggerKind === 1 /* vscode.SignatureHelpTriggerKind.Invoke */ ? 'invoked' : 'unknown'} ${context.triggerCharacter}`,
+							parameters: []
+						}
+					]
+				};
+			}
+		}, []));
+
+		await rpcProtocol.sync();
+
+		const firstValue = await commands.executeCommand<vscode.SignatureHelp>('vscode.executeSignatureHelpProvider', model.uri, new types.Position(0, 1), ',');
+		assert.strictEqual(firstValue.activeSignature, 0);
+		assert.strictEqual(firstValue.activeParameter, 1);
+		assert.strictEqual(firstValue.signatures.length, 1);
+		assert.strictEqual(firstValue.signatures[0].label, 'abc');
+		assert.strictEqual(firstValue.signatures[0].documentation, 'invoked ,');
+	});
+
 	// --- quickfix
 
 	test('QuickFix, back and forth', function () {

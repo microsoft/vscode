@@ -14,11 +14,12 @@ import { IExtensionDescription } from 'vs/workbench/services/extensions/common/e
 import { NullLogService } from 'vs/platform/log/common/log';
 import { IMainContext } from 'vs/workbench/api/node/extHost.protocol';
 import { Counter } from 'vs/base/common/numbers';
+import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 suite('ExtHostWorkspace', function () {
 
 	const extensionDescriptor: IExtensionDescription = {
-		id: 'nullExtensionDescription',
+		identifier: new CanonicalExtensionIdentifier('nullExtensionDescription'),
 		name: 'ext',
 		publisher: 'vscode',
 		enableProposedApi: false,

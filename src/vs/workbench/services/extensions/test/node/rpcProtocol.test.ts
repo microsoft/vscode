@@ -46,8 +46,6 @@ suite('RPCProtocol', () => {
 		let A = new RPCProtocol(a_protocol);
 		let B = new RPCProtocol(b_protocol);
 
-		delegate = null;
-
 		const bIdentifier = new ProxyIdentifier<BClass>(false, 'bb');
 		const bInstance = new BClass();
 		B.set(bIdentifier, bInstance);

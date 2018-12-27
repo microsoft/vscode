@@ -23,6 +23,7 @@ import { CodeAction } from 'vs/editor/common/modes';
 import { Range } from 'vs/editor/common/core/range';
 import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
+import { timeout } from 'vs/base/common/async';
 
 export const IMarkersWorkbenchService = createDecorator<IMarkersWorkbenchService>('markersWorkbenchService');
 
@@ -44,6 +45,8 @@ export class MarkersWorkbenchService extends Disposable implements IMarkersWorkb
 	readonly markersModel: MarkersModel;
 
 	private readonly allFixesCache: Map<string, Promise<CodeAction[]>> = new Map<string, Promise<CodeAction[]>>();
+	private readonly codeActionsPromises: Map<string, Map<string, Promise<CodeAction[]>>> = new Map<string, Map<string, Promise<CodeAction[]>>>();
+	private readonly codeActions: Map<string, Map<string, CodeAction[]>> = new Map<string, Map<string, CodeAction[]>>();
 
 	constructor(
 		@IMarkerService private markerService: IMarkerService,
@@ -66,6 +69,8 @@ export class MarkersWorkbenchService extends Disposable implements IMarkersWorkb
 	private onMarkerChanged(resources: URI[]): void {
 		for (const resource of resources) {
 			this.allFixesCache.delete(resource.toString());
+			this.codeActionsPromises.delete(resource.toString());
+			this.codeActions.delete(resource.toString());
 			this.markersModel.setResourceMarkers(resource, this.readMarkers(resource));
 		}
 	}
@@ -74,8 +79,33 @@ export class MarkersWorkbenchService extends Disposable implements IMarkersWorkb
 		return this.markerService.read({ resource, severities: MarkerSeverity.Error | MarkerSeverity.Warning | MarkerSeverity.Info });
 	}
 
-	async getQuickFixActions(marker: Marker): Promise<IAction[]> {
-		const codeActions = await this.getFixes(marker);
+	getQuickFixActions(marker: Marker): Promise<IAction[]> {
+		const markerKey = IMarkerData.makeKey(marker.marker);
+		let codeActionsPerMarker = this.codeActions.get(marker.resource.toString());
+		if (!codeActionsPerMarker) {
+			codeActionsPerMarker = new Map<string, CodeAction[]>();
+			this.codeActions.set(marker.resource.toString(), codeActionsPerMarker);
+		}
+		let codeActions = codeActionsPerMarker.get(markerKey);
+		if (codeActions) {
+			return Promise.resolve(this.toActions(codeActions, marker));
+		} else {
+			let codeActionsPromisesPerMarker = this.codeActionsPromises.get(marker.resource.toString());
+			if (!codeActionsPromisesPerMarker) {
+				codeActionsPromisesPerMarker = new Map<string, Promise<CodeAction[]>>();
+				this.codeActionsPromises.set(marker.resource.toString(), codeActionsPromisesPerMarker);
+			}
+			if (!codeActionsPromisesPerMarker.has(markerKey)) {
+				const codeActionsPromise = this.getFixes(marker);
+				codeActionsPromisesPerMarker.set(markerKey, codeActionsPromise);
+				codeActionsPromise.then(codeActions => codeActionsPerMarker.set(markerKey, codeActions));
+			}
+			// Wait for 100ms for code actions fetching.
+			return timeout(100).then(() => this.toActions(codeActionsPerMarker.get(markerKey) || [], marker));
+		}
+	}
+
+	private toActions(codeActions: CodeAction[], marker: Marker): IAction[] {
 		return codeActions.map(codeAction => new Action(
 			codeAction.command ? codeAction.command.id : codeAction.title,
 			codeAction.title,

@@ -152,7 +152,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			if (installed && installed.local) {
 				const installedExtensionServer = this.extensionManagementServerService.getExtensionManagementServer(installed.local.location);
 				const isSameExtensionRunning = runningExtensions.some(e => {
-					if (!areSameExtensions(e, extension.identifier)) {
+					if (!areSameExtensions({ id: e.identifier.value }, extension.identifier)) {
 						return false;
 					}
 					const runningExtensionServer = this.extensionManagementServerService.getExtensionManagementServer(e.extensionLocation);

@@ -252,7 +252,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		};
 
 		const handle = ExtHostWebviews.newHandle();
-		this._proxy.$createWebviewPanel(handle, viewType, title, webviewShowOptions, options, extension.id, extension.extensionLocation);
+		this._proxy.$createWebviewPanel(handle, viewType, title, webviewShowOptions, options, extension.identifier, extension.extensionLocation);
 
 		const webview = new ExtHostWebview(handle, this._proxy, options);
 		const panel = new ExtHostWebviewPanel(handle, this._proxy, viewType, title, viewColumn, options, webview);

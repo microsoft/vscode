@@ -17,6 +17,7 @@ import { IExtensionDescription } from 'vs/workbench/services/extensions/common/e
 import { NullLogService } from 'vs/platform/log/common/log';
 import { isResourceTextEdit, ResourceTextEdit } from 'vs/editor/common/modes';
 import { timeout } from 'vs/base/common/async';
+import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 suite('ExtHostDocumentSaveParticipant', () => {
 
@@ -25,7 +26,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 	let documents: ExtHostDocuments;
 	let nullLogService = new NullLogService();
 	let nullExtensionDescription: IExtensionDescription = {
-		id: 'nullExtensionDescription',
+		identifier: new CanonicalExtensionIdentifier('nullExtensionDescription'),
 		name: 'Null Extension Description',
 		publisher: 'vscode',
 		enableProposedApi: false,

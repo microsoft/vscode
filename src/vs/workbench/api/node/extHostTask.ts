@@ -205,7 +205,7 @@ namespace TaskDTO {
 			definition,
 			name: value.name,
 			source: {
-				extensionId: extension.id,
+				extensionId: extension.identifier.value,
 				label: value.source,
 				scope: scope
 			},

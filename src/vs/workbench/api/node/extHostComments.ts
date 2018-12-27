@@ -13,6 +13,7 @@ import { ExtHostCommentsShape, IMainContext, MainContext, MainThreadCommentsShap
 import { CommandsConverter } from './extHostCommands';
 import { IRange } from 'vs/editor/common/core/range';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export class ExtHostComments implements ExtHostCommentsShape {
 	private static handlePool = 0;
@@ -31,7 +32,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 	}
 
 	registerWorkspaceCommentProvider(
-		extensionId: string,
+		extensionId: CanonicalExtensionIdentifier,
 		provider: vscode.WorkspaceCommentProvider
 	): vscode.Disposable {
 		const handle = ExtHostComments.handlePool++;

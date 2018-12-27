@@ -42,6 +42,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { join } from 'path';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export const IExtensionHostProfileService = createDecorator<IExtensionHostProfileService>('extensionHostProfileService');
 export const CONTEXT_PROFILE_SESSION_STATE = new RawContextKey<string>('profileSessionState', 'none');
@@ -66,8 +67,8 @@ export interface IExtensionHostProfileService {
 	startProfiling(): void;
 	stopProfiling(): void;
 
-	getUnresponsiveProfile(extensionId: string): IExtensionHostProfile;
-	setUnresponsiveProfile(extensionId: string, profile: IExtensionHostProfile): void;
+	getUnresponsiveProfile(extensionId: CanonicalExtensionIdentifier): IExtensionHostProfile;
+	setUnresponsiveProfile(extensionId: CanonicalExtensionIdentifier, profile: IExtensionHostProfile): void;
 }
 
 interface IExtensionProfileInformation {
@@ -163,7 +164,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 	private _resolveExtensions(): IRuntimeExtension[] {
 		let marketplaceMap: { [id: string]: IExtension; } = Object.create(null);
 		for (let extension of this._extensionsWorkbenchService.local) {
-			marketplaceMap[extension.identifier.id] = extension;
+			marketplaceMap[CanonicalExtensionIdentifier.toKey(extension.identifier.id)] = extension;
 		}
 
 		let statusMap = this._extensionService.getExtensionsStatus();
@@ -177,10 +178,10 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				const id = this._profileInfo.ids[i];
 				const delta = this._profileInfo.deltas[i];
 
-				let extensionSegments = segments[id];
+				let extensionSegments = segments[CanonicalExtensionIdentifier.toKey(id)];
 				if (!extensionSegments) {
 					extensionSegments = [];
-					segments[id] = extensionSegments;
+					segments[CanonicalExtensionIdentifier.toKey(id)] = extensionSegments;
 				}
 
 				extensionSegments.push(currentStartTime);
@@ -195,7 +196,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 			let profileInfo: IExtensionProfileInformation | null = null;
 			if (this._profileInfo) {
-				let extensionSegments = segments[extensionDescription.id] || [];
+				let extensionSegments = segments[CanonicalExtensionIdentifier.toKey(extensionDescription.identifier)] || [];
 				let extensionTotalTime = 0;
 				for (let j = 0, lenJ = extensionSegments.length / 2; j < lenJ; j++) {
 					const startTime = extensionSegments[2 * j];
@@ -211,10 +212,10 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 			result[i] = {
 				originalIndex: i,
 				description: extensionDescription,
-				marketplaceInfo: marketplaceMap[extensionDescription.id],
-				status: statusMap[extensionDescription.id],
+				marketplaceInfo: marketplaceMap[CanonicalExtensionIdentifier.toKey(extensionDescription.identifier)],
+				status: statusMap[extensionDescription.identifier.value],
 				profileInfo: profileInfo,
-				unresponsiveProfile: this._extensionHostProfileService.getUnresponsiveProfile(extensionDescription.id)
+				unresponsiveProfile: this._extensionHostProfileService.getUnresponsiveProfile(extensionDescription.identifier)
 			};
 		}
 
@@ -352,7 +353,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 				clearNode(data.msgContainer);
 
-				if (this._extensionHostProfileService.getUnresponsiveProfile(element.description.id)) {
+				if (this._extensionHostProfileService.getUnresponsiveProfile(element.description.identifier)) {
 					const el = $('span');
 					el.innerHTML = renderOcticons(` $(alert) Unresponsive`);
 					el.title = nls.localize('unresponsive.title', "Extension has caused the extension host to freeze.");
@@ -512,7 +513,7 @@ export class ReportExtensionIssueAction extends Action {
 			// unresponsive extension host caused
 			reason = 'Performance';
 			title = 'Extension causes high cpu load';
-			let path = join(os.homedir(), `${extension.description.id}-unresponsive.cpuprofile.txt`);
+			let path = join(os.homedir(), `${extension.description.identifier.value}-unresponsive.cpuprofile.txt`);
 			task = async () => {
 				const profiler = await import('v8-inspect-profiler');
 				const data = profiler.rewriteAbsolutePaths({ profile: <any>extension.unresponsiveProfile.data }, 'pii_removed');

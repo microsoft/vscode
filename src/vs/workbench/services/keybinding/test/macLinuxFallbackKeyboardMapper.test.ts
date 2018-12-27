@@ -14,7 +14,7 @@ suite('keyboardMapper - MAC fallback', () => {
 	let mapper = new MacLinuxFallbackKeyboardMapper(OperatingSystem.Macintosh);
 
 	function _assertResolveKeybinding(k: number, expected: IResolvedKeybinding[]): void {
-		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Macintosh), expected);
+		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Macintosh)!, expected);
 	}
 
 	test('resolveKeybinding Cmd+Z', () => {
@@ -56,7 +56,7 @@ suite('keyboardMapper - MAC fallback', () => {
 				altKey: false,
 				metaKey: true,
 				keyCode: KeyCode.KEY_Z,
-				code: null
+				code: null!
 			},
 			{
 				label: '⌘Z',
@@ -96,7 +96,7 @@ suite('keyboardMapper - MAC fallback', () => {
 				altKey: false,
 				metaKey: true,
 				keyCode: KeyCode.Meta,
-				code: null
+				code: null!
 			},
 			{
 				label: '⌘',
@@ -116,7 +116,7 @@ suite('keyboardMapper - LINUX fallback', () => {
 	let mapper = new MacLinuxFallbackKeyboardMapper(OperatingSystem.Linux);
 
 	function _assertResolveKeybinding(k: number, expected: IResolvedKeybinding[]): void {
-		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Linux), expected);
+		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Linux)!, expected);
 	}
 
 	test('resolveKeybinding Ctrl+Z', () => {
@@ -158,7 +158,7 @@ suite('keyboardMapper - LINUX fallback', () => {
 				altKey: false,
 				metaKey: false,
 				keyCode: KeyCode.KEY_Z,
-				code: null
+				code: null!
 			},
 			{
 				label: 'Ctrl+Z',
@@ -215,7 +215,7 @@ suite('keyboardMapper - LINUX fallback', () => {
 				altKey: false,
 				metaKey: false,
 				keyCode: KeyCode.Ctrl,
-				code: null
+				code: null!
 			},
 			{
 				label: 'Ctrl+',
