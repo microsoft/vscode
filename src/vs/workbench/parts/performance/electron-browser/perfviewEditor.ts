@@ -9,7 +9,6 @@ import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorIn
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { ITextModel } from 'vs/editor/common/model';
-import { ITextEditorModel } from 'vs/workbench/common/editor';
 import { ILifecycleService, LifecyclePhase, StartupKindToString } from 'vs/platform/lifecycle/common/lifecycle';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -23,6 +22,24 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { writeTransientState } from 'vs/workbench/parts/codeEditor/electron-browser/toggleWordWrap';
 import { mergeSort } from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import product from 'vs/platform/node/product';
+import pkg from 'vs/platform/node/package';
+
+export class PerfviewContrib {
+
+	private readonly _registration: IDisposable;
+
+	constructor(
+		@IInstantiationService instaService: IInstantiationService,
+		@ITextModelService textModelResolverService: ITextModelService
+	) {
+		this._registration = textModelResolverService.registerTextModelContentProvider('perf', instaService.createInstance(PerfModelContentProvider));
+	}
+
+	dispose(): void {
+		this._registration.dispose();
+	}
+}
 
 export class PerfviewInput extends ResourceEditorInput {
 
@@ -30,27 +47,19 @@ export class PerfviewInput extends ResourceEditorInput {
 	static readonly Uri = URI.from({ scheme: 'perf', path: 'Startup Performance' });
 
 	constructor(
-		@IInstantiationService private readonly _instaService: IInstantiationService,
-		@ITextModelService private _textModelResolverService: ITextModelService,
+		@ITextModelService textModelResolverService: ITextModelService,
 		@IHashService hashService: IHashService
 	) {
 		super(
 			localize('name', "Startup Performance"),
 			undefined,
 			PerfviewInput.Uri,
-			_textModelResolverService, hashService
+			textModelResolverService, hashService
 		);
 	}
 
 	getTypeId(): string {
 		return PerfviewInput.Id;
-	}
-
-	resolve(): Promise<ITextEditorModel> {
-		if (!this._textModelResolverService.hasTextModelContentProvider(PerfviewInput.Uri.scheme)) {
-			this._textModelResolverService.registerTextModelContentProvider(PerfviewInput.Uri.scheme, this._instaService.createInstance(PerfModelContentProvider));
-		}
-		return super.resolve();
 	}
 }
 
@@ -96,7 +105,6 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 			if (!this._model.isDisposed()) {
 
 				let stats = this._envService.performance ? LoaderStats.get() : undefined;
-
 				let md = new MarkdownBuilder();
 				this._addSummary(md, metrics);
 				md.blank();
@@ -116,6 +124,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 
 	private _addSummary(md: MarkdownBuilder, metrics: IStartupMetrics): void {
 		md.heading(2, 'System Info');
+		md.li(`${product.nameShort}: ${pkg.version} (${product.commit || '0000000'})`);
 		md.li(`OS: ${metrics.platform}(${metrics.release})`);
 		md.li(`CPUs: ${metrics.cpus.model}(${metrics.cpus.count} x ${metrics.cpus.speed})`);
 		md.li(`Memory(System): ${(metrics.totalmem / (1024 * 1024 * 1024)).toFixed(2)} GB(${(metrics.freemem / (1024 * 1024 * 1024)).toFixed(2)}GB free)`);
