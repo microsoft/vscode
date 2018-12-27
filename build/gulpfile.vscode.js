@@ -100,7 +100,7 @@ gulp.task('optimize-vscode', ['clean-optimized-vscode', 'compile-build', 'compil
 
 
 gulp.task('optimize-index-js', ['optimize-vscode'], () => {
-	const fullpath = path.join(process.cwd(), 'out-vscode/vs/code/electron-browser/workbench/workbench.js');
+	const fullpath = path.join(process.cwd(), 'out-vscode/bootstrap-window.js');
 	const contents = fs.readFileSync(fullpath).toString();
 	const newContents = contents.replace('[/*BUILD->INSERT_NODE_MODULES*/]', JSON.stringify(nodeModules));
 	fs.writeFileSync(fullpath, newContents);
