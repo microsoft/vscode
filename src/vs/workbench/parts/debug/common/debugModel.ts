@@ -737,7 +737,7 @@ export class DebugModel implements IDebugModel {
 	private schedulers = new Map<string, RunOnceScheduler>();
 	private breakpointsSessionId: string;
 	private readonly _onDidChangeBreakpoints: Emitter<IBreakpointsChangeEvent>;
-	private readonly _onDidChangeCallStack: Emitter<void>;
+	private readonly _onDidChangeCallStack: Emitter<IThread | undefined>;
 	private readonly _onDidChangeWatchExpressions: Emitter<IExpression>;
 
 	constructor(
@@ -751,7 +751,7 @@ export class DebugModel implements IDebugModel {
 		this.sessions = [];
 		this.toDispose = [];
 		this._onDidChangeBreakpoints = new Emitter<IBreakpointsChangeEvent>();
-		this._onDidChangeCallStack = new Emitter<void>();
+		this._onDidChangeCallStack = new Emitter<IThread | undefined>();
 		this._onDidChangeWatchExpressions = new Emitter<IExpression>();
 	}
 
@@ -786,7 +786,7 @@ export class DebugModel implements IDebugModel {
 		return this._onDidChangeBreakpoints.event;
 	}
 
-	get onDidChangeCallStack(): Event<void> {
+	get onDidChangeCallStack(): Event<IThread | undefined> {
 		return this._onDidChangeCallStack.event;
 	}
 
@@ -819,12 +819,12 @@ export class DebugModel implements IDebugModel {
 			return thread.fetchCallStack(1).then(() => {
 				if (!this.schedulers.has(thread.getId())) {
 					this.schedulers.set(thread.getId(), new RunOnceScheduler(() => {
-						thread.fetchCallStack(19).then(() => this._onDidChangeCallStack.fire());
+						thread.fetchCallStack(19).then(() => this._onDidChangeCallStack.fire(thread));
 					}, 420));
 				}
 
 				this.schedulers.get(thread.getId()).schedule();
-				this._onDidChangeCallStack.fire();
+				this._onDidChangeCallStack.fire(thread);
 			});
 		}
 
