@@ -21,6 +21,8 @@ import * as perf from 'vs/base/common/performance';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { writeTransientState } from 'vs/workbench/parts/codeEditor/electron-browser/toggleWordWrap';
+import { mergeSort } from 'vs/base/common/arrays';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export class PerfviewInput extends ResourceEditorInput {
 
@@ -63,6 +65,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		@ICodeEditorService private readonly _editorService: ICodeEditorService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@ITimerService private readonly _timerService: ITimerService,
+		@IEnvironmentService private readonly _envService: IEnvironmentService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 	) { }
 
@@ -85,21 +88,26 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 
 	private _updateModel(): void {
 
-
 		Promise.all([
 			this._timerService.startupMetrics,
 			this._lifecycleService.when(LifecyclePhase.Eventually),
 			this._extensionService.whenInstalledExtensionsRegistered()
 		]).then(([metrics]) => {
 			if (!this._model.isDisposed()) {
+
+				let stats = this._envService.performance ? LoaderStats.get() : undefined;
+
 				let md = new MarkdownBuilder();
 				this._addSummary(md, metrics);
 				md.blank();
-				this._addSummaryTable(md, metrics);
+				this._addSummaryTable(md, metrics, stats);
 				md.blank();
 				this._addExtensionsTable(md);
 				md.blank();
 				this._addRawPerfMarks(md);
+				md.blank();
+				this._addLoaderStats(md, stats);
+
 				this._model.setValue(md.value);
 			}
 		});
@@ -119,7 +127,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		md.li(`Empty Workspace: ${metrics.emptyWorkbench}`);
 	}
 
-	private _addSummaryTable(md: MarkdownBuilder, metrics: IStartupMetrics, nodeModuleLoadTime?: number): void {
+	private _addSummaryTable(md: MarkdownBuilder, metrics: IStartupMetrics, stats?: LoaderStats): void {
 
 		const table: (string | number)[][] = [];
 		table.push(['start => app.isReady', metrics.timers.ellapsedAppReady, '[main]', `initial startup: ${metrics.initialStartup}`]);
@@ -127,7 +135,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		table.push(['app.isReady => window.loadUrl()', metrics.timers.ellapsedWindowLoad, '[main]', `initial startup: ${metrics.initialStartup}`]);
 		table.push(['require & init global storage', metrics.timers.ellapsedGlobalStorageInitMain, '[main]', `initial startup: ${metrics.initialStartup}`]);
 		table.push(['window.loadUrl() => begin to require(workbench.main.js)', metrics.timers.ellapsedWindowLoadToRequire, '[main->renderer]', StartupKindToString(metrics.windowKind)]);
-		table.push(['require(workbench.main.js)', metrics.timers.ellapsedRequire, '[renderer]', `cached data: ${(metrics.didUseCachedData ? 'YES' : 'NO')}${nodeModuleLoadTime ? `, node_modules took ${nodeModuleLoadTime}ms` : ''}`]);
+		table.push(['require(workbench.main.js)', metrics.timers.ellapsedRequire, '[renderer]', `cached data: ${(metrics.didUseCachedData ? 'YES' : 'NO')}${stats ? `, node_modules took ${stats.nodeRequireTotal}ms` : ''}`]);
 		table.push(['init global storage', metrics.timers.ellapsedGlobalStorageInitRenderer, '[renderer]', undefined]);
 		table.push(['require workspace storage', metrics.timers.ellapsedWorkspaceStorageRequire, '[renderer]', undefined]);
 		table.push(['require & init workspace storage', metrics.timers.ellapsedWorkspaceStorageInit, '[renderer]', undefined]);
@@ -172,6 +180,117 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		}
 		md.value += '```\n';
 	}
+
+	private _addLoaderStats(md: MarkdownBuilder, stats?: LoaderStats): void {
+		if (stats) {
+			md.heading(2, 'Loader Stats');
+			md.heading(3, 'Load AMD-module');
+			md.table(['Module', 'Duration'], stats.amdLoad);
+			md.blank();
+			md.heading(3, 'Load commonjs-module');
+			md.table(['Module', 'Duration'], stats.nodeRequire);
+			md.blank();
+			md.heading(3, 'Invoke AMD-module factory');
+			md.table(['Module', 'Duration'], stats.amdInvoke);
+			md.blank();
+			md.heading(3, 'Invoke commonjs-module');
+			md.table(['Module', 'Duration'], stats.nodeEval);
+		}
+	}
+}
+
+abstract class LoaderStats {
+	readonly amdLoad: (string | number)[][];
+	readonly amdInvoke: (string | number)[][];
+	readonly nodeRequire: (string | number)[][];
+	readonly nodeEval: (string | number)[][];
+	readonly nodeRequireTotal: number;
+
+
+	static get(): LoaderStats {
+
+
+		const amdLoadScript = new Map<string, number>();
+		const amdInvokeFactory = new Map<string, number>();
+		const nodeRequire = new Map<string, number>();
+		const nodeEval = new Map<string, number>();
+
+		function mark(map: Map<string, number>, stat: LoaderEvent) {
+			if (map.has(stat.detail)) {
+				// console.warn('BAD events, DOUBLE start', stat);
+				// map.delete(stat.detail);
+				return;
+			}
+			map.set(stat.detail, -stat.timestamp);
+		}
+
+		function diff(map: Map<string, number>, stat: LoaderEvent) {
+			let duration = map.get(stat.detail);
+			if (!duration) {
+				// console.warn('BAD events, end WITHOUT start', stat);
+				// map.delete(stat.detail);
+				return;
+			}
+			if (duration >= 0) {
+				// console.warn('BAD events, DOUBLE end', stat);
+				// map.delete(stat.detail);
+				return;
+			}
+			map.set(stat.detail, duration + stat.timestamp);
+		}
+
+		const stats = mergeSort(require.getStats().slice(0), (a, b) => a.timestamp - b.timestamp);
+
+		for (const stat of stats) {
+			switch (stat.type) {
+				case LoaderEventType.BeginLoadingScript:
+					mark(amdLoadScript, stat);
+					break;
+				case LoaderEventType.EndLoadingScriptOK:
+				case LoaderEventType.EndLoadingScriptError:
+					diff(amdLoadScript, stat);
+					break;
+
+				case LoaderEventType.BeginInvokeFactory:
+					mark(amdInvokeFactory, stat);
+					break;
+				case LoaderEventType.EndInvokeFactory:
+					diff(amdInvokeFactory, stat);
+					break;
+
+				case LoaderEventType.NodeBeginNativeRequire:
+					mark(nodeRequire, stat);
+					break;
+				case LoaderEventType.NodeEndNativeRequire:
+					diff(nodeRequire, stat);
+					break;
+
+				case LoaderEventType.NodeBeginEvaluatingScript:
+					mark(nodeEval, stat);
+					break;
+				case LoaderEventType.NodeEndEvaluatingScript:
+					diff(nodeEval, stat);
+					break;
+			}
+		}
+
+		let nodeRequireTotal = 0;
+		nodeRequire.forEach(value => nodeRequireTotal += value);
+
+		function to2dArray(map: Map<string, number>): (string | number)[][] {
+			let res: (string | number)[][] = [];
+			map.forEach((value, index) => res.push([index, value]));
+			return res;
+		}
+
+		return {
+			amdLoad: to2dArray(amdLoadScript),
+			amdInvoke: to2dArray(amdInvokeFactory),
+			nodeRequire: to2dArray(nodeRequire),
+			nodeEval: to2dArray(nodeEval),
+			nodeRequireTotal
+		};
+	}
 }
 
 class MarkdownBuilder {
@@ -200,7 +319,7 @@ class MarkdownBuilder {
 		});
 		rows.forEach(row => {
 			row.forEach((cell, ci) => {
-				if (!cell) {
+				if (typeof cell === 'undefined') {
 					cell = row[ci] = '-';
 				}
 				const len = cell.toString().length;
