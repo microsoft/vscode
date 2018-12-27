@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-action-bar .markers-panel-action-filter-container {
+.monaco-action-bar .action-item.markers-panel-action-filter-container {
 	cursor: default;
 	margin-right: 10px;
 	min-width: 150px;
@@ -93,6 +93,7 @@
 .markers-panel .markers-panel-container .tree-container .monaco-tl-contents {
 	display: flex;
 	line-height: 22px;
+	margin-right: 20px;
 }
 
 .hc-black .markers-panel .markers-panel-container .tree-container .monaco-tl-contents {
@@ -108,25 +109,42 @@
 	margin-left: 10px;
 }
 
-.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-description {
-	margin-right: 5px;
-	text-overflow:  ellipsis;
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-message-details,
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-message:not(.multiline) {
+	display: flex;
 	overflow: hidden;
 }
 
-.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-source,
-.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-code {
-	margin-right: 5px;
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-message.multiline {
+	white-space: pre;
+	flex: 1;
 }
 
-.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-source:before,
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-message:not(.multiline) .marker-message-line {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-message .details-container {
+	display: flex;
+}
+
 .markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-code:before {
-	content: '[';
+	content: '(';
 }
 
-.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-source:after,
 .markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-code:after {
-	content: ']';
+	content: ')';
+}
+
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .details-container .marker-source,
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .details-container .marker-line {
+	margin-left: 6px;
+}
+
+.markers-panel .monaco-tl-contents .marker-icon,
+.markers-panel .monaco-tl-contents .actions .action-item {
+	margin-right: 6px;
 }
 
 .markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-source,
@@ -141,33 +159,32 @@
 	font-weight: bold;
 }
 
-.markers-panel .monaco-tl-contents > .icon {
+.markers-panel .monaco-tl-contents .marker-icon {
 	height: 22px;
-	margin-right: 6px;
 	flex: 0 0 16px;
 }
 
-.markers-panel .icon.warning {
+.markers-panel .marker-icon.warning {
 	background: url('status-warning.svg') center center no-repeat;
 }
 
-.markers-panel .icon.error {
+.markers-panel .marker-icon.error {
 	background: url('status-error.svg') center center no-repeat;
 }
 
-.markers-panel .icon.info {
+.markers-panel .marker-icon.info {
 	background: url('status-info.svg') center center no-repeat;
 }
 
-.vs-dark .markers-panel .icon.warning {
+.vs-dark .markers-panel .marker-icon.warning {
 	background: url('status-warning-inverse.svg') center center no-repeat;
 }
 
-.vs-dark .markers-panel .icon.error {
+.vs-dark .markers-panel .marker-icon.error {
 	background: url('status-error-inverse.svg') center center no-repeat;
 }
 
-.vs-dark .markers-panel .icon.info {
+.vs-dark .markers-panel .marker-icon.info {
 	background: url('status-info-inverse.svg') center center no-repeat;
 }
 
@@ -180,20 +197,23 @@
 	background: url('lightbulb-dark.svg') center/80% no-repeat;
 }
 
-.markers-panel .monaco-tl-contents > .actions {
-	flex: 0 0 16px;
-}
-
-.markers-panel .monaco-tl-contents > .actions .monaco-action-bar {
+.markers-panel .monaco-tl-contents .actions .monaco-action-bar {
 	display: none;
 }
 
-.markers-panel .monaco-tl-row:hover .monaco-tl-contents > .actions .monaco-action-bar,
-.markers-panel .monaco-tl-row.selected .monaco-tl-contents > .actions .monaco-action-bar,
-.markers-panel .monaco-tl-row.focused .monaco-tl-contents > .actions .monaco-action-bar {
+.markers-panel .monaco-list-row:hover .monaco-tl-contents > .marker-icon.quickFix,
+.markers-panel .monaco-list-row.selected .monaco-tl-contents > .marker-icon.quickFix,
+.markers-panel .monaco-list-row.focused .monaco-tl-contents > .marker-icon.quickFix {
+	display: none;
+}
+
+.markers-panel .monaco-list-row:hover .monaco-tl-contents .actions .monaco-action-bar,
+.markers-panel .monaco-list-row.selected .monaco-tl-contents .actions .monaco-action-bar,
+.markers-panel .monaco-list-row.focused .monaco-tl-contents .actions .monaco-action-bar {
 	display: block;
 }
 
+.markers-panel .monaco-tl-contents .multiline-actions .action-label,
 .markers-panel .monaco-tl-contents .actions .action-label {
 	width: 16px;
 	height: 100%;
@@ -201,6 +221,11 @@
 	background-repeat: no-repeat;
 }
 
+.markers-panel .monaco-tl-contents .multiline-actions .action-label {
+	line-height: 22px;
+}
+
+.markers-panel .monaco-tl-contents .multiline-actions .action-item.disabled,
 .markers-panel .monaco-tl-contents .actions .action-item.disabled {
 	display: none;
 }

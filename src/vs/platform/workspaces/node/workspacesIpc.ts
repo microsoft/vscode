@@ -3,26 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
-import { IChannel } from 'vs/base/parts/ipc/node/ipc';
+import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
 import { IWorkspacesService, IWorkspaceIdentifier, IWorkspaceFolderCreationData, IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 
-export interface IWorkspacesChannel extends IChannel {
-	call(command: 'createWorkspace', arg: [IWorkspaceFolderCreationData[]]): Thenable<string>;
-	call(command: string, arg?: any): Thenable<any>;
-}
-
-export class WorkspacesChannel implements IWorkspacesChannel {
+export class WorkspacesChannel implements IServerChannel {
 
 	constructor(private service: IWorkspacesMainService) { }
 
-	listen<T>(event: string, arg?: any): Event<T> {
+	listen<T>(_, event: string): Event<T> {
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(command: string, arg?: any): Thenable<any> {
+	call(_, command: string, arg?: any): Promise<any> {
 		switch (command) {
 			case 'createWorkspace': {
 				const rawFolders: IWorkspaceFolderCreationData[] = arg;
@@ -48,9 +42,9 @@ export class WorkspacesChannelClient implements IWorkspacesService {
 
 	_serviceBrand: any;
 
-	constructor(private channel: IWorkspacesChannel) { }
+	constructor(private channel: IChannel) { }
 
-	createWorkspace(folders?: IWorkspaceFolderCreationData[]): TPromise<IWorkspaceIdentifier> {
-		return TPromise.wrap(this.channel.call('createWorkspace', folders));
+	createWorkspace(folders?: IWorkspaceFolderCreationData[]): Promise<IWorkspaceIdentifier> {
+		return this.channel.call('createWorkspace', folders);
 	}
 }

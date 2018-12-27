@@ -23,5 +23,5 @@ export interface IntegrityTestResult {
 export interface IIntegrityService {
 	_serviceBrand: any;
 
-	isPure(): Thenable<IntegrityTestResult>;
+	isPure(): Promise<IntegrityTestResult>;
 }

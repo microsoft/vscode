@@ -81,9 +81,12 @@ export class CodeActionOracle {
 	}
 
 	private _getRangeOfSelectionUnlessWhitespaceEnclosed(trigger: CodeActionTrigger): Selection | undefined {
+		if (!this._editor.hasModel()) {
+			return undefined;
+		}
 		const model = this._editor.getModel();
 		const selection = this._editor.getSelection();
-		if (model && selection && selection.isEmpty() && !(trigger.filter && trigger.filter.includeSourceActions)) {
+		if (selection.isEmpty() && trigger.type === 'auto') {
 			const { lineNumber, column } = selection.getPosition();
 			const line = model.getLineContent(lineNumber);
 			if (line.length === 0) {
@@ -109,7 +112,7 @@ export class CodeActionOracle {
 		return selection ? selection : undefined;
 	}
 
-	private _createEventAndSignalChange(trigger: CodeActionTrigger, selection: Selection | undefined): Thenable<CodeAction[] | undefined> {
+	private _createEventAndSignalChange(trigger: CodeActionTrigger, selection: Selection | undefined): Promise<CodeAction[] | undefined> {
 		if (!selection) {
 			// cancel
 			this._signalChange({
@@ -218,7 +221,7 @@ export class CodeActionModel {
 		}
 	}
 
-	trigger(trigger: CodeActionTrigger): Thenable<CodeAction[] | undefined> {
+	trigger(trigger: CodeActionTrigger): Promise<CodeAction[] | undefined> {
 		if (this._codeActionOracle) {
 			return this._codeActionOracle.trigger(trigger);
 		}

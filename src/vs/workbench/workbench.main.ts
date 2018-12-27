@@ -15,7 +15,6 @@ import 'vs/editor/editor.all';
 
 // Platform
 import 'vs/platform/widget/browser/contextScopedHistoryWidget';
-import 'vs/platform/label/electron-browser/label.contribution';
 
 // Menus/Actions
 import 'vs/workbench/services/actions/electron-browser/menusExtensionPoint';
@@ -140,3 +139,5 @@ import 'vs/workbench/parts/outline/electron-browser/outline.contribution';
 import 'vs/workbench/services/bulkEdit/electron-browser/bulkEditService';
 
 import 'vs/workbench/parts/experiments/electron-browser/experiments.contribution';
+
+import 'vs/workbench/parts/holidays/electron-browser/holidays.contribution';

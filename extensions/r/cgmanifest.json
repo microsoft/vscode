@@ -1,0 +1,17 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "Ikuyadeu/vscode-R",
+					"repositoryUrl": "https://github.com/Ikuyadeu/vscode-R",
+					"commitHash": "1cd3d42a6b2e54276ef2d71fe33bb3fefb1d6cff"
+				}
+			},
+			"license": "MIT",
+			"version": "0.5.5"
+		}
+	],
+	"version": 1
+}

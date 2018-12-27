@@ -12,7 +12,7 @@ import { alert as ariaAlert } from 'vs/base/browser/ui/aria/aria';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
+import { SelectBox, ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { Action, IAction } from 'vs/base/common/actions';
 import * as arrays from 'vs/base/common/arrays';
@@ -23,7 +23,6 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { escapeRegExpCharacters, startsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IAccessibilityProvider, IDataSource, IFilter, IRenderer as ITreeRenderer, ITree, ITreeConfiguration } from 'vs/base/parts/tree/browser/tree';
 import { DefaultTreestyler } from 'vs/base/parts/tree/browser/treeDefaults';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
@@ -186,8 +185,8 @@ export class SettingsDataSource implements IDataSource {
 		return false;
 	}
 
-	getChildren(tree: ITree, element: SettingsTreeElement): TPromise<any> {
-		return TPromise.as(this._getChildren(element));
+	getChildren(tree: ITree, element: SettingsTreeElement): Promise<any> {
+		return Promise.resolve(this._getChildren(element));
 	}
 
 	private _getChildren(element: SettingsTreeElement): SettingsTreeElement[] {
@@ -199,8 +198,8 @@ export class SettingsDataSource implements IDataSource {
 		}
 	}
 
-	getParent(tree: ITree, element: SettingsTreeElement): TPromise<any> {
-		return TPromise.wrap(element && element.parent);
+	getParent(tree: ITree, element: SettingsTreeElement): Promise<any> {
+		return Promise.resolve(element && element.parent);
 	}
 
 	shouldAutoexpand(): boolean {
@@ -241,7 +240,7 @@ export class SimplePagedDataSource implements IDataSource {
 		return this.realDataSource.hasChildren(tree, element);
 	}
 
-	getChildren(tree: ITree, element: SettingsTreeGroupElement): TPromise<any> {
+	getChildren(tree: ITree, element: SettingsTreeGroupElement): Promise<any> {
 		return this.realDataSource.getChildren(tree, element).then(realChildren => {
 			return this._getChildren(realChildren);
 		});
@@ -258,7 +257,7 @@ export class SimplePagedDataSource implements IDataSource {
 		}
 	}
 
-	getParent(tree: ITree, element: any): TPromise<any> {
+	getParent(tree: ITree, element: any): Promise<any> {
 		return this.realDataSource.getParent(tree, element);
 	}
 
@@ -351,19 +350,19 @@ export class SettingsRenderer implements ITreeRenderer {
 
 	public static readonly SETTING_KEY_ATTR = 'data-key';
 
-	private readonly _onDidClickOverrideElement: Emitter<ISettingOverrideClickEvent> = new Emitter<ISettingOverrideClickEvent>();
+	private readonly _onDidClickOverrideElement = new Emitter<ISettingOverrideClickEvent>();
 	public readonly onDidClickOverrideElement: Event<ISettingOverrideClickEvent> = this._onDidClickOverrideElement.event;
 
-	private readonly _onDidChangeSetting: Emitter<ISettingChangeEvent> = new Emitter<ISettingChangeEvent>();
+	private readonly _onDidChangeSetting = new Emitter<ISettingChangeEvent>();
 	public readonly onDidChangeSetting: Event<ISettingChangeEvent> = this._onDidChangeSetting.event;
 
-	private readonly _onDidOpenSettings: Emitter<string> = new Emitter<string>();
+	private readonly _onDidOpenSettings = new Emitter<string>();
 	public readonly onDidOpenSettings: Event<string> = this._onDidOpenSettings.event;
 
-	private readonly _onDidClickSettingLink: Emitter<ISettingLinkClickEvent> = new Emitter<ISettingLinkClickEvent>();
+	private readonly _onDidClickSettingLink = new Emitter<ISettingLinkClickEvent>();
 	public readonly onDidClickSettingLink: Event<ISettingLinkClickEvent> = this._onDidClickSettingLink.event;
 
-	private readonly _onDidFocusSetting: Emitter<SettingsTreeSettingElement> = new Emitter<SettingsTreeSettingElement>();
+	private readonly _onDidFocusSetting = new Emitter<SettingsTreeSettingElement>();
 	public readonly onDidFocusSetting: Event<SettingsTreeSettingElement> = this._onDidFocusSetting.event;
 
 	private descriptionMeasureContainer: HTMLElement;
@@ -400,7 +399,7 @@ export class SettingsRenderer implements ITreeRenderer {
 					this._onDidChangeSetting.fire({ key: context.setting.key, value: undefined, type: context.setting.type as SettingValueType });
 				}
 
-				return TPromise.wrap(null);
+				return Promise.resolve(null);
 			}),
 			new Separator(),
 			this.instantiationService.createInstance(CopySettingIdAction),
@@ -413,7 +412,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		const toolbarElement: HTMLElement = settingDOMElement.querySelector('.toolbar-toggle-more');
 		if (toolbarElement) {
 			this.contextMenuService.showContextMenu({
-				getActions: () => TPromise.wrap(this.settingActions),
+				getActions: () => this.settingActions,
 				getAnchor: () => toolbarElement,
 				getActionsContext: () => element
 			});
@@ -643,10 +642,10 @@ export class SettingsRenderer implements ITreeRenderer {
 		};
 
 		// Prevent clicks from being handled by list
-		toDispose.push(DOM.addDisposableListener(controlElement, 'mousedown', (e: IMouseEvent) => e.stopPropagation()));
+		toDispose.push(DOM.addDisposableListener(controlElement, 'mousedown', e => e.stopPropagation()));
 
-		toDispose.push(DOM.addDisposableListener(titleElement, DOM.EventType.MOUSE_ENTER, (e: IMouseEvent) => container.classList.add('mouseover')));
-		toDispose.push(DOM.addDisposableListener(titleElement, DOM.EventType.MOUSE_LEAVE, (e: IMouseEvent) => container.classList.remove('mouseover')));
+		toDispose.push(DOM.addDisposableListener(titleElement, DOM.EventType.MOUSE_ENTER, e => container.classList.add('mouseover')));
+		toDispose.push(DOM.addDisposableListener(titleElement, DOM.EventType.MOUSE_LEAVE, e => container.classList.remove('mouseover')));
 
 		toDispose.push(DOM.addStandardDisposableListener(valueElement, 'keydown', (e: StandardKeyboardEvent) => {
 			if (e.keyCode === KeyCode.Escape) {
@@ -788,7 +787,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		// Need to listen for mouse clicks on description and toggle checkbox - use target ID for safety
 		// Also have to ignore embedded links - too buried to stop propagation
 		toDispose.push(DOM.addDisposableListener(descriptionElement, DOM.EventType.MOUSE_DOWN, (e) => {
-			const targetElement = <HTMLElement>e.toElement;
+			const targetElement = <HTMLElement>e.target;
 			const targetId = descriptionElement.getAttribute('checkbox_label_target_id');
 
 			// Make sure we are not a link and the target ID matches
@@ -823,7 +822,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		this.addSettingElementFocusHandler(template);
 
 		// Prevent clicks from being handled by list
-		toDispose.push(DOM.addDisposableListener(controlElement, 'mousedown', (e: IMouseEvent) => e.stopPropagation()));
+		toDispose.push(DOM.addDisposableListener(controlElement, 'mousedown', e => e.stopPropagation()));
 
 		toDispose.push(DOM.addStandardDisposableListener(controlElement, 'keydown', (e: StandardKeyboardEvent) => {
 			if (e.keyCode === KeyCode.Escape) {
@@ -842,9 +841,7 @@ export class SettingsRenderer implements ITreeRenderer {
 	private renderSettingEnumTemplate(tree: ITree, container: HTMLElement): ISettingEnumItemTemplate {
 		const common = this.renderCommonTemplate(tree, container, 'enum');
 
-		const selectBox = new SelectBox([], undefined, this.contextViewService, undefined, {
-			hasDetails: true
-		});
+		const selectBox = new SelectBox([], undefined, this.contextViewService, undefined, { useCustomDrawn: true });
 
 		common.toDispose.push(selectBox);
 		common.toDispose.push(attachSelectBoxStyler(selectBox, this.themeService, {
@@ -1166,18 +1163,21 @@ export class SettingsRenderer implements ITreeRenderer {
 	}
 
 	private renderEnum(dataElement: SettingsTreeSettingElement, template: ISettingEnumItemTemplate, onChange: (value: string) => void): void {
-		const displayOptions = dataElement.setting.enum
-			.map(String)
-			.map(escapeInvisibleChars);
 
-		template.selectBox.setOptions(displayOptions);
 		const enumDescriptions = dataElement.setting.enumDescriptions;
 		const enumDescriptionsAreMarkdown = dataElement.setting.enumDescriptionsAreMarkdown;
-		template.selectBox.setDetailsProvider(index =>
-			({
-				details: enumDescriptions && enumDescriptions[index] && (enumDescriptionsAreMarkdown ? fixSettingLinks(enumDescriptions[index], false) : enumDescriptions[index]),
-				isMarkdown: enumDescriptionsAreMarkdown
-			}));
+
+		let displayOptions = dataElement.setting.enum
+			.map(String)
+			.map(escapeInvisibleChars)
+			.map((data, index) => <ISelectOptionItem>{
+				text: data,
+				description: (enumDescriptions && enumDescriptions[index] && (enumDescriptionsAreMarkdown ? fixSettingLinks(enumDescriptions[index], false) : enumDescriptions[index])),
+				descriptionIsMarkdown: enumDescriptionsAreMarkdown,
+				decoratorRight: (data === dataElement.defaultValue ? localize('settings.Default', "{0}", 'default') : '')
+			});
+
+		template.selectBox.setOptions(displayOptions);
 
 		const label = this.setElementAriaLabels(dataElement, SETTINGS_ENUM_TEMPLATE_ID, template);
 		template.selectBox.setAriaLabel(label);
@@ -1436,12 +1436,12 @@ export class SettingsAccessibilityProvider implements IAccessibilityProvider {
 }
 
 class NonExpandableOrSelectableTree extends Tree {
-	expand(): TPromise<any> {
-		return TPromise.wrap(null);
+	expand(): Promise<any> {
+		return Promise.resolve(null);
 	}
 
-	collapse(): TPromise<any> {
-		return TPromise.wrap(null);
+	collapse(): Promise<any> {
+		return Promise.resolve(null);
 	}
 
 	public setFocus(element?: any, eventPayload?: any): void {
@@ -1624,12 +1624,12 @@ class CopySettingIdAction extends Action {
 		super(CopySettingIdAction.ID, CopySettingIdAction.LABEL);
 	}
 
-	run(context: SettingsTreeSettingElement): TPromise<void> {
+	run(context: SettingsTreeSettingElement): Promise<void> {
 		if (context) {
 			this.clipboardService.writeText(context.setting.key);
 		}
 
-		return TPromise.as(null);
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -1643,12 +1643,12 @@ class CopySettingAsJSONAction extends Action {
 		super(CopySettingAsJSONAction.ID, CopySettingAsJSONAction.LABEL);
 	}
 
-	run(context: SettingsTreeSettingElement): TPromise<void> {
+	run(context: SettingsTreeSettingElement): Promise<void> {
 		if (context) {
 			const jsonResult = `"${context.setting.key}": ${JSON.stringify(context.value, undefined, '  ')}`;
 			this.clipboardService.writeText(jsonResult);
 		}
 
-		return TPromise.as(null);
+		return Promise.resolve(void 0);
 	}
 }

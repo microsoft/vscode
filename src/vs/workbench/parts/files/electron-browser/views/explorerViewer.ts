@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import * as objects from 'vs/base/common/objects';
 import * as DOM from 'vs/base/browser/dom';
@@ -18,7 +17,7 @@ import * as comparers from 'vs/base/common/comparers';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import * as glob from 'vs/base/common/glob';
-import { FileLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
+import { ResourceLabels, IFileLabelOptions, IResourceLabel } from 'vs/workbench/browser/labels';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IFilesConfiguration, SortOrder } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -76,7 +75,7 @@ export class FileDataSource implements IDataSource {
 		return stat instanceof Model || (stat instanceof ExplorerItem && (stat.isDirectory || stat.isRoot));
 	}
 
-	public getChildren(tree: ITree, stat: ExplorerItem | Model): TPromise<ExplorerItem[]> {
+	public getChildren(tree: ITree, stat: ExplorerItem | Model): Promise<ExplorerItem[]> {
 		if (stat instanceof Model) {
 			return Promise.resolve(stat.roots);
 		}
@@ -115,13 +114,13 @@ export class FileDataSource implements IDataSource {
 				return []; // we could not resolve any children because of an error
 			});
 
-			this.progressService.showWhile(promise, this.partService.isCreated() ? 800 : 3200 /* less ugly initial startup */);
+			this.progressService.showWhile(promise, this.partService.isRestored() ? 800 : 3200 /* less ugly initial startup */);
 
 			return promise;
 		}
 	}
 
-	public getParent(tree: ITree, stat: ExplorerItem | Model): TPromise<ExplorerItem> {
+	public getParent(tree: ITree, stat: ExplorerItem | Model): Promise<ExplorerItem | null> {
 		if (!stat) {
 			return Promise.resolve(null); // can be null if nothing selected in the tree
 		}
@@ -174,14 +173,14 @@ export class ActionRunner extends BaseActionRunner implements IActionRunner {
 		this.viewletState = state;
 	}
 
-	public run(action: IAction, context?: any): TPromise<any> {
+	public run(action: IAction, context?: any): Promise<any> {
 		return super.run(action, { viewletState: this.viewletState });
 	}
 }
 
 export interface IFileTemplateData {
 	elementDisposable: IDisposable;
-	label: FileLabel;
+	label: IResourceLabel;
 	container: HTMLElement;
 }
 
@@ -191,20 +190,17 @@ export class FileRenderer implements IRenderer {
 	private static readonly ITEM_HEIGHT = 22;
 	private static readonly FILE_TEMPLATE_ID = 'file';
 
-	private state: FileViewletState;
 	private config: IFilesConfiguration;
 	private configListener: IDisposable;
 
 	constructor(
-		state: FileViewletState,
+		private state: FileViewletState,
+		private labels: ResourceLabels,
 		@IContextViewService private contextViewService: IContextViewService,
-		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
-
 	) {
-		this.state = state;
 		this.config = this.configurationService.getValue<IFilesConfiguration>();
 		this.configListener = this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('explorer')) {
@@ -232,7 +228,7 @@ export class FileRenderer implements IRenderer {
 
 	public renderTemplate(tree: ITree, templateId: string, container: HTMLElement): IFileTemplateData {
 		const elementDisposable = Disposable.None;
-		const label = this.instantiationService.createInstance(FileLabel, container, void 0);
+		const label = this.labels.create(container);
 
 		return { elementDisposable, label, container };
 	}
@@ -269,7 +265,7 @@ export class FileRenderer implements IRenderer {
 	private renderInputBox(container: HTMLElement, tree: ITree, stat: ExplorerItem, editableData: IEditableData): void {
 
 		// Use a file label only for the icon next to the input box
-		const label = this.instantiationService.createInstance(FileLabel, container, void 0);
+		const label = this.labels.create(container);
 		const extraClasses = ['explorer-item', 'explorer-item-edited'];
 		const fileKind = stat.isRoot ? FileKind.ROOT_FOLDER : (stat.isDirectory || (stat instanceof NewStatPlaceholder && stat.isDirectoryPlaceholder())) ? FileKind.FOLDER : FileKind.FILE;
 		const labelOptions: IFileLabelOptions = { hidePath: true, hideLabel: true, fileKind, extraClasses };
@@ -543,7 +539,7 @@ export class FileController extends WorkbenchTreeController implements IDisposab
 			getActions: () => {
 				const actions: IAction[] = [];
 				fillInContextMenuActions(this.contributedContextMenu, { arg: stat instanceof ExplorerItem ? stat.resource : {}, shouldForwardArgs: true }, actions, this.contextMenuService);
-				return Promise.resolve(actions);
+				return actions;
 			},
 			onHide: (wasCancelled?: boolean) => {
 				if (wasCancelled) {
@@ -931,7 +927,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		}
 	}
 
-	private handleExternalDrop(tree: ITree, data: DesktopDragAndDropData, target: ExplorerItem | Model, originalEvent: DragMouseEvent): TPromise<void> {
+	private handleExternalDrop(tree: ITree, data: DesktopDragAndDropData, target: ExplorerItem | Model, originalEvent: DragMouseEvent): Promise<void> {
 		const droppedResources = extractResources(originalEvent.browserEvent as DragEvent, true);
 
 		// Check for dropped external files to be folders
@@ -945,7 +941,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 			if (folders.length > 0) {
 
 				// If we are in no-workspace context, ask for confirmation to create a workspace
-				let confirmedPromise: TPromise<IConfirmationResult> = Promise.resolve({ confirmed: true });
+				let confirmedPromise: Promise<IConfirmationResult> = Promise.resolve({ confirmed: true });
 				if (this.contextService.getWorkbenchState() !== WorkbenchState.WORKSPACE) {
 					confirmedPromise = this.dialogService.confirm({
 						message: folders.length > 1 ? nls.localize('dropFolders', "Do you want to add the folders to the workspace?") : nls.localize('dropFolder', "Do you want to add the folder to the workspace?"),
@@ -974,11 +970,11 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		});
 	}
 
-	private handleExplorerDrop(tree: ITree, data: IDragAndDropData, target: ExplorerItem | Model, originalEvent: DragMouseEvent): TPromise<void> {
+	private handleExplorerDrop(tree: ITree, data: IDragAndDropData, target: ExplorerItem | Model, originalEvent: DragMouseEvent): Promise<void> {
 		const sources: ExplorerItem[] = resources.distinctParents(data.getData(), s => s.resource);
 		const isCopy = (originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh);
 
-		let confirmPromise: TPromise<IConfirmationResult>;
+		let confirmPromise: Promise<IConfirmationResult>;
 
 		// Handle confirm setting
 		const confirmDragAndDrop = !isCopy && this.configurationService.getValue<boolean>(FileDragAndDrop.CONFIRM_DND_SETTING_KEY);
@@ -1001,7 +997,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		return confirmPromise.then(res => {
 
 			// Check for confirmation checkbox
-			let updateConfirmSettingsPromise: TPromise<void> = Promise.resolve(void 0);
+			let updateConfirmSettingsPromise: Promise<void> = Promise.resolve(void 0);
 			if (res.confirmed && res.checkboxChecked === true) {
 				updateConfirmSettingsPromise = this.configurationService.updateValue(FileDragAndDrop.CONFIRM_DND_SETTING_KEY, false, ConfigurationTarget.USER);
 			}
@@ -1017,7 +1013,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		});
 	}
 
-	private doHandleRootDrop(roots: ExplorerItem[], target: ExplorerItem | Model): TPromise<void> {
+	private doHandleRootDrop(roots: ExplorerItem[], target: ExplorerItem | Model): Promise<void> {
 		if (roots.length === 0) {
 			return Promise.resolve(undefined);
 		}
@@ -1049,7 +1045,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		return this.workspaceEditingService.updateFolders(0, workspaceCreationData.length, workspaceCreationData);
 	}
 
-	private doHandleExplorerDrop(tree: ITree, source: ExplorerItem, target: ExplorerItem | Model, isCopy: boolean): TPromise<void> {
+	private doHandleExplorerDrop(tree: ITree, source: ExplorerItem, target: ExplorerItem | Model, isCopy: boolean): Promise<void> {
 		if (!(target instanceof ExplorerItem)) {
 			return Promise.resolve(void 0);
 		}
@@ -1068,7 +1064,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 			// Otherwise move
 			const targetResource = resources.joinPath(target.resource, source.name);
 
-			return this.textFileService.move(source.resource, targetResource).then(null, error => {
+			return this.textFileService.move(source.resource, targetResource).then(void 0, error => {
 
 				// Conflict
 				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MOVE_CONFLICT) {
@@ -1082,7 +1078,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 					// Move with overwrite if the user confirms
 					return this.dialogService.confirm(confirm).then(res => {
 						if (res.confirmed) {
-							return this.textFileService.move(source.resource, targetResource, true /* overwrite */).then(null, error => this.notificationService.error(error));
+							return this.textFileService.move(source.resource, targetResource, true /* overwrite */).then(void 0, error => this.notificationService.error(error));
 						}
 
 						return void 0;

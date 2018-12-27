@@ -20,6 +20,7 @@ const options: minimist.Opts = {
 		'extensions-dir',
 		'folder-uri',
 		'file-uri',
+		'remote',
 		'extensionDevelopmentPath',
 		'extensionTestsPath',
 		'install-extension',

@@ -187,7 +187,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		return this.instantiationService.createInstance(CodeEditorWidget, parent, configuration, {});
 	}
 
-	setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+	setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 		return super.setInput(input, options, token).then(() => {
 
 			// Update editor options after having set the input. We do this because there can be

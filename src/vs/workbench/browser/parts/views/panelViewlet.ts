@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/panelviewlet';
 import * as nls from 'vs/nls';
-import { Event, Emitter, filterEvent } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { attachStyler, IColorMapping } from 'vs/platform/theme/common/styler';
 import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_FOREGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND, SIDE_BAR_SECTION_HEADER_BORDER } from 'vs/workbench/common/theme';
@@ -52,10 +52,13 @@ export abstract class ViewletPanel extends Panel implements IView {
 	private _onDidBlur = new Emitter<void>();
 	readonly onDidBlur: Event<void> = this._onDidBlur.event;
 
+	private _onDidChangeBodyVisibility = new Emitter<boolean>();
+	readonly onDidChangeBodyVisibility: Event<boolean> = this._onDidChangeBodyVisibility.event;
+
 	protected _onDidChangeTitleArea = new Emitter<void>();
 	readonly onDidChangeTitleArea: Event<void> = this._onDidChangeTitleArea.event;
 
-	private _isVisible: boolean;
+	private _isVisible: boolean = false;
 	readonly id: string;
 	readonly title: string;
 
@@ -74,16 +77,35 @@ export abstract class ViewletPanel extends Panel implements IView {
 		this.id = options.id;
 		this.title = options.title;
 		this.actionRunner = options.actionRunner;
+
+		this.disposables.push(this._onDidFocus, this._onDidBlur, this._onDidChangeBodyVisibility, this._onDidChangeTitleArea);
 	}
 
 	setVisible(visible: boolean): void {
 		if (this._isVisible !== visible) {
 			this._isVisible = visible;
+
+			if (this.isExpanded()) {
+				this._onDidChangeBodyVisibility.fire(visible);
+			}
 		}
 	}
 
 	isVisible(): boolean {
 		return this._isVisible;
+	}
+
+	isBodyVisible(): boolean {
+		return this._isVisible && this.isExpanded();
+	}
+
+	setExpanded(expanded: boolean): boolean {
+		const changed = super.setExpanded(expanded);
+		if (changed) {
+			this._onDidChangeBodyVisibility.fire(expanded);
+		}
+
+		return changed;
 	}
 
 	render(): void {
@@ -112,7 +134,7 @@ export abstract class ViewletPanel extends Panel implements IView {
 		this.disposables.push(this.toolbar);
 		this.setActions();
 
-		const onDidRelevantConfigurationChange = filterEvent(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ViewletPanel.AlwaysShowActionsConfig));
+		const onDidRelevantConfigurationChange = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ViewletPanel.AlwaysShowActionsConfig));
 		onDidRelevantConfigurationChange(this.updateActionsVisibility, this, this.disposables);
 		this.updateActionsVisibility();
 	}
@@ -229,7 +251,7 @@ export class PanelViewlet extends Viewlet {
 		let anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => Promise.resolve(this.getContextMenuActions())
+			getActions: () => this.getContextMenuActions()
 		});
 	}
 
@@ -323,7 +345,7 @@ export class PanelViewlet extends Viewlet {
 		const panelStyler = attachStyler<IPanelColors>(this.themeService, {
 			headerForeground: SIDE_BAR_SECTION_HEADER_FOREGROUND,
 			headerBackground: SIDE_BAR_SECTION_HEADER_BACKGROUND,
-			headerBorder: index === 0 ? null : SIDE_BAR_SECTION_HEADER_BORDER,
+			headerBorder: SIDE_BAR_SECTION_HEADER_BORDER,
 			dropBackground: SIDE_BAR_DRAG_AND_DROP_BACKGROUND
 		}, panel);
 		const disposable = combinedDisposable([onDidFocus, onDidChangeTitleArea, panelStyler, onDidChange]);

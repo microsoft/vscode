@@ -21,6 +21,6 @@ export function createWaitMarkerFile(verbose?: boolean): Promise<string> {
 			console.error(`Failed to create marker file for --wait: ${error}`);
 		}
 
-		return Promise.resolve(void 0);
+		return Promise.resolve();
 	});
 }

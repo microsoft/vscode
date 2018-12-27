@@ -56,7 +56,7 @@ suite('ExtHostTypes', function () {
 		d.dispose();
 		assert.equal(count, 1);
 
-		types.Disposable.from(undefined, { dispose() { count += 1; } }).dispose();
+		types.Disposable.from(undefined!, { dispose() { count += 1; } }).dispose();
 		assert.equal(count, 2);
 
 
@@ -66,7 +66,7 @@ suite('ExtHostTypes', function () {
 			}).dispose();
 		});
 
-		new types.Disposable(undefined).dispose();
+		new types.Disposable(undefined!).dispose();
 
 	});
 
@@ -154,11 +154,11 @@ suite('ExtHostTypes', function () {
 		assert.equal(res.line, 12);
 		assert.equal(res.character, 3);
 
-		assert.throws(() => p1.translate(null));
-		assert.throws(() => p1.translate(null, null));
+		assert.throws(() => p1.translate(null!));
+		assert.throws(() => p1.translate(null!, null!));
 		assert.throws(() => p1.translate(-2));
 		assert.throws(() => p1.translate({ lineDelta: -2 }));
-		assert.throws(() => p1.translate(-2, null));
+		assert.throws(() => p1.translate(-2, null!));
 		assert.throws(() => p1.translate(0, -4));
 	});
 
@@ -178,7 +178,7 @@ suite('ExtHostTypes', function () {
 		assert.equal(p2.line, 0);
 		assert.equal(p2.character, 11);
 
-		assert.throws(() => p1.with(null));
+		assert.throws(() => p1.with(null!));
 		assert.throws(() => p1.with(-9));
 		assert.throws(() => p1.with(0, -9));
 		assert.throws(() => p1.with({ line: -1 }));
@@ -188,10 +188,10 @@ suite('ExtHostTypes', function () {
 	test('Range', () => {
 		assert.throws(() => new types.Range(-1, 0, 0, 0));
 		assert.throws(() => new types.Range(0, -1, 0, 0));
-		assert.throws(() => new types.Range(new types.Position(0, 0), undefined));
-		assert.throws(() => new types.Range(new types.Position(0, 0), null));
-		assert.throws(() => new types.Range(undefined, new types.Position(0, 0)));
-		assert.throws(() => new types.Range(null, new types.Position(0, 0)));
+		assert.throws(() => new types.Range(new types.Position(0, 0), undefined!));
+		assert.throws(() => new types.Range(new types.Position(0, 0), null!));
+		assert.throws(() => new types.Range(undefined!, new types.Position(0, 0)));
+		assert.throws(() => new types.Range(null!, new types.Position(0, 0)));
 
 		let range = new types.Range(1, 0, 0, 0);
 		assert.throws(() => { (range as any).start = null; });
@@ -250,30 +250,30 @@ suite('ExtHostTypes', function () {
 		let range = new types.Range(1, 1, 2, 11);
 		let res: types.Range;
 
-		res = range.intersection(range);
+		res = range.intersection(range)!;
 		assert.equal(res.start.line, 1);
 		assert.equal(res.start.character, 1);
 		assert.equal(res.end.line, 2);
 		assert.equal(res.end.character, 11);
 
-		res = range.intersection(new types.Range(2, 12, 4, 0));
+		res = range.intersection(new types.Range(2, 12, 4, 0))!;
 		assert.equal(res, undefined);
 
-		res = range.intersection(new types.Range(0, 0, 1, 0));
+		res = range.intersection(new types.Range(0, 0, 1, 0))!;
 		assert.equal(res, undefined);
 
-		res = range.intersection(new types.Range(0, 0, 1, 1));
+		res = range.intersection(new types.Range(0, 0, 1, 1))!;
 		assert.ok(res.isEmpty);
 		assert.equal(res.start.line, 1);
 		assert.equal(res.start.character, 1);
 
-		res = range.intersection(new types.Range(2, 11, 61, 1));
+		res = range.intersection(new types.Range(2, 11, 61, 1))!;
 		assert.ok(res.isEmpty);
 		assert.equal(res.start.line, 2);
 		assert.equal(res.start.character, 11);
 
-		assert.throws(() => range.intersection(null));
-		assert.throws(() => range.intersection(undefined));
+		assert.throws(() => range.intersection(null!));
+		assert.throws(() => range.intersection(undefined!));
 	});
 
 	test('Range, union', function () {
@@ -325,18 +325,18 @@ suite('ExtHostTypes', function () {
 		assert.equal(res.start.line, 2);
 		assert.equal(res.start.character, 3);
 
-		assert.throws(() => range.with(null));
-		assert.throws(() => range.with(undefined, null));
+		assert.throws(() => range.with(null!));
+		assert.throws(() => range.with(undefined, null!));
 	});
 
 	test('TextEdit', () => {
 
 		let range = new types.Range(1, 1, 2, 11);
-		let edit = new types.TextEdit(range, undefined);
+		let edit = new types.TextEdit(range, undefined!);
 		assert.equal(edit.newText, '');
 		assertToJSON(edit, { range: [{ line: 1, character: 1 }, { line: 2, character: 11 }], newText: '' });
 
-		edit = new types.TextEdit(range, null);
+		edit = new types.TextEdit(range, null!);
 		assert.equal(edit.newText, '');
 
 		edit = new types.TextEdit(range, '');
@@ -365,7 +365,7 @@ suite('ExtHostTypes', function () {
 			[b.toJSON(), [{ range: [{ line: 1, character: 1 }, { line: 1, character: 1 }], newText: 'fff' }, { range: [{ line: 0, character: 0 }, { line: 0, character: 0 }], newText: '' }]]
 		]);
 
-		edit.set(b, undefined);
+		edit.set(b, undefined!);
 		assert.ok(!edit.has(b));
 		assert.equal(edit.size, 1);
 
@@ -384,28 +384,28 @@ suite('ExtHostTypes', function () {
 		const all = edit._allEntries();
 		assert.equal(all.length, 4);
 
-		function isFileChange(thing: [URI, types.TextEdit[]] | [URI, URI, { overwrite?: boolean }]): thing is [URI, URI, { overwrite?: boolean }] {
+		function isFileChange(thing: [URI, types.TextEdit[]] | [URI?, URI?, { overwrite?: boolean }?]): thing is [URI?, URI?, { overwrite?: boolean }?] {
 			const [f, s] = thing;
 			return URI.isUri(f) && URI.isUri(s);
 		}
 
-		function isTextChange(thing: [URI, types.TextEdit[]] | [URI, URI, { overwrite?: boolean }]): thing is [URI, types.TextEdit[]] {
+		function isTextChange(thing: [URI, types.TextEdit[]] | [URI?, URI?, { overwrite?: boolean }?]): thing is [URI, types.TextEdit[]] {
 			const [f, s] = thing;
 			return URI.isUri(f) && Array.isArray(s);
 		}
 
 		const [first, second, third, fourth] = all;
-		assert.equal(first[0].toString(), 'foo:a');
+		assert.equal(first[0]!.toString(), 'foo:a');
 		assert.ok(!isFileChange(first));
 		assert.ok(isTextChange(first) && first[1].length === 1);
 
-		assert.equal(second[0].toString(), 'foo:a');
+		assert.equal(second[0]!.toString(), 'foo:a');
 		assert.ok(isFileChange(second));
 
-		assert.equal(third[0].toString(), 'foo:a');
+		assert.equal(third[0]!.toString(), 'foo:a');
 		assert.ok(isTextChange(third) && third[1].length === 1);
 
-		assert.equal(fourth[0].toString(), 'foo:b');
+		assert.equal(fourth[0]!.toString(), 'foo:b');
 		assert.ok(!isFileChange(fourth));
 		assert.ok(isTextChange(fourth) && fourth[1].length === 1);
 	});
@@ -423,8 +423,8 @@ suite('ExtHostTypes', function () {
 	});
 
 	test('DocumentLink', () => {
-		assert.throws(() => new types.DocumentLink(null, null));
-		assert.throws(() => new types.DocumentLink(new types.Range(1, 1, 1, 1), null));
+		assert.throws(() => new types.DocumentLink(null!, null!));
+		assert.throws(() => new types.DocumentLink(new types.Range(1, 1, 1, 1), null!));
 	});
 
 	test('toJSON & stringify', function () {

@@ -3,23 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditor, EditorOptions } from 'vs/workbench/common/editor';
-import { ITextModel } from 'vs/editor/common/model';
-import { IRange } from 'vs/editor/common/core/range';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { join } from 'vs/base/common/paths';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { Event } from 'vs/base/common/event';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { Event } from 'vs/base/common/event';
+import { join } from 'vs/base/common/paths';
+import { URI } from 'vs/base/common/uri';
+import { IRange } from 'vs/editor/common/core/range';
+import { ITextModel } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { EditorOptions, IEditor } from 'vs/workbench/common/editor';
 import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
-import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 
 export enum SettingValueType {
 	Null = 'null',
@@ -202,18 +201,18 @@ export interface IPreferencesService {
 	workspaceSettingsResource: URI;
 	getFolderSettingsResource(resource: URI): URI;
 
-	resolveModel(uri: URI): TPromise<ITextModel>;
-	createPreferencesEditorModel<T>(uri: URI): TPromise<IPreferencesEditorModel<T>>;
+	resolveModel(uri: URI): Promise<ITextModel>;
+	createPreferencesEditorModel<T>(uri: URI): Promise<IPreferencesEditorModel<T>>;
 	createSettings2EditorModel(): Settings2EditorModel; // TODO
 
-	openRawDefaultSettings(): TPromise<IEditor>;
-	openSettings(jsonEditor?: boolean): TPromise<IEditor>;
-	openGlobalSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): TPromise<IEditor>;
-	openWorkspaceSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): TPromise<IEditor>;
-	openFolderSettings(folder: URI, jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): TPromise<IEditor>;
-	switchSettings(target: ConfigurationTarget, resource: URI, jsonEditor?: boolean): TPromise<void>;
-	openGlobalKeybindingSettings(textual: boolean): TPromise<void>;
-	openDefaultKeybindingsFile(): TPromise<IEditor>;
+	openRawDefaultSettings(): Promise<IEditor>;
+	openSettings(jsonEditor?: boolean): Promise<IEditor>;
+	openGlobalSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditor>;
+	openWorkspaceSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditor>;
+	openFolderSettings(folder: URI, jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditor>;
+	switchSettings(target: ConfigurationTarget, resource: URI, jsonEditor?: boolean): Promise<void>;
+	openGlobalKeybindingSettings(textual: boolean): Promise<void>;
+	openDefaultKeybindingsFile(): Promise<IEditor>;
 
 	configureSettingsForLanguage(language: string): void;
 }
@@ -233,3 +232,4 @@ export function getSettingsTargetName(target: ConfigurationTarget, resource: URI
 
 export const FOLDER_SETTINGS_PATH = join('.vscode', 'settings.json');
 export const DEFAULT_SETTINGS_EDITOR_SETTING = 'workbench.settings.openDefaultSettings';
+export const USE_SPLIT_JSON_SETTING = 'workbench.settings.useSplitJSON';

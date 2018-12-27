@@ -15,6 +15,9 @@ const util = require('./lib/util');
 const packageJson = require('../package.json');
 const product = require('../product.json');
 const rpmDependencies = require('../resources/linux/rpm/dependencies.json');
+const path = require('path');
+const root = path.dirname(__dirname);
+const commit = util.getVersion(root);
 
 const linuxPackageRevision = Math.floor(new Date().getTime() / 1000);
 
@@ -118,12 +121,12 @@ function prepareRpmPackage(arch) {
 		const desktopUrlHandler = gulp.src('resources/linux/code-url-handler.desktop', { base: '.' })
 			.pipe(rename('BUILD/usr/share/applications/' + product.applicationName + '-url-handler.desktop'));
 
-			const desktops = es.merge(desktop, desktopUrlHandler)
-				.pipe(replace('@@NAME_LONG@@', product.nameLong))
-				.pipe(replace('@@NAME_SHORT@@', product.nameShort))
-				.pipe(replace('@@NAME@@', product.applicationName))
-				.pipe(replace('@@ICON@@', product.iconName))
-				.pipe(replace('@@URLPROTOCOL@@', product.urlProtocol));
+		const desktops = es.merge(desktop, desktopUrlHandler)
+			.pipe(replace('@@NAME_LONG@@', product.nameLong))
+			.pipe(replace('@@NAME_SHORT@@', product.nameShort))
+			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(replace('@@ICON@@', product.iconName))
+			.pipe(replace('@@URLPROTOCOL@@', product.urlProtocol));
 
 		const appdata = gulp.src('resources/linux/code.appdata.xml', { base: '.' })
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
@@ -172,6 +175,7 @@ function buildRpmPackage(arch) {
 		'cp "' + rpmOut + '/$(ls ' + rpmOut + ')" ' + destination + '/'
 	]);
 }
+
 function getSnapBuildPath(arch) {
 	return `.build/linux/snap/${arch}/${product.applicationName}-${arch}`;
 }
@@ -192,17 +196,20 @@ function prepareSnapPackage(arch) {
 			.pipe(rename(`usr/share/pixmaps/${product.applicationName}.png`));
 
 		const code = gulp.src(binaryDir + '/**/*', { base: binaryDir })
-			.pipe(rename(function (p) { p.dirname = 'usr/share/' + product.applicationName + '/' + p.dirname; }));
+			.pipe(rename(function (p) { p.dirname = `usr/share/${product.applicationName}/${p.dirname}`; }));
 
 		const snapcraft = gulp.src('resources/linux/snap/snapcraft.yaml', { base: '.' })
 			.pipe(replace('@@NAME@@', product.applicationName))
-			.pipe(replace('@@VERSION@@', packageJson.version))
+			.pipe(replace('@@VERSION@@', commit.substr(0, 8)))
 			.pipe(rename('snap/snapcraft.yaml'));
+
+		const snapUpdate = gulp.src('resources/linux/snap/snapUpdate.sh', { base: '.' })
+			.pipe(rename(`usr/share/${product.applicationName}/snapUpdate.sh`));
 
 		const electronLaunch = gulp.src('resources/linux/snap/electron-launch', { base: '.' })
 			.pipe(rename('electron-launch'));
 
-		const all = es.merge(desktop, icon, code, snapcraft, electronLaunch);
+		const all = es.merge(desktop, icon, code, snapcraft, electronLaunch, snapUpdate);
 
 		return all.pipe(vfs.dest(destination));
 	};
@@ -210,11 +217,7 @@ function prepareSnapPackage(arch) {
 
 function buildSnapPackage(arch) {
 	const snapBuildPath = getSnapBuildPath(arch);
-	const snapFilename = `${product.applicationName}-${packageJson.version}-${linuxPackageRevision}-${arch}.snap`;
-	return shell.task([
-		`chmod +x ${snapBuildPath}/electron-launch`,
-		`cd ${snapBuildPath} && snapcraft snap --output ../${snapFilename}`
-	]);
+	return shell.task(`cd ${snapBuildPath} && snapcraft build`);
 }
 
 gulp.task('clean-vscode-linux-ia32-deb', util.rimraf('.build/linux/deb/i386'));

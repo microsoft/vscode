@@ -80,21 +80,24 @@ const configurationEntrySchema: IJSONSchema = {
 let registeredDefaultConfigurations: IDefaultConfigurationExtension[] = [];
 
 // BEGIN VSCode extension point `configurationDefaults`
-const defaultConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigurationNode>('configurationDefaults', [], {
-	description: nls.localize('vscode.extension.contributes.defaultConfiguration', 'Contributes default editor configuration settings by language.'),
-	type: 'object',
-	defaultSnippets: [{ body: {} }],
-	patternProperties: {
-		'\\[.*\\]$': {
-			type: 'object',
-			default: {},
-			$ref: editorConfigurationSchemaId,
+const defaultConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigurationNode>({
+	extensionPoint: 'configurationDefaults',
+	jsonSchema: {
+		description: nls.localize('vscode.extension.contributes.defaultConfiguration', 'Contributes default editor configuration settings by language.'),
+		type: 'object',
+		defaultSnippets: [{ body: {} }],
+		patternProperties: {
+			'\\[.*\\]$': {
+				type: 'object',
+				default: {},
+				$ref: editorConfigurationSchemaId,
+			}
 		}
 	}
 });
 defaultConfigurationExtPoint.setHandler(extensions => {
 	registeredDefaultConfigurations = extensions.map(extension => {
-		const id = extension.description.id;
+		const id = extension.description.identifier;
 		const name = extension.description.name;
 		const defaults = objects.deepClone(extension.value);
 		return <IDefaultConfigurationExtension>{
@@ -106,15 +109,19 @@ defaultConfigurationExtPoint.setHandler(extensions => {
 
 
 // BEGIN VSCode extension point `configuration`
-const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigurationNode>('configuration', [defaultConfigurationExtPoint], {
-	description: nls.localize('vscode.extension.contributes.configuration', 'Contributes configuration settings.'),
-	oneOf: [
-		configurationEntrySchema,
-		{
-			type: 'array',
-			items: configurationEntrySchema
-		}
-	]
+const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigurationNode>({
+	extensionPoint: 'configuration',
+	deps: [defaultConfigurationExtPoint],
+	jsonSchema: {
+		description: nls.localize('vscode.extension.contributes.configuration', 'Contributes configuration settings.'),
+		oneOf: [
+			configurationEntrySchema,
+			{
+				type: 'array',
+				items: configurationEntrySchema
+			}
+		]
+	}
 });
 configurationExtPoint.setHandler(extensions => {
 	const configurations: IConfigurationNode[] = [];
@@ -128,9 +135,9 @@ configurationExtPoint.setHandler(extensions => {
 
 		validateProperties(configuration, extension);
 
-		configuration.id = node.id || extension.description.id || extension.description.uuid;
+		configuration.id = node.id || extension.description.identifier.value;
 		configuration.contributedByExtension = true;
-		configuration.title = configuration.title || extension.description.displayName || extension.description.id;
+		configuration.title = configuration.title || extension.description.displayName || extension.description.identifier.value;
 		configurations.push(configuration);
 	}
 

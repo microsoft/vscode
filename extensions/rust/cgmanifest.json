@@ -1,0 +1,18 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "language-rust",
+					"repositoryUrl": "https://github.com/zargony/atom-language-rust",
+					"commitHash": "5238d9834953ed7c58d9b5b9bb0c084c3c11ecd6"
+				}
+			},
+			"license": "MIT",
+			"description": "The files syntaxes/rust.tmLanguage.json was derived from the Atom package https://atom.io/packages/language-rust.",
+			"version": "0.4.12"
+		}
+	],
+	"version": 1
+}

@@ -52,10 +52,10 @@ export class Position {
 	compareTo(other: Position): number { return 0; }
 	translate(lineDelta?: number, characterDelta?: number): Position;
 	translate(change: { lineDelta?: number; characterDelta?: number; }): Position;
-	translate(_: any) { return null; }
+	translate(_?: any, _2?: any): Position { return new Position(0, 0); }
 	with(line?: number, character?: number): Position;
 	with(change: { line?: number; character?: number; }): Position;
-	with(_: any): Position { return null; }
+	with(_: any): Position { return new Position(0, 0); }
 }
 
 export class Range {
@@ -71,12 +71,12 @@ export class Range {
 	isSingleLine: boolean;
 	contains(positionOrRange: Position | Range): boolean { return false; }
 	isEqual(other: Range): boolean { return false; }
-	intersection(range: Range): Range | undefined { return null; }
-	union(other: Range): Range { return null; }
+	intersection(range: Range): Range | undefined { return undefined; }
+	union(other: Range): Range { return new Range(0, 0, 0, 0); }
 
 	with(start?: Position, end?: Position): Range;
 	with(change: { start?: Position, end?: Position }): Range;
-	with(_: any): Range { return null; }
+	with(_: any): Range { return new Range(0, 0, 0, 0); }
 }
 
 export interface IOutputChannel {

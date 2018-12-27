@@ -12,6 +12,7 @@ import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostC
 export class MainThreadTerminalService implements MainThreadTerminalServiceShape {
 
 	private _proxy: ExtHostTerminalServiceShape;
+	private _remoteAuthority: string | null;
 	private _toDispose: IDisposable[] = [];
 	private _terminalProcesses: { [id: number]: ITerminalProcessExtHostProxy } = {};
 	private _terminalOnDidWriteDataListeners: { [id: number]: IDisposable } = {};
@@ -22,6 +23,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		@ITerminalService private terminalService: ITerminalService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTerminalService);
+		this._remoteAuthority = extHostContext.remoteAuthority;
 		this._toDispose.push(terminalService.onInstanceCreated((instance) => {
 			// Delay this message so the TerminalInstance constructor has a chance to finish and
 			// return the ID normally to the extension host. The ID that is passed here will be used
@@ -53,7 +55,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		// when the extension host process goes down ?
 	}
 
-	public $createTerminal(name?: string, shellPath?: string, shellArgs?: string[], cwd?: string, env?: { [key: string]: string }, waitOnExit?: boolean): Thenable<number> {
+	public $createTerminal(name?: string, shellPath?: string, shellArgs?: string[], cwd?: string, env?: { [key: string]: string }, waitOnExit?: boolean): Promise<{ id: number, name: string }> {
 		const shellLaunchConfig: IShellLaunchConfig = {
 			name,
 			executable: shellPath,
@@ -63,10 +65,14 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			ignoreConfigurationCwd: true,
 			env
 		};
-		return Promise.resolve(this.terminalService.createTerminal(shellLaunchConfig).id);
+		const terminal = this.terminalService.createTerminal(shellLaunchConfig);
+		return Promise.resolve({
+			id: terminal.id,
+			name: terminal.title
+		});
 	}
 
-	public $createTerminalRenderer(name: string): Thenable<number> {
+	public $createTerminalRenderer(name: string): Promise<number> {
 		const instance = this.terminalService.createTerminalRenderer(name);
 		return Promise.resolve(instance.id);
 	}
@@ -197,6 +203,11 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	private _onTerminalRequestExtHostProcess(request: ITerminalProcessExtHostRequest): void {
+		// Only allow processes on remote ext hosts
+		if (!this._remoteAuthority) {
+			return;
+		}
+
 		this._terminalProcesses[request.proxy.terminalId] = request.proxy;
 		const shellLaunchConfigDto: ShellLaunchConfigDto = {
 			name: request.shellLaunchConfig.name,
@@ -205,7 +216,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			cwd: request.shellLaunchConfig.cwd,
 			env: request.shellLaunchConfig.env
 		};
-		this._proxy.$createProcess(request.proxy.terminalId, shellLaunchConfigDto, request.cols, request.rows);
+		this._proxy.$createProcess(request.proxy.terminalId, shellLaunchConfigDto, request.activeWorkspaceRootUri, request.cols, request.rows);
 		request.proxy.onInput(data => this._proxy.$acceptProcessInput(request.proxy.terminalId, data));
 		request.proxy.onResize(dimensions => this._proxy.$acceptProcessResize(request.proxy.terminalId, dimensions.cols, dimensions.rows));
 		request.proxy.onShutdown(immediate => this._proxy.$acceptProcessShutdown(request.proxy.terminalId, immediate));

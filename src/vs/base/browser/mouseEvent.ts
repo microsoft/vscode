@@ -113,6 +113,10 @@ export class DragMouseEvent extends StandardMouseEvent {
 
 }
 
+export interface IMouseWheelEvent extends MouseEvent {
+	readonly wheelDelta: number;
+}
+
 interface IWebKitMouseWheelEvent {
 	wheelDeltaY: number;
 	wheelDeltaX: number;
@@ -125,14 +129,14 @@ interface IGeckoMouseWheelEvent {
 	detail: number;
 }
 
-export class StandardMouseWheelEvent {
+export class StandardWheelEvent {
 
-	public readonly browserEvent: MouseWheelEvent | null;
+	public readonly browserEvent: IMouseWheelEvent | null;
 	public readonly deltaY: number;
 	public readonly deltaX: number;
 	public readonly target: Node;
 
-	constructor(e: MouseWheelEvent | null, deltaX: number = 0, deltaY: number = 0) {
+	constructor(e: IMouseWheelEvent | null, deltaX: number = 0, deltaY: number = 0) {
 
 		this.browserEvent = e || null;
 		this.target = e ? (e.target || (<any>e).targetNode || e.srcElement) : null;

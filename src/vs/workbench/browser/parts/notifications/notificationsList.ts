@@ -84,9 +84,13 @@ export class NotificationsList extends Themable {
 		// Context menu to copy message
 		const copyAction = this._register(this.instantiationService.createInstance(CopyNotificationMessageAction, CopyNotificationMessageAction.ID, CopyNotificationMessageAction.LABEL));
 		this._register((this.list.onContextMenu(e => {
+			if (!e.element) {
+				return;
+			}
+
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
-				getActions: () => Promise.resolve([copyAction]),
+				getActions: () => [copyAction],
 				getActionsContext: () => e.element,
 				actionRunner
 			});

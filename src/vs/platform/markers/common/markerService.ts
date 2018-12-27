@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { isFalsyOrEmpty, isNonEmptyArray } from 'vs/base/common/arrays';
 import { Schemas } from 'vs/base/common/network';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isEmptyObject } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { Event, Emitter, debounceEvent } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IMarkerService, IMarkerData, IResourceMarker, IMarker, MarkerStatistics, MarkerSeverity } from './markers';
 
 interface MapMap<V> {
@@ -124,7 +124,7 @@ export class MarkerService implements IMarkerService {
 	_serviceBrand: any;
 
 	private _onMarkerChanged = new Emitter<URI[]>();
-	private _onMarkerChangedEvent: Event<URI[]> = debounceEvent(this._onMarkerChanged.event, MarkerService._debouncer, 0);
+	private _onMarkerChangedEvent: Event<URI[]> = Event.debounce(this._onMarkerChanged.event, MarkerService._debouncer, 0);
 	private _byResource: MapMap<IMarker[]> = Object.create(null);
 	private _byOwner: MapMap<IMarker[]> = Object.create(null);
 	private _stats: MarkerStats;
@@ -146,10 +146,8 @@ export class MarkerService implements IMarkerService {
 	}
 
 	remove(owner: string, resources: URI[]): void {
-		if (!isFalsyOrEmpty(resources)) {
-			for (const resource of resources) {
-				this.changeOne(owner, resource, []);
-			}
+		for (const resource of resources || []) {
+			this.changeOne(owner, resource, []);
 		}
 	}
 
@@ -238,7 +236,7 @@ export class MarkerService implements IMarkerService {
 		}
 
 		// add new markers
-		if (!isFalsyOrEmpty(data)) {
+		if (isNonEmptyArray(data)) {
 
 			// group by resource
 			const groups: { [resource: string]: IMarker[] } = Object.create(null);

@@ -329,7 +329,7 @@ suite('SplitLinesCollection', () => {
 		let _lineIndex = 0;
 		const tokenizationSupport: modes.ITokenizationSupport = {
 			getInitialState: () => NULL_STATE,
-			tokenize: undefined,
+			tokenize: undefined!,
 			tokenize2: (line: string, state: modes.IState): TokenizationResult2 => {
 				let tokens = _tokens[_lineIndex++];
 
@@ -351,9 +351,9 @@ suite('SplitLinesCollection', () => {
 	});
 
 	teardown(() => {
-		model.dispose();
+		model!.dispose();
 		model = null;
-		languageRegistration.dispose();
+		languageRegistration!.dispose();
 		languageRegistration = null;
 	});
 
@@ -381,9 +381,13 @@ suite('SplitLinesCollection', () => {
 		tokens: ITestViewLineToken[];
 	}
 
-	function assertMinimapLineRenderingData(actual: ViewLineData, expected: ITestMinimapLineRenderingData): void {
+	function assertMinimapLineRenderingData(actual: ViewLineData, expected: ITestMinimapLineRenderingData | null): void {
 		if (actual === null && expected === null) {
 			assert.ok(true);
+			return;
+		}
+		if (expected === null) {
+			assert.ok(false);
 			return;
 		}
 		assert.equal(actual.content, expected.content);
@@ -392,7 +396,7 @@ suite('SplitLinesCollection', () => {
 		assertViewLineTokens(actual.tokens, expected.tokens);
 	}
 
-	function assertMinimapLinesRenderingData(actual: ViewLineData[], expected: ITestMinimapLineRenderingData[]): void {
+	function assertMinimapLinesRenderingData(actual: ViewLineData[], expected: Array<ITestMinimapLineRenderingData | null>): void {
 		assert.equal(actual.length, expected.length);
 		for (let i = 0; i < expected.length; i++) {
 			assertMinimapLineRenderingData(actual[i], expected[i]);
@@ -406,7 +410,7 @@ suite('SplitLinesCollection', () => {
 				let count = end - start + 1;
 				for (let desired = Math.pow(2, count) - 1; desired >= 0; desired--) {
 					let needed: boolean[] = [];
-					let expected: ITestMinimapLineRenderingData[] = [];
+					let expected: Array<ITestMinimapLineRenderingData | null> = [];
 					for (let i = 0; i < count; i++) {
 						needed[i] = (desired & (1 << i)) ? true : false;
 						expected[i] = (needed[i] ? all[start - 1 + i] : null);
@@ -421,7 +425,7 @@ suite('SplitLinesCollection', () => {
 	}
 
 	test('getViewLinesData - no wrapping', () => {
-		withSplitLinesCollection(model, 'off', 0, (splitLinesCollection) => {
+		withSplitLinesCollection(model!, 'off', 0, (splitLinesCollection) => {
 			assert.equal(splitLinesCollection.getViewLineCount(), 8);
 			assert.equal(splitLinesCollection.modelPositionIsVisible(1, 1), true);
 			assert.equal(splitLinesCollection.modelPositionIsVisible(2, 1), true);
@@ -555,7 +559,7 @@ suite('SplitLinesCollection', () => {
 	});
 
 	test('getViewLinesData - with wrapping', () => {
-		withSplitLinesCollection(model, 'wordWrapColumn', 30, (splitLinesCollection) => {
+		withSplitLinesCollection(model!, 'wordWrapColumn', 30, (splitLinesCollection) => {
 			assert.equal(splitLinesCollection.getViewLineCount(), 12);
 			assert.equal(splitLinesCollection.modelPositionIsVisible(1, 1), true);
 			assert.equal(splitLinesCollection.modelPositionIsVisible(2, 1), true);
@@ -774,7 +778,7 @@ function createLineMapping(breakingLengths: number[], wrappedLinesPrefix: string
 function createModel(text: string): ISimpleModel {
 	return {
 		getLineTokens: (lineNumber: number) => {
-			return null;
+			return null!;
 		},
 		getLineContent: (lineNumber: number) => {
 			return text;

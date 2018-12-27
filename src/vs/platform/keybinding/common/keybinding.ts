@@ -53,9 +53,16 @@ export interface IKeybindingService {
 	resolveUserBinding(userBinding: string): ResolvedKeybinding[];
 
 	/**
+	 * Resolve and dispatch `keyboardEvent` and invoke the command.
+	 */
+	dispatchEvent(e: IKeyboardEvent, target: IContextKeyServiceTarget): boolean;
+
+	/**
 	 * Resolve and dispatch `keyboardEvent`, but do not invoke the command or change inner state.
 	 */
 	softDispatch(keyboardEvent: IKeyboardEvent, target: IContextKeyServiceTarget): IResolveResult | null;
+
+	dispatchByUserSettingsLabel(userSettingsLabel: string, target: IContextKeyServiceTarget): void;
 
 	/**
 	 * Look up keybindings for a command.

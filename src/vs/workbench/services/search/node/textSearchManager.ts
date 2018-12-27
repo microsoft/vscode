@@ -10,7 +10,6 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import * as glob from 'vs/base/common/glob';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { toCanonicalName } from 'vs/base/node/encoding';
 import * as extfs from 'vs/base/node/extfs';
 import { IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchMatch, ITextSearchContext, ITextSearchResult } from 'vs/platform/search/common/search';
@@ -27,12 +26,12 @@ export class TextSearchManager {
 	constructor(private query: ITextQuery, private provider: vscode.TextSearchProvider, private _extfs: typeof extfs = extfs) {
 	}
 
-	public search(onProgress: (matches: IFileMatch[]) => void, token: CancellationToken): TPromise<ISearchCompleteStats> {
-		const folderQueries = this.query.folderQueries;
+	public search(onProgress: (matches: IFileMatch[]) => void, token: CancellationToken): Promise<ISearchCompleteStats> {
+		const folderQueries = this.query.folderQueries || [];
 		const tokenSource = new CancellationTokenSource();
 		token.onCancellationRequested(() => tokenSource.cancel());
 
-		return new TPromise<ISearchCompleteStats>((resolve, reject) => {
+		return new Promise<ISearchCompleteStats>((resolve, reject) => {
 			this.collector = new TextSearchResultsCollector(onProgress);
 
 			let isCanceled = false;
@@ -41,7 +40,7 @@ export class TextSearchManager {
 					return;
 				}
 
-				if (this.resultCount >= this.query.maxResults) {
+				if (typeof this.query.maxResults === 'number' && this.resultCount >= this.query.maxResults) {
 					this.isLimitHit = true;
 					isCanceled = true;
 					tokenSource.cancel();
@@ -54,40 +53,39 @@ export class TextSearchManager {
 			};
 
 			// For each root folder
-			TPromise.join(folderQueries.map((fq, i) => {
+			Promise.all(folderQueries.map((fq, i) => {
 				return this.searchInFolder(fq, r => onResult(r, i), tokenSource.token);
 			})).then(results => {
 				tokenSource.dispose();
 				this.collector.flush();
 
-				const someFolderHitLImit = results.some(result => result && result.limitHit);
+				const someFolderHitLImit = results.some(result => !!result && !!result.limitHit);
 				resolve({
 					limitHit: this.isLimitHit || someFolderHitLImit,
 					stats: {
 						type: 'textSearchProvider'
 					}
 				});
-			}, (errs: Error[]) => {
+			}, (err: Error) => {
 				tokenSource.dispose();
-				const errMsg = errs
-					.map(err => toErrorMessage(err))
-					.filter(msg => !!msg)[0];
-
+				const errMsg = toErrorMessage(err);
 				reject(new Error(errMsg));
 			});
 		});
 	}
 
-	private searchInFolder(folderQuery: IFolderQuery<URI>, onResult: (result: vscode.TextSearchResult) => void, token: CancellationToken): TPromise<vscode.TextSearchComplete> {
+	private searchInFolder(folderQuery: IFolderQuery<URI>, onResult: (result: vscode.TextSearchResult) => void, token: CancellationToken): Promise<vscode.TextSearchComplete | null | undefined> {
 		const queryTester = new QueryGlobTester(this.query, folderQuery);
-		const testingPs: TPromise<void>[] = [];
+		const testingPs: Promise<void>[] = [];
 		const progress = {
 			report: (result: vscode.TextSearchResult) => {
 				// TODO: validate result.ranges vs result.preview.matches
 
-				const hasSibling = folderQuery.folder.scheme === 'file' && glob.hasSiblingPromiseFn(() => {
-					return this.readdir(path.dirname(result.uri.fsPath));
-				});
+				const hasSibling = folderQuery.folder.scheme === 'file' ?
+					glob.hasSiblingPromiseFn(() => {
+						return this.readdir(path.dirname(result.uri.fsPath));
+					}) :
+					undefined;
 
 				const relativePath = path.relative(folderQuery.folder.fsPath, result.uri.fsPath);
 				testingPs.push(
@@ -101,16 +99,16 @@ export class TextSearchManager {
 		};
 
 		const searchOptions = this.getSearchOptionsForFolder(folderQuery);
-		return new TPromise(resolve => process.nextTick(resolve))
+		return new Promise(resolve => process.nextTick(resolve))
 			.then(() => this.provider.provideTextSearchResults(patternInfoToQuery(this.query.contentPattern), searchOptions, progress, token))
 			.then(result => {
-				return TPromise.join(testingPs)
+				return Promise.all(testingPs)
 					.then(() => result);
 			});
 	}
 
-	private readdir(dirname: string): TPromise<string[]> {
-		return new TPromise((resolve, reject) => {
+	private readdir(dirname: string): Promise<string[]> {
+		return new Promise((resolve, reject) => {
 			this._extfs.readdir(dirname, (err, files) => {
 				if (err) {
 					return reject(err);
@@ -159,7 +157,7 @@ export class TextSearchResultsCollector {
 
 	private _currentFolderIdx: number;
 	private _currentUri: URI;
-	private _currentFileMatch: IFileMatch;
+	private _currentFileMatch: IFileMatch | null = null;
 
 	constructor(private _onResult: (result: IFileMatch[]) => void) {
 		this._batchedCollector = new BatchedCollector<IFileMatch>(512, items => this.sendItems(items));
@@ -182,14 +180,14 @@ export class TextSearchResultsCollector {
 			};
 		}
 
-		this._currentFileMatch.results.push(extensionResultToFrontendResult(data));
+		this._currentFileMatch.results!.push(extensionResultToFrontendResult(data));
 	}
 
 	private pushToCollector(): void {
-		const size = this._currentFileMatch ?
+		const size = this._currentFileMatch && this._currentFileMatch.results ?
 			this._currentFileMatch.results.length :
 			0;
-		this._batchedCollector.addItem(this._currentFileMatch, size);
+		this._batchedCollector.addItem(this._currentFileMatch!, size);
 	}
 
 	flush(): void {

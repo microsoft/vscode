@@ -14,7 +14,6 @@ import * as UUID from 'vs/base/common/uuid';
 import * as Platform from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ValidationStatus, ValidationState, IProblemReporter, Parser } from 'vs/base/common/parsers';
 import { IStringDictionary } from 'vs/base/common/collections';
@@ -147,7 +146,7 @@ export interface NamedMultiLineProblemPattern {
 	patterns: MultiLineProblemPattern;
 }
 
-export function isNamedProblemMatcher(value: ProblemMatcher): value is NamedProblemMatcher {
+export function isNamedProblemMatcher(value: ProblemMatcher | undefined): value is NamedProblemMatcher {
 	return value && Types.isString((<NamedProblemMatcher>value).name) ? true : false;
 }
 
@@ -793,7 +792,7 @@ export namespace Config {
 		background?: BackgroundMonitor;
 	}
 
-	export type ProblemMatcherType = string | ProblemMatcher | (string | ProblemMatcher)[];
+	export type ProblemMatcherType = string | ProblemMatcher | Array<string | ProblemMatcher>;
 
 	export interface NamedProblemMatcher extends ProblemMatcher {
 		/**
@@ -1087,19 +1086,22 @@ export namespace Schemas {
 	};
 }
 
-let problemPatternExtPoint = ExtensionsRegistry.registerExtensionPoint<Config.NamedProblemPatterns>('problemPatterns', [], {
-	description: localize('ProblemPatternExtPoint', 'Contributes problem patterns'),
-	type: 'array',
-	items: {
-		anyOf: [
-			Schemas.NamedProblemPattern,
-			Schemas.NamedMultiLineProblemPattern
-		]
+const problemPatternExtPoint = ExtensionsRegistry.registerExtensionPoint<Config.NamedProblemPatterns>({
+	extensionPoint: 'problemPatterns',
+	jsonSchema: {
+		description: localize('ProblemPatternExtPoint', 'Contributes problem patterns'),
+		type: 'array',
+		items: {
+			anyOf: [
+				Schemas.NamedProblemPattern,
+				Schemas.NamedMultiLineProblemPattern
+			]
+		}
 	}
 });
 
 export interface IProblemPatternRegistry {
-	onReady(): TPromise<void>;
+	onReady(): Promise<void>;
 
 	get(key: string): ProblemPattern | MultiLineProblemPattern;
 }
@@ -1107,12 +1109,12 @@ export interface IProblemPatternRegistry {
 class ProblemPatternRegistryImpl implements IProblemPatternRegistry {
 
 	private patterns: IStringDictionary<ProblemPattern | ProblemPattern[]>;
-	private readyPromise: TPromise<void>;
+	private readyPromise: Promise<void>;
 
 	constructor() {
 		this.patterns = Object.create(null);
 		this.fillDefaults();
-		this.readyPromise = new TPromise<void>((resolve, reject) => {
+		this.readyPromise = new Promise<void>((resolve, reject) => {
 			problemPatternExtPoint.setHandler((extensions) => {
 				// We get all statically know extension during startup in one batch
 				try {
@@ -1149,7 +1151,7 @@ class ProblemPatternRegistryImpl implements IProblemPatternRegistry {
 		});
 	}
 
-	public onReady(): TPromise<void> {
+	public onReady(): Promise<void> {
 		return this.readyPromise;
 	}
 
@@ -1284,10 +1286,10 @@ export class ProblemMatcherParser extends Parser {
 		super(logger);
 	}
 
-	public parse(json: Config.ProblemMatcher): ProblemMatcher | null {
+	public parse(json: Config.ProblemMatcher): ProblemMatcher | undefined {
 		let result = this.createProblemMatcher(json);
 		if (!this.checkProblemMatcherValid(json, result)) {
-			return null;
+			return undefined;
 		}
 		this.addWatchingMatcher(json, result);
 
@@ -1660,14 +1662,18 @@ export namespace Schemas {
 	};
 }
 
-let problemMatchersExtPoint = ExtensionsRegistry.registerExtensionPoint<Config.NamedProblemMatcher[]>('problemMatchers', [problemPatternExtPoint], {
-	description: localize('ProblemMatcherExtPoint', 'Contributes problem matchers'),
-	type: 'array',
-	items: Schemas.NamedProblemMatcher
+const problemMatchersExtPoint = ExtensionsRegistry.registerExtensionPoint<Config.NamedProblemMatcher[]>({
+	extensionPoint: 'problemMatchers',
+	deps: [problemPatternExtPoint],
+	jsonSchema: {
+		description: localize('ProblemMatcherExtPoint', 'Contributes problem matchers'),
+		type: 'array',
+		items: Schemas.NamedProblemMatcher
+	}
 });
 
 export interface IProblemMatcherRegistry {
-	onReady(): TPromise<void>;
+	onReady(): Promise<void>;
 	get(name: string): NamedProblemMatcher;
 	keys(): string[];
 }
@@ -1675,12 +1681,12 @@ export interface IProblemMatcherRegistry {
 class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 
 	private matchers: IStringDictionary<NamedProblemMatcher>;
-	private readyPromise: TPromise<void>;
+	private readyPromise: Promise<void>;
 
 	constructor() {
 		this.matchers = Object.create(null);
 		this.fillDefaults();
-		this.readyPromise = new TPromise<void>((resolve, reject) => {
+		this.readyPromise = new Promise<void>((resolve, reject) => {
 			problemMatchersExtPoint.setHandler((extensions) => {
 				try {
 					extensions.forEach(extension => {
@@ -1704,7 +1710,7 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 		});
 	}
 
-	public onReady(): TPromise<void> {
+	public onReady(): Promise<void> {
 		ProblemPatternRegistry.onReady();
 		return this.readyPromise;
 	}

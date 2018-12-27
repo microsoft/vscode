@@ -12,8 +12,8 @@ import { ConfigurationScope } from 'vs/platform/configuration/common/configurati
 import { SettingsTarget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { ITOCEntry, knownAcronyms } from 'vs/workbench/parts/preferences/browser/settingsLayout';
 import { IExtensionSetting, ISearchResult, ISetting, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
+import { MODIFIED_SETTING_TAG } from 'vs/workbench/parts/preferences/common/preferences';
 
-export const MODIFIED_SETTING_TAG = 'modified';
 export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
 
 export interface ISettingsEditorViewState {
@@ -506,8 +506,7 @@ export class SearchResultModel extends SettingsTreeModel {
 
 	private getFlatSettings(): ISetting[] {
 		const flatSettings: ISetting[] = [];
-		this.getUniqueResults()
-			.filter(r => !!r)
+		arrays.coalesce(this.getUniqueResults())
 			.forEach(r => {
 				flatSettings.push(
 					...r.filterMatches.map(m => m.setting));

@@ -11,7 +11,7 @@ export interface IActivity {
 	id: string;
 	name: string;
 	keybindingId?: string;
-	cssClass: string;
+	cssClass?: string;
 }
 
 export interface IGlobalActivity extends IActivity {

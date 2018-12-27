@@ -24,7 +24,7 @@ export function isConfigurationOverrides(thing: any): thing is IConfigurationOve
 
 export interface IConfigurationOverrides {
 	overrideIdentifier?: string | null;
-	resource?: URI;
+	resource?: URI | null;
 }
 
 export const enum ConfigurationTarget {
@@ -63,7 +63,7 @@ export interface IConfigurationService {
 
 	onDidChangeConfiguration: Event<IConfigurationChangeEvent>;
 
-	getConfigurationData(): IConfigurationData;
+	getConfigurationData(): IConfigurationData | null;
 
 	/**
 	 * Fetches the value of the section for the given overrides.

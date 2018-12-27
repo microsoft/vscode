@@ -101,6 +101,10 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		return result.resolvedKeybinding;
 	}
 
+	public dispatchEvent(e: IKeyboardEvent, target: IContextKeyServiceTarget): boolean {
+		return this._dispatch(e, target);
+	}
+
 	public softDispatch(e: IKeyboardEvent, target: IContextKeyServiceTarget): IResolveResult | null {
 		const keybinding = this.resolveKeyboardEvent(e);
 		if (keybinding.isChord()) {
@@ -152,10 +156,20 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		this._currentChord = null;
 	}
 
+	public dispatchByUserSettingsLabel(userSettingsLabel: string, target: IContextKeyServiceTarget): void {
+		const keybindings = this.resolveUserBinding(userSettingsLabel);
+		if (keybindings.length >= 1) {
+			this._doDispatch(keybindings[0], target);
+		}
+	}
+
 	protected _dispatch(e: IKeyboardEvent, target: IContextKeyServiceTarget): boolean {
+		return this._doDispatch(this.resolveKeyboardEvent(e), target);
+	}
+
+	private _doDispatch(keybinding: ResolvedKeybinding, target: IContextKeyServiceTarget): boolean {
 		let shouldPreventDefault = false;
 
-		const keybinding = this.resolveKeyboardEvent(e);
 		if (keybinding.isChord()) {
 			console.warn('Unexpected keyboard event mapped to a chord');
 			return false;

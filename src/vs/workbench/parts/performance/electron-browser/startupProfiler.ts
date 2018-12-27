@@ -6,24 +6,26 @@
 import { dirname, join } from 'path';
 import { basename } from 'vs/base/common/paths';
 import { del, exists, readdir, readFile } from 'vs/base/node/pfs';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
+import product from 'vs/platform/node/product';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { Extensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { ReportPerformanceIssueAction } from 'vs/workbench/parts/performance/electron-browser/actions';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { PerfviewInput } from 'vs/workbench/parts/performance/electron-browser/perfviewEditor';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
-class StartupProfiler implements IWorkbenchContribution {
+export class StartupProfiler implements IWorkbenchContribution {
 
 	constructor(
 		@IWindowsService private readonly _windowsService: IWindowsService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ITextModelService private readonly _textModelResolverService: ITextModelService,
+		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IExtensionService extensionService: IExtensionService,
 	) {
@@ -76,10 +78,9 @@ class StartupProfiler implements IWorkbenchContribution {
 				secondaryButton: localize('prof.restart', "Restart")
 			}).then(res => {
 				if (res.confirmed) {
-					const action = this._instantiationService.createInstance(ReportPerformanceIssueAction, ReportPerformanceIssueAction.ID, ReportPerformanceIssueAction.LABEL);
 					Promise.all<any>([
 						this._windowsService.showItemInFolder(join(dir, files[0])),
-						action.run(`:warning: Make sure to **attach** these files from your *home*-directory: :warning:\n${files.map(file => `-\`${file}\``).join('\n')}`)
+						this._createPerfIssue(files)
 					]).then(() => {
 						// keep window stable until restart is selected
 						return this._dialogService.confirm({
@@ -101,7 +102,22 @@ class StartupProfiler implements IWorkbenchContribution {
 			});
 		});
 	}
-}
 
-const registry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
-registry.registerWorkbenchContribution(StartupProfiler, LifecyclePhase.Running);
+	private _createPerfIssue(files: string[]): Promise<void> {
+		return this._textModelResolverService.createModelReference(PerfviewInput.Uri).then(ref => {
+
+			this._clipboardService.writeText(ref.object.textEditorModel.getValue());
+			ref.dispose();
+
+			const body = `
+1. :warning: We have copied additional data to your clipboard. Make sure to **paste** here. :warning:
+1. :warning: Make sure to **attach** these files from your *home*-directory: :warning:\n${files.map(file => `-\`${file}\``).join('\n')}
+`;
+
+			const baseUrl = product.reportIssueUrl;
+			const queryStringPrefix = baseUrl.indexOf('?') === -1 ? '?' : '&';
+
+			window.open(`${baseUrl}${queryStringPrefix}body=${encodeURIComponent(body)}`);
+		});
+	}
+}

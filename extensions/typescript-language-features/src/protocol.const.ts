@@ -43,6 +43,7 @@ export class DiagnosticCategory {
 
 export class KindModifiers {
 	public static readonly optional = 'optional';
+	public static readonly color = 'color';
 
 	public static readonly dtsFile = '.d.ts';
 	public static readonly tsFile = '.ts';
@@ -59,4 +60,13 @@ export class KindModifiers {
 		KindModifiers.jsxFile,
 		KindModifiers.jsonFile,
 	];
+}
+
+export class DisplayPartKind {
+	public static readonly functionName = 'functionName';
+	public static readonly methodName = 'methodName';
+	public static readonly parameterName = 'parameterName';
+	public static readonly propertyName = 'propertyName';
+	public static readonly punctuation = 'punctuation';
+	public static readonly text = 'text';
 }

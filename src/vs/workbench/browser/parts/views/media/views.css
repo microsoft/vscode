@@ -50,22 +50,36 @@
 	display: none;
 }
 
-.monaco-workbench .tree-explorer-viewlet-tree-view .customview-message {
-	display: none;
-	padding: 10px 22px 0 22px;
-	opacity: 0.5;
+.monaco-workbench .tree-explorer-viewlet-tree-view {
+	height: 100%;
 }
 
-.monaco-workbench .tree-explorer-viewlet-tree-view.message .customview-message {
-	display: inherit;
+.monaco-workbench .tree-explorer-viewlet-tree-view .message {
+	display: flex;
+	padding: 4px 12px 0px 18px;
+	user-select: text
 }
 
-.monaco-workbench .tree-explorer-viewlet-tree-view.message .customview-tree {
+.monaco-workbench .tree-explorer-viewlet-tree-view .message p {
+	margin-top: 0px;
+	margin-bottom: 0px;
+	padding-bottom: 4px;
+}
+
+.monaco-workbench .tree-explorer-viewlet-tree-view .message ul {
+	padding-left: 24px;
+}
+
+.monaco-workbench .tree-explorer-viewlet-tree-view .message.hide {
 	display: none;
 }
 
 .monaco-workbench .tree-explorer-viewlet-tree-view .customview-tree {
 	height: 100%;
+}
+
+.monaco-workbench .tree-explorer-viewlet-tree-view .customview-tree.hide {
+	display: none;
 }
 
 .customview-tree.file-icon-themable-tree .monaco-tree-row .content.align-icon-with-twisty::before {

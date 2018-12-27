@@ -24,7 +24,7 @@ export function tail2<T>(arr: T[]): [T[], T] {
 	return [arr.slice(0, arr.length - 1), arr[arr.length - 1]];
 }
 
-export function equals<T>(one: ReadonlyArray<T>, other: ReadonlyArray<T>, itemEquals: (a: T, b: T) => boolean = (a, b) => a === b): boolean {
+export function equals<T>(one: ReadonlyArray<T> | undefined, other: ReadonlyArray<T> | undefined, itemEquals: (a: T, b: T) => boolean = (a, b) => a === b): boolean {
 	if (one === other) {
 		return true;
 	}
@@ -298,7 +298,7 @@ function topStep<T>(array: T[], compare: (a: T, b: T) => number, result: T[], i:
 /**
  * @returns a new array with all falsy values removed. The original array IS NOT modified.
  */
-export function coalesce<T>(array: (T | undefined | null)[]): T[] {
+export function coalesce<T>(array: Array<T | undefined | null>): T[] {
 	if (!array) {
 		return array;
 	}
@@ -308,7 +308,7 @@ export function coalesce<T>(array: (T | undefined | null)[]): T[] {
 /**
  * Remove all falsey values from `array`. The original array IS modified.
  */
-export function coalesceInPlace<T>(array: (T | undefined | null)[]): void {
+export function coalesceInPlace<T>(array: Array<T | undefined | null>): void {
 	if (!array) {
 		return;
 	}
@@ -334,7 +334,14 @@ export function move(array: any[], from: number, to: number): void {
  * 	and not empty.
  */
 export function isFalsyOrEmpty(obj: any): boolean {
-	return !Array.isArray(obj) || (<Array<any>>obj).length === 0;
+	return !Array.isArray(obj) || obj.length === 0;
+}
+
+/**
+ * @returns {{true}} if the provided object is an array and has at least one element.
+ */
+export function isNonEmptyArray<T>(obj: ReadonlyArray<T> | undefined | null): obj is Array<T> {
+	return Array.isArray(obj) && obj.length > 0;
 }
 
 /**

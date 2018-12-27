@@ -73,6 +73,12 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 	}
 
 	private startFindDefinition(mouseEvent: ClickLinkMouseEvent, withKey?: ClickLinkKeyboardEvent): void {
+
+		// check if we are active and on a content widget
+		if (mouseEvent.target.type === MouseTargetType.CONTENT_WIDGET && this.decorations.length > 0) {
+			return;
+		}
+
 		if (!this.isEnabled(mouseEvent, withKey)) {
 			this.currentWordUnderMouse = null;
 			this.removeDecorations();
@@ -270,12 +276,12 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 	private isEnabled(mouseEvent: ClickLinkMouseEvent, withKey?: ClickLinkKeyboardEvent): boolean {
 		return this.editor.getModel() &&
 			mouseEvent.isNoneOrSingleMouseDown &&
-			mouseEvent.target.type === MouseTargetType.CONTENT_TEXT &&
+			(mouseEvent.target.type === MouseTargetType.CONTENT_TEXT) &&
 			(mouseEvent.hasTriggerModifier || (withKey && withKey.keyCodeIsTriggerKey)) &&
 			DefinitionProviderRegistry.has(this.editor.getModel());
 	}
 
-	private findDefinition(target: IMouseTarget, token: CancellationToken): Thenable<DefinitionLink[]> {
+	private findDefinition(target: IMouseTarget, token: CancellationToken): Promise<DefinitionLink[] | null> {
 		const model = this.editor.getModel();
 		if (!model) {
 			return Promise.resolve(null);
@@ -284,7 +290,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		return getDefinitionsAtPosition(model, target.position, token);
 	}
 
-	private gotoDefinition(target: IMouseTarget, sideBySide: boolean): Thenable<any> {
+	private gotoDefinition(target: IMouseTarget, sideBySide: boolean): Promise<any> {
 		this.editor.setPosition(target.position);
 		const action = new DefinitionAction(new DefinitionActionConfig(sideBySide, false, true, false), { alias: undefined, label: undefined, id: undefined, precondition: undefined });
 		return this.editor.invokeWithinContext(accessor => action.run(accessor, this.editor));

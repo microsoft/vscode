@@ -33,7 +33,7 @@ suite('SearchResult', () => {
 
 	test('Line Match', function () {
 		let fileMatch = aFileMatch('folder/file.txt', null);
-		let lineMatch = new Match(fileMatch, new TextSearchMatch('foo bar', new OneLineRange(1, 0, 3)));
+		let lineMatch = new Match(fileMatch, ['foo bar'], new OneLineRange(0, 0, 3), new OneLineRange(1, 0, 3));
 		assert.equal(lineMatch.text(), 'foo bar');
 		assert.equal(lineMatch.range().startLineNumber, 2);
 		assert.equal(lineMatch.range().endLineNumber, 2);
@@ -134,7 +134,7 @@ suite('SearchResult', () => {
 	test('Alle Drei Zusammen', function () {
 		let searchResult = instantiationService.createInstance(SearchResult, null);
 		let fileMatch = aFileMatch('far/boo', searchResult);
-		let lineMatch = new Match(fileMatch, new TextSearchMatch('foo bar', new OneLineRange(1, 0, 3)));
+		let lineMatch = new Match(fileMatch, ['foo bar'], new OneLineRange(0, 0, 3), new OneLineRange(1, 0, 3));
 
 		assert(lineMatch.parent() === fileMatch);
 		assert(fileMatch.parent() === searchResult);
@@ -266,7 +266,8 @@ suite('SearchResult', () => {
 	});
 
 	test('replace should remove the file match', function () {
-		instantiationService.stubPromise(IReplaceService, 'replace', null);
+		const voidPromise = Promise.resolve(null);
+		instantiationService.stub(IReplaceService, 'replace', voidPromise);
 		let testObject = aSearchResult();
 		testObject.add([
 			aRawMatch('file://c:/1',
@@ -274,12 +275,13 @@ suite('SearchResult', () => {
 
 		testObject.replace(testObject.matches()[0]);
 
-		assert.ok(testObject.isEmpty());
+		return voidPromise.then(() => assert.ok(testObject.isEmpty()));
 	});
 
 	test('replace should trigger the change event', function () {
 		let target = sinon.spy();
-		instantiationService.stubPromise(IReplaceService, 'replace', null);
+		const voidPromise = Promise.resolve(null);
+		instantiationService.stub(IReplaceService, 'replace', voidPromise);
 		let testObject = aSearchResult();
 		testObject.add([
 			aRawMatch('file://c:/1',
@@ -289,12 +291,15 @@ suite('SearchResult', () => {
 
 		testObject.replace(objectRoRemove);
 
-		assert.ok(target.calledOnce);
-		assert.deepEqual([{ elements: [objectRoRemove], removed: true }], target.args[0]);
+		return voidPromise.then(() => {
+			assert.ok(target.calledOnce);
+			assert.deepEqual([{ elements: [objectRoRemove], removed: true }], target.args[0]);
+		});
 	});
 
 	test('replaceAll should remove all file matches', function () {
-		instantiationService.stubPromise(IReplaceService, 'replace', null);
+		const voidPromise = Promise.resolve(null);
+		instantiationService.stubPromise(IReplaceService, 'replace', voidPromise);
 		let testObject = aSearchResult();
 		testObject.add([
 			aRawMatch('file://c:/1',
@@ -304,7 +309,7 @@ suite('SearchResult', () => {
 
 		testObject.replaceAll(null);
 
-		assert.ok(testObject.isEmpty());
+		return voidPromise.then(() => assert.ok(testObject.isEmpty()));
 	});
 
 	//// ----- utils

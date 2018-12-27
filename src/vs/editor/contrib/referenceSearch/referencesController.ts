@@ -25,7 +25,7 @@ export const ctxReferenceSearchVisible = new RawContextKey<boolean>('referenceSe
 
 export interface RequestOptions {
 	getMetaTitle(model: ReferencesModel): string;
-	onGoto?: (reference: Location) => Thenable<any>;
+	onGoto?: (reference: Location) => Promise<any>;
 }
 
 export abstract class ReferencesController implements editorCommon.IEditorContribution {
@@ -192,7 +192,7 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 		this._requestIdPool += 1; // Cancel pending requests
 	}
 
-	private _gotoReference(ref: Location): Thenable<any> {
+	private _gotoReference(ref: Location): Promise<any> {
 		this._widget.hide();
 
 		this._ignoreModelChangeEvent = true;

@@ -19,7 +19,7 @@ import { ViewLineToken } from 'vs/editor/test/common/core/viewLineToken';
 suite('TextModelWithTokens', () => {
 
 	function testBrackets(contents: string[], brackets: CharacterPair[]): void {
-		function toRelaxedFoundBracket(a: IFoundBracket) {
+		function toRelaxedFoundBracket(a: IFoundBracket | null) {
 			if (!a) {
 				return null;
 			}
@@ -158,7 +158,7 @@ suite('TextModelWithTokens - bracket matching', () => {
 	}
 
 	const languageIdentifier = new LanguageIdentifier('bracketMode1', LanguageId.PlainText);
-	let registration: IDisposable | null = null;
+	let registration: IDisposable;
 
 	setup(() => {
 		registration = LanguageConfigurationRegistry.register(languageIdentifier, {
@@ -172,7 +172,6 @@ suite('TextModelWithTokens - bracket matching', () => {
 
 	teardown(() => {
 		registration.dispose();
-		registration = null;
 	});
 
 	test('bracket matching 1', () => {
@@ -293,7 +292,7 @@ suite('TextModelWithTokens regression tests', () => {
 
 		const tokenizationSupport: ITokenizationSupport = {
 			getInitialState: () => NULL_STATE,
-			tokenize: undefined,
+			tokenize: undefined!,
 			tokenize2: (line, state) => {
 				let myId = ++_tokenId;
 				let tokens = new Uint32Array(2);
@@ -386,6 +385,34 @@ suite('TextModelWithTokens regression tests', () => {
 
 		let actual = model.matchBracket(new Position(3, 9));
 		assert.deepEqual(actual, [new Range(3, 6, 3, 17), new Range(2, 6, 2, 14)]);
+
+		model.dispose();
+		registration.dispose();
+	});
+
+	test('issue #63822: Wrong embedded language detected for empty lines', () => {
+		const outerMode = new LanguageIdentifier('outerMode', 3);
+		const innerMode = new LanguageIdentifier('innerMode', 4);
+
+		const tokenizationSupport: ITokenizationSupport = {
+			getInitialState: () => NULL_STATE,
+			tokenize: undefined!,
+			tokenize2: (line, state) => {
+				let tokens = new Uint32Array(2);
+				tokens[0] = 0;
+				tokens[1] = (
+					innerMode.id << MetadataConsts.LANGUAGEID_OFFSET
+				) >>> 0;
+				return new TokenizationResult2(tokens, state);
+			}
+		};
+
+		let registration = TokenizationRegistry.register(outerMode.language, tokenizationSupport);
+
+		let model = TextModel.createFromString('A model with one line', undefined, outerMode);
+
+		model.forceTokenization(1);
+		assert.equal(model.getLanguageIdAtPosition(1, 1), innerMode.id);
 
 		model.dispose();
 		registration.dispose();

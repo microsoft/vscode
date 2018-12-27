@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
 import * as arrays from './arrays';
+import * as os from 'os';
+import * as path from 'path';
 
 export enum TsServerLogLevel {
 	Off,
@@ -83,18 +85,28 @@ export class TypeScriptServiceConfiguration {
 			&& arrays.equals(this.tsServerPluginPaths, other.tsServerPluginPaths);
 	}
 
+	private static fixPathPrefixes(inspectValue: string): string {
+		const pathPrefixes = ['~' + path.sep];
+		for (const pathPrefix of pathPrefixes) {
+			if (inspectValue.startsWith(pathPrefix)) {
+				return path.join(os.homedir(), inspectValue.slice(pathPrefix.length));
+			}
+		}
+		return inspectValue;
+	}
+
 	private static extractGlobalTsdk(configuration: vscode.WorkspaceConfiguration): string | null {
 		const inspect = configuration.inspect('typescript.tsdk');
-		if (inspect && inspect.globalValue && 'string' === typeof inspect.globalValue) {
-			return inspect.globalValue;
+		if (inspect && typeof inspect.globalValue === 'string') {
+			return this.fixPathPrefixes(inspect.globalValue);
 		}
 		return null;
 	}
 
 	private static extractLocalTsdk(configuration: vscode.WorkspaceConfiguration): string | null {
 		const inspect = configuration.inspect('typescript.tsdk');
-		if (inspect && inspect.workspaceValue && 'string' === typeof inspect.workspaceValue) {
-			return inspect.workspaceValue;
+		if (inspect && typeof inspect.workspaceValue === 'string') {
+			return this.fixPathPrefixes(inspect.workspaceValue);
 		}
 		return null;
 	}

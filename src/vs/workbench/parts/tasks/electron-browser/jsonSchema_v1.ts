@@ -63,10 +63,10 @@ const shellCommand: IJSONSchema = {
 };
 
 schema.definitions = Objects.deepClone(commonSchema.definitions);
-let definitions = schema.definitions;
-definitions['commandConfiguration']['properties']['isShellCommand'] = Objects.deepClone(shellCommand);
-definitions['taskDescription']['properties']['isShellCommand'] = Objects.deepClone(shellCommand);
-definitions['taskRunnerConfiguration']['properties']['isShellCommand'] = Objects.deepClone(shellCommand);
+let definitions = schema.definitions!;
+definitions['commandConfiguration']['properties']!['isShellCommand'] = Objects.deepClone(shellCommand);
+definitions['taskDescription']['properties']!['isShellCommand'] = Objects.deepClone(shellCommand);
+definitions['taskRunnerConfiguration']['properties']!['isShellCommand'] = Objects.deepClone(shellCommand);
 
 Object.getOwnPropertyNames(definitions).forEach(key => {
 	let newKey = key + '1';
@@ -94,8 +94,8 @@ fixReferences(schema);
 ProblemMatcherRegistry.onReady().then(() => {
 	try {
 		let matcherIds = ProblemMatcherRegistry.keys().map(key => '$' + key);
-		definitions.problemMatcherType1.oneOf[0].enum = matcherIds;
-		(definitions.problemMatcherType1.oneOf[2].items as IJSONSchema).anyOf[1].enum = matcherIds;
+		definitions.problemMatcherType1.oneOf![0].enum = matcherIds;
+		(definitions.problemMatcherType1.oneOf![2].items as IJSONSchema).anyOf![1].enum = matcherIds;
 	} catch (err) {
 		console.log('Installing problem matcher ids failed');
 	}

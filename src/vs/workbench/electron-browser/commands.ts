@@ -23,6 +23,8 @@ import { URI } from 'vs/base/common/uri';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
+import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
+import { DataTree } from 'vs/base/browser/ui/tree/dataTree';
 
 // --- List Commands
 
@@ -58,7 +60,7 @@ export function registerCommands(): void {
 		}
 
 		// ObjectTree
-		else if (focused instanceof ObjectTree) {
+		else if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
 			const list = focused;
 
 			const fakeKeyboardEvent = new KeyboardEvent('keydown');
@@ -91,7 +93,7 @@ export function registerCommands(): void {
 		handler: (accessor, arg2) => focusDown(accessor, arg2)
 	});
 
-	function expandMultiSelection(focused: List<any> | PagedList<any> | ITree | ObjectTree<any, any>, previousFocus: any): void {
+	function expandMultiSelection(focused: List<any> | PagedList<any> | ITree | ObjectTree<any, any> | DataTree<any, any, any> | AsyncDataTree<any, any, any>, previousFocus: any): void {
 
 		// List
 		if (focused instanceof List || focused instanceof PagedList) {
@@ -107,7 +109,7 @@ export function registerCommands(): void {
 		}
 
 		// ObjectTree
-		else if (focused instanceof ObjectTree) {
+		else if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
 			const list = focused;
 
 			const focus = list.getFocus() ? list.getFocus()[0] : void 0;
@@ -144,7 +146,7 @@ export function registerCommands(): void {
 			const focused = accessor.get(IListService).lastFocusedList;
 
 			// List
-			if (focused instanceof List || focused instanceof PagedList || focused instanceof ObjectTree) {
+			if (focused instanceof List || focused instanceof PagedList || focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
 				const list = focused;
 
 				// Focus down first
@@ -188,7 +190,7 @@ export function registerCommands(): void {
 		}
 
 		// ObjectTree
-		else if (focused instanceof ObjectTree) {
+		else if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
 			const list = focused;
 
 			const fakeKeyboardEvent = new KeyboardEvent('keydown');
@@ -269,7 +271,7 @@ export function registerCommands(): void {
 
 			// Tree only
 			if (focused && !(focused instanceof List || focused instanceof PagedList)) {
-				if (focused instanceof ObjectTree) {
+				if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
 					const tree = focused;
 					const focusedElements = tree.getFocus();
 
@@ -316,7 +318,7 @@ export function registerCommands(): void {
 
 			// Tree only
 			if (focused && !(focused instanceof List || focused instanceof PagedList)) {
-				if (focused instanceof ObjectTree) {
+				if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
 					const tree = focused;
 					const focusedElements = tree.getFocus();
 
@@ -373,7 +375,7 @@ export function registerCommands(): void {
 			}
 
 			// ObjectTree
-			else if (focused instanceof ObjectTree) {
+			else if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
 				const list = focused;
 
 				const fakeKeyboardEvent = new KeyboardEvent('keydown');
@@ -411,7 +413,7 @@ export function registerCommands(): void {
 			}
 
 			// ObjectTree
-			else if (focused instanceof ObjectTree) {
+			else if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
 				const list = focused;
 
 				const fakeKeyboardEvent = new KeyboardEvent('keydown');
@@ -460,7 +462,7 @@ export function registerCommands(): void {
 		}
 
 		// ObjectTree
-		else if (focused instanceof ObjectTree) {
+		else if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
 			const list = focused;
 			const first = list.getFirstElementChild(null);
 
@@ -513,7 +515,7 @@ export function registerCommands(): void {
 		}
 
 		// ObjectTree
-		else if (focused instanceof ObjectTree) {
+		else if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
 			const list = focused;
 			const last = list.getLastElementAncestor();
 
@@ -555,7 +557,7 @@ export function registerCommands(): void {
 			}
 
 			// ObjectTree
-			else if (focused instanceof ObjectTree) {
+			else if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
 				const list = focused;
 				const fakeKeyboardEvent = new KeyboardEvent('keydown');
 				list.setSelection(list.getFocus(), fakeKeyboardEvent);
@@ -600,7 +602,7 @@ export function registerCommands(): void {
 
 			// Tree only
 			if (focused && !(focused instanceof List || focused instanceof PagedList)) {
-				if (focused instanceof ObjectTree) {
+				if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
 					const tree = focused;
 					const focus = tree.getFocus();
 
@@ -608,7 +610,7 @@ export function registerCommands(): void {
 						return;
 					}
 
-					tree.toggleCollapsed(focus);
+					tree.toggleCollapsed(focus[0]);
 				} else {
 					const tree = focused;
 					const focus = tree.getFocus();
@@ -641,7 +643,7 @@ export function registerCommands(): void {
 			}
 
 			// ObjectTree
-			else if (focused instanceof ObjectTree) {
+			else if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
 				const list = focused;
 				const fakeKeyboardEvent = new KeyboardEvent('keydown');
 

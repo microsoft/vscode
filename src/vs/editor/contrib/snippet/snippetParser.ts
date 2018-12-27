@@ -373,7 +373,7 @@ export class FormatString extends Marker {
 		super();
 	}
 
-	resolve(value: string): string {
+	resolve(value?: string): string {
 		if (this.shorthandName === 'upcase') {
 			return !value ? '' : value.toLocaleUpperCase();
 		} else if (this.shorthandName === 'downcase') {

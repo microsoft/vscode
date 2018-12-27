@@ -3,27 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { ITextModel } from 'vs/editor/common/model';
-import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IPreferencesService, FOLDER_SETTINGS_PATH, DEFAULT_SETTINGS_EDITOR_SETTING } from 'vs/workbench/services/preferences/common/preferences';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
-import { endsWith } from 'vs/base/common/strings';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IEditorInput } from 'vs/workbench/common/editor';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { isLinux } from 'vs/base/common/platform';
 import { isEqual } from 'vs/base/common/resources';
+import { endsWith } from 'vs/base/common/strings';
+import { URI } from 'vs/base/common/uri';
+import { ITextModel } from 'vs/editor/common/model';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { IEditorInput } from 'vs/workbench/common/editor';
+import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
+import { FOLDER_SETTINGS_PATH, IPreferencesService, USE_SPLIT_JSON_SETTING } from 'vs/workbench/services/preferences/common/preferences';
 
 const schemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
 
@@ -42,7 +41,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		this.settingsListener = this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(DEFAULT_SETTINGS_EDITOR_SETTING)) {
+			if (e.affectsConfiguration(USE_SPLIT_JSON_SETTING)) {
 				this.handleSettingsEditorOverride();
 			}
 		});
@@ -57,7 +56,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		this.editorOpeningListener = dispose(this.editorOpeningListener);
 
 		// install editor opening listener unless user has disabled this
-		if (!!this.configurationService.getValue(DEFAULT_SETTINGS_EDITOR_SETTING)) {
+		if (!!this.configurationService.getValue(USE_SPLIT_JSON_SETTING)) {
 			this.editorOpeningListener = this.editorService.overrideOpenEditor((editor, options, group) => this.onEditorOpening(editor, options, group));
 		}
 	}
@@ -67,7 +66,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		if (
 			!resource ||
 			!endsWith(resource.path, 'settings.json') ||								// resource must end in settings.json
-			!this.configurationService.getValue(DEFAULT_SETTINGS_EDITOR_SETTING)	// user has not disabled default settings editor
+			!this.configurationService.getValue(USE_SPLIT_JSON_SETTING)					// user has not disabled default settings editor
 		) {
 			return void 0;
 		}
@@ -109,14 +108,14 @@ export class PreferencesContribution implements IWorkbenchContribution {
 	private start(): void {
 
 		this.textModelResolverService.registerTextModelContentProvider('vscode', {
-			provideTextContent: (uri: URI): TPromise<ITextModel> => {
+			provideTextContent: (uri: URI): Promise<ITextModel> => {
 				if (uri.scheme !== 'vscode') {
 					return null;
 				}
 				if (uri.authority === 'schemas') {
 					const schemaModel = this.getSchemaModel(uri);
 					if (schemaModel) {
-						return TPromise.as(schemaModel);
+						return Promise.resolve(schemaModel);
 					}
 				}
 				return this.preferencesService.resolveModel(uri);

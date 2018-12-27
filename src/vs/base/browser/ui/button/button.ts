@@ -75,7 +75,7 @@ export class Button extends Disposable {
 		}));
 
 		this._register(DOM.addDisposableListener(this._element, DOM.EventType.KEY_DOWN, e => {
-			const event = new StandardKeyboardEvent(e as KeyboardEvent);
+			const event = new StandardKeyboardEvent(e);
 			let eventHandled = false;
 			if (this.enabled && event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 				this._onDidClick.fire(e);
@@ -199,7 +199,7 @@ export class ButtonGroup extends Disposable {
 			// Implement keyboard access in buttons if there are multiple
 			if (count > 1) {
 				this._register(DOM.addDisposableListener(button.element, DOM.EventType.KEY_DOWN, e => {
-					const event = new StandardKeyboardEvent(e as KeyboardEvent);
+					const event = new StandardKeyboardEvent(e);
 					let eventHandled = true;
 
 					// Next / Previous Button

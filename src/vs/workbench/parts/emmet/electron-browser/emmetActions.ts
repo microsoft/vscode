@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorAction, ServicesAccessor, IActionOptions } from 'vs/editor/browser/editorExtensions';
 import { grammarsExtPoint, ITMSyntaxExtensionPoint } from 'vs/workbench/services/textMate/electron-browser/TMGrammars';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -64,19 +63,19 @@ export abstract class EmmetEditorAction extends EditorAction {
 
 	private static readonly emmetSupportedModes = ['html', 'css', 'xml', 'xsl', 'haml', 'jade', 'jsx', 'slim', 'scss', 'sass', 'less', 'stylus', 'styl', 'svg'];
 
-	private _lastGrammarContributions: TPromise<GrammarContributions> | null = null;
+	private _lastGrammarContributions: Promise<GrammarContributions> | null = null;
 	private _lastExtensionService: IExtensionService | null = null;
-	private _withGrammarContributions(extensionService: IExtensionService): TPromise<GrammarContributions | null> {
+	private _withGrammarContributions(extensionService: IExtensionService): Promise<GrammarContributions | null> {
 		if (this._lastExtensionService !== extensionService) {
 			this._lastExtensionService = extensionService;
 			this._lastGrammarContributions = extensionService.readExtensionPointContributions(grammarsExtPoint).then((contributions) => {
 				return new GrammarContributions(contributions);
 			});
 		}
-		return this._lastGrammarContributions || TPromise.as(null);
+		return this._lastGrammarContributions || Promise.resolve(null);
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const extensionService = accessor.get(IExtensionService);
 		const modeService = accessor.get(IModeService);
 		const commandService = accessor.get(ICommandService);

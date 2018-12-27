@@ -9,12 +9,12 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 import { localize } from 'vs/nls';
-import { ILaunchChannel } from 'vs/platform/launch/electron-main/launchService';
 import product from 'vs/platform/node/product';
 import { IRequestService } from 'vs/platform/request/node/request';
 import { IRequestContext } from 'vs/base/node/request';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { ILaunchService } from 'vs/platform/launch/electron-main/launchService';
 
 interface PostResult {
 	readonly blob_id: string;
@@ -32,7 +32,7 @@ class Endpoint {
 }
 
 export async function uploadLogs(
-	channel: ILaunchChannel,
+	launchService: ILaunchService,
 	requestService: IRequestService,
 	environmentService: IEnvironmentService
 ): Promise<any> {
@@ -42,7 +42,7 @@ export async function uploadLogs(
 		return;
 	}
 
-	const logsPath = await channel.call('get-logs-path', null);
+	const logsPath = await launchService.getLogsPath();
 
 	if (await promptUserToConfirmLogUpload(logsPath, environmentService)) {
 		console.log(localize('beginUploading', 'Uploading...'));

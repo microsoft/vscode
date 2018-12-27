@@ -12,10 +12,10 @@
         cli: [],
         color-palette: [],
         config: [],
-        css-less-scss: [ aeschli ],
+        css-less-scss: [],
         debug-console: [],
         debug: {
-            assignees: [ weinand ],
+            assignees: [ isidorn ],
             assignLabel: false
         },
         diff-editor: [],
@@ -79,9 +79,9 @@
         git: [ joaomoreno ],
         grammar: [],
         hot-exit: [],
-        html: [ aeschli ],
+        html: [],
         install-update: [],
-        integrated-terminal: [],
+        integrated-terminal: [ Tyriar ],
         integration-test: [],
         intellisense-config: [],
         issue-reporter: [ RMacfarlane ],
@@ -131,7 +131,7 @@
             assignLabel: false
         },
         suggest: [],
-        tasks: [ dbaeumer ],
+        tasks: [ alexr00 ],
         telemetry: [],
         themes: [],
         tokenization: [],

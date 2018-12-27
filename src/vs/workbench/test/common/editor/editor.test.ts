@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorInput, toResource } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
@@ -33,8 +32,8 @@ class FileEditorInput extends EditorInput {
 		return this.resource;
 	}
 
-	resolve(): TPromise<IEditorModel> {
-		return TPromise.as(null);
+	resolve(): Promise<IEditorModel> {
+		return Promise.resolve(null);
 	}
 }
 

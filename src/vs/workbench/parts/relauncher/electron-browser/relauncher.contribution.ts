@@ -15,7 +15,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
 import { isEqual } from 'vs/base/common/resources';
-import { isLinux, isMacintosh } from 'vs/base/common/platform';
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { equals } from 'vs/base/common/objects';
@@ -24,7 +24,7 @@ interface IConfiguration extends IWindowsConfiguration {
 	update: { channel: string; };
 	telemetry: { enableCrashReporter: boolean };
 	keyboard: { touchbar: { enabled: boolean } };
-	workbench: { tree: { horizontalScrolling: boolean }, enableLegacyStorage: boolean };
+	workbench: { tree: { horizontalScrolling: boolean } };
 	files: { useExperimentalFileWatcher: boolean, watcherExclude: object };
 }
 
@@ -38,11 +38,11 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private enableCrashReporter: boolean;
 	private touchbarEnabled: boolean;
 	private treeHorizontalScrolling: boolean;
+	private windowsSmoothScrollingWorkaround: boolean;
 	private experimentalFileWatcher: boolean;
 	private fileWatcherExclude: object;
-	private legacyStorage: boolean;
 
-	private firstFolderResource: URI;
+	private firstFolderResource?: URI;
 	private extensionHostRestarter: RunOnceScheduler;
 
 	private onDidChangeWorkspaceFoldersUnbind: IDisposable;
@@ -138,9 +138,9 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 			changed = true;
 		}
 
-		// Legacy Workspace Storage
-		if (config.workbench && typeof config.workbench.enableLegacyStorage === 'boolean' && config.workbench.enableLegacyStorage !== this.legacyStorage) {
-			this.legacyStorage = config.workbench.enableLegacyStorage;
+		// Windows: smooth scrolling workaround
+		if (isWindows && config.window && typeof config.window.smoothScrollingWorkaround === 'boolean' && config.window.smoothScrollingWorkaround !== this.windowsSmoothScrollingWorkaround) {
+			this.windowsSmoothScrollingWorkaround = config.window.smoothScrollingWorkaround;
 			changed = true;
 		}
 
@@ -209,4 +209,4 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 }
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(SettingsChangeRelauncher, LifecyclePhase.Running);
+workbenchRegistry.registerWorkbenchContribution(SettingsChangeRelauncher, LifecyclePhase.Restored);

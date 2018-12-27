@@ -22,7 +22,6 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -271,13 +270,6 @@ function registerDiffEditorCommands(): void {
 		when: void 0,
 		primary: void 0,
 		handler: accessor => toggleDiffSideBySide(accessor)
-	});
-
-	// TODO@Ben remove me after a while
-	CommandsRegistry.registerCommand('toggle.diff.editorMode', accessor => {
-		toggleDiffSideBySide(accessor);
-
-		accessor.get(INotificationService).warn(nls.localize('diffCommandDeprecation', "Command 'toggle.diff.editorMode' has been deprecated. Please use '{0}' instead.", TOGGLE_DIFF_SIDE_BY_SIDE));
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
@@ -698,11 +690,11 @@ export function getMultiSelectedEditorContexts(editorContext: IEditorCommandsCon
 
 		const onlyEditorGroupAndEditor = (e: IEditorIdentifier | IEditorGroup) => isEditorGroup(e) || isEditorIdentifier(e);
 
-		const focusedElements: (IEditorIdentifier | IEditorGroup)[] = list.getFocusedElements().filter(onlyEditorGroupAndEditor);
+		const focusedElements: Array<IEditorIdentifier | IEditorGroup> = list.getFocusedElements().filter(onlyEditorGroupAndEditor);
 		const focus = editorContext ? editorContext : focusedElements.length ? focusedElements.map(elementToContext)[0] : void 0; // need to take into account when editor context is { group: group }
 
 		if (focus) {
-			const selection: (IEditorIdentifier | IEditorGroup)[] = list.getSelectedElements().filter(onlyEditorGroupAndEditor);
+			const selection: Array<IEditorIdentifier | IEditorGroup> = list.getSelectedElements().filter(onlyEditorGroupAndEditor);
 
 			// Only respect selection if it contains focused element
 			if (selection && selection.some(s => isEditorGroup(s) ? s.id === focus.groupId : s.groupId === focus.groupId && editorGroupService.getGroup(s.groupId).getIndexOfEditor(s.editor) === focus.editorIndex)) {

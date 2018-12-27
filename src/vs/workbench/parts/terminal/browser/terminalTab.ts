@@ -6,7 +6,7 @@ import * as aria from 'vs/base/browser/ui/aria/aria';
 import * as nls from 'vs/nls';
 import { ITerminalInstance, IShellLaunchConfig, ITerminalTab, Direction, ITerminalService, ITerminalConfigHelper } from 'vs/workbench/parts/terminal/common/terminal';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { Event, Emitter, anyEvent } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { SplitView, Orientation, IView, Sizing } from 'vs/base/browser/ui/splitview/splitview';
 import { IPartService, Position } from 'vs/workbench/services/part/common/partService';
@@ -105,7 +105,7 @@ class SplitPaneContainer {
 
 		this._withDisabledLayout(() => this._splitView.addView(child, Sizing.Distribute, index));
 
-		this._onDidChange = anyEvent(...this._children.map(c => c.onDidChange));
+		this._onDidChange = Event.any(...this._children.map(c => c.onDidChange));
 	}
 
 	public remove(instance: ITerminalInstance): void {
@@ -352,7 +352,9 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 	public get title(): string {
 		let title = this.terminalInstances[0].title;
 		for (let i = 1; i < this.terminalInstances.length; i++) {
-			title += `, ${this.terminalInstances[i].title}`;
+			if (this.terminalInstances[i].title) {
+				title += `, ${this.terminalInstances[i].title}`;
+			}
 		}
 		return title;
 	}

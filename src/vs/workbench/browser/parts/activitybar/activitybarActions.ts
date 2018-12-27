@@ -13,7 +13,6 @@ import { Action } from 'vs/base/common/actions';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { dispose } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -44,7 +43,7 @@ export class ViewletActivityAction extends ActivityAction {
 		super(activity);
 	}
 
-	run(event: any): Thenable<any> {
+	run(event: any): Promise<any> {
 		if (event instanceof MouseEvent && event.button === 2) {
 			return Promise.resolve(false); // do not run on right click
 		}
@@ -91,7 +90,7 @@ export class ToggleViewletAction extends Action {
 		super(_viewlet.id, _viewlet.name);
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 		const sideBarVisible = this.partService.isVisible(Parts.SIDEBAR_PART);
 		const activeViewlet = this.viewletService.getActiveViewlet();
 
@@ -160,7 +159,7 @@ export class GlobalActivityActionItem extends ActivityActionItem {
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => location,
-			getActions: () => Promise.resolve(actions),
+			getActions: () => actions,
 			onHide: () => dispose(actions)
 		});
 	}
@@ -207,12 +206,12 @@ class SwitchSideBarViewAction extends Action {
 		super(id, name);
 	}
 
-	run(offset: number): TPromise<any> {
+	run(offset: number): Promise<any> {
 		const pinnedViewletIds = this.activityService.getPinnedViewletIds();
 
 		const activeViewlet = this.viewletService.getActiveViewlet();
 		if (!activeViewlet) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 		let targetViewletId: string;
 		for (let i = 0; i < pinnedViewletIds.length; i++) {
@@ -239,7 +238,7 @@ export class PreviousSideBarViewAction extends SwitchSideBarViewAction {
 		super(id, name, viewletService, activityService);
 	}
 
-	run(): TPromise<any> {
+	run(): Promise<any> {
 		return super.run(-1);
 	}
 }
@@ -258,7 +257,7 @@ export class NextSideBarViewAction extends SwitchSideBarViewAction {
 		super(id, name, viewletService, activityService);
 	}
 
-	run(): TPromise<any> {
+	run(): Promise<any> {
 		return super.run(1);
 	}
 }

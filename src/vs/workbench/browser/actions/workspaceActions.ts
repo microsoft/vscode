@@ -31,7 +31,7 @@ export class OpenFileAction extends Action {
 		super(id, label);
 	}
 
-	run(event?: any, data?: ITelemetryData): Thenable<any> {
+	run(event?: any, data?: ITelemetryData): Promise<any> {
 		return this.dialogService.pickFileAndOpen({ forceNewWindow: false, telemetryExtraData: data });
 	}
 }
@@ -49,7 +49,7 @@ export class OpenFolderAction extends Action {
 		super(id, label);
 	}
 
-	run(event?: any, data?: ITelemetryData): Thenable<any> {
+	run(event?: any, data?: ITelemetryData): Promise<any> {
 		return this.dialogService.pickFolderAndOpen({ forceNewWindow: false, telemetryExtraData: data });
 	}
 }
@@ -67,7 +67,7 @@ export class OpenFileFolderAction extends Action {
 		super(id, label);
 	}
 
-	run(event?: any, data?: ITelemetryData): Thenable<any> {
+	run(event?: any, data?: ITelemetryData): Promise<any> {
 		return this.dialogService.pickFileFolderAndOpen({ forceNewWindow: false, telemetryExtraData: data });
 	}
 }
@@ -85,7 +85,7 @@ export class AddRootFolderAction extends Action {
 		super(id, label);
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 		return this.commandService.executeCommand(ADD_ROOT_FOLDER_COMMAND_ID);
 	}
 }
@@ -105,7 +105,7 @@ export class GlobalRemoveRootFolderAction extends Action {
 		super(id, label);
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 		const state = this.contextService.getWorkbenchState();
 
 		// Workspace / Folder
@@ -139,7 +139,7 @@ export class SaveWorkspaceAsAction extends Action {
 		super(id, label);
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 		return this.getNewWorkspaceConfigPath().then(configPathUri => {
 			if (configPathUri) {
 				const configPath = configPathUri.fsPath;
@@ -158,7 +158,7 @@ export class SaveWorkspaceAsAction extends Action {
 		});
 	}
 
-	private getNewWorkspaceConfigPath(): Thenable<URI> {
+	private getNewWorkspaceConfigPath(): Promise<URI> {
 		return this.dialogService.showSaveDialog({
 			saveLabel: mnemonicButtonLabel(nls.localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save")),
 			title: nls.localize('saveWorkspace', "Save Workspace"),
@@ -181,7 +181,7 @@ export class OpenWorkspaceAction extends Action {
 		super(id, label);
 	}
 
-	run(event?: any, data?: ITelemetryData): Thenable<any> {
+	run(event?: any, data?: ITelemetryData): Promise<any> {
 		return this.dialogService.pickWorkspaceAndOpen({ telemetryExtraData: data });
 	}
 }
@@ -202,7 +202,7 @@ export class OpenWorkspaceConfigFileAction extends Action {
 		this.enabled = !!this.workspaceContextService.getWorkspace().configuration;
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 		return this.editorService.openEditor({ resource: this.workspaceContextService.getWorkspace().configuration });
 	}
 }
@@ -223,7 +223,7 @@ export class DuplicateWorkspaceInNewWindowAction extends Action {
 		super(id, label);
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 		const folders = this.workspaceContextService.getWorkspace().folders;
 
 		return this.workspacesService.createWorkspace(folders).then(newWorkspace => {

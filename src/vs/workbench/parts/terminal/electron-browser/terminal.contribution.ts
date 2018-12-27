@@ -198,9 +198,9 @@ configurationRegistry.registerConfiguration({
 			default: 1000
 		},
 		'terminal.integrated.setLocaleVariables': {
-			markdownDescription: nls.localize('terminal.integrated.setLocaleVariables', "Controls whether locale variables are set at startup of the terminal, this defaults to `true` on macOS, `false` on other platforms."),
+			markdownDescription: nls.localize('terminal.integrated.setLocaleVariables', "Controls whether locale variables are set at startup of the terminal."),
 			type: 'boolean',
-			default: platform.isMacintosh
+			default: true
 		},
 		'terminal.integrated.rendererType': {
 			type: 'string',
@@ -300,6 +300,7 @@ configurationRegistry.registerConfiguration({
 				'workbench.action.tasks.build',
 				'workbench.action.tasks.restartTask',
 				'workbench.action.tasks.runTask',
+				'workbench.action.tasks.reRunTask',
 				'workbench.action.tasks.showLog',
 				'workbench.action.tasks.showTasks',
 				'workbench.action.tasks.terminate',
@@ -321,6 +322,10 @@ configurationRegistry.registerConfiguration({
 				'workbench.action.focusSixthEditorGroup',
 				'workbench.action.focusSeventhEditorGroup',
 				'workbench.action.focusEighthEditorGroup',
+				'workbench.action.nextPanelView',
+				'workbench.action.previousPanelView',
+				'workbench.action.nextSideBarView',
+				'workbench.action.previousSideBarView',
 				debugActions.StartAction.ID,
 				debugActions.StopAction.ID,
 				debugActions.RunAction.ID,
@@ -379,7 +384,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('terminal.integrated.experimentalBufferImpl', "Controls the terminal's internal buffer implementation. This setting is picked up on terminal creation and will not apply to existing terminals."),
 			type: 'string',
 			enum: ['JsArray', 'TypedArray'],
-			default: 'JsArray'
+			default: 'TypedArray'
 		},
 		'terminal.integrated.splitCwd': {
 			description: nls.localize('terminal.integrated.splitCwd', "Controls the working directory a split terminal starts with."),
@@ -392,6 +397,11 @@ configurationRegistry.registerConfiguration({
 			],
 			default: 'inherited'
 		},
+		'terminal.integrated.windowsEnableConpty': {
+			description: nls.localize('terminal.integrated.windowsEnableConpty', "Whether to use ConPTY for Windows terminal process communication (requires Windows 10 build number 17692+). The default is to enable this on Windows 10 build number 17692+. Winpty will be used if this is false."),
+			type: 'boolean',
+			default: true
+		}
 	}
 });
 
