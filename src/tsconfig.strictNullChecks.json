@@ -607,7 +607,6 @@
 		"./vs/workbench/parts/output/common/output.ts",
 		"./vs/workbench/parts/output/common/outputLinkComputer.ts",
 		"./vs/workbench/parts/output/common/outputLinkProvider.ts",
-		"./vs/workbench/parts/performance/electron-browser/stats.ts",
 		"./vs/workbench/parts/preferences/browser/settingsWidgets.ts",
 		"./vs/workbench/parts/preferences/common/smartSnippetInserter.ts",
 		"./vs/workbench/parts/preferences/test/common/smartSnippetInserter.test.ts",
