@@ -273,7 +273,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// inform all waiting promises that we are ready now
 		while (this.whenReadyCallbacks.length) {
-			this.whenReadyCallbacks.pop()(this);
+			this.whenReadyCallbacks.pop()!(this);
 		}
 	}
 
@@ -543,12 +543,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 	}
 
-	reload(configuration?: IWindowConfiguration, cli?: ParsedArgs): void {
-
+	reload(configurationIn?: IWindowConfiguration, cli?: ParsedArgs): void {
 		// If config is not provided, copy our current one
-		if (!configuration) {
-			configuration = objects.mixin({}, this.currentConfig);
-		}
+		const configuration = configurationIn ? configurationIn : objects.mixin({}, this.currentConfig);
 
 		// Delete some properties we do not want during reload
 		delete configuration.filesToOpen;
@@ -713,7 +710,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		return state;
 	}
 
-	private validateWindowState(state: IWindowState): IWindowState {
+	private validateWindowState(state: IWindowState): IWindowState | null {
 		if (!state) {
 			return null;
 		}
@@ -1032,7 +1029,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private createTouchBarGroupSegments(items: ISerializableCommandAction[] = []): ITouchBarSegment[] {
 		const segments: ITouchBarSegment[] = items.map(item => {
-			let icon: Electron.NativeImage;
+			let icon: Electron.NativeImage | undefined;
 			if (item.iconLocation && item.iconLocation.dark.scheme === 'file') {
 				icon = nativeImage.createFromPath(URI.revive(item.iconLocation.dark).fsPath);
 				if (icon.isEmpty()) {

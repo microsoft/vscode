@@ -149,18 +149,16 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 				this.updateInputDecoration();
 			}
 		}));
-	}
-
-	setVisible(visible: boolean): void {
-		super.setVisible(visible);
-		if (!visible) {
-			dispose(this.model);
-		} else {
-			this.model = this.modelService.createModel('', null, uri.parse(`${DEBUG_SCHEME}:replinput`), true);
-			this.replInput.setModel(this.model);
-			this.updateInputDecoration();
-			this.refreshReplElements(true);
-		}
+		this._register(this.onDidChangeVisibility(visible => {
+			if (!visible) {
+				dispose(this.model);
+			} else {
+				this.model = this.modelService.createModel('', null, uri.parse(`${DEBUG_SCHEME}:replinput`), true);
+				this.replInput.setModel(this.model);
+				this.updateInputDecoration();
+				this.refreshReplElements(true);
+			}
+		}));
 	}
 
 	get isReadonly(): boolean {

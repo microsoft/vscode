@@ -62,6 +62,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorG
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPreferencesService, ISettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { ResourceLabels } from 'vs/workbench/browser/labels';
 
 const $ = dom.$;
 
@@ -136,6 +137,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	private contextMenu: IMenu;
 
 	private tree: WorkbenchObjectTree<RenderableMatch>;
+	private treeLabels: ResourceLabels;
 	private viewletState: object;
 	private globalMemento: object;
 	private messagesElement: HTMLElement;
@@ -335,6 +337,32 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 		this._register(this.onDidFocus(() => this.viewletFocused.set(true)));
 		this._register(this.onDidBlur(() => this.viewletFocused.set(false)));
+
+		this._register(this.onDidChangeVisibility(visible => this.onVisibilityChanged(visible)));
+	}
+
+	private onVisibilityChanged(visible: boolean): void {
+		this.viewletVisible.set(visible);
+		if (visible) {
+			if (this.changedWhileHidden) {
+				// Render if results changed while viewlet was hidden - #37818
+				this.refreshAndUpdateCount();
+				this.changedWhileHidden = false;
+			}
+		}
+
+		// Enable highlights if there are searchresults
+		if (this.viewModel) {
+			this.viewModel.searchResult.toggleHighlights(visible);
+		}
+
+		// Open focused element from results in case the editor area is otherwise empty
+		if (visible && !this.editorService.activeEditor) {
+			let focus = this.tree.getFocus();
+			if (focus) {
+				this.onFocus(focus, true);
+			}
+		}
 	}
 
 	public get searchAndReplaceWidget(): SearchWidget {
@@ -584,18 +612,19 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			}
 		};
 
-		this.tree = <WorkbenchObjectTree<RenderableMatch, any>>this.instantiationService.createInstance(WorkbenchObjectTree,
+		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, this));
+		this.tree = this._register(<WorkbenchObjectTree<RenderableMatch, any>>this.instantiationService.createInstance(WorkbenchObjectTree,
 			this.resultsElement,
 			delegate,
 			[
-				this._register(this.instantiationService.createInstance(FolderMatchRenderer, this.viewModel, this)),
-				this._register(this.instantiationService.createInstance(FileMatchRenderer, this.viewModel, this)),
+				this._register(this.instantiationService.createInstance(FolderMatchRenderer, this.viewModel, this, this.treeLabels)),
+				this._register(this.instantiationService.createInstance(FileMatchRenderer, this.viewModel, this, this.treeLabels)),
 				this._register(this.instantiationService.createInstance(MatchRenderer, this.viewModel, this)),
 			],
 			{
 				identityProvider,
 				accessibilityProvider: this.instantiationService.createInstance(SearchAccessibilityProvider, this.viewModel)
-			});
+			}));
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 
 		const resourceNavigator = this._register(new TreeResourceNavigator2(this.tree, { openOnFocus: true }));
@@ -739,32 +768,6 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			this.tree.setSelection([prev]);
 			this.tree.reveal(prev);
 			this.selectCurrentMatchEmitter.fire();
-		}
-	}
-
-	public setVisible(visible: boolean): void {
-		this.viewletVisible.set(visible);
-		if (visible) {
-			if (this.changedWhileHidden) {
-				// Render if results changed while viewlet was hidden - #37818
-				this.refreshAndUpdateCount();
-				this.changedWhileHidden = false;
-			}
-		}
-
-		super.setVisible(visible);
-
-		// Enable highlights if there are searchresults
-		if (this.viewModel) {
-			this.viewModel.searchResult.toggleHighlights(visible);
-		}
-
-		// Open focused element from results in case the editor area is otherwise empty
-		if (visible && !this.editorService.activeEditor) {
-			let focus = this.tree.getFocus();
-			if (focus) {
-				this.onFocus(focus, true);
-			}
 		}
 	}
 

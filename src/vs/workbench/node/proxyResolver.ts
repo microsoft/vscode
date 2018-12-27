@@ -206,6 +206,7 @@ function createPatchedModules(extHostConfiguration: ExtHostConfiguration, agent:
 }
 
 function patches(originals: typeof http | typeof https, agent: http.Agent, setting: { config: string; }, onRequest: boolean) {
+	const defaultPort = originals === https ? 443 : 80;
 
 	return {
 		get: patch(originals.get),
@@ -244,6 +245,7 @@ function patches(originals: typeof http | typeof https, agent: http.Agent, setti
 					options = { ...options };
 				}
 				options.agent = agent;
+				options.defaultPort = defaultPort; // Lets Node's http module omit the port, if it is the default port, in the Host header. (https://github.com/Microsoft/vscode/issues/65118)
 				return original(options, callback);
 			}
 

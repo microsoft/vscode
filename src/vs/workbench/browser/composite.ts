@@ -32,6 +32,9 @@ export abstract class Composite extends Component implements IComposite {
 	private readonly _onTitleAreaUpdate: Emitter<void> = this._register(new Emitter<void>());
 	get onTitleAreaUpdate(): Event<void> { return this._onTitleAreaUpdate.event; }
 
+	private readonly _onDidChangeVisibility: Emitter<boolean> = this._register(new Emitter<boolean>());
+	get onDidChangeVisibility(): Event<boolean> { return this._onDidChangeVisibility.event; }
+
 	private _onDidFocus: Emitter<void>;
 	get onDidFocus(): Event<void> {
 		if (!this._onDidFocus) {
@@ -64,9 +67,6 @@ export abstract class Composite extends Component implements IComposite {
 	private visible: boolean;
 	private parent: HTMLElement;
 
-	/**
-	 * Create a new composite with the given ID and context.
-	 */
 	constructor(
 		id: string,
 		private _telemetryService: ITelemetryService,
@@ -122,7 +122,11 @@ export abstract class Composite extends Component implements IComposite {
 	 * If there is a long running opertaion it is fine to have it running in the background asyncly and return before.
 	 */
 	setVisible(visible: boolean): void {
-		this.visible = visible;
+		if (this.visible !== !!visible) {
+			this.visible = visible;
+
+			this._onDidChangeVisibility.fire(visible);
+		}
 	}
 
 	/**

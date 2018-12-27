@@ -701,7 +701,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		}
 	}
 
-	private focusNext(): void {
+	protected focusNext(): void {
 		if (typeof this.focusedItem === 'undefined') {
 			this.focusedItem = this.items.length - 1;
 		}
@@ -721,7 +721,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		this.updateFocus();
 	}
 
-	private focusPrevious(): void {
+	protected focusPrevious(): void {
 		if (typeof this.focusedItem === 'undefined') {
 			this.focusedItem = 0;
 		}

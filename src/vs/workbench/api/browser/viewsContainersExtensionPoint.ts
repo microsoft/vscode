@@ -30,6 +30,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export interface IUserFriendlyViewsContainerDescriptor {
 	id: string;
@@ -147,12 +148,12 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 		containers.forEach(descriptor => {
 			const cssClass = `extensionViewlet-${descriptor.id}`;
 			const icon = resources.joinPath(extension.extensionLocation, descriptor.icon);
-			this.registerCustomViewlet({ id: `workbench.view.extension.${descriptor.id}`, title: descriptor.title, icon }, order++, cssClass, extension.id);
+			this.registerCustomViewlet({ id: `workbench.view.extension.${descriptor.id}`, title: descriptor.title, icon }, order++, cssClass, extension.identifier);
 		});
 		return order;
 	}
 
-	private registerCustomViewlet(descriptor: IUserFriendlyViewsContainerDescriptor2, order: number, cssClass: string, extensionId: string): void {
+	private registerCustomViewlet(descriptor: IUserFriendlyViewsContainerDescriptor2, order: number, cssClass: string, extensionId: CanonicalExtensionIdentifier): void {
 		const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 		const viewletRegistry = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets);
 		const id = descriptor.id;

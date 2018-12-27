@@ -1582,7 +1582,7 @@ function openExplorerAndRunAction(accessor: ServicesAccessor, constructor: ICons
 
 	return explorerPromise.then((explorer: ExplorerViewlet) => {
 		const explorerView = explorer.getExplorerView();
-		if (explorerView && explorerView.isVisible() && explorerView.isExpanded()) {
+		if (explorerView && explorerView.isBodyVisible()) {
 			explorerView.focus();
 			const explorerContext = getContext(listService.lastFocusedList, viewletService);
 			const action = instantationService.createInstance(constructor, listService.lastFocusedList, explorerContext.stat);

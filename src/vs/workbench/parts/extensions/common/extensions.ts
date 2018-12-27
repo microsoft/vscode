@@ -7,7 +7,7 @@ import { IViewlet } from 'vs/workbench/common/viewlet';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { IPager } from 'vs/base/common/paging';
-import { IQueryOptions, IExtensionManifest, LocalExtensionType, EnablementState, ILocalExtension, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IQueryOptions, IExtensionManifest, LocalExtensionType, EnablementState, ILocalExtension, IGalleryExtension, IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IViewContainersRegistry, ViewContainer, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -31,8 +31,7 @@ export interface IExtension {
 	state: ExtensionState;
 	name: string;
 	displayName: string;
-	id: string;
-	uuid?: string;
+	identifier: IExtensionIdentifier;
 	publisher: string;
 	publisherDisplayName: string;
 	version: string;

@@ -67,6 +67,7 @@ export const enum Status {
 	DELETED,
 	UNTRACKED,
 	IGNORED,
+	INTENT_TO_ADD,
 
 	ADDED_BY_US,
 	ADDED_BY_THEM,

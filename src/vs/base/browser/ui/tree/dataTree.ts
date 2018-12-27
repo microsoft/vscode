@@ -20,9 +20,9 @@ export interface IDataTreeViewState {
 	readonly collapsed: string[];
 }
 
-export class DataTree<TInput, T, TFilterData = void> extends AbstractTree<T | null, TFilterData, TInput | T> {
+export class DataTree<TInput, T, TFilterData = void> extends AbstractTree<T | null, TFilterData, T | null> {
 
-	protected model: ObjectTreeModel<T | null, TFilterData>;
+	protected model: ObjectTreeModel<T, TFilterData>;
 	private input: TInput | undefined;
 
 	private identityProvider: IIdentityProvider<T> | undefined;
@@ -76,7 +76,7 @@ export class DataTree<TInput, T, TFilterData = void> extends AbstractTree<T | nu
 		this.setSelection(selection);
 	}
 
-	refresh(element: TInput | T = this.input): void {
+	refresh(element: TInput | T = this.input!): void {
 		if (typeof this.input === 'undefined') {
 			throw new Error('Tree input not set');
 		}
@@ -118,10 +118,10 @@ export class DataTree<TInput, T, TFilterData = void> extends AbstractTree<T | nu
 		const queue = [root];
 
 		while (queue.length > 0) {
-			const node = queue.shift();
+			const node = queue.shift()!;
 
 			if (node !== root && node.collapsed) {
-				collapsed.push(getId(node.element));
+				collapsed.push(getId(node.element!));
 			}
 
 			queue.push(...node.children);

@@ -14,6 +14,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { Event } from 'vs/base/common/event';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { dispose } from 'vs/base/common/lifecycle';
+import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 @extHostNamedCustomer(MainContext.MainThreadMessageService)
 export class MainThreadMessageService implements MainThreadMessageServiceShape {
@@ -55,9 +56,9 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 			}
 
 			class ManageExtensionAction extends Action {
-				constructor(id: string, label: string, commandService: ICommandService) {
-					super(id, label, undefined, true, () => {
-						return commandService.executeCommand('_extensions.manage', id);
+				constructor(id: CanonicalExtensionIdentifier, label: string, commandService: ICommandService) {
+					super(id.value, label, undefined, true, () => {
+						return commandService.executeCommand('_extensions.manage', id.value);
 					});
 				}
 			}
@@ -77,7 +78,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 
 			const secondaryActions: IAction[] = [];
 			if (extension && !extension.isUnderDevelopment) {
-				secondaryActions.push(new ManageExtensionAction(extension.id, nls.localize('manageExtension', "Manage Extension"), this._commandService));
+				secondaryActions.push(new ManageExtensionAction(extension.identifier, nls.localize('manageExtension', "Manage Extension"), this._commandService));
 			}
 
 			const messageHandle = this._notificationService.notify({

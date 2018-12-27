@@ -476,6 +476,10 @@ function isWhitespaceAtPos(value: string, index: number): boolean {
 	}
 }
 
+function isUpperCaseAtPos(pos: number, word: string, wordLow: string): boolean {
+	return word[pos] !== wordLow[pos];
+}
+
 function isPatternInWord(patternLow: string, patternPos: number, patternLen: number, wordLow: string, wordPos: number, wordLen: number): boolean {
 	while (patternPos < patternLen && wordPos < wordLen) {
 		if (patternLow[patternPos] === wordLow[wordPos]) {
@@ -532,18 +536,19 @@ export function fuzzyScore(pattern: string, patternLow: string, patternPos: numb
 		for (wordPos = 1; wordPos <= wordLen; wordPos++) {
 
 			let score = -1;
-			let lowWordChar = wordLow[wordPos - 1];
-			if (patternLow[patternPos - 1] === lowWordChar) {
+			if (patternLow[patternPos - 1] === wordLow[wordPos - 1]) {
 
 				if (wordPos === (patternPos - patternStartPos)) {
 					// common prefix: `foobar <-> foobaz`
+					//                            ^^^^^
 					if (pattern[patternPos - 1] === word[wordPos - 1]) {
 						score = 7;
 					} else {
 						score = 5;
 					}
-				} else if (lowWordChar !== word[wordPos - 1] && (wordPos === 1 || wordLow[wordPos - 2] === word[wordPos - 2])) {
+				} else if (isUpperCaseAtPos(wordPos - 1, word, wordLow) && (wordPos === 1 || !isUpperCaseAtPos(wordPos - 2, word, wordLow))) {
 					// hitting upper-case: `foo <-> forOthers`
+					//                              ^^ ^
 					if (pattern[patternPos - 1] === word[wordPos - 1]) {
 						score = 7;
 					} else {
@@ -551,6 +556,7 @@ export function fuzzyScore(pattern: string, patternLow: string, patternPos: numb
 					}
 				} else if (isSeparatorAtPos(wordLow, wordPos - 2) || isWhitespaceAtPos(wordLow, wordPos - 2)) {
 					// post separator: `foo <-> bar_foo`
+					//                              ^^^
 					score = 5;
 
 				} else {

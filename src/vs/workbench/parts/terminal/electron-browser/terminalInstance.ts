@@ -94,27 +94,27 @@ export class TerminalInstance implements ITerminalInstance {
 	public get shellLaunchConfig(): IShellLaunchConfig { return this._shellLaunchConfig; }
 	public get commandTracker(): TerminalCommandTracker { return this._commandTracker; }
 
-	private readonly _onExit: Emitter<number> = new Emitter<number>();
+	private readonly _onExit = new Emitter<number>();
 	public get onExit(): Event<number> { return this._onExit.event; }
-	private readonly _onDisposed: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
+	private readonly _onDisposed = new Emitter<ITerminalInstance>();
 	public get onDisposed(): Event<ITerminalInstance> { return this._onDisposed.event; }
-	private readonly _onFocused: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
+	private readonly _onFocused = new Emitter<ITerminalInstance>();
 	public get onFocused(): Event<ITerminalInstance> { return this._onFocused.event; }
-	private readonly _onProcessIdReady: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
+	private readonly _onProcessIdReady = new Emitter<ITerminalInstance>();
 	public get onProcessIdReady(): Event<ITerminalInstance> { return this._onProcessIdReady.event; }
-	private readonly _onTitleChanged: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
+	private readonly _onTitleChanged = new Emitter<ITerminalInstance>();
 	public get onTitleChanged(): Event<ITerminalInstance> { return this._onTitleChanged.event; }
-	private readonly _onData: Emitter<string> = new Emitter<string>();
+	private readonly _onData = new Emitter<string>();
 	public get onData(): Event<string> { return this._onData.event; }
-	private readonly _onLineData: Emitter<string> = new Emitter<string>();
+	private readonly _onLineData = new Emitter<string>();
 	public get onLineData(): Event<string> { return this._onLineData.event; }
-	private readonly _onRendererInput: Emitter<string> = new Emitter<string>();
+	private readonly _onRendererInput = new Emitter<string>();
 	public get onRendererInput(): Event<string> { return this._onRendererInput.event; }
-	private readonly _onRequestExtHostProcess: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
+	private readonly _onRequestExtHostProcess = new Emitter<ITerminalInstance>();
 	public get onRequestExtHostProcess(): Event<ITerminalInstance> { return this._onRequestExtHostProcess.event; }
-	private readonly _onDimensionsChanged: Emitter<void> = new Emitter<void>();
+	private readonly _onDimensionsChanged = new Emitter<void>();
 	public get onDimensionsChanged(): Event<void> { return this._onDimensionsChanged.event; }
-	private readonly _onFocus: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
+	private readonly _onFocus = new Emitter<ITerminalInstance>();
 	public get onFocus(): Event<ITerminalInstance> { return this._onFocus.event; }
 
 	public constructor(
