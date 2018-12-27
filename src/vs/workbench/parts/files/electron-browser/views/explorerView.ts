@@ -232,6 +232,7 @@ export class ExplorerView extends ViewletPanel {
 				keyboardNavigationLabelProvider: {
 					getKeyboardNavigationLabel: stat => stat.name
 				},
+				multipleSelectionSupport: true,
 				filter: this.filter,
 				sorter: this.instantiationService.createInstance(FileSorter)
 			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
