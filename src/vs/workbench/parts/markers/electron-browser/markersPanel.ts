@@ -413,7 +413,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 
 	private setCurrentActiveEditor(): void {
 		const activeEditor = this.editorService.activeEditor;
-		this.currentActiveResource = activeEditor ? activeEditor.getResource() : void 0;
+		this.currentActiveResource = activeEditor ? activeEditor.getResource() : undefined;
 	}
 
 	private onSelected(): void {

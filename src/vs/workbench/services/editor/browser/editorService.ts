@@ -156,7 +156,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	get activeControl(): IEditor {
 		const activeGroup = this.editorGroupService.activeGroup;
 
-		return activeGroup ? activeGroup.activeControl : void 0;
+		return activeGroup ? activeGroup.activeControl : undefined;
 	}
 
 	get activeTextEditorWidget(): ICodeEditor | IDiffEditor {
@@ -168,7 +168,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			}
 		}
 
-		return void 0;
+		return undefined;
 	}
 
 	get editors(): IEditorInput[] {
@@ -183,7 +183,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	get activeEditor(): IEditorInput {
 		const activeGroup = this.editorGroupService.activeGroup;
 
-		return activeGroup ? activeGroup.activeEditor : void 0;
+		return activeGroup ? activeGroup.activeEditor : undefined;
 	}
 
 	get visibleControls(): IEditor[] {
@@ -388,7 +388,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		if (!(editor instanceof EditorInput)) {
 			const resourceInput = editor as IResourceInput | IUntitledResourceInput;
 			if (!resourceInput.resource) {
-				return void 0; // we need a resource at least
+				return undefined; // we need a resource at least
 			}
 		}
 
@@ -429,7 +429,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			}
 		}
 
-		return void 0;
+		return undefined;
 	}
 
 	//#endregion

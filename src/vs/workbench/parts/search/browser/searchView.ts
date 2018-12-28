@@ -599,7 +599,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	}
 
 	private clearMessage(): HTMLElement {
-		this.searchWithoutFolderMessageElement = void 0;
+		this.searchWithoutFolderMessageElement = undefined;
 
 		dom.clearNode(this.messagesElement);
 		dom.show(this.messagesElement);
@@ -1630,7 +1630,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			}
 			return range;
 		}
-		return void 0;
+		return undefined;
 	}
 
 	private onUntitledDidChangeDirty(resource: URI): void {

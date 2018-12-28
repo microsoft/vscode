@@ -115,7 +115,7 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 					return undefined;
 				});
 			});
-		}).then(void 0, err => {
+		}).then(undefined, err => {
 			if (isPromiseCanceledError(err)) {
 				return undefined;
 			}
@@ -140,7 +140,7 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 		this._validateInput = options && options.validateInput;
 
 		return this._proxy.$input(options, typeof this._validateInput === 'function', token)
-			.then(void 0, err => {
+			.then(undefined, err => {
 				if (isPromiseCanceledError(err)) {
 					return undefined;
 				}

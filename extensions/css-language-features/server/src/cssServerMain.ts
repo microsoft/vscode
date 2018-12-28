@@ -126,7 +126,7 @@ function getDocumentSettings(textDocument: TextDocument): Thenable<LanguageSetti
 		}
 		return promise;
 	}
-	return Promise.resolve(void 0);
+	return Promise.resolve(undefined);
 }
 
 // The settings have changed. Is send on server activation as well.

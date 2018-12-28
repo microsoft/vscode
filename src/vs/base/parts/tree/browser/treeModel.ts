@@ -525,7 +525,7 @@ export class Item {
 			});
 
 			return result
-				.then(void 0, onUnexpectedError)
+				.then(undefined, onUnexpectedError)
 				.then(() => this._onDidRefreshChildren.fire(eventData));
 		};
 

@@ -246,9 +246,9 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 		this.startOffset = 0;
 		this.endOffset = 0;
 		if (this.model) {
-			return this.loadModel().then(() => void 0);
+			return this.loadModel().then(() => undefined);
 		}
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	private loadFile(): Promise<string> {
@@ -487,7 +487,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 			if (this._outputPanel && !preserveFocus) {
 				this._outputPanel.focus();
 			}
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		this.activeChannel = channel;
@@ -530,7 +530,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 				return this.doShowChannel(this.activeChannel, preserveFocus);
 			}
 		}
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	private onDidPanelClose(panel: IPanel): void {
@@ -570,7 +570,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 					this.showChannel(channel.id, true);
 				} else {
 					this.activeChannel = channel;
-					this._onActiveOutputChannel.fire(channel ? channel.id : void 0);
+					this._onActiveOutputChannel.fire(channel ? channel.id : undefined);
 				}
 			}
 			Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).removeChannel(id);
@@ -616,7 +616,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 				// Activate smart scroll when switching back to the output panel
 				.then(() => this.setPrimaryCursorToLastLine());
 		}
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	private isChannelShown(channel: IOutputChannel): boolean {
@@ -692,7 +692,7 @@ class BufferredOutputChannel extends Disposable implements OutputChannel {
 	private modelUpdater: RunOnceScheduler;
 	private model: ITextModel;
 	private readonly bufferredContent: BufferedContent;
-	private lastReadId: number = void 0;
+	private lastReadId: number = undefined;
 
 	constructor(
 		protected readonly outputChannelIdentifier: IOutputChannelDescriptor,
@@ -728,7 +728,7 @@ class BufferredOutputChannel extends Disposable implements OutputChannel {
 			this.model.setValue('');
 		}
 		this.bufferredContent.clear();
-		this.lastReadId = void 0;
+		this.lastReadId = undefined;
 	}
 
 	loadModel(): Promise<ITextModel> {
@@ -803,7 +803,7 @@ class BufferedContent {
 
 	public getDelta(previousId?: number): { value: string, id: number } {
 		let idx = -1;
-		if (previousId !== void 0) {
+		if (previousId !== undefined) {
 			idx = binarySearch(this.dataIds, previousId, (a, b) => a - b);
 		}
 

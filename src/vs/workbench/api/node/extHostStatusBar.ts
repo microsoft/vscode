@@ -125,7 +125,7 @@ class StatusBarMessage {
 	private _messages: { message: string }[] = [];
 
 	constructor(statusBar: ExtHostStatusBar) {
-		this._item = statusBar.createStatusBarEntry(void 0, ExtHostStatusBarAlignment.Left, Number.MIN_VALUE);
+		this._item = statusBar.createStatusBarEntry(undefined, ExtHostStatusBarAlignment.Left, Number.MIN_VALUE);
 	}
 
 	dispose() {

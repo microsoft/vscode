@@ -110,7 +110,7 @@ export class ColorThemeStore {
 
 	public findThemeData(themeId: string, defaultId?: string): Promise<ColorThemeData> {
 		return this.getColorThemes().then(allThemes => {
-			let defaultTheme: ColorThemeData = void 0;
+			let defaultTheme: ColorThemeData = undefined;
 			for (let t of allThemes) {
 				if (t.id === themeId) {
 					return <ColorThemeData>t;
@@ -125,7 +125,7 @@ export class ColorThemeStore {
 
 	public findThemeDataBySettingsId(settingsId: string, defaultId: string): Promise<ColorThemeData> {
 		return this.getColorThemes().then(allThemes => {
-			let defaultTheme: ColorThemeData = void 0;
+			let defaultTheme: ColorThemeData = undefined;
 			for (let t of allThemes) {
 				if (t.settingsId === settingsId) {
 					return <ColorThemeData>t;

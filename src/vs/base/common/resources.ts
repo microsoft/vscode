@@ -186,7 +186,7 @@ export function isMalformedFileUri(candidate: URI): URI | undefined {
 	if (!candidate.scheme || isWindows && candidate.scheme.match(/^[a-zA-Z]$/)) {
 		return URI.file((candidate.scheme ? candidate.scheme + ':' : '') + candidate.path);
 	}
-	return void 0;
+	return undefined;
 }
 
 

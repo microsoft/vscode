@@ -125,7 +125,7 @@ class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
 	}
 
 	public getJsonSchema(): IJSONSchema {
-		if (this._schema === void 0) {
+		if (this._schema === undefined) {
 			let schemas: IJSONSchema[] = [];
 			for (let definition of this.all()) {
 				let schema: IJSONSchema = {
@@ -135,7 +135,7 @@ class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
 				if (definition.required.length > 0) {
 					schema.required = definition.required.slice(0);
 				}
-				if (definition.properties !== void 0) {
+				if (definition.properties !== undefined) {
 					schema.properties = Objects.deepClone(definition.properties);
 				} else {
 					schema.properties = Object.create(null);

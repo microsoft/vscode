@@ -62,7 +62,7 @@ function toExtractError(err: Error): ExtractError {
 		return err;
 	}
 
-	let type: ExtractErrorType | undefined = void 0;
+	let type: ExtractErrorType | undefined = undefined;
 
 	if (/end of central directory record signature not found/.test(err.message)) {
 		type = 'CorruptZip';
@@ -87,7 +87,7 @@ function extractEntry(stream: Readable, fileName: string, mode: number, targetPa
 		}
 	});
 
-	return Promise.resolve(mkdirp(targetDirName, void 0, token)).then(() => new Promise((c, e) => {
+	return Promise.resolve(mkdirp(targetDirName, undefined, token)).then(() => new Promise((c, e) => {
 		if (token.isCancellationRequested) {
 			return;
 		}
@@ -151,7 +151,7 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, log
 			// directory file names end with '/'
 			if (/\/$/.test(fileName)) {
 				const targetFileName = path.join(targetPath, fileName);
-				last = createCancelablePromise(token => mkdirp(targetFileName, void 0, token).then(() => readNextEntry(token)).then(void 0, e));
+				last = createCancelablePromise(token => mkdirp(targetFileName, undefined, token).then(() => readNextEntry(token)).then(undefined, e));
 				return;
 			}
 
@@ -164,8 +164,8 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, log
 }
 
 function openZip(zipFile: string, lazy: boolean = false): Promise<ZipFile> {
-	return nfcall<ZipFile>(_openZip, zipFile, lazy ? { lazyEntries: true } : void 0)
-		.then(void 0, err => Promise.reject(toExtractError(err)));
+	return nfcall<ZipFile>(_openZip, zipFile, lazy ? { lazyEntries: true } : undefined)
+		.then(undefined, err => Promise.reject(toExtractError(err)));
 }
 
 export interface IFile {

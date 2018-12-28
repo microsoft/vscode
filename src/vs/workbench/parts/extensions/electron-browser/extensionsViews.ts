@@ -640,7 +640,7 @@ export class ExtensionsListView extends ViewletPanel {
 	}
 
 	private openExtension(extension: IExtension): void {
-		this.extensionsWorkbenchService.open(extension).then(void 0, err => this.onError(err));
+		this.extensionsWorkbenchService.open(extension).then(undefined, err => this.onError(err));
 	}
 
 	private pin(): void {

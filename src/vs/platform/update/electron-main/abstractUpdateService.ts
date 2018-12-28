@@ -131,7 +131,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		this.logService.trace('update#quitAndInstall, state = ', this.state.type);
 
 		if (this.state.type !== StateType.Ready) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		this.logService.trace('update#quitAndInstall(): before lifecycle quit()');
@@ -146,7 +146,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			this.doQuitAndInstall();
 		});
 
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	isLatestVersion(): Promise<boolean | undefined> {

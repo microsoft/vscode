@@ -146,7 +146,7 @@ export default class PHPValidationProvider {
 			}
 			this.trigger = RunTrigger.from(section.get<string>('validate.run', RunTrigger.strings.onSave));
 		}
-		if (this.executableIsUserDefined !== true && this.workspaceStore.get<string | undefined>(CheckedExecutablePath, undefined) !== void 0) {
+		if (this.executableIsUserDefined !== true && this.workspaceStore.get<string | undefined>(CheckedExecutablePath, undefined) !== undefined) {
 			vscode.commands.executeCommand('setContext', 'php.untrustValidationExecutableContext', true);
 		}
 		this.delayers = Object.create(null);
@@ -195,7 +195,7 @@ export default class PHPValidationProvider {
 			delayer.trigger(() => this.doValidate(textDocument));
 		};
 
-		if (this.executableIsUserDefined !== void 0 && !this.executableIsUserDefined) {
+		if (this.executableIsUserDefined !== undefined && !this.executableIsUserDefined) {
 			let checkedExecutablePath = this.workspaceStore.get<string | undefined>(CheckedExecutablePath, undefined);
 			if (!checkedExecutablePath || checkedExecutablePath !== this.executable) {
 				vscode.window.showInformationMessage<MessageItem>(

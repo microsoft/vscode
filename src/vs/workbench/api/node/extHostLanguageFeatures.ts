@@ -840,7 +840,7 @@ class FoldingProviderAdapter {
 		const doc = this._documents.getDocumentData(resource).document;
 		return asPromise(() => this._provider.provideFoldingRanges(doc, context, token)).then(ranges => {
 			if (!Array.isArray(ranges)) {
-				return void 0;
+				return undefined;
 			}
 			return ranges.map(typeConvert.FoldingRange.from);
 		});

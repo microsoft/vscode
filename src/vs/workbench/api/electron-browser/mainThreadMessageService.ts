@@ -98,7 +98,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 	}
 
 	private _showModalMessage(severity: Severity, message: string, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Promise<number> {
-		let cancelId: number | undefined = void 0;
+		let cancelId: number | undefined = undefined;
 
 		const buttons = commands.map((command, index) => {
 			if (command.isCloseAffordance === true) {
@@ -108,7 +108,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 			return command.title;
 		});
 
-		if (cancelId === void 0) {
+		if (cancelId === undefined) {
 			if (buttons.length > 0) {
 				buttons.push(nls.localize('cancel', "Cancel"));
 			} else {

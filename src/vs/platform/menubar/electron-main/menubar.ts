@@ -748,7 +748,7 @@ export class Menubar {
 
 		// Unset bindings if there is none
 		else {
-			options.accelerator = void 0;
+			options.accelerator = undefined;
 		}
 
 		return options;

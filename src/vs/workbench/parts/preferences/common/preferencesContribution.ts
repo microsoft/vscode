@@ -68,14 +68,14 @@ export class PreferencesContribution implements IWorkbenchContribution {
 			!endsWith(resource.path, 'settings.json') ||								// resource must end in settings.json
 			!this.configurationService.getValue(USE_SPLIT_JSON_SETTING)					// user has not disabled default settings editor
 		) {
-			return void 0;
+			return undefined;
 		}
 
 		// If the resource was already opened before in the group, do not prevent
 		// the opening of that resource. Otherwise we would have the same settings
 		// opened twice (https://github.com/Microsoft/vscode/issues/36447)
 		if (group.isOpened(editor)) {
-			return void 0;
+			return undefined;
 		}
 
 		// Global User Settings File
@@ -102,7 +102,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 			}
 		}
 
-		return void 0;
+		return undefined;
 	}
 
 	private start(): void {

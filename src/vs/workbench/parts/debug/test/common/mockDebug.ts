@@ -133,7 +133,7 @@ export class MockSession implements IDebugSession {
 	}
 
 	addReplExpression(stackFrame: IStackFrame, name: string): Promise<void> {
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	appendToRepl(data: string | IExpression, severity: Severity, source?: IReplElementSource): void { }

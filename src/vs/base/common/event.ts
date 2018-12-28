@@ -727,7 +727,7 @@ export class EventBufferer {
 				} else {
 					listener.call(thisArgs, i);
 				}
-			}, void 0, disposables);
+			}, undefined, disposables);
 		};
 	}
 

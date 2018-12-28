@@ -122,7 +122,7 @@ export class ViewPickerHandler extends QuickOpenHandler {
 				}
 			} else {
 				e.setShowBorder(false);
-				e.setGroupLabel(void 0);
+				e.setGroupLabel(undefined);
 			}
 		});
 

@@ -58,7 +58,7 @@ export class DownloadServiceChannelClient implements IDownloadService {
 					out.once('error', e);
 					const uploadStream = this.channel.listen<UploadResponse>('upload', from);
 					const disposable = uploadStream(result => {
-						if (result === void 0) {
+						if (result === undefined) {
 							disposable.dispose();
 							out.end(c);
 						} else if (Buffer.isBuffer(result)) {

@@ -311,7 +311,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 			panel.dispose();
 			this._webviewPanels.delete(handle);
 		}
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	$deserializeWebviewPanel(

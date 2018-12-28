@@ -111,9 +111,9 @@ suite('KeybindingsEditing', () => {
 	teardown(() => {
 		return new Promise<void>((c, e) => {
 			if (testDir) {
-				extfs.del(testDir, os.tmpdir(), () => c(void 0), () => c(void 0));
+				extfs.del(testDir, os.tmpdir(), () => c(undefined), () => c(undefined));
 			} else {
-				c(void 0);
+				c(undefined);
 			}
 		}).then(() => testDir = null!);
 	});
@@ -250,7 +250,7 @@ suite('KeybindingsEditing', () => {
 			return new SimpleKeybinding(ctrlKey!, shiftKey!, altKey!, metaKey!, part.keyCode);
 		};
 		const keybinding = firstPart ? chordPart ? new ChordKeybinding(aSimpleKeybinding(firstPart), aSimpleKeybinding(chordPart)) : aSimpleKeybinding(firstPart) : null;
-		return new ResolvedKeybindingItem(keybinding ? new USLayoutResolvedKeybinding(keybinding, OS) : null, command || 'some command', null, when ? ContextKeyExpr.deserialize(when) : null, isDefault === void 0 ? true : isDefault);
+		return new ResolvedKeybindingItem(keybinding ? new USLayoutResolvedKeybinding(keybinding, OS) : null, command || 'some command', null, when ? ContextKeyExpr.deserialize(when) : null, isDefault === undefined ? true : isDefault);
 	}
 
 });

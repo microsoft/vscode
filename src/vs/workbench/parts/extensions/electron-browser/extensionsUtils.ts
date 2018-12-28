@@ -40,7 +40,7 @@ export class KeymapExtensions implements IWorkbenchContribution {
 			lifecycleService.onShutdown(() => this.dispose()),
 			instantiationService.invokeFunction(onExtensionChanged)((identifiers => {
 				Promise.all(identifiers.map(identifier => this.checkForOtherKeymaps(identifier)))
-					.then(void 0, onUnexpectedError);
+					.then(undefined, onUnexpectedError);
 			}))
 		);
 	}

@@ -96,7 +96,7 @@ class DropOverlay extends Themable {
 
 	private registerListeners(): void {
 		this._register(new DragAndDropObserver(this.container, {
-			onDragEnter: e => void 0,
+			onDragEnter: e => undefined,
 			onDragOver: e => {
 				const isDraggingGroup = this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype);
 				const isDraggingEditor = this.editorTransfer.hasData(DraggedEditorIdentifier.prototype);
@@ -170,7 +170,7 @@ class DropOverlay extends Themable {
 			return this.accessor.getGroup(this.editorTransfer.getData(DraggedEditorIdentifier.prototype)[0].identifier.groupId);
 		}
 
-		return void 0;
+		return undefined;
 	}
 
 	private handleDrop(event: DragEvent, splitDirection?: GroupDirection): void {
@@ -303,7 +303,7 @@ class DropOverlay extends Themable {
 			mousePosX > edgeWidthThreshold && mousePosX < editorControlWidth - edgeWidthThreshold &&
 			mousePosY > edgeHeightThreshold && mousePosY < editorControlHeight - edgeHeightThreshold
 		) {
-			splitDirection = void 0;
+			splitDirection = undefined;
 		}
 
 		// Offer to split otherwise
@@ -413,7 +413,7 @@ class DropOverlay extends Themable {
 		removeClass(this.overlay, 'overlay-move-transition');
 
 		// Reset current operation
-		this.currentDropOperation = void 0;
+		this.currentDropOperation = undefined;
 	}
 
 	contains(element: HTMLElement): boolean {
@@ -452,7 +452,7 @@ export class EditorDropTarget extends Themable {
 			return this._overlay;
 		}
 
-		return void 0;
+		return undefined;
 	}
 
 	private registerListeners(): void {
@@ -520,7 +520,7 @@ export class EditorDropTarget extends Themable {
 			}
 		}
 
-		return void 0;
+		return undefined;
 	}
 
 	private updateContainer(isDraggedOver: boolean): void {
@@ -536,7 +536,7 @@ export class EditorDropTarget extends Themable {
 	private disposeOverlay(): void {
 		if (this.overlay) {
 			this.overlay.dispose();
-			this._overlay = void 0;
+			this._overlay = undefined;
 		}
 	}
 }

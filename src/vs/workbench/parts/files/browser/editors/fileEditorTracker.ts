@@ -95,7 +95,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 				this.editorService.visibleEditors
 					.map(editorInput => {
 						const resource = toResource(editorInput, { supportSideBySide: true });
-						return resource ? this.textFileService.models.get(resource) : void 0;
+						return resource ? this.textFileService.models.get(resource) : undefined;
 					})
 					.filter(model => model && !model.isDirty()),
 				m => m.getResource().toString()
@@ -116,7 +116,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 
 		// Handle deletes
 		if (e.operation === FileOperation.DELETE || e.operation === FileOperation.MOVE) {
-			this.handleDeletes(e.resource, false, e.target ? e.target.resource : void 0);
+			this.handleDeletes(e.resource, false, e.target ? e.target.resource : undefined);
 		}
 	}
 
@@ -283,7 +283,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 			}
 		}
 
-		return void 0;
+		return undefined;
 	}
 
 	private handleUpdates(e: FileChangesEvent): void {

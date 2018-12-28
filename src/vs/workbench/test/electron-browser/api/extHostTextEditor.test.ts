@@ -70,7 +70,7 @@ suite('ExtHostTextEditorOptions', () => {
 			$trySetOptions: (id: string, options: ITextEditorConfigurationUpdate) => {
 				assert.equal(id, '1');
 				calls.push(options);
-				return Promise.resolve(void 0);
+				return Promise.resolve(undefined);
 			},
 			$tryShowTextDocument: undefined!,
 			$registerTextEditorDecorationType: undefined!,

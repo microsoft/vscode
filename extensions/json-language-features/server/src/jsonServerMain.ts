@@ -143,7 +143,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	const capabilities: ServerCapabilities = {
 		// Tell the client that the server works in FULL text document sync mode
 		textDocumentSync: documents.syncKind,
-		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['"', ':'] } : void 0,
+		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['"', ':'] } : undefined,
 		hoverProvider: true,
 		documentSymbolProvider: true,
 		documentRangeFormattingProvider: false,
@@ -174,8 +174,8 @@ interface JSONSchemaSettings {
 	schema?: JSONSchema;
 }
 
-let jsonConfigurationSettings: JSONSchemaSettings[] | undefined = void 0;
-let schemaAssociations: ISchemaAssociations | undefined = void 0;
+let jsonConfigurationSettings: JSONSchemaSettings[] | undefined = undefined;
+let schemaAssociations: ISchemaAssociations | undefined = undefined;
 let formatterRegistration: Thenable<Disposable> | null = null;
 
 // The settings have changed. Is send on server activation as well.

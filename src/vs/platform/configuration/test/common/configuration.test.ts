@@ -41,7 +41,7 @@ suite('Configuration', () => {
 	});
 
 	test('removeFromValueTree: remove a single segemented key when its value is undefined', () => {
-		let target = { 'a': void 0 };
+		let target = { 'a': undefined };
 
 		removeFromValueTree(target, 'a');
 

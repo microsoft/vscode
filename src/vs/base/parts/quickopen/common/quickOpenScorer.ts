@@ -380,7 +380,7 @@ function doScoreItem(label: string, description: string, path: string, query: IP
 
 	// 1.) treat identity matches on full path highest
 	if (path && isLinux ? query.original === path : equalsIgnoreCase(query.original, path)) {
-		return { score: PATH_IDENTITY_SCORE, labelMatch: [{ start: 0, end: label.length }], descriptionMatch: description ? [{ start: 0, end: description.length }] : void 0 };
+		return { score: PATH_IDENTITY_SCORE, labelMatch: [{ start: 0, end: label.length }], descriptionMatch: description ? [{ start: 0, end: description.length }] : undefined };
 	}
 
 	// We only consider label matches if the query is not including file path separators

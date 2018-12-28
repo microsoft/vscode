@@ -55,7 +55,7 @@ export class SCMMenus implements IDisposable {
 		@IContextMenuService private contextMenuService: IContextMenuService
 	) {
 		this.contextKeyService = contextKeyService.createScoped();
-		const scmProviderKey = this.contextKeyService.createKey<string | undefined>('scmProvider', void 0);
+		const scmProviderKey = this.contextKeyService.createKey<string | undefined>('scmProvider', undefined);
 
 		if (provider) {
 			scmProviderKey.set(provider.contextValue);

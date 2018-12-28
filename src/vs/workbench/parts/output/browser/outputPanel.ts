@@ -115,7 +115,7 @@ export class OutputPanel extends AbstractTextResourceEditor {
 	public setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 		this._focus = !options.preserveFocus;
 		if (input.matches(this.input)) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		if (this.input) {

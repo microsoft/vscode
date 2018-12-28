@@ -145,7 +145,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			}
 		}
 
-		this.initialize().then(void 0, errors.onUnexpectedError).then(_ => {
+		this.initialize().then(undefined, errors.onUnexpectedError).then(_ => {
 			this.installConfigurationListener();
 		});
 
@@ -500,16 +500,16 @@ class ConfigurationWriter {
 		let settings = this.configurationService.inspect(key);
 		if (settingsTarget === ConfigurationTarget.USER) {
 			if (value === settings.user) {
-				return Promise.resolve(void 0); // nothing to do
+				return Promise.resolve(undefined); // nothing to do
 			} else if (value === settings.default) {
 				if (types.isUndefined(settings.user)) {
-					return Promise.resolve(void 0); // nothing to do
+					return Promise.resolve(undefined); // nothing to do
 				}
-				value = void 0; // remove configuration from user settings
+				value = undefined; // remove configuration from user settings
 			}
 		} else if (settingsTarget === ConfigurationTarget.WORKSPACE) {
 			if (value === settings.value) {
-				return Promise.resolve(void 0); // nothing to do
+				return Promise.resolve(undefined); // nothing to do
 			}
 		}
 		return this.configurationService.updateValue(key, value, settingsTarget);

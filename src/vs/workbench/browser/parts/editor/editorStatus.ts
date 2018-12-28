@@ -544,7 +544,7 @@ export class EditorStatus implements IStatusbarItem {
 
 	private updateStatusBar(): void {
 		const activeControl = this.editorService.activeControl;
-		const activeCodeEditor = activeControl ? getCodeEditor(activeControl.getControl()) : void 0;
+		const activeCodeEditor = activeControl ? getCodeEditor(activeControl.getControl()) : undefined;
 
 		// Update all states
 		this.onScreenReaderModeChange(activeCodeEditor);
@@ -825,7 +825,7 @@ export class ShowLanguageExtensionsAction extends Action {
 	}
 
 	run(): Promise<void> {
-		return this.commandService.executeCommand('workbench.extensions.action.showExtensionsForLanguage', this.fileExtension).then(() => void 0);
+		return this.commandService.executeCommand('workbench.extensions.action.showExtensionsForLanguage', this.fileExtension).then(() => undefined);
 	}
 }
 
@@ -1001,7 +1001,7 @@ export class ChangeModeAction extends Action {
 			return <IQuickPickItem>{
 				id,
 				label: lang,
-				description: (id === currentAssociation) ? nls.localize('currentAssociation', "Current Association") : void 0
+				description: (id === currentAssociation) ? nls.localize('currentAssociation', "Current Association") : undefined
 			};
 		});
 
@@ -1185,7 +1185,7 @@ export class ChangeEncodingAction extends Action {
 
 		return pickActionPromise.then(action => {
 			if (!action) {
-				return void 0;
+				return undefined;
 			}
 
 			const resource = toResource(activeControl.input, { supportSideBySide: true });

@@ -110,7 +110,7 @@ export function tildify(path: string, userHome: string): string {
 	}
 
 	// Keep a normalized user home path as cache to prevent accumulated string creation
-	let normalizedUserHome = normalizedUserHomeCached.original === userHome ? normalizedUserHomeCached.normalized : void 0;
+	let normalizedUserHome = normalizedUserHomeCached.original === userHome ? normalizedUserHomeCached.normalized : undefined;
 	if (!normalizedUserHome) {
 		normalizedUserHome = `${rtrim(userHome, sep)}${sep}`;
 		normalizedUserHomeCached = { original: userHome, normalized: normalizedUserHome };

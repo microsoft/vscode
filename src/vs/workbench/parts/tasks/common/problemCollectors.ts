@@ -79,7 +79,7 @@ export class AbstractProblemCollector implements IDisposable {
 		this.applyToByOwner = new Map<string, ApplyToKind>();
 		for (let problemMatcher of problemMatchers) {
 			let current = this.applyToByOwner.get(problemMatcher.owner);
-			if (current === void 0) {
+			if (current === undefined) {
 				this.applyToByOwner.set(problemMatcher.owner, problemMatcher.applyTo);
 			} else {
 				this.applyToByOwner.set(problemMatcher.owner, this.mergeApplyTo(current, problemMatcher.applyTo));
@@ -188,7 +188,7 @@ export class AbstractProblemCollector implements IDisposable {
 
 	private captureMatch(match: ProblemMatch): void {
 		this._numberOfMatches++;
-		if (this._maxMarkerSeverity === void 0 || match.marker.severity > this._maxMarkerSeverity) {
+		if (this._maxMarkerSeverity === undefined || match.marker.severity > this._maxMarkerSeverity) {
 			this._maxMarkerSeverity = match.marker.severity;
 		}
 	}

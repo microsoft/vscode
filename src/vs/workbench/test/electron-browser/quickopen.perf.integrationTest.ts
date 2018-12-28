@@ -56,7 +56,7 @@ suite.skip('QuickOpen performance (integration)', () => {
 
 	test('Measure', () => {
 		if (process.env['VSCODE_PID']) {
-			return void 0; // TODO@Christoph find out why test fails when run from within VS Code
+			return undefined; // TODO@Christoph find out why test fails when run from within VS Code
 		}
 
 		const n = 3;
@@ -166,7 +166,7 @@ class TestTelemetryService implements ITelemetryService {
 
 	public publicLog(eventName: string, data?: any): Promise<void> {
 		this.events.push({ name: eventName, data: data });
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	public getTelemetryInfo(): Promise<ITelemetryInfo> {

@@ -82,7 +82,7 @@ export function extractResources(e: DragEvent, externalOnly?: boolean): Array<ID
 				try {
 					const draggedEditors = JSON.parse(rawEditorsData) as ISerializedDraggedEditor[];
 					draggedEditors.forEach(draggedEditor => {
-						resources.push({ resource: URI.parse(draggedEditor.resource), backupResource: draggedEditor.backupResource ? URI.parse(draggedEditor.backupResource) : void 0, viewState: draggedEditor.viewState, isExternal: false });
+						resources.push({ resource: URI.parse(draggedEditor.resource), backupResource: draggedEditor.backupResource ? URI.parse(draggedEditor.backupResource) : undefined, viewState: draggedEditor.viewState, isExternal: false });
 					});
 				} catch (error) {
 					// Invalid transfer
@@ -177,7 +177,7 @@ export class ResourcesDropHandler {
 			// Check for special things being dropped
 			return this.doHandleDrop(untitledOrFileResources).then(isWorkspaceOpening => {
 				if (isWorkspaceOpening) {
-					return void 0; // return early if the drop operation resulted in this window changing to a workspace
+					return undefined; // return early if the drop operation resulted in this window changing to a workspace
 				}
 
 				// Add external ones to recently open list unless dropped resource is a workspace
@@ -266,7 +266,7 @@ export class ResourcesDropHandler {
 			if (extname(fileOnDiskResource.fsPath) === `.${WORKSPACE_EXTENSION}`) {
 				workspaceResources.workspaces.push(fileOnDiskResource);
 
-				return void 0;
+				return undefined;
 			}
 
 			// Check for Folder
@@ -274,7 +274,7 @@ export class ResourcesDropHandler {
 				if (stat.isDirectory) {
 					workspaceResources.folders.push(stat.resource);
 				}
-			}, error => void 0);
+			}, error => undefined);
 		})).then(_ => {
 			const { workspaces, folders } = workspaceResources;
 
@@ -323,7 +323,7 @@ export class SimpleFileResourceDragAndDrop extends DefaultDragAndDrop {
 			return resource.toString();
 		}
 
-		return void 0;
+		return undefined;
 	}
 
 	getDragLabel(tree: ITree, elements: any[]): string {
@@ -336,7 +336,7 @@ export class SimpleFileResourceDragAndDrop extends DefaultDragAndDrop {
 			return basenameOrAuthority(resource);
 		}
 
-		return void 0;
+		return undefined;
 	}
 
 	onDragStart(tree: ITree, data: IDragAndDropData, originalEvent: DragMouseEvent): void {
@@ -404,7 +404,7 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 		// Add as dragged editor
 		draggedEditors.push({
 			resource: file.resource.toString(),
-			backupResource: textFileService.isDirty(file.resource) ? backupFileService.toBackupResource(file.resource).toString() : void 0,
+			backupResource: textFileService.isDirty(file.resource) ? backupFileService.toBackupResource(file.resource).toString() : undefined,
 			viewState
 		});
 	});
@@ -438,8 +438,8 @@ export class LocalSelectionTransfer<T> {
 
 	clearData(proto: T): void {
 		if (this.hasData(proto)) {
-			this.proto = void 0;
-			this.data = void 0;
+			this.proto = undefined;
+			this.data = undefined;
 		}
 	}
 
@@ -448,7 +448,7 @@ export class LocalSelectionTransfer<T> {
 			return this.data;
 		}
 
-		return void 0;
+		return undefined;
 	}
 
 	setData(data: T[], proto: T): void {

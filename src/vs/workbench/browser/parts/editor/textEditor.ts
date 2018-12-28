@@ -170,7 +170,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 			(reason === SaveReason.FOCUS_CHANGE && mode === AutoSaveMode.ON_FOCUS_CHANGE)
 		) {
 			if (this.textFileService.isDirty()) {
-				this.textFileService.saveAll(void 0, { reason });
+				this.textFileService.saveAll(undefined, { reason });
 			}
 		}
 	}
@@ -311,7 +311,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 	protected abstract getAriaLabel(): string;
 
 	dispose(): void {
-		this.lastAppliedEditorOptions = void 0;
+		this.lastAppliedEditorOptions = undefined;
 
 		super.dispose();
 	}

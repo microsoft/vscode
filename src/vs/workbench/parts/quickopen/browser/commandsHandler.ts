@@ -154,9 +154,9 @@ export class ShowAllCommandsAction extends Action {
 			value = `${value}${lastCommandPaletteInput}`;
 		}
 
-		this.quickOpenService.show(value, { inputSelection: lastCommandPaletteInput ? { start: 1 /* after prefix */, end: value.length } : void 0 });
+		this.quickOpenService.show(value, { inputSelection: lastCommandPaletteInput ? { start: 1 /* after prefix */, end: value.length } : undefined });
 
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -180,7 +180,7 @@ export class ClearCommandHistoryAction extends Action {
 			commandCounter = 1;
 		}
 
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -205,7 +205,7 @@ class CommandPaletteEditorAction extends EditorAction {
 		// Show with prefix
 		quickOpenService.show(ALL_COMMANDS_PREFIX);
 
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -228,7 +228,7 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 		super();
 
 		this.labelLowercase = this.label.toLowerCase();
-		this.keybindingAriaLabel = keybinding ? keybinding.getAriaLabel() : void 0;
+		this.keybindingAriaLabel = keybinding ? keybinding.getAriaLabel() : undefined;
 
 		if (this.label !== alias) {
 			this.alias = alias;
@@ -555,7 +555,7 @@ export class CommandsHandler extends QuickOpenHandler {
 		if (autoFocusPrefixMatch && this.commandHistoryEnabled) {
 			const firstEntry = context.model && context.model.entries[0];
 			if (firstEntry instanceof BaseCommandEntry && this.commandsHistory.peek(firstEntry.getCommandId())) {
-				autoFocusPrefixMatch = void 0; // keep focus on MRU element if we have history elements
+				autoFocusPrefixMatch = undefined; // keep focus on MRU element if we have history elements
 			}
 		}
 

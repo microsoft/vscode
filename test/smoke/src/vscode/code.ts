@@ -232,7 +232,7 @@ export class Code {
 
 	async waitForTextContent(selector: string, textContent?: string, accept?: (result: string) => boolean): Promise<string> {
 		const windowId = await this.getActiveWindowId();
-		accept = accept || (result => textContent !== void 0 ? textContent === result : !!result);
+		accept = accept || (result => textContent !== undefined ? textContent === result : !!result);
 
 		return await poll(
 			() => this.driver.getElements(windowId, selector).then(els => els.length > 0 ? Promise.resolve(els[0].textContent) : Promise.reject(new Error('Element not found for textContent'))),

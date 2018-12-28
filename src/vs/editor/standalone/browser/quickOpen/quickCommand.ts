@@ -61,7 +61,7 @@ export class EditorActionCommandEntry extends QuickOpenEntryGroup {
 
 				try {
 					let promise = this.action.run() || Promise.resolve();
-					promise.then(void 0, onUnexpectedError);
+					promise.then(undefined, onUnexpectedError);
 				} catch (error) {
 					onUnexpectedError(error);
 				}

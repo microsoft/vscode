@@ -125,7 +125,7 @@ export class TextFileService extends AbstractTextFileService {
 		interface IFilter { name: string; extensions: string[]; }
 
 		// Build the file filter by using our known languages
-		const ext: string = defaultUri ? paths.extname(defaultUri.path) : void 0;
+		const ext: string = defaultUri ? paths.extname(defaultUri.path) : undefined;
 		let matchingFilter: IFilter;
 		const filters: IFilter[] = coalesce(this.modeService.getRegisteredLanguageNames().map(languageName => {
 			const extensions = this.modeService.getExtensions(languageName);

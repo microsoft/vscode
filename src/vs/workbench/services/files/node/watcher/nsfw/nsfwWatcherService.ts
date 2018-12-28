@@ -166,7 +166,7 @@ export class NsfwWatcherService implements IWatcherService {
 					});
 				}
 
-				return Promise.resolve(void 0);
+				return Promise.resolve(undefined);
 			});
 		}).then(watcher => {
 			this._pathWatchers[request.basePath].watcher = watcher;
@@ -211,12 +211,12 @@ export class NsfwWatcherService implements IWatcherService {
 			}
 		});
 
-		return Promise.all(promises).then(() => void 0);
+		return Promise.all(promises).then(() => undefined);
 	}
 
 	public setVerboseLogging(enabled: boolean): Promise<void> {
 		this._verboseLogging = enabled;
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	public stop(): Promise<void> {

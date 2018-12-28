@@ -462,7 +462,7 @@ export class ReferenceWidget extends PeekViewWidget {
 			this.setTitle('');
 			this._messageContainer.innerHTML = nls.localize('noResults', "No results");
 			dom.show(this._messageContainer);
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		dom.hide(this._messageContainer);

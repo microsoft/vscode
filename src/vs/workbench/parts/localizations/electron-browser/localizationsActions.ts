@@ -38,7 +38,7 @@ export class ConfigureLocaleAction extends Action {
 
 	public run(event?: any): Promise<IEditor | undefined> {
 		const file = URI.file(join(this.environmentService.appSettingsHome, 'locale.json'));
-		return this.fileService.resolveFile(file).then(void 0, (error) => {
+		return this.fileService.resolveFile(file).then(undefined, (error) => {
 			return this.fileService.createFile(file, ConfigureLocaleAction.DEFAULT_CONTENT);
 		}).then((stat): Promise<IEditor | undefined> | undefined => {
 			if (!stat) {

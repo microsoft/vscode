@@ -175,9 +175,9 @@ export class BowerJSONContribution implements IJSONContribution {
 			} catch (e) {
 				// ignore
 			}
-			return void 0;
+			return undefined;
 		}, () => {
-			return void 0;
+			return undefined;
 		});
 	}
 

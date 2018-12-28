@@ -114,17 +114,17 @@ function findGitWin32InPath(onLookup: (path: string) => void): Promise<IGit> {
 
 function findGitWin32(onLookup: (path: string) => void): Promise<IGit> {
 	return findSystemGitWin32(process.env['ProgramW6432'] as string, onLookup)
-		.then(void 0, () => findSystemGitWin32(process.env['ProgramFiles(x86)'] as string, onLookup))
-		.then(void 0, () => findSystemGitWin32(process.env['ProgramFiles'] as string, onLookup))
-		.then(void 0, () => findSystemGitWin32(path.join(process.env['LocalAppData'] as string, 'Programs'), onLookup))
-		.then(void 0, () => findGitWin32InPath(onLookup));
+		.then(undefined, () => findSystemGitWin32(process.env['ProgramFiles(x86)'] as string, onLookup))
+		.then(undefined, () => findSystemGitWin32(process.env['ProgramFiles'] as string, onLookup))
+		.then(undefined, () => findSystemGitWin32(path.join(process.env['LocalAppData'] as string, 'Programs'), onLookup))
+		.then(undefined, () => findGitWin32InPath(onLookup));
 }
 
 export function findGit(hint: string | undefined, onLookup: (path: string) => void): Promise<IGit> {
 	const first = hint ? findSpecificGit(hint, onLookup) : Promise.reject<IGit>(null);
 
 	return first
-		.then(void 0, () => {
+		.then(undefined, () => {
 			switch (process.platform) {
 				case 'darwin': return findGitDarwin(onLookup);
 				case 'win32': return findGitWin32(onLookup);
@@ -248,7 +248,7 @@ export class GitError {
 			this.error = data.error;
 			this.message = data.error.message;
 		} else {
-			this.error = void 0;
+			this.error = undefined;
 			this.message = '';
 		}
 
@@ -308,7 +308,7 @@ function getGitErrorCode(stderr: string): string | undefined {
 		return GitErrorCodes.InvalidBranchName;
 	}
 
-	return void 0;
+	return undefined;
 }
 
 export class Git {
@@ -1376,7 +1376,7 @@ export class Repository {
 				throw new Error('Not in a branch');
 			}
 
-			return { name: result.stdout.trim(), commit: void 0, type: RefType.Head };
+			return { name: result.stdout.trim(), commit: undefined, type: RefType.Head };
 		} catch (err) {
 			const result = await this.run(['rev-parse', 'HEAD']);
 
@@ -1384,7 +1384,7 @@ export class Repository {
 				throw new Error('Error parsing HEAD');
 			}
 
-			return { name: void 0, commit: result.stdout.trim(), type: RefType.Head };
+			return { name: undefined, commit: result.stdout.trim(), type: RefType.Head };
 		}
 	}
 

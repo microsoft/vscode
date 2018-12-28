@@ -114,7 +114,7 @@ export class KillTerminalAction extends Action {
 				this.terminalService.showPanel(true);
 			}
 		}
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -162,7 +162,7 @@ export class CopyTerminalSelectionAction extends Action {
 		if (terminalInstance) {
 			terminalInstance.copySelection();
 		}
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -183,7 +183,7 @@ export class SelectAllTerminalAction extends Action {
 		if (terminalInstance) {
 			terminalInstance.selectAll();
 		}
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -202,7 +202,7 @@ export abstract class BaseSendTextTerminalAction extends Action {
 		if (terminalInstance) {
 			terminalInstance.sendText(this._text, false);
 		}
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -336,7 +336,7 @@ export class CreateNewTerminalAction extends Action {
 
 		return instancePromise.then(instance => {
 			if (!instance) {
-				return Promise.resolve(void 0);
+				return Promise.resolve(undefined);
 			}
 			this.terminalService.setActiveInstance(instance);
 			return this.terminalService.showPanel(true);
@@ -359,7 +359,7 @@ export class CreateNewInActiveWorkspaceTerminalAction extends Action {
 	public run(event?: any): Promise<any> {
 		const instance = this.terminalService.createTerminal(undefined, true);
 		if (!instance) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 		this.terminalService.setActiveInstance(instance);
 		return this.terminalService.showPanel(true);
@@ -383,7 +383,7 @@ export class SplitTerminalAction extends Action {
 	public run(event?: any): Promise<any> {
 		const instance = this._terminalService.getActiveInstance();
 		if (!instance) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		return getCwdForSplit(this._terminalService.configHelper, instance, this.workspaceContextService.getWorkspace().folders, this.commandService).then(cwd => {
@@ -411,7 +411,7 @@ export class SplitInActiveWorkspaceTerminalAction extends Action {
 	public run(event?: any): Promise<any> {
 		const instance = this._terminalService.getActiveInstance();
 		if (!instance) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 		return getCwdForSplit(this._terminalService.configHelper, instance).then(cwd => {
 			this._terminalService.splitInstance(instance, { cwd });
@@ -434,7 +434,7 @@ export class FocusPreviousPaneTerminalAction extends Action {
 	public run(event?: any): Promise<any> {
 		const tab = this._terminalService.getActiveTab();
 		if (!tab) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 		tab.focusPreviousPane();
 		return this._terminalService.showPanel(true);
@@ -455,7 +455,7 @@ export class FocusNextPaneTerminalAction extends Action {
 	public run(event?: any): Promise<any> {
 		const tab = this._terminalService.getActiveTab();
 		if (!tab) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 		tab.focusNextPane();
 		return this._terminalService.showPanel(true);
@@ -476,7 +476,7 @@ export abstract class BaseFocusDirectionTerminalAction extends Action {
 		if (tab) {
 			tab.resizePane(this._direction);
 		}
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -543,7 +543,7 @@ export class FocusActiveTerminalAction extends Action {
 	public run(event?: any): Promise<any> {
 		const instance = this.terminalService.getActiveOrCreateInstance(true);
 		if (!instance) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 		this.terminalService.setActiveInstance(instance);
 		return this.terminalService.showPanel(true);
@@ -604,7 +604,7 @@ export class TerminalPasteAction extends Action {
 		if (instance) {
 			instance.paste();
 		}
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -641,11 +641,11 @@ export class RunSelectedTextInTerminalAction extends Action {
 	public run(event?: any): Promise<any> {
 		const instance = this.terminalService.getActiveOrCreateInstance();
 		if (!instance) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 		let editor = this.codeEditorService.getFocusedCodeEditor();
 		if (!editor) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 		let selection = editor.getSelection();
 		let text: string;
@@ -677,16 +677,16 @@ export class RunActiveFileInTerminalAction extends Action {
 	public run(event?: any): Promise<any> {
 		const instance = this.terminalService.getActiveOrCreateInstance();
 		if (!instance) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 		const editor = this.codeEditorService.getActiveCodeEditor();
 		if (!editor) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 		const uri = editor.getModel().uri;
 		if (uri.scheme !== 'file') {
 			this.notificationService.warn(nls.localize('workbench.action.terminal.runActiveFile.noFile', 'Only files on disk can be run in the terminal'));
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		return instance.preparePathForTerminalAsync(uri.fsPath).then(path => {
@@ -756,7 +756,7 @@ export class ScrollDownTerminalAction extends Action {
 		if (terminalInstance) {
 			terminalInstance.scrollDownLine();
 		}
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -777,7 +777,7 @@ export class ScrollDownPageTerminalAction extends Action {
 		if (terminalInstance) {
 			terminalInstance.scrollDownPage();
 		}
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -798,7 +798,7 @@ export class ScrollToBottomTerminalAction extends Action {
 		if (terminalInstance) {
 			terminalInstance.scrollToBottom();
 		}
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -819,7 +819,7 @@ export class ScrollUpTerminalAction extends Action {
 		if (terminalInstance) {
 			terminalInstance.scrollUpLine();
 		}
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -840,7 +840,7 @@ export class ScrollUpPageTerminalAction extends Action {
 		if (terminalInstance) {
 			terminalInstance.scrollUpPage();
 		}
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -861,7 +861,7 @@ export class ScrollToTopTerminalAction extends Action {
 		if (terminalInstance) {
 			terminalInstance.scrollToTop();
 		}
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -882,7 +882,7 @@ export class ClearTerminalAction extends Action {
 		if (terminalInstance) {
 			terminalInstance.clear();
 		}
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -903,7 +903,7 @@ export class ClearSelectionTerminalAction extends Action {
 		if (terminalInstance && terminalInstance.hasSelection()) {
 			terminalInstance.clearSelection();
 		}
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -921,7 +921,7 @@ export class AllowWorkspaceShellTerminalCommand extends Action {
 
 	public run(event?: any): Promise<any> {
 		this.terminalService.setWorkspaceShellAllowed(true);
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -939,7 +939,7 @@ export class DisallowWorkspaceShellTerminalCommand extends Action {
 
 	public run(event?: any): Promise<any> {
 		this.terminalService.setWorkspaceShellAllowed(false);
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -960,7 +960,7 @@ export class RenameTerminalAction extends Action {
 	public run(entry?: TerminalEntry): Promise<any> {
 		const terminalInstance = entry ? entry.instance : this.terminalService.getActiveInstance();
 		if (!terminalInstance) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 		return this.quickInputService.input({
 			value: terminalInstance.title,
@@ -1086,7 +1086,7 @@ export class ScrollToPreviousCommandAction extends Action {
 			instance.commandTracker.scrollToPreviousCommand();
 			instance.focus();
 		}
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -1107,7 +1107,7 @@ export class ScrollToNextCommandAction extends Action {
 			instance.commandTracker.scrollToNextCommand();
 			instance.focus();
 		}
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -1128,7 +1128,7 @@ export class SelectToPreviousCommandAction extends Action {
 			instance.commandTracker.selectToPreviousCommand();
 			instance.focus();
 		}
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -1149,7 +1149,7 @@ export class SelectToNextCommandAction extends Action {
 			instance.commandTracker.selectToNextCommand();
 			instance.focus();
 		}
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -1170,7 +1170,7 @@ export class SelectToPreviousLineAction extends Action {
 			instance.commandTracker.selectToPreviousLine();
 			instance.focus();
 		}
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -1191,7 +1191,7 @@ export class SelectToNextLineAction extends Action {
 			instance.commandTracker.selectToNextLine();
 			instance.focus();
 		}
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -1212,7 +1212,7 @@ export class ToggleEscapeSequenceLoggingAction extends Action {
 		if (instance) {
 			instance.toggleEscapeSequenceLogging();
 		}
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -1229,7 +1229,7 @@ abstract class ToggleFindOptionCommand extends Action {
 	public run(): Promise<any> {
 		const state = this.terminalService.getFindState();
 		this.runInner(state);
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -1277,7 +1277,7 @@ export class FindNext extends Action {
 
 	public run(): Promise<any> {
 		this.terminalService.findNext();
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -1295,6 +1295,6 @@ export class FindPrevious extends Action {
 
 	public run(): Promise<any> {
 		this.terminalService.findPrevious();
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }

@@ -33,7 +33,7 @@ suite('Command Tests', function () {
 
 		assert.ok(CommandsRegistry.getCommand('foo')!.handler === command1);
 		reg1.dispose();
-		assert.ok(CommandsRegistry.getCommand('foo') === void 0);
+		assert.ok(CommandsRegistry.getCommand('foo') === undefined);
 
 		// dispose override command first
 		reg1 = CommandsRegistry.registerCommand('foo', command1);
@@ -44,7 +44,7 @@ suite('Command Tests', function () {
 		assert.ok(CommandsRegistry.getCommand('foo')!.handler === command2);
 
 		reg2.dispose();
-		assert.ok(CommandsRegistry.getCommand('foo') === void 0);
+		assert.ok(CommandsRegistry.getCommand('foo') === undefined);
 	});
 
 	test('command with description', function () {

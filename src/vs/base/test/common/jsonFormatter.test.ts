@@ -8,7 +8,7 @@ import * as assert from 'assert';
 suite('JSON - formatter', () => {
 
 	function format(content: string, expected: string, insertSpaces = true) {
-		let range: Formatter.Range | undefined = void 0;
+		let range: Formatter.Range | undefined = undefined;
 		var rangeStart = content.indexOf('|');
 		var rangeEnd = content.lastIndexOf('|');
 		if (rangeStart !== -1 && rangeEnd !== -1) {

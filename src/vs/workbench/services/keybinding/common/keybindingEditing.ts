@@ -130,7 +130,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 		const userKeybindingEntries = <IUserFriendlyKeybinding[]>json.parse(model.getValue());
 		const userKeybindingEntryIndex = this.findUserKeybindingEntryIndex(keybindingItem, userKeybindingEntries);
 		if (userKeybindingEntryIndex !== -1) {
-			this.applyEditsToBuffer(setProperty(model.getValue(), [userKeybindingEntryIndex], void 0, { tabSize, insertSpaces, eol })[0], model);
+			this.applyEditsToBuffer(setProperty(model.getValue(), [userKeybindingEntryIndex], undefined, { tabSize, insertSpaces, eol })[0], model);
 		}
 	}
 
@@ -146,7 +146,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 		const userKeybindingEntries = <IUserFriendlyKeybinding[]>json.parse(model.getValue());
 		const indices = this.findUnassignedDefaultKeybindingEntryIndex(keybindingItem, userKeybindingEntries).reverse();
 		for (const index of indices) {
-			this.applyEditsToBuffer(setProperty(model.getValue(), [index], void 0, { tabSize, insertSpaces, eol })[0], model);
+			this.applyEditsToBuffer(setProperty(model.getValue(), [index], undefined, { tabSize, insertSpaces, eol })[0], model);
 		}
 	}
 

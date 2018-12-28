@@ -133,7 +133,7 @@ export class NotificationsModel extends Disposable implements INotificationsMode
 			}
 		}
 
-		return void 0;
+		return undefined;
 	}
 
 	private createViewItem(notification: INotification): INotificationViewItem | null {
@@ -258,9 +258,9 @@ export class NotificationViewItemProgress extends Disposable implements INotific
 
 		this._state.infinite = true;
 
-		this._state.total = void 0;
-		this._state.worked = void 0;
-		this._state.done = void 0;
+		this._state.total = undefined;
+		this._state.worked = undefined;
+		this._state.done = undefined;
 
 		this._onDidChange.fire();
 	}
@@ -272,9 +272,9 @@ export class NotificationViewItemProgress extends Disposable implements INotific
 
 		this._state.done = true;
 
-		this._state.infinite = void 0;
-		this._state.total = void 0;
-		this._state.worked = void 0;
+		this._state.infinite = undefined;
+		this._state.total = undefined;
+		this._state.worked = undefined;
 
 		this._onDidChange.fire();
 	}
@@ -286,8 +286,8 @@ export class NotificationViewItemProgress extends Disposable implements INotific
 
 		this._state.total = value;
 
-		this._state.infinite = void 0;
-		this._state.done = void 0;
+		this._state.infinite = undefined;
+		this._state.done = undefined;
 
 		this._onDidChange.fire();
 	}
@@ -299,8 +299,8 @@ export class NotificationViewItemProgress extends Disposable implements INotific
 			this._state.worked = value;
 		}
 
-		this._state.infinite = void 0;
-		this._state.done = void 0;
+		this._state.infinite = undefined;
+		this._state.done = undefined;
 
 		this._onDidChange.fire();
 	}
@@ -378,7 +378,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 		}
 
 		if (!message) {
-			return void 0; // we need a message to show
+			return undefined; // we need a message to show
 		}
 
 		const raw = message;
@@ -587,7 +587,7 @@ export class ChoiceAction extends Action {
 	private _keepOpen: boolean;
 
 	constructor(id: string, choice: IPromptChoice) {
-		super(id, choice.label, void 0, true, () => {
+		super(id, choice.label, undefined, true, () => {
 
 			// Pass to runner
 			choice.run();

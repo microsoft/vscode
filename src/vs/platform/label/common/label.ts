@@ -102,7 +102,7 @@ export class LabelService implements ILabelService {
 		if (bestPrefix.length) {
 			return this.formatters[bestPrefix];
 		}
-		return void 0;
+		return undefined;
 	}
 
 	getUriLabel(resource: URI, options: { relative?: boolean, noPrefix?: boolean } = {}): string {

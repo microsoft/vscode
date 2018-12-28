@@ -74,7 +74,7 @@ export abstract class AbstractShowReleaseNotesAction extends Action {
 		this.enabled = false;
 
 		return showReleaseNotes(this.instantiationService, this.version)
-			.then(void 0, () => {
+			.then(undefined, () => {
 				const action = this.instantiationService.createInstance(OpenLatestReleaseNotesInBrowserAction);
 				return action.run().then(() => false);
 			});

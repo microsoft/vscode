@@ -319,7 +319,7 @@ export abstract class TitleControl extends Themable {
 	protected getKeybindingLabel(action: IAction): string {
 		const keybinding = this.getKeybinding(action);
 
-		return keybinding ? keybinding.getLabel() : void 0;
+		return keybinding ? keybinding.getLabel() : undefined;
 	}
 
 	abstract openEditor(editor: IEditorInput): void;

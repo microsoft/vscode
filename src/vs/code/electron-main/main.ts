@@ -346,7 +346,7 @@ function main(): void {
 		console.error(err.message);
 		app.exit(1);
 
-		return void 0;
+		return undefined;
 	}
 
 	// If we are started with --wait create a random temporary file
