@@ -163,15 +163,22 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 
 	private _addExtensionsTable(md: MarkdownBuilder): void {
 
-		const table: ({ toString(): string })[][] = [];
+		const eager: ({ toString(): string })[][] = [];
+		const normal: ({ toString(): string })[][] = [];
 		let extensionsStatus = this._extensionService.getExtensionsStatus();
 		for (let id in extensionsStatus) {
 			const { activationTimes: times } = extensionsStatus[id];
 			if (!times) {
 				continue;
 			}
-			table.push([id, times.startup, times.codeLoadingTime, times.activateCallTime, times.activateResolvedTime, times.activationEvent]);
+			if (times.startup) {
+				eager.push([id, times.startup, times.codeLoadingTime, times.activateCallTime, times.activateResolvedTime, times.activationEvent]);
+			} else {
+				normal.push([id, times.startup, times.codeLoadingTime, times.activateCallTime, times.activateResolvedTime, times.activationEvent]);
+			}
 		}
+
+		const table = eager.concat(normal);
 		if (table.length > 0) {
 			md.heading(2, 'Extension Activation Stats');
 			md.table(
