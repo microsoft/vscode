@@ -104,7 +104,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		]).then(([metrics]) => {
 			if (!this._model.isDisposed()) {
 
-				let stats = this._envService.performance ? LoaderStats.get() : undefined;
+				let stats = this._envService.args['prof-modules'] ? LoaderStats.get() : undefined;
 				let md = new MarkdownBuilder();
 				this._addSummary(md, metrics);
 				md.blank();
