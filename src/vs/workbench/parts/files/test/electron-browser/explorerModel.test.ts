@@ -202,8 +202,7 @@ suite('Files - View Model', () => {
 			assert(validateFileName(s, 'foo>bar') !== null);
 			assert(validateFileName(s, 'foo|bar') !== null);
 		}
-		assert(validateFileName(s, 'alles.klar') !== null);
-
+		assert(validateFileName(s, 'alles.klar') === null);
 		assert(validateFileName(s, '.foo') === null);
 		assert(validateFileName(s, 'foo.bar') === null);
 		assert(validateFileName(s, 'foo') === null);
@@ -215,15 +214,10 @@ suite('Files - View Model', () => {
 		const sChild = createStat('/path/to/stat/alles.klar', 'alles.klar', true, true, 8096, d);
 		s.addChild(sChild);
 
-		assert(validateFileName(s, 'alles.klar') !== null);
+		assert(validateFileName(s, 'alles.klar') === null);
 
-		if (isLinux) {
-			assert(validateFileName(s, 'Alles.klar') === null);
-			assert(validateFileName(s, 'Alles.Klar') === null);
-		} else {
-			assert(validateFileName(s, 'Alles.klar') !== null);
-			assert(validateFileName(s, 'Alles.Klar') !== null);
-		}
+		assert(validateFileName(s, 'Alles.klar') === null);
+		assert(validateFileName(s, 'Alles.Klar') === null);
 
 		assert(validateFileName(s, '.foo') === null);
 		assert(validateFileName(s, 'foo.bar') === null);
