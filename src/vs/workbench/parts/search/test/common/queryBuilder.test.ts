@@ -864,7 +864,7 @@ function assertEqualSearchPathResults(actual: ISearchPathsResult, expected: ISea
 	if (actual.searchPaths) {
 		actual.searchPaths.forEach((searchPath, i) => {
 			const expectedSearchPath = expected.searchPaths![i];
-			assert.equal(searchPath.pattern, expectedSearchPath.pattern);
+			assert.deepEqual(searchPath.pattern, expectedSearchPath.pattern);
 			assert.equal(searchPath.searchPath.toString(), expectedSearchPath.searchPath.toString());
 		});
 	}
