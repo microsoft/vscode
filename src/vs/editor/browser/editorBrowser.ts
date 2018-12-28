@@ -770,42 +770,42 @@ export interface IActiveCodeEditor extends ICodeEditor {
 	/**
 	 * Returns the primary position of the cursor.
 	 */
-	getPosition(): Position | null;
+	getPosition(): Position;
 
 	/**
 	 * Returns the primary selection of the editor.
 	 */
-	getSelection(): Selection | null;
+	getSelection(): Selection;
 
 	/**
 	 * Returns all the selections of the editor.
 	 */
-	getSelections(): Selection[] | null;
+	getSelections(): Selection[];
 
 	/**
 	 * Saves current view state of the editor in a serializable object.
 	 */
-	saveViewState(): editorCommon.ICodeEditorViewState | null;
+	saveViewState(): editorCommon.ICodeEditorViewState;
 
 	/**
 	 * Type the getModel() of IEditor.
 	 */
-	getModel(): ITextModel | null;
+	getModel(): ITextModel;
 
 	/**
 	 * @internal
 	 */
-	_getCursors(): ICursors | null;
+	_getCursors(): ICursors;
 
 	/**
 	 * Get all the decorations on a line (filtering out decorations from other editors).
 	 */
-	getLineDecorations(lineNumber: number): IModelDecoration[] | null;
+	getLineDecorations(lineNumber: number): IModelDecoration[];
 
 	/**
 	 * Returns the editor's dom node
 	 */
-	getDomNode(): HTMLElement | null;
+	getDomNode(): HTMLElement;
 
 	/**
 	 * Get the visible position for `position`.
@@ -814,7 +814,7 @@ export interface IActiveCodeEditor extends ICodeEditor {
 	 * Explanation 2: the results of this method will not change if the container of the editor gets repositioned.
 	 * Warning: the results of this method are inaccurate for positions that are outside the current editor viewport.
 	 */
-	getScrolledVisiblePosition(position: IPosition): { top: number; left: number; height: number; } | null;
+	getScrolledVisiblePosition(position: IPosition): { top: number; left: number; height: number; };
 }
 
 /**
