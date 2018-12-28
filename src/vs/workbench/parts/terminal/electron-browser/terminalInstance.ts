@@ -620,6 +620,10 @@ export class TerminalInstance implements ITerminalInstance {
 		this._disposables = lifecycle.dispose(this._disposables);
 	}
 
+	public forceRedraw(): void {
+		this._xterm.refresh(0, this._xterm.rows - 1);
+	}
+
 	public focus(force?: boolean): void {
 		if (!this._xterm) {
 			return;
