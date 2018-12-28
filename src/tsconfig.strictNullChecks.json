@@ -806,7 +806,11 @@
 		"./vs/workbench/test/common/editor/editorOptions.test.ts",
 		"./vs/workbench/test/common/notifications.test.ts",
 		"./vs/workbench/test/electron-browser/api/extHostTypes.test.ts",
-		"./vs/workbench/test/electron-browser/api/mock.ts"
+		"./vs/workbench/test/electron-browser/api/mock.ts",
+		"./vs/editor/contrib/find/test/findModel.test.ts",
+		"./vs/workbench/services/editor/test/browser/editorService.test.ts",
+		"./vs/workbench/services/textfile/test/textFileEditorModel.test.ts",
+		"./vs/workbench/test/common/editor/editor.test.ts"
 	],
 	"exclude": [
 		"./typings/require-monaco.d.ts"

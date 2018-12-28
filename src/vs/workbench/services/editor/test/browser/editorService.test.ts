@@ -53,7 +53,7 @@ export class TestEditorInput extends EditorInput implements IFileEditorInput {
 	resolve(): Promise<IEditorModel> { return !this.fails ? Promise.resolve(null) : Promise.reject(new Error('fails')); }
 	matches(other: TestEditorInput): boolean { return other && other.resource && this.resource.toString() === other.resource.toString() && other instanceof TestEditorInput; }
 	setEncoding(encoding: string) { }
-	getEncoding(): string { return null; }
+	getEncoding(): string { return null!; }
 	setPreferredEncoding(encoding: string) { }
 	getResource(): URI { return this.resource; }
 	setForceOpenAsBinary(): void { }
@@ -261,7 +261,7 @@ suite('Editor service', () => {
 		class MyEditor extends BaseEditor {
 
 			constructor(id: string) {
-				super(id, null, new TestThemeService(), new TestStorageService());
+				super(id, null!, new TestThemeService(), new TestStorageService());
 			}
 
 			getId(): string {
