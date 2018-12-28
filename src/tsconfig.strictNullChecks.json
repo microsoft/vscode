@@ -319,7 +319,6 @@
 		"./vs/nls.mock.ts",
 		"./vs/platform/actions/browser/menuItemActionItem.ts",
 		"./vs/platform/actions/common/actions.ts",
-		"./vs/platform/actions/common/menu.ts",
 		"./vs/platform/actions/common/menuService.ts",
 		"./vs/platform/actions/test/common/menuService.test.ts",
 		"./vs/platform/backup/common/backup.ts",
