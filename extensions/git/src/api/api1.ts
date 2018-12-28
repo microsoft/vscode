@@ -168,8 +168,8 @@ export class ApiRepository implements Repository {
 		return this._repository.removeRemote(name);
 	}
 
-	fetch(remote?: string | undefined, ref?: string | undefined): Promise<void> {
-		return this._repository.fetch(remote, ref);
+	fetch(remote?: string | undefined, ref?: string | undefined, depth?: number | undefined): Promise<void> {
+		return this._repository.fetch(remote, ref, depth);
 	}
 
 	pull(): Promise<void> {

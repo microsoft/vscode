@@ -1166,7 +1166,7 @@ export class Repository {
 		await this.run(args);
 	}
 
-	async fetch(options: { remote?: string, ref?: string, all?: boolean, prune?: boolean } = {}): Promise<void> {
+	async fetch(options: { remote?: string, ref?: string, all?: boolean, prune?: boolean, depth?: number } = {}): Promise<void> {
 		const args = ['fetch'];
 
 		if (options.remote) {
@@ -1183,6 +1183,9 @@ export class Repository {
 			args.push('--prune');
 		}
 
+		if (options.depth) {
+			args.push(`--depth=${options.depth}`);
+		}
 
 		try {
 			await this.run(args);
@@ -1198,7 +1201,7 @@ export class Repository {
 	}
 
 	async pull(rebase?: boolean, remote?: string, branch?: string): Promise<void> {
-		const args = ['pull', '--tags'];
+		const args = ['pull', '--tags', '--unshallow'];
 
 		if (rebase) {
 			args.push('-r');
