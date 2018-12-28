@@ -41,11 +41,11 @@ suite('Color Registry', function () {
 
 	test('all colors documented', async function () {
 		const reqContext = await request({ url: 'https://raw.githubusercontent.com/Microsoft/vscode-docs/vnext/docs/getstarted/theme-color-reference.md' }, CancellationToken.None);
-		const content = await asText(reqContext);
+		const content = (await asText(reqContext))!;
 
 		const expression = /\-\s*\`([\w\.]+)\`: (.*)/g;
 
-		let m: RegExpExecArray;
+		let m: RegExpExecArray | null;
 		let colorsInDoc: { [id: string]: ColorInfo } = Object.create(null);
 		while (m = expression.exec(content)) {
 			colorsInDoc[m[1]] = { description: m[2], offset: m.index, length: m.length };

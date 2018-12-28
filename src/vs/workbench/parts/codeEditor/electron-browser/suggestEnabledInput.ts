@@ -7,7 +7,7 @@ import 'vs/css!./media/suggestEnabledInput';
 import { $, Dimension, addClass, append, removeClass } from 'vs/base/browser/dom';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Color } from 'vs/base/common/color';
-import { Emitter, Event, chain } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { mixin } from 'vs/base/common/objects';
@@ -147,7 +147,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 			removeClass(this.stylingContainer, 'synthetic-focus');
 		})));
 
-		const onKeyDownMonaco = chain(this.inputWidget.onKeyDown);
+		const onKeyDownMonaco = Event.chain(this.inputWidget.onKeyDown);
 		onKeyDownMonaco.filter(e => e.keyCode === KeyCode.Enter).on(e => { e.preventDefault(); this._onEnter.fire(); }, this, this.disposables);
 		onKeyDownMonaco.filter(e => e.keyCode === KeyCode.DownArrow && (isMacintosh ? e.metaKey : e.ctrlKey)).on(() => this._onShouldFocusResults.fire(), this, this.disposables);
 

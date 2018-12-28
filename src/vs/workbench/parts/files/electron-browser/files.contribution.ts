@@ -336,7 +336,7 @@ configurationRegistry.registerConfiguration({
 		'editor.formatOnSave': {
 			'type': 'boolean',
 			'default': false,
-			'description': nls.localize('formatOnSave', "Format a file on save. A formatter must be available, the file must not be auto-saved, and editor must not be shutting down."),
+			'description': nls.localize('formatOnSave', "Format a file on save. A formatter must be available, the file must not be saved after delay, and the editor must not be shutting down."),
 			'overridable': true,
 			'scope': ConfigurationScope.RESOURCE
 		},

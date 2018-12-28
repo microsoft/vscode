@@ -67,7 +67,7 @@ export class InstallCountWidget implements IDisposable {
 
 		const installCount = this.extension.installCount;
 
-		if (installCount === null) {
+		if (installCount === undefined) {
 			return;
 		}
 
@@ -126,15 +126,15 @@ export class RatingsWidget implements IDisposable {
 			return;
 		}
 
+		if (this.extension.rating === undefined) {
+			return;
+		}
+
+		if (this.options.small && !this.extension.ratingCount) {
+			return;
+		}
+
 		const rating = Math.round(this.extension.rating * 2) / 2;
-
-		if (this.extension.rating === null) {
-			return;
-		}
-
-		if (this.options.small && this.extension.ratingCount === 0) {
-			return;
-		}
 
 		if (this.options.small) {
 			append(this.container, $('span.full.star'));

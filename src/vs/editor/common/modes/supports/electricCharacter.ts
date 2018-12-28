@@ -27,7 +27,7 @@ export class BracketElectricCharacterSupport {
 	private readonly _richEditBrackets: RichEditBrackets | null;
 	private readonly _complexAutoClosePairs: StandardAutoClosingPairConditional[];
 
-	constructor(richEditBrackets: RichEditBrackets | null, autoClosePairs: IAutoClosingPairConditional[], contribution: IBracketElectricCharacterContribution | undefined) {
+	constructor(richEditBrackets: RichEditBrackets | null, autoClosePairs: IAutoClosingPairConditional[], contribution: IBracketElectricCharacterContribution | null | undefined) {
 		contribution = contribution || {};
 		this._richEditBrackets = richEditBrackets;
 		this._complexAutoClosePairs = autoClosePairs.filter(pair => pair.open.length > 1 && !!pair.close).map(el => new StandardAutoClosingPairConditional(el));

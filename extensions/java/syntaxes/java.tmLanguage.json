@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-java/commit/295af4375e4a5da4a4352fa08a8bb3e17145ec47",
+	"version": "https://github.com/atom/language-java/commit/7c3d0d3e37920790cd3afb4e68830bdb215851a3",
 	"name": "Java",
 	"scopeName": "source.java",
 	"patterns": [
@@ -269,7 +269,7 @@
 			]
 		},
 		"class": {
-			"begin": "(?=\\w?[\\w\\s]*(?:class|(?<!@)interface|enum)\\s+\\w+)",
+			"begin": "(?=\\w?[\\w\\s]*\\b(?:class|(?<!@)interface|enum)\\s+\\w+)",
 			"end": "}",
 			"endCaptures": {
 				"0": {
@@ -373,7 +373,7 @@
 					"include": "#static-initializer"
 				},
 				{
-					"include": "#methods"
+					"include": "#class-fields-and-methods"
 				},
 				{
 					"include": "#annotations"
@@ -386,6 +386,22 @@
 				},
 				{
 					"include": "#code"
+				}
+			]
+		},
+		"class-fields-and-methods": {
+			"patterns": [
+				{
+					"begin": "(?=\\=)",
+					"end": "(?=;)",
+					"patterns": [
+						{
+							"include": "#code"
+						}
+					]
+				},
+				{
+					"include": "#methods"
 				}
 			]
 		},
@@ -443,6 +459,9 @@
 					"include": "#variables"
 				},
 				{
+					"include": "#variables-local"
+				},
+				{
 					"include": "#objects"
 				},
 				{
@@ -478,9 +497,6 @@
 					},
 					"match": "/\\*\\*/",
 					"name": "comment.block.empty.java"
-				},
-				{
-					"include": "text.html.javadoc"
 				},
 				{
 					"include": "#comments-inline"
@@ -642,6 +658,28 @@
 								},
 								{
 									"include": "#comments"
+								},
+								{
+									"begin": "(\\w+)\\s*({)",
+									"beginCaptures": {
+										"1": {
+											"name": "constant.other.enum.java"
+										},
+										"2": {
+											"name": "punctuation.bracket.curly.java"
+										}
+									},
+									"end": "\\}",
+									"endCaptures": {
+										"0": {
+											"name": "punctuation.bracket.curly.java"
+										}
+									},
+									"patterns": [
+										{
+											"include": "#class-body"
+										}
+									]
 								},
 								{
 									"begin": "(\\w+)\\s*(\\()",
@@ -911,7 +949,7 @@
 							"include": "#parens"
 						},
 						{
-							"include": "#comments-inline"
+							"include": "#comments"
 						}
 					]
 				},
@@ -928,6 +966,9 @@
 						},
 						{
 							"include": "#parens"
+						},
+						{
+							"include": "#comments"
 						}
 					]
 				},
@@ -1496,12 +1537,12 @@
 			]
 		},
 		"variables": {
-			"begin": "(?x)\n(?=\n  (\n    \\b(void|boolean|byte|char|short|int|float|long|double)\\b\n    |\n    (?>(\\w+\\.)*[A-Z]+\\w*) # e.g. `javax.ws.rs.Response`, or `String`\n  )\n  (\n    <[\\w<>,\\.?\\s\\[\\]]*> # e.g. `HashMap<Integer, String>`, or `List<java.lang.String>`\n  )?\n  (\n    (\\[\\])* # int[][]\n  )?\n  \\s+\n  [A-Za-z_$][\\w$]* # At least one identifier after space\n  ([\\w\\[\\],$][\\w\\[\\],\\s]*)? # possibly primitive array or additional identifiers\n  \\s*(=|;)\n)",
-			"end": "(?=\\=|;)",
+			"begin": "(?x)\n(?=\n  (\n    \\b(void|boolean|byte|char|short|int|float|long|double)\\b\n    |\n    (?>(\\w+\\.)*[A-Z]+\\w*) # e.g. `javax.ws.rs.Response`, or `String`\n  )\n  (\n    <[\\w<>,\\.?\\s\\[\\]]*> # e.g. `HashMap<Integer, String>`, or `List<java.lang.String>`\n  )?\n  (\n    (\\[\\])* # int[][]\n  )?\n  \\s+\n  [A-Za-z_$][\\w$]* # At least one identifier after space\n  ([\\w\\[\\],$][\\w\\[\\],\\s]*)? # possibly primitive array or additional identifiers\n  \\s*(=|:|;)\n)",
+			"end": "(?=\\=|:|;)",
 			"name": "meta.definition.variable.java",
 			"patterns": [
 				{
-					"match": "([A-Za-z$_][\\w$]*)(?=\\s*(\\[\\])*\\s*(;|=|,))",
+					"match": "([A-Za-z$_][\\w$]*)(?=\\s*(\\[\\])*\\s*(;|:|=|,))",
 					"captures": {
 						"1": {
 							"name": "variable.other.definition.java"
@@ -1510,6 +1551,28 @@
 				},
 				{
 					"include": "#all-types"
+				},
+				{
+					"include": "#code"
+				}
+			]
+		},
+		"variables-local": {
+			"begin": "(?=\\b(var)\\b\\s+[A-Za-z_$][\\w$]*\\s*(=|:|;))",
+			"end": "(?=\\=|:|;)",
+			"name": "meta.definition.variable.local.java",
+			"patterns": [
+				{
+					"match": "\\bvar\\b",
+					"name": "storage.type.local.java"
+				},
+				{
+					"match": "([A-Za-z$_][\\w$]*)(?=\\s*(\\[\\])*\\s*(=|:|;))",
+					"captures": {
+						"1": {
+							"name": "variable.other.definition.java"
+						}
+					}
 				},
 				{
 					"include": "#code"

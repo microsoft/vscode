@@ -29,11 +29,35 @@
 		};
 	}());
 
+	/**
+	 * Use polling to track focus of main webview and iframes within the webview
+	 *
+	 * @param {Object} handlers
+	 * @param {() => void} handlers.onFocus
+	 * @param {() => void} handlers.onBlur
+	 */
+	const trackFocus = ({onFocus, onBlur}) => {
+		const interval = 50;
+		let isFocused = document.hasFocus();
+		setInterval(() => {
+			const isCurrentlyFocused = document.hasFocus();
+			if (isCurrentlyFocused === isFocused) {
+				return;
+			}
+			isFocused = isCurrentlyFocused;
+			if (isCurrentlyFocused) {
+				onFocus();
+			} else {
+				onBlur();
+			}
+		}, interval);
+	};
+
 	// state
-	var firstLoad = true;
-	var loadTimeout;
-	var pendingMessages = [];
-	var enableWrappedPostMessage = false;
+	let firstLoad = true;
+	let loadTimeout;
+	let pendingMessages = [];
+	let enableWrappedPostMessage = false;
 	let isInDevelopmentMode = false;
 
 	const initData = {
@@ -67,15 +91,15 @@
 			return;
 		}
 
-		var baseElement = event.view.document.getElementsByTagName('base')[0];
+		let baseElement = event.view.document.getElementsByTagName('base')[0];
 		/** @type {any} */
-		var node = event.target;
+		let node = event.target;
 		while (node) {
 			if (node.tagName && node.tagName.toLowerCase() === 'a' && node.href) {
 				if (node.getAttribute('href') === '#') {
 					event.view.scrollTo(0, 0);
 				} else if (node.hash && (node.getAttribute('href') === node.hash || (baseElement && node.href.indexOf(baseElement.href) >= 0))) {
-					var scrollTarget = event.view.document.getElementById(node.hash.substr(1, node.hash.length - 1));
+					let scrollTarget = event.view.document.getElementById(node.hash.substr(1, node.hash.length - 1));
 					if (scrollTarget) {
 						scrollTarget.scrollIntoView();
 					}
@@ -89,11 +113,27 @@
 		}
 	};
 
+	/**
+	 * @param {KeyboardEvent} e
+	 */
+	const handleInnerKeydown = (e) => {
+		ipcRenderer.sendToHost('did-keydown', {
+			key: e.key,
+			keyCode: e.keyCode,
+			code: e.code,
+			shiftKey: e.shiftKey,
+			altKey: e.altKey,
+			ctrlKey: e.ctrlKey,
+			metaKey: e.metaKey,
+			repeat: e.repeat
+		});
+	};
+
 	const onMessage = (message) => {
 		ipcRenderer.sendToHost(message.data.command, message.data.data);
 	};
 
-	var isHandlingScroll = false;
+	let isHandlingScroll = false;
 	const handleInnerScroll = (event) => {
 		if (isHandlingScroll) {
 			return;
@@ -124,15 +164,13 @@
 			initData.styles = variables;
 			initData.activeTheme = activeTheme;
 
-			// webview
-			var target = getActiveFrame();
+			const target = getActiveFrame();
 			if (!target) {
 				return;
 			}
-			var body = target.contentDocument.getElementsByTagName('body');
-			styleBody(body[0]);
 
-			// iframe
+			styleBody(target.contentDocument.body);
+
 			Object.keys(variables).forEach((variable) => {
 				target.contentDocument.documentElement.style.setProperty(`--${variable}`, variables[variable]);
 			});
@@ -206,90 +244,21 @@
 					delete window.frameElement;
 				`;
 
-				if (newDocument.head.hasChildNodes()) {
-					newDocument.head.insertBefore(defaultScript, newDocument.head.firstChild);
-				} else {
-					newDocument.head.appendChild(defaultScript);
-				}
+				newDocument.head.prepend(defaultScript, newDocument.head.firstChild);
 			}
 
 			// apply default styles
 			const defaultStyles = newDocument.createElement('style');
 			defaultStyles.id = '_defaultStyles';
-
-			const vars = Object.keys(initData.styles || {}).map(variable => {
-				return `--${variable}: ${initData.styles[variable].replace(/[^\#\"\'\,\. a-z0-9\-\(\)]/gi, '')};`;
-			});
-			defaultStyles.innerHTML = `
-			:root { ${vars.join('\n')} }
-
-			body {
-				background-color: var(--vscode-editor-background);
-				color: var(--vscode-editor-foreground);
-				font-family: var(--vscode-editor-font-family);
-				font-weight: var(--vscode-editor-font-weight);
-				font-size: var(--vscode-editor-font-size);
-				margin: 0;
-				padding: 0 20px;
-			}
-
-			img {
-				max-width: 100%;
-				max-height: 100%;
-			}
-
-			a {
-				color: var(--vscode-textLink-foreground);
-			}
-
-			a:hover {
-				color: var(--vscode-textLink-activeForeground);
-			}
-
-			a:focus,
-			input:focus,
-			select:focus,
-			textarea:focus {
-				outline: 1px solid -webkit-focus-ring-color;
-				outline-offset: -1px;
-			}
-
-			code {
-				color: var(--vscode-textPreformat-foreground);
-			}
-
-			blockquote {
-				background: var(--vscode-textBlockQuote-background);
-				border-color: var(--vscode-textBlockQuote-border);
-			}
-
-			::-webkit-scrollbar {
-				width: 10px;
-				height: 10px;
-			}
-
-			::-webkit-scrollbar-thumb {
-				background-color: var(--vscode-scrollbarSlider-background);
-			}
-			::-webkit-scrollbar-thumb:hover {
-				background-color: var(--vscode-scrollbarSlider-hoverBackground);
-			}
-			::-webkit-scrollbar-thumb:active {
-				background-color: var(--vscode-scrollbarSlider-activeBackground);
-			}
-			`;
-			if (newDocument.head.hasChildNodes()) {
-				newDocument.head.insertBefore(defaultStyles, newDocument.head.firstChild);
-			} else {
-				newDocument.head.appendChild(defaultStyles);
-			}
+			defaultStyles.innerHTML = getDefaultCss(initData.styles);
+			newDocument.head.prepend(defaultStyles);
 
 			styleBody(newDocument.body);
 
 			const frame = getActiveFrame();
-
+			const wasFirstLoad = firstLoad;
 			// keep current scrollY around and use later
-			var setInitialScrollPosition;
+			let setInitialScrollPosition;
 			if (firstLoad) {
 				firstLoad = false;
 				setInitialScrollPosition = (body, window) => {
@@ -314,7 +283,9 @@
 				previousPendingFrame.setAttribute('id', '');
 				document.body.removeChild(previousPendingFrame);
 			}
-			pendingMessages = [];
+			if (!wasFirstLoad) {
+				pendingMessages = [];
+			}
 
 			const newFrame = document.createElement('iframe');
 			newFrame.setAttribute('id', 'pending-frame');
@@ -325,6 +296,7 @@
 
 			// write new content onto iframe
 			newFrame.contentDocument.open('text/html', 'replace');
+			newFrame.contentWindow.addEventListener('keydown', handleInnerKeydown);
 			newFrame.contentWindow.onbeforeunload = () => {
 				if (isInDevelopmentMode) { // Allow reloads while developing a webview
 					ipcRenderer.sendToHost('do-reload');
@@ -336,7 +308,7 @@
 				return false;
 			};
 
-			var onLoad = (contentDocument, contentWindow) => {
+			let onLoad = (contentDocument, contentWindow) => {
 				if (contentDocument.body) {
 					// Workaround for https://github.com/Microsoft/vscode/issues/12865
 					// check new scrollY and reset if neccessary
@@ -393,14 +365,14 @@
 		// Forward message to the embedded iframe
 		ipcRenderer.on('message', (_event, data) => {
 			const pending = getPendingFrame();
-			if (pending) {
-				pendingMessages.push(data);
-			} else {
+			if (!pending) {
 				const target = getActiveFrame();
 				if (target) {
 					target.contentWindow.postMessage(data, '*');
+					return;
 				}
 			}
+			pendingMessages.push(data);
 		});
 
 		ipcRenderer.on('initial-scroll-position', (_event, progress) => {
@@ -411,10 +383,84 @@
 			isInDevelopmentMode = true;
 		});
 
+		trackFocus({
+			onFocus: () => { ipcRenderer.sendToHost('did-focus'); },
+			onBlur: () => { ipcRenderer.sendToHost('did-blur'); }
+		});
+
 		// Forward messages from the embedded iframe
 		window.onmessage = onMessage;
 
 		// signal ready
 		ipcRenderer.sendToHost('webview-ready', process.pid);
 	});
+
+	/**
+	 * @param {{ [variable: string]: string }} styles
+	 */
+	function getDefaultCss(styles) {
+		const vars = Object.keys(styles || {}).map(variable => {
+			return `--${variable}: ${styles[variable].replace(/[^\#\"\'\,\. a-z0-9\-\(\)]/gi, '')};`;
+		});
+		return `
+			:root { ${vars.join('\n')} }
+			${defaultCssRules}
+		`;
+	}
+
+	const defaultCssRules = `
+		body {
+			background-color: var(--vscode-editor-background);
+			color: var(--vscode-editor-foreground);
+			font-family: var(--vscode-editor-font-family);
+			font-weight: var(--vscode-editor-font-weight);
+			font-size: var(--vscode-editor-font-size);
+			margin: 0;
+			padding: 0 20px;
+		}
+
+		img {
+			max-width: 100%;
+			max-height: 100%;
+		}
+
+		a {
+			color: var(--vscode-textLink-foreground);
+		}
+
+		a:hover {
+			color: var(--vscode-textLink-activeForeground);
+		}
+
+		a:focus,
+		input:focus,
+		select:focus,
+		textarea:focus {
+			outline: 1px solid -webkit-focus-ring-color;
+			outline-offset: -1px;
+		}
+
+		code {
+			color: var(--vscode-textPreformat-foreground);
+		}
+
+		blockquote {
+			background: var(--vscode-textBlockQuote-background);
+			border-color: var(--vscode-textBlockQuote-border);
+		}
+
+		::-webkit-scrollbar {
+			width: 10px;
+			height: 10px;
+		}
+
+		::-webkit-scrollbar-thumb {
+			background-color: var(--vscode-scrollbarSlider-background);
+		}
+		::-webkit-scrollbar-thumb:hover {
+			background-color: var(--vscode-scrollbarSlider-hoverBackground);
+		}
+		::-webkit-scrollbar-thumb:active {
+			background-color: var(--vscode-scrollbarSlider-activeBackground);
+		}`;
 }());

@@ -26,7 +26,7 @@ suite('HtmlContent', () => {
 	test('simple formatting', () => {
 		var result: HTMLElement = renderFormattedText('**bold**');
 		assert.strictEqual(result.children.length, 1);
-		assert.strictEqual(result.firstChild.textContent, 'bold');
+		assert.strictEqual(result.firstChild!.textContent, 'bold');
 		assert.strictEqual((<HTMLElement>result.firstChild).tagName, 'B');
 		assert.strictEqual(result.innerHTML, '<b>bold</b>');
 
@@ -62,7 +62,7 @@ suite('HtmlContent', () => {
 
 		var event: MouseEvent = <any>document.createEvent('MouseEvent');
 		event.initEvent('click', true, true);
-		result.firstChild.dispatchEvent(event);
+		result.firstChild!.dispatchEvent(event);
 		assert.strictEqual(callbackCalled, true);
 	});
 
@@ -81,7 +81,7 @@ suite('HtmlContent', () => {
 
 		var event: MouseEvent = <any>document.createEvent('MouseEvent');
 		event.initEvent('click', true, true);
-		result.firstChild.firstChild.firstChild.dispatchEvent(event);
+		result.firstChild!.firstChild!.firstChild!.dispatchEvent(event);
 		assert.strictEqual(callbackCalled, true);
 	});
 

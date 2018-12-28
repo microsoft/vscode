@@ -6,7 +6,6 @@
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWindowService, IEnterWorkspaceResult } from 'vs/platform/windows/common/windows';
 import { IJSONEditingService, JSONEditingError, JSONEditingErrorCode } from 'vs/workbench/services/configuration/common/jsonEditing';
@@ -14,7 +13,7 @@ import { IWorkspaceIdentifier, IWorkspaceFolderCreationData } from 'vs/platform/
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { DelegatingStorageService } from 'vs/platform/storage/node/storageService';
+import { StorageService } from 'vs/platform/storage/node/storageService';
 import { ConfigurationScope, IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -25,9 +24,6 @@ import { distinct } from 'vs/base/common/arrays';
 import { isLinux } from 'vs/base/common/platform';
 import { isEqual } from 'vs/base/common/resources';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { join } from 'path';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { mkdirp } from 'vs/base/node/pfs';
 
 export class WorkspaceEditingService implements IWorkspaceEditingService {
 
@@ -42,12 +38,11 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		@IExtensionService private extensionService: IExtensionService,
 		@IBackupFileService private backupFileService: IBackupFileService,
 		@INotificationService private notificationService: INotificationService,
-		@ICommandService private commandService: ICommandService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@ICommandService private commandService: ICommandService
 	) {
 	}
 
-	updateFolders(index: number, deleteCount?: number, foldersToAdd?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): TPromise<void> {
+	updateFolders(index: number, deleteCount?: number, foldersToAdd?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): Promise<void> {
 		const folders = this.contextService.getWorkspace().folders;
 
 		let foldersToDelete: URI[] = [];
@@ -59,7 +54,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		const wantsToAdd = Array.isArray(foldersToAdd) && foldersToAdd.length > 0;
 
 		if (!wantsToAdd && !wantsToDelete) {
-			return TPromise.as(void 0); // return early if there is nothing to do
+			return Promise.resolve(); // return early if there is nothing to do
 		}
 
 		// Add Folders
@@ -92,16 +87,16 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		}
 	}
 
-	private doUpdateFolders(foldersToAdd: IWorkspaceFolderCreationData[], foldersToDelete: URI[], index?: number, donotNotifyError: boolean = false): TPromise<void> {
+	private doUpdateFolders(foldersToAdd: IWorkspaceFolderCreationData[], foldersToDelete: URI[], index?: number, donotNotifyError: boolean = false): Promise<void> {
 		return this.contextService.updateFolders(foldersToAdd, foldersToDelete, index)
-			.then(() => null, error => donotNotifyError ? TPromise.wrapError(error) : this.handleWorkspaceConfigurationEditingError(error));
+			.then(() => null, error => donotNotifyError ? Promise.reject(error) : this.handleWorkspaceConfigurationEditingError(error));
 	}
 
-	addFolders(foldersToAdd: IWorkspaceFolderCreationData[], donotNotifyError: boolean = false): TPromise<void> {
+	addFolders(foldersToAdd: IWorkspaceFolderCreationData[], donotNotifyError: boolean = false): Promise<void> {
 		return this.doAddFolders(foldersToAdd, void 0, donotNotifyError);
 	}
 
-	private doAddFolders(foldersToAdd: IWorkspaceFolderCreationData[], index?: number, donotNotifyError: boolean = false): TPromise<void> {
+	private doAddFolders(foldersToAdd: IWorkspaceFolderCreationData[], index?: number, donotNotifyError: boolean = false): Promise<void> {
 		const state = this.contextService.getWorkbenchState();
 
 		// If we are in no-workspace or single-folder workspace, adding folders has to
@@ -112,7 +107,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 			newWorkspaceFolders = distinct(newWorkspaceFolders, folder => isLinux ? folder.uri.toString() : folder.uri.toString().toLowerCase());
 
 			if (state === WorkbenchState.EMPTY && newWorkspaceFolders.length === 0 || state === WorkbenchState.FOLDER && newWorkspaceFolders.length === 1) {
-				return TPromise.as(void 0); // return if the operation is a no-op for the current state
+				return Promise.resolve(); // return if the operation is a no-op for the current state
 			}
 
 			return this.createAndEnterWorkspace(newWorkspaceFolders);
@@ -120,10 +115,10 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 		// Delegate addition of folders to workspace service otherwise
 		return this.contextService.addFolders(foldersToAdd, index)
-			.then(() => null, error => donotNotifyError ? TPromise.wrapError(error) : this.handleWorkspaceConfigurationEditingError(error));
+			.then(() => null, error => donotNotifyError ? Promise.reject(error) : this.handleWorkspaceConfigurationEditingError(error));
 	}
 
-	removeFolders(foldersToRemove: URI[], donotNotifyError: boolean = false): TPromise<void> {
+	removeFolders(foldersToRemove: URI[], donotNotifyError: boolean = false): Promise<void> {
 
 		// If we are in single-folder state and the opened folder is to be removed,
 		// we create an empty workspace and enter it.
@@ -133,7 +128,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 		// Delegate removal of folders to workspace service otherwise
 		return this.contextService.removeFolders(foldersToRemove)
-			.then(() => null, error => donotNotifyError ? TPromise.wrapError(error) : this.handleWorkspaceConfigurationEditingError(error));
+			.then(() => null, error => donotNotifyError ? Promise.reject(error) : this.handleWorkspaceConfigurationEditingError(error));
 	}
 
 	private includesSingleFolderWorkspace(folders: URI[]): boolean {
@@ -145,30 +140,30 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		return false;
 	}
 
-	enterWorkspace(path: string): TPromise<void> {
+	enterWorkspace(path: string): Promise<void> {
 		return this.doEnterWorkspace(() => this.windowService.enterWorkspace(path));
 	}
 
-	createAndEnterWorkspace(folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<void> {
+	createAndEnterWorkspace(folders?: IWorkspaceFolderCreationData[], path?: string): Promise<void> {
 		return this.doEnterWorkspace(() => this.windowService.createAndEnterWorkspace(folders, path));
 	}
 
-	saveAndEnterWorkspace(path: string): TPromise<void> {
+	saveAndEnterWorkspace(path: string): Promise<void> {
 		return this.doEnterWorkspace(() => this.windowService.saveAndEnterWorkspace(path));
 	}
 
-	private handleWorkspaceConfigurationEditingError(error: JSONEditingError): TPromise<void> {
+	private handleWorkspaceConfigurationEditingError(error: JSONEditingError): Promise<void> {
 		switch (error.code) {
 			case JSONEditingErrorCode.ERROR_INVALID_FILE:
 				this.onInvalidWorkspaceConfigurationFileError();
-				return TPromise.as(void 0);
+				return Promise.resolve();
 			case JSONEditingErrorCode.ERROR_FILE_DIRTY:
 				this.onWorkspaceConfigurationFileDirtyError();
-				return TPromise.as(void 0);
+				return Promise.resolve();
 		}
 		this.notificationService.error(error.message);
 
-		return TPromise.as(void 0);
+		return Promise.resolve();
 	}
 
 	private onInvalidWorkspaceConfigurationFileError(): void {
@@ -190,7 +185,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		);
 	}
 
-	private doEnterWorkspace(mainSidePromise: () => TPromise<IEnterWorkspaceResult>): TPromise<void> {
+	private doEnterWorkspace(mainSidePromise: () => Promise<IEnterWorkspaceResult>): Promise<void> {
 
 		// Stop the extension host first to give extensions most time to shutdown
 		this.extensionService.stopExtensionHost();
@@ -218,17 +213,17 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 				});
 			}
 
-			return TPromise.as(void 0);
-		}).then(null, error => {
+			return Promise.resolve();
+		}).then(void 0, error => {
 			if (!extensionHostStarted) {
 				startExtensionHost(); // start the extension host if not started
 			}
 
-			return TPromise.wrapError(error);
+			return Promise.reject(error);
 		});
 	}
 
-	private migrate(toWorkspace: IWorkspaceIdentifier): Thenable<void> {
+	private migrate(toWorkspace: IWorkspaceIdentifier): Promise<void> {
 
 		// Storage migration
 		return this.migrateStorage(toWorkspace).then(() => {
@@ -242,25 +237,21 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		});
 	}
 
-	private migrateStorage(toWorkspace: IWorkspaceIdentifier): Thenable<void> {
-		const newWorkspaceStorageHome = join(this.environmentService.workspaceStorageHome, toWorkspace.id);
+	private migrateStorage(toWorkspace: IWorkspaceIdentifier): Promise<void> {
+		const storageImpl = this.storageService as StorageService;
 
-		return mkdirp(newWorkspaceStorageHome).then(() => {
-			const storageImpl = this.storageService as DelegatingStorageService;
-
-			return storageImpl.storage.migrate(newWorkspaceStorageHome);
-		});
+		return storageImpl.migrate(toWorkspace);
 	}
 
-	private migrateWorkspaceSettings(toWorkspace: IWorkspaceIdentifier): TPromise<void> {
+	private migrateWorkspaceSettings(toWorkspace: IWorkspaceIdentifier): Promise<void> {
 		return this.doCopyWorkspaceSettings(toWorkspace, setting => setting.scope === ConfigurationScope.WINDOW);
 	}
 
-	copyWorkspaceSettings(toWorkspace: IWorkspaceIdentifier): TPromise<void> {
+	copyWorkspaceSettings(toWorkspace: IWorkspaceIdentifier): Promise<void> {
 		return this.doCopyWorkspaceSettings(toWorkspace);
 	}
 
-	private doCopyWorkspaceSettings(toWorkspace: IWorkspaceIdentifier, filter?: (config: IConfigurationPropertySchema) => boolean): TPromise<void> {
+	private doCopyWorkspaceSettings(toWorkspace: IWorkspaceIdentifier, filter?: (config: IConfigurationPropertySchema) => boolean): Promise<void> {
 		const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 		const targetWorkspaceConfiguration = {};
 		for (const key of this.workspaceConfigurationService.keys().workspace) {

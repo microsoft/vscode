@@ -7,7 +7,6 @@ import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/lis
 import { clearNode, addClass, removeClass, toggleClass, addDisposableListener, EventType, EventHelper } from 'vs/base/browser/dom';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { localize } from 'vs/nls';
 import { ButtonGroup } from 'vs/base/browser/ui/button/button';
 import { attachButtonStyler, attachProgressBarStyler } from 'vs/platform/theme/common/styler';
@@ -276,10 +275,6 @@ export class NotificationRenderer implements IListRenderer<INotificationViewItem
 		data.renderer.setInput(notification);
 	}
 
-	disposeElement(): void {
-		// noop
-	}
-
 	disposeTemplate(templateData: INotificationTemplateData): void {
 		templateData.toDispose = dispose(templateData.toDispose);
 	}
@@ -291,7 +286,7 @@ export class NotificationTemplateRenderer {
 	private static expandNotificationAction: ExpandNotificationAction;
 	private static collapseNotificationAction: CollapseNotificationAction;
 
-	private static readonly SEVERITIES: ('info' | 'warning' | 'error')[] = ['info', 'warning', 'error'];
+	private static readonly SEVERITIES: Array<'info' | 'warning' | 'error'> = ['info', 'warning', 'error'];
 
 	private inputDisposeables: IDisposable[] = [];
 
@@ -369,7 +364,7 @@ export class NotificationTemplateRenderer {
 	private renderMessage(notification: INotificationViewItem): boolean {
 		clearNode(this.template.message);
 		this.template.message.appendChild(NotificationMessageRenderer.render(notification.message, {
-			callback: link => this.openerService.open(URI.parse(link)).then(void 0, onUnexpectedError),
+			callback: link => this.openerService.open(URI.parse(link)),
 			disposeables: this.inputDisposeables
 		}));
 

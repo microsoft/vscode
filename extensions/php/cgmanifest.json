@@ -1,0 +1,17 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "language-php",
+					"repositoryUrl": "https://github.com/atom/language-php",
+					"commitHash": "13842b6dfb4568f76e8fa0c08dbff74347ee13c6"
+				}
+			},
+			"license": "MIT",
+			"version": "0.43.2"
+		}
+	],
+	"version": 1
+}

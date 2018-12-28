@@ -1,0 +1,17 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "atom/language-java",
+					"repositoryUrl": "https://github.com/atom/language-java",
+					"commitHash": "7c3d0d3e37920790cd3afb4e68830bdb215851a3"
+				}
+			},
+			"license": "MIT",
+			"version": "0.31.1"
+		}
+	],
+	"version": 1
+}

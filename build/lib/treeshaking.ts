@@ -69,7 +69,7 @@ function printDiagnostics(diagnostics: ReadonlyArray<ts.Diagnostic>): void {
 		}
 		if (diag.file && diag.start) {
 			let location = diag.file.getLineAndCharacterOfPosition(diag.start);
-			result += `- ${location.line + 1},${location.character} - `
+			result += `- ${location.line + 1},${location.character} - `;
 		}
 		result += JSON.stringify(diag.messageText);
 		console.log(result);
@@ -110,7 +110,7 @@ function createTypeScriptLanguageService(options: ITreeShakingOptions): ts.Langu
 
 	// Add fake usage files
 	options.inlineEntryPoints.forEach((inlineEntryPoint, index) => {
-		FILES[`inlineEntryPoint:${index}.ts`] = inlineEntryPoint;
+		FILES[`inlineEntryPoint.${index}.ts`] = inlineEntryPoint;
 	});
 
 	// Add additional typings
@@ -157,6 +157,12 @@ function discoverAndReadFiles(options: ITreeShakingOptions): IFileMap {
 		if (fs.existsSync(dts_filename)) {
 			const dts_filecontents = fs.readFileSync(dts_filename).toString();
 			FILES[`${moduleId}.d.ts`] = dts_filecontents;
+			continue;
+		}
+
+		const js_filename = path.join(options.sourcesRoot, moduleId + '.js');
+		if (fs.existsSync(js_filename)) {
+			// This is an import for a .js file, so ignore it...
 			continue;
 		}
 
@@ -445,7 +451,7 @@ function markNodes(languageService: ts.LanguageService, options: ITreeShakingOpt
 
 	options.entryPoints.forEach(moduleId => enqueueFile(moduleId + '.ts'));
 	// Add fake usage files
-	options.inlineEntryPoints.forEach((_, index) => enqueueFile(`inlineEntryPoint:${index}.ts`));
+	options.inlineEntryPoints.forEach((_, index) => enqueueFile(`inlineEntryPoint.${index}.ts`));
 
 	let step = 0;
 

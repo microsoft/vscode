@@ -9,7 +9,7 @@ import { INotificationViewItem, INotificationsModel, NotificationChangeType, INo
 import { Disposable } from 'vs/base/common/lifecycle';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Severity } from 'vs/platform/notification/common/notification';
-import { once } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 
 export class NotificationsAlerts extends Disposable {
 
@@ -52,7 +52,7 @@ export class NotificationsAlerts extends Disposable {
 			}
 		});
 
-		once(notifiation.onDidClose)(() => listener.dispose());
+		Event.once(notifiation.onDidClose)(() => listener.dispose());
 
 		this.doTriggerAriaAlert(notifiation);
 	}

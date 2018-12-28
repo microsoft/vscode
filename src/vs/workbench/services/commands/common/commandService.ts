@@ -35,7 +35,7 @@ export class CommandService extends Disposable implements ICommandService {
 		// we don't wait for it when the extension
 		// host didn't yet start and the command is already registered
 
-		const activation: Thenable<any> = this._extensionService.activateByEvent(`onCommand:${id}`);
+		const activation: Promise<any> = this._extensionService.activateByEvent(`onCommand:${id}`);
 		const commandIsRegistered = !!CommandsRegistry.getCommand(id);
 
 		if (!this._extensionHostIsReady && commandIsRegistered) {
@@ -43,7 +43,11 @@ export class CommandService extends Disposable implements ICommandService {
 		} else {
 			let waitFor = activation;
 			if (!commandIsRegistered) {
-				waitFor = Promise.all([activation, this._extensionService.activateByEvent(`*`)]);
+				waitFor = Promise.race<any>([
+					// race activation events against command registration
+					Promise.all([activation, this._extensionService.activateByEvent(`*`)]),
+					Event.toPromise(Event.filter(CommandsRegistry.onDidRegisterCommand, e => e === id)),
+				]);
 			}
 			return (waitFor as Promise<any>).then(_ => this._tryExecuteCommand(id, args));
 		}
@@ -56,7 +60,7 @@ export class CommandService extends Disposable implements ICommandService {
 		}
 		try {
 			this._onWillExecuteCommand.fire({ commandId: id });
-			const result = this._instantiationService.invokeFunction.apply(this._instantiationService, [command.handler].concat(args));
+			const result = this._instantiationService.invokeFunction.apply(this._instantiationService, [command.handler, ...args]);
 			return Promise.resolve(result);
 		} catch (err) {
 			return Promise.reject(err);

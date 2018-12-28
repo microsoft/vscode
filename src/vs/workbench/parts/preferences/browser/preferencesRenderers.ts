@@ -10,7 +10,6 @@ import { Delayer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { Position } from 'vs/editor/common/core/position';
@@ -57,10 +56,10 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 	private modelChangeDelayer: Delayer<void> = new Delayer<void>(200);
 	private associatedPreferencesModel: IPreferencesEditorModel<ISetting>;
 
-	private readonly _onFocusPreference: Emitter<ISetting> = new Emitter<ISetting>();
+	private readonly _onFocusPreference = new Emitter<ISetting>();
 	public readonly onFocusPreference: Event<ISetting> = this._onFocusPreference.event;
 
-	private readonly _onClearFocusPreference: Emitter<ISetting> = new Emitter<ISetting>();
+	private readonly _onClearFocusPreference = new Emitter<ISetting>();
 	public readonly onClearFocusPreference: Event<ISetting> = this._onClearFocusPreference.event;
 
 	private readonly _onUpdatePreference: Emitter<{ key: string, value: any, source: IIndexedSetting }> = new Emitter<{ key: string, value: any, source: IIndexedSetting }>();
@@ -95,7 +94,7 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 	}
 
 	protected createHeader(): void {
-		this._register(new SettingsHeaderWidget(this.editor, '')).setMessage(nls.localize('emptyUserSettingsHeader', "Place your settings here to overwrite the Default Settings."));
+		this._register(new SettingsHeaderWidget(this.editor, '')).setMessage(nls.localize('emptyUserSettingsHeader', "Place your settings here to override the Default Settings."));
 	}
 
 	public render(): void {
@@ -118,7 +117,7 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 	}
 
 	private onModelChanged(): void {
-		if (!this.editor.getModel()) {
+		if (!this.editor.hasModel()) {
 			// model could have been disposed during the delay
 			return;
 		}
@@ -191,7 +190,7 @@ export class WorkspaceSettingsRenderer extends UserSettingsRenderer implements I
 	}
 
 	protected createHeader(): void {
-		this._register(new SettingsHeaderWidget(this.editor, '')).setMessage(nls.localize('emptyWorkspaceSettingsHeader', "Place your settings here to overwrite the User Settings."));
+		this._register(new SettingsHeaderWidget(this.editor, '')).setMessage(nls.localize('emptyWorkspaceSettingsHeader', "Place your settings here to override the User Settings."));
 	}
 
 	public setAssociatedPreferencesModel(associatedPreferencesModel: IPreferencesEditorModel<ISetting>): void {
@@ -217,7 +216,7 @@ export class FolderSettingsRenderer extends UserSettingsRenderer implements IPre
 	}
 
 	protected createHeader(): void {
-		this._register(new SettingsHeaderWidget(this.editor, '')).setMessage(nls.localize('emptyFolderSettingsHeader', "Place your folder settings here to overwrite those from the Workspace Settings."));
+		this._register(new SettingsHeaderWidget(this.editor, '')).setMessage(nls.localize('emptyFolderSettingsHeader', "Place your folder settings here to override those from the Workspace Settings."));
 	}
 
 }
@@ -237,10 +236,10 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 	private readonly _onUpdatePreference: Emitter<{ key: string, value: any, source: IIndexedSetting }> = new Emitter<{ key: string, value: any, source: IIndexedSetting }>();
 	public readonly onUpdatePreference: Event<{ key: string, value: any, source: IIndexedSetting }> = this._onUpdatePreference.event;
 
-	private readonly _onFocusPreference: Emitter<ISetting> = new Emitter<ISetting>();
+	private readonly _onFocusPreference = new Emitter<ISetting>();
 	public readonly onFocusPreference: Event<ISetting> = this._onFocusPreference.event;
 
-	private readonly _onClearFocusPreference: Emitter<ISetting> = new Emitter<ISetting>();
+	private readonly _onClearFocusPreference = new Emitter<ISetting>();
 	public readonly onClearFocusPreference: Event<ISetting> = this._onClearFocusPreference.event;
 
 	constructor(protected editor: ICodeEditor, public readonly preferencesModel: DefaultSettingsEditorModel,
@@ -437,7 +436,7 @@ class DefaultSettingsHeaderRenderer extends Disposable {
 
 export class SettingsGroupTitleRenderer extends Disposable implements HiddenAreasProvider {
 
-	private readonly _onHiddenAreasChanged: Emitter<void> = new Emitter<void>();
+	private readonly _onHiddenAreasChanged = new Emitter<void>();
 	get onHiddenAreasChanged(): Event<void> { return this._onHiddenAreasChanged.event; }
 
 	private settingsGroups: ISettingsGroup[];
@@ -828,7 +827,7 @@ class EditSettingRenderer extends Disposable {
 			: editPreferenceWidget.preferences.map(setting => new ContextSubMenu(setting.key, this.getActions(setting, this.getConfigurationsMap()[setting.key])));
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => TPromise.wrap(actions)
+			getActions: () => actions
 		});
 	}
 
@@ -843,7 +842,7 @@ class EditSettingRenderer extends Disposable {
 		const actions = this.getActions(this.editPreferenceWidgetForMouseMove.preferences[0], this.getConfigurationsMap()[this.editPreferenceWidgetForMouseMove.preferences[0].key]);
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => this.toAbsoluteCoords(new Position(startLine, 1)),
-			getActions: () => TPromise.wrap(actions)
+			getActions: () => actions
 		});
 
 		return true;

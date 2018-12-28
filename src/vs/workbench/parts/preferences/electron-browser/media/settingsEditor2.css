@@ -51,12 +51,15 @@
 	opacity: 0.9;
 }
 
+.settings-editor .settings-tabs-widget > .monaco-action-bar .action-item .action-details {
+	opacity: 0.9;
+}
+
 .settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget .action-label:hover {
 	opacity: 1;
 }
 
 .settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget .action-label.checked {
-	font-weight: 500;
 	opacity: 1;
 }
 
@@ -75,21 +78,6 @@
 .settings-editor > .settings-header .settings-tabs-widget .monaco-action-bar .action-item .dropdown-icon {
 	/** The tab widget container height is shorter than elsewhere, need to tweak this */
 	padding-top: 3px;
-}
-
-.settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right {
-	margin-left: auto;
-	padding-top: 4px;
-	display: flex;
-}
-
-.settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .toolbar-toggle-more {
-	display: block;
-	width: 22px;
-	height: 22px;
-	background-position: center;
-	background-repeat: no-repeat;
-	background-size: 16px;
 }
 
 .settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item {

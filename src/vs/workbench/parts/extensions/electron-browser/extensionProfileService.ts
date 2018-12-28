@@ -20,6 +20,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { randomPort } from 'vs/base/node/ports';
 import product from 'vs/platform/node/product';
 import { RuntimeExtensionsInput } from 'vs/workbench/services/extensions/electron-browser/runtimeExtensionsInput';
+import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export class ExtensionHostProfileService extends Disposable implements IExtensionHostProfileService {
 
@@ -31,6 +32,7 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 	private readonly _onDidChangeLastProfile: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidChangeLastProfile: Event<void> = this._onDidChangeLastProfile.event;
 
+	private readonly _unresponsiveProfiles = new Map<string, IExtensionHostProfile>();
 	private _profile: IExtensionHostProfile;
 	private _profileSession: ProfileSession;
 	private _state: ProfileSessionState;
@@ -69,7 +71,7 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 		this._onDidChangeState.fire(void 0);
 	}
 
-	public startProfiling(): Thenable<any> {
+	public startProfiling(): Promise<any> {
 		if (this._state !== ProfileSessionState.None) {
 			return null;
 		}
@@ -120,13 +122,15 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 		this._onDidChangeLastProfile.fire(void 0);
 	}
 
-	public getLastProfile(): IExtensionHostProfile {
-		return this._profile;
+	getUnresponsiveProfile(extensionId: CanonicalExtensionIdentifier): IExtensionHostProfile | undefined {
+		return this._unresponsiveProfiles.get(CanonicalExtensionIdentifier.toKey(extensionId));
 	}
 
-	public clearLastProfile(): void {
-		this._setLastProfile(null);
+	setUnresponsiveProfile(extensionId: CanonicalExtensionIdentifier, profile: IExtensionHostProfile): void {
+		this._unresponsiveProfiles.set(CanonicalExtensionIdentifier.toKey(extensionId), profile);
+		this._setLastProfile(profile);
 	}
+
 }
 
 export class ProfileExtHostStatusbarItem implements IStatusbarItem {

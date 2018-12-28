@@ -12,7 +12,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, Configur
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
-import { KeybindingsReferenceAction, OpenDocumentationUrlAction, OpenIntroductoryVideosUrlAction, OpenTipsAndTricksUrlAction, OpenIssueReporterAction, ReportPerformanceIssueUsingReporterAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleFullScreenAction, ToggleMenuBarAction, CloseWorkspaceAction, CloseCurrentWindowAction, SwitchWindow, NewWindowAction, NavigateUpAction, NavigateDownAction, NavigateLeftAction, NavigateRightAction, IncreaseViewSizeAction, DecreaseViewSizeAction, ToggleSharedProcessAction, QuickSwitchWindow, QuickOpenRecentAction, inRecentFilesPickerContextKey, ShowAboutDialogAction, InspectContextKeysAction, OpenProcessExplorer, OpenTwitterUrlAction, OpenRequestFeatureUrlAction, OpenPrivacyStatementUrlAction, OpenLicenseUrlAction, OpenRecentAction } from 'vs/workbench/electron-browser/actions';
+import { KeybindingsReferenceAction, OpenDocumentationUrlAction, OpenIntroductoryVideosUrlAction, OpenTipsAndTricksUrlAction, OpenIssueReporterAction, ReportPerformanceIssueUsingReporterAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleFullScreenAction, ToggleMenuBarAction, CloseWorkspaceAction, CloseCurrentWindowAction, SwitchWindow, NewWindowAction, NavigateUpAction, NavigateDownAction, NavigateLeftAction, NavigateRightAction, IncreaseViewSizeAction, DecreaseViewSizeAction, ToggleSharedProcessAction, QuickSwitchWindow, QuickOpenRecentAction, inRecentFilesPickerContextKey, ShowAboutDialogAction, InspectContextKeysAction, OpenProcessExplorer, OpenTwitterUrlAction, OpenRequestFeatureUrlAction, OpenPrivacyStatementUrlAction, OpenLicenseUrlAction, OpenRecentAction, ToggleScreencastModeAction } from 'vs/workbench/electron-browser/actions';
 import { registerCommands, QUIT_ID } from 'vs/workbench/electron-browser/commands';
 import { AddRootFolderAction, GlobalRemoveRootFolderAction, OpenWorkspaceAction, SaveWorkspaceAsAction, OpenWorkspaceConfigFileAction, DuplicateWorkspaceInNewWindowAction, OpenFileFolderAction, OpenFileAction, OpenFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -126,6 +126,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 const developerCategory = nls.localize('developer', "Developer");
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleSharedProcessAction, ToggleSharedProcessAction.ID, ToggleSharedProcessAction.LABEL), 'Developer: Toggle Shared Process', developerCategory);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(InspectContextKeysAction, InspectContextKeysAction.ID, InspectContextKeysAction.LABEL), 'Developer: Inspect Context Keys', developerCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleScreencastModeAction, ToggleScreencastModeAction.ID, ToggleScreencastModeAction.LABEL), 'Developer: Toggle Mouse Clicks', developerCategory);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenProcessExplorer, OpenProcessExplorer.ID, OpenProcessExplorer.LABEL), 'Developer: Open Process Explorer', developerCategory);
 
 const recentFilesPickerContext = ContextKeyExpr.and(inQuickOpenContext, ContextKeyExpr.has(inRecentFilesPickerContextKey));
@@ -307,6 +308,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 		id: ToggleMenuBarAction.ID,
 		title: nls.localize({ key: 'miToggleMenuBar', comment: ['&& denotes a mnemonic'] }, "Toggle Menu &&Bar")
 	},
+	when: IsMacContext.toNegated(),
 	order: 4
 });
 
@@ -382,7 +384,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 	group: '2_reference',
 	command: {
 		id: 'workbench.action.openTipsAndTricksUrl',
-		title: nls.localize({ key: 'miTipsAndTricks', comment: ['&& denotes a mnemonic'] }, "&&Tips and Tricks")
+		title: nls.localize({ key: 'miTipsAndTricks', comment: ['&& denotes a mnemonic'] }, "Tips and Tri&&cks")
 	},
 	order: 3
 });
@@ -429,7 +431,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 	group: '4_legal',
 	command: {
 		id: 'workbench.action.openPrivacyStatementUrl',
-		title: nls.localize({ key: 'miPrivacyStatement', comment: ['&& denotes a mnemonic'] }, "&&Privacy Statement")
+		title: nls.localize({ key: 'miPrivacyStatement', comment: ['&& denotes a mnemonic'] }, "Privac&&y Statement")
 	},
 	order: 2
 });
@@ -595,7 +597,12 @@ configurationRegistry.registerConfiguration({
 		'workbench.settings.openDefaultSettings': {
 			'type': 'boolean',
 			'description': nls.localize('openDefaultSettings', "Controls whether opening settings also opens an editor showing all default settings."),
-			'default': true
+			'default': false
+		},
+		'workbench.settings.useSplitJSON': {
+			'type': 'boolean',
+			'markdownDescription': nls.localize('useSplitJSON', "Controls whether to use the split JSON editor when editing settings as JSON."),
+			'default': false
 		},
 		'workbench.settings.openDefaultKeybindings': {
 			'type': 'boolean',
@@ -677,12 +684,6 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('workbench.enableExperiments', "Fetches experiments to run from a Microsoft online service."),
 			'default': true,
 			'tags': ['usesOnlineServices']
-		},
-		//TODO@Ben remove ('enableLegacyStorage') after a while
-		'workbench.enableLegacyStorage': {
-			'type': 'boolean',
-			'description': nls.localize('workbench.enableLegacyStorage', "Switches back to the previous storage implementation. Only change this setting if advised to do so."),
-			'default': false
 		}
 	}
 });
@@ -810,10 +811,16 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('autoDetectHighContrast', "If enabled, will automatically change to high contrast theme if Windows is using a high contrast theme, and to dark theme when switching away from a Windows high contrast theme."),
 			'included': isWindows
 		},
+		'window.doubleClickIconToClose': {
+			'type': 'boolean',
+			'default': false,
+			'scope': ConfigurationScope.APPLICATION,
+			'description': nls.localize('window.doubleClickIconToClose', "If enabled, double clicking the application icon in the title bar will close the window and the window cannot be dragged by the icon. This setting only has an effect when 'window.titleBarStyle' is set to 'custom'.")
+		},
 		'window.titleBarStyle': {
 			'type': 'string',
 			'enum': ['native', 'custom'],
-			'default': isLinux ? 'native' : 'custom',
+			'default': 'custom',
 			'scope': ConfigurationScope.APPLICATION,
 			'description': nls.localize('titleBarStyle', "Adjust the appearance of the window title bar. Changes require a full restart to apply.")
 		},
@@ -829,6 +836,13 @@ configurationRegistry.registerConfiguration({
 			'default': true,
 			'description': nls.localize('window.nativeFullScreen', "Controls if native full-screen should be used on macOS. Disable this option to prevent macOS from creating a new space when going full-screen."),
 			'included': isMacintosh
+		},
+		'window.smoothScrollingWorkaround': { // TODO@Ben remove once https://github.com/Microsoft/vscode/issues/61824 settles
+			'type': 'boolean',
+			'default': false,
+			'scope': ConfigurationScope.APPLICATION,
+			'markdownDescription': nls.localize('window.smoothScrollingWorkaround', "Enable this workaround if scrolling is no longer smooth after restoring a minimized VS Code window. This is a workaround for an issue (https://github.com/Microsoft/vscode/issues/13612) where scrolling starts to lag on devices with precision trackpads like the Surface devices from Microsoft. Enabling this workaround can result in a little bit of layout flickering after restoring the window from minimized state but is otherwise harmless."),
+			'included': isWindows
 		},
 		'window.clickThroughInactive': {
 			'type': 'boolean',
@@ -871,6 +885,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': true,
 			'description': nls.localize('zenMode.hideActivityBar', "Controls whether turning on Zen Mode also hides the activity bar at the left of the workbench.")
+		},
+		'zenMode.hideLineNumbers': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('zenMode.hideLineNumbers', "Controls whether turning on Zen Mode also hides the editor line numbers.")
 		},
 		'zenMode.restore': {
 			'type': 'boolean',

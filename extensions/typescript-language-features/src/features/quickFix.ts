@@ -8,14 +8,15 @@ import * as nls from 'vscode-nls';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
+import { nulToken } from '../utils/cancellation';
 import { applyCodeActionCommands, getEditForCodeAction } from '../utils/codeAction';
 import { Command, CommandManager } from '../utils/commandManager';
 import { VersionDependentRegistration } from '../utils/dependentRegistration';
+import { memoize } from '../utils/memoize';
 import TelemetryReporter from '../utils/telemetry';
 import * as typeConverters from '../utils/typeConverters';
 import { DiagnosticsManager } from './diagnostics';
 import FileConfigurationManager from './fileConfigurationManager';
-import { nulToken } from '../utils/cancellation';
 
 const localize = nls.loadMessageBundle();
 
@@ -82,7 +83,7 @@ class ApplyFixAllCodeAction implements Command {
 				type: 'file',
 				args: { file }
 			},
-			fixId: tsAction.fixId
+			fixId: tsAction.fixId,
 		};
 
 		const response = await this.client.execute('getCombinedCodeFix', args, nulToken);
@@ -154,25 +155,21 @@ class CodeActionSet {
 }
 
 class SupportedCodeActionProvider {
-	private _supportedCodeActions?: Thenable<Set<number>>;
-
 	public constructor(
 		private readonly client: ITypeScriptServiceClient
 	) { }
 
 	public async getFixableDiagnosticsForContext(context: vscode.CodeActionContext): Promise<DiagnosticsSet> {
-		const supportedActions = await this.supportedCodeActions;
-		return DiagnosticsSet.from(context.diagnostics.filter(diagnostic => supportedActions.has(+(diagnostic.code!))));
+		const fixableCodes = await this.fixableDiagnosticCodes;
+		return DiagnosticsSet.from(
+			context.diagnostics.filter(diagnostic => typeof diagnostic.code !== 'undefined' && fixableCodes.has(diagnostic.code + '')));
 	}
 
-	private get supportedCodeActions(): Thenable<Set<number>> {
-		if (!this._supportedCodeActions) {
-			this._supportedCodeActions = this.client.execute('getSupportedCodeFixes', null, nulToken)
-				.then(response => response.type === 'response' ? response.body || [] : [])
-				.then(codes => codes.map(code => +code).filter(code => !isNaN(code)))
-				.then(codes => new Set(codes));
-		}
-		return this._supportedCodeActions;
+	@memoize
+	private get fixableDiagnosticCodes(): Thenable<Set<string>> {
+		return this.client.execute('getSupportedCodeFixes', null, nulToken)
+			.then(response => response.type === 'response' ? response.body || [] : [])
+			.then(codes => new Set(codes));
 	}
 }
 
@@ -203,7 +200,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 		context: vscode.CodeActionContext,
 		token: vscode.CancellationToken
 	): Promise<vscode.CodeAction[]> {
-		const file = this.client.toPath(document.uri);
+		const file = this.client.toOpenedFilePath(document);
 		if (!file) {
 			return [];
 		}

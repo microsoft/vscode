@@ -35,7 +35,6 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CommandService } from 'vs/workbench/services/commands/common/commandService';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { createHash } from 'crypto';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
@@ -83,14 +82,14 @@ suite('ConfigurationEditingService', () => {
 			.then(() => setUpServices());
 	});
 
-	function setUpWorkspace(): TPromise<boolean> {
+	async function setUpWorkspace(): Promise<boolean> {
 		const id = uuid.generateUuid();
 		parentDir = path.join(os.tmpdir(), 'vsctests', id);
 		workspaceDir = path.join(parentDir, 'workspaceconfig', id);
 		globalSettingsFile = path.join(workspaceDir, 'config.json');
 		workspaceSettingsDir = path.join(workspaceDir, '.vscode');
 
-		return mkdirp(workspaceSettingsDir, 493);
+		return await mkdirp(workspaceSettingsDir, 493);
 	}
 
 	function setUpServices(noWorkspace: boolean = false): Promise<void> {
@@ -123,18 +122,18 @@ suite('ConfigurationEditingService', () => {
 			if (configuraitonService) {
 				configuraitonService.dispose();
 			}
-			instantiationService = null;
+			instantiationService = null!;
 		}
 	}
 
 	function clearWorkspace(): Promise<void> {
 		return new Promise<void>((c, e) => {
 			if (parentDir) {
-				extfs.del(parentDir, os.tmpdir(), () => c(null), () => c(null));
+				extfs.del(parentDir, os.tmpdir(), () => c(void 0), () => c(void 0));
 			} else {
-				c(null);
+				c(void 0);
 			}
-		}).then(() => parentDir = null);
+		}).then(() => parentDir = null!);
 	}
 
 	test('errors cases - invalid key', () => {
@@ -179,7 +178,7 @@ suite('ConfigurationEditingService', () => {
 	test('do not notify error', () => {
 		instantiationService.stub(ITextFileService, 'isDirty', true);
 		const target = sinon.stub();
-		instantiationService.stub(INotificationService, <INotificationService>{ prompt: target, _serviceBrand: null, notify: null, error: null, info: null, warn: null });
+		instantiationService.stub(INotificationService, <INotificationService>{ prompt: target, _serviceBrand: null, notify: null!, error: null!, info: null!, warn: null! });
 		return testObject.writeConfiguration(ConfigurationTarget.USER, { key: 'configurationEditing.service.testSetting', value: 'value' }, { donotNotifyError: true })
 			.then(() => assert.fail('Should fail with ERROR_CONFIGURATION_FILE_DIRTY error.'),
 				(error: ConfigurationEditingError) => {

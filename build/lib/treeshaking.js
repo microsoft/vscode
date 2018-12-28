@@ -57,7 +57,7 @@ function createTypeScriptLanguageService(options) {
     const FILES = discoverAndReadFiles(options);
     // Add fake usage files
     options.inlineEntryPoints.forEach((inlineEntryPoint, index) => {
-        FILES[`inlineEntryPoint:${index}.ts`] = inlineEntryPoint;
+        FILES[`inlineEntryPoint.${index}.ts`] = inlineEntryPoint;
     });
     // Add additional typings
     options.typings.forEach((typing) => {
@@ -95,6 +95,11 @@ function discoverAndReadFiles(options) {
         if (fs.existsSync(dts_filename)) {
             const dts_filecontents = fs.readFileSync(dts_filename).toString();
             FILES[`${moduleId}.d.ts`] = dts_filecontents;
+            continue;
+        }
+        const js_filename = path.join(options.sourcesRoot, moduleId + '.js');
+        if (fs.existsSync(js_filename)) {
+            // This is an import for a .js file, so ignore it...
             continue;
         }
         let ts_filename;
@@ -336,7 +341,7 @@ function markNodes(languageService, options) {
     }
     options.entryPoints.forEach(moduleId => enqueueFile(moduleId + '.ts'));
     // Add fake usage files
-    options.inlineEntryPoints.forEach((_, index) => enqueueFile(`inlineEntryPoint:${index}.ts`));
+    options.inlineEntryPoints.forEach((_, index) => enqueueFile(`inlineEntryPoint.${index}.ts`));
     let step = 0;
     const checker = program.getTypeChecker();
     while (black_queue.length > 0 || gray_queue.length > 0) {

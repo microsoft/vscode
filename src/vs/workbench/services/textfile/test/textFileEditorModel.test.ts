@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EncodingMode } from 'vs/workbench/common/editor';
 import { TextFileEditorModel, SaveSequentializer } from 'vs/workbench/services/textfile/common/textFileEditorModel';
@@ -14,11 +13,7 @@ import { toResource } from 'vs/base/test/common/utils';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { FileOperationResult, FileOperationError, IFileService, snapshotToString } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { timeout as thenableTimeout } from 'vs/base/common/async';
-
-function timeout(n: number) {
-	return TPromise.wrap(thenableTimeout(n));
-}
+import { timeout } from 'vs/base/common/async';
 
 class ServiceAccessor {
 	constructor(@ITextFileService public textFileService: TestTextFileService, @IModelService public modelService: IModelService, @IFileService public fileService: TestFileService) {
@@ -84,9 +79,11 @@ suite('Files - TextFileEditorModel', () => {
 
 		model.setEncoding('utf16', EncodingMode.Decode);
 
-		assert.ok(model.isResolved()); // model got loaded due to decoding
+		return timeout(0).then(() => { // due to model updating async
+			assert.ok(model.isResolved()); // model got loaded due to decoding
 
-		model.dispose();
+			model.dispose();
+		});
 	});
 
 	test('disposes when underlying model is destroyed', function () {
@@ -279,7 +276,7 @@ suite('Files - TextFileEditorModel', () => {
 				model.textEditorModel.setValue('bar');
 				assert.ok(model.isDirty());
 				eventCounter++;
-				return undefined;
+				return Promise.resolve();
 			}
 		});
 
@@ -320,7 +317,7 @@ suite('Files - TextFileEditorModel', () => {
 
 		TextFileEditorModel.setSaveParticipant({
 			participate: (model) => {
-				return TPromise.wrapError(new Error('boom'));
+				return Promise.reject(new Error('boom'));
 			}
 		});
 
@@ -340,22 +337,23 @@ suite('Files - TextFileEditorModel', () => {
 		assert.ok(!sequentializer.pendingSave);
 
 		// pending removes itself after done
-		sequentializer.setPending(1, TPromise.as(null));
-		assert.ok(!sequentializer.hasPendingSave());
-		assert.ok(!sequentializer.hasPendingSave(1));
-		assert.ok(!sequentializer.pendingSave);
-
-		// pending removes itself after done (use timeout)
-		sequentializer.setPending(2, timeout(1));
-		assert.ok(sequentializer.hasPendingSave());
-		assert.ok(sequentializer.hasPendingSave(2));
-		assert.ok(!sequentializer.hasPendingSave(1));
-		assert.ok(sequentializer.pendingSave);
-
-		return timeout(2).then(() => {
+		return sequentializer.setPending(1, Promise.resolve(null)).then(() => {
 			assert.ok(!sequentializer.hasPendingSave());
-			assert.ok(!sequentializer.hasPendingSave(2));
+			assert.ok(!sequentializer.hasPendingSave(1));
 			assert.ok(!sequentializer.pendingSave);
+
+			// pending removes itself after done (use timeout)
+			sequentializer.setPending(2, timeout(1));
+			assert.ok(sequentializer.hasPendingSave());
+			assert.ok(sequentializer.hasPendingSave(2));
+			assert.ok(!sequentializer.hasPendingSave(1));
+			assert.ok(sequentializer.pendingSave);
+
+			return timeout(2).then(() => {
+				assert.ok(!sequentializer.hasPendingSave());
+				assert.ok(!sequentializer.hasPendingSave(2));
+				assert.ok(!sequentializer.pendingSave);
+			});
 		});
 	});
 
@@ -367,7 +365,7 @@ suite('Files - TextFileEditorModel', () => {
 
 		// next finishes instantly
 		let nextDone = false;
-		const res = sequentializer.setNext(() => TPromise.as(null).then(() => { nextDone = true; return null; }));
+		const res = sequentializer.setNext(() => Promise.resolve(null).then(() => { nextDone = true; return null; }));
 
 		return res.then(() => {
 			assert.ok(pendingDone);
@@ -407,7 +405,7 @@ suite('Files - TextFileEditorModel', () => {
 		let thirdDone = false;
 		let thirdRes = sequentializer.setNext(() => timeout(4).then(() => { thirdDone = true; return null; }));
 
-		return TPromise.join([firstRes, secondRes, thirdRes]).then(() => {
+		return Promise.all([firstRes, secondRes, thirdRes]).then(() => {
 			assert.ok(pendingDone);
 			assert.ok(!firstDone);
 			assert.ok(!secondDone);

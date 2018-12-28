@@ -220,7 +220,7 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 	private _asRuntimeKeybinding: SimpleKeybinding;
 
 	constructor(source: KeyboardEvent) {
-		let e = <KeyboardEvent>source;
+		let e = source;
 
 		this.browserEvent = e;
 		this.target = <HTMLElement>e.target;

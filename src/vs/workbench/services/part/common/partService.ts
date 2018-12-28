@@ -56,9 +56,10 @@ export interface IPartService {
 	onEditorLayout: Event<IDimension>;
 
 	/**
-	 * Asks the part service to if all parts have been created.
+	 * Asks the part service if all parts have been fully restored. For editor part
+	 * this means that the contents of editors have loaded.
 	 */
-	isCreated(): boolean;
+	isRestored(): boolean;
 
 	/**
 	 * Returns whether the given part has the keyboard focus or not.

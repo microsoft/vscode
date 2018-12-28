@@ -15,7 +15,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { hash } from 'vs/base/common/hash';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { mark } from 'vs/base/common/performance';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import { CoreEditorCommand } from 'vs/editor/browser/controller/coreCommands';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
@@ -286,7 +285,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._contentWidgets = {};
 		this._overlayWidgets = {};
 
-		mark('editor/start/contrib');
 		let contributions: IEditorContributionCtor[];
 		if (Array.isArray(codeEditorWidgetOptions.contributions)) {
 			contributions = codeEditorWidgetOptions.contributions;
@@ -302,7 +300,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				onUnexpectedError(err);
 			}
 		}
-		mark('editor/end/contrib');
 
 		EditorExtensionsRegistry.getEditorActions().forEach((action) => {
 			const internalAction = new InternalEditorAction(
@@ -399,7 +396,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._modelData.model;
 	}
 
-	public setModel(model: ITextModel | null = null): void {
+	public setModel(_model: ITextModel | editorCommon.IDiffEditorModel | null = null): void {
+		const model = <ITextModel | null>_model;
 		if (this._modelData === null && model === null) {
 			// Current model is the new model
 			return;
@@ -820,7 +818,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		};
 	}
 
-	public restoreViewState(s: editorCommon.ICodeEditorViewState): void {
+	public restoreViewState(s: editorCommon.ICodeEditorViewState | null): void {
 		if (!this._modelData || !this._modelData.hasRealView) {
 			return;
 		}
@@ -932,7 +930,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		const action = this.getAction(handlerId);
 		if (action) {
-			Promise.resolve(action.run()).then(null, onUnexpectedError);
+			Promise.resolve(action.run()).then(void 0, onUnexpectedError);
 			return;
 		}
 
@@ -953,7 +951,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			payload = payload || {};
 			payload.source = source;
 			this._instantiationService.invokeFunction((accessor) => {
-				Promise.resolve(command.runEditorCommand(accessor, this, payload)).then(null, onUnexpectedError);
+				Promise.resolve(command.runEditorCommand(accessor, this, payload)).then(void 0, onUnexpectedError);
 			});
 			return true;
 		}
@@ -1639,6 +1637,7 @@ export class EditorModeContext extends Disposable {
 	private _hasCodeActionsProvider: IContextKey<boolean>;
 	private _hasCodeLensProvider: IContextKey<boolean>;
 	private _hasDefinitionProvider: IContextKey<boolean>;
+	private _hasDeclarationProvider: IContextKey<boolean>;
 	private _hasImplementationProvider: IContextKey<boolean>;
 	private _hasTypeDefinitionProvider: IContextKey<boolean>;
 	private _hasHoverProvider: IContextKey<boolean>;
@@ -1663,6 +1662,7 @@ export class EditorModeContext extends Disposable {
 		this._hasCodeActionsProvider = EditorContextKeys.hasCodeActionsProvider.bindTo(contextKeyService);
 		this._hasCodeLensProvider = EditorContextKeys.hasCodeLensProvider.bindTo(contextKeyService);
 		this._hasDefinitionProvider = EditorContextKeys.hasDefinitionProvider.bindTo(contextKeyService);
+		this._hasDeclarationProvider = EditorContextKeys.hasDeclarationProvider.bindTo(contextKeyService);
 		this._hasImplementationProvider = EditorContextKeys.hasImplementationProvider.bindTo(contextKeyService);
 		this._hasTypeDefinitionProvider = EditorContextKeys.hasTypeDefinitionProvider.bindTo(contextKeyService);
 		this._hasHoverProvider = EditorContextKeys.hasHoverProvider.bindTo(contextKeyService);
@@ -1686,6 +1686,7 @@ export class EditorModeContext extends Disposable {
 		this._register(modes.CodeActionProviderRegistry.onDidChange(update));
 		this._register(modes.CodeLensProviderRegistry.onDidChange(update));
 		this._register(modes.DefinitionProviderRegistry.onDidChange(update));
+		this._register(modes.DeclarationProviderRegistry.onDidChange(update));
 		this._register(modes.ImplementationProviderRegistry.onDidChange(update));
 		this._register(modes.TypeDefinitionProviderRegistry.onDidChange(update));
 		this._register(modes.HoverProviderRegistry.onDidChange(update));
@@ -1710,6 +1711,7 @@ export class EditorModeContext extends Disposable {
 		this._hasCodeActionsProvider.reset();
 		this._hasCodeLensProvider.reset();
 		this._hasDefinitionProvider.reset();
+		this._hasDeclarationProvider.reset();
 		this._hasImplementationProvider.reset();
 		this._hasTypeDefinitionProvider.reset();
 		this._hasHoverProvider.reset();
@@ -1734,6 +1736,7 @@ export class EditorModeContext extends Disposable {
 		this._hasCodeActionsProvider.set(modes.CodeActionProviderRegistry.has(model));
 		this._hasCodeLensProvider.set(modes.CodeLensProviderRegistry.has(model));
 		this._hasDefinitionProvider.set(modes.DefinitionProviderRegistry.has(model));
+		this._hasDeclarationProvider.set(modes.DeclarationProviderRegistry.has(model));
 		this._hasImplementationProvider.set(modes.ImplementationProviderRegistry.has(model));
 		this._hasTypeDefinitionProvider.set(modes.TypeDefinitionProviderRegistry.has(model));
 		this._hasHoverProvider.set(modes.HoverProviderRegistry.has(model));
@@ -1830,7 +1833,7 @@ registerThemingParticipant((theme, collector) => {
 
 	const unnecessaryForeground = theme.getColor(editorUnnecessaryCodeOpacity);
 	if (unnecessaryForeground) {
-		collector.addRule(`.${SHOW_UNUSED_ENABLED_CLASS} .monaco-editor .${ClassName.EditorUnnecessaryInlineDecoration} { opacity: ${unnecessaryForeground.rgba.a}; will-change: opacity; }`); // TODO@Ben: 'will-change: opacity' is a workaround for https://github.com/Microsoft/vscode/issues/52196
+		collector.addRule(`.${SHOW_UNUSED_ENABLED_CLASS} .monaco-editor .${ClassName.EditorUnnecessaryInlineDecoration} { opacity: ${unnecessaryForeground.rgba.a}; }`);
 	}
 
 	const unnecessaryBorder = theme.getColor(editorUnnecessaryCodeBorder);

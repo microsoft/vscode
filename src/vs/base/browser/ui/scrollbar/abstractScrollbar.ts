@@ -6,7 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
-import { IMouseEvent, StandardMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { IMouseEvent, StandardWheelEvent } from 'vs/base/browser/mouseEvent';
 import { ScrollbarArrow, ScrollbarArrowOptions } from 'vs/base/browser/ui/scrollbar/scrollbarArrow';
 import { ScrollbarState } from 'vs/base/browser/ui/scrollbar/scrollbarState';
 import { ScrollbarVisibilityController } from 'vs/base/browser/ui/scrollbar/scrollbarVisibilityController';
@@ -25,7 +25,7 @@ export interface ISimplifiedMouseEvent {
 }
 
 export interface ScrollbarHost {
-	onMouseWheel(mouseWheelEvent: StandardMouseWheelEvent): void;
+	onMouseWheel(mouseWheelEvent: StandardWheelEvent): void;
 	onDragStart(): void;
 	onDragEnd(): void;
 }

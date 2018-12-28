@@ -216,6 +216,10 @@ export class StandaloneThemeServiceImpl implements IStandaloneThemeService {
 		} else {
 			theme = this._knownThemes.get(VS_THEME_NAME);
 		}
+		if (this._theme === theme) {
+			// Nothing to do
+			return theme.id;
+		}
 		this._theme = theme;
 
 		let cssRules: string[] = [];

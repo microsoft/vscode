@@ -67,6 +67,7 @@ export const enum Status {
 	DELETED,
 	UNTRACKED,
 	IGNORED,
+	INTENT_TO_ADD,
 
 	ADDED_BY_US,
 	ADDED_BY_THEM,
@@ -128,6 +129,8 @@ export interface Repository {
 
 	clean(paths: string[]): Promise<void>;
 
+	apply(patch: string, reverse?: boolean): Promise<void>;
+	diff(cached?: boolean): Promise<string>;
 	diffWithHEAD(path: string): Promise<string>;
 	diffWith(ref: string, path: string): Promise<string>;
 	diffIndexWithHEAD(path: string): Promise<string>;
@@ -138,7 +141,7 @@ export interface Repository {
 	hashObject(data: string): Promise<string>;
 
 	createBranch(name: string, checkout: boolean, ref?: string): Promise<void>;
-	deleteBranch(name: string): Promise<void>;
+	deleteBranch(name: string, force?: boolean): Promise<void>;
 	getBranch(name: string): Promise<Branch>;
 	setBranchUpstream(name: string, upstream: string): Promise<void>;
 
@@ -212,4 +215,5 @@ export const enum GitErrorCodes {
 	WrongCase = 'WrongCase',
 	CantLockRef = 'CantLockRef',
 	CantRebaseMultipleBranches = 'CantRebaseMultipleBranches',
+	PatchDoesNotApply = 'PatchDoesNotApply'
 }

@@ -22,18 +22,18 @@ class TypeScriptSignatureHelpProvider implements vscode.SignatureHelpProvider {
 		document: vscode.TextDocument,
 		position: vscode.Position,
 		token: vscode.CancellationToken,
-		context?: vscode.SignatureHelpContext,
+		context: vscode.SignatureHelpContext,
 	): Promise<vscode.SignatureHelp | undefined> {
-		const filepath = this.client.toPath(document.uri);
+		const filepath = this.client.toOpenedFilePath(document);
 		if (!filepath) {
 			return undefined;
 		}
 
 		const args: Proto.SignatureHelpRequestArgs = {
 			...typeConverters.Position.toFileLocationRequestArgs(filepath, position),
-			triggerReason: toTsTriggerReason(context!)
+			triggerReason: toTsTriggerReason(context)
 		};
-		const response = await this.client.execute('signatureHelp', args, token);
+		const response = await this.client.interuptGetErr(() => this.client.execute('signatureHelp', args, token));
 		if (response.type !== 'response' || !response.body) {
 			return undefined;
 		}
@@ -72,8 +72,8 @@ class TypeScriptSignatureHelpProvider implements vscode.SignatureHelpProvider {
 }
 
 function toTsTriggerReason(context: vscode.SignatureHelpContext): Proto.SignatureHelpTriggerReason {
-	switch (context.triggerReason) {
-		case vscode.SignatureHelpTriggerReason.TriggerCharacter:
+	switch (context.triggerKind) {
+		case vscode.SignatureHelpTriggerKind.TriggerCharacter:
 			if (context.triggerCharacter) {
 				if (context.isRetrigger) {
 					return { kind: 'retrigger', triggerCharacter: context.triggerCharacter as any };
@@ -84,10 +84,10 @@ function toTsTriggerReason(context: vscode.SignatureHelpContext): Proto.Signatur
 				return { kind: 'invoked' };
 			}
 
-		case vscode.SignatureHelpTriggerReason.ContentChange:
+		case vscode.SignatureHelpTriggerKind.ContentChange:
 			return context.isRetrigger ? { kind: 'retrigger' } : { kind: 'invoked' };
 
-		case vscode.SignatureHelpTriggerReason.Invoke:
+		case vscode.SignatureHelpTriggerKind.Invoke:
 		default:
 			return { kind: 'invoked' };
 	}

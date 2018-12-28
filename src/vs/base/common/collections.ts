@@ -72,18 +72,6 @@ export function forEach<T>(from: IStringDictionary<T> | INumberDictionary<T>, ca
 }
 
 /**
- * Removes an element from the dictionary. Returns {{false}} if the property
- * does not exists.
- */
-export function remove<T>(from: IStringDictionary<T> | INumberDictionary<T>, key: string): boolean {
-	if (!hasOwnProperty.call(from, key)) {
-		return false;
-	}
-	delete (from as any)[key];
-	return true;
-}
-
-/**
  * Groups the collection into a dictionary based on the provided
  * group function.
  */
@@ -96,6 +84,16 @@ export function groupBy<T>(data: T[], groupFn: (element: T) => string): IStringD
 			target = result[key] = [];
 		}
 		target.push(element);
+	}
+	return result;
+}
+
+export function fromMap<T>(original: Map<string, T>): IStringDictionary<T> {
+	const result: IStringDictionary<T> = Object.create(null);
+	if (original) {
+		original.forEach((value, key) => {
+			result[key] = value;
+		});
 	}
 	return result;
 }

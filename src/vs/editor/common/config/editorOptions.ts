@@ -23,16 +23,14 @@ export interface IEditorScrollbarOptions {
 	arrowSize?: number;
 	/**
 	 * Render vertical scrollbar.
-	 * Accepted values: 'auto', 'visible', 'hidden'.
 	 * Defaults to 'auto'.
 	 */
-	vertical?: string;
+	vertical?: 'auto' | 'visible' | 'hidden';
 	/**
 	 * Render horizontal scrollbar.
-	 * Accepted values: 'auto', 'visible', 'hidden'.
 	 * Defaults to 'auto'.
 	 */
-	horizontal?: string;
+	horizontal?: 'auto' | 'visible' | 'hidden';
 	/**
 	 * Cast horizontal and vertical shadows when the content is scrolled.
 	 * Defaults to true.
@@ -196,6 +194,11 @@ export interface ISuggestOptions {
 	 * Favours words that appear close to the cursor.
 	 */
 	localityBonus?: boolean;
+
+	/**
+	 * Enable using global storage for remembering suggestions.
+	 */
+	shareSuggestSelections?: boolean;
 }
 
 /**
@@ -455,6 +458,11 @@ export interface IEditorOptions {
 	 * Defaults to 1.
 	 */
 	mouseWheelScrollSensitivity?: number;
+	/**
+	 * FastScrolling mulitplier speed when pressing `Alt`
+	 * Defaults to 5.
+	 */
+	fastScrollSensitivity?: number;
 	/**
 	 * The modifier to be used to add multiple cursors with the mouse.
 	 * Defaults to 'alt'
@@ -872,6 +880,7 @@ export interface InternalEditorScrollbarOptions {
 	readonly verticalScrollbarSize: number;
 	readonly verticalSliderSize: number;
 	readonly mouseWheelScrollSensitivity: number;
+	readonly fastScrollSensitivity: number;
 }
 
 export interface InternalEditorMinimapOptions {
@@ -902,6 +911,7 @@ export interface InternalSuggestOptions {
 	readonly snippets: 'top' | 'bottom' | 'inline' | 'none';
 	readonly snippetsPreventQuickSuggestions: boolean;
 	readonly localityBonus: boolean;
+	readonly shareSuggestSelections: boolean;
 }
 
 export interface InternalParameterHintOptions {
@@ -1288,6 +1298,7 @@ export class InternalEditorOptions {
 			&& a.verticalScrollbarSize === b.verticalScrollbarSize
 			&& a.verticalSliderSize === b.verticalSliderSize
 			&& a.mouseWheelScrollSensitivity === b.mouseWheelScrollSensitivity
+			&& a.fastScrollSensitivity === b.fastScrollSensitivity
 		);
 	}
 
@@ -1348,7 +1359,8 @@ export class InternalEditorOptions {
 			return a.filterGraceful === b.filterGraceful
 				&& a.snippets === b.snippets
 				&& a.snippetsPreventQuickSuggestions === b.snippetsPreventQuickSuggestions
-				&& a.localityBonus === b.localityBonus;
+				&& a.localityBonus === b.localityBonus
+				&& a.shareSuggestSelections === b.shareSuggestSelections;
 		}
 	}
 
@@ -1790,7 +1802,7 @@ export class EditorOptionsValidator {
 		};
 	}
 
-	private static _sanitizeScrollbarOpts(opts: IEditorScrollbarOptions | undefined, defaults: InternalEditorScrollbarOptions, mouseWheelScrollSensitivity: number): InternalEditorScrollbarOptions {
+	private static _sanitizeScrollbarOpts(opts: IEditorScrollbarOptions | undefined, defaults: InternalEditorScrollbarOptions, mouseWheelScrollSensitivity: number, fastScrollSensitivity: number): InternalEditorScrollbarOptions {
 		if (typeof opts !== 'object') {
 			return defaults;
 		}
@@ -1813,7 +1825,8 @@ export class EditorOptionsValidator {
 			verticalSliderSize: _clampedInt(opts.verticalSliderSize, verticalScrollbarSize, 0, 1000),
 
 			handleMouseWheel: _boolean(opts.handleMouseWheel, defaults.handleMouseWheel),
-			mouseWheelScrollSensitivity: mouseWheelScrollSensitivity
+			mouseWheelScrollSensitivity: mouseWheelScrollSensitivity,
+			fastScrollSensitivity: fastScrollSensitivity,
 		};
 	}
 
@@ -1879,6 +1892,7 @@ export class EditorOptionsValidator {
 			snippets: _stringSet<'top' | 'bottom' | 'inline' | 'none'>(opts.snippetSuggestions, defaults.snippets, ['top', 'bottom', 'inline', 'none']),
 			snippetsPreventQuickSuggestions: _boolean(suggestOpts.snippetsPreventQuickSuggestions, defaults.filterGraceful),
 			localityBonus: _boolean(suggestOpts.localityBonus, defaults.localityBonus),
+			shareSuggestSelections: _boolean(suggestOpts.shareSuggestSelections, defaults.shareSuggestSelections)
 		};
 	}
 
@@ -1959,7 +1973,12 @@ export class EditorOptionsValidator {
 			// Disallow 0, as it would prevent/block scrolling
 			mouseWheelScrollSensitivity = 1;
 		}
-		const scrollbar = this._sanitizeScrollbarOpts(opts.scrollbar, defaults.scrollbar, mouseWheelScrollSensitivity);
+
+		let fastScrollSensitivity = _float(opts.fastScrollSensitivity, defaults.scrollbar.fastScrollSensitivity);
+		if (fastScrollSensitivity <= 0) {
+			fastScrollSensitivity = defaults.scrollbar.fastScrollSensitivity;
+		}
+		const scrollbar = this._sanitizeScrollbarOpts(opts.scrollbar, defaults.scrollbar, mouseWheelScrollSensitivity, fastScrollSensitivity);
 		const minimap = this._sanitizeMinimapOpts(opts.minimap, defaults.minimap);
 
 		return {
@@ -2586,6 +2605,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 			verticalSliderSize: 14,
 			handleMouseWheel: true,
 			mouseWheelScrollSensitivity: 1,
+			fastScrollSensitivity: 5,
 		},
 		minimap: {
 			enabled: true,
@@ -2627,7 +2647,8 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 			filterGraceful: true,
 			snippets: 'inline',
 			snippetsPreventQuickSuggestions: true,
-			localityBonus: false
+			localityBonus: false,
+			shareSuggestSelections: false
 		},
 		selectionHighlight: true,
 		occurrencesHighlight: true,

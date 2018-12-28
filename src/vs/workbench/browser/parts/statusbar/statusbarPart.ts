@@ -6,7 +6,6 @@
 import 'vs/css!./media/statusbarpart';
 import * as nls from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -192,7 +191,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 		// Create new
 		let statusDispose: IDisposable;
-		let showHandle = setTimeout(() => {
+		let showHandle: any = setTimeout(() => {
 			statusDispose = this.addEntry({ text: message }, StatusbarAlignment.LEFT, -Number.MAX_VALUE /* far right on left hand side */);
 			showHandle = null;
 		}, delayBy);
@@ -253,7 +252,7 @@ class StatusBarEntryItem implements IStatusbarItem {
 		if (this.entry.command) {
 			textContainer = document.createElement('a');
 
-			toDispose.push(addDisposableListener(textContainer, 'click', () => this.executeCommand(this.entry.command, this.entry.arguments)));
+			toDispose.push(addDisposableListener(textContainer, 'click', () => this.executeCommand(this.entry.command!, this.entry.arguments)));
 		} else {
 			textContainer = document.createElement('span');
 		}
@@ -288,7 +287,7 @@ class StatusBarEntryItem implements IStatusbarItem {
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => el,
 					getActionsContext: () => this.entry.extensionId,
-					getActions: () => Promise.resolve([manageExtensionAction])
+					getActions: () => [manageExtensionAction]
 				});
 			}));
 		}
@@ -330,7 +329,7 @@ class ManageExtensionAction extends Action {
 		super('statusbar.manage.extension', nls.localize('manageExtension', "Manage Extension"));
 	}
 
-	run(extensionId: string): TPromise<any> {
+	run(extensionId: string): Promise<any> {
 		return this.commandService.executeCommand('_extensions.manage', extensionId);
 	}
 }

@@ -125,7 +125,7 @@ function createReadable(provider: IFileSystemProvider, resource: URI, position: 
 
 function createSimpleReadable(provider: IFileSystemProvider, resource: URI, position: number): Readable {
 	return new class extends Readable {
-		_readOperation: Thenable<any>;
+		_readOperation: Promise<any>;
 		_read(size?: number): void {
 			if (this._readOperation) {
 				return;

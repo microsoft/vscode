@@ -42,7 +42,7 @@ export class SelectColorThemeAction extends Action {
 		super(id, label);
 	}
 
-	run(): Thenable<void> {
+	run(): Promise<void> {
 		return this.themeService.getColorThemes().then(themes => {
 			const currentTheme = this.themeService.getColorTheme();
 
@@ -56,7 +56,7 @@ export class SelectColorThemeAction extends Action {
 			const selectTheme = (theme, applyTheme: boolean) => {
 				if (typeof theme.id === 'undefined') { // 'pick in marketplace' entry
 					if (applyTheme) {
-						openExtensionViewlet(this.viewletService, 'category:themes');
+						openExtensionViewlet(this.viewletService, 'category:themes ');
 					}
 					theme = currentTheme;
 				}
@@ -66,7 +66,7 @@ export class SelectColorThemeAction extends Action {
 					target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
 				}
 
-				this.themeService.setColorTheme(theme.id, target).then(null,
+				this.themeService.setColorTheme(theme.id, target).then(void 0,
 					err => {
 						onUnexpectedError(err);
 						this.themeService.setColorTheme(currentTheme.id, null);
@@ -104,7 +104,7 @@ class SelectIconThemeAction extends Action {
 		super(id, label);
 	}
 
-	run(): Thenable<void> {
+	run(): Promise<void> {
 		return this.themeService.getFileIconThemes().then(themes => {
 			const currentTheme = this.themeService.getFileIconTheme();
 
@@ -117,7 +117,7 @@ class SelectIconThemeAction extends Action {
 			const selectTheme = (theme, applyTheme: boolean) => {
 				if (typeof theme.id === 'undefined') { // 'pick in marketplace' entry
 					if (applyTheme) {
-						openExtensionViewlet(this.viewletService, 'tag:icon-theme');
+						openExtensionViewlet(this.viewletService, 'tag:icon-theme ');
 					}
 					theme = currentTheme;
 				}
@@ -126,7 +126,7 @@ class SelectIconThemeAction extends Action {
 					let confValue = this.configurationService.inspect(ICON_THEME_SETTING);
 					target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
 				}
-				this.themeService.setFileIconTheme(theme && theme.id, target).then(null,
+				this.themeService.setFileIconTheme(theme && theme.id, target).then(void 0,
 					err => {
 						onUnexpectedError(err);
 						this.themeService.setFileIconTheme(currentTheme.id, null);
@@ -169,7 +169,7 @@ function openExtensionViewlet(viewletService: IViewletService, query: string) {
 	});
 }
 
-function toEntries(themes: (IColorTheme | IFileIconTheme)[], label?: string) {
+function toEntries(themes: Array<IColorTheme | IFileIconTheme>, label?: string) {
 	const toEntry = theme => <IQuickPickItem>{ id: theme.id, label: theme.label, description: theme.description };
 	const sorter = (t1: IQuickPickItem, t2: IQuickPickItem) => t1.label.localeCompare(t2.label);
 	let entries: QuickPickInput[] = themes.map(toEntry).sort(sorter);
@@ -193,7 +193,7 @@ class GenerateColorThemeAction extends Action {
 		super(id, label);
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 		let theme = this.themeService.getColorTheme();
 		let colors = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution).getColors();
 		let colorIds = colors.map(c => c.id).sort();

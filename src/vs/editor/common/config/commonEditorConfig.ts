@@ -33,7 +33,7 @@ export interface ITabFocus {
 export const TabFocus: ITabFocus = new class implements ITabFocus {
 	private _tabFocus: boolean = false;
 
-	private readonly _onDidChangeTabFocus: Emitter<boolean> = new Emitter<boolean>();
+	private readonly _onDidChangeTabFocus = new Emitter<boolean>();
 	public readonly onDidChangeTabFocus: Event<boolean> = this._onDidChangeTabFocus.event;
 
 	public getTabFocusMode(): boolean {
@@ -429,6 +429,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.viewInfo.scrollbar.mouseWheelScrollSensitivity,
 			'markdownDescription': nls.localize('mouseWheelScrollSensitivity', "A multiplier to be used on the `deltaX` and `deltaY` of mouse wheel scroll events.")
 		},
+		'editor.fastScrollSensitivity': {
+			'type': 'number',
+			'default': EDITOR_DEFAULTS.viewInfo.scrollbar.fastScrollSensitivity,
+			'markdownDescription': nls.localize('fastScrollSensitivity', "Scrolling speed mulitiplier when pressing `Alt`")
+		},
 		'editor.multiCursorModifier': {
 			'type': 'string',
 			'enum': ['ctrlCmd', 'alt'],
@@ -638,6 +643,11 @@ const editorConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: false,
 			description: nls.localize('suggest.localityBonus', "Controls whether sorting favours words that appear close to the cursor.")
+		},
+		'editor.suggest.shareSuggestSelections': {
+			type: 'boolean',
+			default: false,
+			markdownDescription: nls.localize('suggest.shareSuggestSelections', "Controls whether remembered suggestion selections are shared between multiple workspaces and windows (needs `#editor.suggestSelection#`).")
 		},
 		'editor.suggest.snippetsPreventQuickSuggestions': {
 			type: 'boolean',

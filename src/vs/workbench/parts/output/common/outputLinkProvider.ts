@@ -17,7 +17,7 @@ export class OutputLinkProvider {
 
 	private static readonly DISPOSE_WORKER_TIME = 3 * 60 * 1000; // dispose worker after 3 minutes of inactivity
 
-	private worker: MonacoWebWorker<OutputLinkComputer>;
+	private worker?: MonacoWebWorker<OutputLinkComputer>;
 	private disposeWorkerScheduler: RunOnceScheduler;
 	private linkProviderRegistration: IDisposable;
 
@@ -42,7 +42,7 @@ export class OutputLinkProvider {
 		if (folders.length > 0) {
 			if (!this.linkProviderRegistration) {
 				this.linkProviderRegistration = LinkProviderRegistry.register([{ language: OUTPUT_MODE_ID, scheme: '*' }, { language: LOG_MODE_ID, scheme: '*' }], {
-					provideLinks: (model, token): Thenable<ILink[]> => {
+					provideLinks: (model, token): Promise<ILink[]> => {
 						return this.provideLinks(model.uri);
 					}
 				});
@@ -83,7 +83,7 @@ export class OutputLinkProvider {
 	private disposeWorker(): void {
 		if (this.worker) {
 			this.worker.dispose();
-			this.worker = null;
+			this.worker = undefined;
 		}
 	}
 }

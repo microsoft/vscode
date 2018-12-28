@@ -32,10 +32,13 @@ import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { URLService } from 'vs/platform/url/common/urlService';
 import { URI } from 'vs/base/common/uri';
-import { SingleServerExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { SinonStub } from 'sinon';
 import { IExperimentService, ExperimentService, ExperimentState, ExperimentActionType } from 'vs/workbench/parts/experiments/node/experimentService';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/node/remoteAgentService';
+import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
+import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
+import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 
 suite('ExtensionsListView Tests', () => {
@@ -83,8 +86,9 @@ suite('ExtensionsListView Tests', () => {
 		instantiationService.stub(IExtensionManagementService, 'onDidInstallExtension', didInstallEvent.event);
 		instantiationService.stub(IExtensionManagementService, 'onUninstallExtension', uninstallEvent.event);
 		instantiationService.stub(IExtensionManagementService, 'onDidUninstallExtension', didUninstallEvent.event);
+		instantiationService.stub(IRemoteAgentService, RemoteAgentService);
 
-		instantiationService.stub(IExtensionManagementServerService, instantiationService.createInstance(SingleServerExtensionManagementServerService, <IExtensionManagementServer>{ authority: 'vscode-local', extensionManagementService: instantiationService.get(IExtensionManagementService), label: 'local' }));
+		instantiationService.stub(IExtensionManagementServerService, instantiationService.createInstance(ExtensionManagementServerService, <IExtensionManagementServer>{ authority: 'vscode-local', extensionManagementService: instantiationService.get(IExtensionManagementService), label: 'local' }));
 
 		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 
@@ -120,11 +124,11 @@ suite('ExtensionsListView Tests', () => {
 		instantiationService.stub(IExtensionService, {
 			getExtensions: () => {
 				return Promise.resolve([
-					{ id: localEnabledTheme.galleryIdentifier.id },
-					{ id: localEnabledLanguage.galleryIdentifier.id },
-					{ id: localRandom.galleryIdentifier.id },
-					{ id: builtInTheme.galleryIdentifier.id },
-					{ id: builtInBasic.galleryIdentifier.id }
+					{ identifier: new CanonicalExtensionIdentifier(localEnabledTheme.galleryIdentifier.id) },
+					{ identifier: new CanonicalExtensionIdentifier(localEnabledLanguage.galleryIdentifier.id) },
+					{ identifier: new CanonicalExtensionIdentifier(localRandom.galleryIdentifier.id) },
+					{ identifier: new CanonicalExtensionIdentifier(builtInTheme.galleryIdentifier.id) },
+					{ identifier: new CanonicalExtensionIdentifier(builtInBasic.galleryIdentifier.id) }
 				]);
 			}
 		});
@@ -320,11 +324,11 @@ suite('ExtensionsListView Tests', () => {
 		return testableView.show('@recommended:workspace').then(result => {
 			assert.ok(target.calledOnce);
 			const options: IQueryOptions = target.args[0][0];
-			assert.equal(options.names.length, workspaceRecommendedExtensions.length);
+			assert.equal(options.names!.length, workspaceRecommendedExtensions.length);
 			assert.equal(result.length, workspaceRecommendedExtensions.length);
 			for (let i = 0; i < workspaceRecommendedExtensions.length; i++) {
-				assert.equal(options.names[i], workspaceRecommendedExtensions[i].identifier.id);
-				assert.equal(result.get(i).id, workspaceRecommendedExtensions[i].identifier.id);
+				assert.equal(options.names![i], workspaceRecommendedExtensions[i].identifier.id);
+				assert.equal(result.get(i).identifier.id, workspaceRecommendedExtensions[i].identifier.id);
 			}
 		});
 	});
@@ -341,11 +345,11 @@ suite('ExtensionsListView Tests', () => {
 			const options: IQueryOptions = target.args[0][0];
 
 			assert.ok(target.calledOnce);
-			assert.equal(options.names.length, allRecommendedExtensions.length);
+			assert.equal(options.names!.length, allRecommendedExtensions.length);
 			assert.equal(result.length, allRecommendedExtensions.length);
 			for (let i = 0; i < allRecommendedExtensions.length; i++) {
-				assert.equal(options.names[i], allRecommendedExtensions[i].identifier.id);
-				assert.equal(result.get(i).id, allRecommendedExtensions[i].identifier.id);
+				assert.equal(options.names![i], allRecommendedExtensions[i].identifier.id);
+				assert.equal(result.get(i).identifier.id, allRecommendedExtensions[i].identifier.id);
 			}
 		});
 	});
@@ -365,11 +369,11 @@ suite('ExtensionsListView Tests', () => {
 			const options: IQueryOptions = target.args[0][0];
 
 			assert.ok(target.calledOnce);
-			assert.equal(options.names.length, allRecommendedExtensions.length);
+			assert.equal(options.names!.length, allRecommendedExtensions.length);
 			assert.equal(result.length, allRecommendedExtensions.length);
 			for (let i = 0; i < allRecommendedExtensions.length; i++) {
-				assert.equal(options.names[i], allRecommendedExtensions[i].identifier.id);
-				assert.equal(result.get(i).id, allRecommendedExtensions[i].identifier.id);
+				assert.equal(options.names![i], allRecommendedExtensions[i].identifier.id);
+				assert.equal(result.get(i).identifier.id, allRecommendedExtensions[i].identifier.id);
 			}
 		});
 	});
@@ -388,11 +392,11 @@ suite('ExtensionsListView Tests', () => {
 
 			assert.ok(experimentTarget.calledOnce);
 			assert.ok(queryTarget.calledOnce);
-			assert.equal(options.names.length, curatedList.length);
+			assert.equal(options.names!.length, curatedList.length);
 			assert.equal(result.length, curatedList.length);
 			for (let i = 0; i < curatedList.length; i++) {
-				assert.equal(options.names[i], curatedList[i].identifier.id);
-				assert.equal(result.get(i).id, curatedList[i].identifier.id);
+				assert.equal(options.names![i], curatedList[i].identifier.id);
+				assert.equal(result.get(i).identifier.id, curatedList[i].identifier.id);
 			}
 			assert.equal(curatedKey, 'mykey');
 		});
@@ -414,27 +418,27 @@ suite('ExtensionsListView Tests', () => {
 			assert.equal(options.text, searchText);
 			assert.equal(result.length, results.length);
 			for (let i = 0; i < results.length; i++) {
-				assert.equal(result.get(i).id, results[i].identifier.id);
+				assert.equal(result.get(i).identifier.id, results[i].identifier.id);
 			}
 		});
 	});
 
 	test('Test preferred search experiment', () => {
 		const searchText = 'search-me';
-		const realResults = [
+		const actual = [
 			fileBasedRecommendationA,
 			workspaceRecommendationA,
 			otherRecommendationA,
 			workspaceRecommendationB
 		];
-		const preferredResults = [
+		const expected = [
 			workspaceRecommendationA,
 			workspaceRecommendationB,
 			fileBasedRecommendationA,
 			otherRecommendationA
 		];
 
-		const queryTarget = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...realResults));
+		const queryTarget = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...actual));
 		const experimentTarget = <SinonStub>instantiationService.stubPromise(IExperimentService, 'getExperimentsByType', [{
 			id: 'someId',
 			enabled: true,
@@ -461,9 +465,9 @@ suite('ExtensionsListView Tests', () => {
 			assert.ok(experimentTarget.calledOnce);
 			assert.ok(queryTarget.calledOnce);
 			assert.equal(options.text, searchText);
-			assert.equal(result.length, preferredResults.length);
-			for (let i = 0; i < preferredResults.length; i++) {
-				assert.equal(result.get(i).id, preferredResults[i].identifier.id);
+			assert.equal(result.length, expected.length);
+			for (let i = 0; i < expected.length; i++) {
+				assert.equal(result.get(i).identifier.id, expected[i].identifier.id);
 			}
 		});
 	});
@@ -478,22 +482,6 @@ suite('ExtensionsListView Tests', () => {
 		];
 
 		const queryTarget = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...realResults));
-		const experimentTarget = <SinonStub>instantiationService.stubPromise(IExperimentService, 'getExperimentsByType', [{
-			id: 'someId',
-			enabled: true,
-			state: ExperimentState.Run,
-			action: {
-				type: ExperimentActionType.ExtensionSearchResults,
-				properties: {
-					searchText: 'search-me',
-					preferredResults: [
-						workspaceRecommendationA.identifier.id,
-						'something-that-wasnt-in-first-page',
-						workspaceRecommendationB.identifier.id
-					]
-				}
-			}
-		}]);
 
 		testableView.dispose();
 		testableView = instantiationService.createInstance(ExtensionsListView, {});
@@ -501,12 +489,11 @@ suite('ExtensionsListView Tests', () => {
 		return testableView.show('search-me @sort:installs').then(result => {
 			const options: IQueryOptions = queryTarget.args[0][0];
 
-			assert.ok(experimentTarget.calledOnce);
 			assert.ok(queryTarget.calledOnce);
 			assert.equal(options.text, searchText);
 			assert.equal(result.length, realResults.length);
 			for (let i = 0; i < realResults.length; i++) {
-				assert.equal(result.get(i).id, realResults[i].identifier.id);
+				assert.equal(result.get(i).identifier.id, realResults[i].identifier.id);
 			}
 		});
 	});
@@ -531,7 +518,7 @@ suite('ExtensionsListView Tests', () => {
 	}
 
 	function aPage<T>(...objects: T[]): IPager<T> {
-		return { firstPage: objects, total: objects.length, pageSize: objects.length, getPage: () => null };
+		return { firstPage: objects, total: objects.length, pageSize: objects.length, getPage: () => null! };
 	}
 });
 

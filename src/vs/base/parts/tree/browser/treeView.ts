@@ -260,8 +260,11 @@ export class ViewItem implements IViewItem {
 		}
 
 		if (!skipUserRender && this.element) {
-			const style = window.getComputedStyle(this.element);
-			const paddingLeft = parseFloat(style.paddingLeft);
+			let paddingLeft: number | undefined;
+			if (this.context.horizontalScrolling) {
+				const style = window.getComputedStyle(this.element);
+				paddingLeft = parseFloat(style.paddingLeft);
+			}
 
 			if (this.context.horizontalScrolling) {
 				this.element.style.width = 'fit-content';
@@ -451,13 +454,13 @@ export class TreeView extends HeightMap {
 	private highlightedItemWasDraggable: boolean;
 	private onHiddenScrollTop: number;
 
-	private readonly _onDOMFocus: Emitter<void> = new Emitter<void>();
+	private readonly _onDOMFocus = new Emitter<void>();
 	get onDOMFocus(): Event<void> { return this._onDOMFocus.event; }
 
-	private readonly _onDOMBlur: Emitter<void> = new Emitter<void>();
+	private readonly _onDOMBlur = new Emitter<void>();
 	get onDOMBlur(): Event<void> { return this._onDOMBlur.event; }
 
-	private readonly _onDidScroll: Emitter<void> = new Emitter<void>();
+	private readonly _onDidScroll = new Emitter<void>();
 	get onDidScroll(): Event<void> { return this._onDidScroll.event; }
 
 	constructor(context: _.ITreeContext, container: HTMLElement) {
@@ -849,6 +852,7 @@ export class TreeView extends HeightMap {
 	}
 
 	private set scrollHeight(scrollHeight: number) {
+		scrollHeight = scrollHeight + (this.horizontalScrolling ? 10 : 0);
 		this.scrollableElement.setScrollDimensions({ scrollHeight });
 	}
 
@@ -871,12 +875,9 @@ export class TreeView extends HeightMap {
 	}
 
 	public set scrollTop(scrollTop: number) {
-		this.scrollableElement.setScrollDimensions({
-			scrollHeight: this.getContentHeight()
-		});
-		this.scrollableElement.setScrollPosition({
-			scrollTop: scrollTop
-		});
+		const scrollHeight = this.getContentHeight() + (this.horizontalScrolling ? 10 : 0);
+		this.scrollableElement.setScrollDimensions({ scrollHeight });
+		this.scrollableElement.setScrollPosition({ scrollTop });
 	}
 
 	public getScrollPosition(): number {

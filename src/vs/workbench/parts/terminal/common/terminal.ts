@@ -8,6 +8,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { RawContextKey, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 
 export const TERMINAL_PANEL_ID = 'workbench.panel.terminal';
@@ -101,6 +102,7 @@ export interface ITerminalConfiguration {
 	showExitAlert: boolean;
 	experimentalBufferImpl: 'JsArray' | 'TypedArray';
 	splitCwd: 'workspaceRoot' | 'initial' | 'inherited';
+	windowsEnableConpty: boolean;
 }
 
 export interface ITerminalConfigHelper {
@@ -121,6 +123,10 @@ export interface ITerminalFont {
 	lineHeight: number;
 	charWidth?: number;
 	charHeight?: number;
+}
+
+export interface ITerminalEnvironment {
+	[key: string]: string | null;
 }
 
 export interface IShellLaunchConfig {
@@ -145,13 +151,13 @@ export interface IShellLaunchConfig {
 	 * The current working directory of the terminal, this overrides the `terminal.integrated.cwd`
 	 * settings key.
 	 */
-	cwd?: string;
+	cwd?: string | URI;
 
 	/**
 	 * A custom environment for the terminal, if this is not set the environment will be inherited
 	 * from the VS Code process.
 	 */
-	env?: { [key: string]: string };
+	env?: ITerminalEnvironment;
 
 	/**
 	 * Whether to ignore a custom cwd from the `terminal.integrated.cwd` settings key (eg. if the
@@ -238,7 +244,7 @@ export interface ITerminalService {
 	selectDefaultWindowsShell(): Promise<string>;
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
 
-	requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number): void;
+	requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI, cols: number, rows: number): void;
 }
 
 export const enum Direction {
@@ -291,6 +297,10 @@ interface ISearchOptions {
 	 * Whether find should pay attention to case.
 	 */
 	caseSensitive?: boolean;
+	/**
+	 * Whether the search should start at the current search position (not the next row)
+	 */
+	incremental?: boolean;
 }
 
 export interface ITerminalInstance {
@@ -579,7 +589,7 @@ export interface ITerminalInstance {
 	 *
 	 * @param shell The new launch configuration.
 	 */
-	reuseTerminal(shell?: IShellLaunchConfig): void;
+	reuseTerminal(shell: IShellLaunchConfig): void;
 
 	/**
 	 * Sets the title of the terminal instance.
@@ -660,6 +670,7 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 export interface ITerminalProcessExtHostRequest {
 	proxy: ITerminalProcessExtHostProxy;
 	shellLaunchConfig: IShellLaunchConfig;
+	activeWorkspaceRootUri: URI;
 	cols: number;
 	rows: number;
 }

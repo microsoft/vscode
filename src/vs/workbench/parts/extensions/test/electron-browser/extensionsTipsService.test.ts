@@ -47,7 +47,6 @@ import { URLService } from 'vs/platform/url/common/urlService';
 import { IExperimentService } from 'vs/workbench/parts/experiments/node/experimentService';
 import { TestExperimentService } from 'vs/workbench/parts/experiments/test/electron-browser/experimentService.test';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { TPromise } from 'vs/base/common/winjs.base';
 
 const mockExtensionGallery: IGalleryExtension[] = [
 	aGalleryExtension('MockExtension1', {
@@ -140,18 +139,18 @@ const mockTestData = {
 };
 
 function aPage<T>(...objects: T[]): IPager<T> {
-	return { firstPage: objects, total: objects.length, pageSize: objects.length, getPage: () => null };
+	return { firstPage: objects, total: objects.length, pageSize: objects.length, getPage: () => null! };
 }
 
 const noAssets: IGalleryExtensionAssets = {
 	changelog: null,
-	download: null,
-	icon: null,
+	download: null!,
+	icon: null!,
 	license: null,
 	manifest: null,
 	readme: null,
 	repository: null,
-	coreTranslations: null
+	coreTranslations: null!
 };
 
 function aGalleryExtension(name: string, properties: any = {}, galleryExtensionProperties: any = {}, assets: IGalleryExtensionAssets = noAssets): IGalleryExtension {
@@ -236,7 +235,7 @@ suite('ExtensionsTipsService Test', () => {
 		class TestNotificationService2 extends TestNotificationService {
 			public prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions) {
 				prompted = true;
-				return null;
+				return null!;
 			}
 		}
 
@@ -259,27 +258,26 @@ suite('ExtensionsTipsService Test', () => {
 		}
 	});
 
-	function setUpFolderWorkspace(folderName: string, recommendedExtensions: string[], ignoredRecommendations: string[] = []): TPromise<void> {
+	function setUpFolderWorkspace(folderName: string, recommendedExtensions: string[], ignoredRecommendations: string[] = []): Promise<void> {
 		const id = uuid.generateUuid();
 		parentResource = path.join(os.tmpdir(), 'vsctests', id);
 		return setUpFolder(folderName, parentResource, recommendedExtensions, ignoredRecommendations);
 	}
 
-	function setUpFolder(folderName: string, parentDir: string, recommendedExtensions: string[], ignoredRecommendations: string[] = []): TPromise<void> {
+	async function setUpFolder(folderName: string, parentDir: string, recommendedExtensions: string[], ignoredRecommendations: string[] = []): Promise<void> {
 		const folderDir = path.join(parentDir, folderName);
 		const workspaceSettingsDir = path.join(folderDir, '.vscode');
-		return mkdirp(workspaceSettingsDir, 493).then(() => {
-			const configPath = path.join(workspaceSettingsDir, 'extensions.json');
-			fs.writeFileSync(configPath, JSON.stringify({
-				'recommendations': recommendedExtensions,
-				'unwantedRecommendations': ignoredRecommendations,
-			}, null, '\t'));
+		await mkdirp(workspaceSettingsDir, 493);
+		const configPath = path.join(workspaceSettingsDir, 'extensions.json');
+		fs.writeFileSync(configPath, JSON.stringify({
+			'recommendations': recommendedExtensions,
+			'unwantedRecommendations': ignoredRecommendations,
+		}, null, '\t'));
 
-			const myWorkspace = testWorkspace(URI.from({ scheme: 'file', path: folderDir }));
-			workspaceService = new TestContextService(myWorkspace);
-			instantiationService.stub(IWorkspaceContextService, workspaceService);
-			instantiationService.stub(IFileService, new FileService(workspaceService, TestEnvironmentService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), new TestStorageService(), new TestNotificationService(), { disableWatcher: true }));
-		});
+		const myWorkspace = testWorkspace(URI.from({ scheme: 'file', path: folderDir }));
+		workspaceService = new TestContextService(myWorkspace);
+		instantiationService.stub(IWorkspaceContextService, workspaceService);
+		instantiationService.stub(IFileService, new FileService(workspaceService, TestEnvironmentService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), new TestStorageService(), new TestNotificationService(), { disableWatcher: true }));
 	}
 
 	function testNoPromptForValidRecommendations(recommendations: string[]) {
