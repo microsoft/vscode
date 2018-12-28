@@ -807,6 +807,7 @@
 		"./vs/workbench/test/common/editor/editorOptions.test.ts",
 		"./vs/workbench/test/common/notifications.test.ts",
 		"./vs/workbench/test/electron-browser/api/extHostTypes.test.ts",
+		"./vs/workbench/services/search/node/rawSearchService.ts",
 		"./vs/workbench/test/electron-browser/api/mock.ts"
 	],
 	"exclude": [

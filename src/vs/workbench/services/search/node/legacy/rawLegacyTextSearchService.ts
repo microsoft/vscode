@@ -36,7 +36,8 @@ export class LegacyTextSearchService {
 				extraFileResources: config.extraFileResources,
 				includePattern: config.includePattern,
 				excludePattern: config.excludePattern,
-				useRipgrep: false
+				useRipgrep: false,
+				filePattern: ''
 			}, MAX_FILE_SIZE),
 			this.textSearchWorkerProvider);
 
