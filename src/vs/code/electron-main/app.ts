@@ -455,7 +455,10 @@ export class CodeApplication extends Disposable {
 
 		const appInstantiationService = this.instantiationService.createChild(services);
 
-		return appInstantiationService.invokeFunction(accessor => this.initStorageService(accessor)).then(() => appInstantiationService);
+		return appInstantiationService.invokeFunction(accessor => Promise.all([
+			this.initStorageService(accessor),
+			this.initBackupService(accessor)
+		])).then(() => appInstantiationService);
 	}
 
 	private initStorageService(accessor: ServicesAccessor): Promise<void> {
@@ -493,6 +496,12 @@ export class CodeApplication extends Disposable {
 			storageMainService.store(telemetryLastSessionDate, lastSessionDate);
 			storageMainService.store(telemetryCurrentSessionDate, currentSessionDate);
 		});
+	}
+
+	private initBackupService(accessor: ServicesAccessor): Promise<void> {
+		const backupMainService = accessor.get(IBackupMainService) as BackupMainService;
+
+		return backupMainService.initialize();
 	}
 
 	private openFirstWindow(accessor: ServicesAccessor): ICodeWindow[] {
