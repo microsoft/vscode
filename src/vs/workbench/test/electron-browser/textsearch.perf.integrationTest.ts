@@ -117,7 +117,7 @@ suite.skip('TextSearch performance (integration)', () => {
 			});
 		}
 
-		const finishedEvents = [];
+		const finishedEvents: any[] = [];
 		return runSearch() // Warm-up first
 			.then(() => {
 				if (testWorkspaceArg) { // Don't measure by default

@@ -1285,7 +1285,7 @@ suite('ExtensionsActions Test', () => {
 	}
 
 	function aPage<T>(...objects: T[]): IPager<T> {
-		return { firstPage: objects, total: objects.length, pageSize: objects.length, getPage: () => null };
+		return { firstPage: objects, total: objects.length, pageSize: objects.length, getPage: () => null! };
 	}
 
 });

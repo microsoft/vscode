@@ -324,10 +324,10 @@ suite('ExtensionsListView Tests', () => {
 		return testableView.show('@recommended:workspace').then(result => {
 			assert.ok(target.calledOnce);
 			const options: IQueryOptions = target.args[0][0];
-			assert.equal(options.names.length, workspaceRecommendedExtensions.length);
+			assert.equal(options.names!.length, workspaceRecommendedExtensions.length);
 			assert.equal(result.length, workspaceRecommendedExtensions.length);
 			for (let i = 0; i < workspaceRecommendedExtensions.length; i++) {
-				assert.equal(options.names[i], workspaceRecommendedExtensions[i].identifier.id);
+				assert.equal(options.names![i], workspaceRecommendedExtensions[i].identifier.id);
 				assert.equal(result.get(i).identifier.id, workspaceRecommendedExtensions[i].identifier.id);
 			}
 		});
@@ -345,10 +345,10 @@ suite('ExtensionsListView Tests', () => {
 			const options: IQueryOptions = target.args[0][0];
 
 			assert.ok(target.calledOnce);
-			assert.equal(options.names.length, allRecommendedExtensions.length);
+			assert.equal(options.names!.length, allRecommendedExtensions.length);
 			assert.equal(result.length, allRecommendedExtensions.length);
 			for (let i = 0; i < allRecommendedExtensions.length; i++) {
-				assert.equal(options.names[i], allRecommendedExtensions[i].identifier.id);
+				assert.equal(options.names![i], allRecommendedExtensions[i].identifier.id);
 				assert.equal(result.get(i).identifier.id, allRecommendedExtensions[i].identifier.id);
 			}
 		});
@@ -369,10 +369,10 @@ suite('ExtensionsListView Tests', () => {
 			const options: IQueryOptions = target.args[0][0];
 
 			assert.ok(target.calledOnce);
-			assert.equal(options.names.length, allRecommendedExtensions.length);
+			assert.equal(options.names!.length, allRecommendedExtensions.length);
 			assert.equal(result.length, allRecommendedExtensions.length);
 			for (let i = 0; i < allRecommendedExtensions.length; i++) {
-				assert.equal(options.names[i], allRecommendedExtensions[i].identifier.id);
+				assert.equal(options.names![i], allRecommendedExtensions[i].identifier.id);
 				assert.equal(result.get(i).identifier.id, allRecommendedExtensions[i].identifier.id);
 			}
 		});
@@ -392,10 +392,10 @@ suite('ExtensionsListView Tests', () => {
 
 			assert.ok(experimentTarget.calledOnce);
 			assert.ok(queryTarget.calledOnce);
-			assert.equal(options.names.length, curatedList.length);
+			assert.equal(options.names!.length, curatedList.length);
 			assert.equal(result.length, curatedList.length);
 			for (let i = 0; i < curatedList.length; i++) {
-				assert.equal(options.names[i], curatedList[i].identifier.id);
+				assert.equal(options.names![i], curatedList[i].identifier.id);
 				assert.equal(result.get(i).identifier.id, curatedList[i].identifier.id);
 			}
 			assert.equal(curatedKey, 'mykey');
@@ -518,7 +518,7 @@ suite('ExtensionsListView Tests', () => {
 	}
 
 	function aPage<T>(...objects: T[]): IPager<T> {
-		return { firstPage: objects, total: objects.length, pageSize: objects.length, getPage: () => null };
+		return { firstPage: objects, total: objects.length, pageSize: objects.length, getPage: () => null! };
 	}
 });
 

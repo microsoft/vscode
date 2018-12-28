@@ -169,7 +169,7 @@ class CommandConfigurationBuilder {
 	}
 
 	public done(taskName: string): void {
-		this.result.args = this.result.args.map(arg => arg === '$name' ? taskName : arg);
+		this.result.args = this.result.args!.map(arg => arg === '$name' ? taskName : arg);
 		this.presentationBuilder.done();
 	}
 }
@@ -227,7 +227,7 @@ class CustomTaskBuilder {
 
 	public problemMatcher(): ProblemMatcherBuilder {
 		let builder = new ProblemMatcherBuilder(this);
-		this.result.configurationProperties.problemMatchers.push(builder.result);
+		this.result.configurationProperties.problemMatchers!.push(builder.result);
 		return builder;
 	}
 
@@ -236,7 +236,7 @@ class CustomTaskBuilder {
 	}
 
 	public done(): void {
-		this.commandBuilder.done(this.result.configurationProperties.name);
+		this.commandBuilder.done(this.result.configurationProperties.name!);
 	}
 }
 
@@ -253,7 +253,7 @@ class ProblemMatcherBuilder {
 			severity: undefined,
 			fileLocation: FileLocationKind.Relative,
 			filePrefix: '${workspaceFolder}',
-			pattern: undefined
+			pattern: undefined!
 		};
 	}
 
@@ -362,7 +362,7 @@ function testDefaultProblemMatcher(external: ExternalTaskRunnerConfiguration, re
 	assert.strictEqual(result.custom.length, 1);
 	let task = result.custom[0];
 	assert.ok(task);
-	assert.strictEqual(task.configurationProperties.problemMatchers.length, resolved);
+	assert.strictEqual(task.configurationProperties.problemMatchers!.length, resolved);
 }
 
 function testConfiguration(external: ExternalTaskRunnerConfiguration, builder: ConfiguationBuilder): void {
@@ -409,8 +409,8 @@ class TaskGroupMap {
 				return;
 			}
 			let expectedTaskMap: { [key: string]: boolean } = Object.create(null);
-			expectedTasks.forEach(task => expectedTaskMap[task.configurationProperties.name] = true);
-			actualTasks.forEach(task => delete expectedTaskMap[task.configurationProperties.name]);
+			expectedTasks.forEach(task => expectedTaskMap[task.configurationProperties.name!] = true);
+			actualTasks.forEach(task => delete expectedTaskMap[task.configurationProperties.name!]);
 			assert.strictEqual(Object.keys(expectedTaskMap).length, 0);
 		});
 	}
@@ -430,9 +430,9 @@ function assertConfiguration(result: ParseResult, expected: Tasks.Task[]): void 
 	let actualId2Name: { [key: string]: string; } = Object.create(null);
 	let actualTaskGroups = new TaskGroupMap();
 	actual.forEach(task => {
-		assert.ok(!actualTasks[task.configurationProperties.name]);
-		actualTasks[task.configurationProperties.name] = task;
-		actualId2Name[task._id] = task.configurationProperties.name;
+		assert.ok(!actualTasks[task.configurationProperties.name!]);
+		actualTasks[task.configurationProperties.name!] = task;
+		actualId2Name[task._id] = task.configurationProperties.name!;
 		if (task.configurationProperties.group) {
 			actualTaskGroups.add(task.configurationProperties.group, task);
 		}
@@ -440,8 +440,8 @@ function assertConfiguration(result: ParseResult, expected: Tasks.Task[]): void 
 	let expectedTasks: { [key: string]: Tasks.Task; } = Object.create(null);
 	let expectedTaskGroup = new TaskGroupMap();
 	expected.forEach(task => {
-		assert.ok(!expectedTasks[task.configurationProperties.name]);
-		expectedTasks[task.configurationProperties.name] = task;
+		assert.ok(!expectedTasks[task.configurationProperties.name!]);
+		expectedTasks[task.configurationProperties.name!] = task;
 		if (task.configurationProperties.group) {
 			expectedTaskGroup.add(task.configurationProperties.group, task);
 		}
@@ -479,7 +479,7 @@ function assertTask(actual: Tasks.Task, expected: Tasks.Task) {
 function assertCommandConfiguration(actual: Tasks.CommandConfiguration, expected: Tasks.CommandConfiguration) {
 	assert.strictEqual(typeof actual, typeof expected);
 	if (actual && expected) {
-		assertPresentation(actual.presentation, expected.presentation);
+		assertPresentation(actual.presentation!, expected.presentation!);
 		assert.strictEqual(actual.name, expected.name, 'name');
 		assert.strictEqual(actual.runtime, expected.runtime, 'runtime type');
 		assert.strictEqual(actual.suppressTaskName, expected.suppressTaskName, 'suppressTaskName');
@@ -1070,7 +1070,7 @@ suite('Tasks version 0.1.0', () => {
 			applyTo(ApplyToKind.closedDocuments).
 			severity(Severity.Warning).
 			fileLocation(FileLocationKind.Absolute).
-			filePrefix(undefined).
+			filePrefix(undefined!).
 			pattern(/abc/);
 		testConfiguration(external, builder);
 	});

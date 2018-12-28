@@ -488,28 +488,28 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		return testObject.queryGallery().then(page => {
 			const extension = page.firstPage[0];
 			return testObject.loadDependencies(extension, CancellationToken.None).then(actual => {
-				assert.ok(actual.hasDependencies);
-				assert.equal(extension, actual.extension);
-				assert.equal(null, actual.dependent);
-				assert.equal(3, actual.dependencies.length);
-				assert.equal('pub.a', actual.identifier);
+				assert.ok(actual!.hasDependencies);
+				assert.equal(extension, actual!.extension);
+				assert.equal(null, actual!.dependent);
+				assert.equal(3, actual!.dependencies.length);
+				assert.equal('pub.a', actual!.identifier);
 				let dependent = actual;
 
-				actual = dependent.dependencies[0];
+				actual = dependent!.dependencies[0];
 				assert.ok(!actual.hasDependencies);
 				assert.equal('pub.b', actual.extension.identifier.id);
 				assert.equal('pub.b', actual.identifier);
 				assert.equal(dependent, actual.dependent);
 				assert.equal(0, actual.dependencies.length);
 
-				actual = dependent.dependencies[1];
+				actual = dependent!.dependencies[1];
 				assert.ok(!actual.hasDependencies);
 				assert.equal('pub.c', actual.extension.identifier.id);
 				assert.equal('pub.c', actual.identifier);
 				assert.equal(dependent, actual.dependent);
 				assert.equal(0, actual.dependencies.length);
 
-				actual = dependent.dependencies[2];
+				actual = dependent!.dependencies[2];
 				assert.ok(!actual.hasDependencies);
 				assert.equal('pub.d', actual.extension.identifier.id);
 				assert.equal('pub.d', actual.identifier);
@@ -527,21 +527,21 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		return testObject.queryGallery().then(page => {
 			const extension = page.firstPage[0];
 			return testObject.loadDependencies(extension, CancellationToken.None).then(actual => {
-				assert.ok(actual.hasDependencies);
-				assert.equal(extension, actual.extension);
-				assert.equal(null, actual.dependent);
-				assert.equal(2, actual.dependencies.length);
-				assert.equal('pub.a', actual.identifier);
+				assert.ok(actual!.hasDependencies);
+				assert.equal(extension, actual!.extension);
+				assert.equal(null, actual!.dependent);
+				assert.equal(2, actual!.dependencies.length);
+				assert.equal('pub.a', actual!.identifier);
 				let dependent = actual;
 
-				actual = dependent.dependencies[0];
+				actual = dependent!.dependencies[0]!;
 				assert.ok(!actual.hasDependencies);
 				assert.equal('pub.b', actual.extension.identifier.id);
 				assert.equal('pub.b', actual.identifier);
 				assert.equal(dependent, actual.dependent);
 				assert.equal(0, actual.dependencies.length);
 
-				actual = dependent.dependencies[1];
+				actual = dependent!.dependencies[1]!;
 				assert.ok(!actual.hasDependencies);
 				assert.equal('pub.a', actual.extension.identifier.id);
 				assert.equal('pub.a', actual.identifier);
@@ -559,21 +559,21 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		return testObject.queryGallery().then(page => {
 			const extension = page.firstPage[0];
 			return testObject.loadDependencies(extension, CancellationToken.None).then(actual => {
-				assert.ok(actual.hasDependencies);
-				assert.equal(extension, actual.extension);
-				assert.equal(null, actual.dependent);
-				assert.equal(2, actual.dependencies.length);
-				assert.equal('pub.a', actual.identifier);
+				assert.ok(actual!.hasDependencies);
+				assert.equal(extension, actual!.extension);
+				assert.equal(null, actual!.dependent);
+				assert.equal(2, actual!.dependencies.length);
+				assert.equal('pub.a', actual!.identifier);
 				let dependent = actual;
 
-				actual = dependent.dependencies[0];
+				actual = dependent!.dependencies[0]!;
 				assert.ok(!actual.hasDependencies);
 				assert.equal(null, actual.extension);
 				assert.equal('pub.b', actual.identifier);
 				assert.equal(dependent, actual.dependent);
 				assert.equal(0, actual.dependencies.length);
 
-				actual = dependent.dependencies[1];
+				actual = dependent!.dependencies[1]!;
 				assert.ok(!actual.hasDependencies);
 				assert.equal('pub.a', actual.extension.identifier.id);
 				assert.equal('pub.a', actual.identifier);
@@ -593,14 +593,14 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		return testObject.queryGallery().then(page => {
 			const extension = page.firstPage[0];
 			return testObject.loadDependencies(extension, CancellationToken.None).then(actual => {
-				assert.ok(actual.hasDependencies);
-				assert.equal(extension, actual.extension);
-				assert.equal(null, actual.dependent);
-				assert.equal(2, actual.dependencies.length);
-				assert.equal('pub.a', actual.identifier);
+				assert.ok(actual!.hasDependencies);
+				assert.equal(extension, actual!.extension);
+				assert.equal(null, actual!.dependent);
+				assert.equal(2, actual!.dependencies.length);
+				assert.equal('pub.a', actual!.identifier);
 				let dependent = actual;
 
-				actual = dependent.dependencies[0];
+				actual = dependent!.dependencies[0]!;
 				assert.ok(!actual.hasDependencies);
 				assert.equal('pub.inbuilt', actual.extension.identifier.id);
 				assert.equal('pub.inbuilt', actual.identifier);
@@ -608,7 +608,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 				assert.equal(0, actual.dependencies.length);
 
 
-				actual = dependent.dependencies[1];
+				actual = dependent!.dependencies[1]!;
 				assert.ok(!actual.hasDependencies);
 				assert.equal('pub.a', actual.extension.identifier.id);
 				assert.equal('pub.a', actual.identifier);
@@ -631,20 +631,20 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		return testObject.queryGallery().then(page => {
 			const extension = page.firstPage[0];
 			return testObject.loadDependencies(extension, CancellationToken.None).then(a => {
-				assert.ok(a.hasDependencies);
-				assert.equal(extension, a.extension);
-				assert.equal(null, a.dependent);
-				assert.equal(2, a.dependencies.length);
-				assert.equal('pub.a', a.identifier);
+				assert.ok(a!.hasDependencies);
+				assert.equal(extension, a!.extension);
+				assert.equal(null, a!.dependent);
+				assert.equal(2, a!.dependencies.length);
+				assert.equal('pub.a', a!.identifier);
 
-				let b = a.dependencies[0];
+				let b = a!.dependencies[0];
 				assert.ok(b.hasDependencies);
 				assert.equal('pub.b', b.extension.identifier.id);
 				assert.equal('pub.b', b.identifier);
 				assert.equal(a, b.dependent);
 				assert.equal(2, b.dependencies.length);
 
-				let c = a.dependencies[1];
+				let c = a!.dependencies[1];
 				assert.ok(c.hasDependencies);
 				assert.equal('pub.c', c.extension.identifier.id);
 				assert.equal('pub.c', c.identifier);
@@ -686,7 +686,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 				assert.equal(c, d.dependent);
 				assert.equal(0, d.dependencies.length);
 
-				c = a.dependencies[1];
+				c = a!.dependencies[1];
 				d = c.dependencies[0];
 				assert.ok(d.hasDependencies);
 				assert.equal('pub.d', d.extension.identifier.id);
@@ -1192,13 +1192,13 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 	const noAssets: IGalleryExtensionAssets = {
 		changelog: null,
-		download: null,
-		icon: null,
+		download: null!,
+		icon: null!,
 		license: null,
 		manifest: null,
 		readme: null,
 		repository: null,
-		coreTranslations: null
+		coreTranslations: null!
 	};
 
 	function aGalleryExtension(name: string, properties: any = {}, galleryExtensionProperties: any = {}, assets: IGalleryExtensionAssets = noAssets): IGalleryExtension {
@@ -1211,7 +1211,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 	}
 
 	function aPage<T>(...objects: T[]): IPager<T> {
-		return { firstPage: objects, total: objects.length, pageSize: objects.length, getPage: () => null };
+		return { firstPage: objects, total: objects.length, pageSize: objects.length, getPage: () => null! };
 	}
 
 	function eventToPromise(event: Event<any>, count: number = 1): Promise<void> {

@@ -84,8 +84,8 @@ suite('SearchModel', () => {
 			textSearch(query: ISearchQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
 				return new Promise(resolve => {
 					process.nextTick(() => {
-						results.forEach(onProgress);
-						resolve(complete);
+						results.forEach(onProgress!);
+						resolve(complete!);
 					});
 				});
 			}
