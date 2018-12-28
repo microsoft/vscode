@@ -191,8 +191,11 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 	private _addRawPerfMarks(md: MarkdownBuilder): void {
 		md.heading(2, 'Raw Perf Marks');
 		md.value += '```\n';
+		md.value += `Name\tTimestamp\tDelta\n`;
+		let lastStartTime = -1;
 		for (const { name, startTime } of perf.getEntries('mark')) {
-			md.value += `${name}\t${startTime}\n`;
+			md.value += `${name}\t${startTime}\t${lastStartTime !== -1 ? startTime - lastStartTime : 0}\n`;
+			lastStartTime = startTime;
 		}
 		md.value += '```\n';
 	}
