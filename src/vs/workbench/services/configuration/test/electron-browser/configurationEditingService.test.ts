@@ -122,7 +122,7 @@ suite('ConfigurationEditingService', () => {
 			if (configuraitonService) {
 				configuraitonService.dispose();
 			}
-			instantiationService = null;
+			instantiationService = null!;
 		}
 	}
 
@@ -133,7 +133,7 @@ suite('ConfigurationEditingService', () => {
 			} else {
 				c(void 0);
 			}
-		}).then(() => parentDir = null);
+		}).then(() => parentDir = null!);
 	}
 
 	test('errors cases - invalid key', () => {
@@ -178,7 +178,7 @@ suite('ConfigurationEditingService', () => {
 	test('do not notify error', () => {
 		instantiationService.stub(ITextFileService, 'isDirty', true);
 		const target = sinon.stub();
-		instantiationService.stub(INotificationService, <INotificationService>{ prompt: target, _serviceBrand: null, notify: null, error: null, info: null, warn: null });
+		instantiationService.stub(INotificationService, <INotificationService>{ prompt: target, _serviceBrand: null, notify: null!, error: null!, info: null!, warn: null! });
 		return testObject.writeConfiguration(ConfigurationTarget.USER, { key: 'configurationEditing.service.testSetting', value: 'value' }, { donotNotifyError: true })
 			.then(() => assert.fail('Should fail with ERROR_CONFIGURATION_FILE_DIRTY error.'),
 				(error: ConfigurationEditingError) => {

@@ -855,7 +855,7 @@ export namespace SelectionRange {
 	}
 
 	export function to(obj: modes.SelectionRange): vscode.SelectionRange {
-		return new types.SelectionRange(SelectionRangeKind.to(obj.kind), Range.to(obj.range));
+		return new types.SelectionRange(Range.to(obj.range), SelectionRangeKind.to(obj.kind));
 	}
 }
 

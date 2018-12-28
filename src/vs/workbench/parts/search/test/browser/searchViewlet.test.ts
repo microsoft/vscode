@@ -67,8 +67,8 @@ suite('Search - Viewlet', () => {
 		const resultIterator = createIterator(result, 'auto');
 		const first = resultIterator.next();
 
-		assert(!!first.value.children);
-		assert.equal((<Iterator<ITreeElement<RenderableMatch>>>first.value.children).next().value.element.id(), 'file:///c%3A/foo>[2,1 -> 2,2]b');
+		assert(!!first.value!.children);
+		assert.equal((<Iterator<ITreeElement<RenderableMatch>>>first.value!.children).next().value!.element.id(), 'file:///c%3A/foo>[2,1 -> 2,2]b');
 	});
 
 	test('Comparer', () => {

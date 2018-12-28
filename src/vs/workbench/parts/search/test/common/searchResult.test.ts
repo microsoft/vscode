@@ -32,7 +32,7 @@ suite('SearchResult', () => {
 	});
 
 	test('Line Match', function () {
-		let fileMatch = aFileMatch('folder/file.txt', null);
+		let fileMatch = aFileMatch('folder/file.txt', null!);
 		let lineMatch = new Match(fileMatch, ['foo bar'], new OneLineRange(0, 0, 3), new OneLineRange(1, 0, 3));
 		assert.equal(lineMatch.text(), 'foo bar');
 		assert.equal(lineMatch.range().startLineNumber, 2);
@@ -307,7 +307,7 @@ suite('SearchResult', () => {
 			aRawMatch('file://c:/2',
 				new TextSearchMatch('preview 2', lineOneRange))]);
 
-		testObject.replaceAll(null);
+		testObject.replaceAll(null!);
 
 		return voidPromise.then(() => assert.ok(testObject.isEmpty()));
 	});

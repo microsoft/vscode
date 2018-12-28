@@ -25,10 +25,10 @@ export interface ParsedArgs {
 	'reuse-window'?: boolean;
 	locale?: string;
 	'user-data-dir'?: string;
-	performance?: boolean;
 	'prof-startup'?: string;
 	'prof-startup-prefix'?: string;
 	'prof-append-timers'?: string;
+	'prof-modules'?: string;
 	verbose?: boolean;
 	trace?: boolean;
 	'trace-category-filter'?: string;
@@ -126,7 +126,6 @@ export interface IEnvironmentService {
 	isBuilt: boolean;
 	wait: boolean;
 	status: boolean;
-	performance: boolean;
 
 	// logging
 	log?: string;

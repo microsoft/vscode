@@ -189,7 +189,7 @@ suite('Files - View Model', () => {
 		const sChild = createStat('/path/to/stat/alles.klar', 'alles.klar', true, true, 8096, d);
 		s.addChild(sChild);
 
-		assert(validateFileName(s, null) !== null);
+		assert(validateFileName(s, null!) !== null);
 		assert(validateFileName(s, '') !== null);
 		assert(validateFileName(s, '  ') !== null);
 		assert(validateFileName(s, 'Read Me') === null, 'name containing space');
@@ -282,6 +282,6 @@ suite('Files - View Model', () => {
 		// Verify that merge does not replace existing children, but updates properties in that case
 		const existingChild = merge1.getChild('foo.html');
 		ExplorerItem.mergeLocalWithDisk(merge2, merge1);
-		assert.ok(existingChild === merge1.getChild(existingChild.name));
+		assert.ok(existingChild === merge1.getChild(existingChild!.name));
 	});
 });

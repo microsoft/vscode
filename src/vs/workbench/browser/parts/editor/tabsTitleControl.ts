@@ -1059,7 +1059,7 @@ export class TabsTitleControl extends TitleControl {
 			element = (e as GestureEvent).initialTarget as HTMLElement;
 		}
 
-		return !!findParentWithClass(element, 'monaco-action-bar', 'tab');
+		return !!findParentWithClass(element, 'action-item', 'tab');
 	}
 
 	private onDrop(e: DragEvent, targetIndex: number): void {

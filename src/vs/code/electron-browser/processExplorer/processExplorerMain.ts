@@ -96,7 +96,7 @@ function attachTo(item: ProcessItem) {
 		config.port = parseInt(matches[2]);
 	}
 
-	ipcRenderer.send('vscode:workbenchCommand', { id: 'workbench.action.debug.start', from: 'processExplorer', args: [config] });
+	ipcRenderer.send('vscode:workbenchCommand', { id: 'debug.startFromConfig', from: 'processExplorer', args: [config] });
 }
 
 function getProcessIdWithHighestProperty(processList, propertyName: string) {

@@ -817,7 +817,7 @@ function assertEqualQueries(actual: ITextQuery | IFileQuery, expected: ITextQuer
 	}
 
 	if (expected.extraFileResources) {
-		assert.deepEqual(actual.extraFileResources.map(extraFile => extraFile.fsPath), expected.extraFileResources.map(extraFile => extraFile.fsPath));
+		assert.deepEqual(actual.extraFileResources!.map(extraFile => extraFile.fsPath), expected.extraFileResources.map(extraFile => extraFile.fsPath));
 		delete expected.extraFileResources;
 		delete actual.extraFileResources;
 	}
@@ -837,7 +837,7 @@ function assertEqualSearchPathResults(actual: ISearchPathsResult, expected: ISea
 	assert.equal(actual.searchPaths && actual.searchPaths.length, expected.searchPaths && expected.searchPaths.length);
 	if (actual.searchPaths) {
 		actual.searchPaths.forEach((searchPath, i) => {
-			const expectedSearchPath = expected.searchPaths[i];
+			const expectedSearchPath = expected.searchPaths![i];
 			assert.equal(searchPath.pattern, expectedSearchPath.pattern);
 			assert.equal(searchPath.searchPath.toString(), expectedSearchPath.searchPath.toString());
 		});
@@ -885,7 +885,7 @@ function fixPath(...slashPathParts: string[]): string {
 	return paths.join(...slashPathParts);
 }
 
-function normalizeExpression(expression: IExpression): IExpression {
+function normalizeExpression(expression: IExpression | undefined): IExpression | undefined {
 	if (!expression) {
 		return expression;
 	}

@@ -58,7 +58,7 @@ suite('FileService', () => {
 			assert.ok(event);
 			assert.equal(event.resource.fsPath, resource.fsPath);
 			assert.equal(event.operation, FileOperation.CREATE);
-			assert.equal(event.target.resource.fsPath, resource.fsPath);
+			assert.equal(event.target!.resource.fsPath, resource.fsPath);
 			toDispose.dispose();
 		});
 	});
@@ -93,7 +93,7 @@ suite('FileService', () => {
 			assert.ok(event);
 			assert.equal(event.resource.fsPath, resource.fsPath);
 			assert.equal(event.operation, FileOperation.CREATE);
-			assert.equal(event.target.resource.fsPath, resource.fsPath);
+			assert.equal(event.target!.resource.fsPath, resource.fsPath);
 			toDispose.dispose();
 		});
 	});
@@ -114,8 +114,8 @@ suite('FileService', () => {
 				assert.ok(event);
 				assert.equal(event.resource.fsPath, resource.fsPath);
 				assert.equal(event.operation, FileOperation.CREATE);
-				assert.equal(event.target.resource.fsPath, resource.fsPath);
-				assert.equal(event.target.isDirectory, true);
+				assert.equal(event.target!.resource.fsPath, resource.fsPath);
+				assert.equal(event.target!.isDirectory, true);
 				toDispose.dispose();
 			});
 		});
@@ -139,8 +139,8 @@ suite('FileService', () => {
 				assert.ok(event);
 				assert.equal(event.resource.fsPath, resource.fsPath);
 				assert.equal(event.operation, FileOperation.CREATE);
-				assert.equal(event.target.resource.fsPath, resource.fsPath);
-				assert.equal(event.target.isDirectory, true);
+				assert.equal(event.target!.resource.fsPath, resource.fsPath);
+				assert.equal(event.target!.isDirectory, true);
 				toDispose.dispose();
 			});
 		});
@@ -161,7 +161,7 @@ suite('FileService', () => {
 				assert.ok(event);
 				assert.equal(event.resource.fsPath, resource.fsPath);
 				assert.equal(event.operation, FileOperation.MOVE);
-				assert.equal(event.target.resource.fsPath, renamed.resource.fsPath);
+				assert.equal(event.target!.resource.fsPath, renamed.resource.fsPath);
 				toDispose.dispose();
 			});
 		});
@@ -185,7 +185,7 @@ suite('FileService', () => {
 				assert.ok(event);
 				assert.equal(event.resource.fsPath, resource.fsPath);
 				assert.equal(event.operation, FileOperation.MOVE);
-				assert.equal(event.target.resource.fsPath, renamed.resource.fsPath);
+				assert.equal(event.target!.resource.fsPath, renamed.resource.fsPath);
 				toDispose.dispose();
 			});
 		});
@@ -206,7 +206,7 @@ suite('FileService', () => {
 				assert.ok(event);
 				assert.equal(event.resource.fsPath, resource.fsPath);
 				assert.equal(event.operation, FileOperation.MOVE);
-				assert.equal(event.target.resource.fsPath, renamed.resource.fsPath);
+				assert.equal(event.target!.resource.fsPath, renamed.resource.fsPath);
 				toDispose.dispose();
 			});
 		});
@@ -230,7 +230,7 @@ suite('FileService', () => {
 				assert.ok(event);
 				assert.equal(event.resource.fsPath, resource.fsPath);
 				assert.equal(event.operation, FileOperation.MOVE);
-				assert.equal(event.target.resource.fsPath, renamed.resource.fsPath);
+				assert.equal(event.target!.resource.fsPath, renamed.resource.fsPath);
 				toDispose.dispose();
 			});
 		});
@@ -250,7 +250,7 @@ suite('FileService', () => {
 				assert.ok(event);
 				assert.equal(event.resource.fsPath, resource.fsPath);
 				assert.equal(event.operation, FileOperation.MOVE);
-				assert.equal(event.target.resource.fsPath, renamed.resource.fsPath);
+				assert.equal(event.target!.resource.fsPath, renamed.resource.fsPath);
 				toDispose.dispose();
 			});
 		});
@@ -271,7 +271,7 @@ suite('FileService', () => {
 				assert.ok(event);
 				assert.equal(event.resource.fsPath, resource.fsPath);
 				assert.equal(event.operation, FileOperation.MOVE);
-				assert.equal(event.target.resource.fsPath, renamed.resource.fsPath);
+				assert.equal(event.target!.resource.fsPath, renamed.resource.fsPath);
 				toDispose.dispose();
 			});
 		});
@@ -324,7 +324,7 @@ suite('FileService', () => {
 				assert.ok(event);
 				assert.equal(event.resource.fsPath, resource.fsPath);
 				assert.equal(event.operation, FileOperation.MOVE);
-				assert.equal(event.target.resource.fsPath, renamed.resource.fsPath);
+				assert.equal(event.target!.resource.fsPath, renamed.resource.fsPath);
 				toDispose.dispose();
 			});
 		});
@@ -357,7 +357,7 @@ suite('FileService', () => {
 					assert.ok(moveEvent);
 
 					assert.equal(moveEvent.resource.fsPath, resource.fsPath);
-					assert.equal(moveEvent.target.resource.fsPath, moved.resource.fsPath);
+					assert.equal(moveEvent!.target!.resource.fsPath, moved.resource.fsPath);
 
 					assert.equal(deleteEvent.resource.fsPath, folderResource.fsPath);
 
@@ -382,7 +382,7 @@ suite('FileService', () => {
 				assert.ok(event);
 				assert.equal(event.resource.fsPath, source.resource.fsPath);
 				assert.equal(event.operation, FileOperation.COPY);
-				assert.equal(event.target.resource.fsPath, copied.resource.fsPath);
+				assert.equal(event.target!.resource.fsPath, copied.resource.fsPath);
 				toDispose.dispose();
 			});
 		});
@@ -415,7 +415,7 @@ suite('FileService', () => {
 					assert.ok(copyEvent);
 
 					assert.equal(copyEvent.resource.fsPath, resource.fsPath);
-					assert.equal(copyEvent.target.resource.fsPath, copied.resource.fsPath);
+					assert.equal(copyEvent.target!.resource.fsPath, copied.resource.fsPath);
 
 					assert.equal(deleteEvent.resource.fsPath, folderResource.fsPath);
 
@@ -505,10 +505,10 @@ suite('FileService', () => {
 
 	test('resolveFile', () => {
 		return service.resolveFile(uri.file(testDir), { resolveTo: [uri.file(path.join(testDir, 'deep'))] }).then(r => {
-			assert.equal(r.children.length, 8);
+			assert.equal(r.children!.length, 8);
 
-			const deep = utils.getByName(r, 'deep');
-			assert.equal(deep.children.length, 4);
+			const deep = utils.getByName(r, 'deep')!;
+			assert.equal(deep.children!.length, 4);
 		});
 	});
 
@@ -519,13 +519,13 @@ suite('FileService', () => {
 		]).then(res => {
 			const r1 = res[0].stat;
 
-			assert.equal(r1.children.length, 8);
+			assert.equal(r1.children!.length, 8);
 
-			const deep = utils.getByName(r1, 'deep');
-			assert.equal(deep.children.length, 4);
+			const deep = utils.getByName(r1, 'deep')!;
+			assert.equal(deep.children!.length, 4);
 
 			const r2 = res[1].stat;
-			assert.equal(r2.children.length, 4);
+			assert.equal(r2.children!.length, 4);
 			assert.equal(r2.name, 'deep');
 		});
 	});

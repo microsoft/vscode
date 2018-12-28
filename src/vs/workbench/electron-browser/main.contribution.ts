@@ -886,6 +886,11 @@ configurationRegistry.registerConfiguration({
 			'default': true,
 			'description': nls.localize('zenMode.hideActivityBar', "Controls whether turning on Zen Mode also hides the activity bar at the left of the workbench.")
 		},
+		'zenMode.hideLineNumbers': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('zenMode.hideLineNumbers', "Controls whether turning on Zen Mode also hides the editor line numbers.")
+		},
 		'zenMode.restore': {
 			'type': 'boolean',
 			'default': false,

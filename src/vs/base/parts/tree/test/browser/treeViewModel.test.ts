@@ -17,7 +17,7 @@ function makeItem(id, height): any {
 }
 
 function makeItems(...args: any[]) {
-	var r = [];
+	var r: any[] = [];
 
 	for (var i = 0; i < args.length; i += 2) {
 		r.push(makeItem(args[i], args[i + 1]));
@@ -59,7 +59,7 @@ suite('TreeView - HeightMap', () => {
 
 	teardown(() => {
 		rangeMap.dispose();
-		rangeMap = null;
+		rangeMap = null!;
 	});
 
 	test('simple', () => {

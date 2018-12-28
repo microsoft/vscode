@@ -5,7 +5,7 @@
 
 /* Debug repl */
 
-.repl {
+.composite.panel .repl {
 	height: 100%;
 	box-sizing: border-box;
 	overflow: hidden;

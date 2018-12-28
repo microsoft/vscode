@@ -190,6 +190,11 @@ export abstract class AbstractExpressionsRenderer
 			data.toDispose.push(dom.addDisposableListener(inputBox.inputElement, 'blur', () => {
 				wrapUp(true);
 			}));
+			data.toDispose.push(dom.addDisposableListener(inputBox.inputElement, 'click', e => {
+				// Do not expand / collapse selected elements
+				e.preventDefault();
+				e.stopPropagation();
+			}));
 		};
 
 		return data;
