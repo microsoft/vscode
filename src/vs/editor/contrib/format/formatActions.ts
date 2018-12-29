@@ -381,7 +381,12 @@ export class FormatDocumentAction extends EditorAction {
 		const { tabSize, insertSpaces } = editor.getModel().getOptions();
 		return formatDocument(workerService, editor, { tabSize, insertSpaces }, CancellationToken.None).catch(err => {
 			if (NoProviderError.is(err)) {
-				notificationService.info(nls.localize('no.documentprovider', "There is no document formatter for '{0}'-files installed.", editor.getModel().getLanguageIdentifier().language));
+				const language = editor.getModel().getLanguageIdentifier().language;
+				if (language === 'plaintext') {
+					notificationService.info(nls.localize('no.documentprovider', "There is no document formatter for '{0}'-files installed.", language));
+				} else {
+					notificationService.info(nls.localize('no.documentprovider.suggestlink', "There is no document formatter for '{0}'-files installed. [Search for '{0}' formatter in Marketplace](https://marketplace.visualstudio.com/search?term={0}&target=VSCode&category=Formatters&sortBy=Relevance)", language));
+				}
 			}
 		});
 	}
@@ -417,7 +422,12 @@ export class FormatSelectionAction extends EditorAction {
 		const { tabSize, insertSpaces } = editor.getModel().getOptions();
 		return formatDocumentRange(workerService, editor, FormatRangeType.Selection, { tabSize, insertSpaces }, CancellationToken.None).catch(err => {
 			if (NoProviderError.is(err)) {
-				notificationService.info(nls.localize('no.selectionprovider', "There is no selection formatter for '{0}'-files installed.", editor.getModel().getLanguageIdentifier().language));
+				const language = editor.getModel().getLanguageIdentifier().language;
+				if (language === 'plaintext') {
+					notificationService.info(nls.localize('no.selectionprovider', "There is no selection formatter for '{0}'-files installed.", language));
+				} else {
+					notificationService.info(nls.localize('no.selectionprovider.suggestlink', "There is no selection formatter for '{0}'-files installed. [Search for '{0}' formatter in Marketplace](https://marketplace.visualstudio.com/search?term={0}&target=VSCode&category=Formatters&sortBy=Relevance)", language));
+				}
 			}
 		});
 	}
