@@ -13,6 +13,7 @@ export class ResolvedKeybindingItem {
 	public readonly resolvedKeybinding: ResolvedKeybinding | null;
 	public readonly keypressFirstPart: string | null;
 	public readonly keypressChordPart: string | null;
+	public readonly keypressParts: string[];
 	public readonly bubble: boolean;
 	public readonly command: string | null;
 	public readonly commandArgs: any;

@@ -199,7 +199,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 	private _registerDefaultKeybinding(keybinding: Keybinding, commandId: string, weight1: number, weight2: number, when: ContextKeyExpr | null | undefined, source: KeybindingRuleSource): void {
 		if (source === KeybindingRuleSource.Core && OS === OperatingSystem.Windows) {
 			if (keybinding.type === KeybindingType.Chord) {
-				this._assertNoCtrlAlt(keybinding.firstPart, commandId);
+				this._assertNoCtrlAlt(keybinding.parts[0], commandId);
 			} else {
 				this._assertNoCtrlAlt(keybinding, commandId);
 			}

@@ -84,17 +84,25 @@ export class KeybindingParser {
 		if (!input) {
 			return null;
 		}
-
-		let [firstPart, remains] = this.parseSimpleKeybinding(input);
-		let chordPart: SimpleKeybinding | null = null;
-		if (remains.length > 0) {
-			[chordPart] = this.parseSimpleKeybinding(remains);
+		// iteratively extract parts until the length no longer
+		// changes, implying all valid keybindings have been extracted.
+		let parts = [];
+		let [part, remains] = this.parseSimpleKeybinding(input);
+		// shortcircuit since there is no remaining chords to process.
+		if (remains.length === 0) {
+			return part;
 		}
-
-		if (chordPart) {
-			return new ChordKeybinding(firstPart, chordPart);
+		parts.push(part);
+		let previousLength = remains.length;
+		while (previousLength !== 0) {
+			[part, remains] = this.parseSimpleKeybinding(remains);
+			if (remains.length === previousLength) {
+				break;
+			}
+			parts.push(part);
+			previousLength = remains.length;
 		}
-		return firstPart;
+		return new ChordKeybinding(parts);
 	}
 
 	private static parseSimpleUserBinding(input: string): [SimpleKeybinding | ScanCodeBinding, string] {

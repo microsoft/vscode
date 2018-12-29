@@ -519,12 +519,12 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 
 	public resolveKeybinding(keybinding: Keybinding): WindowsNativeResolvedKeybinding[] {
 		if (keybinding.type === KeybindingType.Chord) {
-			const firstPartKeyCode = keybinding.firstPart.keyCode;
-			const chordPartKeyCode = keybinding.chordPart.keyCode;
+			const firstPartKeyCode = keybinding.parts[0].keyCode;
+			const chordPartKeyCode = keybinding.parts[1].keyCode;
 			if (!this._keyCodeExists[firstPartKeyCode] || !this._keyCodeExists[chordPartKeyCode]) {
 				return [];
 			}
-			return [new WindowsNativeResolvedKeybinding(this, keybinding.firstPart, keybinding.chordPart)];
+			return [new WindowsNativeResolvedKeybinding(this, keybinding.parts[0], keybinding.parts[1])];
 		} else {
 			if (!this._keyCodeExists[keybinding.keyCode]) {
 				return [];

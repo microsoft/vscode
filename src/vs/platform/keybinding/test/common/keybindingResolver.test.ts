@@ -347,8 +347,8 @@ suite('KeybindingResolver', () => {
 			const expectedKey = createKeybinding(_expectedKey, OS);
 
 			if (expectedKey.type === KeybindingType.Chord) {
-				let firstPart = getDispatchStr(expectedKey.firstPart);
-				let chordPart = getDispatchStr(expectedKey.chordPart);
+				let firstPart = getDispatchStr(expectedKey.parts[0]);
+				let chordPart = getDispatchStr(expectedKey.parts[1]);
 
 				let result = resolver.resolve(ctx, null, firstPart);
 				assert.ok(result !== null, 'Enters chord for ' + commandId);

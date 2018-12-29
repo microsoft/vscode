@@ -249,7 +249,7 @@ suite('KeybindingsEditing', () => {
 			const { ctrlKey, shiftKey, altKey, metaKey } = part.modifiers || { ctrlKey: false, shiftKey: false, altKey: false, metaKey: false };
 			return new SimpleKeybinding(ctrlKey, shiftKey, altKey, metaKey, part.keyCode);
 		};
-		const keybinding = firstPart ? chordPart ? new ChordKeybinding(aSimpleKeybinding(firstPart), aSimpleKeybinding(chordPart)) : aSimpleKeybinding(firstPart) : null;
+		const keybinding = firstPart ? chordPart ? new ChordKeybinding([aSimpleKeybinding(firstPart), aSimpleKeybinding(chordPart)]) : aSimpleKeybinding(firstPart) : null;
 		return new ResolvedKeybindingItem(keybinding ? new USLayoutResolvedKeybinding(keybinding, OS) : null, command || 'some command', null, when ? ContextKeyExpr.deserialize(when) : null, isDefault === void 0 ? true : isDefault);
 	}
 

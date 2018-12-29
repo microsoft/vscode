@@ -417,10 +417,10 @@ export function createKeybinding(keybinding: number, OS: OperatingSystem): Keybi
 	const firstPart = (keybinding & 0x0000ffff) >>> 0;
 	const chordPart = (keybinding & 0xffff0000) >>> 16;
 	if (chordPart !== 0) {
-		return new ChordKeybinding(
+		return new ChordKeybinding([
 			createSimpleKeybinding(firstPart, OS),
 			createSimpleKeybinding(chordPart, OS),
-		);
+		]);
 	}
 	return createSimpleKeybinding(firstPart, OS);
 }
@@ -507,17 +507,15 @@ export class SimpleKeybinding {
 
 export class ChordKeybinding {
 	public readonly type = KeybindingType.Chord;
+	public readonly parts: SimpleKeybinding[];
 
-	public readonly firstPart: SimpleKeybinding;
-	public readonly chordPart: SimpleKeybinding;
-
-	constructor(firstPart: SimpleKeybinding, chordPart: SimpleKeybinding) {
-		this.firstPart = firstPart;
-		this.chordPart = chordPart;
+	constructor(parts: SimpleKeybinding[]) {
+		this.parts = parts;
 	}
 
 	public getHashCode(): string {
-		return `${this.firstPart.getHashCode()};${this.chordPart.getHashCode()}`;
+		let hashCodes = this.parts.map((p) => p.getHashCode().toString());
+		return hashCodes.join(';');
 	}
 }
 

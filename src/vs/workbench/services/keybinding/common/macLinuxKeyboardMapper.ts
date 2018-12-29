@@ -1015,8 +1015,8 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		let result: NativeResolvedKeybinding[] = [], resultLen = 0;
 
 		if (keybinding.type === KeybindingType.Chord) {
-			const firstParts = this.simpleKeybindingToScanCodeBinding(keybinding.firstPart);
-			const chordParts = this.simpleKeybindingToScanCodeBinding(keybinding.chordPart);
+			const firstParts = this.simpleKeybindingToScanCodeBinding(keybinding.parts[0]);
+			const chordParts = this.simpleKeybindingToScanCodeBinding(keybinding.parts[1]);
 
 			for (let i = 0, len = firstParts.length; i < len; i++) {
 				const firstPart = firstParts[i];

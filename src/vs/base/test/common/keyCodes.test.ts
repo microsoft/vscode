@@ -38,17 +38,17 @@ suite('keyCodes', () => {
 		test(new SimpleKeybinding(true, true, true, true, KeyCode.Enter), KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.Enter);
 
 		test(
-			new ChordKeybinding(
+			new ChordKeybinding([
 				new SimpleKeybinding(false, false, false, false, KeyCode.Enter),
 				new SimpleKeybinding(false, false, false, false, KeyCode.Tab)
-			),
+			]),
 			KeyChord(KeyCode.Enter, KeyCode.Tab)
 		);
 		test(
-			new ChordKeybinding(
+			new ChordKeybinding([
 				new SimpleKeybinding(false, false, false, true, KeyCode.KEY_Y),
 				new SimpleKeybinding(false, false, false, false, KeyCode.KEY_Z)
-			),
+			]),
 			KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_Y, KeyCode.KEY_Z)
 		);
 	});
@@ -80,17 +80,17 @@ suite('keyCodes', () => {
 			test(new SimpleKeybinding(true, true, true, true, KeyCode.Enter), KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.Enter);
 
 			test(
-				new ChordKeybinding(
+				new ChordKeybinding([
 					new SimpleKeybinding(false, false, false, false, KeyCode.Enter),
 					new SimpleKeybinding(false, false, false, false, KeyCode.Tab)
-				),
+				]),
 				KeyChord(KeyCode.Enter, KeyCode.Tab)
 			);
 			test(
-				new ChordKeybinding(
+				new ChordKeybinding([
 					new SimpleKeybinding(true, false, false, false, KeyCode.KEY_Y),
 					new SimpleKeybinding(false, false, false, false, KeyCode.KEY_Z)
-				),
+				]),
 				KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_Y, KeyCode.KEY_Z)
 			);
 
