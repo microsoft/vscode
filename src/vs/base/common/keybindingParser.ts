@@ -86,7 +86,7 @@ export class KeybindingParser {
 		}
 		// iteratively extract parts until the length no longer
 		// changes, implying all valid keybindings have been extracted.
-		let parts = [];
+		let parts: SimpleKeybinding[] = [];
 		let [part, remains] = this.parseSimpleKeybinding(input);
 		// shortcircuit since there is no remaining chords to process.
 		if (remains.length === 0) {
