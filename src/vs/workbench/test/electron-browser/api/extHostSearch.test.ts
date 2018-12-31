@@ -627,7 +627,7 @@ suite('ExtHostSearch', () => {
 
 		function makePreview(text: string): vscode.TextSearchMatch['preview'] {
 			return {
-				matches: new Range(0, 0, 0, text.length),
+				matches: [new Range(0, 0, 0, text.length)],
 				text
 			};
 		}
@@ -635,7 +635,7 @@ suite('ExtHostSearch', () => {
 		function makeTextResult(baseFolder: URI, relativePath: string): vscode.TextSearchMatch {
 			return {
 				preview: makePreview('foo'),
-				ranges: new Range(0, 0, 0, 3),
+				ranges: [new Range(0, 0, 0, 3)],
 				uri: joinPath(baseFolder, relativePath)
 			};
 		}

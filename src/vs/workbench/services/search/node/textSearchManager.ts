@@ -35,20 +35,26 @@ export class TextSearchManager {
 			this.collector = new TextSearchResultsCollector(onProgress);
 
 			let isCanceled = false;
-			const onResult = (match: vscode.TextSearchResult, folderIdx: number) => {
+			const onResult = (result: vscode.TextSearchResult, folderIdx: number) => {
 				if (isCanceled) {
 					return;
 				}
 
-				if (typeof this.query.maxResults === 'number' && this.resultCount >= this.query.maxResults) {
-					this.isLimitHit = true;
-					isCanceled = true;
-					tokenSource.cancel();
-				}
-
 				if (!this.isLimitHit) {
-					this.resultCount++;
-					this.collector.add(match, folderIdx);
+					const resultSize = this.resultSize(result);
+					if (extensionResultIsMatch(result) && typeof this.query.maxResults === 'number' && this.resultCount + resultSize > this.query.maxResults) {
+						this.isLimitHit = true;
+						isCanceled = true;
+						tokenSource.cancel();
+
+						result = this.trimResultToSize(result, this.query.maxResults - this.resultCount);
+					}
+
+					const newResultSize = this.resultSize(result);
+					this.resultCount += newResultSize;
+					if (newResultSize > 0) {
+						this.collector.add(result, folderIdx);
+					}
 				}
 			};
 
@@ -72,6 +78,27 @@ export class TextSearchManager {
 				reject(new Error(errMsg));
 			});
 		});
+	}
+
+	private resultSize(result: vscode.TextSearchResult): number {
+		const match = <vscode.TextSearchMatch>result;
+		return Array.isArray(match.ranges) ?
+			match.ranges.length :
+			1;
+	}
+
+	private trimResultToSize(result: vscode.TextSearchMatch, size: number): vscode.TextSearchMatch {
+		const rangesArr = Array.isArray(result.ranges) ? result.ranges : [result.ranges];
+		const matchesArr = Array.isArray(result.preview.matches) ? result.preview.matches : [result.preview.matches];
+
+		return {
+			ranges: rangesArr.slice(0, size),
+			preview: {
+				matches: matchesArr.slice(0, size),
+				text: result.preview.text
+			},
+			uri: result.uri
+		};
 	}
 
 	private searchInFolder(folderQuery: IFolderQuery<URI>, onResult: (result: vscode.TextSearchResult) => void, token: CancellationToken): Promise<vscode.TextSearchComplete | null | undefined> {
