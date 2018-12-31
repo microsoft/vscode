@@ -214,6 +214,9 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		}
 
 		this.replInput.updateOptions({ readOnly: this.isReadonly });
+		if (this.isReadonly) {
+			this.replInput.setValue('');
+		}
 		this.updateInputDecoration();
 	}
 
