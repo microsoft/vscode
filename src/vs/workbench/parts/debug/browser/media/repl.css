@@ -5,11 +5,10 @@
 
 /* Debug repl */
 
-.composite.panel .repl {
+.repl {
 	height: 100%;
 	box-sizing: border-box;
 	overflow: hidden;
-	cursor: text;
 }
 
 .repl .surveyor {
@@ -60,6 +59,10 @@
 	margin-right: 8px;
 	cursor: pointer;
 	text-decoration: underline;
+}
+
+.repl .repl-tree .monaco-list-row {
+	cursor: text;
 }
 
 .monaco-workbench.windows .repl .repl-tree .monaco-list-row .input.expression,
