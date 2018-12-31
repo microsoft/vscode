@@ -214,9 +214,6 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		}
 
 		this.replInput.updateOptions({ readOnly: this.isReadonly });
-		if (this.isReadonly) {
-			this.replInput.setValue('');
-		}
 		this.updateInputDecoration();
 	}
 
@@ -462,7 +459,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		}
 
 		const decorations: IDecorationOptions[] = [];
-		if (this.isReadonly && this.replInput.hasTextFocus()) {
+		if (this.isReadonly && this.replInput.hasTextFocus() && !this.replInput.getValue()) {
 			decorations.push({
 				range: {
 					startLineNumber: 0,
