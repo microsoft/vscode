@@ -279,9 +279,9 @@ suite('QueryBuilder', () => {
 			<ITextQuery>{
 				contentPattern: PATTERN_INFO,
 				folderQueries: [{
-					folder: ROOT_1_URI
+					folder: ROOT_1_URI,
+					excludePattern: patternsToIExpression('bar', 'bar/**'),
 				}],
-				excludePattern: patternsToIExpression('bar'),
 				type: QueryType.Text
 			});
 
@@ -294,9 +294,9 @@ suite('QueryBuilder', () => {
 			<ITextQuery>{
 				contentPattern: PATTERN_INFO,
 				folderQueries: [{
-					folder: ROOT_1_URI
+					folder: ROOT_1_URI,
+					excludePattern: patternsToIExpression('bar/**/*.ts', 'bar/**/*.ts/**'),
 				}],
-				excludePattern: patternsToIExpression('bar/**/*.ts'),
 				type: QueryType.Text
 			});
 
@@ -309,9 +309,9 @@ suite('QueryBuilder', () => {
 			<ITextQuery>{
 				contentPattern: PATTERN_INFO,
 				folderQueries: [{
-					folder: ROOT_1_URI
+					folder: ROOT_1_URI,
+					excludePattern: patternsToIExpression('bar/**/*.ts', 'bar/**/*.ts/**'),
 				}],
-				excludePattern: patternsToIExpression('bar/**/*.ts'),
 				type: QueryType.Text
 			});
 	});

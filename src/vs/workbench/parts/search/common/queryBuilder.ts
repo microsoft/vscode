@@ -8,8 +8,8 @@ import * as collections from 'vs/base/common/collections';
 import * as glob from 'vs/base/common/glob';
 import { untildify } from 'vs/base/common/labels';
 import { values } from 'vs/base/common/map';
-import * as objects from 'vs/base/common/objects';
 import * as paths from 'vs/base/common/paths';
+import { isEqual } from 'vs/base/common/resources';
 import * as strings from 'vs/base/common/strings';
 import { URI as uri } from 'vs/base/common/uri';
 import { isMultilineRegexSource } from 'vs/editor/common/model/textModelSearch';
@@ -19,16 +19,25 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { getExcludes, ICommonQueryProps, IFileQuery, IFolderQuery, IPatternInfo, ISearchConfiguration, ITextQuery, ITextSearchPreviewOptions, pathIncludedInQuery, QueryType } from 'vs/platform/search/common/search';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 
-export interface ISearchPathPattern {
-	searchPath: uri;
-	pattern?: glob.IExpression;
-}
-
+/**
+ * One folder to search and a glob expression that should be applied.
+ */
 export interface IOneSearchPathPattern {
 	searchPath: uri;
 	pattern?: string;
 }
 
+/**
+ * One folder to search and a set of glob expressions that should be applied.
+ */
+export interface ISearchPathPattern {
+	searchPath: uri;
+	pattern?: glob.IExpression;
+}
+
+/**
+ * A set of search paths and a set of glob expressions that should be applied.
+ */
 export interface ISearchPathsResult {
 	searchPaths?: ISearchPathPattern[];
 	pattern?: glob.IExpression;
@@ -131,14 +140,15 @@ export class QueryBuilder {
 		};
 	}
 
-	private commonQuery(folderResources?: uri[], options: ICommonQueryBuilderOptions = {}): ICommonQueryProps<uri> {
-		let { searchPaths, pattern: includePattern } = this.parseSearchPaths(options.includePattern || '');
-		let excludePattern = this.parseExcludePattern(options.excludePattern || '');
+	private commonQuery(folderResources: uri[] = [], options: ICommonQueryBuilderOptions = {}): ICommonQueryProps<uri> {
+		const { searchPaths, pattern: includePattern } = this.parseSearchPaths(options.includePattern || '');
+		const excludePattern = this.parseSearchPaths(options.excludePattern || '');
 
 		// Build folderQueries from searchPaths, if given, otherwise folderResources
-		const folderQueries = searchPaths && searchPaths.length ?
-			searchPaths.map(searchPath => this.getFolderQueryForSearchPath(searchPath, options)) :
-			folderResources && folderResources.map(uri => this.getFolderQueryForRoot(uri, options)); // ?
+		const folderQueries = (searchPaths && searchPaths.length ?
+			searchPaths.map(searchPath => this.getFolderQueryForSearchPath(searchPath, options, excludePattern)) :
+			folderResources.map(uri => this.getFolderQueryForRoot(uri, options, excludePattern)))
+			.filter(query => !!query) as IFolderQuery[];
 
 		const useRipgrep = !folderResources || folderResources.every(folder => {
 			const folderConfig = this.configurationService.getValue<ISearchConfiguration>({ resource: folder });
@@ -147,11 +157,11 @@ export class QueryBuilder {
 
 		const queryProps: ICommonQueryProps<uri> = {
 			_reason: options._reason,
-			folderQueries: folderQueries || [],
+			folderQueries,
 			usingSearchPaths: !!(searchPaths && searchPaths.length),
 			extraFileResources: options.extraFileResources,
 
-			excludePattern,
+			excludePattern: excludePattern.pattern,
 			includePattern,
 			maxResults: options.maxResults,
 			useRipgrep
@@ -204,7 +214,7 @@ export class QueryBuilder {
 	 *
 	 * Public for test.
 	 */
-	public parseSearchPaths(pattern: string, expandSearchPaths = true): ISearchPathsResult {
+	public parseSearchPaths(pattern: string): ISearchPathsResult {
 		const isSearchPath = (segment: string) => {
 			// A segment is a search path if it is an absolute path or starts with ./, ../, .\, or ..\
 			return paths.isAbsolute(segment) || /^\.\.?[\/\\]/.test(segment);
@@ -225,52 +235,20 @@ export class QueryBuilder {
 
 				return expandGlobalGlob(p);
 			});
-		const exprSegments = arrays.flatten(expandedExprSegments);
 
 		const result: ISearchPathsResult = {};
-		if (expandSearchPaths) {
-			const searchPaths = this.expandSearchPathPatterns(groups.searchPaths);
-			if (searchPaths && searchPaths.length) {
-				result.searchPaths = searchPaths;
-			}
-		} else if (groups.searchPaths) {
-			// Makes no sense, maybe
-			exprSegments.push(...groups.searchPaths
-				.map(p => strings.ltrim(p, './'))
-				.map(p => strings.ltrim(p, '.\\')));
+		const searchPaths = this.expandSearchPathPatterns(groups.searchPaths || []);
+		if (searchPaths && searchPaths.length) {
+			result.searchPaths = searchPaths;
 		}
 
+		const exprSegments = arrays.flatten(expandedExprSegments);
 		const includePattern = patternListToIExpression(...exprSegments);
 		if (includePattern) {
 			result.pattern = includePattern;
 		}
 
 		return result;
-	}
-
-	/**
-	 * Takes the input from the excludePattern as seen in the searchView. Runs the same algorithm as parseSearchPaths,
-	 * but the result is a single IExpression that encapsulates all the exclude patterns.
-	 */
-	public parseExcludePattern(pattern: string): glob.IExpression | undefined {
-		const result = this.parseSearchPaths(pattern, false);
-		let excludeExpression = glob.getEmptyExpression();
-		if (result.pattern) {
-			excludeExpression = objects.mixin(excludeExpression, result.pattern);
-		}
-
-		if (result.searchPaths) {
-			result.searchPaths.forEach(searchPath => {
-				// const excludeFsPath = searchPath.searchPath.fsPath;
-				// const excludePath = searchPath.pattern ?
-				// 	paths.join(excludeFsPath, searchPath.pattern) :
-				// 	excludeFsPath;
-
-				// excludeExpression[excludePath] = true;
-			});
-		}
-
-		return Object.keys(excludeExpression).length ? excludeExpression : undefined;
 	}
 
 	private getExcludesForFolder(folderConfig: ISearchConfiguration, options: ICommonQueryBuilderOptions): glob.IExpression | undefined {
@@ -393,8 +371,12 @@ export class QueryBuilder {
 		return results;
 	}
 
-	private getFolderQueryForSearchPath(searchPath: ISearchPathPattern, options: ICommonQueryBuilderOptions): IFolderQuery {
-		const rootConfig = this.getFolderQueryForRoot(searchPath.searchPath, options);
+	private getFolderQueryForSearchPath(searchPath: ISearchPathPattern, options: ICommonQueryBuilderOptions, searchPathExcludes: ISearchPathsResult): IFolderQuery | null {
+		const rootConfig = this.getFolderQueryForRoot(searchPath.searchPath, options, searchPathExcludes);
+		if (!rootConfig) {
+			return null;
+		}
+
 		return {
 			...rootConfig,
 			...{
@@ -403,11 +385,28 @@ export class QueryBuilder {
 		};
 	}
 
-	private getFolderQueryForRoot(folder: uri, options: ICommonQueryBuilderOptions): IFolderQuery {
+	private getFolderQueryForRoot(folder: uri, options: ICommonQueryBuilderOptions, searchPathExcludes: ISearchPathsResult): IFolderQuery | null {
+		let thisFolderExcludeSearchPathPattern: glob.IExpression | undefined;
+		if (searchPathExcludes.searchPaths) {
+			const thisFolderExcludeSearchPath = searchPathExcludes.searchPaths.filter(sp => isEqual(sp.searchPath, folder))[0];
+			if (thisFolderExcludeSearchPath && !thisFolderExcludeSearchPath.pattern) {
+				// entire folder is excluded
+				return null;
+			} else if (thisFolderExcludeSearchPath) {
+				thisFolderExcludeSearchPathPattern = thisFolderExcludeSearchPath.pattern;
+			}
+		}
+
 		const folderConfig = this.configurationService.getValue<ISearchConfiguration>({ resource: folder });
+		const settingExcludes = this.getExcludesForFolder(folderConfig, options);
+		let excludePattern: glob.IExpression = {
+			...(settingExcludes || {}),
+			...(thisFolderExcludeSearchPathPattern || {})
+		};
+
 		return <IFolderQuery>{
 			folder,
-			excludePattern: this.getExcludesForFolder(folderConfig, options),
+			excludePattern: Object.keys(excludePattern).length > 0 ? excludePattern : undefined,
 			fileEncoding: folderConfig.files && folderConfig.files.encoding,
 			disregardIgnoreFiles: typeof options.disregardIgnoreFiles === 'boolean' ? options.disregardIgnoreFiles : !folderConfig.search.useIgnoreFiles,
 			disregardGlobalIgnoreFiles: typeof options.disregardGlobalIgnoreFiles === 'boolean' ? options.disregardGlobalIgnoreFiles : !folderConfig.search.useGlobalIgnoreFiles,
