@@ -1273,7 +1273,9 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 			// Do final render, then expand if just 1 file with less than 50 matches
 			this.onSearchResultsChanged();
-			if (this.viewModel.searchResult.count() === 1) {
+
+			const collapseResults = this.configurationService.getValue<ISearchConfigurationProperties>('search').collapseResults;
+			if (collapseResults !== 'alwaysCollapse' && this.viewModel.searchResult.matches().length === 1) {
 				const onlyMatch = this.viewModel.searchResult.matches()[0];
 				if (onlyMatch.count() < 50) {
 					this.tree.expand(onlyMatch);
