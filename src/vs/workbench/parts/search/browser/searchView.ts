@@ -365,7 +365,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 		// Open focused element from results in case the editor area is otherwise empty
 		if (visible && !this.editorService.activeEditor) {
-			let focus = this.tree.getFocus();
+			const focus = this.tree.getFocus();
 			if (focus) {
 				this.onFocus(focus, true);
 			}
@@ -399,15 +399,15 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	}
 
 	private createSearchWidget(container: HTMLElement): void {
-		let contentPattern = this.viewletState['query.contentPattern'] || '';
+		const contentPattern = this.viewletState['query.contentPattern'] || '';
 		const replaceText = this.viewletState['query.replaceText'] || '';
-		let isRegex = this.viewletState['query.regex'] === true;
-		let isWholeWords = this.viewletState['query.wholeWords'] === true;
-		let isCaseSensitive = this.viewletState['query.caseSensitive'] === true;
+		const isRegex = this.viewletState['query.regex'] === true;
+		const isWholeWords = this.viewletState['query.wholeWords'] === true;
+		const isCaseSensitive = this.viewletState['query.caseSensitive'] === true;
 		const history = this.searchHistoryService.load();
-		let searchHistory = history.search || this.viewletState['query.searchHistory'] || [];
-		let replaceHistory = history.replace || this.viewletState['query.replaceHistory'] || [];
-		let showReplace = typeof this.viewletState['view.showReplace'] === 'boolean' ? this.viewletState['view.showReplace'] : true;
+		const searchHistory = history.search || this.viewletState['query.searchHistory'] || [];
+		const replaceHistory = history.replace || this.viewletState['query.replaceHistory'] || [];
+		const showReplace = typeof this.viewletState['view.showReplace'] === 'boolean' ? this.viewletState['view.showReplace'] : true;
 
 		this.searchWidget = this._register(this.instantiationService.createInstance(SearchWidget, container, <ISearchWidgetOptions>{
 			value: contentPattern,
@@ -504,14 +504,14 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			return;
 		}
 
-		let progressRunner = this.progressService.show(100);
+		const progressRunner = this.progressService.show(100);
 
-		let occurrences = this.viewModel.searchResult.count();
-		let fileCount = this.viewModel.searchResult.fileCount();
-		let replaceValue = this.searchWidget.getReplaceValue() || '';
-		let afterReplaceAllMessage = this.buildAfterReplaceAllMessage(occurrences, fileCount, replaceValue);
+		const occurrences = this.viewModel.searchResult.count();
+		const fileCount = this.viewModel.searchResult.fileCount();
+		const replaceValue = this.searchWidget.getReplaceValue() || '';
+		const afterReplaceAllMessage = this.buildAfterReplaceAllMessage(occurrences, fileCount, replaceValue);
 
-		let confirmation: IConfirmation = {
+		const confirmation: IConfirmation = {
 			title: nls.localize('replaceAll.confirmation.title', "Replace All"),
 			message: this.buildReplaceAllConfirmationMessage(occurrences, fileCount, replaceValue),
 			primaryButton: nls.localize('replaceAll.confirm.button', "&&Replace"),
@@ -637,7 +637,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		const resourceNavigator = this._register(new TreeResourceNavigator2(this.tree, { openOnFocus: true }));
 		this._register(Event.debounce(resourceNavigator.openResource, (last, event) => event, 75, true)(options => {
 			if (options.element instanceof Match) {
-				let selectedMatch: Match = options.element;
+				const selectedMatch: Match = options.element;
 				if (this.currentSelectedFileMatch) {
 					this.currentSelectedFileMatch.setSelectedMatch(null);
 				}
@@ -956,7 +956,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	private selectTreeIfNotSelected(): void {
 		if (this.tree.getNode(null)) {
 			this.tree.domFocus();
-			let selection = this.tree.getSelection();
+			const selection = this.tree.getSelection();
 			if (selection.length === 0) {
 				this.tree.focusNext();
 			}
@@ -1042,7 +1042,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	}
 
 	public toggleQueryDetails(moveFocus = true, show?: boolean, skipLayout?: boolean, reverse?: boolean): void {
-		let cls = 'more';
+		const cls = 'more';
 		show = typeof show === 'undefined' ? !dom.hasClass(this.queryDetails, cls) : Boolean(show);
 		this.viewletState['query.queryDetailsExpanded'] = show;
 		skipLayout = Boolean(skipLayout);
@@ -1243,10 +1243,10 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 	private doSearch(query: ITextQuery, options: ITextQueryBuilderOptions, excludePatternText: string, includePatternText: string): Thenable<void> {
 		// Progress total is 100.0% for more progress bar granularity
-		let progressTotal = 1000;
+		const progressTotal = 1000;
 		let progressWorked = 0;
 
-		let progressRunner = query.useRipgrep ?
+		const progressRunner = query.useRipgrep ?
 			this.progressService.show(/*infinite=*/true) :
 			this.progressService.show(progressTotal);
 
@@ -1260,7 +1260,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		}, 2000);
 		this.showEmptyStage();
 
-		let onComplete = (completed?: ISearchComplete) => {
+		const onComplete = (completed?: ISearchComplete) => {
 			this.searching = false;
 
 			// Complete up to 100% as needed
@@ -1287,7 +1287,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			this.searchSubmitted = true;
 			this.updateActions();
 			this.updateTitleArea();
-			let hasResults = !this.viewModel.searchResult.isEmpty();
+			const hasResults = !this.viewModel.searchResult.isEmpty();
 
 			if (completed && completed.limitHit) {
 				this.searchWidget.searchInput.showMessage({
@@ -1297,8 +1297,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			}
 
 			if (!hasResults) {
-				let hasExcludes = !!excludePatternText;
-				let hasIncludes = !!includePatternText;
+				const hasExcludes = !!excludePatternText;
+				const hasIncludes = !!includePatternText;
 				let message: string;
 
 				if (!completed) {
@@ -1360,7 +1360,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			}
 		};
 
-		let onError = (e: any) => {
+		const onError = (e: any) => {
 			if (errors.isPromiseCanceledError(e)) {
 				return onComplete(null);
 			} else {
@@ -1388,7 +1388,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		let total: number = 0;
 		let worked: number = 0;
 		let visibleMatches = 0;
-		let onProgress = (p: ISearchProgressItem) => {
+		const onProgress = (p: ISearchProgressItem) => {
 			// Progress
 			if ((<IProgress>p).total) {
 				total = (<IProgress>p).total;
@@ -1399,7 +1399,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		};
 
 		// Handle UI updates in an interval to show frequent progress and results
-		let uiRefreshHandle: any = setInterval(() => {
+		const uiRefreshHandle: any = setInterval(() => {
 			if (!this.searching) {
 				window.clearInterval(uiRefreshHandle);
 				return;
@@ -1409,7 +1409,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 				// Progress bar update
 				let fakeProgress = true;
 				if (total > 0 && worked > 0) {
-					let ratio = Math.round((worked / total) * progressTotal);
+					const ratio = Math.round((worked / total) * progressTotal);
 					if (ratio > progressWorked) { // never show less progress than what we have already
 						progressRunner.worked(ratio - progressWorked);
 						progressWorked = ratio;
@@ -1466,7 +1466,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	private addClickEvents = (element: HTMLElement, handler: (event: any) => void): void => {
 		this.messageDisposables.push(dom.addDisposableListener(element, dom.EventType.CLICK, handler));
 		this.messageDisposables.push(dom.addDisposableListener(element, dom.EventType.KEY_DOWN, e => {
-			let event = new StandardKeyboardEvent(e);
+			const event = new StandardKeyboardEvent(e);
 			let eventHandled = true;
 
 			if (event.equals(KeyCode.Space) || event.equals(KeyCode.Enter)) {
@@ -1618,9 +1618,9 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			match = element.matches()[element.matches().length - 1];
 		}
 		if (match) {
-			let range = match.range();
+			const range = match.range();
 			if (this.viewModel.isReplaceActive() && !!this.viewModel.replaceString) {
-				let replaceString = match.replaceString;
+				const replaceString = match.replaceString;
 				return {
 					startLineNumber: range.startLineNumber,
 					startColumn: range.startColumn,
@@ -1640,7 +1640,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 		// remove search results from this resource as it got disposed
 		if (!this.untitledEditorService.isDirty(resource)) {
-			let matches = this.viewModel.searchResult.matches();
+			const matches = this.viewModel.searchResult.matches();
 			for (let i = 0, len = matches.length; i < len; i++) {
 				if (resource.toString() === matches[i].resource().toString()) {
 					this.viewModel.searchResult.remove(matches[i]);
@@ -1654,7 +1654,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			return;
 		}
 
-		let matches = this.viewModel.searchResult.matches();
+		const matches = this.viewModel.searchResult.matches();
 
 		for (let i = 0, len = matches.length; i < len; i++) {
 			if (e.contains(matches[i].resource(), FileChangeType.DELETED)) {

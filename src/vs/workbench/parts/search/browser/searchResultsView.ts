@@ -86,7 +86,7 @@ export class FolderMatchRenderer extends Disposable implements ITreeRenderer<Fol
 	}
 
 	renderTemplate(container: HTMLElement): IFolderMatchTemplate {
-		let folderMatchElement = DOM.append(container, DOM.$('.foldermatch'));
+		const folderMatchElement = DOM.append(container, DOM.$('.foldermatch'));
 		const label = this.labels.create(folderMatchElement);
 		const badge = new CountBadge(DOM.append(folderMatchElement, DOM.$('.badge')));
 		this._register(attachBadgeStyler(badge, this.themeService));
@@ -108,7 +108,7 @@ export class FolderMatchRenderer extends Disposable implements ITreeRenderer<Fol
 		} else {
 			templateData.label.setLabel(nls.localize('searchFolderMatch.other.label', "Other files"));
 		}
-		let count = folderMatch.fileCount();
+		const count = folderMatch.fileCount();
 		templateData.badge.setCount(count);
 		templateData.badge.setTitleFormat(count > 1 ? nls.localize('searchFileMatches', "{0} files found", count) : nls.localize('searchFileMatch', "{0} file found", count));
 
@@ -149,7 +149,7 @@ export class FileMatchRenderer extends Disposable implements ITreeRenderer<FileM
 	}
 
 	renderTemplate(container: HTMLElement): IFileMatchTemplate {
-		let fileMatchElement = DOM.append(container, DOM.$('.filematch'));
+		const fileMatchElement = DOM.append(container, DOM.$('.filematch'));
 		const label = this.labels.create(fileMatchElement);
 		const badge = new CountBadge(DOM.append(fileMatchElement, DOM.$('.badge')));
 		this._register(attachBadgeStyler(badge, this.themeService));
@@ -162,7 +162,7 @@ export class FileMatchRenderer extends Disposable implements ITreeRenderer<FileM
 		const fileMatch = node.element;
 		templateData.el.setAttribute('data-resource', fileMatch.resource().toString());
 		templateData.label.setFile(fileMatch.resource(), { hideIcon: false });
-		let count = fileMatch.count();
+		const count = fileMatch.count();
 		templateData.badge.setCount(count);
 		templateData.badge.setTitleFormat(count > 1 ? nls.localize('searchMatches', "{0} matches found", count) : nls.localize('searchMatch', "{0} match found", count));
 
@@ -225,7 +225,7 @@ export class MatchRenderer extends Disposable implements ITreeRenderer<Match, vo
 
 	renderElement(node: ITreeNode<Match, any>, index: number, templateData: IMatchTemplate): void {
 		const match = node.element;
-		let preview = match.preview();
+		const preview = match.preview();
 		const replace = this.searchModel.isReplaceActive() && !!this.searchModel.replaceString;
 
 		templateData.before.textContent = preview.before;

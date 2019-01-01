@@ -31,8 +31,8 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { repeat } from 'vs/base/common/strings';
 
 export function isSearchViewFocused(viewletService: IViewletService, panelService: IPanelService): boolean {
-	let searchView = getSearchView(viewletService, panelService);
-	let activeElement = document.activeElement;
+	const searchView = getSearchView(viewletService, panelService);
+	const activeElement = document.activeElement;
 	return searchView && activeElement && DOM.isAncestor(activeElement, searchView.getContainer());
 }
 
@@ -404,7 +404,7 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 	}
 
 	public getNextElementAfterRemoved(viewer: WorkbenchObjectTree<RenderableMatch>, element: RenderableMatch): RenderableMatch {
-		let navigator: INavigator<any> = viewer.navigate(element);
+		const navigator: INavigator<any> = viewer.navigate(element);
 		if (element instanceof FolderMatch) {
 			while (!!navigator.next() && !(navigator.current() instanceof FolderMatch)) { }
 		} else if (element instanceof FileMatch) {
@@ -418,7 +418,7 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 	}
 
 	public getPreviousElementAfterRemoved(viewer: WorkbenchObjectTree<RenderableMatch>, element: RenderableMatch): RenderableMatch {
-		let navigator: INavigator<any> = viewer.navigate(element);
+		const navigator: INavigator<any> = viewer.navigate(element);
 		let previousElement = navigator.previous();
 
 		// Hence take the previous element.
@@ -475,15 +475,15 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 		let elementToRefresh: FolderMatch | FileMatch | SearchResult;
 		const element = this.element;
 		if (element instanceof FolderMatch) {
-			let parent = element.parent();
+			const parent = element.parent();
 			parent.remove(element);
 			elementToRefresh = parent;
 		} else if (element instanceof FileMatch) {
-			let parent = element.parent();
+			const parent = element.parent();
 			parent.remove(element);
 			elementToRefresh = parent;
 		} else if (element instanceof Match) {
-			let parent = element.parent();
+			const parent = element.parent();
 			parent.remove(element);
 			elementToRefresh = parent.count() === 0 ? parent.parent() : parent;
 		}
@@ -567,7 +567,7 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 		this.enabled = false;
 
 		return this.element.parent().replace(this.element).then(() => {
-			let elementToFocus = this.getElementToFocusAfterReplace();
+			const elementToFocus = this.getElementToFocusAfterReplace();
 			if (elementToFocus) {
 				this.viewer.setFocus([elementToFocus]);
 			}
@@ -586,7 +586,7 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 	}
 
 	private getElementToFocusAfterReplace(): Match {
-		let navigator: INavigator<any> = this.viewer.navigate();
+		const navigator: INavigator<any> = this.viewer.navigate();
 		let fileMatched = false;
 		let elementToFocus = null;
 		do {
@@ -616,7 +616,7 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 		if (this.hasSameParent(elementToFocus)) {
 			return <Match>elementToFocus;
 		}
-		let previousElement = await this.getPreviousElementAfterRemoved(this.viewer, this.element);
+		const previousElement = await this.getPreviousElementAfterRemoved(this.viewer, this.element);
 		if (this.hasSameParent(previousElement)) {
 			return <Match>previousElement;
 		}
@@ -691,7 +691,7 @@ function folderMatchToString(folderMatch: FolderMatch, maxMatches: number): { te
 	const fileResults: string[] = [];
 	let numMatches = 0;
 
-	let matches = folderMatch.matches().sort(searchMatchComparer);
+	const matches = folderMatch.matches().sort(searchMatchComparer);
 
 	for (let i = 0; i < folderMatch.fileCount() && numMatches < maxMatches; i++) {
 		const fileResult = fileMatchToString(matches[i], maxMatches - numMatches);

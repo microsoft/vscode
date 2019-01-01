@@ -875,7 +875,7 @@ function assertEqualSearchPathResults(actual: ISearchPathsResult, expected: ISea
  * assert.deepEqual with some expected object.
  */
 function cleanUndefinedQueryValues(q: any): void {
-	for (let key in q) {
+	for (const key in q) {
 		if (q[key] === undefined) {
 			delete q[key];
 		} else if (typeof q[key] === 'object') {

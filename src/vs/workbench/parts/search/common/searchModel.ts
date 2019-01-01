@@ -194,7 +194,7 @@ export class FileMatch extends Disposable {
 	}
 
 	private createMatches(): void {
-		let model = this.modelService.getModel(this._resource);
+		const model = this.modelService.getModel(this._resource);
 		if (model) {
 			this.bindModel(model);
 			this.updateMatchesForModel();
@@ -241,7 +241,7 @@ export class FileMatch extends Disposable {
 		this._matches = new Map<string, Match>();
 
 		const wordSeparators = this._query.isWordMatch && this._query.wordSeparators ? this._query.wordSeparators : null;
-		let matches = this._model
+		const matches = this._model
 			.findMatches(this._query.pattern, this._model.getFullModelRange(), !!this._query.isRegExp, !!this._query.isCaseSensitive, wordSeparators, false, this._maxResults);
 
 		this.updateMatches(matches, true);
@@ -483,7 +483,7 @@ export class BaseFolderMatch extends Disposable {
 	}
 
 	public clear(): void {
-		let changed: FileMatch[] = this.matches();
+		const changed: FileMatch[] = this.matches();
 		this.disposeMatches();
 		this._onChange.fire({ elements: changed, removed: true });
 	}
@@ -761,7 +761,7 @@ export class SearchResult extends Disposable {
 	}
 
 	public matches(): FileMatch[] {
-		let matches: FileMatch[][] = [];
+		const matches: FileMatch[][] = [];
 		this.folderMatches().forEach(folderMatch => {
 			matches.push(folderMatch.matches());
 		});
@@ -1118,7 +1118,7 @@ function textSearchResultToMatches(rawMatch: ITextSearchMatch, fileMatch: FileMa
 		});
 	} else {
 		const previewRange = <ISearchRange>rawMatch.preview.matches;
-		let match = new Match(fileMatch, previewLines, previewRange, rawMatch.ranges);
+		const match = new Match(fileMatch, previewLines, previewRange, rawMatch.ranges);
 		return [match];
 	}
 }

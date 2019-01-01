@@ -131,7 +131,7 @@ export class ReplaceService implements IReplaceService {
 			});
 			this.updateReplacePreview(fileMatch).then(() => {
 				if (editor) {
-					let editorControl = editor.getControl();
+					const editorControl = editor.getControl();
 					if (element instanceof Match) {
 						editorControl.revealLineInCenter(element.range().startLineNumber, ScrollType.Immediate);
 					}
@@ -146,7 +146,7 @@ export class ReplaceService implements IReplaceService {
 			.then(([sourceModelRef, replaceModelRef]) => {
 				const sourceModel = sourceModelRef.object.textEditorModel;
 				const replaceModel = replaceModelRef.object.textEditorModel;
-				let returnValue = Promise.resolve(null);
+				const returnValue = Promise.resolve(null);
 				// If model is disposed do not update
 				if (sourceModel && replaceModel) {
 					if (override) {
@@ -179,7 +179,7 @@ export class ReplaceService implements IReplaceService {
 		const edits: ResourceTextEdit[] = [];
 
 		if (arg instanceof Match) {
-			let match = <Match>arg;
+			const match = <Match>arg;
 			edits.push(this.createEdit(match, match.replaceString, resource));
 		}
 
@@ -189,7 +189,7 @@ export class ReplaceService implements IReplaceService {
 
 		if (arg instanceof Array) {
 			arg.forEach(element => {
-				let fileMatch = <FileMatch>element;
+				const fileMatch = <FileMatch>element;
 				if (fileMatch.count() > 0) {
 					edits.push(...fileMatch.matches().map(match => this.createEdit(match, match.replaceString, resource)));
 				}
@@ -200,8 +200,8 @@ export class ReplaceService implements IReplaceService {
 	}
 
 	private createEdit(match: Match, text: string, resource: URI | null = null): ResourceTextEdit {
-		let fileMatch: FileMatch = match.parent();
-		let resourceEdit: ResourceTextEdit = {
+		const fileMatch: FileMatch = match.parent();
+		const resourceEdit: ResourceTextEdit = {
 			resource: resource !== null ? resource : fileMatch.resource(),
 			edits: [{
 				range: match.range(),

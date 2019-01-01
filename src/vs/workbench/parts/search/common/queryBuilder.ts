@@ -168,7 +168,7 @@ export class QueryBuilder {
 		};
 
 		// Filter extraFileResources against global include/exclude patterns - they are already expected to not belong to a workspace
-		let extraFileResources = options.extraFileResources && options.extraFileResources.filter(extraFile => pathIncludedInQuery(queryProps, extraFile.fsPath));
+		const extraFileResources = options.extraFileResources && options.extraFileResources.filter(extraFile => pathIncludedInQuery(queryProps, extraFile.fsPath));
 		queryProps.extraFileResources = extraFileResources && extraFileResources.length ? extraFileResources : undefined;
 
 		return queryProps;
@@ -399,7 +399,7 @@ export class QueryBuilder {
 
 		const folderConfig = this.configurationService.getValue<ISearchConfiguration>({ resource: folder });
 		const settingExcludes = this.getExcludesForFolder(folderConfig, options);
-		let excludePattern: glob.IExpression = {
+		const excludePattern: glob.IExpression = {
 			...(settingExcludes || {}),
 			...(thisFolderExcludeSearchPathPattern || {})
 		};

@@ -125,7 +125,7 @@ export function rgErrorMsgForDisplay(msg: string): Maybe<SearchError> {
 		return new SearchError('Regex parse error', SearchErrorCode.regexParseError);
 	}
 
-	let match = firstLine.match(/grep config error: unknown encoding: (.*)/);
+	const match = firstLine.match(/grep config error: unknown encoding: (.*)/);
 	if (match) {
 		return new SearchError(`Unknown encoding: ${match[1]}`, SearchErrorCode.unknownEncoding);
 	}
@@ -259,8 +259,8 @@ export class RipgrepParser extends EventEmitter {
 			let startCol = prevMatchEndCol + inBetweenChars;
 
 			const stats = getNumLinesAndLastNewlineLength(matchText);
-			let startLineNumber = prevMatchEndLine;
-			let endLineNumber = stats.numLines + startLineNumber;
+			const startLineNumber = prevMatchEndLine;
+			const endLineNumber = stats.numLines + startLineNumber;
 			let endCol = stats.numLines > 0 ?
 				stats.lastLineLength :
 				stats.lastLineLength + startCol;

@@ -193,7 +193,7 @@ export class QueryGlobTester {
 }
 
 function hasSiblingClauses(pattern: glob.IExpression): boolean {
-	for (let key in pattern) {
+	for (const key in pattern) {
 		if (typeof pattern[key] !== 'boolean') {
 			return true;
 		}

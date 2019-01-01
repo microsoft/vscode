@@ -140,7 +140,7 @@ export class PatternInputWidget extends Widget {
 		this.inputFocusTracker = dom.trackFocus(this.inputBox.inputElement);
 		this.onkeyup(this.inputBox.inputElement, (keyboardEvent) => this.onInputKeyUp(keyboardEvent));
 
-		let controls = document.createElement('div');
+		const controls = document.createElement('div');
 		controls.className = 'controls';
 		this.renderSubcontrols(controls);
 

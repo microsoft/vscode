@@ -79,7 +79,7 @@ export class SearchWidget extends Widget {
 
 	private static readonly REPLACE_ALL_DISABLED_LABEL = nls.localize('search.action.replaceAll.disabled.label', "Replace All (Submit Search to Enable)");
 	private static readonly REPLACE_ALL_ENABLED_LABEL = (keyBindingService2: IKeybindingService): string => {
-		let kb = keyBindingService2.lookupKeybinding(ReplaceAllAction.ID);
+		const kb = keyBindingService2.lookupKeybinding(ReplaceAllAction.ID);
 		return appendKeyBindingLabel(nls.localize('search.action.replaceAll.enabled.label', "Replace All"), kb, keyBindingService2);
 	}
 
@@ -279,7 +279,7 @@ export class SearchWidget extends Widget {
 	}
 
 	private renderSearchInput(parent: HTMLElement, options: ISearchWidgetOptions): void {
-		let inputOptions: IFindInputOptions = {
+		const inputOptions: IFindInputOptions = {
 			label: nls.localize('label.Search', 'Search: Type Search Term and press Enter to search or Escape to cancel'),
 			validation: (value: string) => this.validateSearchInput(value),
 			placeholder: nls.localize('search.placeHolder', "Search"),
@@ -290,7 +290,7 @@ export class SearchWidget extends Widget {
 			flexibleHeight: true
 		};
 
-		let searchInputContainer = dom.append(parent, dom.$('.search-container.input-box'));
+		const searchInputContainer = dom.append(parent, dom.$('.search-container.input-box'));
 		this.searchInput = this._register(new ContextScopedFindInput(searchInputContainer, this.contextViewService, inputOptions, this.contextKeyService, true));
 		this._register(attachFindInputBoxStyler(this.searchInput, this.themeService));
 		this.searchInput.onKeyDown((keyboardEvent: IKeyboardEvent) => this.onSearchInputKeyDown(keyboardEvent));
@@ -333,7 +333,7 @@ export class SearchWidget extends Widget {
 
 	private renderReplaceInput(parent: HTMLElement, options: ISearchWidgetOptions): void {
 		this.replaceContainer = dom.append(parent, dom.$('.replace-container.disabled'));
-		let replaceBox = dom.append(this.replaceContainer, dom.$('.input-box'));
+		const replaceBox = dom.append(this.replaceContainer, dom.$('.input-box'));
 		this.replaceInput = this._register(new ContextScopedHistoryInputBox(replaceBox, this.contextViewService, {
 			ariaLabel: nls.localize('label.Replace', 'Replace: Type replace term and press Enter to preview or Escape to cancel'),
 			placeholder: nls.localize('search.replace.placeHolder', "Replace"),
@@ -381,8 +381,8 @@ export class SearchWidget extends Widget {
 	}
 
 	private updateReplaceActiveState(): void {
-		let currentState = this.isReplaceActive();
-		let newState = this.isReplaceShown() && this.replaceAllAction.enabled;
+		const currentState = this.isReplaceActive();
+		const newState = this.isReplaceShown() && this.replaceAllAction.enabled;
 		if (currentState !== newState) {
 			this.replaceActive.set(newState);
 			this._onReplaceStateChange.fire(newState);

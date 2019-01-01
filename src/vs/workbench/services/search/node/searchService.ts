@@ -196,7 +196,7 @@ export class SearchService extends Disposable implements ISearchService {
 		const fqs = this.groupFolderQueriesByScheme(query);
 		keys(fqs).forEach(scheme => {
 			const schemeFQs = fqs.get(scheme);
-			let provider = query.type === QueryType.File ?
+			const provider = query.type === QueryType.File ?
 				this.fileSearchProviders.get(scheme) || this.fileIndexProviders.get(scheme) :
 				this.textSearchProviders.get(scheme);
 
@@ -380,9 +380,9 @@ export class SearchService extends Disposable implements ISearchService {
 		const localResults = new ResourceMap<IFileMatch>();
 
 		if (query.type === QueryType.Text) {
-			let models = this.modelService.getModels();
+			const models = this.modelService.getModels();
 			models.forEach((model) => {
-				let resource = model.uri;
+				const resource = model.uri;
 				if (!resource) {
 					return;
 				}
@@ -411,9 +411,9 @@ export class SearchService extends Disposable implements ISearchService {
 				}
 
 				// Use editor API to find matches
-				let matches = model.findMatches(query.contentPattern.pattern, false, query.contentPattern.isRegExp, query.contentPattern.isCaseSensitive, query.contentPattern.isWordMatch ? query.contentPattern.wordSeparators : null, false, query.maxResults);
+				const matches = model.findMatches(query.contentPattern.pattern, false, query.contentPattern.isRegExp, query.contentPattern.isCaseSensitive, query.contentPattern.isWordMatch ? query.contentPattern.wordSeparators : null, false, query.maxResults);
 				if (matches.length) {
-					let fileMatch = new FileMatch(resource);
+					const fileMatch = new FileMatch(resource);
 					localResults.set(resource, fileMatch);
 
 					const textSearchResults = editorMatchesToTextSearchResults(matches, model, query.previewOptions);

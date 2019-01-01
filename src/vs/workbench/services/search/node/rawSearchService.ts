@@ -279,7 +279,7 @@ export class SearchService implements IRawSearchService {
 		// Find cache entries by prefix of search value
 		const hasPathSep = searchValue.indexOf(sep) >= 0;
 		let cachedRow: ICacheRow | undefined;
-		for (let previousSearch in cache.resultsToSearchCache) {
+		for (const previousSearch in cache.resultsToSearchCache) {
 			// If we narrow down, we might be able to reuse the cached results
 			if (strings.startsWith(searchValue, previousSearch)) {
 				if (hasPathSep && previousSearch.indexOf(sep) < 0) {
@@ -316,10 +316,10 @@ export class SearchService implements IRawSearchService {
 			}
 
 			// Pattern match on results
-			let results: IRawFileMatch[] = [];
+			const results: IRawFileMatch[] = [];
 			const normalizedSearchValueLowercase = strings.stripWildcards(searchValue).toLowerCase();
 			for (let i = 0; i < cachedEntries.length; i++) {
-				let entry = cachedEntries[i];
+				const entry = cachedEntries[i];
 
 				// Check if this entry is a match for the search value
 				if (!strings.fuzzyContains(entry.relativePath, normalizedSearchValueLowercase)) {
