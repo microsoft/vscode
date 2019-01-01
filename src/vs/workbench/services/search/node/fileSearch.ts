@@ -115,11 +115,11 @@ export class FileWalker {
 		});
 	}
 
-	public cancel(): void {
+	cancel(): void {
 		this.isCanceled = true;
 	}
 
-	public walk(folderQueries: IFolderQuery[], extraFiles: URI[], onResult: (result: IRawFileMatch) => void, onMessage: (message: IProgress) => void, done: (error: Error | null, isLimitHit: boolean) => void): void {
+	walk(folderQueries: IFolderQuery[], extraFiles: URI[], onResult: (result: IRawFileMatch) => void, onMessage: (message: IProgress) => void, done: (error: Error | null, isLimitHit: boolean) => void): void {
 		this.fileWalkSW = StopWatch.create(false);
 
 		// Support that the file pattern is a full path to a file that exists
@@ -285,7 +285,7 @@ export class FileWalker {
 	/**
 	 * Public for testing.
 	 */
-	public spawnFindCmd(folderQuery: IFolderQuery) {
+	spawnFindCmd(folderQuery: IFolderQuery) {
 		const excludePattern = this.folderExcludePatterns.get(folderQuery.folder.fsPath);
 		const basenames = excludePattern.getBasenameTerms();
 		const pathTerms = excludePattern.getPathTerms();
@@ -310,7 +310,7 @@ export class FileWalker {
 	/**
 	 * Public for testing.
 	 */
-	public readStdout(cmd: childProcess.ChildProcess, encoding: string, isRipgrep: boolean, cb: (err: Error | null, stdout?: string) => void): void {
+	readStdout(cmd: childProcess.ChildProcess, encoding: string, isRipgrep: boolean, cb: (err: Error | null, stdout?: string) => void): void {
 		let all = '';
 		this.collectStdout(cmd, encoding, isRipgrep, () => { }, (err: Error, stdout?: string, last?: boolean) => {
 			if (err) {
@@ -480,7 +480,7 @@ export class FileWalker {
 		});
 	}
 
-	public getStats(): ISearchEngineStats {
+	getStats(): ISearchEngineStats {
 		return {
 			cmdTime: this.cmdSW && this.cmdSW.elapsed(),
 			fileWalkTime: this.fileWalkSW.elapsed(),
@@ -646,7 +646,7 @@ export class Engine implements ISearchEngine<IRawFileMatch> {
 		this.walker = new FileWalker(config);
 	}
 
-	public search(onResult: (result: IRawFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISearchEngineSuccess) => void): void {
+	search(onResult: (result: IRawFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISearchEngineSuccess) => void): void {
 		this.walker.walk(this.folderQueries, this.extraFiles, onResult, onProgress, (err: Error, isLimitHit: boolean) => {
 			done(err, {
 				limitHit: isLimitHit,
@@ -655,7 +655,7 @@ export class Engine implements ISearchEngine<IRawFileMatch> {
 		});
 	}
 
-	public cancel(): void {
+	cancel(): void {
 		this.walker.cancel();
 	}
 }
@@ -695,12 +695,12 @@ class AbsoluteAndRelativeParsedExpression {
 		this.relativeParsedExpr = relativeGlobExpr && glob.parse(relativeGlobExpr, { trimForExclusions: true });
 	}
 
-	public test(_path: string, basename?: string, hasSibling?: (name: string) => boolean | Promise<boolean>): string | Promise<string | null> | undefined | null {
+	test(_path: string, basename?: string, hasSibling?: (name: string) => boolean | Promise<boolean>): string | Promise<string | null> | undefined | null {
 		return (this.relativeParsedExpr && this.relativeParsedExpr(_path, basename, hasSibling)) ||
 			(this.absoluteParsedExpr && this.absoluteParsedExpr(path.join(this.root, _path), basename, hasSibling));
 	}
 
-	public getBasenameTerms(): string[] {
+	getBasenameTerms(): string[] {
 		const basenameTerms: string[] = [];
 		if (this.absoluteParsedExpr) {
 			basenameTerms.push(...glob.getBasenameTerms(this.absoluteParsedExpr));
@@ -713,7 +713,7 @@ class AbsoluteAndRelativeParsedExpression {
 		return basenameTerms;
 	}
 
-	public getPathTerms(): string[] {
+	getPathTerms(): string[] {
 		const pathTerms: string[] = [];
 		if (this.absoluteParsedExpr) {
 			pathTerms.push(...glob.getPathTerms(this.absoluteParsedExpr));

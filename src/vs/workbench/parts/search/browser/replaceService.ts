@@ -46,7 +46,7 @@ export class ReplacePreviewContentProvider implements ITextModelContentProvider,
 		this.textModelResolverService.registerTextModelContentProvider(network.Schemas.internal, this);
 	}
 
-	public provideTextContent(uri: URI): Promise<ITextModel> {
+	provideTextContent(uri: URI): Promise<ITextModel> {
 		if (uri.fragment === REPLACE_PREVIEW) {
 			return this.instantiationService.createInstance(ReplacePreviewModel).resolve(uri);
 		}
@@ -91,7 +91,7 @@ class ReplacePreviewModel extends Disposable {
 
 export class ReplaceService implements IReplaceService {
 
-	public _serviceBrand: any;
+	_serviceBrand: any;
 
 	constructor(
 		@ITextFileService private textFileService: ITextFileService,
@@ -100,17 +100,17 @@ export class ReplaceService implements IReplaceService {
 		@IBulkEditService private bulkEditorService: IBulkEditService
 	) { }
 
-	public replace(match: Match): Promise<any>;
-	public replace(files: FileMatch[], progress?: IProgressRunner): Promise<any>;
-	public replace(match: FileMatchOrMatch, progress?: IProgressRunner, resource?: URI): Promise<any>;
-	public replace(arg: any, progress: IProgressRunner | null = null, resource: URI | null = null): Promise<any> {
+	replace(match: Match): Promise<any>;
+	replace(files: FileMatch[], progress?: IProgressRunner): Promise<any>;
+	replace(match: FileMatchOrMatch, progress?: IProgressRunner, resource?: URI): Promise<any>;
+	replace(arg: any, progress: IProgressRunner | null = null, resource: URI | null = null): Promise<any> {
 
 		const edits: ResourceTextEdit[] = this.createEdits(arg, resource);
 		return this.bulkEditorService.apply({ edits }, { progress }).then(() => this.textFileService.saveAll(edits.map(e => e.resource)));
 
 	}
 
-	public openReplacePreview(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {
+	openReplacePreview(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {
 		const fileMatch = element instanceof Match ? element.parent() : element;
 
 		return this.editorService.openEditor({
@@ -140,7 +140,7 @@ export class ReplaceService implements IReplaceService {
 		}, errors.onUnexpectedError);
 	}
 
-	public updateReplacePreview(fileMatch: FileMatch, override: boolean = false): Promise<void> {
+	updateReplacePreview(fileMatch: FileMatch, override: boolean = false): Promise<void> {
 		const replacePreviewUri = toReplaceResource(fileMatch.resource());
 		return Promise.all([this.textModelResolverService.createModelReference(fileMatch.resource()), this.textModelResolverService.createModelReference(replacePreviewUri)])
 			.then(([sourceModelRef, replaceModelRef]) => {

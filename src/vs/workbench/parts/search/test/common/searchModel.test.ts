@@ -20,21 +20,20 @@ import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtil
 import { SearchModel } from 'vs/workbench/parts/search/common/searchModel';
 
 const nullEvent = new class {
+	id: number;
+	topic: string;
+	name: string;
+	description: string;
+	data: any;
 
-	public id: number;
-	public topic: string;
-	public name: string;
-	public description: string;
-	public data: any;
+	startTime: Date;
+	stopTime: Date;
 
-	public startTime: Date;
-	public stopTime: Date;
-
-	public stop(): void {
+	stop(): void {
 		return;
 	}
 
-	public timeTaken(): number {
+	timeTaken(): number {
 		return -1;
 	}
 };

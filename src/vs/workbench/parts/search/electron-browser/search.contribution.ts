@@ -433,7 +433,7 @@ class ShowAllSymbolsAction extends Action {
 		this.enabled = !!this.quickOpenService;
 	}
 
-	public run(context?: any): Promise<void> {
+	run(context?: any): Promise<void> {
 
 		let prefix = ShowAllSymbolsAction.ALL_SYMBOLS_PREFIX;
 		let inputSelection: { start: number; end: number; } = void 0;

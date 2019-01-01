@@ -254,7 +254,7 @@ export interface IFileIndexProviderStats {
 }
 
 export class FileMatch implements IFileMatch {
-	public results: ITextSearchResult[] = [];
+	results: ITextSearchResult[] = [];
 	constructor(public resource: URI) {
 		// empty
 	}

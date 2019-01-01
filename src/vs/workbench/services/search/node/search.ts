@@ -154,7 +154,7 @@ export class QueryGlobTester {
 	/**
 	 * Guaranteed sync - siblingsFn should not return a promise.
 	 */
-	public includedInQuerySync(testPath: string, basename?: string, hasSibling?: (name: string) => boolean): boolean {
+	includedInQuerySync(testPath: string, basename?: string, hasSibling?: (name: string) => boolean): boolean {
 		if (this._parsedExcludeExpression && this._parsedExcludeExpression(testPath, basename, hasSibling)) {
 			return false;
 		}
@@ -169,7 +169,7 @@ export class QueryGlobTester {
 	/**
 	 * Guaranteed async.
 	 */
-	public includedInQuery(testPath: string, basename?: string, hasSibling?: (name: string) => boolean | Promise<boolean>): Promise<boolean> {
+	includedInQuery(testPath: string, basename?: string, hasSibling?: (name: string) => boolean | Promise<boolean>): Promise<boolean> {
 		const excludeP = this._parsedExcludeExpression ?
 			Promise.resolve(this._parsedExcludeExpression(testPath, basename, hasSibling)).then(result => !!result) :
 			Promise.resolve(false);
@@ -187,7 +187,7 @@ export class QueryGlobTester {
 		});
 	}
 
-	public hasSiblingExcludeClauses(): boolean {
+	hasSiblingExcludeClauses(): boolean {
 		return hasSiblingClauses(this._excludeExpression);
 	}
 }

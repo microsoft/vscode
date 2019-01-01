@@ -52,11 +52,11 @@ interface IMatchTemplate {
 
 export class SearchDelegate implements IListVirtualDelegate<RenderableMatch> {
 
-	public getHeight(element: RenderableMatch): number {
+	getHeight(element: RenderableMatch): number {
 		return 22;
 	}
 
-	public getTemplateId(element: RenderableMatch): string {
+	getTemplateId(element: RenderableMatch): string {
 		if (element instanceof FolderMatch) {
 			return FolderMatchRenderer.TEMPLATE_ID;
 		} else if (element instanceof FileMatch) {
@@ -284,7 +284,7 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider<Rende
 	) {
 	}
 
-	public getAriaLabel(element: RenderableMatch): string {
+	getAriaLabel(element: RenderableMatch): string {
 		if (element instanceof FolderMatch) {
 			return element.hasResource() ?
 				nls.localize('folderMatchAriaLabel', "{0} matches in folder root {1}, Search result", element.count(), element.name()) :

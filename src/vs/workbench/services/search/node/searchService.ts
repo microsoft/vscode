@@ -32,7 +32,7 @@ import { IRawSearchService, ISerializedFileMatch, ISerializedSearchComplete, ISe
 import { SearchChannelClient } from './searchIpc';
 
 export class SearchService extends Disposable implements ISearchService {
-	public _serviceBrand: any;
+	_serviceBrand: any;
 
 	private diskSearch: DiskSearch;
 	private readonly fileSearchProviders = new Map<string, ISearchResultProvider>();
@@ -54,7 +54,7 @@ export class SearchService extends Disposable implements ISearchService {
 		this.diskSearch = this.instantiationService.createInstance(DiskSearch, !environmentService.isBuilt || environmentService.verbose, /*timeout=*/undefined, environmentService.debugSearch);
 	}
 
-	public registerSearchResultProvider(scheme: string, type: SearchProviderType, provider: ISearchResultProvider): IDisposable {
+	registerSearchResultProvider(scheme: string, type: SearchProviderType, provider: ISearchResultProvider): IDisposable {
 		let list: Map<string, ISearchResultProvider>;
 		if (type === SearchProviderType.file) {
 			list = this.fileSearchProviders;
@@ -71,7 +71,7 @@ export class SearchService extends Disposable implements ISearchService {
 		});
 	}
 
-	public extendQuery(query: IFileQuery): void {
+	extendQuery(query: IFileQuery): void {
 		const configuration = this.configurationService.getValue<ISearchConfiguration>();
 
 		// Configuration: File Excludes
@@ -87,7 +87,7 @@ export class SearchService extends Disposable implements ISearchService {
 		}
 	}
 
-	public textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void): Promise<ISearchComplete> {
+	textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void): Promise<ISearchComplete> {
 		// Get local results from dirty/untitled
 		const localResults = this.getLocalResults(query);
 
@@ -116,7 +116,7 @@ export class SearchService extends Disposable implements ISearchService {
 		return this.doSearch(query, token, onProviderProgress);
 	}
 
-	public fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete> {
+	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete> {
 		return this.doSearch(query, token);
 	}
 
@@ -438,7 +438,7 @@ export class SearchService extends Disposable implements ISearchService {
 		return pathIncludedInQuery(query, resource.fsPath);
 	}
 
-	public clearCache(cacheKey: string): Promise<void> {
+	clearCache(cacheKey: string): Promise<void> {
 		const clearPs = [
 			this.diskSearch,
 			...values(this.fileIndexProviders),
@@ -451,7 +451,7 @@ export class SearchService extends Disposable implements ISearchService {
 }
 
 export class DiskSearch implements ISearchResultProvider {
-	public _serviceBrand: any;
+	_serviceBrand: any;
 
 	private raw: IRawSearchService;
 
@@ -535,7 +535,7 @@ export class DiskSearch implements ISearchResultProvider {
 	/**
 	 * Public for test
 	 */
-	public static collectResultsFromEvent(event: Event<ISerializedSearchProgressItem | ISerializedSearchComplete>, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): Promise<ISearchComplete> {
+	static collectResultsFromEvent(event: Event<ISerializedSearchProgressItem | ISerializedSearchComplete>, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): Promise<ISearchComplete> {
 		let result: IFileMatch[] = [];
 
 		let listener: IDisposable;
@@ -601,7 +601,7 @@ export class DiskSearch implements ISearchResultProvider {
 		return fileMatch;
 	}
 
-	public clearCache(cacheKey: string): Promise<void> {
+	clearCache(cacheKey: string): Promise<void> {
 		return this.raw.clearCache(cacheKey);
 	}
 }

@@ -35,7 +35,7 @@ export class SearchService implements IRawSearchService {
 	private legacyTextSearchService = new LegacyTextSearchService();
 	private caches: { [cacheKey: string]: Cache; } = Object.create(null);
 
-	public fileSearch(config: IRawFileQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
+	fileSearch(config: IRawFileQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
 		let promise: CancelablePromise<ISerializedSearchSuccess>;
 
 		const query = reviveQuery(config);
@@ -57,7 +57,7 @@ export class SearchService implements IRawSearchService {
 		return emitter.event;
 	}
 
-	public textSearch(rawQuery: IRawTextQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
+	textSearch(rawQuery: IRawTextQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
 		let promise: CancelablePromise<ISerializedSearchComplete>;
 
 		const query = reviveQuery(rawQuery);
@@ -375,7 +375,7 @@ export class SearchService implements IRawSearchService {
 		});
 	}
 
-	public clearCache(cacheKey: string): Promise<void> {
+	clearCache(cacheKey: string): Promise<void> {
 		delete this.caches[cacheKey];
 		return Promise.resolve(undefined);
 	}
@@ -408,22 +408,22 @@ interface ICacheRow {
 
 class Cache {
 
-	public resultsToSearchCache: { [searchValue: string]: ICacheRow; } = Object.create(null);
+	resultsToSearchCache: { [searchValue: string]: ICacheRow; } = Object.create(null);
 
-	public scorerCache: ScorerCache = Object.create(null);
+	scorerCache: ScorerCache = Object.create(null);
 }
 
 const FileMatchItemAccessor = new class implements IItemAccessor<IRawFileMatch> {
 
-	public getItemLabel(match: IRawFileMatch): string {
+	getItemLabel(match: IRawFileMatch): string {
 		return match.basename; // e.g. myFile.txt
 	}
 
-	public getItemDescription(match: IRawFileMatch): string {
+	getItemDescription(match: IRawFileMatch): string {
 		return match.relativePath.substr(0, match.relativePath.length - match.basename.length - 1); // e.g. some/path/to/file
 	}
 
-	public getItemPath(match: IRawFileMatch): string {
+	getItemPath(match: IRawFileMatch): string {
 		return match.relativePath; // e.g. some/path/to/file/myFile.txt
 	}
 };

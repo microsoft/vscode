@@ -224,7 +224,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 	}
 
-	public get searchResult(): SearchResult {
+	get searchResult(): SearchResult {
 		return this.viewModel && this.viewModel.searchResult;
 	}
 
@@ -234,7 +234,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		}
 	}
 
-	public create(parent: HTMLElement): void {
+	create(parent: HTMLElement): void {
 		super.create(parent);
 
 		this.viewModel = this._register(this.searchWorkbenchService.searchModel);
@@ -372,15 +372,15 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		}
 	}
 
-	public get searchAndReplaceWidget(): SearchWidget {
+	get searchAndReplaceWidget(): SearchWidget {
 		return this.searchWidget;
 	}
 
-	public get searchIncludePattern(): PatternInputWidget {
+	get searchIncludePattern(): PatternInputWidget {
 		return this.inputPatternIncludes;
 	}
 
-	public get searchExcludePattern(): PatternInputWidget {
+	get searchExcludePattern(): PatternInputWidget {
 		return this.inputPatternExcludes;
 	}
 
@@ -481,7 +481,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		return this.refreshTree(event);
 	}
 
-	public refreshTree(event?: IChangeEvent): void {
+	refreshTree(event?: IChangeEvent): void {
 		const collapseResults = this.configurationService.getValue<ISearchConfigurationProperties>('search').collapseResults;
 		if (!event || event.added || event.removed) {
 			this.tree.setChildren(null, createResultIterator(this.viewModel.searchResult, collapseResults));
@@ -693,13 +693,13 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		});
 	}
 
-	public selectCurrentMatch(): void {
+	selectCurrentMatch(): void {
 		const focused = this.tree.getFocus()[0];
 		const fakeKeyboardEvent = getKeyboardEventForEditorOpen({ preserveFocus: false });
 		this.tree.setSelection([focused], fakeKeyboardEvent);
 	}
 
-	public selectNextMatch(): void {
+	selectNextMatch(): void {
 		const [selected]: RenderableMatch[] = this.tree.getSelection();
 
 		// Expand the initial selected node, if needed
@@ -737,7 +737,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		}
 	}
 
-	public selectPreviousMatch(): void {
+	selectPreviousMatch(): void {
 		const [selected]: RenderableMatch[] = this.tree.getSelection();
 		let navigator = this.tree.navigate(selected);
 
@@ -778,18 +778,18 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		}
 	}
 
-	public moveFocusToResults(): void {
+	moveFocusToResults(): void {
 		this.tree.domFocus();
 	}
 
-	public focus(): void {
+	focus(): void {
 		super.focus();
 
 		const updatedText = this.updateTextFromSelection();
 		this.searchWidget.focus(undefined, undefined, updatedText);
 	}
 
-	public updateTextFromSelection(allowUnselectedWord = true): boolean {
+	updateTextFromSelection(allowUnselectedWord = true): boolean {
 		let updatedText = false;
 		const seedSearchStringFromSelection = this.configurationService.getValue<IEditorOptions>('editor').find.seedSearchStringFromSelection;
 		if (seedSearchStringFromSelection) {
@@ -807,7 +807,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		return updatedText;
 	}
 
-	public focusNextInputBox(): void {
+	focusNextInputBox(): void {
 		if (this.searchWidget.searchInputHasFocus()) {
 			if (this.searchWidget.isReplaceShown()) {
 				this.searchWidget.focus(true, true);
@@ -842,7 +842,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		}
 	}
 
-	public focusPreviousInputBox(): void {
+	focusPreviousInputBox(): void {
 		if (this.searchWidget.searchInputHasFocus()) {
 			return;
 		}
@@ -904,35 +904,35 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this.tree.layout(searchResultContainerSize);
 	}
 
-	public layout(dimension: dom.Dimension): void {
+	layout(dimension: dom.Dimension): void {
 		this.size = dimension;
 		this.reLayout();
 	}
 
-	public getControl() {
+	getControl() {
 		return this.tree;
 	}
 
-	public isSearchSubmitted(): boolean {
+	isSearchSubmitted(): boolean {
 		return this.searchSubmitted;
 	}
 
-	public isSearching(): boolean {
+	isSearching(): boolean {
 		return this.searching;
 	}
 
-	public allSearchFieldsClear(): boolean {
+	allSearchFieldsClear(): boolean {
 		return this.searchWidget.getReplaceValue() === '' &&
 			this.searchWidget.searchInput.getValue() === '' &&
 			this.searchIncludePattern.getValue() === '' &&
 			this.searchExcludePattern.getValue() === '';
 	}
 
-	public hasSearchResults(): boolean {
+	hasSearchResults(): boolean {
 		return !this.viewModel.searchResult.isEmpty();
 	}
 
-	public clearSearchResults(): void {
+	clearSearchResults(): void {
 		this.viewModel.searchResult.clear();
 		this.showEmptyStage();
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
@@ -945,7 +945,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this.updateActions();
 	}
 
-	public cancelSearch(): boolean {
+	cancelSearch(): boolean {
 		if (this.viewModel.cancelSearch()) {
 			this.searchWidget.focus();
 			return true;
@@ -1026,22 +1026,22 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		return dom.hasClass(this.queryDetails, 'more');
 	}
 
-	public toggleCaseSensitive(): void {
+	toggleCaseSensitive(): void {
 		this.searchWidget.searchInput.setCaseSensitive(!this.searchWidget.searchInput.getCaseSensitive());
 		this.onQueryChanged(true);
 	}
 
-	public toggleWholeWords(): void {
+	toggleWholeWords(): void {
 		this.searchWidget.searchInput.setWholeWords(!this.searchWidget.searchInput.getWholeWords());
 		this.onQueryChanged(true);
 	}
 
-	public toggleRegex(): void {
+	toggleRegex(): void {
 		this.searchWidget.searchInput.setRegex(!this.searchWidget.searchInput.getRegex());
 		this.onQueryChanged(true);
 	}
 
-	public toggleQueryDetails(moveFocus = true, show?: boolean, skipLayout?: boolean, reverse?: boolean): void {
+	toggleQueryDetails(moveFocus = true, show?: boolean, skipLayout?: boolean, reverse?: boolean): void {
 		const cls = 'more';
 		show = typeof show === 'undefined' ? !dom.hasClass(this.queryDetails, cls) : Boolean(show);
 		this.viewletState['query.queryDetailsExpanded'] = show;
@@ -1072,7 +1072,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		}
 	}
 
-	public searchInFolders(resources: URI[], pathToRelative: (from: string, to: string) => string): void {
+	searchInFolders(resources: URI[], pathToRelative: (from: string, to: string) => string): void {
 		const folderPaths: string[] = [];
 		const workspace = this.contextService.getWorkspace();
 
@@ -1126,7 +1126,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this.searchWidget.focus(false);
 	}
 
-	public onQueryChanged(preserveFocus?: boolean): void {
+	onQueryChanged(preserveFocus?: boolean): void {
 		const isRegex = this.searchWidget.searchInput.getRegex();
 		const isWholeWords = this.searchWidget.searchInput.getWholeWords();
 		const isCaseSensitive = this.searchWidget.searchInput.getCaseSensitive();
@@ -1580,7 +1580,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			this.open(lineMatch, preserveFocus, sideBySide, pinned);
 	}
 
-	public open(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {
+	open(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {
 		const selection = this.getSelectionFrom(element);
 		const resource = element instanceof Match ? element.parent().resource() : (<FileMatch>element).resource();
 		return this.editorService.openEditor({
@@ -1663,7 +1663,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		}
 	}
 
-	public getActions(): IAction[] {
+	getActions(): IAction[] {
 		return [
 			this.searching ?
 				this.cancelAction :
@@ -1726,7 +1726,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		super.saveState();
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this.isDisposed = true;
 
 		super.dispose();

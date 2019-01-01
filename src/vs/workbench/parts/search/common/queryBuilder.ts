@@ -214,7 +214,7 @@ export class QueryBuilder {
 	 *
 	 * Public for test.
 	 */
-	public parseSearchPaths(pattern: string): ISearchPathsResult {
+	parseSearchPaths(pattern: string): ISearchPathsResult {
 		const isSearchPath = (segment: string) => {
 			// A segment is a search path if it is an absolute path or starts with ./, ../, .\, or ..\
 			return paths.isAbsolute(segment) || /^\.\.?[\/\\]/.test(segment);

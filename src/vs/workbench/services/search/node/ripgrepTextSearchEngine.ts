@@ -156,11 +156,11 @@ export class RipgrepParser extends EventEmitter {
 		this.stringDecoder = new StringDecoder();
 	}
 
-	public cancel(): void {
+	cancel(): void {
 		this.isDone = true;
 	}
 
-	public flush(): void {
+	flush(): void {
 		this.handleDecodedData(this.stringDecoder.end());
 	}
 
@@ -171,7 +171,7 @@ export class RipgrepParser extends EventEmitter {
 		super.on(event, listener);
 	}
 
-	public handleData(data: Buffer | string): void {
+	handleData(data: Buffer | string): void {
 		if (this.isDone) {
 			return;
 		}
