@@ -70,7 +70,11 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 			}
 		});
 		ipc.on('vscode:osResume', () => {
-			this.getActiveTab().terminalInstances.forEach(instance => instance.forceRedraw());
+			const activeTab = this.getActiveTab();
+			if (!activeTab) {
+				return;
+			}
+			activeTab.terminalInstances.forEach(instance => instance.forceRedraw());
 		});
 	}
 
