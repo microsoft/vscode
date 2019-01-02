@@ -405,6 +405,8 @@ export class CommandCenter {
 			return;
 		}
 
+		url = this.cleanCloneUrlInput(url);
+
 		const config = workspace.getConfiguration('git');
 		let defaultCloneDirectory = config.get<string>('defaultCloneDirectory') || os.homedir();
 		defaultCloneDirectory = defaultCloneDirectory.replace(/^~/, os.homedir());
@@ -492,6 +494,14 @@ export class CommandCenter {
 
 			throw err;
 		}
+	}
+
+	private cleanCloneUrlInput(url: string): string {
+		url = url.trim();
+		if (url.startsWith('git clone ')) {
+			return url.replace('git clone ', '');
+		}
+		return url;
 	}
 
 	@command('git.init')
