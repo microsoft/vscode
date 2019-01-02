@@ -397,6 +397,13 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	private createList(parent: HTMLElement): void {
 		this.keybindingsListContainer = DOM.append(parent, $('.keybindings-list-container'));
 
+		const keybindingsListHeader = DOM.append(this.keybindingsListContainer, $('.keybindings-list-header'));
+		DOM.addClass(keybindingsListHeader, 'monaco-list-row');
+		const headerRenderer = new KeybindingHeaderRenderer();
+		keybindingsListHeader.style.height = "30px";
+		keybindingsListHeader.style.position = "relative";
+		headerRenderer.renderTemplate(keybindingsListHeader);
+
 		this.keybindingsList = this._register(this.instantiationService.createInstance(WorkbenchList, this.keybindingsListContainer, new Delegate(), [new KeybindingHeaderRenderer(), new KeybindingItemRenderer(this, this.keybindingsService)],
 			{ identityProvider: { getId: e => e.id }, ariaLabel: localize('keybindingsLabel', "Keybindings"), setRowLineHeight: false })) as WorkbenchList<IListEntry>;
 		this._register(this.keybindingsList.onContextMenu(e => this.onContextMenu(e)));
