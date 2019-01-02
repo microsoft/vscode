@@ -312,7 +312,7 @@ export class TerminalInstance implements ITerminalInstance {
 			rendererType: config.rendererType === 'auto' ? 'canvas' : config.rendererType,
 			// TODO: Remove this once the setting is removed upstream
 			experimentalCharAtlas: 'dynamic',
-			experimentalBufferLineImpl: config.experimentalBufferImpl
+			experimentalBufferLineImpl: 'TypedArray'
 		});
 		if (this._shellLaunchConfig.initialText) {
 			this._xterm.writeln(this._shellLaunchConfig.initialText);

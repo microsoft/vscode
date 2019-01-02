@@ -380,12 +380,6 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: true
 		},
-		'terminal.integrated.experimentalBufferImpl': {
-			description: nls.localize('terminal.integrated.experimentalBufferImpl', "Controls the terminal's internal buffer implementation. This setting is picked up on terminal creation and will not apply to existing terminals."),
-			type: 'string',
-			enum: ['JsArray', 'TypedArray'],
-			default: 'TypedArray'
-		},
 		'terminal.integrated.splitCwd': {
 			description: nls.localize('terminal.integrated.splitCwd', "Controls the working directory a split terminal starts with."),
 			type: 'string',
