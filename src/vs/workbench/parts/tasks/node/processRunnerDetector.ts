@@ -16,14 +16,9 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 import * as Tasks from '../common/tasks';
 import * as TaskConfig from './taskConfiguration';
 
-
-
-
-
-
-let build: string = 'build';
-let test: string = 'test';
-let defaultValue: string = 'default';
+const build = 'build';
+const test = 'test';
+const defaultValue = 'default';
 
 interface TaskInfo {
 	index: number;
