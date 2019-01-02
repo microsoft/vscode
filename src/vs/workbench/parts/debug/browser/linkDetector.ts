@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isAbsolute } from 'vs/base/common/paths';
 import { URI as uri } from 'vs/base/common/uri';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -28,14 +29,18 @@ export class LinkDetector {
 	}
 
 	/**
-	 * Matches and handles relative and absolute file links in the string provided.
+	 * Matches and handles absolute file links in the string provided.
 	 * Returns <span/> element that wraps the processed string, where matched links are replaced by <a/> and unmatched parts are surrounded by <span/> elements.
 	 * 'onclick' event is attached to all anchored links that opens them in the editor.
 	 * If no links were detected, returns the original string.
 	 */
 	handleLinks(text: string): HTMLElement | string {
+		let unalteredPostfix = '';
 		if (text.length > LinkDetector.MAX_LENGTH) {
-			return text;
+			// For performance, only handle the first MAX_LENGTH characters (without cutting off in the middle of a line)
+			const cutoffIndex = text.lastIndexOf('\n', LinkDetector.MAX_LENGTH) + 1;
+			unalteredPostfix = text.substr(cutoffIndex);
+			text = text.substr(0, cutoffIndex);
 		}
 
 		let linkContainer: HTMLElement | undefined;
@@ -45,7 +50,8 @@ export class LinkDetector {
 
 			let match = pattern.exec(text);
 			while (match !== null) {
-				let resource: uri | null = null;
+				let resource: uri | null = isAbsolute(match[1]) ? uri.file(match[1]) : null;
+
 				if (!resource) {
 					match = pattern.exec(text);
 					continue;
@@ -82,6 +88,17 @@ export class LinkDetector {
 						linkContainer.appendChild(span);
 					}
 				}
+			}
+		}
+
+		// append the text that went over the MAX_LENGTH limit
+		if (unalteredPostfix) {
+			if (linkContainer) {
+				let span = document.createElement('span');
+				span.textContent = unalteredPostfix;
+				linkContainer.appendChild(span);
+			} else {
+				text += unalteredPostfix;
 			}
 		}
 
