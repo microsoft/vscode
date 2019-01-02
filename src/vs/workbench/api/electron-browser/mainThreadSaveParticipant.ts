@@ -321,7 +321,10 @@ class CodeActionOnParticipant implements ISaveParticipant {
 		return new Promise<CodeAction[]>((resolve, reject) => {
 			setTimeout(() => reject(localize('codeActionsOnSave.didTimeout', "Aborted codeActionsOnSave after {0}ms", timeout)), timeout);
 			this.getActionsToRun(model, codeActionsOnSave).then(resolve);
-		}).then(actionsToRun => this.applyCodeActions(actionsToRun));
+		}).then(actionsToRun => {
+			// Failure to apply a code action should not block other on save actions
+			return this.applyCodeActions(actionsToRun).catch(() => undefined);
+		});
 	}
 
 	private async applyCodeActions(actionsToRun: CodeAction[]) {
