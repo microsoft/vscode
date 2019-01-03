@@ -20,7 +20,7 @@ import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
 import { ITerminalSettings, IDebuggerContribution, IConfig, IDebugAdapter, IDebugAdapterServer, IDebugAdapterExecutable, IAdapterDescriptor } from 'vs/workbench/parts/debug/common/debug';
-import { getTerminalLauncher, hasChildprocesses, prepareCommand } from 'vs/workbench/parts/debug/node/terminals';
+import { getTerminalLauncher, hasChildProcesses, prepareCommand } from 'vs/workbench/parts/debug/node/terminals';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/node/variableResolver';
 import { ExtHostConfiguration } from './extHostConfiguration';
@@ -330,7 +330,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 			return new Promise(resolve => {
 				if (this._integratedTerminalInstance) {
 					this._integratedTerminalInstance.processId.then(pid => {
-						resolve(hasChildprocesses(pid));
+						resolve(hasChildProcesses(pid));
 					}, err => {
 						resolve(true);
 					});

@@ -312,7 +312,7 @@ export class TerminalInstance implements ITerminalInstance {
 			rendererType: config.rendererType === 'auto' ? 'canvas' : config.rendererType,
 			// TODO: Remove this once the setting is removed upstream
 			experimentalCharAtlas: 'dynamic',
-			experimentalBufferLineImpl: config.experimentalBufferImpl
+			experimentalBufferLineImpl: 'TypedArray'
 		});
 		if (this._shellLaunchConfig.initialText) {
 			this._xterm.writeln(this._shellLaunchConfig.initialText);
@@ -618,6 +618,10 @@ export class TerminalInstance implements ITerminalInstance {
 			this._onDisposed.fire(this);
 		}
 		this._disposables = lifecycle.dispose(this._disposables);
+	}
+
+	public forceRedraw(): void {
+		this._xterm.refresh(0, this._xterm.rows - 1);
 	}
 
 	public focus(force?: boolean): void {

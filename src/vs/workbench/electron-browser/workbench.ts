@@ -113,6 +113,7 @@ import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/work
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { FileDialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogService';
 import { LogStorageAction } from 'vs/platform/storage/node/storageService';
+import { IEditor } from 'vs/editor/common/editorCommon';
 
 interface WorkbenchParams {
 	configuration: IWindowConfiguration;
@@ -125,6 +126,7 @@ interface IZenModeSettings {
 	hideTabs: boolean;
 	hideActivityBar: boolean;
 	hideStatusBar: boolean;
+	hideLineNumbers: boolean;
 	restore: boolean;
 }
 
@@ -1236,6 +1238,14 @@ export class Workbench extends Disposable implements IPartService {
 		// Check if zen mode transitioned to full screen and if now we are out of zen mode
 		// -> we need to go out of full screen (same goes for the centered editor layout)
 		let toggleFullScreen = false;
+		const setLineNumbers = (lineNumbers: any) => {
+			this.editorService.visibleControls.forEach(editor => {
+				const control = <IEditor>editor.getControl();
+				if (control) {
+					control.updateOptions({ lineNumbers });
+				}
+			});
+		};
 
 		// Zen Mode Active
 		if (this.zenMode.active) {
@@ -1256,6 +1266,11 @@ export class Workbench extends Disposable implements IPartService {
 
 			if (config.hideStatusBar) {
 				this.setStatusBarHidden(true, true);
+			}
+
+			if (config.hideLineNumbers) {
+				setLineNumbers('off');
+				this.zenMode.transitionDisposeables.push(this.editorService.onDidVisibleEditorsChange(() => setLineNumbers('off')));
 			}
 
 			if (config.hideTabs && this.editorPart.partOptions.showTabs) {
@@ -1280,6 +1295,7 @@ export class Workbench extends Disposable implements IPartService {
 			if (this.zenMode.transitionedToCenteredEditorLayout) {
 				this.centerEditorLayout(false, true);
 			}
+			setLineNumbers(this.configurationService.getValue('editor.lineNumbers'));
 
 			// Status bar and activity bar visibility come from settings -> update their visibility.
 			this.onDidUpdateConfiguration(true);

@@ -191,7 +191,7 @@ export class ExcludeSettingListModel {
 	}
 }
 
-interface IExcludeChangeEvent {
+export interface IExcludeChangeEvent {
 	originalPattern: string;
 	pattern?: string;
 	sibling?: string;
@@ -204,7 +204,7 @@ export class ExcludeSettingWidget extends Disposable {
 	private model = new ExcludeSettingListModel();
 
 	private readonly _onDidChangeExclude = new Emitter<IExcludeChangeEvent>();
-	public readonly onDidChangeExclude: Event<IExcludeChangeEvent> = this._onDidChangeExclude.event;
+	readonly onDidChangeExclude: Event<IExcludeChangeEvent> = this._onDidChangeExclude.event;
 
 	get domNode(): HTMLElement {
 		return this.listElement;

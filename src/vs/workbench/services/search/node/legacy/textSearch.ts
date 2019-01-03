@@ -19,7 +19,7 @@ export class Engine implements ISearchEngine<ISerializedFileMatch[]> {
 	private config: IRawSearch;
 	private config2: ITextQuery;
 	private walker: FileWalker;
-	private walkerError: Error;
+	private walkerError: Error | null;
 
 	private isCanceled = false;
 	private isDone = false;
@@ -59,7 +59,7 @@ export class Engine implements ISearchEngine<ISerializedFileMatch[]> {
 		});
 	}
 
-	search(onResult: (match: ISerializedFileMatch[]) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISearchEngineSuccess) => void): void {
+	search(onResult: (match: ISerializedFileMatch[]) => void, onProgress: (progress: IProgress) => void, done: (error: Error | null, complete: ISearchEngineSuccess) => void): void {
 		this.workers = this.workerProvider.getWorkers();
 		this.initializeWorkers();
 
@@ -177,10 +177,11 @@ export function makeRawSearch(query: ITextQuery): IRawSearch {
 		includePattern: query.includePattern,
 		maxResults: query.maxResults,
 		useRipgrep: query.useRipgrep,
-		disregardIgnoreFiles: query.folderQueries.some(fq => fq.disregardIgnoreFiles),
-		disregardGlobalIgnoreFiles: query.folderQueries.some(fq => fq.disregardGlobalIgnoreFiles),
-		ignoreSymlinks: query.folderQueries.some(fq => fq.ignoreSymlinks),
-		previewOptions: query.previewOptions
+		disregardIgnoreFiles: query.folderQueries.some(fq => fq.disregardIgnoreFiles!),
+		disregardGlobalIgnoreFiles: query.folderQueries.some(fq => fq.disregardGlobalIgnoreFiles!),
+		ignoreSymlinks: query.folderQueries.some(fq => fq.ignoreSymlinks!),
+		previewOptions: query.previewOptions,
+		contentPattern: query.contentPattern
 	};
 
 	for (const q of query.folderQueries) {
@@ -196,11 +197,9 @@ export function makeRawSearch(query: ITextQuery): IRawSearch {
 
 	if (query.extraFileResources) {
 		for (const r of query.extraFileResources) {
-			rawSearch.extraFiles.push(r.fsPath);
+			rawSearch.extraFiles!.push(r.fsPath);
 		}
 	}
-
-	rawSearch.contentPattern = query.contentPattern;
 
 	return rawSearch;
 }

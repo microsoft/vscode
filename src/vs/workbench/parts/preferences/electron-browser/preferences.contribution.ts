@@ -86,7 +86,7 @@ interface ISerializedPreferencesEditorInput {
 // Register Preferences Editor Input Factory
 class PreferencesEditorInputFactory implements IEditorInputFactory {
 
-	public serialize(editorInput: EditorInput): string {
+	serialize(editorInput: EditorInput): string {
 		const input = <PreferencesEditorInput>editorInput;
 
 		if (input.details && input.master) {
@@ -114,7 +114,7 @@ class PreferencesEditorInputFactory implements IEditorInputFactory {
 		return null;
 	}
 
-	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
+	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
 		const deserialized: ISerializedPreferencesEditorInput = JSON.parse(serializedEditorInput);
 
 		const registry = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories);
@@ -136,7 +136,7 @@ class PreferencesEditorInputFactory implements IEditorInputFactory {
 
 class KeybindingsEditorInputFactory implements IEditorInputFactory {
 
-	public serialize(editorInput: EditorInput): string {
+	serialize(editorInput: EditorInput): string {
 		const input = <KeybindingsEditorInput>editorInput;
 		return JSON.stringify({
 			name: input.getName(),
@@ -144,7 +144,7 @@ class KeybindingsEditorInputFactory implements IEditorInputFactory {
 		});
 	}
 
-	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
+	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
 		return instantiationService.createInstance(KeybindingsEditorInput);
 	}
 }
@@ -154,14 +154,14 @@ interface ISerializedSettingsEditor2EditorInput {
 
 class SettingsEditor2InputFactory implements IEditorInputFactory {
 
-	public serialize(input: SettingsEditor2Input): string {
+	serialize(input: SettingsEditor2Input): string {
 		const serialized: ISerializedSettingsEditor2EditorInput = {
 		};
 
 		return JSON.stringify(serialized);
 	}
 
-	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): SettingsEditor2Input {
+	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): SettingsEditor2Input {
 		return instantiationService.createInstance(
 			SettingsEditor2Input);
 	}
@@ -174,7 +174,7 @@ interface ISerializedDefaultPreferencesEditorInput {
 // Register Default Preferences Editor Input Factory
 class DefaultPreferencesEditorInputFactory implements IEditorInputFactory {
 
-	public serialize(editorInput: EditorInput): string {
+	serialize(editorInput: EditorInput): string {
 		const input = <DefaultPreferencesEditorInput>editorInput;
 
 		const serialized: ISerializedDefaultPreferencesEditorInput = { resource: input.getResource().toString() };
@@ -182,7 +182,7 @@ class DefaultPreferencesEditorInputFactory implements IEditorInputFactory {
 		return JSON.stringify(serialized);
 	}
 
-	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
+	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
 		const deserialized: ISerializedDefaultPreferencesEditorInput = JSON.parse(serializedEditorInput);
 
 		return instantiationService.createInstance(DefaultPreferencesEditorInput, URI.parse(deserialized.resource));
@@ -541,7 +541,7 @@ abstract class SettingsCommand extends Command {
 }
 class StartSearchDefaultSettingsCommand extends SettingsCommand {
 
-	public runCommand(accessor: ServicesAccessor, args: any): void {
+	runCommand(accessor: ServicesAccessor, args: any): void {
 		const preferencesEditor = this.getPreferencesEditor(accessor);
 		if (preferencesEditor) {
 			preferencesEditor.focusSearch();
@@ -557,7 +557,7 @@ startSearchCommand.register();
 
 class ClearSearchResultsCommand extends SettingsCommand {
 
-	public runCommand(accessor: ServicesAccessor, args: any): void {
+	runCommand(accessor: ServicesAccessor, args: any): void {
 		const preferencesEditor = this.getPreferencesEditor(accessor);
 		if (preferencesEditor) {
 			preferencesEditor.clearSearchResults();
@@ -573,7 +573,7 @@ clearSearchResultsCommand.register();
 
 class FocusSettingsFileEditorCommand extends SettingsCommand {
 
-	public runCommand(accessor: ServicesAccessor, args: any): void {
+	runCommand(accessor: ServicesAccessor, args: any): void {
 		const preferencesEditor = this.getPreferencesEditor(accessor);
 		if (preferencesEditor instanceof PreferencesEditor) {
 			preferencesEditor.focusSettingsFileEditor();
@@ -598,7 +598,7 @@ focusSettingsFromSearchCommand.register();
 
 class FocusNextSearchResultCommand extends SettingsCommand {
 
-	public runCommand(accessor: ServicesAccessor, args: any): void {
+	runCommand(accessor: ServicesAccessor, args: any): void {
 		const preferencesEditor = this.getPreferencesEditor(accessor);
 		if (preferencesEditor instanceof PreferencesEditor) {
 			preferencesEditor.focusNextResult();
@@ -614,7 +614,7 @@ focusNextSearchResultCommand.register();
 
 class FocusPreviousSearchResultCommand extends SettingsCommand {
 
-	public runCommand(accessor: ServicesAccessor, args: any): void {
+	runCommand(accessor: ServicesAccessor, args: any): void {
 		const preferencesEditor = this.getPreferencesEditor(accessor);
 		if (preferencesEditor instanceof PreferencesEditor) {
 			preferencesEditor.focusPreviousResult();
@@ -630,7 +630,7 @@ focusPreviousSearchResultCommand.register();
 
 class EditFocusedSettingCommand extends SettingsCommand {
 
-	public runCommand(accessor: ServicesAccessor, args: any): void {
+	runCommand(accessor: ServicesAccessor, args: any): void {
 		const preferencesEditor = this.getPreferencesEditor(accessor);
 		if (preferencesEditor instanceof PreferencesEditor) {
 			preferencesEditor.editFocusedPreference();
@@ -646,7 +646,7 @@ editFocusedSettingCommand.register();
 
 class FocusSettingsListCommand extends SettingsCommand {
 
-	public runCommand(accessor: ServicesAccessor, args: any): void {
+	runCommand(accessor: ServicesAccessor, args: any): void {
 		const preferencesEditor = this.getPreferencesEditor(accessor);
 		if (preferencesEditor instanceof SettingsEditor2) {
 			preferencesEditor.focusSettings();
@@ -662,7 +662,7 @@ const focusSettingsListCommand = new FocusSettingsListCommand({
 focusSettingsListCommand.register();
 
 class ShowContextMenuCommand extends SettingsCommand {
-	public runCommand(accessor: ServicesAccessor, args: any): void {
+	runCommand(accessor: ServicesAccessor, args: any): void {
 		const preferencesEditor = this.getPreferencesEditor(accessor);
 		if (preferencesEditor instanceof SettingsEditor2) {
 			preferencesEditor.showContextMenu();

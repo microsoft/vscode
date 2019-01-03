@@ -104,7 +104,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		]).then(([metrics]) => {
 			if (!this._model.isDisposed()) {
 
-				let stats = this._envService.performance ? LoaderStats.get() : undefined;
+				let stats = this._envService.args['prof-modules'] ? LoaderStats.get() : undefined;
 				let md = new MarkdownBuilder();
 				this._addSummary(md, metrics);
 				md.blank();
@@ -191,10 +191,13 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 	private _addRawPerfMarks(md: MarkdownBuilder): void {
 		md.heading(2, 'Raw Perf Marks');
 		md.value += '```\n';
-		md.value += `Name\tTimestamp\tDelta\n`;
+		md.value += `Name\tTimestamp\tDelta\tTotal\n`;
 		let lastStartTime = -1;
+		let total = 0;
 		for (const { name, startTime } of perf.getEntries('mark')) {
-			md.value += `${name}\t${startTime}\t${lastStartTime !== -1 ? startTime - lastStartTime : 0}\n`;
+			let delta = lastStartTime !== -1 ? startTime - lastStartTime : 0;
+			total += delta;
+			md.value += `${name}\t${startTime}\t${delta}\t${total}\n`;
 			lastStartTime = startTime;
 		}
 		md.value += '```\n';

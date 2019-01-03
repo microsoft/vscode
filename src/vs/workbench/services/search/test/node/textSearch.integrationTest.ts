@@ -49,7 +49,7 @@ function doLegacySearchTest(config: ITextQuery, expectedResultCount: number | Fu
 }
 
 function doRipgrepSearchTest(query: ITextQuery, expectedResultCount: number | Function): Promise<ISerializedFileMatch[]> {
-	let engine = new TextSearchEngineAdapter(query);
+	const engine = new TextSearchEngineAdapter(query);
 
 	let c = 0;
 	const results: ISerializedFileMatch[] = [];

@@ -34,6 +34,7 @@ interface TypeScriptRequestTypes {
 	'definition': [Proto.FileLocationRequestArgs, Proto.DefinitionResponse];
 	'definitionAndBoundSpan': [Proto.FileLocationRequestArgs, Proto.DefinitionInfoAndBoundSpanReponse];
 	'docCommentTemplate': [Proto.FileLocationRequestArgs, Proto.DocCommandTemplateResponse];
+	'documentHighlights': [Proto.DocumentHighlightsRequestArgs, Proto.DocumentHighlightsResponse];
 	'format': [Proto.FormatRequestArgs, Proto.FormatResponse];
 	'formatonkey': [Proto.FormatOnKeyRequestArgs, Proto.FormatResponse];
 	'getApplicableRefactors': [Proto.GetApplicableRefactorsRequestArgs, Proto.GetApplicableRefactorsResponse];

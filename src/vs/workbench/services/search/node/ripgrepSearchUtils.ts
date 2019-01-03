@@ -42,7 +42,7 @@ function searchRangeToRange(range: SearchRange): Range {
 }
 
 export class Position {
-	constructor(public readonly line, public readonly character) { }
+	constructor(readonly line, readonly character) { }
 
 	isBefore(other: Position): boolean { return false; }
 	isBeforeOrEqual(other: Position): boolean { return false; }

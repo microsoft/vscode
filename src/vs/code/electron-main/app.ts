@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing, protocol } from 'electron';
+import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing, protocol, powerMonitor } from 'electron';
 import { IProcessEnvironment, isWindows, isMacintosh } from 'vs/base/common/platform';
 import { WindowsManager } from 'vs/code/electron-main/windows';
 import { IWindowsService, OpenContext, ActiveWindowManager } from 'vs/platform/windows/common/windows';
@@ -260,6 +260,12 @@ export class CodeApplication extends Disposable {
 		ipc.on('vscode:openDevTools', (event: Event) => event.sender.openDevTools());
 
 		ipc.on('vscode:reloadWindow', (event: Event) => event.sender.reload());
+
+		powerMonitor.on('resume', () => { // After waking up from sleep
+			if (this.windowsMainService) {
+				this.windowsMainService.sendToAll('vscode:osResume', undefined);
+			}
+		});
 	}
 
 	private onUnexpectedError(err: Error): void {

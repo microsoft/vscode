@@ -243,7 +243,7 @@ class RemoteSearchProvider implements ISearchProvider {
 			const metadata = allResponses[0];
 			metadata.requestCount = 1;
 
-			for (let response of allResponses.slice(1)) {
+			for (const response of allResponses.slice(1)) {
 				metadata.requestCount++;
 				metadata.scoredResults = { ...metadata.scoredResults, ...response.scoredResults };
 			}
@@ -440,7 +440,7 @@ class SettingMatches {
 	private readonly keyMatchingWords: Map<string, IRange[]> = new Map<string, IRange[]>();
 	private readonly valueMatchingWords: Map<string, IRange[]> = new Map<string, IRange[]>();
 
-	public readonly matches: IRange[];
+	readonly matches: IRange[];
 
 	constructor(searchString: string, setting: ISetting, private requireFullQueryMatch: boolean, private searchDescription, private valuesMatcher: (filter: string, setting: ISetting) => IRange[]) {
 		this.matches = distinct(this._findMatchesInSetting(searchString, setting), (match) => `${match.startLineNumber}_${match.startColumn}_${match.endLineNumber}_${match.endColumn}_`);
@@ -451,7 +451,7 @@ class SettingMatches {
 		if (setting.overrides && setting.overrides.length) {
 			for (const subSetting of setting.overrides) {
 				const subSettingMatches = new SettingMatches(searchString, subSetting, this.requireFullQueryMatch, this.searchDescription, this.valuesMatcher);
-				let words = searchString.split(' ');
+				const words = searchString.split(' ');
 				const descriptionRanges: IRange[] = this.getRangesForWords(words, this.descriptionMatchingWords, [subSettingMatches.descriptionMatchingWords, subSettingMatches.keyMatchingWords, subSettingMatches.valueMatchingWords]);
 				const keyRanges: IRange[] = this.getRangesForWords(words, this.keyMatchingWords, [subSettingMatches.descriptionMatchingWords, subSettingMatches.keyMatchingWords, subSettingMatches.valueMatchingWords]);
 				const subSettingKeyRanges: IRange[] = this.getRangesForWords(words, subSettingMatches.keyMatchingWords, [this.descriptionMatchingWords, this.keyMatchingWords, subSettingMatches.valueMatchingWords]);
@@ -467,7 +467,7 @@ class SettingMatches {
 		const registry: { [qualifiedKey: string]: IJSONSchema } = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
 		const schema: IJSONSchema = registry[setting.key];
 
-		let words = searchString.split(' ');
+		const words = searchString.split(' ');
 		const settingKeyAsWords: string = setting.key.split('.').join(' ');
 
 		for (const word of words) {

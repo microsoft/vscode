@@ -374,6 +374,10 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		const item = this.items[index];
 		const renderer = this.renderers.get(item.templateId);
 
+		if (!item.row) {
+			return;
+		}
+
 		if (renderer.disposeElement) {
 			renderer.disposeElement(item.element, index, item.row!.templateData);
 		}
