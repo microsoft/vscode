@@ -113,30 +113,35 @@
 	text-decoration: underline;
 }
 
-.settings-editor.no-toc-search > .settings-body .settings-tree-container .monaco-tree-wrapper,
-.settings-editor.narrow-width > .settings-body .settings-tree-container .monaco-tree-wrapper {
+.settings-editor.no-toc-search > .settings-body .settings-tree-container .monaco-list-rows,
+.settings-editor.narrow-width > .settings-body .settings-tree-container .monaco-list-rows {
 	margin-left: 0px;
 }
 
-.settings-editor > .settings-body .settings-tree-container .monaco-tree-wrapper {
+.settings-editor > .settings-body .settings-tree-container .monaco-list-rows {
 	max-width: 1000px;
 	margin: auto;
 }
 
-.settings-editor > .settings-body .settings-tree-container .monaco-tree-wrapper .monaco-tree-rows {
+.settings-editor > .settings-body .settings-tree-container .monaco-list-row {
+	line-height: 1.4em !important; /* TODO */
 	padding-left: 208px;
 	padding-right: 24px;
-	box-sizing: border-box;
+	/* box-sizing: border-box; */
 }
 
-.settings-editor.no-toc-search > .settings-body .settings-tree-container .monaco-tree-wrapper .monaco-tree-rows,
-.settings-editor.narrow-width > .settings-body .settings-tree-container .monaco-tree-wrapper .monaco-tree-rows {
+.settings-editor > .settings-body .settings-tree-container .monaco-list-row .monaco-tl-row {
+	position: relative;
+}
+
+.settings-editor.no-toc-search > .settings-body .settings-tree-container .monaco-list-row,
+.settings-editor.narrow-width > .settings-body .settings-tree-container .monaco-list-row {
 	/* 3 margin + 20 padding + 2 border */
 	width: calc(100% - 25px);
 	padding-left: 25px;
 }
 
-.settings-editor > .settings-body .settings-tree-container .monaco-tree-row > .content::before {
+.settings-editor > .settings-body .settings-tree-container .monaco-list-row .monaco-tl-twistie {
 	/* Hide twisties */
 	display: none !important;
 }
@@ -162,10 +167,10 @@
 	width: 26px;
 }
 
-.settings-editor > .settings-body .settings-tree-container .monaco-tree-row .mouseover .setting-toolbar-container > .monaco-toolbar .toolbar-toggle-more,
-.settings-editor > .settings-body .settings-tree-container .monaco-tree-row .setting-item.focused .setting-toolbar-container > .monaco-toolbar .toolbar-toggle-more,
-.settings-editor > .settings-body .settings-tree-container .monaco-tree-row .setting-toolbar-container:hover > .monaco-toolbar .toolbar-toggle-more,
-.settings-editor > .settings-body .settings-tree-container .monaco-tree-row .setting-toolbar-container > .monaco-toolbar .active .toolbar-toggle-more {
+.settings-editor > .settings-body .settings-tree-container .monaco-list-row .mouseover .setting-toolbar-container > .monaco-toolbar .toolbar-toggle-more,
+.settings-editor > .settings-body .settings-tree-container .monaco-list-row .setting-item.focused .setting-toolbar-container > .monaco-toolbar .toolbar-toggle-more,
+.settings-editor > .settings-body .settings-tree-container .monaco-list-row .setting-toolbar-container:hover > .monaco-toolbar .toolbar-toggle-more,
+.settings-editor > .settings-body .settings-tree-container .monaco-list-row .setting-toolbar-container > .monaco-toolbar .active .toolbar-toggle-more {
 	opacity: 1;
 }
 
@@ -261,7 +266,7 @@
 	padding-left: 31px;
 }
 
-.settings-editor > .settings-body .settings-tree-container .monaco-tree-wrapper,
+.settings-editor > .settings-body .settings-tree-container .monaco-list-rows,
 .settings-editor > .settings-body .settings-toc-wrapper {
 	height: 100%;
 	max-width: 1000px;
@@ -273,7 +278,7 @@
 	margin-left: 0px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .monaco-tree-row {
+.settings-editor > .settings-body > .settings-tree-container .monaco-list-row {
 	overflow: visible;
 	/* so validation messages dont get clipped */
 	cursor: default;
@@ -408,7 +413,7 @@
 	visibility: hidden;
 }
 
-.settings-editor > .settings-body .settings-tree-container .setting-measure-container .monaco-tree-row {
+.settings-editor > .settings-body .settings-tree-container .setting-measure-container .monaco-list-row {
 	padding-left: 20px;
 }
 
@@ -424,6 +429,10 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-enumDescription,
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-measure-helper .setting-item-enumDescription {
 	display: block;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-bool {
+	padding-bottom: 26px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-item-value-description {

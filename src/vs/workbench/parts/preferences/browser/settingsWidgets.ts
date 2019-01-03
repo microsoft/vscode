@@ -191,7 +191,7 @@ export class ExcludeSettingListModel {
 	}
 }
 
-interface IExcludeChangeEvent {
+export interface IExcludeChangeEvent {
 	originalPattern: string;
 	pattern?: string;
 	sibling?: string;
