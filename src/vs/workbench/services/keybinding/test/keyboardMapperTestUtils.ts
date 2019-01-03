@@ -34,8 +34,8 @@ function toIResolvedKeybinding(kb: ResolvedKeybinding): IResolvedKeybinding {
 	};
 }
 
-export function assertResolveKeybinding(mapper: IKeyboardMapper, keybinding: Keybinding, expected: IResolvedKeybinding[]): void {
-	let actual: IResolvedKeybinding[] = mapper.resolveKeybinding(keybinding).map(toIResolvedKeybinding);
+export function assertResolveKeybinding(mapper: IKeyboardMapper, keybinding: Keybinding | null, expected: IResolvedKeybinding[]): void {
+	let actual: IResolvedKeybinding[] = mapper.resolveKeybinding(keybinding!).map(toIResolvedKeybinding);
 	assert.deepEqual(actual, expected);
 }
 
