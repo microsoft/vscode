@@ -443,7 +443,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 						const locals = groupById[getGalleryExtensionIdFromLocal(local)];
 						locals.splice(locals.indexOf(local), 1);
 						locals.splice(0, 0, local);
-						const extension = installedById[local.identifier.id] || new Extension(this.galleryService, this.stateProvider, locals, void 0, this.telemetryService, this.logService);
+						const extension = installedById[local.identifier.id] || new Extension(this.galleryService, this.stateProvider, locals, undefined, this.telemetryService, this.logService);
 						extension.locals = locals;
 						extension.enablementState = this.extensionEnablementService.getEnablementState(local);
 						return extension;
@@ -461,7 +461,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 
 				return this.galleryService.query(options)
 					.then(result => mapPager(result, gallery => this.fromGallery(gallery, maliciousSet)))
-					.then(void 0, err => {
+					.then(undefined, err => {
 						if (/No extension gallery service configured/.test(err.message)) {
 							return Promise.resolve(singlePagePager([]));
 						}
@@ -493,7 +493,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 	}
 
 	open(extension: IExtension, sideByside: boolean = false): Promise<any> {
-		return Promise.resolve(this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension), void 0, sideByside ? SIDE_GROUP : ACTIVE_GROUP));
+		return Promise.resolve(this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension), undefined, sideByside ? SIDE_GROUP : ACTIVE_GROUP));
 	}
 
 	private getDistinctInstalledExtensions(allInstalled: ILocalExtension[]): Promise<ILocalExtension[]> {
@@ -611,11 +611,11 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 
 	private eventuallySyncWithGallery(immediate = false): void {
 		const shouldSync = this.isAutoUpdateEnabled() || this.isAutoCheckUpdatesEnabled();
-		const loop = () => (shouldSync ? this.syncWithGallery() : Promise.resolve(void 0)).then(() => this.eventuallySyncWithGallery());
+		const loop = () => (shouldSync ? this.syncWithGallery() : Promise.resolve(undefined)).then(() => this.eventuallySyncWithGallery());
 		const delay = immediate ? 0 : ExtensionsWorkbenchService.SyncPeriod;
 
 		this.syncDelayer.trigger(loop, delay)
-			.then(void 0, err => null);
+			.then(undefined, err => null);
 	}
 
 	private syncWithGallery(): Promise<void> {
@@ -638,12 +638,12 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 			promises.push(this.queryGallery({ names, pageSize: names.length }));
 		}
 
-		return Promise.all(promises).then(() => void 0);
+		return Promise.all(promises).then(() => undefined);
 	}
 
 	private eventuallyAutoUpdateExtensions(): void {
 		this.autoUpdateDelayer.trigger(() => this.autoUpdateExtensions())
-			.then(void 0, err => null);
+			.then(undefined, err => null);
 	}
 
 	private autoUpdateExtensions(): Promise<any> {
@@ -717,7 +717,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 			location: ProgressLocation.Extensions,
 			title: nls.localize('uninstallingExtension', 'Uninstalling extension....'),
 			source: `${toUninstall[0].identifier.id}`
-		}, () => Promise.all(toUninstall.map(local => this.extensionService.uninstall(local))).then(() => void 0));
+		}, () => Promise.all(toUninstall.map(local => this.extensionService.uninstall(local))).then(() => undefined));
 	}
 
 	installVersion(extension: IExtension, version: string): Promise<void> {
@@ -732,7 +732,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		return this.galleryService.getExtension(extension.gallery.identifier, version)
 			.then(gallery => {
 				if (!gallery) {
-					return void 0;
+					return undefined;
 				}
 				return this.installWithProgress(
 					() => this.extensionService.installFromGallery(gallery)
@@ -760,7 +760,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		return this.progressService.withProgress({
 			location: ProgressLocation.Extensions,
 			source: `${toReinstall[0].identifier.id}`
-		}, () => Promise.all(toReinstall.map(local => this.extensionService.reinstallFromGallery(local))).then(() => void 0));
+		}, () => Promise.all(toReinstall.map(local => this.extensionService.reinstallFromGallery(local))).then(() => undefined));
 	}
 
 	private installWithProgress(installTask: () => Promise<void>, extensionName?: string): Promise<void> {
@@ -931,7 +931,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 	private onDidInstallExtension(event: DidInstallExtensionEvent): void {
 		const { local, zipPath, error, gallery } = event;
 		const installingExtension = gallery ? this.installing.filter(e => areSameExtensions(e.identifier, gallery.identifier))[0] : null;
-		let extension: Extension | undefined = installingExtension ? installingExtension : zipPath ? new Extension(this.galleryService, this.stateProvider, local ? [local] : [], void 0, this.telemetryService, this.logService) : undefined;
+		let extension: Extension | undefined = installingExtension ? installingExtension : zipPath ? new Extension(this.galleryService, this.stateProvider, local ? [local] : [], undefined, this.telemetryService, this.logService) : undefined;
 		if (extension) {
 			this.installing = installingExtension ? this.installing.filter(e => e !== installingExtension) : this.installing;
 			if (local) {

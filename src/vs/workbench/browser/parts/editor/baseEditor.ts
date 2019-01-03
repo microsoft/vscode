@@ -216,7 +216,7 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 	loadEditorState(group: IEditorGroup, resourceOrEditor: URI | EditorInput): T {
 		const resource = this.doGetResource(resourceOrEditor);
 		if (!resource || !group) {
-			return void 0; // we are not in a good state to load any state for a resource
+			return undefined; // we are not in a good state to load any state for a resource
 		}
 
 		const cache = this.doLoad();
@@ -226,7 +226,7 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 			return mementoForResource[group.id];
 		}
 
-		return void 0;
+		return undefined;
 	}
 
 	clearEditorState(resource: URI, group?: IEditorGroup): void;

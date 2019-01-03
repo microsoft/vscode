@@ -76,7 +76,7 @@ namespace TaskDefinitionDTO {
 	}
 	export function to(value: TaskDefinitionDTO, executeOnly: boolean): KeyedTaskIdentifier {
 		let result = TaskDefinition.createTaskIdentifier(value, console);
-		if (result === void 0 && executeOnly) {
+		if (result === undefined && executeOnly) {
 			result = {
 				_key: generateUuid(),
 				type: '$executeOnly'
@@ -88,13 +88,13 @@ namespace TaskDefinitionDTO {
 
 namespace TaskPresentationOptionsDTO {
 	export function from(value: PresentationOptions): TaskPresentationOptionsDTO {
-		if (value === void 0 || value === null) {
+		if (value === undefined || value === null) {
 			return undefined;
 		}
 		return Objects.assign(Object.create(null), value);
 	}
 	export function to(value: TaskPresentationOptionsDTO): PresentationOptions {
-		if (value === void 0 || value === null) {
+		if (value === undefined || value === null) {
 			return PresentationOptions.defaults;
 		}
 		return Objects.assign(Object.create(null), PresentationOptions.defaults, value);
@@ -103,13 +103,13 @@ namespace TaskPresentationOptionsDTO {
 
 namespace RunOptionsDTO {
 	export function from(value: RunOptions): RunOptionsDTO {
-		if (value === void 0 || value === null) {
+		if (value === undefined || value === null) {
 			return undefined;
 		}
 		return Objects.assign(Object.create(null), value);
 	}
 	export function to(value: RunOptionsDTO): RunOptions {
-		if (value === void 0 || value === null) {
+		if (value === undefined || value === null) {
 			return RunOptions.defaults;
 		}
 		return Objects.assign(Object.create(null), RunOptions.defaults, value);
@@ -118,7 +118,7 @@ namespace RunOptionsDTO {
 
 namespace ProcessExecutionOptionsDTO {
 	export function from(value: CommandOptions): ProcessExecutionOptionsDTO {
-		if (value === void 0 || value === null) {
+		if (value === undefined || value === null) {
 			return undefined;
 		}
 		return {
@@ -127,7 +127,7 @@ namespace ProcessExecutionOptionsDTO {
 		};
 	}
 	export function to(value: ProcessExecutionOptionsDTO): CommandOptions {
-		if (value === void 0 || value === null) {
+		if (value === undefined || value === null) {
 			return CommandOptions.defaults;
 		}
 		return {
@@ -168,7 +168,7 @@ namespace ProcessExecutionDTO {
 
 namespace ShellExecutionOptionsDTO {
 	export function from(value: CommandOptions): ShellExecutionOptionsDTO {
-		if (value === void 0 || value === null) {
+		if (value === undefined || value === null) {
 			return undefined;
 		}
 		let result: ShellExecutionOptionsDTO = {
@@ -183,7 +183,7 @@ namespace ShellExecutionOptionsDTO {
 		return result;
 	}
 	export function to(value: ShellExecutionOptionsDTO): CommandOptions {
-		if (value === void 0 || value === null) {
+		if (value === undefined || value === null) {
 			return undefined;
 		}
 		let result: CommandOptions = {
@@ -212,7 +212,7 @@ namespace ShellExecutionDTO {
 	}
 	export function from(value: CommandConfiguration): ShellExecutionDTO {
 		let result: ShellExecutionDTO = {};
-		if (value.name && Types.isString(value.name) && (value.args === void 0 || value.args === null || value.args.length === 0)) {
+		if (value.name && Types.isString(value.name) && (value.args === undefined || value.args === null || value.args.length === 0)) {
 			result.commandLine = value.name;
 		} else {
 			result.command = value.name;
@@ -258,7 +258,7 @@ namespace TaskSourceDTO {
 	export function to(value: TaskSourceDTO, workspace: IWorkspaceContextService): ExtensionTaskSource {
 		let scope: TaskScope;
 		let workspaceFolder: IWorkspaceFolder;
-		if ((value.scope === void 0) || ((typeof value.scope === 'number') && (value.scope !== TaskScope.Global))) {
+		if ((value.scope === undefined) || ((typeof value.scope === 'number') && (value.scope !== TaskScope.Global))) {
 			if (workspace.getWorkspace().folders.length === 0) {
 				scope = TaskScope.Global;
 				workspaceFolder = undefined;
@@ -292,7 +292,7 @@ namespace TaskHandleDTO {
 
 namespace TaskDTO {
 	export function from(task: Task): TaskDTO {
-		if (task === void 0 || task === null || (!CustomTask.is(task) && !ContributedTask.is(task))) {
+		if (task === undefined || task === null || (!CustomTask.is(task) && !ContributedTask.is(task))) {
 			return undefined;
 		}
 		let result: TaskDTO = {

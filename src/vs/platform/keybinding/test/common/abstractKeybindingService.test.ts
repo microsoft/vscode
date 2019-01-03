@@ -118,7 +118,7 @@ suite('AbstractKeybindingService', () => {
 						commandId: commandId,
 						args: args
 					});
-					return Promise.resolve(void 0);
+					return Promise.resolve(undefined);
 				}
 			};
 

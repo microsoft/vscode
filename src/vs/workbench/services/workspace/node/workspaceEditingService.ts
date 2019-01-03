@@ -93,7 +93,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	}
 
 	addFolders(foldersToAdd: IWorkspaceFolderCreationData[], donotNotifyError: boolean = false): Promise<void> {
-		return this.doAddFolders(foldersToAdd, void 0, donotNotifyError);
+		return this.doAddFolders(foldersToAdd, undefined, donotNotifyError);
 	}
 
 	private doAddFolders(foldersToAdd: IWorkspaceFolderCreationData[], index?: number, donotNotifyError: boolean = false): Promise<void> {
@@ -214,7 +214,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 			}
 
 			return Promise.resolve();
-		}).then(void 0, error => {
+		}).then(undefined, error => {
 			if (!extensionHostStarted) {
 				startExtensionHost(); // start the extension host if not started
 			}
@@ -233,7 +233,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 				return this.migrateWorkspaceSettings(toWorkspace);
 			}
 
-			return void 0;
+			return undefined;
 		});
 	}
 

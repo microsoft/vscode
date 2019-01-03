@@ -141,13 +141,13 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 				this.debugService.addFunctionBreakpoint(dto.functionName, dto.id);
 			}
 		}
-		return void 0;
+		return undefined;
 	}
 
 	public $unregisterBreakpoints(breakpointIds: string[], functionBreakpointIds: string[]): Promise<void> {
 		breakpointIds.forEach(id => this.debugService.removeBreakpoints(id));
 		functionBreakpointIds.forEach(id => this.debugService.removeFunctionBreakpoints(id));
-		return void 0;
+		return undefined;
 	}
 
 

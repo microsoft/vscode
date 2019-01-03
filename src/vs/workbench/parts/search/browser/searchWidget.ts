@@ -193,7 +193,7 @@ export class SearchWidget extends Widget {
 	}
 
 	toggleReplace(show?: boolean): void {
-		if (show === void 0 || show !== this.isReplaceShown()) {
+		if (show === undefined || show !== this.isReplaceShown()) {
 			this.onToggleReplaceButton();
 		}
 	}

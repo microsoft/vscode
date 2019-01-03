@@ -401,7 +401,7 @@ export function resolveTerminalEncoding(verbose?: boolean): Promise<string> {
 					}
 				}
 
-				return resolve(void 0);
+				return resolve(undefined);
 			});
 		});
 	}

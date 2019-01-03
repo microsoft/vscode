@@ -36,7 +36,7 @@ export function rimraf(path: string): Promise<void> {
 		}
 	}, (err: NodeJS.ErrnoException) => {
 		if (err.code === 'ENOENT') {
-			return void 0;
+			return undefined;
 		}
 
 		return Promise.reject(err);
@@ -194,7 +194,7 @@ export function whenDeleted(path: string): Promise<void> {
 
 					if (!exists) {
 						clearInterval(interval);
-						resolve(void 0);
+						resolve(undefined);
 					}
 				});
 			}

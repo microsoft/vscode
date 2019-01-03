@@ -10,7 +10,7 @@ import { IExtensionDescription } from 'vs/workbench/services/extensions/common/e
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
 import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
-const NO_OP_VOID_PROMISE = Promise.resolve<void>(void 0);
+const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
 
 export interface IExtensionMemento {
 	get<T>(key: string, defaultValue: T): T;
@@ -288,12 +288,12 @@ export class ExtensionsActivator {
 	private _activateExtensions(extensionDescriptions: IExtensionDescription[], reason: ExtensionActivationReason, recursionLevel: number): Promise<void> {
 		// console.log(recursionLevel, '_activateExtensions: ', extensionDescriptions.map(p => p.id));
 		if (extensionDescriptions.length === 0) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		extensionDescriptions = extensionDescriptions.filter((p) => !this._activatedExtensions.has(CanonicalExtensionIdentifier.toKey(p.identifier)));
 		if (extensionDescriptions.length === 0) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		if (recursionLevel > 10) {
@@ -304,7 +304,7 @@ export class ExtensionsActivator {
 				const error = new Error('More than 10 levels of dependencies (most likely a dependency loop)');
 				this._activatedExtensions.set(CanonicalExtensionIdentifier.toKey(extensionDescriptions[i].identifier), new FailedExtension(error));
 			}
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		let greenMap: { [id: string]: IExtensionDescription; } = Object.create(null),
@@ -329,7 +329,7 @@ export class ExtensionsActivator {
 
 		if (red.length === 0) {
 			// Finally reached only leafs!
-			return Promise.all(green.map((p) => this._activateExtension(p, reason))).then(_ => void 0);
+			return Promise.all(green.map((p) => this._activateExtension(p, reason))).then(_ => undefined);
 		}
 
 		return this._activateExtensions(green, reason, recursionLevel + 1).then(_ => {
@@ -341,14 +341,14 @@ export class ExtensionsActivator {
 		const extensionKey = CanonicalExtensionIdentifier.toKey(extensionDescription.identifier);
 
 		if (this._activatedExtensions.has(extensionKey)) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		if (this._activatingExtensions.has(extensionKey)) {
 			return this._activatingExtensions.get(extensionKey);
 		}
 
-		this._activatingExtensions.set(extensionKey, this._host.actualActivateExtension(extensionDescription, reason).then(void 0, (err) => {
+		this._activatingExtensions.set(extensionKey, this._host.actualActivateExtension(extensionDescription, reason).then(undefined, (err) => {
 			this._host.showMessage(Severity.Error, nls.localize('activationError', "Activating extension '{0}' failed: {1}.", extensionDescription.identifier.value, err.message));
 			console.error('Activating extension `' + extensionDescription.identifier.value + '` failed: ', err.message);
 			console.log('Here is the error stack: ', err.stack);

@@ -24,7 +24,7 @@ import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/exte
 const LOG_EXTENSION_HOST_COMMUNICATION = false;
 const LOG_USE_COLORS = true;
 
-const NO_OP_VOID_PROMISE = Promise.resolve<void>(void 0);
+const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
 
 export class ExtensionHostProcessManager extends Disposable {
 

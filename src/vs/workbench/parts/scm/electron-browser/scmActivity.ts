@@ -93,7 +93,7 @@ export class StatusBarController implements IWorkbenchContribution {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorService private editorService: IEditorService
 	) {
-		this.focusedProviderContextKey = contextKeyService.createKey<string | undefined>('scmProvider', void 0);
+		this.focusedProviderContextKey = contextKeyService.createKey<string | undefined>('scmProvider', undefined);
 		this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
 
 		for (const repository of this.scmService.repositories) {

@@ -166,7 +166,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
 		this._documentsAndEditors.getEditor(id).setSelections(selections);
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	$trySetDecorations(id: string, key: string, ranges: IDecorationOptions[]): Promise<void> {
@@ -175,7 +175,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
 		this._documentsAndEditors.getEditor(id).setDecorations(key, ranges);
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	$trySetDecorationsFast(id: string, key: string, ranges: number[]): Promise<void> {
@@ -184,7 +184,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
 		this._documentsAndEditors.getEditor(id).setDecorationsFast(key, ranges);
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): Promise<void> {
@@ -200,7 +200,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
 		this._documentsAndEditors.getEditor(id).setConfiguration(options);
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	$tryApplyEdits(id: string, modelVersionId: number, edits: ISingleEditOperation[], opts: IApplyEditsOptions): Promise<boolean> {
@@ -272,20 +272,20 @@ CommandsRegistry.registerCommand('_workbench.open', function (accessor: Services
 
 	if (options || typeof position === 'number') {
 		// use editor options or editor view column as a hint to use the editor service for opening
-		return editorService.openEditor({ resource, options, label }, viewColumnToEditorGroup(editorGroupService, position)).then(_ => void 0);
+		return editorService.openEditor({ resource, options, label }, viewColumnToEditorGroup(editorGroupService, position)).then(_ => undefined);
 	}
 
 	if (resource && resource.scheme === 'command') {
 		// do not allow to execute commands from here
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	if (resource && (resource.scheme === product.urlProtocol || /^vscode/.test(resource.scheme))) {
-		return urlService.open(resource).then(_ => void 0);
+		return urlService.open(resource).then(_ => undefined);
 	}
 
 	// finally, delegate to opener service
-	return openerService.open(resource).then(_ => void 0);
+	return openerService.open(resource).then(_ => undefined);
 });
 
 
@@ -305,5 +305,5 @@ CommandsRegistry.registerCommand('_workbench.diff', function (accessor: Services
 		label = localize('diffLeftRightLabel', "{0} ⟷ {1}", leftResource.toString(true), rightResource.toString(true));
 	}
 
-	return editorService.openEditor({ leftResource, rightResource, label, description, options }, viewColumnToEditorGroup(editorGroupService, position)).then(() => void 0);
+	return editorService.openEditor({ leftResource, rightResource, label, description, options }, viewColumnToEditorGroup(editorGroupService, position)).then(() => undefined);
 });

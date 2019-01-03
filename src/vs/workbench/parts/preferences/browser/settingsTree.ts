@@ -1395,7 +1395,7 @@ class CopySettingIdAction extends Action {
 			this.clipboardService.writeText(context.setting.key);
 		}
 
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -1415,6 +1415,6 @@ class CopySettingAsJSONAction extends Action {
 			this.clipboardService.writeText(jsonResult);
 		}
 
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }

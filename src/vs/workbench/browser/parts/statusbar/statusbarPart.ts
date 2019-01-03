@@ -59,7 +59,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	addEntry(entry: IStatusbarEntry, alignment: StatusbarAlignment, priority: number = 0): IDisposable {
 
 		// Render entry in status bar
-		const el = this.doCreateStatusItem(alignment, priority, entry.showBeak ? 'has-beak' : void 0);
+		const el = this.doCreateStatusItem(alignment, priority, entry.showBeak ? 'has-beak' : undefined);
 		const item = this.instantiationService.createInstance(StatusBarEntryItem, entry);
 		const toDispose = item.render(el);
 

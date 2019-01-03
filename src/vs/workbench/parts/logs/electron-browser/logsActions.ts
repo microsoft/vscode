@@ -69,6 +69,6 @@ export class SetLogLevelAction extends Action {
 		if (current === level) {
 			return nls.localize('current', "Current");
 		}
-		return void 0;
+		return undefined;
 	}
 }

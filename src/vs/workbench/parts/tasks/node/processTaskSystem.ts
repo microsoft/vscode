@@ -420,7 +420,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 	}
 
 	private resolveMatchers(task: CustomTask, values: Array<string | ProblemMatcher>): ProblemMatcher[] {
-		if (values === void 0 || values === null || values.length === 0) {
+		if (values === undefined || values === null || values.length === 0) {
 			return [];
 		}
 		let result: ProblemMatcher[] = [];

@@ -75,7 +75,7 @@ function getDocumentSettings(textDocument: TextDocument, needsDocumentSettings: 
 		}
 		return promise;
 	}
-	return Promise.resolve(void 0);
+	return Promise.resolve(undefined);
 }
 
 // After the server has started the client sends an initialize request. The server receives

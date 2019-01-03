@@ -409,7 +409,7 @@ export class NewStatPlaceholder extends ExplorerItem {
 
 		this.isDirectoryResolved = false;
 		this.isDirectory = false;
-		this.mtime = void 0;
+		this.mtime = undefined;
 	}
 
 	public getId(): string {

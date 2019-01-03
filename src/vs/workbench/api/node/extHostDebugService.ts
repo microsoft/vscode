@@ -361,7 +361,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 				return terminalLauncher.runInTerminal(args, config);
 			}
 		}
-		return void 0;
+		return undefined;
 	}
 
 	public $substituteVariables(folderUri: UriComponents | undefined, config: IConfig): Promise<IConfig> {
@@ -469,7 +469,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		if (da) {
 			da.sendMessage(message);
 		}
-		return void 0;
+		return undefined;
 	}
 
 	public $stopDASession(debugAdapterHandle: number): Promise<void> {
@@ -485,7 +485,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		if (da) {
 			return da.stopSession();
 		} else {
-			return void 0;
+			return undefined;
 		}
 	}
 
@@ -934,27 +934,27 @@ class MultiTracker implements vscode.DebugAdapterTracker {
 	}
 
 	onWillStartSession(): void {
-		this.trackers.forEach(t => t.onWillStartSession ? t.onWillStartSession() : (t.startDebugAdapter ? t.startDebugAdapter() : void 0));
+		this.trackers.forEach(t => t.onWillStartSession ? t.onWillStartSession() : (t.startDebugAdapter ? t.startDebugAdapter() : undefined));
 	}
 
 	onWillReceiveMessage(message: any): void {
-		this.trackers.forEach(t => t.onWillReceiveMessage ? t.onWillReceiveMessage(message) : (t.toDebugAdapter ? t.toDebugAdapter(message) : void 0));
+		this.trackers.forEach(t => t.onWillReceiveMessage ? t.onWillReceiveMessage(message) : (t.toDebugAdapter ? t.toDebugAdapter(message) : undefined));
 	}
 
 	onDidSendMessage(message: any): void {
-		this.trackers.forEach(t => t.onDidSendMessage ? t.onDidSendMessage(message) : (t.fromDebugAdapter ? t.fromDebugAdapter(message) : void 0));
+		this.trackers.forEach(t => t.onDidSendMessage ? t.onDidSendMessage(message) : (t.fromDebugAdapter ? t.fromDebugAdapter(message) : undefined));
 	}
 
 	onWillStopSession(): void {
-		this.trackers.forEach(t => t.onWillStopSession ? t.onWillStopSession() : (t.stopDebugAdapter ? t.stopDebugAdapter() : void 0));
+		this.trackers.forEach(t => t.onWillStopSession ? t.onWillStopSession() : (t.stopDebugAdapter ? t.stopDebugAdapter() : undefined));
 	}
 
 	onError(error: Error): void {
-		this.trackers.forEach(t => t.onError ? t.onError(error) : (t.debugAdapterError ? t.debugAdapterError(error) : void 0));
+		this.trackers.forEach(t => t.onError ? t.onError(error) : (t.debugAdapterError ? t.debugAdapterError(error) : undefined));
 	}
 
 	onExit(code: number, signal: string): void {
-		this.trackers.forEach(t => t.onExit ? t.onExit(code, signal) : (t.debugAdapterExit ? t.debugAdapterExit(code, signal) : void 0));
+		this.trackers.forEach(t => t.onExit ? t.onExit(code, signal) : (t.debugAdapterExit ? t.debugAdapterExit(code, signal) : undefined));
 	}
 }
 
@@ -985,7 +985,7 @@ class DirectDebugAdapter extends AbstractDebugAdapter implements IDapTransport {
 
 	// AbstractDebugAdapter
 	startSession(): Promise<void> {
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	// AbstractDebugAdapter
@@ -997,7 +997,7 @@ class DirectDebugAdapter extends AbstractDebugAdapter implements IDapTransport {
 	// AbstractDebugAdapter
 	stopSession(): Promise<void> {
 		this.stop();
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	// IDapTransport

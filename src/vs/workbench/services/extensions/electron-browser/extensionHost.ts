@@ -422,8 +422,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 					parentPid: process.pid,
 					environment: {
 						isExtensionDevelopmentDebug: this._isExtensionDevDebug,
-						appRoot: this._environmentService.appRoot ? URI.file(this._environmentService.appRoot) : void 0,
-						appSettingsHome: this._environmentService.appSettingsHome ? URI.file(this._environmentService.appSettingsHome) : void 0,
+						appRoot: this._environmentService.appRoot ? URI.file(this._environmentService.appRoot) : undefined,
+						appSettingsHome: this._environmentService.appSettingsHome ? URI.file(this._environmentService.appSettingsHome) : undefined,
 						extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 						extensionTestsPath: this._environmentService.extensionTestsPath,
 						globalStorageHome: URI.file(this._environmentService.globalStorageHome)

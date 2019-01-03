@@ -81,7 +81,7 @@ export class CloseWorkspaceAction extends Action {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			this.notificationService.info(nls.localize('noWorkspaceOpened', "There is currently no workspace opened in this instance to close."));
 
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		return this.windowService.closeWorkspace();
@@ -320,14 +320,14 @@ export abstract class BaseSwitchWindow extends Action {
 		return this.windowsService.getWindows().then(windows => {
 			const placeHolder = nls.localize('switchWindowPlaceHolder', "Select a window to switch to");
 			const picks = windows.map(win => {
-				const resource = win.filename ? URI.file(win.filename) : win.folderUri ? win.folderUri : win.workspace ? URI.file(win.workspace.configPath) : void 0;
+				const resource = win.filename ? URI.file(win.filename) : win.folderUri ? win.folderUri : win.workspace ? URI.file(win.workspace.configPath) : undefined;
 				const fileKind = win.filename ? FileKind.FILE : win.workspace ? FileKind.ROOT_FOLDER : win.folderUri ? FileKind.FOLDER : FileKind.FILE;
 				return {
 					payload: win.id,
 					label: win.title,
 					iconClasses: getIconClasses(this.modelService, this.modeService, resource, fileKind),
-					description: (currentWindowId === win.id) ? nls.localize('current', "Current Window") : void 0,
-					buttons: (!this.isQuickNavigate() && currentWindowId !== win.id) ? [this.closeWindowAction] : void 0
+					description: (currentWindowId === win.id) ? nls.localize('current', "Current Window") : undefined,
+					buttons: (!this.isQuickNavigate() && currentWindowId !== win.id) ? [this.closeWindowAction] : undefined
 				} as (IQuickPickItem & { payload: number });
 			});
 
@@ -337,7 +337,7 @@ export abstract class BaseSwitchWindow extends Action {
 				contextKey: 'inWindowsPicker',
 				activeItem: picks[autoFocusIndex],
 				placeHolder,
-				quickNavigate: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : void 0,
+				quickNavigate: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : undefined,
 				onDidTriggerItemButton: context => {
 					this.windowsService.closeWindow(context.item.payload).then(() => {
 						context.removeItem();
@@ -465,8 +465,8 @@ export abstract class BaseOpenRecentAction extends Action {
 			return this.windowService.openWindow([resource], { forceNewWindow, forceOpenWorkspaceAsFile: isFile });
 		};
 
-		const workspacePicks = recentWorkspaces.map(workspace => toPick(workspace, isSingleFolderWorkspaceIdentifier(workspace) ? FileKind.FOLDER : FileKind.ROOT_FOLDER, this.labelService, !this.isQuickNavigate() ? [this.removeFromRecentlyOpened] : void 0));
-		const filePicks = recentFiles.map(p => toPick(p, FileKind.FILE, this.labelService, !this.isQuickNavigate() ? [this.removeFromRecentlyOpened] : void 0));
+		const workspacePicks = recentWorkspaces.map(workspace => toPick(workspace, isSingleFolderWorkspaceIdentifier(workspace) ? FileKind.FOLDER : FileKind.ROOT_FOLDER, this.labelService, !this.isQuickNavigate() ? [this.removeFromRecentlyOpened] : undefined));
+		const filePicks = recentFiles.map(p => toPick(p, FileKind.FILE, this.labelService, !this.isQuickNavigate() ? [this.removeFromRecentlyOpened] : undefined));
 
 		// focus second entry if the first recent workspace is the current workspace
 		let autoFocusSecondEntry: boolean = recentWorkspaces[0] && this.contextService.isCurrentWorkspace(recentWorkspaces[0]);
@@ -481,7 +481,7 @@ export abstract class BaseOpenRecentAction extends Action {
 			placeHolder: isMacintosh ? nls.localize('openRecentPlaceHolderMac', "Select to open (hold Cmd-key to open in new window)") : nls.localize('openRecentPlaceHolder', "Select to open (hold Ctrl-key to open in new window)"),
 			matchOnDescription: true,
 			onKeyMods: mods => keyMods = mods,
-			quickNavigate: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : void 0,
+			quickNavigate: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : undefined,
 			onDidTriggerItemButton: context => {
 				this.windowsService.removeFromRecentlyOpened([context.item.workspace]).then(() => context.removeItem());
 			}

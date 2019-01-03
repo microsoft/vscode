@@ -153,7 +153,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 		// Model does not exist
 		else {
-			model = this.instantiationService.createInstance(TextFileEditorModel, resource, options ? options.encoding : void 0);
+			model = this.instantiationService.createInstance(TextFileEditorModel, resource, options ? options.encoding : undefined);
 			modelPromise = model.load(options);
 
 			// Install state change listener

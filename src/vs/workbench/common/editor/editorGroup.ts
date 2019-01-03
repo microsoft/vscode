@@ -319,7 +319,7 @@ export class EditorGroup extends Disposable {
 			return event.index;
 		}
 
-		return void 0;
+		return undefined;
 	}
 
 	private doCloseEditor(editor: EditorInput, openNext: boolean, replaced: boolean): EditorCloseEvent | null {
@@ -600,7 +600,7 @@ export class EditorGroup extends Disposable {
 	}
 
 	clone(): EditorGroup {
-		const group = this.instantiationService.createInstance(EditorGroup, void 0);
+		const group = this.instantiationService.createInstance(EditorGroup, undefined);
 		group.editors = this.editors.slice(0);
 		group.mru = this.mru.slice(0);
 		group.mapResourceToEditorCount = this.mapResourceToEditorCount.clone();

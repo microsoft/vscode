@@ -131,7 +131,7 @@ suite('Splitview', () => {
 		let didLayout = false;
 		const layoutDisposable = view.onDidLayout(() => didLayout = true);
 
-		const renderDisposable = view.onDidGetElement(() => void 0);
+		const renderDisposable = view.onDidGetElement(() => undefined);
 
 		splitview.addView(view, 20);
 

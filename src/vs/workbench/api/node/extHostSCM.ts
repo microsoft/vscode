@@ -284,7 +284,7 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 		const command = this._resourceStatesCommandsMap.get(handle);
 
 		if (!command) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		return asPromise(() => this._commands.executeCommand(command.command, ...command.arguments));
@@ -628,11 +628,11 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		const sourceControl = this._sourceControls.get(sourceControlHandle);
 
 		if (!sourceControl) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		sourceControl.inputBox.$onInputBoxValueChange(value);
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	$executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number): Promise<void> {
@@ -641,13 +641,13 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		const sourceControl = this._sourceControls.get(sourceControlHandle);
 
 		if (!sourceControl) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		const group = sourceControl.getResourceGroup(groupHandle);
 
 		if (!group) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		return group.$executeResourceCommand(handle);
@@ -709,6 +709,6 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		});
 
 		this._selectedSourceControlHandles = set;
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }

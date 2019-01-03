@@ -298,7 +298,7 @@ export class CollapseDeepestExpandedLevelAction extends Action {
 			viewer.domFocus();
 			viewer.focusFirst();
 		}
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -353,7 +353,7 @@ export class CancelSearchAction extends Action {
 			searchView.cancelSearch();
 		}
 
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -629,7 +629,7 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 
 	private hasToOpenFile(): boolean {
 		const activeEditor = this.editorService.activeEditor;
-		const file = activeEditor ? activeEditor.getResource() : void 0;
+		const file = activeEditor ? activeEditor.getResource() : undefined;
 		if (file) {
 			return file.toString() === this.element.parent().resource().toString();
 		}

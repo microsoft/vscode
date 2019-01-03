@@ -409,7 +409,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 		this.cancelPending();
 
 		if (!this.serverProcess) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		// when killing a process in windows its child
@@ -427,7 +427,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 			});
 		} else {
 			this.serverProcess.kill('SIGTERM');
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 	}
 

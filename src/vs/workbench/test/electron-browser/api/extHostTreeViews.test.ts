@@ -219,7 +219,7 @@ suite('ExtHostTreeView', function () {
 					label: { label: 'b' },
 					collapsibleState: TreeItemCollapsibleState.Collapsed
 				});
-				c(void 0);
+				c(undefined);
 			});
 			onDidChangeTreeNode.fire(getNode('b'));
 		});
@@ -596,7 +596,7 @@ suite('ExtHostTreeView', function () {
 		if (typeof obj === 'object') {
 			const result = {};
 			for (const key of Object.keys(obj)) {
-				if (obj[key] !== void 0) {
+				if (obj[key] !== undefined) {
 					result[key] = removeUnsetKeys(obj[key]);
 				}
 			}
@@ -627,7 +627,7 @@ suite('ExtHostTreeView', function () {
 			},
 			getParent: ({ key }: { key: string }): { key: string } => {
 				const parentKey = key.substring(0, key.length - 1);
-				return parentKey ? new Key(parentKey) : void 0;
+				return parentKey ? new Key(parentKey) : undefined;
 			},
 			onDidChangeTreeData: onDidChangeTreeNode.event
 		};

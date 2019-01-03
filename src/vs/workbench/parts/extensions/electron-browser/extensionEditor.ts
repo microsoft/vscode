@@ -121,7 +121,7 @@ class NavBar {
 		this.currentId = id;
 		this._onChange.fire({ id, focus });
 		this.actions.forEach(a => a.enabled = a.id !== id);
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	dispose(): void {
@@ -538,7 +538,7 @@ export class ExtensionEditor extends BaseEditor {
 				this.contentDisposables.push(wbeviewElement);
 				return wbeviewElement;
 			})
-			.then(void 0, () => {
+			.then(undefined, () => {
 				const p = append(this.content, $('p.nocontent'));
 				p.textContent = noContentCopy;
 				return p;

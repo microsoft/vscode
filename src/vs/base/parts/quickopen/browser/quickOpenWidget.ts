@@ -277,7 +277,7 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 
 		this._register(this.tree.onDidChangeSelection(event => {
 			if (event.selection && event.selection.length > 0) {
-				const mouseEvent: StandardMouseEvent = event.payload && event.payload.originalEvent instanceof StandardMouseEvent ? event.payload.originalEvent : void 0;
+				const mouseEvent: StandardMouseEvent = event.payload && event.payload.originalEvent instanceof StandardMouseEvent ? event.payload.originalEvent : undefined;
 				const shouldOpenInBackground = mouseEvent ? this.shouldOpenInBackground(mouseEvent) : false;
 
 				this.elementSelected(event.selection[0], event, shouldOpenInBackground ? Mode.OPEN_IN_BACKGROUND : Mode.OPEN);
@@ -574,7 +574,7 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 	show(param: any, options?: IShowOptions): void {
 		this.visible = true;
 		this.isLoosingFocus = false;
-		this.quickNavigateConfiguration = options ? options.quickNavigateConfiguration : void 0;
+		this.quickNavigateConfiguration = options ? options.quickNavigateConfiguration : undefined;
 
 		// Adjust UI for quick navigate mode
 		if (this.quickNavigateConfiguration) {

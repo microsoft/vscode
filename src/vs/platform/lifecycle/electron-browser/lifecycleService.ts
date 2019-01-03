@@ -143,7 +143,7 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 			reason
 		});
 
-		return Promise.all(joiners).then(() => void 0, err => {
+		return Promise.all(joiners).then(() => undefined, err => {
 			this.notificationService.error(toErrorMessage(err));
 			onUnexpectedError(err);
 		});

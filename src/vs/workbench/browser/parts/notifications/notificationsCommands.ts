@@ -75,7 +75,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 			}
 		}
 
-		return void 0;
+		return undefined;
 	}
 
 	// Show Notifications Cneter

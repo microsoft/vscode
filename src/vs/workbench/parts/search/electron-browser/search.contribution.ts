@@ -362,7 +362,7 @@ const searchInFolderCommand: ICommandHandler = (accessor, resource?: URI) => {
 			});
 		}
 
-		return void 0;
+		return undefined;
 	});
 };
 
@@ -436,7 +436,7 @@ class ShowAllSymbolsAction extends Action {
 	run(context?: any): Promise<void> {
 
 		let prefix = ShowAllSymbolsAction.ALL_SYMBOLS_PREFIX;
-		let inputSelection: { start: number; end: number; } = void 0;
+		let inputSelection: { start: number; end: number; } = undefined;
 		const editor = this.editorService.getFocusedCodeEditor();
 		const word = editor && getSelectionSearchString(editor);
 		if (word) {
@@ -446,7 +446,7 @@ class ShowAllSymbolsAction extends Action {
 
 		this.quickOpenService.show(prefix, { inputSelection });
 
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }
 

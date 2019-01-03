@@ -180,7 +180,7 @@ export class EnvironmentService implements IEnvironmentService {
 			}
 			return URI.file(path.normalize(s));
 		}
-		return void 0;
+		return undefined;
 	}
 
 	@memoize

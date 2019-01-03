@@ -71,7 +71,7 @@ abstract class TerminalLauncher implements ITerminalLauncher {
 		return this.runInTerminal0(args.title, args.cwd, args.args, args.env || {}, config);
 	}
 	runInTerminal0(title: string, dir: string, args: string[], envVars: env.IProcessEnvironment, config): Promise<number | undefined> {
-		return void 0;
+		return undefined;
 	}
 }
 

@@ -43,7 +43,7 @@ define([], function () {
 		const result = [];
 		const entries = global._performanceEntries;
 		for (let i = 0; i < entries.length; i += 5) {
-			if (entries[i] === type && (name === void 0 || entries[i + 1] === name)) {
+			if (entries[i] === type && (name === undefined || entries[i + 1] === name)) {
 				result.push({
 					type: entries[i],
 					name: entries[i + 1],

@@ -67,7 +67,7 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 			// The only time this is expected to happen is when the file specified to launch with does not exist.
 			this._exitCode = 2;
 			this._queueProcessExit();
-			this._processStartupComplete = Promise.resolve(void 0);
+			this._processStartupComplete = Promise.resolve(undefined);
 			return;
 		}
 		this._ptyProcess.on('data', (data) => {

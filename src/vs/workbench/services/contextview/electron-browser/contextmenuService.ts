@@ -67,7 +67,7 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 			popup(menu, {
 				x: Math.floor(x),
 				y: Math.floor(y),
-				positioningItem: delegate.autoSelectFirstItem ? 0 : void 0,
+				positioningItem: delegate.autoSelectFirstItem ? 0 : undefined,
 				onHide: () => onHide()
 			});
 		}
@@ -99,7 +99,7 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 			const item: IContextMenuItem = {
 				label: unmnemonicLabel(entry.label),
 				checked: !!entry.checked || !!entry.radio,
-				type: !!entry.checked ? 'checkbox' : !!entry.radio ? 'radio' : void 0,
+				type: !!entry.checked ? 'checkbox' : !!entry.radio ? 'radio' : undefined,
 				enabled: !!entry.enabled,
 				click: event => {
 

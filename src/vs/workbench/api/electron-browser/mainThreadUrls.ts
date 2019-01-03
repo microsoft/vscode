@@ -49,14 +49,14 @@ export class MainThreadUrls implements MainThreadUrlsShape {
 		this.handlers.set(handle, { extensionId, disposable });
 		this.inactiveExtensionUrlHandler.registerExtensionHandler(extensionId, handler);
 
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	$unregisterUriHandler(handle: number): Promise<void> {
 		const tuple = this.handlers.get(handle);
 
 		if (!tuple) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		const { extensionId, disposable } = tuple;
@@ -65,7 +65,7 @@ export class MainThreadUrls implements MainThreadUrlsShape {
 		this.handlers.delete(handle);
 		disposable.dispose();
 
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	dispose(): void {

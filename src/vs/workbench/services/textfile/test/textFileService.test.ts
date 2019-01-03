@@ -121,7 +121,7 @@ suite('Files - TextFileService', () => {
 				assert.ok(service.cleanupBackupsBeforeShutdownCalled);
 				assert.ok(!veto);
 
-				return void 0;
+				return undefined;
 			} else {
 				return veto.then(veto => {
 					assert.ok(service.cleanupBackupsBeforeShutdownCalled);

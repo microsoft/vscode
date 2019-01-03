@@ -232,7 +232,7 @@ export class PeekDefinitionAction extends DefinitionAction {
 	static readonly id = 'editor.action.peekDefinition';
 
 	constructor() {
-		super(new DefinitionActionConfig(void 0, true, false), {
+		super(new DefinitionActionConfig(undefined, true, false), {
 			id: PeekDefinitionAction.id,
 			label: nls.localize('actions.previewDecl.label', "Peek Definition"),
 			alias: 'Peek Definition',
@@ -304,7 +304,7 @@ export class GoToDeclarationAction extends DeclarationAction {
 
 export class PeekDeclarationAction extends DeclarationAction {
 	constructor() {
-		super(new DefinitionActionConfig(void 0, true, false), {
+		super(new DefinitionActionConfig(undefined, true, false), {
 			id: 'editor.action.peekDeclaration',
 			label: nls.localize('actions.peekDecl.label', "Peek Declaration"),
 			alias: 'Peek Declaration',

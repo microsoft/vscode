@@ -330,6 +330,6 @@ export class QuickOpenAction extends Action {
 		// Show with prefix
 		this.quickOpenService.show(this.prefix);
 
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }

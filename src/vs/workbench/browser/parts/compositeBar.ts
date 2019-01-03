@@ -383,7 +383,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 				CompositeOverflowActivityActionItem,
 				this.compositeOverflowAction,
 				() => this.getOverflowingComposites(),
-				() => this.model.activeItem ? this.model.activeItem.id : void 0,
+				() => this.model.activeItem ? this.model.activeItem.id : undefined,
 				(compositeId: string) => {
 					const item = this.model.findItem(compositeId);
 					return item && item.activity[0] && item.activity[0].badge;
@@ -671,7 +671,7 @@ class CompositeBarModel {
 	deactivate(): boolean {
 		if (this.activeItem) {
 			this.activeItem.activityAction.deactivate();
-			this.activeItem = void 0;
+			this.activeItem = undefined;
 			return true;
 		}
 		return false;

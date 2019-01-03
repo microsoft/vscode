@@ -99,7 +99,7 @@ export function registerCommands(): void {
 		if (focused instanceof List || focused instanceof PagedList) {
 			const list = focused;
 
-			const focus = list.getFocus() ? list.getFocus()[0] : void 0;
+			const focus = list.getFocus() ? list.getFocus()[0] : undefined;
 			const selection = list.getSelection();
 			if (selection && selection.indexOf(focus) >= 0) {
 				list.setSelection(selection.filter(s => s !== previousFocus));
@@ -112,7 +112,7 @@ export function registerCommands(): void {
 		else if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
 			const list = focused;
 
-			const focus = list.getFocus() ? list.getFocus()[0] : void 0;
+			const focus = list.getFocus() ? list.getFocus()[0] : undefined;
 			const selection = list.getSelection();
 			const fakeKeyboardEvent = new KeyboardEvent('keydown');
 
@@ -150,7 +150,7 @@ export function registerCommands(): void {
 				const list = focused;
 
 				// Focus down first
-				const previousFocus = list.getFocus() ? list.getFocus()[0] : void 0;
+				const previousFocus = list.getFocus() ? list.getFocus()[0] : undefined;
 				focusDown(accessor, arg2);
 
 				// Then adjust selection
@@ -236,7 +236,7 @@ export function registerCommands(): void {
 				const list = focused;
 
 				// Focus up first
-				const previousFocus = list.getFocus() ? list.getFocus()[0] : void 0;
+				const previousFocus = list.getFocus() ? list.getFocus()[0] : undefined;
 				focusUp(accessor, arg2);
 
 				// Then adjust selection
@@ -301,7 +301,7 @@ export function registerCommands(): void {
 							return tree.reveal(tree.getFocus());
 						}
 
-						return void 0;
+						return undefined;
 					});
 				}
 			}
@@ -348,7 +348,7 @@ export function registerCommands(): void {
 							return tree.reveal(tree.getFocus());
 						}
 
-						return void 0;
+						return undefined;
 					});
 				}
 			}
@@ -479,7 +479,7 @@ export function registerCommands(): void {
 		else if (focused) {
 			const tree = focused;
 
-			tree.focusFirst({ origin: 'keyboard' }, options && options.fromFocused ? tree.getFocus() : void 0);
+			tree.focusFirst({ origin: 'keyboard' }, options && options.fromFocused ? tree.getFocus() : undefined);
 			tree.reveal(tree.getFocus());
 		}
 	}
@@ -532,7 +532,7 @@ export function registerCommands(): void {
 		else if (focused) {
 			const tree = focused;
 
-			tree.focusLast({ origin: 'keyboard' }, options && options.fromFocused ? tree.getFocus() : void 0);
+			tree.focusLast({ origin: 'keyboard' }, options && options.fromFocused ? tree.getFocus() : undefined);
 			tree.reveal(tree.getFocus());
 		}
 	}
@@ -698,15 +698,15 @@ export function registerCommands(): void {
 			const windowsService = accessor.get(IWindowsService);
 			windowsService.quit();
 		},
-		when: void 0,
+		when: undefined,
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_Q,
-		win: { primary: void 0 }
+		win: { primary: undefined }
 	});
 
 	CommandsRegistry.registerCommand('_workbench.removeFromRecentlyOpened', function (accessor: ServicesAccessor, path: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | string) {
 		const windowsService = accessor.get(IWindowsService);
 
-		return windowsService.removeFromRecentlyOpened([path]).then(() => void 0);
+		return windowsService.removeFromRecentlyOpened([path]).then(() => undefined);
 	});
 
 	CommandsRegistry.registerCommand('_workbench.downloadResource', function (accessor: ServicesAccessor, resource: URI) {

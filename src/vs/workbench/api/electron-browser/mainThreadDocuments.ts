@@ -202,7 +202,7 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 	}
 
 	$tryCreateDocument(options?: { language?: string, content?: string }): Promise<URI> {
-		return this._doCreateUntitled(void 0, options ? options.language : void 0, options ? options.content : void 0);
+		return this._doCreateUntitled(undefined, options ? options.language : undefined, options ? options.content : undefined);
 	}
 
 	private _handleAsResourceInput(uri: URI): Promise<boolean> {

@@ -479,7 +479,7 @@ class MockConfigurationService implements IConfigurationService {
 	public _serviceBrand: any;
 	public serviceId = IConfigurationService;
 	public constructor(private configuration: any = {}) { }
-	public inspect<T>(key: string, overrides?: IConfigurationOverrides): any { return { value: getConfigurationValue<T>(this.getValue(), key), default: getConfigurationValue<T>(this.getValue(), key), user: getConfigurationValue<T>(this.getValue(), key), workspaceFolder: void 0, folder: void 0 }; }
+	public inspect<T>(key: string, overrides?: IConfigurationOverrides): any { return { value: getConfigurationValue<T>(this.getValue(), key), default: getConfigurationValue<T>(this.getValue(), key), user: getConfigurationValue<T>(this.getValue(), key), workspaceFolder: undefined, folder: undefined }; }
 	public keys() { return { default: [], user: [], workspace: [], workspaceFolder: [] }; }
 	public getValue(): any;
 	public getValue(value: string): any;

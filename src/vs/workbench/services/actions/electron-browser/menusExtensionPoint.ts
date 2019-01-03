@@ -43,7 +43,7 @@ namespace schema {
 			case 'view/item/context': return MenuId.ViewItemContext;
 		}
 
-		return void 0;
+		return undefined;
 	}
 
 	export function isValidMenuItems(menu: IUserFriendlyMenuItem[], collector: ExtensionMessageCollector): boolean {

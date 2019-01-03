@@ -213,7 +213,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 				setTimeout(() => {
 					try {
 						assert.throws(() => event.waitUntil(timeout(10)));
-						resolve(void 0);
+						resolve(undefined);
 					} catch (e) {
 						reject(e);
 					}

@@ -165,7 +165,7 @@ suite('Search-integration', function () {
 			contentPattern: { pattern: 'e' }
 		};
 
-		return doSearchTest(config, 776);
+		return doSearchTest(config, 788);
 	});
 
 	test('Text: e (with excludes)', () => {
@@ -185,7 +185,7 @@ suite('Search-integration', function () {
 			includePattern: { '**/examples/**': true }
 		};
 
-		return doSearchTest(config, 382);
+		return doSearchTest(config, 394);
 	});
 
 	// TODO
@@ -228,7 +228,7 @@ suite('Search-integration', function () {
 			excludePattern: { '**/examples/small.js': true }
 		};
 
-		return doSearchTest(config, 361);
+		return doSearchTest(config, 371);
 	});
 
 	test('Text: a (capped)', () => {
@@ -284,7 +284,7 @@ suite('Search-integration', function () {
 			excludePattern: makeExpression('**/*.txt')
 		};
 
-		return doSearchTest(config, 382);
+		return doSearchTest(config, 394);
 	});
 
 	test('Multiroot: e with global excludes', () => {
@@ -308,7 +308,7 @@ suite('Search-integration', function () {
 			contentPattern: { pattern: 'e' }
 		};
 
-		return doSearchTest(config, 286);
+		return doSearchTest(config, 298);
 	});
 
 	test('Text: 语', () => {

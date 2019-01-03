@@ -45,7 +45,7 @@ export class TextEditorState {
 		this.textEditorSelection = Selection.isISelection(_selection) ? {
 			startLineNumber: _selection.startLineNumber,
 			startColumn: _selection.startColumn
-		} : void 0;
+		} : undefined;
 	}
 
 	get editorInput(): IEditorInput {
@@ -164,7 +164,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private getExcludes(root?: URI): IExpression {
-		const scope = root ? { resource: root } : void 0;
+		const scope = root ? { resource: root } : undefined;
 
 		return getExcludes(this.configurationService.getValue<ISearchConfiguration>(scope));
 	}
@@ -192,7 +192,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 
 		// Remember as last active editor (can be undefined if none opened)
-		this.lastActiveEditor = activeControl ? { editor: activeControl.input, groupId: activeControl.group.id } : void 0;
+		this.lastActiveEditor = activeControl ? { editor: activeControl.input, groupId: activeControl.group.id } : undefined;
 
 		// Dispose old listeners
 		dispose(this.activeEditorListeners);
@@ -252,7 +252,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		// Track closing of editor to support to reopen closed editors (unless editor was replaced)
 		if (!event.replaced) {
-			const resource = event.editor ? event.editor.getResource() : void 0;
+			const resource = event.editor ? event.editor.getResource() : undefined;
 			const supportsReopen = resource && this.fileService.canHandleResource(resource); // we only support file'ish things to reopen
 			if (supportsReopen) {
 
@@ -435,7 +435,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private handleEditorEventInHistory(editor?: IBaseEditor): void {
-		const input = editor ? editor.input : void 0;
+		const input = editor ? editor.input : undefined;
 
 		// Ensure we have at least a name to show and not configured to exclude input
 		if (!input || !input.getName() || !this.include(input)) {
@@ -538,7 +538,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private handleEditorEventInStack(control: IBaseEditor, event?: ICursorPositionChangedEvent): void {
-		const codeEditor = control ? getCodeEditor(control.getControl()) : void 0;
+		const codeEditor = control ? getCodeEditor(control.getControl()) : undefined;
 
 		// treat editor changes that happen as part of stack navigation specially
 		// we do not want to add a new stack entry as a matter of navigating the
@@ -832,7 +832,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 				return { resourceJSON: (input as IResourceInput).resource.toJSON() } as ISerializedEditorHistoryEntry;
 			}
 
-			return void 0;
+			return undefined;
 		}));
 
 		this.storageService.store(HistoryService.STORAGE_KEY, JSON.stringify(entries), StorageScope.WORKSPACE);
@@ -854,7 +854,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 			} catch (error) {
 				onUnexpectedError(error);
 
-				return void 0; // https://github.com/Microsoft/vscode/issues/60960
+				return undefined; // https://github.com/Microsoft/vscode/issues/60960
 			}
 		}));
 	}
@@ -881,7 +881,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 			}
 		}
 
-		return void 0;
+		return undefined;
 	}
 
 	getLastActiveWorkspaceRoot(schemeFilter?: string): URI {
@@ -889,7 +889,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		// No Folder: return early
 		const folders = this.contextService.getWorkspace().folders;
 		if (folders.length === 0) {
-			return void 0;
+			return undefined;
 		}
 
 		// Single Folder: return early
@@ -899,7 +899,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 				return resource;
 			}
 
-			return void 0;
+			return undefined;
 		}
 
 		// Multiple folders: find the last active one
@@ -929,7 +929,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 			}
 		}
 
-		return void 0;
+		return undefined;
 	}
 
 	getLastActiveFile(schemeFilter: string): URI {
@@ -949,6 +949,6 @@ export class HistoryService extends Disposable implements IHistoryService {
 			}
 		}
 
-		return void 0;
+		return undefined;
 	}
 }

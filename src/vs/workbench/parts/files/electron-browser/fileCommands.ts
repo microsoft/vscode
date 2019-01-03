@@ -142,12 +142,12 @@ function save(
 				// fixes https://github.com/Microsoft/vscode/issues/59655
 				options = ensureForcedSave(options);
 
-				savePromise = textFileService.saveAs(resource, void 0, options);
+				savePromise = textFileService.saveAs(resource, undefined, options);
 			}
 
 			return savePromise.then((target) => {
 				if (!target || target.toString() === resource.toString()) {
-					return void 0; // save canceled or same resource used
+					return undefined; // save canceled or same resource used
 				}
 
 				const replacement: IResourceInput = {
@@ -239,7 +239,7 @@ CommandsRegistry.registerCommand({
 			.filter(resource => resource.scheme !== Schemas.untitled);
 
 		if (resources.length) {
-			return textFileService.revertAll(resources, { force: true }).then(void 0, error => {
+			return textFileService.revertAll(resources, { force: true }).then(undefined, error => {
 				notificationService.error(nls.localize('genericRevertError', "Failed to revert '{0}': {1}", resources.map(r => paths.basename(r.fsPath)).join(', '), toErrorMessage(error, false)));
 			});
 		}
@@ -304,7 +304,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			const name = paths.basename(uri.fsPath);
 			const editorLabel = nls.localize('modifiedLabel', "{0} (on disk) ↔ {1}", name, name);
 
-			return editorService.openEditor({ leftResource: uri.with({ scheme: COMPARE_WITH_SAVED_SCHEMA }), rightResource: uri, label: editorLabel }).then(() => void 0);
+			return editorService.openEditor({ leftResource: uri.with({ scheme: COMPARE_WITH_SAVED_SCHEMA }), rightResource: uri, label: editorLabel }).then(() => undefined);
 		}
 
 		return Promise.resolve(true);
@@ -364,7 +364,7 @@ CommandsRegistry.registerCommand({
 		return editorService.openEditor({
 			leftResource: globalResourceToCompare,
 			rightResource: getResourceForCommand(resource, listService, editorService)
-		}).then(() => void 0);
+		}).then(() => undefined);
 	}
 });
 
@@ -497,7 +497,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			resource = getResourceForCommand(resourceOrObject, accessor.get(IListService), editorService);
 		}
 
-		return save(resource, true, void 0, editorService, accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupsService));
+		return save(resource, true, undefined, editorService, accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupsService));
 	}
 });
 
@@ -512,7 +512,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 		if (resources.length === 1) {
 			// If only one resource is selected explictly call save since the behavior is a bit different than save all #41841
-			return save(resources[0], false, void 0, editorService, accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupsService));
+			return save(resources[0], false, undefined, editorService, accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupsService));
 		}
 		return saveAll(resources, editorService, accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupsService));
 	}
@@ -532,7 +532,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			return save(resource, false, { skipSaveParticipants: true }, editorService, accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupsService));
 		}
 
-		return void 0;
+		return undefined;
 	}
 });
 

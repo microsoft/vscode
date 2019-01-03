@@ -36,13 +36,13 @@ export abstract class TreeElement {
 			candidateId = `${container.id}/${candidate}`;
 		} else {
 			candidateId = `${container.id}/${candidate.name}`;
-			if (container.children[candidateId] !== void 0) {
+			if (container.children[candidateId] !== undefined) {
 				candidateId = `${container.id}/${candidate.name}_${candidate.range.startLineNumber}_${candidate.range.startColumn}`;
 			}
 		}
 
 		let id = candidateId;
-		for (let i = 0; container.children[id] !== void 0; i++) {
+		for (let i = 0; container.children[id] !== undefined; i++) {
 			id = `${candidateId}_${i}`;
 		}
 

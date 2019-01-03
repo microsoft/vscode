@@ -59,7 +59,7 @@ export function getDocumentRegions(languageService: LanguageService, document: T
 					if (/["'](module|(text|application)\/(java|ecma)script)["']/.test(scanner.getTokenText())) {
 						languageIdFromType = 'javascript';
 					} else {
-						languageIdFromType = void 0;
+						languageIdFromType = undefined;
 					}
 				} else {
 					let attributeLanguageId = getAttributeLanguage(lastAttributeName!);

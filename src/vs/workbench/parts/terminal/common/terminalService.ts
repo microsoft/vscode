@@ -310,13 +310,13 @@ export abstract class TerminalService implements ITerminalService {
 					setTimeout(() => {
 						const instance = this.getActiveInstance();
 						if (instance) {
-							instance.focusWhenReady(true).then(() => complete(void 0));
+							instance.focusWhenReady(true).then(() => complete(undefined));
 						} else {
-							complete(void 0);
+							complete(undefined);
 						}
 					}, 0);
 				} else {
-					complete(void 0);
+					complete(undefined);
 				}
 			} else {
 				if (focus) {
@@ -325,13 +325,13 @@ export abstract class TerminalService implements ITerminalService {
 					setTimeout(() => {
 						const instance = this.getActiveInstance();
 						if (instance) {
-							instance.focusWhenReady(true).then(() => complete(void 0));
+							instance.focusWhenReady(true).then(() => complete(undefined));
 						} else {
-							complete(void 0);
+							complete(undefined);
 						}
 					}, 0);
 				} else {
-					complete(void 0);
+					complete(undefined);
 				}
 			}
 			return undefined;

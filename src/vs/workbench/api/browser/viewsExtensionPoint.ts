@@ -137,7 +137,7 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 							canToggleVisibility: true,
 							collapsed: this.showCollapsed(container),
 							treeView: this.instantiationService.createInstance(CustomTreeView, item.id, container),
-							order: CanonicalExtensionIdentifier.equals(extension.description.identifier, container.extensionId) ? index + 1 : void 0
+							order: CanonicalExtensionIdentifier.equals(extension.description.identifier, container.extensionId) ? index + 1 : undefined
 						};
 
 						viewIds.push(viewDescriptor.id);

@@ -955,7 +955,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 						return this.workspaceEditingService.addFolders(folders);
 					}
 
-					return void 0;
+					return undefined;
 				});
 			}
 
@@ -966,7 +966,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 				return addFilesAction.run(droppedResources.map(res => res.resource));
 			}
 
-			return void 0;
+			return undefined;
 		});
 	}
 
@@ -997,7 +997,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		return confirmPromise.then(res => {
 
 			// Check for confirmation checkbox
-			let updateConfirmSettingsPromise: Promise<void> = Promise.resolve(void 0);
+			let updateConfirmSettingsPromise: Promise<void> = Promise.resolve(undefined);
 			if (res.confirmed && res.checkboxChecked === true) {
 				updateConfirmSettingsPromise = this.configurationService.updateValue(FileDragAndDrop.CONFIRM_DND_SETTING_KEY, false, ConfigurationTarget.USER);
 			}
@@ -1005,10 +1005,10 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 			return updateConfirmSettingsPromise.then(() => {
 				if (res.confirmed) {
 					const rootDropPromise = this.doHandleRootDrop(sources.filter(s => s.isRoot), target);
-					return Promise.all(sources.filter(s => !s.isRoot).map(source => this.doHandleExplorerDrop(tree, source, target, isCopy)).concat(rootDropPromise)).then(() => void 0);
+					return Promise.all(sources.filter(s => !s.isRoot).map(source => this.doHandleExplorerDrop(tree, source, target, isCopy)).concat(rootDropPromise)).then(() => undefined);
 				}
 
-				return Promise.resolve(void 0);
+				return Promise.resolve(undefined);
 			});
 		});
 	}
@@ -1047,13 +1047,13 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 
 	private doHandleExplorerDrop(tree: ITree, source: ExplorerItem, target: ExplorerItem | Model, isCopy: boolean): Promise<void> {
 		if (!(target instanceof ExplorerItem)) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		return tree.expand(target).then(() => {
 
 			if (target.isReadonly) {
-				return void 0;
+				return undefined;
 			}
 
 			// Reuse duplicate action if user copies
@@ -1064,7 +1064,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 			// Otherwise move
 			const targetResource = resources.joinPath(target.resource, source.name);
 
-			return this.textFileService.move(source.resource, targetResource).then(void 0, error => {
+			return this.textFileService.move(source.resource, targetResource).then(undefined, error => {
 
 				// Conflict
 				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MOVE_CONFLICT) {
@@ -1078,10 +1078,10 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 					// Move with overwrite if the user confirms
 					return this.dialogService.confirm(confirm).then(res => {
 						if (res.confirmed) {
-							return this.textFileService.move(source.resource, targetResource, true /* overwrite */).then(void 0, error => this.notificationService.error(error));
+							return this.textFileService.move(source.resource, targetResource, true /* overwrite */).then(undefined, error => this.notificationService.error(error));
 						}
 
-						return void 0;
+						return undefined;
 					});
 				}
 
@@ -1090,7 +1090,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 					this.notificationService.error(error);
 				}
 
-				return void 0;
+				return undefined;
 			});
 		}, errors.onUnexpectedError);
 	}

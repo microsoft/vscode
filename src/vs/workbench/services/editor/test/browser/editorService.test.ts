@@ -36,7 +36,7 @@ export class TestEditorControl extends BaseEditor {
 	setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 		super.setInput(input, options, token);
 
-		return input.resolve().then(() => void 0);
+		return input.resolve().then(() => undefined);
 	}
 
 	getId(): string { return 'MyTestEditorForEditorService'; }

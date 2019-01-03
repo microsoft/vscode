@@ -66,7 +66,7 @@ export class SelectColorThemeAction extends Action {
 					target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
 				}
 
-				this.themeService.setColorTheme(theme.id, target).then(void 0,
+				this.themeService.setColorTheme(theme.id, target).then(undefined,
 					err => {
 						onUnexpectedError(err);
 						this.themeService.setColorTheme(currentTheme.id, null);
@@ -126,7 +126,7 @@ class SelectIconThemeAction extends Action {
 					let confValue = this.configurationService.inspect(ICON_THEME_SETTING);
 					target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
 				}
-				this.themeService.setFileIconTheme(theme && theme.id, target).then(void 0,
+				this.themeService.setFileIconTheme(theme && theme.id, target).then(undefined,
 					err => {
 						onUnexpectedError(err);
 						this.themeService.setFileIconTheme(currentTheme.id, null);
@@ -153,7 +153,7 @@ function configurationEntries(extensionGalleryService: IExtensionGalleryService,
 				type: 'separator'
 			},
 			{
-				id: void 0,
+				id: undefined,
 				label: label,
 				alwaysShow: true,
 			}

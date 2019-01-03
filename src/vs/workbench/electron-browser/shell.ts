@@ -223,7 +223,7 @@ export class WorkbenchShell extends Disposable {
 		} catch (error) {
 			handleStartupError(this.logService, error);
 
-			return void 0;
+			return undefined;
 		}
 	}
 

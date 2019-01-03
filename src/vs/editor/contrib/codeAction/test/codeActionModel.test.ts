@@ -130,7 +130,7 @@ suite('CodeAction', () => {
 				assert.deepEqual(e.position, { lineNumber: 3, column: 1 });
 
 				oracle.dispose();
-				resolve(void 0);
+				resolve(undefined);
 			}, 5);
 
 			editor.setSelection({ startLineNumber: 1, startColumn: 1, endLineNumber: 4, endColumn: 1 });

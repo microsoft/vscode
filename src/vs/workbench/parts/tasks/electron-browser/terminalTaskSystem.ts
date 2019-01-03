@@ -224,7 +224,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 
 	public rerun(): ITaskExecuteResult | undefined {
 		if (this.lastTask && this.lastTask.verify()) {
-			if ((this.lastTask.task.runOptions.reevaluateOnRerun !== void 0) && !this.lastTask.task.runOptions.reevaluateOnRerun) {
+			if ((this.lastTask.task.runOptions.reevaluateOnRerun !== undefined) && !this.lastTask.task.runOptions.reevaluateOnRerun) {
 				this.isRerun = true;
 			}
 			const result = this.run(this.lastTask.task, this.lastTask.resolver);
@@ -916,7 +916,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				let ch = value[i];
 				if (ch === quote) {
 					quote = undefined;
-				} else if (quote !== void 0) {
+				} else if (quote !== undefined) {
 					// skip the character. We are quoted.
 					continue;
 				} else if (ch === shellQuoteOptions.escape) {
@@ -1016,7 +1016,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 	}
 
 	private collectCommandVariables(variables: Set<string>, command: CommandConfiguration, task: CustomTask | ContributedTask): void {
-		if (command.name === void 0) {
+		if (command.name === undefined) {
 			throw new Error('Command name should never be undefined here.');
 		}
 		this.collectVariables(variables, command.name);
@@ -1054,7 +1054,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 	}
 
 	private collectMatcherVariables(variables: Set<string>, values: Array<string | ProblemMatcher> | undefined): void {
-		if (values === void 0 || values === null || values.length === 0) {
+		if (values === undefined || values === null || values.length === 0) {
 			return;
 		}
 		values.forEach((value) => {
@@ -1101,7 +1101,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 	}
 
 	private resolveMatchers(resolver: VariableResolver, values: Array<string | ProblemMatcher> | undefined): ProblemMatcher[] {
-		if (values === void 0 || values === null || values.length === 0) {
+		if (values === undefined || values === null || values.length === 0) {
 			return [];
 		}
 		let result: ProblemMatcher[] = [];
@@ -1121,13 +1121,13 @@ export class TerminalTaskSystem implements ITaskSystem {
 				return;
 			}
 			let taskSystemInfo: TaskSystemInfo | undefined = resolver.taskSystemInfo;
-			let hasFilePrefix = matcher.filePrefix !== void 0;
-			let hasUriProvider = taskSystemInfo !== void 0 && taskSystemInfo.uriProvider !== void 0;
+			let hasFilePrefix = matcher.filePrefix !== undefined;
+			let hasUriProvider = taskSystemInfo !== undefined && taskSystemInfo.uriProvider !== undefined;
 			if (!hasFilePrefix && !hasUriProvider) {
 				result.push(matcher);
 			} else {
 				let copy = Objects.deepClone(matcher);
-				if (hasUriProvider && (taskSystemInfo !== void 0)) {
+				if (hasUriProvider && (taskSystemInfo !== undefined)) {
 					copy.uriProvider = taskSystemInfo.uriProvider;
 				}
 				if (hasFilePrefix) {
@@ -1145,7 +1145,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		// TODO@Dirk Task.getWorkspaceFolder should return a WorkspaceFolder that is defined in workspace.ts
 		if (Types.isString(value)) {
 			return resolver.resolve(value);
-		} else if (value !== void 0) {
+		} else if (value !== undefined) {
 			return {
 				value: resolver.resolve(value.value),
 				quoting: value.quoting
@@ -1156,7 +1156,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 	}
 
 	private resolveOptions(resolver: VariableResolver, options: CommandOptions | undefined): CommandOptions {
-		if (options === void 0 || options === null) {
+		if (options === undefined || options === null) {
 			return { cwd: this.resolveVariable(resolver, '${workspaceFolder}') };
 		}
 		let result: CommandOptions = Types.isString(options.cwd)

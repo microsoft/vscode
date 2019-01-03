@@ -1129,7 +1129,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 					}
 				});
 			input.show();
-			Promise.resolve(picks).then(void 0, err => {
+			Promise.resolve(picks).then(undefined, err => {
 				reject(err);
 				input.hide();
 			});

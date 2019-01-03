@@ -168,7 +168,7 @@ class Snapper {
 			if (startIdx !== -1) {
 				return id.substring(startIdx + part.length, id.length - 5);
 			}
-			return void 0;
+			return undefined;
 		};
 
 		let result: IThemesResult = {};

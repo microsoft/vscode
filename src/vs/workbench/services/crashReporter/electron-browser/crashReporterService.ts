@@ -121,6 +121,6 @@ export class CrashReporterService implements ICrashReporterService {
 			return childProcessOptions;
 		}
 
-		return void 0;
+		return undefined;
 	}
 }
