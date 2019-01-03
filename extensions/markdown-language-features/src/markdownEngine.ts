@@ -20,6 +20,8 @@ export class MarkdownEngine {
 	private firstLine?: number;
 	private currentDocument?: vscode.Uri;
 	private _slugCount = new Map<string, number>();
+	private cachedToken = new Set<Token>();
+
 
 	public constructor(
 		private readonly extensionPreviewResourceProvider: MarkdownContributions,
@@ -107,6 +109,11 @@ export class MarkdownEngine {
 		this._slugCount = new Map<string, number>();
 
 		const engine = await this.getEngine(document.uri);
+		if (this.cachedToken) {
+			return engine.renderer.render([...this.cachedToken].map(token => {
+				return token;
+			}), this.md, {});
+		}
 		return engine.render(text);
 	}
 
@@ -123,6 +130,7 @@ export class MarkdownEngine {
 				token.map[0] += offset;
 				token.map[1] += offset;
 			}
+			this.cachedToken.add(token);
 			return token;
 		});
 	}
