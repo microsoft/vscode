@@ -25,7 +25,7 @@ import { getBaseLabel } from 'vs/base/common/labels';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IPanel } from 'vs/workbench/common/panel';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { FileKind } from 'vs/platform/files/common/files';
+import { FileKind, IFileService } from 'vs/platform/files/common/files';
 import { IssueType } from 'vs/platform/issue/common/issue';
 import { domEvent } from 'vs/base/browser/event';
 import { Event } from 'vs/base/common/event';
@@ -418,18 +418,19 @@ export abstract class BaseOpenRecentAction extends Action {
 		private keybindingService: IKeybindingService,
 		private modelService: IModelService,
 		private modeService: IModeService,
+		private fileService: IFileService
 	) {
 		super(id, label);
 	}
 
 	protected abstract isQuickNavigate(): boolean;
 
-	run(): Promise<void> {
-		return this.windowService.getRecentlyOpened()
-			.then(({ workspaces, files }) => this.openRecent(workspaces, files));
+	async run(): Promise<void> {
+		const { workspaces, files } = await this.windowService.getRecentlyOpened();
+		await this.openRecent(workspaces, files);
 	}
 
-	private openRecent(recentWorkspaces: Array<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier>, recentFiles: URI[]): void {
+	private async openRecent(recentWorkspaces: Array<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier>, recentFiles: URI[]): Promise<void> {
 
 		const toPick = (workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI, fileKind: FileKind, labelService: ILabelService, buttons: IQuickInputButton[]) => {
 			let resource: URI;
@@ -465,7 +466,21 @@ export abstract class BaseOpenRecentAction extends Action {
 			return this.windowService.openWindow([resource], { forceNewWindow, forceOpenWorkspaceAsFile: isFile });
 		};
 
-		const workspacePicks = recentWorkspaces.map(workspace => toPick(workspace, isSingleFolderWorkspaceIdentifier(workspace) ? FileKind.FOLDER : FileKind.ROOT_FOLDER, this.labelService, !this.isQuickNavigate() ? [this.removeFromRecentlyOpened] : void 0));
+		const recentExistingWorkspaces = [];
+		for(let i = 0; i < recentWorkspaces.length; i++) {
+			const workspace = recentWorkspaces[i];
+			if (workspace instanceof URI) {
+				if (await this.fileService.existsFile(workspace)) {
+					recentExistingWorkspaces.push(workspace);
+				}
+			} else {
+				if(await this.fileService.existsFile(URI.file(workspace.configPath))) {
+					recentExistingWorkspaces.push(workspace);
+				}
+			}
+		}
+
+		const workspacePicks = recentExistingWorkspaces .map(workspace => toPick(workspace, isSingleFolderWorkspaceIdentifier(workspace) ? FileKind.FOLDER : FileKind.ROOT_FOLDER, this.labelService, !this.isQuickNavigate() ? [this.removeFromRecentlyOpened] : void 0));
 		const filePicks = recentFiles.map(p => toPick(p, FileKind.FILE, this.labelService, !this.isQuickNavigate() ? [this.removeFromRecentlyOpened] : void 0));
 
 		// focus second entry if the first recent workspace is the current workspace
@@ -510,9 +525,10 @@ export class OpenRecentAction extends BaseOpenRecentAction {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
-		@ILabelService labelService: ILabelService
+		@ILabelService labelService: ILabelService,
+		@IFileService fileService: IFileService
 	) {
-		super(id, label, windowService, windowsService, quickInputService, contextService, labelService, keybindingService, modelService, modeService);
+		super(id, label, windowService, windowsService, quickInputService, contextService, labelService, keybindingService, modelService, modeService, fileService);
 	}
 
 	protected isQuickNavigate(): boolean {
@@ -535,9 +551,10 @@ export class QuickOpenRecentAction extends BaseOpenRecentAction {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
-		@ILabelService labelService: ILabelService
+		@ILabelService labelService: ILabelService,
+		@IFileService fileService: IFileService
 	) {
-		super(id, label, windowService, windowsService, quickInputService, contextService, labelService, keybindingService, modelService, modeService);
+		super(id, label, windowService, windowsService, quickInputService, contextService, labelService, keybindingService, modelService, modeService, fileService);
 	}
 
 	protected isQuickNavigate(): boolean {
