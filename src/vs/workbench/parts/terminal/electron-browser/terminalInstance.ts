@@ -312,7 +312,7 @@ export class TerminalInstance implements ITerminalInstance {
 			rendererType: config.rendererType === 'auto' ? 'canvas' : config.rendererType,
 			// TODO: Remove this once the setting is removed upstream
 			experimentalCharAtlas: 'dynamic',
-			experimentalBufferLineImpl: config.experimentalBufferImpl
+			experimentalBufferLineImpl: 'TypedArray'
 		});
 		if (this._shellLaunchConfig.initialText) {
 			this._xterm.writeln(this._shellLaunchConfig.initialText);
@@ -620,6 +620,10 @@ export class TerminalInstance implements ITerminalInstance {
 		this._disposables = lifecycle.dispose(this._disposables);
 	}
 
+	public forceRedraw(): void {
+		this._xterm.refresh(0, this._xterm.rows - 1);
+	}
+
 	public focus(force?: boolean): void {
 		if (!this._xterm) {
 			return;
@@ -688,6 +692,8 @@ export class TerminalInstance implements ITerminalInstance {
 						c(this._escapeNonWindowsPath(stdout.trim()));
 					});
 					return;
+				} else if (hasSpace && (exe.indexOf('powershell') !== -1)) {
+					c('& \'' + path + '\'');
 				} else if (hasSpace) {
 					c('"' + path + '"');
 				} else {

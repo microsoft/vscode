@@ -56,7 +56,7 @@ export class ExtensionHostProfiler {
 			} else if (segmentId === 'self' && node.callFrame.url) {
 				let extension = searchTree.findSubstr(node.callFrame.url);
 				if (extension) {
-					segmentId = extension.id;
+					segmentId = extension.identifier.value;
 				}
 			}
 			idsToSegmentId.set(node.id, segmentId);

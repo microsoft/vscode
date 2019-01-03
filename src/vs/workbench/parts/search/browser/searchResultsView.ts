@@ -13,7 +13,6 @@ import { IAction } from 'vs/base/common/actions';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
-import { IFilter, ISorter, ITree } from 'vs/base/parts/tree/browser/tree';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { FileKind } from 'vs/platform/files/common/files';
@@ -26,13 +25,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { RemoveAction, ReplaceAction, ReplaceAllAction, ReplaceAllInFolderAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { SearchView } from 'vs/workbench/parts/search/browser/searchView';
-import { FileMatch, FolderMatch, Match, RenderableMatch, searchMatchComparer, SearchModel } from 'vs/workbench/parts/search/common/searchModel';
-
-export class SearchSorter implements ISorter {
-	public compare(tree: ITree, elementA: RenderableMatch, elementB: RenderableMatch): number {
-		return searchMatchComparer(elementA, elementB);
-	}
-}
+import { FileMatch, FolderMatch, Match, RenderableMatch, SearchModel } from 'vs/workbench/parts/search/common/searchModel';
 
 interface IFolderMatchTemplate {
 	label: IResourceLabel;
@@ -318,12 +311,5 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider<Rende
 			return nls.localize('searchResultAria', "Found term {0} at column position {1} in line with text {2}", matchString, range.startColumn + 1, matchText);
 		}
 		return undefined;
-	}
-}
-
-export class SearchFilter implements IFilter {
-
-	public isVisible(tree: ITree, element: any): boolean {
-		return !(element instanceof FileMatch || element instanceof FolderMatch) || element.matches().length > 0;
 	}
 }

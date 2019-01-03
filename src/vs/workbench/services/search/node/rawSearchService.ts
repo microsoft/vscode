@@ -115,7 +115,7 @@ export class SearchService implements IRawSearchService {
 			}
 
 			return new Promise<ISerializedSearchSuccess>((c, e) => {
-				sortedSearch.then(([result, rawMatches]) => {
+				sortedSearch!.then(([result, rawMatches]) => {
 					const serializedMatches = rawMatches.map(rawMatch => this.rawMatchToSearchItem(rawMatch));
 					this.sendProgress(serializedMatches, progressCallback, batchSize);
 					c(result);
@@ -173,11 +173,11 @@ export class SearchService implements IRawSearchService {
 				event: emitter.event,
 				resolved: false
 			};
-			cache.resultsToSearchCache[config.filePattern] = cacheRow;
+			cache.resultsToSearchCache[config.filePattern || ''] = cacheRow;
 			allResultsPromise.then(() => {
 				cacheRow.resolved = true;
 			}, err => {
-				delete cache.resultsToSearchCache[config.filePattern];
+				delete cache.resultsToSearchCache[config.filePattern || ''];
 			});
 
 			allResultsPromise = this.preventCancellation(allResultsPromise);
@@ -216,13 +216,13 @@ export class SearchService implements IRawSearchService {
 		return this.caches[cacheKey] = new Cache();
 	}
 
-	private trySortedSearchFromCache(config: IFileQuery, progressCallback: IFileProgressCallback, token?: CancellationToken): Promise<[ISerializedSearchSuccess, IRawFileMatch[]]> {
+	private trySortedSearchFromCache(config: IFileQuery, progressCallback: IFileProgressCallback, token?: CancellationToken): Promise<[ISerializedSearchSuccess, IRawFileMatch[]]> | undefined {
 		const cache = config.cacheKey && this.caches[config.cacheKey];
 		if (!cache) {
 			return undefined;
 		}
 
-		const cached = this.getResultsFromCache(cache, config.filePattern, progressCallback, token);
+		const cached = this.getResultsFromCache(cache, config.filePattern || '', progressCallback, token);
 		if (cached) {
 			return cached.then(([result, results, cacheStats]) => {
 				const sortSW = StopWatch.create(false);
@@ -256,10 +256,11 @@ export class SearchService implements IRawSearchService {
 		// this is very important because we are also limiting the number of results by config.maxResults
 		// and as such we want the top items to be included in this result set if the number of items
 		// exceeds config.maxResults.
-		const query = prepareQuery(config.filePattern);
+		const query = prepareQuery(config.filePattern || '');
 		const compare = (matchA: IRawFileMatch, matchB: IRawFileMatch) => compareItemsByScore(matchA, matchB, query, true, FileMatchItemAccessor, scorerCache);
 
-		return arrays.topAsync(results, compare, config.maxResults, 10000, token);
+		const maxResults = config.maxResults || Number.MAX_VALUE;
+		return arrays.topAsync(results, compare, maxResults, 10000, token);
 	}
 
 	private sendProgress(results: ISerializedFileMatch[], progressCb: IProgressCallback, batchSize: number) {
@@ -272,12 +273,12 @@ export class SearchService implements IRawSearchService {
 		}
 	}
 
-	private getResultsFromCache(cache: Cache, searchValue: string, progressCallback: IFileProgressCallback, token?: CancellationToken): Promise<[ISearchEngineSuccess, IRawFileMatch[], ICachedSearchStats]> {
+	private getResultsFromCache(cache: Cache, searchValue: string, progressCallback: IFileProgressCallback, token?: CancellationToken): Promise<[ISearchEngineSuccess, IRawFileMatch[], ICachedSearchStats]> | null {
 		const cacheLookupSW = StopWatch.create(false);
 
 		// Find cache entries by prefix of search value
 		const hasPathSep = searchValue.indexOf(sep) >= 0;
-		let cachedRow: ICacheRow;
+		let cachedRow: ICacheRow | undefined;
 		for (let previousSearch in cache.resultsToSearchCache) {
 			// If we narrow down, we might be able to reuse the cached results
 			if (strings.startsWith(searchValue, previousSearch)) {
@@ -329,7 +330,7 @@ export class SearchService implements IRawSearchService {
 			}
 
 			return [complete, results, {
-				cacheWasResolved: cachedRow.resolved,
+				cacheWasResolved: cachedRow!.resolved,
 				cacheLookupTime,
 				cacheFilterTime: cacheFilterSW.elapsed(),
 				cacheEntryCount: cachedEntries.length

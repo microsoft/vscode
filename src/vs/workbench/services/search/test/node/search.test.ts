@@ -779,8 +779,8 @@ suite('FileWalker', () => {
 		const cmd1 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
 		walker.readStdout(cmd1, 'utf8', /*isRipgrep=*/false, (err1, stdout1) => {
 			assert.equal(err1, null);
-			assert.notStrictEqual(stdout1.split('\n').indexOf(file0), -1, stdout1);
-			assert.notStrictEqual(stdout1.split('\n').indexOf(file1), -1, stdout1);
+			assert.notStrictEqual(stdout1!.split('\n').indexOf(file0), -1, stdout1);
+			assert.notStrictEqual(stdout1!.split('\n').indexOf(file1), -1, stdout1);
 
 			const walker = new FileWalker({
 				type: QueryType.File,
@@ -790,8 +790,8 @@ suite('FileWalker', () => {
 			const cmd2 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
 			walker.readStdout(cmd2, 'utf8', /*isRipgrep=*/false, (err2, stdout2) => {
 				assert.equal(err2, null);
-				assert.notStrictEqual(stdout1.split('\n').indexOf(file0), -1, stdout1);
-				assert.strictEqual(stdout2.split('\n').indexOf(file1), -1, stdout2);
+				assert.notStrictEqual(stdout1!.split('\n').indexOf(file0), -1, stdout1);
+				assert.strictEqual(stdout2!.split('\n').indexOf(file1), -1, stdout2);
 				done();
 			});
 		});
@@ -818,8 +818,8 @@ suite('FileWalker', () => {
 		const cmd1 = walker.spawnFindCmd(folderQueries[0]);
 		walker.readStdout(cmd1, 'utf8', /*isRipgrep=*/false, (err1, stdout1) => {
 			assert.equal(err1, null);
-			assert(outputContains(stdout1, file0), stdout1);
-			assert(!outputContains(stdout1, file1), stdout1);
+			assert(outputContains(stdout1!, file0), stdout1);
+			assert(!outputContains(stdout1!, file1), stdout1);
 			done();
 		});
 	});
@@ -839,17 +839,17 @@ suite('FileWalker', () => {
 		const cmd1 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
 		walker.readStdout(cmd1, 'utf8', /*isRipgrep=*/false, (err1, stdout1) => {
 			assert.equal(err1, null);
-			assert.notStrictEqual(stdout1.split('\n').indexOf(file0), -1, stdout1);
-			assert.notStrictEqual(stdout1.split('\n').indexOf(file1), -1, stdout1);
-			assert.notStrictEqual(stdout1.split('\n').indexOf(file2), -1, stdout1);
+			assert.notStrictEqual(stdout1!.split('\n').indexOf(file0), -1, stdout1);
+			assert.notStrictEqual(stdout1!.split('\n').indexOf(file1), -1, stdout1);
+			assert.notStrictEqual(stdout1!.split('\n').indexOf(file2), -1, stdout1);
 
 			const walker = new FileWalker({ type: QueryType.File, folderQueries: ROOT_FOLDER_QUERY, excludePattern: { '{**/examples,**/more}': true } });
 			const cmd2 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
 			walker.readStdout(cmd2, 'utf8', /*isRipgrep=*/false, (err2, stdout2) => {
 				assert.equal(err2, null);
-				assert.notStrictEqual(stdout1.split('\n').indexOf(file0), -1, stdout1);
-				assert.strictEqual(stdout2.split('\n').indexOf(file1), -1, stdout2);
-				assert.strictEqual(stdout2.split('\n').indexOf(file2), -1, stdout2);
+				assert.notStrictEqual(stdout1!.split('\n').indexOf(file0), -1, stdout1);
+				assert.strictEqual(stdout2!.split('\n').indexOf(file1), -1, stdout2);
+				assert.strictEqual(stdout2!.split('\n').indexOf(file2), -1, stdout2);
 				done();
 			});
 		});
@@ -869,15 +869,15 @@ suite('FileWalker', () => {
 		const cmd1 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
 		walker.readStdout(cmd1, 'utf8', /*isRipgrep=*/false, (err1, stdout1) => {
 			assert.equal(err1, null);
-			assert.notStrictEqual(stdout1.split('\n').indexOf(file0), -1, stdout1);
-			assert.notStrictEqual(stdout1.split('\n').indexOf(file1), -1, stdout1);
+			assert.notStrictEqual(stdout1!.split('\n').indexOf(file0), -1, stdout1);
+			assert.notStrictEqual(stdout1!.split('\n').indexOf(file1), -1, stdout1);
 
 			const walker = new FileWalker({ type: QueryType.File, folderQueries: ROOT_FOLDER_QUERY, excludePattern: { '**/examples/subfolder': true } });
 			const cmd2 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
 			walker.readStdout(cmd2, 'utf8', /*isRipgrep=*/false, (err2, stdout2) => {
 				assert.equal(err2, null);
-				assert.notStrictEqual(stdout1.split('\n').indexOf(file0), -1, stdout1);
-				assert.strictEqual(stdout2.split('\n').indexOf(file1), -1, stdout2);
+				assert.notStrictEqual(stdout1!.split('\n').indexOf(file0), -1, stdout1);
+				assert.strictEqual(stdout2!.split('\n').indexOf(file1), -1, stdout2);
 				done();
 			});
 		});
@@ -897,15 +897,15 @@ suite('FileWalker', () => {
 		const cmd1 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
 		walker.readStdout(cmd1, 'utf8', /*isRipgrep=*/false, (err1, stdout1) => {
 			assert.equal(err1, null);
-			assert.notStrictEqual(stdout1.split('\n').indexOf(file0), -1, stdout1);
-			assert.notStrictEqual(stdout1.split('\n').indexOf(file1), -1, stdout1);
+			assert.notStrictEqual(stdout1!.split('\n').indexOf(file0), -1, stdout1);
+			assert.notStrictEqual(stdout1!.split('\n').indexOf(file1), -1, stdout1);
 
 			const walker = new FileWalker({ type: QueryType.File, folderQueries: ROOT_FOLDER_QUERY, excludePattern: { '**/subfolder/anotherfolder': true } });
 			const cmd2 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
 			walker.readStdout(cmd2, 'utf8', /*isRipgrep=*/false, (err2, stdout2) => {
 				assert.equal(err2, null);
-				assert.notStrictEqual(stdout1.split('\n').indexOf(file0), -1, stdout1);
-				assert.strictEqual(stdout2.split('\n').indexOf(file1), -1, stdout2);
+				assert.notStrictEqual(stdout1!.split('\n').indexOf(file0), -1, stdout1);
+				assert.strictEqual(stdout2!.split('\n').indexOf(file1), -1, stdout2);
 				done();
 			});
 		});
@@ -925,15 +925,15 @@ suite('FileWalker', () => {
 		const cmd1 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
 		walker.readStdout(cmd1, 'utf8', /*isRipgrep=*/false, (err1, stdout1) => {
 			assert.equal(err1, null);
-			assert.notStrictEqual(stdout1.split('\n').indexOf(file0), -1, stdout1);
-			assert.notStrictEqual(stdout1.split('\n').indexOf(file1), -1, stdout1);
+			assert.notStrictEqual(stdout1!.split('\n').indexOf(file0), -1, stdout1);
+			assert.notStrictEqual(stdout1!.split('\n').indexOf(file1), -1, stdout1);
 
 			const walker = new FileWalker({ type: QueryType.File, folderQueries: ROOT_FOLDER_QUERY, excludePattern: { 'examples/subfolder': true } });
 			const cmd2 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
 			walker.readStdout(cmd2, 'utf8', /*isRipgrep=*/false, (err2, stdout2) => {
 				assert.equal(err2, null);
-				assert.notStrictEqual(stdout1.split('\n').indexOf(file0), -1, stdout1);
-				assert.strictEqual(stdout2.split('\n').indexOf(file1), -1, stdout2);
+				assert.notStrictEqual(stdout1!.split('\n').indexOf(file0), -1, stdout1);
+				assert.strictEqual(stdout2!.split('\n').indexOf(file1), -1, stdout2);
 				done();
 			});
 		});
@@ -970,10 +970,10 @@ suite('FileWalker', () => {
 		walker.readStdout(cmd1, 'utf8', /*isRipgrep=*/false, (err1, stdout1) => {
 			assert.equal(err1, null);
 			for (const fileIn of filesIn) {
-				assert.notStrictEqual(stdout1.split('\n').indexOf(fileIn), -1, stdout1);
+				assert.notStrictEqual(stdout1!.split('\n').indexOf(fileIn), -1, stdout1);
 			}
 			for (const fileOut of filesOut) {
-				assert.strictEqual(stdout1.split('\n').indexOf(fileOut), -1, stdout1);
+				assert.strictEqual(stdout1!.split('\n').indexOf(fileOut), -1, stdout1);
 			}
 			done();
 		});

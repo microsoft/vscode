@@ -476,7 +476,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private clearOnEditorDispose(editor: IEditorInput | IResourceInput | FileChangesEvent, mapEditorToDispose: Map<EditorInput, IDisposable[]>): void {
 		if (editor instanceof EditorInput) {
-			const disposables = this.editorHistoryListeners.get(editor);
+			const disposables = mapEditorToDispose.get(editor);
 			if (disposables) {
 				dispose(disposables);
 				mapEditorToDispose.delete(editor);

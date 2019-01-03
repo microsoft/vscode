@@ -18,9 +18,9 @@ class SimpleExtensionService implements IExtensionService {
 	get onDidRegisterExtensions(): Event<void> {
 		return this._onDidRegisterExtensions.event;
 	}
-	onDidChangeExtensionsStatus = null;
-	onWillActivateByEvent = null;
-	onDidChangeResponsiveChange = null;
+	onDidChangeExtensionsStatus = null!;
+	onWillActivateByEvent = null!;
+	onDidChangeResponsiveChange = null!;
 	activateByEvent(activationEvent: string): Promise<void> {
 		return this.whenInstalledExtensionsRegistered().then(() => { });
 	}
@@ -31,7 +31,7 @@ class SimpleExtensionService implements IExtensionService {
 		return Promise.resolve([]);
 	}
 	getExtensionsStatus() {
-		return undefined;
+		return undefined!;
 	}
 	getExtensions(): Promise<IExtensionDescription[]> {
 		return Promise.resolve([]);
@@ -138,7 +138,7 @@ suite('CommandService', function () {
 		assert.equal(callCounter, 0);
 
 		let reg = CommandsRegistry.registerCommand('bar', () => callCounter += 1);
-		resolveFunc(true);
+		resolveFunc!(true);
 
 		return r.then(() => {
 			reg.dispose();

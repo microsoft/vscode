@@ -49,7 +49,7 @@ export class TableOfContentsProvider {
 
 	private async buildToc(document: SkinnyTextDocument): Promise<TocEntry[]> {
 		const toc: TocEntry[] = [];
-		const tokens = await this.engine.parse(document.uri, document.getText());
+		const tokens = await this.engine.parse(document);
 
 		const slugCount = new Map<string, number>();
 

@@ -12,6 +12,8 @@ export interface ResolvedAuthority {
 	readonly host: string;
 	readonly port: number;
 	readonly syncExtensions: boolean;
+	readonly debugListenPort?: number;
+	readonly debugConnectPort?: number;
 }
 
 export interface IRemoteAuthorityResolverService {

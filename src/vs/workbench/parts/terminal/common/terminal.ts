@@ -102,6 +102,7 @@ export interface ITerminalConfiguration {
 	showExitAlert: boolean;
 	experimentalBufferImpl: 'JsArray' | 'TypedArray';
 	splitCwd: 'workspaceRoot' | 'initial' | 'inherited';
+	windowsEnableConpty: boolean;
 }
 
 export interface ITerminalConfigHelper {
@@ -425,6 +426,11 @@ export interface ITerminalInstance {
 	 * get cut off. If immediate kill any terminal processes immediately.
 	 */
 	dispose(immediate?: boolean): void;
+
+	/**
+	 * Forces the terminal to redraw its viewport.
+	 */
+	forceRedraw(): void;
 
 	/**
 	 * Registers a link matcher, allowing custom link patterns to be matched and handled.

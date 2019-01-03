@@ -8,10 +8,11 @@ import { URI } from 'vs/base/common/uri';
 import { MainContext, IMainContext, ExtHostDecorationsShape, MainThreadDecorationsShape, DecorationData, DecorationRequest, DecorationReply } from 'vs/workbench/api/node/extHost.protocol';
 import { Disposable } from 'vs/workbench/api/node/extHostTypes';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 interface ProviderData {
 	provider: vscode.DecorationProvider;
-	extensionId: string;
+	extensionId: CanonicalExtensionIdentifier;
 }
 
 export class ExtHostDecorations implements ExtHostDecorationsShape {
@@ -25,10 +26,10 @@ export class ExtHostDecorations implements ExtHostDecorationsShape {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadDecorations);
 	}
 
-	registerDecorationProvider(provider: vscode.DecorationProvider, extensionId: string): vscode.Disposable {
+	registerDecorationProvider(provider: vscode.DecorationProvider, extensionId: CanonicalExtensionIdentifier): vscode.Disposable {
 		const handle = ExtHostDecorations._handlePool++;
 		this._provider.set(handle, { provider, extensionId });
-		this._proxy.$registerDecorationProvider(handle, extensionId);
+		this._proxy.$registerDecorationProvider(handle, extensionId.value);
 
 		const listener = provider.onDidChangeDecorations(e => {
 			this._proxy.$onDidChange(handle, !e ? null : Array.isArray(e) ? e : [e]);
@@ -52,7 +53,7 @@ export class ExtHostDecorations implements ExtHostDecorationsShape {
 			const { provider, extensionId } = this._provider.get(handle);
 			return Promise.resolve(provider.provideDecoration(URI.revive(uri), token)).then(data => {
 				if (data && data.letter && data.letter.length !== 1) {
-					console.warn(`INVALID decoration from extension '${extensionId}'. The 'letter' must be set and be one character, not '${data.letter}'.`);
+					console.warn(`INVALID decoration from extension '${extensionId.value}'. The 'letter' must be set and be one character, not '${data.letter}'.`);
 				}
 				result[id] = data && <DecorationData>[data.priority, data.bubble, data.title, data.letter, data.color, data.source];
 			}, err => {

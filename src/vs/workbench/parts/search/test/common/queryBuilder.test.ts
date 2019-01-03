@@ -113,7 +113,11 @@ suite('QueryBuilder', () => {
 			<ITextQuery>{
 				contentPattern: PATTERN_INFO,
 				folderQueries: [{
-					folder: getUri(fixPath(paths.join(ROOT_1, 'bar')))
+					folder: ROOT_1_URI,
+					includePattern: {
+						'bar': true,
+						'bar/**': true
+					}
 				}],
 				type: QueryType.Text
 			});
@@ -127,7 +131,11 @@ suite('QueryBuilder', () => {
 			<ITextQuery>{
 				contentPattern: PATTERN_INFO,
 				folderQueries: [{
-					folder: getUri(fixPath(paths.join(ROOT_1, 'bar')))
+					folder: ROOT_1_URI,
+					includePattern: {
+						'bar': true,
+						'bar/**': true
+					}
 				}],
 				type: QueryType.Text
 			});
@@ -153,9 +161,16 @@ suite('QueryBuilder', () => {
 			<ITextQuery>{
 				contentPattern: PATTERN_INFO,
 				folderQueries: [{
-					folder: getUri(paths.join(ROOT_1, 'foo')),
+					folder: ROOT_1_URI,
+					includePattern: {
+						'foo': true,
+						'foo/**': true
+					},
 					excludePattern: {
-						['**/*.js']: true
+						'foo/**/*.js': true,
+						'bar/**': {
+							'when': '$(basename).ts'
+						}
 					}
 				}],
 				type: QueryType.Text
@@ -207,7 +222,16 @@ suite('QueryBuilder', () => {
 			<ITextQuery>{
 				contentPattern: PATTERN_INFO,
 				folderQueries: [
-					{ folder: getUri(paths.join(ROOT_2, 'src')) }
+					{
+						folder: ROOT_2_URI,
+						includePattern: {
+							'src': true,
+							'src/**': true
+						},
+						excludePattern: {
+							'bar': true
+						},
+					}
 				],
 				type: QueryType.Text
 			}
@@ -255,9 +279,9 @@ suite('QueryBuilder', () => {
 			<ITextQuery>{
 				contentPattern: PATTERN_INFO,
 				folderQueries: [{
-					folder: ROOT_1_URI
+					folder: ROOT_1_URI,
+					excludePattern: patternsToIExpression('bar', 'bar/**'),
 				}],
-				excludePattern: patternsToIExpression('bar'),
 				type: QueryType.Text
 			});
 
@@ -270,9 +294,9 @@ suite('QueryBuilder', () => {
 			<ITextQuery>{
 				contentPattern: PATTERN_INFO,
 				folderQueries: [{
-					folder: ROOT_1_URI
+					folder: ROOT_1_URI,
+					excludePattern: patternsToIExpression('bar/**/*.ts', 'bar/**/*.ts/**'),
 				}],
-				excludePattern: patternsToIExpression('bar/**/*.ts'),
 				type: QueryType.Text
 			});
 
@@ -285,9 +309,9 @@ suite('QueryBuilder', () => {
 			<ITextQuery>{
 				contentPattern: PATTERN_INFO,
 				folderQueries: [{
-					folder: ROOT_1_URI
+					folder: ROOT_1_URI,
+					excludePattern: patternsToIExpression('bar/**/*.ts', 'bar/**/*.ts/**'),
 				}],
-				excludePattern: patternsToIExpression('bar/**/*.ts'),
 				type: QueryType.Text
 			});
 	});
@@ -411,7 +435,7 @@ suite('QueryBuilder', () => {
 					<ISearchPathsResult>{
 						searchPaths: [{
 							searchPath: getUri('/foo/bar'),
-							pattern: '**/*.ts'
+							pattern: patternsToIExpression('**/*.ts', '**/*.ts/**')
 						}]
 					}
 				],
@@ -420,7 +444,7 @@ suite('QueryBuilder', () => {
 					<ISearchPathsResult>{
 						searchPaths: [{
 							searchPath: getUri('/foo/bar'),
-							pattern: '*a/b/c'
+							pattern: patternsToIExpression('*a/b/c', '*a/b/c/**')
 						}]
 					}
 				],
@@ -429,7 +453,7 @@ suite('QueryBuilder', () => {
 					<ISearchPathsResult>{
 						searchPaths: [{
 							searchPath: getUri('/'),
-							pattern: '*a/b/c'
+							pattern: patternsToIExpression('*a/b/c', '*a/b/c/**')
 						}]
 					}
 				],
@@ -438,7 +462,7 @@ suite('QueryBuilder', () => {
 					<ISearchPathsResult>{
 						searchPaths: [{
 							searchPath: getUri('/foo'),
-							pattern: '{b,c}ar'
+							pattern: patternsToIExpression('{b,c}ar', '{b,c}ar/**')
 						}]
 					}
 				]
@@ -478,7 +502,17 @@ suite('QueryBuilder', () => {
 					'./a',
 					<ISearchPathsResult>{
 						searchPaths: [{
-							searchPath: getUri(ROOT_1 + '/a')
+							searchPath: ROOT_1_URI,
+							pattern: patternsToIExpression('a', 'a/**')
+						}]
+					}
+				],
+				[
+					'./a/',
+					<ISearchPathsResult>{
+						searchPaths: [{
+							searchPath: ROOT_1_URI,
+							pattern: patternsToIExpression('a', 'a/**')
 						}]
 					}
 				],
@@ -486,8 +520,8 @@ suite('QueryBuilder', () => {
 					'./a/*b/c',
 					<ISearchPathsResult>{
 						searchPaths: [{
-							searchPath: getUri(ROOT_1 + '/a'),
-							pattern: '*b/c'
+							searchPath: ROOT_1_URI,
+							pattern: patternsToIExpression('a/*b/c', 'a/*b/c/**')
 						}]
 					}
 				],
@@ -496,8 +530,8 @@ suite('QueryBuilder', () => {
 					<ISearchPathsResult>{
 						searchPaths: [
 							{
-								searchPath: getUri(ROOT_1 + '/a'),
-								pattern: '*b/c'
+								searchPath: ROOT_1_URI,
+								pattern: patternsToIExpression('a/*b/c', 'a/*b/c/**')
 							},
 							{
 								searchPath: getUri('/project/foo')
@@ -505,21 +539,23 @@ suite('QueryBuilder', () => {
 					}
 				],
 				[
-					'./a/b/..,./a',
+					'./a/b/,./c/d',
 					<ISearchPathsResult>{
 						searchPaths: [{
-							searchPath: getUri(ROOT_1 + '/a')
+							searchPath: ROOT_1_URI,
+							pattern: patternsToIExpression('a/b', 'a/b/**', 'c/d', 'c/d/**')
 						}]
 					}
 				],
-				[
-					'../',
-					<ISearchPathsResult>{
-						searchPaths: [{
-							searchPath: getUri('foo/')
-						}]
-					}
-				]
+				// TODO @ rob
+				// [
+				// 	'../',
+				// 	<ISearchPathsResult>{
+				// 		searchPaths: [{
+				// 			searchPath: getUri('foo/')
+				// 		}]
+				// 	}
+				// ]
 			];
 			cases.forEach(testIncludesDataItem);
 		});
@@ -551,12 +587,12 @@ suite('QueryBuilder', () => {
 					<ISearchPathsResult>{
 						searchPaths: [
 							{
-								searchPath: getUri(ROOT_1 + '/a'),
-								pattern: '**/b'
+								searchPath: ROOT_1_URI,
+								pattern: patternsToIExpression('a/**/b', 'a/**/b/**')
 							},
 							{
 								searchPath: getUri(ROOT_2),
-								pattern: '**/*.txt'
+								pattern: patternsToIExpression('**/*.txt', '**/*.txt/**')
 							}]
 					}
 				]
@@ -575,7 +611,7 @@ suite('QueryBuilder', () => {
 					'./foldername',
 					<ISearchPathsResult>{
 						searchPaths: [{
-							searchPath: getUri(ROOT_1)
+							searchPath: ROOT_1_URI
 						}]
 					}
 				],
@@ -583,7 +619,8 @@ suite('QueryBuilder', () => {
 					'./foldername/foo',
 					<ISearchPathsResult>{
 						searchPaths: [{
-							searchPath: getUri(paths.join(ROOT_1, 'foo'))
+							searchPath: ROOT_1_URI,
+							pattern: patternsToIExpression('foo', 'foo/**')
 						}]
 					}
 				]
@@ -643,34 +680,23 @@ suite('QueryBuilder', () => {
 					<ISearchPathsResult>{
 						searchPaths: [
 							{
-								searchPath: getUri(ROOT_2 + '/a'),
-								pattern: '**/b'
+								searchPath: getUri(ROOT_2),
+								pattern: patternsToIExpression('a/**/b', 'a/**/b/**', 'b/**/*.txt', 'b/**/*.txt/**')
 							},
 							{
-								searchPath: getUri(ROOT_3 + '/a'),
-								pattern: '**/b'
-							},
-							{
-								searchPath: getUri(ROOT_2 + '/b'),
-								pattern: '**/*.txt'
-							},
-							{
-								searchPath: getUri(ROOT_3 + '/b'),
-								pattern: '**/*.txt'
+								searchPath: getUri(ROOT_3),
+								pattern: patternsToIExpression('a/**/b', 'a/**/b/**', 'b/**/*.txt', 'b/**/*.txt/**')
 							}]
 					}
 				],
 				[
 					'./root1/**/foo/, bar/',
 					<ISearchPathsResult>{
-						pattern: {
-							'**/bar': true,
-							'**/bar/**': true
-						},
+						pattern: patternsToIExpression('**/bar', '**/bar/**'),
 						searchPaths: [
 							{
 								searchPath: ROOT_1_URI,
-								pattern: '**/foo'
+								pattern: patternsToIExpression('**/foo', '**/foo/**')
 							}]
 					}
 				]
@@ -817,7 +843,7 @@ function assertEqualQueries(actual: ITextQuery | IFileQuery, expected: ITextQuer
 	}
 
 	if (expected.extraFileResources) {
-		assert.deepEqual(actual.extraFileResources.map(extraFile => extraFile.fsPath), expected.extraFileResources.map(extraFile => extraFile.fsPath));
+		assert.deepEqual(actual.extraFileResources!.map(extraFile => extraFile.fsPath), expected.extraFileResources.map(extraFile => extraFile.fsPath));
 		delete expected.extraFileResources;
 		delete actual.extraFileResources;
 	}
@@ -837,8 +863,8 @@ function assertEqualSearchPathResults(actual: ISearchPathsResult, expected: ISea
 	assert.equal(actual.searchPaths && actual.searchPaths.length, expected.searchPaths && expected.searchPaths.length);
 	if (actual.searchPaths) {
 		actual.searchPaths.forEach((searchPath, i) => {
-			const expectedSearchPath = expected.searchPaths[i];
-			assert.equal(searchPath.pattern, expectedSearchPath.pattern);
+			const expectedSearchPath = expected.searchPaths![i];
+			assert.deepEqual(searchPath.pattern, expectedSearchPath.pattern);
 			assert.equal(searchPath.searchPath.toString(), expectedSearchPath.searchPath.toString());
 		});
 	}
@@ -885,7 +911,7 @@ function fixPath(...slashPathParts: string[]): string {
 	return paths.join(...slashPathParts);
 }
 
-function normalizeExpression(expression: IExpression): IExpression {
+function normalizeExpression(expression: IExpression | undefined): IExpression | undefined {
 	if (!expression) {
 		return expression;
 	}

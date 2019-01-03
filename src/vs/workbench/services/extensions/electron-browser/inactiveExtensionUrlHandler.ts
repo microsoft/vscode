@@ -16,6 +16,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IURLHandler, IURLService } from 'vs/platform/url/common/url';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 const FIVE_MINUTES = 5 * 60 * 1000;
 const THIRTY_SECONDS = 30 * 1000;
@@ -29,8 +30,8 @@ export const IExtensionUrlHandler = createDecorator<IExtensionUrlHandler>('inact
 
 export interface IExtensionUrlHandler {
 	readonly _serviceBrand: any;
-	registerExtensionHandler(extensionId: string, handler: IURLHandler): void;
-	unregisterExtensionHandler(extensionId: string): void;
+	registerExtensionHandler(extensionId: CanonicalExtensionIdentifier, handler: IURLHandler): void;
+	unregisterExtensionHandler(extensionId: CanonicalExtensionIdentifier): void;
 }
 
 /**
@@ -80,7 +81,7 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		}
 
 		const extensionId = uri.authority;
-		const wasHandlerAvailable = this.extensionHandlers.has(extensionId);
+		const wasHandlerAvailable = this.extensionHandlers.has(CanonicalExtensionIdentifier.toKey(extensionId));
 		const extension = await this.extensionService.getExtension(extensionId);
 
 		if (!extension) {
@@ -101,7 +102,7 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 			}
 		}
 
-		const handler = this.extensionHandlers.get(extensionId);
+		const handler = this.extensionHandlers.get(CanonicalExtensionIdentifier.toKey(extensionId));
 
 		if (handler) {
 			if (!wasHandlerAvailable) {
@@ -115,34 +116,34 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 
 		// collect URI for eventual extension activation
 		const timestamp = new Date().getTime();
-		let uris = this.uriBuffer.get(extensionId);
+		let uris = this.uriBuffer.get(CanonicalExtensionIdentifier.toKey(extensionId));
 
 		if (!uris) {
 			uris = [];
-			this.uriBuffer.set(extensionId, uris);
+			this.uriBuffer.set(CanonicalExtensionIdentifier.toKey(extensionId), uris);
 		}
 
 		uris.push({ timestamp, uri });
 
 		// activate the extension
-		await this.extensionService.activateByEvent(`onUri:${extensionId}`);
+		await this.extensionService.activateByEvent(`onUri:${CanonicalExtensionIdentifier.toKey(extensionId)}`);
 		return true;
 	}
 
-	registerExtensionHandler(extensionId: string, handler: IURLHandler): void {
-		this.extensionHandlers.set(extensionId, handler);
+	registerExtensionHandler(extensionId: CanonicalExtensionIdentifier, handler: IURLHandler): void {
+		this.extensionHandlers.set(CanonicalExtensionIdentifier.toKey(extensionId), handler);
 
-		const uris = this.uriBuffer.get(extensionId) || [];
+		const uris = this.uriBuffer.get(CanonicalExtensionIdentifier.toKey(extensionId)) || [];
 
 		for (const { uri } of uris) {
 			handler.handleURL(uri);
 		}
 
-		this.uriBuffer.delete(extensionId);
+		this.uriBuffer.delete(CanonicalExtensionIdentifier.toKey(extensionId));
 	}
 
-	unregisterExtensionHandler(extensionId: string): void {
-		this.extensionHandlers.delete(extensionId);
+	unregisterExtensionHandler(extensionId: CanonicalExtensionIdentifier): void {
+		this.extensionHandlers.delete(CanonicalExtensionIdentifier.toKey(extensionId));
 	}
 
 	private async handleUnhandledURL(uri: URI, extensionIdentifier: IExtensionIdentifier): Promise<void> {

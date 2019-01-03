@@ -47,7 +47,7 @@ declare module 'vscode' {
 	export class SelectionRange {
 		kind: SelectionRangeKind;
 		range: Range;
-		constructor(kind: SelectionRangeKind, range: Range);
+		constructor(range: Range, kind: SelectionRangeKind);
 	}
 
 	export interface SelectionRangeProvider {

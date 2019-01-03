@@ -133,7 +133,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 			terminalEnvironment.addTerminalEnvironmentKeys(env, platform.locale, this._configHelper.config.setLocaleVariables);
 
 			this._logService.debug(`Terminal process launching`, shellLaunchConfig, this.initialCwd, cols, rows, env);
-			this._process = new TerminalProcess(shellLaunchConfig, this.initialCwd, cols, rows, env);
+			this._process = new TerminalProcess(shellLaunchConfig, this.initialCwd, cols, rows, env, this._configHelper.config.windowsEnableConpty);
 		}
 		this.processState = ProcessState.LAUNCHING;
 

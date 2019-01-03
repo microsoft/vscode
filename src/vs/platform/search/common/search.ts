@@ -76,7 +76,7 @@ export interface ICommonQueryProps<U extends UriComponents> {
 	/** For telemetry - indicates what is triggering the source */
 	_reason?: string;
 
-	folderQueries?: IFolderQuery<U>[];
+	folderQueries: IFolderQuery<U>[];
 	includePattern?: glob.IExpression;
 	excludePattern?: glob.IExpression;
 	extraFileResources?: U[];
@@ -153,7 +153,7 @@ export interface IExtendedExtensionSearchOptions {
 }
 
 export interface IFileMatch<U extends UriComponents = URI> {
-	resource?: U;
+	resource: U;
 	results?: ITextSearchResult[];
 }
 
@@ -200,9 +200,7 @@ export interface IProgress {
 	message?: string;
 }
 
-export interface ISearchProgressItem extends IFileMatch, IProgress {
-	// Marker interface to indicate the possible values for progress calls from the engine
-}
+export type ISearchProgressItem = IFileMatch | IProgress;
 
 export interface ISearchCompleteStats {
 	limitHit?: boolean;

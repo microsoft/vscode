@@ -97,7 +97,7 @@ const defaultConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<I
 });
 defaultConfigurationExtPoint.setHandler(extensions => {
 	registeredDefaultConfigurations = extensions.map(extension => {
-		const id = extension.description.id;
+		const id = extension.description.identifier;
 		const name = extension.description.name;
 		const defaults = objects.deepClone(extension.value);
 		return <IDefaultConfigurationExtension>{
@@ -135,9 +135,9 @@ configurationExtPoint.setHandler(extensions => {
 
 		validateProperties(configuration, extension);
 
-		configuration.id = node.id || extension.description.id || extension.description.uuid;
+		configuration.id = node.id || extension.description.identifier.value;
 		configuration.contributedByExtension = true;
-		configuration.title = configuration.title || extension.description.displayName || extension.description.id;
+		configuration.title = configuration.title || extension.description.displayName || extension.description.identifier.value;
 		configurations.push(configuration);
 	}
 

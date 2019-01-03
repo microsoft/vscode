@@ -7,13 +7,15 @@ import * as cp from 'child_process';
 import { EventEmitter } from 'events';
 import * as path from 'path';
 import { NodeStringDecoder, StringDecoder } from 'string_decoder';
-import { createRegExp, startsWith, startsWithUTF8BOM, stripUTF8BOM, escapeRegExpCharacters } from 'vs/base/common/strings';
+import { createRegExp, startsWith, startsWithUTF8BOM, stripUTF8BOM, escapeRegExpCharacters, endsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { IExtendedExtensionSearchOptions, SearchError, SearchErrorCode, serializeSearchError } from 'vs/platform/search/common/search';
 import * as vscode from 'vscode';
 import { rgPath } from 'vscode-ripgrep';
 import { anchorGlob, createTextSearchResult, IOutputChannel, Maybe, Range } from './ripgrepSearchUtils';
 import { coalesce } from 'vs/base/common/arrays';
+import { splitGlobAware } from 'vs/base/common/glob';
+import { groupBy } from 'vs/base/common/collections';
 
 // If vscode-ripgrep is in an .asar file, then the binary is unpacked.
 const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
@@ -326,9 +328,36 @@ function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOpti
 	const args = ['--hidden'];
 	args.push(query.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
 
-	options.includes
-		.map(anchorGlob)
-		.forEach(globArg => args.push('-g', globArg));
+	const { doubleStarIncludes, otherIncludes } = groupBy(
+		options.includes,
+		(include: string) => startsWith(include, '**') ? 'doubleStarIncludes' : 'otherIncludes');
+
+	if (otherIncludes && otherIncludes.length) {
+		const uniqueOthers = new Set<string>();
+		otherIncludes.forEach(other => {
+			if (!endsWith(other, '/**')) {
+				other += '/**';
+			}
+
+			uniqueOthers.add(other);
+		});
+
+		args.push('-g', '!*');
+		uniqueOthers
+			.forEach(otherIncude => {
+				spreadGlobComponents(otherIncude)
+					.map(anchorGlob)
+					.forEach(globArg => {
+						args.push('-g', globArg);
+					});
+			});
+	}
+
+	if (doubleStarIncludes && doubleStarIncludes.length) {
+		doubleStarIncludes.forEach(globArg => {
+			args.push('-g', globArg);
+		});
+	}
 
 	options.excludes
 		.map(anchorGlob)
@@ -422,6 +451,18 @@ function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOpti
 	args.push('.');
 
 	return args;
+}
+
+/**
+ * `"foo/*bar/something"` -> `["foo", "foo/*bar", "foo/*bar/something", "foo/*bar/something/**"]`
+ */
+export function spreadGlobComponents(globArg: string): string[] {
+	const components = splitGlobAware(globArg, '/');
+	if (components[components.length - 1] !== '**') {
+		components.push('**');
+	}
+
+	return components.map((_, i) => components.slice(0, i + 1).join('/'));
 }
 
 export function unicodeEscapesToPCRE2(pattern: string): string {

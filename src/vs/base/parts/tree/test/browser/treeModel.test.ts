@@ -36,7 +36,7 @@ export class FakeRenderer {
 
 class TreeContext implements _.ITreeContext {
 
-	public tree: _.ITree = null;
+	public tree: _.ITree = null!;
 	public options: _.ITreeOptions = { autoExpandSingleChildren: true };
 	public dataSource: _.IDataSource;
 	public renderer: _.IRenderer;
@@ -72,7 +72,7 @@ class EventCounter {
 		this._count = 0;
 	}
 
-	public listen<T>(event: Event<T>, fn: (e: T) => void = null): () => void {
+	public listen<T>(event: Event<T>, fn: ((e: T) => void) | null = null): () => void {
 		let r = event(data => {
 			this._count++;
 			if (fn) {

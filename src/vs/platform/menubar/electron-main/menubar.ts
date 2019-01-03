@@ -93,10 +93,6 @@ export class Menubar {
 	}
 
 	private restoreCachedMenubarData() {
-		// TODO@sbatten remove this at some point down the road
-		const outdatedKeys = ['lastKnownAdditionalKeybindings', 'lastKnownKeybindings', 'lastKnownMenubar'];
-		outdatedKeys.forEach(key => this.stateService.removeItem(key));
-
 		const menubarData = this.stateService.getItem<IMenubarData>(Menubar.lastKnownMenubarStorageKey);
 		if (menubarData) {
 			if (menubarData.menus) {

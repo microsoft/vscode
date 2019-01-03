@@ -7,13 +7,21 @@ import { localize } from 'vs/nls';
 import { MenuRegistry } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { Extensions as Input, IEditorInputFactory, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
-import { PerfviewInput } from 'vs/workbench/parts/performance/electron-browser/perfviewEditor';
+import { PerfviewContrib, PerfviewInput } from 'vs/workbench/parts/performance/electron-browser/perfviewEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import './startupProfiler';
-import './startupTimings';
-import './stats';
+import { StartupProfiler } from './startupProfiler';
+import { StartupTimings } from './startupTimings';
+
+// -- startup performance view
+
+Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
+	PerfviewContrib,
+	LifecyclePhase.Ready
+);
 
 Registry.as<IEditorInputFactoryRegistry>(Input.EditorInputFactories).registerEditorInputFactory(
 	PerfviewInput.Id,
@@ -28,7 +36,6 @@ Registry.as<IEditorInputFactoryRegistry>(Input.EditorInputFactories).registerEdi
 );
 
 CommandsRegistry.registerCommand('perfview.show', accessor => {
-
 	const editorService = accessor.get(IEditorService);
 	const instaService = accessor.get(IInstantiationService);
 	return editorService.openEditor(instaService.createInstance(PerfviewInput));
@@ -37,5 +44,20 @@ CommandsRegistry.registerCommand('perfview.show', accessor => {
 MenuRegistry.addCommand({
 	id: 'perfview.show',
 	category: localize('show.cat', "Developer"),
-	title: localize('show.label', "Startup Performance (2)")
+	title: localize('show.label', "Startup Performance")
 });
+
+
+// -- startup profiler
+
+Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
+	StartupProfiler,
+	LifecyclePhase.Restored
+);
+
+// -- startup timings
+
+Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
+	StartupTimings,
+	LifecyclePhase.Eventually
+);

@@ -278,7 +278,7 @@ export class OpenEditorsView extends ViewletPanel {
 			const element = focused.length ? focused[0] : undefined;
 			if (element instanceof OpenEditor) {
 				this.openEditor(element, { preserveFocus: isSingleClick, pinned: isDoubleClick, sideBySide: openToSide });
-			} else {
+			} else if (element) {
 				this.editorGroupService.activateGroup(element);
 			}
 		}));

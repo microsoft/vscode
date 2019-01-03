@@ -22,7 +22,7 @@ class TestSnippetController extends SnippetController2 {
 	}
 
 	isInSnippetMode(): boolean {
-		return SnippetController2.InSnippetMode.getValue(this._contextKeyService);
+		return SnippetController2.InSnippetMode.getValue(this._contextKeyService)!;
 	}
 
 }
@@ -42,7 +42,7 @@ suite('SnippetController', () => {
 		}
 
 		withTestCodeEditor(lines, {}, (editor, cursor) => {
-			editor.getModel().updateOptions({
+			editor.getModel()!.updateOptions({
 				insertSpaces: false
 			});
 			let snippetController = editor.registerAndInstantiateContribution<TestSnippetController>(TestSnippetController);
@@ -63,30 +63,30 @@ suite('SnippetController', () => {
 			editor.setPosition({ lineNumber: 4, column: 2 });
 
 			snippetController.insert(template, 0, 0);
-			assert.equal(editor.getModel().getLineContent(4), '\tfor (var index; index < array.length; index++) {');
-			assert.equal(editor.getModel().getLineContent(5), '\t\tvar element = array[index];');
-			assert.equal(editor.getModel().getLineContent(6), '\t\t');
-			assert.equal(editor.getModel().getLineContent(7), '\t}');
+			assert.equal(editor.getModel()!.getLineContent(4), '\tfor (var index; index < array.length; index++) {');
+			assert.equal(editor.getModel()!.getLineContent(5), '\t\tvar element = array[index];');
+			assert.equal(editor.getModel()!.getLineContent(6), '\t\t');
+			assert.equal(editor.getModel()!.getLineContent(7), '\t}');
 
 			editor.trigger('test', 'type', { text: 'i' });
-			assert.equal(editor.getModel().getLineContent(4), '\tfor (var i; i < array.length; i++) {');
-			assert.equal(editor.getModel().getLineContent(5), '\t\tvar element = array[i];');
-			assert.equal(editor.getModel().getLineContent(6), '\t\t');
-			assert.equal(editor.getModel().getLineContent(7), '\t}');
+			assert.equal(editor.getModel()!.getLineContent(4), '\tfor (var i; i < array.length; i++) {');
+			assert.equal(editor.getModel()!.getLineContent(5), '\t\tvar element = array[i];');
+			assert.equal(editor.getModel()!.getLineContent(6), '\t\t');
+			assert.equal(editor.getModel()!.getLineContent(7), '\t}');
 
 			snippetController.next();
 			editor.trigger('test', 'type', { text: 'arr' });
-			assert.equal(editor.getModel().getLineContent(4), '\tfor (var i; i < arr.length; i++) {');
-			assert.equal(editor.getModel().getLineContent(5), '\t\tvar element = arr[i];');
-			assert.equal(editor.getModel().getLineContent(6), '\t\t');
-			assert.equal(editor.getModel().getLineContent(7), '\t}');
+			assert.equal(editor.getModel()!.getLineContent(4), '\tfor (var i; i < arr.length; i++) {');
+			assert.equal(editor.getModel()!.getLineContent(5), '\t\tvar element = arr[i];');
+			assert.equal(editor.getModel()!.getLineContent(6), '\t\t');
+			assert.equal(editor.getModel()!.getLineContent(7), '\t}');
 
 			snippetController.prev();
 			editor.trigger('test', 'type', { text: 'j' });
-			assert.equal(editor.getModel().getLineContent(4), '\tfor (var j; j < arr.length; j++) {');
-			assert.equal(editor.getModel().getLineContent(5), '\t\tvar element = arr[j];');
-			assert.equal(editor.getModel().getLineContent(6), '\t\t');
-			assert.equal(editor.getModel().getLineContent(7), '\t}');
+			assert.equal(editor.getModel()!.getLineContent(4), '\tfor (var j; j < arr.length; j++) {');
+			assert.equal(editor.getModel()!.getLineContent(5), '\t\tvar element = arr[j];');
+			assert.equal(editor.getModel()!.getLineContent(6), '\t\t');
+			assert.equal(editor.getModel()!.getLineContent(7), '\t}');
 
 			snippetController.next();
 			snippetController.next();
@@ -99,10 +99,10 @@ suite('SnippetController', () => {
 			editor.setPosition({ lineNumber: 4, column: 2 });
 
 			snippetController.insert(template, 0, 0);
-			assert.equal(editor.getModel().getLineContent(4), '\tfor (var index; index < array.length; index++) {');
-			assert.equal(editor.getModel().getLineContent(5), '\t\tvar element = array[index];');
-			assert.equal(editor.getModel().getLineContent(6), '\t\t');
-			assert.equal(editor.getModel().getLineContent(7), '\t}');
+			assert.equal(editor.getModel()!.getLineContent(4), '\tfor (var index; index < array.length; index++) {');
+			assert.equal(editor.getModel()!.getLineContent(5), '\t\tvar element = array[index];');
+			assert.equal(editor.getModel()!.getLineContent(6), '\t\t');
+			assert.equal(editor.getModel()!.getLineContent(7), '\t}');
 
 			snippetController.cancel();
 			assert.deepEqual(editor.getPosition(), new Position(4, 16));
@@ -114,7 +114,7 @@ suite('SnippetController', () => {
 	// 		editor.setPosition({ lineNumber: 4, column: 2 });
 	// 		snippetController.insert(codeSnippet, 0, 0);
 
-	// 		editor.getModel().applyEdits([{
+	// 		editor.getModel()!.applyEdits([{
 	// 			forceMoveMarkers: false,
 	// 			identifier: null,
 	// 			isAutoWhitespaceEdit: false,
@@ -131,7 +131,7 @@ suite('SnippetController', () => {
 	// 		editor.setPosition({ lineNumber: 4, column: 2 });
 	// 		snippetController.run(codeSnippet, 0, 0);
 
-	// 		editor.getModel().applyEdits([{
+	// 		editor.getModel()!.applyEdits([{
 	// 			forceMoveMarkers: false,
 	// 			identifier: null,
 	// 			isAutoWhitespaceEdit: false,
@@ -148,7 +148,7 @@ suite('SnippetController', () => {
 	// 		editor.setPosition({ lineNumber: 4, column: 2 });
 	// 		snippetController.run(codeSnippet, 0, 0);
 
-	// 		editor.getModel().applyEdits([{
+	// 		editor.getModel()!.applyEdits([{
 	// 			forceMoveMarkers: false,
 	// 			identifier: null,
 	// 			isAutoWhitespaceEdit: false,
@@ -165,7 +165,7 @@ suite('SnippetController', () => {
 	// 		editor.setPosition({ lineNumber: 4, column: 2 });
 	// 		snippetController.run(codeSnippet, 0, 0);
 
-	// 		editor.getModel().applyEdits([{
+	// 		editor.getModel()!.applyEdits([{
 	// 			forceMoveMarkers: false,
 	// 			identifier: null,
 	// 			isAutoWhitespaceEdit: false,
@@ -182,7 +182,7 @@ suite('SnippetController', () => {
 			editor.setPosition({ lineNumber: 4, column: 2 });
 			snippetController.insert(codeSnippet, 0, 0);
 
-			editor.getModel().setValue('goodbye');
+			editor.getModel()!.setValue('goodbye');
 
 			assert.equal(snippetController.isInSnippetMode(), false);
 		});
@@ -193,7 +193,7 @@ suite('SnippetController', () => {
 			editor.setPosition({ lineNumber: 4, column: 2 });
 			snippetController.insert(codeSnippet, 0, 0);
 
-			editor.getModel().undo();
+			editor.getModel()!.undo();
 
 			assert.equal(snippetController.isInSnippetMode(), false);
 		});
@@ -242,8 +242,8 @@ suite('SnippetController', () => {
 			codeSnippet = 'foo$0';
 			snippetController.insert(codeSnippet, 0, 0);
 
-			assert.equal(editor.getSelections().length, 2);
-			const [first, second] = editor.getSelections();
+			assert.equal(editor.getSelections()!.length, 2);
+			const [first, second] = editor.getSelections()!;
 			assert.ok(first.equalsRange({ startLineNumber: 1, startColumn: 4, endLineNumber: 1, endColumn: 4 }), first.toString());
 			assert.ok(second.equalsRange({ startLineNumber: 2, startColumn: 4, endLineNumber: 2, endColumn: 4 }), second.toString());
 		});
@@ -257,8 +257,8 @@ suite('SnippetController', () => {
 			codeSnippet = 'foo$0bar';
 			snippetController.insert(codeSnippet, 0, 0);
 
-			assert.equal(editor.getSelections().length, 2);
-			const [first, second] = editor.getSelections();
+			assert.equal(editor.getSelections()!.length, 2);
+			const [first, second] = editor.getSelections()!;
 			assert.ok(first.equalsRange({ startLineNumber: 1, startColumn: 4, endLineNumber: 1, endColumn: 4 }), first.toString());
 			assert.ok(second.equalsRange({ startLineNumber: 2, startColumn: 4, endLineNumber: 2, endColumn: 4 }), second.toString());
 		});
@@ -272,8 +272,8 @@ suite('SnippetController', () => {
 			codeSnippet = 'foo$0bar';
 			snippetController.insert(codeSnippet, 0, 0);
 
-			assert.equal(editor.getSelections().length, 2);
-			const [first, second] = editor.getSelections();
+			assert.equal(editor.getSelections()!.length, 2);
+			const [first, second] = editor.getSelections()!;
 			assert.ok(first.equalsRange({ startLineNumber: 1, startColumn: 4, endLineNumber: 1, endColumn: 4 }), first.toString());
 			assert.ok(second.equalsRange({ startLineNumber: 1, startColumn: 14, endLineNumber: 1, endColumn: 14 }), second.toString());
 		});
@@ -287,8 +287,8 @@ suite('SnippetController', () => {
 			codeSnippet = 'foo\n$0\nbar';
 			snippetController.insert(codeSnippet, 0, 0);
 
-			assert.equal(editor.getSelections().length, 2);
-			const [first, second] = editor.getSelections();
+			assert.equal(editor.getSelections()!.length, 2);
+			const [first, second] = editor.getSelections()!;
 			assert.ok(first.equalsRange({ startLineNumber: 2, startColumn: 1, endLineNumber: 2, endColumn: 1 }), first.toString());
 			assert.ok(second.equalsRange({ startLineNumber: 4, startColumn: 1, endLineNumber: 4, endColumn: 1 }), second.toString());
 		});
@@ -302,8 +302,8 @@ suite('SnippetController', () => {
 			codeSnippet = 'foo\n$0\nbar';
 			snippetController.insert(codeSnippet, 0, 0);
 
-			assert.equal(editor.getSelections().length, 2);
-			const [first, second] = editor.getSelections();
+			assert.equal(editor.getSelections()!.length, 2);
+			const [first, second] = editor.getSelections()!;
 			assert.ok(first.equalsRange({ startLineNumber: 2, startColumn: 1, endLineNumber: 2, endColumn: 1 }), first.toString());
 			assert.ok(second.equalsRange({ startLineNumber: 4, startColumn: 1, endLineNumber: 4, endColumn: 1 }), second.toString());
 		});
@@ -316,8 +316,8 @@ suite('SnippetController', () => {
 			codeSnippet = 'xo$0r';
 			snippetController.insert(codeSnippet, 1, 0);
 
-			assert.equal(editor.getSelections().length, 1);
-			assert.ok(editor.getSelection().equalsRange({ startLineNumber: 2, startColumn: 8, endColumn: 8, endLineNumber: 2 }));
+			assert.equal(editor.getSelections()!.length, 1);
+			assert.ok(editor.getSelection()!.equalsRange({ startLineNumber: 2, startColumn: 8, endColumn: 8, endLineNumber: 2 }));
 		});
 	});
 
@@ -329,9 +329,9 @@ suite('SnippetController', () => {
 			codeSnippet = '{{% url_**$1** %}}';
 			controller.insert(codeSnippet, 2, 0);
 
-			assert.equal(editor.getSelections().length, 1);
-			assert.ok(editor.getSelection().equalsRange({ startLineNumber: 1, startColumn: 27, endLineNumber: 1, endColumn: 27 }));
-			assert.equal(editor.getModel().getValue(), 'example example {{% url_**** %}}');
+			assert.equal(editor.getSelections()!.length, 1);
+			assert.ok(editor.getSelection()!.equalsRange({ startLineNumber: 1, startColumn: 27, endLineNumber: 1, endColumn: 27 }));
+			assert.equal(editor.getModel()!.getValue(), 'example example {{% url_**** %}}');
 
 		}, ['example example sc']);
 
@@ -347,9 +347,9 @@ suite('SnippetController', () => {
 
 			controller.insert(codeSnippet, 2, 0);
 
-			assert.equal(editor.getSelections().length, 1);
-			assert.ok(editor.getSelection().equalsRange({ startLineNumber: 2, startColumn: 2, endLineNumber: 2, endColumn: 2 }), editor.getSelection().toString());
-			assert.equal(editor.getModel().getValue(), 'afterEach((done) => {\n\ttest\n});');
+			assert.equal(editor.getSelections()!.length, 1);
+			assert.ok(editor.getSelection()!.equalsRange({ startLineNumber: 2, startColumn: 2, endLineNumber: 2, endColumn: 2 }), editor.getSelection()!.toString());
+			assert.equal(editor.getModel()!.getValue(), 'afterEach((done) => {\n\ttest\n});');
 
 		}, ['af']);
 
@@ -365,9 +365,9 @@ suite('SnippetController', () => {
 
 			controller.insert(codeSnippet, 2, 0);
 
-			assert.equal(editor.getSelections().length, 1);
-			assert.ok(editor.getSelection().equalsRange({ startLineNumber: 2, startColumn: 1, endLineNumber: 2, endColumn: 1 }), editor.getSelection().toString());
-			assert.equal(editor.getModel().getValue(), 'afterEach((done) => {\n\ttest\n});');
+			assert.equal(editor.getSelections()!.length, 1);
+			assert.ok(editor.getSelection()!.equalsRange({ startLineNumber: 2, startColumn: 1, endLineNumber: 2, endColumn: 1 }), editor.getSelection()!.toString());
+			assert.equal(editor.getModel()!.getValue(), 'afterEach((done) => {\n\ttest\n});');
 
 		}, ['af']);
 
@@ -381,9 +381,9 @@ suite('SnippetController', () => {
 
 			controller.insert(codeSnippet, 8, 0);
 
-			assert.equal(editor.getModel().getValue(), 'after');
-			assert.equal(editor.getSelections().length, 1);
-			assert.ok(editor.getSelection().equalsRange({ startLineNumber: 1, startColumn: 4, endLineNumber: 1, endColumn: 4 }), editor.getSelection().toString());
+			assert.equal(editor.getModel()!.getValue(), 'after');
+			assert.equal(editor.getSelections()!.length, 1);
+			assert.ok(editor.getSelection()!.equalsRange({ startLineNumber: 1, startColumn: 4, endLineNumber: 1, endColumn: 4 }), editor.getSelection()!.toString());
 
 		}, ['afterone']);
 	});
@@ -405,8 +405,8 @@ suite('SnippetController', () => {
 
 			controller.insert(codeSnippet, 2, 0);
 
-			assert.equal(editor.getSelections().length, 2);
-			const [first, second] = editor.getSelections();
+			assert.equal(editor.getSelections()!.length, 2);
+			const [first, second] = editor.getSelections()!;
 
 			assert.ok(first.equalsRange({ startLineNumber: 5, startColumn: 3, endLineNumber: 5, endColumn: 3 }), first.toString());
 			assert.ok(second.equalsRange({ startLineNumber: 2, startColumn: 2, endLineNumber: 2, endColumn: 2 }), second.toString());
@@ -430,8 +430,8 @@ suite('SnippetController', () => {
 
 			controller.insert(codeSnippet, 2, 0);
 
-			assert.equal(editor.getSelections().length, 1);
-			const [first] = editor.getSelections();
+			assert.equal(editor.getSelections()!.length, 1);
+			const [first] = editor.getSelections()!;
 
 			assert.ok(first.equalsRange({ startLineNumber: 2, startColumn: 3, endLineNumber: 2, endColumn: 3 }), first.toString());
 
@@ -450,7 +450,7 @@ suite('SnippetController', () => {
 
 			controller.insert(codeSnippet, 2, 0);
 
-			assert.ok(editor.getSelection().equalsRange({ startLineNumber: 1, startColumn: 10, endLineNumber: 1, endColumn: 10 }));
+			assert.ok(editor.getSelection()!.equalsRange({ startLineNumber: 1, startColumn: 10, endLineNumber: 1, endColumn: 10 }));
 
 		}, ['af', '\taf']);
 	});
@@ -466,7 +466,7 @@ suite('SnippetController', () => {
 
 			codeSnippet = '_foo';
 			controller.insert(codeSnippet, 1, 0);
-			assert.equal(editor.getModel().getValue(), 'this._foo\nabc_foo');
+			assert.equal(editor.getModel()!.getValue(), 'this._foo\nabc_foo');
 
 		}, ['this._', 'abc']);
 
@@ -479,7 +479,7 @@ suite('SnippetController', () => {
 
 			codeSnippet = 'XX';
 			controller.insert(codeSnippet, 1, 0);
-			assert.equal(editor.getModel().getValue(), 'this.XX\nabcXX');
+			assert.equal(editor.getModel()!.getValue(), 'this.XX\nabcXX');
 
 		}, ['this._', 'abc']);
 
@@ -493,7 +493,7 @@ suite('SnippetController', () => {
 
 			codeSnippet = '_foo';
 			controller.insert(codeSnippet, 1, 0);
-			assert.equal(editor.getModel().getValue(), 'this._foo\nabc_foo\ndef_foo');
+			assert.equal(editor.getModel()!.getValue(), 'this._foo\nabc_foo\ndef_foo');
 
 		}, ['this._', 'abc', 'def_']);
 
@@ -507,7 +507,7 @@ suite('SnippetController', () => {
 
 			codeSnippet = '._foo';
 			controller.insert(codeSnippet, 2, 0);
-			assert.equal(editor.getModel().getValue(), 'this._foo\nabc._foo\ndef._foo');
+			assert.equal(editor.getModel()!.getValue(), 'this._foo\nabc._foo\ndef._foo');
 
 		}, ['this._', 'abc', 'def._']);
 
@@ -521,7 +521,7 @@ suite('SnippetController', () => {
 
 			codeSnippet = '._foo';
 			controller.insert(codeSnippet, 2, 0);
-			assert.equal(editor.getModel().getValue(), 'this._foo\nabc._foo\ndef._foo');
+			assert.equal(editor.getModel()!.getValue(), 'this._foo\nabc._foo\ndef._foo');
 
 		}, ['this._', 'abc', 'def._']);
 
@@ -535,7 +535,7 @@ suite('SnippetController', () => {
 
 			codeSnippet = '._foo';
 			controller.insert(codeSnippet, 2, 0);
-			assert.equal(editor.getModel().getValue(), 'this._._foo\na._foo\ndef._._foo');
+			assert.equal(editor.getModel()!.getValue(), 'this._._foo\na._foo\ndef._._foo');
 
 		}, ['this._', 'abc', 'def._']);
 
@@ -551,7 +551,7 @@ suite('SnippetController', () => {
 
 			codeSnippet = 'document';
 			controller.insert(codeSnippet, 3, 0);
-			assert.equal(editor.getModel().getValue(), '{document}\n{document && true}');
+			assert.equal(editor.getModel()!.getValue(), '{document}\n{document && true}');
 
 		}, ['{foo}', '{foo && true}']);
 	});
@@ -566,7 +566,7 @@ suite('SnippetController', () => {
 
 			codeSnippet = 'for (var ${1:i}=0; ${1:i}<len; ${1:i}++) { $0 }';
 			controller.insert(codeSnippet, 0, 0);
-			assert.equal(editor.getModel().getValue(), 'for (var i=0; i<len; i++) {  }for (var i=0; i<len; i++) {  }');
+			assert.equal(editor.getModel()!.getValue(), 'for (var i=0; i<len; i++) {  }for (var i=0; i<len; i++) {  }');
 
 		}, ['for (var i=0; i<len; i++) {  }']);
 
@@ -579,7 +579,7 @@ suite('SnippetController', () => {
 
 			codeSnippet = 'for (let ${1:i}=0; ${1:i}<len; ${1:i}++) { $0 }';
 			controller.insert(codeSnippet, 0, 0);
-			assert.equal(editor.getModel().getValue(), 'for (let i=0; i<len; i++) {  }for (var i=0; i<len; i++) {  }');
+			assert.equal(editor.getModel()!.getValue(), 'for (let i=0; i<len; i++) {  }for (var i=0; i<len; i++) {  }');
 
 		}, ['for (var i=0; i<len; i++) {  }']);
 

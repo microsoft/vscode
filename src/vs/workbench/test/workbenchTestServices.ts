@@ -78,6 +78,7 @@ import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
+import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -307,7 +308,7 @@ export class TestDecorationsService implements IDecorationsService {
 export class TestExtensionService implements IExtensionService {
 	_serviceBrand: any;
 	onDidRegisterExtensions: Event<void> = Event.None;
-	onDidChangeExtensionsStatus: Event<string[]> = Event.None;
+	onDidChangeExtensionsStatus: Event<CanonicalExtensionIdentifier[]> = Event.None;
 	onWillActivateByEvent: Event<IWillActivateEvent> = Event.None;
 	onDidChangeResponsiveChange: Event<IResponsiveStateChangeEvent> = Event.None;
 	activateByEvent(_activationEvent: string): Promise<void> { return Promise.resolve(void 0); }

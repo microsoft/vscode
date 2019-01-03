@@ -222,7 +222,6 @@ export class EnvironmentService implements IEnvironmentService {
 
 	get logExtensionHostCommunication(): boolean { return !!this._args.logExtensionHostCommunication; }
 
-	get performance(): boolean { return !!this._args.performance; }
 	get status(): boolean { return !!this._args.status; }
 
 	@memoize

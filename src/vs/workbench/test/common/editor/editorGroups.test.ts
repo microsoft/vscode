@@ -77,7 +77,7 @@ class TestEditorInput extends EditorInput {
 		super();
 	}
 	getTypeId() { return 'testEditorInputForGroups'; }
-	resolve(): Promise<IEditorModel> { return Promise.resolve(null); }
+	resolve(): Promise<IEditorModel> { return Promise.resolve(null!); }
 
 	matches(other: TestEditorInput): boolean {
 		return other && this.id === other.id && other instanceof TestEditorInput;
@@ -97,7 +97,7 @@ class NonSerializableTestEditorInput extends EditorInput {
 		super();
 	}
 	getTypeId() { return 'testEditorInputForGroups-nonSerializable'; }
-	resolve(): Promise<IEditorModel> { return Promise.resolve(null); }
+	resolve(): Promise<IEditorModel> { return Promise.resolve(null!); }
 
 	matches(other: NonSerializableTestEditorInput): boolean {
 		return other && this.id === other.id && other instanceof NonSerializableTestEditorInput;
@@ -110,7 +110,7 @@ class TestFileEditorInput extends EditorInput implements IFileEditorInput {
 		super();
 	}
 	getTypeId() { return 'testFileEditorInputForGroups'; }
-	resolve(): Promise<IEditorModel> { return Promise.resolve(null); }
+	resolve(): Promise<IEditorModel> { return Promise.resolve(null!); }
 
 	matches(other: TestFileEditorInput): boolean {
 		return other && this.id === other.id && other instanceof TestFileEditorInput;
@@ -120,7 +120,7 @@ class TestFileEditorInput extends EditorInput implements IFileEditorInput {
 	}
 
 	getEncoding(): string {
-		return null;
+		return null!;
 	}
 
 	setPreferredEncoding(encoding: string) {
@@ -781,7 +781,7 @@ suite('Workbench editor groups', () => {
 		group.openEditor(input5, { active: true, pinned: true });
 
 		// Close Others
-		group.closeEditors(group.activeEditor);
+		group.closeEditors(group.activeEditor!);
 		assert.equal(group.activeEditor, input5);
 		assert.equal(group.count, 1);
 
@@ -795,7 +795,7 @@ suite('Workbench editor groups', () => {
 
 		// Close Left
 		assert.equal(group.activeEditor, input3);
-		group.closeEditors(group.activeEditor, CloseDirection.LEFT);
+		group.closeEditors(group.activeEditor!, CloseDirection.LEFT);
 		assert.equal(group.activeEditor, input3);
 		assert.equal(group.count, 3);
 		assert.equal(group.getEditors()[0], input3);
@@ -812,7 +812,7 @@ suite('Workbench editor groups', () => {
 
 		// Close Right
 		assert.equal(group.activeEditor, input3);
-		group.closeEditors(group.activeEditor, CloseDirection.RIGHT);
+		group.closeEditors(group.activeEditor!, CloseDirection.RIGHT);
 		assert.equal(group.activeEditor, input3);
 		assert.equal(group.count, 3);
 		assert.equal(group.getEditors()[0], input1);
@@ -953,16 +953,16 @@ suite('Workbench editor groups', () => {
 		group.openEditor(input1);
 
 		assert.equal(group.count, 1);
-		assert.equal(group.activeEditor.matches(input1), true);
-		assert.equal(group.previewEditor.matches(input1), true);
+		assert.equal(group.activeEditor!.matches(input1), true);
+		assert.equal(group.previewEditor!.matches(input1), true);
 		assert.equal(group.isActive(input1), true);
 
 		// Create model again - should load from storage
 		group = inst.createInstance(EditorGroup, group.serialize());
 
 		assert.equal(group.count, 1);
-		assert.equal(group.activeEditor.matches(input1), true);
-		assert.equal(group.previewEditor.matches(input1), true);
+		assert.equal(group.activeEditor!.matches(input1), true);
+		assert.equal(group.previewEditor!.matches(input1), true);
 		assert.equal(group.isActive(input1), true);
 	});
 
@@ -1003,10 +1003,10 @@ suite('Workbench editor groups', () => {
 
 		assert.equal(group1.count, 3);
 		assert.equal(group2.count, 3);
-		assert.equal(group1.activeEditor.matches(g1_input2), true);
-		assert.equal(group2.activeEditor.matches(g2_input1), true);
-		assert.equal(group1.previewEditor.matches(g1_input2), true);
-		assert.equal(group2.previewEditor.matches(g2_input2), true);
+		assert.equal(group1.activeEditor!.matches(g1_input2), true);
+		assert.equal(group2.activeEditor!.matches(g2_input1), true);
+		assert.equal(group1.previewEditor!.matches(g1_input2), true);
+		assert.equal(group2.previewEditor!.matches(g2_input2), true);
 
 		assert.equal(group1.getEditors(true)[0].matches(g1_input2), true);
 		assert.equal(group1.getEditors(true)[1].matches(g1_input1), true);
@@ -1022,10 +1022,10 @@ suite('Workbench editor groups', () => {
 
 		assert.equal(group1.count, 3);
 		assert.equal(group2.count, 3);
-		assert.equal(group1.activeEditor.matches(g1_input2), true);
-		assert.equal(group2.activeEditor.matches(g2_input1), true);
-		assert.equal(group1.previewEditor.matches(g1_input2), true);
-		assert.equal(group2.previewEditor.matches(g2_input2), true);
+		assert.equal(group1.activeEditor!.matches(g1_input2), true);
+		assert.equal(group2.activeEditor!.matches(g2_input1), true);
+		assert.equal(group1.previewEditor!.matches(g1_input2), true);
+		assert.equal(group2.previewEditor!.matches(g2_input2), true);
 
 		assert.equal(group1.getEditors(true)[0].matches(g1_input2), true);
 		assert.equal(group1.getEditors(true)[1].matches(g1_input1), true);
@@ -1062,8 +1062,8 @@ suite('Workbench editor groups', () => {
 		group.openEditor(serializableInput2, { active: false, pinned: true });
 
 		assert.equal(group.count, 3);
-		assert.equal(group.activeEditor.matches(nonSerializableInput2), true);
-		assert.equal(group.previewEditor.matches(nonSerializableInput2), true);
+		assert.equal(group.activeEditor!.matches(nonSerializableInput2), true);
+		assert.equal(group.previewEditor!.matches(nonSerializableInput2), true);
 
 		assert.equal(group.getEditors(true)[0].matches(nonSerializableInput2), true);
 		assert.equal(group.getEditors(true)[1].matches(serializableInput1), true);
@@ -1073,7 +1073,7 @@ suite('Workbench editor groups', () => {
 		group = inst.createInstance(EditorGroup, group.serialize());
 
 		assert.equal(group.count, 2);
-		assert.equal(group.activeEditor.matches(serializableInput1), true);
+		assert.equal(group.activeEditor!.matches(serializableInput1), true);
 		assert.equal(group.previewEditor, null);
 
 		assert.equal(group.getEditors(true)[0].matches(serializableInput1), true);

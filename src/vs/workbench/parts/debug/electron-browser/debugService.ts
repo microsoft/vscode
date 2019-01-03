@@ -778,7 +778,7 @@ export class DebugService implements IDebugService {
 		if (!stackFrame) {
 			if (thread) {
 				const callStack = thread.getCallStack();
-				stackFrame = first(callStack, sf => sf.source && sf.source.available, undefined);
+				stackFrame = first(callStack, sf => sf.source && sf.source.available && sf.source.presentationHint !== 'deemphasize', undefined);
 			}
 		}
 
@@ -1030,7 +1030,7 @@ export class DebugService implements IDebugService {
 			breakpointCount: this.model.getBreakpoints().length,
 			exceptionBreakpoints: this.model.getExceptionBreakpoints(),
 			watchExpressionsCount: this.model.getWatchExpressions().length,
-			extensionName: extension.id,
+			extensionName: extension.identifier.value,
 			isBuiltin: extension.isBuiltin,
 			launchJsonExists: root && !!this.configurationService.getValue<IGlobalConfig>('launch', { resource: root.uri })
 		});
