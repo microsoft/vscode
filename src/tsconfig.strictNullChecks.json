@@ -504,6 +504,7 @@
 		"./vs/vscode.d.ts",
 		"./vs/vscode.proposed.d.ts",
 		"./vs/workbench/api/node/extHostExtensionActivator.ts",
+		"./vs/workbench/api/node/extHostSearch.fileIndex.ts",
 		"./vs/workbench/api/node/extHostTypes.ts",
 		"./vs/workbench/api/shared/editor.ts",
 		"./vs/workbench/api/shared/tasks.ts",
