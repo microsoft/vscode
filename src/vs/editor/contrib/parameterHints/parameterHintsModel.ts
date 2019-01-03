@@ -22,7 +22,8 @@ const DefaultState = new class { readonly state = 'default'; };
 const PendingState = new class { readonly state = 'pending'; };
 
 class ActiveState {
-	readonly state = 'active';
+	static readonly state = 'active';
+	readonly state = ActiveState.state;
 	constructor(
 		readonly hints: modes.SignatureHelp
 	) { }
@@ -96,12 +97,12 @@ export class ParameterHintsModel extends Disposable {
 			() => this.doTrigger({
 				triggerKind: context.triggerKind,
 				triggerCharacter: context.triggerCharacter,
-				isRetrigger: this.state.state === 'active' || this.state.state === 'pending',
+				isRetrigger: this.state.state === ActiveState.state || this.state.state === PendingState.state,
 			}, triggerId), delay).then(undefined, onUnexpectedError);
 	}
 
 	public next(): void {
-		if (this.state.state !== 'active') {
+		if (this.state.state !== ActiveState.state) {
 			return;
 		}
 
@@ -120,7 +121,7 @@ export class ParameterHintsModel extends Disposable {
 	}
 
 	public previous(): void {
-		if (this.state.state !== 'active') {
+		if (this.state.state !== ActiveState.state) {
 			return;
 		}
 
@@ -139,14 +140,11 @@ export class ParameterHintsModel extends Disposable {
 	}
 
 	private updateActiveSignature(activeSignature: number) {
-		if (this.state.state !== 'active') {
+		if (this.state.state !== ActiveState.state) {
 			return;
 		}
 
-		this.state = {
-			state: 'active',
-			hints: { ...this.state.hints, activeSignature }
-		};
+		this.state = new ActiveState({ ...this.state.hints, activeSignature });
 		this._onChangedHints.fire(this.state.hints);
 	}
 
@@ -187,7 +185,7 @@ export class ParameterHintsModel extends Disposable {
 	}
 
 	private get isTriggered(): boolean {
-		return this.state.state === 'active' || this.state.state === 'pending' || this.throttledDelayer.isTriggered();
+		return this.state.state === ActiveState.state || this.state.state === PendingState.state || this.throttledDelayer.isTriggered();
 	}
 
 	private onModelChanged(): void {
