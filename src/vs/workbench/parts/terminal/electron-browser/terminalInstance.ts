@@ -678,9 +678,19 @@ export class TerminalInstance implements ITerminalInstance {
 
 	public preparePathForTerminalAsync(path: string): Promise<string> {
 		return new Promise<string>(c => {
+			const exe = this.shellLaunchConfig.executable;
 			const hasSpace = path.indexOf(' ') !== -1;
+			const isPowerShell = exe.indexOf('pwsh') !== -1 ||
+				this.title.indexOf('pwsh') !== -1 ||
+				exe.toLocaleLowerCase().indexOf('powershell') !== -1 ||
+				this.title.toLocaleLowerCase().indexOf('powershell') !== -1;
+
+			if (hasSpace && isPowerShell) {
+				c(`& '${path.replace('\'', '\'\'')}'`);
+				return;
+			}
+
 			if (platform.isWindows) {
-				const exe = this.shellLaunchConfig.executable;
 				if (!exe) {
 					c(path);
 					return;
@@ -692,8 +702,6 @@ export class TerminalInstance implements ITerminalInstance {
 						c(this._escapeNonWindowsPath(stdout.trim()));
 					});
 					return;
-				} else if (hasSpace && (exe.indexOf('powershell') !== -1)) {
-					c('& \'' + path + '\'');
 				} else if (hasSpace) {
 					c('"' + path + '"');
 				} else {
