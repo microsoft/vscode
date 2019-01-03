@@ -13,14 +13,12 @@ import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
 import { Iterator } from 'vs/base/common/iterator';
 import { isArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { collapseAll, expandAll } from 'vs/base/parts/tree/browser/treeUtils';
 import 'vs/css!./media/settingsEditor2';
 import { localize } from 'vs/nls';
 import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationOverrides, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -36,7 +34,7 @@ import { commonlyUsedData, tocData } from 'vs/workbench/parts/preferences/browse
 import { AbstractSettingRenderer, ISettingLinkClickEvent, ISettingOverrideClickEvent, resolveExtensionsSettings, resolveSettingsTree, SettingsTree, SettingTreeRenderers } from 'vs/workbench/parts/preferences/browser/settingsTree';
 import { ISettingsEditorViewState, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeModel } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
 import { settingsTextInputBorder } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
-import { TOCRenderer, TOCTree, TOCTreeModel } from 'vs/workbench/parts/preferences/browser/tocTree';
+import { createTOCIterator, TOCTree, TOCTreeModel } from 'vs/workbench/parts/preferences/browser/tocTree';
 import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, IPreferencesSearchService, ISearchProvider, MODIFIED_SETTING_TAG, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/parts/preferences/common/preferences';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IPreferencesService, ISearchResult, ISettingsEditorModel, ISettingsEditorOptions, SettingsEditorOptions, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
@@ -98,7 +96,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private clearFilterLinkContainer: HTMLElement;
 
 	private tocTreeContainer: HTMLElement;
-	private tocTree: WorkbenchTree;
+	private tocTree: TOCTree;
 
 	private settingsAriaExtraLabelsContainer: HTMLElement;
 
@@ -552,24 +550,26 @@ export class SettingsEditor2 extends BaseEditor {
 		this.tocTreeModel = new TOCTreeModel(this.viewState);
 		this.tocTreeContainer = DOM.append(parent, $('.settings-toc-container'));
 
-		const tocRenderer = this.instantiationService.createInstance(TOCRenderer);
-
 		this.tocTree = this._register(this.instantiationService.createInstance(TOCTree,
 			DOM.append(this.tocTreeContainer, $('.settings-toc-wrapper')),
-			this.viewState,
-			{
-				renderer: tocRenderer
-			}));
+			this.viewState));
 
 		this._register(this.tocTree.onDidChangeFocus(e => {
-			const element: SettingsTreeGroupElement = e.focus;
+			this.tocTree.setSelection(e.elements);
+			const element: SettingsTreeGroupElement = e.elements[0];
 			if (this.searchResultModel) {
-				this.viewState.filterToCategory = element;
-				this.renderTree();
-				this.settingsTree.scrollTop = 0;
-			} else if (element && (!e.payload || !e.payload.fromScroll)) {
+				if (this.viewState.filterToCategory !== element) {
+					this.viewState.filterToCategory = element;
+					this.renderTree();
+					this.settingsTree.scrollTop = 0;
+				}
+			} else if (element) {
 				this.settingsTree.reveal(element, 0);
 			}
+
+			// else if (element && (!e.payload || !e.payload.fromScroll)) {
+			// this.settingsTree.reveal(element, 0);
+			// }
 		}));
 
 		this._register(this.tocTree.onDidFocus(() => {
@@ -655,7 +655,7 @@ export class SettingsEditor2 extends BaseEditor {
 			return;
 		}
 
-		if (!this.tocTree.getInput()) {
+		if (!this.tocTreeModel) {
 			return;
 		}
 
@@ -679,8 +679,8 @@ export class SettingsEditor2 extends BaseEditor {
 
 			// 	this.tocTree.expand(element);
 
-			this.tocTree.setSelection([element]);
-			this.tocTree.setFocus(element, { fromScroll: true });
+			// this.tocTree.setSelection([element]);
+			// this.tocTree.setFocus(element, { fromScroll: true });
 		}
 	}
 
@@ -870,11 +870,8 @@ export class SettingsEditor2 extends BaseEditor {
 			this.refreshTree();
 
 			this.tocTreeModel.settingsTreeRoot = this.settingsTreeModel.root as SettingsTreeGroupElement;
-			if (this.tocTree.getInput()) {
-				this.tocTree.refresh();
-			} else {
-				this.tocTree.setInput(this.tocTreeModel);
-			}
+			this.refreshTOCTree();
+			this.tocTree.collapseAll();
 		}
 
 		return Promise.resolve(void 0);
@@ -943,11 +940,16 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 
 		this.tocTreeModel.update();
-		return this.tocTree.refresh();
+		this.refreshTOCTree();
+		return Promise.resolve(undefined);
 	}
 
 	private refreshTree(): void {
 		this.settingsTree.setChildren(null, createGroupIterator(this.currentSettingsModel.root));
+	}
+
+	private refreshTOCTree(): void {
+		this.tocTree.setChildren(null, createTOCIterator(this.tocTreeModel));
 	}
 
 	private updateModifiedLabelForKey(key: string): void {
@@ -1002,18 +1004,18 @@ export class SettingsEditor2 extends BaseEditor {
 
 			this.viewState.filterToCategory = null;
 			this.tocTreeModel.currentSearchModel = this.searchResultModel;
-			this.tocTree.refresh();
+			this.refreshTOCTree();
 			this.onSearchModeToggled();
 
 			if (this.searchResultModel) {
 				// Added a filter model
 				this.tocTree.setSelection([]);
-				expandAll(this.tocTree);
+				this.tocTree.expandAll();
 				this.refreshTree();
 				this.renderResultCountMessages();
 			} else {
 				// Leaving search mode
-				collapseAll(this.tocTree);
+				this.tocTree.collapseAll();
 				this.refreshTree();
 				this.renderResultCountMessages();
 			}
@@ -1145,7 +1147,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 			this.tocTree.setSelection([]);
 			this.viewState.filterToCategory = null;
-			expandAll(this.tocTree);
+			this.tocTree.expandAll();
 
 			return this.renderTree().then(() => result);
 		});
@@ -1205,7 +1207,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 		const tocTreeHeight = listHeight - 16;
 		this.tocTreeContainer.style.height = `${tocTreeHeight}px`;
-		this.tocTree.layout(tocTreeHeight, 175);
+		this.tocTree.layout(tocTreeHeight);
 	}
 
 	protected saveState(): void {

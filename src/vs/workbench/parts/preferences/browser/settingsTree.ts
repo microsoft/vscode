@@ -17,7 +17,7 @@ import { ISelectOptionItem, SelectBox } from 'vs/base/browser/ui/selectBox/selec
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IObjectTreeOptions, ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
-import { ITreeModel, ITreeNode, ITreeRenderer, ITreeFilter, TreeVisibility, TreeFilterResult } from 'vs/base/browser/ui/tree/tree';
+import { ITreeFilter, ITreeModel, ITreeNode, ITreeRenderer, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { Action, IAction } from 'vs/base/common/actions';
 import * as arrays from 'vs/base/common/arrays';
 import { Color, RGBA } from 'vs/base/common/color';
@@ -28,7 +28,7 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { escapeRegExpCharacters, startsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import { ITree, IFilter, IAccessibilityProvider } from 'vs/base/parts/tree/browser/tree';
+import { IAccessibilityProvider, ITree } from 'vs/base/parts/tree/browser/tree';
 import { localize } from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -1139,66 +1139,7 @@ function escapeInvisibleChars(enumValue: string): string {
 		.replace(/\r/g, '\\r');
 }
 
-export class SettingsTreeFilter implements IFilter {
-	constructor(
-		private viewState: ISettingsEditorViewState,
-	) { }
-
-	isVisible(tree: ITree, element: SettingsTreeElement): boolean {
-		// Filter during search
-		if (this.viewState.filterToCategory && element instanceof SettingsTreeSettingElement) {
-			if (!this.settingContainedInGroup(element.setting, this.viewState.filterToCategory)) {
-				return false;
-			}
-		}
-
-		// Non-user scope selected
-		if (element instanceof SettingsTreeSettingElement && this.viewState.settingsTarget !== ConfigurationTarget.USER) {
-			if (!element.matchesScope(this.viewState.settingsTarget)) {
-				return false;
-			}
-		}
-
-		// @modified or tag
-		if (element instanceof SettingsTreeSettingElement && this.viewState.tagFilters) {
-			if (!element.matchesAllTags(this.viewState.tagFilters)) {
-				return false;
-			}
-		}
-
-		// Group with no visible children
-		if (element instanceof SettingsTreeGroupElement) {
-			if (typeof element.count === 'number') {
-				return element.count > 0;
-			}
-
-			return element.children.some(child => this.isVisible(tree, child));
-		}
-
-		// Filtered "new extensions" button
-		if (element instanceof SettingsTreeNewExtensionsElement) {
-			if ((this.viewState.tagFilters && this.viewState.tagFilters.size) || this.viewState.filterToCategory) {
-				return false;
-			}
-		}
-
-		return true;
-	}
-
-	private settingContainedInGroup(setting: ISetting, group: SettingsTreeGroupElement): boolean {
-		return group.children.some(child => {
-			if (child instanceof SettingsTreeGroupElement) {
-				return this.settingContainedInGroup(setting, child);
-			} else if (child instanceof SettingsTreeSettingElement) {
-				return child.setting.key === setting.key;
-			} else {
-				return false;
-			}
-		});
-	}
-}
-
-export class SettingsTreeFilter2 implements ITreeFilter<SettingsTreeElement> {
+export class SettingsTreeFilter implements ITreeFilter<SettingsTreeElement> {
 	constructor(
 		private viewState: ISettingsEditorViewState,
 	) { }
@@ -1362,7 +1303,7 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 						return e.id;
 					}
 				},
-				filter: new SettingsTreeFilter2(viewState)
+				filter: new SettingsTreeFilter(viewState)
 			});
 
 		this.disposables = [];
@@ -1370,7 +1311,7 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 			const activeBorderColor = theme.getColor(focusBorder);
 			if (activeBorderColor) {
 				// TODO@rob - why isn't this applied when added to the stylesheet from tocTree.ts? Seems like a chromium glitch.
-				collector.addRule(`.settings-editor > .settings-body > .settings-toc-container .monaco-tree:focus .monaco-tree-row.focused {outline: solid 1px ${activeBorderColor}; outline-offset: -1px;  }`);
+				collector.addRule(`.settings-editor > .settings-body > .settings-toc-container .monaco-list:focus .monaco-list-row.focused {outline: solid 1px ${activeBorderColor}; outline-offset: -1px;  }`);
 			}
 
 			const foregroundColor = theme.getColor(foreground);

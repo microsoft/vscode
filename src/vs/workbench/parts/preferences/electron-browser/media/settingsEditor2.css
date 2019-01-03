@@ -199,7 +199,7 @@
 	position: absolute;
 }
 
-.settings-editor > .settings-body .settings-toc-container .monaco-tree {
+.settings-editor > .settings-body .settings-toc-container .monaco-list {
 	width: 160px;
 	pointer-events: initial;
 }
@@ -213,11 +213,11 @@
 	display: none;
 }
 
-.settings-editor > .settings-body .settings-toc-container .monaco-tree-row .content {
+.settings-editor > .settings-body .settings-toc-container .monaco-list-row .monaco-tl-contents {
 	display: flex;
 }
 
-.settings-editor > .settings-body .settings-toc-container .monaco-tree-row .settings-toc-entry {
+.settings-editor > .settings-body .settings-toc-container .monaco-list-row .settings-toc-entry {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	line-height: 22px;
@@ -225,30 +225,30 @@
 	flex-shrink: 1;
 }
 
-.settings-editor > .settings-body .settings-toc-container .monaco-tree-row .settings-toc-count {
+.settings-editor > .settings-body .settings-toc-container .monaco-list-row .settings-toc-count {
 	display: none;
 	line-height: 22px;
 	opacity: 0.7;
 	margin-left: 3px;
 }
 
-.settings-editor.search-mode > .settings-body .settings-toc-container .monaco-tree-row .settings-toc-count {
+.settings-editor.search-mode > .settings-body .settings-toc-container .monaco-list-row .settings-toc-count {
 	display: block;
 }
 
-.settings-editor > .settings-body .settings-toc-container .monaco-tree-row.has-children > .content::before {
+.settings-editor > .settings-body .settings-toc-container .monaco-list-row.has-children > .content::before {
 	opacity: 0.9;
 }
 
-.settings-editor > .settings-body .settings-toc-container .monaco-tree-row.has-children.selected > .content::before {
+.settings-editor > .settings-body .settings-toc-container .monaco-list-row.has-children.selected > .content::before {
 	opacity: 1;
 }
 
-.settings-editor > .settings-body .settings-toc-container .monaco-tree-row .settings-toc-entry.no-results {
+.settings-editor > .settings-body .settings-toc-container .monaco-list-row .settings-toc-entry.no-results {
 	opacity: 0.5;
 }
 
-.settings-editor > .settings-body .settings-toc-container .monaco-tree-row.selected .settings-toc-entry {
+.settings-editor > .settings-body .settings-toc-container .monaco-list-row.selected .settings-toc-entry {
 	font-weight: bold;
 	opacity: 1;
 }
@@ -535,6 +535,6 @@
 	padding-top: 7px;
 }
 
-.settings-editor.search-mode > .settings-body .settings-toc-container .monaco-tree-row .settings-toc-count {
+.settings-editor.search-mode > .settings-body .settings-toc-container .monaco-list-row .settings-toc-count {
 	display: block;
 }
