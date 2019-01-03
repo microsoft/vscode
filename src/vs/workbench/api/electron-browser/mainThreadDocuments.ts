@@ -180,7 +180,7 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		let promise: Promise<boolean>;
 		switch (uri.scheme) {
 			case Schemas.untitled:
-				promise = this._handleUnititledScheme(uri);
+				promise = this._handleUntitledScheme(uri);
 				break;
 			case Schemas.file:
 			default:
@@ -213,7 +213,7 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		});
 	}
 
-	private _handleUnititledScheme(uri: URI): Promise<boolean> {
+	private _handleUntitledScheme(uri: URI): Promise<boolean> {
 		let asFileUri = uri.with({ scheme: Schemas.file });
 		return this._fileService.resolveFile(asFileUri).then(stats => {
 			// don't create a new file ontop of an existing file

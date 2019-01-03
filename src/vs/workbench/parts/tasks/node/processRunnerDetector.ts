@@ -3,27 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import * as Collections from 'vs/base/common/collections';
 import * as Objects from 'vs/base/common/objects';
 import * as Paths from 'vs/base/common/paths';
+import { CommandOptions, ErrorData, Source } from 'vs/base/common/processes';
 import * as Strings from 'vs/base/common/strings';
-import * as Collections from 'vs/base/common/collections';
-
-import { CommandOptions, Source, ErrorData } from 'vs/base/common/processes';
-import { LineProcess, LineData } from 'vs/base/node/processes';
-
+import { LineData, LineProcess } from 'vs/base/node/processes';
+import * as nls from 'vs/nls';
 import { IFileService } from 'vs/platform/files/common/files';
-
+import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-
-import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-
 import * as Tasks from '../common/tasks';
 import * as TaskConfig from './taskConfiguration';
 
-let build: string = 'build';
-let test: string = 'test';
-let defaultValue: string = 'default';
+const build = 'build';
+const test = 'test';
+const defaultValue = 'default';
 
 interface TaskInfo {
 	index: number;
@@ -66,7 +61,7 @@ class RegexpTaskMatcher implements TaskDetectorMatcher {
 class GruntTaskMatcher implements TaskDetectorMatcher {
 	private tasksStart: boolean;
 	private tasksEnd: boolean;
-	private descriptionOffset: number;
+	private descriptionOffset: number | null;
 
 	init() {
 		this.tasksStart = false;
@@ -96,7 +91,12 @@ class GruntTaskMatcher implements TaskDetectorMatcher {
 				this.tasksEnd = true;
 			} else {
 				if (this.descriptionOffset === null) {
-					this.descriptionOffset = line.match(/\S  \S/).index + 1;
+					const match = line.match(/\S  \S/);
+					if (match) {
+						this.descriptionOffset = (match.index || 0) + 1;
+					} else {
+						this.descriptionOffset = 0;
+					}
 				}
 				let taskName = line.substr(0, this.descriptionOffset).trim();
 				if (taskName.length > 0) {
@@ -108,7 +108,7 @@ class GruntTaskMatcher implements TaskDetectorMatcher {
 }
 
 export interface DetectorResult {
-	config: TaskConfig.ExternalTaskRunnerConfiguration;
+	config: TaskConfig.ExternalTaskRunnerConfiguration | null;
 	stdout: string[];
 	stderr: string[];
 }
@@ -142,13 +142,13 @@ export class ProcessRunnerDetector {
 	private fileService: IFileService;
 	private contextService: IWorkspaceContextService;
 	private configurationResolverService: IConfigurationResolverService;
-	private taskConfiguration: TaskConfig.ExternalTaskRunnerConfiguration;
+	private taskConfiguration: TaskConfig.ExternalTaskRunnerConfiguration | null;
 	private _workspaceRoot: IWorkspaceFolder;
 	private _stderr: string[];
 	private _stdout: string[];
 	private _cwd: string;
 
-	constructor(workspaceFolder: IWorkspaceFolder, fileService: IFileService, contextService: IWorkspaceContextService, configurationResolverService: IConfigurationResolverService, config: TaskConfig.ExternalTaskRunnerConfiguration = null) {
+	constructor(workspaceFolder: IWorkspaceFolder, fileService: IFileService, contextService: IWorkspaceContextService, configurationResolverService: IConfigurationResolverService, config: TaskConfig.ExternalTaskRunnerConfiguration | null = null) {
 		this.fileService = fileService;
 		this.contextService = contextService;
 		this.configurationResolverService = configurationResolverService;
@@ -186,6 +186,8 @@ export class ProcessRunnerDetector {
 					detectorPromise = this.tryDetectJake(this._workspaceRoot, list);
 				} else if ('grunt' === detectSpecific) {
 					detectorPromise = this.tryDetectGrunt(this._workspaceRoot, list);
+				} else {
+					throw new Error('Unkown detector type');
 				}
 				return detectorPromise.then((value) => {
 					if (value) {
@@ -310,7 +312,7 @@ export class ProcessRunnerDetector {
 					this._stderr.push(nls.localize('TaskSystemDetector.noGruntProgram', 'Grunt is not installed on your system. Run npm install -g grunt to install it.'));
 				}
 			} else {
-				this._stderr.push(nls.localize('TaskSystemDetector.noProgram', 'Program {0} was not found. Message is {1}', command, error.message));
+				this._stderr.push(nls.localize('TaskSystemDetector.noProgram', 'Program {0} was not found. Message is {1}', command, error ? error.message : ''));
 			}
 			return { config: null, stdout: this._stdout, stderr: this._stderr };
 		});

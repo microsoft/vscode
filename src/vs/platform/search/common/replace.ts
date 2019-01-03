@@ -38,15 +38,15 @@ export class ReplacePattern {
 		}
 	}
 
-	public get hasParameters(): boolean {
+	get hasParameters(): boolean {
 		return this._hasParameters;
 	}
 
-	public get pattern(): string {
+	get pattern(): string {
 		return this._replacePattern;
 	}
 
-	public get regExp(): RegExp {
+	get regExp(): RegExp {
 		return this._regExp;
 	}
 
@@ -54,7 +54,7 @@ export class ReplacePattern {
 	* Returns the replace string for the first match in the given text.
 	* If text has no matches then returns null.
 	*/
-	public getReplaceString(text: string): string | null {
+	getReplaceString(text: string): string | null {
 		this._regExp.lastIndex = 0;
 		let match = this._regExp.exec(text);
 		if (match) {

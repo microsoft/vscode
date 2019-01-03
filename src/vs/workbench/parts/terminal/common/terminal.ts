@@ -428,6 +428,11 @@ export interface ITerminalInstance {
 	dispose(immediate?: boolean): void;
 
 	/**
+	 * Forces the terminal to redraw its viewport.
+	 */
+	forceRedraw(): void;
+
+	/**
 	 * Registers a link matcher, allowing custom link patterns to be matched and handled.
 	 * @param regex The regular expression the search for, specifically this searches the
 	 * textContent of the rows. You will want to use \s to match a space ' ' character for example.

@@ -433,11 +433,11 @@ class ShowAllSymbolsAction extends Action {
 		this.enabled = !!this.quickOpenService;
 	}
 
-	public run(context?: any): Promise<void> {
+	run(context?: any): Promise<void> {
 
 		let prefix = ShowAllSymbolsAction.ALL_SYMBOLS_PREFIX;
 		let inputSelection: { start: number; end: number; } = void 0;
-		let editor = this.editorService.getFocusedCodeEditor();
+		const editor = this.editorService.getFocusedCodeEditor();
 		const word = editor && getSelectionSearchString(editor);
 		if (word) {
 			prefix = prefix + word;
@@ -693,7 +693,7 @@ configurationRegistry.registerConfiguration({
 });
 
 registerLanguageCommand('_executeWorkspaceSymbolProvider', function (accessor, args: { query: string; }) {
-	let { query } = args;
+	const { query } = args;
 	if (typeof query !== 'string') {
 		throw illegalArgument();
 	}

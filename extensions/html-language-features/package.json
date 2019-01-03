@@ -33,11 +33,11 @@
       "properties": {
         "html.experimental.custom.tags": {
           "type": "array",
-          "description": "A list of JSON file paths that define custom tags"
+          "description": "A list of JSON file paths that define custom tags."
         },
         "html.experimental.custom.attributes": {
           "type": "array",
-          "description": "A list of JSON file paths that define custom attributes"
+          "description": "A list of JSON file paths that define custom attributes."
         },
         "html.format.enable": {
           "type": "boolean",

@@ -15,8 +15,12 @@
 
 /* Font Families (with CJK support) */
 
-.monaco-shell,
-.monaco-shell .monaco-menu-container .monaco-menu { font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif; }
+.monaco-shell.mac,
+.monaco-shell.mac .monaco-menu-container .monaco-menu { font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+.monaco-shell.windows,
+.monaco-shell.windows .monaco-menu-container .monaco-menu { font-family: "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", sans-serif; }
+.monaco-shell.linux,
+.monaco-shell.linux .monaco-menu-container .monaco-menu { font-family: "Ubuntu", "Droid Sans", sans-serif; }
 .monaco-shell:lang(zh-Hans),
 .monaco-shell:lang(zh-Hans) .monaco-menu-container .monaco-menu { font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Noto Sans", "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "Source Han Sans SC", "Source Han Sans CN", "Source Han Sans", sans-serif; }
 .monaco-shell:lang(zh-Hant),

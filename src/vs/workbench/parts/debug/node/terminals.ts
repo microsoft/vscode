@@ -257,7 +257,7 @@ function quote(args: string[]): string {
 }
 
 
-export function hasChildprocesses(processId: number): boolean {
+export function hasChildProcesses(processId: number): boolean {
 	if (processId) {
 		try {
 			// if shell has at least one child process, assume that shell is busy
