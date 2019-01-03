@@ -355,7 +355,7 @@ export namespace Event {
 	}
 }
 
-type Listener = [Function, any] | Function;
+type Listener<T> = [(e: T) => void, any] | ((e: T) => void);
 
 export interface EmitterOptions {
 	onFirstListenerAdd?: Function;
@@ -466,8 +466,8 @@ export class Emitter<T> {
 	private readonly _leakageMon: LeakageMonitor | undefined;
 	private _disposed: boolean = false;
 	private _event: Event<T> | undefined;
-	private _deliveryQueue: [Listener, T][] | undefined;
-	protected _listeners: LinkedList<Listener> | undefined;
+	private _deliveryQueue: [Listener<T>, T][] | undefined;
+	protected _listeners: LinkedList<Listener<T>> | undefined;
 
 	constructor(options?: EmitterOptions) {
 		this._options = options;
@@ -541,7 +541,7 @@ export class Emitter<T> {
 	 * To be kept private to fire an event to
 	 * subscribers
 	 */
-	fire(event: T): any {
+	fire(event: T): void {
 		if (this._listeners) {
 			// put all [listener,event]-pairs into delivery queue
 			// then emit all event. an inner/nested event might be
@@ -590,7 +590,7 @@ export interface IWaitUntil {
 
 export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
 
-	private _asyncDeliveryQueue: [Listener, T, Promise<any>[]][];
+	private _asyncDeliveryQueue: [Listener<T>, T, Promise<any>[]][];
 
 	async fireAsync(eventFn: (thenables: Promise<any>[], listener: Function) => T): Promise<void> {
 		if (!this._listeners) {

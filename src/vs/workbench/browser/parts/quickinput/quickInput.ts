@@ -252,14 +252,20 @@ class QuickInput implements IQuickInput {
 			this.ui.leftActionBar.clear();
 			const leftButtons = this.buttons.filter(button => button === backButton);
 			this.ui.leftActionBar.push(leftButtons.map((button, index) => {
-				const action = new Action(`id-${index}`, '', button.iconClass || getIconClass(button.iconPath), true, () => this.onDidTriggerButtonEmitter.fire(button));
+				const action = new Action(`id-${index}`, '', button.iconClass || getIconClass(button.iconPath), true, () => {
+					this.onDidTriggerButtonEmitter.fire(button);
+					return Promise.resolve(null);
+				});
 				action.tooltip = button.tooltip;
 				return action;
 			}), { icon: true, label: false });
 			this.ui.rightActionBar.clear();
 			const rightButtons = this.buttons.filter(button => button !== backButton);
 			this.ui.rightActionBar.push(rightButtons.map((button, index) => {
-				const action = new Action(`id-${index}`, '', button.iconClass || getIconClass(button.iconPath), true, () => this.onDidTriggerButtonEmitter.fire(button));
+				const action = new Action(`id-${index}`, '', button.iconClass || getIconClass(button.iconPath), true, () => {
+					this.onDidTriggerButtonEmitter.fire(button);
+					return Promise.resolve(null);
+				});
 				action.tooltip = button.tooltip;
 				return action;
 			}), { icon: true, label: false });

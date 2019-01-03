@@ -143,7 +143,7 @@ suite('RawSearchService', () => {
 		const service = new RawSearchService();
 
 		function fileSearch(config: IFileQuery, batchSize: number): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
-			let promise: CancelablePromise<ISerializedSearchSuccess>;
+			let promise: CancelablePromise<ISerializedSearchSuccess | void>;
 
 			const emitter = new Emitter<ISerializedSearchProgressItem | ISerializedSearchComplete>({
 				onFirstListenerAdd: () => {
