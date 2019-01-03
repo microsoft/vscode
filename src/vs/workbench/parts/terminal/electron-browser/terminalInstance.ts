@@ -679,6 +679,15 @@ export class TerminalInstance implements ITerminalInstance {
 	public preparePathForTerminalAsync(path: string): Promise<string> {
 		return new Promise<string>(c => {
 			const exe = this.shellLaunchConfig.executable;
+			if (!exe) {
+				if (platform.isWindows) {
+					c(path);
+				} else {
+					c(this._escapeNonWindowsPath(path));
+				}
+				return;
+			}
+
 			const hasSpace = path.indexOf(' ') !== -1;
 			const isPowerShell = exe.indexOf('pwsh') !== -1 ||
 				this.title.indexOf('pwsh') !== -1 ||
@@ -691,10 +700,6 @@ export class TerminalInstance implements ITerminalInstance {
 			}
 
 			if (platform.isWindows) {
-				if (!exe) {
-					c(path);
-					return;
-				}
 				// 17063 is the build number where wsl path was introduced.
 				// Update Windows uriPath to be executed in WSL.
 				if (((exe.indexOf('wsl') !== -1) || ((exe.indexOf('bash.exe') !== -1) && (exe.indexOf('git') === -1))) && (TerminalInstance.getWindowsBuildNumber() >= 17063)) {
