@@ -813,7 +813,7 @@
 		"./vs/workbench/test/common/notifications.test.ts",
 		"./vs/workbench/test/electron-browser/api/extHostTypes.test.ts",
 		"./vs/workbench/test/electron-browser/api/mock.ts"
-  ],
+	],
 	"exclude": [
 		"./typings/require-monaco.d.ts"
 	]
