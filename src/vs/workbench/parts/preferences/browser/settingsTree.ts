@@ -253,25 +253,25 @@ export abstract class AbstractSettingRenderer implements ITreeRenderer<SettingsT
 	/** To override */
 	templateId = undefined;
 
-	public static readonly CONTROL_CLASS = 'setting-control-focus-target';
-	public static readonly CONTROL_SELECTOR = '.' + AbstractSettingRenderer.CONTROL_CLASS;
+	static readonly CONTROL_CLASS = 'setting-control-focus-target';
+	static readonly CONTROL_SELECTOR = '.' + AbstractSettingRenderer.CONTROL_CLASS;
 
-	public static readonly SETTING_KEY_ATTR = 'data-key';
+	static readonly SETTING_KEY_ATTR = 'data-key';
 
 	private readonly _onDidClickOverrideElement = new Emitter<ISettingOverrideClickEvent>();
-	public readonly onDidClickOverrideElement: Event<ISettingOverrideClickEvent> = this._onDidClickOverrideElement.event;
+	readonly onDidClickOverrideElement: Event<ISettingOverrideClickEvent> = this._onDidClickOverrideElement.event;
 
 	protected readonly _onDidChangeSetting = new Emitter<ISettingChangeEvent>();
-	public readonly onDidChangeSetting: Event<ISettingChangeEvent> = this._onDidChangeSetting.event;
+	readonly onDidChangeSetting: Event<ISettingChangeEvent> = this._onDidChangeSetting.event;
 
 	protected readonly _onDidOpenSettings = new Emitter<string>();
-	public readonly onDidOpenSettings: Event<string> = this._onDidOpenSettings.event;
+	readonly onDidOpenSettings: Event<string> = this._onDidOpenSettings.event;
 
 	private readonly _onDidClickSettingLink = new Emitter<ISettingLinkClickEvent>();
-	public readonly onDidClickSettingLink: Event<ISettingLinkClickEvent> = this._onDidClickSettingLink.event;
+	readonly onDidClickSettingLink: Event<ISettingLinkClickEvent> = this._onDidClickSettingLink.event;
 
 	private readonly _onDidFocusSetting = new Emitter<SettingsTreeSettingElement>();
-	public readonly onDidFocusSetting: Event<SettingsTreeSettingElement> = this._onDidFocusSetting.event;
+	readonly onDidFocusSetting: Event<SettingsTreeSettingElement> = this._onDidFocusSetting.event;
 
 	// Put common injections back here
 	constructor(
@@ -414,7 +414,7 @@ export abstract class AbstractSettingRenderer implements ITreeRenderer<SettingsT
 			DOM.append(template.otherOverridesElement, $('span', null, `(${otherOverridesLabel}: `));
 
 			for (let i = 0; i < element.overriddenScopeList.length; i++) {
-				let view = DOM.append(template.otherOverridesElement, $('a.modified-scope', null, element.overriddenScopeList[i]));
+				const view = DOM.append(template.otherOverridesElement, $('a.modified-scope', null, element.overriddenScopeList[i]));
 
 				if (i !== element.overriddenScopeList.length - 1) {
 					DOM.append(template.otherOverridesElement, $('span', null, ', '));
@@ -826,7 +826,7 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 		const enumDescriptions = dataElement.setting.enumDescriptions;
 		const enumDescriptionsAreMarkdown = dataElement.setting.enumDescriptionsAreMarkdown;
 
-		let displayOptions = dataElement.setting.enum
+		const displayOptions = dataElement.setting.enum
 			.map(String)
 			.map(escapeInvisibleChars)
 			.map((data, index) => <ISelectOptionItem>{
@@ -1000,18 +1000,18 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 }
 
 export class SettingTreeRenderers {
-	public readonly onDidClickOverrideElement: Event<ISettingOverrideClickEvent>;
+	readonly onDidClickOverrideElement: Event<ISettingOverrideClickEvent>;
 
 	private readonly _onDidChangeSetting = new Emitter<ISettingChangeEvent>();
-	public readonly onDidChangeSetting: Event<ISettingChangeEvent>;
+	readonly onDidChangeSetting: Event<ISettingChangeEvent>;
 
-	public readonly onDidOpenSettings: Event<string>;
+	readonly onDidOpenSettings: Event<string>;
 
-	public readonly onDidClickSettingLink: Event<ISettingLinkClickEvent>;
+	readonly onDidClickSettingLink: Event<ISettingLinkClickEvent>;
 
-	public readonly onDidFocusSetting: Event<SettingsTreeSettingElement>;
+	readonly onDidFocusSetting: Event<SettingsTreeSettingElement>;
 
-	public readonly allRenderers: ITreeRenderer<SettingsTreeElement, never, any>[];
+	readonly allRenderers: ITreeRenderer<SettingsTreeElement, never, any>[];
 
 	private readonly settingActions: IAction[];
 
@@ -1059,7 +1059,7 @@ export class SettingTreeRenderers {
 		];
 	}
 
-	public cancelSuggesters() {
+	cancelSuggesters() {
 		this._contextViewService.hideContextView();
 	}
 

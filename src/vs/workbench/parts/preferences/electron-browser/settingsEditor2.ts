@@ -59,7 +59,7 @@ const $ = DOM.$;
 const SETTINGS_EDITOR_STATE_KEY = 'settingsEditorState';
 export class SettingsEditor2 extends BaseEditor {
 
-	public static readonly ID: string = 'workbench.editor.settings2';
+	static readonly ID: string = 'workbench.editor.settings2';
 	private static NUM_INSTANCES: number = 0;
 	private static SETTING_UPDATE_FAST_DEBOUNCE: number = 200;
 	private static SETTING_UPDATE_SLOW_DEBOUNCE: number = 1000;
@@ -441,7 +441,7 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 	}
 
-	public switchToSettingsFile(): Promise<IEditor> {
+	switchToSettingsFile(): Promise<IEditor> {
 		const query = parseQuery(this.searchWidget.getValue());
 		return this.openSettingsFile(query.query);
 	}

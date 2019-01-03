@@ -46,11 +46,11 @@ import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
-let $ = DOM.$;
+const $ = DOM.$;
 
 export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor {
 
-	public static readonly ID: string = 'workbench.editor.keybindings';
+	static readonly ID: string = 'workbench.editor.keybindings';
 
 	private keybindingsEditorModel: KeybindingsEditorModel;
 
@@ -372,7 +372,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		fileElement.tabIndex = 0;
 		this._register(DOM.addDisposableListener(fileElement, DOM.EventType.CLICK, () => this.preferencesService.openGlobalKeybindingSettings(true)));
 		this._register(DOM.addDisposableListener(fileElement, DOM.EventType.KEY_UP, e => {
-			let keyboardEvent = new StandardKeyboardEvent(e);
+			const keyboardEvent = new StandardKeyboardEvent(e);
 			switch (keyboardEvent.keyCode) {
 				case KeyCode.Enter:
 					this.preferencesService.openGlobalKeybindingSettings(true);
@@ -644,7 +644,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 
 	private reportFilteringUsed(filter: string): void {
 		if (filter) {
-			let data = {
+			const data = {
 				filter,
 				emptyFilters: this.getLatestEmptyFiltersForTelemetry()
 			};
@@ -835,7 +835,7 @@ class ActionsColumn extends Column {
 		};
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this.actionBar = dispose(this.actionBar);
 	}
 }

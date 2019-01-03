@@ -26,25 +26,25 @@ export class TOCTreeModel {
 	constructor(private _viewState: ISettingsEditorViewState) {
 	}
 
-	public get settingsTreeRoot(): SettingsTreeGroupElement {
+	get settingsTreeRoot(): SettingsTreeGroupElement {
 		return this._settingsTreeRoot;
 	}
 
-	public set settingsTreeRoot(value: SettingsTreeGroupElement) {
+	set settingsTreeRoot(value: SettingsTreeGroupElement) {
 		this._settingsTreeRoot = value;
 		this.update();
 	}
 
-	public set currentSearchModel(model: SearchResultModel) {
+	set currentSearchModel(model: SearchResultModel) {
 		this._currentSearchModel = model;
 		this.update();
 	}
 
-	public get children(): SettingsTreeElement[] {
+	get children(): SettingsTreeElement[] {
 		return this._settingsTreeRoot.children;
 	}
 
-	public update(): void {
+	update(): void {
 		if (this._settingsTreeRoot) {
 			this.updateGroupCount(this._settingsTreeRoot);
 		}

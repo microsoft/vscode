@@ -130,7 +130,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 			const languageSelection = this.modeService.create('jsonc');
 			const model = this.modelService.createModel(modelContent, languageSelection, uri);
 
-			let disposables: IDisposable[] = [];
+			const disposables: IDisposable[] = [];
 			disposables.push(schemaRegistry.onDidChangeSchema(schemaUri => {
 				if (schemaUri === uri.toString()) {
 					schema = schemaRegistry.getSchemaContributions().schemas[uri.toString()];
@@ -144,7 +144,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		return null;
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this.editorOpeningListener = dispose(this.editorOpeningListener);
 		this.settingsListener = dispose(this.settingsListener);
 	}
