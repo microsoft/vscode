@@ -467,20 +467,23 @@ export abstract class BaseOpenRecentAction extends Action {
 		};
 
 		const recentExistingWorkspaces = [];
-		for(let i = 0; i < recentWorkspaces.length; i++) {
+		for (let i = 0; i < recentWorkspaces.length; i++) {
 			const workspace = recentWorkspaces[i];
 			if (workspace instanceof URI) {
-				if (await this.fileService.existsFile(workspace)) {
+				if (workspace.scheme !== 'file') {
+					recentExistingWorkspaces.push(workspace);
+				}
+				if ((await this.fileService.existsFile(workspace))) {
 					recentExistingWorkspaces.push(workspace);
 				}
 			} else {
-				if(await this.fileService.existsFile(URI.file(workspace.configPath))) {
+				if (await this.fileService.existsFile(URI.file(workspace.configPath))) {
 					recentExistingWorkspaces.push(workspace);
 				}
 			}
 		}
 
-		const workspacePicks = recentExistingWorkspaces .map(workspace => toPick(workspace, isSingleFolderWorkspaceIdentifier(workspace) ? FileKind.FOLDER : FileKind.ROOT_FOLDER, this.labelService, !this.isQuickNavigate() ? [this.removeFromRecentlyOpened] : void 0));
+		const workspacePicks = recentExistingWorkspaces.map(workspace => toPick(workspace, isSingleFolderWorkspaceIdentifier(workspace) ? FileKind.FOLDER : FileKind.ROOT_FOLDER, this.labelService, !this.isQuickNavigate() ? [this.removeFromRecentlyOpened] : void 0));
 		const filePicks = recentFiles.map(p => toPick(p, FileKind.FILE, this.labelService, !this.isQuickNavigate() ? [this.removeFromRecentlyOpened] : void 0));
 
 		// focus second entry if the first recent workspace is the current workspace
