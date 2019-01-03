@@ -105,7 +105,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	}
 
 	createEditor(parent: HTMLElement): void {
-		const keybindingsEditorElement = DOM.append(parent, $('div', { class: 'keybindings-editor' }));
+		const keybindingsEditorElement = DOM.append(parent, $('div', { class: 'keybindings-editor', tabIndex: -1 }));
 
 		this.createAriaLabelElement(keybindingsEditorElement);
 		this.createOverlayContainer(keybindingsEditorElement);
