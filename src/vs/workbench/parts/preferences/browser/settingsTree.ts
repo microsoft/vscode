@@ -1343,8 +1343,6 @@ class NonCollapsibleObjectTreeModel<T> extends ObjectTreeModel<T> {
 }
 
 export class SettingsTree extends ObjectTree<SettingsTreeElement> {
-	protected disposables: IDisposable[];
-
 	constructor(
 		container: HTMLElement,
 		viewState: ISettingsEditorViewState,
@@ -1438,10 +1436,6 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 
 	protected createModel(view: ISpliceable<ITreeNode<SettingsTreeGroupChild>>, options: IObjectTreeOptions<SettingsTreeGroupChild>): ITreeModel<SettingsTreeGroupChild | null, void, SettingsTreeGroupChild | null> {
 		return new NonCollapsibleObjectTreeModel<SettingsTreeGroupChild>(view, options);
-	}
-
-	public dispose(): void {
-		this.disposables = dispose(this.disposables);
 	}
 }
 
