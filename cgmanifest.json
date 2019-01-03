@@ -109,9 +109,9 @@
 			"component": {
 				"type": "git",
 				"git": {
-					"name": "octicons-font",
-					"repositoryUrl": "https://github.com/misolori/octicons-font",
-					"commitHash": "83d82bd52dd700fc0f12cb942aa0014a4f6236cb"
+					"name": "vscode-octicons-font",
+					"repositoryUrl": "https://github.com/Microsoft/vscode-octicons-font",
+					"commitHash": "d7302a94f99e1992547ce278a85e87e2b90b1eb2"
 				}
 			},
 			"license": "MIT",
