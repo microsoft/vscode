@@ -4790,6 +4790,11 @@ declare module 'vscode' {
 		 * Controls whether the terminal is cleared before executing the task.
 		 */
 		clear?: boolean;
+
+		/**
+		 * Controls whether the task is executed in a specific terminal group using split panes.
+		 */
+		terminalGroup?: string;
 	}
 
 	/**

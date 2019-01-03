@@ -10,7 +10,7 @@ import * as Objects from 'vs/base/common/objects';
 import * as Types from 'vs/base/common/types';
 import * as Platform from 'vs/base/common/platform';
 import * as Async from 'vs/base/common/async';
-import { IStringDictionary } from 'vs/base/common/collections';
+import { IStringDictionary, values } from 'vs/base/common/collections';
 import { LinkedMap, Touch } from 'vs/base/common/map';
 import Severity from 'vs/base/common/severity';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -42,6 +42,7 @@ import {
 interface TerminalData {
 	terminal: ITerminalInstance;
 	lastTask: string;
+	terminalGroup?: string;
 }
 
 interface ActiveTerminalData {
@@ -857,6 +858,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 		let prefersSameTerminal = presentationOptions.panel === PanelKind.Dedicated;
 		let allowsSharedTerminal = presentationOptions.panel === PanelKind.Shared;
+		let terminalGroup = presentationOptions.terminalGroup;
 
 		let taskKey = task.getMapKey();
 		let terminalToReuse: TerminalData | undefined;
@@ -867,7 +869,20 @@ export class TerminalTaskSystem implements ITaskSystem {
 				delete this.sameTaskTerminals[taskKey];
 			}
 		} else if (allowsSharedTerminal) {
-			let terminalId = this.idleTaskTerminals.remove(taskKey) || this.idleTaskTerminals.shift();
+			// Always allow to reuse the terminal previously used by the same task.
+			let terminalId = this.idleTaskTerminals.remove(taskKey);
+			if (!terminalId) {
+				// There is no idle terminal which was used by the same task.
+				// Search for any idle terminal used previously by a task of the same terminalGroup
+				// (or, if the task has no terminalGroup, a terminal used by a task without terminalGroup).
+				for (const taskId of this.idleTaskTerminals.keys()) {
+					const idleTerminalId = this.idleTaskTerminals[taskId];
+					if (this.terminals[idleTerminalId].terminalGroup === terminalGroup) {
+						terminalId = this.idleTaskTerminals.remove(taskId);
+						break;
+					}
+				}
+			}
 			if (terminalId) {
 				terminalToReuse = this.terminals[terminalId];
 			}
@@ -880,7 +895,26 @@ export class TerminalTaskSystem implements ITaskSystem {
 			return [terminalToReuse.terminal, commandExecutable, undefined];
 		}
 
-		const result = this.terminalService.createTerminal(this.currentTask.shellLaunchConfig);
+		let result;
+		if (terminalGroup) {
+			// Try to find an existing terminal to split.
+			// Even if an existing terminal is found, the split can fail if the terminal width is too small.
+			for (const terminal of values(this.terminals)) {
+				if (terminal.terminalGroup === terminalGroup) {
+					const originalInstance = terminal.terminal;
+					const config = this.currentTask.shellLaunchConfig;
+					result = this.terminalService.splitInstance(originalInstance, config);
+					if (result) {
+						break;
+					}
+				}
+			}
+		}
+		if (!result) {
+			// Either no terminalGroup is used, no terminal with the terminalGroup exists or splitting an existing terminal failed.
+			result = this.terminalService.createTerminal(this.currentTask.shellLaunchConfig);
+		}
+
 		const terminalKey = result.id.toString();
 		result.onDisposed((terminal) => {
 			let terminalData = this.terminals[terminalKey];
@@ -895,7 +929,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				delete this.activeTasks[task.getMapKey()];
 			}
 		});
-		this.terminals[terminalKey] = { terminal: result, lastTask: taskKey };
+		this.terminals[terminalKey] = { terminal: result, lastTask: taskKey, terminalGroup };
 		return [result, commandExecutable, undefined];
 	}
 
