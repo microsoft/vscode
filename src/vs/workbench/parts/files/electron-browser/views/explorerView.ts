@@ -265,6 +265,10 @@ export class ExplorerView extends ViewletPanel {
 			const selection = e.elements;
 			// Do not react if the user is expanding selection
 			if (selection && selection.length === 1) {
+				if (selection[0].isDirectory || !selection[0].name) {
+					// Do not react if user is clicking on directories or explorer items which are input placeholders
+					return;
+				}
 				let isDoubleClick = false;
 				let sideBySide = false;
 				let isMiddleClick = false;
@@ -275,21 +279,19 @@ export class ExplorerView extends ViewletPanel {
 					sideBySide = this.tree.useAltAsMultipleSelectionModifier ? (e.browserEvent.ctrlKey || e.browserEvent.metaKey) : e.browserEvent.altKey;
 				}
 
-				if (!selection[0].isDirectory) {
-					// Pass focus for keyboard events and for double click
-					/* __GDPR__
-					"workbenchActionExecuted" : {
-						"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-					}*/
-					this.telemetryService.publicLog('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'explorer' });
-					this.ignoreActiveEditorChange = true;
-					this.editorService.openEditor({ resource: selection[0].resource, options: { preserveFocus: (e.browserEvent instanceof MouseEvent) && !isDoubleClick, pinned: isDoubleClick || isMiddleClick } }, sideBySide ? SIDE_GROUP : ACTIVE_GROUP)
-						.then(() => this.ignoreActiveEditorChange = false).catch(e => {
-							this.ignoreActiveEditorChange = false;
-							onUnexpectedError(e);
-						});
-				}
+				// Pass focus for keyboard events and for double click
+				/* __GDPR__
+				"workbenchActionExecuted" : {
+					"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}*/
+				this.telemetryService.publicLog('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'explorer' });
+				this.ignoreActiveEditorChange = true;
+				this.editorService.openEditor({ resource: selection[0].resource, options: { preserveFocus: (e.browserEvent instanceof MouseEvent) && !isDoubleClick, pinned: isDoubleClick || isMiddleClick } }, sideBySide ? SIDE_GROUP : ACTIVE_GROUP)
+					.then(() => this.ignoreActiveEditorChange = false).catch(e => {
+						this.ignoreActiveEditorChange = false;
+						onUnexpectedError(e);
+					});
 			}
 		}));
 
