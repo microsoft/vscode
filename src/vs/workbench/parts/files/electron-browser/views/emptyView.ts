@@ -57,6 +57,7 @@ export class EmptyView extends ViewletPanel {
 
 	protected renderBody(container: HTMLElement): void {
 		DOM.addClass(container, 'explorer-empty-view');
+		container.tabIndex = 0;
 
 		const messageContainer = document.createElement('div');
 		DOM.addClass(messageContainer, 'section');
