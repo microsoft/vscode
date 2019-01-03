@@ -161,9 +161,12 @@ export class ExplorerView extends ViewletPanel {
 		this.disposables.push(this.explorerService.onDidChangeItem(e => this.refresh(e)));
 		this.disposables.push(this.explorerService.onDidChangeEditable(e => {
 			let expandPromise = Promise.resolve(null);
-			if (this.explorerService.getEditableData(e)) {
+			const isEditing = !!this.explorerService.getEditableData(e);
+			if (isEditing) {
+				this.tree.setFocus([]);
 				expandPromise = ignoreErrors(this.tree.expand(e.parent));
 			}
+			DOM.toggleClass(this.tree.getHTMLElement(), 'highlight', isEditing);
 			expandPromise.then(() => this.refresh(e.parent));
 		}));
 		this.disposables.push(this.explorerService.onDidSelectItem(e => this.onSelectItem(e.item, e.reveal)));
