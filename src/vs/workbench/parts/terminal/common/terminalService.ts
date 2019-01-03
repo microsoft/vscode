@@ -264,10 +264,10 @@ export abstract class TerminalService implements ITerminalService {
 		this.setActiveTabByIndex(newIndex);
 	}
 
-	public splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig: IShellLaunchConfig = {}): void {
+	public splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig: IShellLaunchConfig = {}): ITerminalInstance | null {
 		const tab = this._getTabForInstance(instanceToSplit);
 		if (!tab) {
-			return;
+			return null;
 		}
 
 		const instance = tab.split(this._terminalFocusContextKey, this.configHelper, shellLaunchConfig);
@@ -276,8 +276,10 @@ export abstract class TerminalService implements ITerminalService {
 			this._onInstancesChanged.fire();
 
 			this._terminalTabs.forEach((t, i) => t.setVisible(i === this._activeTabIndex));
+			return instance;
 		} else {
 			this._showNotEnoughSpaceToast();
+			return null;
 		}
 	}
 
