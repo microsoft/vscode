@@ -462,12 +462,12 @@ export class Emitter<T> {
 
 	private static readonly _noop = function () { };
 
-	private readonly _options: EmitterOptions | undefined;
-	private readonly _leakageMon: LeakageMonitor | undefined;
+	private readonly _options?: EmitterOptions;
+	private readonly _leakageMon?: LeakageMonitor;
 	private _disposed: boolean = false;
-	private _event: Event<T> | undefined;
-	private _deliveryQueue: [Listener<T>, T][] | undefined;
-	protected _listeners: LinkedList<Listener<T>> | undefined;
+	private _event?: Event<T>;
+	private _deliveryQueue: [Listener<T>, T][];
+	protected _listeners?: LinkedList<Listener<T>>;
 
 	constructor(options?: EmitterOptions) {
 		this._options = options;
