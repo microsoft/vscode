@@ -142,7 +142,7 @@ export class EditorControl extends Disposable {
 		}
 
 		// Indicate that size constraints could have changed due to new editor
-		this._onDidSizeConstraintsChange.fire();
+		this._onDidSizeConstraintsChange.fire(undefined);
 	}
 
 	private doSetInput(control: BaseEditor, editor: EditorInput, options: EditorOptions): Promise<boolean> {

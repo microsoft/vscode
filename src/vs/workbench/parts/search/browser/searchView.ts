@@ -733,7 +733,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			this.tree.setFocus([next]);
 			this.tree.setSelection([next]);
 			this.tree.reveal(next);
-			this.selectCurrentMatchEmitter.fire();
+			this.selectCurrentMatchEmitter.fire(undefined);
 		}
 	}
 
@@ -774,7 +774,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			this.tree.setFocus([prev]);
 			this.tree.setSelection([prev]);
 			this.tree.reveal(prev);
-			this.selectCurrentMatchEmitter.fire();
+			this.selectCurrentMatchEmitter.fire(undefined);
 		}
 	}
 

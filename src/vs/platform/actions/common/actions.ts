@@ -104,7 +104,7 @@ export interface IMenuActionOptions {
 }
 
 export interface IMenu extends IDisposable {
-	onDidChange: Event<IMenu>;
+	readonly onDidChange: Event<IMenu | undefined>;
 	getActions(options?: IMenuActionOptions): [string, Array<MenuItemAction | SubmenuItemAction>][];
 }
 
@@ -123,7 +123,7 @@ export interface IMenuRegistry {
 	getCommands(): ICommandsMap;
 	appendMenuItem(menu: MenuId, item: IMenuItem | ISubmenuItem): IDisposable;
 	getMenuItems(loc: MenuId): Array<IMenuItem | ISubmenuItem>;
-	onDidChangeMenu: Event<MenuId>;
+	readonly onDidChangeMenu: Event<MenuId>;
 }
 
 export interface ICommandsMap {

@@ -482,7 +482,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 						this._selectedItems = [this.activeItems[0]];
 						this.onDidChangeSelectionEmitter.fire(this.selectedItems);
 					}
-					this.onDidAcceptEmitter.fire();
+					this.onDidAcceptEmitter.fire(undefined);
 				}),
 				this.ui.list.onDidChangeFocus(focusedItems => {
 					if (this.activeItemsUpdated) {
@@ -507,7 +507,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 					this._selectedItems = selectedItems as T[];
 					this.onDidChangeSelectionEmitter.fire(selectedItems as T[]);
 					if (selectedItems.length) {
-						this.onDidAcceptEmitter.fire();
+						this.onDidAcceptEmitter.fire(undefined);
 					}
 				}),
 				this.ui.list.onChangedCheckedElements(checkedItems => {
@@ -570,7 +570,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 			if (wasTriggerKeyPressed && this.activeItems[0]) {
 				this._selectedItems = [this.activeItems[0]];
 				this.onDidChangeSelectionEmitter.fire(this.selectedItems);
-				this.onDidAcceptEmitter.fire();
+				this.onDidAcceptEmitter.fire(undefined);
 			}
 		});
 	}
@@ -723,7 +723,7 @@ class InputBox extends QuickInput implements IInputBox {
 					this._value = value;
 					this.onDidValueChangeEmitter.fire(value);
 				}),
-				this.ui.onDidAccept(() => this.onDidAcceptEmitter.fire()),
+				this.ui.onDidAccept(() => this.onDidAcceptEmitter.fire(undefined)),
 			);
 			this.valueSelectionUpdated = true;
 		}

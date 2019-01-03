@@ -29,7 +29,7 @@ type MenuItemGroup = [string, Array<IMenuItem | ISubmenuItem>];
 
 class Menu implements IMenu {
 
-	private readonly _onDidChange = new Emitter<IMenu>();
+	private readonly _onDidChange = new Emitter<IMenu | undefined>();
 	private readonly _disposables: IDisposable[] = [];
 
 	private _menuGroups: MenuItemGroup[];
@@ -56,7 +56,7 @@ class Menu implements IMenu {
 			this._contextKeyService.onDidChangeContext,
 			(last, event) => last || event.affectsSome(this._contextKeys),
 			50
-		)(e => e && this._onDidChange.fire(), this, this._disposables);
+		)(e => e && this._onDidChange.fire(undefined), this, this._disposables);
 	}
 
 	private _build(): void {
@@ -100,7 +100,7 @@ class Menu implements IMenu {
 		this._onDidChange.dispose();
 	}
 
-	get onDidChange(): Event<IMenu> {
+	get onDidChange(): Event<IMenu | undefined> {
 		return this._onDidChange.event;
 	}
 

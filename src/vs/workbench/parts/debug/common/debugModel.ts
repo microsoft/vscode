@@ -786,7 +786,7 @@ export class DebugModel implements IDebugModel {
 			return true;
 		});
 		this.sessions.push(session);
-		this._onDidChangeCallStack.fire();
+		this._onDidChangeCallStack.fire(undefined);
 	}
 
 	get onDidChangeBreakpoints(): Event<IBreakpointsChangeEvent> {
@@ -805,7 +805,7 @@ export class DebugModel implements IDebugModel {
 		let session = this.sessions.filter(p => p.getId() === data.sessionId).pop();
 		if (session) {
 			session.rawUpdate(data);
-			this._onDidChangeCallStack.fire();
+			this._onDidChangeCallStack.fire(undefined);
 		}
 	}
 
@@ -816,7 +816,7 @@ export class DebugModel implements IDebugModel {
 
 		if (session) {
 			session.clearThreads(removeThreads, reference);
-			this._onDidChangeCallStack.fire();
+			this._onDidChangeCallStack.fire(undefined);
 		}
 	}
 
@@ -881,7 +881,7 @@ export class DebugModel implements IDebugModel {
 				const ebp = this.exceptionBreakpoints.filter(ebp => ebp.filter === d.filter).pop();
 				return new ExceptionBreakpoint(d.filter, d.label, ebp ? ebp.enabled : d.default);
 			});
-			this._onDidChangeBreakpoints.fire();
+			this._onDidChangeBreakpoints.fire(undefined);
 		}
 	}
 
@@ -891,7 +891,7 @@ export class DebugModel implements IDebugModel {
 
 	setBreakpointsActivated(activated: boolean): void {
 		this.breakpointsActivated = activated;
-		this._onDidChangeBreakpoints.fire();
+		this._onDidChangeBreakpoints.fire(undefined);
 	}
 
 	addBreakpoints(uri: uri, rawData: IBreakpointData[], fireEvent = true): IBreakpoint[] {
@@ -1052,7 +1052,7 @@ export class DebugModel implements IDebugModel {
 
 	removeWatchExpressions(id: string | null = null): void {
 		this.watchExpressions = id ? this.watchExpressions.filter(we => we.getId() !== id) : [];
-		this._onDidChangeWatchExpressions.fire();
+		this._onDidChangeWatchExpressions.fire(undefined);
 	}
 
 	moveWatchExpression(id: string, position: number): void {
@@ -1060,7 +1060,7 @@ export class DebugModel implements IDebugModel {
 		this.watchExpressions = this.watchExpressions.filter(we => we.getId() !== id);
 		this.watchExpressions = this.watchExpressions.slice(0, position).concat(we, this.watchExpressions.slice(position));
 
-		this._onDidChangeWatchExpressions.fire();
+		this._onDidChangeWatchExpressions.fire(undefined);
 	}
 
 	sourceIsNotAvailable(uri: uri): void {
@@ -1070,7 +1070,7 @@ export class DebugModel implements IDebugModel {
 				source.available = false;
 			}
 		});
-		this._onDidChangeCallStack.fire();
+		this._onDidChangeCallStack.fire(undefined);
 	}
 
 	dispose(): void {

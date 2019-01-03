@@ -21,7 +21,7 @@ export interface IView {
 	readonly maximumWidth: number;
 	readonly minimumHeight: number;
 	readonly maximumHeight: number;
-	readonly onDidChange: Event<{ width: number; height: number; }>;
+	readonly onDidChange: Event<{ width: number; height: number; } | undefined>;
 	readonly priority?: LayoutPriority;
 	readonly snapSize?: number;
 	layout(width: number, height: number): void;
@@ -308,7 +308,7 @@ class BranchNode implements ISplitView, IDisposable {
 		this.childrenSashResetDisposable.dispose();
 		this.childrenSashResetDisposable = onDidChildrenSashReset(this._onDidSashReset.fire, this._onDidSashReset);
 
-		this._onDidChange.fire();
+		this._onDidChange.fire(undefined);
 	}
 
 	trySet2x2(other: BranchNode): IDisposable {
@@ -348,8 +348,8 @@ class BranchNode implements ISplitView, IDisposable {
 		mySash.linkedSash = otherSash;
 		otherSash.linkedSash = mySash;
 
-		this._onDidChange.fire();
-		other._onDidChange.fire();
+		this._onDidChange.fire(undefined);
+		other._onDidChange.fire(undefined);
 
 		return toDisposable(() => {
 			mySash.linkedSash = otherSash.linkedSash = undefined;
@@ -391,7 +391,7 @@ class LeafNode implements ISplitView, IDisposable {
 	set linkedWidthNode(node: LeafNode | undefined) {
 		this._onDidLinkedWidthNodeChange.input = node ? node._onDidViewChange : Event.None;
 		this._linkedWidthNode = node;
-		this._onDidSetLinkedNode.fire();
+		this._onDidSetLinkedNode.fire(undefined);
 	}
 
 	private _onDidLinkedHeightNodeChange = new Relay<number | undefined>();
@@ -400,7 +400,7 @@ class LeafNode implements ISplitView, IDisposable {
 	set linkedHeightNode(node: LeafNode | undefined) {
 		this._onDidLinkedHeightNodeChange.input = node ? node._onDidViewChange : Event.None;
 		this._linkedHeightNode = node;
-		this._onDidSetLinkedNode.fire();
+		this._onDidSetLinkedNode.fire(undefined);
 	}
 
 	private _onDidSetLinkedNode = new Emitter<number | undefined>();

@@ -198,7 +198,7 @@ export class SideBySideEditor extends BaseEditor {
 			Event.map(master.onDidSizeConstraintsChange, () => undefined)
 		);
 
-		this.onDidCreateEditors.fire();
+		this.onDidCreateEditors.fire(undefined);
 
 		return Promise.all([this.detailsEditor.setInput(detailsInput, null, token), this.masterEditor.setInput(masterInput, options, token)]).then(() => this.focus());
 	}

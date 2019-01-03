@@ -798,6 +798,6 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 		this._globalToDispose.forEach(global => global.dispose());
 		this._localToDispose.forEach(local => local.dispose());
-		this._onDidClose.fire();
+		this._onDidClose.fire(undefined);
 	}
 }

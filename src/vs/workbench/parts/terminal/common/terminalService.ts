@@ -46,8 +46,8 @@ export abstract class TerminalService implements ITerminalService {
 	public get onInstancesChanged(): Event<void> { return this._onInstancesChanged.event; }
 	protected readonly _onInstanceTitleChanged = new Emitter<ITerminalInstance>();
 	public get onInstanceTitleChanged(): Event<ITerminalInstance> { return this._onInstanceTitleChanged.event; }
-	protected readonly _onActiveInstanceChanged = new Emitter<ITerminalInstance>();
-	public get onActiveInstanceChanged(): Event<ITerminalInstance> { return this._onActiveInstanceChanged.event; }
+	protected readonly _onActiveInstanceChanged = new Emitter<ITerminalInstance | undefined>();
+	public get onActiveInstanceChanged(): Event<ITerminalInstance | undefined> { return this._onActiveInstanceChanged.event; }
 	protected readonly _onTabDisposed = new Emitter<ITerminalTab>();
 	public get onTabDisposed(): Event<ITerminalTab> { return this._onTabDisposed.event; }
 

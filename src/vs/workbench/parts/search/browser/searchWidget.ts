@@ -114,7 +114,7 @@ export class SearchWidget extends Widget {
 	private _onReplaceStateChange = this._register(new Emitter<boolean>());
 	readonly onReplaceStateChange: Event<boolean> = this._onReplaceStateChange.event;
 
-	private _onReplaceValueChanged = this._register(new Emitter<string>());
+	private _onReplaceValueChanged = this._register(new Emitter<string | undefined>());
 	readonly onReplaceValueChanged: Event<string> = this._onReplaceValueChanged.event;
 
 	private _onReplaceAll = this._register(new Emitter<void>());
@@ -343,7 +343,7 @@ export class SearchWidget extends Widget {
 		this._register(attachInputBoxStyler(this.replaceInput, this.themeService));
 		this.onkeydown(this.replaceInput.inputElement, (keyboardEvent) => this.onReplaceInputKeyDown(keyboardEvent));
 		this.replaceInput.value = options.replaceValue || '';
-		this._register(this.replaceInput.onDidChange(() => this._onReplaceValueChanged.fire()));
+		this._register(this.replaceInput.onDidChange(() => this._onReplaceValueChanged.fire(undefined)));
 		this._register(this.replaceInput.onDidHeightChange(() => this._onDidHeightChange.fire()));
 
 		this.replaceAllAction = ReplaceAllAction.INSTANCE;

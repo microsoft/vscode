@@ -137,7 +137,7 @@ export namespace Event {
 						output = undefined;
 						handle = undefined;
 						if (!leading || numDebouncedCalls > 1) {
-							emitter.fire(_output);
+							emitter.fire(_output!);
 						}
 
 						numDebouncedCalls = 0;
@@ -332,17 +332,17 @@ export namespace Event {
 		return result.event;
 	}
 
-	export function fromPromise<T =any>(promise: Promise<T>): Event<T> {
-		const emitter = new Emitter<T>();
+	export function fromPromise<T = any>(promise: Promise<T>): Event<undefined> {
+		const emitter = new Emitter<undefined>();
 		let shouldEmit = false;
 
 		promise
 			.then(undefined, () => null)
 			.then(() => {
 				if (!shouldEmit) {
-					setTimeout(() => emitter.fire(), 0);
+					setTimeout(() => emitter.fire(undefined), 0);
 				} else {
-					emitter.fire();
+					emitter.fire(undefined);
 				}
 			});
 
@@ -466,7 +466,7 @@ export class Emitter<T> {
 	private readonly _leakageMon: LeakageMonitor | undefined;
 	private _disposed: boolean = false;
 	private _event: Event<T> | undefined;
-	private _deliveryQueue: [Listener, (T | undefined)][] | undefined;
+	private _deliveryQueue: [Listener, T][] | undefined;
 	protected _listeners: LinkedList<Listener> | undefined;
 
 	constructor(options?: EmitterOptions) {
@@ -541,7 +541,7 @@ export class Emitter<T> {
 	 * To be kept private to fire an event to
 	 * subscribers
 	 */
-	fire(event?: T): any {
+	fire(event: T): any {
 		if (this._listeners) {
 			// put all [listener,event]-pairs into delivery queue
 			// then emit all event. an inner/nested event might be

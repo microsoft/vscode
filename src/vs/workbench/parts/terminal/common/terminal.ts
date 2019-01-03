@@ -197,7 +197,7 @@ export interface ITerminalService {
 	onInstanceRequestExtHostProcess: Event<ITerminalProcessExtHostRequest>;
 	onInstancesChanged: Event<void>;
 	onInstanceTitleChanged: Event<ITerminalInstance>;
-	onActiveInstanceChanged: Event<ITerminalInstance>;
+	onActiveInstanceChanged: Event<ITerminalInstance | undefined>;
 	terminalInstances: ITerminalInstance[];
 	terminalTabs: ITerminalTab[];
 

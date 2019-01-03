@@ -449,7 +449,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 						return extension;
 					});
 
-					this._onChange.fire();
+					this._onChange.fire(undefined);
 					return this.local;
 				}));
 	}
@@ -971,7 +971,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		const uninstalling = this.uninstalling.filter(e => e.local.identifier.id === id)[0] || extension;
 		this.uninstalling = [uninstalling, ...this.uninstalling.filter(e => e.local.identifier.id !== id)];
 
-		this._onChange.fire();
+		this._onChange.fire(undefined);
 	}
 
 	private onDidUninstallExtension({ identifier, error }: DidUninstallExtensionEvent): void {
@@ -986,7 +986,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 			return;
 		}
 
-		this._onChange.fire();
+		this._onChange.fire(undefined);
 	}
 
 	private onEnablementChanged(identifier: IExtensionIdentifier) {

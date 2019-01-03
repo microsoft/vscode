@@ -920,7 +920,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 			this._onDidSizeConstraintsChange.input = gridWidget.onDidChange;
 		}
 
-		this.onDidSetGridWidget.fire();
+		this.onDidSetGridWidget.fire(undefined);
 	}
 
 	private updateContainer(): void {

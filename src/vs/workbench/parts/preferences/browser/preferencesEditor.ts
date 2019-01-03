@@ -123,7 +123,7 @@ export class PreferencesEditor extends BaseEditor {
 
 		const editorsContainer = DOM.append(parent, DOM.$('.preferences-editors-container'));
 		this.sideBySidePreferencesWidget = this._register(this.instantiationService.createInstance(SideBySidePreferencesWidget, editorsContainer));
-		this._onDidCreateWidget.fire();
+		this._onDidCreateWidget.fire(undefined);
 		this._register(this.sideBySidePreferencesWidget.onFocus(() => this.lastFocusedWidget = this.sideBySidePreferencesWidget));
 		this._register(this.sideBySidePreferencesWidget.onDidSettingsTargetChange(target => this.switchSettings(target)));
 

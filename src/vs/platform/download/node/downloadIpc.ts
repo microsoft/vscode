@@ -19,7 +19,7 @@ export function upload(uri: URI): Event<UploadResponse> {
 	const readstream = fs.createReadStream(uri.fsPath);
 	readstream.on('data', data => stream.fire(data));
 	readstream.on('error', error => stream.fire(error.toString()));
-	readstream.on('close', () => stream.fire());
+	readstream.on('close', () => stream.fire(undefined));
 	return stream.event;
 }
 
