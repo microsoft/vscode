@@ -198,7 +198,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	//#endregion
 
 	public readonly isSimpleWidget: boolean;
-	private readonly _telemetryData: object | null;
+	private readonly _telemetryData?: object;
 
 	private readonly _domElement: HTMLElement;
 	private readonly _id: number;
@@ -245,7 +245,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._decorationTypeKeysToIds = {};
 		this._decorationTypeSubtypes = {};
 		this.isSimpleWidget = codeEditorWidgetOptions.isSimpleWidget || false;
-		this._telemetryData = codeEditorWidgetOptions.telemetryData || null;
+		this._telemetryData = codeEditorWidgetOptions.telemetryData;
 
 		options = options || {};
 		this._configuration = this._register(this._createConfiguration(options));
@@ -1507,7 +1507,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	/* __GDPR__FRAGMENT__
 		"EditorTelemetryData" : {}
 	*/
-	public getTelemetryData(): { [key: string]: any; } | null {
+	public getTelemetryData(): { [key: string]: any; } | undefined {
 		return this._telemetryData;
 	}
 

@@ -682,7 +682,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	/**
 	 * @internal
 	 */
-	getTelemetryData(): { [key: string]: any; } | null;
+	getTelemetryData(): { [key: string]: any } | undefined;
 
 	/**
 	 * Returns the editor's dom node
