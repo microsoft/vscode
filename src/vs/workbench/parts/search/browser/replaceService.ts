@@ -46,7 +46,7 @@ export class ReplacePreviewContentProvider implements ITextModelContentProvider,
 		this.textModelResolverService.registerTextModelContentProvider(network.Schemas.internal, this);
 	}
 
-	provideTextContent(uri: URI): Promise<ITextModel> {
+	provideTextContent(uri: URI): Promise<ITextModel> | null {
 		if (uri.fragment === REPLACE_PREVIEW) {
 			return this.instantiationService.createInstance(ReplacePreviewModel).resolve(uri);
 		}
@@ -103,7 +103,7 @@ export class ReplaceService implements IReplaceService {
 	replace(match: Match): Promise<any>;
 	replace(files: FileMatch[], progress?: IProgressRunner): Promise<any>;
 	replace(match: FileMatchOrMatch, progress?: IProgressRunner, resource?: URI): Promise<any>;
-	replace(arg: any, progress: IProgressRunner | null = null, resource: URI | null = null): Promise<any> {
+	replace(arg: any, progress: IProgressRunner | undefined = undefined, resource: URI | null = null): Promise<any> {
 
 		const edits: ResourceTextEdit[] = this.createEdits(arg, resource);
 		return this.bulkEditorService.apply({ edits }, { progress }).then(() => this.textFileService.saveAll(edits.map(e => e.resource)));
