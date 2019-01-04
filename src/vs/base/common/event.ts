@@ -732,7 +732,7 @@ export class EventBufferer {
 	}
 
 	bufferEvents<R = void>(fn: () => R): R {
-		const buffer: Function[] = [];
+		const buffer: Array<() => R> = [];
 		this.buffers.push(buffer);
 		const r = fn();
 		this.buffers.pop();

@@ -245,11 +245,11 @@ export class SimpleWorkerClient<T> extends Disposable {
 		});
 
 		// Create proxy to loaded code
-		let proxyMethodRequest = (method: string, args: any[]): Promise<any> => {
+		const proxyMethodRequest = (method: string, args: any[]): Promise<any> => {
 			return this._request(method, args);
 		};
 
-		let createProxyMethod = (method: string, proxyMethodRequest: (method: string, args: any[]) => Promise<any>): Function => {
+		const createProxyMethod = (method: string, proxyMethodRequest: (method: string, args: any[]) => Promise<any>): () => Promise<any> => {
 			return function () {
 				let args = Array.prototype.slice.call(arguments, 0);
 				return proxyMethodRequest(method, args);

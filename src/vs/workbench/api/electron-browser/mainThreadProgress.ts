@@ -11,7 +11,7 @@ import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostC
 export class MainThreadProgress implements MainThreadProgressShape {
 
 	private _progressService: IProgressService2;
-	private _progress = new Map<number, { resolve: Function, progress: IProgress<IProgressStep> }>();
+	private _progress = new Map<number, { resolve: () => void, progress: IProgress<IProgressStep> }>();
 	private _proxy: ExtHostProgressShape;
 
 	constructor(

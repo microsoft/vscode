@@ -32,9 +32,9 @@ export class Disposable {
 		});
 	}
 
-	private _callOnDispose?: Function;
+	private _callOnDispose?: () => any;
 
-	constructor(callOnDispose: Function) {
+	constructor(callOnDispose: () => any) {
 		this._callOnDispose = callOnDispose;
 	}
 
