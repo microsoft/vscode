@@ -109,8 +109,8 @@ class EditorRegistry implements IEditorRegistry {
 
 			for (const editor of this.editors) {
 				const inputDescriptors = <SyncDescriptor<EditorInput>[]>editor[INPUT_DESCRIPTORS_PROPERTY];
-				for (let j = 0; j < inputDescriptors.length; j++) {
-					const inputClass = inputDescriptors[j].ctor;
+				for (const inputDescriptor of inputDescriptors) {
+					const inputClass = inputDescriptor.ctor;
 
 					// Direct check on constructor type (ignores prototype chain)
 					if (!byInstanceOf && input.constructor === inputClass) {

@@ -410,8 +410,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 			// Resource editor
 			else {
-				for (let j = 0; j < group.editors.length; j++) {
-					const editorInGroup = group.editors[j];
+				for (const editorInGroup of group.editors) {
 					const resource = toResource(editorInGroup, { supportSideBySide: true });
 					if (!resource) {
 						continue; // need a resource to compare with

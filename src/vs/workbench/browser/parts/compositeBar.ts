@@ -593,8 +593,7 @@ class CompositeBarModel {
 	}
 
 	setPinned(id: string, pinned: boolean): boolean {
-		for (let index = 0; index < this.items.length; index++) {
-			const item = this.items[index];
+		for (const item of this.items) {
 			if (item.id === id) {
 				if (item.pinned !== pinned) {
 					item.pinned = pinned;
@@ -656,8 +655,7 @@ class CompositeBarModel {
 			if (this.activeItem) {
 				this.deactivate();
 			}
-			for (let index = 0; index < this.items.length; index++) {
-				const item = this.items[index];
+			for (const item of this.items) {
 				if (item.id === id) {
 					this.activeItem = item;
 					this.activeItem.activityAction.activate();

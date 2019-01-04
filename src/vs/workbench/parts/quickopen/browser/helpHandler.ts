@@ -85,9 +85,7 @@ export class HelpHandler extends QuickOpenHandler {
 
 				// Descriptor has multiple help entries
 				if (types.isArray(handlerDescriptor.helpEntries)) {
-					for (let j = 0; j < handlerDescriptor.helpEntries.length; j++) {
-						const helpEntry = handlerDescriptor.helpEntries[j];
-
+					for (const helpEntry of handlerDescriptor.helpEntries) {
 						if (helpEntry.prefix.indexOf(searchValue) === 0) {
 							matchingHandlers.push(helpEntry);
 						}

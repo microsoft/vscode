@@ -131,11 +131,10 @@ class CommentingRangeDecorator {
 	}
 
 	public getMatchedCommentAction(line: number) {
-		for (let i = 0; i < this.commentingRangeDecorations.length; i++) {
-			let range = this.commentingRangeDecorations[i].getActiveRange();
-
+		for (const decoration of this.commentingRangeDecorations) {
+			const range = decoration.getActiveRange();
 			if (range.startLineNumber <= line && line <= range.endLineNumber) {
-				return this.commentingRangeDecorations[i].getCommentAction();
+				return decoration.getCommentAction();
 			}
 		}
 

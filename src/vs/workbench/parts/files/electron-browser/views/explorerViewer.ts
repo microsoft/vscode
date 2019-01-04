@@ -831,8 +831,8 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		if (fromDesktop) {
 			const types: string[] = originalEvent.dataTransfer.types;
 			const typesArray: string[] = [];
-			for (let i = 0; i < types.length; i++) {
-				typesArray.push(types[i].toLowerCase()); // somehow the types are lowercase
+			for (const t of types) {
+				typesArray.push(t.toLowerCase()); // somehow the types are lowercase
 			}
 
 			if (typesArray.indexOf(DataTransfers.FILES.toLowerCase()) === -1 && typesArray.indexOf(CodeDataTransfers.FILES.toLowerCase()) === -1) {
@@ -1023,15 +1023,15 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		const workspaceCreationData: IWorkspaceFolderCreationData[] = [];
 		const rootsToMove: IWorkspaceFolderCreationData[] = [];
 
-		for (let index = 0; index < folders.length; index++) {
+		for (const folder of folders) {
 			const data = {
-				uri: folders[index].uri
+				uri: folder.uri
 			};
-			if (target instanceof ExplorerItem && folders[index].uri.toString() === target.resource.toString()) {
+			if (target instanceof ExplorerItem && folder.uri.toString() === target.resource.toString()) {
 				targetIndex = workspaceCreationData.length;
 			}
 
-			if (roots.every(r => r.resource.toString() !== folders[index].uri.toString())) {
+			if (roots.every(r => r.resource.toString() !== folder.uri.toString())) {
 				workspaceCreationData.push(data);
 			} else {
 				rootsToMove.push(data);

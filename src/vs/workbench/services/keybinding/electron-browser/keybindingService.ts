@@ -394,8 +394,8 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 				result[resultLen++] = new ResolvedKeybindingItem(null, item.command, item.commandArgs, when, isDefault);
 			} else {
 				const resolvedKeybindings = this.resolveKeybinding(keybinding);
-				for (let j = 0; j < resolvedKeybindings.length; j++) {
-					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybindings[j], item.command, item.commandArgs, when, isDefault);
+				for (const resolvedKeybinding of resolvedKeybindings) {
+					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybinding, item.command, item.commandArgs, when, isDefault);
 				}
 			}
 		}
@@ -415,8 +415,8 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 				result[resultLen++] = new ResolvedKeybindingItem(null, item.command, item.commandArgs, when, isDefault);
 			} else {
 				const resolvedKeybindings = this._keyboardMapper.resolveUserBinding(firstPart, chordPart);
-				for (let j = 0; j < resolvedKeybindings.length; j++) {
-					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybindings[j], item.command, item.commandArgs, when, isDefault);
+				for (const resolvedKeybinding of resolvedKeybindings) {
+					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybinding, item.command, item.commandArgs, when, isDefault);
 				}
 			}
 		}

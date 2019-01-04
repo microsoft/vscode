@@ -95,9 +95,9 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		// Multi Folder Workspace Settings File
 		else if (state === WorkbenchState.WORKSPACE) {
 			const folders = this.workspaceService.getWorkspace().folders;
-			for (let i = 0; i < folders.length; i++) {
-				if (isEqual(resource, folders[i].toResource(FOLDER_SETTINGS_PATH))) {
-					return { override: this.preferencesService.openFolderSettings(folders[i].uri, true, options, group) };
+			for (const folder of folders) {
+				if (isEqual(resource, folder.toResource(FOLDER_SETTINGS_PATH))) {
+					return { override: this.preferencesService.openFolderSettings(folder.uri, true, options, group) };
 				}
 			}
 		}

@@ -33,8 +33,8 @@ export function getRandomString(minLength: number, maxLength: number): string {
 
 export function generateRandomEdits(chunks: string[], editCnt: number): IIdentifiedSingleEditOperation[] {
 	let lines: string[] = [];
-	for (let i = 0; i < chunks.length; i++) {
-		let newLines = chunks[i].split(/\r\n|\r|\n/);
+	for (const chunk of chunks) {
+		let newLines = chunk.split(/\r\n|\r|\n/);
 		if (lines.length === 0) {
 			lines.push(...newLines);
 		} else {
@@ -66,8 +66,8 @@ export function generateRandomEdits(chunks: string[], editCnt: number): IIdentif
 
 export function generateSequentialInserts(chunks: string[], editCnt: number): IIdentifiedSingleEditOperation[] {
 	let lines: string[] = [];
-	for (let i = 0; i < chunks.length; i++) {
-		let newLines = chunks[i].split(/\r\n|\r|\n/);
+	for (const chunk of chunks) {
+		let newLines = chunk.split(/\r\n|\r|\n/);
 		if (lines.length === 0) {
 			lines.push(...newLines);
 		} else {
@@ -101,8 +101,8 @@ export function generateSequentialInserts(chunks: string[], editCnt: number): II
 
 export function generateRandomReplaces(chunks: string[], editCnt: number, searchStringLen: number, replaceStringLen: number): IIdentifiedSingleEditOperation[] {
 	let lines: string[] = [];
-	for (let i = 0; i < chunks.length; i++) {
-		let newLines = chunks[i].split(/\r\n|\r|\n/);
+	for (const chunk of chunks) {
+		let newLines = chunk.split(/\r\n|\r|\n/);
 		if (lines.length === 0) {
 			lines.push(...newLines);
 		} else {

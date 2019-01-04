@@ -921,8 +921,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 
 		// fallback to first workspace matching scheme filter if any
-		for (let i = 0; i < folders.length; i++) {
-			const resource = folders[i].uri;
+		for (const folder of folders) {
+			const resource = folder.uri;
 			if (!schemeFilter || resource.scheme === schemeFilter) {
 				return resource;
 			}
@@ -933,10 +933,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	getLastActiveFile(schemeFilter: string): URI {
 		const history = this.getHistory();
-		for (let i = 0; i < history.length; i++) {
+		for (const input of history) {
 			let resource: URI;
-
-			const input = history[i];
 			if (input instanceof EditorInput) {
 				resource = toResource(input, { filter: schemeFilter });
 			} else {

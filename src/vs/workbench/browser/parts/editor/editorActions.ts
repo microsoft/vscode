@@ -196,8 +196,8 @@ export class JoinTwoGroupsAction extends Action {
 		}
 
 		const targetGroupDirections = [GroupDirection.RIGHT, GroupDirection.DOWN, GroupDirection.LEFT, GroupDirection.UP];
-		for (let i = 0; i < targetGroupDirections.length; i++) {
-			const targetGroup = this.editorGroupService.findGroup({ direction: targetGroupDirections[i] }, sourceGroup);
+		for (const targetGroupDirection of targetGroupDirections) {
+			const targetGroup = this.editorGroupService.findGroup({ direction: targetGroupDirection }, sourceGroup);
 			if (targetGroup && sourceGroup !== targetGroup) {
 				this.editorGroupService.mergeGroup(sourceGroup, targetGroup);
 
@@ -780,10 +780,10 @@ export class BaseMoveGroupAction extends Action {
 				break;
 		}
 
-		for (let i = 0; i < targetNeighbours.length; i++) {
-			const targetNeighbour = this.editorGroupService.findGroup({ direction: targetNeighbours[i] }, sourceGroup);
-			if (targetNeighbour) {
-				return targetNeighbour;
+		for (const targetNeighbour of targetNeighbours) {
+			const targetNeighbourGroup = this.editorGroupService.findGroup({ direction: targetNeighbour }, sourceGroup);
+			if (targetNeighbourGroup) {
+				return targetNeighbourGroup;
 			}
 		}
 

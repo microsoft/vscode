@@ -149,12 +149,12 @@ export class ExperimentService extends Disposable implements IExperimentService 
 
 	public getCuratedExtensionsList(curatedExtensionsKey: string): Promise<string[]> {
 		return this._loadExperimentsPromise.then(() => {
-			for (let i = 0; i < this._experiments.length; i++) {
-				if (this._experiments[i].enabled
-					&& this._experiments[i].state === ExperimentState.Run
-					&& this._curatedMapping[this._experiments[i].id]
-					&& this._curatedMapping[this._experiments[i].id].curatedExtensionsKey === curatedExtensionsKey) {
-					return this._curatedMapping[this._experiments[i].id].curatedExtensionsList;
+			for (const experiment of this._experiments) {
+				if (experiment.enabled
+					&& experiment.state === ExperimentState.Run
+					&& this._curatedMapping[experiment.id]
+					&& this._curatedMapping[experiment.id].curatedExtensionsKey === curatedExtensionsKey) {
+					return this._curatedMapping[experiment.id].curatedExtensionsList;
 				}
 			}
 			return [];

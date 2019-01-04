@@ -495,9 +495,9 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		const fileNames: string[] = [];
 		const globPatterns: string[] = [];
 
-		for (let i = 0; i < activationEvents.length; i++) {
-			if (/^workspaceContains:/.test(activationEvents[i])) {
-				const fileNameOrGlob = activationEvents[i].substr('workspaceContains:'.length);
+		for (const activationEvent of activationEvents) {
+			if (/^workspaceContains:/.test(activationEvent)) {
+				const fileNameOrGlob = activationEvent.substr('workspaceContains:'.length);
 				if (fileNameOrGlob.indexOf('*') >= 0 || fileNameOrGlob.indexOf('?') >= 0) {
 					globPatterns.push(fileNameOrGlob);
 				} else {

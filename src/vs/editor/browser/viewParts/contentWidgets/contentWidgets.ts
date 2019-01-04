@@ -458,9 +458,8 @@ class Widget {
 		// Do two passes, first for perfect fit, second picks first option
 		if (this._preference) {
 			for (let pass = 1; pass <= 2; pass++) {
-				for (let i = 0; i < this._preference.length; i++) {
+				for (const pref of this._preference) {
 					// placement
-					let pref = this._preference[i];
 					if (pref === ContentWidgetPositionPreference.ABOVE) {
 						if (!placement) {
 							// Widget outside of viewport

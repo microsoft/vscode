@@ -1693,8 +1693,8 @@ class TaskService extends Disposable implements ITaskService {
 		let parseErrors: string[] = (result as any).$parseErrors;
 		if (parseErrors) {
 			let isAffected = false;
-			for (let i = 0; i < parseErrors.length; i++) {
-				if (/tasks\.json$/.test(parseErrors[i])) {
+			for (const parseError of parseErrors) {
+				if (/tasks\.json$/.test(parseError)) {
 					isAffected = true;
 					break;
 				}

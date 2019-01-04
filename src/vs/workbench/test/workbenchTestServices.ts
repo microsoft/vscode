@@ -557,9 +557,9 @@ export class TestEditorGroupsService implements EditorGroupsServiceImpl {
 	}
 
 	getGroup(identifier: number): IEditorGroup {
-		for (let i = 0; i < this.groups.length; i++) {
-			if (this.groups[i].id === identifier) {
-				return this.groups[i];
+		for (const group of this.groups) {
+			if (group.id === identifier) {
+				return group;
 			}
 		}
 

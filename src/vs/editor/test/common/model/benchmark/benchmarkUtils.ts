@@ -8,9 +8,9 @@ import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeText
 
 export function doBenchmark<T>(id: string, ts: T[], fn: (t: T) => void) {
 	let columns: string[] = [id];
-	for (let i = 0; i < ts.length; i++) {
+	for (const t of ts) {
 		let start = process.hrtime();
-		fn(ts[i]);
+		fn(t);
 		let diff = process.hrtime(start);
 		columns.push(`${(diff[0] * 1000 + diff[1] / 1000000).toFixed(3)} ms`);
 	}

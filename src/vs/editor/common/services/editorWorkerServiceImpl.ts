@@ -261,8 +261,8 @@ class EditorModelManager extends Disposable {
 			}
 		}
 
-		for (let i = 0; i < toRemove.length; i++) {
-			this._stopModelSync(toRemove[i]);
+		for (const e of toRemove) {
+			this._stopModelSync(e);
 		}
 	}
 

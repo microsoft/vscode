@@ -72,8 +72,6 @@ const ansiColorMap = ['ansiBlack', 'ansiRed', 'ansiGreen', 'ansiYellow', 'ansiBl
 	'ansiBrightBlack', 'ansiBrightRed', 'ansiBrightGreen', 'ansiBrightYellow', 'ansiBrightBlue', 'ansiBrightMagenta', 'ansiBrightCyan', 'ansiBrightWhite'
 ];
 
-for (let i = 0; i < ansiColorMap.length; i++) {
-	addSettingMapping(ansiColorMap[i], 'terminal.' + ansiColorMap[i]);
+for (const color of ansiColorMap) {
+	addSettingMapping(color, 'terminal.' + color);
 }
-
-

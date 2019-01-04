@@ -583,8 +583,8 @@ export class EditorStatus implements IStatusbarItem {
 				this.onEOLChange(activeCodeEditor);
 
 				let selections = activeCodeEditor.getSelections();
-				for (let i = 0; i < e.changes.length; i++) {
-					if (selections.some(selection => Range.areIntersecting(selection, e.changes[i].range))) {
+				for (const change of e.changes) {
+					if (selections.some(selection => Range.areIntersecting(selection, change.range))) {
 						this.onSelectionChange(activeCodeEditor);
 						break;
 					}
