@@ -241,8 +241,6 @@ export class ConfigurationManager implements IConfigurationManager {
 				.then(results => results.reduce((first, second) => first.concat(second), [])));
 	}
 
-	///////////////////////////////////////////////////////////
-
 	private registerListeners(lifecycleService: ILifecycleService): void {
 		debuggersExtPoint.setHandler((extensions) => {
 			extensions.forEach(extension => {

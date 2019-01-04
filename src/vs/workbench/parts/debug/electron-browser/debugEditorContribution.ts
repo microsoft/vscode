@@ -568,12 +568,6 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				this.editor.setPosition(position);
 				CoreEditingCommands.LineBreakInsert.runEditorCommand(null, this.editor, null);
 			}
-			// Check if there is already an empty line to insert suggest, if yes just place the cursor
-			if (this.editor.getModel().getLineLastNonWhitespaceColumn(position.lineNumber + 1) === 0) {
-				this.editor.setPosition({ lineNumber: position.lineNumber + 1, column: Constants.MAX_SAFE_SMALL_INTEGER });
-				this.commandService.executeCommand('editor.action.deleteLines');
-			}
-
 			this.editor.setPosition(position);
 			return this.commandService.executeCommand('editor.action.insertLineAfter');
 		};
