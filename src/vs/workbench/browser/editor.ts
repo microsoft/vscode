@@ -36,12 +36,12 @@ export interface IEditorRegistry {
 	/**
 	 * Returns the editor descriptor for the given input or null if none.
 	 */
-	getEditor(input: EditorInput): IEditorDescriptor;
+	getEditor(input: EditorInput): IEditorDescriptor | null;
 
 	/**
 	 * Returns the editor descriptor for the given identifier or null if none.
 	 */
-	getEditorById(editorId: string): IEditorDescriptor;
+	getEditorById(editorId: string): IEditorDescriptor | null;
 
 	/**
 	 * Returns an array of registered editors known to the platform.
@@ -103,7 +103,7 @@ class EditorRegistry implements IEditorRegistry {
 		this.editors.push(descriptor);
 	}
 
-	getEditor(input: EditorInput): EditorDescriptor {
+	getEditor(input: EditorInput): EditorDescriptor | null {
 		const findEditorDescriptors = (input: EditorInput, byInstanceOf?: boolean): EditorDescriptor[] => {
 			const matchingDescriptors: EditorDescriptor[] = [];
 
@@ -154,7 +154,7 @@ class EditorRegistry implements IEditorRegistry {
 		return null;
 	}
 
-	getEditorById(editorId: string): EditorDescriptor {
+	getEditorById(editorId: string): EditorDescriptor | null {
 		for (const editor of this.editors) {
 			if (editor.getId() === editorId) {
 				return editor;
