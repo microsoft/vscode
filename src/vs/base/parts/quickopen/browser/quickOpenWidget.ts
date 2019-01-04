@@ -675,8 +675,7 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 			let caseInsensitiveMatch: any;
 			const prefix = autoFocus.autoFocusPrefixMatch;
 			const lowerCasePrefix = prefix.toLowerCase();
-			for (let i = 0; i < entries.length; i++) {
-				const entry = entries[i];
+			for (const entry of entries) {
 				const label = input.dataSource.getLabel(entry);
 
 				if (!caseSensitiveMatch && label.indexOf(prefix) === 0) {

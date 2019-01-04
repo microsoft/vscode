@@ -39,8 +39,7 @@ export function toggleComment(): Thenable<boolean> | undefined {
 			return result === 0 ? arr1[0].range.start.character - arr2[0].range.start.character : result;
 		});
 		let lastEditPosition = new vscode.Position(0, 0);
-		for (let i = 0; i < allEdits.length; i++) {
-			const edits = allEdits[i];
+		for (const edits of allEdits) {
 			if (edits[0].range.end.isAfterOrEqual(lastEditPosition)) {
 				edits.forEach(x => {
 					editBuilder.replace(x.range, x.newText);
@@ -151,8 +150,8 @@ function toggleCommentStylesheet(selection: vscode.Selection, rootNode: Styleshe
 }
 
 function adjustStartNodeCss(node: Node | null, pos: vscode.Position, rootNode: Stylesheet): vscode.Position {
-	for (let i = 0; i < rootNode.comments.length; i++) {
-		let commentRange = new vscode.Range(rootNode.comments[i].start, rootNode.comments[i].end);
+	for (const comment of rootNode.comments) {
+		let commentRange = new vscode.Range(comment.start, comment.end);
 		if (commentRange.contains(pos)) {
 			return pos;
 		}
@@ -184,8 +183,8 @@ function adjustStartNodeCss(node: Node | null, pos: vscode.Position, rootNode: S
 }
 
 function adjustEndNodeCss(node: Node | null, pos: vscode.Position, rootNode: Stylesheet): vscode.Position {
-	for (let i = 0; i < rootNode.comments.length; i++) {
-		let commentRange = new vscode.Range(rootNode.comments[i].start, rootNode.comments[i].end);
+	for (const comment of rootNode.comments) {
+		let commentRange = new vscode.Range(comment.start, comment.end);
 		if (commentRange.contains(pos)) {
 			return pos;
 		}

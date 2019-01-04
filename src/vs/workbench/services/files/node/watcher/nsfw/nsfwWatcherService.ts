@@ -99,9 +99,7 @@ export class NsfwWatcherService implements IWatcherService {
 		}
 
 		nsfw(request.basePath, events => {
-			for (let i = 0; i < events.length; i++) {
-				const e = events[i];
-
+			for (const e of events) {
 				// Logging
 				if (this._verboseLogging) {
 					const logPath = e.action === nsfw.actions.RENAMED ? path.join(e.directory, e.oldFile || '') + ' -> ' + e.newFile : path.join(e.directory, e.file || '');

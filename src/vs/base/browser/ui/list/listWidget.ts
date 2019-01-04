@@ -70,8 +70,7 @@ class TraitRenderer<T> implements IListRenderer<T, ITraitTemplateData>
 	splice(start: number, deleteCount: number, insertCount: number): void {
 		const rendered: IRenderedContainer[] = [];
 
-		for (let i = 0; i < this.renderedElements.length; i++) {
-			const renderedElement = this.renderedElements[i];
+		for (const renderedElement of this.renderedElements) {
 
 			if (renderedElement.index < start) {
 				rendered.push(renderedElement);

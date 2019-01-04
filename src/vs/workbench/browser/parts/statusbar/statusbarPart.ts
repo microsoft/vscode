@@ -67,8 +67,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		const container = this.statusItemsContainer;
 		const neighbours = this.getEntries(alignment);
 		let inserted = false;
-		for (let i = 0; i < neighbours.length; i++) {
-			const neighbour = neighbours[i];
+		for (const neighbour of neighbours) {
 			const nPriority = Number(neighbour.getAttribute(StatusbarPart.PRIORITY_PROP));
 			if (
 				alignment === StatusbarAlignment.LEFT && nPriority < priority ||

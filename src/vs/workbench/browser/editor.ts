@@ -107,8 +107,7 @@ class EditorRegistry implements IEditorRegistry {
 		const findEditorDescriptors = (input: EditorInput, byInstanceOf?: boolean): EditorDescriptor[] => {
 			const matchingDescriptors: EditorDescriptor[] = [];
 
-			for (let i = 0; i < this.editors.length; i++) {
-				const editor = this.editors[i];
+			for (const editor of this.editors) {
 				const inputDescriptors = <SyncDescriptor<EditorInput>[]>editor[INPUT_DESCRIPTORS_PROPERTY];
 				for (let j = 0; j < inputDescriptors.length; j++) {
 					const inputClass = inputDescriptors[j].ctor;
@@ -156,8 +155,7 @@ class EditorRegistry implements IEditorRegistry {
 	}
 
 	getEditorById(editorId: string): EditorDescriptor {
-		for (let i = 0; i < this.editors.length; i++) {
-			const editor = this.editors[i];
+		for (const editor of this.editors) {
 			if (editor.getId() === editorId) {
 				return editor;
 			}
@@ -176,8 +174,7 @@ class EditorRegistry implements IEditorRegistry {
 
 	getEditorInputs(): any[] {
 		const inputClasses: any[] = [];
-		for (let i = 0; i < this.editors.length; i++) {
-			const editor = this.editors[i];
+		for (const editor of this.editors) {
 			const editorInputDescriptors = <SyncDescriptor<EditorInput>[]>editor[INPUT_DESCRIPTORS_PROPERTY];
 			inputClasses.push(...editorInputDescriptors.map(descriptor => descriptor.ctor));
 		}

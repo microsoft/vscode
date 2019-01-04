@@ -70,8 +70,7 @@ export class DefinitionAction extends EditorAction {
 			// * find reference at the current pos
 			let idxOfCurrent = -1;
 			const result: DefinitionLink[] = [];
-			for (let i = 0; i < references.length; i++) {
-				let reference = references[i];
+			for (const reference of references) {
 				if (!reference || !reference.range) {
 					continue;
 				}

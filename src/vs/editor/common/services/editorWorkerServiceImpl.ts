@@ -238,8 +238,7 @@ class EditorModelManager extends Disposable {
 	}
 
 	public esureSyncedResources(resources: URI[]): void {
-		for (let i = 0; i < resources.length; i++) {
-			let resource = resources[i];
+		for (const resource of resources) {
 			let resourceStr = resource.toString();
 
 			if (!this._syncedModels[resourceStr]) {

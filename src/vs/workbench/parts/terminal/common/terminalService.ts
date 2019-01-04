@@ -290,8 +290,7 @@ export abstract class TerminalService implements ITerminalService {
 	}
 
 	private _getTabForInstance(instance: ITerminalInstance): ITerminalTab | null {
-		for (let i = 0; i < this._terminalTabs.length; i++) {
-			const tab = this._terminalTabs[i];
+		for (const tab of this._terminalTabs) {
 			if (tab.terminalInstances.indexOf(instance) !== -1) {
 				return tab;
 			}

@@ -126,8 +126,7 @@ export class NotificationsModel extends Disposable implements INotificationsMode
 	}
 
 	private findNotification(item: INotificationViewItem): INotificationViewItem | undefined {
-		for (let i = 0; i < this._notifications.length; i++) {
-			const notification = this._notifications[i];
+		for (const notification of this._notifications) {
 			if (notification.equals(item)) {
 				return notification;
 			}

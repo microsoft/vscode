@@ -81,8 +81,7 @@ export class ContributableActionProvider implements IActionProvider {
 		const context = this.toContext(tree, element);
 
 		const contributors = this.registry.getActionBarContributors(Scope.VIEWER);
-		for (let i = 0; i < contributors.length; i++) {
-			const contributor = contributors[i];
+		for (const contributor of contributors) {
 			if (contributor.hasActions(context)) {
 				return true;
 			}
@@ -97,8 +96,7 @@ export class ContributableActionProvider implements IActionProvider {
 
 		// Collect Actions
 		const contributors = this.registry.getActionBarContributors(Scope.VIEWER);
-		for (let i = 0; i < contributors.length; i++) {
-			const contributor = contributors[i];
+		for (const contributor of contributors) {
 			if (contributor.hasActions(context)) {
 				actions.push(...contributor.getActions(context));
 			}
@@ -111,8 +109,7 @@ export class ContributableActionProvider implements IActionProvider {
 		const context = this.toContext(tree, element);
 
 		const contributors = this.registry.getActionBarContributors(Scope.VIEWER);
-		for (let i = 0; i < contributors.length; i++) {
-			const contributor = contributors[i];
+		for (const contributor of contributors) {
 			if (contributor.hasSecondaryActions(context)) {
 				return true;
 			}
@@ -127,8 +124,7 @@ export class ContributableActionProvider implements IActionProvider {
 
 		// Collect Actions
 		const contributors = this.registry.getActionBarContributors(Scope.VIEWER);
-		for (let i = 0; i < contributors.length; i++) {
-			const contributor = contributors[i];
+		for (const contributor of contributors) {
 			if (contributor.hasSecondaryActions(context)) {
 				actions.push(...contributor.getSecondaryActions(context));
 			}
@@ -300,8 +296,7 @@ class ActionBarRegistry implements IActionBarRegistry {
 
 	getActionItemForContext(scope: string, context: any, action: Action): BaseActionItem {
 		const contributors = this.getContributors(scope);
-		for (let i = 0; i < contributors.length; i++) {
-			const contributor = contributors[i];
+		for (const contributor of contributors) {
 			const item = contributor.getActionItem(context, action);
 			if (item) {
 				return item;

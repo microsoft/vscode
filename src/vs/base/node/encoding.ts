@@ -393,8 +393,7 @@ export function resolveTerminalEncoding(verbose?: boolean): Promise<string> {
 			exec('chcp', (err, stdout, stderr) => {
 				if (stdout) {
 					const windowsTerminalEncodingKeys = Object.keys(windowsTerminalEncodings);
-					for (let i = 0; i < windowsTerminalEncodingKeys.length; i++) {
-						const key = windowsTerminalEncodingKeys[i];
+					for (const key of windowsTerminalEncodingKeys) {
 						if (stdout.indexOf(key) >= 0) {
 							return resolve(windowsTerminalEncodings[key]);
 						}

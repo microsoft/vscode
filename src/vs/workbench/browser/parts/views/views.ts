@@ -384,8 +384,7 @@ export class ContributableViewsModel extends Disposable {
 				}
 			}
 
-			for (let i = 0; i < splice.toInsert.length; i++) {
-				const viewDescriptor = splice.toInsert[i];
+			for (const viewDescriptor of splice.toInsert) {
 				const state = this.viewStates.get(viewDescriptor.id);
 
 				if (state.visible) {

@@ -148,8 +148,7 @@ export class EditorGroup extends Disposable {
 			return null; // fast check for resource opened or not
 		}
 
-		for (let i = 0; i < this.editors.length; i++) {
-			const editor = this.editors[i];
+		for (const editor of this.editors) {
 			const editorResource = toResource(editor, { supportSideBySide: true });
 			if (editorResource && editorResource.toString() === resource.toString()) {
 				return editor;

@@ -904,8 +904,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		// Multiple folders: find the last active one
 		const history = this.getHistory();
-		for (let i = 0; i < history.length; i++) {
-			const input = history[i];
+		for (const input of history) {
 			if (input instanceof EditorInput) {
 				continue;
 			}

@@ -802,8 +802,7 @@ export class GridView implements IDisposable {
 		const children: GridNode[] = [];
 		let offset = 0;
 
-		for (let i = 0; i < node.children.length; i++) {
-			const child = node.children[i];
+		for (const child of node.children) {
 			const childOrientation = orthogonal(orientation);
 			const childBox: Box = orientation === Orientation.HORIZONTAL
 				? { top: box.top, left: box.left + offset, width: child.width, height: box.height }

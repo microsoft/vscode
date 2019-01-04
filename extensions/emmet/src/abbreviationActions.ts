@@ -105,9 +105,9 @@ function doWrapping(individualLines: boolean, args: any) {
 
 	function revertPreview(): Thenable<any> {
 		return editor.edit(builder => {
-			for (let i = 0; i < rangesToReplace.length; i++) {
-				builder.replace(rangesToReplace[i].previewRange, rangesToReplace[i].originalContent);
-				rangesToReplace[i].previewRange = rangesToReplace[i].originalRange;
+			for (const rangeToReplace of rangesToReplace) {
+				builder.replace(rangeToReplace.previewRange, rangeToReplace.originalContent);
+				rangeToReplace.previewRange = rangeToReplace.originalRange;
 			}
 		}, { undoStopBefore: false, undoStopAfter: false });
 	}

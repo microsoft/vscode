@@ -390,8 +390,7 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 		// Try to find editor view state from the visible editors that match given resource
 		let viewState: IEditorViewState;
 		const textEditorWidgets = editorService.visibleTextEditorWidgets;
-		for (let i = 0; i < textEditorWidgets.length; i++) {
-			const textEditorWidget = textEditorWidgets[i];
+		for (const textEditorWidget of textEditorWidgets) {
 			if (isCodeEditor(textEditorWidget)) {
 				const model = textEditorWidget.getModel();
 				if (model && model.uri && model.uri.toString() === file.resource.toString()) {

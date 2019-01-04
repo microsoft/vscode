@@ -175,8 +175,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 			const results: QuickOpenEntry[] = [];
 
 			if (!token.isCancellationRequested) {
-				for (let i = 0; i < complete.results.length; i++) {
-					const fileMatch = complete.results[i];
+				for (const fileMatch of complete.results) {
 
 					const label = paths.basename(fileMatch.resource.fsPath);
 					const description = this.labelService.getUriLabel(resources.dirname(fileMatch.resource), { relative: true });

@@ -118,8 +118,7 @@ class CommentingRangeDecorator {
 		}
 
 		let commentingRangeDecorations: CommentingRangeDecoration[] = [];
-		for (let i = 0; i < commentInfos.length; i++) {
-			let info = commentInfos[i];
+		for (const info of commentInfos) {
 			info.commentingRanges.forEach(range => {
 				commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, range, info.reply, this.decorationOptions));
 			});

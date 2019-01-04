@@ -432,8 +432,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 
 			// Preflight for untitled to handle cancellation from the dialog
 			const targetsForUntitled: URI[] = [];
-			for (let i = 0; i < untitledResources.length; i++) {
-				const untitled = untitledResources[i];
+			for (const untitled of untitledResources) {
 				if (this.untitledEditorService.exists(untitled)) {
 					let targetUri: URI;
 

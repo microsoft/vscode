@@ -490,8 +490,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		// Remove results already showing by checking for a "resource" property
 		const mapEntryToResource = this.mapEntriesToResource(quickOpenModel);
 		const additionalHandlerResults: QuickOpenEntry[] = [];
-		for (let i = 0; i < handlerResults.length; i++) {
-			const result = handlerResults[i];
+		for (const result of handlerResults) {
 			const resource = result.getResource();
 
 			if (!result.mergeWithEditorHistory() || !resource || !mapEntryToResource[resource.toString()]) {

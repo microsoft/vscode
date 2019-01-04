@@ -143,8 +143,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	}
 
 	private onGroupWillOpenEditor(group: IEditorGroup, event: IEditorOpeningEvent): void {
-		for (let i = 0; i < this.openEditorHandlers.length; i++) {
-			const handler = this.openEditorHandlers[i];
+		for (const handler of this.openEditorHandlers) {
 			const result = handler(event.editor, event.options, group);
 			if (result && result.override) {
 				event.prevent((() => result.override));
@@ -270,8 +269,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 			// Respect option to reveal an editor if it is already visible in any group
 			if (options && options.revealIfVisible) {
-				for (let i = 0; i < groupsByLastActive.length; i++) {
-					const group = groupsByLastActive[i];
+				for (const group of groupsByLastActive) {
 					if (input.matches(group.activeEditor)) {
 						targetGroup = group;
 						break;
@@ -281,8 +279,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 			// Respect option to reveal an editor if it is open (not necessarily visible)
 			if ((options && options.revealIfOpened) || this.configurationService.getValue<boolean>('workbench.editor.revealIfOpen')) {
-				for (let i = 0; i < groupsByLastActive.length; i++) {
-					const group = groupsByLastActive[i];
+				for (const group of groupsByLastActive) {
 					if (group.isOpened(input)) {
 						targetGroup = group;
 						break;
@@ -402,8 +399,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		// For each editor group
-		for (let i = 0; i < groups.length; i++) {
-			const group = groups[i];
+		for (const group of groups) {
 
 			// Typed editor
 			if (editor instanceof EditorInput) {

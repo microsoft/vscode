@@ -640,9 +640,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 			// Check added: Refresh if added file/folder is not part of resolved root and parent is part of it
 			const ignoredPaths: { [resource: string]: boolean } = <{ [resource: string]: boolean }>{};
-			for (let i = 0; i < added.length; i++) {
-				const change = added[i];
-
+			for (const change of added) {
 				// Find parent
 				const parent = resources.dirname(change.resource);
 
@@ -669,9 +667,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		if (deleted.length) {
 
 			// Check deleted: Refresh if deleted file/folder part of resolved root
-			for (let j = 0; j < deleted.length; j++) {
-				const del = deleted[j];
-
+			for (const del of deleted) {
 				if (this.model.findClosest(del.resource)) {
 					return true;
 				}
@@ -683,9 +679,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			const updated = e.getUpdated();
 
 			// Check updated: Refresh if updated file/folder part of resolved root
-			for (let j = 0; j < updated.length; j++) {
-				const upd = updated[j];
-
+			for (const upd of updated) {
 				if (this.model.findClosest(upd.resource)) {
 					return true;
 				}

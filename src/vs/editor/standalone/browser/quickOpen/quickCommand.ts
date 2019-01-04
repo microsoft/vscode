@@ -122,8 +122,7 @@ export class QuickCommandAction extends BaseEditorQuickOpenAction {
 		let actions: IEditorAction[] = editor.getSupportedActions();
 		let entries: EditorActionCommandEntry[] = [];
 
-		for (let i = 0; i < actions.length; i++) {
-			let action = actions[i];
+		for (const action of actions) {
 
 			let keybinding = keybindingService.lookupKeybinding(action.id);
 

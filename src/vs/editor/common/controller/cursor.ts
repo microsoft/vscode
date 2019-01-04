@@ -675,8 +675,7 @@ class CommandExecutor {
 			for (let i = 0; i < ctx.selectionsBefore.length; i++) {
 				groupedInverseEditOperations[i] = [];
 			}
-			for (let i = 0; i < inverseEditOperations.length; i++) {
-				const op = inverseEditOperations[i];
+			for (const op of inverseEditOperations) {
 				if (!op.identifier) {
 					// perhaps auto whitespace trim edits
 					continue;

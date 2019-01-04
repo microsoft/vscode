@@ -171,8 +171,7 @@ export class AbstractProblemCollector implements IDisposable {
 			if (!candidates) {
 				continue;
 			}
-			for (let i = 0; i < candidates.length; i++) {
-				let matcher = candidates[i];
+			for (const matcher of candidates) {
 				let result = matcher.handle(this.buffer, startIndex);
 				if (result.match) {
 					this.captureMatch(result.match);
@@ -445,8 +444,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 
 	private tryBegin(line: string): boolean {
 		let result = false;
-		for (let i = 0; i < this.backgroundPatterns.length; i++) {
-			let background = this.backgroundPatterns[i];
+		for (const background of this.backgroundPatterns) {
 			let matches = background.begin.regexp.exec(line);
 			if (matches) {
 				if (this._activeBackgroundMatchers.has(background.key)) {
@@ -472,8 +470,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 
 	private tryFinish(line: string): boolean {
 		let result = false;
-		for (let i = 0; i < this.backgroundPatterns.length; i++) {
-			let background = this.backgroundPatterns[i];
+		for (const background of this.backgroundPatterns) {
 			let matches = background.end.regexp.exec(line);
 			if (matches) {
 				if (this._activeBackgroundMatchers.has(background.key)) {

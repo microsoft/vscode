@@ -16,11 +16,11 @@ export const USUAL_WORD_SEPARATORS = '`~!@#$%^&*()-=+[{]}\\|;:\'",.<>/?';
  */
 function createWordRegExp(allowInWords: string = ''): RegExp {
 	let source = '(-?\\d*\\.\\d\\w*)|([^';
-	for (let i = 0; i < USUAL_WORD_SEPARATORS.length; i++) {
-		if (allowInWords.indexOf(USUAL_WORD_SEPARATORS[i]) >= 0) {
+	for (const sep of USUAL_WORD_SEPARATORS) {
+		if (allowInWords.indexOf(sep) >= 0) {
 			continue;
 		}
-		source += '\\' + USUAL_WORD_SEPARATORS[i];
+		source += '\\' + sep;
 	}
 	source += '\\s]+)';
 	return new RegExp(source, 'g');

@@ -270,8 +270,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 	private getViewStateFor(resource: URI, group: IEditorGroup): IEditorViewState | undefined {
 		const editors = this.editorService.visibleControls;
 
-		for (let i = 0; i < editors.length; i++) {
-			const editor = editors[i];
+		for (const editor of editors) {
 			if (editor && editor.input && editor.group === group) {
 				const editorResource = editor.input.getResource();
 				if (editorResource && resource.toString() === editorResource.toString()) {

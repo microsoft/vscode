@@ -486,8 +486,7 @@ export class CommandsHandler extends QuickOpenHandler {
 	private editorActionsToEntries(actions: IEditorAction[], searchValue: string): EditorActionCommandEntry[] {
 		const entries: EditorActionCommandEntry[] = [];
 
-		for (let i = 0; i < actions.length; i++) {
-			const action = actions[i];
+		for (const action of actions) {
 			if (action.id === ShowAllCommandsAction.ID) {
 				continue; // avoid duplicates
 			}

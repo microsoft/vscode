@@ -653,8 +653,7 @@ suite('viewLineRenderer.renderLine', () => {
 		for (let partIndex = 0; partIndex < expectedCharPartOffsets.length; partIndex++) {
 			const part = expectedCharPartOffsets[partIndex];
 
-			for (let i = 0; i < part.length; i++) {
-				const charIndex = part[i];
+			for (const charIndex of part) {
 				expectedCharAbsoluteOffset.push(currentPartAbsoluteOffset + charIndex);
 			}
 

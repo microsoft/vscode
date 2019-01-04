@@ -382,10 +382,10 @@ export class ExtensionsListView extends ViewletPanel {
 			options = assign(options, { text: text.substr(0, 350), source: 'searchText' });
 			if (!hasUserDefinedSortOrder) {
 				const searchExperiments = await this.getSearchExperiments();
-				for (let i = 0; i < searchExperiments.length; i++) {
-					if (text.toLowerCase() === searchExperiments[i].action.properties['searchText'] && Array.isArray(searchExperiments[i].action.properties['preferredResults'])) {
-						preferredResults = searchExperiments[i].action.properties['preferredResults'];
-						options.source += `-experiment-${searchExperiments[i].id}`;
+				for (const experiment of searchExperiments) {
+					if (text.toLowerCase() === experiment.action.properties['searchText'] && Array.isArray(experiment.action.properties['preferredResults'])) {
+						preferredResults = experiment.action.properties['preferredResults'];
+						options.source += `-experiment-${experiment.id}`;
 						break;
 					}
 				}
@@ -397,9 +397,9 @@ export class ExtensionsListView extends ViewletPanel {
 		const pager = await this.extensionsWorkbenchService.queryGallery(options);
 
 		let positionToUpdate = 0;
-		for (let i = 0; i < preferredResults.length; i++) {
+		for (const preferredResult of preferredResults) {
 			for (let j = positionToUpdate; j < pager.firstPage.length; j++) {
-				if (areSameExtensions(pager.firstPage[j].identifier, { id: preferredResults[i] })) {
+				if (areSameExtensions(pager.firstPage[j].identifier, { id: preferredResult })) {
 					if (positionToUpdate !== j) {
 						const preferredExtension = pager.firstPage.splice(j, 1)[0];
 						pager.firstPage.splice(positionToUpdate, 0, preferredExtension);

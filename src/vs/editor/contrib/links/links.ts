@@ -361,8 +361,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 			endColumn: position.column
 		}, 0, true);
 
-		for (let i = 0; i < decorations.length; i++) {
-			const decoration = decorations[i];
+		for (const decoration of decorations) {
 			const currentOccurrence = this.currentOccurrences[decoration.id];
 			if (currentOccurrence) {
 				return currentOccurrence;

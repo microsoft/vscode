@@ -330,8 +330,7 @@ export class ElectronWindow extends Themable {
 		// Convert into command action multi array
 		const items: ICommandAction[][] = [];
 		let group: ICommandAction[] = [];
-		for (let i = 0; i < actions.length; i++) {
-			const action = actions[i];
+		for (const action of actions) {
 
 			// Command
 			if (action instanceof MenuItemAction) {

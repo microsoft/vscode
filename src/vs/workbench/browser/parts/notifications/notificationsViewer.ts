@@ -143,8 +143,7 @@ class NotificationMessageRenderer {
 		// Message has links
 		else {
 			let index = 0;
-			for (let i = 0; i < message.links.length; i++) {
-				const link = message.links[i];
+			for (const link of message.links) {
 
 				const textBefore = message.value.substring(index, link.offset);
 				if (textBefore) {

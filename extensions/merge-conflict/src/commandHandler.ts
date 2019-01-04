@@ -237,9 +237,9 @@ export default class CommandHandler implements vscode.Disposable {
 			return null;
 		}
 
-		for (let i = 0; i < conflicts.length; i++) {
-			if (conflicts[i].range.contains(editor.selection.active)) {
-				return conflicts[i];
+		for (const conflict of conflicts) {
+			if (conflict.range.contains(editor.selection.active)) {
+				return conflict;
 			}
 		}
 

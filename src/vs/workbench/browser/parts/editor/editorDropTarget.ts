@@ -512,9 +512,7 @@ export class EditorDropTarget extends Themable {
 
 	private findTargetGroupView(child: HTMLElement): IEditorGroupView {
 		const groups = this.accessor.groups;
-		for (let i = 0; i < groups.length; i++) {
-			const groupView = groups[i];
-
+		for (const groupView of groups) {
 			if (isAncestor(child, groupView.element)) {
 				return groupView;
 			}
