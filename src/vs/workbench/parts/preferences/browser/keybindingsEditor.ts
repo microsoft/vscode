@@ -61,7 +61,6 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	private overlayContainer: HTMLElement;
 	private defineKeybindingWidget: DefineKeybindingWidget;
 
-	private keybindingsListHeader: HTMLElement;
 	private keybindingsListContainer: HTMLElement;
 	private unAssignedKeybindingItemToRevealAndFocus: IKeybindingItemEntry;
 	private listEntries: IListEntry[];
@@ -392,20 +391,24 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 
 	private createBody(parent: HTMLElement): void {
 		const bodyContainer = DOM.append(parent, $('.keybindings-body'));
+		this.createListHeader(bodyContainer);
 		this.createList(bodyContainer);
 	}
 
-	private createList(parent: HTMLElement): void {
-		this.keybindingsListContainer = DOM.append(parent, $('.keybindings-list-container'));
-
-		this.keybindingsListHeader = DOM.append(this.keybindingsListContainer, $('.keybindings-list-header'));
-		DOM.append(this.keybindingsListHeader,
+	private createListHeader(parent: HTMLElement): void {
+		const keybindingsListHeader = DOM.append(parent, $('.keybindings-list-header'));
+		keybindingsListHeader.style.height = '30px';
+		keybindingsListHeader.style.lineHeight = '30px';
+		DOM.append(keybindingsListHeader,
 			$('.header.actions'),
 			$('.header.command', null, localize('command', "Command")),
 			$('.header.keybinding', null, localize('keybinding', "Keybinding")),
 			$('.header.source', null, localize('source', "Source")),
 			$('.header.when', null, localize('when', "When")));
+	}
 
+	private createList(parent: HTMLElement): void {
+		this.keybindingsListContainer = DOM.append(parent, $('.keybindings-list-container'));
 		this.keybindingsList = this._register(this.instantiationService.createInstance(WorkbenchList, this.keybindingsListContainer, new Delegate(), [new KeybindingItemRenderer(this, this.keybindingsService)],
 			{ identityProvider: { getId: e => e.id }, ariaLabel: localize('keybindingsLabel', "Keybindings"), setRowLineHeight: false })) as WorkbenchList<IListEntry>;
 		this._register(this.keybindingsList.onContextMenu(e => this.onContextMenu(e)));
@@ -507,7 +510,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	}
 
 	private layoutKeybindingsList(): void {
-		const listHeight = this.dimension.height - (DOM.getDomNodePagePosition(this.headerContainer).height + 12 /*padding*/ + DOM.getDomNodePagePosition(this.keybindingsListHeader).height);
+		const listHeight = this.dimension.height - (DOM.getDomNodePagePosition(this.headerContainer).height + 12 /*padding*/ + 30 /*list header*/);
 		this.keybindingsListContainer.style.height = `${listHeight}px`;
 		this.keybindingsList.layout(listHeight);
 	}
