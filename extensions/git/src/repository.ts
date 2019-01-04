@@ -546,11 +546,6 @@ export class Repository implements Disposable {
 	private isFreshRepository: boolean | undefined = undefined;
 	private disposables: Disposable[] = [];
 
-	private _trackedCount: number = 0;
-	public get trackedCount(): number {
-		return this._trackedCount;
-	}
-
 	constructor(
 		private readonly repository: BaseRepository,
 		globalState: Memento
@@ -944,26 +939,17 @@ export class Repository implements Disposable {
 	}
 
 	async pullFrom(rebase?: boolean, remote?: string, branch?: string): Promise<void> {
-		const config = workspace.getConfiguration('git', Uri.file(this.root));
-		const fetchOnPull = config.get<boolean>('fetchOnPull');
-		const autoStash = config.get<boolean>('autoStash');
-
 		await this.run(Operation.Pull, async () => {
-			const doStash = autoStash && this.trackedCount > 0;
+			await this.maybeAutoStash(async () => {
+				const config = workspace.getConfiguration('git', Uri.file(this.root));
+				const fetchOnPull = config.get<boolean>('fetchOnPull');
 
-			if (doStash) {
-				await this.repository.createStash();
-			}
-
-			if (fetchOnPull) {
-				await this.repository.pull(rebase);
-			} else {
-				await this.repository.pull(rebase, remote, branch);
-			}
-
-			if (doStash) {
-				await this.repository.popStash();
-			}
+				if (fetchOnPull) {
+					await this.repository.pull(rebase);
+				} else {
+					await this.repository.pull(rebase, remote, branch);
+				}
+			});
 		});
 	}
 
@@ -1009,38 +995,29 @@ export class Repository implements Disposable {
 			pushBranch = `${head.name}:${head.upstream.name}`;
 		}
 
-		const config = workspace.getConfiguration('git', Uri.file(this.root));
-		const fetchOnPull = config.get<boolean>('fetchOnPull');
-		const autoStash = config.get<boolean>('autoStash');
-
 		await this.run(Operation.Sync, async () => {
-			const doStash = autoStash && this.trackedCount > 0;
+			await this.maybeAutoStash(async () => {
+				const config = workspace.getConfiguration('git', Uri.file(this.root));
+				const fetchOnPull = config.get<boolean>('fetchOnPull');
 
-			if (doStash) {
-				await this.repository.createStash();
-			}
+				if (fetchOnPull) {
+					await this.repository.pull(rebase);
+				} else {
+					await this.repository.pull(rebase, remoteName, pullBranch);
+				}
 
-			if (fetchOnPull) {
-				await this.repository.pull(rebase);
-			} else {
-				await this.repository.pull(rebase, remoteName, pullBranch);
-			}
+				const remote = this.remotes.find(r => r.name === remoteName);
 
-			if (doStash) {
-				await this.repository.popStash();
-			}
+				if (remote && remote.isReadOnly) {
+					return;
+				}
 
-			const remote = this.remotes.find(r => r.name === remoteName);
+				const shouldPush = this.HEAD && (typeof this.HEAD.ahead === 'number' ? this.HEAD.ahead > 0 : true);
 
-			if (remote && remote.isReadOnly) {
-				return;
-			}
-
-			const shouldPush = this.HEAD && (typeof this.HEAD.ahead === 'number' ? this.HEAD.ahead > 0 : true);
-
-			if (shouldPush) {
-				await this.repository.push(remoteName, pushBranch);
-			}
+				if (shouldPush) {
+					await this.repository.push(remoteName, pushBranch);
+				}
+			});
 		});
 	}
 
@@ -1354,19 +1331,16 @@ export class Repository implements Disposable {
 		this.indexGroup.resourceStates = index;
 		this.workingTreeGroup.resourceStates = workingTree;
 
-		let totalCount = merge.length + index.length + workingTree.length;
-		this._trackedCount = totalCount - workingTree.filter(r =>
-			r.type === Status.UNTRACKED ||
-			r.type === Status.IGNORED
-		).length;
-
 		// set count badge
 		const countBadge = workspace.getConfiguration('git').get<string>('countBadge');
+		let count = merge.length + index.length + workingTree.length;
+
 		switch (countBadge) {
-			case 'off': this._sourceControl.count = 0; break;
-			case 'all': this._sourceControl.count = totalCount; break;
-			case 'tracked': this._sourceControl.count = this._trackedCount; break;
+			case 'off': count = 0; break;
+			case 'tracked': count = count - workingTree.filter(r => r.type === Status.UNTRACKED || r.type === Status.IGNORED).length; break;
 		}
+
+		this._sourceControl.count = count;
 
 		// Disable `Discard All Changes` for "fresh" repositories
 		// https://github.com/Microsoft/vscode/issues/43066
@@ -1398,6 +1372,22 @@ export class Repository implements Disposable {
 		} catch (err) {
 			return undefined;
 		}
+	}
+
+	private async maybeAutoStash<T>(runOperation: () => Promise<T>): Promise<T> {
+		const config = workspace.getConfiguration('git', Uri.file(this.root));
+		const shouldAutoStash = config.get<boolean>('autoStash')
+			&& this.workingTreeGroup.resourceStates.some(r => r.type !== Status.UNTRACKED && r.type !== Status.IGNORED);
+
+		if (!shouldAutoStash) {
+			return await runOperation();
+		}
+
+		await this.repository.createStash(undefined, true);
+		const result = await runOperation();
+		await this.repository.popStash();
+
+		return result;
 	}
 
 	private onFSChange(_uri: Uri): void {
