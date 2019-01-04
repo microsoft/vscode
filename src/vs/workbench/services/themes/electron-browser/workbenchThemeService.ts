@@ -271,7 +271,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return this.getColorTheme();
 	}
 
-	public setColorTheme(themeId: string, settingsTarget: ConfigurationTarget): Promise<IColorTheme | null> {
+	public setColorTheme(themeId: string, settingsTarget: ConfigurationTarget | null): Promise<IColorTheme | null> {
 		if (!themeId) {
 			return Promise.resolve(null);
 		}

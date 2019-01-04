@@ -41,19 +41,19 @@ import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 const TextInputActions: IAction[] = [
-	new Action('undo', nls.localize('undo', "Undo"), null, true, () => document.execCommand('undo') && Promise.resolve(true)),
-	new Action('redo', nls.localize('redo', "Redo"), null, true, () => document.execCommand('redo') && Promise.resolve(true)),
+	new Action('undo', nls.localize('undo', "Undo"), undefined, true, () => Promise.resolve(document.execCommand('undo'))),
+	new Action('redo', nls.localize('redo', "Redo"), undefined, true, () => Promise.resolve(document.execCommand('redo'))),
 	new Separator(),
-	new Action('editor.action.clipboardCutAction', nls.localize('cut', "Cut"), null, true, () => document.execCommand('cut') && Promise.resolve(true)),
-	new Action('editor.action.clipboardCopyAction', nls.localize('copy', "Copy"), null, true, () => document.execCommand('copy') && Promise.resolve(true)),
-	new Action('editor.action.clipboardPasteAction', nls.localize('paste', "Paste"), null, true, () => document.execCommand('paste') && Promise.resolve(true)),
+	new Action('editor.action.clipboardCutAction', nls.localize('cut', "Cut"), undefined, true, () => Promise.resolve(document.execCommand('cut'))),
+	new Action('editor.action.clipboardCopyAction', nls.localize('copy', "Copy"), undefined, true, () => Promise.resolve(document.execCommand('copy'))),
+	new Action('editor.action.clipboardPasteAction', nls.localize('paste', "Paste"), undefined, true, () => Promise.resolve(document.execCommand('paste'))),
 	new Separator(),
-	new Action('editor.action.selectAll', nls.localize('selectAll', "Select All"), null, true, () => document.execCommand('selectAll') && Promise.resolve(true))
+	new Action('editor.action.selectAll', nls.localize('selectAll', "Select All"), undefined, true, () => Promise.resolve(document.execCommand('selectAll')))
 ];
 
 export class ElectronWindow extends Themable {
 
-	private touchBarMenu: IMenu;
+	private touchBarMenu?: IMenu;
 	private touchBarUpdater: RunOnceScheduler;
 	private touchBarDisposables: IDisposable[];
 	private lastInstalledTouchedBar: ICommandAction[][];
@@ -137,7 +137,9 @@ export class ElectronWindow extends Themable {
 
 		// Support runKeybinding event
 		ipc.on('vscode:runKeybinding', (event: any, request: IRunKeybindingInWindowRequest) => {
-			this.keybindingService.dispatchByUserSettingsLabel(request.userSettingsLabel, document.activeElement);
+			if (document.activeElement) {
+				this.keybindingService.dispatchByUserSettingsLabel(request.userSettingsLabel, document.activeElement);
+			}
 		});
 
 		// Error reporting from main
@@ -383,7 +385,7 @@ export class ElectronWindow extends Themable {
 
 	private onOpenFiles(request: IOpenFileRequest): void {
 		const inputs: IResourceEditor[] = [];
-		const diffMode = request.filesToDiff && (request.filesToDiff.length === 2);
+		const diffMode = !!(request.filesToDiff && (request.filesToDiff.length === 2));
 
 		if (!diffMode && request.filesToOpen) {
 			inputs.push(...this.toInputs(request.filesToOpen, false));
@@ -393,7 +395,7 @@ export class ElectronWindow extends Themable {
 			inputs.push(...this.toInputs(request.filesToCreate, true));
 		}
 
-		if (diffMode) {
+		if (diffMode && request.filesToDiff) {
 			inputs.push(...this.toInputs(request.filesToDiff, false));
 		}
 
@@ -421,7 +423,7 @@ export class ElectronWindow extends Themable {
 
 			// In diffMode we open 2 resources as diff
 			if (diffMode && resources.length === 2) {
-				return this.editorService.openEditor({ leftResource: resources[0].resource, rightResource: resources[1].resource, options: { pinned: true } });
+				return this.editorService.openEditor({ leftResource: resources[0].resource!, rightResource: resources[1].resource!, options: { pinned: true } });
 			}
 
 			// For one file, just put it into the current active editor
@@ -444,8 +446,8 @@ export class ElectronWindow extends Themable {
 				input = { resource, options: { pinned: true } } as IResourceInput;
 			}
 
-			if (!isNew && p.lineNumber) {
-				input.options.selection = {
+			if (!isNew && typeof p.lineNumber === 'number' && typeof p.columnNumber === 'number') {
+				input.options!.selection = {
 					startLineNumber: p.lineNumber,
 					startColumn: p.columnNumber
 				};
