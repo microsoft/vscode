@@ -27,7 +27,7 @@ class PartsSplash {
 	private readonly _disposables: IDisposable[] = [];
 
 	private _lastBaseTheme: string;
-	private _lastBackground: string;
+	private _lastBackground?: string;
 
 	constructor(
 		@IThemeService private readonly _themeService: IThemeService,
@@ -85,7 +85,7 @@ class PartsSplash {
 		}
 	}
 
-	private _getThemeColor(id: ColorIdentifier): string {
+	private _getThemeColor(id: ColorIdentifier): string | undefined {
 		const theme = this._themeService.getTheme();
 		const color = theme.getColor(id);
 		return color ? color.toString() : undefined;
