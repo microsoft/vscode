@@ -5,7 +5,7 @@
 
 export function pushAll<T>(to: T[], from: T[]) {
 	if (from) {
-		for (var i = 0; i < from.length; i++) {
+		for (let i = 0; i < from.length; i++) {
 			to.push(from[i]);
 		}
 	}

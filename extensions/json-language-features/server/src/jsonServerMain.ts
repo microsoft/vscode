@@ -180,7 +180,7 @@ let formatterRegistration: Thenable<Disposable> | null = null;
 
 // The settings have changed. Is send on server activation as well.
 connection.onDidChangeConfiguration((change) => {
-	var settings = <Settings>change.settings;
+	let settings = <Settings>change.settings;
 	configureHttpRequests(settings.http && settings.http.proxy, settings.http && settings.http.proxyStrictSSL);
 
 	jsonConfigurationSettings = settings.json && settings.json.schemas;
@@ -233,7 +233,7 @@ function updateConfiguration() {
 		schemas: new Array<SchemaConfiguration>()
 	};
 	if (schemaAssociations) {
-		for (var pattern in schemaAssociations) {
+		for (const pattern in schemaAssociations) {
 			const association = schemaAssociations[pattern];
 			if (Array.isArray(association)) {
 				association.forEach(uri => {

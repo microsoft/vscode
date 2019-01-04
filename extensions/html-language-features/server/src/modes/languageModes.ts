@@ -67,7 +67,7 @@ export interface LanguageModeRange extends Range {
 
 export function getLanguageModes(supportedLanguages: { [languageId: string]: boolean; }, workspace: Workspace, customTags?: ITagSet, customAttributes?: IAttributeSet): LanguageModes {
 
-	var htmlLanguageService = getHTMLLanguageService({
+	const htmlLanguageService = getHTMLLanguageService({
 		customTags,
 		customAttributes
 	});

@@ -295,8 +295,8 @@ export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined
 
 	let selectionsInReverseOrder = editor.selections.slice(0);
 	selectionsInReverseOrder.sort((a, b) => {
-		var posA = a.isReversed ? a.anchor : a.active;
-		var posB = b.isReversed ? b.anchor : b.active;
+		const posA = a.isReversed ? a.anchor : a.active;
+		const posB = b.isReversed ? b.anchor : b.active;
 		return posA.compareTo(posB) * -1;
 	});
 

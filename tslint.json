@@ -10,12 +10,9 @@
 		"no-eval": true,
 		"no-sparse-arrays": true,
 		"no-string-throw": true,
-		"no-unbound-method": [
-			true,
-			"ignore-static"
-		],
 		"no-unsafe-finally": true,
 		"no-unused-expression": true,
+		"no-var-keyword": true,
 		"curly": true,
 		"class-name": true,
 		"label-position": true,

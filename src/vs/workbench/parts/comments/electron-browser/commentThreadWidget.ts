@@ -189,7 +189,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 	}
 
 	protected _fillHead(container: HTMLElement): void {
-		var titleElement = dom.append(this._headElement, dom.$('.review-title'));
+		let titleElement = dom.append(this._headElement, dom.$('.review-title'));
 
 		this._headingLabel = dom.append(titleElement, dom.$('span.filename'));
 		this.createThreadLabel();
@@ -286,7 +286,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 		this._localToDispose.push(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
 		this._localToDispose.push(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
-		var headHeight = Math.ceil(this.editor.getConfiguration().lineHeight * 1.2);
+		let headHeight = Math.ceil(this.editor.getConfiguration().lineHeight * 1.2);
 		this._headElement.style.height = `${headHeight}px`;
 		this._headElement.style.lineHeight = this._headElement.style.height;
 

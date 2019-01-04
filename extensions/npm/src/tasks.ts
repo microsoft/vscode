@@ -343,7 +343,7 @@ export function startDebugging(scriptName: string, protocol: string, port: numbe
 export type StringMap = { [s: string]: string; };
 
 async function findAllScripts(buffer: string): Promise<StringMap> {
-	var scripts: StringMap = {};
+	let scripts: StringMap = {};
 	let script: string | undefined = undefined;
 	let inScripts = false;
 
@@ -380,7 +380,7 @@ async function findAllScripts(buffer: string): Promise<StringMap> {
 }
 
 export function findAllScriptRanges(buffer: string): Map<string, [number, number, string]> {
-	var scripts: Map<string, [number, number, string]> = new Map();
+	let scripts: Map<string, [number, number, string]> = new Map();
 	let script: string | undefined = undefined;
 	let offset: number;
 	let length: number;
@@ -469,8 +469,8 @@ export async function getScripts(packageJsonUri: Uri): Promise<StringMap | undef
 	}
 
 	try {
-		var contents = await readFile(packageJson);
-		var json = findAllScripts(contents);//JSON.parse(contents);
+		let contents = await readFile(packageJson);
+		let json = findAllScripts(contents);//JSON.parse(contents);
 		return json;
 	} catch (e) {
 		let localizedParseError = localize('npm.parseError', 'Npm task detection: failed to parse the file {0}', packageJsonUri.fsPath);

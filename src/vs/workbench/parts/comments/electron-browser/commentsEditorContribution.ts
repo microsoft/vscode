@@ -656,7 +656,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 export function getOuterEditor(accessor: ServicesAccessor): ICodeEditor {
-	let editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
+	const editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
 	if (editor instanceof EmbeddedCodeEditorWidget) {
 		return editor.getParentEditor();
 	}
@@ -664,13 +664,12 @@ export function getOuterEditor(accessor: ServicesAccessor): ICodeEditor {
 }
 
 function closeReviewPanel(accessor: ServicesAccessor, args: any) {
-	var outerEditor = getOuterEditor(accessor);
+	const outerEditor = getOuterEditor(accessor);
 	if (!outerEditor) {
 		return;
 	}
 
-	let controller = ReviewController.get(outerEditor);
-
+	const controller = ReviewController.get(outerEditor);
 	if (!controller) {
 		return;
 	}

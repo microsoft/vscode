@@ -18,7 +18,7 @@ export interface HTMLDocumentRegions {
 	getImportedScripts(): string[];
 }
 
-export var CSS_STYLE_RULE = '__';
+export const CSS_STYLE_RULE = '__';
 
 interface EmbeddedRegion { languageId: string | undefined; start: number; end: number; attributeValue?: boolean; }
 
