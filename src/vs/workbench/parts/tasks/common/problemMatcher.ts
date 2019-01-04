@@ -625,16 +625,15 @@ export namespace Config {
 
 	export namespace MultiLineCheckedProblemPattern {
 		export function is(value: any): value is MultiLineCheckedProblemPattern {
-			let is = false;
-			if (value && Types.isArray(value)) {
-				is = true;
-				value.forEach(element => {
-					if (!Config.CheckedProblemPattern.is(element)) {
-						is = false;
-					}
-				});
+			if (!MultiLineProblemPattern.is(value)) {
+				return false;
 			}
-			return is;
+			for (const element of value) {
+				if (!Config.CheckedProblemPattern.is(element)) {
+					return false;
+				}
+			}
+			return true;
 		}
 	}
 
