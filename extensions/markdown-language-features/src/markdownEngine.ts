@@ -100,11 +100,10 @@ export class MarkdownEngine {
 	private tokenize(document: SkinnyTextDocument, engine?: MarkdownIt): Token[] {
 		const UNICODE_NEWLINE_REGEX = /\u2028|\u2029/g;
 		const { text, offset } = this.stripFrontmatter(document.getText());
-		let tokens: Token[];
 		if (this.cachedTokens.has(document.uri)) {
-			tokens = this.cachedTokens.get(document.uri)!;
+			return this.cachedTokens.get(document.uri)!;
 		}
-		tokens = engine!.parse(text.replace(UNICODE_NEWLINE_REGEX, ''), {}).map(token => {
+		const tokens = engine!.parse(text.replace(UNICODE_NEWLINE_REGEX, ''), {}).map(token => {
 			if (token.map) {
 				token.map[0] += offset;
 				token.map[1] += offset;
