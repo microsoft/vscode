@@ -103,6 +103,15 @@ class CreateBranchItem implements QuickPickItem {
 	}
 }
 
+class HEADItem implements QuickPickItem {
+
+	constructor(private repository: Repository) { }
+
+	get label(): string { return 'HEAD'; }
+	get description(): string { return (this.repository.HEAD && this.repository.HEAD.commit || '').substr(0, 8); }
+	get alwaysShow(): boolean { return true; }
+}
+
 interface CommandOptions {
 	repository?: boolean;
 	diff?: boolean;
@@ -154,7 +163,7 @@ async function categorizeResourceByResolution(resources: Resource[]): Promise<{ 
 	return { merge, resolved, unresolved, deletionConflicts };
 }
 
-function repositoryRefsToItems(repository: Repository): Array<CheckoutItem> {
+function createCheckoutItems(repository: Repository): CheckoutItem[] {
 	const config = workspace.getConfiguration('git');
 	const checkoutType = config.get<string>('checkoutType') || 'all';
 	const includeTags = checkoutType === 'all' || checkoutType === 'tags';
@@ -170,7 +179,7 @@ function repositoryRefsToItems(repository: Repository): Array<CheckoutItem> {
 	return [...heads, ...tags, ...remoteHeads];
 }
 
-async function inputNameForBranch(): Promise<string> {
+async function getBranchNameFromUser(): Promise<string> {
 	const config = workspace.getConfiguration('git');
 	const branchWhitespaceChar = config.get<string>('branchWhitespaceChar')!;
 	const branchValidationRegex = config.get<string>('branchValidationRegex')!;
@@ -1437,7 +1446,7 @@ export class CommandCenter {
 		}
 		const createBranch = new CreateBranchItem(this);
 
-		const picks = [createBranch, ...repositoryRefsToItems(repository)];
+		const picks = [createBranch, ...createCheckoutItems(repository)];
 		const placeHolder = localize('select a ref to checkout', 'Select a ref to checkout');
 		const choice = await window.showQuickPick(picks, { placeHolder });
 
@@ -1450,27 +1459,22 @@ export class CommandCenter {
 	}
 
 	@command('git.branch', { repository: true })
-	async branch(repository: Repository, ref?: string): Promise<void> {
-		const name = await inputNameForBranch();
+	async branch(repository: Repository): Promise<void> {
+		const picks = [new HEADItem(repository), ...createCheckoutItems(repository)];
+		const placeHolder = localize('select a ref to create a new branch from', 'Select a ref to create a new branch from');
+		const target = await window.showQuickPick(picks, { placeHolder });
+
+		if (!target) {
+			return;
+		}
+
+		const name = await getBranchNameFromUser();
 
 		if (!name) {
 			return;
 		}
 
-		await repository.branch(name, true, ref);
-	}
-
-	@command('git.branchFrom', { repository: true })
-	async createBranchFrom(repository: Repository): Promise<void> {
-		const refs = repositoryRefsToItems(repository);
-		const placeHolder = localize('select a ref to create a new branch from', 'Select a ref to create a new branch from');
-		const choice = await window.showQuickPick(refs, { placeHolder });
-
-		if (!choice) {
-			return;
-		}
-
-		await this.branch(repository, choice.label);
+		await repository.branch(name, true, target.label);
 	}
 
 	@command('git.deleteBranch', { repository: true })
@@ -2010,7 +2014,7 @@ export class CommandCenter {
 						return Promise.resolve();
 					}
 
-					return Promise.resolve(method.apply(this, [repository, ...args.slice(1)]));
+					return Promise.resolve(method.apply(this, [repository, ...args]));
 				});
 			}
 
