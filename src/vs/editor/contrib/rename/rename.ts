@@ -27,6 +27,8 @@ import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 
 class RenameSkeleton {
 
@@ -92,7 +94,7 @@ export async function rename(model: ITextModel, position: Position, newName: str
 
 // ---  register actions and commands
 
-class RenameController implements IEditorContribution {
+class RenameController extends Disposable implements IEditorContribution {
 
 	private static readonly ID = 'editor.contrib.renameController';
 
@@ -101,6 +103,12 @@ class RenameController implements IEditorContribution {
 	}
 
 	private _renameInputField?: RenameInputField;
+	private _renameOperationIdPool = 1;
+
+	private _activeRename?: {
+		readonly id: number;
+		readonly operation: CancelablePromise<void>;
+	};
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -109,27 +117,38 @@ class RenameController implements IEditorContribution {
 		@IProgressService private readonly _progressService: IProgressService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IThemeService private readonly _themeService: IThemeService,
-	) { }
+	) {
+		super();
+		this._register(this.editor.onDidChangeModel(() => this.onModelChanged()));
+		this._register(this.editor.onDidChangeModelLanguage(() => this.onModelChanged()));
+		this._register(this.editor.onDidChangeCursorSelection(() => this.onModelChanged()));
+	}
 
 	private get renameInputField(): RenameInputField {
 		if (!this._renameInputField) {
-			this._renameInputField = new RenameInputField(this.editor, this._themeService, this._contextKeyService);
+			this._renameInputField = this._register(new RenameInputField(this.editor, this._themeService, this._contextKeyService));
 		}
 		return this._renameInputField;
-	}
-
-	dispose(): void {
-		if (this._renameInputField) {
-			this._renameInputField.dispose();
-		}
 	}
 
 	getId(): string {
 		return RenameController.ID;
 	}
 
-	async run(token: CancellationToken): Promise<void> {
+	async run(): Promise<void> {
+		if (this._activeRename) {
+			this._activeRename.operation.cancel();
+		}
 
+		const id = this._renameOperationIdPool++;
+		this._activeRename = {
+			id,
+			operation: createCancelablePromise(token => this.doRename(token, id))
+		};
+		return this._activeRename.operation;
+	}
+
+	private async doRename(token: CancellationToken, id: number): Promise<void> {
 		if (!this.editor.hasModel()) {
 			return undefined;
 		}
@@ -157,6 +176,10 @@ class RenameController implements IEditorContribution {
 
 		if (loc.rejectReason) {
 			MessageController.get(this.editor).showMessage(loc.rejectReason, position);
+			return undefined;
+		}
+
+		if (!this._activeRename || this._activeRename.id !== id) {
 			return undefined;
 		}
 
@@ -226,6 +249,13 @@ class RenameController implements IEditorContribution {
 			this._renameInputField.cancelInput(true);
 		}
 	}
+
+	private onModelChanged(): void {
+		if (this._activeRename) {
+			this._activeRename.operation.cancel();
+			this._activeRename = undefined;
+		}
+	}
 }
 
 // ---- action implementation
@@ -271,9 +301,9 @@ export class RenameAction extends EditorAction {
 	}
 
 	run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		let controller = RenameController.get(editor);
+		const controller = RenameController.get(editor);
 		if (controller) {
-			return Promise.resolve(controller.run(CancellationToken.None));
+			return controller.run();
 		}
 		return Promise.resolve();
 	}
