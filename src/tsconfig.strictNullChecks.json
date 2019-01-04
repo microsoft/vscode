@@ -527,6 +527,7 @@
 		"./vs/workbench/browser/parts/editor/baseEditor.ts",
 		"./vs/workbench/browser/parts/editor/binaryEditor.ts",
 		"./vs/workbench/browser/parts/editor/editor.ts",
+		"./vs/workbench/browser/parts/editor/editorControl.ts",
 		"./vs/workbench/browser/parts/editor/editorWidgets.ts",
 		"./vs/workbench/browser/parts/editor/rangeDecorations.ts",
 		"./vs/workbench/browser/parts/editor/resourceViewer.ts",

@@ -77,7 +77,7 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	 * The provided cancellation token should be used to test if the operation
 	 * was cancelled.
 	 */
-	setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
+	setInput(input: EditorInput, options: EditorOptions | null, token: CancellationToken): Promise<void> {
 		this._input = input;
 		this._options = options;
 
@@ -100,7 +100,7 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	 * Sets the given options to the editor. Clients should apply the options
 	 * to the current input.
 	 */
-	setOptions(options: EditorOptions): void {
+	setOptions(options: EditorOptions | null): void {
 		this._options = options;
 	}
 
