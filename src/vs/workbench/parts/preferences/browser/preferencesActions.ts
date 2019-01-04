@@ -52,24 +52,6 @@ export class OpenSettings2Action extends Action {
 	}
 }
 
-export class OpenSettingsAction extends Action {
-
-	static readonly ID = 'workbench.action.openSettings';
-	static readonly LABEL = nls.localize('openSettings', "Open Settings");
-
-	constructor(
-		id: string,
-		label: string,
-		@IPreferencesService private preferencesService: IPreferencesService
-	) {
-		super(id, label);
-	}
-
-	run(event?: any): Promise<any> {
-		return this.preferencesService.openSettings();
-	}
-}
-
 export class OpenSettingsJsonAction extends Action {
 
 	static readonly ID = 'workbench.action.openSettingsJson';
