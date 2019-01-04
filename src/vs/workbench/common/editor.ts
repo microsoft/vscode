@@ -81,7 +81,7 @@ export interface IEditor {
 	/**
 	 * An event to notify whenever minimum/maximum width/height changes.
 	 */
-	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; }>;
+	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; } | undefined>;
 
 	/**
 	 * Returns the unique identifier of this editor.

@@ -38,7 +38,7 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	readonly minimumHeight = DEFAULT_EDITOR_MIN_DIMENSIONS.height;
 	readonly maximumHeight = DEFAULT_EDITOR_MAX_DIMENSIONS.height;
 
-	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; }> = Event.None;
+	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; } | undefined> = Event.None;
 
 	protected _input: EditorInput | null;
 	protected _options: EditorOptions | null;
