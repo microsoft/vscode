@@ -249,7 +249,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 registerThemingParticipant((theme, collector) => {
 	let selectionColor = theme.getColor(selectionBackground);
 	if (selectionColor) {
-		selectionColor = selectionColor.transparent(.4);
+		selectionColor = selectionColor.transparent(0.4);
 	} else {
 		selectionColor = theme.getColor(editorSelectionBackground);
 	}
@@ -261,7 +261,7 @@ registerThemingParticipant((theme, collector) => {
 	// Override inactive selection bg
 	const inputBackgroundColor = theme.getColor(inputBackground);
 	if (inputBackground) {
-		collector.addRule(`.suggest-input-container .monaco-editor .selected-text { background-color: ${inputBackgroundColor.transparent(.4)}; }`);
+		collector.addRule(`.suggest-input-container .monaco-editor .selected-text { background-color: ${inputBackgroundColor.transparent(0.4)}; }`);
 	}
 
 	// Override selected fg

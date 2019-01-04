@@ -17,7 +17,7 @@ suite('Hash', () => {
 	});
 
 	test('number', () => {
-		assert.equal(hash(1), hash(1.0));
+		assert.equal(hash(1), hash(1));
 		assert.notEqual(hash(0), hash(1));
 		assert.notEqual(hash(1), hash(-1));
 		assert.notEqual(hash(0x12345678), hash(0x123456789));

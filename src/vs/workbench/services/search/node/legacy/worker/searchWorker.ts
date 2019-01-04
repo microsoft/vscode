@@ -61,8 +61,8 @@ interface IFileSearchResult {
 	limitReached?: boolean;
 }
 
-const LF = 0x0a;
-const CR = 0x0d;
+const LF = 0x0A;
+const CR = 0x0D;
 
 export class SearchWorkerEngine {
 	private nextSearch: Promise<any> = Promise.resolve(null);

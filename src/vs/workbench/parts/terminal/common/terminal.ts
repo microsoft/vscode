@@ -59,7 +59,7 @@ export const TERMINAL_CONFIG_SECTION = 'terminal.integrated';
 
 export const DEFAULT_LETTER_SPACING = 0;
 export const MINIMUM_LETTER_SPACING = -5;
-export const DEFAULT_LINE_HEIGHT = 1.0;
+export const DEFAULT_LINE_HEIGHT = 1;
 
 export type FontWeight = 'normal' | 'bold' | '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900';
 

@@ -772,7 +772,7 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 
 		let preferredItemsHeight: number;
 		if (this.layoutDimensions && this.layoutDimensions.height) {
-			preferredItemsHeight = (this.layoutDimensions.height - 50 /* subtract height of input field (30px) and some spacing (drop shadow) to fit */) * 0.40 /* max 40% of screen */;
+			preferredItemsHeight = (this.layoutDimensions.height - 50 /* subtract height of input field (30px) and some spacing (drop shadow) to fit */) * 0.4 /* max 40% of screen */;
 		}
 
 		if (!preferredItemsHeight || preferredItemsHeight > QuickOpenWidget.MAX_ITEMS_HEIGHT) {

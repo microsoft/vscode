@@ -529,10 +529,10 @@ export class TitlebarPart extends Part implements ITitleService {
 		if (getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
 			// Only prevent zooming behavior on macOS or when the menubar is not visible
 			if (isMacintosh || this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'hidden') {
-				this.title.style.zoom = `${1.0 / getZoomFactor()}`;
+				this.title.style.zoom = `${1 / getZoomFactor()}`;
 				if (isWindows || isLinux) {
-					this.appIcon.style.zoom = `${1.0 / getZoomFactor()}`;
-					this.windowControls.style.zoom = `${1.0 / getZoomFactor()}`;
+					this.appIcon.style.zoom = `${1 / getZoomFactor()}`;
+					this.windowControls.style.zoom = `${1 / getZoomFactor()}`;
 				}
 			} else {
 				this.title.style.zoom = null;

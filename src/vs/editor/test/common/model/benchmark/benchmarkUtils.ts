@@ -55,7 +55,7 @@ export class BenchmarkSuite {
 		for (const benchmark of this.benchmarks) {
 			let columns: string[] = [benchmark.name];
 			[new PieceTreeTextBufferBuilder()].forEach((builder: ITextBufferBuilder) => {
-				let timeDiffTotal = 0.0;
+				let timeDiffTotal = 0;
 				for (let j = 0; j < this.iterations; j++) {
 					let factory = benchmark.buildBuffer(builder);
 					let buffer = factory.create(DefaultEndOfLine.LF);

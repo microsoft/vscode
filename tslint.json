@@ -15,7 +15,7 @@
 		"no-unsafe-finally": true,
 		"no-unused-expression": true,
 		"no-var-keyword": true,
-		"typeof-compare": true,
+		"number-literal-format": true,
 		"curly": true,
 		"class-name": true,
 		"label-position": true,

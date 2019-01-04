@@ -67,7 +67,7 @@ export interface MemItem {
 
 export class LRUMemory extends Memory {
 
-	private _cache = new LRUCache<string, MemItem>(300, .66);
+	private _cache = new LRUCache<string, MemItem>(300, 0.66);
 	private _seq = 0;
 
 	memorize(model: ITextModel, pos: IPosition, item: CompletionItem): void {

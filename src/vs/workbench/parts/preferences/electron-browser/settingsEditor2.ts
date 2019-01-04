@@ -406,7 +406,7 @@ export class SettingsEditor2 extends BaseEditor {
 			let sourceTop = this.settingsTree.getRelativeTop(evt.source);
 			if (sourceTop < 0) {
 				// e.g. clicked a searched element, now the search has been cleared
-				sourceTop = .5;
+				sourceTop = 0.5;
 			}
 
 			this.settingsTree.reveal(elements[0], sourceTop);

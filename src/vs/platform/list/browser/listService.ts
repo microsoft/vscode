@@ -853,7 +853,7 @@ export class HighlightingWorkbenchTree extends WorkbenchTree {
 
 		this.refresh().then(() => {
 			if (topElement) {
-				this.reveal(topElement, .5).then(_ => {
+				this.reveal(topElement, 0.5).then(_ => {
 					this.setSelection([topElement], this);
 					this.setFocus(topElement, this);
 				});

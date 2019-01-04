@@ -414,7 +414,7 @@ class LeakageMonitor {
 		if (this._warnCountdown <= 0) {
 			// only warn on first exceed and then every time the limit
 			// is exceeded by 50% again
-			this._warnCountdown = threshold * .5;
+			this._warnCountdown = threshold * 0.5;
 
 			// find most frequent listener and print warning
 			let topStack: string;

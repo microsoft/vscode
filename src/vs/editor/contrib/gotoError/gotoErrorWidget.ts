@@ -115,7 +115,7 @@ class MessageWidget {
 
 		dom.clearNode(this._relatedBlock);
 		if (isNonEmptyArray(relatedInformation)) {
-			this._relatedBlock.style.paddingTop = `${Math.floor(this._editor.getConfiguration().lineHeight * .66)}px`;
+			this._relatedBlock.style.paddingTop = `${Math.floor(this._editor.getConfiguration().lineHeight * 0.66)}px`;
 			this._lines += 1;
 
 			for (const related of relatedInformation) {

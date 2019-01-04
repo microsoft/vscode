@@ -344,7 +344,7 @@ export function createScanner(text: string, ignoreTrivia: boolean = false): JSON
 				start = pos;
 				continue;
 			}
-			if (ch >= 0 && ch <= 0x1f) {
+			if (ch >= 0 && ch <= 0x1F) {
 				if (isLineBreak(ch)) {
 					result += text.substring(start, pos);
 					scanError = ScanError.UnexpectedEndOfString;
@@ -668,7 +668,7 @@ const enum CharacterCodes {
 	W = 0x57,
 	X = 0x58,
 	Y = 0x59,
-	Z = 0x5a,
+	Z = 0x5A,
 
 	ampersand = 0x26,             // &
 	asterisk = 0x2A,              // *

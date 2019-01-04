@@ -50,7 +50,7 @@ export function generateRandomEdits(chunks: string[], editCnt: number): IIdentif
 		let startColumn = getRandomInt(1, Math.max(lines[line - 1].length, 1));
 		let endColumn = getRandomInt(startColumn, Math.max(lines[line - 1].length, startColumn));
 		let text: string = '';
-		if (Math.random() < .5) {
+		if (Math.random() < 0.5) {
 			text = getRandomString(5, 10);
 		}
 
@@ -82,7 +82,7 @@ export function generateSequentialInserts(chunks: string[], editCnt: number): II
 		let line = lines.length;
 		let column = lines[line - 1].length + 1;
 		let text: string = '';
-		if (Math.random() < .5) {
+		if (Math.random() < 0.5) {
 			text = '\n';
 			lines.push('');
 		} else {
