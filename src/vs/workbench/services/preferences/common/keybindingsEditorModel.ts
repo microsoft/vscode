@@ -227,7 +227,9 @@ export class KeybindingsEditorModel extends EditorModel {
 	private static getCommandDefaultLabel(menuCommand: ICommandAction, workbenchActionsRegistry: IWorkbenchActionRegistry): string {
 		if (language !== LANGUAGE_DEFAULT) {
 			if (menuCommand && menuCommand.title && (<ILocalizedString>menuCommand.title).original) {
-				return (<ILocalizedString>menuCommand.title).original;
+				const category: string | undefined = menuCommand.category ? (<ILocalizedString>menuCommand.category).original : undefined;
+				const title = (<ILocalizedString>menuCommand.title).original;
+				return category ? localize('cat.title', "{0}: {1}", category, title) : title;
 			}
 		}
 		return null;
@@ -235,12 +237,9 @@ export class KeybindingsEditorModel extends EditorModel {
 
 	private static getCommandLabel(menuCommand: ICommandAction, editorActionLabel: string): string {
 		if (menuCommand) {
-			let category;
-			if (menuCommand.category) {
-				category = typeof menuCommand.category === 'string' ? menuCommand.category : menuCommand.category.value;
-			}
+			const category: string | undefined = menuCommand.category ? typeof menuCommand.category === 'string' ? menuCommand.category : menuCommand.category.value : undefined;
 			const title = typeof menuCommand.title === 'string' ? menuCommand.title : menuCommand.title.value;
-			return category ? `${category}: ${title}` : title;
+			return category ? localize('cat.title', "{0}: {1}", category, title) : title;
 		}
 
 		if (editorActionLabel) {
